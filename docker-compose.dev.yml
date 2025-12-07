@@ -1,0 +1,38 @@
+services:
+
+  postgis_db:
+    image: postgis/postgis:18-3.6
+    restart: always
+    # Shared memory for PostgreSQL IPC (should be >= shared_buffers)
+    shm_size: 256mb
+    environment:
+      POSTGRES_USER: geouser
+      POSTGRES_PASSWORD: geopass
+      POSTGRES_DB: geometrikks
+    ports:
+      - 5432:5432
+    networks:
+      - database_net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U geouser -d geometrikks"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    restart: always
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@local
+      PGADMIN_DEFAULT_PASSWORD: admin
+      PGADMIN_CONFIG_SERVER_MODE: "False"
+    ports:
+      - 8080:80
+    networks:
+      - database_net
+    depends_on:
+      - postgis_db
+
+networks:
+  database_net:
+    driver: bridge
