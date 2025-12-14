@@ -4,7 +4,7 @@ import re
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from geometrikks.db.models import GeoEvent, AccessLog
+    from geometrikks.domain import GeoEvent, AccessLog
 
 
 @dataclass

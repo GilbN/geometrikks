@@ -4,6 +4,11 @@
 
 - [] make the fucking api...
 - [] Validate log line endpoint ?
+- [] Manual IP lookup (Use geoip reader)
+
+## Parser
+
+- [] Create a LogIngestionService that orchestrates LogParser + repositories
 
 ## Frontend
 
@@ -12,6 +17,8 @@
 ## Backend
 
 - [x] Get backend up and running
+- [x] Add logs repositories
+- [x] Add logs controllers
 
 ## Database
 
