@@ -7,10 +7,11 @@ from pathlib import Path
 
 import aiofiles.os
 
-from geometrikks.logparser.constants import ipv4_pattern, ipv6_pattern
-from geometrikks.logparser.logparser import LogParser
-from geometrikks.db.models import AccessLog
-from geometrikks.db.models import GeoLocation
+from geometrikks.services.logparser.constants import ipv4_pattern, ipv6_pattern
+from geometrikks.services.logparser.logparser import LogParser
+from geometrikks.services.logparser.schemas import ParsedAccessLog
+from geometrikks.domain.logs.models import AccessLog
+from geometrikks.domain.geo.models import GeoLocation
 from geohash2 import encode as gh_encode
 
 os.environ["GEOIP_DB_PATH"] = "tests/GeoLite2-City.mmdb"
@@ -238,8 +239,8 @@ def test_create_access_log_sqlalchemy_success(log_parser: LogParser) -> None:
     # Patch the instance attribute directly
     log_parser.geoip_reader.city = lambda ip: IPData()
 
-    access_log = log_parser.create_access_log(match, match.group(1))
-    assert isinstance(access_log, AccessLog)
+    access_log = log_parser._parse_access_log(match, match.group(1))
+    assert isinstance(access_log, ParsedAccessLog)
     assert access_log.country_code == "US"
     assert access_log.city in ("Test City", None)
     assert access_log.bytes_sent >= 0
@@ -260,7 +261,7 @@ def test_create_access_log_sqlalchemy_geoip_failure(log_parser: LogParser, monke
     def raise_exc(_ip):
         raise RuntimeError("geo lookup error")
     log_parser.geoip_reader.city = raise_exc
-    assert log_parser.create_access_log(match, match.group(1)) is None
+    assert log_parser._parse_access_log(match, match.group(1)) is None
 
 
 @pytest.mark.asyncio
@@ -274,10 +275,10 @@ async def test_iter_log_events_async_unmatched(tmp_path: Path, log_parser: LogPa
     # Set stop event so we don't loop forever
     log_parser._stop_event = asyncio.Event()
 
-    gen = log_parser.iter_log_events_async(skip_validation=True, start_at_end=False)
+    gen = log_parser.iter_parsed_records(skip_validation=True, start_at_end=False)
     record = await gen.__anext__()
-    assert record.matched is None
-    assert record.ip is None
+    assert record.ip_address is None
+    assert record.geo_data is None
     assert record.access_log is None
     assert isinstance(record.raw_line, str)
     assert log_parser.skipped_lines_count() >= 1
@@ -322,11 +323,12 @@ async def test_iter_log_events_async_matched(tmp_path: Path, log_parser: LogPars
     # Set stop event so we don't loop forever
     log_parser._stop_event = asyncio.Event()
 
-    gen = log_parser.iter_log_events_async(skip_validation=True, start_at_end=False)
+    gen = log_parser.iter_parsed_records(skip_validation=True, start_at_end=False)
     record = await gen.__anext__()
-    assert record.matched is not None
-    assert isinstance(record.ip, str)
+    assert record.ip_address is not None
+    assert record.geo_data is not None
     assert record.access_log is not None
+    assert isinstance(record.ip_address, str)
     assert log_parser.parsed_lines_count() >= 1
 
 
@@ -375,64 +377,18 @@ async def test_iter_log_events_async_rotation_restart(tmp_path: Path, log_parser
     # Set stop event so we don't loop forever
     log_parser._stop_event = asyncio.Event()
 
-    gen = log_parser.iter_log_events_async(skip_validation=True, start_at_end=False)
+    gen = log_parser.iter_parsed_records(skip_validation=True, start_at_end=False)
     # First __anext__() triggers rotation and restart; subsequent yield should still produce records
     record = await gen.__anext__()
-    assert record.matched is not None
+    assert record.ip_address is not None
     assert record.access_log is not None
 
 
-@pytest.mark.asyncio
-async def test_upsert_geo_location_inserts_and_caches(log_parser: LogParser, monkeypatch) -> None:
-    """upsert_geo_location inserts on first call and uses cache thereafter."""
-    # Fake session to capture add/flush
-    class FakeSession:
-        def __init__(self):
-            self.added = []
-            self.flush_calls = 0
-        def add(self, obj):
-            self.added.append(obj)
-        async def flush(self):
-            self.flush_calls += 1
-
-    # Ensure DB lookup returns no existing row (async stub)
-    async def _fake_by_geohash(cls, gh, session):
-        return None
-    monkeypatch.setattr(GeoLocation, "by_geo_hash_async", classmethod(_fake_by_geohash))
-
-    # Stub GeoIP reader
-    class Country: iso_code = "US"; name = "United States"
-    class City: name = "Test City"
-    class SubdivMS: name = "-"; iso_code = "-"
-    class Subdiv: most_specific = SubdivMS()
-    class Postal: code = "12345"
-    class Location: latitude = 37.751; longitude = -97.822; time_zone = "UTC"
-    class IPData:
-        country = Country(); city = City(); subdivisions = Subdiv(); postal = Postal(); location = Location()
-    log_parser.geoip_reader.city = lambda ip: IPData()
-
-    session = FakeSession()
-    # First call inserts
-    loc1 = await log_parser.upsert_geo_location(session, "52.53.54.55")
-    assert isinstance(loc1, GeoLocation)
-    assert session.added and session.flush_calls == 1
-    assert loc1.country_code == "US"
-    assert loc1.geohash == gh_encode(37.751, -97.822)
-
-    # Second call with same IP uses cache (no new add/flush)
-    loc2 = await log_parser.upsert_geo_location(session, "52.53.54.55")
-    assert loc2 is loc1
-    assert len(session.added) == 1
-    assert session.flush_calls == 1
-
-
-def test_create_geo_event_sqlalchemy_basic(log_parser: LogParser) -> None:
-    """create_geo_event_sqlalchemy builds a GeoEvent with expected fields."""
+def test_parse_geo_data(log_parser: LogParser) -> None:
+    """_parse_geo_data builds a ParsedGeoData object with expected fields."""
     # Minimal GeoLocation with id
     location = GeoLocation(
         geohash=gh_encode(37.751, -97.822),
-        latitude=37.751,
-        longitude=-97.822,
         country_code="US",
         country_name="United States",
         state="-",
@@ -441,9 +397,6 @@ def test_create_geo_event_sqlalchemy_basic(log_parser: LogParser) -> None:
         postal_code="12345",
         timezone="UTC",
     )
-    # Manually assign id as would be after flush
-    setattr(location, "id", 1)
-    evt = log_parser.create_geo_event("52.53.54.55", location)
-    assert evt.ip_address == "52.53.54.55"
-    assert evt.location_id == 1
-    assert evt.hostname == log_parser.hostname
+    parsed = log_parser._parse_geo_data("52.53.54.55")
+    assert parsed.country_code == location.country_code
+    assert parsed.country_name == location.country_name

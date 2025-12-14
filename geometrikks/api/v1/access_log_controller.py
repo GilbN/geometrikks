@@ -8,7 +8,7 @@ from litestar.status_codes import HTTP_201_CREATED, HTTP_204_NO_CONTENT
 from litestar.plugins.sqlalchemy import filters
 
 from geometrikks.domain.logs.models import AccessLog
-from geometrikks.domain.logs.repositories import AccesLogRepository
+from geometrikks.domain.logs.repositories import AccessLogRepository
 from geometrikks.domain.logs.dtos import AccessLogDTO
 
 from geometrikks.api.dependencies import provide_access_log_repo
@@ -29,7 +29,7 @@ class AccessLogController(Controller):
     @get("/")
     async def list_access_logs(
         self,
-        access_log_repo: AccesLogRepository,
+        access_log_repo: AccessLogRepository,
         limit_offset: filters.LimitOffset,
     ) -> OffsetPagination[AccessLog]:
         """List all access logs with pagination."""

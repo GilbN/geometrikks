@@ -1,5 +1,5 @@
 {
-    "python-envs.defaultEnvManager": "ms-python.python:.venv",
+    "python-envs.defaultEnvManager": "ms-python.python:venv",
     "python-envs.pythonProjects": [],
     "python.testing.pytestArgs": [
         "tests"

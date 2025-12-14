@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from typing import Optional, Annotated
+from typing import Optional
 
 from sqlalchemy import (
     Float,
@@ -8,21 +8,15 @@ from sqlalchemy import (
     Index,
     ForeignKey,
     UniqueConstraint,
-    select,
 )
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.dialects import postgresql
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from advanced_alchemy.types import DateTimeUTC
 from advanced_alchemy.extensions.litestar import base
+from geoalchemy2 import Geography
 from litestar.dto import dto_field
 
-from geoalchemy2 import Geography
-from geoalchemy2.functions import ST_SetSRID, ST_MakePoint
-
-
-WGS84_SRID = 4326  # Standard GPS coordinate system
-
+from geometrikks.domain.geo.utils import WGS84_SRID
 
 class GeoLocation(base.BigIntAuditBase):
     """Normalized geo-location data to avoid duplication.
@@ -69,19 +63,6 @@ class GeoLocation(base.BigIntAuditBase):
 
     def __repr__(self) -> str:
         return f"<GeoLocation(id={self.id}, geohash={self.geohash}, country={self.country_code}, city={self.city})>"
-
-    @classmethod  # TODO: Cache this method
-    async def by_geo_hash_async(
-        cls, geohash: str, session: AsyncSession
-    ) -> Optional["GeoLocation"]:
-        """Retrieve a GeoLocation by its geohash."""
-        result = await session.execute(select(cls).where(cls.geohash == geohash))
-        return result.scalar_one_or_none()
-
-    @classmethod
-    def make_point(cls, latitude: float, longitude: float):
-        "Create a PostGIS POINT from latitude and longitude."
-        return ST_SetSRID(ST_MakePoint(longitude, latitude), WGS84_SRID)
 
 
 class GeoEvent(base.BigIntBase):
