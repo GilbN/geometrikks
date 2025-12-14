@@ -36,7 +36,7 @@ class AccessLog(base.BigIntBase):
     
     # Request metadata
     ip_address: Mapped[str] = mapped_column(postgresql.INET, nullable=False)
-    remote_user: Mapped[str] = mapped_column(String(100), nullable=False, default="-")
+    remote_user: Mapped[str] = mapped_column(String(100), nullable=True)
     
     # HTTP request details
     # Some malformed TLS-handshake lines won't have method/url/http_version

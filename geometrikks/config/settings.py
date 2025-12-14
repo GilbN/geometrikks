@@ -30,6 +30,7 @@ class DatabaseSettings(BaseSettings):
     host: str = Field(default="localhost", description="Database host")
     port: int = Field(default=5432, description="Database port")
     database: str = Field(default="geometrikks", description="Database name")
+    drop_on_startup: bool = Field(default=False, description="Drop all tables on startup (development only)")
     
     @property
     def url(self) -> str:

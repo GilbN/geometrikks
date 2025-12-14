@@ -8,7 +8,7 @@
 
 ## Parser
 
-- [] Create a LogIngestionService that orchestrates LogParser + repositories
+- [x] Create a LogIngestionService that orchestrates LogParser + repositories
 
 ## Frontend
 
