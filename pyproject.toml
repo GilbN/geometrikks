@@ -15,6 +15,7 @@ dependencies = [
     "httpx-oauth>=0.16.1",
     "aiofiles>=25.1.0",
     "geoalchemy2>=0.18.1",
+    "litestar-geoalchemy>=0.1.0",
 ]
 
 [dependency-groups]

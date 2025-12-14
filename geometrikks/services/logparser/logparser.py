@@ -28,7 +28,7 @@ from .constants import (
     GEOIP_LOCALES_DEFAULT,
 )
 from .dataclasses import ParsedOrmRecord
-from geometrikks.db.models import AccessLog, AccessLogDebug, GeoEvent, GeoLocation
+from geometrikks.domain import AccessLog, AccessLogDebug, GeoEvent, GeoLocation
 
 
 logger = logging.getLogger(__name__)
@@ -685,45 +685,54 @@ class LogParser:
         Returns the GeoLocation instance or None if lookup fails.
         Safe to call repeatedly; uses geohash uniqueness to prevent duplicates.
         """
-        if not self.check_ip_type(ip):
-            return None
         try:
-            ip_data = self.geoip_reader.city(ip)
+            if not self.check_ip_type(ip):
+                return None
+            try:
+                ip_data = self.geoip_reader.city(ip)
+            except Exception as e:
+                logger.debug("GeoIP lookup failed for %s: %s", ip, e)
+                return None
+            if not ip_data:
+                logger.debug("No GeoIP data found for IP %s", ip)
+                return None
+            if not ip_data.location.latitude or not ip_data.location.longitude:
+                logger.debug("GeoIP lat/long missing for %s. Database possibly outdated", ip)
+                return None
+            logger.debug("Encoding geohash for IP %s: lat=%s, long=%s. ipdata=%s", ip, ip_data.location.latitude, ip_data.location.longitude, str(ip_data))
+            
+            geohash = encode(ip_data.location.latitude, ip_data.location.longitude)
+
+            # Check in-memory cache first
+            if cached := self._geolocation_cache.get(geohash):
+                return cached
+            
+            if len(self._geolocation_cache) >= self._cache_maxsize:
+                # Evict oldest (first inserted)
+                self._geolocation_cache.pop(next(iter(self._geolocation_cache)))
+        
+            if existing := await GeoLocation.by_geo_hash_async(geohash, session):
+                self._geolocation_cache[geohash] = existing
+                return existing
+            
+            location = GeoLocation(
+                geohash=geohash,
+                latitude=ip_data.location.latitude,
+                longitude=ip_data.location.longitude,
+                country_code=ip_data.country.iso_code,
+                country_name=ip_data.country.name,
+                state=ip_data.subdivisions.most_specific.name,
+                state_code=ip_data.subdivisions.most_specific.iso_code,
+                city=ip_data.city.name,
+                postal_code=ip_data.postal.code,
+                timezone=ip_data.location.time_zone,
+                geographic_point=GeoLocation.make_point(ip_data.location.latitude, ip_data.location.longitude), # type: ignore # lat/long is not nullable
+            )
+            session.add(location)
+            await session.flush()  # assign primary key
+            
+            self._geolocation_cache[geohash] = location
+            return location
         except Exception as e:
-            logger.debug("GeoIP lookup failed for %s: %s", ip, e)
+            logger.debug("Error upserting GeoLocation for %s: %s", ip, e)
             return None
-        if not ip_data:
-            return None
-        
-        geohash = encode(ip_data.location.latitude, ip_data.location.longitude)
-        
-        # Check in-memory cache first
-        if cached := self._geolocation_cache.get(geohash):
-            return cached
-        
-        if len(self._geolocation_cache) >= self._cache_maxsize:
-            # Evict oldest (first inserted)
-            self._geolocation_cache.pop(next(iter(self._geolocation_cache)))
-    
-        if existing := await GeoLocation.by_geo_hash_async(geohash, session):
-            self._geolocation_cache[geohash] = existing
-            return existing
-        
-        location = GeoLocation(
-            geohash=geohash,
-            latitude=ip_data.location.latitude,
-            longitude=ip_data.location.longitude,
-            country_code=ip_data.country.iso_code,
-            country_name=ip_data.country.name,
-            state=ip_data.subdivisions.most_specific.name,
-            state_code=ip_data.subdivisions.most_specific.iso_code,
-            city=ip_data.city.name,
-            postal_code=ip_data.postal.code,
-            timezone=ip_data.location.time_zone,
-            geographic_point=GeoLocation.make_point(ip_data.location.latitude, ip_data.location.longitude), # type: ignore # lat/long is not nullable
-        )
-        session.add(location)
-        await session.flush()  # assign primary key
-        
-        self._geolocation_cache[geohash] = location
-        return location

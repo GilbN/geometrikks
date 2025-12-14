@@ -5,7 +5,7 @@ from typing import Literal
 
 from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from geometrikks.logparser.constants import ALLOWED_GEOIP_LOCALES
+from geometrikks.services.logparser.constants import ALLOWED_GEOIP_LOCALES
 
 
 class DatabaseSettings(BaseSettings):

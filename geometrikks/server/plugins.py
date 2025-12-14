@@ -12,7 +12,9 @@ from advanced_alchemy.extensions.litestar import (
     base
 )
 
-from geometrikks.logparser import LogParser
+from litestar_geoalchemy import GeoAlchemyPlugin
+
+from geometrikks.services.logparser import LogParser
 from geometrikks.config.settings import get_settings
 
 settings = get_settings()
@@ -58,3 +60,5 @@ logging_config = LoggingConfig(
     },
     log_exceptions="always",
 )
+
+geoalchemy_plugin = GeoAlchemyPlugin()

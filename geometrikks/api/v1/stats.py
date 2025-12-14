@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from geometrikks.logparser import LogParser
+from geometrikks.services.logparser import LogParser
 from typing import Any
 from litestar import get
 from geometrikks.config.settings import get_settings
