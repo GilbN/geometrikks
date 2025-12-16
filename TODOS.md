@@ -56,6 +56,13 @@ https://github.com/maptiler/tileserver-gl?tab=readme-ov-file
 https://github.com/maplibre/martin
 https://python-visualization.github.io/folium/latest/index.html
 
+https://www.amcharts.com/javascript-maps/
+https://geojson.org/
+https://geojson.io/#map=2/43.71/19.3
+https://github.com/joewdavies/awesome-frontend-gis
+https://leafletjs.com/examples/geojson/
+https://www.reddit.com/r/Python/s/N8otzTDgGG
+
 ## Caching
 
 ### Redis Cache
