@@ -65,7 +65,7 @@ sqlalchemy_plugin = SQLAlchemyInitPlugin(config=sqlalchemy_config)
 
 # Logging configuration
 logging_config = LoggingConfig(
-    root={"level": "DEBUG", "handlers": ["queue_listener"]},
+    root={"level": settings.api.log_level, "handlers": ["queue_listener"]},
     formatters={
         "standard": {"format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s"}
     },

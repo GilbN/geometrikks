@@ -6,6 +6,8 @@ from __future__ import annotations
 from litestar import Litestar
 from litestar.di import Provide
 from litestar.openapi import OpenAPIConfig
+from litestar.config.compression import CompressionConfig
+from litestar.middleware.logging import LoggingMiddlewareConfig
 
 from geometrikks.config.settings import get_settings
 from geometrikks.server.plugins import logging_config, geoalchemy_plugin, sqlalchemy_plugin
@@ -37,6 +39,17 @@ def create_app() -> Litestar:
         description=settings.description,
         create_examples=True,
     )
+    
+    compression_config = CompressionConfig(
+        backend="brotli",
+        minimum_size=1000,  # Only compress responses >= 1KB
+        brotli_quality=4,
+        exclude=[
+            r"^/ws/.*",  # Exclude WebSocket endpoints
+        ],
+    )
+    
+    logging_middleware_config = LoggingMiddlewareConfig()
 
     # Create app with configuration
     app = Litestar(
@@ -51,7 +64,9 @@ def create_app() -> Litestar:
             "transaction": provide_transaction,
         },
         logging_config=logging_config,
-        openapi_config=openapi_config
+        openapi_config=openapi_config,
+        compression_config=compression_config,
+        middleware=[logging_middleware_config.middleware],
     )
 
     return app

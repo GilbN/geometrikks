@@ -99,8 +99,8 @@ class APISettings(BaseSettings):
     port: int = Field(default=8000, description="API server port")
     workers: int = Field(default=5, description="Number of worker processes")
     reload: bool = Field(default=False, description="Enable auto-reload on code changes")
-    log_level: Literal["debug", "info", "warning", "error", "critical"] = Field(
-        default="info",
+    log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = Field(
+        default="INFO",
         description="Logging level",
     )
 
