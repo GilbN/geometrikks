@@ -1,9 +1,21 @@
 """Repositories for geo-location and geo-event data access."""
 from __future__ import annotations
 
+from dataclasses import dataclass
+from datetime import datetime
+
+from sqlalchemy import select, func
 from advanced_alchemy.repository import SQLAlchemyAsyncRepository
 
 from geometrikks.domain.geo.models import GeoLocation, GeoEvent
+
+
+@dataclass
+class LocationWithEventCount:
+    """GeoLocation with aggregated event count."""
+
+    location: GeoLocation
+    event_count: int
 
 
 class GeoLocationRepository(SQLAlchemyAsyncRepository[GeoLocation]):
@@ -32,6 +44,38 @@ class GeoLocationRepository(SQLAlchemyAsyncRepository[GeoLocation]):
             List of GeoLocation instances matching the country code.
         """
         return await self.list(country_code=country_code)
+
+    async def get_all_with_event_counts(self, from_timestamp: datetime, to_timestamp: datetime) -> list[LocationWithEventCount]:
+        """Retrieve all GeoLocations with their associated event counts.
+
+        Performs a LEFT JOIN with GeoEvent to count events per location.
+
+        Returns:
+            list[LocationWithEventCount]: List of LocationWithEventCount containing location and event count.
+            
+        Args:
+            from_timestamp: Start datetime for filtering events.
+            to_timestamp: End datetime for filtering events.
+        
+        Raises:
+            ValueError: If from_timestamp or to_timestamp are not timezone-aware datetimes.
+        """
+        if not isinstance(from_timestamp, datetime) or not isinstance(to_timestamp, datetime):
+            raise ValueError("from_timestamp and to_timestamp must be datetime instances")
+        if not from_timestamp.tzinfo or not to_timestamp.tzinfo:
+            raise ValueError("from_timestamp and to_timestamp must be timezone-aware")
+        stmt = (
+            select(GeoLocation, func.count(GeoEvent.id).label("event_count"))
+            .outerjoin(GeoEvent, GeoLocation.id == GeoEvent.location_id)
+            .group_by(GeoLocation.id)
+            .order_by(func.count(GeoEvent.id).desc())
+            .where(GeoEvent.timestamp.between(from_timestamp, to_timestamp))
+        )
+        result = await self.session.execute(stmt)
+        return [
+            LocationWithEventCount(location=row[0], event_count=row[1])
+            for row in result.all()
+        ]
 
 
 class GeoEventRepository(SQLAlchemyAsyncRepository[GeoEvent]):
