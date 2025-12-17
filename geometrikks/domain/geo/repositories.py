@@ -15,6 +15,8 @@ class LocationWithEventCount:
     """GeoLocation with aggregated event count."""
 
     location: GeoLocation
+    ip_address: str | None
+    hostname: str | None
     event_count: int
 
 
@@ -65,15 +67,15 @@ class GeoLocationRepository(SQLAlchemyAsyncRepository[GeoLocation]):
         if not from_timestamp.tzinfo or not to_timestamp.tzinfo:
             raise ValueError("from_timestamp and to_timestamp must be timezone-aware")
         stmt = (
-            select(GeoLocation, func.count(GeoEvent.id).label("event_count"))
+            select(GeoLocation, GeoEvent.ip_address, GeoEvent.hostname, func.count(GeoEvent.id).label("event_count"))
             .outerjoin(GeoEvent, GeoLocation.id == GeoEvent.location_id)
-            .group_by(GeoLocation.id)
+            .group_by(GeoLocation.id, GeoEvent.ip_address, GeoEvent.hostname)
             .order_by(func.count(GeoEvent.id).desc())
             .where(GeoEvent.timestamp.between(from_timestamp, to_timestamp))
         )
         result = await self.session.execute(stmt)
         return [
-            LocationWithEventCount(location=row[0], event_count=row[1])
+            LocationWithEventCount(location=row[0], ip_address=row[1], hostname=row[2], event_count=row[3])
             for row in result.all()
         ]
 

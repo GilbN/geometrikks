@@ -43,6 +43,8 @@ class GeoJSONFeatureProperties:
     city: str | None
     postal_code: str | None
     timezone: str | None
+    ip_address: str | None
+    hostname: str | None
     event_count: int
 
 
