@@ -218,3 +218,12 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Copilot, Claude, Gemini (AI/LLM tools)
+.copilot/
+claude/
+.claude/
+.gemini/
+.gemini*
+
+CLAUDE.md

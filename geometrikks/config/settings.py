@@ -140,6 +140,33 @@ class LogParserSettings(BaseSettings):
         description="Store all raw log lines in AccessLogDebug table. When False, only malformed requests are stored.",
     )
 
+
+class AnalyticsSettings(BaseSettings):
+    """Analytics and aggregation configuration settings."""
+
+    model_config = SettingsConfigDict(env_prefix="ANALYTICS_", env_file=".env", extra="ignore")
+
+    hourly_retention_days: int = Field(
+        default=30,
+        description="Number of days to keep hourly stats before cleanup",
+    )
+    enable_daily_rollup: bool = Field(
+        default=True,
+        description="Enable automatic daily rollup from hourly stats at midnight",
+    )
+    enable_real_time: bool = Field(
+        default=True,
+        description="Enable real-time aggregation during log ingestion",
+    )
+    top_ips_limit: int = Field(
+        default=1000,
+        description="Maximum number of top IPs to track per day",
+    )
+    top_urls_limit: int = Field(
+        default=500,
+        description="Maximum number of top URLs to track per day",
+    )
+
 class Settings(BaseSettings):
     """Main application settings.
     
@@ -185,6 +212,7 @@ class Settings(BaseSettings):
     database: DatabaseSettings = Field(default_factory=DatabaseSettings)
     geoip: GeoIPSettings = Field(default_factory=GeoIPSettings)
     logparser: LogParserSettings = Field(default_factory=LogParserSettings)
+    analytics: AnalyticsSettings = Field(default_factory=AnalyticsSettings)
 
     @property
     def is_production(self) -> bool:

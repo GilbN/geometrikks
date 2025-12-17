@@ -14,6 +14,8 @@ from geometrikks.server.plugins import parser, sqlalchemy_config
 
 from geometrikks.domain.geo.repositories import GeoLocationRepository, GeoEventRepository
 from geometrikks.domain.logs.repositories import AccessLogRepository, AccessLogDebugRepository
+from geometrikks.domain.analytics.repositories import HourlyStatsRepository, DailyStatsRepository
+from geometrikks.domain.analytics.service import AggregationService
 from geometrikks.services.ingestion import LogIngestionService
 
 if TYPE_CHECKING:
@@ -64,6 +66,17 @@ async def on_startup(app: "Litestar") -> None:
     access_log_repo = AccessLogRepository(session=ingestion_session)
     access_log_debug_repo = AccessLogDebugRepository(session=ingestion_session)
 
+    # Create analytics repositories and aggregation service
+    hourly_stats_repo = HourlyStatsRepository(session=ingestion_session)
+    daily_stats_repo = DailyStatsRepository(session=ingestion_session)
+
+    aggregation_service = AggregationService(
+        hourly_stats_repo=hourly_stats_repo,
+        daily_stats_repo=daily_stats_repo,
+        hourly_retention_days=settings.analytics.hourly_retention_days,
+        enable_daily_rollup=settings.analytics.enable_daily_rollup,
+    )
+
     ingestion_service = LogIngestionService(
         parser=parser,
         geo_location_repo=geo_location_repo,
@@ -73,26 +86,39 @@ async def on_startup(app: "Litestar") -> None:
         batch_size=settings.logparser.batch_size,
         commit_interval=settings.logparser.commit_interval,
         store_debug_lines=settings.logparser.store_debug_lines,
+        aggregation_service=aggregation_service,
     )
 
     # Store in app state for shutdown and API access
     app.state.ingestion_service = ingestion_service
+    app.state.aggregation_service = aggregation_service
     app.state.ingestion_session = ingestion_session
 
+    # Start services
+    await aggregation_service.start()
     await ingestion_service.start(
         skip_validation=settings.logparser.skip_validation,
     )
 
 
 async def on_shutdown(app: "Litestar") -> None:
-    """Gracefully stop background ingestion and clean up resources."""
+    """Gracefully stop background services and clean up resources."""
 
+    # Stop ingestion service first (it depends on aggregation service)
     ingestion_service: LogIngestionService | None = getattr(
         app.state, "ingestion_service", None
     )
     if ingestion_service:
         await ingestion_service.stop(timeout=5.0)
 
+    # Stop aggregation service
+    aggregation_service: AggregationService | None = getattr(
+        app.state, "aggregation_service", None
+    )
+    if aggregation_service:
+        await aggregation_service.stop(timeout=5.0)
+
+    # Close the shared session
     ingestion_session = getattr(app.state, "ingestion_session", None)
     if ingestion_session:
         await ingestion_session.close()

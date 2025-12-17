@@ -21,6 +21,8 @@ from geometrikks.domain.geo.models import GeoEvent, GeoLocation
 from geometrikks.domain.geo.repositories import GeoLocationRepository, GeoEventRepository
 from geometrikks.domain.logs.models import AccessLogDebug
 from geometrikks.domain.logs.repositories import AccessLogRepository, AccessLogDebugRepository
+from geometrikks.domain.analytics.repositories import HourlyStatsRepository, DailyStatsRepository
+from geometrikks.domain.analytics.service import AggregationService
 
 
 def provide_parser() -> LogParser:
@@ -107,3 +109,25 @@ def provide_limit_offset_pagination(
         Number of items per page.
     """
     return filters.LimitOffset(page_size, page_size * (current_page - 1))
+
+
+async def provide_hourly_stats_repo(
+    db_session: AsyncSession,
+) -> HourlyStatsRepository:
+    """Provide HourlyStatsRepository."""
+    return HourlyStatsRepository(session=db_session)
+
+
+async def provide_daily_stats_repo(
+    db_session: AsyncSession,
+) -> DailyStatsRepository:
+    """Provide DailyStatsRepository."""
+    return DailyStatsRepository(session=db_session)
+
+
+def provide_aggregation_service(request: Request) -> AggregationService | None:
+    """Provide the AggregationService from app state.
+
+    Returns None if the service is not available (degraded mode).
+    """
+    return getattr(request.app.state, "aggregation_service", None)

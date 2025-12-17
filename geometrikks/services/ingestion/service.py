@@ -13,17 +13,20 @@ from __future__ import annotations
 import logging
 import asyncio
 import time
+from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
 from geometrikks.domain.geo.models import GeoLocation, GeoEvent
 from geometrikks.domain.logs.models import AccessLog, AccessLogDebug
 from geometrikks.domain.geo.utils import make_point
+from geometrikks.domain.analytics.repositories import BatchMetrics
 from geometrikks.services.logparser.schemas import ParsedLogRecord, ParsedGeoData, ParsedAccessLog
 
 if TYPE_CHECKING:
     from geometrikks.domain.geo.repositories import GeoLocationRepository, GeoEventRepository
     from geometrikks.domain.logs.repositories import AccessLogRepository, AccessLogDebugRepository
     from geometrikks.services.logparser.logparser import LogParser
+    from geometrikks.domain.analytics.service import AggregationService
 
 
 logger = logging.getLogger(__name__)
@@ -59,6 +62,7 @@ class LogIngestionService:
         batch_size: int = 100,
         commit_interval: float = 5.0,
         store_debug_lines: bool = False,
+        aggregation_service: "AggregationService | None" = None,
     ) -> None:
         """Initialize the log ingestion service.
 
@@ -71,12 +75,14 @@ class LogIngestionService:
             batch_size: Maximum records before forced commit.
             commit_interval: Maximum seconds between commits.
             store_debug_lines: If True, store all raw lines in debug table.
+            aggregation_service: Optional service for real-time analytics aggregation.
         """
         self.parser = parser
         self.geo_location_repo = geo_location_repo
         self.geo_event_repo = geo_event_repo
         self.access_log_repo = access_log_repo
         self.access_log_debug_repo = access_log_debug_repo
+        self.aggregation_service = aggregation_service
 
         self.batch_size = batch_size
         self.commit_interval = commit_interval
@@ -95,11 +101,22 @@ class LogIngestionService:
         self.pending_geo_records: int = 0
         self.pending_log_records: int = 0
         self.pending_log_debug_records: int = 0
-        
+
         self.total_processed: int = 0
         self.total_geo_records: int = 0
         self.total_log_records: int = 0
         self.total_debug_records: int = 0
+
+        # Batch metrics for aggregation (reset on each commit)
+        self._reset_batch_metrics()
+
+    def _reset_batch_metrics(self) -> None:
+        """Reset batch metrics for a new batch."""
+        self._batch_metrics = BatchMetrics(
+            timestamp=datetime.now(timezone.utc),
+            unique_ips=set(),
+            unique_countries=set(),
+        )
 
     @property
     def is_running(self) -> bool:
@@ -234,6 +251,13 @@ class LogIngestionService:
                 self.total_geo_records += 1
                 self.pending_geo_records += 1
 
+                # Track geo event metrics for aggregation
+                self._batch_metrics.geo_events += 1
+                if record.ip_address and self._batch_metrics.unique_ips is not None:
+                    self._batch_metrics.unique_ips.add(record.ip_address)
+                if record.geo_data.country_code and self._batch_metrics.unique_countries is not None:
+                    self._batch_metrics.unique_countries.add(record.geo_data.country_code)
+
         # Handle access log
         if record.access_log:
             access_log_model = self._to_access_log_model(record.access_log)
@@ -242,11 +266,33 @@ class LogIngestionService:
             self.total_log_records += 1
             self.pending_log_records += 1
 
+            # Track access log metrics for aggregation
+            self._batch_metrics.requests += 1
+            self._batch_metrics.bytes_sent += record.access_log.bytes_sent
+            self._batch_metrics.total_request_time += record.access_log.request_time
+            if record.access_log.request_time > self._batch_metrics.max_request_time:
+                self._batch_metrics.max_request_time = record.access_log.request_time
+
+            # Track status codes
+            status = record.access_log.status_code
+            if 200 <= status < 300:
+                self._batch_metrics.status_2xx += 1
+            elif 300 <= status < 400:
+                self._batch_metrics.status_3xx += 1
+            elif 400 <= status < 500:
+                self._batch_metrics.status_4xx += 1
+            elif status >= 500:
+                self._batch_metrics.status_5xx += 1
+
         # Handle debug log (if enabled or malformed)
         if self.store_debug_lines or record.is_malformed:
             await self._create_debug_entry(record, access_log_model)
             self.total_debug_records += 1
             self.pending_log_debug_records += 1
+
+        # Track malformed requests
+        if record.is_malformed:
+            self._batch_metrics.malformed_requests += 1
 
         self.total_processed += 1
 
@@ -306,16 +352,32 @@ class LogIngestionService:
         self.pending_records += 1
 
     async def _commit_batch(self) -> None:
-        """Commit pending records.
+        """Commit pending records and update analytics.
 
         All repositories share the same session, so we only need to commit once.
+        After commit, updates hourly stats via aggregation service if available.
         """
         await self.geo_location_repo.session.commit()
-        logger.debug("Committed %d records. (Geo Records: %s | Log Records: %s | Log Debug Records: %s)", self.pending_records, self.pending_geo_records, self.pending_log_records, self.pending_log_debug_records)
+        logger.debug(
+            "Committed %d records. (Geo Records: %s | Log Records: %s | Log Debug Records: %s)",
+            self.pending_records,
+            self.pending_geo_records,
+            self.pending_log_records,
+            self.pending_log_debug_records,
+        )
+
+        # Update hourly stats via aggregation service
+        if self.aggregation_service and (
+            self._batch_metrics.requests > 0 or self._batch_metrics.geo_events > 0
+        ):
+            await self.aggregation_service.increment_hourly_stats(self._batch_metrics)
+
+        # Reset counters
         self.pending_records = 0
         self.pending_geo_records = 0
         self.pending_log_records = 0
         self.pending_log_debug_records = 0
+        self._reset_batch_metrics()
 
     def _to_access_log_model(self, parsed: ParsedAccessLog) -> AccessLog:
         """Convert ParsedAccessLog schema to ORM model."""
