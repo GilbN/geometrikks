@@ -105,9 +105,8 @@ class GeoLocationController(Controller):
                     city=loc.location.city,
                     postal_code=loc.location.postal_code,
                     timezone=loc.location.timezone,
-                    ip_address=loc.ip_address,
-                    hostname=loc.hostname,
                     event_count=loc.event_count,
+                    last_hit=loc.location.last_hit,
                 ),
             )
             for loc in locations_with_counts

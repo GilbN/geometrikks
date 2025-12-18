@@ -13,7 +13,9 @@ import logging
 from datetime import date, datetime, timedelta, timezone
 from typing import TYPE_CHECKING
 
+from sqlalchemy import update
 from geometrikks.domain.analytics.repositories import BatchMetrics
+from geometrikks.domain.geo.models import GeoLocation
 
 if TYPE_CHECKING:
     from geometrikks.domain.analytics.repositories import (
@@ -131,7 +133,8 @@ class AggregationService:
         """Increment hourly stats with batch metrics.
 
         This method is called from LogIngestionService during batch commits.
-        It atomically updates the hourly stats for the given hour.
+        It atomically updates the hourly stats for the given hour and updates
+        the last_hit timestamps for accessed locations.
 
         Args:
             metrics: BatchMetrics containing the incremental values.
@@ -139,9 +142,35 @@ class AggregationService:
         try:
             await self.hourly_stats_repo.upsert_increment(metrics)
             self.total_increments += 1
+
+            # Update last_hit for locations accessed in this batch
+            if metrics.location_ids:
+                await self._update_location_last_hit(metrics.timestamp, metrics.location_ids)
         except Exception as e:
             logger.exception("Failed to increment hourly stats: %s", e)
             # Don't re-raise - we don't want to fail the ingestion
+
+    async def _update_location_last_hit(
+        self, timestamp: datetime, location_ids: set[int]
+    ) -> None:
+        """Update last_hit timestamp for accessed locations.
+
+        Args:
+            timestamp: The timestamp to set for last_hit.
+            location_ids: Set of location IDs to update.
+        """
+        if not location_ids:
+            return
+
+        try:
+            stmt = update(GeoLocation).where(
+                GeoLocation.id.in_(location_ids)
+            ).values(last_hit=timestamp)
+
+            await self.hourly_stats_repo.session.execute(stmt)
+        except Exception as e:
+            logger.exception("Failed to update location last_hit: %s", e)
+            # Don't re-raise - this is a non-critical operation
 
     async def compute_daily_rollup(self, target_date: date) -> bool:
         """Compute daily stats from hourly data for a specific date.

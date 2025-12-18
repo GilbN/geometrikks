@@ -14,6 +14,7 @@ class ParsedGeoData:
     geohash: str
     country_code: str
     country_name: str
+    timestamp: datetime # The access log timestamp so we can set a correct time for GeoEvent
     state: str | None = None
     state_code: str | None = None
     city: str | None = None

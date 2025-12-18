@@ -80,6 +80,7 @@ class BatchMetrics:
     malformed_requests: int = 0
     unique_ips: set[str] | None = None
     unique_countries: set[str] | None = None
+    location_ids: set[int] | None = None  # Track accessed location IDs for updating last_hit
 
 
 class HourlyStatsRepository(SQLAlchemyAsyncRepository[HourlyStats]):

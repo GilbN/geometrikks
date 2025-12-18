@@ -330,7 +330,7 @@ class LogParser:
             logger.debug("GeoIP lookup failed for %s: %s", ip, e)
             return None
 
-    def _parse_geo_data(self, ip: str) -> ParsedGeoData | None:
+    def _parse_geo_data(self, ip: str, log_data: re.Match[str]) -> ParsedGeoData | None:
         """Extract geographic data from IP address.
 
         Args:
@@ -355,7 +355,14 @@ class LogParser:
         if not ip_data.location.latitude or not ip_data.location.longitude:
             logger.debug("GeoIP lat/long missing for %s. Database possibly outdated", ip)
             return None
-
+        
+        datadict: dict[str, str | Any] = log_data.groupdict()
+        
+        try:
+            ts = datetime.strptime(datadict["dateandtime"], "%d/%b/%Y:%H:%M:%S %z")
+        except Exception:
+            ts = datetime.now(timezone.utc)
+            
         logger.debug(
             "Encoding geohash for IP %s: lat=%s, long=%s. ipdata=%s",
             ip,
@@ -375,6 +382,7 @@ class LogParser:
             city=ip_data.city.name,
             postal_code=ip_data.postal.code,
             timezone=ip_data.location.time_zone,
+            timestamp=ts
         )
 
     def _parse_access_log(
@@ -539,7 +547,7 @@ class LogParser:
                 self.parsed_lines += 1
 
                 # Parse geo data
-                geo_data = self._parse_geo_data(ip)
+                geo_data = self._parse_geo_data(ip, matched)
 
                 # Parse access log if enabled
                 access_log = (

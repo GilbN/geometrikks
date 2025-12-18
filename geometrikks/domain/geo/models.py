@@ -49,6 +49,14 @@ class GeoLocation(base.BigIntAuditBase):
 
     timezone: Mapped[Optional[str]] = mapped_column(String(50))
 
+    # Track when this location was last accessed
+    last_hit: Mapped[Optional[datetime]] = mapped_column(
+        DateTimeUTC(timezone=True),
+        nullable=True,
+        index=True,
+        comment="Timestamp of the most recent access to this location"
+    )
+
     geo_events: Mapped[list["GeoEvent"]] = relationship(
         "GeoEvent", back_populates="location", lazy="selectin"
     )

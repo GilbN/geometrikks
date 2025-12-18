@@ -116,6 +116,7 @@ class LogIngestionService:
             timestamp=datetime.now(timezone.utc),
             unique_ips=set(),
             unique_countries=set(),
+            location_ids=set(),
         )
 
     @property
@@ -242,6 +243,7 @@ class LogIngestionService:
             location = await self._get_or_create_location(record.geo_data)
             if location:
                 geo_event = GeoEvent(
+                    timestamp=record.geo_data.timestamp,
                     ip_address=record.ip_address,
                     hostname=self.parser.hostname,
                     location_id=location.id,
@@ -257,6 +259,9 @@ class LogIngestionService:
                     self._batch_metrics.unique_ips.add(record.ip_address)
                 if record.geo_data.country_code and self._batch_metrics.unique_countries is not None:
                     self._batch_metrics.unique_countries.add(record.geo_data.country_code)
+                if self._batch_metrics.location_ids is not None and location.id:
+                    self._batch_metrics.location_ids.add(location.id)
+
 
         # Handle access log
         if record.access_log:
