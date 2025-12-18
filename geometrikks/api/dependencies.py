@@ -16,13 +16,13 @@ from litestar.status_codes import HTTP_409_CONFLICT
 
 from geometrikks.services.logparser import LogParser
 from geometrikks.services.ingestion import LogIngestionService
+from geometrikks.services.aggregation.service import AggregationService
 from geometrikks.server.plugins import parser
 from geometrikks.domain.geo.models import GeoEvent, GeoLocation
 from geometrikks.domain.geo.repositories import GeoLocationRepository, GeoEventRepository
 from geometrikks.domain.logs.models import AccessLogDebug
 from geometrikks.domain.logs.repositories import AccessLogRepository, AccessLogDebugRepository
 from geometrikks.domain.analytics.repositories import HourlyStatsRepository, DailyStatsRepository
-from geometrikks.domain.analytics.service import AggregationService
 
 
 def provide_parser() -> LogParser:

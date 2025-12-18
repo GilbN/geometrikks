@@ -150,10 +150,6 @@ class AnalyticsSettings(BaseSettings):
         default=30,
         description="Number of days to keep hourly stats before cleanup",
     )
-    enable_daily_rollup: bool = Field(
-        default=True,
-        description="Enable automatic daily rollup from hourly stats at midnight",
-    )
     enable_real_time: bool = Field(
         default=True,
         description="Enable real-time aggregation during log ingestion",
@@ -165,6 +161,29 @@ class AnalyticsSettings(BaseSettings):
     top_urls_limit: int = Field(
         default=500,
         description="Maximum number of top URLs to track per day",
+    )
+
+
+class SchedulerSettings(BaseSettings):
+    """APScheduler configuration for periodic background tasks."""
+
+    model_config = SettingsConfigDict(env_prefix="SCHEDULER_", env_file=".env", extra="ignore")
+
+    enabled: bool = Field(
+        default=True,
+        description="Enable scheduled background tasks",
+    )
+    daily_rollup_hour: int = Field(
+        default=0,
+        description="Hour (UTC, 0-23) to run daily rollup",
+    )
+    daily_rollup_minute: int = Field(
+        default=5,
+        description="Minute (0-59) to run daily rollup",
+    )
+    location_refresh_interval_hours: int = Field(
+        default=1,
+        description="Hours between GeoLocation.last_hit refresh jobs",
     )
 
 class Settings(BaseSettings):
@@ -213,6 +232,7 @@ class Settings(BaseSettings):
     geoip: GeoIPSettings = Field(default_factory=GeoIPSettings)
     logparser: LogParserSettings = Field(default_factory=LogParserSettings)
     analytics: AnalyticsSettings = Field(default_factory=AnalyticsSettings)
+    scheduler: SchedulerSettings = Field(default_factory=SchedulerSettings)
 
     @property
     def is_production(self) -> bool:
