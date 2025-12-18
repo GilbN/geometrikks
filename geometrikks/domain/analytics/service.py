@@ -13,9 +13,8 @@ import logging
 from datetime import date, datetime, timedelta, timezone
 from typing import TYPE_CHECKING
 
-from sqlalchemy import update
+from sqlalchemy import text
 from geometrikks.domain.analytics.repositories import BatchMetrics
-from geometrikks.domain.geo.models import GeoLocation
 
 if TYPE_CHECKING:
     from geometrikks.domain.analytics.repositories import (
@@ -133,8 +132,10 @@ class AggregationService:
         """Increment hourly stats with batch metrics.
 
         This method is called from LogIngestionService during batch commits.
-        It atomically updates the hourly stats for the given hour and updates
-        the last_hit timestamps for accessed locations.
+        It atomically updates the hourly stats for the given hour.
+
+        Note: GeoLocation.last_hit is updated periodically via refresh_location_last_hits()
+        during the daily rollup, not per-batch, to ensure accuracy.
 
         Args:
             metrics: BatchMetrics containing the incremental values.
@@ -142,35 +143,41 @@ class AggregationService:
         try:
             await self.hourly_stats_repo.upsert_increment(metrics)
             self.total_increments += 1
-
-            # Update last_hit for locations accessed in this batch
-            if metrics.location_ids:
-                await self._update_location_last_hit(metrics.timestamp, metrics.location_ids)
         except Exception as e:
             logger.exception("Failed to increment hourly stats: %s", e)
             # Don't re-raise - we don't want to fail the ingestion
 
-    async def _update_location_last_hit(
-        self, timestamp: datetime, location_ids: set[int]
-    ) -> None:
-        """Update last_hit timestamp for accessed locations.
+    async def refresh_location_last_hits(self) -> int:
+        """Update GeoLocation.last_hit from actual GeoEvent timestamps.
 
-        Args:
-            timestamp: The timestamp to set for last_hit.
-            location_ids: Set of location IDs to update.
+        This derives the accurate last_hit timestamp by finding MAX(timestamp)
+        from geo_events for each location. Only updates locations where the
+        computed max is greater than the current last_hit (or last_hit is NULL).
+
+        Returns:
+            Number of locations updated.
         """
-        if not location_ids:
-            return
-
         try:
-            stmt = update(GeoLocation).where(
-                GeoLocation.id.in_(location_ids)
-            ).values(last_hit=timestamp)
-
-            await self.hourly_stats_repo.session.execute(stmt)
+            # Use raw SQL for efficient bulk update with subquery
+            stmt = text("""
+                UPDATE geo_locations gl
+                SET last_hit = subq.max_ts
+                FROM (
+                    SELECT location_id, MAX(timestamp) as max_ts
+                    FROM geo_events
+                    GROUP BY location_id
+                ) subq
+                WHERE gl.id = subq.location_id
+                  AND (gl.last_hit IS NULL OR gl.last_hit < subq.max_ts)
+            """)
+            result = await self.hourly_stats_repo.session.execute(stmt)
+            updated = result.rowcount or 0
+            if updated > 0:
+                logger.info("Refreshed last_hit for %d locations", updated)
+            return updated
         except Exception as e:
-            logger.exception("Failed to update location last_hit: %s", e)
-            # Don't re-raise - this is a non-critical operation
+            logger.exception("Failed to refresh location last_hits: %s", e)
+            return 0
 
     async def compute_daily_rollup(self, target_date: date) -> bool:
         """Compute daily stats from hourly data for a specific date.
@@ -251,6 +258,9 @@ class AggregationService:
 
                 # Cleanup old hourly stats
                 await self.cleanup_old_hourly_stats()
+
+                # Refresh GeoLocation.last_hit from actual GeoEvent timestamps
+                await self.refresh_location_last_hits()
 
                 # Commit the changes
                 try:
