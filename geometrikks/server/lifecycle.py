@@ -15,8 +15,9 @@ from geometrikks.server.plugins import parser, sqlalchemy_config
 from geometrikks.domain.geo.repositories import GeoLocationRepository, GeoEventRepository
 from geometrikks.domain.logs.repositories import AccessLogRepository, AccessLogDebugRepository
 from geometrikks.domain.analytics.repositories import HourlyStatsRepository, DailyStatsRepository
-from geometrikks.domain.analytics.service import AggregationService
+from geometrikks.services.aggregation.service import AggregationService
 from geometrikks.services.ingestion import LogIngestionService
+from geometrikks.server.scheduler import create_scheduler
 
 if TYPE_CHECKING:
     from litestar import Litestar
@@ -74,7 +75,6 @@ async def on_startup(app: "Litestar") -> None:
         hourly_stats_repo=hourly_stats_repo,
         daily_stats_repo=daily_stats_repo,
         hourly_retention_days=settings.analytics.hourly_retention_days,
-        enable_daily_rollup=settings.analytics.enable_daily_rollup,
     )
 
     ingestion_service = LogIngestionService(
@@ -89,13 +89,18 @@ async def on_startup(app: "Litestar") -> None:
         aggregation_service=aggregation_service,
     )
 
+    # Create and start scheduler
+    scheduler = create_scheduler(session_maker, settings)
+    scheduler.start()
+    logger.info("Started APScheduler")
+
     # Store in app state for shutdown and API access
     app.state.ingestion_service = ingestion_service
     app.state.aggregation_service = aggregation_service
     app.state.ingestion_session = ingestion_session
+    app.state.scheduler = scheduler
 
-    # Start services
-    await aggregation_service.start()
+    # Start ingestion service
     await ingestion_service.start(
         skip_validation=settings.logparser.skip_validation,
     )
@@ -103,20 +108,20 @@ async def on_startup(app: "Litestar") -> None:
 
 async def on_shutdown(app: "Litestar") -> None:
     """Gracefully stop background services and clean up resources."""
+    from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
-    # Stop ingestion service first (it depends on aggregation service)
+    # Stop ingestion service first
     ingestion_service: LogIngestionService | None = getattr(
         app.state, "ingestion_service", None
     )
     if ingestion_service:
         await ingestion_service.stop(timeout=5.0)
 
-    # Stop aggregation service
-    aggregation_service: AggregationService | None = getattr(
-        app.state, "aggregation_service", None
-    )
-    if aggregation_service:
-        await aggregation_service.stop(timeout=5.0)
+    # Stop scheduler
+    scheduler: AsyncIOScheduler | None = getattr(app.state, "scheduler", None)
+    if scheduler and scheduler.running:
+        scheduler.shutdown(wait=True)
+        logger.info("Stopped APScheduler")
 
     # Close the shared session
     ingestion_session = getattr(app.state, "ingestion_session", None)

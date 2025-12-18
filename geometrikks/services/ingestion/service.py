@@ -26,7 +26,7 @@ if TYPE_CHECKING:
     from geometrikks.domain.geo.repositories import GeoLocationRepository, GeoEventRepository
     from geometrikks.domain.logs.repositories import AccessLogRepository, AccessLogDebugRepository
     from geometrikks.services.logparser.logparser import LogParser
-    from geometrikks.domain.analytics.service import AggregationService
+    from geometrikks.services.aggregation.service import AggregationService
 
 
 logger = logging.getLogger(__name__)
