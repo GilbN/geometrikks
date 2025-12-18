@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 from dataclasses import dataclass, field
+from datetime import datetime
 
 from advanced_alchemy.extensions.litestar import SQLAlchemyDTO, SQLAlchemyDTOConfig
 from geometrikks.domain.geo.models import GeoEvent, GeoLocation
@@ -38,13 +39,12 @@ class GeoJSONFeatureProperties:
     geohash: str
     country_code: str
     country_name: str
+    last_hit: datetime | None
     state: str | None
     state_code: str | None
     city: str | None
     postal_code: str | None
     timezone: str | None
-    ip_address: str | None
-    hostname: str | None
     event_count: int
 
 
