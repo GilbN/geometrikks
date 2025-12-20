@@ -5,6 +5,7 @@ scheduled tasks for analytics aggregation.
 
 Jobs create their own database sessions to avoid shared state issues.
 """
+
 from __future__ import annotations
 
 import logging
@@ -84,7 +85,7 @@ async def refresh_location_last_hits_job(
             daily_stats_repo=daily_repo,
         )
 
-        updated = await service.refresh_location_last_hits()
+        updated: int = await service.refresh_location_last_hits()
         await session.commit()
 
         logger.info("Refreshed last_hit for %d locations", updated)
