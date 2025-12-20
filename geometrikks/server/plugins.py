@@ -21,6 +21,7 @@ from advanced_alchemy.extensions.litestar import (
 )
 
 from litestar_geoalchemy import GeoAlchemyPlugin
+from litestar_granian import GranianPlugin
 
 from geometrikks.services.logparser.logparser import LogParser
 from geometrikks.config.settings import get_settings
@@ -62,6 +63,8 @@ sqlalchemy_config = SQLAlchemyAsyncConfig(
 )
 
 sqlalchemy_plugin = SQLAlchemyInitPlugin(config=sqlalchemy_config)
+geoalchemy_plugin = GeoAlchemyPlugin() # GeoAlchemy plugin for PostGIS support
+granian_plugin = GranianPlugin() 
 
 # Logging configuration
 logging_config = LoggingConfig(
@@ -72,5 +75,3 @@ logging_config = LoggingConfig(
     log_exceptions="always",
 )
 
-# GeoAlchemy plugin for PostGIS support
-geoalchemy_plugin = GeoAlchemyPlugin()
