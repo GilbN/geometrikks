@@ -6,6 +6,7 @@ This module provides singleton instances for:
 - Logging configuration
 - GeoAlchemy plugin for PostGIS
 """
+
 from __future__ import annotations
 
 from litestar.logging import LoggingConfig
@@ -22,6 +23,8 @@ from advanced_alchemy.extensions.litestar import (
 
 from litestar_geoalchemy import GeoAlchemyPlugin
 from litestar_granian import GranianPlugin
+from litestar_vite import ViteConfig, VitePlugin
+from litestar_vite.config import RuntimeConfig, TypeGenConfig
 
 from geometrikks.services.logparser.logparser import LogParser
 from geometrikks.config.settings import get_settings
@@ -62,9 +65,25 @@ sqlalchemy_config = SQLAlchemyAsyncConfig(
     metadata=base.DefaultBase.metadata,
 )
 
+vite_config = ViteConfig(
+    runtime=RuntimeConfig(
+        dev_mode=settings.vite.dev_mode,
+        http2=settings.vite.http2,
+        host=settings.vite.host,
+        port=settings.vite.port,
+    ),
+    types=TypeGenConfig(
+        generate_zod=True,
+        generate_sdk=True,
+        generate_routes=True,
+        generate_page_props=True,
+    ),
+)
+
 sqlalchemy_plugin = SQLAlchemyInitPlugin(config=sqlalchemy_config)
-geoalchemy_plugin = GeoAlchemyPlugin() # GeoAlchemy plugin for PostGIS support
-granian_plugin = GranianPlugin() 
+geoalchemy_plugin = GeoAlchemyPlugin()  # GeoAlchemy plugin for PostGIS support
+granian_plugin = GranianPlugin()
+vite_plugin = VitePlugin(config=vite_config)
 
 # Logging configuration
 logging_config = LoggingConfig(
@@ -74,4 +93,3 @@ logging_config = LoggingConfig(
     },
     log_exceptions="always",
 )
-

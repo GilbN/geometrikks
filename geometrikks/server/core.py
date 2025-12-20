@@ -60,7 +60,8 @@ def create_app() -> Litestar:
         plugins=[
             plugins.sqlalchemy_plugin,
             plugins.geoalchemy_plugin,
-            plugins.granian_plugin
+            plugins.granian_plugin,
+            plugins.vite_plugin,
         ],
         dependencies={
             "log_parser": Provide(provide_parser, sync_to_thread=False),
