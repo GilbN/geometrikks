@@ -10,7 +10,7 @@ from litestar.config.compression import CompressionConfig
 from litestar.middleware.logging import LoggingMiddlewareConfig
 
 from geometrikks.config.settings import get_settings
-from geometrikks.server.plugins import logging_config, geoalchemy_plugin, sqlalchemy_plugin
+from geometrikks.server import plugins
 from geometrikks.server.lifecycle import on_startup, on_shutdown
 from geometrikks.server.routes import get_route_handlers
 from geometrikks.api.dependencies import (
@@ -57,13 +57,17 @@ def create_app() -> Litestar:
         route_handlers=get_route_handlers(),
         on_startup=[on_startup],
         on_shutdown=[on_shutdown],
-        plugins=[sqlalchemy_plugin, geoalchemy_plugin],
+        plugins=[
+            plugins.sqlalchemy_plugin,
+            plugins.geoalchemy_plugin,
+            plugins.granian_plugin
+        ],
         dependencies={
             "log_parser": Provide(provide_parser, sync_to_thread=False),
             "limit_offset": Provide(provide_limit_offset_pagination, sync_to_thread=False),
             "transaction": provide_transaction,
         },
-        logging_config=logging_config,
+        logging_config=plugins.logging_config,
         openapi_config=openapi_config,
         compression_config=compression_config,
         middleware=[logging_middleware_config.middleware],
