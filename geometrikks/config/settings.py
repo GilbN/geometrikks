@@ -186,6 +186,41 @@ class SchedulerSettings(BaseSettings):
         description="Hours between GeoLocation.last_hit refresh jobs",
     )
 
+class ViteSettings(BaseSettings):
+    """Vite server configuration settings."""
+
+    model_config = SettingsConfigDict(env_prefix="VITE_", env_file=".env", extra="ignore")
+
+    dev_mode: bool = Field(
+        default=False,
+        description="Start vite development server."
+    )
+    use_server_lifespan: bool = Field(
+        default=True,
+        description="Auto start and stop vite processes when running in development mode."
+    )
+    host: str = Field(
+        default="0.0.0.0",
+        description="The host the vite process will listen on. Defaults to 0.0.0.0."
+    )
+    port: int = Field(
+        default=5173,
+        description="The port to start vite on. Default is 5173."
+    )
+    hot_reload: bool = Field(
+        default=True,
+        description="Start vite with HMR enabled."
+    )
+    enable_react_helpers: bool = Field(
+        default=True,
+        description="Enable React support in HMR."
+    )
+    http2: bool = Field(
+        default=True,
+        description="Enable HTTP/2 for the Vite development server."
+    )
+
+
 class Settings(BaseSettings):
     """Main application settings.
     
@@ -233,6 +268,7 @@ class Settings(BaseSettings):
     logparser: LogParserSettings = Field(default_factory=LogParserSettings)
     analytics: AnalyticsSettings = Field(default_factory=AnalyticsSettings)
     scheduler: SchedulerSettings = Field(default_factory=SchedulerSettings)
+    vite: ViteSettings = Field(default_factory=ViteSettings)
 
     @property
     def is_production(self) -> bool:
