@@ -8,6 +8,7 @@ This module provides singleton instances for:
 """
 
 from __future__ import annotations
+from pathlib import Path
 
 from litestar.logging import LoggingConfig
 from litestar.serialization import decode_json, encode_json
@@ -24,7 +25,7 @@ from advanced_alchemy.extensions.litestar import (
 from litestar_geoalchemy import GeoAlchemyPlugin
 from litestar_granian import GranianPlugin
 from litestar_vite import ViteConfig, VitePlugin
-from litestar_vite.config import RuntimeConfig, TypeGenConfig
+from litestar_vite.config import RuntimeConfig, TypeGenConfig, PathConfig
 
 from geometrikks.services.logparser.logparser import LogParser
 from geometrikks.config.settings import get_settings
@@ -77,6 +78,11 @@ vite_config = ViteConfig(
         generate_sdk=True,
         generate_routes=True,
         generate_page_props=True,
+    ),
+    paths=PathConfig(
+        root=Path(__file__).parent,
+        resource_dir="src",
+        bundle_dir="public",
     ),
 )
 

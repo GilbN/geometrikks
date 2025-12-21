@@ -12,7 +12,18 @@
 
 ## Frontend
 
-- [] Decide frontend framework..
+- litestar-vite
+- typescript
+- react
+- chadcn/ui
+- tanstack
+  "@tanstack/react-query": "^5.x",
+  "@tanstack/react-router": "^1.x",
+  "@tanstack/react-table": "^8.x",
+  "@tanstack/react-virtual": "^3.x",
+  "@tanstack/react-query-devtools": "^5.x"
+- tailwind
+- 
 
 ## Backend
 
