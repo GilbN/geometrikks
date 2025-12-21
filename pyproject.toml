@@ -17,7 +17,7 @@ dependencies = [
     "geoalchemy2>=0.18.1",
     "litestar-geoalchemy>=0.1.0",
     "apscheduler>=3.10,<4.0",
-    "litestar-vite>=0.15.0rc3",
+    "litestar-vite>=0.15.0rc4",
     "litestar-granian>=0.14.2",
 ]
 

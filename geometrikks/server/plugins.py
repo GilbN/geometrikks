@@ -67,6 +67,7 @@ sqlalchemy_config = SQLAlchemyAsyncConfig(
 )
 
 vite_config = ViteConfig(
+    mode="spa",
     runtime=RuntimeConfig(
         dev_mode=settings.vite.dev_mode,
         http2=settings.vite.http2,
@@ -80,8 +81,8 @@ vite_config = ViteConfig(
         generate_page_props=True,
     ),
     paths=PathConfig(
-        root=Path(__file__).parent,
-        resource_dir="src",
+        root=Path(__file__).parent.parent.parent,  # project root
+        resource_dir="resources",
         bundle_dir="public",
     ),
 )
