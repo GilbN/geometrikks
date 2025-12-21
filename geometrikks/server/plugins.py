@@ -75,15 +75,15 @@ vite_config = ViteConfig(
         port=settings.vite.port,
     ),
     types=TypeGenConfig(
+        output=Path("resources/generated"),
         generate_zod=True,
         generate_sdk=True,
         generate_routes=True,
         generate_page_props=True,
     ),
     paths=PathConfig(
-        root=Path(__file__).parent.parent.parent,  # project root
-        resource_dir="resources",
-        bundle_dir="public",
+        resource_dir=Path("resources"),
+        bundle_dir=Path("public"),
     ),
 )
 

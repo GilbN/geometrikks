@@ -49,7 +49,15 @@ def create_app() -> Litestar:
         ],
     )
     
-    logging_middleware_config = LoggingMiddlewareConfig()
+    logging_middleware_config = LoggingMiddlewareConfig(
+        response_log_fields=("status_code",),
+        request_log_fields=(
+                "path",
+                "method",
+                "query",
+                "path_params",
+            ),
+    )
 
     # Create app with configuration
     app = Litestar(
