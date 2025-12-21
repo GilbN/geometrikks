@@ -520,7 +520,7 @@ requires-dist = [
     { name = "litestar", extras = ["standard", "brotli", "jwt", "picologging", "prometheus", "pydantic", "redis", "sqlalchemy"], specifier = ">=2.18.0" },
     { name = "litestar-geoalchemy", specifier = ">=0.1.0" },
     { name = "litestar-granian", specifier = ">=0.14.2" },
-    { name = "litestar-vite", specifier = ">=0.15.0rc3" },
+    { name = "litestar-vite", specifier = ">=0.15.0rc4" },
     { name = "pydantic-settings", specifier = ">=2.0.0" },
     { name = "python-dotenv", specifier = ">=1.2.1" },
 ]
@@ -818,7 +818,7 @@ wheels = [
 
 [[package]]
 name = "litestar-vite"
-version = "0.15.0rc3"
+version = "0.15.0rc4"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "httpx" },
@@ -826,9 +826,9 @@ dependencies = [
     { name = "typing-extensions" },
     { name = "websockets" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/89/d2/d4e44c5d29dc2c2c6a0a31f9a509d45baa1aa17e5ae11503fb2fef9e60b5/litestar_vite-0.15.0rc3.tar.gz", hash = "sha256:6791d431d9b87632175a4124f5ef21a509138a4c09aa92b788d8070c7ca3dc74", size = 324928, upload-time = "2025-12-19T18:38:27.911Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/84/15/b380bcc9bd963a1fd4fdd27414a72cbdd9b1bea50b665a265999ab3ec70a/litestar_vite-0.15.0rc4.tar.gz", hash = "sha256:537880188a6dcc2183f01ca25243a2476194420997adebccd15b55bdba048db6", size = 326764, upload-time = "2025-12-20T18:47:40.032Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/9b/50/c33da308a551d1c4221d796430f04021203f96d41faf39c0c507a3dc129e/litestar_vite-0.15.0rc3-py3-none-any.whl", hash = "sha256:78f5e7089f795d730b01e69f0d85a5cc864a07f2d18229dd5aed191db1bf75fe", size = 207505, upload-time = "2025-12-19T18:38:26.166Z" },
+    { url = "https://files.pythonhosted.org/packages/b9/b8/9ef6aad6b34b8c841b2f91574e73f30996cdf6f08e16578e3e70e3e28bc0/litestar_vite-0.15.0rc4-py3-none-any.whl", hash = "sha256:8e369469aa296abaaa943fc733254a07e3cf3484b4209b0244ab5aff09ce3442", size = 207822, upload-time = "2025-12-20T18:47:38.357Z" },
 ]
 
 [[package]]
