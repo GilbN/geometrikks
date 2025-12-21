@@ -1,0 +1,36 @@
+import path from "path"
+import { defineConfig } from "vite";
+import react from "@vitejs/plugin-react";
+import { tanstackRouter } from '@tanstack/router-plugin/vite'
+import litestar from "litestar-vite-plugin";
+import tailwindcss from "@tailwindcss/vite";
+
+export default defineConfig({
+  server: {
+    host: "0.0.0.0",
+    port: Number(process.env.VITE_PORT || "5173"),
+    cors: true,
+    hmr: {
+      host: "localhost",
+    },
+  },
+  plugins: [
+    tailwindcss(),
+    tanstackRouter(),
+    react(),
+    litestar({
+      input: ["resources/main.tsx"],
+      types: {
+        enabled: true,
+        output: "resources/generated/types",
+        generateZod: true,
+        generateSdk: true,
+      },
+    }),
+  ],
+  resolve: {
+    alias: {
+      "@": path.resolve(__dirname,"/resources"),
+    },
+  },
+});

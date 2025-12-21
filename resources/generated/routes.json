@@ -1,0 +1,181 @@
+{
+  "litestar_version": "Version(major=2, minor=18, patch=0, release_level='final', serial=0)",
+  "routes": {
+    "get_bandwidth_time_series": {
+      "method": "get",
+      "methods": [
+        "GET"
+      ],
+      "queryParameters": {
+        "end_date": "DateOnly",
+        "granularity": "\"hourly\" | \"daily\" | undefined",
+        "start_date": "DateOnly"
+      },
+      "uri": "/api/v1/analytics/time-series/bandwidth"
+    },
+    "get_geo_events_time_series": {
+      "method": "get",
+      "methods": [
+        "GET"
+      ],
+      "queryParameters": {
+        "end_date": "DateOnly",
+        "granularity": "\"hourly\" | \"daily\" | undefined",
+        "start_date": "DateOnly"
+      },
+      "uri": "/api/v1/analytics/time-series/geo-events"
+    },
+    "get_geojson": {
+      "method": "get",
+      "methods": [
+        "GET"
+      ],
+      "queryParameters": {
+        "from_timestamp": "DateTime",
+        "to_timestamp": "DateTime"
+      },
+      "uri": "/api/v1/geo-locations/geojson"
+    },
+    "get_performance_time_series": {
+      "method": "get",
+      "methods": [
+        "GET"
+      ],
+      "queryParameters": {
+        "end_date": "DateOnly",
+        "granularity": "\"hourly\" | \"daily\" | undefined",
+        "start_date": "DateOnly"
+      },
+      "uri": "/api/v1/analytics/time-series/performance"
+    },
+    "get_requests_time_series": {
+      "method": "get",
+      "methods": [
+        "GET"
+      ],
+      "queryParameters": {
+        "end_date": "DateOnly",
+        "granularity": "\"hourly\" | \"daily\" | undefined",
+        "start_date": "DateOnly"
+      },
+      "uri": "/api/v1/analytics/time-series/requests"
+    },
+    "get_summary": {
+      "method": "get",
+      "methods": [
+        "GET"
+      ],
+      "queryParameters": {
+        "compare_previous": "boolean | undefined",
+        "end_date": "DateOnly",
+        "start_date": "DateOnly"
+      },
+      "uri": "/api/v1/analytics/summary"
+    },
+    "list_access_log_debugs": {
+      "method": "get",
+      "methods": [
+        "GET"
+      ],
+      "queryParameters": {
+        "currentPage": "number | undefined",
+        "pageSize": "number | undefined"
+      },
+      "uri": "/api/v1/access-log-debug"
+    },
+    "list_access_logs": {
+      "method": "get",
+      "methods": [
+        "GET"
+      ],
+      "queryParameters": {
+        "currentPage": "number | undefined",
+        "pageSize": "number | undefined"
+      },
+      "uri": "/api/v1/access-logs"
+    },
+    "list_geo_events": {
+      "method": "get",
+      "methods": [
+        "GET"
+      ],
+      "queryParameters": {
+        "currentPage": "number | undefined",
+        "pageSize": "number | undefined"
+      },
+      "uri": "/api/v1/geo-events"
+    },
+    "list_geo_locations": {
+      "method": "get",
+      "methods": [
+        "GET"
+      ],
+      "queryParameters": {
+        "currentPage": "number | undefined",
+        "pageSize": "number | undefined"
+      },
+      "uri": "/api/v1/geo-locations"
+    },
+    "openapi.json": {
+      "method": "get",
+      "methods": [
+        "GET"
+      ],
+      "uri": "/schema/openapi.json"
+    },
+    "openapi.yaml": {
+      "method": "get",
+      "methods": [
+        "GET"
+      ],
+      "uri": "/schema/openapi.yaml"
+    },
+    "read_settings": {
+      "method": "get",
+      "methods": [
+        "GET"
+      ],
+      "uri": "/settings"
+    },
+    "stats": {
+      "method": "get",
+      "methods": [
+        "GET"
+      ],
+      "uri": "/stats"
+    },
+    "vite": {
+      "method": "get",
+      "methods": [
+        "GET"
+      ],
+      "parameterTypes": {
+        "file_path": "any"
+      },
+      "parameters": [
+        "file_path"
+      ],
+      "uri": "/static/{file_path}"
+    },
+    "vite_spa": {
+      "method": "get",
+      "methods": [
+        "GET"
+      ],
+      "uri": "/"
+    },
+    "vite_spa_path:path": {
+      "method": "get",
+      "methods": [
+        "GET"
+      ],
+      "parameterTypes": {
+        "path": "URI"
+      },
+      "parameters": [
+        "path"
+      ],
+      "uri": "/{path}"
+    }
+  }
+}

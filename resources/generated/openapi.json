@@ -1,0 +1,3424 @@
+{
+  "components": {
+    "schemas": {
+      "BandwidthDataPoint": {
+        "examples": [
+          {
+            "avg_bytes_per_request": 48877175.154206,
+            "timestamp": "lbFfcswyWFVwaiVJEahP",
+            "total_bytes_sent": 2835
+          }
+        ],
+        "properties": {
+          "avg_bytes_per_request": {
+            "examples": [
+              -9607430.76713677
+            ],
+            "type": "number"
+          },
+          "timestamp": {
+            "examples": [
+              "ktpskFNtEAisJBtyScZE"
+            ],
+            "type": "string"
+          },
+          "total_bytes_sent": {
+            "examples": [
+              1398
+            ],
+            "type": "integer"
+          }
+        },
+        "required": [
+          "avg_bytes_per_request",
+          "timestamp",
+          "total_bytes_sent"
+        ],
+        "title": "BandwidthDataPoint",
+        "type": "object"
+      },
+      "BandwidthTimeSeriesResponse": {
+        "examples": [
+          {
+            "data": [
+              {
+                "avg_bytes_per_request": -7.64705759079532,
+                "timestamp": "dDqzxnfblgEdBJQctaXy",
+                "total_bytes_sent": 3644
+              }
+            ],
+            "end_date": "MqaVLBiBVZLFoLVKBkRA",
+            "granularity": "LkwGGiYruavRZuuzJUMI",
+            "start_date": "VIifjKJiTnErNnnMpnDL"
+          }
+        ],
+        "properties": {
+          "data": {
+            "examples": [
+              [
+                {
+                  "avg_bytes_per_request": -21658579.6809566,
+                  "timestamp": "tkekxLASqbIPOaWgRtus",
+                  "total_bytes_sent": 1736
+                }
+              ]
+            ],
+            "items": {
+              "$ref": "#/components/schemas/BandwidthDataPoint"
+            },
+            "type": "array"
+          },
+          "end_date": {
+            "examples": [
+              "TInCrpurJMHesffeZoPT"
+            ],
+            "type": "string"
+          },
+          "granularity": {
+            "examples": [
+              "HAwPUSUxKVzbzpABnQCl"
+            ],
+            "type": "string"
+          },
+          "start_date": {
+            "examples": [
+              "uBxkQpshjRrzNWDrurIL"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "end_date",
+          "granularity",
+          "start_date"
+        ],
+        "title": "BandwidthTimeSeriesResponse",
+        "type": "object"
+      },
+      "GeoEventsDataPoint": {
+        "examples": [
+          {
+            "timestamp": "FBCMmvzMXlkluSaIGRkI",
+            "total_geo_events": 2859,
+            "unique_countries": 7449,
+            "unique_ips": 6760
+          }
+        ],
+        "properties": {
+          "timestamp": {
+            "examples": [
+              "rpnMYYYgXChDplyzrAll"
+            ],
+            "type": "string"
+          },
+          "total_geo_events": {
+            "examples": [
+              9433
+            ],
+            "type": "integer"
+          },
+          "unique_countries": {
+            "examples": [
+              5776
+            ],
+            "type": "integer"
+          },
+          "unique_ips": {
+            "examples": [
+              7788
+            ],
+            "type": "integer"
+          }
+        },
+        "required": [
+          "timestamp",
+          "total_geo_events",
+          "unique_countries",
+          "unique_ips"
+        ],
+        "title": "GeoEventsDataPoint",
+        "type": "object"
+      },
+      "GeoEventsTimeSeriesResponse": {
+        "examples": [
+          {
+            "data": [
+              {
+                "timestamp": "hvzYqUYQiIoXWnIjDGdX",
+                "total_geo_events": 48,
+                "unique_countries": 354,
+                "unique_ips": 4123
+              }
+            ],
+            "end_date": "qJbNyAtfbovWECaKpBXZ",
+            "granularity": "DCghjobcAeFANsabHMWJ",
+            "start_date": "kVWjVZSVKCPyOyjUfhCw"
+          }
+        ],
+        "properties": {
+          "data": {
+            "examples": [
+              [
+                {
+                  "timestamp": "OUoFRyuIwkwgZSxoSjiM",
+                  "total_geo_events": 7728,
+                  "unique_countries": 8935,
+                  "unique_ips": 9628
+                }
+              ]
+            ],
+            "items": {
+              "$ref": "#/components/schemas/GeoEventsDataPoint"
+            },
+            "type": "array"
+          },
+          "end_date": {
+            "examples": [
+              "VjDcZHSjKwmnNSpGChuQ"
+            ],
+            "type": "string"
+          },
+          "granularity": {
+            "examples": [
+              "wpocDqgpTnlLoAiGihmV"
+            ],
+            "type": "string"
+          },
+          "start_date": {
+            "examples": [
+              "ByddZEVEHEVtVDOOuNqz"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "end_date",
+          "granularity",
+          "start_date"
+        ],
+        "title": "GeoEventsTimeSeriesResponse",
+        "type": "object"
+      },
+      "GeoJSONFeature": {
+        "examples": [
+          {
+            "geometry": {
+              "coordinates": [
+                -52.7029679813871,
+                -2987.10816174321
+              ],
+              "type": "tbfKVrvLxaNWbZlwjEbA"
+            },
+            "properties": {
+              "country_code": "HxuxQJThgLscYOGeHfic",
+              "country_name": "FzbdOiIrMZvkSJtFAZSA",
+              "event_count": 3943,
+              "geohash": "fZRLRSNNqMJKVIADdSiz",
+              "id": 1443,
+              "postal_code": "tPYeuweuJAOwUqFfbJuy",
+              "state": "SEOzGrCWZGlQpRVUqdhO",
+              "state_code": "WADvWNCHivKMTQipvEcI",
+              "timezone": "UxcBxhkTjpzGziovdvff"
+            },
+            "type": "hxUPLxwOYAzsSiGQKcQl"
+          }
+        ],
+        "properties": {
+          "geometry": {
+            "$ref": "#/components/schemas/GeoJSONPointGeometry"
+          },
+          "properties": {
+            "examples": [
+              {
+                "country_code": "HUplpaRjanyUsSWZEICP",
+                "country_name": "JfvSvPROLrARwDcwziud",
+                "event_count": 6011,
+                "geohash": "wpSrSdGjWcRNudKLPJQu",
+                "id": 4931,
+                "state": "YhLnYSBmewrlWGgyqPDa",
+                "state_code": "BynwngpZdDQSxLyDhQPn",
+                "timezone": "FkPgkyqwgKieCQILnsFp"
+              }
+            ],
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/GeoJSONFeatureProperties"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "type": {
+            "default": "Feature",
+            "examples": [
+              "HoiTcKQUIcwTvBMEsEyr"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [],
+        "title": "GeoJSONFeature",
+        "type": "object"
+      },
+      "GeoJSONFeatureCollection": {
+        "examples": [
+          {
+            "features": [
+              {
+                "geometry": {
+                  "coordinates": [
+                    -64420.6167671474,
+                    -95025480075973.6
+                  ],
+                  "type": "JBTnjLUXhtlCoKyNHWrL"
+                },
+                "type": "bZjvspeWWWFiGUreJOvD"
+              }
+            ],
+            "type": "TDCwpMeHicAMAUQLLRsO"
+          }
+        ],
+        "properties": {
+          "features": {
+            "examples": [
+              [
+                {
+                  "geometry": {
+                    "coordinates": [
+                      46733967688054.8,
+                      -4585238045.5469
+                    ],
+                    "type": "RHDVLITGWaNoYUQReaub"
+                  },
+                  "properties": {
+                    "city": "aPqrofqyXqvuyGIquHNp",
+                    "country_code": "VTQVZmWDBsPJaVzmFwst",
+                    "country_name": "XkBxdCDJEnfPSptOzNVw",
+                    "event_count": 4940,
+                    "geohash": "gFBgKiiOgFLfSqDtZUsq",
+                    "id": 6502,
+                    "last_hit": "2024-09-03T18:54:10.981985",
+                    "postal_code": "bZEBtNtYsWbtxziLhhUw",
+                    "state_code": "ojmgFPZxQJxquQpmksin",
+                    "timezone": "TsUeVYIkYoDyXGPvnrDN"
+                  },
+                  "type": "rBDxfqApDoRkKMXOBkcD"
+                }
+              ]
+            ],
+            "items": {
+              "$ref": "#/components/schemas/GeoJSONFeature"
+            },
+            "type": "array"
+          },
+          "type": {
+            "default": "FeatureCollection",
+            "examples": [
+              "BQsUHSQKWNxguFbFvyde"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [],
+        "title": "GeoJSONFeatureCollection",
+        "type": "object"
+      },
+      "GeoJSONFeatureProperties": {
+        "examples": [
+          {
+            "country_code": "nwuwZqSRqubKziUxmyim",
+            "country_name": "HIfMOBFFOLOAyhIHOHzd",
+            "event_count": 6730,
+            "geohash": "FwbFWILdFWoqnFrSJCNk",
+            "id": 7174,
+            "postal_code": "HJgmygZdKTdywYXEMTff",
+            "timezone": "HVKViojCXkxyCpxaaBfF"
+          }
+        ],
+        "properties": {
+          "city": {
+            "examples": [
+              "QuVSLVIpXssGAZvWxlBJ"
+            ],
+            "oneOf": [
+              {
+                "examples": [
+                  "qHVMYoMLcDTblBFCTtIC"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "country_code": {
+            "examples": [
+              "kUEKiaVjcODaCAWEhGPY"
+            ],
+            "type": "string"
+          },
+          "country_name": {
+            "examples": [
+              "qEcXhHSyYvDSaSRiKojA"
+            ],
+            "type": "string"
+          },
+          "event_count": {
+            "examples": [
+              4617
+            ],
+            "type": "integer"
+          },
+          "geohash": {
+            "examples": [
+              "EyjQPuqoreSwjJjTaCHr"
+            ],
+            "type": "string"
+          },
+          "id": {
+            "examples": [
+              9540
+            ],
+            "type": "integer"
+          },
+          "last_hit": {
+            "examples": [
+              "2007-05-24T05:36:37.656579"
+            ],
+            "oneOf": [
+              {
+                "examples": [
+                  "2017-04-24T17:06:35.870494"
+                ],
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "postal_code": {
+            "examples": [
+              "IQnZCSkPGeNNtndFpmxg"
+            ],
+            "oneOf": [
+              {
+                "examples": [
+                  "pEwbdtKiYsfjVRIdHbmd"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "state": {
+            "examples": [
+              "NbiAFVtQypXzKpUycdsw"
+            ],
+            "oneOf": [
+              {
+                "examples": [
+                  "rlDETRahgoMzLRtalGDk"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "state_code": {
+            "examples": [
+              "pnuCaldRKRIbrTyqiVes"
+            ],
+            "oneOf": [
+              {
+                "examples": [
+                  "fSCXHPiclvcWpPcSrAFF"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "timezone": {
+            "examples": [
+              "niCQhLofQdvIKNfgpRUv"
+            ],
+            "oneOf": [
+              {
+                "examples": [
+                  "IqpwwwnNUDLQoTDHCTzK"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "country_code",
+          "country_name",
+          "event_count",
+          "geohash",
+          "id"
+        ],
+        "title": "GeoJSONFeatureProperties",
+        "type": "object"
+      },
+      "GeoJSONPointGeometry": {
+        "examples": [
+          {
+            "coordinates": [
+              -527113676.295825,
+              -0.3543937819803
+            ],
+            "type": "qYdHPSHMmOJDnIcAIrFc"
+          }
+        ],
+        "properties": {
+          "coordinates": {
+            "examples": [
+              [
+                7927.6763977776,
+                -814847844.382698
+              ]
+            ],
+            "prefixItems": [
+              {
+                "examples": [
+                  -210028083693.697
+                ],
+                "type": "number"
+              },
+              {
+                "examples": [
+                  819.23985705939
+                ],
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "type": {
+            "default": "Point",
+            "examples": [
+              "dnZpsZfntyvohCiaNNsT"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [],
+        "title": "GeoJSONPointGeometry",
+        "type": "object"
+      },
+      "ListAccessLogDebugsAccessLogDebugResponseBody": {
+        "examples": [
+          {
+            "accessLogId": null,
+            "createdAt": "1999-08-27T17:16:44.246218",
+            "rawLine": "NVjNVRGTshKzUVGEMKsD",
+            "isMalformed": true,
+            "parseError": null,
+            "accessLog": {
+              "timestamp": "1996-11-19T08:46:33.939414",
+              "ipAddress": "CAIkorTaoMLSoboMUZdZ",
+              "remoteUser": "uBmvmAaSZIYfKSlvejFf",
+              "method": null,
+              "url": "fhshWusXrtcUWAMCWLgW",
+              "httpVersion": "vFyoEwbnBboqBzqRJUQq",
+              "statusCode": 7315,
+              "bytesSent": 7819,
+              "referrer": "iCMyNHDcmcTEzGTCoMGI",
+              "userAgent": null,
+              "requestTime": -8635705775.32855,
+              "connectTime": -78152051.840964,
+              "host": null,
+              "countryCode": null,
+              "countryName": "UzQopvSwVCiLAiGkCDGD",
+              "city": null,
+              "id": 4258
+            },
+            "id": 7052
+          }
+        ],
+        "properties": {
+          "accessLog": {
+            "examples": [
+              {
+                "timestamp": "1998-04-03T11:01:16.364232",
+                "ipAddress": "BSAmDGpEnPGoyjeoiWjx",
+                "remoteUser": "UQxmNZuSlmUlqWbmSsro",
+                "method": "UWmSKwwpyHTKgIohIeyb",
+                "url": "ObQvYiFJXJXdjsoRnkan",
+                "httpVersion": null,
+                "statusCode": 5866,
+                "bytesSent": 5001,
+                "referrer": null,
+                "userAgent": null,
+                "requestTime": -97936818172398.7,
+                "connectTime": null,
+                "host": "meZcdzGNBmTVYaWZfREp",
+                "countryCode": "wlMKUuzVCgfdovbcHFda",
+                "countryName": "NiGJXojfslQMjYzAizoe",
+                "city": "AbXBAaVcpheYBHWSWnxg",
+                "id": 1689
+              }
+            ],
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ListAccessLogDebugsAccessLogDebug_0AccessLogResponseBody"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "accessLogId": {
+            "examples": [
+              7131
+            ],
+            "oneOf": [
+              {
+                "examples": [
+                  3147
+                ],
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "createdAt": {
+            "examples": [
+              "2000-07-05T08:58:09.091697"
+            ],
+            "format": "date-time",
+            "type": "string"
+          },
+          "id": {
+            "examples": [
+              6397
+            ],
+            "type": "integer"
+          },
+          "isMalformed": {
+            "default": false,
+            "examples": [
+              false
+            ],
+            "type": "boolean"
+          },
+          "parseError": {
+            "examples": [
+              "zFboMRnrDeBloJRsPfna"
+            ],
+            "oneOf": [
+              {
+                "examples": [
+                  "OtaBHxrjbhveIBwiDpab"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "rawLine": {
+            "examples": [
+              "SseMUxUifoNEECMiTYpZ"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "rawLine"
+        ],
+        "title": "ListAccessLogDebugsAccessLogDebugResponseBody",
+        "type": "object"
+      },
+      "ListAccessLogDebugsAccessLogDebug_0AccessLogResponseBody": {
+        "examples": [
+          {
+            "timestamp": "2008-05-26T18:15:48.221234",
+            "ipAddress": "gilgZDftTlhTfIzmYSou",
+            "remoteUser": "zOWXsYHyAIGqocJoPIFV",
+            "method": null,
+            "url": null,
+            "httpVersion": "bWqXcrvKFnujalpSouRO",
+            "statusCode": 250,
+            "bytesSent": 5985,
+            "referrer": "TJNTeHVsrVuGOkyMQllI",
+            "userAgent": "PyLyImnGdFpnzdBBxAGo",
+            "requestTime": -555.951073848535,
+            "connectTime": null,
+            "host": "FZQoeLyFnKOSzYcGBVmp",
+            "countryCode": null,
+            "countryName": null,
+            "city": "AXJsKJKgsXVhpkKIImpZ",
+            "id": 6789
+          }
+        ],
+        "properties": {
+          "bytesSent": {
+            "default": 0,
+            "examples": [
+              270
+            ],
+            "type": "integer"
+          },
+          "city": {
+            "examples": [
+              "RBBwYtzXhLdnNRxGqlqE"
+            ],
+            "oneOf": [
+              {
+                "examples": [
+                  "GWsfFRoJjAfBQfDTpnkV"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "connectTime": {
+            "examples": [
+              -29889793355.1929
+            ],
+            "oneOf": [
+              {
+                "examples": [
+                  94385802.2005524
+                ],
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "countryCode": {
+            "examples": [
+              "yddHJSDywrlDVZEyPXLN"
+            ],
+            "oneOf": [
+              {
+                "examples": [
+                  "BVvncKDaQblmkIAyvpzO"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "countryName": {
+            "examples": [
+              "YYFefcOMFhHzcDDqdITp"
+            ],
+            "oneOf": [
+              {
+                "examples": [
+                  "ZawORtnAnBtawpITMmSz"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "host": {
+            "examples": [
+              "sIcdQMxXBrtxttqsXMvT"
+            ],
+            "oneOf": [
+              {
+                "examples": [
+                  "wjtYnZoPKgVDdTTpPdPo"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "httpVersion": {
+            "examples": [
+              "xEkakLFWPCLfKjyvESLv"
+            ],
+            "oneOf": [
+              {
+                "examples": [
+                  "SZXvcXcsVLXNmJvHpFkF"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "id": {
+            "examples": [
+              3125
+            ],
+            "type": "integer"
+          },
+          "ipAddress": {
+            "examples": [
+              "loYdNUlBUFkWYypdiUSC"
+            ],
+            "type": "string"
+          },
+          "method": {
+            "examples": [
+              "BYnNzLcpnZARNBhMvCML"
+            ],
+            "oneOf": [
+              {
+                "examples": [
+                  "oFnGBWnhLzywqhZQDaqn"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "referrer": {
+            "examples": [
+              "cGtZBopQDkYBgxyEdXeG"
+            ],
+            "oneOf": [
+              {
+                "examples": [
+                  "apsMWuXNEZGZyiMfrsAU"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "remoteUser": {
+            "examples": [
+              "EnsSgCPqkbchuKZfoLvG"
+            ],
+            "type": "string"
+          },
+          "requestTime": {
+            "default": 0.0,
+            "examples": [
+              -51860.927890401
+            ],
+            "type": "number"
+          },
+          "statusCode": {
+            "examples": [
+              7887
+            ],
+            "type": "integer"
+          },
+          "timestamp": {
+            "examples": [
+              "2018-04-23T01:50:16.196035"
+            ],
+            "format": "date-time",
+            "type": "string"
+          },
+          "url": {
+            "examples": [
+              "BBmRtKejredrkvlSscKH"
+            ],
+            "oneOf": [
+              {
+                "examples": [
+                  "lWMngATYxBqBRemkodGz"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "userAgent": {
+            "examples": [
+              "taSAitCOjewqHrzbBzXg"
+            ],
+            "oneOf": [
+              {
+                "examples": [
+                  "bVhvUEACPVHfWlHUuwTU"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "ipAddress",
+          "statusCode",
+          "timestamp"
+        ],
+        "title": "ListAccessLogDebugsAccessLogDebug_0AccessLogResponseBody",
+        "type": "object"
+      },
+      "ListAccessLogsAccessLogResponseBody": {
+        "examples": [
+          {
+            "timestamp": "2025-03-04T12:36:54.024463",
+            "ipAddress": "dceJCOUxPucBmkfBKkvi",
+            "remoteUser": "ufpZYhKCKNYmpNtrleyq",
+            "method": null,
+            "url": null,
+            "httpVersion": null,
+            "statusCode": 4830,
+            "bytesSent": 6902,
+            "referrer": "EPMASYJucMNOQyHJkLeX",
+            "userAgent": "HZgSeFMyUiCynjQNEuhG",
+            "requestTime": -1278671960588.55,
+            "connectTime": null,
+            "host": null,
+            "countryCode": "NeNaDwRCQogbNvcblBkQ",
+            "countryName": "RNRmgCpfktgOkqgXYTgk",
+            "city": "ZNikIlRZUkuxoYqPhkys",
+            "id": 2114
+          }
+        ],
+        "properties": {
+          "bytesSent": {
+            "default": 0,
+            "examples": [
+              9656
+            ],
+            "type": "integer"
+          },
+          "city": {
+            "examples": [
+              "DTwFKkmZvuOEkFrHNraT"
+            ],
+            "oneOf": [
+              {
+                "examples": [
+                  "fqQCvkgXFWNeTzupkuvN"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "connectTime": {
+            "examples": [
+              -25983045297.5221
+            ],
+            "oneOf": [
+              {
+                "examples": [
+                  757021.27975088
+                ],
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "countryCode": {
+            "examples": [
+              "mrXVLUYUUKqSzwqFflzh"
+            ],
+            "oneOf": [
+              {
+                "examples": [
+                  "yANzvzVJLFzpBWwAFJau"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "countryName": {
+            "examples": [
+              "HVVoWImwXPHBvUubYYTR"
+            ],
+            "oneOf": [
+              {
+                "examples": [
+                  "ZbzmkJQOiPbixZCtVlyC"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "host": {
+            "examples": [
+              "EnwzjtfAdTyQofeGppGX"
+            ],
+            "oneOf": [
+              {
+                "examples": [
+                  "INCCfcDBIlWVWSAkiqhY"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "httpVersion": {
+            "examples": [
+              "gyYrJfHnwKBmjsgEgTdc"
+            ],
+            "oneOf": [
+              {
+                "examples": [
+                  "xeyNhkVNmCPZGTNIGGns"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "id": {
+            "examples": [
+              9307
+            ],
+            "type": "integer"
+          },
+          "ipAddress": {
+            "examples": [
+              "vOqytTHQZuFKMjfAzJlN"
+            ],
+            "type": "string"
+          },
+          "method": {
+            "examples": [
+              "VDuzWmZHhmohefusvdMy"
+            ],
+            "oneOf": [
+              {
+                "examples": [
+                  "UlkjRDicdJRonMCOrPkA"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "referrer": {
+            "examples": [
+              "HqDVOthTbIhfdjRNkUle"
+            ],
+            "oneOf": [
+              {
+                "examples": [
+                  "zzsRKrNQqvkWLIRjolxd"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "remoteUser": {
+            "examples": [
+              "ubBqeKWiydyczkokUAyz"
+            ],
+            "type": "string"
+          },
+          "requestTime": {
+            "default": 0.0,
+            "examples": [
+              -11237.4730514779
+            ],
+            "type": "number"
+          },
+          "statusCode": {
+            "examples": [
+              7591
+            ],
+            "type": "integer"
+          },
+          "timestamp": {
+            "examples": [
+              "2020-10-24T10:47:06.570242"
+            ],
+            "format": "date-time",
+            "type": "string"
+          },
+          "url": {
+            "examples": [
+              "nnVClLrehCjQsvkZpJSz"
+            ],
+            "oneOf": [
+              {
+                "examples": [
+                  "avDiWcmlAbfkkDUlAOJw"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "userAgent": {
+            "examples": [
+              "lKIKWNfLbHWUzoQPleFv"
+            ],
+            "oneOf": [
+              {
+                "examples": [
+                  "VcFFBKxzzNBPeDkbQIXf"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "ipAddress",
+          "statusCode",
+          "timestamp"
+        ],
+        "title": "ListAccessLogsAccessLogResponseBody",
+        "type": "object"
+      },
+      "ListGeoEventsGeoEventGeoLocationResponseBody": {
+        "examples": [
+          {
+            "latitude": -2803.25850799604,
+            "longitude": -906062923903.206,
+            "geohash": "mmFEvCbabcOYguawIGUC",
+            "geographicPoint": "ctxrbGzKsdnjxheBhfgK",
+            "countryCode": "PQDHNwALGFHBlpJvStIg",
+            "countryName": "pSjGbFxUQOrIizuyolBH",
+            "state": null,
+            "stateCode": "DXChHqWgxJYBtOOVLgZW",
+            "city": "wIRVLedtxqMNuKkXmitS",
+            "postalCode": "FJQuXZBMSEgIxSkajitk",
+            "timezone": null,
+            "lastHit": "2005-12-28T22:37:55.131809",
+            "createdAt": "2013-08-24T04:46:24.159255",
+            "updatedAt": "2000-08-15T11:19:36.685074",
+            "id": 7939
+          }
+        ],
+        "properties": {
+          "city": {
+            "examples": [
+              "btWqHOgPriLBPewTdWxy"
+            ],
+            "oneOf": [
+              {
+                "examples": [
+                  "cDdvDZVPEurUjWDORTIE"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "countryCode": {
+            "examples": [
+              "iJUhCsuKDfYRTwdshFRP"
+            ],
+            "type": "string"
+          },
+          "countryName": {
+            "examples": [
+              "hSOVrnPxrBBMqbkVDGbg"
+            ],
+            "type": "string"
+          },
+          "createdAt": {
+            "examples": [
+              "2001-04-27T01:57:21.263326"
+            ],
+            "format": "date-time",
+            "type": "string"
+          },
+          "geographicPoint": {
+            "examples": [
+              "jjOrlCcUmnviVzUMZozz"
+            ],
+            "type": "string"
+          },
+          "geohash": {
+            "examples": [
+              "tXVhYOwZjsYxJhBSnpIX"
+            ],
+            "type": "string"
+          },
+          "id": {
+            "examples": [
+              5315
+            ],
+            "type": "integer"
+          },
+          "lastHit": {
+            "examples": [
+              "2020-12-27T21:42:55.393859"
+            ],
+            "oneOf": [
+              {
+                "examples": [
+                  "2008-11-21T05:58:51.296349"
+                ],
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "latitude": {
+            "examples": [
+              64560860425.4934
+            ],
+            "type": "number"
+          },
+          "longitude": {
+            "examples": [
+              8.21062867295353
+            ],
+            "type": "number"
+          },
+          "postalCode": {
+            "examples": [
+              "FiXlEfDRpSuNeNziQYWr"
+            ],
+            "oneOf": [
+              {
+                "examples": [
+                  "xwFswQXAufHcSHjwVUDX"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "state": {
+            "examples": [
+              "JqYSNRLxMkFgOawvtQkO"
+            ],
+            "oneOf": [
+              {
+                "examples": [
+                  "pSmpeFCZfQiysuOZjEwZ"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "stateCode": {
+            "examples": [
+              "tLViFvDEMpEHdutFmqCQ"
+            ],
+            "oneOf": [
+              {
+                "examples": [
+                  "PQsswkMypzVvHsoVSEeC"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "timezone": {
+            "examples": [
+              "mpIYulANfVEodTGDbubH"
+            ],
+            "oneOf": [
+              {
+                "examples": [
+                  "bRjKhHKYuQmvHLBSfRBy"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "updatedAt": {
+            "examples": [
+              "1997-05-24T17:50:11.928127"
+            ],
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "countryCode",
+          "countryName",
+          "geographicPoint",
+          "geohash",
+          "id",
+          "latitude",
+          "longitude"
+        ],
+        "title": "ListGeoEventsGeoEventGeoLocationResponseBody",
+        "type": "object"
+      },
+      "ListGeoEventsGeoEventResponseBody": {
+        "examples": [
+          {
+            "timestamp": "2006-08-22T16:05:48.064624",
+            "ipAddress": "aJAOTcLxTgRweyTdteaQ",
+            "hostname": "CDUeXNSQubZGLKpIxlzy",
+            "locationId": 4946,
+            "location": {
+              "latitude": -612.24737773828,
+              "longitude": -661507.756871398,
+              "geohash": "QpmtiObDRbiZpNbycmaJ",
+              "geographicPoint": "xsvJnicHImAYyNsCOKFp",
+              "countryCode": "czLsLydECqkZELcMizuu",
+              "countryName": "PkXSzTCVzYMIZKmHivKj",
+              "state": null,
+              "stateCode": null,
+              "city": "wlvmKRzLNQPIMLBPjLHC",
+              "postalCode": null,
+              "timezone": "FVPJUTrSUEWjPmuAvAed",
+              "lastHit": "2017-09-14T03:13:46.350792",
+              "createdAt": "2004-02-01T01:52:34.571471",
+              "updatedAt": "2004-04-19T18:30:11.960095",
+              "id": 5581
+            },
+            "id": 4691
+          }
+        ],
+        "properties": {
+          "hostname": {
+            "examples": [
+              "gNZYFcagWptUqCwdERil"
+            ],
+            "type": "string"
+          },
+          "id": {
+            "examples": [
+              6827
+            ],
+            "type": "integer"
+          },
+          "ipAddress": {
+            "examples": [
+              "EkQQHiBrmXZcSFtoJxJI"
+            ],
+            "type": "string"
+          },
+          "location": {
+            "$ref": "#/components/schemas/ListGeoEventsGeoEventGeoLocationResponseBody"
+          },
+          "locationId": {
+            "examples": [
+              6764
+            ],
+            "type": "integer"
+          },
+          "timestamp": {
+            "examples": [
+              "2008-11-03T01:49:24.150165"
+            ],
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "hostname",
+          "id",
+          "ipAddress",
+          "location",
+          "locationId"
+        ],
+        "title": "ListGeoEventsGeoEventResponseBody",
+        "type": "object"
+      },
+      "ListGeoLocationsGeoLocationResponseBody": {
+        "examples": [
+          {
+            "latitude": 123088471.254247,
+            "longitude": 857594.184587598,
+            "geohash": "miwqvpDxhsDxzIWMpFGh",
+            "geographicPoint": "MUTMKFiIchdpkRCmvRTN",
+            "countryCode": "xrVXMxLrjjxZDPRZWhph",
+            "countryName": "GWwZoIuBUNdOVMMWFSfe",
+            "state": null,
+            "stateCode": "kjSQdWLqRDlrArOGoZot",
+            "city": null,
+            "postalCode": "AROKBsmpCcNQnxYjvsEX",
+            "timezone": "lAWGthlHKDNbLVEwalri",
+            "lastHit": "2022-06-13T20:49:46.163510",
+            "createdAt": "2024-03-13T07:18:55.171120",
+            "updatedAt": "2001-10-24T04:38:19.519415",
+            "id": 820
+          }
+        ],
+        "properties": {
+          "city": {
+            "examples": [
+              "hzJVQaFgDYltpvgqmedo"
+            ],
+            "oneOf": [
+              {
+                "examples": [
+                  "BnPWWBGsficFhRAluvFK"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "countryCode": {
+            "examples": [
+              "XxNbowsFWAWCOlvCdOkY"
+            ],
+            "type": "string"
+          },
+          "countryName": {
+            "examples": [
+              "hDWEyQyCQhlaHRFBLadn"
+            ],
+            "type": "string"
+          },
+          "createdAt": {
+            "examples": [
+              "2007-08-26T07:10:06.065758"
+            ],
+            "format": "date-time",
+            "type": "string"
+          },
+          "geographicPoint": {
+            "examples": [
+              "rEpXZfQsssTnULlaHEif"
+            ],
+            "type": "string"
+          },
+          "geohash": {
+            "examples": [
+              "kMrusNZVdgERQISEAbQj"
+            ],
+            "type": "string"
+          },
+          "id": {
+            "examples": [
+              4643
+            ],
+            "type": "integer"
+          },
+          "lastHit": {
+            "examples": [
+              "2024-08-11T03:27:30.306163"
+            ],
+            "oneOf": [
+              {
+                "examples": [
+                  "2008-02-12T05:27:31.270416"
+                ],
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "latitude": {
+            "examples": [
+              74.5941587164041
+            ],
+            "type": "number"
+          },
+          "longitude": {
+            "examples": [
+              739560938287.635
+            ],
+            "type": "number"
+          },
+          "postalCode": {
+            "examples": [
+              "ZdkuJKYDsJtxOSFgHPPw"
+            ],
+            "oneOf": [
+              {
+                "examples": [
+                  "LaRwOkLajWACodcaLzto"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "state": {
+            "examples": [
+              "yOenbKOtUzFkeTXhivNz"
+            ],
+            "oneOf": [
+              {
+                "examples": [
+                  "mgZIKOafcWRNBXJcAulZ"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "stateCode": {
+            "examples": [
+              "blQvivuRkyVAAxjfLkWV"
+            ],
+            "oneOf": [
+              {
+                "examples": [
+                  "XHybNBWjlFyNksLSBJgz"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "timezone": {
+            "examples": [
+              "uaRkZifHdzTZkTXxwjoF"
+            ],
+            "oneOf": [
+              {
+                "examples": [
+                  "BtayvnKlHcBpXrxgTuFO"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "updatedAt": {
+            "examples": [
+              "2000-11-16T12:19:28.639521"
+            ],
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "countryCode",
+          "countryName",
+          "geographicPoint",
+          "geohash",
+          "id",
+          "latitude",
+          "longitude"
+        ],
+        "title": "ListGeoLocationsGeoLocationResponseBody",
+        "type": "object"
+      },
+      "PercentChange": {
+        "examples": [
+          {
+            "bytes_sent": 5142353731705.2,
+            "requests": 7.909545785257,
+            "unique_ips": -8881.5680118576
+          }
+        ],
+        "properties": {
+          "avg_request_time": {
+            "examples": [
+              -200330.600709895
+            ],
+            "oneOf": [
+              {
+                "examples": [
+                  15589138466.8011
+                ],
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "bytes_sent": {
+            "examples": [
+              6121795446183.1
+            ],
+            "oneOf": [
+              {
+                "examples": [
+                  56162661.748759
+                ],
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "error_rate": {
+            "examples": [
+              44943566.6164638
+            ],
+            "oneOf": [
+              {
+                "examples": [
+                  3228669388.38872
+                ],
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "geo_events": {
+            "examples": [
+              -15349.404177049
+            ],
+            "oneOf": [
+              {
+                "examples": [
+                  -93313.1533049858
+                ],
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "requests": {
+            "examples": [
+              8215765051870.78
+            ],
+            "oneOf": [
+              {
+                "examples": [
+                  -6056418.96775312
+                ],
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "unique_ips": {
+            "examples": [
+              -9181.75648489263
+            ],
+            "oneOf": [
+              {
+                "examples": [
+                  6527552.74048048
+                ],
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [],
+        "title": "PercentChange",
+        "type": "object"
+      },
+      "PerformanceDataPoint": {
+        "examples": [
+          {
+            "avg_request_time": -383270919874.105,
+            "max_request_time": -4.35045738106449,
+            "timestamp": "MzcyAWbOZGGusWbqYWyW"
+          }
+        ],
+        "properties": {
+          "avg_request_time": {
+            "examples": [
+              175494156490.271
+            ],
+            "type": "number"
+          },
+          "max_request_time": {
+            "examples": [
+              9.9189696446325
+            ],
+            "type": "number"
+          },
+          "timestamp": {
+            "examples": [
+              "ERqrGhabsLlpgPLLwGVL"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "avg_request_time",
+          "max_request_time",
+          "timestamp"
+        ],
+        "title": "PerformanceDataPoint",
+        "type": "object"
+      },
+      "PerformanceTimeSeriesResponse": {
+        "examples": [
+          {
+            "data": [
+              {
+                "avg_request_time": 751.799719751373,
+                "max_request_time": 7553291243659.87,
+                "timestamp": "yCNyQUxoMtLYChdikVgH"
+              }
+            ],
+            "end_date": "dAEhIZEArvKRvtTfuiuL",
+            "granularity": "HOpNpLgXMtomXFEPsMBI",
+            "start_date": "npETYqCQeUdwQCWtPIsq"
+          }
+        ],
+        "properties": {
+          "data": {
+            "examples": [
+              [
+                {
+                  "avg_request_time": 4772456766.40328,
+                  "max_request_time": -79.2363271521134,
+                  "timestamp": "lEcxiERwgDMAqGLWocSL"
+                }
+              ]
+            ],
+            "items": {
+              "$ref": "#/components/schemas/PerformanceDataPoint"
+            },
+            "type": "array"
+          },
+          "end_date": {
+            "examples": [
+              "OvqdkdDdKrRsFbIAdqBN"
+            ],
+            "type": "string"
+          },
+          "granularity": {
+            "examples": [
+              "NACSxTaDSNoBhZxpTRgM"
+            ],
+            "type": "string"
+          },
+          "start_date": {
+            "examples": [
+              "LvsSiypakNCrnbRlJxJf"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "end_date",
+          "granularity",
+          "start_date"
+        ],
+        "title": "PerformanceTimeSeriesResponse",
+        "type": "object"
+      },
+      "PeriodSummary": {
+        "examples": [
+          {
+            "avg_bytes_per_request": -674392723.372267,
+            "avg_request_time": 7226.34327324436,
+            "error_rate": 925237570.878504,
+            "malformed_requests": 3801,
+            "max_request_time": 3053.23622147321,
+            "status_2xx": 4326,
+            "status_3xx": 1525,
+            "status_4xx": 1804,
+            "status_5xx": 8422,
+            "total_bytes_sent": 178,
+            "total_geo_events": 8903,
+            "total_requests": 9130,
+            "unique_countries": 7946,
+            "unique_ips": 9743
+          }
+        ],
+        "properties": {
+          "avg_bytes_per_request": {
+            "examples": [
+              -800447.26695868
+            ],
+            "type": "number"
+          },
+          "avg_request_time": {
+            "examples": [
+              -4934868154.66865
+            ],
+            "type": "number"
+          },
+          "error_rate": {
+            "examples": [
+              67.61732948669
+            ],
+            "type": "number"
+          },
+          "malformed_requests": {
+            "examples": [
+              8949
+            ],
+            "type": "integer"
+          },
+          "max_request_time": {
+            "examples": [
+              8029.774440094
+            ],
+            "type": "number"
+          },
+          "status_2xx": {
+            "examples": [
+              5714
+            ],
+            "type": "integer"
+          },
+          "status_3xx": {
+            "examples": [
+              6466
+            ],
+            "type": "integer"
+          },
+          "status_4xx": {
+            "examples": [
+              4105
+            ],
+            "type": "integer"
+          },
+          "status_5xx": {
+            "examples": [
+              4986
+            ],
+            "type": "integer"
+          },
+          "total_bytes_sent": {
+            "examples": [
+              6894
+            ],
+            "type": "integer"
+          },
+          "total_geo_events": {
+            "examples": [
+              7501
+            ],
+            "type": "integer"
+          },
+          "total_requests": {
+            "examples": [
+              3443
+            ],
+            "type": "integer"
+          },
+          "unique_countries": {
+            "examples": [
+              3356
+            ],
+            "type": "integer"
+          },
+          "unique_ips": {
+            "examples": [
+              8828
+            ],
+            "type": "integer"
+          }
+        },
+        "required": [
+          "avg_bytes_per_request",
+          "avg_request_time",
+          "error_rate",
+          "malformed_requests",
+          "max_request_time",
+          "status_2xx",
+          "status_3xx",
+          "status_4xx",
+          "status_5xx",
+          "total_bytes_sent",
+          "total_geo_events",
+          "total_requests",
+          "unique_countries",
+          "unique_ips"
+        ],
+        "title": "PeriodSummary",
+        "type": "object"
+      },
+      "SummaryResponse": {
+        "examples": [
+          {
+            "current_period": {
+              "avg_bytes_per_request": 7287778455.59339,
+              "avg_request_time": -96265.9508056561,
+              "error_rate": 341185.570490715,
+              "malformed_requests": 4797,
+              "max_request_time": 9683.37512608849,
+              "status_2xx": 6459,
+              "status_3xx": 8287,
+              "status_4xx": 4259,
+              "status_5xx": 3188,
+              "total_bytes_sent": 7143,
+              "total_geo_events": 5221,
+              "total_requests": 66,
+              "unique_countries": 5151,
+              "unique_ips": 6226
+            },
+            "end_date": "suCyBhRZbTJYpZJgErdz",
+            "previous_period": {
+              "avg_bytes_per_request": 11148.7532140478,
+              "avg_request_time": 5522805786.55259,
+              "error_rate": -2541463722489.5,
+              "malformed_requests": 6360,
+              "max_request_time": -312817748.79183,
+              "status_2xx": 2766,
+              "status_3xx": 8140,
+              "status_4xx": 1886,
+              "status_5xx": 6335,
+              "total_bytes_sent": 8600,
+              "total_geo_events": 3838,
+              "total_requests": 9073,
+              "unique_countries": 4298,
+              "unique_ips": 2851
+            },
+            "start_date": "ZqYdODKdviHIXPjFtcwY"
+          }
+        ],
+        "properties": {
+          "current_period": {
+            "$ref": "#/components/schemas/PeriodSummary"
+          },
+          "end_date": {
+            "examples": [
+              "wJxazICvjGIIfVZMwXgU"
+            ],
+            "type": "string"
+          },
+          "percent_changes": {
+            "examples": [
+              {
+                "bytes_sent": -1082.38344993845,
+                "geo_events": 41353.845503368,
+                "requests": 1160326438757.47
+              }
+            ],
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/PercentChange"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "previous_period": {
+            "examples": [
+              {
+                "avg_bytes_per_request": 71249.9689773306,
+                "avg_request_time": 549.726948209977,
+                "error_rate": -74096583.9050369,
+                "malformed_requests": 4562,
+                "max_request_time": -505177991.503209,
+                "status_2xx": 6843,
+                "status_3xx": 2440,
+                "status_4xx": 9628,
+                "status_5xx": 4035,
+                "total_bytes_sent": 9350,
+                "total_geo_events": 6856,
+                "total_requests": 4028,
+                "unique_countries": 9206,
+                "unique_ips": 2986
+              }
+            ],
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/PeriodSummary"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "start_date": {
+            "examples": [
+              "IMdIypzMdYqNQFFrAKRG"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "current_period",
+          "end_date",
+          "start_date"
+        ],
+        "title": "SummaryResponse",
+        "type": "object"
+      },
+      "TimeSeriesDataPoint": {
+        "examples": [
+          {
+            "error_rate": -639347705.110164,
+            "status_2xx": 3394,
+            "status_3xx": 1283,
+            "status_4xx": 8598,
+            "status_5xx": 2072,
+            "timestamp": "qzNPgYofoDXJiKUJnhRg",
+            "total_bytes_sent": 6587,
+            "total_geo_events": 6376,
+            "total_requests": 6017
+          }
+        ],
+        "properties": {
+          "error_rate": {
+            "examples": [
+              -980848.364999969
+            ],
+            "type": "number"
+          },
+          "status_2xx": {
+            "examples": [
+              8561
+            ],
+            "type": "integer"
+          },
+          "status_3xx": {
+            "examples": [
+              7118
+            ],
+            "type": "integer"
+          },
+          "status_4xx": {
+            "examples": [
+              6118
+            ],
+            "type": "integer"
+          },
+          "status_5xx": {
+            "examples": [
+              9037
+            ],
+            "type": "integer"
+          },
+          "timestamp": {
+            "examples": [
+              "ilcdHaGqMXIDOOWPfFUy"
+            ],
+            "type": "string"
+          },
+          "total_bytes_sent": {
+            "examples": [
+              304
+            ],
+            "type": "integer"
+          },
+          "total_geo_events": {
+            "examples": [
+              5992
+            ],
+            "type": "integer"
+          },
+          "total_requests": {
+            "examples": [
+              3032
+            ],
+            "type": "integer"
+          }
+        },
+        "required": [
+          "error_rate",
+          "status_2xx",
+          "status_3xx",
+          "status_4xx",
+          "status_5xx",
+          "timestamp",
+          "total_bytes_sent",
+          "total_geo_events",
+          "total_requests"
+        ],
+        "title": "TimeSeriesDataPoint",
+        "type": "object"
+      },
+      "TimeSeriesResponse": {
+        "examples": [
+          {
+            "data": [
+              {
+                "error_rate": -56101.911651481,
+                "status_2xx": 1107,
+                "status_3xx": 5774,
+                "status_4xx": 2405,
+                "status_5xx": 3600,
+                "timestamp": "hPhkcAzVXLhrzzvESueU",
+                "total_bytes_sent": 8949,
+                "total_geo_events": 4480,
+                "total_requests": 6381
+              }
+            ],
+            "end_date": "zyFHaOtVHLXvGsDgaWTR",
+            "granularity": "WxUbAVLzhNFKmXgvVIAn",
+            "start_date": "xyFFceTKwcEFznQAFKbT"
+          }
+        ],
+        "properties": {
+          "data": {
+            "examples": [
+              [
+                {
+                  "error_rate": -73498844725690.7,
+                  "status_2xx": 6922,
+                  "status_3xx": 6979,
+                  "status_4xx": 9524,
+                  "status_5xx": 9698,
+                  "timestamp": "FWWIrtzWVJibqqLeYukE",
+                  "total_bytes_sent": 1998,
+                  "total_geo_events": 5308,
+                  "total_requests": 1061
+                }
+              ]
+            ],
+            "items": {
+              "$ref": "#/components/schemas/TimeSeriesDataPoint"
+            },
+            "type": "array"
+          },
+          "end_date": {
+            "examples": [
+              "wXhlxlPwoGeJbnPsSMYi"
+            ],
+            "type": "string"
+          },
+          "granularity": {
+            "examples": [
+              "gRSMhEeDVvVOUmOKsPNn"
+            ],
+            "type": "string"
+          },
+          "start_date": {
+            "examples": [
+              "FABlxdRilLXEqueaNHqi"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "end_date",
+          "granularity",
+          "start_date"
+        ],
+        "title": "TimeSeriesResponse",
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "description": "Real-time GeoIP lookups and traffic analytics API",
+    "title": "GeoMetrikks API",
+    "version": "0.1.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/api/v1/access-log-debug": {
+      "get": {
+        "deprecated": false,
+        "operationId": "ApiV1AccessLogDebugListAccessLogDebugs",
+        "parameters": [
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "currentPage",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "examples": [
+                4981
+              ],
+              "minimum": 1.0,
+              "type": "integer"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "pageSize",
+            "required": false,
+            "schema": {
+              "default": 10,
+              "examples": [
+                2184
+              ],
+              "minimum": 1.0,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "examples": [],
+                  "properties": {
+                    "items": {
+                      "items": {
+                        "$ref": "#/components/schemas/ListAccessLogDebugsAccessLogDebugResponseBody"
+                      },
+                      "type": "array"
+                    },
+                    "limit": {
+                      "description": "Maximal number of items to send.",
+                      "type": "integer"
+                    },
+                    "offset": {
+                      "description": "Offset from the beginning of the query.",
+                      "type": "integer"
+                    },
+                    "total": {
+                      "description": "Total number of items.",
+                      "type": "integer"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "ListAccessLogDebugs",
+        "tags": [
+          "Access Log Debug"
+        ]
+      }
+    },
+    "/api/v1/access-logs": {
+      "get": {
+        "deprecated": false,
+        "operationId": "ApiV1AccessLogsListAccessLogs",
+        "parameters": [
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "currentPage",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "examples": [
+                2109
+              ],
+              "minimum": 1.0,
+              "type": "integer"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "pageSize",
+            "required": false,
+            "schema": {
+              "default": 10,
+              "examples": [
+                364
+              ],
+              "minimum": 1.0,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "examples": [],
+                  "properties": {
+                    "items": {
+                      "items": {
+                        "$ref": "#/components/schemas/ListAccessLogsAccessLogResponseBody"
+                      },
+                      "type": "array"
+                    },
+                    "limit": {
+                      "description": "Maximal number of items to send.",
+                      "type": "integer"
+                    },
+                    "offset": {
+                      "description": "Offset from the beginning of the query.",
+                      "type": "integer"
+                    },
+                    "total": {
+                      "description": "Total number of items.",
+                      "type": "integer"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "ListAccessLogs",
+        "tags": [
+          "Access Logs"
+        ]
+      }
+    },
+    "/api/v1/analytics/summary": {
+      "get": {
+        "deprecated": false,
+        "description": "Get summary statistics for dashboard header cards.",
+        "operationId": "ApiV1AnalyticsSummaryGetSummary",
+        "parameters": [
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Start date (ISO 8601, e.g., 2024-01-01)",
+            "examples": {
+              "start_date-example-1": {
+                "value": "2025-12-14"
+              }
+            },
+            "in": "query",
+            "name": "start_date",
+            "required": true,
+            "schema": {
+              "description": "Start date (ISO 8601, e.g., 2024-01-01)",
+              "examples": [
+                "2025-12-14"
+              ],
+              "format": "date",
+              "type": "string"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "End date (ISO 8601, e.g., 2024-12-31)",
+            "examples": {
+              "end_date-example-1": {
+                "value": "2025-12-21"
+              }
+            },
+            "in": "query",
+            "name": "end_date",
+            "required": true,
+            "schema": {
+              "description": "End date (ISO 8601, e.g., 2024-12-31)",
+              "examples": [
+                "2025-12-21"
+              ],
+              "format": "date",
+              "type": "string"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Include comparison with previous period of same length",
+            "in": "query",
+            "name": "compare_previous",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Include comparison with previous period of same length",
+              "examples": [
+                true
+              ],
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SummaryResponse"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "GetSummary",
+        "tags": [
+          "Analytics"
+        ]
+      }
+    },
+    "/api/v1/analytics/time-series/bandwidth": {
+      "get": {
+        "deprecated": false,
+        "description": "Get bandwidth time-series for charts.",
+        "operationId": "ApiV1AnalyticsTimeSeriesBandwidthGetBandwidthTimeSeries",
+        "parameters": [
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Start date (ISO 8601)",
+            "in": "query",
+            "name": "start_date",
+            "required": true,
+            "schema": {
+              "description": "Start date (ISO 8601)",
+              "examples": [
+                "2021-11-30"
+              ],
+              "format": "date",
+              "type": "string"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "End date (ISO 8601)",
+            "in": "query",
+            "name": "end_date",
+            "required": true,
+            "schema": {
+              "description": "End date (ISO 8601)",
+              "examples": [
+                "2022-03-01"
+              ],
+              "format": "date",
+              "type": "string"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Time granularity",
+            "in": "query",
+            "name": "granularity",
+            "required": false,
+            "schema": {
+              "default": "daily",
+              "description": "Time granularity",
+              "enum": [
+                "hourly",
+                "daily"
+              ],
+              "examples": [
+                "daily"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BandwidthTimeSeriesResponse"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "GetBandwidthTimeSeries",
+        "tags": [
+          "Analytics"
+        ]
+      }
+    },
+    "/api/v1/analytics/time-series/geo-events": {
+      "get": {
+        "deprecated": false,
+        "description": "Get geo events time-series for charts.",
+        "operationId": "ApiV1AnalyticsTimeSeriesGeoEventsGetGeoEventsTimeSeries",
+        "parameters": [
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Start date (ISO 8601)",
+            "in": "query",
+            "name": "start_date",
+            "required": true,
+            "schema": {
+              "description": "Start date (ISO 8601)",
+              "examples": [
+                "2023-03-13"
+              ],
+              "format": "date",
+              "type": "string"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "End date (ISO 8601)",
+            "in": "query",
+            "name": "end_date",
+            "required": true,
+            "schema": {
+              "description": "End date (ISO 8601)",
+              "examples": [
+                "2025-09-11"
+              ],
+              "format": "date",
+              "type": "string"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Time granularity",
+            "in": "query",
+            "name": "granularity",
+            "required": false,
+            "schema": {
+              "default": "daily",
+              "description": "Time granularity",
+              "enum": [
+                "hourly",
+                "daily"
+              ],
+              "examples": [
+                "daily"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GeoEventsTimeSeriesResponse"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "GetGeoEventsTimeSeries",
+        "tags": [
+          "Analytics"
+        ]
+      }
+    },
+    "/api/v1/analytics/time-series/performance": {
+      "get": {
+        "deprecated": false,
+        "description": "Get response time metrics for charts.",
+        "operationId": "ApiV1AnalyticsTimeSeriesPerformanceGetPerformanceTimeSeries",
+        "parameters": [
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Start date (ISO 8601)",
+            "in": "query",
+            "name": "start_date",
+            "required": true,
+            "schema": {
+              "description": "Start date (ISO 8601)",
+              "examples": [
+                "2025-06-27"
+              ],
+              "format": "date",
+              "type": "string"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "End date (ISO 8601)",
+            "in": "query",
+            "name": "end_date",
+            "required": true,
+            "schema": {
+              "description": "End date (ISO 8601)",
+              "examples": [
+                "2024-02-15"
+              ],
+              "format": "date",
+              "type": "string"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Time granularity",
+            "in": "query",
+            "name": "granularity",
+            "required": false,
+            "schema": {
+              "default": "daily",
+              "description": "Time granularity",
+              "enum": [
+                "hourly",
+                "daily"
+              ],
+              "examples": [
+                "daily"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PerformanceTimeSeriesResponse"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "GetPerformanceTimeSeries",
+        "tags": [
+          "Analytics"
+        ]
+      }
+    },
+    "/api/v1/analytics/time-series/requests": {
+      "get": {
+        "deprecated": false,
+        "description": "Get request count time-series for charts.",
+        "operationId": "ApiV1AnalyticsTimeSeriesRequestsGetRequestsTimeSeries",
+        "parameters": [
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Start date (ISO 8601)",
+            "examples": {
+              "start_date-example-1": {
+                "value": "2025-12-14"
+              }
+            },
+            "in": "query",
+            "name": "start_date",
+            "required": true,
+            "schema": {
+              "description": "Start date (ISO 8601)",
+              "examples": [
+                "2025-12-14"
+              ],
+              "format": "date",
+              "type": "string"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "End date (ISO 8601)",
+            "examples": {
+              "end_date-example-1": {
+                "value": "2025-12-21"
+              }
+            },
+            "in": "query",
+            "name": "end_date",
+            "required": true,
+            "schema": {
+              "description": "End date (ISO 8601)",
+              "examples": [
+                "2025-12-21"
+              ],
+              "format": "date",
+              "type": "string"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Time granularity for data points",
+            "in": "query",
+            "name": "granularity",
+            "required": false,
+            "schema": {
+              "default": "daily",
+              "description": "Time granularity for data points",
+              "enum": [
+                "hourly",
+                "daily"
+              ],
+              "examples": [
+                "hourly"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TimeSeriesResponse"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "GetRequestsTimeSeries",
+        "tags": [
+          "Analytics"
+        ]
+      }
+    },
+    "/api/v1/geo-events": {
+      "get": {
+        "deprecated": false,
+        "operationId": "ApiV1GeoEventsListGeoEvents",
+        "parameters": [
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "currentPage",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "examples": [
+                9361
+              ],
+              "minimum": 1.0,
+              "type": "integer"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "pageSize",
+            "required": false,
+            "schema": {
+              "default": 10,
+              "examples": [
+                533
+              ],
+              "minimum": 1.0,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "examples": [],
+                  "properties": {
+                    "items": {
+                      "items": {
+                        "$ref": "#/components/schemas/ListGeoEventsGeoEventResponseBody"
+                      },
+                      "type": "array"
+                    },
+                    "limit": {
+                      "description": "Maximal number of items to send.",
+                      "type": "integer"
+                    },
+                    "offset": {
+                      "description": "Offset from the beginning of the query.",
+                      "type": "integer"
+                    },
+                    "total": {
+                      "description": "Total number of items.",
+                      "type": "integer"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "ListGeoEvents",
+        "tags": [
+          "Geo Events"
+        ]
+      }
+    },
+    "/api/v1/geo-locations": {
+      "get": {
+        "deprecated": false,
+        "operationId": "ApiV1GeoLocationsListGeoLocations",
+        "parameters": [
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "currentPage",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "examples": [
+                9448
+              ],
+              "minimum": 1.0,
+              "type": "integer"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "pageSize",
+            "required": false,
+            "schema": {
+              "default": 10,
+              "examples": [
+                5522
+              ],
+              "minimum": 1.0,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "examples": [],
+                  "properties": {
+                    "items": {
+                      "items": {
+                        "$ref": "#/components/schemas/ListGeoLocationsGeoLocationResponseBody"
+                      },
+                      "type": "array"
+                    },
+                    "limit": {
+                      "description": "Maximal number of items to send.",
+                      "type": "integer"
+                    },
+                    "offset": {
+                      "description": "Offset from the beginning of the query.",
+                      "type": "integer"
+                    },
+                    "total": {
+                      "description": "Total number of items.",
+                      "type": "integer"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "ListGeoLocations",
+        "tags": [
+          "Geo Locations"
+        ]
+      }
+    },
+    "/api/v1/geo-locations/geojson": {
+      "get": {
+        "deprecated": false,
+        "description": "Get all locations with event counts as GeoJSON FeatureCollection.",
+        "operationId": "ApiV1GeoLocationsGeojsonGetGeojson",
+        "parameters": [
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)",
+            "examples": {
+              "from_timestamp-example-1": {
+                "value": "2025-12-21 19:28:04.214974+00:00"
+              }
+            },
+            "in": "query",
+            "name": "from_timestamp",
+            "required": true,
+            "schema": {
+              "description": "Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)",
+              "examples": [
+                "2025-12-21 19:28:04.214974+00:00"
+              ],
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)",
+            "examples": {
+              "to_timestamp-example-1": {
+                "value": "2025-12-21 19:28:04.215117+00:00"
+              }
+            },
+            "in": "query",
+            "name": "to_timestamp",
+            "required": true,
+            "schema": {
+              "description": "End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)",
+              "examples": [
+                "2025-12-21 19:28:04.215117+00:00"
+              ],
+              "format": "date-time",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GeoJSONFeatureCollection"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "GetGeojson",
+        "tags": [
+          "Geo Locations"
+        ]
+      }
+    },
+    "/settings": {
+      "get": {
+        "deprecated": false,
+        "operationId": "SettingsReadSettings",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "examples": [
+                      "70"
+                    ]
+                  },
+                  "examples": [
+                    {
+                      "jcEPBdaVSjRyWLxaBoGd": "75"
+                    }
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          }
+        },
+        "summary": "ReadSettings"
+      }
+    },
+    "/stats": {
+      "get": {
+        "deprecated": false,
+        "operationId": "StatsStats",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "examples": [
+                      "75d71b"
+                    ]
+                  },
+                  "examples": [
+                    {
+                      "nBuAoIEVkNNqWEYcywPQ": "347a3e74"
+                    }
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          }
+        },
+        "summary": "Stats"
+      }
+    }
+  },
+  "servers": [
+    {
+      "url": "/"
+    }
+  ]
+}

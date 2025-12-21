@@ -4,6 +4,8 @@
 /data/*
 /docs
 *.db
+.litestar.json
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
@@ -370,3 +372,7 @@ dist
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .vite/
+
+public/hot
+public/bundle
+pdm-pythn
