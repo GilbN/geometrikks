@@ -3,7 +3,27 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>geometrikks</title>
+    <meta name="color-scheme" content="dark light" />
+    <title>GeoMetrikks</title>
+    <script>
+      // Prevent flash bang - apply theme immediately before render
+      // Default theme is 'dark' (matches ThemeProvider defaultTheme in __root.tsx)
+      (function() {
+        const storageKey = 'geometrikks-theme';
+        const theme = localStorage.getItem(storageKey);
+        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        // Dark if: explicitly dark, OR no preference (default to dark), OR system preference is dark
+        const isDark = theme === 'dark' || !theme || (theme === 'system' && prefersDark);
+        if (isDark) {
+          document.documentElement.classList.add('dark');
+        }
+      })();
+    </script>
+    <style>
+      /* CSS to prevent flash bang - dark theme colors from tailwind.css */
+      html.dark, html.dark body { background-color: oklch(0.12 0.02 250); color: oklch(0.95 0.01 220); }
+      html:not(.dark), html:not(.dark) body { background-color: #fff; color: oklch(0.13 0.028 261.692); }
+    </style>
   </head>
   <body>
     <div id="app"></div>

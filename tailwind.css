@@ -5,6 +5,25 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* GeoMetrikks custom utilities */
+@utility text-gradient-geo {
+  background: linear-gradient(135deg, oklch(0.75 0.18 195) 0%, oklch(0.65 0.22 180) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+@utility bg-grid-pattern {
+  background-image:
+    linear-gradient(oklch(1 0 0 / 3%) 1px, transparent 1px),
+    linear-gradient(90deg, oklch(1 0 0 / 3%) 1px, transparent 1px);
+  background-size: 20px 20px;
+}
+
+@utility bg-contour-pattern {
+  background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M30 5 Q45 15 45 30 Q45 45 30 55 Q15 45 15 30 Q15 15 30 5' fill='none' stroke='%2306b6d4' stroke-opacity='0.04' stroke-width='1'/%3E%3C/svg%3E");
+}
+
 @theme inline {
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
@@ -44,6 +63,9 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
+  --color-geo-cyan: var(--geo-cyan);
+  --color-geo-cyan-dim: var(--geo-cyan-dim);
+  --color-geo-glow: var(--geo-glow);
   --font-sans: 'Inter Variable', sans-serif;
 }
 
@@ -80,40 +102,50 @@
   --sidebar-ring: oklch(0.707 0.022 261.325);
   --background: oklch(1 0 0);
   --foreground: oklch(0.13 0.028 261.692);
+
+  /* Geo-specific accent colors (light mode) */
+  --geo-cyan: oklch(0.55 0.18 192);
+  --geo-cyan-dim: oklch(0.45 0.14 192);
+  --geo-glow: oklch(0.55 0.18 192 / 15%);
 }
 
 .dark {
-  --background: oklch(0.13 0.028 261.692);
-  --foreground: oklch(0.985 0.002 247.839);
-  --card: oklch(0.21 0.034 264.665);
-  --card-foreground: oklch(0.985 0.002 247.839);
-  --popover: oklch(0.21 0.034 264.665);
-  --popover-foreground: oklch(0.985 0.002 247.839);
-  --primary: oklch(0.928 0.006 264.531);
-  --primary-foreground: oklch(0.21 0.034 264.665);
-  --secondary: oklch(0.278 0.033 256.848);
-  --secondary-foreground: oklch(0.985 0.002 247.839);
-  --muted: oklch(0.278 0.033 256.848);
-  --muted-foreground: oklch(0.707 0.022 261.325);
-  --accent: oklch(0.278 0.033 256.848);
-  --accent-foreground: oklch(0.985 0.002 247.839);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.551 0.027 264.364);
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.21 0.034 264.665);
-  --sidebar-foreground: oklch(0.985 0.002 247.839);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0.002 247.839);
-  --sidebar-accent: oklch(0.278 0.033 256.848);
-  --sidebar-accent-foreground: oklch(0.985 0.002 247.839);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.551 0.027 264.364);
+  --background: oklch(0.12 0.02 250);
+  --foreground: oklch(0.95 0.01 220);
+  --card: oklch(0.16 0.025 250);
+  --card-foreground: oklch(0.95 0.01 220);
+  --popover: oklch(0.16 0.025 250);
+  --popover-foreground: oklch(0.95 0.01 220);
+  --primary: oklch(0.72 0.15 192);
+  --primary-foreground: oklch(0.12 0.02 250);
+  --secondary: oklch(0.22 0.03 250);
+  --secondary-foreground: oklch(0.95 0.01 220);
+  --muted: oklch(0.22 0.03 250);
+  --muted-foreground: oklch(0.65 0.02 250);
+  --accent: oklch(0.72 0.15 192);
+  --accent-foreground: oklch(0.12 0.02 250);
+  --destructive: oklch(0.65 0.22 25);
+  --border: oklch(1 0 0 / 8%);
+  --input: oklch(1 0 0 / 12%);
+  --ring: oklch(0.72 0.15 192);
+  --chart-1: oklch(0.72 0.15 192);
+  --chart-2: oklch(0.65 0.18 160);
+  --chart-3: oklch(0.75 0.16 85);
+  --chart-4: oklch(0.65 0.22 300);
+  --chart-5: oklch(0.70 0.20 30);
+  --sidebar: oklch(0.14 0.022 250);
+  --sidebar-foreground: oklch(0.92 0.01 220);
+  --sidebar-primary: oklch(0.72 0.15 192);
+  --sidebar-primary-foreground: oklch(0.12 0.02 250);
+  --sidebar-accent: oklch(0.20 0.028 250);
+  --sidebar-accent-foreground: oklch(0.95 0.01 220);
+  --sidebar-border: oklch(1 0 0 / 6%);
+  --sidebar-ring: oklch(0.72 0.15 192);
+
+  /* Geo-specific accent colors */
+  --geo-cyan: oklch(0.72 0.15 192);
+  --geo-cyan-dim: oklch(0.55 0.12 192);
+  --geo-glow: oklch(0.72 0.15 192 / 20%);
 }
 
 @layer base {
