@@ -57,14 +57,14 @@ class GeoLocationController(Controller):
             datetime,
             Parameter(
                 description="Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)",
-                examples=[Example(value=str(datetime.now(timezone.utc)))],
+                examples=[Example(value="2024-01-01T00:00:00Z")],
             ),
         ],
         to_timestamp: Annotated[
             datetime,
             Parameter(
                 description="End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)",
-                examples=[Example(value=str(datetime.now(timezone.utc)))],
+                examples=[Example(value="2024-12-31T23:59:59Z")],
             ),
         ],
     ) -> GeoJSONFeatureCollection:

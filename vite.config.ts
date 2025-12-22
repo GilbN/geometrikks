@@ -13,10 +13,21 @@ export default defineConfig({
     hmr: {
       host: "localhost",
     },
+    proxy: {
+      "/api": {
+        target: "http://localhost:8000",
+        changeOrigin: true,
+      },
+    },
   },
   plugins: [
     tailwindcss(),
-    tanstackRouter(),
+    tanstackRouter({
+      target: 'react',
+      autoCodeSplitting: true,
+      routesDirectory: './resources/routes',
+      generatedRouteTree: './resources/routeTree.gen.ts',
+    }),
     react(),
     litestar({
       input: ["resources/main.tsx"],

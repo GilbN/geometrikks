@@ -37,7 +37,7 @@ def create_app() -> Litestar:
         title=settings.name,
         version=settings.version,
         description=settings.description,
-        create_examples=True,
+        create_examples=False,
     )
     
     compression_config = CompressionConfig(

@@ -67,8 +67,8 @@
       ],
       "queryParameters": {
         "compare_previous": "boolean | undefined",
-        "end_date": "DateOnly",
-        "start_date": "DateOnly"
+        "end_date": "DateTime",
+        "start_date": "DateTime"
       },
       "uri": "/api/v1/analytics/summary"
     },

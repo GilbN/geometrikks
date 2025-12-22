@@ -357,12 +357,12 @@ class LogParser:
             return None
         
         datadict: dict[str, str | Any] = log_data.groupdict()
-        
+
         try:
             ts = datetime.strptime(datadict["dateandtime"], "%d/%b/%Y:%H:%M:%S %z")
-        except Exception:
+        except Exception as e:
+            logger.error("Failed to parse timestamp '%s': %s", datadict.get("dateandtime"), e)
             ts = datetime.now(timezone.utc)
-            
         logger.debug(
             "Encoding geohash for IP %s: lat=%s, long=%s. ipdata=%s",
             ip,

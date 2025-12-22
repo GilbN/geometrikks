@@ -89,8 +89,8 @@ export interface RouteQueryParams {
   };
   'get_summary': {
     compare_previous?: boolean;
-    end_date: DateOnly;
-    start_date: DateOnly;
+    end_date: DateTime;
+    start_date: DateTime;
   };
   'list_access_log_debugs': {
     currentPage?: number;

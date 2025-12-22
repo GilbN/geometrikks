@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import date, datetime, timedelta, timezone
-from typing import Annotated, Literal
+from typing import Annotated, Literal, Sequence
 
 from litestar import Controller, get
 from litestar.di import Provide
@@ -14,6 +14,9 @@ from geometrikks.domain.analytics.repositories import (
     HourlyStatsRepository,
     DailyStatsRepository,
     Granularity,
+    SummaryStats,
+    DailyStats,
+    HourlyStats
 )
 from geometrikks.domain.analytics.dtos import (
     TimeSeriesResponse,
@@ -59,17 +62,17 @@ class AnalyticsController(Controller):
         hourly_stats_repo: HourlyStatsRepository,
         daily_stats_repo: DailyStatsRepository,
         start_date: Annotated[
-            date,
+            datetime,
             Parameter(
-                description="Start date (ISO 8601, e.g., 2024-01-01)",
-                examples=[Example(value=str(date.today() - timedelta(days=7)))],
+                description="Start date (ISO 8601, e.g., 2024-01-01T00:00:00Z)",
+                examples=[Example(value="2024-01-01T00:00:00Z")],
             ),
         ],
         end_date: Annotated[
-            date,
+            datetime,
             Parameter(
-                description="End date (ISO 8601, e.g., 2024-12-31)",
-                examples=[Example(value=str(date.today()))],
+                description="End date (ISO 8601, e.g., 2024-12-31T23:59:59Z)",
+                examples=[Example(value="2024-12-31T23:59:59Z")],
             ),
         ],
         compare_previous: Annotated[
@@ -85,12 +88,9 @@ class AnalyticsController(Controller):
         Ideal for populating dashboard header cards with key metrics.
         Optionally includes comparison with the previous period.
         """
-        # Convert dates to datetimes for hourly queries
-        start_dt = datetime(start_date.year, start_date.month, start_date.day, tzinfo=timezone.utc)
-        end_dt = datetime(end_date.year, end_date.month, end_date.day, 23, 59, 59, tzinfo=timezone.utc)
 
         # Get current period stats
-        current_stats = await hourly_stats_repo.get_summary(start_dt, end_dt)
+        current_stats: SummaryStats | None = await hourly_stats_repo.get_summary(start_date, end_date)
 
         if current_stats is None:
             # Return empty summary if no data
@@ -137,15 +137,12 @@ class AnalyticsController(Controller):
         percent_changes = None
 
         if compare_previous:
-            # Calculate previous period of same length
-            period_length = (end_date - start_date).days + 1
-            prev_end = start_date - timedelta(days=1)
-            prev_start = prev_end - timedelta(days=period_length - 1)
+            # Calculate previous period of same length (works for any timedelta)
+            period_length: timedelta = end_date - start_date
+            prev_end: datetime = start_date - timedelta(seconds=1)
+            prev_start: datetime = prev_end - period_length
 
-            prev_start_dt = datetime(prev_start.year, prev_start.month, prev_start.day, tzinfo=timezone.utc)
-            prev_end_dt = datetime(prev_end.year, prev_end.month, prev_end.day, 23, 59, 59, tzinfo=timezone.utc)
-
-            prev_stats = await hourly_stats_repo.get_summary(prev_start_dt, prev_end_dt)
+            prev_stats: SummaryStats | None = await hourly_stats_repo.get_summary(prev_start, prev_end)
 
             if prev_stats:
                 previous_period = PeriodSummary(
@@ -203,23 +200,23 @@ class AnalyticsController(Controller):
             date,
             Parameter(
                 description="Start date (ISO 8601)",
-                examples=[Example(value=str(date.today() - timedelta(days=7)))],
+                examples=[Example(value="2024-01-01")],
             ),
         ],
         end_date: Annotated[
             date,
             Parameter(
                 description="End date (ISO 8601)",
-                examples=[Example(value=str(date.today()))],
+                examples=[Example(value="2024-12-31")],
             ),
         ],
         granularity: Annotated[
-            Literal["hourly", "daily"],
+            Literal[Granularity.HOURLY, Granularity.DAILY],
             Parameter(
                 description="Time granularity for data points",
-                default="daily",
+                default=Granularity.DAILY,
             ),
-        ] = "daily",
+        ] = Granularity.DAILY,
     ) -> TimeSeriesResponse:
         """Get request count time-series data for line/bar charts.
 
@@ -230,11 +227,11 @@ class AnalyticsController(Controller):
 
         data_points: list[TimeSeriesDataPoint] = []
 
-        if granularity == "hourly":
-            stats = await hourly_stats_repo.get_time_series(start_dt, end_dt)
+        if granularity == Granularity.HOURLY:
+            stats: Sequence[HourlyStats] = await hourly_stats_repo.get_time_series(start_dt, end_dt)
             for stat in stats:
-                total = stat.status_2xx + stat.status_3xx + stat.status_4xx + stat.status_5xx
-                error_rate = (stat.status_4xx + stat.status_5xx) / total if total > 0 else 0.0
+                total: int = stat.status_2xx + stat.status_3xx + stat.status_4xx + stat.status_5xx
+                error_rate: int | float = (stat.status_4xx + stat.status_5xx) / total if total > 0 else 0.0
                 data_points.append(
                     TimeSeriesDataPoint(
                         timestamp=stat.hour.isoformat(),
@@ -249,10 +246,10 @@ class AnalyticsController(Controller):
                     )
                 )
         else:
-            stats = await daily_stats_repo.get_time_series(start_date, end_date)
+            stats: Sequence[DailyStats] = await daily_stats_repo.get_time_series(start_date, end_date)
             for stat in stats:
-                total = stat.status_2xx + stat.status_3xx + stat.status_4xx + stat.status_5xx
-                error_rate = (stat.status_4xx + stat.status_5xx) / total if total > 0 else 0.0
+                total: int = stat.status_2xx + stat.status_3xx + stat.status_4xx + stat.status_5xx
+                error_rate: int | float = (stat.status_4xx + stat.status_5xx) / total if total > 0 else 0.0
                 # Convert date to datetime for consistent format
                 stat_dt = datetime(stat.date.year, stat.date.month, stat.date.day, tzinfo=timezone.utc)
                 data_points.append(
@@ -283,16 +280,24 @@ class AnalyticsController(Controller):
         daily_stats_repo: DailyStatsRepository,
         start_date: Annotated[
             date,
-            Parameter(description="Start date (ISO 8601)"),
+            Parameter(
+                description="Start date (ISO 8601)",
+                examples=[Example(value="2024-01-01")]
+            ),
+            
         ],
         end_date: Annotated[
             date,
-            Parameter(description="End date (ISO 8601)"),
+            Parameter(
+                description="End date (ISO 8601)",
+                examples=[Example(value="2024-12-31")]
+            ),
+            
         ],
         granularity: Annotated[
-            Literal["hourly", "daily"],
-            Parameter(description="Time granularity", default="daily"),
-        ] = "daily",
+            Literal[Granularity.HOURLY, Granularity.DAILY],
+            Parameter(description="Time granularity", default=Granularity.DAILY),
+        ] = Granularity.DAILY,
     ) -> BandwidthTimeSeriesResponse:
         """Get bandwidth time-series data for charts.
 
@@ -303,10 +308,10 @@ class AnalyticsController(Controller):
 
         data_points: list[BandwidthDataPoint] = []
 
-        if granularity == "hourly":
-            stats = await hourly_stats_repo.get_time_series(start_dt, end_dt)
+        if granularity == Granularity.HOURLY:
+            stats: Sequence[HourlyStats] = await hourly_stats_repo.get_time_series(start_dt, end_dt)
             for stat in stats:
-                avg_bytes = stat.total_bytes_sent / stat.total_requests if stat.total_requests > 0 else 0.0
+                avg_bytes: int | float = stat.total_bytes_sent / stat.total_requests if stat.total_requests > 0 else 0.0
                 data_points.append(
                     BandwidthDataPoint(
                         timestamp=stat.hour.isoformat(),
@@ -315,7 +320,7 @@ class AnalyticsController(Controller):
                     )
                 )
         else:
-            stats = await daily_stats_repo.get_time_series(start_date, end_date)
+            stats: Sequence[DailyStats] = await daily_stats_repo.get_time_series(start_date, end_date)
             for stat in stats:
                 stat_dt = datetime(stat.date.year, stat.date.month, stat.date.day, tzinfo=timezone.utc)
                 data_points.append(
@@ -340,16 +345,22 @@ class AnalyticsController(Controller):
         daily_stats_repo: DailyStatsRepository,
         start_date: Annotated[
             date,
-            Parameter(description="Start date (ISO 8601)"),
+            Parameter(
+                description="Start date (ISO 8601)",
+                examples=[Example(value="2024-01-01")]
+            )
         ],
         end_date: Annotated[
             date,
-            Parameter(description="End date (ISO 8601)"),
+            Parameter(
+                description="End date (ISO 8601)",
+                examples=[Example(value="2024-12-31")]
+            ),
         ],
         granularity: Annotated[
-            Literal["hourly", "daily"],
-            Parameter(description="Time granularity", default="daily"),
-        ] = "daily",
+            Literal[Granularity.HOURLY, Granularity.DAILY],
+            Parameter(description="Time granularity", default=Granularity.DAILY),
+        ] = Granularity.DAILY,
     ) -> PerformanceTimeSeriesResponse:
         """Get response time metrics over time.
 
@@ -360,8 +371,8 @@ class AnalyticsController(Controller):
 
         data_points: list[PerformanceDataPoint] = []
 
-        if granularity == "hourly":
-            stats = await hourly_stats_repo.get_time_series(start_dt, end_dt)
+        if granularity == Granularity.HOURLY:
+            stats: Sequence[HourlyStats] = await hourly_stats_repo.get_time_series(start_dt, end_dt)
             for stat in stats:
                 data_points.append(
                     PerformanceDataPoint(
@@ -371,7 +382,7 @@ class AnalyticsController(Controller):
                     )
                 )
         else:
-            stats = await daily_stats_repo.get_time_series(start_date, end_date)
+            stats: Sequence[DailyStats] = await daily_stats_repo.get_time_series(start_date, end_date)
             for stat in stats:
                 stat_dt = datetime(stat.date.year, stat.date.month, stat.date.day, tzinfo=timezone.utc)
                 data_points.append(
@@ -396,16 +407,22 @@ class AnalyticsController(Controller):
         daily_stats_repo: DailyStatsRepository,
         start_date: Annotated[
             date,
-            Parameter(description="Start date (ISO 8601)"),
+            Parameter(
+                description="Start date (ISO 8601)",
+                examples=[Example(value="2024-01-01")],
+            ),
         ],
         end_date: Annotated[
             date,
-            Parameter(description="End date (ISO 8601)"),
+            Parameter(
+                description="End date (ISO 8601)",
+                examples=[Example(value="2024-12-31")],
+            ),
         ],
         granularity: Annotated[
-            Literal["hourly", "daily"],
-            Parameter(description="Time granularity", default="daily"),
-        ] = "daily",
+            Literal[Granularity.HOURLY, Granularity.DAILY],
+            Parameter(description="Time granularity", default=Granularity.DAILY),
+        ] = Granularity.DAILY,
     ) -> GeoEventsTimeSeriesResponse:
         """Get geo events time-series data.
 
@@ -416,8 +433,8 @@ class AnalyticsController(Controller):
 
         data_points: list[GeoEventsDataPoint] = []
 
-        if granularity == "hourly":
-            stats = await hourly_stats_repo.get_time_series(start_dt, end_dt)
+        if granularity == Granularity.HOURLY:
+            stats: Sequence[HourlyStats] = await hourly_stats_repo.get_time_series(start_dt, end_dt)
             for stat in stats:
                 data_points.append(
                     GeoEventsDataPoint(
@@ -428,7 +445,7 @@ class AnalyticsController(Controller):
                     )
                 )
         else:
-            stats = await daily_stats_repo.get_time_series(start_date, end_date)
+            stats: Sequence[DailyStats] = await daily_stats_repo.get_time_series(start_date, end_date)
             for stat in stats:
                 stat_dt = datetime(stat.date.year, stat.date.month, stat.date.day, tzinfo=timezone.utc)
                 data_points.append(
