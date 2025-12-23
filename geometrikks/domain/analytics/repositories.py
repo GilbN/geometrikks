@@ -80,6 +80,27 @@ class BatchMetrics:
     malformed_requests: int = 0
     unique_ips: set[str] | None = None
     unique_countries: set[str] | None = None
+    
+    def get_hour_timestamp(self) -> datetime:
+        """Get the timestamp truncated to the hour."""
+        hour: datetime = self.timestamp.replace(minute=0, second=0, microsecond=0)
+        if hour.tzinfo is None:
+            hour = hour.replace(tzinfo=timezone.utc)
+        return hour
+    
+    def is_after_truncated_hour(self, other: datetime) -> bool:
+        """Check if the given datetime is after the batch's hour timestamp."""
+        other_hour: datetime = other.replace(minute=0, second=0, microsecond=0)
+        if other_hour.tzinfo is None:
+            other_hour = other_hour.replace(tzinfo=timezone.utc)
+        return other_hour > self.get_hour_timestamp()
+    
+    def update_truncated_hour(self, new_timestamp: datetime) -> None:
+        """Update the batch's timestamp to the new truncated hour"""
+        new_hour: datetime = new_timestamp.replace(minute=0, second=0, microsecond=0)
+        if new_hour.tzinfo is None:
+            new_hour = new_hour.replace(tzinfo=timezone.utc)
+        self.timestamp = new_hour
 
 
 class HourlyStatsRepository(SQLAlchemyAsyncRepository[HourlyStats]):
