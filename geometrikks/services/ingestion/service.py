@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import logging
 import asyncio
+from asyncio import Task
 import time
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING
@@ -77,16 +78,16 @@ class LogIngestionService:
             store_debug_lines: If True, store all raw lines in debug table.
             aggregation_service: Optional service for real-time analytics aggregation.
         """
-        self.parser = parser
-        self.geo_location_repo = geo_location_repo
-        self.geo_event_repo = geo_event_repo
-        self.access_log_repo = access_log_repo
-        self.access_log_debug_repo = access_log_debug_repo
-        self.aggregation_service = aggregation_service
+        self.parser: LogParser = parser
+        self.geo_location_repo: GeoLocationRepository = geo_location_repo
+        self.geo_event_repo: GeoEventRepository = geo_event_repo
+        self.access_log_repo: AccessLogRepository = access_log_repo
+        self.access_log_debug_repo: AccessLogDebugRepository = access_log_debug_repo
+        self.aggregation_service: AggregationService | None = aggregation_service
 
-        self.batch_size = batch_size
-        self.commit_interval = commit_interval
-        self.store_debug_lines = store_debug_lines
+        self.batch_size: int = batch_size
+        self.commit_interval: int | float = commit_interval
+        self.store_debug_lines: bool = store_debug_lines
 
         # In-memory cache for GeoLocation by geohash
         self._location_cache: dict[str, GeoLocation] = {}
@@ -109,7 +110,8 @@ class LogIngestionService:
 
         # Batch metrics for aggregation (reset on each commit)
         self._reset_batch_metrics()
-
+        self._batch_metrics: BatchMetrics
+    
     def _reset_batch_metrics(self) -> None:
         """Reset batch metrics for a new batch."""
         self._batch_metrics = BatchMetrics(
@@ -151,7 +153,7 @@ class LogIngestionService:
         self._stop_event = asyncio.Event()
         self.parser.set_stop_event(self._stop_event)
 
-        self._ingestion_task = asyncio.create_task(
+        self._ingestion_task: Task[None] = asyncio.create_task(
             self._run_ingestion(skip_validation=skip_validation),
             name="log-ingestion",
         )
@@ -189,7 +191,7 @@ class LogIngestionService:
 
     async def _run_ingestion(self, *, skip_validation: bool) -> None:
         """Core ingestion loop."""
-        last_commit = time.monotonic()
+        last_commit: int | float = time.monotonic()
 
         try:
             async for record in self.parser.iter_parsed_records(
@@ -199,13 +201,13 @@ class LogIngestionService:
                     break
 
                 # Check for interval-based commit
-                now = time.monotonic()
+                now: int | float = time.monotonic()
                 if (
                     self.pending_records > 0
                     and (now - last_commit) >= self.commit_interval
                 ):
                     await self._commit_batch()
-                    last_commit = now
+                    last_commit: int | float = now
 
                 # None = idle tick
                 if record is None:
@@ -217,7 +219,7 @@ class LogIngestionService:
                 # Check for batch-size commit
                 if self.pending_records >= self.batch_size:
                     await self._commit_batch()
-                    last_commit = time.monotonic()
+                    last_commit: int | float = time.monotonic()
 
         except asyncio.CancelledError:
             logger.info("Ingestion cancelled")
@@ -237,9 +239,14 @@ class LogIngestionService:
         """Process a single parsed record."""
         access_log_model: AccessLog | None = None
 
+        if record.geo_data and record.geo_data.timestamp:
+            if self._batch_metrics.is_after_truncated_hour(record.geo_data.timestamp):
+                await self._commit_batch() # New hour - commit what we have first so the hourly truncated stats are correct
+            self._batch_metrics.update_truncated_hour(record.geo_data.timestamp) # Update current batch hour
+        
         # Handle geo data
         if record.geo_data and record.ip_address:
-            location = await self._get_or_create_location(record.geo_data)
+            location: GeoLocation | None = await self._get_or_create_location(record.geo_data)
             if location:
                 geo_event = GeoEvent(
                     timestamp=record.geo_data.timestamp,
@@ -261,7 +268,7 @@ class LogIngestionService:
 
         # Handle access log
         if record.access_log:
-            access_log_model = self._to_access_log_model(record.access_log)
+            access_log_model: AccessLog = self._to_access_log_model(record.access_log)
             await self.access_log_repo.add(access_log_model, auto_commit=False)
             self.pending_records += 1
             self.total_log_records += 1
@@ -275,7 +282,7 @@ class LogIngestionService:
                 self._batch_metrics.max_request_time = record.access_log.request_time
 
             # Track status codes
-            status = record.access_log.status_code
+            status: int = record.access_log.status_code
             if 200 <= status < 300:
                 self._batch_metrics.status_2xx += 1
             elif 300 <= status < 400:
@@ -328,7 +335,7 @@ class LogIngestionService:
         )
 
         # Add and flush to get ID
-        location = await self.geo_location_repo.add(location, auto_commit=False)
+        location: GeoLocation = await self.geo_location_repo.add(location, auto_commit=False)
         await self.geo_location_repo.session.flush()
 
         self._location_cache[geo_data.geohash] = location
