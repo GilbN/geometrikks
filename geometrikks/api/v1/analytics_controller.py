@@ -211,12 +211,12 @@ class AnalyticsController(Controller):
             ),
         ],
         granularity: Annotated[
-            Literal[Granularity.HOURLY, Granularity.DAILY],
+            Literal["hourly", "daily"],
             Parameter(
                 description="Time granularity for data points",
-                default=Granularity.DAILY,
+                default=Granularity.DAILY.value,
             ),
-        ] = Granularity.DAILY,
+        ] = Granularity.DAILY.value,
     ) -> TimeSeriesResponse:
         """Get request count time-series data for line/bar charts.
 
@@ -227,7 +227,7 @@ class AnalyticsController(Controller):
 
         data_points: list[TimeSeriesDataPoint] = []
 
-        if granularity == Granularity.HOURLY:
+        if granularity == Granularity.HOURLY.value:
             stats: Sequence[HourlyStats] = await hourly_stats_repo.get_time_series(start_dt, end_dt)
             for stat in stats:
                 total: int = stat.status_2xx + stat.status_3xx + stat.status_4xx + stat.status_5xx
@@ -295,9 +295,9 @@ class AnalyticsController(Controller):
             
         ],
         granularity: Annotated[
-            Literal[Granularity.HOURLY, Granularity.DAILY],
-            Parameter(description="Time granularity", default=Granularity.DAILY),
-        ] = Granularity.DAILY,
+            Literal["hourly", "daily"],
+            Parameter(description="Time granularity", default=Granularity.DAILY.value),
+        ] = Granularity.DAILY.value,
     ) -> BandwidthTimeSeriesResponse:
         """Get bandwidth time-series data for charts.
 
@@ -308,7 +308,7 @@ class AnalyticsController(Controller):
 
         data_points: list[BandwidthDataPoint] = []
 
-        if granularity == Granularity.HOURLY:
+        if granularity == Granularity.HOURLY.value:
             stats: Sequence[HourlyStats] = await hourly_stats_repo.get_time_series(start_dt, end_dt)
             for stat in stats:
                 avg_bytes: int | float = stat.total_bytes_sent / stat.total_requests if stat.total_requests > 0 else 0.0
@@ -358,9 +358,9 @@ class AnalyticsController(Controller):
             ),
         ],
         granularity: Annotated[
-            Literal[Granularity.HOURLY, Granularity.DAILY],
-            Parameter(description="Time granularity", default=Granularity.DAILY),
-        ] = Granularity.DAILY,
+            Literal["hourly", "daily"],
+            Parameter(description="Time granularity", default=Granularity.DAILY.value),
+        ] = Granularity.DAILY.value,
     ) -> PerformanceTimeSeriesResponse:
         """Get response time metrics over time.
 
@@ -371,7 +371,7 @@ class AnalyticsController(Controller):
 
         data_points: list[PerformanceDataPoint] = []
 
-        if granularity == Granularity.HOURLY:
+        if granularity == Granularity.HOURLY.value:
             stats: Sequence[HourlyStats] = await hourly_stats_repo.get_time_series(start_dt, end_dt)
             for stat in stats:
                 data_points.append(
@@ -420,9 +420,9 @@ class AnalyticsController(Controller):
             ),
         ],
         granularity: Annotated[
-            Literal[Granularity.HOURLY, Granularity.DAILY],
-            Parameter(description="Time granularity", default=Granularity.DAILY),
-        ] = Granularity.DAILY,
+            Literal["hourly", "daily"],
+            Parameter(description="Time granularity", default=Granularity.DAILY.value),
+        ] = Granularity.DAILY.value,
     ) -> GeoEventsTimeSeriesResponse:
         """Get geo events time-series data.
 
@@ -433,7 +433,7 @@ class AnalyticsController(Controller):
 
         data_points: list[GeoEventsDataPoint] = []
 
-        if granularity == Granularity.HOURLY:
+        if granularity == Granularity.HOURLY.value:
             stats: Sequence[HourlyStats] = await hourly_stats_repo.get_time_series(start_dt, end_dt)
             for stat in stats:
                 data_points.append(
