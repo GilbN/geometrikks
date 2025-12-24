@@ -63,3 +63,4 @@ class GeoJSONFeatureCollection:
 
     type: str = "FeatureCollection"
     features: list[GeoJSONFeature] = field(default_factory=list)
+    event_count: int = 0  # Total event count across all features

@@ -123,6 +123,10 @@
       },
       "GeoJSONFeatureCollection": {
         "properties": {
+          "event_count": {
+            "default": 0,
+            "type": "integer"
+          },
           "features": {
             "items": {
               "$ref": "#/components/schemas/GeoJSONFeature"

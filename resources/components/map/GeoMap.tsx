@@ -395,14 +395,12 @@ export default function GeoMap() {
             )}
 
             {/* Cluster/Marker layers */}
-            {activeLayer === "markers" && (
-              <>
-                <Layer {...clusterLayer} />
-                <Layer {...clusterCountLayer} />
-                <Layer {...unclusteredPointLayer} />
-                <Layer {...unclusteredPointLabelLayer} />
-              </>
-            )}
+            {activeLayer === "markers" && [
+              <Layer key="cluster" {...clusterLayer} />,
+              <Layer key="cluster-count" {...clusterCountLayer} />,
+              <Layer key="unclustered-point" {...unclusteredPointLayer} />,
+              <Layer key="unclustered-point-label" {...unclusteredPointLabelLayer} />,
+            ]}
           </Source>
         )}
 
@@ -427,7 +425,7 @@ export default function GeoMap() {
       />
 
       {/* Legend - show for both modes */}
-      <MapLegend maxValue={maxEventCount} layerType={activeLayer} />
+      <MapLegend maxValue={geojson?.event_count ?? 0} layerType={activeLayer} />
     </div>
   )
 }

@@ -66,7 +66,7 @@ class GeoLocationRepository(SQLAlchemyAsyncRepository[GeoLocation]):
             raise ValueError("from_timestamp and to_timestamp must be timezone-aware")
         stmt = (
             select(GeoLocation, func.count(GeoEvent.id).label("event_count"))
-            .outerjoin(GeoEvent, GeoLocation.id == GeoEvent.location_id)
+            .join(GeoEvent, GeoLocation.id == GeoEvent.location_id)
             .group_by(GeoLocation.id)
             .order_by(func.count(GeoEvent.id).desc())
             .where(GeoEvent.timestamp.between(from_timestamp, to_timestamp))

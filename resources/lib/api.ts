@@ -128,6 +128,7 @@ export interface GeoJSONFeature {
 export interface GeoJSONFeatureCollection {
   type: "FeatureCollection"
   features: GeoJSONFeature[]
+  event_count: number
 }
 
 // ============================================================================
