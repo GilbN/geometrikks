@@ -223,8 +223,11 @@ function LiveIndicator({ collapsed }: { collapsed: boolean }) {
 }
 
 function CollapseToggle() {
-  const { toggleSidebar, state } = useSidebar()
+  const { toggleSidebar, state, isMobile } = useSidebar()
   const collapsed = state === "collapsed"
+
+  // Don't show collapse toggle on mobile - sidebar is always expanded when open
+  if (isMobile) return null
 
   return (
     <Tooltip>
@@ -264,23 +267,21 @@ function CollapseToggle() {
 }
 
 export function AppSidebar() {
-  const { state } = useSidebar()
-  const collapsed = state === "collapsed"
+  const { state, isMobile } = useSidebar()
+  // On mobile, always show expanded content regardless of desktop collapsed state
+  const collapsed = isMobile ? false : state === "collapsed"
   const routerState = useRouterState()
   const currentPath = routerState.location.pathname
 
   return (
     <Sidebar collapsible="icon" className="border-r-0">
-      {/* Subtle background pattern */}
-      <div className="absolute inset-0 bg-contour-pattern opacity-50 pointer-events-none" />
-
-      <SidebarHeader className="relative z-10">
+      <SidebarHeader>
         <GeoLogo collapsed={collapsed} />
       </SidebarHeader>
 
       <SidebarSeparator className="opacity-50" />
 
-      <SidebarContent className="relative z-10">
+      <SidebarContent>
         {/* Live status indicator */}
         <LiveIndicator collapsed={collapsed} />
 
@@ -335,17 +336,15 @@ export function AppSidebar() {
         </SidebarGroup>
       </SidebarContent>
 
-      <SidebarFooter className="relative z-10">
+      <SidebarFooter>
         <SidebarSeparator className="opacity-50" />
         <CollapseToggle />
         {/* Version tag */}
-        {!collapsed && (
-          <div className="px-3 py-2 text-center">
-            <span className="text-[10px] font-mono text-sidebar-foreground/30">
-              v0.1.0-alpha
-            </span>
-          </div>
-        )}
+        <div className={cn("px-3 py-2 text-center", collapsed && "hidden")}>
+          <span className="text-[10px] font-mono text-sidebar-foreground/30">
+            v0.1.0-alpha
+          </span>
+        </div>
       </SidebarFooter>
 
       <SidebarRail />
