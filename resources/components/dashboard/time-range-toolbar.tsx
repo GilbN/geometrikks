@@ -1,7 +1,14 @@
 "use client"
 
-import { RotateCw } from "lucide-react"
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
+import { RotateCw, Filter } from "lucide-react"
+
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+
 import { Button } from "@/components/ui/button"
 import {
   Select,
@@ -27,30 +34,31 @@ export function TimeRangeToolbar() {
 
   return (
     <div className="flex items-center gap-2">
-      {/* Time Range Toggle Group */}
-      <ToggleGroup
-        type="single"
-        value={range}
-        onValueChange={(value) => {
-          if (value) setRange(value as typeof range)
-        }}
-        variant="outline"
-        size="sm"
-      >
-        {TIME_RANGE_PRESETS.map((preset) => (
-          <ToggleGroupItem
-            key={preset.value}
-            value={preset.value}
-            aria-label={`Last ${preset.label}`}
-            className={cn(
-              "text-xs px-2.5",
-              range === preset.value && "bg-geo-cyan/20 text-geo-cyan border-geo-cyan/50"
-            )}
-          >
-            {preset.label}
-          </ToggleGroupItem>
-        ))}
-      </ToggleGroup>
+      {/* Time Range Dropdown Menu */}
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="outline" size="sm" className="flex items-center gap-2">
+            <Filter className="w-4 h-4" />
+            <span className="text-xs">
+              {TIME_RANGE_PRESETS.find((p) => p.value === range)?.label || "Range"}
+            </span>
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start">
+          {TIME_RANGE_PRESETS.map((preset) => (
+            <DropdownMenuItem
+              key={preset.value}
+              onClick={() => setRange(preset.value)}
+              className={cn(
+                "text-xs",
+                range === preset.value && "bg-geo-cyan/20 text-geo-cyan"
+              )}
+            >
+              {preset.label}
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuContent>
+      </DropdownMenu>
 
       <Separator orientation="vertical" className="h-6" />
 

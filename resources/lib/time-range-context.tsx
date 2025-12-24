@@ -45,12 +45,13 @@ function saveToStorage(state: Partial<TimeRangeState>) {
 export function TimeRangeProvider({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<TimeRangeState>(() => {
     const stored = loadFromStorage()
-    return {
+    const initial = {
       range: stored.range ?? DEFAULT_RANGE,
       statsRange: (stored as Partial<TimeRangeState>).statsRange ?? DEFAULT_STATS_RANGE,
       pollInterval: stored.pollInterval ?? DEFAULT_POLL_INTERVAL,
       lastRefresh: Date.now(),
     }
+    return initial
   })
 
   // Persist to localStorage when range, statsRange, or pollInterval changes
