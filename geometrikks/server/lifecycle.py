@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import logging
 import asyncio
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Callable
 
 from advanced_alchemy.extensions.litestar import base
 from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from geometrikks.config.settings import get_settings
 from geometrikks.server.plugins import parser, sqlalchemy_config
@@ -59,8 +61,8 @@ async def on_startup(app: "Litestar") -> None:
 
 
     # Dedicated session for the ingestion service
-    session_maker = sqlalchemy_config.create_session_maker()
-    ingestion_session = session_maker()
+    session_maker: Callable[[], AsyncSession] = sqlalchemy_config.create_session_maker()
+    ingestion_session: AsyncSession = session_maker()
 
     geo_location_repo = GeoLocationRepository(session=ingestion_session)
     geo_event_repo = GeoEventRepository(session=ingestion_session)
@@ -90,15 +92,15 @@ async def on_startup(app: "Litestar") -> None:
     )
 
     # Create and start scheduler
-    scheduler = create_scheduler(session_maker, settings)
+    scheduler: AsyncIOScheduler = await create_scheduler(session_maker, settings)
     scheduler.start()
     logger.info("Started APScheduler")
 
     # Store in app state for shutdown and API access
-    app.state.ingestion_service = ingestion_service
-    app.state.aggregation_service = aggregation_service
-    app.state.ingestion_session = ingestion_session
-    app.state.scheduler = scheduler
+    app.state.ingestion_service: LogIngestionService = ingestion_service
+    app.state.aggregation_service: AggregationService = aggregation_service
+    app.state.ingestion_session: AsyncSession = ingestion_session
+    app.state.scheduler: AsyncIOScheduler = scheduler
 
     # Start ingestion service
     await ingestion_service.start(
@@ -108,7 +110,7 @@ async def on_startup(app: "Litestar") -> None:
 
 async def on_shutdown(app: "Litestar") -> None:
     """Gracefully stop background services and clean up resources."""
-    from apscheduler.schedulers.asyncio import AsyncIOScheduler
+    #from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
     # Stop ingestion service first
     ingestion_service: LogIngestionService | None = getattr(

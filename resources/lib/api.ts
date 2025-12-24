@@ -97,6 +97,40 @@ export interface GeoEventsTimeSeriesResponse {
 }
 
 // ============================================================================
+// Types - GeoJSON API
+// ============================================================================
+
+export interface GeoJSONFeatureProperties {
+  id: number
+  geohash: string
+  country_code: string | null
+  country_name: string | null
+  state: string | null
+  state_code: string | null
+  city: string | null
+  postal_code: string | null
+  timezone: string | null
+  event_count: number
+  last_hit: string | null
+}
+
+export interface GeoJSONPointGeometry {
+  type: "Point"
+  coordinates: [number, number] // [longitude, latitude]
+}
+
+export interface GeoJSONFeature {
+  type: "Feature"
+  geometry: GeoJSONPointGeometry
+  properties: GeoJSONFeatureProperties
+}
+
+export interface GeoJSONFeatureCollection {
+  type: "FeatureCollection"
+  features: GeoJSONFeature[]
+}
+
+// ============================================================================
 // API Functions
 // ============================================================================
 
@@ -165,6 +199,21 @@ export async function fetchGeoEventsTimeSeries(
       },
     }
   )
+  return data
+}
+
+export interface GeoJSONParams {
+  fromTimestamp: string // Full ISO timestamp
+  toTimestamp: string
+}
+
+export async function fetchGeoJSON(params: GeoJSONParams): Promise<GeoJSONFeatureCollection> {
+  const { data } = await api.get<GeoJSONFeatureCollection>("/geo-locations/geojson", {
+    params: {
+      from_timestamp: params.fromTimestamp,
+      to_timestamp: params.toTimestamp,
+    },
+  })
   return data
 }
 
