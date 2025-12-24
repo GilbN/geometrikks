@@ -6,6 +6,25 @@
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+
+  /* Popup theme variables - light mode */
+  --popup-bg: #ffffff;
+  --popup-fg: #1a1a2e;
+  --popup-border: #e5e7eb;
+  --popup-muted: #6b7280;
+  --popup-badge-bg: rgba(6, 182, 212, 0.15);
+  --popup-badge-text: #0891b2;
+  --popup-code-bg: #f3f4f6;
+}
+
+.dark {
+  --popup-bg: #1e2433;
+  --popup-fg: #e8eaed;
+  --popup-border: #3a3f4b;
+  --popup-muted: #9ca3af;
+  --popup-badge-bg: rgba(6, 182, 212, 0.2);
+  --popup-badge-text: #22d3ee;
+  --popup-code-bg: #2a2f3d;
 }
 
 * {
@@ -14,4 +33,89 @@
 
 body {
   margin: 0;
+}
+/* MapLibre GL Popup Styles - Reset default popup styling */
+.maplibregl-popup-content{
+  background: transparent !important;
+  padding: 0 !important;
+  box-shadow: none !important;
+  border: none !important;
+  border-radius: 0 !important;
+  overflow: visible !important;
+}
+
+/* Style the tip using CSS variable */
+.maplibregl-popup-anchor-bottom > .maplibregl-popup-tip {
+  border-top-color: var(--popup-bg) !important;
+}
+
+.maplibregl-popup-anchor-top > .maplibregl-popup-tip {
+  border-bottom-color: var(--popup-bg) !important;
+}
+
+.maplibregl-popup-anchor-left > .maplibregl-popup-tip {
+  border-right-color: var(--popup-bg) !important;
+}
+
+.maplibregl-popup-anchor-right > .maplibregl-popup-tip {
+  border-left-color: var(--popup-bg) !important;
+}
+
+/* MapLibre GL Control Styles - Light Mode */
+.maplibregl-ctrl-group {
+  background: #ffffff !important;
+  border-radius: var(--radius) !important;
+  border: 1px solid #e5e5e5 !important;
+}
+
+.maplibregl-ctrl-group button {
+  background-color: transparent !important;
+  border-color: #e5e5e5 !important;
+}
+
+.maplibregl-ctrl-group button:hover {
+  background-color: #f3f4f6 !important;
+}
+
+.maplibregl-ctrl-group button + button {
+  border-top-color: #e5e5e5 !important;
+}
+
+/* MapLibre GL Control Styles - Dark Mode */
+.dark .maplibregl-ctrl-group {
+  background: #1e2433 !important;
+  border: 1px solid #3a3f4b !important;
+}
+
+.dark .maplibregl-ctrl-group button {
+  border-color: #3a3f4b !important;
+}
+
+.dark .maplibregl-ctrl-group button:hover {
+  background-color: #2a2f3d !important;
+}
+
+.dark .maplibregl-ctrl-group button + button {
+  border-top-color: #3a3f4b !important;
+}
+
+.dark .maplibregl-ctrl button .maplibregl-ctrl-icon {
+  filter: invert(1);
+}
+
+
+/* Change the background color and text color of the popup content */
+.mapboxgl-popup-content {
+    background-color: #333; /* Dark gray background */
+    color: #fff; /* White text color for readability */
+}
+
+/* Change the color of the popup tip/arrow */
+.mapboxgl-popup-tip {
+    border-top-color: #333; /* Match the background color */
+}
+
+/* Optional: customize the close button color if needed */
+.mapboxgl-popup-close-button {
+    color: #fff; /* White close button */
 }

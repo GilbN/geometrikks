@@ -8,11 +8,13 @@ import {
   fetchRequestsTimeSeries,
   fetchPerformanceTimeSeries,
   fetchGeoEventsTimeSeries,
+  fetchGeoJSON,
   parseTimeRange,
   parseStatsTimeRange,
   getGranularityForRange,
   type SummaryParams,
   type TimeSeriesParams,
+  type GeoJSONParams,
 } from "./api"
 import { useTimeRange } from "./time-range-context"
 
@@ -31,6 +33,11 @@ export const queryKeys = {
       [...queryKeys.analytics.all, "performance-time-series", params, refreshKey] as const,
     geoEventsTimeSeries: (params: Record<string, unknown>, refreshKey?: number) =>
       [...queryKeys.analytics.all, "geo-events-time-series", params, refreshKey] as const,
+  },
+  geo: {
+    all: ["geo"] as const,
+    geojson: (params: Record<string, unknown>, refreshKey?: number) =>
+      [...queryKeys.geo.all, "geojson", params, refreshKey] as const,
   },
 }
 
@@ -152,6 +159,35 @@ export function useGeoEventsTimeSeries(options: UseTimeSeriesOptions = {}) {
     queryFn: () => fetchGeoEventsTimeSeries(params),
     enabled,
     staleTime: 30 * 1000,
+    refetchInterval: pollInterval || false,
+  })
+}
+
+export interface UseGeoJSONOptions {
+  /** Enable/disable the query */
+  enabled?: boolean
+}
+
+/**
+ * Fetch GeoJSON data for map visualization.
+ * Uses TimeRangeContext for time filtering.
+ */
+export function useGeoJSON(options: UseGeoJSONOptions = {}) {
+  const { enabled = true } = options
+  const { range, pollInterval, lastRefresh } = useTimeRange()
+
+  // Use lastRefresh as reference time for stable query keys
+  const { startDate, endDate } = parseTimeRange(range, lastRefresh)
+  const params: GeoJSONParams = {
+    fromTimestamp: startDate,
+    toTimestamp: endDate,
+  }
+
+  return useQuery({
+    queryKey: queryKeys.geo.geojson({ range }, lastRefresh),
+    queryFn: () => fetchGeoJSON(params),
+    enabled,
+    staleTime: 60 * 1000, // Geo data changes less frequently
     refetchInterval: pollInterval || false,
   })
 }

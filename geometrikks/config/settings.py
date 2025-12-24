@@ -181,9 +181,9 @@ class SchedulerSettings(BaseSettings):
         default=5,
         description="Minute (0-59) to run daily rollup",
     )
-    location_refresh_interval_hours: int = Field(
-        default=1,
-        description="Hours between GeoLocation.last_hit refresh jobs",
+    location_refresh_interval_minutes: int = Field(
+        default=5,
+        description="Minutes between GeoLocation.last_hit refresh jobs",
     )
 
 class ViteSettings(BaseSettings):

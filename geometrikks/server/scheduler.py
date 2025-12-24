@@ -91,7 +91,7 @@ async def refresh_location_last_hits_job(
         logger.info("Refreshed last_hit for %d locations", updated)
 
 
-def create_scheduler(
+async def create_scheduler(
     session_factory: "Callable[[], AsyncSession]",
     settings: "Settings",
 ) -> AsyncIOScheduler:
@@ -133,7 +133,7 @@ def create_scheduler(
     scheduler.add_job(
         refresh_location_last_hits_job,
         IntervalTrigger(
-            hours=settings.scheduler.location_refresh_interval_hours,
+            minutes=settings.scheduler.location_refresh_interval_minutes,
         ),
         id="location-refresh",
         name="Refresh GeoLocation.last_hit timestamps",
@@ -141,8 +141,9 @@ def create_scheduler(
         replace_existing=True,
     )
     logger.info(
-        "Scheduled location refresh every %d hour(s)",
-        settings.scheduler.location_refresh_interval_hours,
+        "Scheduled location refresh every %d minute(s)",
+        settings.scheduler.location_refresh_interval_minutes,
     )
-
+    await refresh_location_last_hits_job(session_factory)
+    
     return scheduler
