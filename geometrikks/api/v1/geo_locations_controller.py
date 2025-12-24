@@ -2,6 +2,7 @@
 from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Annotated
+import logging
 
 from litestar.plugins.sqlalchemy import filters
 from litestar.pagination import OffsetPagination
@@ -22,6 +23,7 @@ from geometrikks.domain.geo.dtos import (
 
 from geometrikks.api.dependencies import provide_geo_location_repo
 
+logger = logging.getLogger(__name__)
 
 class GeoLocationController(Controller):
     """Geo-location endpoints for managing location data."""
@@ -88,6 +90,7 @@ class GeoLocationController(Controller):
             from_timestamp, to_timestamp
         )
 
+        event_count: int = sum(loc.event_count for loc in locations_with_counts) # Total event count
         features = [
             GeoJSONFeature(
                 type="Feature",
@@ -112,4 +115,4 @@ class GeoLocationController(Controller):
             for loc in locations_with_counts
         ]
 
-        return GeoJSONFeatureCollection(type="FeatureCollection", features=features)
+        return GeoJSONFeatureCollection(type="FeatureCollection", features=features, event_count=event_count)

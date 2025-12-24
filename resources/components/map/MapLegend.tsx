@@ -25,11 +25,13 @@ export function MapLegend({ maxValue, layerType }: MapLegendProps) {
   const gradient = isHeatmap ? HEATMAP_GRADIENT : MARKER_GRADIENT
 
   return (
-    <Card className="absolute bottom-6 left-4 z-10 w-44">
-      <CardHeader className="pb-2 pt-3 px-3">
+    <Card className="absolute gap-3 bottom-6 py-0 left-4 z-10 w-44">
+      <CardHeader className="pb-0 pt-3 px-3">
         <CardTitle className="text-xs font-medium text-muted-foreground">
           {title}
         </CardTitle>
+        <div className="border-b border-border/50">
+        </div>
       </CardHeader>
       <CardContent className="pb-3 px-3">
         {/* Color gradient bar */}
@@ -48,7 +50,7 @@ export function MapLegend({ maxValue, layerType }: MapLegendProps) {
         {maxValue > 0 && (
           <div className="mt-2 pt-2 border-t border-border/50">
             <div className="flex justify-between text-[10px]">
-              <span className="text-muted-foreground">Max hits</span>
+              <span className="text-muted-foreground">Total</span>
               <span className="text-foreground font-medium">
                 {formatNumber(maxValue)}
               </span>

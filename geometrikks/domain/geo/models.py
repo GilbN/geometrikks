@@ -58,7 +58,7 @@ class GeoLocation(base.BigIntAuditBase):
     )
 
     geo_events: Mapped[list["GeoEvent"]] = relationship(
-        "GeoEvent", back_populates="location", lazy="selectin"
+        "GeoEvent", back_populates="location"
     )
 
     # Unique constraint on geohash to prevent duplicates
@@ -107,7 +107,7 @@ class GeoEvent(base.BigIntBase):
 
     # Relationships
     location: Mapped["GeoLocation"] = relationship(
-        "GeoLocation", back_populates="geo_events", lazy="joined"
+        "GeoLocation", back_populates="geo_events", lazy="selectin"
     )
 
     # Indexes optimized for common queries
