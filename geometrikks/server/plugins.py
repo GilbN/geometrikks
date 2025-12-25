@@ -28,15 +28,13 @@ from litestar_vite import ViteConfig, VitePlugin
 from litestar_vite.config import RuntimeConfig, TypeGenConfig, PathConfig
 
 from geometrikks.services.logparser.logparser import LogParser
-from geometrikks.config.settings import get_settings
+from geometrikks.config.settings import get_settings, Settings
 
-settings = get_settings()
+settings: Settings = get_settings()
 
 # LogParser instance - parsing only, no database operations
 parser = LogParser(
     log_path=settings.logparser.log_path,
-    geoip_path=settings.geoip.db_path,
-    geoip_locales=settings.geoip.locales,
     send_logs=settings.logparser.send_logs,
     hostname=settings.logparser.host_name,
 )

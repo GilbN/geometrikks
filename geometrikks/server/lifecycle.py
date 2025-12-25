@@ -85,6 +85,8 @@ async def on_startup(app: "Litestar") -> None:
         geo_event_repo=geo_event_repo,
         access_log_repo=access_log_repo,
         access_log_debug_repo=access_log_debug_repo,
+        geoip_path=settings.geoip.db_path,
+        locales=settings.geoip.locales,
         batch_size=settings.logparser.batch_size,
         commit_interval=settings.logparser.commit_interval,
         store_debug_lines=settings.logparser.store_debug_lines,

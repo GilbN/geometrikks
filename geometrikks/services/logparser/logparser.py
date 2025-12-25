@@ -21,9 +21,7 @@ from .constants import (
     ipv6_pattern,
     MONITORED_IP_TYPES,
     ipv4,
-    ipv6,
-    ALLOWED_GEOIP_LOCALES,
-    GEOIP_LOCALES_DEFAULT,
+    ipv6
 )
 from .schemas import ParsedLogRecord, ParsedGeoData, ParsedAccessLog
 
@@ -71,8 +69,6 @@ class LogParser:
     def __init__(
         self,
         log_path: Path,
-        geoip_path: Path,
-        geoip_locales: list[str],
         send_logs: bool = False,
         poll_interval: float = 1.0,
         hostname: str = "localhost",
@@ -81,29 +77,15 @@ class LogParser:
 
         Args:
             log_path (Path): The path to the log file.
-            geoip_path (Path): The path the the GeoLite mmdb file.
-            geoip_locales (list[str]): List of locales (en,de,it etc)
             send_logs (bool, optional): If True, parse full access log data. Defaults to False.
             poll_interval (float, optional): How often to check for new log lines. Defaults to 1.0.
             hostname (str, optional): Hostname to tag geo events with. Defaults to "localhost".
         """
-        self.log_path = log_path
-        self.geoip_path = geoip_path
-        self.geoip_locales = geoip_locales
-        self.send_logs = send_logs
-        self.poll_interval = poll_interval
-        self.hostname = hostname
-
-        if any(loc not in ALLOWED_GEOIP_LOCALES for loc in geoip_locales):
-            logger.warning(
-                "Unmatched GeoIp2 locale found. Allowed are '%s', defaulting to 'en'",
-                ALLOWED_GEOIP_LOCALES,
-            )
-            self.geoip_locales = GEOIP_LOCALES_DEFAULT
-
-        self.geoip_reader = Reader(self.geoip_path)
-        self.current_log_inode: int | None = None
-
+        self.log_path: Path = log_path
+        self.send_logs: bool = send_logs
+        self.poll_interval: int | float = poll_interval
+        self.hostname: str = hostname
+        
         # Statistics
         self.parsed_lines: int = 0
         self.skipped_lines: int = 0
@@ -112,7 +94,6 @@ class LogParser:
         self._stop_event: asyncio.Event | None = None
 
         logger.debug("Log file path: %s", self.log_path)
-        logger.debug("GeoIP database path: %s", self.geoip_path)
         logger.debug("Send NGINX logs: %s", self.send_logs)
         logger.debug("Hostname: %s", self.hostname)
 
@@ -137,13 +118,13 @@ class LogParser:
         return ipv4().match(log_line) or ipv6().match(log_line)
 
     @wait(timeout_seconds=60)
-    def validate_log_format(self) -> bool:  # regex tester
+    def validate_log_format(self, log_path: Path) -> bool:  # regex tester
         """Try for 60 seconds and validate that the log format is correct by checking the last 3 lines."""
         LAST_LINE_COUNT = 3
         position = LAST_LINE_COUNT + 1
         log_lines_capture: list[str] = []
         lines = []
-        with open(self.log_path, "r", encoding="utf-8") as f:
+        with open(log_path, "r", encoding="utf-8") as f:
             while len(log_lines_capture) <= LAST_LINE_COUNT:
                 try:
                     f.seek(-position, os.SEEK_END)  # Move to the last line
@@ -161,26 +142,6 @@ class LogParser:
         logger.debug("Testing log format")
         return False
 
-    @wait(timeout_seconds=60)
-    def log_file_exists(self) -> bool:
-        """Try for 60 seconds to check if the log file exists."""
-        logger.debug(f"Checking if log file {self.log_path} exists.")
-        if not os.path.exists(self.log_path):
-            logger.warning(f"Log file {self.log_path} does not exist.")
-            return False
-        logger.info(f"Log file {self.log_path} exists.")
-        self.current_log_inode = os.stat(self.log_path).st_ino
-        return True
-
-    @wait(timeout_seconds=60)
-    def geoip_file_exists(self) -> bool:
-        """Try for 60 seconds to check if the GeoIP file exists."""
-        logger.debug(f"Checking if GeoIP file {self.geoip_path} exists.")
-        if not os.path.exists(self.geoip_path):
-            logger.warning(f"GeoIP file {self.geoip_path} does not exist.")
-            return False
-        logger.info(f"GeoIP file {self.geoip_path} exists.")
-        return True
 
     async def _is_rotated_async(self, prev_stat: os.stat_result) -> bool:
         """Check if the log file was rotated.
@@ -321,16 +282,17 @@ class LogParser:
         return False, None
 
     @lru_cache(maxsize=1024)
-    def get_ip_data(self, ip: str) -> City | None:
+    def get_ip_data(self, ip: str, reader: Reader) -> City | None:
         """Helper to get GeoIP2 data for an IP address."""
         try:
-            ip_data = self.geoip_reader.city(ip)
+            with reader as r:
+                ip_data: City = r.city(ip)
             return ip_data
         except Exception as e:
             logger.debug("GeoIP lookup failed for %s: %s", ip, e)
             return None
 
-    def _parse_geo_data(self, ip: str, log_data: re.Match[str]) -> ParsedGeoData | None:
+    def _parse_geo_data(self, ip: str, log_data: re.Match[str], reader: Reader) -> ParsedGeoData | None:
         """Extract geographic data from IP address.
 
         Args:
@@ -342,11 +304,7 @@ class LogParser:
         if not self.check_ip_type(ip):
             return None
 
-        try:
-            ip_data = self.geoip_reader.city(ip)
-        except Exception as e:
-            logger.debug("GeoIP lookup failed for %s: %s", ip, e)
-            return None
+        ip_data: City | None = self.get_ip_data(ip, reader)
 
         if not ip_data:
             logger.debug("No GeoIP data found for IP %s", ip)
@@ -385,9 +343,7 @@ class LogParser:
             timestamp=ts
         )
 
-    def _parse_access_log(
-        self, log_data: re.Match[str], ip: str
-    ) -> ParsedAccessLog | None:
+    def _parse_access_log(self, log_data: re.Match[str], ip: str, reader: Reader) -> ParsedAccessLog | None:
         """Parse access log fields from regex match.
 
         Parses request/connect timing similar to legacy metrics but returns a dataclass.
@@ -403,7 +359,7 @@ class LogParser:
             return None
 
         try:
-            ip_data = self.get_ip_data(ip)
+            ip_data: City | None = self.get_ip_data(ip, reader)
         except Exception as e:
             logger.debug("GeoIP lookup failed for %s: %s", ip, e)
             return None
@@ -471,7 +427,7 @@ class LogParser:
         )
 
     async def iter_parsed_records(
-        self, *, skip_validation: bool = False, start_at_end: bool = True
+        self, reader: Reader, *, skip_validation: bool = False, start_at_end: bool = True
     ) -> AsyncGenerator[ParsedLogRecord | None, None]:
         """Async generator that tails the log file and yields ParsedLogRecord objects.
 
@@ -489,7 +445,7 @@ class LogParser:
         if not skip_validation:
             logger.debug("Validating log file format.")
             # Run sync validation in thread to avoid blocking
-            valid = await asyncio.to_thread(self.validate_log_format)
+            valid = await asyncio.to_thread(self.validate_log_format, self.log_path)
             if not valid:
                 self.send_logs = False
                 logger.warning(
@@ -498,7 +454,6 @@ class LogParser:
 
         async with aiofiles.open(self.log_path, "r", encoding="utf-8") as file:
             stat_result = await aiofiles.os.stat(self.log_path)
-            self.current_log_inode = stat_result.st_ino
 
             if start_at_end:
                 await file.seek(stat_result.st_size)
@@ -518,14 +473,13 @@ class LogParser:
                     # Check for rotation
                     if await self._is_rotated_async(stat_result):
                         logger.info("Log rotation detected, restarting from new file.")
-                        async for record in self.iter_parsed_records(skip_validation=True, start_at_end=False):
+                        async for record in self.iter_parsed_records(reader, skip_validation=True, start_at_end=False):
                             yield record
                         return
                     continue
 
                 # Update stat for next rotation check
                 stat_result = await aiofiles.os.stat(self.log_path)
-                self.current_log_inode = stat_result.st_ino
 
                 matched = self.validate_log_line(line)
                 raw_line = line.strip()
@@ -547,11 +501,11 @@ class LogParser:
                 self.parsed_lines += 1
 
                 # Parse geo data
-                geo_data = self._parse_geo_data(ip, matched)
+                geo_data: ParsedGeoData | None = self._parse_geo_data(ip, matched, reader)
 
                 # Parse access log if enabled
-                access_log = (
-                    self._parse_access_log(matched, ip) if self.send_logs else None
+                access_log: ParsedAccessLog | None = (
+                    self._parse_access_log(matched, ip, reader) if self.send_logs else None
                 )
 
                 # Detect malformed requests (TLS probes, invalid HTTP, etc.)
