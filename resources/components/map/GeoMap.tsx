@@ -2,7 +2,7 @@
  * Main map component with heatmap and cluster visualization layers.
  */
 
-import { useState, useCallback, useMemo, useRef } from "react"
+import { useState, useCallback, useRef } from "react"
 import Map, {
   Source,
   Layer,
@@ -324,12 +324,6 @@ export default function GeoMap() {
     [activeLayer]
   )
 
-  // Compute max event count for legend
-  const maxEventCount = useMemo(() => {
-    if (!geojson?.features.length) return 0
-    return Math.max(...geojson.features.map((f) => f.properties.event_count))
-  }, [geojson])
-
   // Show error state
   if (isError) {
     return (
@@ -378,6 +372,7 @@ export default function GeoMap() {
         {/* GeoJSON data source */}
         {geojson && (
           <Source
+            key={`geo-data-${geojson.event_count}-${geojson.features.length}`}
             id="geo-data"
             type="geojson"
             data={geojson}

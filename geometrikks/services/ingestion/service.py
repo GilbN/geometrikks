@@ -9,29 +9,47 @@ This service orchestrates:
 All database operations go through repositories for consistency and testability.
 """
 from __future__ import annotations
-
+import os
 import logging
 import asyncio
 from asyncio import Task
 import time
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING
+from pathlib import Path
+
+from geoip2.database import Reader
 
 from geometrikks.domain.geo.models import GeoLocation, GeoEvent
 from geometrikks.domain.logs.models import AccessLog, AccessLogDebug
 from geometrikks.domain.geo.utils import make_point
 from geometrikks.domain.analytics.repositories import BatchMetrics
 from geometrikks.services.logparser.schemas import ParsedLogRecord, ParsedGeoData, ParsedAccessLog
+from geometrikks.services.logparser.constants import ALLOWED_GEOIP_LOCALES, GEOIP_LOCALES_DEFAULT
+from geometrikks.services.logparser.logparser import LogParser, wait
 
 if TYPE_CHECKING:
     from geometrikks.domain.geo.repositories import GeoLocationRepository, GeoEventRepository
     from geometrikks.domain.logs.repositories import AccessLogRepository, AccessLogDebugRepository
-    from geometrikks.services.logparser.logparser import LogParser
     from geometrikks.services.aggregation.service import AggregationService
 
 
 logger = logging.getLogger(__name__)
 
+
+def create_reader(path: Path|str, locales: list[str] | None = None) -> Reader|None:
+    """Create a GeoIP2 Reader instance."""
+    if any(loc not in ALLOWED_GEOIP_LOCALES for loc in locales or []):
+        logger.warning(
+            "Unmatched GeoIp2 locale found. Allowed are '%s', defaulting to 'en'",
+            ALLOWED_GEOIP_LOCALES,
+        )
+        locales: list[str] = GEOIP_LOCALES_DEFAULT
+    try:
+        return Reader(path, locales=locales)
+    except Exception:
+        logger.exception("Failed to create GeoIP2 Reader for path: %s", path)
+        return None
 
 class LogIngestionService:
     """Orchestrates log parsing and persistence.
@@ -59,6 +77,8 @@ class LogIngestionService:
         geo_event_repo: "GeoEventRepository",
         access_log_repo: "AccessLogRepository",
         access_log_debug_repo: "AccessLogDebugRepository",
+        geoip_path: Path|str,
+        locales: list[str] | None = None,
         *,
         batch_size: int = 100,
         commit_interval: float = 5.0,
@@ -73,6 +93,7 @@ class LogIngestionService:
             geo_event_repo: Repository for GeoEvent model.
             access_log_repo: Repository for AccessLog model.
             access_log_debug_repo: Repository for AccessLogDebug model.
+            geoip_path: Path|str, GeoIP2 database file path.
             batch_size: Maximum records before forced commit.
             commit_interval: Maximum seconds between commits.
             store_debug_lines: If True, store all raw lines in debug table.
@@ -84,7 +105,8 @@ class LogIngestionService:
         self.access_log_repo: AccessLogRepository = access_log_repo
         self.access_log_debug_repo: AccessLogDebugRepository = access_log_debug_repo
         self.aggregation_service: AggregationService | None = aggregation_service
-
+        self.geoip_path: Path|str = geoip_path
+        self.locales: list[str] = locales
         self.batch_size: int = batch_size
         self.commit_interval: int | float = commit_interval
         self.store_debug_lines: bool = store_debug_lines
@@ -125,6 +147,26 @@ class LogIngestionService:
         """Return True if ingestion task is running."""
         return self._ingestion_task is not None and not self._ingestion_task.done()
 
+    @wait(timeout_seconds=60)
+    def log_file_exists(self, log_path: Path) -> bool:
+        """Try for 60 seconds to check if the log file exists."""
+        logger.debug(f"Checking if log file {log_path} exists.")
+        if not os.path.exists(log_path):
+            logger.warning(f"Log file {log_path} does not exist.")
+            return False
+        logger.info(f"Log file {log_path} exists.")
+        return True
+
+    @wait(timeout_seconds=5)
+    def geoip_file_exists(self, geoip_path: Path) -> bool:
+        """Try for 60 seconds to check if the GeoIP file exists."""
+        logger.debug(f"Checking if GeoIP file {geoip_path} exists.")
+        if not os.path.exists(geoip_path):
+            logger.warning(f"GeoIP file {geoip_path} does not exist.")
+            return False
+        logger.info(f"GeoIP file {geoip_path} exists.")
+        return True
+
     async def start(self, *, skip_validation: bool = False) -> None:
         """Start the ingestion background task.
 
@@ -134,19 +176,11 @@ class LogIngestionService:
         if self.is_running:
             logger.warning("Ingestion already running")
             return
-
-        # Validate files exist
-        if not await asyncio.to_thread(self.parser.log_file_exists):
+        
+        if not (reader := create_reader(self.geoip_path, self.locales)):
             logger.error(
-                "Cannot start ingestion: log file does not exist at %s",
-                self.parser.log_path,
-            )
-            return
-
-        if not await asyncio.to_thread(self.parser.geoip_file_exists):
-            logger.error(
-                "Cannot start ingestion: GeoIP database does not exist at %s",
-                self.parser.geoip_path,
+                "Cannot start ingestion: failed to create GeoIP2 reader with database at %s",
+                self.geoip_path,
             )
             return
 
@@ -154,7 +188,7 @@ class LogIngestionService:
         self.parser.set_stop_event(self._stop_event)
 
         self._ingestion_task: Task[None] = asyncio.create_task(
-            self._run_ingestion(skip_validation=skip_validation),
+            self._run_ingestion(reader=reader, skip_validation=skip_validation),
             name="log-ingestion",
         )
         logger.info(
@@ -189,14 +223,18 @@ class LogIngestionService:
             "Stopped log ingestion service. Total processed: %d", self.total_processed
         )
 
-    async def _run_ingestion(self, *, skip_validation: bool) -> None:
+    async def _run_ingestion(self, *, reader:Reader, skip_validation: bool) -> None:
         """Core ingestion loop."""
         last_commit: int | float = time.monotonic()
-
+        # Validate files exist
+        if not await asyncio.to_thread(self.log_file_exists, self.parser.log_path):
+            logger.error(
+                "Cannot start ingestion: log file does not exist at %s",
+                self.parser.log_path,
+            )
+            return
         try:
-            async for record in self.parser.iter_parsed_records(
-                skip_validation=skip_validation
-            ):
+            async for record in self.parser.iter_parsed_records(reader, skip_validation=skip_validation):
                 if self._stop_event and self._stop_event.is_set():
                     break
 
