@@ -285,9 +285,7 @@ class LogParser:
     def get_ip_data(self, ip: str, reader: Reader) -> City | None:
         """Helper to get GeoIP2 data for an IP address."""
         try:
-            with reader as r:
-                ip_data: City = r.city(ip)
-            return ip_data
+            return reader.city(ip)
         except Exception as e:
             logger.debug("GeoIP lookup failed for %s: %s", ip, e)
             return None
@@ -322,11 +320,12 @@ class LogParser:
             logger.error("Failed to parse timestamp '%s': %s", datadict.get("dateandtime"), e)
             ts = datetime.now(timezone.utc)
         logger.debug(
-            "Encoding geohash for IP %s: lat=%s, long=%s. ipdata=%s",
+            "Parsing geo data for IP %s: lat=%s, long=%s. Country=%s, City=%s",
             ip,
             ip_data.location.latitude,
             ip_data.location.longitude,
-            str(ip_data),
+            ip_data.country.iso_code,
+            ip_data.city.name,
         )
 
         return ParsedGeoData(
