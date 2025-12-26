@@ -1,4 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
@@ -8,7 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Activity, Globe2, FileText, AlertTriangle, TrendingUp, TrendingDown } from "lucide-react"
+import { Activity, Globe2, FileText, AlertTriangle, TrendingUp, TrendingDown, Clock } from "lucide-react"
 import { useSummary } from "@/lib/queries"
 import { formatNumber, formatPercent, STATS_TIME_RANGE_PRESETS, type StatsTimeRangeValue } from "@/lib/api"
 import { useTimeRange } from "@/lib/time-range-context"
@@ -83,6 +89,113 @@ function StatCard({
   )
 }
 
+
+
+function DateTimeRange({ start, end }: { start: string; end: string }) {
+  const startDate = new Date(start)
+  const endDate = new Date(end)
+
+  const formatOptions: Intl.DateTimeFormatOptions = {
+    year: "numeric",
+    month: "short",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "UTC",
+    hour12: false,
+  }
+
+  const formatTime = (d: Date) => {
+    return d.toLocaleTimeString(undefined, {
+      hour: "2-digit",
+      minute: "2-digit",
+      timeZone: "UTC",
+      hour12: false,
+    })
+  }
+
+  const formatDate = (d: Date) => {
+    return d.toLocaleDateString(undefined, {
+      year: "numeric",
+      month: "short",
+      day: "2-digit",
+      timeZone: "UTC",
+    })
+  }
+  
+  const fullFormat = (d: Date) => d.toUTCString();
+
+
+  const sameDay =
+    startDate.getUTCFullYear() === endDate.getUTCFullYear() &&
+    startDate.getUTCMonth() === endDate.getUTCMonth() &&
+    startDate.getUTCDate() === endDate.getUTCDate()
+
+  return (
+    <div className="inline-flex items-center gap-2 rounded-md bg-muted/50 px-2.5 py-1 text-xs font-semibold text-muted-foreground shadow-inner">
+      <Clock className="h-4 w-4 text-geo-cyan" />
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span suppressHydrationWarning className="cursor-default font-mono">
+            {sameDay
+              ? formatDate(startDate)
+              : startDate.toLocaleString(undefined, formatOptions)}
+          </span>
+        </TooltipTrigger>
+        <TooltipContent>
+          <p>{fullFormat(startDate)}</p>
+        </TooltipContent>
+      </Tooltip>
+
+      {sameDay && (
+        <>
+          <Tooltip>
+            <TooltipTrigger asChild>
+                <span suppressHydrationWarning className="cursor-default font-mono">
+                  {formatTime(startDate)}
+              </span>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>{fullFormat(startDate)}</p>
+            </TooltipContent>
+          </Tooltip>
+            <span className="text-muted-foreground/60">→</span>
+            <Tooltip>
+            <TooltipTrigger asChild>
+              <span suppressHydrationWarning className="cursor-default font-mono">
+                  {formatTime(endDate)}
+              </span>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>{fullFormat(endDate)}</p>
+            </TooltipContent>
+          </Tooltip>
+        </>
+      )}
+
+      {!sameDay && (
+        <>
+          <span className="text-muted-foreground/60">→</span>
+          <Tooltip>
+            <TooltipTrigger asChild>
+                <span suppressHydrationWarning className="cursor-default font-mono">
+                {endDate.toLocaleString(undefined, formatOptions)}
+              </span>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>{fullFormat(endDate)}</p>
+            </TooltipContent>
+          </Tooltip>
+        </>
+      )}
+      <span className="ml-1 text-[10px] font-bold text-muted-foreground/80">
+        UTC
+      </span>
+    </div>
+  )
+}
+
+
 function DashboardPage() {
   const { statsRange, setStatsRange } = useTimeRange()
   const { data: summary, isLoading, isError, error } = useSummary({
@@ -93,12 +206,13 @@ function DashboardPage() {
   const rangeLabel = STATS_TIME_RANGE_PRESETS.find((p) => p.value === statsRange)?.label ?? statsRange
 
   return (
+    <TooltipProvider>
     <div className="p-6 space-y-6">
       {/* Header */}
       <div className="space-y-1">
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <h1 className="text-2xl font-semibold tracking-tight">
-            Dashboard Overview
+            Summary
           </h1>
           <Select
             value={statsRange}
@@ -109,20 +223,25 @@ function DashboardPage() {
             </SelectTrigger>
             <SelectContent>
               {STATS_TIME_RANGE_PRESETS.map((preset) => (
-                <SelectItem key={preset.value} value={preset.value}>
-                  {preset.label}
-                </SelectItem>
+                <Tooltip key={preset.value}>
+                  <TooltipTrigger asChild>
+                    <SelectItem value={preset.value}>
+                      {preset.label}
+                    </SelectItem>
+                  </TooltipTrigger>
+                  <TooltipContent side="right">
+                    <p>{preset.description}</p>
+                  </TooltipContent>
+                </Tooltip>
               ))}
             </SelectContent>
           </Select>
+          {summary && (
+            <DateTimeRange start={summary.start_date} end={summary.end_date} />
+          )}
         </div>
         <p className="text-sm text-muted-foreground">
-          Real-time geo-analytics and access log monitoring
-          {/* {summary && (
-            <span className="ml-2 text-xs">
-              ({summary.start_date} to {summary.end_date})
-            </span>
-          )} */}
+          Hourly aggregated metrics aligned to hour boundaries. Unique IP and country counts are exact.
         </p>
       </div>
 
@@ -282,7 +401,7 @@ function DashboardPage() {
                         : "text-red-500"
                     )}
                   >
-                    {formatPercent(summary.percent_changes?.unique_ips)} vs last period
+                    {formatPercent(summary.percent_changes?.unique_ips)} vs last {rangeLabel}
                   </span>
                 )}
               </p>
@@ -291,5 +410,6 @@ function DashboardPage() {
         </div>
       )}
     </div>
+    </TooltipProvider>
   )
 }

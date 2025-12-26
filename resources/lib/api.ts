@@ -311,6 +311,7 @@ export interface StatsTimeRangePreset {
   label: string
   value: StatsTimeRangeValue
   minutes: number
+  description: string
 }
 
 export const TIME_RANGE_PRESETS: TimeRangePreset[] = [
@@ -325,15 +326,15 @@ export const TIME_RANGE_PRESETS: TimeRangePreset[] = [
 
 /** Stats time range presets (hourly minimum for HourlyStats table) */
 export const STATS_TIME_RANGE_PRESETS: StatsTimeRangePreset[] = [
-  { label: "1h", value: "1h", minutes: 60 },
-  { label: "2h", value: "2h", minutes: 120 },
-  { label: "3h", value: "3h", minutes: 180 },
-  { label: "6h", value: "6h", minutes: 360 },
-  { label: "12h", value: "12h", minutes: 720 },
-  { label: "24h", value: "24h", minutes: 1440 },
-  { label: "7d", value: "7d", minutes: 10080 },
-  { label: "30d", value: "30d", minutes: 43200 },
-  { label: "90d", value: "90d", minutes: 129600 },
+  { label: "1h", value: "1h", minutes: 60, description: "Queries the last 1 complete hour bucket" },
+  { label: "2h", value: "2h", minutes: 120, description: "Queries the last 2 complete hour buckets" },
+  { label: "3h", value: "3h", minutes: 180, description: "Queries the last 3 complete hour buckets" },
+  { label: "6h", value: "6h", minutes: 360, description: "Queries the last 6 complete hour buckets" },
+  { label: "12h", value: "12h", minutes: 720, description: "Queries the last 12 complete hour buckets" },
+  { label: "24h", value: "24h", minutes: 1440, description: "Queries the last 24 complete hour buckets" },
+  { label: "7d", value: "7d", minutes: 10080, description: "Queries the last 7 days (168 hour buckets)" },
+  { label: "30d", value: "30d", minutes: 43200, description: "Queries the last 30 days (720 hour buckets)" },
+  { label: "90d", value: "90d", minutes: 129600, description: "Queries the last 90 days (2160 hour buckets)" },
 ]
 
 export interface PollIntervalOption {

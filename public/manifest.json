@@ -1,0 +1,114 @@
+{
+  "_maplibre-gl-z3D31WTx.js": {
+    "file": "assets/maplibre-gl-z3D31WTx.js",
+    "name": "maplibre-gl",
+    "isDynamicEntry": true,
+    "imports": [
+      "resources/main.tsx"
+    ]
+  },
+  "_queries-DhX44tGa.js": {
+    "file": "assets/queries-DhX44tGa.js",
+    "name": "queries",
+    "imports": [
+      "resources/main.tsx"
+    ]
+  },
+  "_skeleton-CV08LMkY.js": {
+    "file": "assets/skeleton-CV08LMkY.js",
+    "name": "skeleton",
+    "imports": [
+      "resources/main.tsx"
+    ]
+  },
+  "node_modules/@fontsource-variable/inter/files/inter-cyrillic-ext-wght-normal.woff2": {
+    "file": "assets/inter-cyrillic-ext-wght-normal-BOeWTOD4.woff2",
+    "src": "node_modules/@fontsource-variable/inter/files/inter-cyrillic-ext-wght-normal.woff2"
+  },
+  "node_modules/@fontsource-variable/inter/files/inter-cyrillic-wght-normal.woff2": {
+    "file": "assets/inter-cyrillic-wght-normal-DqGufNeO.woff2",
+    "src": "node_modules/@fontsource-variable/inter/files/inter-cyrillic-wght-normal.woff2"
+  },
+  "node_modules/@fontsource-variable/inter/files/inter-greek-ext-wght-normal.woff2": {
+    "file": "assets/inter-greek-ext-wght-normal-DlzME5K_.woff2",
+    "src": "node_modules/@fontsource-variable/inter/files/inter-greek-ext-wght-normal.woff2"
+  },
+  "node_modules/@fontsource-variable/inter/files/inter-greek-wght-normal.woff2": {
+    "file": "assets/inter-greek-wght-normal-CkhJZR-_.woff2",
+    "src": "node_modules/@fontsource-variable/inter/files/inter-greek-wght-normal.woff2"
+  },
+  "node_modules/@fontsource-variable/inter/files/inter-latin-ext-wght-normal.woff2": {
+    "file": "assets/inter-latin-ext-wght-normal-DO1Apj_S.woff2",
+    "src": "node_modules/@fontsource-variable/inter/files/inter-latin-ext-wght-normal.woff2"
+  },
+  "node_modules/@fontsource-variable/inter/files/inter-latin-wght-normal.woff2": {
+    "file": "assets/inter-latin-wght-normal-Dx4kXJAl.woff2",
+    "src": "node_modules/@fontsource-variable/inter/files/inter-latin-wght-normal.woff2"
+  },
+  "node_modules/@fontsource-variable/inter/files/inter-vietnamese-wght-normal.woff2": {
+    "file": "assets/inter-vietnamese-wght-normal-CBcvBZtf.woff2",
+    "src": "node_modules/@fontsource-variable/inter/files/inter-vietnamese-wght-normal.woff2"
+  },
+  "resources/components/map/GeoMap.tsx": {
+    "file": "assets/GeoMap-DolyqAyq.js",
+    "name": "GeoMap",
+    "src": "resources/components/map/GeoMap.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "resources/main.tsx",
+      "_queries-DhX44tGa.js"
+    ],
+    "dynamicImports": [
+      "_maplibre-gl-z3D31WTx.js"
+    ],
+    "css": [
+      "assets/GeoMap-kWVbv8B-.css"
+    ]
+  },
+  "resources/main.tsx": {
+    "file": "assets/main-1-OmRwjD.js",
+    "name": "main",
+    "src": "resources/main.tsx",
+    "isEntry": true,
+    "dynamicImports": [
+      "resources/routes/map.tsx?tsr-split=component",
+      "resources/routes/index.tsx?tsr-split=component"
+    ],
+    "css": [
+      "assets/main-BRSQ1NZG.css"
+    ],
+    "assets": [
+      "assets/inter-cyrillic-ext-wght-normal-BOeWTOD4.woff2",
+      "assets/inter-cyrillic-wght-normal-DqGufNeO.woff2",
+      "assets/inter-greek-ext-wght-normal-DlzME5K_.woff2",
+      "assets/inter-greek-wght-normal-CkhJZR-_.woff2",
+      "assets/inter-vietnamese-wght-normal-CBcvBZtf.woff2",
+      "assets/inter-latin-ext-wght-normal-DO1Apj_S.woff2",
+      "assets/inter-latin-wght-normal-Dx4kXJAl.woff2"
+    ]
+  },
+  "resources/routes/index.tsx?tsr-split=component": {
+    "file": "assets/index-wMgEvg5m.js",
+    "name": "index",
+    "src": "resources/routes/index.tsx?tsr-split=component",
+    "isDynamicEntry": true,
+    "imports": [
+      "resources/main.tsx",
+      "_queries-DhX44tGa.js",
+      "_skeleton-CV08LMkY.js"
+    ]
+  },
+  "resources/routes/map.tsx?tsr-split=component": {
+    "file": "assets/map-B8eJ5kBc.js",
+    "name": "map",
+    "src": "resources/routes/map.tsx?tsr-split=component",
+    "isDynamicEntry": true,
+    "imports": [
+      "resources/main.tsx",
+      "_skeleton-CV08LMkY.js"
+    ],
+    "dynamicImports": [
+      "resources/components/map/GeoMap.tsx"
+    ]
+  }
+}
