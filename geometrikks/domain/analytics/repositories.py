@@ -3,15 +3,16 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from enum import Enum
 from typing import Sequence
 
-from sqlalchemy import select, func, text
+from sqlalchemy import select, func, text, and_
 from sqlalchemy.dialects.postgresql import insert
 from advanced_alchemy.repository import SQLAlchemyAsyncRepository
 
 from geometrikks.domain.analytics.models import HourlyStats, DailyStats
+from geometrikks.domain.geo.models import GeoEvent, GeoLocation
 
 
 class Granularity(str, Enum):
@@ -19,6 +20,25 @@ class Granularity(str, Enum):
 
     HOURLY = "hourly"
     DAILY = "daily"
+
+
+def _floor_to_hour(dt: datetime) -> datetime:
+    """Truncate datetime to the start of its hour."""
+    result = dt.replace(minute=0, second=0, microsecond=0)
+    if result.tzinfo is None:
+        result = result.replace(tzinfo=timezone.utc)
+    return result
+
+
+def _ceil_to_hour(dt: datetime) -> datetime:
+    """Round datetime up to the next hour (or same if already at hour boundary)."""
+    if dt.minute == 0 and dt.second == 0 and dt.microsecond == 0:
+        result = dt
+    else:
+        result = dt.replace(minute=0, second=0, microsecond=0) + timedelta(hours=1)
+    if result.tzinfo is None:
+        result = result.replace(tzinfo=timezone.utc)
+    return result
 
 
 @dataclass
@@ -191,21 +211,29 @@ class HourlyStatsRepository(SQLAlchemyAsyncRepository[HourlyStats]):
     ) -> Sequence[HourlyStats]:
         """Get hourly stats for a time range.
 
+        Timestamps are aligned to hour boundaries:
+        - Start is floored to the hour
+        - End is ceiled to the next hour
+        - Query uses [start, end) range
+
         Args:
-            start: Start datetime (inclusive).
-            end: End datetime (inclusive).
+            start: Start datetime (will be floored to hour).
+            end: End datetime (will be ceiled to hour).
 
         Returns:
             List of HourlyStats ordered by hour ascending.
         """
-        if start.tzinfo is None:
-            start = start.replace(tzinfo=timezone.utc)
-        if end.tzinfo is None:
-            end = end.replace(tzinfo=timezone.utc)
+        start_hour = _floor_to_hour(start)
+        end_hour = _ceil_to_hour(end)
 
         stmt = (
             select(HourlyStats)
-            .where(HourlyStats.hour.between(start, end))
+            .where(
+                and_(
+                    HourlyStats.hour >= start_hour,
+                    HourlyStats.hour < end_hour,
+                )
+            )
             .order_by(HourlyStats.hour.asc())
         )
         result = await self.session.execute(stmt)
@@ -218,23 +246,29 @@ class HourlyStatsRepository(SQLAlchemyAsyncRepository[HourlyStats]):
     ) -> SummaryStats | None:
         """Get aggregated summary stats for a time range.
 
+        Timestamps are aligned to hour boundaries since HourlyStats uses hourly buckets:
+        - Start is floored to the hour (10:30 -> 10:00)
+        - End is ceiled to the next hour (11:30 -> 12:00)
+        - Query uses [start, end) range (inclusive start, exclusive end)
+
+        Unique IP and country counts are queried directly from GeoEvent
+        for accuracy instead of using approximated sums from HourlyStats.
+
         Args:
-            start: Start datetime (inclusive).
-            end: End datetime (inclusive).
+            start: Start datetime (will be floored to hour).
+            end: End datetime (will be ceiled to hour).
 
         Returns:
             SummaryStats with aggregated values, or None if no data.
         """
-        if start.tzinfo is None:
-            start = start.replace(tzinfo=timezone.utc)
-        if end.tzinfo is None:
-            end = end.replace(tzinfo=timezone.utc)
+        # Align to hour boundaries for HourlyStats bucket precision
+        start_hour = _floor_to_hour(start)
+        end_hour = _ceil_to_hour(end)
 
+        # Query HourlyStats with hour-aligned boundaries using [start, end) range
         stmt = select(
             func.sum(HourlyStats.total_requests).label("total_requests"),
             func.sum(HourlyStats.total_geo_events).label("total_geo_events"),
-            func.sum(HourlyStats.unique_ips).label("unique_ips"),
-            func.max(HourlyStats.unique_countries).label("unique_countries"),
             func.sum(HourlyStats.total_bytes_sent).label("total_bytes_sent"),
             func.sum(HourlyStats.status_2xx).label("status_2xx"),
             func.sum(HourlyStats.status_3xx).label("status_3xx"),
@@ -243,7 +277,12 @@ class HourlyStatsRepository(SQLAlchemyAsyncRepository[HourlyStats]):
             func.avg(HourlyStats.avg_request_time).label("avg_request_time"),
             func.max(HourlyStats.max_request_time).label("max_request_time"),
             func.sum(HourlyStats.malformed_requests).label("malformed_requests"),
-        ).where(HourlyStats.hour.between(start, end))
+        ).where(
+            and_(
+                HourlyStats.hour >= start_hour,
+                HourlyStats.hour < end_hour,
+            )
+        )
 
         result = await self.session.execute(stmt)
         row = result.one_or_none()
@@ -258,11 +297,33 @@ class HourlyStatsRepository(SQLAlchemyAsyncRepository[HourlyStats]):
             (row.total_bytes_sent or 0) / total_requests if total_requests > 0 else 0.0
         )
 
+        # Query GeoEvent directly for accurate unique counts
+        # This avoids the approximation error from summing per-hour unique counts
+        unique_counts_stmt = select(
+            func.count(func.distinct(GeoEvent.ip_address)).label("unique_ips"),
+            func.count(func.distinct(GeoLocation.country_code)).label("unique_countries"),
+        ).select_from(
+            GeoEvent
+        ).join(
+            GeoLocation, GeoEvent.location_id == GeoLocation.id
+        ).where(
+            and_(
+                GeoEvent.timestamp >= start_hour,
+                GeoEvent.timestamp < end_hour,
+            )
+        )
+
+        unique_result = await self.session.execute(unique_counts_stmt)
+        unique_row = unique_result.one_or_none()
+
+        unique_ips = unique_row.unique_ips if unique_row else 0
+        unique_countries = unique_row.unique_countries if unique_row else 0
+
         return SummaryStats(
             total_requests=total_requests,
             total_geo_events=row.total_geo_events or 0,
-            unique_ips=row.unique_ips or 0,
-            unique_countries=row.unique_countries or 0,
+            unique_ips=unique_ips,
+            unique_countries=unique_countries,
             total_bytes_sent=row.total_bytes_sent or 0,
             avg_bytes_per_request=avg_bytes,
             status_2xx=row.status_2xx or 0,

@@ -375,24 +375,47 @@ export function parseTimeRange(range: TimeRangeValue, referenceTime?: number): {
 }
 
 /**
+ * Ceil a date to the next hour (e.g., 10:45 -> 11:00), or same if already at hour boundary.
+ */
+function ceilToHour(date: Date): Date {
+  const result = new Date(date)
+  if (result.getMinutes() === 0 && result.getSeconds() === 0 && result.getMilliseconds() === 0) {
+    return result
+  }
+  result.setMinutes(0, 0, 0)
+  result.setTime(result.getTime() + 60 * 60 * 1000)
+  return result
+}
+
+/**
  * Parse a stats time range value and return start/end ISO timestamps.
  * For HourlyStats table queries (hourly minimum granularity).
+ *
+ * Timestamps are aligned to hour boundaries to match HourlyStats bucket precision:
+ * - End is ceiled to the next hour (includes current partial hour)
+ * - Start is calculated as (end - duration)
+ *
+ * This ensures queries align with the hourly bucketing in the database.
  */
 export function parseStatsTimeRange(range: StatsTimeRangeValue, referenceTime?: number): { startDate: string; endDate: string } {
   const preset = STATS_TIME_RANGE_PRESETS.find((p) => p.value === range)
   if (!preset) {
     // Default to 24h if invalid range
     const now = referenceTime ? new Date(referenceTime) : new Date()
-    const start = new Date(now.getTime() - 24 * 60 * 60 * 1000)
-    return { startDate: start.toISOString(), endDate: now.toISOString() }
+    const end = ceilToHour(now)
+    const start = new Date(end.getTime() - 24 * 60 * 60 * 1000)
+    return { startDate: start.toISOString(), endDate: end.toISOString() }
   }
 
   const now = referenceTime ? new Date(referenceTime) : new Date()
-  const start = new Date(now.getTime() - preset.minutes * 60 * 1000)
+  // Ceil end to next hour to include current partial hour's data
+  const end = ceilToHour(now)
+  // Start is duration before the aligned end
+  const start = new Date(end.getTime() - preset.minutes * 60 * 1000)
 
   return {
     startDate: start.toISOString(),
-    endDate: now.toISOString(),
+    endDate: end.toISOString(),
   }
 }
 
