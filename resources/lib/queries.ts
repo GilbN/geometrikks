@@ -14,7 +14,7 @@ import {
   getGranularityForRange,
   type SummaryParams,
   type TimeSeriesParams,
-  type GeoJSONParams,
+
 } from "./api"
 import { useTimeRange } from "./time-range-context"
 

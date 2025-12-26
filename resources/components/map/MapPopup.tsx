@@ -4,7 +4,7 @@
  */
 
 import { Popup } from "react-map-gl/maplibre"
-import { MapPin, Globe, Clock, Hash, HelpCircle } from "lucide-react"
+import { MapPin, Globe, Clock, Hash } from "lucide-react"
 import { formatNumber } from "@/lib/api"
 import type { GeoJSONFeatureProperties } from "@/lib/api"
 
