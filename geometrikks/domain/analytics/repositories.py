@@ -7,12 +7,14 @@ from datetime import date, datetime, timedelta, timezone
 from enum import Enum
 from typing import Sequence
 
-from sqlalchemy import select, func, text, and_
+from sqlalchemy import select, func, text, and_, case
 from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy.ext.asyncio import AsyncSession
 from advanced_alchemy.repository import SQLAlchemyAsyncRepository
 
 from geometrikks.domain.analytics.models import HourlyStats, DailyStats
 from geometrikks.domain.geo.models import GeoEvent, GeoLocation
+from geometrikks.domain.logs.models import AccessLog, AccessLogDebug
 
 
 class Granularity(str, Enum):
@@ -189,11 +191,14 @@ class HourlyStatsRepository(SQLAlchemyAsyncRepository[HourlyStats]):
                 "status_5xx": HourlyStats.status_5xx + metrics.status_5xx,
                 # For avg, we use weighted average formula:
                 # new_avg = (old_avg * old_count + new_sum) / (old_count + new_count)
-                "avg_request_time": (
-                    HourlyStats.avg_request_time * HourlyStats.total_requests
-                    + metrics.total_request_time
-                )
-                / (HourlyStats.total_requests + metrics.requests),
+                "avg_request_time": func.coalesce(
+                    (
+                        HourlyStats.avg_request_time * HourlyStats.total_requests
+                        + metrics.total_request_time
+                    )
+                    / func.nullif(HourlyStats.total_requests + metrics.requests, 0),
+                    0.0
+                ),
                 "max_request_time": func.greatest(
                     HourlyStats.max_request_time, metrics.max_request_time
                 ),
@@ -548,5 +553,148 @@ class DailyStatsRepository(SQLAlchemyAsyncRepository[DailyStats]):
             avg_request_time=row.avg_request_time or 0.0,
             max_request_time=row.max_request_time or 0.0,
             malformed_requests=row.malformed_requests or 0,
+            error_rate=error_rate,
+        )
+
+
+class LiveStatsRepository:
+    """Repository for querying live statistics directly from raw tables.
+
+    Queries AccessLog, GeoEvent, and AccessLogDebug directly instead of
+    using pre-aggregated hourly buckets.
+
+    This repository does NOT extend SQLAlchemyAsyncRepository since it
+    performs custom aggregate queries across multiple tables rather than
+    CRUD operations on a single model.
+    """
+
+    def __init__(self, session: AsyncSession) -> None:
+        self.session = session
+
+    async def get_summary(
+        self,
+        start: datetime,
+        end: datetime,
+    ) -> SummaryStats | None:
+        """Get live summary stats
+
+        Unlike HourlyStatsRepository.get_summary which uses pre-aggregated
+        hourly buckets, this queries AccessLog, GeoEvent, and AccessLogDebug
+        directly for real-time accuracy.
+
+        Note: AccessLog data is optional (controlled by LOGPARSER_SEND_LOGS).
+        GeoEvent is the primary data source, so we check that first.
+
+        Args:
+            start: Start datetime.
+            end: End datetime.
+
+        Returns:
+            SummaryStats with live values, or None if no data.
+        """
+
+        # Query GeoEvent first - this is the primary data source
+        # AccessLog is optional (LOGPARSER_SEND_LOGS setting)
+        geo_events_stmt = select(
+            func.count().label("total_geo_events"),
+            func.count(func.distinct(GeoEvent.ip_address)).label("unique_ips"),
+            func.count(func.distinct(GeoLocation.country_code)).label("unique_countries"),
+        ).select_from(
+            GeoEvent
+        ).join(
+            GeoLocation, GeoEvent.location_id == GeoLocation.id
+        ).where(
+            and_(
+                GeoEvent.timestamp >= start,
+                GeoEvent.timestamp < end,
+            )
+        )
+
+        geo_result = await self.session.execute(geo_events_stmt)
+        geo_row = geo_result.one_or_none()
+
+        total_geo_events = geo_row.total_geo_events if geo_row else 0
+        unique_ips = geo_row.unique_ips if geo_row else 0
+        unique_countries = geo_row.unique_countries if geo_row else 0
+
+        # Query AccessLog for request metrics (optional - may be empty)
+        access_log_stmt = select(
+            func.count().label("total_requests"),
+            func.coalesce(func.sum(AccessLog.bytes_sent), 0).label("total_bytes_sent"),
+            func.sum(
+                case(
+                    (and_(AccessLog.status_code >= 200, AccessLog.status_code < 300), 1),
+                    else_=0
+                )
+            ).label("status_2xx"),
+            func.sum(
+                case(
+                    (and_(AccessLog.status_code >= 300, AccessLog.status_code < 400), 1),
+                    else_=0
+                )
+            ).label("status_3xx"),
+            func.sum(
+                case(
+                    (and_(AccessLog.status_code >= 400, AccessLog.status_code < 500), 1),
+                    else_=0
+                )
+            ).label("status_4xx"),
+            func.sum(
+                case(
+                    (and_(AccessLog.status_code >= 500, AccessLog.status_code < 600), 1),
+                    else_=0
+                )
+            ).label("status_5xx"),
+            func.coalesce(func.avg(AccessLog.request_time), 0.0).label("avg_request_time"),
+            func.coalesce(func.max(AccessLog.request_time), 0.0).label("max_request_time"),
+        ).where(
+            and_(
+                AccessLog.timestamp >= start,
+                AccessLog.timestamp < end,
+            )
+        )
+
+        access_result = await self.session.execute(access_log_stmt)
+        access_row = access_result.one_or_none()
+
+        # Query AccessLogDebug for malformed requests count
+        malformed_stmt = select(
+            func.count().label("malformed_requests"),
+        ).where(
+            and_(
+                AccessLogDebug.created_at >= start,
+                AccessLogDebug.created_at < end,
+                AccessLogDebug.is_malformed == True,  # noqa: E712
+            )
+        )
+
+        malformed_result = await self.session.execute(malformed_stmt)
+        malformed_row = malformed_result.one_or_none()
+        malformed_requests = malformed_row.malformed_requests if malformed_row else 0
+
+        # Return None only if both GeoEvent and AccessLog have no data
+        total_requests = access_row.total_requests if access_row else 0
+        if total_geo_events == 0 and total_requests == 0:
+            return None
+
+        # Calculate derived values
+        total_errors = ((access_row.status_4xx or 0) + (access_row.status_5xx or 0)) if access_row else 0
+        error_rate = total_errors / total_requests if total_requests > 0 else 0.0
+        avg_bytes = (access_row.total_bytes_sent or 0) / total_requests if total_requests > 0 else 0.0
+
+        return SummaryStats(
+            total_requests=total_requests,
+            total_geo_events=total_geo_events,
+            unique_ips=unique_ips,
+            unique_countries=unique_countries,
+            total_bytes_sent=access_row.total_bytes_sent if access_row else 0,
+            avg_bytes_per_request=avg_bytes,
+            status_2xx=access_row.status_2xx if access_row else 0,
+            status_3xx=access_row.status_3xx if access_row else 0,
+            status_4xx=access_row.status_4xx if access_row else 0,
+            status_5xx=access_row.status_5xx if access_row else 0,
+            avg_request_time=float(access_row.avg_request_time or 0.0) if access_row else 0.0,
+            max_request_time=float(access_row.max_request_time or 0.0) if access_row else 0.0,
+            malformed_requests=malformed_requests,
             error_rate=error_rate,
         )

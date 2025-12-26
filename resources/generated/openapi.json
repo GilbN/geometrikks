@@ -1335,6 +1335,128 @@
         ]
       }
     },
+    "/api/v1/analytics/live-summary": {
+      "get": {
+        "deprecated": false,
+        "description": "Get live summary statistics by querying raw data tables.",
+        "operationId": "ApiV1AnalyticsLiveSummaryGetLiveSummary",
+        "parameters": [
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Start date (ISO 8601, e.g., 2024-01-01T00:00:00Z)",
+            "examples": {
+              "start_date-example-1": {
+                "value": "2024-01-01T00:00:00Z"
+              }
+            },
+            "in": "query",
+            "name": "start_date",
+            "required": true,
+            "schema": {
+              "description": "Start date (ISO 8601, e.g., 2024-01-01T00:00:00Z)",
+              "examples": [
+                "2024-01-01T00:00:00Z"
+              ],
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "End date (ISO 8601, e.g., 2024-12-31T23:59:59Z)",
+            "examples": {
+              "end_date-example-1": {
+                "value": "2024-12-31T23:59:59Z"
+              }
+            },
+            "in": "query",
+            "name": "end_date",
+            "required": true,
+            "schema": {
+              "description": "End date (ISO 8601, e.g., 2024-12-31T23:59:59Z)",
+              "examples": [
+                "2024-12-31T23:59:59Z"
+              ],
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Include comparison with previous period of same length",
+            "in": "query",
+            "name": "compare_previous",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Include comparison with previous period of same length",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SummaryResponse"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "GetLiveSummary",
+        "tags": [
+          "Analytics"
+        ]
+      }
+    },
     "/api/v1/analytics/summary": {
       "get": {
         "deprecated": false,
