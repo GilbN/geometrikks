@@ -21,6 +21,7 @@ export type RouteName =
   | 'get_bandwidth_time_series'
   | 'get_geo_events_time_series'
   | 'get_geojson'
+  | 'get_live_summary'
   | 'get_performance_time_series'
   | 'get_requests_time_series'
   | 'get_summary'
@@ -41,6 +42,7 @@ export interface RoutePathParams {
   'get_bandwidth_time_series': Record<string, never>;
   'get_geo_events_time_series': Record<string, never>;
   'get_geojson': Record<string, never>;
+  'get_live_summary': Record<string, never>;
   'get_performance_time_series': Record<string, never>;
   'get_requests_time_series': Record<string, never>;
   'get_summary': Record<string, never>;
@@ -76,6 +78,11 @@ export interface RouteQueryParams {
   'get_geojson': {
     from_timestamp: DateTime;
     to_timestamp: DateTime;
+  };
+  'get_live_summary': {
+    compare_previous?: boolean;
+    end_date: DateTime;
+    start_date: DateTime;
   };
   'get_performance_time_series': {
     end_date: DateOnly;
@@ -146,6 +153,13 @@ export const routeDefinitions = {
     method: 'get',
     pathParams: [] as const,
     queryParams: ['from_timestamp', 'to_timestamp'] as const,
+  },
+  'get_live_summary': {
+    path: '/api/v1/analytics/live-summary',
+    methods: ['GET'] as const,
+    method: 'get',
+    pathParams: [] as const,
+    queryParams: ['compare_previous', 'end_date', 'start_date'] as const,
   },
   'get_performance_time_series': {
     path: '/api/v1/analytics/time-series/performance',

@@ -36,6 +36,18 @@
       },
       "uri": "/api/v1/geo-locations/geojson"
     },
+    "get_live_summary": {
+      "method": "get",
+      "methods": [
+        "GET"
+      ],
+      "queryParameters": {
+        "compare_previous": "boolean | undefined",
+        "end_date": "DateTime",
+        "start_date": "DateTime"
+      },
+      "uri": "/api/v1/analytics/live-summary"
+    },
     "get_performance_time_series": {
       "method": "get",
       "methods": [

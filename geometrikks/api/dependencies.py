@@ -22,7 +22,7 @@ from geometrikks.domain.geo.models import GeoEvent, GeoLocation
 from geometrikks.domain.geo.repositories import GeoLocationRepository, GeoEventRepository
 from geometrikks.domain.logs.models import AccessLogDebug
 from geometrikks.domain.logs.repositories import AccessLogRepository, AccessLogDebugRepository
-from geometrikks.domain.analytics.repositories import HourlyStatsRepository, DailyStatsRepository
+from geometrikks.domain.analytics.repositories import HourlyStatsRepository, DailyStatsRepository, LiveStatsRepository
 
 
 def provide_parser() -> LogParser:
@@ -131,3 +131,10 @@ def provide_aggregation_service(request: Request) -> AggregationService | None:
     Returns None if the service is not available (degraded mode).
     """
     return getattr(request.app.state, "aggregation_service", None)
+
+
+async def provide_live_stats_repo(
+    db_session: AsyncSession,
+) -> LiveStatsRepository:
+    """Provide LiveStatsRepository for querying raw data tables."""
+    return LiveStatsRepository(session=db_session)

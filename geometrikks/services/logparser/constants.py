@@ -83,3 +83,23 @@ def ipv4() -> re.Pattern[str]:
 def ipv6() -> re.Pattern[str]:
     """Return the regular expression pattern for an IPv6 address."""
     return re.compile(Rgx.RE_IPV6_PATTERN)
+
+def ipv4_geo_pattern() -> re.Pattern[str]:
+    """Return the regular expression pattern for an IPv4 log line with only geo data."""
+    return re.compile(rf'''
+    (?P<ipaddress>{Rgx.RE_IPV4_PATTERN})
+    \s-\s
+    (?P<remote_user>{Rgx.REMOTE_USER_PATTERN})
+    \s\[
+    (?P<dateandtime>{Rgx.DATE_AND_TIME_PATTERN})\]
+    ''', re.VERBOSE | re.IGNORECASE) # NOQA
+
+def ipv6_geo_pattern() -> re.Pattern[str]:
+    """Return the regular expression pattern for an IPv6 log line with only geo data."""
+    return re.compile(rf'''
+    (?P<ipaddress>{Rgx.RE_IPV6_PATTERN})
+    \s-\s
+    (?P<remote_user>{Rgx.REMOTE_USER_PATTERN})
+    \s\[
+    (?P<dateandtime>{Rgx.DATE_AND_TIME_PATTERN})\]
+    ''', re.VERBOSE | re.IGNORECASE) # NOQA

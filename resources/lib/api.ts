@@ -152,6 +152,17 @@ export async function fetchSummary(params: SummaryParams): Promise<SummaryRespon
   return data
 }
 
+export async function fetchLiveSummary(params: SummaryParams): Promise<SummaryResponse> {
+  const { data } = await api.get<SummaryResponse>("/analytics/live-summary", {
+    params: {
+      start_date: params.startDate,
+      end_date: params.endDate,
+      compare_previous: params.comparePrevious ?? true,
+    },
+  })
+  return data
+}
+
 export interface TimeSeriesParams {
   startDate: string
   endDate: string
@@ -296,7 +307,7 @@ export function getNowTimestamp(): string {
 // Time Range Types & Utilities
 // ============================================================================
 
-export type TimeRangeValue = "5m" | "15m" | "1h" | "24h" | "7d" | "30d" | "90d"
+export type TimeRangeValue = "5m" | "15m" | "30m" | "1h" | "2h" | "3h" | "6h" | "12h" | "24h" | "7d" | "30d" | "90d"
 
 /** Stats-specific time range (hourly minimum for HourlyStats table compatibility) */
 export type StatsTimeRangeValue = "1h" | "2h" | "3h" | "6h" | "12h" | "24h" | "7d" | "30d" | "90d"
@@ -317,7 +328,11 @@ export interface StatsTimeRangePreset {
 export const TIME_RANGE_PRESETS: TimeRangePreset[] = [
   { label: "5m", value: "5m", minutes: 5 },
   { label: "15m", value: "15m", minutes: 15 },
+  { label: "30m", value: "30m", minutes: 30 },
   { label: "1h", value: "1h", minutes: 60 },
+  { label: "2h", value: "2h", minutes: 120 },
+  { label: "3h", value: "3h", minutes: 180 },
+  { label: "6h", value: "6h", minutes: 360 },
   { label: "24h", value: "24h", minutes: 1440 },
   { label: "7d", value: "7d", minutes: 10080 },
   { label: "30d", value: "30d", minutes: 43200 },

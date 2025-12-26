@@ -5,6 +5,7 @@
 import { useQuery } from "@tanstack/react-query"
 import {
   fetchSummary,
+  fetchLiveSummary,
   fetchRequestsTimeSeries,
   fetchPerformanceTimeSeries,
   fetchGeoEventsTimeSeries,
@@ -27,6 +28,8 @@ export const queryKeys = {
     all: ["analytics"] as const,
     summary: (params: Record<string, unknown>, refreshKey?: number) =>
       [...queryKeys.analytics.all, "summary", params, refreshKey] as const,
+    liveSummary: (params: Record<string, unknown>, refreshKey?: number) =>
+      [...queryKeys.analytics.all, "live-summary", params, refreshKey] as const,
     requestsTimeSeries: (params: Record<string, unknown>, refreshKey?: number) =>
       [...queryKeys.analytics.all, "requests-time-series", params, refreshKey] as const,
     performanceTimeSeries: (params: Record<string, unknown>, refreshKey?: number) =>
@@ -75,6 +78,32 @@ export function useSummary(options: UseSummaryOptions = {}) {
     enabled,
     staleTime: 30 * 1000, // 30 seconds
     refetchInterval: pollInterval || false, // 0 = disabled
+  })
+}
+
+/**
+ * Fetch live summary statistics for the dashboard.
+ * Uses timeRange from TimeRangeContext (can be more granular).
+ */
+export function useLiveSummary(options: UseSummaryOptions = {}) {
+  const { comparePrevious = true, enabled = true } = options
+  const { range, pollInterval, lastRefresh } = useTimeRange()
+
+  // Use range (can be more granular) for live summary stats queries
+  const { startDate, endDate } = parseTimeRange(range, Date.now())
+  const params: SummaryParams = {
+    startDate,
+    endDate,
+    comparePrevious,
+  }
+
+  return useQuery({
+    // Query key uses range + lastRefresh for stability
+    queryKey: queryKeys.analytics.liveSummary({ range, comparePrevious }, lastRefresh),
+    queryFn: () => fetchLiveSummary(params),
+    enabled,
+    staleTime: 15 * 1000, // 15 seconds
+    refetchInterval: pollInterval || false,
   })
 }
 

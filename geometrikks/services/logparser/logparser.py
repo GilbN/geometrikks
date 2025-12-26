@@ -20,8 +20,8 @@ from .constants import (
     ipv4_pattern,
     ipv6_pattern,
     MONITORED_IP_TYPES,
-    ipv4,
-    ipv6
+    ipv4_geo_pattern,
+    ipv6_geo_pattern
 )
 from .schemas import ParsedLogRecord, ParsedGeoData, ParsedAccessLog
 
@@ -114,8 +114,8 @@ class LogParser:
         """Validate the log line against the IPv4 and IPv6 patterns."""
         if self.send_logs:
             return ipv4_pattern().match(log_line) or ipv6_pattern().match(log_line)
-        # If we are not sending logs but only geo data, only validate the IP address
-        return ipv4().match(log_line) or ipv6().match(log_line)
+        # If we are not sending logs but only geo data, only validate the IP address and the timestamp
+        return ipv4_geo_pattern().match(log_line) or ipv6_geo_pattern().match(log_line)
 
     @wait(timeout_seconds=60)
     def validate_log_format(self, log_path: Path) -> bool:  # regex tester
@@ -209,10 +209,18 @@ class LogParser:
         self, matched: re.Match[str]
     ) -> tuple[bool, str | None]:
         """Detect malformed requests such as TLS probes and invalid HTTP.
+        Will only run if send_logs is True.
+
+        Args:
+            matched: The regex match object for the log line.
 
         Returns:
             tuple of (is_malformed, parse_error_message)
         """
+        
+        if self.send_logs is False:
+            return False, None
+        
         datadict = matched.groupdict()
         method = datadict.get("method")
         request = datadict.get("request", "")
