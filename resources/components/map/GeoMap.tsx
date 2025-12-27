@@ -168,6 +168,8 @@ const clusterCountLayer: LayerSpecification = {
   },
   paint: {
     "text-color": "#ffffff",
+    "text-halo-color": "rgba(0, 0, 0, 0.25)",
+    "text-halo-width": 1,
   },
 }
 
@@ -237,7 +239,7 @@ const unclusteredPointLabelLayer: LayerSpecification = {
   },
   paint: {
     "text-color": "#ffffff",
-    // "text-halo-color": "#000000",
+    "text-halo-color": "rgba(0, 0, 0, 0.25)",
     "text-halo-width": 1,
   },
 }

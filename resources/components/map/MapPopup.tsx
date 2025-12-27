@@ -4,7 +4,7 @@
  */
 
 import { Popup } from "react-map-gl/maplibre"
-import { MapPin, Globe, Clock, Hash, Users } from "lucide-react"
+import { MapPin, Globe, Clock, Hash, Users, ChevronsUpDown } from "lucide-react"
 import { formatNumber } from "@/lib/api"
 import type { GeoJSONFeatureProperties } from "@/lib/api"
 
@@ -13,6 +13,11 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible"
 
 function LastHitToolTip({ lastHit }: { lastHit: string }) {
   return (
@@ -96,7 +101,7 @@ export function MapPopup({
     >
       <div
         style={{
-          background: "var(--popup-bg)",
+          background: "var(--card)",
           color: "var(--popup-fg)",
           borderRadius: "8px",
           padding: "12px",
@@ -200,7 +205,7 @@ export function MapPopup({
 
         {/* Top IPs */}
         {top_ips && top_ips.length > 0 && (
-          <div
+          <Collapsible
             style={{
               paddingTop: "8px",
               marginTop: "8px",
@@ -211,40 +216,94 @@ export function MapPopup({
               <Users style={{ width: 12, height: 12, color: "var(--popup-muted)" }} />
               <span style={{ fontSize: "12px", color: "var(--popup-muted)" }}>Top {top_ips.length} IPs</span>
             </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-              {top_ips.map((ip, index) => (
-                <div
-                  key={ip.ip_address}
+            {/* First IP always visible */}
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                fontSize: "11px",
+              }}
+            >
+              <code
+                style={{
+                  fontSize: "10px",
+                  background: "var(--popup-code-bg)",
+                  padding: "2px 6px",
+                  borderRadius: "4px",
+                  fontFamily: "monospace",
+                }}
+              >
+                1. {top_ips[0].ip_address}
+              </code>
+              <span
+                style={{
+                  fontSize: "10px",
+                  color: "var(--popup-muted)",
+                }}
+              >
+                {formatNumber(top_ips[0].event_count)}
+              </span>
+            </div>
+            {/* Remaining IPs in collapsible */}
+            {top_ips.length > 1 && (
+              <>
+                <CollapsibleContent>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "4px", marginTop: "4px" }}>
+                    {top_ips.slice(1).map((ip, index) => (
+                      <div
+                        key={ip.ip_address}
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                          fontSize: "11px",
+                        }}
+                      >
+                        <code
+                          style={{
+                            fontSize: "10px",
+                            background: "var(--popup-code-bg)",
+                            padding: "2px 6px",
+                            borderRadius: "4px",
+                            fontFamily: "monospace",
+                          }}
+                        >
+                          {index + 2}. {ip.ip_address}
+                        </code>
+                        <span
+                          style={{
+                            fontSize: "10px",
+                            color: "var(--popup-muted)",
+                          }}
+                        >
+                          {formatNumber(ip.event_count)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </CollapsibleContent>
+                <CollapsibleTrigger
                   style={{
                     display: "flex",
-                    justifyContent: "space-between",
                     alignItems: "center",
-                    fontSize: "11px",
+                    justifyContent: "center",
+                    width: "100%",
+                    background: "transparent",
+                    border: "none",
+                    padding: "4px 0 0 0",
+                    cursor: "pointer",
+                    color: "var(--popup-muted)",
+                    fontSize: "10px",
+                    gap: "4px",
                   }}
                 >
-                  <code
-                    style={{
-                      fontSize: "10px",
-                      background: "var(--popup-code-bg)",
-                      padding: "2px 6px",
-                      borderRadius: "4px",
-                      fontFamily: "monospace",
-                    }}
-                  >
-                    {index + 1}. {ip.ip_address}
-                  </code>
-                  <span
-                    style={{
-                      fontSize: "10px",
-                      color: "var(--popup-muted)",
-                    }}
-                  >
-                    {formatNumber(ip.event_count)}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
+                  <ChevronsUpDown style={{ width: 10, height: 10 }} />
+                  <span>{top_ips.length - 1} more</span>
+                </CollapsibleTrigger>
+              </>
+            )}
+          </Collapsible>
         )}
 
         {/* Coordinates */}
