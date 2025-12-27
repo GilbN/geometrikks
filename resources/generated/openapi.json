@@ -218,6 +218,12 @@
                 "type": "null"
               }
             ]
+          },
+          "top_ips": {
+            "items": {
+              "$ref": "#/components/schemas/TopIPDTO"
+            },
+            "type": "array"
           }
         },
         "required": [
@@ -1128,6 +1134,22 @@
           "start_date"
         ],
         "title": "TimeSeriesResponse",
+        "type": "object"
+      },
+      "TopIPDTO": {
+        "properties": {
+          "event_count": {
+            "type": "integer"
+          },
+          "ip_address": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "event_count",
+          "ip_address"
+        ],
+        "title": "TopIPDTO",
         "type": "object"
       }
     }

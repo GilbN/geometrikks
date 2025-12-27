@@ -423,7 +423,7 @@ export default function GeoMap() {
         onLayerChange={setActiveLayer}
         onFitBounds={fitToBounds}
         isLoading={isLoading}
-        featureStats={geojson?.stats ?? { events: 0, countries: 0, cities: 0, unique_ips: 0 }}
+        featureStats={geojson?.stats ?? { events: 0, countries: 0, cities: 0, locations: 0 }}
       />
 
       {/* Legend - show for both modes */}

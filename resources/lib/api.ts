@@ -100,6 +100,11 @@ export interface GeoEventsTimeSeriesResponse {
 // Types - GeoJSON API
 // ============================================================================
 
+export interface TopIPDTO {
+  ip_address: string
+  event_count: number
+}
+
 export interface GeoJSONFeatureProperties {
   id: number
   geohash: string
@@ -112,6 +117,7 @@ export interface GeoJSONFeatureProperties {
   timezone: string | null
   event_count: number
   last_hit: string | null
+  top_ips: TopIPDTO[]
 }
 
 export interface GeoJSONPointGeometry {

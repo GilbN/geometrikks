@@ -4,7 +4,7 @@
  */
 
 import { Popup } from "react-map-gl/maplibre"
-import { MapPin, Globe, Clock, Hash } from "lucide-react"
+import { MapPin, Globe, Clock, Hash, Users } from "lucide-react"
 import { formatNumber } from "@/lib/api"
 import type { GeoJSONFeatureProperties } from "@/lib/api"
 
@@ -52,7 +52,23 @@ export function MapPopup({
     event_count,
     last_hit,
     geohash,
+    top_ips: rawTopIps,
   } = properties
+
+  // Ensure top_ips is an array (MapLibre may stringify nested arrays in properties)
+  const parseTopIps = () => {
+    if (Array.isArray(rawTopIps)) return rawTopIps
+    if (typeof rawTopIps === "string") {
+      try {
+        const parsed = JSON.parse(rawTopIps)
+        return Array.isArray(parsed) ? parsed : []
+      } catch {
+        return []
+      }
+    }
+    return []
+  }
+  const top_ips = parseTopIps()
 
   // Format last hit date
   const formattedLastHit = last_hit
@@ -181,6 +197,55 @@ export function MapPopup({
             {geohash}
           </code>
         </div>
+
+        {/* Top IPs */}
+        {top_ips && top_ips.length > 0 && (
+          <div
+            style={{
+              paddingTop: "8px",
+              marginTop: "8px",
+              borderTop: "1px solid var(--popup-border)",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: "4px", marginBottom: "6px" }}>
+              <Users style={{ width: 12, height: 12, color: "var(--popup-muted)" }} />
+              <span style={{ fontSize: "12px", color: "var(--popup-muted)" }}>Top {top_ips.length} IPs</span>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+              {top_ips.map((ip, index) => (
+                <div
+                  key={ip.ip_address}
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    fontSize: "11px",
+                  }}
+                >
+                  <code
+                    style={{
+                      fontSize: "10px",
+                      background: "var(--popup-code-bg)",
+                      padding: "2px 6px",
+                      borderRadius: "4px",
+                      fontFamily: "monospace",
+                    }}
+                  >
+                    {index + 1}. {ip.ip_address}
+                  </code>
+                  <span
+                    style={{
+                      fontSize: "10px",
+                      color: "var(--popup-muted)",
+                    }}
+                  >
+                    {formatNumber(ip.event_count)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Coordinates */}
         <div

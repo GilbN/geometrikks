@@ -20,6 +20,7 @@ from geometrikks.domain.geo.dtos import (
     GeoJSONPointGeometry,
     GeoJSONFeatureProperties,
     GeoJSONFeatureStats,
+    TopIPDTO,
 )
 
 from geometrikks.api.dependencies import provide_geo_location_repo
@@ -115,6 +116,10 @@ class GeoLocationController(Controller):
                     timezone=loc.location.timezone,
                     event_count=loc.event_count,
                     last_hit=loc.location.last_hit,
+                    top_ips=[
+                        TopIPDTO(ip_address=ip.ip_address, event_count=ip.event_count)
+                        for ip in loc.top_ips
+                    ],
                 ),
             )
             for loc in locations_with_counts

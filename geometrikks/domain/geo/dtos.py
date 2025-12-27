@@ -24,6 +24,14 @@ class GeoLocationDTO(SQLAlchemyDTO[GeoLocation]):
 
 
 @dataclass
+class TopIPDTO:
+    """Top IP address with event count."""
+
+    ip_address: str
+    event_count: int
+
+
+@dataclass
 class GeoJSONPointGeometry:
     """GeoJSON Point geometry."""
 
@@ -46,6 +54,7 @@ class GeoJSONFeatureProperties:
     postal_code: str | None
     timezone: str | None
     event_count: int
+    top_ips: list[TopIPDTO] = field(default_factory=list)
 
 
 @dataclass
