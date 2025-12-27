@@ -1,12 +1,15 @@
 "use client"
 
-import { RotateCw, Filter } from "lucide-react"
+import { RotateCw, Filter, SlidersHorizontal } from "lucide-react"
 
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
 } from "@/components/ui/dropdown-menu"
 
 import { Button } from "@/components/ui/button"
@@ -33,73 +36,147 @@ export function TimeRangeToolbar() {
   const isFetching = useIsFetching()
 
   return (
-    <div className="flex items-center gap-2">
-      {/* Time Range Dropdown Menu */}
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button variant="outline" size="sm" className="flex items-center gap-2">
-            <Filter className="w-4 h-4" />
-            <span className="text-xs">
-              {TIME_RANGE_PRESETS.find((p) => p.value === range)?.label || "Range"}
-            </span>
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="start">
-          {TIME_RANGE_PRESETS.map((preset) => (
-            <DropdownMenuItem
-              key={preset.value}
-              onClick={() => setRange(preset.value)}
-              className={cn(
-                "text-xs",
-                range === preset.value && "bg-geo-cyan/20 text-geo-cyan"
-              )}
+    <>
+      {/* Desktop Layout */}
+      <div className="hidden md:flex items-center gap-2">
+        {/* Time Range Dropdown Menu */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" size="sm" className="flex items-center gap-2">
+              <Filter className="w-4 h-4" />
+              <span className="text-xs">
+                {TIME_RANGE_PRESETS.find((p) => p.value === range)?.label || "Range"}
+              </span>
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start">
+            {TIME_RANGE_PRESETS.map((preset) => (
+              <DropdownMenuItem
+                key={preset.value}
+                onClick={() => setRange(preset.value)}
+                className={cn(
+                  "text-xs",
+                  range === preset.value && "bg-geo-cyan/20 text-geo-cyan"
+                )}
+              >
+                {preset.label}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        <Separator orientation="vertical" className="h-6" />
+
+        {/* Refresh Button */}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="outline"
+              size="icon-sm"
+              onClick={refresh}
+              disabled={isFetching > 0}
+              className="shrink-0"
             >
-              {preset.label}
-            </DropdownMenuItem>
-          ))}
-        </DropdownMenuContent>
-      </DropdownMenu>
+              <RotateCw
+                className={cn(
+                  "h-3.5 w-3.5",
+                  isFetching > 0 && "animate-spin"
+                )}
+              />
+              <span className="sr-only">Refresh data</span>
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Refresh now</TooltipContent>
+        </Tooltip>
 
-      <Separator orientation="vertical" className="h-6" />
+        {/* Poll Interval Select */}
+        <Select
+          value={String(pollInterval)}
+          onValueChange={(value) => setPollInterval(Number(value))}
+        >
+          <SelectTrigger size="sm" className="w-[80px] text-xs">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {POLL_INTERVAL_OPTIONS.map((option) => (
+              <SelectItem key={option.value} value={String(option.value)}>
+                {option.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
 
-      {/* Refresh Button */}
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button
-            variant="outline"
-            size="icon-sm"
-            onClick={refresh}
-            disabled={isFetching > 0}
-            className="shrink-0"
-          >
-            <RotateCw
-              className={cn(
-                "h-3.5 w-3.5",
-                isFetching > 0 && "animate-spin"
-              )}
-            />
-            <span className="sr-only">Refresh data</span>
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent>Refresh now</TooltipContent>
-      </Tooltip>
+      {/* Mobile Layout - 3 icon buttons */}
+      <div className="md:hidden flex items-center gap-1">
+        {/* Time Range Dropdown */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" size="icon-sm" className="shrink-0">
+              <Filter className="h-4 w-4" />
+              <span className="sr-only">Time Range</span>
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuLabel>Time Range</DropdownMenuLabel>
+            <DropdownMenuRadioGroup value={range} onValueChange={(value) => setRange(value as typeof range)}>
+              {TIME_RANGE_PRESETS.map((preset) => (
+                <DropdownMenuRadioItem
+                  key={preset.value}
+                  value={preset.value}
+                  className="text-xs"
+                >
+                  {preset.label}
+                </DropdownMenuRadioItem>
+              ))}
+            </DropdownMenuRadioGroup>
+          </DropdownMenuContent>
+        </DropdownMenu>
 
-      {/* Poll Interval Select */}
-      <Select
-        value={String(pollInterval)}
-        onValueChange={(value) => setPollInterval(Number(value))}
-      >
-        <SelectTrigger size="sm" className="w-[80px] text-xs">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          {POLL_INTERVAL_OPTIONS.map((option) => (
-            <SelectItem key={option.value} value={String(option.value)}>
-              {option.label}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-    </div>
+        {/* Refresh Button */}
+        <Button
+          variant="outline"
+          size="icon-sm"
+          onClick={refresh}
+          disabled={isFetching > 0}
+          className="shrink-0"
+        >
+          <RotateCw
+            className={cn(
+              "h-4 w-4",
+              isFetching > 0 && "animate-spin"
+            )}
+          />
+          <span className="sr-only">Refresh data</span>
+        </Button>
+
+        {/* Poll Interval Dropdown */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" size="icon-sm" className="shrink-0">
+              <SlidersHorizontal className="h-4 w-4" />
+              <span className="sr-only">Auto Refresh</span>
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuLabel>Auto Refresh</DropdownMenuLabel>
+            <DropdownMenuRadioGroup
+              value={String(pollInterval)}
+              onValueChange={(value) => setPollInterval(Number(value))}
+            >
+              {POLL_INTERVAL_OPTIONS.map((option) => (
+                <DropdownMenuRadioItem
+                  key={option.value}
+                  value={String(option.value)}
+                  className="text-xs"
+                >
+                  {option.label}
+                </DropdownMenuRadioItem>
+              ))}
+            </DropdownMenuRadioGroup>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+    </>
   )
 }
