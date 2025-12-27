@@ -100,9 +100,19 @@ export interface GeoEventsTimeSeriesResponse {
 // Types - GeoJSON API
 // ============================================================================
 
+export interface EmbeddedLocationDTO {
+  id: number
+  latitude: number
+  longitude: number
+  city: string | null
+  country_code: string | null
+  country_name: string | null
+}
+
 export interface TopIPDTO {
   ip_address: string
   event_count: number
+  location: EmbeddedLocationDTO | null
 }
 
 export interface GeoJSONFeatureProperties {
@@ -136,6 +146,7 @@ export interface GEOJSONFeatureStats {
   countries: number
   cities: number
   locations: number
+  top_ips: TopIPDTO[]
 }
 
 export interface GeoJSONFeatureCollection {

@@ -47,6 +47,56 @@
         "title": "BandwidthTimeSeriesResponse",
         "type": "object"
       },
+      "EmbeddedLocationDTO": {
+        "properties": {
+          "city": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "country_code": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "country_name": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "id": {
+            "type": "integer"
+          },
+          "latitude": {
+            "type": "number"
+          },
+          "longitude": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "id",
+          "latitude",
+          "longitude"
+        ],
+        "title": "EmbeddedLocationDTO",
+        "type": "object"
+      },
       "GeoEventsDataPoint": {
         "properties": {
           "timestamp": {
@@ -253,6 +303,12 @@
           "locations": {
             "default": 0,
             "type": "integer"
+          },
+          "top_ips": {
+            "items": {
+              "$ref": "#/components/schemas/TopIPDTO"
+            },
+            "type": "array"
           }
         },
         "required": [],
@@ -1143,6 +1199,16 @@
           },
           "ip_address": {
             "type": "string"
+          },
+          "location": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/EmbeddedLocationDTO"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [

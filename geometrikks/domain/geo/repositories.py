@@ -139,6 +139,48 @@ class GeoLocationRepository(SQLAlchemyAsyncRepository[GeoLocation]):
             for row in locations_data
         ]
 
+    async def get_global_top_ips(
+        self, from_timestamp: datetime, to_timestamp: datetime, limit: int = 5
+    ) -> list[tuple[str, int, GeoLocation]]:
+        """Get global top N IPs by event count with their primary location.
+
+        For IPs that appear in multiple locations, returns the location
+        where they have the highest event count.
+
+        Args:
+            from_timestamp: Start datetime for filtering events.
+            to_timestamp: End datetime for filtering events.
+            limit: Maximum number of IPs to return.
+
+        Returns:
+            List of tuples containing (ip_address, event_count, GeoLocation).
+        """
+        # Get top IPs with their most common location
+        stmt = (
+            select(
+                GeoEvent.ip_address,
+                func.count().label("event_count"),
+                GeoEvent.location_id,
+            )
+            .where(GeoEvent.timestamp.between(from_timestamp, to_timestamp))
+            .group_by(GeoEvent.ip_address, GeoEvent.location_id)
+            .order_by(func.count().desc())
+            .limit(limit * 2)  # Get extra to dedupe IPs
+        )
+        result = await self.session.execute(stmt)
+
+        # Dedupe by IP, keeping highest count location
+        seen_ips: set[str] = set()
+        top_ips: list[tuple[str, int, GeoLocation]] = []
+        for ip, count, loc_id in result.all():
+            if ip not in seen_ips and len(top_ips) < limit:
+                seen_ips.add(ip)
+                location = await self.session.get(GeoLocation, loc_id)
+                if location:
+                    top_ips.append((ip, count, location))
+
+        return top_ips
+
 
 class GeoEventRepository(SQLAlchemyAsyncRepository[GeoEvent]):
     """Repository for GeoEvent model."""

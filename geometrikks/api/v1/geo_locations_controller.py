@@ -15,6 +15,7 @@ from geometrikks.domain.geo.models import GeoLocation
 from geometrikks.domain.geo.repositories import GeoLocationRepository
 from geometrikks.domain.geo.dtos import (
     GeoLocationDTO,
+    EmbeddedLocationDTO,
     GeoJSONFeatureCollection,
     GeoJSONFeature,
     GeoJSONPointGeometry,
@@ -96,7 +97,32 @@ class GeoLocationController(Controller):
         countries: int = len({loc.location.country_code for loc in locations_with_counts if loc.location.country_code})
         cities: int = len({loc.location.city for loc in locations_with_counts if loc.location.city})
         unique_locations: int = len(locations_with_counts)  # Assuming each location represents
-        stats = GeoJSONFeatureStats(events=events, countries=countries, cities=cities, locations=unique_locations)
+
+        # Get global top 5 IPs with their locations
+        global_top_ips_data = await geo_location_repo.get_global_top_ips(from_timestamp, to_timestamp)
+        global_top_ips = [
+            TopIPDTO(
+                ip_address=ip,
+                event_count=count,
+                location=EmbeddedLocationDTO(
+                    id=loc.id,
+                    latitude=loc.latitude,
+                    longitude=loc.longitude,
+                    city=loc.city,
+                    country_code=loc.country_code,
+                    country_name=loc.country_name,
+                ),
+            )
+            for ip, count, loc in global_top_ips_data
+        ]
+
+        stats = GeoJSONFeatureStats(
+            events=events,
+            countries=countries,
+            cities=cities,
+            locations=unique_locations,
+            top_ips=global_top_ips,
+        )
         features = [
             GeoJSONFeature(
                 type="Feature",

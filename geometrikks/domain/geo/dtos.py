@@ -24,11 +24,24 @@ class GeoLocationDTO(SQLAlchemyDTO[GeoLocation]):
 
 
 @dataclass
+class EmbeddedLocationDTO:
+    """Lightweight location data for embedding in other DTOs."""
+
+    id: int
+    latitude: float
+    longitude: float
+    city: str | None = None
+    country_code: str | None = None
+    country_name: str | None = None
+
+
+@dataclass
 class TopIPDTO:
-    """Top IP address with event count."""
+    """Top IP address with event count and optional location."""
 
     ip_address: str
     event_count: int
+    location: EmbeddedLocationDTO | None = None  # Optional - used for global top IPs
 
 
 @dataclass
@@ -73,6 +86,7 @@ class GeoJSONFeatureStats:
     countries: int = 0
     cities: int = 0
     locations: int = 0
+    top_ips: list[TopIPDTO] = field(default_factory=list)
 
 @dataclass
 class GeoJSONFeatureCollection:

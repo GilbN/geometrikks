@@ -23,13 +23,6 @@ import { AlertTriangle } from "lucide-react"
 
 export type LayerType = "heatmap" | "markers"
 
-export interface FeatureStats {
-  events: number
-  countries: number
-  cities: number
-  locations: number
-}
-
 // Initial viewport centered on Europe
 const INITIAL_VIEW_STATE = {
   longitude: 10,
@@ -289,6 +282,15 @@ export default function GeoMap() {
     })
   }, [geojson])
 
+  // Fly to a specific location (for top IPs click)
+  const flyToLocation = useCallback((lat: number, lng: number) => {
+    mapRef.current?.flyTo({
+      center: [lng, lat],
+      zoom: 10,
+      duration: 1500,
+    })
+  }, [])
+
   // Handle map click for markers layer
   const onClick = useCallback(
     (event: maplibregl.MapLayerMouseEvent) => {
@@ -423,7 +425,8 @@ export default function GeoMap() {
         onLayerChange={setActiveLayer}
         onFitBounds={fitToBounds}
         isLoading={isLoading}
-        featureStats={geojson?.stats ?? { events: 0, countries: 0, cities: 0, locations: 0 }}
+        featureStats={geojson?.stats ?? { events: 0, countries: 0, cities: 0, locations: 0, top_ips: [] }}
+        onFlyToLocation={flyToLocation}
       />
 
       {/* Legend - show for both modes */}
