@@ -286,7 +286,7 @@ export default function GeoMap() {
   const flyToLocation = useCallback((lat: number, lng: number) => {
     mapRef.current?.flyTo({
       center: [lng, lat],
-      zoom: 10,
+      zoom: 7,
       duration: 1500,
     })
   }, [])
