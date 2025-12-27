@@ -19,9 +19,13 @@ import { AppSidebar } from "@/components/app-sidebar"
 import { ModeToggle } from "@/components/mode-toggle"
 import { TimeRangeProvider } from "@/lib/time-range-context"
 import { TimeRangeToolbar } from "@/components/dashboard/time-range-toolbar"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { AlertTriangle, RefreshCw, Home } from "lucide-react"
 
 export const Route = createRootRoute({
   component: RootLayout,
+  errorComponent: RootErrorComponent,
 })
 
 // Map routes to breadcrumb labels
@@ -82,6 +86,45 @@ function RootLayout() {
           </SidebarProvider>
         </TimeRangeProvider>
       </TooltipProvider>
+    </ThemeProvider>
+  )
+}
+
+function RootErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
+  return (
+    <ThemeProvider defaultTheme="dark" storageKey="geometrikks-theme">
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <Card className="max-w-lg w-full">
+          <CardHeader className="text-center">
+            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-destructive/10">
+              <AlertTriangle className="h-6 w-6 text-destructive" />
+            </div>
+            <CardTitle className="text-xl">Something went wrong</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-sm text-muted-foreground text-center">
+              An unexpected error occurred. You can try refreshing the page or going back to the home page.
+            </p>
+            {error?.message && (
+              <div className="rounded-md bg-muted p-3">
+                <code className="text-xs text-muted-foreground break-all">
+                  {error.message}
+                </code>
+              </div>
+            )}
+            <div className="flex gap-2 justify-center">
+              <Button variant="outline" onClick={reset}>
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Try again
+              </Button>
+              <Button variant="default" onClick={() => window.location.href = "/"}>
+                <Home className="h-4 w-4 mr-2" />
+                Go home
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
     </ThemeProvider>
   )
 }
