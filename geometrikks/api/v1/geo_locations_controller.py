@@ -19,6 +19,7 @@ from geometrikks.domain.geo.dtos import (
     GeoJSONFeature,
     GeoJSONPointGeometry,
     GeoJSONFeatureProperties,
+    GeoJSONFeatureStats,
 )
 
 from geometrikks.api.dependencies import provide_geo_location_repo
@@ -90,7 +91,11 @@ class GeoLocationController(Controller):
             from_timestamp, to_timestamp
         )
 
-        event_count: int = sum(loc.event_count for loc in locations_with_counts) # Total event count
+        events: int = sum(loc.event_count for loc in locations_with_counts) # Total event count
+        countries: int = len({loc.location.country_code for loc in locations_with_counts if loc.location.country_code})
+        cities: int = len({loc.location.city for loc in locations_with_counts if loc.location.city})
+        unique_locations: int = len(locations_with_counts)  # Assuming each location represents
+        stats = GeoJSONFeatureStats(events=events, countries=countries, cities=cities, locations=unique_locations)
         features = [
             GeoJSONFeature(
                 type="Feature",
@@ -115,4 +120,4 @@ class GeoLocationController(Controller):
             for loc in locations_with_counts
         ]
 
-        return GeoJSONFeatureCollection(type="FeatureCollection", features=features, event_count=event_count)
+        return GeoJSONFeatureCollection(type="FeatureCollection", features=features, stats=stats)

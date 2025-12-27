@@ -56,6 +56,14 @@ class GeoJSONFeature:
     geometry: GeoJSONPointGeometry = field(default_factory=GeoJSONPointGeometry)
     properties: GeoJSONFeatureProperties | None = None
 
+@dataclass
+class GeoJSONFeatureStats:
+    """Statistics for GeoJSONFeatureCollection."""
+
+    events: int = 0
+    countries: int = 0
+    cities: int = 0
+    locations: int = 0
 
 @dataclass
 class GeoJSONFeatureCollection:
@@ -63,4 +71,5 @@ class GeoJSONFeatureCollection:
 
     type: str = "FeatureCollection"
     features: list[GeoJSONFeature] = field(default_factory=list)
-    event_count: int = 0  # Total event count across all features
+    stats: GeoJSONFeatureStats = field(default_factory=GeoJSONFeatureStats)
+    

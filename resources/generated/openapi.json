@@ -123,15 +123,14 @@
       },
       "GeoJSONFeatureCollection": {
         "properties": {
-          "event_count": {
-            "default": 0,
-            "type": "integer"
-          },
           "features": {
             "items": {
               "$ref": "#/components/schemas/GeoJSONFeature"
             },
             "type": "array"
+          },
+          "stats": {
+            "$ref": "#/components/schemas/GeoJSONFeatureStats"
           },
           "type": {
             "default": "FeatureCollection",
@@ -229,6 +228,29 @@
           "id"
         ],
         "title": "GeoJSONFeatureProperties",
+        "type": "object"
+      },
+      "GeoJSONFeatureStats": {
+        "properties": {
+          "cities": {
+            "default": 0,
+            "type": "integer"
+          },
+          "countries": {
+            "default": 0,
+            "type": "integer"
+          },
+          "events": {
+            "default": 0,
+            "type": "integer"
+          },
+          "locations": {
+            "default": 0,
+            "type": "integer"
+          }
+        },
+        "required": [],
+        "title": "GeoJSONFeatureStats",
         "type": "object"
       },
       "GeoJSONPointGeometry": {

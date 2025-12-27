@@ -125,10 +125,17 @@ export interface GeoJSONFeature {
   properties: GeoJSONFeatureProperties
 }
 
+export interface GEOJSONFeatureStats {
+  events: number
+  countries: number
+  cities: number
+  locations: number
+}
+
 export interface GeoJSONFeatureCollection {
   type: "FeatureCollection"
   features: GeoJSONFeature[]
-  event_count: number
+  stats: GEOJSONFeatureStats
 }
 
 // ============================================================================

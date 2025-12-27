@@ -23,6 +23,13 @@ import { AlertTriangle } from "lucide-react"
 
 export type LayerType = "heatmap" | "markers"
 
+export interface FeatureStats {
+  events: number
+  countries: number
+  cities: number
+  locations: number
+}
+
 // Initial viewport centered on Europe
 const INITIAL_VIEW_STATE = {
   longitude: 10,
@@ -372,7 +379,7 @@ export default function GeoMap() {
         {/* GeoJSON data source */}
         {geojson && (
           <Source
-            key={`geo-data-${geojson.event_count}-${geojson.features.length}`}
+            key={`geo-data-${geojson.stats.events}-${geojson.features.length}`}
             id="geo-data"
             type="geojson"
             data={geojson}
@@ -416,11 +423,11 @@ export default function GeoMap() {
         onLayerChange={setActiveLayer}
         onFitBounds={fitToBounds}
         isLoading={isLoading}
-        featureCount={geojson?.features.length ?? 0}
+        featureStats={geojson?.stats ?? { events: 0, countries: 0, cities: 0, unique_ips: 0 }}
       />
 
       {/* Legend - show for both modes */}
-      <MapLegend maxValue={geojson?.event_count ?? 0} layerType={activeLayer} />
+      <MapLegend maxValue={geojson?.stats.events ?? 0} layerType={activeLayer} />
     </div>
   )
 }
