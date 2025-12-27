@@ -63,7 +63,7 @@ body {
 
 /* MapLibre GL Control Styles - Light Mode */
 .maplibregl-ctrl-group {
-  background: #ffffff !important;
+  background: var(--background) !important;
   border-radius: var(--radius) !important;
   border: 1px solid #e5e5e5 !important;
 }
@@ -73,8 +73,22 @@ body {
   border-color: #e5e5e5 !important;
 }
 
+.maplibregl-ctrl-group .maplibregl-ctrl-zoom-in:hover {
+  border-top-left-radius: 0.625rem;
+  border-top-right-radius: 0.625rem;
+  border-bottom-right-radius: 0;
+  border-bottom-left-radius: 0;
+}
+
+.maplibregl-ctrl-group .maplibregl-ctrl-compass:hover {
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0.625rem;
+  border-bottom-left-radius: 0.625rem;
+}
+
 .maplibregl-ctrl-group button:hover {
-  background-color: #f3f4f6 !important;
+  background-color: var(--muted) !important;
 }
 
 .maplibregl-ctrl-group button + button {
@@ -83,7 +97,7 @@ body {
 
 /* MapLibre GL Control Styles - Dark Mode */
 .dark .maplibregl-ctrl-group {
-  background: #1e2433 !important;
+  background: var(--background) !important;
   border: 1px solid #3a3f4b !important;
 }
 
@@ -92,7 +106,7 @@ body {
 }
 
 .dark .maplibregl-ctrl-group button:hover {
-  background-color: #2a2f3d !important;
+  background-color: var(--muted) !important;
 }
 
 .dark .maplibregl-ctrl-group button + button {

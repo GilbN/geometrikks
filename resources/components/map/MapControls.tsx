@@ -1,12 +1,14 @@
 /**
  * Map control overlay with layer toggle and utilities.
+ * Collapsible on mobile for better map visibility.
  */
 
+import { useState, useEffect } from "react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
-import { Flame, MapPin, Maximize2, Loader2 } from "lucide-react"
+import { Flame, MapPin, Maximize2, Loader2, SlidersHorizontal, X } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { LayerType } from "./GeoMap"
 import { GEOJSONFeatureStats, formatNumber } from "@/lib/api"
@@ -30,8 +32,46 @@ export function MapControls({
   onFlyToLocation
 }: MapControlsProps) {
   const { events: events, countries, cities, locations, top_ips } = featureStats;
+  const [isExpanded, setIsExpanded] = useState(true)
+
+  // Default collapsed on mobile (< 768px)
+  useEffect(() => {
+    const checkMobile = () => setIsExpanded(window.innerWidth >= 768)
+    checkMobile()
+    window.addEventListener('resize', checkMobile)
+    return () => window.removeEventListener('resize', checkMobile)
+  }, [])
+
+  // Collapsed state - single toggle button
+  if (!isExpanded) {
+    return (
+      <div className="absolute top-4 right-4 z-10">
+        <Button
+          size="icon"
+          variant="outline"
+          className="bg-background"
+          onClick={() => setIsExpanded(true)}
+          title="Show map controls"
+        >
+          <SlidersHorizontal className="h-4 w-4" />
+        </Button>
+      </div>
+    )
+  }
+
+  // Expanded state - full controls
   return (
     <div className="absolute top-4 right-4 z-10 flex flex-col gap-2">
+      {/* Collapse button */}
+      <Button
+        size="icon"
+        variant="outline"
+        className="self-end bg-background"
+        onClick={() => setIsExpanded(false)}
+        title="Hide map controls"
+      >
+        <X className="h-4 w-4" />
+      </Button>
       {/* Layer Toggle */}
       <Card className="p-2">
         <ToggleGroup
@@ -116,7 +156,7 @@ export function MapControls({
         <Card className="px-3 py-2 gap-1">
           <div className="text-xs font-medium text-muted-foreground mb-2">Top IPs</div>
           <div className="flex flex-col gap-1">
-            {top_ips.map((ip, idx) => (
+            {top_ips.map((ip) => (
               <button
                 key={ip.ip_address}
                 onClick={() => ip.location && onFlyToLocation?.(ip.location.latitude, ip.location.longitude)}

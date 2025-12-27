@@ -378,7 +378,7 @@ export default function GeoMap() {
         attributionControl={false}
       >
         {/* Navigation controls */}
-        <NavigationControl position="bottom-right" showCompass={false} />
+        <NavigationControl position="bottom-right" showCompass={true} />
 
         {/* GeoJSON data source */}
         {geojson && (
