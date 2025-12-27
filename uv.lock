@@ -520,7 +520,7 @@ requires-dist = [
     { name = "litestar", extras = ["standard", "brotli", "jwt", "picologging", "prometheus", "pydantic", "redis", "sqlalchemy"], specifier = ">=2.18.0" },
     { name = "litestar-geoalchemy", specifier = ">=0.1.0" },
     { name = "litestar-granian", specifier = ">=0.14.2" },
-    { name = "litestar-vite", specifier = ">=0.15.0rc4" },
+    { name = "litestar-vite", specifier = ">=0.15.0" },
     { name = "pydantic-settings", specifier = ">=2.0.0" },
     { name = "python-dotenv", specifier = ">=1.2.1" },
 ]
@@ -818,7 +818,7 @@ wheels = [
 
 [[package]]
 name = "litestar-vite"
-version = "0.15.0rc4"
+version = "0.15.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "httpx" },
@@ -826,9 +826,9 @@ dependencies = [
     { name = "typing-extensions" },
     { name = "websockets" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/84/15/b380bcc9bd963a1fd4fdd27414a72cbdd9b1bea50b665a265999ab3ec70a/litestar_vite-0.15.0rc4.tar.gz", hash = "sha256:537880188a6dcc2183f01ca25243a2476194420997adebccd15b55bdba048db6", size = 326764, upload-time = "2025-12-20T18:47:40.032Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/8b/46/0687460789ce60b8ef739eda9c3ac8f4554f1603152adac3468e8d3c7e40/litestar_vite-0.15.0.tar.gz", hash = "sha256:111a9a1614f3885b682e78b43eb6109ba2eea0b8ad83eab524db50cf64fb8298", size = 344512, upload-time = "2025-12-22T23:38:04.121Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/b9/b8/9ef6aad6b34b8c841b2f91574e73f30996cdf6f08e16578e3e70e3e28bc0/litestar_vite-0.15.0rc4-py3-none-any.whl", hash = "sha256:8e369469aa296abaaa943fc733254a07e3cf3484b4209b0244ab5aff09ce3442", size = 207822, upload-time = "2025-12-20T18:47:38.357Z" },
+    { url = "https://files.pythonhosted.org/packages/87/b6/b6230a93d3bc19cc24dcae9eb1d068938f18759d1e399c70e172571626fa/litestar_vite-0.15.0-py3-none-any.whl", hash = "sha256:d057efad67c04a4ea708c72496bfedde99b655fe30775a39b065d6a954c23af7", size = 219268, upload-time = "2025-12-22T23:38:02.829Z" },
 ]
 
 [[package]]
