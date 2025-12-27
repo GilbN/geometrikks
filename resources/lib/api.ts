@@ -13,6 +13,22 @@ export const api = axios.create({
 })
 
 // ============================================================================
+// Types - Health API
+// ============================================================================
+
+export interface HealthIngestionStatus {
+  running: boolean
+  parsed_lines: number
+  pending_records: number
+}
+
+export interface HealthResponse {
+  status: "healthy" | "degraded"
+  ingestion: HealthIngestionStatus
+  timestamp: string
+}
+
+// ============================================================================
 // Types - Analytics API
 // ============================================================================
 
@@ -158,6 +174,15 @@ export interface GeoJSONFeatureCollection {
 // ============================================================================
 // API Functions
 // ============================================================================
+
+/**
+ * Fetch service health status.
+ * Note: /health is at root level, not under /api/v1
+ */
+export async function fetchHealth(): Promise<HealthResponse> {
+  const { data } = await axios.get<HealthResponse>("/health")
+  return data
+}
 
 export interface SummaryParams {
   startDate: string // ISO date string (YYYY-MM-DD)

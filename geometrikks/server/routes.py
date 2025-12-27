@@ -8,6 +8,7 @@ from geometrikks.api.v1.access_log_debug_controller import AccessLogDebugControl
 from geometrikks.api.v1.analytics_controller import AnalyticsController
 from geometrikks.api.v1.settings import read_settings
 from geometrikks.api.v1.stats import stats
+from geometrikks.api.health import health
 
 
 def get_route_handlers() -> list[ControllerRouterHandler]:
@@ -20,4 +21,5 @@ def get_route_handlers() -> list[ControllerRouterHandler]:
         AnalyticsController,
         read_settings,
         stats,
+        health,
     ]

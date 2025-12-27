@@ -25,6 +25,7 @@ export type RouteName =
   | 'get_performance_time_series'
   | 'get_requests_time_series'
   | 'get_summary'
+  | 'health'
   | 'list_access_log_debugs'
   | 'list_access_logs'
   | 'list_geo_events'
@@ -46,6 +47,7 @@ export interface RoutePathParams {
   'get_performance_time_series': Record<string, never>;
   'get_requests_time_series': Record<string, never>;
   'get_summary': Record<string, never>;
+  'health': Record<string, never>;
   'list_access_log_debugs': Record<string, never>;
   'list_access_logs': Record<string, never>;
   'list_geo_events': Record<string, never>;
@@ -99,6 +101,7 @@ export interface RouteQueryParams {
     end_date: DateTime;
     start_date: DateTime;
   };
+  'health': Record<string, never>;
   'list_access_log_debugs': {
     currentPage?: number;
     pageSize?: number;
@@ -181,6 +184,13 @@ export const routeDefinitions = {
     method: 'get',
     pathParams: [] as const,
     queryParams: ['compare_previous', 'end_date', 'start_date'] as const,
+  },
+  'health': {
+    path: '/health',
+    methods: ['GET'] as const,
+    method: 'get',
+    pathParams: [] as const,
+    queryParams: [] as const,
   },
   'list_access_log_debugs': {
     path: '/api/v1/access-log-debug',

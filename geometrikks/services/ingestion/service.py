@@ -157,7 +157,7 @@ class LogIngestionService:
         logger.info(f"Log file {log_path} exists.")
         return True
 
-    @wait(timeout_seconds=5)
+    @wait(timeout_seconds=60)
     def geoip_file_exists(self, geoip_path: Path) -> bool:
         """Try for 60 seconds to check if the GeoIP file exists."""
         logger.debug(f"Checking if GeoIP file {geoip_path} exists.")

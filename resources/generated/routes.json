@@ -84,6 +84,13 @@
       },
       "uri": "/api/v1/analytics/summary"
     },
+    "health": {
+      "method": "get",
+      "methods": [
+        "GET"
+      ],
+      "uri": "/health"
+    },
     "list_access_log_debugs": {
       "method": "get",
       "methods": [

@@ -2519,6 +2519,27 @@
         ]
       }
     },
+    "/health": {
+      "get": {
+        "deprecated": false,
+        "operationId": "HealthHealth",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {},
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          }
+        },
+        "summary": "Health"
+      }
+    },
     "/settings": {
       "get": {
         "deprecated": false,

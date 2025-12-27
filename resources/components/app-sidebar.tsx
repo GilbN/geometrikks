@@ -1,6 +1,7 @@
 "use client"
 
 import { Link, useRouterState } from "@tanstack/react-router"
+import { useQuery } from "@tanstack/react-query"
 import {
   Sidebar,
   SidebarContent,
@@ -30,8 +31,10 @@ import {
   ChevronLeft,
   Activity,
   Globe2,
+  AlertCircle,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { fetchHealth } from "@/lib/api"
 
 const navigationItems = [
   {
@@ -190,19 +193,41 @@ function NavItem({
 }
 
 function LiveIndicator({ collapsed }: { collapsed: boolean }) {
+  const { data: health, isError } = useQuery({
+    queryKey: ["health"],
+    queryFn: fetchHealth,
+    refetchInterval: 10000, // Poll every 10 seconds
+    retry: 1,
+  })
+
+  const isRunning = health?.ingestion?.running ?? false
+  const isDegraded = health?.status === "degraded"
+
+  // Determine indicator color and status
+  const getIndicatorStyle = () => {
+    if (isError) return { color: "bg-gray-400", label: "Offline", tooltip: "Cannot connect to backend" }
+    if (isRunning) return { color: "bg-emerald-400", label: "Live ingestion", tooltip: "Live ingestion active" }
+    if (isDegraded) return { color: "bg-amber-400", label: "Degraded", tooltip: "Ingestion service not running" }
+    return { color: "bg-gray-400", label: "Inactive", tooltip: "Service status unknown" }
+  }
+
+  const { color, label, tooltip } = getIndicatorStyle()
+
   if (collapsed) {
     return (
       <Tooltip>
         <TooltipTrigger asChild>
           <div className="flex items-center justify-center py-2 mx-2">
             <div className="relative flex items-center justify-center w-3 h-3">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-              <span className="relative inline-flex w-2 h-2 rounded-full bg-emerald-400" />
+              {isRunning && (
+                <span className={cn("absolute inline-flex h-full w-full animate-ping rounded-full opacity-75", color)} />
+              )}
+              <span className={cn("relative inline-flex w-2 h-2 rounded-full", color)} />
             </div>
           </div>
         </TooltipTrigger>
         <TooltipContent side="right">
-          <span>Live ingestion active</span>
+          <span>{tooltip}</span>
         </TooltipContent>
       </Tooltip>
     )
@@ -211,13 +236,21 @@ function LiveIndicator({ collapsed }: { collapsed: boolean }) {
   return (
     <div className="flex items-center gap-2 px-3 py-2 mx-2 rounded-md bg-sidebar-accent/50 border border-sidebar-border">
       <div className="relative flex items-center justify-center w-2 h-2">
-        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-        <span className="relative inline-flex w-2 h-2 rounded-full bg-emerald-400" />
+        {isRunning && (
+          <span className={cn("absolute inline-flex h-full w-full animate-ping rounded-full opacity-75", color)} />
+        )}
+        <span className={cn("relative inline-flex w-2 h-2 rounded-full", color)} />
       </div>
       <span className="text-xs font-medium text-sidebar-foreground/70">
-        Live ingestion
+        {label}
       </span>
-      <Activity className="w-3 h-3 text-emerald-400 ml-auto" />
+      {isRunning ? (
+        <Activity className="w-3 h-3 text-emerald-400 ml-auto" />
+      ) : isError ? (
+        <AlertCircle className="w-3 h-3 text-gray-400 ml-auto" />
+      ) : (
+        <AlertCircle className="w-3 h-3 text-amber-400 ml-auto" />
+      )}
     </div>
   )
 }
