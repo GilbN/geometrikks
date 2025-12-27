@@ -49,7 +49,7 @@ export function MapControls({
         <Button
           size="icon"
           variant="outline"
-          className="bg-background"
+          className="bg-background mt-1"
           onClick={() => setIsExpanded(true)}
           title="Show map controls"
         >
@@ -61,19 +61,14 @@ export function MapControls({
 
   // Expanded state - full controls
   return (
-    <div className="absolute top-4 right-4 z-10 flex flex-col gap-2">
-      {/* Collapse button */}
-      <Button
-        size="icon"
-        variant="outline"
-        className="self-end bg-background"
-        onClick={() => setIsExpanded(false)}
-        title="Hide map controls"
+    <div className="absolute top-4 right-4 bottom-4 z-10 flex gap-2 overflow-hidden">
+      {/* Scrollable controls area */}
+      <div
+        className="flex flex-col gap-2 p-1 overflow-y-auto overscroll-contain min-h-0 max-w-[min(200px,calc(100vw-4rem))]"
+        style={{ touchAction: 'pan-y' }}
       >
-        <X className="h-4 w-4" />
-      </Button>
       {/* Layer Toggle */}
-      <Card className="p-2">
+      <Card className="p-2 shrink-0">
         <ToggleGroup
           type="single"
           value={activeLayer}
@@ -110,7 +105,7 @@ export function MapControls({
       </Card>
 
       {/* Fit Bounds Button */}
-      <Card className="p-1">
+      <Card className="p-1 shrink-0">
         <Button
           variant="ghost"
           size="icon"
@@ -123,7 +118,7 @@ export function MapControls({
       </Card>
 
       {/* Status Indicator */}
-      <Card className="px-3 py-2">
+      <Card className="px-3 py-2 shrink-0">
         <div className="flex flex-col gap-1 text-xs text-muted-foreground">
           {isLoading ? (
             <div className="flex items-center gap-2">
@@ -153,7 +148,7 @@ export function MapControls({
 
       {/* Top IPs */}
       {top_ips && top_ips.length > 0 && (
-        <Card className="px-3 py-2 gap-1">
+        <Card className="px-3 py-2 gap-1 shrink-0">
           <div className="text-xs font-medium text-muted-foreground mb-2">Top IPs</div>
           <div className="flex flex-col gap-1">
             {top_ips.map((ip) => (
@@ -172,6 +167,17 @@ export function MapControls({
           </div>
         </Card>
       )}
+      </div>
+      {/* Collapse button - inline right */}
+      <Button
+        size="icon"
+        variant="outline"
+        className="mt-1 bg-background shrink-0 p-1 self-start"
+        onClick={() => setIsExpanded(false)}
+        title="Hide map controls"
+      >
+        <X className="h-4 w-4" />
+      </Button>
     </div>
   )
 }
