@@ -118,6 +118,7 @@ class LogIngestionService:
         # Background task management
         self._stop_event: asyncio.Event | None = None
         self._ingestion_task: asyncio.Task[None] | None = None
+        self.is_running: bool = False
 
         # Statistics
         self.pending_records: int = 0
@@ -143,7 +144,7 @@ class LogIngestionService:
         )
 
     @property
-    def is_running(self) -> bool:
+    def is_task_running(self) -> bool:
         """Return True if ingestion task is running."""
         return self._ingestion_task is not None and not self._ingestion_task.done()
 
@@ -218,6 +219,8 @@ class LogIngestionService:
                 pass
         except asyncio.CancelledError:
             pass
+        finally:
+            self.is_running = False
 
         logger.info(
             "Stopped log ingestion service. Total processed: %d", self.total_processed
@@ -237,7 +240,7 @@ class LogIngestionService:
             async for record in self.parser.iter_parsed_records(reader, skip_validation=skip_validation):
                 if self._stop_event and self._stop_event.is_set():
                     break
-
+                self.is_running = True
                 # Check for interval-based commit
                 now: int | float = time.monotonic()
                 if (
@@ -261,9 +264,11 @@ class LogIngestionService:
 
         except asyncio.CancelledError:
             logger.info("Ingestion cancelled")
+            self.is_running = False
             raise
         except Exception as e:
             logger.exception("Ingestion loop error: %s", e)
+            self.is_running = False
             raise
         finally:
             # Final commit
@@ -272,6 +277,7 @@ class LogIngestionService:
                     await self._commit_batch()
                 except Exception as e:
                     logger.exception("Final commit failed: %s", e)
+            self.is_running = False
 
     async def _process_record(self, record: ParsedLogRecord) -> None:
         """Process a single parsed record."""
