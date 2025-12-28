@@ -129,17 +129,17 @@ export function MapControls({
             <>
               <div className="flex items-center gap-2">
                 <div className="h-2 w-2 rounded-full bg-emerald-500" />
-                <span>{events} events</span>
+                <span>{formatNumber(events)} events</span>
               </div>
               <div className="flex items-center gap-2">
                 <div className="h-2 w-2 rounded-full bg-emerald-500" />
-                <span>{countries} countries</span>
+                <span>{formatNumber(countries)} countries</span>
               </div>              <div className="flex items-center gap-2">
                 <div className="h-2 w-2 rounded-full bg-emerald-500" />
-                <span>{cities} cities</span>
+                <span>{formatNumber(cities)} cities</span>
               </div>              <div className="flex items-center gap-2">
                 <div className="h-2 w-2 rounded-full bg-emerald-500" />
-                <span>{locations} locations</span>
+                <span>{formatNumber(locations)} locations</span>
               </div>
             </>
           )}

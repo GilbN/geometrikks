@@ -356,7 +356,7 @@ export function getNowTimestamp(): string {
 // Time Range Types & Utilities
 // ============================================================================
 
-export type TimeRangeValue = "5m" | "15m" | "30m" | "1h" | "2h" | "3h" | "6h" | "12h" | "24h" | "7d" | "30d" | "90d"
+export type TimeRangeValue = "5m" | "15m" | "30m" | "1h" | "2h" | "3h" | "6h" | "12h" | "24h" | "7d" |  "14d" |"30d" | "90d" | "180d" | "365d"
 
 /** Stats-specific time range (hourly minimum for HourlyStats table compatibility) */
 export type StatsTimeRangeValue = "1h" | "2h" | "3h" | "6h" | "12h" | "24h" | "7d" | "30d" | "90d"
@@ -382,10 +382,14 @@ export const TIME_RANGE_PRESETS: TimeRangePreset[] = [
   { label: "2h", value: "2h", minutes: 120 },
   { label: "3h", value: "3h", minutes: 180 },
   { label: "6h", value: "6h", minutes: 360 },
+  { label: "12h", value: "12h", minutes: 720 },
   { label: "24h", value: "24h", minutes: 1440 },
   { label: "7d", value: "7d", minutes: 10080 },
+  { label: "14d", value: "14d", minutes: 20160 },
   { label: "30d", value: "30d", minutes: 43200 },
   { label: "90d", value: "90d", minutes: 129600 },
+  { label: "180d", value: "180d", minutes: 259200 },
+  { label: "365d", value: "365d", minutes: 525600 },
 ]
 
 /** Stats time range presets (hourly minimum for HourlyStats table) */
