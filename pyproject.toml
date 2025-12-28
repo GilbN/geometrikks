@@ -19,6 +19,8 @@ dependencies = [
     "apscheduler>=3.10,<4.0",
     "litestar-vite>=0.15.0",
     "litestar-granian>=0.14.2",
+    "advanced-alchemy>=1.8.2",
+    "alembic>=1.17.1",
 ]
 
 [dependency-groups]
