@@ -142,18 +142,41 @@ class LogParserSettings(BaseSettings):
 
 
 class AnalyticsSettings(BaseSettings):
-    """Analytics and aggregation configuration settings."""
+    """Analytics and aggregation configuration settings.
+
+    TimescaleDB handles retention via policies configured in lifecycle.py.
+    These settings define the default retention periods.
+    """
 
     model_config = SettingsConfigDict(env_prefix="ANALYTICS_", env_file=".env", extra="ignore")
 
-    hourly_retention_days: int = Field(
+    # Retention periods for TimescaleDB policies
+    raw_retention_days: int = Field(
+        default=180,
+        description="Days to keep raw geo_events and access_logs data",
+    )
+    debug_retention_days: int = Field(
         default=30,
-        description="Number of days to keep hourly stats before cleanup",
+        description="Days to keep access_log_debug data",
     )
-    enable_real_time: bool = Field(
-        default=True,
-        description="Enable real-time aggregation during log ingestion",
+    hourly_retention_days: int = Field(
+        default=60,
+        description="Days to keep hourly continuous aggregate data",
     )
+    # Daily aggregates are permanent (no retention)
+
+    # Continuous aggregate refresh settings
+    cagg_refresh_interval_minutes: int = Field(
+        default=5,
+        description="Minutes between continuous aggregate refreshes",
+    )
+
+    # Compression settings
+    compression_after_days: int = Field(
+        default=7,
+        description="Days after which to compress hypertable chunks",
+    )
+
     top_ips_limit: int = Field(
         default=1000,
         description="Maximum number of top IPs to track per day",

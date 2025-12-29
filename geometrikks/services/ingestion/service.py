@@ -7,6 +7,8 @@ This service orchestrates:
 - Debug log persistence via AccessLogDebugRepository
 
 All database operations go through repositories for consistency and testability.
+Analytics aggregation is handled automatically by TimescaleDB continuous aggregates,
+
 """
 from __future__ import annotations
 import os
@@ -14,7 +16,6 @@ import logging
 import asyncio
 from asyncio import Task
 import time
-from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 from pathlib import Path
 
@@ -23,7 +24,6 @@ from geoip2.database import Reader
 from geometrikks.domain.geo.models import GeoLocation, GeoEvent
 from geometrikks.domain.logs.models import AccessLog, AccessLogDebug
 from geometrikks.domain.geo.utils import make_point
-from geometrikks.domain.analytics.repositories import BatchMetrics
 from geometrikks.services.logparser.schemas import ParsedLogRecord, ParsedGeoData, ParsedAccessLog
 from geometrikks.services.logparser.constants import ALLOWED_GEOIP_LOCALES, GEOIP_LOCALES_DEFAULT
 from geometrikks.services.logparser.logparser import LogParser, wait
@@ -31,7 +31,6 @@ from geometrikks.services.logparser.logparser import LogParser, wait
 if TYPE_CHECKING:
     from geometrikks.domain.geo.repositories import GeoLocationRepository, GeoEventRepository
     from geometrikks.domain.logs.repositories import AccessLogRepository, AccessLogDebugRepository
-    from geometrikks.services.aggregation.service import AggregationService
 
 
 logger = logging.getLogger(__name__)
@@ -83,7 +82,6 @@ class LogIngestionService:
         batch_size: int = 100,
         commit_interval: float = 5.0,
         store_debug_lines: bool = False,
-        aggregation_service: "AggregationService | None" = None,
     ) -> None:
         """Initialize the log ingestion service.
 
@@ -97,14 +95,12 @@ class LogIngestionService:
             batch_size: Maximum records before forced commit.
             commit_interval: Maximum seconds between commits.
             store_debug_lines: If True, store all raw lines in debug table.
-            aggregation_service: Optional service for real-time analytics aggregation.
         """
         self.parser: LogParser = parser
         self.geo_location_repo: GeoLocationRepository = geo_location_repo
         self.geo_event_repo: GeoEventRepository = geo_event_repo
         self.access_log_repo: AccessLogRepository = access_log_repo
         self.access_log_debug_repo: AccessLogDebugRepository = access_log_debug_repo
-        self.aggregation_service: AggregationService | None = aggregation_service
         self.geoip_path: Path|str = geoip_path
         self.locales: list[str] = locales
         self.batch_size: int = batch_size
@@ -130,18 +126,6 @@ class LogIngestionService:
         self.total_geo_records: int = 0
         self.total_log_records: int = 0
         self.total_debug_records: int = 0
-
-        # Batch metrics for aggregation (reset on each commit)
-        self._reset_batch_metrics()
-        self._batch_metrics: BatchMetrics
-    
-    def _reset_batch_metrics(self) -> None:
-        """Reset batch metrics for a new batch."""
-        self._batch_metrics = BatchMetrics(
-            timestamp=datetime.now(timezone.utc),
-            unique_ips=set(),
-            unique_countries=set(),
-        )
 
     @property
     def is_task_running(self) -> bool:
@@ -177,7 +161,7 @@ class LogIngestionService:
         if self.is_running:
             logger.warning("Ingestion already running")
             return
-        
+
         if not (reader := create_reader(self.geoip_path, self.locales)):
             logger.error(
                 "Cannot start ingestion: failed to create GeoIP2 reader with database at %s",
@@ -254,8 +238,26 @@ class LogIngestionService:
                 if record is None:
                     continue
 
-                # Process the record
-                await self._process_record(record)
+                # Process the record with error recovery
+                try:
+                    await self._process_record(record)
+                except Exception as e:
+                    # Rollback failed transaction and continue processing
+                    logger.error(
+                        "Failed to process record (rolling back): %s - raw_line preview: %.100s",
+                        e,
+                        record.raw_line[:100] if record.raw_line else "N/A",
+                    )
+                    try:
+                        await self.geo_location_repo.session.rollback()
+                        # Reset pending counters since rollback discards uncommitted work
+                        self.pending_records = 0
+                        self.pending_geo_records = 0
+                        self.pending_log_records = 0
+                        self.pending_log_debug_records = 0
+                    except Exception as rollback_err:
+                        logger.error("Rollback failed: %s", rollback_err)
+                    continue
 
                 # Check for batch-size commit
                 if self.pending_records >= self.batch_size:
@@ -283,11 +285,6 @@ class LogIngestionService:
         """Process a single parsed record."""
         access_log_model: AccessLog | None = None
 
-        if record.geo_data and record.geo_data.timestamp:
-            if self._batch_metrics.is_after_truncated_hour(record.geo_data.timestamp):
-                await self._commit_batch() # New hour - commit what we have first so the hourly truncated stats are correct
-            self._batch_metrics.update_truncated_hour(record.geo_data.timestamp) # Update current batch hour
-        
         # Handle geo data
         if record.geo_data and record.ip_address:
             location: GeoLocation | None = await self._get_or_create_location(record.geo_data)
@@ -303,13 +300,6 @@ class LogIngestionService:
                 self.total_geo_records += 1
                 self.pending_geo_records += 1
 
-                # Track geo event metrics for aggregation
-                self._batch_metrics.geo_events += 1
-                if record.ip_address and self._batch_metrics.unique_ips is not None:
-                    self._batch_metrics.unique_ips.add(record.ip_address)
-                if record.geo_data.country_code and self._batch_metrics.unique_countries is not None:
-                    self._batch_metrics.unique_countries.add(record.geo_data.country_code)
-
         # Handle access log
         if record.access_log:
             access_log_model: AccessLog = self._to_access_log_model(record.access_log)
@@ -318,33 +308,11 @@ class LogIngestionService:
             self.total_log_records += 1
             self.pending_log_records += 1
 
-            # Track access log metrics for aggregation
-            self._batch_metrics.requests += 1
-            self._batch_metrics.bytes_sent += record.access_log.bytes_sent
-            self._batch_metrics.total_request_time += record.access_log.request_time
-            if record.access_log.request_time > self._batch_metrics.max_request_time:
-                self._batch_metrics.max_request_time = record.access_log.request_time
-
-            # Track status codes
-            status: int = record.access_log.status_code
-            if 200 <= status < 300:
-                self._batch_metrics.status_2xx += 1
-            elif 300 <= status < 400:
-                self._batch_metrics.status_3xx += 1
-            elif 400 <= status < 500:
-                self._batch_metrics.status_4xx += 1
-            elif status >= 500:
-                self._batch_metrics.status_5xx += 1
-
         # Handle debug log (if enabled or malformed)
         if self.store_debug_lines or record.is_malformed:
             await self._create_debug_entry(record, access_log_model)
             self.total_debug_records += 1
             self.pending_log_debug_records += 1
-
-        # Track malformed requests
-        if record.is_malformed:
-            self._batch_metrics.malformed_requests += 1
 
         self.total_processed += 1
 
@@ -385,6 +353,17 @@ class LogIngestionService:
         self._location_cache[geo_data.geohash] = location
         return location
 
+    def _sanitize_for_postgres(self, value: str | None) -> str | None:
+        """Remove null bytes from strings for PostgreSQL compatibility.
+
+        PostgreSQL text/varchar columns cannot contain null bytes (0x00).
+        This sanitizes strings that may contain binary garbage from attack probes.
+        """
+        if value is None:
+            return None
+        # Replace null bytes with unicode replacement character for visibility
+        return value.replace('\x00', '\ufffd')
+
     async def _create_debug_entry(self, record: ParsedLogRecord, access_log: AccessLog | None) -> None:
         """Create AccessLogDebug entry for debugging/malformed requests."""
         if not record.raw_line:
@@ -394,20 +373,24 @@ class LogIngestionService:
         if access_log:
             await self.access_log_repo.session.flush()
 
+        # Sanitize raw_line - PostgreSQL cannot store null bytes in text columns
+        sanitized_line = self._sanitize_for_postgres(record.raw_line)
+        sanitized_error = self._sanitize_for_postgres(record.parse_error)
+
         debug_entry = AccessLogDebug(
             access_log_id=access_log.id if access_log else None,
-            raw_line=record.raw_line,
+            raw_line=sanitized_line,
             is_malformed=record.is_malformed,
-            parse_error=record.parse_error,
+            parse_error=sanitized_error,
         )
         await self.access_log_debug_repo.add(debug_entry, auto_commit=False)
         self.pending_records += 1
 
     async def _commit_batch(self) -> None:
-        """Commit pending records and update analytics.
+        """Commit pending records.
 
         All repositories share the same session, so we only need to commit once.
-        After commit, updates hourly stats via aggregation service if available.
+        Analytics aggregation handled by TimescaleDB continuous aggregates.
         """
         await self.geo_location_repo.session.commit()
         logger.debug(
@@ -418,18 +401,11 @@ class LogIngestionService:
             self.pending_log_debug_records,
         )
 
-        # Update hourly stats via aggregation service
-        if self.aggregation_service and (
-            self._batch_metrics.requests > 0 or self._batch_metrics.geo_events > 0
-        ):
-            await self.aggregation_service.increment_hourly_stats(self._batch_metrics)
-
         # Reset counters
         self.pending_records = 0
         self.pending_geo_records = 0
         self.pending_log_records = 0
         self.pending_log_debug_records = 0
-        self._reset_batch_metrics()
 
     def _to_access_log_model(self, parsed: ParsedAccessLog) -> AccessLog:
         """Convert ParsedAccessLog schema to ORM model."""

@@ -1,4 +1,13 @@
-"""Repositories for analytics data access."""
+"""Repositories for analytics data access.
+
+TimescaleDB continuous aggregates handle automatic aggregation:
+- hourly_stats_cagg: Hourly access log metrics
+- geo_events_hourly_cagg: Hourly geo event metrics
+- daily_stats_cagg: Daily access log metrics
+
+The repositories in this module query these CAGGs for fast analytics.
+LiveStatsRepository queries raw hypertables for real-time data.
+"""
 
 from __future__ import annotations
 
@@ -8,11 +17,8 @@ from enum import Enum
 from typing import Sequence
 
 from sqlalchemy import select, func, text, and_, case
-from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
-from advanced_alchemy.repository import SQLAlchemyAsyncRepository
 
-from geometrikks.domain.analytics.models import HourlyStats, DailyStats
 from geometrikks.domain.geo.models import GeoEvent, GeoLocation
 from geometrikks.domain.logs.models import AccessLog, AccessLogDebug
 
@@ -44,12 +50,11 @@ def _ceil_to_hour(dt: datetime) -> datetime:
 
 
 @dataclass
-class TimeSeriesPoint:
-    """A single point in a time-series."""
+class HourlyStatsRow:
+    """A row from the hourly_stats_cagg continuous aggregate."""
 
-    timestamp: datetime
+    bucket: datetime
     total_requests: int
-    total_geo_events: int
     unique_ips: int
     unique_countries: int
     total_bytes_sent: int
@@ -59,7 +64,28 @@ class TimeSeriesPoint:
     status_5xx: int
     avg_request_time: float
     max_request_time: float
-    malformed_requests: int
+
+
+@dataclass
+class DailyStatsRow:
+    """A row from the daily_stats_cagg continuous aggregate."""
+
+    bucket: datetime
+    total_requests: int
+    unique_ips: int
+    unique_countries: int
+    total_bytes_sent: int
+    status_2xx: int
+    status_3xx: int
+    status_4xx: int
+    status_5xx: int
+    avg_request_time: float
+    max_request_time: float
+
+    @property
+    def avg_bytes_per_request(self) -> float:
+        """Calculate average bytes per request."""
+        return self.total_bytes_sent / self.total_requests if self.total_requests > 0 else 0.0
 
 
 @dataclass
@@ -82,167 +108,72 @@ class SummaryStats:
     error_rate: float
 
 
-@dataclass
-class BatchMetrics:
-    """Metrics collected from a single batch commit.
+class HourlyStatsRepository:
+    """Repository for querying hourly_stats_cagg continuous aggregate.
 
-    Used to increment hourly stats during log ingestion.
+    TimescaleDB automatically maintains this continuous aggregate.
+    This repository provides read-only access for analytics queries.
     """
 
-    timestamp: datetime
-    requests: int = 0
-    geo_events: int = 0
-    bytes_sent: int = 0
-    status_2xx: int = 0
-    status_3xx: int = 0
-    status_4xx: int = 0
-    status_5xx: int = 0
-    total_request_time: float = 0.0
-    max_request_time: float = 0.0
-    malformed_requests: int = 0
-    unique_ips: set[str] | None = None
-    unique_countries: set[str] | None = None
-    
-    def get_hour_timestamp(self) -> datetime:
-        """Get the timestamp truncated to the hour."""
-        hour: datetime = self.timestamp.replace(minute=0, second=0, microsecond=0)
-        if hour.tzinfo is None:
-            hour = hour.replace(tzinfo=timezone.utc)
-        return hour
-    
-    def is_after_truncated_hour(self, other: datetime) -> bool:
-        """Check if the given datetime is after the batch's hour timestamp."""
-        other_hour: datetime = other.replace(minute=0, second=0, microsecond=0)
-        if other_hour.tzinfo is None:
-            other_hour = other_hour.replace(tzinfo=timezone.utc)
-        return other_hour > self.get_hour_timestamp()
-    
-    def update_truncated_hour(self, new_timestamp: datetime) -> None:
-        """Update the batch's timestamp to the new truncated hour"""
-        new_hour: datetime = new_timestamp.replace(minute=0, second=0, microsecond=0)
-        if new_hour.tzinfo is None:
-            new_hour = new_hour.replace(tzinfo=timezone.utc)
-        self.timestamp = new_hour
-
-
-class HourlyStatsRepository(SQLAlchemyAsyncRepository[HourlyStats]):
-    """Repository for HourlyStats model with real-time aggregation support."""
-
-    model_type = HourlyStats
-
-    async def upsert_increment(self, metrics: BatchMetrics) -> None:
-        """Atomically increment hourly stats for a given hour.
-
-        Uses PostgreSQL INSERT ... ON CONFLICT DO UPDATE for atomic upserts.
-        This method is called during LogIngestionService batch commits.
-
-        Args:
-            metrics: BatchMetrics containing the incremental values to add.
-        """
-        # Truncate timestamp to hour
-        hour = metrics.timestamp.replace(minute=0, second=0, microsecond=0)
-        if hour.tzinfo is None:
-            hour = hour.replace(tzinfo=timezone.utc)
-
-        # Calculate average request time for this batch
-        avg_time = (
-            metrics.total_request_time / metrics.requests
-            if metrics.requests > 0
-            else 0.0
-        )
-
-        # Use raw SQL for the upsert with proper aggregation
-        # unique_ips and unique_countries are approximated by adding batch counts
-        # For exact counts, we'd need HyperLogLog or similar
-        stmt = insert(HourlyStats).values(
-            hour=hour,
-            total_requests=metrics.requests,
-            total_geo_events=metrics.geo_events,
-            unique_ips=len(metrics.unique_ips) if metrics.unique_ips else 0,
-            unique_countries=len(metrics.unique_countries)
-            if metrics.unique_countries
-            else 0,
-            total_bytes_sent=metrics.bytes_sent,
-            status_2xx=metrics.status_2xx,
-            status_3xx=metrics.status_3xx,
-            status_4xx=metrics.status_4xx,
-            status_5xx=metrics.status_5xx,
-            avg_request_time=avg_time,
-            max_request_time=metrics.max_request_time,
-            malformed_requests=metrics.malformed_requests,
-        )
-
-        # On conflict, increment values and update max/avg
-        stmt = stmt.on_conflict_do_update(
-            constraint="uq_hourly_stats_hour",
-            set_={
-                "total_requests": HourlyStats.total_requests + metrics.requests,
-                "total_geo_events": HourlyStats.total_geo_events + metrics.geo_events,
-                # For unique counts, we add the batch count (approximation)
-                # A more accurate approach would use HyperLogLog
-                "unique_ips": HourlyStats.unique_ips
-                + (len(metrics.unique_ips) if metrics.unique_ips else 0),
-                "unique_countries": HourlyStats.unique_countries
-                + (len(metrics.unique_countries) if metrics.unique_countries else 0),
-                "total_bytes_sent": HourlyStats.total_bytes_sent + metrics.bytes_sent,
-                "status_2xx": HourlyStats.status_2xx + metrics.status_2xx,
-                "status_3xx": HourlyStats.status_3xx + metrics.status_3xx,
-                "status_4xx": HourlyStats.status_4xx + metrics.status_4xx,
-                "status_5xx": HourlyStats.status_5xx + metrics.status_5xx,
-                # For avg, we use weighted average formula:
-                # new_avg = (old_avg * old_count + new_sum) / (old_count + new_count)
-                "avg_request_time": func.coalesce(
-                    (
-                        HourlyStats.avg_request_time * HourlyStats.total_requests
-                        + metrics.total_request_time
-                    )
-                    / func.nullif(HourlyStats.total_requests + metrics.requests, 0),
-                    0.0
-                ),
-                "max_request_time": func.greatest(
-                    HourlyStats.max_request_time, metrics.max_request_time
-                ),
-                "malformed_requests": HourlyStats.malformed_requests
-                + metrics.malformed_requests,
-            },
-        )
-
-        await self.session.execute(stmt)
+    def __init__(self, session: AsyncSession) -> None:
+        self.session = session
 
     async def get_time_series(
         self,
         start: datetime,
         end: datetime,
-    ) -> Sequence[HourlyStats]:
-        """Get hourly stats for a time range.
-
-        Timestamps are aligned to hour boundaries:
-        - Start is floored to the hour
-        - End is ceiled to the next hour
-        - Query uses [start, end) range
+    ) -> Sequence[HourlyStatsRow]:
+        """Get hourly stats for a time range from the continuous aggregate.
 
         Args:
             start: Start datetime (will be floored to hour).
             end: End datetime (will be ceiled to hour).
 
         Returns:
-            List of HourlyStats ordered by hour ascending.
+            List of HourlyStatsRow ordered by bucket ascending.
         """
         start_hour = _floor_to_hour(start)
         end_hour = _ceil_to_hour(end)
 
-        stmt = (
-            select(HourlyStats)
-            .where(
-                and_(
-                    HourlyStats.hour >= start_hour,
-                    HourlyStats.hour < end_hour,
-                )
-            )
-            .order_by(HourlyStats.hour.asc())
+        stmt = text("""
+            SELECT
+                bucket,
+                total_requests,
+                unique_ips,
+                unique_countries,
+                total_bytes_sent,
+                status_2xx,
+                status_3xx,
+                status_4xx,
+                status_5xx,
+                avg_request_time,
+                max_request_time
+            FROM hourly_stats_cagg
+            WHERE bucket >= :start AND bucket < :end
+            ORDER BY bucket ASC
+        """)
+
+        result = await self.session.execute(
+            stmt, {"start": start_hour, "end": end_hour}
         )
-        result = await self.session.execute(stmt)
-        return result.scalars().all()
+        rows = result.fetchall()
+
+        return [
+            HourlyStatsRow(
+                bucket=row.bucket,
+                total_requests=row.total_requests or 0,
+                unique_ips=row.unique_ips or 0,
+                unique_countries=row.unique_countries or 0,
+                total_bytes_sent=row.total_bytes_sent or 0,
+                status_2xx=row.status_2xx or 0,
+                status_3xx=row.status_3xx or 0,
+                status_4xx=row.status_4xx or 0,
+                status_5xx=row.status_5xx or 0,
+                avg_request_time=float(row.avg_request_time or 0.0),
+                max_request_time=float(row.max_request_time or 0.0),
+            )
+            for row in rows
+        ]
 
     async def get_summary(
         self,
@@ -251,13 +182,8 @@ class HourlyStatsRepository(SQLAlchemyAsyncRepository[HourlyStats]):
     ) -> SummaryStats | None:
         """Get aggregated summary stats for a time range.
 
-        Timestamps are aligned to hour boundaries since HourlyStats uses hourly buckets:
-        - Start is floored to the hour (10:30 -> 10:00)
-        - End is ceiled to the next hour (11:30 -> 12:00)
-        - Query uses [start, end) range (inclusive start, exclusive end)
-
-        Unique IP and country counts are queried directly from GeoEvent
-        for accuracy instead of using approximated sums from HourlyStats.
+        Queries hourly_stats_cagg for request metrics and
+        geo_events_hourly_cagg for geo-specific unique counts.
 
         Args:
             start: Start datetime (will be floored to hour).
@@ -266,44 +192,52 @@ class HourlyStatsRepository(SQLAlchemyAsyncRepository[HourlyStats]):
         Returns:
             SummaryStats with aggregated values, or None if no data.
         """
-        # Align to hour boundaries for HourlyStats bucket precision
         start_hour = _floor_to_hour(start)
         end_hour = _ceil_to_hour(end)
 
-        # Query HourlyStats with hour-aligned boundaries using [start, end) range
-        stmt = select(
-            func.sum(HourlyStats.total_requests).label("total_requests"),
-            func.sum(HourlyStats.total_geo_events).label("total_geo_events"),
-            func.sum(HourlyStats.total_bytes_sent).label("total_bytes_sent"),
-            func.sum(HourlyStats.status_2xx).label("status_2xx"),
-            func.sum(HourlyStats.status_3xx).label("status_3xx"),
-            func.sum(HourlyStats.status_4xx).label("status_4xx"),
-            func.sum(HourlyStats.status_5xx).label("status_5xx"),
-            func.avg(HourlyStats.avg_request_time).label("avg_request_time"),
-            func.max(HourlyStats.max_request_time).label("max_request_time"),
-            func.sum(HourlyStats.malformed_requests).label("malformed_requests"),
-        ).where(
-            and_(
-                HourlyStats.hour >= start_hour,
-                HourlyStats.hour < end_hour,
-            )
-        )
+        # Query hourly_stats_cagg for request metrics
+        stmt = text("""
+            SELECT
+                COALESCE(SUM(total_requests), 0) AS total_requests,
+                COALESCE(SUM(total_bytes_sent), 0) AS total_bytes_sent,
+                COALESCE(SUM(status_2xx), 0) AS status_2xx,
+                COALESCE(SUM(status_3xx), 0) AS status_3xx,
+                COALESCE(SUM(status_4xx), 0) AS status_4xx,
+                COALESCE(SUM(status_5xx), 0) AS status_5xx,
+                COALESCE(AVG(avg_request_time), 0.0) AS avg_request_time,
+                COALESCE(MAX(max_request_time), 0.0) AS max_request_time
+            FROM hourly_stats_cagg
+            WHERE bucket >= :start AND bucket < :end
+        """)
 
-        result = await self.session.execute(stmt)
+        result = await self.session.execute(
+            stmt, {"start": start_hour, "end": end_hour}
+        )
         row = result.one_or_none()
 
-        if row is None or row.total_requests is None:
+        if row is None or row.total_requests == 0:
             return None
 
-        total_requests = row.total_requests or 0
-        total_errors = (row.status_4xx or 0) + (row.status_5xx or 0)
+        total_requests = row.total_requests
+        total_errors = row.status_4xx + row.status_5xx
         error_rate = total_errors / total_requests if total_requests > 0 else 0.0
-        avg_bytes = (
-            (row.total_bytes_sent or 0) / total_requests if total_requests > 0 else 0.0
-        )
+        avg_bytes = row.total_bytes_sent / total_requests if total_requests > 0 else 0.0
 
-        # Query GeoEvent directly for accurate unique counts
-        # This avoids the approximation error from summing per-hour unique counts
+        # Query geo_events_hourly_cagg for geo metrics
+        geo_stmt = text("""
+            SELECT
+                COALESCE(SUM(total_events), 0) AS total_geo_events
+            FROM geo_events_hourly_cagg
+            WHERE bucket >= :start AND bucket < :end
+        """)
+
+        geo_result = await self.session.execute(
+            geo_stmt, {"start": start_hour, "end": end_hour}
+        )
+        geo_row = geo_result.one_or_none()
+        total_geo_events = geo_row.total_geo_events if geo_row else 0
+
+        # Query raw tables for accurate unique counts (CAGGs approximate these)
         unique_counts_stmt = select(
             func.count(func.distinct(GeoEvent.ip_address)).label("unique_ips"),
             func.count(func.distinct(GeoLocation.country_code)).label("unique_countries"),
@@ -324,178 +258,106 @@ class HourlyStatsRepository(SQLAlchemyAsyncRepository[HourlyStats]):
         unique_ips = unique_row.unique_ips if unique_row else 0
         unique_countries = unique_row.unique_countries if unique_row else 0
 
+        # Query malformed requests from debug table
+        malformed_stmt = select(
+            func.count().label("malformed_requests"),
+        ).where(
+            and_(
+                AccessLogDebug.created_at >= start_hour,
+                AccessLogDebug.created_at < end_hour,
+                AccessLogDebug.is_malformed == True,  # noqa: E712
+            )
+        )
+
+        malformed_result = await self.session.execute(malformed_stmt)
+        malformed_row = malformed_result.one_or_none()
+        malformed_requests = malformed_row.malformed_requests if malformed_row else 0
+
         return SummaryStats(
             total_requests=total_requests,
-            total_geo_events=row.total_geo_events or 0,
+            total_geo_events=total_geo_events,
             unique_ips=unique_ips,
             unique_countries=unique_countries,
-            total_bytes_sent=row.total_bytes_sent or 0,
+            total_bytes_sent=row.total_bytes_sent,
             avg_bytes_per_request=avg_bytes,
-            status_2xx=row.status_2xx or 0,
-            status_3xx=row.status_3xx or 0,
-            status_4xx=row.status_4xx or 0,
-            status_5xx=row.status_5xx or 0,
-            avg_request_time=row.avg_request_time or 0.0,
-            max_request_time=row.max_request_time or 0.0,
-            malformed_requests=row.malformed_requests or 0,
+            status_2xx=row.status_2xx,
+            status_3xx=row.status_3xx,
+            status_4xx=row.status_4xx,
+            status_5xx=row.status_5xx,
+            avg_request_time=float(row.avg_request_time),
+            max_request_time=float(row.max_request_time),
+            malformed_requests=malformed_requests,
             error_rate=error_rate,
         )
 
-    async def delete_before(self, cutoff: datetime) -> int:
-        """Delete hourly stats older than cutoff date.
 
-        Used for retention cleanup (default: 30 days).
+class DailyStatsRepository:
+    """Repository for querying daily_stats_cagg continuous aggregate.
 
-        Args:
-            cutoff: Delete records with hour before this datetime.
+    TimescaleDB automatically maintains this continuous aggregate.
+    This repository provides read-only access for analytics queries.
+    """
 
-        Returns:
-            Number of deleted records.
-        """
-        if cutoff.tzinfo is None:
-            cutoff = cutoff.replace(tzinfo=timezone.utc)
-
-        stmt = text(
-            "DELETE FROM hourly_stats WHERE hour < :cutoff"
-        )
-        result = await self.session.execute(stmt, {"cutoff": cutoff})
-        return result.rowcount
-
-
-class DailyStatsRepository(SQLAlchemyAsyncRepository[DailyStats]):
-    """Repository for DailyStats model with rollup support."""
-
-    model_type = DailyStats
-
-    async def upsert_from_hourly(self, target_date: date) -> DailyStats | None:
-        """Compute and upsert daily stats from hourly data.
-
-        Rolls up all hourly stats for a given date into a single daily record.
-
-        Args:
-            target_date: The date to compute daily stats for.
-
-        Returns:
-            The created/updated DailyStats record, or None if no hourly data.
-        """
-        # Get start and end of day in UTC
-        start = datetime(
-            target_date.year, target_date.month, target_date.day, 0, 0, 0, tzinfo=timezone.utc
-        )
-        end = datetime(
-            target_date.year, target_date.month, target_date.day, 23, 59, 59, tzinfo=timezone.utc
-        )
-
-        # Aggregate hourly stats for the day
-        stmt = select(
-            func.sum(HourlyStats.total_requests).label("total_requests"),
-            func.sum(HourlyStats.total_geo_events).label("total_geo_events"),
-            func.sum(HourlyStats.unique_ips).label("unique_ips"),
-            func.max(HourlyStats.unique_countries).label("unique_countries"),
-            func.sum(HourlyStats.total_bytes_sent).label("total_bytes_sent"),
-            func.sum(HourlyStats.status_2xx).label("status_2xx"),
-            func.sum(HourlyStats.status_3xx).label("status_3xx"),
-            func.sum(HourlyStats.status_4xx).label("status_4xx"),
-            func.sum(HourlyStats.status_5xx).label("status_5xx"),
-            func.avg(HourlyStats.avg_request_time).label("avg_request_time"),
-            func.max(HourlyStats.max_request_time).label("max_request_time"),
-            func.sum(HourlyStats.malformed_requests).label("malformed_requests"),
-        ).where(HourlyStats.hour.between(start, end))
-
-        result = await self.session.execute(stmt)
-        row = result.one_or_none()
-
-        if row is None or row.total_requests is None or row.total_requests == 0:
-            return None
-
-        # Find peak hour
-        peak_stmt = (
-            select(
-                func.extract("hour", HourlyStats.hour).label("hour_of_day"),
-                HourlyStats.total_requests,
-            )
-            .where(HourlyStats.hour.between(start, end))
-            .order_by(HourlyStats.total_requests.desc())
-            .limit(1)
-        )
-        peak_result = await self.session.execute(peak_stmt)
-        peak_row = peak_result.one_or_none()
-
-        peak_hour = int(peak_row.hour_of_day) if peak_row else 0
-        peak_hour_requests = peak_row.total_requests if peak_row else 0
-
-        total_requests = row.total_requests or 0
-        avg_bytes = (
-            (row.total_bytes_sent or 0) / total_requests if total_requests > 0 else 0.0
-        )
-
-        # Upsert daily stats
-        stmt = insert(DailyStats).values(
-            date=target_date,
-            total_requests=total_requests,
-            total_geo_events=row.total_geo_events or 0,
-            unique_ips=row.unique_ips or 0,
-            unique_countries=row.unique_countries or 0,
-            total_bytes_sent=row.total_bytes_sent or 0,
-            avg_bytes_per_request=avg_bytes,
-            status_2xx=row.status_2xx or 0,
-            status_3xx=row.status_3xx or 0,
-            status_4xx=row.status_4xx or 0,
-            status_5xx=row.status_5xx or 0,
-            avg_request_time=row.avg_request_time or 0.0,
-            max_request_time=row.max_request_time or 0.0,
-            peak_hour_requests=peak_hour_requests,
-            peak_hour=peak_hour,
-            malformed_requests=row.malformed_requests or 0,
-        )
-
-        stmt = stmt.on_conflict_do_update(
-            constraint="uq_daily_stats_date",
-            set_={
-                "total_requests": total_requests,
-                "total_geo_events": row.total_geo_events or 0,
-                "unique_ips": row.unique_ips or 0,
-                "unique_countries": row.unique_countries or 0,
-                "total_bytes_sent": row.total_bytes_sent or 0,
-                "avg_bytes_per_request": avg_bytes,
-                "status_2xx": row.status_2xx or 0,
-                "status_3xx": row.status_3xx or 0,
-                "status_4xx": row.status_4xx or 0,
-                "status_5xx": row.status_5xx or 0,
-                "avg_request_time": row.avg_request_time or 0.0,
-                "max_request_time": row.max_request_time or 0.0,
-                "peak_hour_requests": peak_hour_requests,
-                "peak_hour": peak_hour,
-                "malformed_requests": row.malformed_requests or 0,
-            },
-        )
-
-        await self.session.execute(stmt)
-
-        # Return the upserted record
-        return await self.get_one_or_none(date=target_date)
+    def __init__(self, session: AsyncSession) -> None:
+        self.session = session
 
     async def get_time_series(
         self,
         start_date: date,
         end_date: date,
-    ) -> Sequence[DailyStats]:
-        """Get daily stats for a date range.
+    ) -> Sequence[DailyStatsRow]:
+        """Get daily stats for a date range from the continuous aggregate.
 
         Args:
             start_date: Start date (inclusive).
             end_date: End date (inclusive).
 
         Returns:
-            List of DailyStats ordered by date ascending.
+            List of DailyStatsRow ordered by bucket ascending.
         """
-        stmt = (
-            select(DailyStats)
-            .where(DailyStats.date.between(start_date, end_date))
-            .order_by(DailyStats.date.asc())
+        # Convert dates to timestamps for the query
+        start_dt = datetime(start_date.year, start_date.month, start_date.day, tzinfo=timezone.utc)
+        end_dt = datetime(end_date.year, end_date.month, end_date.day, 23, 59, 59, tzinfo=timezone.utc)
+
+        stmt = text("""
+            SELECT
+                bucket,
+                total_requests,
+                unique_ips,
+                unique_countries,
+                total_bytes_sent,
+                status_2xx,
+                status_3xx,
+                status_4xx,
+                status_5xx,
+                avg_request_time,
+                max_request_time
+            FROM daily_stats_cagg
+            WHERE bucket >= :start AND bucket <= :end
+            ORDER BY bucket ASC
+        """)
+
+        result = await self.session.execute(
+            stmt, {"start": start_dt, "end": end_dt}
         )
-        result = await self.session.execute(stmt)
-        return result.scalars().all()
+        rows = result.fetchall()
+
+        return [
+            DailyStatsRow(
+                bucket=row.bucket,
+                total_requests=row.total_requests or 0,
+                unique_ips=row.unique_ips or 0,
+                unique_countries=row.unique_countries or 0,
+                total_bytes_sent=row.total_bytes_sent or 0,
+                status_2xx=row.status_2xx or 0,
+                status_3xx=row.status_3xx or 0,
+                status_4xx=row.status_4xx or 0,
+                status_5xx=row.status_5xx or 0,
+                avg_request_time=float(row.avg_request_time or 0.0),
+                max_request_time=float(row.max_request_time or 0.0),
+            )
+            for row in rows
+        ]
 
     async def get_summary(
         self,
@@ -511,61 +373,101 @@ class DailyStatsRepository(SQLAlchemyAsyncRepository[DailyStats]):
         Returns:
             SummaryStats with aggregated values, or None if no data.
         """
-        stmt = select(
-            func.sum(DailyStats.total_requests).label("total_requests"),
-            func.sum(DailyStats.total_geo_events).label("total_geo_events"),
-            func.sum(DailyStats.unique_ips).label("unique_ips"),
-            func.max(DailyStats.unique_countries).label("unique_countries"),
-            func.sum(DailyStats.total_bytes_sent).label("total_bytes_sent"),
-            func.sum(DailyStats.status_2xx).label("status_2xx"),
-            func.sum(DailyStats.status_3xx).label("status_3xx"),
-            func.sum(DailyStats.status_4xx).label("status_4xx"),
-            func.sum(DailyStats.status_5xx).label("status_5xx"),
-            func.avg(DailyStats.avg_request_time).label("avg_request_time"),
-            func.max(DailyStats.max_request_time).label("max_request_time"),
-            func.sum(DailyStats.malformed_requests).label("malformed_requests"),
-        ).where(DailyStats.date.between(start_date, end_date))
+        start_dt = datetime(start_date.year, start_date.month, start_date.day, tzinfo=timezone.utc)
+        end_dt = datetime(end_date.year, end_date.month, end_date.day, 23, 59, 59, tzinfo=timezone.utc)
 
-        result = await self.session.execute(stmt)
+        stmt = text("""
+            SELECT
+                COALESCE(SUM(total_requests), 0) AS total_requests,
+                COALESCE(SUM(total_bytes_sent), 0) AS total_bytes_sent,
+                COALESCE(SUM(status_2xx), 0) AS status_2xx,
+                COALESCE(SUM(status_3xx), 0) AS status_3xx,
+                COALESCE(SUM(status_4xx), 0) AS status_4xx,
+                COALESCE(SUM(status_5xx), 0) AS status_5xx,
+                COALESCE(AVG(avg_request_time), 0.0) AS avg_request_time,
+                COALESCE(MAX(max_request_time), 0.0) AS max_request_time
+            FROM daily_stats_cagg
+            WHERE bucket >= :start AND bucket <= :end
+        """)
+
+        result = await self.session.execute(
+            stmt, {"start": start_dt, "end": end_dt}
+        )
         row = result.one_or_none()
 
-        if row is None or row.total_requests is None:
+        if row is None or row.total_requests == 0:
             return None
 
-        total_requests = row.total_requests or 0
-        total_errors = (row.status_4xx or 0) + (row.status_5xx or 0)
-        error_rate = total_errors / total_requests if total_requests > 0 else 0.0
-        avg_bytes = (
-            (row.total_bytes_sent or 0) / total_requests if total_requests > 0 else 0.0
+        # Query geo_events_hourly_cagg for geo metrics
+        geo_stmt = text("""
+            SELECT
+                COALESCE(SUM(total_events), 0) AS total_geo_events,
+                COALESCE(SUM(unique_ips), 0) AS unique_ips,
+                COALESCE(SUM(unique_countries), 0) AS unique_countries
+            FROM geo_events_hourly_cagg
+            WHERE bucket >= :start AND bucket < :end
+        """)
+
+        geo_result = await self.session.execute(
+            geo_stmt, {"start": start_dt, "end": end_dt}
+        )
+        geo_row = geo_result.one_or_none()
+        total_geo_events = geo_row.total_geo_events if geo_row else 0
+        unique_ips = geo_row.unique_ips if geo_row else 0
+        unique_countries = geo_row.unique_countries if geo_row else 0
+
+        # Query malformed requests from debug table
+        malformed_stmt = select(
+            func.count().label("malformed_requests"),
+        ).where(
+            and_(
+                AccessLogDebug.created_at >= start_dt,
+                AccessLogDebug.created_at < end_dt,
+                AccessLogDebug.is_malformed == True,  # noqa: E712
+            )
         )
 
+        malformed_result = await self.session.execute(malformed_stmt)
+        malformed_row = malformed_result.one_or_none()
+        malformed_requests = malformed_row.malformed_requests if malformed_row else 0
+
+
+        total_requests = row.total_requests
+        total_errors = row.status_4xx + row.status_5xx
+        error_rate = total_errors / total_requests if total_requests > 0 else 0.0
+        avg_bytes = row.total_bytes_sent / total_requests if total_requests > 0 else 0.0
+
+        # For daily summaries, we don't query unique counts from raw tables
+        # as it would be too expensive. Use approximations from the CAGG.
         return SummaryStats(
             total_requests=total_requests,
-            total_geo_events=row.total_geo_events or 0,
-            unique_ips=row.unique_ips or 0,
-            unique_countries=row.unique_countries or 0,
-            total_bytes_sent=row.total_bytes_sent or 0,
+            total_geo_events=total_geo_events,
+            unique_ips=unique_ips,
+            unique_countries=unique_countries,
+            total_bytes_sent=row.total_bytes_sent,
             avg_bytes_per_request=avg_bytes,
-            status_2xx=row.status_2xx or 0,
-            status_3xx=row.status_3xx or 0,
-            status_4xx=row.status_4xx or 0,
-            status_5xx=row.status_5xx or 0,
-            avg_request_time=row.avg_request_time or 0.0,
-            max_request_time=row.max_request_time or 0.0,
-            malformed_requests=row.malformed_requests or 0,
+            status_2xx=row.status_2xx,
+            status_3xx=row.status_3xx,
+            status_4xx=row.status_4xx,
+            status_5xx=row.status_5xx,
+            avg_request_time=float(row.avg_request_time),
+            max_request_time=float(row.max_request_time),
+            malformed_requests=malformed_requests,
             error_rate=error_rate,
         )
 
 
 class LiveStatsRepository:
-    """Repository for querying live statistics directly from raw tables.
+    """Repository for querying live statistics directly from raw hypertables.
 
     Queries AccessLog, GeoEvent, and AccessLogDebug directly instead of
-    using pre-aggregated hourly buckets.
+    using continuous aggregates. Provides real-time accuracy at the cost
+    of query performance.
 
-    This repository does NOT extend SQLAlchemyAsyncRepository since it
-    performs custom aggregate queries across multiple tables rather than
-    CRUD operations on a single model.
+    Note: With TimescaleDB hypertables, these queries benefit from:
+    - Chunk exclusion (only scans relevant time chunks)
+    - Parallel chunk scanning
+    - Compression on older chunks
     """
 
     def __init__(self, session: AsyncSession) -> None:
@@ -576,14 +478,11 @@ class LiveStatsRepository:
         start: datetime,
         end: datetime,
     ) -> SummaryStats | None:
-        """Get live summary stats
+        """Get live summary stats by querying raw hypertables.
 
-        Unlike HourlyStatsRepository.get_summary which uses pre-aggregated
-        hourly buckets, this queries AccessLog, GeoEvent, and AccessLogDebug
-        directly for real-time accuracy.
-
-        Note: AccessLog data is optional (controlled by LOGPARSER_SEND_LOGS).
-        GeoEvent is the primary data source, so we check that first.
+        Unlike HourlyStatsRepository.get_summary which uses continuous
+        aggregates, this queries the raw tables directly for real-time
+        accuracy.
 
         Args:
             start: Start datetime.
@@ -594,7 +493,6 @@ class LiveStatsRepository:
         """
 
         # Query GeoEvent first - this is the primary data source
-        # AccessLog is optional (LOGPARSER_SEND_LOGS setting)
         geo_events_stmt = select(
             func.count().label("total_geo_events"),
             func.count(func.distinct(GeoEvent.ip_address)).label("unique_ips"),
@@ -617,7 +515,7 @@ class LiveStatsRepository:
         unique_ips = geo_row.unique_ips if geo_row else 0
         unique_countries = geo_row.unique_countries if geo_row else 0
 
-        # Query AccessLog for request metrics (optional - may be empty)
+        # Query AccessLog for request metrics
         access_log_stmt = select(
             func.count().label("total_requests"),
             func.coalesce(func.sum(AccessLog.bytes_sent), 0).label("total_bytes_sent"),

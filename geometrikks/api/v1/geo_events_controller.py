@@ -4,7 +4,6 @@ from __future__ import annotations
 from litestar import Controller, get
 from litestar.di import Provide
 from litestar.pagination import OffsetPagination
-from litestar.status_codes import HTTP_201_CREATED, HTTP_204_NO_CONTENT
 from litestar.plugins.sqlalchemy import filters
 from geometrikks.domain.geo.models import GeoEvent
 from geometrikks.domain.geo.repositories import GeoEventRepository

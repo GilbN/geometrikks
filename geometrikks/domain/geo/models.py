@@ -77,7 +77,6 @@ class GeoEvent(base.BigIntBase):
     """Geo-location tracking events.
 
     High-volume time-series data tracking IP addresses and their geographic locations.
-    Optimized for write-heavy workloads with partitioning support.
     """
 
     __tablename__ = "geo_events"
@@ -110,12 +109,9 @@ class GeoEvent(base.BigIntBase):
         "GeoLocation", back_populates="geo_events", lazy="selectin"
     )
 
-    # Indexes optimized for common queries
+    # Composite index for efficient LATERAL JOIN queries (top IPs per location)
     __table_args__ = (
-        Index("ix_geo_events_timestamp_desc", "timestamp", postgresql_using="brin"),
-        Index("ix_geo_events_ip_timestamp", "ip_address", "timestamp"),
-        Index("ix_geo_events_hostname_timestamp", "hostname", "timestamp"),
-        Index("ix_geo_events_location_timestamp", "location_id", "timestamp"),
+        Index("ix_geo_events_location_timestamp", "location_id", timestamp.desc()),
     )
 
     def __repr__(self) -> str:

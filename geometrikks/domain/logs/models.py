@@ -20,9 +20,9 @@ from litestar.dto import dto_field
 
 class AccessLog(base.BigIntBase):
     """Detailed nginx access log entries.
-    
+
     Stores comprehensive request/response data from nginx access logs.
-    High-volume time-series data with partitioning support.
+    TimescaleDB hypertable for efficient time-series queries.
     """
     
     __tablename__ = "access_logs"
@@ -68,13 +68,12 @@ class AccessLog(base.BigIntBase):
     country_name: Mapped[Optional[str]] = mapped_column(String(100))
     city: Mapped[Optional[str]] = mapped_column(String(100))
     
-    # Indexes optimized for common queries
+    # Indexes for common queries
+    # Note: TimescaleDB automatically creates time-based indexes on hypertables
     __table_args__ = (
-        Index("ix_access_logs_timestamp_desc", "timestamp", postgresql_using="brin"),
-        Index("ix_access_logs_ip_timestamp", "ip_address", "timestamp"),
-        Index("ix_access_logs_host_timestamp", "host", "timestamp"),
-        Index("ix_access_logs_status_timestamp", "status_code", "timestamp"),
-        Index("ix_access_logs_country_timestamp", "country_code", "timestamp"),
+        Index("ix_access_logs_ip_address", "ip_address"),
+        Index("ix_access_logs_status_code", "status_code"),
+        Index("ix_access_logs_host", "host"),
         Index("ix_access_logs_method_status", "method", "status_code"),
     )
     
@@ -84,42 +83,35 @@ class AccessLog(base.BigIntBase):
 
 class AccessLogDebug(base.BigIntBase):
     """Debug storage for raw log lines with automatic retention.
-    
+
     Stores raw log lines for debugging purposes, particularly useful for
     diagnosing malformed requests (TLS probes, invalid HTTP, etc.).
-    Retention is managed via scheduled cleanup task.
+    TimescaleDB hypertable for efficient time-series queries.
+
+    Note: FK to access_logs removed due to TimescaleDB limitation (can't FK to hypertable).
+    access_log_id is kept as soft reference for application-level lookups.
     """
-    
+
     __tablename__ = "access_log_debug"
-    
+
+    # Soft reference to access_logs (no FK constraint - TimescaleDB limitation)
     access_log_id: Mapped[Optional[int]] = mapped_column(
         BigInteger,
-        ForeignKey("access_logs.id", ondelete="SET NULL"),
         nullable=True,
-        unique=True,
         index=True,
     )
-    
+
     created_at: Mapped[datetime] = mapped_column(
         DateTimeUTC(timezone=True),
         nullable=False,
         default=lambda: datetime.now(timezone.utc),
         info=dto_field("read-only")
     )
-    
+
     raw_line: Mapped[str] = mapped_column(Text, nullable=False, info=dto_field("read-only"))
-    
+
     is_malformed: Mapped[bool] = mapped_column(default=False, index=True)
     parse_error: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
-    
-    access_log: Mapped[Optional["AccessLog"]] = relationship(
-        "AccessLog", foreign_keys=[access_log_id], lazy="joined"
-    )
-    
-    # BRIN index for efficient retention cleanup by time
-    __table_args__ = (
-        Index("ix_access_log_debug_created_at", "created_at", postgresql_using="brin"),
-    )
     
     def __repr__(self) -> str:
         return f"<AccessLogDebug(id={self.id}, access_log_id={self.access_log_id}, is_malformed={self.is_malformed})>"

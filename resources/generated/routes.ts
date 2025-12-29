@@ -6,9 +6,6 @@
 const API_URL = (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_API_URL) ?? '';
 
 /** Semantic string aliases derived from OpenAPI `format`. */
-/** ISO 8601 date string (YYYY-MM-DD) */
-export type DateOnly = string;
-
 /** RFC 3339 date-time string */
 export type DateTime = string;
 
@@ -18,12 +15,8 @@ export type URI = string;
 
 /** All available route names */
 export type RouteName =
-  | 'get_bandwidth_time_series'
-  | 'get_geo_events_time_series'
   | 'get_geojson'
   | 'get_live_summary'
-  | 'get_performance_time_series'
-  | 'get_requests_time_series'
   | 'get_summary'
   | 'health'
   | 'list_access_log_debugs'
@@ -40,12 +33,8 @@ export type RouteName =
 
 /** Path parameter definitions per route */
 export interface RoutePathParams {
-  'get_bandwidth_time_series': Record<string, never>;
-  'get_geo_events_time_series': Record<string, never>;
   'get_geojson': Record<string, never>;
   'get_live_summary': Record<string, never>;
-  'get_performance_time_series': Record<string, never>;
-  'get_requests_time_series': Record<string, never>;
   'get_summary': Record<string, never>;
   'health': Record<string, never>;
   'list_access_log_debugs': Record<string, never>;
@@ -67,16 +56,6 @@ export interface RoutePathParams {
 
 /** Query parameter definitions per route */
 export interface RouteQueryParams {
-  'get_bandwidth_time_series': {
-    end_date: DateOnly;
-    granularity?: "hourly" | "daily";
-    start_date: DateOnly;
-  };
-  'get_geo_events_time_series': {
-    end_date: DateOnly;
-    granularity?: "hourly" | "daily";
-    start_date: DateOnly;
-  };
   'get_geojson': {
     from_timestamp: DateTime;
     to_timestamp: DateTime;
@@ -85,16 +64,6 @@ export interface RouteQueryParams {
     compare_previous?: boolean;
     end_date: DateTime;
     start_date: DateTime;
-  };
-  'get_performance_time_series': {
-    end_date: DateOnly;
-    granularity?: "hourly" | "daily";
-    start_date: DateOnly;
-  };
-  'get_requests_time_series': {
-    end_date: DateOnly;
-    granularity?: "hourly" | "daily";
-    start_date: DateOnly;
   };
   'get_summary': {
     compare_previous?: boolean;
@@ -136,20 +105,6 @@ export type RouteParams<T extends RouteName> = MergeParams<RoutePathParams[T], R
 
 /** Route metadata */
 export const routeDefinitions = {
-  'get_bandwidth_time_series': {
-    path: '/api/v1/analytics/time-series/bandwidth',
-    methods: ['GET'] as const,
-    method: 'get',
-    pathParams: [] as const,
-    queryParams: ['end_date', 'granularity', 'start_date'] as const,
-  },
-  'get_geo_events_time_series': {
-    path: '/api/v1/analytics/time-series/geo-events',
-    methods: ['GET'] as const,
-    method: 'get',
-    pathParams: [] as const,
-    queryParams: ['end_date', 'granularity', 'start_date'] as const,
-  },
   'get_geojson': {
     path: '/api/v1/geo-locations/geojson',
     methods: ['GET'] as const,
@@ -163,20 +118,6 @@ export const routeDefinitions = {
     method: 'get',
     pathParams: [] as const,
     queryParams: ['compare_previous', 'end_date', 'start_date'] as const,
-  },
-  'get_performance_time_series': {
-    path: '/api/v1/analytics/time-series/performance',
-    methods: ['GET'] as const,
-    method: 'get',
-    pathParams: [] as const,
-    queryParams: ['end_date', 'granularity', 'start_date'] as const,
-  },
-  'get_requests_time_series': {
-    path: '/api/v1/analytics/time-series/requests',
-    methods: ['GET'] as const,
-    method: 'get',
-    pathParams: [] as const,
-    queryParams: ['end_date', 'granularity', 'start_date'] as const,
   },
   'get_summary': {
     path: '/api/v1/analytics/summary',

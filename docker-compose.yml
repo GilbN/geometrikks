@@ -1,7 +1,7 @@
 services:
 
   postgis_db:
-    image: postgis/postgis:18-3.6
+    image: timescale/timescaledb-ha:pg18
     restart: always
     # Shared memory for PostgreSQL IPC (should be >= shared_buffers)
     shm_size: 256mb

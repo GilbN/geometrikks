@@ -3,22 +3,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime, date
-
-from advanced_alchemy.extensions.litestar import SQLAlchemyDTO, SQLAlchemyDTOConfig
-from geometrikks.domain.analytics.models import HourlyStats, DailyStats
-
-
-class HourlyStatsDTO(SQLAlchemyDTO[HourlyStats]):
-    """Data transfer object for HourlyStats model."""
-
-    config = SQLAlchemyDTOConfig(rename_strategy="camel")
-
-
-class DailyStatsDTO(SQLAlchemyDTO[DailyStats]):
-    """Data transfer object for DailyStats model."""
-
-    config = SQLAlchemyDTOConfig(rename_strategy="camel")
 
 
 @dataclass

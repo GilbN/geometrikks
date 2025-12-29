@@ -16,7 +16,6 @@ from litestar.status_codes import HTTP_409_CONFLICT
 
 from geometrikks.services.logparser import LogParser
 from geometrikks.services.ingestion import LogIngestionService
-from geometrikks.services.aggregation.service import AggregationService
 from geometrikks.server.plugins import parser
 from geometrikks.domain.geo.models import GeoEvent, GeoLocation
 from geometrikks.domain.geo.repositories import GeoLocationRepository, GeoEventRepository
@@ -79,13 +78,12 @@ async def provide_access_log_repo(
 async def provide_access_log_debug_repo(
     db_session: AsyncSession,
 ) -> AccessLogDebugRepository:
-    """Provide AccessLogDebugRepository with eager loading of access_log."""
-    return AccessLogDebugRepository(
-        statement=select(AccessLogDebug).options(
-            selectinload(AccessLogDebug.access_log)
-        ),
-        session=db_session,
-    )
+    """Provide AccessLogDebugRepository.
+
+    Note: FK to access_logs removed for TimescaleDB compatibility.
+    Use access_log_id for application-level lookups if needed.
+    """
+    return AccessLogDebugRepository(session=db_session)
 
 
 def provide_limit_offset_pagination(
@@ -123,14 +121,6 @@ async def provide_daily_stats_repo(
 ) -> DailyStatsRepository:
     """Provide DailyStatsRepository."""
     return DailyStatsRepository(session=db_session)
-
-
-def provide_aggregation_service(request: Request) -> AggregationService | None:
-    """Provide the AggregationService from app state.
-
-    Returns None if the service is not available (degraded mode).
-    """
-    return getattr(request.app.state, "aggregation_service", None)
 
 
 async def provide_live_stats_repo(

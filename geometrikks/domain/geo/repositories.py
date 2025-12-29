@@ -4,7 +4,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime
 
-from sqlalchemy import select, func
+from sqlalchemy import select, func, text
 from advanced_alchemy.repository import SQLAlchemyAsyncRepository
 
 from geometrikks.domain.geo.models import GeoLocation, GeoEvent
@@ -59,9 +59,8 @@ class GeoLocationRepository(SQLAlchemyAsyncRepository[GeoLocation]):
     ) -> list[LocationWithEventCount]:
         """Retrieve all GeoLocations with their associated event counts and top 5 IPs.
 
-        Performs two queries:
-        1. Get locations with total event counts
-        2. Get top 5 IPs per location using window function
+        Uses window functions with a single scan of geo_events for efficiency.
+        Computes both location totals and per-IP counts in one pass.
 
         Args:
             from_timestamp: Start datetime for filtering events.
@@ -73,71 +72,79 @@ class GeoLocationRepository(SQLAlchemyAsyncRepository[GeoLocation]):
         Raises:
             ValueError: If from_timestamp or to_timestamp are not timezone-aware datetimes.
         """
+
         if not isinstance(from_timestamp, datetime) or not isinstance(to_timestamp, datetime):
             raise ValueError("from_timestamp and to_timestamp must be datetime instances")
         if not from_timestamp.tzinfo or not to_timestamp.tzinfo:
             raise ValueError("from_timestamp and to_timestamp must be timezone-aware")
 
-        # Query 1: Get locations with total event counts
-        locations_stmt = (
-            select(GeoLocation, func.count(GeoEvent.id).label("event_count"))
-            .join(GeoEvent, GeoLocation.id == GeoEvent.location_id)
-            .where(GeoEvent.timestamp.between(from_timestamp, to_timestamp))
-            .group_by(GeoLocation.id)
-            .order_by(func.count(GeoEvent.id).desc())
-        )
-        locations_result = await self.session.execute(locations_stmt)
-        locations_data = locations_result.all()
+        stmt = text("""
+            WITH ranked_ips AS (
+                SELECT
+                    location_id,
+                    ip_address,
+                    COUNT(*) as ip_count,
+                    CAST(SUM(COUNT(*)) OVER (PARTITION BY location_id) AS INTEGER) as event_count,
+                    ROW_NUMBER() OVER (PARTITION BY location_id ORDER BY COUNT(*) DESC) as rn
+                FROM geo_events
+                WHERE timestamp BETWEEN :from_ts AND :to_ts
+                GROUP BY location_id, ip_address
+            )
+            SELECT
+                gl.*,
+                ri.event_count,
+                ri.ip_address,
+                ri.ip_count
+            FROM geo_locations gl
+            JOIN ranked_ips ri ON ri.location_id = gl.id AND ri.rn <= 5
+            ORDER BY ri.event_count DESC, gl.id, ri.ip_count DESC NULLS LAST
+        """)
 
-        if not locations_data:
+        result = await self.session.execute(
+            stmt, {"from_ts": from_timestamp, "to_ts": to_timestamp}
+        )
+        rows = result.fetchall()
+
+        if not rows:
             return []
 
-        location_ids = [row[0].id for row in locations_data]
+        # Build result, grouping top IPs by location
+        locations_map: dict[int, LocationWithEventCount] = {}
 
-        # Query 2: Get top 5 IPs per location using window function
-        top_ips_subq = (
-            select(
-                GeoEvent.location_id,
-                GeoEvent.ip_address,
-                func.count().label("ip_count"),
-                func.row_number()
-                .over(partition_by=GeoEvent.location_id, order_by=func.count().desc())
-                .label("rn"),
-            )
-            .where(
-                GeoEvent.timestamp.between(from_timestamp, to_timestamp),
-                GeoEvent.location_id.in_(location_ids),
-            )
-            .group_by(GeoEvent.location_id, GeoEvent.ip_address)
-        ).subquery()
+        for row in rows:
+            loc_id = row.id
+            if loc_id not in locations_map:
+                # Create GeoLocation from row data
+                location = GeoLocation(
+                    id=row.id,
+                    latitude=row.latitude,
+                    longitude=row.longitude,
+                    geohash=row.geohash,
+                    geographic_point=row.geographic_point,
+                    country_code=row.country_code,
+                    country_name=row.country_name,
+                    state=row.state,
+                    state_code=row.state_code,
+                    city=row.city,
+                    postal_code=row.postal_code,
+                    timezone=row.timezone,
+                    last_hit=row.last_hit,
+                    created_at=row.created_at,
+                    updated_at=row.updated_at,
+                )
+                locations_map[loc_id] = LocationWithEventCount(
+                    location=location,
+                    event_count=row.event_count,
+                    top_ips=[],
+                )
 
-        top_ips_stmt = (
-            select(
-                top_ips_subq.c.location_id,
-                top_ips_subq.c.ip_address,
-                top_ips_subq.c.ip_count,
-            )
-            .where(top_ips_subq.c.rn <= 5)
-            .order_by(top_ips_subq.c.location_id, top_ips_subq.c.ip_count.desc())
-        )
-        top_ips_result = await self.session.execute(top_ips_stmt)
+            # Add top IP if present (LEFT JOIN may produce NULL)
+            if row.ip_address is not None:
+                locations_map[loc_id].top_ips.append(
+                    TopIP(ip_address=str(row.ip_address), event_count=row.ip_count)
+                )
 
-        # Build lookup dict: location_id -> list[TopIP]
-        top_ips_by_location: dict[int, list[TopIP]] = {}
-        for row in top_ips_result.all():
-            loc_id, ip_addr, ip_count = row
-            if loc_id not in top_ips_by_location:
-                top_ips_by_location[loc_id] = []
-            top_ips_by_location[loc_id].append(TopIP(ip_address=ip_addr, event_count=ip_count))
-
-        return [
-            LocationWithEventCount(
-                location=row[0],
-                event_count=row[1],
-                top_ips=top_ips_by_location.get(row[0].id, []),
-            )
-            for row in locations_data
-        ]
+        return list(locations_map.values())
 
     async def get_global_top_ips(
         self, from_timestamp: datetime, to_timestamp: datetime, limit: int = 5
