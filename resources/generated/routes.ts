@@ -16,7 +16,9 @@ export type URI = string;
 /** All available route names */
 export type RouteName =
   | 'get_geojson'
+  | 'get_global_top_ips'
   | 'get_live_summary'
+  | 'get_location_top_ips'
   | 'get_summary'
   | 'health'
   | 'list_access_log_debugs'
@@ -34,7 +36,11 @@ export type RouteName =
 /** Path parameter definitions per route */
 export interface RoutePathParams {
   'get_geojson': Record<string, never>;
+  'get_global_top_ips': Record<string, never>;
   'get_live_summary': Record<string, never>;
+  'get_location_top_ips': {
+    location_id: number;
+  };
   'get_summary': Record<string, never>;
   'health': Record<string, never>;
   'list_access_log_debugs': Record<string, never>;
@@ -60,10 +66,20 @@ export interface RouteQueryParams {
     from_timestamp: DateTime;
     to_timestamp: DateTime;
   };
+  'get_global_top_ips': {
+    from_timestamp: DateTime;
+    limit?: number;
+    to_timestamp: DateTime;
+  };
   'get_live_summary': {
     compare_previous?: boolean;
     end_date: DateTime;
     start_date: DateTime;
+  };
+  'get_location_top_ips': {
+    from_timestamp: DateTime;
+    limit?: number;
+    to_timestamp: DateTime;
   };
   'get_summary': {
     compare_previous?: boolean;
@@ -112,12 +128,26 @@ export const routeDefinitions = {
     pathParams: [] as const,
     queryParams: ['from_timestamp', 'to_timestamp'] as const,
   },
+  'get_global_top_ips': {
+    path: '/api/v1/geo-locations/top-ips',
+    methods: ['GET'] as const,
+    method: 'get',
+    pathParams: [] as const,
+    queryParams: ['from_timestamp', 'limit', 'to_timestamp'] as const,
+  },
   'get_live_summary': {
     path: '/api/v1/analytics/live-summary',
     methods: ['GET'] as const,
     method: 'get',
     pathParams: [] as const,
     queryParams: ['compare_previous', 'end_date', 'start_date'] as const,
+  },
+  'get_location_top_ips': {
+    path: '/api/v1/geo-locations/{location_id}/top-ips',
+    methods: ['GET'] as const,
+    method: 'get',
+    pathParams: ['location_id'] as const,
+    queryParams: ['from_timestamp', 'limit', 'to_timestamp'] as const,
   },
   'get_summary': {
     path: '/api/v1/analytics/summary',

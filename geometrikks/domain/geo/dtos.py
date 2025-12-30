@@ -86,7 +86,6 @@ class GeoJSONFeatureStats:
     countries: int = 0
     cities: int = 0
     locations: int = 0
-    top_ips: list[TopIPDTO] = field(default_factory=list)
 
 @dataclass
 class GeoJSONFeatureCollection:
@@ -95,4 +94,19 @@ class GeoJSONFeatureCollection:
     type: str = "FeatureCollection"
     features: list[GeoJSONFeature] = field(default_factory=list)
     stats: GeoJSONFeatureStats = field(default_factory=GeoJSONFeatureStats)
-    
+
+
+@dataclass
+class LocationTopIPsResponse:
+    """Response for location top IPs endpoint."""
+
+    location_id: int
+    top_ips: list[TopIPDTO] = field(default_factory=list)
+
+
+@dataclass
+class GlobalTopIPsResponse:
+    """Response for global top IPs endpoint."""
+
+    top_ips: list[TopIPDTO] = field(default_factory=list)
+

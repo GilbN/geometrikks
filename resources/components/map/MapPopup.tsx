@@ -4,9 +4,10 @@
  */
 
 import { Popup } from "react-map-gl/maplibre"
-import { MapPin, Globe, Clock, Hash, Users, ChevronsUpDown } from "lucide-react"
+import { MapPin, Globe, Clock, Hash, Users, ChevronsUpDown, Loader2 } from "lucide-react"
 import { formatNumber } from "@/lib/api"
 import type { GeoJSONFeatureProperties } from "@/lib/api"
+import { useLocationTopIPs } from "@/lib/queries"
 
 import {
   Tooltip,
@@ -48,8 +49,8 @@ export function MapPopup({
   properties,
   onClose,
 }: MapPopupProps) {
-
   const {
+    id: locationId,
     city,
     country_name,
     country_code,
@@ -57,23 +58,11 @@ export function MapPopup({
     event_count,
     last_hit,
     geohash,
-    top_ips: rawTopIps,
   } = properties
 
-  // Ensure top_ips is an array (MapLibre may stringify nested arrays in properties)
-  const parseTopIps = () => {
-    if (Array.isArray(rawTopIps)) return rawTopIps
-    if (typeof rawTopIps === "string") {
-      try {
-        const parsed = JSON.parse(rawTopIps)
-        return Array.isArray(parsed) ? parsed : []
-      } catch {
-        return []
-      }
-    }
-    return []
-  }
-  const top_ips = parseTopIps()
+  // Fetch top IPs on-demand when popup opens
+  const { data: topIPsData, isLoading: isLoadingTopIPs } = useLocationTopIPs(locationId)
+  const top_ips = topIPsData?.top_ips ?? []
 
   // Format last hit date
   const formattedLastHit = last_hit
@@ -204,7 +193,7 @@ export function MapPopup({
         </div>
 
         {/* Top IPs */}
-        {top_ips && top_ips.length > 0 && (
+        {(isLoadingTopIPs || top_ips.length > 0) && (
           <Collapsible
             style={{
               paddingTop: "8px",
@@ -214,93 +203,100 @@ export function MapPopup({
           >
             <div style={{ display: "flex", alignItems: "center", gap: "4px", marginBottom: "6px" }}>
               <Users style={{ width: 12, height: 12, color: "var(--popup-muted)" }} />
-              <span style={{ fontSize: "12px", color: "var(--popup-muted)" }}>Top {top_ips.length} IPs</span>
+              <span style={{ fontSize: "12px", color: "var(--popup-muted)" }}>
+                {isLoadingTopIPs ? "Loading..." : `Top ${top_ips.length} IPs`}
+              </span>
+              {isLoadingTopIPs && <Loader2 style={{ width: 10, height: 10, animation: "spin 1s linear infinite" }} />}
             </div>
             {/* First IP always visible */}
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                fontSize: "11px",
-              }}
-            >
-              <code
-                style={{
-                  fontSize: "10px",
-                  background: "var(--popup-code-bg)",
-                  padding: "2px 6px",
-                  borderRadius: "4px",
-                  fontFamily: "monospace",
-                }}
-              >
-                1. {top_ips[0].ip_address}
-              </code>
-              <span
-                style={{
-                  fontSize: "10px",
-                  color: "var(--popup-muted)",
-                }}
-              >
-                {formatNumber(top_ips[0].event_count)}
-              </span>
-            </div>
-            {/* Remaining IPs in collapsible */}
-            {top_ips.length > 1 && (
+            {!isLoadingTopIPs && top_ips.length > 0 && (
               <>
-                <CollapsibleContent>
-                  <div style={{ display: "flex", flexDirection: "column", gap: "4px", marginTop: "4px" }}>
-                    {top_ips.slice(1).map((ip, index) => (
-                      <div
-                        key={ip.ip_address}
-                        style={{
-                          display: "flex",
-                          justifyContent: "space-between",
-                          alignItems: "center",
-                          fontSize: "11px",
-                        }}
-                      >
-                        <code
-                          style={{
-                            fontSize: "10px",
-                            background: "var(--popup-code-bg)",
-                            padding: "2px 6px",
-                            borderRadius: "4px",
-                            fontFamily: "monospace",
-                          }}
-                        >
-                          {index + 2}. {ip.ip_address}
-                        </code>
-                        <span
-                          style={{
-                            fontSize: "10px",
-                            color: "var(--popup-muted)",
-                          }}
-                        >
-                          {formatNumber(ip.event_count)}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </CollapsibleContent>
-                <CollapsibleTrigger
+                <div
                   style={{
                     display: "flex",
+                    justifyContent: "space-between",
                     alignItems: "center",
-                    justifyContent: "center",
-                    width: "100%",
-                    background: "transparent",
-                    border: "none",
-                    padding: "4px 0 0 0",
-                    cursor: "pointer",
-                    color: "var(--popup-muted)",
-                    fontSize: "10px",
-                    gap: "4px",
+                    fontSize: "11px",
                   }}
                 >
-                  <ChevronsUpDown style={{ width: 10, height: 10 }} />
-                  <span>{top_ips.length - 1} more</span>
-                </CollapsibleTrigger>
+                  <code
+                    style={{
+                      fontSize: "10px",
+                      background: "var(--popup-code-bg)",
+                      padding: "2px 6px",
+                      borderRadius: "4px",
+                      fontFamily: "monospace",
+                    }}
+                  >
+                    1. {top_ips[0].ip_address}
+                  </code>
+                  <span
+                    style={{
+                      fontSize: "10px",
+                      color: "var(--popup-muted)",
+                    }}
+                  >
+                    {formatNumber(top_ips[0].event_count)}
+                  </span>
+                </div>
+                {/* Remaining IPs in collapsible */}
+                {top_ips.length > 1 && (
+                  <>
+                    <CollapsibleContent>
+                      <div style={{ display: "flex", flexDirection: "column", gap: "4px", marginTop: "4px" }}>
+                        {top_ips.slice(1).map((ip, index) => (
+                          <div
+                            key={ip.ip_address}
+                            style={{
+                              display: "flex",
+                              justifyContent: "space-between",
+                              alignItems: "center",
+                              fontSize: "11px",
+                            }}
+                          >
+                            <code
+                              style={{
+                                fontSize: "10px",
+                                background: "var(--popup-code-bg)",
+                                padding: "2px 6px",
+                                borderRadius: "4px",
+                                fontFamily: "monospace",
+                              }}
+                            >
+                              {index + 2}. {ip.ip_address}
+                            </code>
+                            <span
+                              style={{
+                                fontSize: "10px",
+                                color: "var(--popup-muted)",
+                              }}
+                            >
+                              {formatNumber(ip.event_count)}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </CollapsibleContent>
+                    <CollapsibleTrigger
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        width: "100%",
+                        background: "transparent",
+                        border: "none",
+                        padding: "4px 0 0 0",
+                        cursor: "pointer",
+                        color: "var(--popup-muted)",
+                        fontSize: "10px",
+                        gap: "4px",
+                      }}
+                    >
+                      <ChevronsUpDown style={{ width: 10, height: 10 }} />
+                      <span>{top_ips.length - 1} more</span>
+                    </CollapsibleTrigger>
+                  </>
+                )}
               </>
             )}
           </Collapsible>

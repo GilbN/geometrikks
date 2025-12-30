@@ -12,6 +12,18 @@
       },
       "uri": "/api/v1/geo-locations/geojson"
     },
+    "get_global_top_ips": {
+      "method": "get",
+      "methods": [
+        "GET"
+      ],
+      "queryParameters": {
+        "from_timestamp": "DateTime",
+        "limit": "number | undefined",
+        "to_timestamp": "DateTime"
+      },
+      "uri": "/api/v1/geo-locations/top-ips"
+    },
     "get_live_summary": {
       "method": "get",
       "methods": [
@@ -23,6 +35,24 @@
         "start_date": "DateTime"
       },
       "uri": "/api/v1/analytics/live-summary"
+    },
+    "get_location_top_ips": {
+      "method": "get",
+      "methods": [
+        "GET"
+      ],
+      "parameterTypes": {
+        "location_id": "number"
+      },
+      "parameters": [
+        "location_id"
+      ],
+      "queryParameters": {
+        "from_timestamp": "DateTime",
+        "limit": "number | undefined",
+        "to_timestamp": "DateTime"
+      },
+      "uri": "/api/v1/geo-locations/{location_id}/top-ips"
     },
     "get_summary": {
       "method": "get",

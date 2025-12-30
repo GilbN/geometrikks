@@ -143,7 +143,6 @@ export interface GeoJSONFeatureProperties {
   timezone: string | null
   event_count: number
   last_hit: string | null
-  top_ips: TopIPDTO[]
 }
 
 export interface GeoJSONPointGeometry {
@@ -162,7 +161,6 @@ export interface GEOJSONFeatureStats {
   countries: number
   cities: number
   locations: number
-  top_ips: TopIPDTO[]
 }
 
 export interface GeoJSONFeatureCollection {
@@ -218,50 +216,6 @@ export interface TimeSeriesParams {
   granularity?: "hourly" | "daily"
 }
 
-export async function fetchRequestsTimeSeries(
-  params: TimeSeriesParams
-): Promise<TimeSeriesResponse> {
-  const { data } = await api.get<TimeSeriesResponse>("/analytics/time-series/requests", {
-    params: {
-      start_date: params.startDate,
-      end_date: params.endDate,
-      granularity: params.granularity ?? "daily",
-    },
-  })
-  return data
-}
-
-export async function fetchPerformanceTimeSeries(
-  params: TimeSeriesParams
-): Promise<PerformanceTimeSeriesResponse> {
-  const { data } = await api.get<PerformanceTimeSeriesResponse>(
-    "/analytics/time-series/performance",
-    {
-      params: {
-        start_date: params.startDate,
-        end_date: params.endDate,
-        granularity: params.granularity ?? "daily",
-      },
-    }
-  )
-  return data
-}
-
-export async function fetchGeoEventsTimeSeries(
-  params: TimeSeriesParams
-): Promise<GeoEventsTimeSeriesResponse> {
-  const { data } = await api.get<GeoEventsTimeSeriesResponse>(
-    "/analytics/time-series/geo-events",
-    {
-      params: {
-        start_date: params.startDate,
-        end_date: params.endDate,
-        granularity: params.granularity ?? "daily",
-      },
-    }
-  )
-  return data
-}
 
 export interface GeoJSONParams {
   fromTimestamp: string // Full ISO timestamp
@@ -275,6 +229,60 @@ export async function fetchGeoJSON(params: GeoJSONParams): Promise<GeoJSONFeatur
       to_timestamp: params.toTimestamp,
     },
   })
+  return data
+}
+
+// ============================================================================
+// Types & Functions - Top IPs API
+// ============================================================================
+
+export interface GlobalTopIPsResponse {
+  top_ips: TopIPDTO[]
+}
+
+export interface LocationTopIPsResponse {
+  location_id: number
+  top_ips: TopIPDTO[]
+}
+
+export interface TopIPsParams {
+  fromTimestamp: string
+  toTimestamp: string
+  limit?: number
+}
+
+export interface LocationTopIPsParams extends TopIPsParams {
+  locationId: number
+}
+
+/**
+ * Fetch global top IPs by event count with their primary locations.
+ */
+export async function fetchGlobalTopIPs(params: TopIPsParams): Promise<GlobalTopIPsResponse> {
+  const { data } = await api.get<GlobalTopIPsResponse>("/geo-locations/top-ips", {
+    params: {
+      from_timestamp: params.fromTimestamp,
+      to_timestamp: params.toTimestamp,
+      limit: params.limit ?? 5,
+    },
+  })
+  return data
+}
+
+/**
+ * Fetch top IPs for a specific location.
+ */
+export async function fetchLocationTopIPs(params: LocationTopIPsParams): Promise<LocationTopIPsResponse> {
+  const { data } = await api.get<LocationTopIPsResponse>(
+    `/geo-locations/${params.locationId}/top-ips`,
+    {
+      params: {
+        from_timestamp: params.fromTimestamp,
+        to_timestamp: params.toTimestamp,
+        limit: params.limit ?? 5,
+      },
+    }
+  )
   return data
 }
 

@@ -11,7 +11,7 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { Flame, MapPin, Maximize2, Loader2, SlidersHorizontal, X } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { LayerType } from "./GeoMap"
-import { GEOJSONFeatureStats, formatNumber } from "@/lib/api"
+import { GEOJSONFeatureStats, TopIPDTO, formatNumber } from "@/lib/api"
 
 
 interface MapControlsProps {
@@ -20,6 +20,7 @@ interface MapControlsProps {
   onFitBounds: () => void
   isLoading?: boolean
   featureStats: GEOJSONFeatureStats
+  topIPs: TopIPDTO[]
   onFlyToLocation?: (lat: number, lng: number) => void
 }
 
@@ -29,9 +30,10 @@ export function MapControls({
   onFitBounds,
   isLoading = false,
   featureStats,
+  topIPs,
   onFlyToLocation
 }: MapControlsProps) {
-  const { events: events, countries, cities, locations, top_ips } = featureStats;
+  const { events, countries, cities, locations } = featureStats
   const [isExpanded, setIsExpanded] = useState(true)
 
   // Default collapsed on mobile (< 768px)
@@ -147,11 +149,11 @@ export function MapControls({
       </Card>
 
       {/* Top IPs */}
-      {top_ips && top_ips.length > 0 && (
+      {topIPs && topIPs.length > 0 && (
         <Card className="px-3 py-2 gap-1 shrink-0">
           <div className="text-xs font-medium text-muted-foreground mb-2">Top IPs</div>
           <div className="flex flex-col gap-1">
-            {top_ips.map((ip) => (
+            {topIPs.map((ip) => (
               <button
                 key={ip.ip_address}
                 onClick={() => ip.location && onFlyToLocation?.(ip.location.latitude, ip.location.longitude)}

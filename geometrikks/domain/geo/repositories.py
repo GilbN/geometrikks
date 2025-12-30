@@ -1,7 +1,7 @@
 """Repositories for geo-location and geo-event data access."""
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
 
 from sqlalchemy import select, func, text
@@ -13,18 +13,17 @@ from geometrikks.domain.geo.models import GeoLocation, GeoEvent
 @dataclass
 class TopIP:
     """Top IP with event count for a location."""
-    
+
     ip_address: str
     event_count: int
 
 
 @dataclass
 class LocationWithEventCount:
-    """GeoLocation with aggregated event count and top IPs."""
+    """GeoLocation with aggregated event count."""
 
     location: GeoLocation
     event_count: int
-    top_ips: list[TopIP] = field(default_factory=list)
 
 
 class GeoLocationRepository(SQLAlchemyAsyncRepository[GeoLocation]):
@@ -57,47 +56,34 @@ class GeoLocationRepository(SQLAlchemyAsyncRepository[GeoLocation]):
     async def get_all_with_event_counts(
         self, from_timestamp: datetime, to_timestamp: datetime
     ) -> list[LocationWithEventCount]:
-        """Retrieve all GeoLocations with their associated event counts and top 5 IPs.
+        """Retrieve all GeoLocations with their associated event counts.
 
-        Uses window functions with a single scan of geo_events for efficiency.
-        Computes both location totals and per-IP counts in one pass.
+        Uses a simple GROUP BY query for fast aggregation without per-location top IPs.
 
         Args:
             from_timestamp: Start datetime for filtering events.
             to_timestamp: End datetime for filtering events.
 
         Returns:
-            list[LocationWithEventCount]: List containing location, event count, and top 5 IPs.
+            list[LocationWithEventCount]: List containing location and event count.
 
         Raises:
             ValueError: If from_timestamp or to_timestamp are not timezone-aware datetimes.
         """
-
         if not isinstance(from_timestamp, datetime) or not isinstance(to_timestamp, datetime):
             raise ValueError("from_timestamp and to_timestamp must be datetime instances")
         if not from_timestamp.tzinfo or not to_timestamp.tzinfo:
             raise ValueError("from_timestamp and to_timestamp must be timezone-aware")
 
         stmt = text("""
-            WITH ranked_ips AS (
-                SELECT
-                    location_id,
-                    ip_address,
-                    COUNT(*) as ip_count,
-                    CAST(SUM(COUNT(*)) OVER (PARTITION BY location_id) AS INTEGER) as event_count,
-                    ROW_NUMBER() OVER (PARTITION BY location_id ORDER BY COUNT(*) DESC) as rn
-                FROM geo_events
-                WHERE timestamp BETWEEN :from_ts AND :to_ts
-                GROUP BY location_id, ip_address
-            )
             SELECT
                 gl.*,
-                ri.event_count,
-                ri.ip_address,
-                ri.ip_count
+                CAST(COUNT(ge.id) AS INTEGER) as event_count
             FROM geo_locations gl
-            JOIN ranked_ips ri ON ri.location_id = gl.id AND ri.rn <= 5
-            ORDER BY ri.event_count DESC, gl.id, ri.ip_count DESC NULLS LAST
+            JOIN geo_events ge ON ge.location_id = gl.id
+            WHERE ge.timestamp BETWEEN :from_ts AND :to_ts
+            GROUP BY gl.id
+            ORDER BY event_count DESC
         """)
 
         result = await self.session.execute(
@@ -108,14 +94,9 @@ class GeoLocationRepository(SQLAlchemyAsyncRepository[GeoLocation]):
         if not rows:
             return []
 
-        # Build result, grouping top IPs by location
-        locations_map: dict[int, LocationWithEventCount] = {}
-
-        for row in rows:
-            loc_id = row.id
-            if loc_id not in locations_map:
-                # Create GeoLocation from row data
-                location = GeoLocation(
+        return [
+            LocationWithEventCount(
+                location=GeoLocation(
                     id=row.id,
                     latitude=row.latitude,
                     longitude=row.longitude,
@@ -131,20 +112,55 @@ class GeoLocationRepository(SQLAlchemyAsyncRepository[GeoLocation]):
                     last_hit=row.last_hit,
                     created_at=row.created_at,
                     updated_at=row.updated_at,
-                )
-                locations_map[loc_id] = LocationWithEventCount(
-                    location=location,
-                    event_count=row.event_count,
-                    top_ips=[],
-                )
+                ),
+                event_count=row.event_count,
+            )
+            for row in rows
+        ]
 
-            # Add top IP if present (LEFT JOIN may produce NULL)
-            if row.ip_address is not None:
-                locations_map[loc_id].top_ips.append(
-                    TopIP(ip_address=str(row.ip_address), event_count=row.ip_count)
-                )
+    async def get_location_top_ips(
+        self, location_id: int, from_timestamp: datetime, to_timestamp: datetime, limit: int = 5
+    ) -> list[TopIP]:
+        """Get top N IPs for a specific location by event count.
 
-        return list(locations_map.values())
+        Args:
+            location_id: The location ID to get top IPs for.
+            from_timestamp: Start datetime for filtering events.
+            to_timestamp: End datetime for filtering events.
+            limit: Maximum number of IPs to return.
+
+        Returns:
+            List of TopIP objects with ip_address and event_count.
+        """
+        if not isinstance(from_timestamp, datetime) or not isinstance(to_timestamp, datetime):
+            raise ValueError("from_timestamp and to_timestamp must be datetime instances")
+        if not from_timestamp.tzinfo or not to_timestamp.tzinfo:
+            raise ValueError("from_timestamp and to_timestamp must be timezone-aware")
+
+        stmt = text("""
+            SELECT
+                ip_address,
+                CAST(COUNT(*) AS INTEGER) as event_count
+            FROM geo_events
+            WHERE location_id = :location_id
+              AND timestamp BETWEEN :from_ts AND :to_ts
+            GROUP BY ip_address
+            ORDER BY event_count DESC
+            LIMIT :limit
+        """)
+
+        result = await self.session.execute(
+            stmt,
+            {
+                "location_id": location_id,
+                "from_ts": from_timestamp,
+                "to_ts": to_timestamp,
+                "limit": limit,
+            },
+        )
+        rows = result.fetchall()
+
+        return [TopIP(ip_address=str(row.ip_address), event_count=row.event_count) for row in rows]
 
     async def get_global_top_ips(
         self, from_timestamp: datetime, to_timestamp: datetime, limit: int = 5

@@ -13,7 +13,7 @@ import Map, {
 import type { LayerSpecification } from "maplibre-gl"
 import "maplibre-gl/dist/maplibre-gl.css"
 
-import { useGeoJSON } from "@/lib/queries"
+import { useGeoJSON, useGlobalTopIPs } from "@/lib/queries"
 import { useMapStyle } from "./hooks/useMapStyle"
 import { MapControls } from "./MapControls"
 import { MapLegend } from "./MapLegend"
@@ -247,7 +247,10 @@ const unclusteredPointLabelLayer: LayerSpecification = {
 export default function GeoMap() {
   const mapRef = useRef<MapRef>(null)
   const { mapStyle } = useMapStyle()
-  const { data: geojson, isLoading, isError, error } = useGeoJSON()
+  const { data: geojson, isLoading: isLoadingGeoJSON, isError, error } = useGeoJSON()
+  const { data: globalTopIPs, isLoading: isLoadingTopIPs } = useGlobalTopIPs()
+
+  const isLoading = isLoadingGeoJSON || isLoadingTopIPs
 
   const [viewState, setViewState] = useState(INITIAL_VIEW_STATE)
   const [activeLayer, setActiveLayer] = useState<LayerType>("markers")
@@ -427,7 +430,8 @@ export default function GeoMap() {
         onLayerChange={setActiveLayer}
         onFitBounds={fitToBounds}
         isLoading={isLoading}
-        featureStats={geojson?.stats ?? { events: 0, countries: 0, cities: 0, locations: 0, top_ips: [] }}
+        featureStats={geojson?.stats ?? { events: 0, countries: 0, cities: 0, locations: 0 }}
+        topIPs={globalTopIPs?.top_ips ?? []}
         onFlyToLocation={flyToLocation}
       />
 

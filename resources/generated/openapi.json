@@ -207,12 +207,6 @@
           "locations": {
             "default": 0,
             "type": "integer"
-          },
-          "top_ips": {
-            "items": {
-              "$ref": "#/components/schemas/TopIPDTO"
-            },
-            "type": "array"
           }
         },
         "required": [],
@@ -239,6 +233,19 @@
         },
         "required": [],
         "title": "GeoJSONPointGeometry",
+        "type": "object"
+      },
+      "GlobalTopIPsResponse": {
+        "properties": {
+          "top_ips": {
+            "items": {
+              "$ref": "#/components/schemas/TopIPDTO"
+            },
+            "type": "array"
+          }
+        },
+        "required": [],
+        "title": "GlobalTopIPsResponse",
         "type": "object"
       },
       "ListAccessLogDebugsAccessLogDebugResponseBody": {
@@ -661,6 +668,24 @@
           "longitude"
         ],
         "title": "ListGeoLocationsGeoLocationResponseBody",
+        "type": "object"
+      },
+      "LocationTopIPsResponse": {
+        "properties": {
+          "location_id": {
+            "type": "integer"
+          },
+          "top_ips": {
+            "items": {
+              "$ref": "#/components/schemas/TopIPDTO"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "location_id"
+        ],
+        "title": "LocationTopIPsResponse",
         "type": "object"
       },
       "PercentChange": {
@@ -1652,6 +1677,263 @@
           }
         },
         "summary": "GetGeojson",
+        "tags": [
+          "Geo Locations"
+        ]
+      }
+    },
+    "/api/v1/geo-locations/top-ips": {
+      "get": {
+        "deprecated": false,
+        "description": "Get global top IPs by event count with their primary locations.",
+        "operationId": "ApiV1GeoLocationsTopIpsGetGlobalTopIps",
+        "parameters": [
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)",
+            "examples": {
+              "from_timestamp-example-1": {
+                "value": "2024-01-01T00:00:00Z"
+              }
+            },
+            "in": "query",
+            "name": "from_timestamp",
+            "required": true,
+            "schema": {
+              "description": "Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)",
+              "examples": [
+                "2024-01-01T00:00:00Z"
+              ],
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)",
+            "examples": {
+              "to_timestamp-example-1": {
+                "value": "2024-12-31T23:59:59Z"
+              }
+            },
+            "in": "query",
+            "name": "to_timestamp",
+            "required": true,
+            "schema": {
+              "description": "End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)",
+              "examples": [
+                "2024-12-31T23:59:59Z"
+              ],
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Maximum number of IPs to return",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 5,
+              "description": "Maximum number of IPs to return",
+              "maximum": 20.0,
+              "minimum": 1.0,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GlobalTopIPsResponse"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "GetGlobalTopIps",
+        "tags": [
+          "Geo Locations"
+        ]
+      }
+    },
+    "/api/v1/geo-locations/{location_id}/top-ips": {
+      "get": {
+        "deprecated": false,
+        "description": "Get top IPs for a specific location.",
+        "operationId": "ApiV1GeoLocationsLocationIdTopIpsGetLocationTopIps",
+        "parameters": [
+          {
+            "deprecated": false,
+            "in": "path",
+            "name": "location_id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)",
+            "examples": {
+              "from_timestamp-example-1": {
+                "value": "2024-01-01T00:00:00Z"
+              }
+            },
+            "in": "query",
+            "name": "from_timestamp",
+            "required": true,
+            "schema": {
+              "description": "Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)",
+              "examples": [
+                "2024-01-01T00:00:00Z"
+              ],
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)",
+            "examples": {
+              "to_timestamp-example-1": {
+                "value": "2024-12-31T23:59:59Z"
+              }
+            },
+            "in": "query",
+            "name": "to_timestamp",
+            "required": true,
+            "schema": {
+              "description": "End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)",
+              "examples": [
+                "2024-12-31T23:59:59Z"
+              ],
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Maximum number of IPs to return",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 5,
+              "description": "Maximum number of IPs to return",
+              "maximum": 20.0,
+              "minimum": 1.0,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LocationTopIPsResponse"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "GetLocationTopIps",
         "tags": [
           "Geo Locations"
         ]

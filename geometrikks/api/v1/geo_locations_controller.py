@@ -22,6 +22,8 @@ from geometrikks.domain.geo.dtos import (
     GeoJSONFeatureProperties,
     GeoJSONFeatureStats,
     TopIPDTO,
+    LocationTopIPsResponse,
+    GlobalTopIPsResponse,
 )
 
 from geometrikks.api.dependencies import provide_geo_location_repo
@@ -92,36 +94,17 @@ class GeoLocationController(Controller):
         locations_with_counts = await geo_location_repo.get_all_with_event_counts(
             from_timestamp, to_timestamp
         )
-
-        events: int = sum(loc.event_count for loc in locations_with_counts) # Total event count
+        
+        events: int = sum(loc.event_count for loc in locations_with_counts)
         countries: int = len({loc.location.country_code for loc in locations_with_counts if loc.location.country_code})
         cities: int = len({loc.location.city for loc in locations_with_counts if loc.location.city})
-        unique_locations: int = len(locations_with_counts)  # Assuming each location represents
-
-        # Get global top 5 IPs with their locations
-        global_top_ips_data = await geo_location_repo.get_global_top_ips(from_timestamp, to_timestamp)
-        global_top_ips = [
-            TopIPDTO(
-                ip_address=ip,
-                event_count=count,
-                location=EmbeddedLocationDTO(
-                    id=loc.id,
-                    latitude=loc.latitude,
-                    longitude=loc.longitude,
-                    city=loc.city,
-                    country_code=loc.country_code,
-                    country_name=loc.country_name,
-                ),
-            )
-            for ip, count, loc in global_top_ips_data
-        ]
+        unique_locations: int = len(locations_with_counts)
 
         stats = GeoJSONFeatureStats(
             events=events,
             countries=countries,
             cities=cities,
             locations=unique_locations,
-            top_ips=global_top_ips,
         )
         features = [
             GeoJSONFeature(
@@ -142,13 +125,103 @@ class GeoLocationController(Controller):
                     timezone=loc.location.timezone,
                     event_count=loc.event_count,
                     last_hit=loc.location.last_hit,
-                    top_ips=[
-                        TopIPDTO(ip_address=ip.ip_address, event_count=ip.event_count)
-                        for ip in loc.top_ips
-                    ],
                 ),
             )
             for loc in locations_with_counts
         ]
-
         return GeoJSONFeatureCollection(type="FeatureCollection", features=features, stats=stats)
+
+    @get("/top-ips", return_dto=None, description="Get global top IPs by event count with their primary locations.")
+    async def get_global_top_ips(
+        self,
+        geo_location_repo: GeoLocationRepository,
+        from_timestamp: Annotated[
+            datetime,
+            Parameter(
+                description="Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)",
+                examples=[Example(value="2024-01-01T00:00:00Z")],
+            ),
+        ],
+        to_timestamp: Annotated[
+            datetime,
+            Parameter(
+                description="End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)",
+                examples=[Example(value="2024-12-31T23:59:59Z")],
+            ),
+        ],
+        limit: Annotated[
+            int,
+            Parameter(description="Maximum number of IPs to return", ge=1, le=20),
+        ] = 5,
+    ) -> GlobalTopIPsResponse:
+        """Get global top IPs by event count with their primary locations.
+
+        Returns the top N IPs globally with the highest event counts,
+        along with the location where each IP has the most events.
+        """
+        if from_timestamp is not None and from_timestamp.tzinfo is None:
+            from_timestamp = from_timestamp.replace(tzinfo=timezone.utc)
+        if to_timestamp is not None and to_timestamp.tzinfo is None:
+            to_timestamp = to_timestamp.replace(tzinfo=timezone.utc)
+
+        global_top_ips_data = await geo_location_repo.get_global_top_ips(
+            from_timestamp, to_timestamp, limit=limit
+        )
+        top_ips = [
+            TopIPDTO(
+                ip_address=ip,
+                event_count=count,
+                location=EmbeddedLocationDTO(
+                    id=loc.id,
+                    latitude=loc.latitude,
+                    longitude=loc.longitude,
+                    city=loc.city,
+                    country_code=loc.country_code,
+                    country_name=loc.country_name,
+                ),
+            )
+            for ip, count, loc in global_top_ips_data
+        ]
+        return GlobalTopIPsResponse(top_ips=top_ips)
+
+    @get("/{location_id:int}/top-ips", return_dto=None, description="Get top IPs for a specific location.")
+    async def get_location_top_ips(
+        self,
+        geo_location_repo: GeoLocationRepository,
+        location_id: int,
+        from_timestamp: Annotated[
+            datetime,
+            Parameter(
+                description="Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)",
+                examples=[Example(value="2024-01-01T00:00:00Z")],
+            ),
+        ],
+        to_timestamp: Annotated[
+            datetime,
+            Parameter(
+                description="End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)",
+                examples=[Example(value="2024-12-31T23:59:59Z")],
+            ),
+        ],
+        limit: Annotated[
+            int,
+            Parameter(description="Maximum number of IPs to return", ge=1, le=20),
+        ] = 5,
+    ) -> LocationTopIPsResponse:
+        """Get top IPs for a specific location.
+
+        Returns the top N IPs with the highest event counts for the given location.
+        """
+        if from_timestamp is not None and from_timestamp.tzinfo is None:
+            from_timestamp = from_timestamp.replace(tzinfo=timezone.utc)
+        if to_timestamp is not None and to_timestamp.tzinfo is None:
+            to_timestamp = to_timestamp.replace(tzinfo=timezone.utc)
+
+        top_ips_data = await geo_location_repo.get_location_top_ips(
+            location_id, from_timestamp, to_timestamp, limit=limit
+        )
+        top_ips = [
+            TopIPDTO(ip_address=ip.ip_address, event_count=ip.event_count)
+            for ip in top_ips_data
+        ]
+        return LocationTopIPsResponse(location_id=location_id, top_ips=top_ips)

@@ -6,16 +6,16 @@ import { useQuery } from "@tanstack/react-query"
 import {
   fetchSummary,
   fetchLiveSummary,
-  fetchRequestsTimeSeries,
-  fetchPerformanceTimeSeries,
-  fetchGeoEventsTimeSeries,
   fetchGeoJSON,
+  fetchGlobalTopIPs,
+  fetchLocationTopIPs,
   parseTimeRange,
   parseStatsTimeRange,
   getGranularityForRange,
   type SummaryParams,
   type TimeSeriesParams,
-
+  type GlobalTopIPsResponse,
+  type LocationTopIPsResponse,
 } from "./api"
 import { useTimeRange } from "./time-range-context"
 
@@ -30,17 +30,15 @@ export const queryKeys = {
       [...queryKeys.analytics.all, "summary", params, refreshKey] as const,
     liveSummary: (params: Record<string, unknown>, refreshKey?: number) =>
       [...queryKeys.analytics.all, "live-summary", params, refreshKey] as const,
-    requestsTimeSeries: (params: Record<string, unknown>, refreshKey?: number) =>
-      [...queryKeys.analytics.all, "requests-time-series", params, refreshKey] as const,
-    performanceTimeSeries: (params: Record<string, unknown>, refreshKey?: number) =>
-      [...queryKeys.analytics.all, "performance-time-series", params, refreshKey] as const,
-    geoEventsTimeSeries: (params: Record<string, unknown>, refreshKey?: number) =>
-      [...queryKeys.analytics.all, "geo-events-time-series", params, refreshKey] as const,
   },
   geo: {
     all: ["geo"] as const,
     geojson: (params: Record<string, unknown>, refreshKey?: number) =>
       [...queryKeys.geo.all, "geojson", params, refreshKey] as const,
+    globalTopIPs: (params: Record<string, unknown>, refreshKey?: number) =>
+      [...queryKeys.geo.all, "global-top-ips", params, refreshKey] as const,
+    locationTopIPs: (locationId: number, params: Record<string, unknown>, refreshKey?: number) =>
+      [...queryKeys.geo.all, "location-top-ips", locationId, params, refreshKey] as const,
   },
 }
 
@@ -114,83 +112,6 @@ export interface UseTimeSeriesOptions {
   enabled?: boolean
 }
 
-/**
- * Fetch requests time-series data for charts.
- * Uses TimeRangeContext for time range and poll interval.
- */
-export function useRequestsTimeSeries(options: UseTimeSeriesOptions = {}) {
-  const { granularity: granularityOverride, enabled = true } = options
-  const { range, pollInterval, lastRefresh } = useTimeRange()
-
-  // Use lastRefresh as reference time for stable query keys
-  const { startDate, endDate } = parseTimeRange(range, lastRefresh)
-  const granularity = granularityOverride ?? getGranularityForRange(range)
-  const params: TimeSeriesParams = {
-    startDate,
-    endDate,
-    granularity,
-  }
-
-  return useQuery({
-    queryKey: queryKeys.analytics.requestsTimeSeries({ range, granularity }, lastRefresh),
-    queryFn: () => fetchRequestsTimeSeries(params),
-    enabled,
-    staleTime: 30 * 1000,
-    refetchInterval: pollInterval || false,
-  })
-}
-
-/**
- * Fetch performance time-series data for charts.
- * Uses TimeRangeContext for time range and poll interval.
- */
-export function usePerformanceTimeSeries(options: UseTimeSeriesOptions = {}) {
-  const { granularity: granularityOverride, enabled = true } = options
-  const { range, pollInterval, lastRefresh } = useTimeRange()
-
-  // Use lastRefresh as reference time for stable query keys
-  const { startDate, endDate } = parseTimeRange(range, lastRefresh)
-  const granularity = granularityOverride ?? getGranularityForRange(range)
-  const params: TimeSeriesParams = {
-    startDate,
-    endDate,
-    granularity,
-  }
-
-  return useQuery({
-    queryKey: queryKeys.analytics.performanceTimeSeries({ range, granularity }, lastRefresh),
-    queryFn: () => fetchPerformanceTimeSeries(params),
-    enabled,
-    staleTime: 30 * 1000,
-    refetchInterval: pollInterval || false,
-  })
-}
-
-/**
- * Fetch geo events time-series data for charts.
- * Uses TimeRangeContext for time range and poll interval.
- */
-export function useGeoEventsTimeSeries(options: UseTimeSeriesOptions = {}) {
-  const { granularity: granularityOverride, enabled = true } = options
-  const { range, pollInterval, lastRefresh } = useTimeRange()
-
-  // Use lastRefresh as reference time for stable query keys
-  const { startDate, endDate } = parseTimeRange(range, lastRefresh)
-  const granularity = granularityOverride ?? getGranularityForRange(range)
-  const params: TimeSeriesParams = {
-    startDate,
-    endDate,
-    granularity,
-  }
-
-  return useQuery({
-    queryKey: queryKeys.analytics.geoEventsTimeSeries({ range, granularity }, lastRefresh),
-    queryFn: () => fetchGeoEventsTimeSeries(params),
-    enabled,
-    staleTime: 30 * 1000,
-    refetchInterval: pollInterval || false,
-  })
-}
 
 export interface UseGeoJSONOptions {
   /** Enable/disable the query */
@@ -219,5 +140,71 @@ export function useGeoJSON(options: UseGeoJSONOptions = {}) {
     enabled,
     staleTime: 60 * 1000, // Geo data changes less frequently
     refetchInterval: pollInterval || false,
+  })
+}
+
+export interface UseGlobalTopIPsOptions {
+  /** Enable/disable the query */
+  enabled?: boolean
+  /** Maximum number of IPs to return */
+  limit?: number
+}
+
+/**
+ * Fetch global top IPs by event count.
+ * Uses TimeRangeContext for time filtering.
+ */
+export function useGlobalTopIPs(options: UseGlobalTopIPsOptions = {}) {
+  const { enabled = true, limit = 5 } = options
+  const { range, pollInterval, lastRefresh } = useTimeRange()
+
+  return useQuery<GlobalTopIPsResponse>({
+    queryKey: queryKeys.geo.globalTopIPs({ range, limit }, lastRefresh),
+    queryFn: () => {
+      const { startDate, endDate } = parseTimeRange(range, Date.now())
+      return fetchGlobalTopIPs({
+        fromTimestamp: startDate,
+        toTimestamp: endDate,
+        limit,
+      })
+    },
+    enabled,
+    staleTime: 60 * 1000,
+    refetchInterval: pollInterval || false,
+  })
+}
+
+export interface UseLocationTopIPsOptions {
+  /** Enable/disable the query */
+  enabled?: boolean
+  /** Maximum number of IPs to return */
+  limit?: number
+}
+
+/**
+ * Fetch top IPs for a specific location.
+ * Uses TimeRangeContext for time filtering.
+ */
+export function useLocationTopIPs(locationId: number | null, options: UseLocationTopIPsOptions = {}) {
+  const { enabled = true, limit = 5 } = options
+  const { range, lastRefresh } = useTimeRange()
+
+  return useQuery<LocationTopIPsResponse>({
+    queryKey: queryKeys.geo.locationTopIPs(locationId ?? 0, { range, limit }, lastRefresh),
+    queryFn: () => {
+      if (locationId === null) {
+        throw new Error("locationId is required")
+      }
+      const { startDate, endDate } = parseTimeRange(range, Date.now())
+      return fetchLocationTopIPs({
+        locationId,
+        fromTimestamp: startDate,
+        toTimestamp: endDate,
+        limit,
+      })
+    },
+    enabled: enabled && locationId !== null,
+    staleTime: 60 * 1000,
+    // No polling for location-specific data (on-demand only)
   })
 }
