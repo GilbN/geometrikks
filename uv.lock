@@ -503,6 +503,8 @@ dependencies = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "faker" },
+    { name = "polyfactory" },
     { name = "pytest" },
     { name = "pytest-asyncio" },
     { name = "pytest-cov" },
@@ -531,6 +533,8 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "faker", specifier = ">=33.0.0" },
+    { name = "polyfactory", specifier = ">=2.18.0" },
     { name = "pytest", specifier = ">=9.0.1" },
     { name = "pytest-asyncio", specifier = ">=1.3.0" },
     { name = "pytest-cov", specifier = ">=7.0.0" },
