@@ -11,9 +11,8 @@ from litestar.params import Parameter
 from litestar.openapi.spec import Example
 
 from geometrikks.domain.analytics.repositories import (
-    HourlyStatsRepository,
-    DailyStatsRepository,
     LiveStatsRepository,
+    SummaryStatsRepository,
     SummaryStats,
 )
 from geometrikks.domain.analytics.dtos import (
@@ -23,9 +22,8 @@ from geometrikks.domain.analytics.dtos import (
 )
 
 from geometrikks.api.dependencies import (
-    provide_hourly_stats_repo,
-    provide_daily_stats_repo,
     provide_live_stats_repo,
+    provice_summary_stats_repo
 )
 
 
@@ -43,16 +41,14 @@ class AnalyticsController(Controller):
     tags = ["Analytics"]
 
     dependencies = {
-        "hourly_stats_repo": Provide(provide_hourly_stats_repo),
-        "daily_stats_repo": Provide(provide_daily_stats_repo),
         "live_stats_repo": Provide(provide_live_stats_repo),
+        "summary_stats_repo": Provide(provice_summary_stats_repo),
     }
 
     @get("/summary", description="Get summary statistics for dashboard header cards.")
     async def get_summary(
         self,
-        hourly_stats_repo: HourlyStatsRepository,
-        daily_stats_repo: DailyStatsRepository,
+        summary_stats_repo: SummaryStatsRepository,
         start_date: Annotated[
             datetime,
             Parameter(
@@ -82,7 +78,7 @@ class AnalyticsController(Controller):
         """
 
         # Get current period stats
-        current_stats: SummaryStats | None = await hourly_stats_repo.get_summary(start_date, end_date)
+        current_stats: SummaryStats | None = await summary_stats_repo.get_summary(start_date, end_date)
 
         if current_stats is None:
             # Return empty summary if no data
@@ -134,7 +130,7 @@ class AnalyticsController(Controller):
             prev_end: datetime = start_date - timedelta(seconds=1)
             prev_start: datetime = prev_end - period_length
 
-            prev_stats: SummaryStats | None = await hourly_stats_repo.get_summary(prev_start, prev_end)
+            prev_stats: SummaryStats | None = await summary_stats_repo.get_summary(prev_start, prev_end)
 
             if prev_stats:
                 previous_period = PeriodSummary(

@@ -81,7 +81,6 @@ class GeoEvent(base.BigIntBase):
 
     __tablename__ = "geo_events"
 
-    # Event timestamp (main query field - use BRIN index in PostgreSQL)
     timestamp: Mapped[datetime] = mapped_column(
         DateTimeUTC(timezone=True),
         nullable=False,
@@ -109,9 +108,12 @@ class GeoEvent(base.BigIntBase):
         "GeoLocation", back_populates="geo_events", lazy="selectin"
     )
 
-    # Composite index for efficient LATERAL JOIN queries (top IPs per location)
+    # Indexes optimized for TimescaleDB hypertable
+    # Note: Aggregation queries (count by location/ip) use continuous aggregate instead of indexes
     __table_args__ = (
+        Index("ix_geo_events_timestamp_desc", "timestamp", postgresql_using="brin"),
         Index("ix_geo_events_location_timestamp", "location_id", timestamp.desc()),
+        Index("ix_geo_events_ip_timestamp", "ip_address", timestamp.desc()),
     )
 
     def __repr__(self) -> str:

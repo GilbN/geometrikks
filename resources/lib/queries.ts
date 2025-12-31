@@ -59,10 +59,10 @@ export interface UseSummaryOptions {
  */
 export function useSummary(options: UseSummaryOptions = {}) {
   const { comparePrevious = true, enabled = true } = options
-  const { statsRange, pollInterval, lastRefresh } = useTimeRange()
+  const { range, pollInterval, lastRefresh } = useTimeRange()
 
   // Use statsRange (hourly minimum) for summary stats queries
-  const { startDate, endDate } = parseStatsTimeRange(statsRange, lastRefresh)
+  const { startDate, endDate } = parseTimeRange(range, Date.now())
   const params: SummaryParams = {
     startDate,
     endDate,
@@ -71,11 +71,11 @@ export function useSummary(options: UseSummaryOptions = {}) {
 
   return useQuery({
     // Query key uses statsRange + lastRefresh for stability
-    queryKey: queryKeys.analytics.summary({ statsRange, comparePrevious }, lastRefresh),
+    queryKey: queryKeys.analytics.summary({ range, comparePrevious }, lastRefresh),
     queryFn: () => fetchSummary(params),
     enabled,
-    staleTime: 30 * 1000, // 30 seconds
-    refetchInterval: pollInterval || false, // 0 = disabled
+    staleTime: 15 * 1000, // 15 seconds
+    refetchInterval: pollInterval || false,
   })
 }
 

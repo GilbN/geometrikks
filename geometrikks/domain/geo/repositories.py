@@ -1,13 +1,61 @@
-"""Repositories for geo-location and geo-event data access."""
+"""Repositories for geo-location and geo-event data access.
+
+CAGG Routing:
+- RAW (geo_events): For time ranges <= 1 hour (exact granularity needed)
+- location_hourly_stats: For time ranges > 1 hour and <= 7 days
+- location_daily_stats: For time ranges > 7 days
+- ip_location_daily_stats: For top IPs queries (time ranges > 1 hour)
+
+Note: TimescaleDB real-time aggregation handles recent data for CAGGs,
+but CAGGs only provide bucket-level granularity. For sub-hour ranges,
+we query raw tables to get exact time range results.
+"""
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
+from enum import Enum
 
-from sqlalchemy import select, func, text
+from sqlalchemy import text
 from advanced_alchemy.repository import SQLAlchemyAsyncRepository
 
 from geometrikks.domain.geo.models import GeoLocation, GeoEvent
+
+logger = logging.getLogger(__name__)
+
+
+class StatsGranularity(Enum):
+    """Granularity for query routing."""
+
+    RAW = "raw"  # geo_events table (≤ 1 hour) - exact granularity
+    HOURLY = "hourly"  # location_hourly_stats (> 1 hour, ≤ 7 days)
+    DAILY = "daily"  # location_daily_stats (> 7 days)
+
+
+def get_stats_granularity(from_timestamp: datetime, to_timestamp: datetime) -> StatsGranularity:
+    """Determine the optimal query source based on time range duration.
+
+    Routing logic:
+    - ≤ 1 hour: RAW (query geo_events for exact granularity)
+    - > 1 hour, ≤ 7 days: HOURLY CAGG
+    - > 7 days: DAILY CAGG
+
+    Args:
+        from_timestamp: Start of time range.
+        to_timestamp: End of time range.
+
+    Returns:
+        StatsGranularity indicating which source to query.
+    """
+    duration = to_timestamp - from_timestamp
+
+    if duration <= timedelta(hours=1):
+        return StatsGranularity.RAW
+    elif duration <= timedelta(days=7):
+        return StatsGranularity.HOURLY
+    else:
+        return StatsGranularity.DAILY
 
 
 @dataclass
@@ -58,7 +106,10 @@ class GeoLocationRepository(SQLAlchemyAsyncRepository[GeoLocation]):
     ) -> list[LocationWithEventCount]:
         """Retrieve all GeoLocations with their associated event counts.
 
-        Uses a simple GROUP BY query for fast aggregation without per-location top IPs.
+        Routes to optimal source based on time range:
+        - ≤ 1 hour: RAW geo_events table (exact granularity)
+        - > 1 hour, ≤ 7 days: location_hourly_stats CAGG
+        - > 7 days: location_daily_stats CAGG
 
         Args:
             from_timestamp: Start datetime for filtering events.
@@ -75,16 +126,45 @@ class GeoLocationRepository(SQLAlchemyAsyncRepository[GeoLocation]):
         if not from_timestamp.tzinfo or not to_timestamp.tzinfo:
             raise ValueError("from_timestamp and to_timestamp must be timezone-aware")
 
-        stmt = text("""
-            SELECT
-                gl.*,
-                CAST(COUNT(ge.id) AS INTEGER) as event_count
-            FROM geo_locations gl
-            JOIN geo_events ge ON ge.location_id = gl.id
-            WHERE ge.timestamp BETWEEN :from_ts AND :to_ts
-            GROUP BY gl.id
-            ORDER BY event_count DESC
-        """)
+        granularity = get_stats_granularity(from_timestamp, to_timestamp)
+
+        logger.debug(
+            "get_all_with_event_counts: using %s for range %s to %s",
+            granularity.value,
+            from_timestamp,
+            to_timestamp,
+        )
+
+        if granularity == StatsGranularity.RAW:
+            # Query raw geo_events table for exact time range granularity
+            stmt = text("""
+                SELECT
+                    gl.*,
+                    CAST(COUNT(ge.id) AS INTEGER) AS event_count
+                FROM geo_locations gl
+                JOIN geo_events ge ON ge.location_id = gl.id
+                WHERE ge.timestamp >= :from_ts AND ge.timestamp < :to_ts
+                GROUP BY gl.id
+                ORDER BY event_count DESC
+            """)
+        else:
+            # Query appropriate CAGG
+            table = f"location_{granularity.value}_stats"
+            bucket_interval = "1 hour" if granularity == StatsGranularity.HOURLY else "1 day"
+
+            # Floor start time to bucket boundary for CAGG queries
+            # Use CAST() instead of :: to avoid SQLAlchemy parameter parsing issues
+            stmt = text(f"""
+                SELECT
+                    gl.*,
+                    CAST(COALESCE(SUM(ls.event_count), 0) AS INTEGER) AS event_count
+                FROM geo_locations gl
+                JOIN {table} ls ON ls.location_id = gl.id
+                WHERE ls.bucket >= time_bucket('{bucket_interval}', CAST(:from_ts AS timestamptz))
+                  AND ls.bucket < :to_ts
+                GROUP BY gl.id
+                ORDER BY event_count DESC
+            """)
 
         result = await self.session.execute(
             stmt, {"from_ts": from_timestamp, "to_ts": to_timestamp}
@@ -123,6 +203,10 @@ class GeoLocationRepository(SQLAlchemyAsyncRepository[GeoLocation]):
     ) -> list[TopIP]:
         """Get top N IPs for a specific location by event count.
 
+        Routes to optimal source based on time range:
+        - ≤ 1 hour: RAW geo_events table
+        - > 1 hour: ip_location_daily_stats CAGG
+
         Args:
             location_id: The location ID to get top IPs for.
             from_timestamp: Start datetime for filtering events.
@@ -137,17 +221,44 @@ class GeoLocationRepository(SQLAlchemyAsyncRepository[GeoLocation]):
         if not from_timestamp.tzinfo or not to_timestamp.tzinfo:
             raise ValueError("from_timestamp and to_timestamp must be timezone-aware")
 
-        stmt = text("""
-            SELECT
-                ip_address,
-                CAST(COUNT(*) AS INTEGER) as event_count
-            FROM geo_events
-            WHERE location_id = :location_id
-              AND timestamp BETWEEN :from_ts AND :to_ts
-            GROUP BY ip_address
-            ORDER BY event_count DESC
-            LIMIT :limit
-        """)
+        granularity = get_stats_granularity(from_timestamp, to_timestamp)
+
+        logger.debug(
+            "get_location_top_ips: using %s for location %d, range %s to %s",
+            granularity.value,
+            location_id,
+            from_timestamp,
+            to_timestamp,
+        )
+
+        if granularity == StatsGranularity.RAW:
+            # Query raw geo_events table for exact time range granularity
+            stmt = text("""
+                SELECT
+                    ip_address,
+                    CAST(COUNT(*) AS INTEGER) AS event_count
+                FROM geo_events
+                WHERE location_id = :location_id
+                  AND timestamp >= :from_ts AND timestamp < :to_ts
+                GROUP BY ip_address
+                ORDER BY event_count DESC
+                LIMIT :limit
+            """)
+        else:
+            # Query daily CAGG - TimescaleDB real-time aggregation handles recent data
+            # Floor to day boundary for CAGG query
+            stmt = text("""
+                SELECT
+                    ip_address,
+                    CAST(SUM(event_count) AS INTEGER) AS event_count
+                FROM ip_location_daily_stats
+                WHERE location_id = :location_id
+                  AND bucket >= time_bucket('1 day', CAST(:from_ts AS timestamptz))
+                  AND bucket < :to_ts
+                GROUP BY ip_address
+                ORDER BY event_count DESC
+                LIMIT :limit
+            """)
 
         result = await self.session.execute(
             stmt,
@@ -167,6 +278,10 @@ class GeoLocationRepository(SQLAlchemyAsyncRepository[GeoLocation]):
     ) -> list[tuple[str, int, GeoLocation]]:
         """Get global top N IPs by event count with their primary location.
 
+        Routes to optimal source based on time range:
+        - ≤ 1 hour: RAW geo_events table
+        - > 1 hour: ip_location_daily_stats CAGG
+
         For IPs that appear in multiple locations, returns the location
         where they have the highest event count.
 
@@ -178,29 +293,59 @@ class GeoLocationRepository(SQLAlchemyAsyncRepository[GeoLocation]):
         Returns:
             List of tuples containing (ip_address, event_count, GeoLocation).
         """
-        # Get top IPs with their most common location
-        stmt = (
-            select(
-                GeoEvent.ip_address,
-                func.count().label("event_count"),
-                GeoEvent.location_id,
-            )
-            .where(GeoEvent.timestamp.between(from_timestamp, to_timestamp))
-            .group_by(GeoEvent.ip_address, GeoEvent.location_id)
-            .order_by(func.count().desc())
-            .limit(limit * 2)  # Get extra to dedupe IPs
+        granularity = get_stats_granularity(from_timestamp, to_timestamp)
+
+        logger.debug(
+            "get_global_top_ips: using %s for range %s to %s",
+            granularity.value,
+            from_timestamp,
+            to_timestamp,
         )
-        result = await self.session.execute(stmt)
+
+        if granularity == StatsGranularity.RAW:
+            # Query raw geo_events table for exact time range granularity
+            stmt = text("""
+                SELECT
+                    CAST(COUNT(*) AS INTEGER) AS total_count,
+                    location_id,
+                    ip_address
+                FROM geo_events
+                WHERE timestamp >= :from_ts AND timestamp < :to_ts
+                GROUP BY location_id, ip_address
+                ORDER BY total_count DESC
+                LIMIT :fetch_limit
+            """)
+        else:
+            # Query daily CAGG - TimescaleDB real-time aggregation handles recent data
+            # Floor to day boundary for CAGG query
+            stmt = text("""
+                SELECT
+                    CAST(SUM(event_count) AS INTEGER) AS total_count,
+                    location_id,
+                    ip_address
+                FROM ip_location_daily_stats
+                WHERE bucket >= time_bucket('1 day', CAST(:from_ts AS timestamptz))
+                  AND bucket < :to_ts
+                GROUP BY location_id, ip_address
+                ORDER BY total_count DESC
+                LIMIT :fetch_limit
+            """)
+
+        result = await self.session.execute(stmt, {
+            "from_ts": from_timestamp,
+            "to_ts": to_timestamp,
+            "fetch_limit": limit * 10,  # Fetch more to account for deduplication
+        })
 
         # Dedupe by IP, keeping highest count location
         seen_ips: set[str] = set()
         top_ips: list[tuple[str, int, GeoLocation]] = []
-        for ip, count, loc_id in result.all():
+        for total_count, loc_id, ip in result.all():
             if ip not in seen_ips and len(top_ips) < limit:
                 seen_ips.add(ip)
                 location = await self.session.get(GeoLocation, loc_id)
                 if location:
-                    top_ips.append((ip, count, location))
+                    top_ips.append((ip, total_count, location))
 
         return top_ips
 

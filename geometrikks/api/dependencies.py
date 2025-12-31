@@ -17,11 +17,10 @@ from litestar.status_codes import HTTP_409_CONFLICT
 from geometrikks.services.logparser import LogParser
 from geometrikks.services.ingestion import LogIngestionService
 from geometrikks.server.plugins import parser
-from geometrikks.domain.geo.models import GeoEvent, GeoLocation
+from geometrikks.domain.geo.models import GeoEvent
 from geometrikks.domain.geo.repositories import GeoLocationRepository, GeoEventRepository
-from geometrikks.domain.logs.models import AccessLogDebug
 from geometrikks.domain.logs.repositories import AccessLogRepository, AccessLogDebugRepository
-from geometrikks.domain.analytics.repositories import HourlyStatsRepository, DailyStatsRepository, LiveStatsRepository
+from geometrikks.domain.analytics.repositories import LiveStatsRepository, SummaryStatsRepository
 
 
 def provide_parser() -> LogParser:
@@ -109,19 +108,11 @@ def provide_limit_offset_pagination(
     return filters.LimitOffset(page_size, page_size * (current_page - 1))
 
 
-async def provide_hourly_stats_repo(
+async def provice_summary_stats_repo(
     db_session: AsyncSession,
-) -> HourlyStatsRepository:
-    """Provide HourlyStatsRepository."""
-    return HourlyStatsRepository(session=db_session)
-
-
-async def provide_daily_stats_repo(
-    db_session: AsyncSession,
-) -> DailyStatsRepository:
-    """Provide DailyStatsRepository."""
-    return DailyStatsRepository(session=db_session)
-
+) -> SummaryStatsRepository:
+    """Provide SummaryStatsRepository for querying summary statistics."""
+    return SummaryStatsRepository(session=db_session)
 
 async def provide_live_stats_repo(
     db_session: AsyncSession,

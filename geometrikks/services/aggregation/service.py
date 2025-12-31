@@ -1,12 +1,19 @@
 """Aggregation service for analytics - simplified for TimescaleDB.
 
 TimescaleDB continuous aggregates handle:
-- Real-time hourly aggregation (replaces increment_hourly_stats)
-- Daily rollups (replaces compute_daily_rollup)
-- Retention cleanup (via retention policies)
+- Real-time aggregation with automatic refresh policies
+- HyperLogLog sketches for unique counts
+- Retention policies
 
-This service now only handles tasks that require application logic:
+This service handles tasks that require application logic:
 - GeoLocation.last_hit refresh (updates regular table from hypertable data)
+- Manual CAGG refresh for backfilling
+
+CAGG Structure:
+- summary_hourly_stats / summary_daily_stats: Access log metrics
+- geo_summary_hourly_stats / geo_summary_daily_stats: Geo metrics with HyperLogLog
+- location_hourly_stats / location_daily_stats: Location event counts for map
+- ip_location_daily_stats: Per-IP counts by location for top IPs
 """
 
 from __future__ import annotations
@@ -23,11 +30,23 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+# List of all CAGGs for refresh operations
+ALL_CAGGS = [
+    "summary_hourly_stats",
+    "summary_daily_stats",
+    "geo_summary_hourly_stats",
+    "geo_summary_daily_stats",
+    "location_hourly_stats",
+    "location_daily_stats",
+    "ip_location_daily_stats",
+]
+
+
 class AggregationService:
     """Service for analytics operations not handled by TimescaleDB.
 
     TimescaleDB continuous aggregates automatically handle hourly/daily
-    aggregations. This service provides:
+    aggregations with HyperLogLog for unique counts. This service provides:
     1. GeoLocation.last_hit refresh (updates regular table)
     2. Manual aggregate refresh if needed
 
@@ -86,23 +105,17 @@ class AggregationService:
 
         Call this if you need to update aggregates immediately rather than
         waiting for the scheduled refresh policy. Useful after bulk data imports.
+
+        Note: This uses CALL statements which must be executed outside of
+        a transaction. Consider using the scheduler's refresh functions instead.
         """
-        try:
-            # Refresh hourly stats aggregate
-            await self.session.execute(text("""
-                CALL refresh_continuous_aggregate('hourly_stats_cagg', NULL, NOW())
-            """))
+        for cagg_name in ALL_CAGGS:
+            try:
+                await self.session.execute(
+                    text(f"CALL refresh_continuous_aggregate('{cagg_name}', NULL, NOW())")
+                )
+                logger.info("Refreshed %s", cagg_name)
+            except Exception as e:
+                logger.warning("Failed to refresh %s: %s", cagg_name, e)
 
-            # Refresh geo events hourly aggregate
-            await self.session.execute(text("""
-                CALL refresh_continuous_aggregate('geo_events_hourly_cagg', NULL, NOW())
-            """))
-
-            # Refresh daily stats aggregate
-            await self.session.execute(text("""
-                CALL refresh_continuous_aggregate('daily_stats_cagg', NULL, NOW())
-            """))
-
-            logger.info("Forced refresh of all continuous aggregates")
-        except Exception as e:
-            logger.exception("Failed to force refresh continuous aggregates: %s", e)
+        logger.info("Forced refresh of all continuous aggregates complete")
