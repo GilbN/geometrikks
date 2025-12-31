@@ -8,12 +8,6 @@ TimescaleDB continuous aggregates handle:
 This service handles tasks that require application logic:
 - GeoLocation.last_hit refresh (updates regular table from hypertable data)
 - Manual CAGG refresh for backfilling
-
-CAGG Structure:
-- summary_hourly_stats / summary_daily_stats: Access log metrics
-- geo_summary_hourly_stats / geo_summary_daily_stats: Geo metrics with HyperLogLog
-- location_hourly_stats / location_daily_stats: Location event counts for map
-- ip_location_daily_stats: Per-IP counts by location for top IPs
 """
 
 from __future__ import annotations
@@ -24,22 +18,12 @@ from typing import TYPE_CHECKING
 
 from sqlalchemy import text
 
+from geometrikks.server.timescale import ALL_CAGGS
+
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger(__name__)
-
-
-# List of all CAGGs for refresh operations
-ALL_CAGGS = [
-    "summary_hourly_stats",
-    "summary_daily_stats",
-    "geo_summary_hourly_stats",
-    "geo_summary_daily_stats",
-    "location_hourly_stats",
-    "location_daily_stats",
-    "ip_location_daily_stats",
-]
 
 
 class AggregationService:

@@ -2,17 +2,11 @@
 
 CAGG Refresh Strategy:
 - TimescaleDB continuous aggregates are automatically refreshed by background workers
-  via policies configured in lifecycle.py.
+  via policies configured in timescale.py.
 
 - The scheduler handles supplementary tasks:
   1. GeoLocation.last_hit refresh (updates regular table from hypertable data)
   2. Manual CAGG refresh for backfilling or forcing updates
-
-CAGG Structure:
-- summary_hourly_stats / summary_daily_stats: Access log metrics
-- geo_summary_hourly_stats / geo_summary_daily_stats: Geo metrics with HyperLogLog
-- location_hourly_stats / location_daily_stats: Location event counts for map
-- ip_location_daily_stats: Per-IP counts by location for top IPs
 """
 
 from __future__ import annotations
@@ -25,6 +19,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 
 from geometrikks.server.plugins import sqlalchemy_config
+from geometrikks.server.timescale import ALL_CAGGS
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
@@ -32,18 +27,6 @@ if TYPE_CHECKING:
     from geometrikks.config.settings import Settings
 
 logger = logging.getLogger(__name__)
-
-
-# List of all CAGGs for refresh operations
-ALL_CAGGS = [
-    "summary_hourly_stats",
-    "summary_daily_stats",
-    "geo_summary_hourly_stats",
-    "geo_summary_daily_stats",
-    "location_hourly_stats",
-    "location_daily_stats",
-    "ip_location_daily_stats",
-]
 
 
 # =============================================================================
