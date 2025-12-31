@@ -434,11 +434,54 @@ async def setup_timescaledb(
     logger.info("TimescaleDB setup complete")
 
 
-async def refresh_all_caggs(engine: "AsyncEngine") -> None:
-    """Perform initial refresh of all CAGGs to populate with historical data.
+async def _is_cagg_empty(engine: "AsyncEngine", cagg: str) -> bool:
+    """Check if a CAGG has no materialized data."""
+    async with engine.connect() as conn:
+        result = await conn.execute(text(f"SELECT 1 FROM {cagg} LIMIT 1"))
+        return result.scalar() is None
 
-    This is needed because CAGGs are created with `WITH NO DATA` and the
-    refresh policies only handle incremental updates.
+
+async def refresh_empty_caggs(engine: "AsyncEngine") -> None:
+    """Refresh only CAGGs that have no materialized data.
+
+    This is called on startup to populate empty CAGGs with historical data.
+    CAGGs that already have data are skipped to avoid blocking startup.
+
+    Note: CALL statements must run outside a transaction.
+
+    Args:
+        engine: SQLAlchemy async engine.
+    """
+    refreshed = 0
+    skipped = 0
+
+    for cagg in ALL_CAGGS:
+        try:
+            if not await _is_cagg_empty(engine, cagg):
+                logger.debug("CAGG already has data, skipping: %s", cagg)
+                skipped += 1
+                continue
+
+            async with engine.connect() as conn:
+                raw_conn = await conn.get_raw_connection()
+                await raw_conn.driver_connection.execute(
+                    f"CALL refresh_continuous_aggregate('{cagg}', NULL, NULL)"
+                )
+            logger.info("CAGG refreshed: %s", cagg)
+            refreshed += 1
+        except Exception as e:
+            logger.warning("CAGG refresh failed for %s: %s", cagg, e)
+
+    if refreshed > 0:
+        logger.info("Refreshed %d empty CAGGs, skipped %d with data", refreshed, skipped)
+    else:
+        logger.debug("All CAGGs already have data, no refresh needed")
+
+
+async def refresh_all_caggs(engine: "AsyncEngine") -> None:
+    """Force refresh of all CAGGs regardless of current state.
+
+    Use this for manual refresh or after bulk data imports.
 
     Note: CALL statements must run outside a transaction.
 

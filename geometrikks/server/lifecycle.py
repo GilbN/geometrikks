@@ -13,7 +13,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from geometrikks.config.settings import get_settings
 from geometrikks.server.plugins import parser, sqlalchemy_config
-from geometrikks.server.timescale import setup_timescaledb, refresh_all_caggs
+from geometrikks.server.timescale import setup_timescaledb, refresh_empty_caggs
 
 from geometrikks.domain.geo.repositories import GeoLocationRepository, GeoEventRepository
 from geometrikks.domain.logs.repositories import AccessLogRepository, AccessLogDebugRepository
@@ -68,8 +68,8 @@ async def on_startup(app: "Litestar") -> None:
     # Set up TimescaleDB (hypertables, CAGGs, policies)
     await setup_timescaledb(engine, settings.analytics)
 
-    # Initial refresh of CAGGs to populate with any existing historical data
-    await refresh_all_caggs(engine)
+    # Refresh only empty CAGGs (avoids blocking startup when data exists)
+    await refresh_empty_caggs(engine)
 
     # Create session factory and ingestion session
     session_maker: Callable[[], AsyncSession] = sqlalchemy_config.create_session_maker()
