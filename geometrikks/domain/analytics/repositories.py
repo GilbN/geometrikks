@@ -1,9 +1,13 @@
 """Repositories for analytics data access.
 
 Query Routing:
-- RAW (hypertables): For time ranges ≤ 1 hour (exact granularity needed)
-- Hourly CAGGs: For time ranges > 1 hour and ≤ 7 days
-- Daily CAGGs: For time ranges > 7 days
+- RAW (hypertables): For time ranges ≤ 24 hours (exact granularity needed)
+- Hourly CAGGs: For time ranges > 24 hours and ≤ 30 days
+- Daily CAGGs: For time ranges > 30 days
+
+Note: We use hourly CAGGs for up to 30 days because they properly support
+real-time aggregation. Daily CAGGs have watermark limitations that can cause
+staleness for the current day.
 
 CAGG Structure:
 - summary_hourly_stats / summary_daily_stats: Access log metrics (requests, bytes, status codes, latency)
@@ -29,18 +33,21 @@ from sqlalchemy.ext.asyncio import AsyncSession
 class StatsGranularity(Enum):
     """Granularity for query routing."""
 
-    RAW = "raw"  # Raw hypertables (≤ 1 hour) - exact granularity
-    HOURLY = "hourly"  # hourly CAGGs (> 1 hour, ≤ 7 days)
-    DAILY = "daily"  # daily CAGGs (> 7 days)
+    RAW = "raw"  # Raw hypertables (≤ 24 hours) - exact granularity
+    HOURLY = "hourly"  # hourly CAGGs (> 24 hours, ≤ 30 days)
+    DAILY = "daily"  # daily CAGGs (> 30 days)
 
 
 def get_stats_granularity(start: datetime, end: datetime) -> StatsGranularity:
     """Determine the optimal query source based on time range duration.
 
     Routing logic:
-    - ≤ 1 hour: RAW (query hypertables for exact granularity)
-    - > 1 hour, ≤ 7 days: HOURLY CAGG
-    - > 7 days: DAILY CAGG
+    - ≤ 24 hours: RAW (query hypertables for exact granularity)
+    - > 24 hours, ≤ 30 days: HOURLY CAGG (real-time aggregation provides fresh data)
+    - > 30 days: DAILY CAGG (some staleness acceptable for long ranges)
+
+    Note: We use hourly CAGG for up to 30 days because daily CAGGs can't
+    do real-time aggregation for the current day (watermark is at next day).
 
     Args:
         start: Start of time range.
@@ -51,9 +58,9 @@ def get_stats_granularity(start: datetime, end: datetime) -> StatsGranularity:
     """
     duration = end - start
 
-    if duration <= timedelta(hours=1):
+    if duration <= timedelta(hours=24):
         return StatsGranularity.RAW
-    elif duration <= timedelta(days=7):
+    elif duration <= timedelta(days=30):
         return StatsGranularity.HOURLY
     return StatsGranularity.DAILY
 
@@ -148,31 +155,12 @@ class SummaryStatsRepository:
         """Get combined summary stats for a time range.
 
         Routes to optimal source based on time range:
-        - ≤ 1 hour: RAW hypertables (exact granularity)
-        - > 1 hour, ≤ 7 days: hourly CAGGs with HyperLogLog
-        - > 7 days: daily CAGGs with HyperLogLog
+        - ≤ 24 hours: RAW hypertables (exact granularity)
+        - > 24 hours, ≤ 30 days: hourly CAGGs with HyperLogLog
+        - > 30 days: daily CAGGs with HyperLogLog
 
         Args:
-            start: Start datetime.
-            end: End datetime.
-
-        Returns:
-            SummaryStats with aggregated values, or None if no data.
-        """
-        granularity = get_stats_granularity(start, end)
-
-        if granularity == StatsGranularity.RAW:
-            return await self._get_summary_from_raw(start, end)
-        else:
-            return await self._get_summary_from_cagg(start, end, granularity)
-
-    async def _get_summary_from_raw(
-        self,
-        start: datetime,
-        end: datetime,
-    ) -> SummaryStats | None:
-        """Get summary stats by querying raw hypertables directly.
-
+bucket_interval
         Provides exact time range granularity for short ranges.
         """
         # Query AccessLog for request metrics

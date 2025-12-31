@@ -263,18 +263,20 @@ async def _create_ip_location_cagg(conn: "AsyncConnection") -> None:
 # =============================================================================
 
 # (cagg_name, start_offset, end_offset)
+# Note: end_offset controls how close to "now" the refresh goes.
+# Smaller end_offset = more up-to-date materialized data.
+# Real-time aggregation fills the gap between materialized data and now.
 CAGG_REFRESH_CONFIG = [
-    # Summary stats (access logs) - hourly needs frequent refresh
+    # Hourly CAGGs: refresh up to 1 hour ago, real-time fills the current hour
     ("summary_hourly_stats", "3 hours", "1 hour"),
-    ("summary_daily_stats", "3 days", "1 day"),
-    # Geo summary stats (with HyperLogLog)
     ("geo_summary_hourly_stats", "3 hours", "1 hour"),
-    ("geo_summary_daily_stats", "3 days", "1 day"),
-    # Location stats (for map)
     ("location_hourly_stats", "3 hours", "1 hour"),
-    ("location_daily_stats", "3 days", "1 day"),
-    # IP location stats (for top IPs)
-    ("ip_location_daily_stats", "3 days", "1 day"),
+    # Daily CAGGs: refresh up to 1 hour ago to keep data fresh
+    # (using "1 day" would leave too large a gap for real-time aggregation)
+    ("summary_daily_stats", "3 days", "1 hour"),
+    ("geo_summary_daily_stats", "3 days", "1 hour"),
+    ("location_daily_stats", "3 days", "1 hour"),
+    ("ip_location_daily_stats", "3 days", "1 hour"),
 ]
 
 HOURLY_CAGGS = [
@@ -380,6 +382,26 @@ async def _add_compression_policies(
             logger.debug("Compression policy for %s: %s", table, e)
 
 
+async def _enable_realtime_aggregation(conn: "AsyncConnection") -> None:
+    """Enable real-time aggregation on all CAGGs.
+
+    By default (TimescaleDB 2.7+), CAGGs are created with materialized_only=true,
+    which means queries only return materialized data. Setting this to false
+    enables real-time aggregation, which automatically merges materialized data
+    with live data from the underlying hypertable for the current incomplete bucket.
+    """
+    for cagg in ALL_CAGGS:
+        try:
+            await conn.execute(text(f"""
+                ALTER MATERIALIZED VIEW {cagg} SET (timescaledb.materialized_only = false)
+            """))
+            logger.debug("Real-time aggregation enabled: %s", cagg)
+        except Exception as e:
+            logger.debug("Real-time aggregation for %s: %s", cagg, e)
+
+    logger.info("Real-time aggregation enabled for all CAGGs")
+
+
 # =============================================================================
 # Public API
 # =============================================================================
@@ -420,6 +442,9 @@ async def setup_timescaledb(
         await _create_geo_summary_caggs(conn)
         await _create_location_caggs(conn)
         await _create_ip_location_cagg(conn)
+
+        # Enable real-time aggregation (merges materialized + live data)
+        await _enable_realtime_aggregation(conn)
 
         # Add policies
         await _add_refresh_policies(conn, analytics.cagg_refresh_interval_minutes)

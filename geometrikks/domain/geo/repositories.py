@@ -1,14 +1,15 @@
 """Repositories for geo-location and geo-event data access.
 
 CAGG Routing:
-- RAW (geo_events): For time ranges <= 1 hour (exact granularity needed)
-- location_hourly_stats: For time ranges > 1 hour and <= 7 days
-- location_daily_stats: For time ranges > 7 days
-- ip_location_daily_stats: For top IPs queries (time ranges > 1 hour)
+- RAW (geo_events): For time ranges <= 24 hours (exact granularity needed)
+- location_hourly_stats: For time ranges > 24 hours and <= 30 days
+- location_daily_stats: For time ranges > 30 days
+- ip_location_daily_stats: For top IPs queries (time ranges > 24 hours)
 
-Note: TimescaleDB real-time aggregation handles recent data for CAGGs,
-but CAGGs only provide bucket-level granularity. For sub-hour ranges,
-we query raw tables to get exact time range results.
+Note: We use hourly CAGGs for up to 30 days because they properly support
+real-time aggregation. Daily CAGGs have watermark limitations that can cause
+staleness for the current day. For sub-hour ranges, we query raw tables
+to get exact time range results.
 """
 from __future__ import annotations
 
@@ -28,18 +29,21 @@ logger = logging.getLogger(__name__)
 class StatsGranularity(Enum):
     """Granularity for query routing."""
 
-    RAW = "raw"  # geo_events table (≤ 1 hour) - exact granularity
-    HOURLY = "hourly"  # location_hourly_stats (> 1 hour, ≤ 7 days)
-    DAILY = "daily"  # location_daily_stats (> 7 days)
+    RAW = "raw"  # geo_events table (≤ 24 hours) - exact granularity
+    HOURLY = "hourly"  # location_hourly_stats (> 24 hours, ≤ 30 days)
+    DAILY = "daily"  # location_daily_stats (> 30 days)
 
 
 def get_stats_granularity(from_timestamp: datetime, to_timestamp: datetime) -> StatsGranularity:
     """Determine the optimal query source based on time range duration.
 
     Routing logic:
-    - ≤ 1 hour: RAW (query geo_events for exact granularity)
-    - > 1 hour, ≤ 7 days: HOURLY CAGG
-    - > 7 days: DAILY CAGG
+    - ≤ 24 hours: RAW (query geo_events for exact granularity)
+    - > 24 hours, ≤ 30 days: HOURLY CAGG (real-time aggregation provides fresh data)
+    - > 30 days: DAILY CAGG (some staleness acceptable for long ranges)
+
+    Note: We use hourly CAGG for up to 30 days because daily CAGGs can't
+    do real-time aggregation for the current day (watermark is at next day).
 
     Args:
         from_timestamp: Start of time range.
@@ -50,9 +54,9 @@ def get_stats_granularity(from_timestamp: datetime, to_timestamp: datetime) -> S
     """
     duration = to_timestamp - from_timestamp
 
-    if duration <= timedelta(hours=1):
+    if duration <= timedelta(hours=24):
         return StatsGranularity.RAW
-    elif duration <= timedelta(days=7):
+    elif duration <= timedelta(days=30):
         return StatsGranularity.HOURLY
     else:
         return StatsGranularity.DAILY
@@ -107,9 +111,9 @@ class GeoLocationRepository(SQLAlchemyAsyncRepository[GeoLocation]):
         """Retrieve all GeoLocations with their associated event counts.
 
         Routes to optimal source based on time range:
-        - ≤ 1 hour: RAW geo_events table (exact granularity)
-        - > 1 hour, ≤ 7 days: location_hourly_stats CAGG
-        - > 7 days: location_daily_stats CAGG
+        - ≤ 24 hours: RAW geo_events table (exact granularity)
+        - > 24 hours, ≤ 30 days: location_hourly_stats CAGG
+        - > 30 days: location_daily_stats CAGG
 
         Args:
             from_timestamp: Start datetime for filtering events.
