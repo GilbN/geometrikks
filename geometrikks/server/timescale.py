@@ -426,6 +426,49 @@ ALL_CAGGS = [
 ]
 
 
+async def teardown_timescaledb(conn: "AsyncConnection") -> None:
+    """Tear down TimescaleDB objects so metadata.drop_all() can succeed.
+
+    Must be called BEFORE metadata.drop_all() to avoid dependency errors.
+
+    Args:
+        conn: SQLAlchemy async connection
+    """
+    # Check TimescaleDB exists
+    try:
+        result = await conn.execute(text("""
+            SELECT 1 FROM pg_extension WHERE extname = 'timescaledb'
+        """))
+        if not result.scalar():
+            logger.debug("TimescaleDB extension not found, skipping teardown")
+            return
+    except Exception:
+        logger.exception("Could not check TimescaleDB extension")
+        return
+
+    # 1. Drop CAGGs
+    for cagg in ALL_CAGGS:
+        try:
+            await conn.execute(
+                text(f"DROP MATERIALIZED VIEW IF EXISTS {cagg} CASCADE")
+            )
+            logger.debug("Dropped CAGG: %s", cagg)
+        except Exception as e:
+            logger.warning("Failed to drop CAGG %s: %s", cagg, e)
+
+    # 2. Drop hypertables
+    for table, _, _, _ in HYPERTABLES:
+        try:
+            await conn.execute(text("""
+                SELECT drop_hypertable(:table, if_exists => TRUE)
+            """), {"table": table})
+            logger.debug("Dropped hypertable: %s", table)
+        except Exception as e:
+            logger.warning("Failed to drop hypertable %s: %s", table, e)
+
+    logger.info("TimescaleDB teardown complete")
+
+
 async def setup_timescaledb(
     engine: "AsyncEngine",
     analytics: "AnalyticsSettings",

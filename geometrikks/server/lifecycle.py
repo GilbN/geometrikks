@@ -13,7 +13,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from geometrikks.config.settings import get_settings
 from geometrikks.server.plugins import parser, sqlalchemy_config
-from geometrikks.server.timescale import setup_timescaledb, refresh_empty_caggs
+from geometrikks.server.timescale import setup_timescaledb, teardown_timescaledb
 
 from geometrikks.domain.geo.repositories import GeoLocationRepository, GeoEventRepository
 from geometrikks.domain.logs.repositories import AccessLogRepository, AccessLogDebugRepository
@@ -62,14 +62,12 @@ async def on_startup(app: "Litestar") -> None:
 
         if settings.database.drop_on_startup:
             logger.warning("Dropping all tables on startup as per configuration.")
+            await teardown_timescaledb(conn)
             await conn.run_sync(base.DefaultBase.metadata.drop_all)
         await conn.run_sync(base.DefaultBase.metadata.create_all)
 
     # Set up TimescaleDB (hypertables, CAGGs, policies)
     await setup_timescaledb(engine, settings.analytics)
-
-    # Refresh only empty CAGGs (avoids blocking startup when data exists)
-    await refresh_empty_caggs(engine)
 
     # Create session factory and ingestion session
     session_maker: Callable[[], AsyncSession] = sqlalchemy_config.create_session_maker()
