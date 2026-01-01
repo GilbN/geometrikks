@@ -56,6 +56,7 @@ export interface PercentChange {
   bytes_sent: number | null
   avg_request_time: number | null
   error_rate: number | null
+  malformed_rate: number | null
 }
 
 export interface SummaryResponse {

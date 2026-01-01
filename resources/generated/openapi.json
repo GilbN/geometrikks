@@ -730,6 +730,16 @@
               }
             ]
           },
+          "malformed_rate": {
+            "oneOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "requests": {
             "oneOf": [
               {

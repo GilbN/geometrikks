@@ -145,11 +145,11 @@ export function Summary() {
               <StatCard
                 title="Malformed Requests"
                 value={formatNumber(summary.current_period.malformed_requests)}
-                subtitle="Blocked attempts"
+                subtitle={`Last ${rangeLabel}`}
                 icon={AlertTriangle}
                 trend={{
-                  value: summary.percent_changes?.error_rate ?? null,
-                  positive: (summary.percent_changes?.error_rate ?? 0) < 0,
+                  value: summary.percent_changes?.malformed_rate ?? null,
+                  positive: (summary.percent_changes?.malformed_rate ?? 0) < 0,
                 }}
               />
             </div>

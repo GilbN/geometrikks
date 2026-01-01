@@ -124,6 +124,7 @@ class PercentChange:
     bytes_sent: float | None = None
     avg_request_time: float | None = None
     error_rate: float | None = None
+    malformed_rate: float | None = None
 
 
 @dataclass

@@ -169,6 +169,9 @@ class AnalyticsController(Controller):
                     error_rate=_calculate_percent_change(
                         current_stats.error_rate, prev_stats.error_rate
                     ),
+                    malformed_rate=_calculate_percent_change(
+                        current_stats.malformed_requests, prev_stats.malformed_requests
+                    ),
                 )
 
         return SummaryResponse(

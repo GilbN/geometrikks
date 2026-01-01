@@ -25,10 +25,12 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from enum import Enum
 from typing import Sequence
+import logging
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+logger = logging.getLogger(__name__)
 
 class StatsGranularity(Enum):
     """Granularity for query routing."""
@@ -160,7 +162,34 @@ class SummaryStatsRepository:
         - > 30 days: daily CAGGs with HyperLogLog
 
         Args:
-bucket_interval
+            start: Start datetime.
+            end: End datetime.
+        Returns:
+            SummaryStats or None if no data.
+        Raises:
+            ValueError: If start or end are not timezone-aware datetimes.
+        """
+        if not isinstance(start, datetime) or not isinstance(end, datetime):
+            raise ValueError("start and end must be datetime instances")
+        if not start.tzinfo or not end.tzinfo:
+            raise ValueError("start and end must be timezone-aware")
+
+        granularity = get_stats_granularity(start, end)
+
+        logger.debug(f"Fetching summary stats from {granularity.value} source for range {start} to {end}")
+        
+        if granularity == StatsGranularity.RAW:
+            return await self._get_summary_from_raw(start, end)
+        else:
+            return await self._get_summary_from_cagg(start, end, granularity)
+
+    async def _get_summary_from_raw(
+        self,
+        start: datetime,
+        end: datetime,
+    ) -> SummaryStats | None:
+        """Get summary stats by querying raw hypertables.
+
         Provides exact time range granularity for short ranges.
         """
         # Query AccessLog for request metrics
@@ -199,6 +228,17 @@ bucket_interval
         geo_result = await self.session.execute(geo_stmt, {"start": start, "end": end})
         geo_row = geo_result.one_or_none()
 
+        # Query malformed requests from debug table
+        malformed_stmt = text("""
+            SELECT COUNT(*) AS malformed_requests
+            FROM access_log_debug
+            WHERE created_at >= :start AND created_at < :end
+              AND is_malformed = true
+        """)
+
+        malformed_result = await self.session.execute(malformed_stmt, {"start": start, "end": end})
+        malformed_row = malformed_result.one_or_none()
+
         total_requests = access_row.total_requests if access_row else 0
         total_events = geo_row.total_events if geo_row else 0
 
@@ -227,6 +267,7 @@ bucket_interval
             unique_ips=geo_row.unique_ips if geo_row else 0,
             unique_countries=geo_row.unique_countries if geo_row else 0,
             unique_cities=geo_row.unique_cities if geo_row else 0,
+            malformed_requests=malformed_row.malformed_requests if malformed_row else 0,
         )
 
     async def _get_summary_from_cagg(
@@ -243,7 +284,7 @@ bucket_interval
         geo_table = f"geo_summary_{granularity.value}_stats"
         bucket_interval = "1 hour" if granularity == StatsGranularity.HOURLY else "1 day"
 
-        # Combined query for access log and geo metrics
+        # Combined query for access log, geo metrics, and malformed requests
         # Floor start time to bucket boundary for CAGG queries
         stmt = text(f"""
             SELECT
@@ -261,7 +302,8 @@ bucket_interval
                 g.total_events,
                 g.unique_ips,
                 g.unique_countries,
-                g.unique_cities
+                g.unique_cities,
+                m.malformed_requests
             FROM (
                 SELECT
                     COALESCE(SUM(total_requests), 0) AS total_requests,
@@ -277,7 +319,7 @@ bucket_interval
                     COALESCE(AVG(p99_request_time), 0) AS p99_request_time
                 FROM {summary_table}
                 WHERE bucket >= time_bucket('{bucket_interval}', CAST(:start AS timestamptz))
-                  AND bucket < :end
+                AND bucket < :end
             ) s
             CROSS JOIN (
                 SELECT
@@ -287,8 +329,14 @@ bucket_interval
                     COALESCE(distinct_count(rollup(hll_cities)), 0) AS unique_cities
                 FROM {geo_table}
                 WHERE bucket >= time_bucket('{bucket_interval}', CAST(:start AS timestamptz))
-                  AND bucket < :end
+                AND bucket < :end
             ) g
+            CROSS JOIN (
+                SELECT COALESCE(COUNT(*), 0) AS malformed_requests
+                FROM access_log_debug
+                WHERE created_at >= :start AND created_at < :end
+                AND is_malformed = true
+            ) m
         """)
 
         result = await self.session.execute(stmt, {"start": start, "end": end})
@@ -320,6 +368,7 @@ bucket_interval
             unique_ips=row.unique_ips,
             unique_countries=row.unique_countries,
             unique_cities=row.unique_cities,
+            malformed_requests=row.malformed_requests,
         )
 
     async def get_time_series(
