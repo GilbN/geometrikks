@@ -356,13 +356,17 @@ async def _add_compression_policies(
     compression_after_days: int,
 ) -> None:
     """Add compression policies for hypertables."""
-    for table in ["geo_events", "access_logs", "access_log_debug"]:
+    for table, time_col in [
+        ("geo_events", "timestamp"),
+        ("access_logs", "timestamp"),
+        ("access_log_debug", "created_at"),
+    ]:
         try:
             # Enable compression on the hypertable
             await conn.execute(text(f"""
                 ALTER TABLE {table} SET (
                     timescaledb.compress,
-                    timescaledb.compress_segmentby = ''
+                    timescaledb.compress_orderby = '{time_col} DESC'
                 )
             """))
             # Add compression policy
@@ -385,11 +389,15 @@ async def _add_compression_policies(
 async def _enable_realtime_aggregation(conn: "AsyncConnection") -> None:
     """Enable real-time aggregation on all CAGGs.
 
-    By default (TimescaleDB 2.7+), CAGGs are created with materialized_only=true,
-    which means queries only return materialized data. Setting this to false
-    enables real-time aggregation, which automatically merges materialized data
-    with live data from the underlying hypertable for the current incomplete bucket.
+    By default (TimescaleDB 2.7+), CAGGs are created with
+    materialized_only = true, meaning queries return only materialized data.
+
+    Setting materialized_only = false enables real-time aggregation,
+    which merges materialized data with any non-materialized time
+    ranges from the underlying hypertable (typically the current
+    incomplete bucket).
     """
+
     for cagg in ALL_CAGGS:
         try:
             await conn.execute(text(f"""
@@ -459,69 +467,35 @@ async def setup_timescaledb(
     logger.info("TimescaleDB setup complete")
 
 
-async def _is_cagg_empty(engine: "AsyncEngine", cagg: str) -> bool:
-    """Check if a CAGG has no materialized data."""
-    async with engine.connect() as conn:
-        result = await conn.execute(text(f"SELECT 1 FROM {cagg} LIMIT 1"))
-        return result.scalar() is None
+async def refresh_caggs_range(
+    engine: AsyncEngine,
+    *,
+    start: str,
+    end: str,
+    caggs: list[str] | None = None,
+) -> None:
+    """Refresh CAGGs for a specific time range.
 
-
-async def refresh_empty_caggs(engine: "AsyncEngine") -> None:
-    """Refresh only CAGGs that have no materialized data.
-
-    This is called on startup to populate empty CAGGs with historical data.
-    CAGGs that already have data are skipped to avoid blocking startup.
-
-    Note: CALL statements must run outside a transaction.
+    For historical imports of log data, we may need to refresh CAGGs
 
     Args:
-        engine: SQLAlchemy async engine.
+        start: ISO timestamp or interval start (inclusive)
+        end: ISO timestamp or interval end (exclusive)
+        caggs: Optional subset of CAGGs (defaults to all)
     """
-    refreshed = 0
-    skipped = 0
+    if not start or not end:
+        raise ValueError("Both start and end must be provided")
 
-    for cagg in ALL_CAGGS:
-        try:
-            if not await _is_cagg_empty(engine, cagg):
-                logger.debug("CAGG already has data, skipping: %s", cagg)
-                skipped += 1
-                continue
+    target_caggs = caggs or ALL_CAGGS
 
-            async with engine.connect() as conn:
-                raw_conn = await conn.get_raw_connection()
-                await raw_conn.driver_connection.execute(
-                    f"CALL refresh_continuous_aggregate('{cagg}', NULL, NULL)"
-                )
-            logger.info("CAGG refreshed: %s", cagg)
-            refreshed += 1
-        except Exception as e:
-            logger.warning("CAGG refresh failed for %s: %s", cagg, e)
-
-    if refreshed > 0:
-        logger.info("Refreshed %d empty CAGGs, skipped %d with data", refreshed, skipped)
-    else:
-        logger.debug("All CAGGs already have data, no refresh needed")
-
-
-async def refresh_all_caggs(engine: "AsyncEngine") -> None:
-    """Force refresh of all CAGGs regardless of current state.
-
-    Use this for manual refresh or after bulk data imports.
-
-    Note: CALL statements must run outside a transaction.
-
-    Args:
-        engine: SQLAlchemy async engine.
-    """
-    for cagg in ALL_CAGGS:
+    for cagg in target_caggs:
         try:
             async with engine.connect() as conn:
                 raw_conn = await conn.get_raw_connection()
                 await raw_conn.driver_connection.execute(
-                    f"CALL refresh_continuous_aggregate('{cagg}', NULL, NULL)"
+                    f"CALL refresh_continuous_aggregate('{cagg}', '{start}', '{end}')"
                 )
-            logger.info("CAGG refreshed: %s", cagg)
+            logger.info("CAGG refreshed: %s (%s → %s)", cagg, start, end)
         except Exception as e:
-            logger.warning("CAGG refresh failed for %s: %s", cagg, e)
+            logger.warning("CAGG refresh failed: %s (%s → %s): %s", cagg, start, end, e)
 
-    logger.info("All CAGGs refresh complete")
