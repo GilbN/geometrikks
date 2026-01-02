@@ -1,5 +1,3 @@
-"use client"
-
 import { RotateCw, Filter, SlidersHorizontal } from "lucide-react"
 
 import {

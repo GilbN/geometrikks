@@ -1,21 +1,18 @@
 import { createContext, useContext, useState, useCallback, useEffect } from "react"
-import type { TimeRangeValue, StatsTimeRangeValue } from "./api"
+import type { TimeRangeValue } from "./api"
 
 const STORAGE_KEY = "geometrikks-time-range"
 const DEFAULT_RANGE: TimeRangeValue = "7d"
-const DEFAULT_STATS_RANGE: StatsTimeRangeValue = "24h"
 const DEFAULT_POLL_INTERVAL = 30000 // 30 seconds
 
 interface TimeRangeState {
   range: TimeRangeValue
-  statsRange: StatsTimeRangeValue
   pollInterval: number
   lastRefresh: number
 }
 
 interface TimeRangeContextValue extends TimeRangeState {
   setRange: (range: TimeRangeValue) => void
-  setStatsRange: (range: StatsTimeRangeValue) => void
   setPollInterval: (interval: number) => void
   refresh: () => void
 }
@@ -47,7 +44,6 @@ export function TimeRangeProvider({ children }: { children: React.ReactNode }) {
     const stored = loadFromStorage()
     const initial = {
       range: stored.range ?? DEFAULT_RANGE,
-      statsRange: (stored as Partial<TimeRangeState>).statsRange ?? DEFAULT_STATS_RANGE,
       pollInterval: stored.pollInterval ?? DEFAULT_POLL_INTERVAL,
       lastRefresh: Date.now(),
     }
@@ -58,17 +54,12 @@ export function TimeRangeProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     saveToStorage({
       range: state.range,
-      statsRange: state.statsRange,
       pollInterval: state.pollInterval,
     })
-  }, [state.range, state.statsRange, state.pollInterval])
+  }, [state.range, state.pollInterval])
 
   const setRange = useCallback((range: TimeRangeValue) => {
     setState((prev) => ({ ...prev, range, lastRefresh: Date.now() }))
-  }, [])
-
-  const setStatsRange = useCallback((statsRange: StatsTimeRangeValue) => {
-    setState((prev) => ({ ...prev, statsRange, lastRefresh: Date.now() }))
   }, [])
 
   const setPollInterval = useCallback((pollInterval: number) => {
@@ -84,7 +75,6 @@ export function TimeRangeProvider({ children }: { children: React.ReactNode }) {
       value={{
         ...state,
         setRange,
-        setStatsRange,
         setPollInterval,
         refresh,
       }}

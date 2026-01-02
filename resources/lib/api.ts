@@ -367,20 +367,11 @@ export function getNowTimestamp(): string {
 
 export type TimeRangeValue = "5m" | "15m" | "30m" | "1h" | "2h" | "3h" | "6h" | "12h" | "24h" | "7d" |  "14d" |"30d" | "90d" | "180d" | "365d"
 
-/** Stats-specific time range (hourly minimum for HourlyStats table compatibility) */
-export type StatsTimeRangeValue = "1h" | "2h" | "3h" | "6h" | "12h" | "24h" | "7d" | "30d" | "90d"
 
 export interface TimeRangePreset {
   label: string
   value: TimeRangeValue
   minutes: number
-}
-
-export interface StatsTimeRangePreset {
-  label: string
-  value: StatsTimeRangeValue
-  minutes: number
-  description: string
 }
 
 export const TIME_RANGE_PRESETS: TimeRangePreset[] = [
@@ -399,19 +390,6 @@ export const TIME_RANGE_PRESETS: TimeRangePreset[] = [
   { label: "90d", value: "90d", minutes: 129600 },
   { label: "180d", value: "180d", minutes: 259200 },
   { label: "365d", value: "365d", minutes: 525600 },
-]
-
-/** Stats time range presets (hourly minimum for HourlyStats table) */
-export const STATS_TIME_RANGE_PRESETS: StatsTimeRangePreset[] = [
-  { label: "1h", value: "1h", minutes: 60, description: "Queries the last 1 complete hour bucket" },
-  { label: "2h", value: "2h", minutes: 120, description: "Queries the last 2 complete hour buckets" },
-  { label: "3h", value: "3h", minutes: 180, description: "Queries the last 3 complete hour buckets" },
-  { label: "6h", value: "6h", minutes: 360, description: "Queries the last 6 complete hour buckets" },
-  { label: "12h", value: "12h", minutes: 720, description: "Queries the last 12 complete hour buckets" },
-  { label: "24h", value: "24h", minutes: 1440, description: "Queries the last 24 complete hour buckets" },
-  { label: "7d", value: "7d", minutes: 10080, description: "Queries the last 7 days (168 hour buckets)" },
-  { label: "30d", value: "30d", minutes: 43200, description: "Queries the last 30 days (720 hour buckets)" },
-  { label: "90d", value: "90d", minutes: 129600, description: "Queries the last 90 days (2160 hour buckets)" },
 ]
 
 export interface PollIntervalOption {
@@ -463,38 +441,6 @@ function ceilToHour(date: Date): Date {
   result.setMinutes(0, 0, 0)
   result.setTime(result.getTime() + 60 * 60 * 1000)
   return result
-}
-
-/**
- * Parse a stats time range value and return start/end ISO timestamps.
- * For HourlyStats table queries (hourly minimum granularity).
- *
- * Timestamps are aligned to hour boundaries to match HourlyStats bucket precision:
- * - End is ceiled to the next hour (includes current partial hour)
- * - Start is calculated as (end - duration)
- *
- * This ensures queries align with the hourly bucketing in the database.
- */
-export function parseStatsTimeRange(range: StatsTimeRangeValue, referenceTime?: number): { startDate: string; endDate: string } {
-  const preset = STATS_TIME_RANGE_PRESETS.find((p) => p.value === range)
-  if (!preset) {
-    // Default to 24h if invalid range
-    const now = referenceTime ? new Date(referenceTime) : new Date()
-    const end = ceilToHour(now)
-    const start = new Date(end.getTime() - 24 * 60 * 60 * 1000)
-    return { startDate: start.toISOString(), endDate: end.toISOString() }
-  }
-
-  const now = referenceTime ? new Date(referenceTime) : new Date()
-  // Ceil end to next hour to include current partial hour's data
-  const end = ceilToHour(now)
-  // Start is duration before the aligned end
-  const start = new Date(end.getTime() - preset.minutes * 60 * 1000)
-
-  return {
-    startDate: start.toISOString(),
-    endDate: end.toISOString(),
-  }
 }
 
 /**
