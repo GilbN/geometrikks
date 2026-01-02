@@ -109,7 +109,7 @@ class SummaryStats:
     """Aggregated summary statistics for a time period."""
 
     # Access log metrics
-    total_requests: int
+    total_log_records: int
     total_bytes: int
     avg_bytes_per_request: float
     status_2xx: int
@@ -124,7 +124,7 @@ class SummaryStats:
     error_rate: float
 
     # Geo metrics (from HyperLogLog)
-    total_geo_events: int
+    total_geo_records: int
     unique_ips: int
     unique_countries: int
     unique_cities: int
@@ -195,7 +195,7 @@ class SummaryStatsRepository:
         # Query AccessLog for request metrics
         access_stmt = text("""
             SELECT
-                COUNT(*) AS total_requests,
+                COUNT(*) AS total_log_records,
                 COALESCE(SUM(bytes_sent), 0) AS total_bytes,
                 COUNT(*) FILTER (WHERE status_code >= 200 AND status_code < 300) AS status_2xx,
                 COUNT(*) FILTER (WHERE status_code >= 300 AND status_code < 400) AS status_3xx,
@@ -216,7 +216,7 @@ class SummaryStatsRepository:
         # Query GeoEvent + GeoLocation for geo metrics with accurate unique counts
         geo_stmt = text("""
             SELECT
-                COUNT(*) AS total_events,
+                COUNT(*) AS total_geo_records,
                 COUNT(DISTINCT ge.ip_address) AS unique_ips,
                 COUNT(DISTINCT gl.country_code) AS unique_countries,
                 COUNT(DISTINCT gl.city) AS unique_cities
@@ -239,18 +239,18 @@ class SummaryStatsRepository:
         malformed_result = await self.session.execute(malformed_stmt, {"start": start, "end": end})
         malformed_row = malformed_result.one_or_none()
 
-        total_requests = access_row.total_requests if access_row else 0
-        total_events = geo_row.total_events if geo_row else 0
+        total_log_records = access_row.total_log_records if access_row else 0
+        total_geo_records = geo_row.total_geo_records if geo_row else 0
 
-        if total_requests == 0 and total_events == 0:
+        if total_log_records == 0 and total_geo_records == 0:
             return None
 
         total_errors = ((access_row.status_4xx or 0) + (access_row.status_5xx or 0)) if access_row else 0
-        error_rate = total_errors / total_requests if total_requests > 0 else 0.0
-        avg_bytes = (access_row.total_bytes or 0) / total_requests if total_requests > 0 else 0.0
+        error_rate = total_errors / total_log_records if total_log_records > 0 else 0.0
+        avg_bytes = (access_row.total_bytes if access_row else 0) / total_log_records if total_log_records > 0 else 0.0
 
         return SummaryStats(
-            total_requests=total_requests,
+            total_log_records=total_log_records,
             total_bytes=access_row.total_bytes if access_row else 0,
             avg_bytes_per_request=avg_bytes,
             status_2xx=access_row.status_2xx if access_row else 0,
@@ -263,7 +263,7 @@ class SummaryStatsRepository:
             p95_request_time=float(access_row.p95_request_time or 0.0) if access_row else 0.0,
             p99_request_time=float(access_row.p99_request_time or 0.0) if access_row else 0.0,
             error_rate=error_rate,
-            total_geo_events=total_events,
+            total_geo_records=total_geo_records,
             unique_ips=geo_row.unique_ips if geo_row else 0,
             unique_countries=geo_row.unique_countries if geo_row else 0,
             unique_cities=geo_row.unique_cities if geo_row else 0,
@@ -288,25 +288,25 @@ class SummaryStatsRepository:
         # Floor start time to bucket boundary for CAGG queries
         stmt = text(f"""
             SELECT
-                s.total_requests,
-                s.total_bytes,
-                s.status_2xx,
-                s.status_3xx,
-                s.status_4xx,
-                s.status_5xx,
-                s.avg_request_time,
-                s.max_request_time,
-                s.p50_request_time,
-                s.p95_request_time,
-                s.p99_request_time,
-                g.total_events,
-                g.unique_ips,
-                g.unique_countries,
-                g.unique_cities,
-                m.malformed_requests
+                log.total_log_records,
+                log.total_bytes,
+                log.status_2xx,
+                log.status_3xx,
+                log.status_4xx,
+                log.status_5xx,
+                log.avg_request_time,
+                log.max_request_time,
+                log.p50_request_time,
+                log.p95_request_time,
+                log.p99_request_time,
+                geo.total_geo_records,
+                geo.unique_ips,
+                geo.unique_countries,
+                geo.unique_cities,
+                mal.malformed_requests
             FROM (
                 SELECT
-                    COALESCE(SUM(total_requests), 0) AS total_requests,
+                    COALESCE(SUM(total_requests), 0) AS total_log_records,
                     COALESCE(SUM(total_bytes), 0) AS total_bytes,
                     COALESCE(SUM(status_2xx), 0) AS status_2xx,
                     COALESCE(SUM(status_3xx), 0) AS status_3xx,
@@ -320,38 +320,37 @@ class SummaryStatsRepository:
                 FROM {summary_table}
                 WHERE bucket >= time_bucket('{bucket_interval}', CAST(:start AS timestamptz))
                 AND bucket < :end
-            ) s
+            ) log
             CROSS JOIN (
                 SELECT
-                    COALESCE(SUM(total_events), 0) AS total_events,
+                    COALESCE(SUM(total_events), 0) AS total_geo_records,
                     COALESCE(distinct_count(rollup(hll_ips)), 0) AS unique_ips,
                     COALESCE(distinct_count(rollup(hll_countries)), 0) AS unique_countries,
                     COALESCE(distinct_count(rollup(hll_cities)), 0) AS unique_cities
                 FROM {geo_table}
                 WHERE bucket >= time_bucket('{bucket_interval}', CAST(:start AS timestamptz))
                 AND bucket < :end
-            ) g
+            ) geo
             CROSS JOIN (
                 SELECT COALESCE(COUNT(*), 0) AS malformed_requests
                 FROM access_log_debug
                 WHERE created_at >= :start AND created_at < :end
                 AND is_malformed = true
-            ) m
+            ) mal
         """)
 
         result = await self.session.execute(stmt, {"start": start, "end": end})
         row = result.one_or_none()
 
-        if row is None or row.total_requests == 0:
+        if row is None or row.total_log_records == 0:
             return None
 
-        total_requests = row.total_requests
         total_errors = row.status_4xx + row.status_5xx
-        error_rate = total_errors / total_requests if total_requests > 0 else 0.0
-        avg_bytes = row.total_bytes / total_requests if total_requests > 0 else 0.0
+        error_rate = total_errors / row.total_log_records if row.total_log_records > 0 else 0.0
+        avg_bytes = row.total_bytes / row.total_log_records if row.total_log_records > 0 else 0.0
 
         return SummaryStats(
-            total_requests=total_requests,
+            total_log_records=row.total_log_records,
             total_bytes=row.total_bytes,
             avg_bytes_per_request=avg_bytes,
             status_2xx=row.status_2xx,
@@ -364,7 +363,7 @@ class SummaryStatsRepository:
             p95_request_time=float(row.p95_request_time),
             p99_request_time=float(row.p99_request_time),
             error_rate=error_rate,
-            total_geo_events=row.total_events,
+            total_geo_records=row.total_geo_records,
             unique_ips=row.unique_ips,
             unique_countries=row.unique_countries,
             unique_cities=row.unique_cities,

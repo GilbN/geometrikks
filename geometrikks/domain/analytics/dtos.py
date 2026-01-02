@@ -118,8 +118,8 @@ class PeriodSummary:
 class PercentChange:
     """Percent change between two periods."""
 
-    requests: float | None = None
-    geo_events: float | None = None
+    log_records: float | None = None
+    geo_records: float | None = None
     unique_ips: float | None = None
     bytes_sent: float | None = None
     avg_request_time: float | None = None

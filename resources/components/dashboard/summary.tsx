@@ -122,8 +122,8 @@ export function Summary() {
                 subtitle={`Last ${rangeLabel}`}
                 icon={Activity}
                 trend={{
-                  value: summary.percent_changes?.requests ?? null,
-                  positive: (summary.percent_changes?.requests ?? 0) >= 0,
+                  value: summary.percent_changes?.log_records ?? null,
+                  positive: (summary.percent_changes?.log_records ?? 0) >= 0,
                 }}
               />
               <StatCard
@@ -132,8 +132,8 @@ export function Summary() {
                 subtitle={`Last ${rangeLabel}`}
                 icon={FileText}
                 trend={{
-                  value: summary.percent_changes?.geo_events ?? null,
-                  positive: (summary.percent_changes?.geo_events ?? 0) >= 0,
+                  value: summary.percent_changes?.geo_records ?? null,
+                  positive: (summary.percent_changes?.geo_records ?? 0) >= 0,
                 }}
               />
               <StatCard

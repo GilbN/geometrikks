@@ -50,8 +50,8 @@ export interface PeriodSummary {
 }
 
 export interface PercentChange {
-  requests: number | null
-  geo_events: number | null
+  log_records: number | null
+  geo_records: number | null
   unique_ips: number | null
   bytes_sent: number | null
   avg_request_time: number | null

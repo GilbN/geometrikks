@@ -105,8 +105,8 @@ class AnalyticsController(Controller):
             )
 
         current_period = PeriodSummary(
-            total_requests=current_stats.total_requests,
-            total_geo_events=current_stats.total_geo_events,
+            total_requests=current_stats.total_log_records,
+            total_geo_events=current_stats.total_geo_records,
             unique_ips=current_stats.unique_ips,
             unique_countries=current_stats.unique_countries,
             total_bytes_sent=current_stats.total_bytes_sent,
@@ -134,8 +134,8 @@ class AnalyticsController(Controller):
 
             if prev_stats:
                 previous_period = PeriodSummary(
-                    total_requests=prev_stats.total_requests,
-                    total_geo_events=prev_stats.total_geo_events,
+                    total_requests=prev_stats.total_log_records,
+                    total_geo_events=prev_stats.total_geo_records,
                     unique_ips=prev_stats.unique_ips,
                     unique_countries=prev_stats.unique_countries,
                     total_bytes_sent=prev_stats.total_bytes_sent,
@@ -151,11 +151,11 @@ class AnalyticsController(Controller):
                 )
 
                 percent_changes = PercentChange(
-                    requests=_calculate_percent_change(
-                        current_stats.total_requests, prev_stats.total_requests
+                    log_records=_calculate_percent_change(
+                        current_stats.total_log_records, prev_stats.total_log_records
                     ),
-                    geo_events=_calculate_percent_change(
-                        current_stats.total_geo_events, prev_stats.total_geo_events
+                    geo_records=_calculate_percent_change(
+                        current_stats.total_geo_records, prev_stats.total_geo_records
                     ),
                     unique_ips=_calculate_percent_change(
                         current_stats.unique_ips, prev_stats.unique_ips
@@ -245,8 +245,8 @@ class AnalyticsController(Controller):
             )
 
         current_period = PeriodSummary(
-            total_requests=current_stats.total_requests,
-            total_geo_events=current_stats.total_geo_events,
+            total_requests=current_stats.total_log_records,
+            total_geo_events=current_stats.total_geo_records,
             unique_ips=current_stats.unique_ips,
             unique_countries=current_stats.unique_countries,
             total_bytes_sent=current_stats.total_bytes_sent,
@@ -274,8 +274,8 @@ class AnalyticsController(Controller):
 
             if prev_stats:
                 previous_period = PeriodSummary(
-                    total_requests=prev_stats.total_requests,
-                    total_geo_events=prev_stats.total_geo_events,
+                    total_requests=prev_stats.total_log_records,
+                    total_geo_events=prev_stats.total_geo_records,
                     unique_ips=prev_stats.unique_ips,
                     unique_countries=prev_stats.unique_countries,
                     total_bytes_sent=prev_stats.total_bytes_sent,
@@ -291,11 +291,11 @@ class AnalyticsController(Controller):
                 )
 
                 percent_changes = PercentChange(
-                    requests=_calculate_percent_change(
-                        current_stats.total_requests, prev_stats.total_requests
+                    log_records=_calculate_percent_change(
+                        current_stats.total_log_records, prev_stats.total_log_records
                     ),
-                    geo_events=_calculate_percent_change(
-                        current_stats.total_geo_events, prev_stats.total_geo_events
+                    geo_records=_calculate_percent_change(
+                        current_stats.total_geo_records, prev_stats.total_geo_records
                     ),
                     unique_ips=_calculate_percent_change(
                         current_stats.unique_ips, prev_stats.unique_ips

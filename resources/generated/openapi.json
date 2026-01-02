@@ -720,7 +720,17 @@
               }
             ]
           },
-          "geo_events": {
+          "geo_records": {
+            "oneOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "log_records": {
             "oneOf": [
               {
                 "type": "number"
@@ -731,16 +741,6 @@
             ]
           },
           "malformed_rate": {
-            "oneOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "requests": {
             "oneOf": [
               {
                 "type": "number"
