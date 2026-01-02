@@ -32,7 +32,7 @@ export const Route = createRootRoute({
 const routeLabels: Record<string, string> = {
   "/": "Overview",
   "/map": "Map",
-  "/logs": "Access Logs",
+  "/access-logs": "Access Logs",
   "/analytics": "Analytics",
   "/settings": "Settings",
 }

@@ -51,7 +51,7 @@ const navigationItems = [
   },
   {
     title: "Access Logs",
-    url: "/logs",
+    url: "/access-logs",
     icon: FileText,
     description: "Request logs",
   },
