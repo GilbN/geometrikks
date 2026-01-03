@@ -9,13 +9,14 @@ import {
   fetchGeoJSON,
   fetchGlobalTopIPs,
   fetchLocationTopIPs,
+  fetchTopCountries,
+  fetchCumulativeTimeSeries,
   parseTimeRange,
-  parseStatsTimeRange,
-  getGranularityForRange,
   type SummaryParams,
-  type TimeSeriesParams,
   type GlobalTopIPsResponse,
   type LocationTopIPsResponse,
+  type TopCountriesResponse,
+  type CumulativeTimeSeriesResponse,
 } from "./api"
 import { useTimeRange } from "./time-range-context"
 
@@ -30,6 +31,8 @@ export const queryKeys = {
       [...queryKeys.analytics.all, "summary", params, refreshKey] as const,
     liveSummary: (params: Record<string, unknown>, refreshKey?: number) =>
       [...queryKeys.analytics.all, "live-summary", params, refreshKey] as const,
+    cumulativeTimeSeries: (params: Record<string, unknown>, refreshKey?: number) =>
+      [...queryKeys.analytics.all, "cumulative-time-series", params, refreshKey] as const,
   },
   geo: {
     all: ["geo"] as const,
@@ -39,6 +42,8 @@ export const queryKeys = {
       [...queryKeys.geo.all, "global-top-ips", params, refreshKey] as const,
     locationTopIPs: (locationId: number, params: Record<string, unknown>, refreshKey?: number) =>
       [...queryKeys.geo.all, "location-top-ips", locationId, params, refreshKey] as const,
+    topCountries: (params: Record<string, unknown>, refreshKey?: number) =>
+      [...queryKeys.geo.all, "top-countries", params, refreshKey] as const,
   },
 }
 
@@ -206,5 +211,64 @@ export function useLocationTopIPs(locationId: number | null, options: UseLocatio
     enabled: enabled && locationId !== null,
     staleTime: 60 * 1000,
     // No polling for location-specific data (on-demand only)
+  })
+}
+
+export interface UseTopCountriesOptions {
+  /** Enable/disable the query */
+  enabled?: boolean
+  /** Maximum number of countries to return */
+  limit?: number
+}
+
+/**
+ * Fetch top countries by event count.
+ * Uses TimeRangeContext for time filtering.
+ */
+export function useTopCountries(options: UseTopCountriesOptions = {}) {
+  const { enabled = true, limit = 10 } = options
+  const { range, pollInterval, lastRefresh } = useTimeRange()
+
+  return useQuery<TopCountriesResponse>({
+    queryKey: queryKeys.geo.topCountries({ range, limit }, lastRefresh),
+    queryFn: () => {
+      const { startDate, endDate } = parseTimeRange(range, Date.now())
+      return fetchTopCountries({
+        fromTimestamp: startDate,
+        toTimestamp: endDate,
+        limit,
+      })
+    },
+    enabled,
+    staleTime: 60 * 1000,
+    refetchInterval: pollInterval || false,
+  })
+}
+
+export interface UseCumulativeTimeSeriesOptions {
+  /** Enable/disable the query */
+  enabled?: boolean
+}
+
+/**
+ * Fetch cumulative time series data for area charts.
+ * Uses TimeRangeContext for time filtering.
+ */
+export function useCumulativeTimeSeries(options: UseCumulativeTimeSeriesOptions = {}) {
+  const { enabled = true } = options
+  const { range, pollInterval, lastRefresh } = useTimeRange()
+
+  return useQuery<CumulativeTimeSeriesResponse>({
+    queryKey: queryKeys.analytics.cumulativeTimeSeries({ range }, lastRefresh),
+    queryFn: () => {
+      const { startDate, endDate } = parseTimeRange(range, Date.now())
+      return fetchCumulativeTimeSeries({
+        startDate,
+        endDate,
+      })
+    },
+    enabled,
+    staleTime: 60 * 1000,
+    refetchInterval: pollInterval || false,
   })
 }

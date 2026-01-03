@@ -1,6 +1,17 @@
 {
   "litestar_version": "Version(major=2, minor=18, patch=0, release_level='final', serial=0)",
   "routes": {
+    "get_cumulative_time_series": {
+      "method": "get",
+      "methods": [
+        "GET"
+      ],
+      "queryParameters": {
+        "end_date": "DateTime",
+        "start_date": "DateTime"
+      },
+      "uri": "/api/v1/analytics/time-series/cumulative"
+    },
     "get_geojson": {
       "method": "get",
       "methods": [
@@ -65,6 +76,18 @@
         "start_date": "DateTime"
       },
       "uri": "/api/v1/analytics/summary"
+    },
+    "get_top_countries": {
+      "method": "get",
+      "methods": [
+        "GET"
+      ],
+      "queryParameters": {
+        "from_timestamp": "DateTime",
+        "limit": "number | undefined",
+        "to_timestamp": "DateTime"
+      },
+      "uri": "/api/v1/geo-locations/top-countries"
     },
     "health": {
       "method": "get",

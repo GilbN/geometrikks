@@ -241,6 +241,38 @@ export interface GlobalTopIPsResponse {
   top_ips: TopIPDTO[]
 }
 
+// ============================================================================
+// Types - Top Countries API
+// ============================================================================
+
+export interface TopCountryDTO {
+  country_code: string
+  country_name: string | null
+  event_count: number
+}
+
+export interface TopCountriesResponse {
+  top_countries: TopCountryDTO[]
+}
+
+// ============================================================================
+// Types - Cumulative Time Series API
+// ============================================================================
+
+export interface CumulativeDataPoint {
+  timestamp: string
+  cumulative_geo_events: number
+  cumulative_access_logs: number
+  cumulative_bytes: number
+}
+
+export interface CumulativeTimeSeriesResponse {
+  granularity: "hourly" | "daily"
+  start_date: string
+  end_date: string
+  data: CumulativeDataPoint[]
+}
+
 export interface LocationTopIPsResponse {
   location_id: number
   top_ips: TopIPDTO[]
@@ -284,6 +316,33 @@ export async function fetchLocationTopIPs(params: LocationTopIPsParams): Promise
       },
     }
   )
+  return data
+}
+
+/**
+ * Fetch top countries by event count.
+ */
+export async function fetchTopCountries(params: TopIPsParams): Promise<TopCountriesResponse> {
+  const { data } = await api.get<TopCountriesResponse>("/geo-locations/top-countries", {
+    params: {
+      from_timestamp: params.fromTimestamp,
+      to_timestamp: params.toTimestamp,
+      limit: params.limit ?? 10,
+    },
+  })
+  return data
+}
+
+/**
+ * Fetch cumulative time series data.
+ */
+export async function fetchCumulativeTimeSeries(params: TimeSeriesParams): Promise<CumulativeTimeSeriesResponse> {
+  const { data } = await api.get<CumulativeTimeSeriesResponse>("/analytics/time-series/cumulative", {
+    params: {
+      start_date: params.startDate,
+      end_date: params.endDate,
+    },
+  })
   return data
 }
 
@@ -365,7 +424,12 @@ export function getNowTimestamp(): string {
 // Time Range Types & Utilities
 // ============================================================================
 
-export type TimeRangeValue = "5m" | "15m" | "30m" | "1h" | "2h" | "3h" | "6h" | "12h" | "24h" | "7d" |  "14d" |"30d" | "90d" | "180d" | "365d"
+export type TimeRangeValue =
+  | "5m" | "15m" | "30m" | "1h" | "2h" | "3h" | "6h" | "12h" | "24h"
+  | "7d" | "14d" | "30d" | "90d" | "180d" | "365d"
+  // Grafana-style presets
+  | "today" | "this_week" | "this_month"
+  | "yesterday" | "last_week" | "last_month"
 
 
 export interface TimeRangePreset {
@@ -390,6 +454,13 @@ export const TIME_RANGE_PRESETS: TimeRangePreset[] = [
   { label: "90d", value: "90d", minutes: 129600 },
   { label: "180d", value: "180d", minutes: 259200 },
   { label: "365d", value: "365d", minutes: 525600 },
+  // Grafana-style presets (computed dynamically)
+  { label: "Today", value: "today", minutes: -1 },
+  { label: "Yesterday", value: "yesterday", minutes: -1 },
+  { label: "This week", value: "this_week", minutes: -1 },
+  { label: "Last week", value: "last_week", minutes: -1 },
+  { label: "This month", value: "this_month", minutes: -1 },
+  { label: "Last month", value: "last_month", minutes: -1 },
 ]
 
 export interface PollIntervalOption {
@@ -409,38 +480,71 @@ export const POLL_INTERVAL_OPTIONS: PollIntervalOption[] = [
 /**
  * Parse a time range value and return start/end ISO timestamps.
  * Always returns full ISO timestamps for backend compatibility.
+ * Handles both relative (5m, 7d) and Grafana-style (today, this_week) presets.
  */
 export function parseTimeRange(range: TimeRangeValue, referenceTime?: number): { startDate: string; endDate: string } {
+  const now = referenceTime ? new Date(referenceTime) : new Date()
+
+  // Handle Grafana-style computed ranges
+  switch (range) {
+    case "today": {
+      const start = new Date(now)
+      start.setHours(0, 0, 0, 0)
+      return { startDate: start.toISOString(), endDate: now.toISOString() }
+    }
+    case "yesterday": {
+      const start = new Date(now)
+      start.setDate(start.getDate() - 1)
+      start.setHours(0, 0, 0, 0)
+      const end = new Date(start)
+      end.setHours(23, 59, 59, 999)
+      return { startDate: start.toISOString(), endDate: end.toISOString() }
+    }
+    case "this_week": {
+      const start = new Date(now)
+      const dayOfWeek = start.getDay()
+      const diff = dayOfWeek === 0 ? 6 : dayOfWeek - 1 // Monday = 0
+      start.setDate(start.getDate() - diff)
+      start.setHours(0, 0, 0, 0)
+      return { startDate: start.toISOString(), endDate: now.toISOString() }
+    }
+    case "last_week": {
+      const start = new Date(now)
+      const dayOfWeek = start.getDay()
+      const diff = dayOfWeek === 0 ? 6 : dayOfWeek - 1
+      start.setDate(start.getDate() - diff - 7) // Go back to last Monday
+      start.setHours(0, 0, 0, 0)
+      const end = new Date(start)
+      end.setDate(end.getDate() + 6)
+      end.setHours(23, 59, 59, 999)
+      return { startDate: start.toISOString(), endDate: end.toISOString() }
+    }
+    case "this_month": {
+      const start = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0)
+      return { startDate: start.toISOString(), endDate: now.toISOString() }
+    }
+    case "last_month": {
+      const start = new Date(now.getFullYear(), now.getMonth() - 1, 1, 0, 0, 0, 0)
+      const end = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999)
+      return { startDate: start.toISOString(), endDate: end.toISOString() }
+    }
+  }
+
+  // Handle relative time ranges (5m, 7d, etc.)
   const preset = TIME_RANGE_PRESETS.find((p) => p.value === range)
-  if (!preset) {
+  if (!preset || preset.minutes < 0) {
     // Default to 7 days if invalid range
-    const now = referenceTime ? new Date(referenceTime) : new Date()
     const start = new Date(now)
     start.setDate(start.getDate() - 7)
     return { startDate: start.toISOString(), endDate: now.toISOString() }
   }
 
-  // Use reference time for stable query keys (prevents infinite refetch)
-  const now = referenceTime ? new Date(referenceTime) : new Date()
   const start = new Date(now.getTime() - preset.minutes * 60 * 1000)
 
   return {
     startDate: start.toISOString(),
     endDate: now.toISOString(),
   }
-}
-
-/**
- * Ceil a date to the next hour (e.g., 10:45 -> 11:00), or same if already at hour boundary.
- */
-function ceilToHour(date: Date): Date {
-  const result = new Date(date)
-  if (result.getMinutes() === 0 && result.getSeconds() === 0 && result.getMilliseconds() === 0) {
-    return result
-  }
-  result.setMinutes(0, 0, 0)
-  result.setTime(result.getTime() + 60 * 60 * 1000)
-  return result
 }
 
 /**

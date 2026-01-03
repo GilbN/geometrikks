@@ -110,3 +110,19 @@ class GlobalTopIPsResponse:
 
     top_ips: list[TopIPDTO] = field(default_factory=list)
 
+
+@dataclass
+class TopCountryDTO:
+    """Top country with event count."""
+
+    country_code: str
+    country_name: str | None
+    event_count: int
+
+
+@dataclass
+class TopCountriesResponse:
+    """Response for top countries endpoint."""
+
+    top_countries: list[TopCountryDTO] = field(default_factory=list)
+

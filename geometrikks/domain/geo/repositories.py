@@ -353,6 +353,85 @@ class GeoLocationRepository(SQLAlchemyAsyncRepository[GeoLocation]):
 
         return top_ips
 
+    async def get_top_countries(
+        self, from_timestamp: datetime, to_timestamp: datetime, limit: int = 10
+    ) -> list[tuple[str, str | None, int]]:
+        """Get top N countries by event count.
+
+        Routes to optimal source based on time range:
+        - ≤ 24 hours: RAW geo_events + geo_locations tables
+        - > 24 hours, ≤ 30 days: location_hourly_stats CAGG
+        - > 30 days: location_daily_stats CAGG
+
+        Args:
+            from_timestamp: Start datetime for filtering events.
+            to_timestamp: End datetime for filtering events.
+            limit: Maximum number of countries to return.
+
+        Returns:
+            List of tuples containing (country_code, country_name, event_count).
+        """
+        if not isinstance(from_timestamp, datetime) or not isinstance(to_timestamp, datetime):
+            raise ValueError("from_timestamp and to_timestamp must be datetime instances")
+        if not from_timestamp.tzinfo or not to_timestamp.tzinfo:
+            raise ValueError("from_timestamp and to_timestamp must be timezone-aware")
+
+        granularity = get_stats_granularity(from_timestamp, to_timestamp)
+
+        logger.debug(
+            "get_top_countries: using %s for range %s to %s",
+            granularity.value,
+            from_timestamp,
+            to_timestamp,
+        )
+
+        if granularity == StatsGranularity.RAW:
+            # Query raw geo_events + geo_locations tables for exact time range granularity
+            stmt = text("""
+                SELECT
+                    gl.country_code,
+                    gl.country_name,
+                    CAST(COUNT(ge.id) AS INTEGER) AS event_count
+                FROM geo_events ge
+                JOIN geo_locations gl ON ge.location_id = gl.id
+                WHERE ge.timestamp >= :from_ts AND ge.timestamp < :to_ts
+                  AND gl.country_code IS NOT NULL
+                GROUP BY gl.country_code, gl.country_name
+                ORDER BY event_count DESC
+                LIMIT :limit
+            """)
+        else:
+            # Query appropriate CAGG joined with geo_locations
+            table = f"location_{granularity.value}_stats"
+            bucket_interval = "1 hour" if granularity == StatsGranularity.HOURLY else "1 day"
+
+            stmt = text(f"""
+                SELECT
+                    gl.country_code,
+                    gl.country_name,
+                    CAST(COALESCE(SUM(ls.event_count), 0) AS INTEGER) AS event_count
+                FROM {table} ls
+                JOIN geo_locations gl ON ls.location_id = gl.id
+                WHERE ls.bucket >= time_bucket('{bucket_interval}', CAST(:from_ts AS timestamptz))
+                  AND ls.bucket < :to_ts
+                  AND gl.country_code IS NOT NULL
+                GROUP BY gl.country_code, gl.country_name
+                ORDER BY event_count DESC
+                LIMIT :limit
+            """)
+
+        result = await self.session.execute(
+            stmt,
+            {
+                "from_ts": from_timestamp,
+                "to_ts": to_timestamp,
+                "limit": limit,
+            },
+        )
+        rows = result.fetchall()
+
+        return [(row.country_code, row.country_name, row.event_count) for row in rows]
+
 
 class GeoEventRepository(SQLAlchemyAsyncRepository[GeoEvent]):
     """Repository for GeoEvent model."""

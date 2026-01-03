@@ -19,7 +19,10 @@ from geometrikks.domain.analytics.dtos import (
     SummaryResponse,
     PeriodSummary,
     PercentChange,
+    CumulativeDataPoint,
+    CumulativeTimeSeriesResponse,
 )
+from geometrikks.domain.analytics.repositories import get_stats_granularity
 
 from geometrikks.api.dependencies import (
     provide_live_stats_repo,
@@ -317,5 +320,57 @@ class AnalyticsController(Controller):
             current_period=current_period,
             previous_period=previous_period,
             percent_changes=percent_changes,
+        )
+
+    @get("/time-series/cumulative", description="Get cumulative time series data for area charts.")
+    async def get_cumulative_time_series(
+        self,
+        summary_stats_repo: SummaryStatsRepository,
+        start_date: Annotated[
+            datetime,
+            Parameter(
+                description="Start date (ISO 8601, e.g., 2024-01-01T00:00:00Z)",
+                examples=[Example(value="2024-01-01T00:00:00Z")],
+            ),
+        ],
+        end_date: Annotated[
+            datetime,
+            Parameter(
+                description="End date (ISO 8601, e.g., 2024-12-31T23:59:59Z)",
+                examples=[Example(value="2024-12-31T23:59:59Z")],
+            ),
+        ],
+    ) -> CumulativeTimeSeriesResponse:
+        """Get cumulative time series data for area charts.
+
+        Returns running totals for geo events, access logs, and bytes
+        that reset at the start of the selected time range.
+
+        Routes to optimal source based on time range:
+        - ≤ 24 hours: RAW tables bucketed by hour
+        - > 24 hours, ≤ 30 days: hourly CAGGs
+        - > 30 days: daily CAGGs
+        """
+        cumulative_data = await summary_stats_repo.get_cumulative_time_series(
+            start_date, end_date
+        )
+
+        granularity = get_stats_granularity(start_date, end_date)
+
+        data_points = [
+            CumulativeDataPoint(
+                timestamp=row["timestamp"].isoformat() if hasattr(row["timestamp"], "isoformat") else str(row["timestamp"]),
+                cumulative_geo_events=int(row["cumulative_geo_events"]),
+                cumulative_access_logs=int(row["cumulative_access_logs"]),
+                cumulative_bytes=int(row["cumulative_bytes"]),
+            )
+            for row in cumulative_data
+        ]
+
+        return CumulativeTimeSeriesResponse(
+            granularity=granularity.value,
+            start_date=start_date.isoformat(),
+            end_date=end_date.isoformat(),
+            data=data_points,
         )
 

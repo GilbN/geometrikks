@@ -465,6 +465,119 @@ class SummaryStatsRepository:
         result = await self.session.execute(stmt, {"start": start, "end": end})
         return [dict(row._mapping) for row in result.fetchall()]
 
+    async def get_cumulative_time_series(
+        self,
+        start: datetime,
+        end: datetime,
+    ) -> Sequence[dict]:
+        """Get cumulative time series data for area charts.
+
+        Returns running totals for geo events, access logs, and bytes
+        that reset at the start of the selected time range.
+
+        Routes to optimal source based on time range:
+        - ≤ 24 hours: RAW tables (access_logs, geo_events) bucketed by hour
+        - > 24 hours, ≤ 30 days: hourly CAGGs
+        - > 30 days: daily CAGGs
+
+        Args:
+            start: Start datetime.
+            end: End datetime.
+
+        Returns:
+            List of dicts with timestamp and cumulative values.
+        """
+        if not isinstance(start, datetime) or not isinstance(end, datetime):
+            raise ValueError("start and end must be datetime instances")
+        if not start.tzinfo or not end.tzinfo:
+            raise ValueError("start and end must be timezone-aware")
+
+        granularity = get_stats_granularity(start, end)
+
+        logger.debug(f"Fetching cumulative time series from {granularity.value} source for range {start} to {end}")
+
+        if granularity == StatsGranularity.RAW:
+            # Query raw tables with time_bucket for ≤24h ranges
+            stmt = text("""
+                WITH hourly_access AS (
+                    SELECT
+                        time_bucket('1 hour', timestamp) AS bucket,
+                        COUNT(*) AS access_logs,
+                        COALESCE(SUM(bytes_sent), 0) AS bytes
+                    FROM access_logs
+                    WHERE timestamp >= :start AND timestamp < :end
+                    GROUP BY bucket
+                ),
+                hourly_geo AS (
+                    SELECT
+                        time_bucket('1 hour', timestamp) AS bucket,
+                        COUNT(*) AS geo_events
+                    FROM geo_events
+                    WHERE timestamp >= :start AND timestamp < :end
+                    GROUP BY bucket
+                ),
+                combined AS (
+                    SELECT
+                        COALESCE(a.bucket, g.bucket) AS bucket,
+                        COALESCE(a.access_logs, 0) AS access_logs,
+                        COALESCE(a.bytes, 0) AS bytes,
+                        COALESCE(g.geo_events, 0) AS geo_events
+                    FROM hourly_access a
+                    FULL OUTER JOIN hourly_geo g ON a.bucket = g.bucket
+                )
+                SELECT
+                    bucket AS timestamp,
+                    SUM(geo_events) OVER (ORDER BY bucket) AS cumulative_geo_events,
+                    SUM(access_logs) OVER (ORDER BY bucket) AS cumulative_access_logs,
+                    SUM(bytes) OVER (ORDER BY bucket) AS cumulative_bytes
+                FROM combined
+                ORDER BY bucket ASC
+            """)
+        else:
+            # Query CAGGs for longer ranges
+            summary_table = f"summary_{granularity.value}_stats"
+            geo_table = f"geo_summary_{granularity.value}_stats"
+            bucket_interval = "1 hour" if granularity == StatsGranularity.HOURLY else "1 day"
+
+            stmt = text(f"""
+                WITH summary_data AS (
+                    SELECT
+                        bucket,
+                        COALESCE(total_requests, 0) AS access_logs,
+                        COALESCE(total_bytes, 0) AS bytes
+                    FROM {summary_table}
+                    WHERE bucket >= time_bucket('{bucket_interval}', CAST(:start AS timestamptz))
+                      AND bucket < :end
+                ),
+                geo_data AS (
+                    SELECT
+                        bucket,
+                        COALESCE(total_events, 0) AS geo_events
+                    FROM {geo_table}
+                    WHERE bucket >= time_bucket('{bucket_interval}', CAST(:start AS timestamptz))
+                      AND bucket < :end
+                ),
+                combined AS (
+                    SELECT
+                        COALESCE(s.bucket, g.bucket) AS bucket,
+                        COALESCE(s.access_logs, 0) AS access_logs,
+                        COALESCE(s.bytes, 0) AS bytes,
+                        COALESCE(g.geo_events, 0) AS geo_events
+                    FROM summary_data s
+                    FULL OUTER JOIN geo_data g ON s.bucket = g.bucket
+                )
+                SELECT
+                    bucket AS timestamp,
+                    SUM(geo_events) OVER (ORDER BY bucket) AS cumulative_geo_events,
+                    SUM(access_logs) OVER (ORDER BY bucket) AS cumulative_access_logs,
+                    SUM(bytes) OVER (ORDER BY bucket) AS cumulative_bytes
+                FROM combined
+                ORDER BY bucket ASC
+            """)
+
+        result = await self.session.execute(stmt, {"start": start, "end": end})
+        return [dict(row._mapping) for row in result.fetchall()]
+
 
 class LiveStatsRepository:
     """Repository for querying live statistics directly from raw hypertables.
@@ -558,7 +671,7 @@ class LiveStatsRepository:
         avg_bytes = (access_row.total_bytes if access_row else 0) / total_requests if total_requests > 0 else 0.0
 
         return SummaryStats(
-            total_requests=total_requests,
+            total_log_records=total_requests,
             total_bytes=access_row.total_bytes if access_row else 0,
             avg_bytes_per_request=avg_bytes,
             status_2xx=access_row.status_2xx if access_row else 0,
@@ -571,7 +684,7 @@ class LiveStatsRepository:
             p95_request_time=float(access_row.p95_request_time or 0.0) if access_row else 0.0,
             p99_request_time=float(access_row.p99_request_time or 0.0) if access_row else 0.0,
             error_rate=error_rate,
-            total_geo_events=total_events,
+            total_geo_records=total_events,
             unique_ips=geo_row.unique_ips if geo_row else 0,
             unique_countries=geo_row.unique_countries if geo_row else 0,
             unique_cities=geo_row.unique_cities if geo_row else 0,

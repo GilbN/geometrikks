@@ -15,11 +15,13 @@ export type URI = string;
 
 /** All available route names */
 export type RouteName =
+  | 'get_cumulative_time_series'
   | 'get_geojson'
   | 'get_global_top_ips'
   | 'get_live_summary'
   | 'get_location_top_ips'
   | 'get_summary'
+  | 'get_top_countries'
   | 'health'
   | 'list_access_log_debugs'
   | 'list_access_logs'
@@ -35,6 +37,7 @@ export type RouteName =
 
 /** Path parameter definitions per route */
 export interface RoutePathParams {
+  'get_cumulative_time_series': Record<string, never>;
   'get_geojson': Record<string, never>;
   'get_global_top_ips': Record<string, never>;
   'get_live_summary': Record<string, never>;
@@ -42,6 +45,7 @@ export interface RoutePathParams {
     location_id: number;
   };
   'get_summary': Record<string, never>;
+  'get_top_countries': Record<string, never>;
   'health': Record<string, never>;
   'list_access_log_debugs': Record<string, never>;
   'list_access_logs': Record<string, never>;
@@ -62,6 +66,10 @@ export interface RoutePathParams {
 
 /** Query parameter definitions per route */
 export interface RouteQueryParams {
+  'get_cumulative_time_series': {
+    end_date: DateTime;
+    start_date: DateTime;
+  };
   'get_geojson': {
     from_timestamp: DateTime;
     to_timestamp: DateTime;
@@ -85,6 +93,11 @@ export interface RouteQueryParams {
     compare_previous?: boolean;
     end_date: DateTime;
     start_date: DateTime;
+  };
+  'get_top_countries': {
+    from_timestamp: DateTime;
+    limit?: number;
+    to_timestamp: DateTime;
   };
   'health': Record<string, never>;
   'list_access_log_debugs': {
@@ -121,6 +134,13 @@ export type RouteParams<T extends RouteName> = MergeParams<RoutePathParams[T], R
 
 /** Route metadata */
 export const routeDefinitions = {
+  'get_cumulative_time_series': {
+    path: '/api/v1/analytics/time-series/cumulative',
+    methods: ['GET'] as const,
+    method: 'get',
+    pathParams: [] as const,
+    queryParams: ['end_date', 'start_date'] as const,
+  },
   'get_geojson': {
     path: '/api/v1/geo-locations/geojson',
     methods: ['GET'] as const,
@@ -155,6 +175,13 @@ export const routeDefinitions = {
     method: 'get',
     pathParams: [] as const,
     queryParams: ['compare_previous', 'end_date', 'start_date'] as const,
+  },
+  'get_top_countries': {
+    path: '/api/v1/geo-locations/top-countries',
+    methods: ['GET'] as const,
+    method: 'get',
+    pathParams: [] as const,
+    queryParams: ['from_timestamp', 'limit', 'to_timestamp'] as const,
   },
   'health': {
     path: '/health',

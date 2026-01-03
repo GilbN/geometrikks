@@ -1,6 +1,56 @@
 {
   "components": {
     "schemas": {
+      "CumulativeDataPoint": {
+        "properties": {
+          "cumulative_access_logs": {
+            "type": "integer"
+          },
+          "cumulative_bytes": {
+            "type": "integer"
+          },
+          "cumulative_geo_events": {
+            "type": "integer"
+          },
+          "timestamp": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "cumulative_access_logs",
+          "cumulative_bytes",
+          "cumulative_geo_events",
+          "timestamp"
+        ],
+        "title": "CumulativeDataPoint",
+        "type": "object"
+      },
+      "CumulativeTimeSeriesResponse": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/CumulativeDataPoint"
+            },
+            "type": "array"
+          },
+          "end_date": {
+            "type": "string"
+          },
+          "granularity": {
+            "type": "string"
+          },
+          "start_date": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "end_date",
+          "granularity",
+          "start_date"
+        ],
+        "title": "CumulativeTimeSeriesResponse",
+        "type": "object"
+      },
       "EmbeddedLocationDTO": {
         "properties": {
           "city": {
@@ -869,6 +919,45 @@
         "title": "SummaryResponse",
         "type": "object"
       },
+      "TopCountriesResponse": {
+        "properties": {
+          "top_countries": {
+            "items": {
+              "$ref": "#/components/schemas/TopCountryDTO"
+            },
+            "type": "array"
+          }
+        },
+        "required": [],
+        "title": "TopCountriesResponse",
+        "type": "object"
+      },
+      "TopCountryDTO": {
+        "properties": {
+          "country_code": {
+            "type": "string"
+          },
+          "country_name": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "event_count": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "country_code",
+          "event_count"
+        ],
+        "title": "TopCountryDTO",
+        "type": "object"
+      },
       "TopIPDTO": {
         "properties": {
           "event_count": {
@@ -1366,6 +1455,114 @@
         ]
       }
     },
+    "/api/v1/analytics/time-series/cumulative": {
+      "get": {
+        "deprecated": false,
+        "description": "Get cumulative time series data for area charts.",
+        "operationId": "ApiV1AnalyticsTimeSeriesCumulativeGetCumulativeTimeSeries",
+        "parameters": [
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Start date (ISO 8601, e.g., 2024-01-01T00:00:00Z)",
+            "examples": {
+              "start_date-example-1": {
+                "value": "2024-01-01T00:00:00Z"
+              }
+            },
+            "in": "query",
+            "name": "start_date",
+            "required": true,
+            "schema": {
+              "description": "Start date (ISO 8601, e.g., 2024-01-01T00:00:00Z)",
+              "examples": [
+                "2024-01-01T00:00:00Z"
+              ],
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "End date (ISO 8601, e.g., 2024-12-31T23:59:59Z)",
+            "examples": {
+              "end_date-example-1": {
+                "value": "2024-12-31T23:59:59Z"
+              }
+            },
+            "in": "query",
+            "name": "end_date",
+            "required": true,
+            "schema": {
+              "description": "End date (ISO 8601, e.g., 2024-12-31T23:59:59Z)",
+              "examples": [
+                "2024-12-31T23:59:59Z"
+              ],
+              "format": "date-time",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CumulativeTimeSeriesResponse"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "GetCumulativeTimeSeries",
+        "tags": [
+          "Analytics"
+        ]
+      }
+    },
     "/api/v1/geo-events": {
       "get": {
         "deprecated": false,
@@ -1687,6 +1884,130 @@
           }
         },
         "summary": "GetGeojson",
+        "tags": [
+          "Geo Locations"
+        ]
+      }
+    },
+    "/api/v1/geo-locations/top-countries": {
+      "get": {
+        "deprecated": false,
+        "description": "Get top countries by event count.",
+        "operationId": "ApiV1GeoLocationsTopCountriesGetTopCountries",
+        "parameters": [
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)",
+            "examples": {
+              "from_timestamp-example-1": {
+                "value": "2024-01-01T00:00:00Z"
+              }
+            },
+            "in": "query",
+            "name": "from_timestamp",
+            "required": true,
+            "schema": {
+              "description": "Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)",
+              "examples": [
+                "2024-01-01T00:00:00Z"
+              ],
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)",
+            "examples": {
+              "to_timestamp-example-1": {
+                "value": "2024-12-31T23:59:59Z"
+              }
+            },
+            "in": "query",
+            "name": "to_timestamp",
+            "required": true,
+            "schema": {
+              "description": "End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)",
+              "examples": [
+                "2024-12-31T23:59:59Z"
+              ],
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Maximum number of countries to return",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 10,
+              "description": "Maximum number of countries to return",
+              "maximum": 50.0,
+              "minimum": 1.0,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TopCountriesResponse"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "GetTopCountries",
         "tags": [
           "Geo Locations"
         ]

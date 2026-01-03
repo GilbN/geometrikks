@@ -161,3 +161,26 @@ class StatusDistributionResponse:
     start_date: str
     end_date: str
     data: list[StatusDistributionPoint] = field(default_factory=list)
+
+
+@dataclass
+class CumulativeDataPoint:
+    """Cumulative metrics for a single time point.
+
+    Running totals that reset at the start of the selected time range.
+    """
+
+    timestamp: str  # ISO format string
+    cumulative_geo_events: int
+    cumulative_access_logs: int
+    cumulative_bytes: int
+
+
+@dataclass
+class CumulativeTimeSeriesResponse:
+    """Response containing cumulative time-series data for area charts."""
+
+    granularity: str  # "hourly" or "daily"
+    start_date: str
+    end_date: str
+    data: list[CumulativeDataPoint] = field(default_factory=list)

@@ -24,6 +24,8 @@ from geometrikks.domain.geo.dtos import (
     TopIPDTO,
     LocationTopIPsResponse,
     GlobalTopIPsResponse,
+    TopCountryDTO,
+    TopCountriesResponse,
 )
 
 from geometrikks.api.dependencies import provide_geo_location_repo
@@ -225,3 +227,48 @@ class GeoLocationController(Controller):
             for ip in top_ips_data
         ]
         return LocationTopIPsResponse(location_id=location_id, top_ips=top_ips)
+
+    @get("/top-countries", return_dto=None, description="Get top countries by event count.")
+    async def get_top_countries(
+        self,
+        geo_location_repo: GeoLocationRepository,
+        from_timestamp: Annotated[
+            datetime,
+            Parameter(
+                description="Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)",
+                examples=[Example(value="2024-01-01T00:00:00Z")],
+            ),
+        ],
+        to_timestamp: Annotated[
+            datetime,
+            Parameter(
+                description="End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)",
+                examples=[Example(value="2024-12-31T23:59:59Z")],
+            ),
+        ],
+        limit: Annotated[
+            int,
+            Parameter(description="Maximum number of countries to return", ge=1, le=50),
+        ] = 10,
+    ) -> TopCountriesResponse:
+        """Get top countries by event count.
+
+        Returns the top N countries with the highest event counts.
+        """
+        if from_timestamp is not None and from_timestamp.tzinfo is None:
+            from_timestamp = from_timestamp.replace(tzinfo=timezone.utc)
+        if to_timestamp is not None and to_timestamp.tzinfo is None:
+            to_timestamp = to_timestamp.replace(tzinfo=timezone.utc)
+
+        top_countries_data = await geo_location_repo.get_top_countries(
+            from_timestamp, to_timestamp, limit=limit
+        )
+        top_countries = [
+            TopCountryDTO(
+                country_code=country_code,
+                country_name=country_name,
+                event_count=event_count,
+            )
+            for country_code, country_name, event_count in top_countries_data
+        ]
+        return TopCountriesResponse(top_countries=top_countries)
