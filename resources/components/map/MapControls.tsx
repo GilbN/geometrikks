@@ -63,10 +63,10 @@ export function MapControls({
 
   // Expanded state - full controls
   return (
-    <div className="absolute top-4 right-4 bottom-4 z-10 flex gap-2 overflow-hidden">
+    <div className="absolute top-4 right-4 z-10 flex gap-2 max-h-[calc(100vh-2rem)] pointer-events-none">
       {/* Scrollable controls area */}
       <div
-        className="flex flex-col gap-2 p-1 overflow-y-auto overscroll-contain min-h-0 max-w-[min(200px,calc(100vw-4rem))]"
+        className="flex flex-col gap-2 p-1 overflow-y-auto overscroll-contain pointer-events-auto max-h-full max-w-[min(200px,calc(100vw-4rem))]"
         style={{ touchAction: 'pan-y' }}
       >
       {/* Layer Toggle */}
