@@ -1,6 +1,6 @@
 /**
  * Popup component for displaying location details.
- * Uses CSS variables for theming - defined in App.css as --popup-* variables.
+ * Uses CSS variables for theming - defined in main.css as --popup-* variables.
  */
 
 import { Popup } from "react-map-gl/maplibre"

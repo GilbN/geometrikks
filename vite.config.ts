@@ -30,7 +30,7 @@ export default defineConfig({
     }),
     react(),
     litestar({
-      input: ["resources/main.tsx"],
+      input: ["resources/main.tsx", "resources/main.css"],
     }),
   ],
   resolve: {
