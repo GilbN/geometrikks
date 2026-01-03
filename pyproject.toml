@@ -5,7 +5,7 @@ description = "Geo metrics ingress service built with Litestar."
 readme = "README.md"
 requires-python = ">=3.13,<3.14"
 dependencies = [
-    "litestar[standard,brotli,jwt,picologging,prometheus,pydantic,redis,sqlalchemy]>=2.18.0",
+    "litestar[standard,brotli,jwt,picologging,pydantic,sqlalchemy]>=2.18.0",
     "geoip2>=5.2.0",
     "geohash2>=1.1",
     "ipy>=1.1",

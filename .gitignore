@@ -1,7 +1,6 @@
 
 /ignore
 /config
-/data/*
 /docs
 *.db
 .litestar.json

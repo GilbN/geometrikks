@@ -55,7 +55,7 @@ class GeoIPSettings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="GEOIP_", env_file=".env", extra="ignore")
 
     db_path: Path = Field(
-        default=Path("data/GeoLite2-City.mmdb"),
+        default=Path("data/geoip/GeoLite2-City.mmdb"),
         description="Path to GeoIP2/GeoLite2 database file",
     )
     locales: list[str] = Field(
@@ -65,19 +65,32 @@ class GeoIPSettings(BaseSettings):
     cache_enabled: bool = Field(default=True, description="Enable GeoIP lookup caching")
     cache_ttl: int = Field(default=86400, description="GeoIP cache TTL in seconds (24 hours)")
     validate_db_path: bool = Field(
-        default=False, 
+        default=False,
         description="Validate that the GeoIP database file exists (set to True for production)"
     )
     validate_locales: bool = Field(
-        default=True, 
+        default=True,
         description="Validate that the specified GeoIP locales are supported"
     )
 
     @model_validator(mode="after")
     def validate_geoip_db_exists(self) -> "GeoIPSettings":
-        """Ensure GeoIP database file exists if validation is enabled."""
-        if self.validate_db_path and not self.db_path.exists():
-            raise ValueError(f"GeoIP database file not found: {self.db_path}")
+        """Ensure GeoIP database file exists if validation is enabled.
+
+        Resolves relative paths from the project root to work in all contexts.
+        """
+        db_path = self.db_path
+
+        # If path is relative, resolve from project root
+        if not db_path.is_absolute():
+            project_root = Path(__file__).parent.parent.parent
+            db_path = project_root / db_path
+
+        if self.validate_db_path and not db_path.exists():
+            raise ValueError(f"GeoIP database file not found: {db_path}")
+
+        # Update the path to absolute for runtime use
+        self.db_path = db_path
         return self
 
     @model_validator(mode="after")
