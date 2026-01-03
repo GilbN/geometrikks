@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from geometrikks.config import DatabaseSettings, GeoIPSettings, Settings, get_settings
+from geometrikks.config import GeoIPSettings, Settings, get_settings
 
 
 def test_default_settings():
@@ -39,18 +39,15 @@ def test_database_settings():
     assert settings.database.echo is False
 
 
-def test_geoip_settings():
+def test_geoip_settings(tmp_path):
     """Test GeoIP configuration."""
     # Create a dummy GeoIP file for testing
-    test_db = Path("test_geoip.mmdb")
+    test_db = tmp_path / "test_geoip.mmdb"
     test_db.touch()
     
-    try:
-        settings = Settings(geoip=GeoIPSettings(db_path=test_db))
-        assert settings.geoip.db_path == test_db
-        assert settings.geoip.cache_enabled is True
-    finally:
-        test_db.unlink()
+    settings = Settings(geoip=GeoIPSettings(db_path=test_db))
+    assert settings.geoip.db_path == test_db
+    assert settings.geoip.cache_enabled is True
 
 
 def test_geoip_missing_file():
@@ -68,7 +65,7 @@ def test_api_settings():
     
     assert settings.api.host == "0.0.0.0"
     assert settings.api.port == 8000
-    assert settings.api.log_level in ["debug", "info", "warning", "error", "critical"]
+    assert settings.api.log_level in ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
 
 
 def test_environment_properties():
@@ -84,6 +81,7 @@ def test_environment_properties():
 
 def test_settings_caching():
     """Test that get_settings returns cached instance."""
+    get_settings.cache_clear()
     settings1 = get_settings()
     settings2 = get_settings()
     

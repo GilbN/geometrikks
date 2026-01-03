@@ -30,7 +30,7 @@ def baseline_settings_env():
         "API_PORT": "8000",
         "API_WORKERS": "1",
         "API_RELOAD": "false",
-        "API_LOG_LEVEL": "info",
+        "API_LOG_LEVEL": "INFO",
         # Database
         "DB_URL": "postgresql+asyncpg://geouser:geopass@localhost:5432/geometrikks",
         "DB_ECHO": "false",
