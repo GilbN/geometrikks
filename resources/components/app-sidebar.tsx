@@ -54,6 +54,12 @@ const navigationItems = [
     description: "Request logs",
   },
   {
+    title: "Geo Logs",
+    url: "/geo-logs",
+    icon: FileText,
+    description: "Geolocation logs",
+  },
+  {
     title: "Analytics",
     url: "/analytics",
     icon: BarChart3,

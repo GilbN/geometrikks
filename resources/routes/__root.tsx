@@ -1,4 +1,4 @@
-import { createRootRoute, Outlet, useRouterState } from "@tanstack/react-router"
+import { createRootRoute, Outlet, useRouterState, Link } from "@tanstack/react-router"
 import { ThemeProvider } from "@/components/theme-provider"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import {
@@ -26,6 +26,7 @@ import { AlertTriangle, RefreshCw, Home } from "lucide-react"
 export const Route = createRootRoute({
   component: RootLayout,
   errorComponent: RootErrorComponent,
+  notFoundComponent: NotFoundComponent,
 })
 
 // Map routes to breadcrumb labels
@@ -33,6 +34,7 @@ const routeLabels: Record<string, string> = {
   "/": "Overview",
   "/map": "Map",
   "/access-logs": "Access Logs",
+  "/geo-logs": "Geo Logs",
   "/analytics": "Analytics",
   "/settings": "Settings",
 }
@@ -120,6 +122,36 @@ function RootErrorComponent({ error, reset }: { error: Error; reset: () => void 
               <Button variant="default" onClick={() => window.location.href = "/"}>
                 <Home className="h-4 w-4 mr-2" />
                 Go home
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    </ThemeProvider>
+  )
+}
+
+function NotFoundComponent() {
+  return (
+    <ThemeProvider defaultTheme="dark" storageKey="geometrikks-theme">
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <Card className="max-w-lg w-full">
+          <CardHeader className="text-center">
+            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-muted">
+              <AlertTriangle className="h-6 w-6 text-muted-foreground" />
+            </div>
+            <CardTitle className="text-xl">Page Not Found</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-sm text-muted-foreground text-center">
+              The page you're looking for doesn't exist or has been moved.
+            </p>
+            <div className="flex gap-2 justify-center">
+              <Button variant="default" asChild>
+                <Link to="/">
+                  <Home className="h-4 w-4 mr-2" />
+                  Go home
+                </Link>
               </Button>
             </div>
           </CardContent>
