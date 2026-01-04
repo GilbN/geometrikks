@@ -8,6 +8,7 @@
     "python.testing.pytestEnabled": true,
     "python.analysis.typeCheckingMode": "standard",
     "python.languageServer": "None",
+    "python.terminal.useEnvFile": true,
     "ty.inlayHints.callArgumentNames": false,
 
 }

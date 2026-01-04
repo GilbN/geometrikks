@@ -11,7 +11,6 @@ Analytics aggregation is handled automatically by TimescaleDB continuous aggrega
 
 """
 from __future__ import annotations
-import os
 import logging
 import asyncio
 from asyncio import Task
@@ -26,7 +25,8 @@ from geometrikks.domain.logs.models import AccessLog, AccessLogDebug
 from geometrikks.domain.geo.utils import make_point
 from geometrikks.services.logparser.schemas import ParsedLogRecord, ParsedGeoData, ParsedAccessLog
 from geometrikks.services.logparser.constants import ALLOWED_GEOIP_LOCALES, GEOIP_LOCALES_DEFAULT
-from geometrikks.services.logparser.logparser import LogParser, wait
+from geometrikks.services.logparser.logparser import LogParser
+from geometrikks.lib.utils import wait_for_path
 
 if TYPE_CHECKING:
     from geometrikks.domain.geo.repositories import GeoLocationRepository, GeoEventRepository
@@ -132,26 +132,6 @@ class LogIngestionService:
         """Return True if ingestion task is running."""
         return self._ingestion_task is not None and not self._ingestion_task.done()
 
-    @wait(timeout_seconds=60)
-    def log_file_exists(self, log_path: Path) -> bool:
-        """Try for 60 seconds to check if the log file exists."""
-        logger.debug(f"Checking if log file {log_path} exists.")
-        if not os.path.exists(log_path):
-            logger.warning(f"Log file {log_path} does not exist.")
-            return False
-        logger.info(f"Log file {log_path} exists.")
-        return True
-
-    @wait(timeout_seconds=60)
-    def geoip_file_exists(self, geoip_path: Path) -> bool:
-        """Try for 60 seconds to check if the GeoIP file exists."""
-        logger.debug(f"Checking if GeoIP file {geoip_path} exists.")
-        if not os.path.exists(geoip_path):
-            logger.warning(f"GeoIP file {geoip_path} does not exist.")
-            return False
-        logger.info(f"GeoIP file {geoip_path} exists.")
-        return True
-
     async def start(self, *, skip_validation: bool = False) -> None:
         """Start the ingestion background task.
 
@@ -213,8 +193,8 @@ class LogIngestionService:
     async def _run_ingestion(self, *, reader:Reader, skip_validation: bool) -> None:
         """Core ingestion loop."""
         last_commit: int | float = time.monotonic()
-        # Validate files exist
-        if not await asyncio.to_thread(self.log_file_exists, self.parser.log_path):
+        logger.debug("Waiting for log file: %s", self.parser.log_path)
+        if not await wait_for_path(self.parser.log_path, timeout_seconds=60.0):
             logger.error(
                 "Cannot start ingestion: log file does not exist at %s",
                 self.parser.log_path,

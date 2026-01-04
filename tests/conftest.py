@@ -24,21 +24,20 @@ def baseline_settings_env():
         "APP_NAME": "GeoMetrikks API",
         "APP_VERSION": "0.1.0",
         "APP_DEBUG": "false",
-        "APP_ENVIRONMENT": "development",
+        "APP_ENVIRONMENT": "production",
         # API
         "API_HOST": "0.0.0.0",
         "API_PORT": "8000",
-        "API_WORKERS": "1",
-        "API_RELOAD": "false",
         "API_LOG_LEVEL": "INFO",
         # Database
-        "DB_URL": "postgresql+asyncpg://geouser:geopass@localhost:5432/geometrikks",
         "DB_ECHO": "false",
         "DB_POOL_SIZE": "5",
         "DB_MAX_OVERFLOW": "10",
         "DB_POOL_TIMEOUT": "30",
         "DB_POOL_RECYCLE": "3600",
         "DB_DROP_ON_STARTUP": "false",
+        # GeoIP
+        "GEOIP_DB_PATH": "tests/GeoLite2-City.mmdb",
     })
 
 

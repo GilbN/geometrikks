@@ -62,10 +62,8 @@ class GeoIPSettings(BaseSettings):
         default=["en"],
         description="List of GeoIP locales to use",
     )
-    cache_enabled: bool = Field(default=True, description="Enable GeoIP lookup caching")
-    cache_ttl: int = Field(default=86400, description="GeoIP cache TTL in seconds (24 hours)")
     validate_db_path: bool = Field(
-        default=False,
+        default=True,
         description="Validate that the GeoIP database file exists (set to True for production)"
     )
     validate_locales: bool = Field(
@@ -110,8 +108,6 @@ class APISettings(BaseSettings):
 
     host: str = Field(default="0.0.0.0", description="API server host")
     port: int = Field(default=8000, description="API server port")
-    workers: int = Field(default=5, description="Number of worker processes")
-    reload: bool = Field(default=False, description="Enable auto-reload on code changes")
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = Field(
         default="INFO",
         description="Logging level",
@@ -271,9 +267,7 @@ class Settings(BaseSettings):
     Example .env file:
         APP_NAME=GeoMetrikks
         APP_DEBUG=true
-        DB_URL=postgresql+asyncpg://user:pass@localhost/geometrikks
-        REDIS_URL=redis://localhost:6379/0
-        GEOIP_DB_PATH=/data/GeoLite2-City.mmdb
+        GEOIP_DB_PATH=data/GeoLite2-City.mmdb
     """
 
     model_config = SettingsConfigDict(
@@ -293,7 +287,7 @@ class Settings(BaseSettings):
     )
     debug: bool = Field(default=False, description="Enable debug mode")
     environment: Literal["development", "staging", "production"] = Field(
-        default="development",
+        default="production",
         description="Application environment",
     )
 
@@ -327,6 +321,4 @@ def get_settings() -> Settings:
     Returns:
         Settings: Application settings instance
     """
-    # Create settings with validation disabled for GeoIP path by default
-    # Set GEOIP_VALIDATE_DB_PATH=true in production to enable validation
     return Settings()

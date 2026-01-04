@@ -1,13 +1,12 @@
 from collections.abc import AsyncGenerator
 import re
 import os
-import time
 import logging
 import asyncio
-from functools import wraps, lru_cache
+from functools import lru_cache
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, ParamSpec, Callable
+from typing import Any
 
 import aiofiles.os
 import aiofiles
@@ -24,34 +23,10 @@ from .constants import (
     ipv6_geo_pattern
 )
 from .schemas import ParsedLogRecord, ParsedGeoData, ParsedAccessLog
+from geometrikks.lib.utils import wait
 
 
 logger = logging.getLogger(__name__)
-
-P = ParamSpec("P")
-
-
-def wait(timeout_seconds: int = 60) -> Callable[[Callable[P, bool]], Callable[P, bool]]:
-    """Factory Decorator to wait for a function to return True for a given amount of time.
-
-    Args:
-        timeout_seconds (int, optional): Defaults to 60.
-    """
-    def decorator(func: Callable[P, bool]) -> Callable[P, bool]:
-        @wraps(func)
-        def wrapper(*args: P.args, **kwargs: P.kwargs) -> bool:
-            # Allow tests to bypass retry loops
-            if os.getenv("DISABLE_WAIT", "false").lower() == "true":
-                return bool(func(*args, **kwargs))
-            timeout: float = time.time() + timeout_seconds
-            while time.time() < timeout:
-                if func(*args, **kwargs):
-                    return True
-                time.sleep(1)
-            logger.error(f"Timeout of {timeout_seconds} seconds reached on {func.__name__} function.")
-            return False
-        return wrapper
-    return decorator
 
 
 class LogParser:
