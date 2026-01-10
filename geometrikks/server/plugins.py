@@ -71,6 +71,7 @@ vite_config = ViteConfig(
         http2=settings.vite.http2,
         host=settings.vite.host,
         port=settings.vite.port,
+        executor=settings.vite.executor,
     ),
     types=TypeGenConfig(
         output=Path("resources/generated"),

@@ -1,0 +1,40 @@
+# syntax=docker/dockerfile:1
+
+FROM oven/bun:latest AS bun
+
+FROM ghcr.io/astral-sh/uv:python3.13-bookworm-slim
+
+COPY --from=bun /usr/local/bin/bun /usr/local/bin/bun
+
+WORKDIR /app
+
+# Enable bytecode compilation
+ENV UV_COMPILE_BYTECODE=1 \
+    PATH="/app/.venv/bin:$PATH" \
+    PYTHONUNBUFFERED=1 \
+    APP_ENVIRONMENT=development \
+    API_RELOAD=true \
+    VITE_DEV_MODE=true
+
+COPY pyproject.toml uv.lock* ./
+COPY package.json bun.lock ./
+
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --frozen
+
+RUN --mount=type=cache,target=/root/.bun \
+    bun install --frozen-lockfile
+
+COPY vite.config.ts tsconfig.json components.json index.html openapi-ts.config.ts ./
+
+RUN mkdir -p /app/data/geoip /app/logs
+
+# Note: Source code is mounted as volumes in docker-compose
+# This allows hot-reload to work
+
+STOPSIGNAL SIGTERM
+EXPOSE 8000 5173
+
+# Default command runs backend with reload
+# Frontend can be run separately or via docker-compose
+CMD ["litestar", "--app", "geometrikks.server.core:create_app", "run", "--host", "0.0.0.0", "--port", "8000", "--reload", "--debug"]

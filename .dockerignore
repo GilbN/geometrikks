@@ -1,0 +1,67 @@
+# Git
+.git
+.gitignore
+
+# Python
+__pycache__
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv
+venv
+env
+*.egg-info
+.eggs
+dist
+build
+.pytest_cache
+.coverage
+htmlcov
+.mypy_cache
+.ruff_cache
+
+# Node
+node_modules
+.npm
+
+# IDE
+.idea
+.vscode
+*.swp
+*.swo
+
+# Docker
+Dockerfile*
+docker-compose*.yml
+.docker
+
+# Documentation
+*.md
+!README.md
+docs/
+
+# Tests (not needed in production image)
+tests/
+pytest.ini
+.coveragerc
+
+# Environment files (use docker-compose env instead)
+.env
+.env.*
+!.env.example
+
+# Misc
+*.log
+*.tmp
+.DS_Store
+Thumbs.db
+
+# Data directories (mounted as volumes)
+data/
+!data/geoip/GeoLite2-City.mmdb
+logs/
+
+# Frontend build artifacts (rebuilt in docker)
+public/
+resources/generated/

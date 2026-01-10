@@ -252,6 +252,11 @@ class ViteSettings(BaseSettings):
         description="Enable HTTP/2 for the Vite development server."
     )
 
+    executor: Literal["node", "bun", "deno", "yarn", "pnpm"] | None = Field(
+        default="bun",
+        description="JS runtime executor for litestar-vite (defaults to bun).",
+    )
+
 
 class Settings(BaseSettings):
     """Main application settings.

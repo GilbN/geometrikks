@@ -1,38 +1,106 @@
 services:
 
-  postgis_db:
+  # ===========================================================================
+  # TimescaleDB with PostGIS
+  # ===========================================================================
+  timescale_db:
+    container_name: timescale_db
     image: timescale/timescaledb-ha:pg18
     restart: always
-    # Shared memory for PostgreSQL IPC (should be >= shared_buffers)
     shm_size: 256mb
     environment:
       POSTGRES_USER: geouser
       POSTGRES_PASSWORD: geopass
       POSTGRES_DB: geometrikks
     ports:
-      - 5432:5432
+      - "5432:5432"
+    volumes:
+      - timescale_data:/home/postgres/pgdata/data
     networks:
-      - database_net
+      - geometrikks_net
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U geouser -d geometrikks"]
+      test: [ "CMD-SHELL", "pg_isready -U geouser -d geometrikks" ]
       interval: 5s
       timeout: 5s
       retries: 5
 
-  pgadmin:
-    image: dpage/pgadmin4:latest
-    restart: always
+  # ===========================================================================
+  # GeoMetrikks Backend (Production)
+  # ===========================================================================
+  app:
+    container_name: geometrikks_app
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
     environment:
-      PGADMIN_DEFAULT_EMAIL: admin@local
-      PGADMIN_DEFAULT_PASSWORD: admin
-      PGADMIN_CONFIG_SERVER_MODE: "False"
+      APP_ENVIRONMENT: production
+      DB_HOST: timescale_db
+      DB_PORT: 5432
+      DB_USER: geouser
+      DB_PASSWORD: geopass
+      DB_NAME: geometrikks
+      LOGPARSER_LOG_PATH: /var/log/nginx/access.log
     ports:
-      - 8080:80
+      - "8000:8000"
+    volumes:
+      - /var/log/nginx:/var/log/nginx:ro
     networks:
-      - database_net
+      - geometrikks_net
+    env_file:
+      - .env
     depends_on:
-      - postgis_db
+      timescale_db:
+        condition: service_healthy
+    profiles:
+      - prod
+
+  # ===========================================================================
+  # GeoMetrikks Backend (Development)
+  # ===========================================================================
+  app-dev:
+    container_name: geometrikks_app_dev
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    environment:
+      APP_ENVIRONMENT: development
+      APP_DEBUG: "true"
+      API_RELOAD: "true"
+      API_LOG_LEVEL: DEBUG
+      DB_HOST: timescale_db
+      DB_PORT: 5432
+      DB_USER: geouser
+      DB_PASSWORD: geopass
+      DB_NAME: geometrikks
+      GEOIP_DB_PATH: /app/data/geoip/GeoLite2-City.mmdb
+      LOGPARSER_LOG_PATH: /app/logs/access.log
+      VITE_DEV_MODE: "true"
+      VITE_EXECUTOR: "bun"
+      VITE_HOST: "0.0.0.0"
+      VITE_PORT: 5173
+    ports:
+      - "8000:8000"
+      - "5173:5173"
+    volumes:
+      # Mount source code for hot-reload
+      - ./geometrikks:/app/geometrikks:cached
+      - ./resources:/app/resources:cached
+      - ./tests:/app/tests:cached
+      - ./data:/app/data:cached
+      # Mount log directory
+      - /var/log/nginx:/app/logs:ro
+    networks:
+      - geometrikks_net
+    depends_on:
+      timescale_db:
+        condition: service_healthy
+    profiles:
+      - dev
 
 networks:
-  database_net:
+  geometrikks_net:
     driver: bridge
+
+volumes:
+  timescale_data:
