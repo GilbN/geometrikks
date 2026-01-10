@@ -51,7 +51,7 @@ export function MapControls({
         <Button
           size="icon"
           variant="outline"
-          className="bg-background mt-1"
+          className="bg-background mt-1 cursor-pointer"
           onClick={() => setIsExpanded(true)}
           title="Show map controls"
         >
@@ -63,7 +63,7 @@ export function MapControls({
 
   // Expanded state - full controls
   return (
-    <div className="absolute top-4 right-4 z-10 flex gap-2 max-h-[calc(100vh-2rem)] pointer-events-none">
+    <div className="absolute top-4 right-4 z-10 flex gap-2 max-h-[calc(100vh-2rem)] pointer-events-auto">
       {/* Scrollable controls area */}
       <div
         className="flex flex-col gap-2 p-1 overflow-y-auto overscroll-contain pointer-events-auto max-h-full max-w-[min(200px,calc(100vw-4rem))]"
@@ -84,7 +84,7 @@ export function MapControls({
             aria-label="Heatmap view"
             variant="outline"
             className={cn(
-              "w-full justify-start gap-2 px-3 data-[state=on]:bg-geo-cyan/15 data-[state=on]:text-geo-cyan data-[state=on]:border-geo-cyan/30",
+              "cursor-pointer w-full justify-start gap-2 px-3 data-[state=on]:bg-geo-cyan/15 data-[state=on]:text-geo-cyan data-[state=on]:border-geo-cyan/30",
               activeLayer === "heatmap" && "bg-geo-cyan/15 text-geo-cyan border-geo-cyan/30"
             )}
           >
@@ -96,7 +96,7 @@ export function MapControls({
             aria-label="Marker view"
             variant="outline"
             className={cn(
-              "w-full justify-start gap-2 px-3 data-[state=on]:bg-geo-cyan/15 data-[state=on]:text-geo-cyan data-[state=on]:border-geo-cyan/30",
+              "cursor-pointer w-full justify-start gap-2 px-3 data-[state=on]:bg-geo-cyan/15 data-[state=on]:text-geo-cyan data-[state=on]:border-geo-cyan/30",
               activeLayer === "markers" && "bg-geo-cyan/15 text-geo-cyan border-geo-cyan/30"
             )}
           >
@@ -114,6 +114,7 @@ export function MapControls({
           onClick={onFitBounds}
           disabled={isLoading || events === 0}
           title="Fit to data bounds"
+          className="cursor-pointer"
         >
           <Maximize2 className="h-4 w-4" />
         </Button>
@@ -174,7 +175,7 @@ export function MapControls({
       <Button
         size="icon"
         variant="outline"
-        className="mt-1 bg-background shrink-0 p-1 self-start"
+        className="mt-1 bg-background shrink-0 p-1 self-start cursor-pointer"
         onClick={() => setIsExpanded(false)}
         title="Hide map controls"
       >
