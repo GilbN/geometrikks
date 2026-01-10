@@ -11,7 +11,7 @@ MAX_QUERY_PARAMS = 32767
 
 # Column counts per model (used to calculate safe batch sizes)
 COLUMNS_GEO_LOCATION = 15  # latitude, longitude, geohash, geographic_point, country_code, country_name, state, state_code, city, postal_code, timezone, last_hit, created_at, updated_at
-COLUMNS_ACCESS_LOG = 17    # timestamp, ip_address, remote_user, method, url, http_version, status_code, bytes_sent, referrer, user_agent, request_time, connect_time, host, country_code, country_name, city
+COLUMNS_ACCESS_LOG = 17    # timestamp, ip_address, remote_user, method, url, http_version, status_code, bytes_sent, referrer, user_agent, request_time, upstream_response_time, host, country_code, country_name, city
 COLUMNS_GEO_EVENT = 5      # timestamp, ip_address, hostname, location_id
 COLUMNS_DEBUG_LOG = 6      # access_log_id, created_at, raw_line, is_malformed, parse_error
 

@@ -401,7 +401,7 @@ class LogIngestionService:
             referrer=parsed.referrer,
             user_agent=parsed.user_agent,
             request_time=parsed.request_time,
-            connect_time=parsed.connect_time,
+            upstream_response_time=parsed.upstream_response_time,
             host=parsed.host,
             country_code=parsed.country_code,
             country_name=parsed.country_name,

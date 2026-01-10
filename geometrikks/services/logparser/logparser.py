@@ -365,14 +365,14 @@ class LogParser:
             request_time = 0.0
 
         try:
-            connect_time_str = datadict.get("connect_time")
-            connect_time = (
-                float(connect_time_str)
-                if connect_time_str and connect_time_str != "-"
+            upstream_response_time_str = datadict.get("upstream_response_time")
+            upstream_response_time = (
+                float(upstream_response_time_str)
+                if upstream_response_time_str and upstream_response_time_str != "-"
                 else None
             )
         except (ValueError, TypeError):
-            connect_time = None
+            upstream_response_time = None
 
         try:
             bytes_sent = int(datadict.get("bytes_sent", 0))
@@ -401,11 +401,11 @@ class LogParser:
             referrer=_convert_to_none(datadict.get("referrer")),
             user_agent=_convert_to_none(datadict.get("user_agent")),
             request_time=request_time,
-            connect_time=connect_time,
+            upstream_response_time=upstream_response_time,
             host=_convert_to_none(datadict.get("host")),
             country_code=ip_data.country.iso_code,
             country_name=ip_data.country.name,
-            city=ip_data.city.name or datadict.get("city"),
+            city=ip_data.city.name,
         )
 
     async def iter_parsed_records(

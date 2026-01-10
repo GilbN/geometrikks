@@ -58,7 +58,7 @@ class AccessLog(base.BigIntBase):
     
     # Performance metrics
     request_time: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
-    connect_time: Mapped[Optional[float]] = mapped_column(Float, nullable=True, default=None)
+    upstream_response_time: Mapped[Optional[float]] = mapped_column(Float, nullable=True, default=None)
     
     # Host information (may be missing on malformed lines)
     host: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)

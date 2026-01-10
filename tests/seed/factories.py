@@ -295,7 +295,7 @@ class AccessLogFactory(BaseFactory[AccessLog]):
             "referrer": kwargs.get("referrer", fake.url() if rng.random() < 0.3 else None),
             "user_agent": kwargs.get("user_agent") or rng.choice(USER_AGENTS),
             "request_time": request_time,
-            "connect_time": kwargs.get("connect_time", round(request_time * 0.1, 3) if rng.random() < 0.8 else None),
+            "upstream_response_time": kwargs.get("upstream_response_time", round(request_time * 0.1, 3) if rng.random() < 0.8 else None),
             "host": kwargs.get("host", "geometrikks.local"),
             "country_code": kwargs.get("country_code"),
             "country_name": kwargs.get("country_name"),

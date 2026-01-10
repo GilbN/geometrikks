@@ -358,16 +358,6 @@
               }
             ]
           },
-          "connectTime": {
-            "oneOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
           "countryCode": {
             "oneOf": [
               {
@@ -447,6 +437,16 @@
           "timestamp": {
             "format": "date-time",
             "type": "string"
+          },
+          "upstreamResponseTime": {
+            "oneOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "url": {
             "oneOf": [

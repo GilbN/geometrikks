@@ -47,24 +47,15 @@ uv run litestar --app geometrikks.server.core:create_app run --debug
 ```
 See .env.example for configuration
 
-## Sending Nginx log metrics
-
-Nginx needs to be compiled with the geoip2 module: https://github.com/leev/ngx_http_geoip2_module
+## Sending Nginx log metrics with request and upstream response times
 
 1. Add the following to the http block in your `nginx.conf` file:
 
     ```nginx
-    geoip2 /config/geoip2db/GeoLite2-City.mmdb {
-    auto_reload 5m;
-    $geoip2_data_country_iso_code country iso_code;
-    $geoip2_data_city_name city names en;
-    }
-
-    log_format custom '$remote_addr - $remote_user [$time_local]'
-            '"$request" $status $body_bytes_sent'
-            '"$http_referer" $host "$http_user_agent"'
-            '"$request_time" "$upstream_connect_time"'
-            '"$geoip2_data_city_name" "$geoip2_data_country_iso_code"';
+    log_format custom '$remote_addr - $remote_user [$time_local] '
+            '"$request" $status $body_bytes_sent '
+            '"$http_referer" $host "$http_user_agent" '
+            '"$request_time" "$upstream_response_time"';
     ```
 
 2. Set the access log use the `custom` log format.

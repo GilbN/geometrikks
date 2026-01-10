@@ -21,7 +21,7 @@ class Rgx:
     HOST_PATTERN = r'(.+?)'
     USER_AGENT_PATTERN = r'(.+?)'
     REQUEST_TIME_PATTERN = r'(.+?)'
-    CONNECT_TIME_PATTERN = r'(.+?)'
+    UPSTREAM_RESPONSE_TIME = r'(.+?)'
     CITY_PATTERN = r'(.+?)'
     COUNTRY_CODE_PATTERN = r'(.+?)'
 
@@ -58,14 +58,14 @@ def create_log_pattern(ip_pattern: str) -> re.Pattern[str]:
     (?P<url>{Rgx.URL_PATTERN})"
     (?P<host>{Rgx.HOST_PATTERN})"
     (?P<user_agent>{Rgx.USER_AGENT_PATTERN})
-    "\s?"
-    (?P<request_time>{Rgx.REQUEST_TIME_PATTERN})"
-    \s"
-    (?P<connect_time>{Rgx.CONNECT_TIME_PATTERN})"
-    \s?"
-    (?P<city>{Rgx.CITY_PATTERN})"
-    \s"
-    (?P<country_code>{Rgx.COUNTRY_CODE_PATTERN})"
+    (?:
+        \s?"
+        (?P<request_time>{Rgx.REQUEST_TIME_PATTERN})"
+    )?
+    (?:
+        \s"
+        (?P<upstream_response_time>{Rgx.UPSTREAM_RESPONSE_TIME})"
+    )?
     ''', re.VERBOSE | re.IGNORECASE) # NOQA
     
 def ipv4_pattern() -> re.Pattern[str]:
