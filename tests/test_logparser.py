@@ -365,3 +365,18 @@ def test_parse_geo_data(log_parser: LogParser, geoip_reader: Reader) -> None:
     assert parsed.latitude is not None
     assert parsed.longitude is not None
     assert parsed.geohash is not None
+
+
+@pytest.mark.asyncio
+async def test_iter_parsed_records_tags_source(tmp_path: Path, log_parser: LogParser, geoip_reader: Reader) -> None:
+    """Every yielded record carries the source file path it was read from."""
+    log_file = tmp_path / "access.log"
+    valid_line = Path(VALID_LOG_PATH).read_text(encoding="utf-8").splitlines()[0]
+    log_file.write_text(valid_line + "\n", encoding="utf-8")
+    log_parser.log_path = log_file
+    log_parser._stop_event = asyncio.Event()
+
+    gen = log_parser.iter_parsed_records(geoip_reader, skip_validation=True, start_at_end=False)
+    record = await gen.__anext__()
+    await gen.aclose()
+    assert record.source == str(log_file)

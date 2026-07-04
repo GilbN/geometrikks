@@ -476,6 +476,7 @@ class LogParser:
                         raw_line=raw_line,
                         is_malformed=True,
                         parse_error="Line did not match expected log format",
+                        source=str(self.log_path),
                     )
                     continue
 
@@ -500,4 +501,5 @@ class LogParser:
                     raw_line=raw_line,
                     is_malformed=is_malformed,
                     parse_error=parse_error,
+                    source=str(self.log_path),
                 )

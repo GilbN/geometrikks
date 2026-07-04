@@ -58,3 +58,4 @@ class ParsedLogRecord:
     raw_line: str
     is_malformed: bool = field(default=False)
     parse_error: str | None = field(default=None)
+    source: str = field(default="")
