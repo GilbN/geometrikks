@@ -124,8 +124,11 @@ class LogIngestionService:
         self.store_debug_lines: bool = store_debug_lines
         self._queue_maxsize: int = queue_maxsize
 
-        # In-memory cache for GeoLocation by geohash
-        self._location_cache: dict[str, GeoLocation] = {}
+        # In-memory cache: geohash -> committed (or pending-commit) GeoLocation id.
+        # Ids cached since the last successful commit are tracked so a rollback
+        # can evict them (their rows never landed -> FK poison otherwise).
+        self._location_cache: dict[str, int] = {}
+        self._uncommitted_geohashes: set[str] = set()
         self._cache_maxsize = 10_000
 
         # Background task management
@@ -287,13 +290,13 @@ class LogIngestionService:
         access_log_model: AccessLog | None = None
 
         if record.geo_data and record.ip_address:
-            location: GeoLocation | None = await self._get_or_create_location(record.geo_data, repos)
-            if location:
+            location_id: int | None = await self._get_or_create_location(record.geo_data, repos)
+            if location_id is not None:
                 geo_event = GeoEvent(
                     timestamp=record.geo_data.timestamp,
                     ip_address=record.ip_address,
                     hostname=self.hostname,
-                    location_id=location.id,
+                    location_id=location_id,
                 )
                 await repos.geo_event.add(geo_event, auto_commit=False)
                 self.total_geo_records += 1
@@ -312,18 +315,19 @@ class LogIngestionService:
 
         self.total_processed += 1
 
-    async def _get_or_create_location(self, geo_data: ParsedGeoData, repos: IngestionRepos) -> GeoLocation | None:
-        """Get existing or create new GeoLocation using the current flush session's repo."""
-        # (cache logic unchanged in this task; Task 8 switches it to id-only)
-        if cached := self._location_cache.get(geo_data.geohash):
-            return cached
+    async def _get_or_create_location(self, geo_data: ParsedGeoData, repos: IngestionRepos) -> int | None:
+        """Return the GeoLocation id for this geohash, creating the row if needed."""
+        if (cached_id := self._location_cache.get(geo_data.geohash)) is not None:
+            return cached_id
 
         if len(self._location_cache) >= self._cache_maxsize:
-            self._location_cache.pop(next(iter(self._location_cache)))
+            evicted = next(iter(self._location_cache))
+            self._location_cache.pop(evicted)
+            self._uncommitted_geohashes.discard(evicted)
 
         if existing := await repos.geo_location.get_by_geohash(geo_data.geohash):
-            self._location_cache[geo_data.geohash] = existing
-            return existing
+            self._location_cache[geo_data.geohash] = existing.id
+            return existing.id
 
         location = GeoLocation(
             geohash=geo_data.geohash,
@@ -341,8 +345,15 @@ class LogIngestionService:
         location = await repos.geo_location.add(location, auto_commit=False)
         await repos.geo_location.session.flush()
 
-        self._location_cache[geo_data.geohash] = location
-        return location
+        self._location_cache[geo_data.geohash] = location.id
+        self._uncommitted_geohashes.add(geo_data.geohash)
+        return location.id
+
+    def _evict_uncommitted_locations(self) -> None:
+        """Drop cache entries whose inserts were rolled back before committing."""
+        for geohash in self._uncommitted_geohashes:
+            self._location_cache.pop(geohash, None)
+        self._uncommitted_geohashes.clear()
 
     def _sanitize_for_postgres(self, value: str | None) -> str | None:
         """Remove null bytes from strings for PostgreSQL compatibility.
@@ -402,12 +413,15 @@ class LogIngestionService:
                         await session.rollback()
                     except Exception as rollback_err:
                         logger.error("Rollback failed: %s", rollback_err)
+                    self._evict_uncommitted_locations()
 
             try:
                 await session.commit()
+                self._uncommitted_geohashes.clear()
             except Exception as e:
                 logger.error("Batch commit failed (rolling back): %s", e)
                 await session.rollback()
+                self._evict_uncommitted_locations()
 
         logger.debug(
             "Committed batch of %d records. (Geo: %d | Log: %d | Debug: %d)",

@@ -236,3 +236,79 @@ async def test_no_session_opened_while_idle(tmp_path: Path) -> None:
     await service.stop(timeout=5.0)
 
     assert sessions == []
+
+
+@pytest.mark.asyncio
+async def test_poison_record_evicts_uncommitted_location_from_cache(tmp_path: Path) -> None:
+    """A failed flush evicts locations cached during that flush, so the next
+    occurrence of the same geohash re-creates the row instead of poison-looping."""
+    log_file = tmp_path / "a.log"
+    log_file.write_text("", encoding="utf-8")
+
+    service, repos, sessions = make_service(
+        [make_parser(log_file)], batch_size=1, commit_interval=60.0
+    )
+
+    # First geo-event add fails (simulates FK/integrity error); later ones succeed
+    original_add = repos.geo_event.add
+    fail_once = {"armed": True}
+
+    async def flaky_add(obj, auto_commit: bool = False):
+        if fail_once["armed"]:
+            fail_once["armed"] = False
+            raise RuntimeError("simulated integrity error")
+        return await original_add(obj, auto_commit=auto_commit)
+
+    repos.geo_event.add = flaky_add
+
+    await service.start(skip_validation=True)
+    await asyncio.sleep(0.1)
+    try:
+        with open(log_file, "a", encoding="utf-8") as fh:
+            fh.write(make_log_line(TEST_DB_IPS[0]) + "\n")
+        await wait_until(lambda: any(s.rollbacks for s in sessions))
+
+        # cache must NOT contain the geohash whose insert was rolled back
+        assert service._location_cache == {}
+        assert service._uncommitted_geohashes == set()
+
+        # same IP again: location is re-created and the geo event lands this time
+        with open(log_file, "a", encoding="utf-8") as fh:
+            fh.write(make_log_line(TEST_DB_IPS[0]) + "\n")
+        await wait_until(lambda: len(repos.geo_event.added) == 1)
+    finally:
+        await service.stop(timeout=5.0)
+
+    # location was inserted twice (first attempt rolled back), event exactly once
+    assert len(repos.geo_location.added) == 2
+
+
+@pytest.mark.asyncio
+async def test_committed_locations_survive_in_cache_as_ids(tmp_path: Path) -> None:
+    """After a successful commit the cache holds plain ids, and a repeat of the
+    same geohash creates no second GeoLocation row."""
+    log_file = tmp_path / "a.log"
+    log_file.write_text("", encoding="utf-8")
+
+    service, repos, sessions = make_service(
+        [make_parser(log_file)], batch_size=1, commit_interval=60.0
+    )
+    await service.start(skip_validation=True)
+    await asyncio.sleep(0.1)
+    try:
+        with open(log_file, "a", encoding="utf-8") as fh:
+            fh.write(make_log_line(TEST_DB_IPS[0]) + "\n")
+        await wait_until(lambda: any(s.commits for s in sessions))
+
+        assert list(service._location_cache.values()) and all(
+            isinstance(v, int) for v in service._location_cache.values()
+        )
+        assert service._uncommitted_geohashes == set()
+
+        with open(log_file, "a", encoding="utf-8") as fh:
+            fh.write(make_log_line(TEST_DB_IPS[0]) + "\n")
+        await wait_until(lambda: len(repos.geo_event.added) == 2)
+    finally:
+        await service.stop(timeout=5.0)
+
+    assert len(repos.geo_location.added) == 1  # second event reused the cached id
