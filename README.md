@@ -35,8 +35,7 @@ Data is visualized with GeoJSON on a world map and on a summary dashbord.
 pip install uv
 uv venv
 uv sync --all-extras --dev
-uvx nodeenv .venv --force --quiet
-npm install --no-fund
+bun install
 ```
 
 #### Run dev server
