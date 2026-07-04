@@ -14,7 +14,8 @@ from geometrikks.services.logparser.schemas import ParsedAccessLog
 
 
 VALID_LOG_PATH = "tests/valid_ipv4_log.txt"
-INVALID_LOG_PATH = "tests/invalid_logs.txt"
+UNPARSEABLE_LOG_PATH = "tests/unparseable_logs.txt"
+NONSTANDARD_LOG_PATH = "tests/nonstandard_logs.txt"
 GEOIP_DB_PATH = "tests/GeoLite2-City-Test.mmdb"
 
 
@@ -31,9 +32,15 @@ def load_valid_ipv6_log() -> list[str]:
         return f.readlines()
 
 @pytest.fixture
-def load_invalid_logs() -> list[str]:
-    """Load the contents of the invalid log file."""
-    with open("tests/invalid_logs.txt", "r", encoding="utf-8") as f:
+def load_unparseable_logs() -> list[str]:
+    """Lines that match no log pattern at all (no IP / no timestamp structure)."""
+    with open(UNPARSEABLE_LOG_PATH, "r", encoding="utf-8") as f:
+        return f.readlines()
+
+@pytest.fixture
+def load_nonstandard_logs() -> list[str]:
+    """Real-world lines in a different/garbage format that the loosened pattern still matches."""
+    with open(NONSTANDARD_LOG_PATH, "r", encoding="utf-8") as f:
         return f.readlines()
 
 @pytest.fixture
@@ -69,9 +76,9 @@ def test_regex_tester_ipv6(load_valid_ipv6_log: list[str], ipv6_log_pattern: re.
     for line in load_valid_ipv6_log:
         assert bool(ipv6_log_pattern.match(line)) is True
 
-def test_regex_tester_invalid(load_invalid_logs: list[str], ipv4_log_pattern: re.Pattern[str], ipv6_log_pattern: re.Pattern[str],) -> None:
-    """Test the regex tester for invalid log lines."""
-    for line in load_invalid_logs:
+def test_regex_tester_invalid(load_unparseable_logs: list[str], ipv4_log_pattern: re.Pattern[str], ipv6_log_pattern: re.Pattern[str]) -> None:
+    """Truly unparseable lines must not match either full log pattern."""
+    for line in load_unparseable_logs:
         assert bool(ipv4_log_pattern.match(line)) is False
         assert bool(ipv6_log_pattern.match(line)) is False
 
@@ -113,12 +120,11 @@ def test_validate_log_line_send_logs_false_geo_only(log_parser: LogParser) -> No
     # Should capture dateandtime
     assert matched.group("dateandtime") is not None
 
-def test_validate_log_line_unmatched(log_parser: LogParser, load_invalid_logs: list[str]) -> None:
-    """Invalid lines should not match when expecting full access-log format."""
+def test_validate_log_line_unmatched(log_parser: LogParser, load_unparseable_logs: list[str]) -> None:
+    """Unparseable lines should not match when expecting full access-log format."""
     log_parser.send_logs = True
-    # Use an invalid access-log line sample
-    line = load_invalid_logs[0]
-    assert log_parser.validate_log_line(line) is None
+    for line in load_unparseable_logs:
+        assert log_parser.validate_log_line(line) is None
 
 def test_validate_log_format_true(tmp_path: Path, log_parser: LogParser, monkeypatch) -> None:
     """validate_log_format returns True when last lines contain valid format."""
@@ -134,17 +140,32 @@ def test_validate_log_format_true(tmp_path: Path, log_parser: LogParser, monkeyp
     assert log_parser.validate_log_format(log_file) is True
 
 def test_validate_log_format_false(tmp_path: Path, log_parser: LogParser, monkeypatch) -> None:
-    """validate_log_format returns False when trailing lines are invalid."""
+    """validate_log_format returns False when trailing lines are unparseable."""
     log_file = tmp_path / "access.log"
-    invalid_lines = Path("tests/invalid_logs.txt").read_text(encoding="utf-8")
-    log_file.write_text(invalid_lines, encoding="utf-8")
+    unparseable = Path(UNPARSEABLE_LOG_PATH).read_text(encoding="utf-8")
+    log_file.write_text(unparseable, encoding="utf-8")
 
-    # Require full access-log format to be considered valid
     log_parser.send_logs = True
     monkeypatch.setattr(time, "sleep", lambda _seconds: None)
 
-    # validate_log_format now takes log_path as parameter
     assert log_parser.validate_log_format(log_file) is False
+
+def test_nonstandard_lines_match_loosened_pattern(load_nonstandard_logs: list[str], ipv4_log_pattern: re.Pattern[str]) -> None:
+    """The loosened request group ([^"]*) accepts nonstandard/garbage requests so they
+    can be flagged by _detect_malformed_request instead of being skipped."""
+    for line in load_nonstandard_logs:
+        assert ipv4_log_pattern.match(line) is not None
+
+
+def test_binary_probe_flagged_malformed(log_parser: LogParser, load_nonstandard_logs: list[str], ipv4_log_pattern: re.Pattern[str]) -> None:
+    """A binary probe (frp handshake) matches the pattern but is detected as malformed."""
+    log_parser.send_logs = True
+    line = next(ln for ln in load_nonstandard_logs if "\\x00\\x01" in ln)
+    match = ipv4_log_pattern.match(line)
+    assert match is not None
+    is_malformed, error = log_parser._detect_malformed_request(match)
+    assert is_malformed is True
+    assert error == "No HTTP method in request"
 
 @pytest.mark.asyncio
 async def test_is_rotated_truncation_99pct(tmp_path: Path, log_parser: LogParser, monkeypatch) -> None:

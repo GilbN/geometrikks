@@ -1,0 +1,5 @@
+not-a-valid-access-log-line
+this is just some random text without any structure
+ERROR 2024-07-28 02:00:50 application crashed with exit code 1
+127.0.0.1 GET /index.html 200
+- - - [28/Jul/2024:02:00:50 +0200] "GET / HTTP/1.1" 200 100
