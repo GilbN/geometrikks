@@ -13,7 +13,6 @@ Analytics aggregation is handled automatically by TimescaleDB continuous aggrega
 from __future__ import annotations
 import logging
 import asyncio
-from asyncio import Task
 import time
 from typing import TYPE_CHECKING
 from pathlib import Path
@@ -58,7 +57,7 @@ class LogIngestionService:
 
     Example:
         service = LogIngestionService(
-            parser=parser,
+            parsers=parsers,
             geo_location_repo=geo_location_repo,
             geo_event_repo=geo_event_repo,
             access_log_repo=access_log_repo,
@@ -71,7 +70,7 @@ class LogIngestionService:
 
     def __init__(
         self,
-        parser: "LogParser",
+        parsers: list["LogParser"],
         geo_location_repo: "GeoLocationRepository",
         geo_event_repo: "GeoEventRepository",
         access_log_repo: "AccessLogRepository",
@@ -79,24 +78,29 @@ class LogIngestionService:
         geoip_path: Path|str,
         locales: list[str] | None = None,
         *,
+        hostname: str = "localhost",
         batch_size: int = 100,
         commit_interval: float = 5.0,
         store_debug_lines: bool = False,
+        queue_maxsize: int = 10_000,
     ) -> None:
         """Initialize the log ingestion service.
 
         Args:
-            parser: LogParser instance for parsing log lines.
+            parsers: LogParser instances, one per tailed log file.
             geo_location_repo: Repository for GeoLocation model.
             geo_event_repo: Repository for GeoEvent model.
             access_log_repo: Repository for AccessLog model.
             access_log_debug_repo: Repository for AccessLogDebug model.
             geoip_path: Path|str, GeoIP2 database file path.
+            hostname: Hostname recorded on GeoEvent records.
             batch_size: Maximum records before forced commit.
             commit_interval: Maximum seconds between commits.
             store_debug_lines: If True, store all raw lines in debug table.
+            queue_maxsize: Maximum size of the shared record queue.
         """
-        self.parser: LogParser = parser
+        self.parsers: list[LogParser] = parsers
+        self.hostname: str = hostname
         self.geo_location_repo: GeoLocationRepository = geo_location_repo
         self.geo_event_repo: GeoEventRepository = geo_event_repo
         self.access_log_repo: AccessLogRepository = access_log_repo
@@ -106,6 +110,7 @@ class LogIngestionService:
         self.batch_size: int = batch_size
         self.commit_interval: int | float = commit_interval
         self.store_debug_lines: bool = store_debug_lines
+        self._queue_maxsize: int = queue_maxsize
 
         # In-memory cache for GeoLocation by geohash
         self._location_cache: dict[str, GeoLocation] = {}
@@ -114,6 +119,8 @@ class LogIngestionService:
         # Background task management
         self._stop_event: asyncio.Event | None = None
         self._ingestion_task: asyncio.Task[None] | None = None
+        self._queue: asyncio.Queue[ParsedLogRecord] | None = None
+        self._tail_tasks: list[asyncio.Task[None]] = []
         self.is_running: bool = False
 
         # Statistics
@@ -133,11 +140,7 @@ class LogIngestionService:
         return self._ingestion_task is not None and not self._ingestion_task.done()
 
     async def start(self, *, skip_validation: bool = False) -> None:
-        """Start the ingestion background task.
-
-        Args:
-            skip_validation: Skip initial log format validation.
-        """
+        """Start one tail task per log file and the ingestion consumer."""
         if self.is_running:
             logger.warning("Ingestion already running")
             return
@@ -150,17 +153,39 @@ class LogIngestionService:
             return
 
         self._stop_event = asyncio.Event()
-        self.parser.set_stop_event(self._stop_event)
+        self._queue = asyncio.Queue(maxsize=self._queue_maxsize)
 
-        self._ingestion_task: Task[None] = asyncio.create_task(
-            self._run_ingestion(reader=reader, skip_validation=skip_validation),
-            name="log-ingestion",
+        self._tail_tasks = []
+        for parser in self.parsers:
+            parser.set_stop_event(self._stop_event)
+            self._tail_tasks.append(
+                asyncio.create_task(
+                    self._tail_file(parser, reader, skip_validation),
+                    name=f"log-tail:{parser.log_path}",
+                )
+            )
+
+        self._ingestion_task = asyncio.create_task(
+            self._run_ingestion(), name="log-ingestion"
         )
         logger.info(
-            "Started log ingestion service (batch_size=%d, commit_interval=%.1fs)",
+            "Started log ingestion service (%d files, batch_size=%d, commit_interval=%.1fs)",
+            len(self.parsers),
             self.batch_size,
             self.commit_interval,
         )
+
+    async def _tail_file(self, parser: LogParser, reader: Reader, skip_validation: bool) -> None:
+        """Tail a single log file, pushing parsed records onto the shared queue."""
+        logger.debug("Waiting for log file: %s", parser.log_path)
+        if not await wait_for_path(parser.log_path, timeout_seconds=60.0):
+            logger.error("Skipping ingestion for missing log file: %s", parser.log_path)
+            return
+        assert self._queue is not None
+        async for record in parser.iter_parsed_records(reader, skip_validation=skip_validation):
+            if record is None:
+                continue  # idle tick; the consumer handles interval commits via timeout
+            await self._queue.put(record)
 
     async def stop(self, timeout: float = 10.0) -> None:
         """Stop the ingestion gracefully.
@@ -172,6 +197,14 @@ class LogIngestionService:
             return
 
         self._stop_event.set()
+
+        if self._tail_tasks:
+            _done, pending = await asyncio.wait(self._tail_tasks, timeout=timeout)
+            for task in pending:
+                logger.warning("Tail task %s did not stop gracefully, cancelling", task.get_name())
+                task.cancel()
+            await asyncio.gather(*pending, return_exceptions=True)
+
         try:
             await asyncio.wait_for(self._ingestion_task, timeout=timeout)
         except asyncio.TimeoutError:
@@ -190,70 +223,62 @@ class LogIngestionService:
             "Stopped log ingestion service. Total processed: %d", self.total_processed
         )
 
-    async def _run_ingestion(self, *, reader:Reader, skip_validation: bool) -> None:
-        """Core ingestion loop."""
-        last_commit: int | float = time.monotonic()
-        logger.debug("Waiting for log file: %s", self.parser.log_path)
-        if not await wait_for_path(self.parser.log_path, timeout_seconds=60.0):
-            logger.error(
-                "Cannot start ingestion: log file does not exist at %s",
-                self.parser.log_path,
-            )
-            return
+    async def _run_ingestion(self) -> None:
+        """Consume parsed records from the shared queue, committing in batches."""
+        assert self._queue is not None and self._stop_event is not None
+        last_commit: float = time.monotonic()
+        self.is_running = True
         try:
-            async for record in self.parser.iter_parsed_records(reader, skip_validation=skip_validation):
-                if self._stop_event and self._stop_event.is_set():
-                    break
-                self.is_running = True
-                # Check for interval-based commit
-                now: int | float = time.monotonic()
+            while True:
                 if (
-                    self.pending_records > 0
-                    and (now - last_commit) >= self.commit_interval
+                    self._stop_event.is_set()
+                    and self._queue.empty()
+                    and all(task.done() for task in self._tail_tasks)
+                ):
+                    break
+
+                # Cap the wait so the loop re-checks the stop condition promptly;
+                # otherwise stop() would block up to commit_interval or force-cancel.
+                timeout = max(0.05, self.commit_interval - (time.monotonic() - last_commit))
+                timeout = min(timeout, 0.25)
+                try:
+                    record = await asyncio.wait_for(self._queue.get(), timeout=timeout)
+                except asyncio.TimeoutError:
+                    record = None
+
+                if record is not None:
+                    try:
+                        await self._process_record(record)
+                    except Exception as e:
+                        logger.error(
+                            "Failed to process record (rolling back): %s - raw_line preview: %.100s",
+                            e,
+                            record.raw_line[:100] if record.raw_line else "N/A",
+                        )
+                        try:
+                            await self.geo_location_repo.session.rollback()
+                            self.pending_records = 0
+                            self.pending_geo_records = 0
+                            self.pending_log_records = 0
+                            self.pending_log_debug_records = 0
+                        except Exception as rollback_err:
+                            logger.error("Rollback failed: %s", rollback_err)
+                        continue
+
+                now = time.monotonic()
+                if self.pending_records >= self.batch_size or (
+                    self.pending_records > 0 and (now - last_commit) >= self.commit_interval
                 ):
                     await self._commit_batch()
-                    last_commit: int | float = now
-
-                # None = idle tick
-                if record is None:
-                    continue
-
-                # Process the record with error recovery
-                try:
-                    await self._process_record(record)
-                except Exception as e:
-                    # Rollback failed transaction and continue processing
-                    logger.error(
-                        "Failed to process record (rolling back): %s - raw_line preview: %.100s",
-                        e,
-                        record.raw_line[:100] if record.raw_line else "N/A",
-                    )
-                    try:
-                        await self.geo_location_repo.session.rollback()
-                        # Reset pending counters since rollback discards uncommitted work
-                        self.pending_records = 0
-                        self.pending_geo_records = 0
-                        self.pending_log_records = 0
-                        self.pending_log_debug_records = 0
-                    except Exception as rollback_err:
-                        logger.error("Rollback failed: %s", rollback_err)
-                    continue
-
-                # Check for batch-size commit
-                if self.pending_records >= self.batch_size:
-                    await self._commit_batch()
-                    last_commit: int | float = time.monotonic()
+                    last_commit = now
 
         except asyncio.CancelledError:
             logger.info("Ingestion cancelled")
-            self.is_running = False
             raise
         except Exception as e:
             logger.exception("Ingestion loop error: %s", e)
-            self.is_running = False
             raise
         finally:
-            # Final commit
             if self.pending_records > 0:
                 try:
                     await self._commit_batch()
@@ -272,7 +297,7 @@ class LogIngestionService:
                 geo_event = GeoEvent(
                     timestamp=record.geo_data.timestamp,
                     ip_address=record.ip_address,
-                    hostname=self.parser.hostname,
+                    hostname=self.hostname,
                     location_id=location.id,
                 )
                 await self.geo_event_repo.add(geo_event, auto_commit=False)
@@ -411,10 +436,10 @@ class LogIngestionService:
     # Statistics properties for API endpoints
     @property
     def parsed_lines(self) -> int:
-        """Return the number of parsed lines from the parser."""
-        return self.parser.parsed_lines
+        """Total parsed lines across all tailed files."""
+        return sum(parser.parsed_lines for parser in self.parsers)
 
     @property
     def skipped_lines(self) -> int:
-        """Return the number of skipped lines from the parser."""
-        return self.parser.skipped_lines
+        """Total skipped lines across all tailed files."""
+        return sum(parser.skipped_lines for parser in self.parsers)

@@ -14,7 +14,6 @@ from geometrikks.server import plugins
 from geometrikks.server.lifecycle import on_startup, on_shutdown
 from geometrikks.server.routes import get_route_handlers
 from geometrikks.api.dependencies import (
-    provide_parser,
     provide_transaction,
     provide_limit_offset_pagination
 )
@@ -72,7 +71,6 @@ def create_app() -> Litestar:
             plugins.vite_plugin,
         ],
         dependencies={
-            "log_parser": Provide(provide_parser, sync_to_thread=False),
             "limit_offset": Provide(provide_limit_offset_pagination, sync_to_thread=False),
             "transaction": provide_transaction,
         },

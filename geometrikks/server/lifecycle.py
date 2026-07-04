@@ -12,12 +12,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from geometrikks.config.settings import get_settings
-from geometrikks.server.plugins import parser, sqlalchemy_config
+from geometrikks.server.plugins import sqlalchemy_config
 from geometrikks.server.timescale import setup_timescaledb, teardown_timescaledb
 
 from geometrikks.domain.geo.repositories import GeoLocationRepository, GeoEventRepository
 from geometrikks.domain.logs.repositories import AccessLogRepository, AccessLogDebugRepository
 from geometrikks.services.ingestion import LogIngestionService
+from geometrikks.services.logparser.logparser import LogParser
 from geometrikks.server.scheduler import create_scheduler
 
 if TYPE_CHECKING:
@@ -79,14 +80,25 @@ async def on_startup(app: "Litestar") -> None:
     access_log_repo = AccessLogRepository(session=ingestion_session)
     access_log_debug_repo = AccessLogDebugRepository(session=ingestion_session)
 
+    parsers = [
+        LogParser(
+            log_path=path,
+            send_logs=settings.logparser.send_logs,
+            poll_interval=settings.logparser.poll_interval,
+            hostname=settings.logparser.host_name,
+        )
+        for path in settings.logparser.log_paths
+    ]
+
     ingestion_service = LogIngestionService(
-        parser=parser,
+        parsers=parsers,
         geo_location_repo=geo_location_repo,
         geo_event_repo=geo_event_repo,
         access_log_repo=access_log_repo,
         access_log_debug_repo=access_log_debug_repo,
         geoip_path=settings.geoip.db_path,
         locales=settings.geoip.locales,
+        hostname=settings.logparser.host_name,
         batch_size=settings.logparser.batch_size,
         commit_interval=settings.logparser.commit_interval,
         store_debug_lines=settings.logparser.store_debug_lines,

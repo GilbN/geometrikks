@@ -1,7 +1,6 @@
 """Global plugin instances and configurations.
 
 This module provides singleton instances for:
-- LogParser (parsing only, no DB)
 - SQLAlchemy async configuration
 - Logging configuration
 - GeoAlchemy plugin for PostGIS
@@ -29,17 +28,9 @@ from litestar_granian import GranianPlugin
 from litestar_vite import ViteConfig, VitePlugin
 from litestar_vite.config import RuntimeConfig, TypeGenConfig, PathConfig
 
-from geometrikks.services.logparser.logparser import LogParser
 from geometrikks.config.settings import get_settings, Settings
 
 settings: Settings = get_settings()
-
-# LogParser instance - parsing only, no database operations
-parser = LogParser(
-    log_path=settings.logparser.log_paths[0],
-    send_logs=settings.logparser.send_logs,
-    hostname=settings.logparser.host_name,
-)
 
 # SQLAlchemy async engine with connection pooling
 _engine = create_async_engine(
