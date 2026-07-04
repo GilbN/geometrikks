@@ -25,9 +25,8 @@
     "noUncheckedSideEffectImports": true,
 
     /* Paths */
-    "baseUrl": ".",
     "paths": {
-      "@/*": ["resources/*"]
+      "@/*": ["./resources/*"]
     }
   },
   "include": ["resources/**/*", "vite.config.ts"],
