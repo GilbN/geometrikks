@@ -384,3 +384,6 @@ pdm-pythn
 
 # Vite build output
 /public/
+
+# openapi-ts failure logs
+openapi-ts-error-*.log

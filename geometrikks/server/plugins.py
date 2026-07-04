@@ -8,6 +8,8 @@ This module provides singleton instances for:
 """
 
 from __future__ import annotations
+import platform
+import shutil
 from pathlib import Path
 
 from litestar.logging import LoggingConfig
@@ -72,6 +74,15 @@ vite_config = ViteConfig(
         host=settings.vite.host,
         port=settings.vite.port,
         executor=settings.vite.executor,
+        # litestar-vite 0.25 executor bug on Windows: it compares run_command[0]
+        # against shutil.which("bun") case-sensitively ("bun" vs "bun.EXE"), fails,
+        # and prepends the binary — running `bun.EXE bun run dev` (bun's legacy
+        # bundler). Using the same which() result as the command head sidesteps it.
+        run_command=(
+            [shutil.which("bun") or "bun", "run", "dev"]
+            if platform.system() == "Windows"
+            else None
+        ),
     ),
     types=TypeGenConfig(
         output=Path("resources/generated"),
