@@ -13,27 +13,45 @@ Analytics aggregation is handled automatically by TimescaleDB continuous aggrega
 from __future__ import annotations
 import logging
 import asyncio
-from asyncio import Task
 import time
-from typing import TYPE_CHECKING
+from collections.abc import Callable
+from dataclasses import dataclass
 from pathlib import Path
 
 from geoip2.database import Reader
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from geometrikks.domain.geo.models import GeoLocation, GeoEvent
+from geometrikks.domain.geo.repositories import GeoLocationRepository, GeoEventRepository
 from geometrikks.domain.logs.models import AccessLog, AccessLogDebug
+from geometrikks.domain.logs.repositories import AccessLogRepository, AccessLogDebugRepository
 from geometrikks.domain.geo.utils import make_point
 from geometrikks.services.logparser.schemas import ParsedLogRecord, ParsedGeoData, ParsedAccessLog
 from geometrikks.services.logparser.constants import ALLOWED_GEOIP_LOCALES, GEOIP_LOCALES_DEFAULT
 from geometrikks.services.logparser.logparser import LogParser
 from geometrikks.lib.utils import wait_for_path
 
-if TYPE_CHECKING:
-    from geometrikks.domain.geo.repositories import GeoLocationRepository, GeoEventRepository
-    from geometrikks.domain.logs.repositories import AccessLogRepository, AccessLogDebugRepository
-
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class IngestionRepos:
+    """The four repositories used by one flush cycle, all bound to the same session."""
+
+    geo_location: GeoLocationRepository
+    geo_event: GeoEventRepository
+    access_log: AccessLogRepository
+    access_log_debug: AccessLogDebugRepository
+
+    @classmethod
+    def from_session(cls, session: AsyncSession) -> "IngestionRepos":
+        return cls(
+            geo_location=GeoLocationRepository(session=session),
+            geo_event=GeoEventRepository(session=session),
+            access_log=AccessLogRepository(session=session),
+            access_log_debug=AccessLogDebugRepository(session=session),
+        )
 
 
 def create_reader(path: Path|str, locales: list[str] | None = None) -> Reader|None:
@@ -58,11 +76,8 @@ class LogIngestionService:
 
     Example:
         service = LogIngestionService(
-            parser=parser,
-            geo_location_repo=geo_location_repo,
-            geo_event_repo=geo_event_repo,
-            access_log_repo=access_log_repo,
-            access_log_debug_repo=access_log_debug_repo,
+            parsers=parsers,
+            session_maker=session_maker,
         )
         await service.start()
         # ... later ...
@@ -71,61 +86,68 @@ class LogIngestionService:
 
     def __init__(
         self,
-        parser: "LogParser",
-        geo_location_repo: "GeoLocationRepository",
-        geo_event_repo: "GeoEventRepository",
-        access_log_repo: "AccessLogRepository",
-        access_log_debug_repo: "AccessLogDebugRepository",
+        parsers: list["LogParser"],
+        session_maker: Callable[[], AsyncSession],
         geoip_path: Path|str,
         locales: list[str] | None = None,
         *,
+        repos_factory: Callable[[AsyncSession], IngestionRepos] = IngestionRepos.from_session,
+        hostname: str = "localhost",
         batch_size: int = 100,
         commit_interval: float = 5.0,
         store_debug_lines: bool = False,
+        queue_maxsize: int = 10_000,
     ) -> None:
         """Initialize the log ingestion service.
 
         Args:
-            parser: LogParser instance for parsing log lines.
-            geo_location_repo: Repository for GeoLocation model.
-            geo_event_repo: Repository for GeoEvent model.
-            access_log_repo: Repository for AccessLog model.
-            access_log_debug_repo: Repository for AccessLogDebug model.
+            parsers: LogParser instances, one per tailed log file.
+            session_maker: Callable producing a fresh AsyncSession per flush.
             geoip_path: Path|str, GeoIP2 database file path.
+            locales: GeoIP2 locales to use for lookups.
+            repos_factory: Builds the IngestionRepos bundle from a session.
+            hostname: Hostname recorded on GeoEvent records.
             batch_size: Maximum records before forced commit.
             commit_interval: Maximum seconds between commits.
             store_debug_lines: If True, store all raw lines in debug table.
+            queue_maxsize: Maximum size of the shared record queue.
         """
-        self.parser: LogParser = parser
-        self.geo_location_repo: GeoLocationRepository = geo_location_repo
-        self.geo_event_repo: GeoEventRepository = geo_event_repo
-        self.access_log_repo: AccessLogRepository = access_log_repo
-        self.access_log_debug_repo: AccessLogDebugRepository = access_log_debug_repo
+        self.parsers: list[LogParser] = parsers
+        self.hostname: str = hostname
+        self._session_maker = session_maker
+        self._repos_factory = repos_factory
+        self._batch: list[ParsedLogRecord] = []
         self.geoip_path: Path|str = geoip_path
-        self.locales: list[str] = locales
+        self.locales: list[str] | None = locales
         self.batch_size: int = batch_size
         self.commit_interval: int | float = commit_interval
         self.store_debug_lines: bool = store_debug_lines
+        self._queue_maxsize: int = queue_maxsize
 
-        # In-memory cache for GeoLocation by geohash
-        self._location_cache: dict[str, GeoLocation] = {}
+        # In-memory cache: geohash -> committed (or pending-commit) GeoLocation id.
+        # Ids cached since the last successful commit are tracked so a rollback
+        # can evict them (their rows never landed -> FK poison otherwise).
+        self._location_cache: dict[str, int] = {}
+        self._uncommitted_geohashes: set[str] = set()
         self._cache_maxsize = 10_000
 
         # Background task management
         self._stop_event: asyncio.Event | None = None
         self._ingestion_task: asyncio.Task[None] | None = None
+        self._queue: asyncio.Queue[ParsedLogRecord] | None = None
+        self._tail_tasks: list[asyncio.Task[None]] = []
         self.is_running: bool = False
 
         # Statistics
-        self.pending_records: int = 0
-        self.pending_geo_records: int = 0
-        self.pending_log_records: int = 0
-        self.pending_log_debug_records: int = 0
-
         self.total_processed: int = 0
         self.total_geo_records: int = 0
         self.total_log_records: int = 0
         self.total_debug_records: int = 0
+
+    @property
+    def pending_records(self) -> int:
+        """Records buffered in memory awaiting the next flush."""
+        return len(self._batch)
 
     @property
     def is_task_running(self) -> bool:
@@ -133,11 +155,7 @@ class LogIngestionService:
         return self._ingestion_task is not None and not self._ingestion_task.done()
 
     async def start(self, *, skip_validation: bool = False) -> None:
-        """Start the ingestion background task.
-
-        Args:
-            skip_validation: Skip initial log format validation.
-        """
+        """Start one tail task per log file and the ingestion consumer."""
         if self.is_running:
             logger.warning("Ingestion already running")
             return
@@ -149,18 +167,47 @@ class LogIngestionService:
             )
             return
 
-        self._stop_event = asyncio.Event()
-        self.parser.set_stop_event(self._stop_event)
+        # Set synchronously (before any `await`/task scheduling) so a second
+        # start() called back-to-back sees is_running=True immediately; it
+        # otherwise only flips inside _run_ingestion's task body, which hasn't
+        # been scheduled yet when this call returns, letting two rapid start()
+        # calls both pass the guard and spawn duplicate tail tasks + consumer.
+        self.is_running = True
 
-        self._ingestion_task: Task[None] = asyncio.create_task(
-            self._run_ingestion(reader=reader, skip_validation=skip_validation),
-            name="log-ingestion",
+        self._stop_event = asyncio.Event()
+        self._queue = asyncio.Queue(maxsize=self._queue_maxsize)
+
+        self._tail_tasks = []
+        for parser in self.parsers:
+            parser.set_stop_event(self._stop_event)
+            self._tail_tasks.append(
+                asyncio.create_task(
+                    self._tail_file(parser, reader, skip_validation),
+                    name=f"log-tail:{parser.log_path}",
+                )
+            )
+
+        self._ingestion_task = asyncio.create_task(
+            self._run_ingestion(), name="log-ingestion"
         )
         logger.info(
-            "Started log ingestion service (batch_size=%d, commit_interval=%.1fs)",
+            "Started log ingestion service (%d files, batch_size=%d, commit_interval=%.1fs)",
+            len(self.parsers),
             self.batch_size,
             self.commit_interval,
         )
+
+    async def _tail_file(self, parser: LogParser, reader: Reader, skip_validation: bool) -> None:
+        """Tail a single log file, pushing parsed records onto the shared queue."""
+        logger.debug("Waiting for log file: %s", parser.log_path)
+        if not await wait_for_path(parser.log_path, timeout_seconds=60.0):
+            logger.error("Skipping ingestion for missing log file: %s", parser.log_path)
+            return
+        assert self._queue is not None
+        async for record in parser.iter_parsed_records(reader, skip_validation=skip_validation):
+            if record is None:
+                continue  # idle tick; the consumer handles interval commits via timeout
+            await self._queue.put(record)
 
     async def stop(self, timeout: float = 10.0) -> None:
         """Stop the ingestion gracefully.
@@ -172,6 +219,14 @@ class LogIngestionService:
             return
 
         self._stop_event.set()
+
+        if self._tail_tasks:
+            _done, pending = await asyncio.wait(self._tail_tasks, timeout=timeout)
+            for task in pending:
+                logger.warning("Tail task %s did not stop gracefully, cancelling", task.get_name())
+                task.cancel()
+            await asyncio.gather(*pending, return_exceptions=True)
+
         try:
             await asyncio.wait_for(self._ingestion_task, timeout=timeout)
         except asyncio.TimeoutError:
@@ -190,128 +245,96 @@ class LogIngestionService:
             "Stopped log ingestion service. Total processed: %d", self.total_processed
         )
 
-    async def _run_ingestion(self, *, reader:Reader, skip_validation: bool) -> None:
-        """Core ingestion loop."""
-        last_commit: int | float = time.monotonic()
-        logger.debug("Waiting for log file: %s", self.parser.log_path)
-        if not await wait_for_path(self.parser.log_path, timeout_seconds=60.0):
-            logger.error(
-                "Cannot start ingestion: log file does not exist at %s",
-                self.parser.log_path,
-            )
-            return
+    async def _run_ingestion(self) -> None:
+        """Consume parsed records from the shared queue, flushing batches to fresh sessions."""
+        assert self._queue is not None and self._stop_event is not None
+        last_commit: float = time.monotonic()
         try:
-            async for record in self.parser.iter_parsed_records(reader, skip_validation=skip_validation):
-                if self._stop_event and self._stop_event.is_set():
-                    break
-                self.is_running = True
-                # Check for interval-based commit
-                now: int | float = time.monotonic()
+            while True:
                 if (
-                    self.pending_records > 0
-                    and (now - last_commit) >= self.commit_interval
+                    self._stop_event.is_set()
+                    and self._queue.empty()
+                    and all(task.done() for task in self._tail_tasks)
                 ):
-                    await self._commit_batch()
-                    last_commit: int | float = now
+                    break
 
-                # None = idle tick
-                if record is None:
-                    continue
-
-                # Process the record with error recovery
+                # Cap the wait so the loop re-checks the stop condition promptly;
+                # otherwise stop() would block up to commit_interval or force-cancel.
+                timeout = max(0.05, self.commit_interval - (time.monotonic() - last_commit))
+                timeout = min(timeout, 0.25)
                 try:
-                    await self._process_record(record)
-                except Exception as e:
-                    # Rollback failed transaction and continue processing
-                    logger.error(
-                        "Failed to process record (rolling back): %s - raw_line preview: %.100s",
-                        e,
-                        record.raw_line[:100] if record.raw_line else "N/A",
-                    )
-                    try:
-                        await self.geo_location_repo.session.rollback()
-                        # Reset pending counters since rollback discards uncommitted work
-                        self.pending_records = 0
-                        self.pending_geo_records = 0
-                        self.pending_log_records = 0
-                        self.pending_log_debug_records = 0
-                    except Exception as rollback_err:
-                        logger.error("Rollback failed: %s", rollback_err)
-                    continue
+                    record = await asyncio.wait_for(self._queue.get(), timeout=timeout)
+                except asyncio.TimeoutError:
+                    record = None
 
-                # Check for batch-size commit
-                if self.pending_records >= self.batch_size:
-                    await self._commit_batch()
-                    last_commit: int | float = time.monotonic()
+                if record is not None:
+                    self._batch.append(record)
+
+                now = time.monotonic()
+                if len(self._batch) >= self.batch_size or (
+                    self._batch and (now - last_commit) >= self.commit_interval
+                ):
+                    await self._flush_batch()
+                    last_commit = now
 
         except asyncio.CancelledError:
             logger.info("Ingestion cancelled")
-            self.is_running = False
             raise
         except Exception as e:
             logger.exception("Ingestion loop error: %s", e)
-            self.is_running = False
             raise
         finally:
-            # Final commit
-            if self.pending_records > 0:
+            if self._batch:
                 try:
-                    await self._commit_batch()
+                    await self._flush_batch()
                 except Exception as e:
-                    logger.exception("Final commit failed: %s", e)
+                    logger.exception("Final flush failed: %s", e)
             self.is_running = False
 
-    async def _process_record(self, record: ParsedLogRecord) -> None:
-        """Process a single parsed record."""
+    async def _process_record(self, record: ParsedLogRecord, repos: IngestionRepos, flushed: dict[str, int]) -> None:
+        """Process a single parsed record within the current flush session."""
         access_log_model: AccessLog | None = None
 
-        # Handle geo data
         if record.geo_data and record.ip_address:
-            location: GeoLocation | None = await self._get_or_create_location(record.geo_data)
-            if location:
+            location_id: int | None = await self._get_or_create_location(record.geo_data, repos)
+            if location_id is not None:
                 geo_event = GeoEvent(
                     timestamp=record.geo_data.timestamp,
                     ip_address=record.ip_address,
-                    hostname=self.parser.hostname,
-                    location_id=location.id,
+                    hostname=self.hostname,
+                    location_id=location_id,
                 )
-                await self.geo_event_repo.add(geo_event, auto_commit=False)
-                self.pending_records += 1
+                await repos.geo_event.add(geo_event, auto_commit=False)
                 self.total_geo_records += 1
-                self.pending_geo_records += 1
+                flushed["geo"] += 1
 
-        # Handle access log
         if record.access_log:
-            access_log_model: AccessLog = self._to_access_log_model(record.access_log)
-            await self.access_log_repo.add(access_log_model, auto_commit=False)
-            self.pending_records += 1
+            access_log_model = self._to_access_log_model(record.access_log)
+            await repos.access_log.add(access_log_model, auto_commit=False)
             self.total_log_records += 1
-            self.pending_log_records += 1
+            flushed["log"] += 1
 
-        # Handle debug log (if enabled or malformed)
         if self.store_debug_lines or record.is_malformed:
-            await self._create_debug_entry(record, access_log_model)
+            await self._create_debug_entry(record, access_log_model, repos)
             self.total_debug_records += 1
-            self.pending_log_debug_records += 1
+            flushed["debug"] += 1
 
         self.total_processed += 1
 
-    async def _get_or_create_location(self, geo_data: ParsedGeoData) -> GeoLocation | None:
-        """Get existing or create new GeoLocation using repository."""
-        # Check cache first
-        if cached := self._location_cache.get(geo_data.geohash):
-            return cached
+    async def _get_or_create_location(self, geo_data: ParsedGeoData, repos: IngestionRepos) -> int | None:
+        """Return the GeoLocation id for this geohash, creating the row if needed."""
+        if (cached_id := self._location_cache.get(geo_data.geohash)) is not None:
+            return cached_id
 
-        # Evict oldest if cache full
         if len(self._location_cache) >= self._cache_maxsize:
-            self._location_cache.pop(next(iter(self._location_cache)))
+            evicted = next(iter(self._location_cache))
+            self._location_cache.pop(evicted)
+            self._uncommitted_geohashes.discard(evicted)
 
-        # Check database via repository
-        if existing := await self.geo_location_repo.get_by_geohash(geo_data.geohash):
-            self._location_cache[geo_data.geohash] = existing
-            return existing
+        if existing := await repos.geo_location.get_by_geohash(geo_data.geohash):
+            self._location_cache[geo_data.geohash] = existing.id
+            return existing.id
 
-        # Create new location
         location = GeoLocation(
             geohash=geo_data.geohash,
             latitude=geo_data.latitude,
@@ -323,15 +346,20 @@ class LogIngestionService:
             city=geo_data.city,
             postal_code=geo_data.postal_code,
             timezone=geo_data.timezone,
-            geographic_point=make_point(geo_data.latitude, geo_data.longitude)
+            geographic_point=make_point(geo_data.latitude, geo_data.longitude),
         )
+        location = await repos.geo_location.add(location, auto_commit=False)
+        await repos.geo_location.session.flush()
 
-        # Add and flush to get ID
-        location: GeoLocation = await self.geo_location_repo.add(location, auto_commit=False)
-        await self.geo_location_repo.session.flush()
+        self._location_cache[geo_data.geohash] = location.id
+        self._uncommitted_geohashes.add(geo_data.geohash)
+        return location.id
 
-        self._location_cache[geo_data.geohash] = location
-        return location
+    def _evict_uncommitted_locations(self) -> None:
+        """Drop cache entries whose inserts were rolled back before committing."""
+        for geohash in self._uncommitted_geohashes:
+            self._location_cache.pop(geohash, None)
+        self._uncommitted_geohashes.clear()
 
     def _sanitize_for_postgres(self, value: str | None) -> str | None:
         """Remove null bytes from strings for PostgreSQL compatibility.
@@ -344,14 +372,14 @@ class LogIngestionService:
         # Replace null bytes with unicode replacement character for visibility
         return value.replace('\x00', '\ufffd')
 
-    async def _create_debug_entry(self, record: ParsedLogRecord, access_log: AccessLog | None) -> None:
+    async def _create_debug_entry(self, record: ParsedLogRecord, access_log: AccessLog | None, repos: IngestionRepos) -> None:
         """Create AccessLogDebug entry for debugging/malformed requests."""
         if not record.raw_line:
             return
 
         # Flush to get access_log.id if we have one
         if access_log:
-            await self.access_log_repo.session.flush()
+            await repos.access_log.session.flush()
 
         # Sanitize raw_line - PostgreSQL cannot store null bytes in text columns
         sanitized_line = self._sanitize_for_postgres(record.raw_line)
@@ -363,29 +391,51 @@ class LogIngestionService:
             is_malformed=record.is_malformed,
             parse_error=sanitized_error,
         )
-        await self.access_log_debug_repo.add(debug_entry, auto_commit=False)
-        self.pending_records += 1
+        await repos.access_log_debug.add(debug_entry, auto_commit=False)
 
-    async def _commit_batch(self) -> None:
-        """Commit pending records.
+    async def _flush_batch(self) -> None:
+        """Write the buffered batch in one fresh session: open -> repos -> flush -> commit -> close.
 
-        All repositories share the same session, so we only need to commit once.
-        Analytics aggregation handled by TimescaleDB continuous aggregates.
+        A per-record failure rolls back the session (discarding earlier records
+        in this batch, matching previous behavior) and processing continues.
         """
-        await self.geo_location_repo.session.commit()
-        logger.debug(
-            "Committed %d records. (Geo Records: %s | Log Records: %s | Log Debug Records: %s)",
-            self.pending_records,
-            self.pending_geo_records,
-            self.pending_log_records,
-            self.pending_log_debug_records,
-        )
+        if not self._batch:
+            return
+        batch, self._batch = self._batch, []
+        flushed = {"geo": 0, "log": 0, "debug": 0}
 
-        # Reset counters
-        self.pending_records = 0
-        self.pending_geo_records = 0
-        self.pending_log_records = 0
-        self.pending_log_debug_records = 0
+        async with self._session_maker() as session:
+            repos = self._repos_factory(session)
+            for record in batch:
+                try:
+                    await self._process_record(record, repos, flushed)
+                except Exception as e:
+                    logger.error(
+                        "Failed to process record (rolling back batch): %s - raw_line preview: %.100s",
+                        e,
+                        record.raw_line[:100] if record.raw_line else "N/A",
+                    )
+                    try:
+                        await session.rollback()
+                    except Exception as rollback_err:
+                        logger.error("Rollback failed: %s", rollback_err)
+                    self._evict_uncommitted_locations()
+
+            try:
+                await session.commit()
+                self._uncommitted_geohashes.clear()
+            except Exception as e:
+                logger.error("Batch commit failed (rolling back): %s", e)
+                await session.rollback()
+                self._evict_uncommitted_locations()
+
+        logger.debug(
+            "Committed batch of %d records. (Geo: %d | Log: %d | Debug: %d)",
+            len(batch),
+            flushed["geo"],
+            flushed["log"],
+            flushed["debug"],
+        )
 
     def _to_access_log_model(self, parsed: ParsedAccessLog) -> AccessLog:
         """Convert ParsedAccessLog schema to ORM model."""
@@ -411,10 +461,10 @@ class LogIngestionService:
     # Statistics properties for API endpoints
     @property
     def parsed_lines(self) -> int:
-        """Return the number of parsed lines from the parser."""
-        return self.parser.parsed_lines
+        """Total parsed lines across all tailed files."""
+        return sum(parser.parsed_lines for parser in self.parsers)
 
     @property
     def skipped_lines(self) -> int:
-        """Return the number of skipped lines from the parser."""
-        return self.parser.skipped_lines
+        """Total skipped lines across all tailed files."""
+        return sum(parser.skipped_lines for parser in self.parsers)

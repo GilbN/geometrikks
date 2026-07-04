@@ -1,10 +1,11 @@
+import json
 import socket
 from functools import lru_cache
 from pathlib import Path
-from typing import Literal
+from typing import Annotated, Literal
 
-from pydantic import Field, model_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import Field, field_validator, model_validator
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 from geometrikks.services.logparser.constants import ALLOWED_GEOIP_LOCALES
 
 
@@ -119,9 +120,10 @@ class LogParserSettings(BaseSettings):
 
     model_config = SettingsConfigDict(env_prefix="LOGPARSER_", env_file=".env", extra="ignore")
 
-    log_path: Path = Field(
-        default=Path("/var/log/nginx/access.log"),
-        description="Path to the nginx access log file",
+    log_paths: Annotated[list[Path], NoDecode] = Field(
+        default_factory=lambda: [Path("/var/log/nginx/access.log")],
+        min_length=1,
+        description="Nginx access log files to tail. Env accepts a single path or a JSON list of paths.",
     )
     poll_interval: float = Field(
         default=1.0,
@@ -129,9 +131,9 @@ class LogParserSettings(BaseSettings):
     )
     send_logs: bool = Field(default=True, description="Send parsed logs to the database")
     host_name: str = Field(
-        default=socket.gethostname(),
-        description="Host name for log parser (used in log entries)"
-        )
+        default_factory=socket.gethostname,
+        description="Host name for log parser (used in log entries)",
+    )
     batch_size: int = Field(
         default=100,
         description="Max records before forced commit.",
@@ -148,6 +150,19 @@ class LogParserSettings(BaseSettings):
         default=False,
         description="Store all raw log lines in AccessLogDebug table. When False, only malformed requests are stored.",
     )
+
+    @field_validator("log_paths", mode="before")
+    @classmethod
+    def parse_log_paths(cls, value: object) -> object:
+        """Accept a single path (str/Path) or a JSON list of paths."""
+        if isinstance(value, Path):
+            return [value]
+        if isinstance(value, str):
+            stripped = value.strip()
+            if stripped.startswith("["):
+                return json.loads(stripped)
+            return [stripped]
+        return value
 
 
 class AnalyticsSettings(BaseSettings):

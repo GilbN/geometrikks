@@ -12,12 +12,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from geometrikks.config.settings import get_settings
-from geometrikks.server.plugins import parser, sqlalchemy_config
+from geometrikks.server.plugins import get_sqlalchemy_config
 from geometrikks.server.timescale import setup_timescaledb, teardown_timescaledb
 
-from geometrikks.domain.geo.repositories import GeoLocationRepository, GeoEventRepository
-from geometrikks.domain.logs.repositories import AccessLogRepository, AccessLogDebugRepository
 from geometrikks.services.ingestion import LogIngestionService
+from geometrikks.services.logparser.logparser import LogParser
 from geometrikks.server.scheduler import create_scheduler
 
 if TYPE_CHECKING:
@@ -30,7 +29,7 @@ async def _db_available(timeout: float = 10.0) -> bool:
     """Return True if the database accepts connections; False otherwise."""
     try:
         async def _probe():
-            async with sqlalchemy_config.get_engine().connect() as conn:
+            async with get_sqlalchemy_config().get_engine().connect() as conn:
                 await conn.execute(text("SELECT 1"))
 
         await asyncio.wait_for(_probe(), timeout=timeout)
@@ -52,7 +51,7 @@ async def on_startup(app: "Litestar") -> None:
         return
 
     settings = get_settings()
-    engine = sqlalchemy_config.get_engine()
+    engine = get_sqlalchemy_config().get_engine()
 
     # Create schema
     async with engine.begin() as conn:
@@ -69,24 +68,25 @@ async def on_startup(app: "Litestar") -> None:
     # Set up TimescaleDB (hypertables, CAGGs, policies)
     await setup_timescaledb(engine, settings.analytics)
 
-    # Create session factory and ingestion session
-    session_maker: Callable[[], AsyncSession] = sqlalchemy_config.create_session_maker()
-    ingestion_session: AsyncSession = session_maker()
+    # Session factory: ingestion opens a short-lived session per batch flush
+    session_maker: Callable[[], AsyncSession] = get_sqlalchemy_config().create_session_maker()
 
-    # Create repositories for ingestion service
-    geo_location_repo = GeoLocationRepository(session=ingestion_session)
-    geo_event_repo = GeoEventRepository(session=ingestion_session)
-    access_log_repo = AccessLogRepository(session=ingestion_session)
-    access_log_debug_repo = AccessLogDebugRepository(session=ingestion_session)
+    parsers = [
+        LogParser(
+            log_path=path,
+            send_logs=settings.logparser.send_logs,
+            poll_interval=settings.logparser.poll_interval,
+            hostname=settings.logparser.host_name,
+        )
+        for path in settings.logparser.log_paths
+    ]
 
     ingestion_service = LogIngestionService(
-        parser=parser,
-        geo_location_repo=geo_location_repo,
-        geo_event_repo=geo_event_repo,
-        access_log_repo=access_log_repo,
-        access_log_debug_repo=access_log_debug_repo,
+        parsers=parsers,
+        session_maker=session_maker,
         geoip_path=settings.geoip.db_path,
         locales=settings.geoip.locales,
+        hostname=settings.logparser.host_name,
         batch_size=settings.logparser.batch_size,
         commit_interval=settings.logparser.commit_interval,
         store_debug_lines=settings.logparser.store_debug_lines,
@@ -99,7 +99,6 @@ async def on_startup(app: "Litestar") -> None:
 
     # Store in app state for shutdown and API access
     app.state.ingestion_service: LogIngestionService = ingestion_service
-    app.state.ingestion_session: AsyncSession = ingestion_session
     app.state.scheduler: AsyncIOScheduler = scheduler
 
     # Start ingestion service
@@ -122,9 +121,3 @@ async def on_shutdown(app: "Litestar") -> None:
     if scheduler and scheduler.running:
         scheduler.shutdown(wait=True)
         logger.info("Stopped APScheduler")
-
-    # Close the shared session
-    ingestion_session = getattr(app.state, "ingestion_session", None)
-    if ingestion_session:
-        await ingestion_session.close()
-        logger.info("Closed ingestion session")

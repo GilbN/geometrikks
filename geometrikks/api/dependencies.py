@@ -14,18 +14,11 @@ from litestar.plugins.sqlalchemy import filters
 from litestar.exceptions import ClientException
 from litestar.status_codes import HTTP_409_CONFLICT
 
-from geometrikks.services.logparser import LogParser
 from geometrikks.services.ingestion import LogIngestionService
-from geometrikks.server.plugins import parser
 from geometrikks.domain.geo.models import GeoEvent
 from geometrikks.domain.geo.repositories import GeoLocationRepository, GeoEventRepository
 from geometrikks.domain.logs.repositories import AccessLogRepository, AccessLogDebugRepository
 from geometrikks.domain.analytics.repositories import LiveStatsRepository, SummaryStatsRepository
-
-
-def provide_parser() -> LogParser:
-    """Provide the global LogParser instance."""
-    return parser
 
 
 def provide_ingestion_service(request: Request) -> LogIngestionService | None:

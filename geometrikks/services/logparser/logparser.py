@@ -1,4 +1,4 @@
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Callable
 import re
 import os
 import logging
@@ -27,6 +27,53 @@ from geometrikks.lib.utils import wait
 
 
 logger = logging.getLogger(__name__)
+
+
+def get_ip_type(ip: str) -> str:
+    """Get the IP type of the given IP address; empty string when invalid."""
+    if not isinstance(ip, str):  # pyright: ignore[reportUnnecessaryIsInstance]
+        logger.error("IP address must be a string.")
+        return ""
+    try:
+        return IP(ip).iptype()
+    except ValueError:
+        logger.error("Invalid IP address %s.", ip)
+        return ""
+
+
+@lru_cache(maxsize=1024)
+def check_ip_type(ip: str) -> bool:
+    """Check that the ip type is one of the monitored IP types."""
+    ip_type = get_ip_type(ip)
+    if ip_type not in MONITORED_IP_TYPES:
+        logger.debug("IP type %s (%s) is not a monitored IP type.", ip_type, ip)
+        return False
+    return True
+
+
+def make_cached_city_lookup(reader: Reader, maxsize: int = 1024) -> Callable[[str], City | None]:
+    """Build a cached GeoIP city lookup bound to one reader, keyed on IP only.
+
+    The reader is captured in a closure so it stays out of the cache key.
+    The returned callable never raises; failed lookups return None.
+    """
+
+    @lru_cache(maxsize=maxsize)
+    def lookup(ip: str) -> City | None:
+        try:
+            return reader.city(ip)
+        except Exception as e:
+            logger.debug("GeoIP lookup failed for %s: %s", ip, e)
+            return None
+
+    return lookup
+
+
+def _convert_to_none(value: str | None) -> str | None:
+    """Convert '-' or missing values to None for optional fields."""
+    if value is None:
+        return None
+    return value if value != "-" else None
 
 
 class LogParser:
@@ -84,7 +131,6 @@ class LogParser:
         """Return the number of skipped lines."""
         return self.skipped_lines
 
-    @lru_cache(maxsize=1024)
     def validate_log_line(self, log_line: str) -> re.Match[str] | None:
         """Validate the log line against the IPv4 and IPv6 patterns."""
         if self.send_logs:
@@ -155,30 +201,6 @@ class LogParser:
                 return True
 
         return False
-
-    def get_ip_type(self, ip: str) -> str:
-        """Get the IP type of the given IP address.
-        
-        If the IP address is invalid, return an empty string.
-        """
-        if not isinstance(ip, str):  # pyright: ignore[reportUnnecessaryIsInstance]
-            logger.error("IP address must be a string.")
-            return ""
-        try:
-            ip_type = IP(ip).iptype()
-            return ip_type
-        except ValueError:
-            logger.error("Invalid IP address %s.", ip)
-            return ""
-
-    @lru_cache(maxsize=1024)
-    def check_ip_type(self, ip: str) -> bool:
-        """Check that the ip type is one of the monitored IP types."""
-        ip_type: str = self.get_ip_type(ip)
-        if ip_type not in MONITORED_IP_TYPES:
-            logger.debug("IP type %s (%s) is not a monitored IP type.", ip_type, ip)
-            return False
-        return True
 
     def _detect_malformed_request(
         self, matched: re.Match[str]
@@ -264,16 +286,7 @@ class LogParser:
 
         return False, None
 
-    @lru_cache(maxsize=1024)
-    def get_ip_data(self, ip: str, reader: Reader) -> City | None:
-        """Helper to get GeoIP2 data for an IP address."""
-        try:
-            return reader.city(ip)
-        except Exception as e:
-            logger.debug("GeoIP lookup failed for %s: %s", ip, e)
-            return None
-
-    def _parse_geo_data(self, ip: str, log_data: re.Match[str], reader: Reader) -> ParsedGeoData | None:
+    def _parse_geo_data(self, ip: str, log_data: re.Match[str], lookup: Callable[[str], City | None]) -> ParsedGeoData | None:
         """Extract geographic data from IP address.
 
         Args:
@@ -282,10 +295,10 @@ class LogParser:
         Returns:
             ParsedGeoData if successful, None otherwise.
         """
-        if not self.check_ip_type(ip):
+        if not check_ip_type(ip):
             return None
 
-        ip_data: City | None = self.get_ip_data(ip, reader)
+        ip_data: City | None = lookup(ip)
 
         if not ip_data:
             logger.debug("No GeoIP data found for IP %s", ip)
@@ -325,7 +338,7 @@ class LogParser:
             timestamp=ts
         )
 
-    def _parse_access_log(self, log_data: re.Match[str], ip: str, reader: Reader) -> ParsedAccessLog | None:
+    def _parse_access_log(self, log_data: re.Match[str], ip: str, lookup: Callable[[str], City | None]) -> ParsedAccessLog | None:
         """Parse access log fields from regex match.
 
         Parses request/connect timing similar to legacy metrics but returns a dataclass.
@@ -337,26 +350,15 @@ class LogParser:
         Returns:
             ParsedAccessLog if successful, None otherwise.
         """
-        if not log_data or not self.check_ip_type(ip):
+        if not log_data or not check_ip_type(ip):
             return None
 
-        try:
-            ip_data: City | None = self.get_ip_data(ip, reader)
-        except Exception as e:
-            logger.debug("GeoIP lookup failed for %s: %s", ip, e)
-            return None
+        ip_data: City | None = lookup(ip)
 
         if not ip_data:
             return None
 
         datadict: dict[str, str | Any] = log_data.groupdict()
-
-        @lru_cache(maxsize=1024)
-        def _convert_to_none(value: str | None) -> str | None:
-            """Convert '-' or missing values to None for optional fields."""
-            if value is None:
-                return None
-            return value if value != "-" else None
 
         # Safely parse numeric fields
         try:
@@ -414,6 +416,7 @@ class LogParser:
         """Async generator that tails the log file and yields ParsedLogRecord objects.
 
         This is a native async implementation using aiofiles for non-blocking I/O.
+        On log rotation, reopens the file in a loop instead of recursing.
 
         Args:
             skip_validation: Skip initial log format validation.
@@ -434,70 +437,73 @@ class LogParser:
                     "Log file format invalid. Streaming without access log objects."
                 )
 
-        async with aiofiles.open(self.log_path, "r", encoding="utf-8") as file:
-            stat_result = await aiofiles.os.stat(self.log_path)
+        lookup = make_cached_city_lookup(reader)
 
-            if start_at_end:
-                await file.seek(stat_result.st_size)
-            else:
-                await file.seek(0)  # If the file has been rotated, start at beginning so we don't miss lines
-
-            logger.info("Streaming log file events (async).")
-
-            while not (self._stop_event and self._stop_event.is_set()):
-                line = await file.readline()
-
-                if not line:
-                    # No new data; yield None to signal idle
-                    yield None
-                    await asyncio.sleep(self.poll_interval)
-
-                    # Check for rotation
-                    if await self._is_rotated_async(stat_result):
-                        logger.info("Log rotation detected, restarting from new file.")
-                        async for record in self.iter_parsed_records(reader, skip_validation=True, start_at_end=False):
-                            yield record
-                        return
-                    continue
-
-                # Update stat for next rotation check
+        seek_to_end = start_at_end
+        while not (self._stop_event and self._stop_event.is_set()):
+            async with aiofiles.open(self.log_path, "r", encoding="utf-8") as file:
                 stat_result = await aiofiles.os.stat(self.log_path)
 
-                matched = self.validate_log_line(line)
-                raw_line = line.strip()
+                if seek_to_end:
+                    await file.seek(stat_result.st_size)
+                # After a rotation we always read the new file from the start
+                seek_to_end = False
 
-                if not matched:
-                    logger.debug("Skipping unmatched line: '%s'", raw_line)
-                    self.skipped_lines += 1
-                    yield ParsedLogRecord(
-                        ip_address=None,
-                        geo_data=None,
-                        access_log=None,
-                        raw_line=raw_line,
-                        is_malformed=True,
-                        parse_error="Line did not match expected log format",
+                logger.info("Streaming log file events (async): %s", self.log_path)
+
+                while not (self._stop_event and self._stop_event.is_set()):
+                    line = await file.readline()
+
+                    if not line:
+                        # No new data; yield None to signal idle
+                        yield None
+                        await asyncio.sleep(self.poll_interval)
+
+                        if await self._is_rotated_async(stat_result):
+                            logger.info(
+                                "Log rotation detected, reopening from start: %s",
+                                self.log_path,
+                            )
+                            break  # close this file; outer loop reopens
+                        continue
+
+                    # Update stat for next rotation check
+                    stat_result = await aiofiles.os.stat(self.log_path)
+
+                    matched = self.validate_log_line(line)
+                    raw_line = line.strip()
+
+                    if not matched:
+                        logger.debug("Skipping unmatched line: '%s'", raw_line)
+                        self.skipped_lines += 1
+                        yield ParsedLogRecord(
+                            ip_address=None,
+                            geo_data=None,
+                            access_log=None,
+                            raw_line=raw_line,
+                            is_malformed=True,
+                            parse_error="Line did not match expected log format",
+                            source=str(self.log_path),
+                        )
+                        continue
+
+                    ip = matched.group(1)
+                    self.parsed_lines += 1
+
+                    geo_data: ParsedGeoData | None = self._parse_geo_data(ip, matched, lookup)
+
+                    access_log: ParsedAccessLog | None = (
+                        self._parse_access_log(matched, ip, lookup) if self.send_logs else None
                     )
-                    continue
 
-                ip = matched.group(1)
-                self.parsed_lines += 1
+                    is_malformed, parse_error = self._detect_malformed_request(matched)
 
-                # Parse geo data
-                geo_data: ParsedGeoData | None = self._parse_geo_data(ip, matched, reader)
-
-                # Parse access log if enabled
-                access_log: ParsedAccessLog | None = (
-                    self._parse_access_log(matched, ip, reader) if self.send_logs else None
-                )
-
-                # Detect malformed requests (TLS probes, invalid HTTP, etc.)
-                is_malformed, parse_error = self._detect_malformed_request(matched)
-
-                yield ParsedLogRecord(
-                    ip_address=ip,
-                    geo_data=geo_data,
-                    access_log=access_log,
-                    raw_line=raw_line,
-                    is_malformed=is_malformed,
-                    parse_error=parse_error,
-                )
+                    yield ParsedLogRecord(
+                        ip_address=ip,
+                        geo_data=geo_data,
+                        access_log=access_log,
+                        raw_line=raw_line,
+                        is_malformed=is_malformed,
+                        parse_error=parse_error,
+                        source=str(self.log_path),
+                    )

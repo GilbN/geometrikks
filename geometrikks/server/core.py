@@ -14,7 +14,6 @@ from geometrikks.server import plugins
 from geometrikks.server.lifecycle import on_startup, on_shutdown
 from geometrikks.server.routes import get_route_handlers
 from geometrikks.api.dependencies import (
-    provide_parser,
     provide_transaction,
     provide_limit_offset_pagination
 )
@@ -65,18 +64,12 @@ def create_app() -> Litestar:
         route_handlers=get_route_handlers(),
         on_startup=[on_startup],
         on_shutdown=[on_shutdown],
-        plugins=[
-            plugins.sqlalchemy_plugin,
-            plugins.geoalchemy_plugin,
-            plugins.granian_plugin,
-            plugins.vite_plugin,
-        ],
+        plugins=plugins.create_plugins(),
         dependencies={
-            "log_parser": Provide(provide_parser, sync_to_thread=False),
             "limit_offset": Provide(provide_limit_offset_pagination, sync_to_thread=False),
             "transaction": provide_transaction,
         },
-        logging_config=plugins.logging_config,
+        logging_config=plugins.create_logging_config(settings),
         openapi_config=openapi_config,
         compression_config=compression_config,
         middleware=[logging_middleware_config.middleware],

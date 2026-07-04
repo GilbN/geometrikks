@@ -115,9 +115,39 @@ def test_production_configuration(monkeypatch):
     """Test a typical production configuration."""
     monkeypatch.setenv("APP_ENVIRONMENT", "production")
     monkeypatch.setenv("APP_DEBUG", "false")
-    
+
     settings = Settings()
-    
+
     assert settings.is_production
     assert settings.debug is False
     assert "postgresql" in settings.database.url
+
+
+def test_logparser_default_paths():
+    """Default is a single-element list with the classic nginx path."""
+    settings = Settings()
+    assert settings.logparser.log_paths == [Path("/var/log/nginx/access.log")]
+
+
+def test_logparser_single_path_env(monkeypatch):
+    """A bare path string becomes a one-element list."""
+    monkeypatch.setenv("LOGPARSER_LOG_PATHS", "/var/log/nginx/site.log")
+    settings = Settings()
+    assert settings.logparser.log_paths == [Path("/var/log/nginx/site.log")]
+
+
+def test_logparser_json_list_env(monkeypatch):
+    """A JSON list of paths is parsed into a list of Paths."""
+    monkeypatch.setenv("LOGPARSER_LOG_PATHS", '["/var/log/nginx/a.log", "/var/log/nginx/b.log"]')
+    settings = Settings()
+    assert settings.logparser.log_paths == [
+        Path("/var/log/nginx/a.log"),
+        Path("/var/log/nginx/b.log"),
+    ]
+
+
+def test_logparser_empty_list_rejected(monkeypatch):
+    """An empty list of log paths is a configuration error."""
+    monkeypatch.setenv("LOGPARSER_LOG_PATHS", "[]")
+    with pytest.raises(ValueError):
+        Settings()

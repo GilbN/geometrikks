@@ -9,12 +9,18 @@ import pytest
 from geoip2.database import Reader
 
 from geometrikks.services.logparser.constants import ipv4_pattern, ipv6_pattern
-from geometrikks.services.logparser.logparser import LogParser
+from geometrikks.services.logparser.logparser import (
+    LogParser,
+    check_ip_type,
+    get_ip_type,
+    make_cached_city_lookup,
+)
 from geometrikks.services.logparser.schemas import ParsedAccessLog
 
 
 VALID_LOG_PATH = "tests/valid_ipv4_log.txt"
-INVALID_LOG_PATH = "tests/invalid_logs.txt"
+UNPARSEABLE_LOG_PATH = "tests/unparseable_logs.txt"
+NONSTANDARD_LOG_PATH = "tests/nonstandard_logs.txt"
 GEOIP_DB_PATH = "tests/GeoLite2-City-Test.mmdb"
 
 
@@ -31,9 +37,15 @@ def load_valid_ipv6_log() -> list[str]:
         return f.readlines()
 
 @pytest.fixture
-def load_invalid_logs() -> list[str]:
-    """Load the contents of the invalid log file."""
-    with open("tests/invalid_logs.txt", "r", encoding="utf-8") as f:
+def load_unparseable_logs() -> list[str]:
+    """Lines that match no log pattern at all (no IP / no timestamp structure)."""
+    with open(UNPARSEABLE_LOG_PATH, "r", encoding="utf-8") as f:
+        return f.readlines()
+
+@pytest.fixture
+def load_nonstandard_logs() -> list[str]:
+    """Real-world lines in a different/garbage format that the loosened pattern still matches."""
+    with open(NONSTANDARD_LOG_PATH, "r", encoding="utf-8") as f:
         return f.readlines()
 
 @pytest.fixture
@@ -69,23 +81,46 @@ def test_regex_tester_ipv6(load_valid_ipv6_log: list[str], ipv6_log_pattern: re.
     for line in load_valid_ipv6_log:
         assert bool(ipv6_log_pattern.match(line)) is True
 
-def test_regex_tester_invalid(load_invalid_logs: list[str], ipv4_log_pattern: re.Pattern[str], ipv6_log_pattern: re.Pattern[str],) -> None:
-    """Test the regex tester for invalid log lines."""
-    for line in load_invalid_logs:
+def test_regex_tester_invalid(load_unparseable_logs: list[str], ipv4_log_pattern: re.Pattern[str], ipv6_log_pattern: re.Pattern[str]) -> None:
+    """Truly unparseable lines must not match either full log pattern."""
+    for line in load_unparseable_logs:
         assert bool(ipv4_log_pattern.match(line)) is False
         assert bool(ipv6_log_pattern.match(line)) is False
 
 def test_get_ip_type(log_parser: LogParser) -> None:
-    """Test the get_ip_type function."""
-    private_ip = "10.10.10.1"
-    public_ip = "52.53.54.55"
-    assert log_parser.get_ip_type(private_ip) == "PRIVATE"
-    assert log_parser.get_ip_type(public_ip) == "PUBLIC"
+    """Test the module-level get_ip_type function."""
+    assert get_ip_type("10.10.10.1") == "PRIVATE"
+    assert get_ip_type("52.53.54.55") == "PUBLIC"
 
 def test_get_ip_type_invalid(log_parser: LogParser) -> None:
     """Test the get_ip_type function with an invalid IP address."""
-    invalid_ip = "10.10.10.256"
-    assert log_parser.get_ip_type(invalid_ip) == ""
+    assert get_ip_type("10.10.10.256") == ""
+
+
+def test_check_ip_type_module_level_cached() -> None:
+    """check_ip_type is a module-level lru_cache keyed on ip only."""
+    check_ip_type.cache_clear()
+    assert check_ip_type("52.53.54.55") is True   # PUBLIC
+    assert check_ip_type("10.10.10.1") is False   # PRIVATE
+    assert check_ip_type("52.53.54.55") is True
+    info = check_ip_type.cache_info()
+    assert info.currsize == 2
+    assert info.hits == 1
+
+
+def test_cached_city_lookup_calls_reader_once_per_ip() -> None:
+    """The per-reader lookup caches by IP and swallows reader exceptions."""
+    calls = {"n": 0}
+
+    class CountingReader:
+        def city(self, ip):
+            calls["n"] += 1
+            raise RuntimeError("lookup failed")
+
+    lookup = make_cached_city_lookup(CountingReader())  # type: ignore[arg-type]
+    assert lookup("1.2.3.4") is None
+    assert lookup("1.2.3.4") is None
+    assert calls["n"] == 1
 
 
 def test_validate_log_line_send_logs_true(log_parser: LogParser, load_valid_ipv4_log: list[str]) -> None:
@@ -113,12 +148,11 @@ def test_validate_log_line_send_logs_false_geo_only(log_parser: LogParser) -> No
     # Should capture dateandtime
     assert matched.group("dateandtime") is not None
 
-def test_validate_log_line_unmatched(log_parser: LogParser, load_invalid_logs: list[str]) -> None:
-    """Invalid lines should not match when expecting full access-log format."""
+def test_validate_log_line_unmatched(log_parser: LogParser, load_unparseable_logs: list[str]) -> None:
+    """Unparseable lines should not match when expecting full access-log format."""
     log_parser.send_logs = True
-    # Use an invalid access-log line sample
-    line = load_invalid_logs[0]
-    assert log_parser.validate_log_line(line) is None
+    for line in load_unparseable_logs:
+        assert log_parser.validate_log_line(line) is None
 
 def test_validate_log_format_true(tmp_path: Path, log_parser: LogParser, monkeypatch) -> None:
     """validate_log_format returns True when last lines contain valid format."""
@@ -134,17 +168,32 @@ def test_validate_log_format_true(tmp_path: Path, log_parser: LogParser, monkeyp
     assert log_parser.validate_log_format(log_file) is True
 
 def test_validate_log_format_false(tmp_path: Path, log_parser: LogParser, monkeypatch) -> None:
-    """validate_log_format returns False when trailing lines are invalid."""
+    """validate_log_format returns False when trailing lines are unparseable."""
     log_file = tmp_path / "access.log"
-    invalid_lines = Path("tests/invalid_logs.txt").read_text(encoding="utf-8")
-    log_file.write_text(invalid_lines, encoding="utf-8")
+    unparseable = Path(UNPARSEABLE_LOG_PATH).read_text(encoding="utf-8")
+    log_file.write_text(unparseable, encoding="utf-8")
 
-    # Require full access-log format to be considered valid
     log_parser.send_logs = True
     monkeypatch.setattr(time, "sleep", lambda _seconds: None)
 
-    # validate_log_format now takes log_path as parameter
     assert log_parser.validate_log_format(log_file) is False
+
+def test_nonstandard_lines_match_loosened_pattern(load_nonstandard_logs: list[str], ipv4_log_pattern: re.Pattern[str]) -> None:
+    """The loosened request group ([^"]*) accepts nonstandard/garbage requests so they
+    can be flagged by _detect_malformed_request instead of being skipped."""
+    for line in load_nonstandard_logs:
+        assert ipv4_log_pattern.match(line) is not None
+
+
+def test_binary_probe_flagged_malformed(log_parser: LogParser, load_nonstandard_logs: list[str], ipv4_log_pattern: re.Pattern[str]) -> None:
+    """A binary probe (frp handshake) matches the pattern but is detected as malformed."""
+    log_parser.send_logs = True
+    line = next(ln for ln in load_nonstandard_logs if "\\x00\\x01" in ln)
+    match = ipv4_log_pattern.match(line)
+    assert match is not None
+    is_malformed, error = log_parser._detect_malformed_request(match)
+    assert is_malformed is True
+    assert error == "No HTTP method in request"
 
 @pytest.mark.asyncio
 async def test_is_rotated_truncation_99pct(tmp_path: Path, log_parser: LogParser, monkeypatch) -> None:
@@ -217,7 +266,8 @@ def test_create_access_log_sqlalchemy_success(log_parser: LogParser, geoip_reade
     assert match is not None
 
     ip = match.group(1)
-    access_log = log_parser._parse_access_log(match, ip, geoip_reader)
+    lookup = make_cached_city_lookup(geoip_reader)
+    access_log = log_parser._parse_access_log(match, ip, lookup)
 
     assert isinstance(access_log, ParsedAccessLog)
     assert access_log.country_code is not None
@@ -238,7 +288,8 @@ def test_create_access_log_sqlalchemy_geoip_failure(log_parser: LogParser, monke
 
     mock_reader = MockReader()
     ip = match.group(1)
-    result = log_parser._parse_access_log(match, ip, mock_reader)  # type: ignore
+    lookup = make_cached_city_lookup(mock_reader)  # type: ignore[arg-type]
+    result = log_parser._parse_access_log(match, ip, lookup)
     assert result is None
 
 
@@ -336,7 +387,8 @@ def test_parse_geo_data(log_parser: LogParser, geoip_reader: Reader) -> None:
     assert match is not None
 
     ip = match.group(1)
-    parsed = log_parser._parse_geo_data(ip, match, geoip_reader)
+    lookup = make_cached_city_lookup(geoip_reader)
+    parsed = log_parser._parse_geo_data(ip, match, lookup)
 
     # The IP should resolve to a location (test with real GeoIP DB)
     assert parsed is not None
@@ -344,3 +396,50 @@ def test_parse_geo_data(log_parser: LogParser, geoip_reader: Reader) -> None:
     assert parsed.latitude is not None
     assert parsed.longitude is not None
     assert parsed.geohash is not None
+
+
+@pytest.mark.asyncio
+async def test_iter_parsed_records_tags_source(tmp_path: Path, log_parser: LogParser, geoip_reader: Reader) -> None:
+    """Every yielded record carries the source file path it was read from."""
+    log_file = tmp_path / "access.log"
+    valid_line = Path(VALID_LOG_PATH).read_text(encoding="utf-8").splitlines()[0]
+    log_file.write_text(valid_line + "\n", encoding="utf-8")
+    log_parser.log_path = log_file
+    log_parser._stop_event = asyncio.Event()
+
+    gen = log_parser.iter_parsed_records(geoip_reader, skip_validation=True, start_at_end=False)
+    record = await gen.__anext__()
+    await gen.aclose()
+    assert record.source == str(log_file)
+
+
+@pytest.mark.asyncio
+async def test_rotation_reopens_from_start_twice(tmp_path: Path, log_parser: LogParser, geoip_reader: Reader) -> None:
+    """Two consecutive real rotations (inode change) keep records flowing, reading each new file from the start."""
+    valid_lines = Path(VALID_LOG_PATH).read_text(encoding="utf-8").splitlines()
+    log_file = tmp_path / "access.log"
+    log_file.write_text(valid_lines[0] + "\n", encoding="utf-8")
+    log_parser.log_path = log_file
+    log_parser.poll_interval = 0.01
+    log_parser.send_logs = True
+    log_parser._stop_event = asyncio.Event()
+
+    gen = log_parser.iter_parsed_records(geoip_reader, skip_validation=True, start_at_end=False)
+
+    async def next_record():
+        while True:
+            rec = await gen.__anext__()
+            if rec is not None:
+                return rec
+
+    first = await next_record()
+    assert first.ip_address is not None
+
+    for i in (1, 2):
+        replacement = tmp_path / f"rotated-{i}.log"
+        replacement.write_text(valid_lines[i] + "\n", encoding="utf-8")
+        os.replace(replacement, log_file)  # atomically swaps in a new inode
+        rec = await next_record()
+        assert rec.ip_address is not None
+
+    await gen.aclose()
