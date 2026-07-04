@@ -18,7 +18,7 @@ from typing import TYPE_CHECKING, Callable
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 
-from geometrikks.server.plugins import sqlalchemy_config
+from geometrikks.server.plugins import get_sqlalchemy_config
 from geometrikks.server.timescale import ALL_CAGGS
 
 if TYPE_CHECKING:
@@ -65,7 +65,7 @@ async def _execute_call_outside_transaction(sql: str) -> None:
     Args:
         sql: The CALL SQL statement to execute.
     """
-    engine = sqlalchemy_config.get_engine()
+    engine = get_sqlalchemy_config().get_engine()
     # Get raw asyncpg connection to bypass SQLAlchemy transaction handling
     async with engine.connect() as conn:
         raw_conn = await conn.get_raw_connection()

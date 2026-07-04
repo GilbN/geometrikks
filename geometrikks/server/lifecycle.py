@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from geometrikks.config.settings import get_settings
-from geometrikks.server.plugins import sqlalchemy_config
+from geometrikks.server.plugins import get_sqlalchemy_config
 from geometrikks.server.timescale import setup_timescaledb, teardown_timescaledb
 
 from geometrikks.services.ingestion import LogIngestionService
@@ -29,7 +29,7 @@ async def _db_available(timeout: float = 10.0) -> bool:
     """Return True if the database accepts connections; False otherwise."""
     try:
         async def _probe():
-            async with sqlalchemy_config.get_engine().connect() as conn:
+            async with get_sqlalchemy_config().get_engine().connect() as conn:
                 await conn.execute(text("SELECT 1"))
 
         await asyncio.wait_for(_probe(), timeout=timeout)
@@ -51,7 +51,7 @@ async def on_startup(app: "Litestar") -> None:
         return
 
     settings = get_settings()
-    engine = sqlalchemy_config.get_engine()
+    engine = get_sqlalchemy_config().get_engine()
 
     # Create schema
     async with engine.begin() as conn:
@@ -69,7 +69,7 @@ async def on_startup(app: "Litestar") -> None:
     await setup_timescaledb(engine, settings.analytics)
 
     # Session factory: ingestion opens a short-lived session per batch flush
-    session_maker: Callable[[], AsyncSession] = sqlalchemy_config.create_session_maker()
+    session_maker: Callable[[], AsyncSession] = get_sqlalchemy_config().create_session_maker()
 
     parsers = [
         LogParser(
