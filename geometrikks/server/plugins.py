@@ -36,7 +36,7 @@ settings: Settings = get_settings()
 
 # LogParser instance - parsing only, no database operations
 parser = LogParser(
-    log_path=settings.logparser.log_path,
+    log_path=settings.logparser.log_paths[0],
     send_logs=settings.logparser.send_logs,
     hostname=settings.logparser.host_name,
 )

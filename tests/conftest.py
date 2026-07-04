@@ -38,6 +38,8 @@ def baseline_settings_env():
         "DB_DROP_ON_STARTUP": "false",
         # GeoIP
         "GEOIP_DB_PATH": "tests/GeoLite2-City-Test.mmdb",
+        # Log parser
+        "LOGPARSER_LOG_PATHS": "/var/log/nginx/access.log",
     })
 
 
