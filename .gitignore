@@ -223,15 +223,8 @@ __marimo__/
 .streamlit/secrets.toml
 
 # Copilot, Claude, Gemini (AI/LLM tools)
-.copilot/
-claude/
-.claude/
-.gemini/
-.gemini*
-.github/copilot-instructions.md
+.claude/settings.local.json
 
-CLAUDE.md
-GEMINI.md
 
 # Logs
 

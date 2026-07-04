@@ -31,6 +31,7 @@ dev = [
     "ty>=0.0.4",
     "faker>=33.0.0",
     "polyfactory>=2.18.0",
+    "litestar-mcp>=0.5.1",
 ]
 
 [tool.pytest.ini_options]
