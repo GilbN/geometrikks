@@ -380,3 +380,35 @@ async def test_iter_parsed_records_tags_source(tmp_path: Path, log_parser: LogPa
     record = await gen.__anext__()
     await gen.aclose()
     assert record.source == str(log_file)
+
+
+@pytest.mark.asyncio
+async def test_rotation_reopens_from_start_twice(tmp_path: Path, log_parser: LogParser, geoip_reader: Reader) -> None:
+    """Two consecutive real rotations (inode change) keep records flowing, reading each new file from the start."""
+    valid_lines = Path(VALID_LOG_PATH).read_text(encoding="utf-8").splitlines()
+    log_file = tmp_path / "access.log"
+    log_file.write_text(valid_lines[0] + "\n", encoding="utf-8")
+    log_parser.log_path = log_file
+    log_parser.poll_interval = 0.01
+    log_parser.send_logs = True
+    log_parser._stop_event = asyncio.Event()
+
+    gen = log_parser.iter_parsed_records(geoip_reader, skip_validation=True, start_at_end=False)
+
+    async def next_record():
+        while True:
+            rec = await gen.__anext__()
+            if rec is not None:
+                return rec
+
+    first = await next_record()
+    assert first.ip_address is not None
+
+    for i in (1, 2):
+        replacement = tmp_path / f"rotated-{i}.log"
+        replacement.write_text(valid_lines[i] + "\n", encoding="utf-8")
+        os.replace(replacement, log_file)  # atomically swaps in a new inode
+        rec = await next_record()
+        assert rec.ip_address is not None
+
+    await gen.aclose()

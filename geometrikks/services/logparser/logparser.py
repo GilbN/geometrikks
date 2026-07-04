@@ -414,6 +414,7 @@ class LogParser:
         """Async generator that tails the log file and yields ParsedLogRecord objects.
 
         This is a native async implementation using aiofiles for non-blocking I/O.
+        On log rotation, reopens the file in a loop instead of recursing.
 
         Args:
             skip_validation: Skip initial log format validation.
@@ -434,72 +435,71 @@ class LogParser:
                     "Log file format invalid. Streaming without access log objects."
                 )
 
-        async with aiofiles.open(self.log_path, "r", encoding="utf-8") as file:
-            stat_result = await aiofiles.os.stat(self.log_path)
-
-            if start_at_end:
-                await file.seek(stat_result.st_size)
-            else:
-                await file.seek(0)  # If the file has been rotated, start at beginning so we don't miss lines
-
-            logger.info("Streaming log file events (async).")
-
-            while not (self._stop_event and self._stop_event.is_set()):
-                line = await file.readline()
-
-                if not line:
-                    # No new data; yield None to signal idle
-                    yield None
-                    await asyncio.sleep(self.poll_interval)
-
-                    # Check for rotation
-                    if await self._is_rotated_async(stat_result):
-                        logger.info("Log rotation detected, restarting from new file.")
-                        async for record in self.iter_parsed_records(reader, skip_validation=True, start_at_end=False):
-                            yield record
-                        return
-                    continue
-
-                # Update stat for next rotation check
+        seek_to_end = start_at_end
+        while not (self._stop_event and self._stop_event.is_set()):
+            async with aiofiles.open(self.log_path, "r", encoding="utf-8") as file:
                 stat_result = await aiofiles.os.stat(self.log_path)
 
-                matched = self.validate_log_line(line)
-                raw_line = line.strip()
+                if seek_to_end:
+                    await file.seek(stat_result.st_size)
+                # After a rotation we always read the new file from the start
+                seek_to_end = False
 
-                if not matched:
-                    logger.debug("Skipping unmatched line: '%s'", raw_line)
-                    self.skipped_lines += 1
+                logger.info("Streaming log file events (async): %s", self.log_path)
+
+                while not (self._stop_event and self._stop_event.is_set()):
+                    line = await file.readline()
+
+                    if not line:
+                        # No new data; yield None to signal idle
+                        yield None
+                        await asyncio.sleep(self.poll_interval)
+
+                        if await self._is_rotated_async(stat_result):
+                            logger.info(
+                                "Log rotation detected, reopening from start: %s",
+                                self.log_path,
+                            )
+                            break  # close this file; outer loop reopens
+                        continue
+
+                    # Update stat for next rotation check
+                    stat_result = await aiofiles.os.stat(self.log_path)
+
+                    matched = self.validate_log_line(line)
+                    raw_line = line.strip()
+
+                    if not matched:
+                        logger.debug("Skipping unmatched line: '%s'", raw_line)
+                        self.skipped_lines += 1
+                        yield ParsedLogRecord(
+                            ip_address=None,
+                            geo_data=None,
+                            access_log=None,
+                            raw_line=raw_line,
+                            is_malformed=True,
+                            parse_error="Line did not match expected log format",
+                            source=str(self.log_path),
+                        )
+                        continue
+
+                    ip = matched.group(1)
+                    self.parsed_lines += 1
+
+                    geo_data: ParsedGeoData | None = self._parse_geo_data(ip, matched, reader)
+
+                    access_log: ParsedAccessLog | None = (
+                        self._parse_access_log(matched, ip, reader) if self.send_logs else None
+                    )
+
+                    is_malformed, parse_error = self._detect_malformed_request(matched)
+
                     yield ParsedLogRecord(
-                        ip_address=None,
-                        geo_data=None,
-                        access_log=None,
+                        ip_address=ip,
+                        geo_data=geo_data,
+                        access_log=access_log,
                         raw_line=raw_line,
-                        is_malformed=True,
-                        parse_error="Line did not match expected log format",
+                        is_malformed=is_malformed,
+                        parse_error=parse_error,
                         source=str(self.log_path),
                     )
-                    continue
-
-                ip = matched.group(1)
-                self.parsed_lines += 1
-
-                # Parse geo data
-                geo_data: ParsedGeoData | None = self._parse_geo_data(ip, matched, reader)
-
-                # Parse access log if enabled
-                access_log: ParsedAccessLog | None = (
-                    self._parse_access_log(matched, ip, reader) if self.send_logs else None
-                )
-
-                # Detect malformed requests (TLS probes, invalid HTTP, etc.)
-                is_malformed, parse_error = self._detect_malformed_request(matched)
-
-                yield ParsedLogRecord(
-                    ip_address=ip,
-                    geo_data=geo_data,
-                    access_log=access_log,
-                    raw_line=raw_line,
-                    is_malformed=is_malformed,
-                    parse_error=parse_error,
-                    source=str(self.log_path),
-                )
