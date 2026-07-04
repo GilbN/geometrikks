@@ -167,6 +167,13 @@ class LogIngestionService:
             )
             return
 
+        # Set synchronously (before any `await`/task scheduling) so a second
+        # start() called back-to-back sees is_running=True immediately; it
+        # otherwise only flips inside _run_ingestion's task body, which hasn't
+        # been scheduled yet when this call returns, letting two rapid start()
+        # calls both pass the guard and spawn duplicate tail tasks + consumer.
+        self.is_running = True
+
         self._stop_event = asyncio.Event()
         self._queue = asyncio.Queue(maxsize=self._queue_maxsize)
 
@@ -242,7 +249,6 @@ class LogIngestionService:
         """Consume parsed records from the shared queue, flushing batches to fresh sessions."""
         assert self._queue is not None and self._stop_event is not None
         last_commit: float = time.monotonic()
-        self.is_running = True
         try:
             while True:
                 if (

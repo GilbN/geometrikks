@@ -239,6 +239,32 @@ async def test_no_session_opened_while_idle(tmp_path: Path) -> None:
 
 
 @pytest.mark.asyncio
+async def test_start_twice_spawns_no_duplicate_tasks(tmp_path: Path) -> None:
+    """Two back-to-back start() calls (no await in between) must not spawn a
+    second set of tail tasks + consumer; the second call is a no-op."""
+    log_file = tmp_path / "a.log"
+    log_file.write_text("", encoding="utf-8")
+
+    service, repos, sessions = make_service([make_parser(log_file)])
+
+    await service.start(skip_validation=True)
+    await service.start(skip_validation=True)  # immediately again, no sleep in between
+
+    # Check the actual running tasks, not just the service's own bookkeeping:
+    # a buggy second start() reassigns service._tail_tasks to a fresh list,
+    # which would make a len() check on it pass even though the first
+    # generation of tasks is still alive and orphaned (untracked).
+    all_task_names = [t.get_name() for t in asyncio.all_tasks() if not t.done()]
+    tail_tasks = [n for n in all_task_names if n.startswith("log-tail:")]
+    ingestion_tasks = [n for n in all_task_names if n == "log-ingestion"]
+    assert len(tail_tasks) == 1, f"expected 1 tail task, found {tail_tasks}"
+    assert len(ingestion_tasks) == 1, f"expected 1 ingestion task, found {ingestion_tasks}"
+    assert len(service._tail_tasks) == 1
+
+    await service.stop(timeout=5.0)
+
+
+@pytest.mark.asyncio
 async def test_poison_record_evicts_uncommitted_location_from_cache(tmp_path: Path) -> None:
     """A failed flush evicts locations cached during that flush, so the next
     occurrence of the same geohash re-creates the row instead of poison-looping."""
