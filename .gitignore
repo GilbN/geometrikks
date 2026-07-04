@@ -378,3 +378,9 @@ vite.config.ts.timestamp-*
 public/hot
 public/bundle
 pdm-pythn
+# MaxMind databases (GeoLite2 EULA - never commit; runtime DB is downloaded)
+*.mmdb
+!tests/GeoLite2-City-Test.mmdb
+
+# Vite build output
+/public/
