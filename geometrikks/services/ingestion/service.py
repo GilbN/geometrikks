@@ -118,7 +118,7 @@ class LogIngestionService:
         self._repos_factory = repos_factory
         self._batch: list[ParsedLogRecord] = []
         self.geoip_path: Path|str = geoip_path
-        self.locales: list[str] = locales
+        self.locales: list[str] | None = locales
         self.batch_size: int = batch_size
         self.commit_interval: int | float = commit_interval
         self.store_debug_lines: bool = store_debug_lines
