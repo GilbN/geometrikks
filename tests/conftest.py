@@ -37,7 +37,7 @@ def baseline_settings_env():
         "DB_POOL_RECYCLE": "3600",
         "DB_DROP_ON_STARTUP": "false",
         # GeoIP
-        "GEOIP_DB_PATH": "tests/GeoLite2-City.mmdb",
+        "GEOIP_DB_PATH": "tests/GeoLite2-City-Test.mmdb",
     })
 
 

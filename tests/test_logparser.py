@@ -15,7 +15,7 @@ from geometrikks.services.logparser.schemas import ParsedAccessLog
 
 VALID_LOG_PATH = "tests/valid_ipv4_log.txt"
 INVALID_LOG_PATH = "tests/invalid_logs.txt"
-GEOIP_DB_PATH = "tests/GeoLite2-City.mmdb"
+GEOIP_DB_PATH = "tests/GeoLite2-City-Test.mmdb"
 
 
 @pytest.fixture
