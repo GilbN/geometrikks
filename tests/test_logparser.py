@@ -9,7 +9,12 @@ import pytest
 from geoip2.database import Reader
 
 from geometrikks.services.logparser.constants import ipv4_pattern, ipv6_pattern
-from geometrikks.services.logparser.logparser import LogParser
+from geometrikks.services.logparser.logparser import (
+    LogParser,
+    check_ip_type,
+    get_ip_type,
+    make_cached_city_lookup,
+)
 from geometrikks.services.logparser.schemas import ParsedAccessLog
 
 
@@ -83,16 +88,39 @@ def test_regex_tester_invalid(load_unparseable_logs: list[str], ipv4_log_pattern
         assert bool(ipv6_log_pattern.match(line)) is False
 
 def test_get_ip_type(log_parser: LogParser) -> None:
-    """Test the get_ip_type function."""
-    private_ip = "10.10.10.1"
-    public_ip = "52.53.54.55"
-    assert log_parser.get_ip_type(private_ip) == "PRIVATE"
-    assert log_parser.get_ip_type(public_ip) == "PUBLIC"
+    """Test the module-level get_ip_type function."""
+    assert get_ip_type("10.10.10.1") == "PRIVATE"
+    assert get_ip_type("52.53.54.55") == "PUBLIC"
 
 def test_get_ip_type_invalid(log_parser: LogParser) -> None:
     """Test the get_ip_type function with an invalid IP address."""
-    invalid_ip = "10.10.10.256"
-    assert log_parser.get_ip_type(invalid_ip) == ""
+    assert get_ip_type("10.10.10.256") == ""
+
+
+def test_check_ip_type_module_level_cached() -> None:
+    """check_ip_type is a module-level lru_cache keyed on ip only."""
+    check_ip_type.cache_clear()
+    assert check_ip_type("52.53.54.55") is True   # PUBLIC
+    assert check_ip_type("10.10.10.1") is False   # PRIVATE
+    assert check_ip_type("52.53.54.55") is True
+    info = check_ip_type.cache_info()
+    assert info.currsize == 2
+    assert info.hits == 1
+
+
+def test_cached_city_lookup_calls_reader_once_per_ip() -> None:
+    """The per-reader lookup caches by IP and swallows reader exceptions."""
+    calls = {"n": 0}
+
+    class CountingReader:
+        def city(self, ip):
+            calls["n"] += 1
+            raise RuntimeError("lookup failed")
+
+    lookup = make_cached_city_lookup(CountingReader())  # type: ignore[arg-type]
+    assert lookup("1.2.3.4") is None
+    assert lookup("1.2.3.4") is None
+    assert calls["n"] == 1
 
 
 def test_validate_log_line_send_logs_true(log_parser: LogParser, load_valid_ipv4_log: list[str]) -> None:
@@ -238,7 +266,8 @@ def test_create_access_log_sqlalchemy_success(log_parser: LogParser, geoip_reade
     assert match is not None
 
     ip = match.group(1)
-    access_log = log_parser._parse_access_log(match, ip, geoip_reader)
+    lookup = make_cached_city_lookup(geoip_reader)
+    access_log = log_parser._parse_access_log(match, ip, lookup)
 
     assert isinstance(access_log, ParsedAccessLog)
     assert access_log.country_code is not None
@@ -259,7 +288,8 @@ def test_create_access_log_sqlalchemy_geoip_failure(log_parser: LogParser, monke
 
     mock_reader = MockReader()
     ip = match.group(1)
-    result = log_parser._parse_access_log(match, ip, mock_reader)  # type: ignore
+    lookup = make_cached_city_lookup(mock_reader)  # type: ignore[arg-type]
+    result = log_parser._parse_access_log(match, ip, lookup)
     assert result is None
 
 
@@ -357,7 +387,8 @@ def test_parse_geo_data(log_parser: LogParser, geoip_reader: Reader) -> None:
     assert match is not None
 
     ip = match.group(1)
-    parsed = log_parser._parse_geo_data(ip, match, geoip_reader)
+    lookup = make_cached_city_lookup(geoip_reader)
+    parsed = log_parser._parse_geo_data(ip, match, lookup)
 
     # The IP should resolve to a location (test with real GeoIP DB)
     assert parsed is not None
