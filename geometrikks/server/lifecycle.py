@@ -15,8 +15,6 @@ from geometrikks.config.settings import get_settings
 from geometrikks.server.plugins import sqlalchemy_config
 from geometrikks.server.timescale import setup_timescaledb, teardown_timescaledb
 
-from geometrikks.domain.geo.repositories import GeoLocationRepository, GeoEventRepository
-from geometrikks.domain.logs.repositories import AccessLogRepository, AccessLogDebugRepository
 from geometrikks.services.ingestion import LogIngestionService
 from geometrikks.services.logparser.logparser import LogParser
 from geometrikks.server.scheduler import create_scheduler
@@ -70,15 +68,8 @@ async def on_startup(app: "Litestar") -> None:
     # Set up TimescaleDB (hypertables, CAGGs, policies)
     await setup_timescaledb(engine, settings.analytics)
 
-    # Create session factory and ingestion session
+    # Session factory: ingestion opens a short-lived session per batch flush
     session_maker: Callable[[], AsyncSession] = sqlalchemy_config.create_session_maker()
-    ingestion_session: AsyncSession = session_maker()
-
-    # Create repositories for ingestion service
-    geo_location_repo = GeoLocationRepository(session=ingestion_session)
-    geo_event_repo = GeoEventRepository(session=ingestion_session)
-    access_log_repo = AccessLogRepository(session=ingestion_session)
-    access_log_debug_repo = AccessLogDebugRepository(session=ingestion_session)
 
     parsers = [
         LogParser(
@@ -92,10 +83,7 @@ async def on_startup(app: "Litestar") -> None:
 
     ingestion_service = LogIngestionService(
         parsers=parsers,
-        geo_location_repo=geo_location_repo,
-        geo_event_repo=geo_event_repo,
-        access_log_repo=access_log_repo,
-        access_log_debug_repo=access_log_debug_repo,
+        session_maker=session_maker,
         geoip_path=settings.geoip.db_path,
         locales=settings.geoip.locales,
         hostname=settings.logparser.host_name,
@@ -111,7 +99,6 @@ async def on_startup(app: "Litestar") -> None:
 
     # Store in app state for shutdown and API access
     app.state.ingestion_service: LogIngestionService = ingestion_service
-    app.state.ingestion_session: AsyncSession = ingestion_session
     app.state.scheduler: AsyncIOScheduler = scheduler
 
     # Start ingestion service
@@ -134,9 +121,3 @@ async def on_shutdown(app: "Litestar") -> None:
     if scheduler and scheduler.running:
         scheduler.shutdown(wait=True)
         logger.info("Stopped APScheduler")
-
-    # Close the shared session
-    ingestion_session = getattr(app.state, "ingestion_session", None)
-    if ingestion_session:
-        await ingestion_session.close()
-        logger.info("Closed ingestion session")

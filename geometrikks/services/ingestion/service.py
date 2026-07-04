@@ -14,25 +14,44 @@ from __future__ import annotations
 import logging
 import asyncio
 import time
-from typing import TYPE_CHECKING
+from collections.abc import Callable
+from dataclasses import dataclass
 from pathlib import Path
 
 from geoip2.database import Reader
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from geometrikks.domain.geo.models import GeoLocation, GeoEvent
+from geometrikks.domain.geo.repositories import GeoLocationRepository, GeoEventRepository
 from geometrikks.domain.logs.models import AccessLog, AccessLogDebug
+from geometrikks.domain.logs.repositories import AccessLogRepository, AccessLogDebugRepository
 from geometrikks.domain.geo.utils import make_point
 from geometrikks.services.logparser.schemas import ParsedLogRecord, ParsedGeoData, ParsedAccessLog
 from geometrikks.services.logparser.constants import ALLOWED_GEOIP_LOCALES, GEOIP_LOCALES_DEFAULT
 from geometrikks.services.logparser.logparser import LogParser
 from geometrikks.lib.utils import wait_for_path
 
-if TYPE_CHECKING:
-    from geometrikks.domain.geo.repositories import GeoLocationRepository, GeoEventRepository
-    from geometrikks.domain.logs.repositories import AccessLogRepository, AccessLogDebugRepository
-
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class IngestionRepos:
+    """The four repositories used by one flush cycle, all bound to the same session."""
+
+    geo_location: GeoLocationRepository
+    geo_event: GeoEventRepository
+    access_log: AccessLogRepository
+    access_log_debug: AccessLogDebugRepository
+
+    @classmethod
+    def from_session(cls, session: AsyncSession) -> "IngestionRepos":
+        return cls(
+            geo_location=GeoLocationRepository(session=session),
+            geo_event=GeoEventRepository(session=session),
+            access_log=AccessLogRepository(session=session),
+            access_log_debug=AccessLogDebugRepository(session=session),
+        )
 
 
 def create_reader(path: Path|str, locales: list[str] | None = None) -> Reader|None:
@@ -58,10 +77,7 @@ class LogIngestionService:
     Example:
         service = LogIngestionService(
             parsers=parsers,
-            geo_location_repo=geo_location_repo,
-            geo_event_repo=geo_event_repo,
-            access_log_repo=access_log_repo,
-            access_log_debug_repo=access_log_debug_repo,
+            session_maker=session_maker,
         )
         await service.start()
         # ... later ...
@@ -71,13 +87,11 @@ class LogIngestionService:
     def __init__(
         self,
         parsers: list["LogParser"],
-        geo_location_repo: "GeoLocationRepository",
-        geo_event_repo: "GeoEventRepository",
-        access_log_repo: "AccessLogRepository",
-        access_log_debug_repo: "AccessLogDebugRepository",
+        session_maker: Callable[[], AsyncSession],
         geoip_path: Path|str,
         locales: list[str] | None = None,
         *,
+        repos_factory: Callable[[AsyncSession], IngestionRepos] = IngestionRepos.from_session,
         hostname: str = "localhost",
         batch_size: int = 100,
         commit_interval: float = 5.0,
@@ -88,11 +102,10 @@ class LogIngestionService:
 
         Args:
             parsers: LogParser instances, one per tailed log file.
-            geo_location_repo: Repository for GeoLocation model.
-            geo_event_repo: Repository for GeoEvent model.
-            access_log_repo: Repository for AccessLog model.
-            access_log_debug_repo: Repository for AccessLogDebug model.
+            session_maker: Callable producing a fresh AsyncSession per flush.
             geoip_path: Path|str, GeoIP2 database file path.
+            locales: GeoIP2 locales to use for lookups.
+            repos_factory: Builds the IngestionRepos bundle from a session.
             hostname: Hostname recorded on GeoEvent records.
             batch_size: Maximum records before forced commit.
             commit_interval: Maximum seconds between commits.
@@ -101,10 +114,9 @@ class LogIngestionService:
         """
         self.parsers: list[LogParser] = parsers
         self.hostname: str = hostname
-        self.geo_location_repo: GeoLocationRepository = geo_location_repo
-        self.geo_event_repo: GeoEventRepository = geo_event_repo
-        self.access_log_repo: AccessLogRepository = access_log_repo
-        self.access_log_debug_repo: AccessLogDebugRepository = access_log_debug_repo
+        self._session_maker = session_maker
+        self._repos_factory = repos_factory
+        self._batch: list[ParsedLogRecord] = []
         self.geoip_path: Path|str = geoip_path
         self.locales: list[str] = locales
         self.batch_size: int = batch_size
@@ -124,15 +136,15 @@ class LogIngestionService:
         self.is_running: bool = False
 
         # Statistics
-        self.pending_records: int = 0
-        self.pending_geo_records: int = 0
-        self.pending_log_records: int = 0
-        self.pending_log_debug_records: int = 0
-
         self.total_processed: int = 0
         self.total_geo_records: int = 0
         self.total_log_records: int = 0
         self.total_debug_records: int = 0
+
+    @property
+    def pending_records(self) -> int:
+        """Records buffered in memory awaiting the next flush."""
+        return len(self._batch)
 
     @property
     def is_task_running(self) -> bool:
@@ -224,7 +236,7 @@ class LogIngestionService:
         )
 
     async def _run_ingestion(self) -> None:
-        """Consume parsed records from the shared queue, committing in batches."""
+        """Consume parsed records from the shared queue, flushing batches to fresh sessions."""
         assert self._queue is not None and self._stop_event is not None
         last_commit: float = time.monotonic()
         self.is_running = True
@@ -247,29 +259,13 @@ class LogIngestionService:
                     record = None
 
                 if record is not None:
-                    try:
-                        await self._process_record(record)
-                    except Exception as e:
-                        logger.error(
-                            "Failed to process record (rolling back): %s - raw_line preview: %.100s",
-                            e,
-                            record.raw_line[:100] if record.raw_line else "N/A",
-                        )
-                        try:
-                            await self.geo_location_repo.session.rollback()
-                            self.pending_records = 0
-                            self.pending_geo_records = 0
-                            self.pending_log_records = 0
-                            self.pending_log_debug_records = 0
-                        except Exception as rollback_err:
-                            logger.error("Rollback failed: %s", rollback_err)
-                        continue
+                    self._batch.append(record)
 
                 now = time.monotonic()
-                if self.pending_records >= self.batch_size or (
-                    self.pending_records > 0 and (now - last_commit) >= self.commit_interval
+                if len(self._batch) >= self.batch_size or (
+                    self._batch and (now - last_commit) >= self.commit_interval
                 ):
-                    await self._commit_batch()
+                    await self._flush_batch()
                     last_commit = now
 
         except asyncio.CancelledError:
@@ -279,20 +275,19 @@ class LogIngestionService:
             logger.exception("Ingestion loop error: %s", e)
             raise
         finally:
-            if self.pending_records > 0:
+            if self._batch:
                 try:
-                    await self._commit_batch()
+                    await self._flush_batch()
                 except Exception as e:
-                    logger.exception("Final commit failed: %s", e)
+                    logger.exception("Final flush failed: %s", e)
             self.is_running = False
 
-    async def _process_record(self, record: ParsedLogRecord) -> None:
-        """Process a single parsed record."""
+    async def _process_record(self, record: ParsedLogRecord, repos: IngestionRepos, flushed: dict[str, int]) -> None:
+        """Process a single parsed record within the current flush session."""
         access_log_model: AccessLog | None = None
 
-        # Handle geo data
         if record.geo_data and record.ip_address:
-            location: GeoLocation | None = await self._get_or_create_location(record.geo_data)
+            location: GeoLocation | None = await self._get_or_create_location(record.geo_data, repos)
             if location:
                 geo_event = GeoEvent(
                     timestamp=record.geo_data.timestamp,
@@ -300,43 +295,36 @@ class LogIngestionService:
                     hostname=self.hostname,
                     location_id=location.id,
                 )
-                await self.geo_event_repo.add(geo_event, auto_commit=False)
-                self.pending_records += 1
+                await repos.geo_event.add(geo_event, auto_commit=False)
                 self.total_geo_records += 1
-                self.pending_geo_records += 1
+                flushed["geo"] += 1
 
-        # Handle access log
         if record.access_log:
-            access_log_model: AccessLog = self._to_access_log_model(record.access_log)
-            await self.access_log_repo.add(access_log_model, auto_commit=False)
-            self.pending_records += 1
+            access_log_model = self._to_access_log_model(record.access_log)
+            await repos.access_log.add(access_log_model, auto_commit=False)
             self.total_log_records += 1
-            self.pending_log_records += 1
+            flushed["log"] += 1
 
-        # Handle debug log (if enabled or malformed)
         if self.store_debug_lines or record.is_malformed:
-            await self._create_debug_entry(record, access_log_model)
+            await self._create_debug_entry(record, access_log_model, repos)
             self.total_debug_records += 1
-            self.pending_log_debug_records += 1
+            flushed["debug"] += 1
 
         self.total_processed += 1
 
-    async def _get_or_create_location(self, geo_data: ParsedGeoData) -> GeoLocation | None:
-        """Get existing or create new GeoLocation using repository."""
-        # Check cache first
+    async def _get_or_create_location(self, geo_data: ParsedGeoData, repos: IngestionRepos) -> GeoLocation | None:
+        """Get existing or create new GeoLocation using the current flush session's repo."""
+        # (cache logic unchanged in this task; Task 8 switches it to id-only)
         if cached := self._location_cache.get(geo_data.geohash):
             return cached
 
-        # Evict oldest if cache full
         if len(self._location_cache) >= self._cache_maxsize:
             self._location_cache.pop(next(iter(self._location_cache)))
 
-        # Check database via repository
-        if existing := await self.geo_location_repo.get_by_geohash(geo_data.geohash):
+        if existing := await repos.geo_location.get_by_geohash(geo_data.geohash):
             self._location_cache[geo_data.geohash] = existing
             return existing
 
-        # Create new location
         location = GeoLocation(
             geohash=geo_data.geohash,
             latitude=geo_data.latitude,
@@ -348,12 +336,10 @@ class LogIngestionService:
             city=geo_data.city,
             postal_code=geo_data.postal_code,
             timezone=geo_data.timezone,
-            geographic_point=make_point(geo_data.latitude, geo_data.longitude)
+            geographic_point=make_point(geo_data.latitude, geo_data.longitude),
         )
-
-        # Add and flush to get ID
-        location: GeoLocation = await self.geo_location_repo.add(location, auto_commit=False)
-        await self.geo_location_repo.session.flush()
+        location = await repos.geo_location.add(location, auto_commit=False)
+        await repos.geo_location.session.flush()
 
         self._location_cache[geo_data.geohash] = location
         return location
@@ -369,14 +355,14 @@ class LogIngestionService:
         # Replace null bytes with unicode replacement character for visibility
         return value.replace('\x00', '\ufffd')
 
-    async def _create_debug_entry(self, record: ParsedLogRecord, access_log: AccessLog | None) -> None:
+    async def _create_debug_entry(self, record: ParsedLogRecord, access_log: AccessLog | None, repos: IngestionRepos) -> None:
         """Create AccessLogDebug entry for debugging/malformed requests."""
         if not record.raw_line:
             return
 
         # Flush to get access_log.id if we have one
         if access_log:
-            await self.access_log_repo.session.flush()
+            await repos.access_log.session.flush()
 
         # Sanitize raw_line - PostgreSQL cannot store null bytes in text columns
         sanitized_line = self._sanitize_for_postgres(record.raw_line)
@@ -388,29 +374,48 @@ class LogIngestionService:
             is_malformed=record.is_malformed,
             parse_error=sanitized_error,
         )
-        await self.access_log_debug_repo.add(debug_entry, auto_commit=False)
-        self.pending_records += 1
+        await repos.access_log_debug.add(debug_entry, auto_commit=False)
 
-    async def _commit_batch(self) -> None:
-        """Commit pending records.
+    async def _flush_batch(self) -> None:
+        """Write the buffered batch in one fresh session: open -> repos -> flush -> commit -> close.
 
-        All repositories share the same session, so we only need to commit once.
-        Analytics aggregation handled by TimescaleDB continuous aggregates.
+        A per-record failure rolls back the session (discarding earlier records
+        in this batch, matching previous behavior) and processing continues.
         """
-        await self.geo_location_repo.session.commit()
-        logger.debug(
-            "Committed %d records. (Geo Records: %s | Log Records: %s | Log Debug Records: %s)",
-            self.pending_records,
-            self.pending_geo_records,
-            self.pending_log_records,
-            self.pending_log_debug_records,
-        )
+        if not self._batch:
+            return
+        batch, self._batch = self._batch, []
+        flushed = {"geo": 0, "log": 0, "debug": 0}
 
-        # Reset counters
-        self.pending_records = 0
-        self.pending_geo_records = 0
-        self.pending_log_records = 0
-        self.pending_log_debug_records = 0
+        async with self._session_maker() as session:
+            repos = self._repos_factory(session)
+            for record in batch:
+                try:
+                    await self._process_record(record, repos, flushed)
+                except Exception as e:
+                    logger.error(
+                        "Failed to process record (rolling back batch): %s - raw_line preview: %.100s",
+                        e,
+                        record.raw_line[:100] if record.raw_line else "N/A",
+                    )
+                    try:
+                        await session.rollback()
+                    except Exception as rollback_err:
+                        logger.error("Rollback failed: %s", rollback_err)
+
+            try:
+                await session.commit()
+            except Exception as e:
+                logger.error("Batch commit failed (rolling back): %s", e)
+                await session.rollback()
+
+        logger.debug(
+            "Committed batch of %d records. (Geo: %d | Log: %d | Debug: %d)",
+            len(batch),
+            flushed["geo"],
+            flushed["log"],
+            flushed["debug"],
+        )
 
     def _to_access_log_model(self, parsed: ParsedAccessLog) -> AccessLog:
         """Convert ParsedAccessLog schema to ORM model."""
