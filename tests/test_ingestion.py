@@ -310,6 +310,67 @@ async def test_poison_record_evicts_uncommitted_location_from_cache(tmp_path: Pa
 
 
 @pytest.mark.asyncio
+async def test_rollback_evicts_all_uncommitted_geohashes_in_batch(tmp_path: Path) -> None:
+    """Within one flush of a multi-record batch, a later record's failure must
+    evict ALL uncommitted locations cached during that flush - not just its own.
+
+    Record A (processed first) creates+caches a new location (uncommitted).
+    Record B (same batch, same geohash) reuses the cached id but then fails
+    while adding its GeoEvent. The per-record rollback must also evict A's
+    entry, or the next occurrence of the same geohash poison-loops on a
+    location id that never made it to the database.
+    """
+    log_file = tmp_path / "a.log"
+    log_file.write_text("", encoding="utf-8")
+
+    service, repos, sessions = make_service(
+        [make_parser(log_file)], batch_size=2, commit_interval=60.0
+    )
+
+    # First geo_event.add call (record A) succeeds; second call (record B)
+    # fails once; every call after that succeeds again.
+    original_add = repos.geo_event.add
+    call_count = {"n": 0}
+
+    async def flaky_add(obj, auto_commit: bool = False):
+        call_count["n"] += 1
+        if call_count["n"] == 2:
+            raise RuntimeError("simulated integrity error")
+        return await original_add(obj, auto_commit=auto_commit)
+
+    repos.geo_event.add = flaky_add
+
+    await service.start(skip_validation=True)
+    await asyncio.sleep(0.1)
+    try:
+        # Both lines share the same IP -> same geohash, and both are appended
+        # before batch_size(2) can be reached, so they land in ONE flush.
+        with open(log_file, "a", encoding="utf-8") as fh:
+            fh.write(make_log_line(TEST_DB_IPS[0]) + "\n")
+            fh.write(make_log_line(TEST_DB_IPS[0]) + "\n")
+        await wait_until(lambda: any(s.rollbacks for s in sessions))
+
+        # record A's cached-but-uncommitted location must be evicted too,
+        # not just record B's.
+        assert service._location_cache == {}
+        assert service._uncommitted_geohashes == set()
+
+        # a fresh occurrence of the same IP: location is re-created and the
+        # event lands, proving no poison loop from a leftover cache entry.
+        with open(log_file, "a", encoding="utf-8") as fh:
+            fh.write(make_log_line(TEST_DB_IPS[0]) + "\n")
+        await wait_until(lambda: service.parsed_lines >= 3)
+    finally:
+        await service.stop(timeout=5.0)
+
+    assert sum(s.rollbacks for s in sessions) == 1
+    # record A's event + the recovered record's event (B's event never landed)
+    assert len(repos.geo_event.added) == 2
+    # first insert (record A) + re-created insert after eviction
+    assert len(repos.geo_location.added) == 2
+
+
+@pytest.mark.asyncio
 async def test_committed_locations_survive_in_cache_as_ids(tmp_path: Path) -> None:
     """After a successful commit the cache holds plain ids, and a repeat of the
     same geohash creates no second GeoLocation row."""
