@@ -16,6 +16,15 @@ At app startup, geometrikks.server.migrations.migrate_database() runs
 (DB_DROP_ON_STARTUP=true) wipes and re-migrates, but only when
 APP_ENVIRONMENT=development; it is refused with an error log elsewhere.
 
+Databases created by pre-alembic versions (startup create_all) already have
+the tables but no alembic_versions row; the first upgrade then fails loudly
+with "relation ... already exists". Nothing is corrupted. Remediation: mark
+the existing schema as current with
+
+    uv run litestar database stamp head
+
+(or, in development, wipe and re-migrate via DB_DROP_ON_STARTUP=true).
+
 TimescaleDB objects (hypertables, continuous aggregates, policies) are
 deliberately NOT managed by alembic — server/timescale.py applies them
 idempotently after migrations at startup. Never add timescale DDL to a
