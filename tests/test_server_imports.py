@@ -15,7 +15,7 @@ def test_server_imports_without_geoip_db() -> None:
         "GEOIP_VALIDATE_DB_PATH": "true",
     }
     result = subprocess.run(
-        [sys.executable, "-c", "import geometrikks.server.core"],
+        [sys.executable, "-c", "import geometrikks.server.core, geometrikks.server.migrations"],
         env=env,
         capture_output=True,
         text=True,

@@ -8,6 +8,21 @@ from sqlalchemy.ext.asyncio import AsyncEngine, async_engine_from_config
 from advanced_alchemy.base import metadata_registry
 from alembic import context
 
+# --- Local additions (everything else in this file must stay identical to ---
+# --- advanced_alchemy/alembic/templates/asyncio/env.py so future template ---
+# --- refreshes are a trivial re-diff) ----------------------------------------
+# 1. Import model modules so metadata_registry is populated even when alembic
+#    runs standalone; the litestar CLI and the startup runner import the app
+#    anyway, this covers bare `alembic` invocations.
+# 2. geoalchemy2 helpers so autogenerate handles Geography columns: skips the
+#    PostGIS-owned spatial_ref_sys table, avoids duplicate GiST index ops, and
+#    renders geoalchemy2 types with the right module import.
+from geoalchemy2 import alembic_helpers
+
+import geometrikks.domain.geo.models  # noqa: F401
+import geometrikks.domain.logs.models  # noqa: F401
+# --- End local additions ------------------------------------------------------
+
 if TYPE_CHECKING:
     from sqlalchemy.engine import Connection
 
@@ -44,6 +59,8 @@ def run_migrations_offline() -> None:
         user_module_prefix=config.user_module_prefix,
         render_as_batch=config.render_as_batch,
         process_revision_directives=writer,
+        include_object=alembic_helpers.include_object,  # local addition
+        render_item=alembic_helpers.render_item,  # local addition
     )
 
     with context.begin_transaction():
@@ -61,6 +78,8 @@ def do_run_migrations(connection: "Connection") -> None:
         user_module_prefix=config.user_module_prefix,
         render_as_batch=config.render_as_batch,
         process_revision_directives=writer,
+        include_object=alembic_helpers.include_object,  # local addition
+        render_item=alembic_helpers.render_item,  # local addition
     )
 
     with context.begin_transaction():

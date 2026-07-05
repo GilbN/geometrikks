@@ -54,7 +54,8 @@ COPY --from=python-builder /app/geometrikks /app/geometrikks
 COPY --from=frontend-builder /app/public /app/public
 COPY --from=frontend-builder /app/index.html /app/public/index.html
 COPY --from=frontend-builder /app/data/geoip/GeoLite2-City.mmdb /app/data/geoip/GeoLite2-City.mmdb
-COPY pyproject.toml ./
+COPY pyproject.toml alembic.ini ./
+COPY migrations/ ./migrations/
 
 RUN mkdir -p /app/logs \
     && chown -R geometrikks:geometrikks /app
