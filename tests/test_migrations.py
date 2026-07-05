@@ -154,3 +154,52 @@ def test_upgrade_to_head_uses_dedicated_url_config(monkeypatch) -> None:
     assert config.engine_instance is None
     assert config.alembic_config.script_location == "migrations"
     commands.return_value.upgrade.assert_called_once_with(revision="head")
+
+
+from types import SimpleNamespace
+
+
+async def test_on_startup_migrates_before_timescale(monkeypatch) -> None:
+    """Migrations own the schema; setup_timescaledb depends on the tables
+    existing, so it must run strictly after migrate_database."""
+    from geometrikks.server import lifecycle as lc
+
+    order: list[str] = []
+
+    async def fake_db_available(timeout: float = 10.0) -> bool:
+        return True
+
+    async def fake_migrate(engine, settings) -> None:
+        order.append("migrate")
+
+    async def fake_timescale(engine, analytics) -> None:
+        order.append("timescale")
+
+    async def fake_create_scheduler(session_maker, settings):
+        scheduler = MagicMock()
+        scheduler.start = MagicMock()
+        return scheduler
+
+    ingestion = MagicMock()
+
+    async def fake_start(**kwargs) -> None:
+        order.append("ingestion")
+
+    ingestion.start = fake_start
+
+    sqlalchemy_config = MagicMock()
+    sqlalchemy_config.get_engine.return_value = MagicMock()
+    sqlalchemy_config.create_session_maker.return_value = MagicMock()
+
+    monkeypatch.setattr(lc, "_db_available", fake_db_available)
+    monkeypatch.setattr(lc, "get_sqlalchemy_config", lambda: sqlalchemy_config)
+    monkeypatch.setattr(lc, "migrate_database", fake_migrate)
+    monkeypatch.setattr(lc, "setup_timescaledb", fake_timescale)
+    monkeypatch.setattr(lc, "create_scheduler", fake_create_scheduler)
+    monkeypatch.setattr(lc, "LogParser", MagicMock())
+    monkeypatch.setattr(lc, "LogIngestionService", MagicMock(return_value=ingestion))
+
+    app = SimpleNamespace(state=SimpleNamespace())
+    await lc.on_startup(app)
+
+    assert order == ["migrate", "timescale", "ingestion"]

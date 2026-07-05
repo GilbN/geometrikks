@@ -6,14 +6,14 @@ import asyncio
 import logging
 from typing import TYPE_CHECKING, Callable
 
-from advanced_alchemy.extensions.litestar import base
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from geometrikks.config.settings import get_settings
+from geometrikks.server.migrations import migrate_database
 from geometrikks.server.plugins import get_sqlalchemy_config
-from geometrikks.server.timescale import setup_timescaledb, teardown_timescaledb
+from geometrikks.server.timescale import setup_timescaledb
 
 from geometrikks.services.ingestion import LogIngestionService
 from geometrikks.services.logparser.logparser import LogParser
@@ -40,32 +40,30 @@ async def _db_available(timeout: float = 10.0) -> bool:
 
 
 async def on_startup(app: "Litestar") -> None:
-    """Initialize schema if possible and start ingestion when DB is reachable.
+    """Run alembic migrations and start ingestion when DB is reachable.
 
-    - If DB is unavailable, start the API in a degraded mode (no schema creation,
+    - If DB is unavailable, start the API in a degraded mode (no migrations,
       no ingestion) instead of failing app startup.
-    - Sets up TimescaleDB hypertables and continuous aggregates after table creation.
+    - If the DB is reachable but the migration fails, that failure propagates
+      and fails startup deliberately: a reachable DB with a broken schema is
+      an error to surface, not an outage to degrade around.
+    - Sets up TimescaleDB hypertables and continuous aggregates after migrations.
     """
     if not await _db_available():
-        logger.warning("Starting without database: skipping schema creation and ingestion.")
+        logger.warning("Starting without database: skipping migrations and ingestion.")
         return
 
     settings = get_settings()
     engine = get_sqlalchemy_config().get_engine()
 
-    # Create schema
-    async with engine.begin() as conn:
-        # Enable PostGIS extension (required for geography type)
-        await conn.execute(text("CREATE EXTENSION IF NOT EXISTS postgis"))
-        logger.info("PostGIS extension enabled")
+    # Schema is owned by alembic (migrations/versions). A failed upgrade
+    # raises and fails startup deliberately: a reachable DB with a broken
+    # schema is an error to surface, not an outage to degrade around.
+    await migrate_database(engine, settings)
 
-        if settings.database.drop_on_startup:
-            logger.warning("Dropping all tables on startup as per configuration.")
-            await teardown_timescaledb(conn)
-            await conn.run_sync(base.DefaultBase.metadata.drop_all)
-        await conn.run_sync(base.DefaultBase.metadata.create_all)
-
-    # Set up TimescaleDB (hypertables, CAGGs, policies)
+    # TimescaleDB objects (hypertables, CAGGs, policies) deliberately stay
+    # out of alembic: the DDL is idempotent, timescale-version-sensitive,
+    # and alembic autogenerate can neither model nor diff them.
     await setup_timescaledb(engine, settings.analytics)
 
     # Session factory: ingestion opens a short-lived session per batch flush
