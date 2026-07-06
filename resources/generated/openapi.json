@@ -231,11 +231,17 @@
           }
         },
         "required": [
+          "city",
           "country_code",
           "country_name",
           "event_count",
           "geohash",
-          "id"
+          "id",
+          "last_hit",
+          "postal_code",
+          "state",
+          "state_code",
+          "timezone"
         ],
         "title": "GeoJSONFeatureProperties",
         "type": "object"
@@ -953,6 +959,7 @@
         },
         "required": [
           "country_code",
+          "country_name",
           "event_count"
         ],
         "title": "TopCountryDTO",

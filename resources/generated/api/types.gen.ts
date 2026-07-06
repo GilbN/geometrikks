@@ -58,17 +58,17 @@ export type GeoJsonFeatureCollection = {
  * GeoJSONFeatureProperties
  */
 export type GeoJsonFeatureProperties = {
-  city?: string | null;
+  city: string | null;
   country_code: string;
   country_name: string;
   event_count: number;
   geohash: string;
   id: number;
-  last_hit?: string | null;
-  postal_code?: string | null;
-  state?: string | null;
-  state_code?: string | null;
-  timezone?: string | null;
+  last_hit: string | null;
+  postal_code: string | null;
+  state: string | null;
+  state_code: string | null;
+  timezone: string | null;
   top_ips?: Array<TopIpdto>;
 };
 
@@ -250,7 +250,7 @@ export type TopCountriesResponse = {
  */
 export type TopCountryDto = {
   country_code: string;
-  country_name?: string | null;
+  country_name: string | null;
   event_count: number;
 };
 
