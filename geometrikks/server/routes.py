@@ -6,6 +6,7 @@ from geometrikks.api.v1.geo_locations_controller import GeoLocationController
 from geometrikks.api.v1.access_log_controller import AccessLogController
 from geometrikks.api.v1.access_log_debug_controller import AccessLogDebugController
 from geometrikks.api.v1.analytics_controller import AnalyticsController
+from geometrikks.api.v1.auth_controller import AuthController
 from geometrikks.api.v1.settings import read_settings
 from geometrikks.api.v1.stats import stats
 from geometrikks.api.health import health
@@ -19,6 +20,7 @@ def get_route_handlers() -> list[ControllerRouterHandler]:
         AccessLogController,
         AccessLogDebugController,
         AnalyticsController,
+        AuthController,
         read_settings,
         stats,
         health,
