@@ -46,6 +46,28 @@ uv run litestar --app geometrikks.server.core:create_app run --debug
 ```
 See .env.example for configuration
 
+## Authentication
+
+GeoMetrikks ships with single-admin session-cookie authentication. Set the
+credentials via environment variables:
+
+```bash
+APP_ADMIN_USER=admin          # defaults to "admin"
+APP_ADMIN_PASSWORD=change-me  # required — the app refuses to start without it
+```
+
+Log in through the web UI (`/login`) or `POST /api/v1/auth/login`. Everything
+under `/api/` requires a session; the SPA shell, `/health`, `/health/ready`,
+and `/schema` stay open. Sessions are stored in memory, so an app restart
+logs everyone out — just log in again.
+
+If an authenticating reverse proxy (Authelia, Tailscale, ...) already fronts
+the app, you can disable the built-in auth entirely:
+
+```bash
+APP_AUTH_DISABLED=true  # only safe behind an authenticating proxy
+```
+
 ## Sending Nginx log metrics with request and upstream response times
 
 1. Add the following to the http block in your `nginx.conf` file:
