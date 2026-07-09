@@ -46,6 +46,30 @@ uv run litestar --app geometrikks.server.core:create_app run --debug
 ```
 See .env.example for configuration
 
+## Testing
+
+```bash
+uv run pytest                    # unit tests — no docker needed
+```
+
+Integration tests need the compose TimescaleDB and are marked `integration`.
+When the database is unreachable they are skipped automatically, so the plain
+run above always stays green.
+
+```bash
+docker compose up -d timescale_db
+uv run pytest -m integration     # the real-database suite
+```
+
+The integration suite creates a scratch database `geometrikks_it` on the
+compose server (migrated to alembic head + timescale objects), and drops it
+at session end — it never touches the `geometrikks` dev database. Connection
+overrides: `IT_DB_HOST`, `IT_DB_PORT`, `IT_DB_USER`, `IT_DB_PASSWORD`.
+
+> CI note (Phase 1.5): `ci.yml` should run the integration suite with a
+> `timescale/timescaledb-ha:pg18` service container — the `IT_DB_*` env vars
+> exist for exactly that.
+
 ## Authentication
 
 GeoMetrikks ships with single-admin session-cookie authentication. Set the
