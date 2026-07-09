@@ -290,16 +290,17 @@ function LogoutButton() {
         <button
           onClick={onLogout}
           className={cn(
-            "flex items-center justify-center w-full py-2 px-3",
+            "flex items-center justify-center w-full py-2",
+            collapsed ? "px-0" : "px-3",
             "text-sidebar-foreground/50 hover:text-sidebar-foreground",
             "hover:bg-sidebar-accent/50 rounded-md transition-all duration-200"
           )}
         >
-          <LogOut className="w-4 h-4" />
+          <LogOut className="w-4 h-4 shrink-0" />
           <span
             className={cn(
-              "ml-2 text-xs font-medium overflow-hidden transition-all duration-200",
-              collapsed ? "w-0 opacity-0" : "w-auto opacity-100"
+              "text-xs font-medium overflow-hidden transition-all duration-200",
+              collapsed ? "ml-0 w-0 opacity-0" : "ml-2 w-auto opacity-100"
             )}
           >
             Log out
@@ -326,7 +327,8 @@ function CollapseToggle() {
         <button
           onClick={toggleSidebar}
           className={cn(
-            "flex items-center justify-center w-full py-2 px-3",
+            "flex items-center justify-center w-full py-2",
+            collapsed ? "px-0" : "px-3",
             "text-sidebar-foreground/50 hover:text-sidebar-foreground",
             "hover:bg-sidebar-accent/50 rounded-md transition-all duration-200",
             "group/collapse"
@@ -334,14 +336,14 @@ function CollapseToggle() {
         >
           <ChevronLeft
             className={cn(
-              "w-4 h-4 transition-transform duration-300",
+              "w-4 h-4 shrink-0 transition-transform duration-300",
               collapsed && "rotate-180"
             )}
           />
           <span
             className={cn(
-              "ml-2 text-xs font-medium overflow-hidden transition-all duration-200",
-              collapsed ? "w-0 opacity-0" : "w-auto opacity-100"
+              "text-xs font-medium overflow-hidden transition-all duration-200",
+              collapsed ? "ml-0 w-0 opacity-0" : "ml-2 w-auto opacity-100"
             )}
           >
             Collapse
