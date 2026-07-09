@@ -73,7 +73,9 @@ def test_login_logout_flow():
 
 def test_create_app_requires_password_when_auth_enabled(monkeypatch):
     monkeypatch.setenv("APP_AUTH_DISABLED", "false")
-    monkeypatch.delenv("APP_ADMIN_PASSWORD", raising=False)
+    # Empty string (falsy) rather than delenv: real env vars beat .env, so this
+    # holds even when a local .env sets APP_ADMIN_PASSWORD for dev.
+    monkeypatch.setenv("APP_ADMIN_PASSWORD", "")
     from geometrikks.server.core import create_app
     with pytest.raises(RuntimeError, match="APP_ADMIN_PASSWORD"):
         create_app()

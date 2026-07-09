@@ -157,7 +157,9 @@ class TestAuthSettings:
     """APP_ADMIN_USER / APP_ADMIN_PASSWORD / APP_AUTH_DISABLED."""
 
     def test_auth_defaults(self):
-        settings = Settings()
+        # _env_file=None: a local .env (e.g. APP_ADMIN_PASSWORD for dev) must
+        # not leak into the defaults under test.
+        settings = Settings(_env_file=None)
         assert settings.auth_disabled is False
         assert settings.admin_user == "admin"
         assert settings.admin_password is None
