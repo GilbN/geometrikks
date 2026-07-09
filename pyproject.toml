@@ -37,6 +37,9 @@ dev = [
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+markers = [
+    "integration: needs a live TimescaleDB (docker compose up -d timescale_db); auto-skipped when unreachable",
+]
 filterwarnings = [
     # Reduce noise from third-party libs; keep real test warnings visible
     "ignore:There is no current event loop:DeprecationWarning",
