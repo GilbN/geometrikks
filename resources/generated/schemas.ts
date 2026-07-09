@@ -6,12 +6,21 @@ export * from "./api/types.gen"
 
 // Import specific operation types for mapping
 import type {
+  ApiV1AuthLoginLoginData,
+  ApiV1AuthLoginLoginErrors,
+  ApiV1AuthLoginLoginResponses,
+  ApiV1AuthLogoutLogoutData,
+  ApiV1AuthLogoutLogoutResponses,
+  ApiV1AuthMeMeData,
+  ApiV1AuthMeMeResponses,
+  ApiV1SettingsReadSettingsData,
+  ApiV1SettingsReadSettingsResponses,
+  ApiV1StatsStatsData,
+  ApiV1StatsStatsResponses,
   HealthHealthData,
   HealthHealthResponses,
-  SettingsReadSettingsData,
-  SettingsReadSettingsResponses,
-  StatsStatsData,
-  StatsStatsResponses
+  HealthReadyHealthReadyData,
+  HealthReadyHealthReadyResponses
 } from "./api/types.gen"
 
 // ============================================================================
@@ -28,6 +37,10 @@ import type {
  */
 export type OperationName =
   | 'health'
+  | 'health_ready'
+  | 'login'
+  | 'logout'
+  | 'me'
   | 'read_settings'
   | 'stats'
 
@@ -37,8 +50,12 @@ export type OperationName =
  */
 export interface OperationDataTypes {
   'health': HealthHealthData
-  'read_settings': SettingsReadSettingsData
-  'stats': StatsStatsData
+  'health_ready': HealthReadyHealthReadyData
+  'login': ApiV1AuthLoginLoginData
+  'logout': ApiV1AuthLogoutLogoutData
+  'me': ApiV1AuthMeMeData
+  'read_settings': ApiV1SettingsReadSettingsData
+  'stats': ApiV1StatsStatsData
 }
 
 /**
@@ -47,8 +64,12 @@ export interface OperationDataTypes {
  */
 export interface OperationResponseTypes {
   'health': HealthHealthResponses
-  'read_settings': SettingsReadSettingsResponses
-  'stats': StatsStatsResponses
+  'health_ready': HealthReadyHealthReadyResponses
+  'login': ApiV1AuthLoginLoginResponses
+  'logout': ApiV1AuthLogoutLogoutResponses
+  'me': ApiV1AuthMeMeResponses
+  'read_settings': ApiV1SettingsReadSettingsResponses
+  'stats': ApiV1StatsStatsResponses
 }
 
 /**
@@ -57,6 +78,10 @@ export interface OperationResponseTypes {
  */
 export interface OperationErrorTypes {
   'health': never
+  'health_ready': never
+  'login': ApiV1AuthLoginLoginErrors
+  'logout': never
+  'me': never
   'read_settings': never
   'stats': never
 }
