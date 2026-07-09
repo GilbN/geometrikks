@@ -37,6 +37,7 @@ const routeLabels: Record<string, string> = {
   "/geo-logs": "Geo Logs",
   "/analytics": "Analytics",
   "/settings": "Settings",
+  "/login": "Login",
 }
 
 function AppBreadcrumb() {
@@ -60,6 +61,18 @@ function AppBreadcrumb() {
 }
 
 function RootLayout() {
+  const routerState = useRouterState()
+  const isLogin = routerState.location.pathname === "/login"
+
+  // The login page renders without the app chrome (sidebar, toolbar).
+  if (isLogin) {
+    return (
+      <ThemeProvider defaultTheme="dark" storageKey="geometrikks-theme">
+        <Outlet />
+      </ThemeProvider>
+    )
+  }
+
   return (
     <ThemeProvider defaultTheme="dark" storageKey="geometrikks-theme">
       <TooltipProvider delayDuration={0}>

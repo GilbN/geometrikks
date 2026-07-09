@@ -12,6 +12,44 @@ export const api = axios.create({
   },
 })
 
+// Redirect to the login page on any 401 from the API (session expired or
+// not yet logged in). Skip when already on /login to avoid a redirect loop.
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (
+      error?.response?.status === 401 &&
+      window.location.pathname !== "/login" &&
+      !error?.config?.url?.includes("/auth/login")
+    ) {
+      window.location.href = "/login"
+    }
+    return Promise.reject(error)
+  }
+)
+
+// ============================================================================
+// Types & Functions - Auth API
+// ============================================================================
+
+export interface MeResponse {
+  username: string
+}
+
+export async function login(username: string, password: string): Promise<MeResponse> {
+  const { data } = await api.post<MeResponse>("/auth/login", { username, password })
+  return data
+}
+
+export async function logout(): Promise<void> {
+  await api.post("/auth/logout")
+}
+
+export async function fetchMe(): Promise<MeResponse> {
+  const { data } = await api.get<MeResponse>("/auth/me")
+  return data
+}
+
 // ============================================================================
 // Types - Health API
 // ============================================================================
@@ -25,6 +63,7 @@ export interface HealthIngestionStatus {
 export interface HealthResponse {
   status: "healthy" | "degraded"
   ingestion: HealthIngestionStatus
+  database: { reachable: boolean }
   timestamp: string
 }
 
