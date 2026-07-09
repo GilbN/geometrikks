@@ -10,7 +10,7 @@ from geometrikks.services.ingestion import LogIngestionService
 from geometrikks.api.dependencies import provide_ingestion_service as pis
 
 
-@get("/stats", dependencies={"ingestion_service": Provide(pis, sync_to_thread=False)})
+@get("/api/v1/stats", dependencies={"ingestion_service": Provide(pis, sync_to_thread=False)})
 async def stats(ingestion_service: NamedDependency[LogIngestionService | None]) -> dict[str, Any]:
     """Get log parser and ingestion statistics.
 

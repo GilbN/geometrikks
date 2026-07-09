@@ -9,7 +9,7 @@ from geometrikks.api.v1.analytics_controller import AnalyticsController
 from geometrikks.api.v1.auth_controller import AuthController
 from geometrikks.api.v1.settings import read_settings
 from geometrikks.api.v1.stats import stats
-from geometrikks.api.health import health
+from geometrikks.api.health import health, health_ready
 
 
 def get_route_handlers() -> list[ControllerRouterHandler]:
@@ -24,4 +24,5 @@ def get_route_handlers() -> list[ControllerRouterHandler]:
         read_settings,
         stats,
         health,
+        health_ready,
     ]
