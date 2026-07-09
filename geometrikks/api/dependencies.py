@@ -98,7 +98,7 @@ def provide_limit_offset_pagination(
     return filters.LimitOffset(page_size, page_size * (current_page - 1))
 
 
-async def provice_summary_stats_repo(
+async def provide_summary_stats_repo(
     db_session: NamedDependency[AsyncSession],
 ) -> SummaryStatsRepository:
     """Provide SummaryStatsRepository for querying summary statistics."""

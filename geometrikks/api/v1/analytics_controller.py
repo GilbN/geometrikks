@@ -26,7 +26,7 @@ from geometrikks.domain.analytics.repositories import get_stats_granularity
 
 from geometrikks.api.dependencies import (
     provide_live_stats_repo,
-    provice_summary_stats_repo
+    provide_summary_stats_repo
 )
 
 
@@ -45,7 +45,7 @@ class AnalyticsController(Controller):
 
     dependencies = {
         "live_stats_repo": Provide(provide_live_stats_repo),
-        "summary_stats_repo": Provide(provice_summary_stats_repo),
+        "summary_stats_repo": Provide(provide_summary_stats_repo),
     }
 
     @get("/summary", description="Get summary statistics for dashboard header cards.")

@@ -21,6 +21,8 @@ from typing import TYPE_CHECKING
 from sqlalchemy import text
 
 if TYPE_CHECKING:
+    from datetime import datetime
+
     from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine
 
     from geometrikks.config.settings import AnalyticsSettings
@@ -513,30 +515,38 @@ async def setup_timescaledb(
 async def refresh_caggs_range(
     engine: AsyncEngine,
     *,
-    start: str,
-    end: str,
+    start: datetime,
+    end: datetime,
     caggs: list[str] | None = None,
 ) -> None:
-    """Refresh CAGGs for a specific time range.
+    """Refresh CAGGs for a specific time range (used after historical imports).
 
-    For historical imports of log data, we may need to refresh CAGGs
+    Timestamps are bound as asyncpg parameters. CAGG names cannot be bound
+    (identifiers), so they are validated against the ALL_CAGGS allowlist.
 
     Args:
-        start: ISO timestamp or interval start (inclusive)
-        end: ISO timestamp or interval end (exclusive)
-        caggs: Optional subset of CAGGs (defaults to all)
+        engine: Async engine (raw asyncpg connection is used: CALL cannot
+            run inside a transaction block).
+        start: Range start (inclusive), timezone-aware.
+        end: Range end (exclusive), timezone-aware.
+        caggs: Optional subset of CAGGs (defaults to all).
     """
     if not start or not end:
         raise ValueError("Both start and end must be provided")
 
     target_caggs = caggs or ALL_CAGGS
+    unknown = set(target_caggs) - set(ALL_CAGGS)
+    if unknown:
+        raise ValueError(f"Unknown CAGG name(s): {sorted(unknown)}")
 
     for cagg in target_caggs:
         try:
             async with engine.connect() as conn:
                 raw_conn = await conn.get_raw_connection()
                 await raw_conn.driver_connection.execute(
-                    f"CALL refresh_continuous_aggregate('{cagg}', '{start}', '{end}')"
+                    f"CALL refresh_continuous_aggregate('{cagg}', $1::timestamptz, $2::timestamptz)",
+                    start,
+                    end,
                 )
             logger.info("CAGG refreshed: %s (%s → %s)", cagg, start, end)
         except Exception as e:

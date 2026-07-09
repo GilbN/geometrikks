@@ -55,22 +55,16 @@ async def refresh_location_last_hits_job(
             logger.info("Refreshed last_hit for %d locations", updated)
 
 
-async def _execute_call_outside_transaction(sql: str) -> None:
+async def _execute_call_outside_transaction(sql: str, *args: object) -> None:
     """Execute a CALL statement outside of any transaction.
 
     PostgreSQL CALL statements (like refresh_continuous_aggregate) cannot
-    run inside a transaction block. This helper gets a raw connection and
-    executes the CALL with autocommit semantics.
-
-    Args:
-        sql: The CALL SQL statement to execute.
+    run inside a transaction block. Positional args are bound by asyncpg.
     """
     engine = get_sqlalchemy_config().get_engine()
-    # Get raw asyncpg connection to bypass SQLAlchemy transaction handling
     async with engine.connect() as conn:
         raw_conn = await conn.get_raw_connection()
-        # asyncpg connection - execute directly
-        await raw_conn.driver_connection.execute(sql)
+        await raw_conn.driver_connection.execute(sql, *args)
 
 
 async def refresh_continuous_aggregate_job(
@@ -81,27 +75,23 @@ async def refresh_continuous_aggregate_job(
 ) -> None:
     """Manually refresh a TimescaleDB continuous aggregate.
 
-    Useful for backfilling historical data or forcing an immediate refresh.
-    If start/end are None, refreshes all data.
-
-    Note: CALL statements must run outside transactions. This function
-    uses a raw connection to bypass SQLAlchemy's transaction handling.
+    Timestamps are bound as asyncpg parameters; the CAGG name is validated
+    against the ALL_CAGGS allowlist (identifiers cannot be parameters).
 
     Args:
-        session_factory: SQLAlchemy async session factory (unused but kept for API consistency).
+        session_factory: Unused, kept for scheduler job signature consistency.
         cagg_name: Name of the continuous aggregate to refresh.
         start: Start of refresh window (None = beginning of time).
         end: End of refresh window (None = now).
     """
-    if start is None and end is None:
-        sql = f"CALL refresh_continuous_aggregate('{cagg_name}', NULL, NULL)"
-    else:
-        # Format timestamps for SQL
-        start_str = f"'{start.isoformat()}'" if start else "NULL"
-        end_str = f"'{end.isoformat()}'" if end else "NULL"
-        sql = f"CALL refresh_continuous_aggregate('{cagg_name}', {start_str}::timestamptz, {end_str}::timestamptz)"
+    if cagg_name not in ALL_CAGGS:
+        raise ValueError(f"Unknown CAGG name: {cagg_name}")
 
-    await _execute_call_outside_transaction(sql)
+    await _execute_call_outside_transaction(
+        f"CALL refresh_continuous_aggregate('{cagg_name}', $1::timestamptz, $2::timestamptz)",
+        start,
+        end,
+    )
     logger.info("Refreshed continuous aggregate: %s", cagg_name)
 
 
