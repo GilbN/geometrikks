@@ -40,4 +40,8 @@ testpaths = ["tests"]
 filterwarnings = [
     # Reduce noise from third-party libs; keep real test warnings visible
     "ignore:There is no current event loop:DeprecationWarning",
+    # False positive: our auth exclude pattern deliberately matches everything
+    # outside /api/ (SPA shell, assets, /health). The boundary is verified by
+    # tests/test_auth_endpoints.py (401 on /api/*, 200 on excluded paths).
+    "ignore:.*exclude pattern.*greedily matches all paths.*:litestar.utils.warnings.LitestarWarning",
 ]

@@ -96,6 +96,13 @@
       ],
       "uri": "/health"
     },
+    "health_ready": {
+      "method": "get",
+      "methods": [
+        "GET"
+      ],
+      "uri": "/health/ready"
+    },
     "list_access_log_debugs": {
       "method": "get",
       "methods": [
@@ -140,6 +147,27 @@
       },
       "uri": "/api/v1/geo-locations"
     },
+    "login": {
+      "method": "post",
+      "methods": [
+        "POST"
+      ],
+      "uri": "/api/v1/auth/login"
+    },
+    "logout": {
+      "method": "post",
+      "methods": [
+        "POST"
+      ],
+      "uri": "/api/v1/auth/logout"
+    },
+    "me": {
+      "method": "get",
+      "methods": [
+        "GET"
+      ],
+      "uri": "/api/v1/auth/me"
+    },
     "openapi.json": {
       "method": "get",
       "methods": [
@@ -159,14 +187,14 @@
       "methods": [
         "GET"
       ],
-      "uri": "/settings"
+      "uri": "/api/v1/settings"
     },
     "stats": {
       "method": "get",
       "methods": [
         "GET"
       ],
-      "uri": "/stats"
+      "uri": "/api/v1/stats"
     },
     "vite": {
       "method": "get",

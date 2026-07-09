@@ -30,9 +30,10 @@ import {
   Activity,
   Globe2,
   AlertCircle,
+  LogOut,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { fetchHealth } from "@/lib/api"
+import { fetchHealth, fetchMe, logout } from "@/lib/api"
 
 const navigationItems = [
   {
@@ -259,6 +260,60 @@ function LiveIndicator({ collapsed }: { collapsed: boolean }) {
   )
 }
 
+function LogoutButton() {
+  const { state, isMobile } = useSidebar()
+  const collapsed = isMobile ? false : state === "collapsed"
+
+  // Only render when session auth is active: /auth/me succeeds when logged
+  // in, 404s when APP_AUTH_DISABLED=true (endpoints not registered), and a
+  // 401 already redirects to /login via the api interceptor.
+  const { data: me } = useQuery({
+    queryKey: ["auth", "me"],
+    queryFn: fetchMe,
+    retry: false,
+    staleTime: Infinity,
+  })
+
+  if (!me) return null
+
+  async function onLogout() {
+    try {
+      await logout()
+    } finally {
+      window.location.href = "/login"
+    }
+  }
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          onClick={onLogout}
+          className={cn(
+            "flex items-center justify-center w-full py-2",
+            collapsed ? "px-0" : "px-3",
+            "text-sidebar-foreground/50 hover:text-sidebar-foreground",
+            "hover:bg-sidebar-accent/50 rounded-md transition-all duration-200"
+          )}
+        >
+          <LogOut className="w-4 h-4 shrink-0" />
+          <span
+            className={cn(
+              "text-xs font-medium overflow-hidden transition-all duration-200",
+              collapsed ? "ml-0 w-0 opacity-0" : "ml-2 w-auto opacity-100"
+            )}
+          >
+            Log out
+          </span>
+        </button>
+      </TooltipTrigger>
+      <TooltipContent side="right">
+        <span>Log out {me.username}</span>
+      </TooltipContent>
+    </Tooltip>
+  )
+}
+
 function CollapseToggle() {
   const { toggleSidebar, state, isMobile } = useSidebar()
   const collapsed = state === "collapsed"
@@ -272,7 +327,8 @@ function CollapseToggle() {
         <button
           onClick={toggleSidebar}
           className={cn(
-            "flex items-center justify-center w-full py-2 px-3",
+            "flex items-center justify-center w-full py-2",
+            collapsed ? "px-0" : "px-3",
             "text-sidebar-foreground/50 hover:text-sidebar-foreground",
             "hover:bg-sidebar-accent/50 rounded-md transition-all duration-200",
             "group/collapse"
@@ -280,14 +336,14 @@ function CollapseToggle() {
         >
           <ChevronLeft
             className={cn(
-              "w-4 h-4 transition-transform duration-300",
+              "w-4 h-4 shrink-0 transition-transform duration-300",
               collapsed && "rotate-180"
             )}
           />
           <span
             className={cn(
-              "ml-2 text-xs font-medium overflow-hidden transition-all duration-200",
-              collapsed ? "w-0 opacity-0" : "w-auto opacity-100"
+              "text-xs font-medium overflow-hidden transition-all duration-200",
+              collapsed ? "ml-0 w-0 opacity-0" : "ml-2 w-auto opacity-100"
             )}
           >
             Collapse
@@ -375,6 +431,7 @@ export function AppSidebar() {
 
       <SidebarFooter>
         <SidebarSeparator className="opacity-50" />
+        <LogoutButton />
         <CollapseToggle />
         {/* Version tag */}
         <div className={cn("px-3 py-2 text-center", collapsed && "hidden")}>

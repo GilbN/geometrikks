@@ -342,7 +342,7 @@ class SummaryStatsRepository:
         result = await self.session.execute(stmt, {"start": start, "end": end})
         row = result.one_or_none()
 
-        if row is None or row.total_log_records == 0:
+        if row is None or (row.total_log_records == 0 and row.total_geo_records == 0):
             return None
 
         total_errors = row.status_4xx + row.status_5xx

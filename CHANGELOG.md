@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Single-admin session-cookie authentication (`APP_ADMIN_USER` / `APP_ADMIN_PASSWORD`), with `APP_AUTH_DISABLED=true` reverse-proxy mode. New endpoints: `POST /api/v1/auth/login`, `POST /api/v1/auth/logout`, `GET /api/v1/auth/me`.
+- `/health/ready` readiness endpoint (503 until the database answers).
+- Login page, automatic redirect to it on API 401 responses, and a logout button in the sidebar (hidden when auth is disabled).
+
 ### Changed
 
 - Standardized on bun as the JS package manager; removed npm lockfile.
@@ -23,9 +29,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `APP_ENVIRONMENT=development`. Pre-existing databases (from the old
   `create_all` startup path) must be stamped once with
   `litestar database stamp head` before first startup on this version.
+- `/settings` and `/stats` moved under `/api/v1/`.
+- `/health` now always returns 200 while the app runs; component states (ingestion, database) moved into the payload.
+- With `APP_AUTH_DISABLED=true` the `/api/v1/auth/*` endpoints are not registered (404) instead of erroring without session middleware.
+- `refresh_caggs_range` now takes `datetime` bounds and binds them as query parameters.
 
 ### Fixed
 
 - Vite `@` alias resolved to the filesystem root instead of `resources/`.
 - Stale geo-location cache entries after a rollback no longer poison subsequent inserts.
 - Server modules no longer fail to import when the GeoIP database is missing.
+- CAGG summary returned no data for ranges with geo events but zero access logs.
+- `provice_summary_stats_repo` typo.
+
+### Security
+
+- Settings endpoint no longer exposes the full settings tree (database credentials leaked via `model_dump()`); response is now an explicit whitelist.
+- Timestamps in `CALL refresh_continuous_aggregate` are bound as asyncpg parameters instead of interpolated into SQL.

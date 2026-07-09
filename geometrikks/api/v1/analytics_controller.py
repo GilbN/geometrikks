@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 from typing import Annotated
 
 from litestar import Controller, get
-from litestar.di import Provide
+from litestar.di import NamedDependency, Provide
 from litestar.params import Parameter
 from litestar.openapi.spec import Example
 
@@ -26,7 +26,7 @@ from geometrikks.domain.analytics.repositories import get_stats_granularity
 
 from geometrikks.api.dependencies import (
     provide_live_stats_repo,
-    provice_summary_stats_repo
+    provide_summary_stats_repo
 )
 
 
@@ -45,13 +45,13 @@ class AnalyticsController(Controller):
 
     dependencies = {
         "live_stats_repo": Provide(provide_live_stats_repo),
-        "summary_stats_repo": Provide(provice_summary_stats_repo),
+        "summary_stats_repo": Provide(provide_summary_stats_repo),
     }
 
     @get("/summary", description="Get summary statistics for dashboard header cards.")
     async def get_summary(
         self,
-        summary_stats_repo: SummaryStatsRepository,
+        summary_stats_repo: NamedDependency[SummaryStatsRepository],
         start_date: Annotated[
             datetime,
             Parameter(
@@ -70,7 +70,6 @@ class AnalyticsController(Controller):
             bool,
             Parameter(
                 description="Include comparison with previous period of same length",
-                default=False,
             ),
         ] = False,
     ) -> SummaryResponse:
@@ -188,7 +187,7 @@ class AnalyticsController(Controller):
     @get("/live-summary", description="Get live summary statistics by querying raw data tables.")
     async def get_live_summary(
         self,
-        live_stats_repo: LiveStatsRepository,
+        live_stats_repo: NamedDependency[LiveStatsRepository],
         start_date: Annotated[
             datetime,
             Parameter(
@@ -207,7 +206,6 @@ class AnalyticsController(Controller):
             bool,
             Parameter(
                 description="Include comparison with previous period of same length",
-                default=False,
             ),
         ] = False,
     ) -> SummaryResponse:
@@ -325,7 +323,7 @@ class AnalyticsController(Controller):
     @get("/time-series/cumulative", description="Get cumulative time series data for area charts.")
     async def get_cumulative_time_series(
         self,
-        summary_stats_repo: SummaryStatsRepository,
+        summary_stats_repo: NamedDependency[SummaryStatsRepository],
         start_date: Annotated[
             datetime,
             Parameter(

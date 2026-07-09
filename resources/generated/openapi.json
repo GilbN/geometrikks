@@ -1,6 +1,30 @@
 {
   "components": {
     "schemas": {
+      "AnalyticsSettingsView": {
+        "properties": {
+          "compression_after_days": {
+            "type": "integer"
+          },
+          "debug_retention_days": {
+            "type": "integer"
+          },
+          "hourly_retention_days": {
+            "type": "integer"
+          },
+          "raw_retention_days": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "compression_after_days",
+          "debug_retention_days",
+          "hourly_retention_days",
+          "raw_retention_days"
+        ],
+        "title": "AnalyticsSettingsView",
+        "type": "object"
+      },
       "CumulativeDataPoint": {
         "properties": {
           "cumulative_access_logs": {
@@ -744,6 +768,57 @@
         "title": "LocationTopIPsResponse",
         "type": "object"
       },
+      "LoginPayload": {
+        "properties": {
+          "password": {
+            "type": "string"
+          },
+          "username": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "password",
+          "username"
+        ],
+        "title": "LoginPayload",
+        "type": "object"
+      },
+      "LogparserSettingsView": {
+        "properties": {
+          "log_paths": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "send_logs": {
+            "type": "boolean"
+          },
+          "store_debug_lines": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "log_paths",
+          "send_logs",
+          "store_debug_lines"
+        ],
+        "title": "LogparserSettingsView",
+        "type": "object"
+      },
+      "MeResponse": {
+        "properties": {
+          "username": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "username"
+        ],
+        "title": "MeResponse",
+        "type": "object"
+      },
       "PercentChange": {
         "properties": {
           "avg_request_time": {
@@ -885,6 +960,34 @@
         "title": "PeriodSummary",
         "type": "object"
       },
+      "SafeSettingsResponse": {
+        "properties": {
+          "analytics": {
+            "$ref": "#/components/schemas/AnalyticsSettingsView"
+          },
+          "environment": {
+            "type": "string"
+          },
+          "logparser": {
+            "$ref": "#/components/schemas/LogparserSettingsView"
+          },
+          "name": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "analytics",
+          "environment",
+          "logparser",
+          "name",
+          "version"
+        ],
+        "title": "SafeSettingsResponse",
+        "type": "object"
+      },
       "SummaryResponse": {
         "properties": {
           "current_period": {
@@ -990,6 +1093,14 @@
         ],
         "title": "TopIPDTO",
         "type": "object"
+      }
+    },
+    "securitySchemes": {
+      "sessionCookie": {
+        "description": "Session cookie authentication.",
+        "in": "cookie",
+        "name": "session",
+        "type": "apiKey"
       }
     }
   },
@@ -1567,6 +1678,116 @@
         "summary": "GetCumulativeTimeSeries",
         "tags": [
           "Analytics"
+        ]
+      }
+    },
+    "/api/v1/auth/login": {
+      "post": {
+        "deprecated": false,
+        "operationId": "ApiV1AuthLoginLogin",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginPayload"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MeResponse"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "Login",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/v1/auth/logout": {
+      "post": {
+        "deprecated": false,
+        "operationId": "ApiV1AuthLogoutLogout",
+        "responses": {
+          "204": {
+            "description": "Request fulfilled, nothing follows",
+            "headers": {}
+          }
+        },
+        "summary": "Logout",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/v1/auth/me": {
+      "get": {
+        "deprecated": false,
+        "operationId": "ApiV1AuthMeMe",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MeResponse"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          }
+        },
+        "summary": "Me",
+        "tags": [
+          "Auth"
         ]
       }
     },
@@ -2277,6 +2498,50 @@
         ]
       }
     },
+    "/api/v1/settings": {
+      "get": {
+        "deprecated": false,
+        "operationId": "ApiV1SettingsReadSettings",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SafeSettingsResponse"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          }
+        },
+        "summary": "ReadSettings",
+        "tags": [
+          "Settings"
+        ]
+      }
+    },
+    "/api/v1/stats": {
+      "get": {
+        "deprecated": false,
+        "operationId": "ApiV1StatsStats",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {},
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          }
+        },
+        "summary": "Stats"
+      }
+    },
     "/health": {
       "get": {
         "deprecated": false,
@@ -2298,10 +2563,10 @@
         "summary": "Health"
       }
     },
-    "/settings": {
+    "/health/ready": {
       "get": {
         "deprecated": false,
-        "operationId": "SettingsReadSettings",
+        "operationId": "HealthReadyHealthReady",
         "responses": {
           "200": {
             "content": {
@@ -2316,31 +2581,15 @@
             "headers": {}
           }
         },
-        "summary": "ReadSettings"
-      }
-    },
-    "/stats": {
-      "get": {
-        "deprecated": false,
-        "operationId": "StatsStats",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": {},
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Request fulfilled, document follows",
-            "headers": {}
-          }
-        },
-        "summary": "Stats"
+        "summary": "HealthReady"
       }
     }
   },
+  "security": [
+    {
+      "sessionCookie": []
+    }
+  ],
   "servers": [
     {
       "url": "/"

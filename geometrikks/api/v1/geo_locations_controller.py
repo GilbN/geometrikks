@@ -4,11 +4,11 @@ from datetime import datetime, timezone
 from typing import Annotated
 import logging
 
-from litestar.plugins.sqlalchemy import filters
+from advanced_alchemy.extensions.litestar import filters
 from litestar.pagination import OffsetPagination
 from litestar import Controller, get
-from litestar.di import Provide
-from litestar.params import Parameter
+from litestar.di import NamedDependency, Provide
+from litestar.params import Parameter, PathParameter
 from litestar.openapi.spec import Example
 
 from geometrikks.domain.geo.models import GeoLocation
@@ -46,8 +46,8 @@ class GeoLocationController(Controller):
     @get("/")
     async def list_geo_locations(
         self,
-        geo_location_repo: GeoLocationRepository,
-        limit_offset: filters.LimitOffset,
+        geo_location_repo: NamedDependency[GeoLocationRepository],
+        limit_offset: NamedDependency[filters.LimitOffset],
     ) -> OffsetPagination[GeoLocation]:
         """List all geo-locations with pagination."""
         results, total = await geo_location_repo.list_and_count(limit_offset)
@@ -61,7 +61,7 @@ class GeoLocationController(Controller):
     @get("/geojson", return_dto=None, description="Get all locations with event counts as GeoJSON FeatureCollection.")
     async def get_geojson(
         self,
-        geo_location_repo: GeoLocationRepository,
+        geo_location_repo: NamedDependency[GeoLocationRepository],
         from_timestamp: Annotated[
             datetime,
             Parameter(
@@ -136,7 +136,7 @@ class GeoLocationController(Controller):
     @get("/top-ips", return_dto=None, description="Get global top IPs by event count with their primary locations.")
     async def get_global_top_ips(
         self,
-        geo_location_repo: GeoLocationRepository,
+        geo_location_repo: NamedDependency[GeoLocationRepository],
         from_timestamp: Annotated[
             datetime,
             Parameter(
@@ -189,8 +189,8 @@ class GeoLocationController(Controller):
     @get("/{location_id:int}/top-ips", return_dto=None, description="Get top IPs for a specific location.")
     async def get_location_top_ips(
         self,
-        geo_location_repo: GeoLocationRepository,
-        location_id: int,
+        geo_location_repo: NamedDependency[GeoLocationRepository],
+        location_id: Annotated[int, PathParameter()],
         from_timestamp: Annotated[
             datetime,
             Parameter(
@@ -231,7 +231,7 @@ class GeoLocationController(Controller):
     @get("/top-countries", return_dto=None, description="Get top countries by event count.")
     async def get_top_countries(
         self,
-        geo_location_repo: GeoLocationRepository,
+        geo_location_repo: NamedDependency[GeoLocationRepository],
         from_timestamp: Annotated[
             datetime,
             Parameter(

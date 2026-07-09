@@ -18,6 +18,13 @@ import type {
   ApiV1AnalyticsTimeSeriesCumulativeGetCumulativeTimeSeriesData,
   ApiV1AnalyticsTimeSeriesCumulativeGetCumulativeTimeSeriesErrors,
   ApiV1AnalyticsTimeSeriesCumulativeGetCumulativeTimeSeriesResponses,
+  ApiV1AuthLoginLoginData,
+  ApiV1AuthLoginLoginErrors,
+  ApiV1AuthLoginLoginResponses,
+  ApiV1AuthLogoutLogoutData,
+  ApiV1AuthLogoutLogoutResponses,
+  ApiV1AuthMeMeData,
+  ApiV1AuthMeMeResponses,
   ApiV1GeoEventsListGeoEventsData,
   ApiV1GeoEventsListGeoEventsErrors,
   ApiV1GeoEventsListGeoEventsResponses,
@@ -36,12 +43,14 @@ import type {
   ApiV1GeoLocationsTopIpsGetGlobalTopIpsData,
   ApiV1GeoLocationsTopIpsGetGlobalTopIpsErrors,
   ApiV1GeoLocationsTopIpsGetGlobalTopIpsResponses,
+  ApiV1SettingsReadSettingsData,
+  ApiV1SettingsReadSettingsResponses,
+  ApiV1StatsStatsData,
+  ApiV1StatsStatsResponses,
   HealthHealthData,
   HealthHealthResponses,
-  SettingsReadSettingsData,
-  SettingsReadSettingsResponses,
-  StatsStatsData,
-  StatsStatsResponses,
+  HealthReadyHealthReadyData,
+  HealthReadyHealthReadyResponses,
 } from "./types.gen";
 
 export type Options<
@@ -73,7 +82,17 @@ export const apiV1AccessLogDebugListAccessLogDebugs = <
     ApiV1AccessLogDebugListAccessLogDebugsResponses,
     ApiV1AccessLogDebugListAccessLogDebugsErrors,
     ThrowOnError
-  >({ url: "/api/v1/access-log-debug", ...options });
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+    ],
+    url: "/api/v1/access-log-debug",
+    ...options,
+  });
 
 /**
  * ListAccessLogs
@@ -87,7 +106,17 @@ export const apiV1AccessLogsListAccessLogs = <
     ApiV1AccessLogsListAccessLogsResponses,
     ApiV1AccessLogsListAccessLogsErrors,
     ThrowOnError
-  >({ url: "/api/v1/access-logs", ...options });
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+    ],
+    url: "/api/v1/access-logs",
+    ...options,
+  });
 
 /**
  * GetLiveSummary
@@ -103,7 +132,17 @@ export const apiV1AnalyticsLiveSummaryGetLiveSummary = <
     ApiV1AnalyticsLiveSummaryGetLiveSummaryResponses,
     ApiV1AnalyticsLiveSummaryGetLiveSummaryErrors,
     ThrowOnError
-  >({ url: "/api/v1/analytics/live-summary", ...options });
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+    ],
+    url: "/api/v1/analytics/live-summary",
+    ...options,
+  });
 
 /**
  * GetSummary
@@ -119,7 +158,17 @@ export const apiV1AnalyticsSummaryGetSummary = <
     ApiV1AnalyticsSummaryGetSummaryResponses,
     ApiV1AnalyticsSummaryGetSummaryErrors,
     ThrowOnError
-  >({ url: "/api/v1/analytics/summary", ...options });
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+    ],
+    url: "/api/v1/analytics/summary",
+    ...options,
+  });
 
 /**
  * GetCumulativeTimeSeries
@@ -138,7 +187,87 @@ export const apiV1AnalyticsTimeSeriesCumulativeGetCumulativeTimeSeries = <
     ApiV1AnalyticsTimeSeriesCumulativeGetCumulativeTimeSeriesResponses,
     ApiV1AnalyticsTimeSeriesCumulativeGetCumulativeTimeSeriesErrors,
     ThrowOnError
-  >({ url: "/api/v1/analytics/time-series/cumulative", ...options });
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+    ],
+    url: "/api/v1/analytics/time-series/cumulative",
+    ...options,
+  });
+
+/**
+ * Login
+ */
+export const apiV1AuthLoginLogin = <ThrowOnError extends boolean = false>(
+  options: Options<ApiV1AuthLoginLoginData, ThrowOnError>,
+) =>
+  (options.client ?? client).post<
+    ApiV1AuthLoginLoginResponses,
+    ApiV1AuthLoginLoginErrors,
+    ThrowOnError
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+    ],
+    url: "/api/v1/auth/login",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  });
+
+/**
+ * Logout
+ */
+export const apiV1AuthLogoutLogout = <ThrowOnError extends boolean = false>(
+  options?: Options<ApiV1AuthLogoutLogoutData, ThrowOnError>,
+) =>
+  (options?.client ?? client).post<
+    ApiV1AuthLogoutLogoutResponses,
+    unknown,
+    ThrowOnError
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+    ],
+    url: "/api/v1/auth/logout",
+    ...options,
+  });
+
+/**
+ * Me
+ */
+export const apiV1AuthMeMe = <ThrowOnError extends boolean = false>(
+  options?: Options<ApiV1AuthMeMeData, ThrowOnError>,
+) =>
+  (options?.client ?? client).get<
+    ApiV1AuthMeMeResponses,
+    unknown,
+    ThrowOnError
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+    ],
+    url: "/api/v1/auth/me",
+    ...options,
+  });
 
 /**
  * ListGeoEvents
@@ -152,7 +281,17 @@ export const apiV1GeoEventsListGeoEvents = <
     ApiV1GeoEventsListGeoEventsResponses,
     ApiV1GeoEventsListGeoEventsErrors,
     ThrowOnError
-  >({ url: "/api/v1/geo-events", ...options });
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+    ],
+    url: "/api/v1/geo-events",
+    ...options,
+  });
 
 /**
  * ListGeoLocations
@@ -166,7 +305,17 @@ export const apiV1GeoLocationsListGeoLocations = <
     ApiV1GeoLocationsListGeoLocationsResponses,
     ApiV1GeoLocationsListGeoLocationsErrors,
     ThrowOnError
-  >({ url: "/api/v1/geo-locations", ...options });
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+    ],
+    url: "/api/v1/geo-locations",
+    ...options,
+  });
 
 /**
  * GetGeojson
@@ -182,7 +331,17 @@ export const apiV1GeoLocationsGeojsonGetGeojson = <
     ApiV1GeoLocationsGeojsonGetGeojsonResponses,
     ApiV1GeoLocationsGeojsonGetGeojsonErrors,
     ThrowOnError
-  >({ url: "/api/v1/geo-locations/geojson", ...options });
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+    ],
+    url: "/api/v1/geo-locations/geojson",
+    ...options,
+  });
 
 /**
  * GetTopCountries
@@ -201,7 +360,17 @@ export const apiV1GeoLocationsTopCountriesGetTopCountries = <
     ApiV1GeoLocationsTopCountriesGetTopCountriesResponses,
     ApiV1GeoLocationsTopCountriesGetTopCountriesErrors,
     ThrowOnError
-  >({ url: "/api/v1/geo-locations/top-countries", ...options });
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+    ],
+    url: "/api/v1/geo-locations/top-countries",
+    ...options,
+  });
 
 /**
  * GetGlobalTopIps
@@ -217,7 +386,17 @@ export const apiV1GeoLocationsTopIpsGetGlobalTopIps = <
     ApiV1GeoLocationsTopIpsGetGlobalTopIpsResponses,
     ApiV1GeoLocationsTopIpsGetGlobalTopIpsErrors,
     ThrowOnError
-  >({ url: "/api/v1/geo-locations/top-ips", ...options });
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+    ],
+    url: "/api/v1/geo-locations/top-ips",
+    ...options,
+  });
 
 /**
  * GetLocationTopIps
@@ -236,7 +415,61 @@ export const apiV1GeoLocationsLocationIdTopIpsGetLocationTopIps = <
     ApiV1GeoLocationsLocationIdTopIpsGetLocationTopIpsResponses,
     ApiV1GeoLocationsLocationIdTopIpsGetLocationTopIpsErrors,
     ThrowOnError
-  >({ url: "/api/v1/geo-locations/{location_id}/top-ips", ...options });
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+    ],
+    url: "/api/v1/geo-locations/{location_id}/top-ips",
+    ...options,
+  });
+
+/**
+ * ReadSettings
+ */
+export const apiV1SettingsReadSettings = <ThrowOnError extends boolean = false>(
+  options?: Options<ApiV1SettingsReadSettingsData, ThrowOnError>,
+) =>
+  (options?.client ?? client).get<
+    ApiV1SettingsReadSettingsResponses,
+    unknown,
+    ThrowOnError
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+    ],
+    url: "/api/v1/settings",
+    ...options,
+  });
+
+/**
+ * Stats
+ */
+export const apiV1StatsStats = <ThrowOnError extends boolean = false>(
+  options?: Options<ApiV1StatsStatsData, ThrowOnError>,
+) =>
+  (options?.client ?? client).get<
+    ApiV1StatsStatsResponses,
+    unknown,
+    ThrowOnError
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+    ],
+    url: "/api/v1/stats",
+    ...options,
+  });
 
 /**
  * Health
@@ -245,28 +478,37 @@ export const healthHealth = <ThrowOnError extends boolean = false>(
   options?: Options<HealthHealthData, ThrowOnError>,
 ) =>
   (options?.client ?? client).get<HealthHealthResponses, unknown, ThrowOnError>(
-    { url: "/health", ...options },
+    {
+      security: [
+        {
+          in: "cookie",
+          name: "session",
+          type: "apiKey",
+        },
+      ],
+      url: "/health",
+      ...options,
+    },
   );
 
 /**
- * ReadSettings
+ * HealthReady
  */
-export const settingsReadSettings = <ThrowOnError extends boolean = false>(
-  options?: Options<SettingsReadSettingsData, ThrowOnError>,
+export const healthReadyHealthReady = <ThrowOnError extends boolean = false>(
+  options?: Options<HealthReadyHealthReadyData, ThrowOnError>,
 ) =>
   (options?.client ?? client).get<
-    SettingsReadSettingsResponses,
+    HealthReadyHealthReadyResponses,
     unknown,
     ThrowOnError
-  >({ url: "/settings", ...options });
-
-/**
- * Stats
- */
-export const statsStats = <ThrowOnError extends boolean = false>(
-  options?: Options<StatsStatsData, ThrowOnError>,
-) =>
-  (options?.client ?? client).get<StatsStatsResponses, unknown, ThrowOnError>({
-    url: "/stats",
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+    ],
+    url: "/health/ready",
     ...options,
   });

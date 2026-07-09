@@ -1,32 +1,62 @@
-"""Health check endpoint for service status monitoring."""
+"""Health (liveness) and readiness endpoints.
+
+/health is safe for container HEALTHCHECK / LB probes: it returns 200 as
+long as the app process serves requests; component states live in the
+payload and never flip the status code. /health/ready returns 503 until
+the database answers, for orchestrators that want a real readiness gate.
+"""
 from __future__ import annotations
 
 from datetime import datetime, timezone
 from typing import Any
 
-from litestar import get
-from litestar.di import Provide
+from litestar import Response, get
+from litestar.di import NamedDependency, Provide
+from litestar.status_codes import HTTP_200_OK, HTTP_503_SERVICE_UNAVAILABLE
+from sqlalchemy import text
 
 from geometrikks.services.ingestion import LogIngestionService
 from geometrikks.api.dependencies import provide_ingestion_service as pis
 
 
-@get("/health", dependencies={"ingestion_service": Provide(pis, sync_to_thread=False)})
-async def health(ingestion_service: LogIngestionService | None) -> dict[str, Any]:
-    """Get service health status.
+async def _database_reachable(timeout: float = 2.0) -> bool:
+    """SELECT 1 with a short timeout; False on any failure."""
+    import asyncio
 
-    Returns:
-        Dictionary with overall status and component health details.
-        Useful for load balancers, Kubernetes probes, and frontend status indicators.
-    """
+    from geometrikks.server.plugins import get_sqlalchemy_config
+
+    try:
+        async def _probe() -> None:
+            async with get_sqlalchemy_config().get_engine().connect() as conn:
+                await conn.execute(text("SELECT 1"))
+
+        await asyncio.wait_for(_probe(), timeout=timeout)
+        return True
+    except Exception:
+        return False
+
+
+@get("/health", dependencies={"ingestion_service": Provide(pis, sync_to_thread=False)})
+async def health(ingestion_service: NamedDependency[LogIngestionService | None]) -> dict[str, Any]:
+    """Liveness + component detail. Always 200 while the app is up."""
     is_running = ingestion_service.is_running if ingestion_service else False
+    db_reachable = await _database_reachable()
 
     return {
-        "status": "healthy" if is_running else "degraded",
+        "status": "healthy" if (is_running and db_reachable) else "degraded",
         "ingestion": {
             "running": is_running,
             "parsed_lines": ingestion_service.parsed_lines if ingestion_service else 0,
             "pending_records": ingestion_service.pending_records if ingestion_service else 0,
         },
+        "database": {"reachable": db_reachable},
         "timestamp": datetime.now(timezone.utc).isoformat(),
     }
+
+
+@get("/health/ready")
+async def health_ready() -> Response[dict[str, Any]]:
+    """Readiness: 200 only when the database answers."""
+    if await _database_reachable():
+        return Response({"ready": True}, status_code=HTTP_200_OK)
+    return Response({"ready": False}, status_code=HTTP_503_SERVICE_UNAVAILABLE)

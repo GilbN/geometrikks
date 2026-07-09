@@ -5,6 +5,16 @@ export type ClientOptions = {
 };
 
 /**
+ * AnalyticsSettingsView
+ */
+export type AnalyticsSettingsView = {
+  compression_after_days: number;
+  debug_retention_days: number;
+  hourly_retention_days: number;
+  raw_retention_days: number;
+};
+
+/**
  * CumulativeDataPoint
  */
 export type CumulativeDataPoint = {
@@ -195,6 +205,30 @@ export type LocationTopIpsResponse = {
 };
 
 /**
+ * LoginPayload
+ */
+export type LoginPayload = {
+  password: string;
+  username: string;
+};
+
+/**
+ * LogparserSettingsView
+ */
+export type LogparserSettingsView = {
+  log_paths: Array<string>;
+  send_logs: boolean;
+  store_debug_lines: boolean;
+};
+
+/**
+ * MeResponse
+ */
+export type MeResponse = {
+  username: string;
+};
+
+/**
  * PercentChange
  */
 export type PercentChange = {
@@ -225,6 +259,17 @@ export type PeriodSummary = {
   total_requests: number;
   unique_countries: number;
   unique_ips: number;
+};
+
+/**
+ * SafeSettingsResponse
+ */
+export type SafeSettingsResponse = {
+  analytics: AnalyticsSettingsView;
+  environment: string;
+  logparser: LogparserSettingsView;
+  name: string;
+  version: string;
 };
 
 /**
@@ -512,6 +557,76 @@ export type ApiV1AnalyticsTimeSeriesCumulativeGetCumulativeTimeSeriesResponses =
 
 export type ApiV1AnalyticsTimeSeriesCumulativeGetCumulativeTimeSeriesResponse =
   ApiV1AnalyticsTimeSeriesCumulativeGetCumulativeTimeSeriesResponses[keyof ApiV1AnalyticsTimeSeriesCumulativeGetCumulativeTimeSeriesResponses];
+
+export type ApiV1AuthLoginLoginData = {
+  body: LoginPayload;
+  path?: never;
+  query?: never;
+  url: "/api/v1/auth/login";
+};
+
+export type ApiV1AuthLoginLoginErrors = {
+  /**
+   * Validation Exception
+   */
+  400: {
+    detail: string;
+    extra?:
+      | null
+      | {
+          [key: string]: unknown;
+        }
+      | Array<unknown>;
+    status_code: number;
+  };
+};
+
+export type ApiV1AuthLoginLoginError =
+  ApiV1AuthLoginLoginErrors[keyof ApiV1AuthLoginLoginErrors];
+
+export type ApiV1AuthLoginLoginResponses = {
+  /**
+   * Request fulfilled, document follows
+   */
+  200: MeResponse;
+};
+
+export type ApiV1AuthLoginLoginResponse =
+  ApiV1AuthLoginLoginResponses[keyof ApiV1AuthLoginLoginResponses];
+
+export type ApiV1AuthLogoutLogoutData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: "/api/v1/auth/logout";
+};
+
+export type ApiV1AuthLogoutLogoutResponses = {
+  /**
+   * Request fulfilled, nothing follows
+   */
+  204: void;
+};
+
+export type ApiV1AuthLogoutLogoutResponse =
+  ApiV1AuthLogoutLogoutResponses[keyof ApiV1AuthLogoutLogoutResponses];
+
+export type ApiV1AuthMeMeData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: "/api/v1/auth/me";
+};
+
+export type ApiV1AuthMeMeResponses = {
+  /**
+   * Request fulfilled, document follows
+   */
+  200: MeResponse;
+};
+
+export type ApiV1AuthMeMeResponse =
+  ApiV1AuthMeMeResponses[keyof ApiV1AuthMeMeResponses];
 
 export type ApiV1GeoEventsListGeoEventsData = {
   body?: never;
@@ -813,6 +928,42 @@ export type ApiV1GeoLocationsLocationIdTopIpsGetLocationTopIpsResponses = {
 export type ApiV1GeoLocationsLocationIdTopIpsGetLocationTopIpsResponse =
   ApiV1GeoLocationsLocationIdTopIpsGetLocationTopIpsResponses[keyof ApiV1GeoLocationsLocationIdTopIpsGetLocationTopIpsResponses];
 
+export type ApiV1SettingsReadSettingsData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: "/api/v1/settings";
+};
+
+export type ApiV1SettingsReadSettingsResponses = {
+  /**
+   * Request fulfilled, document follows
+   */
+  200: SafeSettingsResponse;
+};
+
+export type ApiV1SettingsReadSettingsResponse =
+  ApiV1SettingsReadSettingsResponses[keyof ApiV1SettingsReadSettingsResponses];
+
+export type ApiV1StatsStatsData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: "/api/v1/stats";
+};
+
+export type ApiV1StatsStatsResponses = {
+  /**
+   * Request fulfilled, document follows
+   */
+  200: {
+    [key: string]: unknown;
+  };
+};
+
+export type ApiV1StatsStatsResponse =
+  ApiV1StatsStatsResponses[keyof ApiV1StatsStatsResponses];
+
 export type HealthHealthData = {
   body?: never;
   path?: never;
@@ -832,14 +983,14 @@ export type HealthHealthResponses = {
 export type HealthHealthResponse =
   HealthHealthResponses[keyof HealthHealthResponses];
 
-export type SettingsReadSettingsData = {
+export type HealthReadyHealthReadyData = {
   body?: never;
   path?: never;
   query?: never;
-  url: "/settings";
+  url: "/health/ready";
 };
 
-export type SettingsReadSettingsResponses = {
+export type HealthReadyHealthReadyResponses = {
   /**
    * Request fulfilled, document follows
    */
@@ -848,23 +999,5 @@ export type SettingsReadSettingsResponses = {
   };
 };
 
-export type SettingsReadSettingsResponse =
-  SettingsReadSettingsResponses[keyof SettingsReadSettingsResponses];
-
-export type StatsStatsData = {
-  body?: never;
-  path?: never;
-  query?: never;
-  url: "/stats";
-};
-
-export type StatsStatsResponses = {
-  /**
-   * Request fulfilled, document follows
-   */
-  200: {
-    [key: string]: unknown;
-  };
-};
-
-export type StatsStatsResponse = StatsStatsResponses[keyof StatsStatsResponses];
+export type HealthReadyHealthReadyResponse =
+  HealthReadyHealthReadyResponses[keyof HealthReadyHealthReadyResponses];

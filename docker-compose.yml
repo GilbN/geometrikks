@@ -35,6 +35,11 @@ services:
     restart: unless-stopped
     environment:
       APP_ENVIRONMENT: production
+      # Admin login for the web UI/API. Set both in .env; the app refuses to
+      # start without a password unless APP_AUTH_DISABLED=true (reverse-proxy
+      # mode behind Authelia/Tailscale etc.).
+      APP_ADMIN_USER: ${APP_ADMIN_USER:-admin}
+      APP_ADMIN_PASSWORD: ${APP_ADMIN_PASSWORD:-}
       DB_HOST: timescale_db
       DB_PORT: 5432
       DB_USER: geouser

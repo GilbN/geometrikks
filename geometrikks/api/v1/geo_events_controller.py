@@ -2,9 +2,9 @@
 from __future__ import annotations
 
 from litestar import Controller, get
-from litestar.di import Provide
+from litestar.di import NamedDependency, Provide
 from litestar.pagination import OffsetPagination
-from litestar.plugins.sqlalchemy import filters
+from advanced_alchemy.extensions.litestar import filters
 from geometrikks.domain.geo.models import GeoEvent
 from geometrikks.domain.geo.repositories import GeoEventRepository
 from geometrikks.domain.geo.dtos import (
@@ -31,8 +31,8 @@ class GeoEventController(Controller):
     @get("/")
     async def list_geo_events(
         self,
-        geo_event_repo: GeoEventRepository,
-        limit_offset: filters.LimitOffset,
+        geo_event_repo: NamedDependency[GeoEventRepository],
+        limit_offset: NamedDependency[filters.LimitOffset],
     ) -> OffsetPagination[GeoEvent]:
         """List all geo-events with pagination."""
         results, total = await geo_event_repo.list_and_count(limit_offset)
