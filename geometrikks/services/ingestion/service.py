@@ -420,6 +420,12 @@ class LogIngestionService:
                     except Exception as rollback_err:
                         logger.error("Rollback failed: %s", rollback_err)
                     self._evict_uncommitted_locations()
+                    # The failing record may have hit a poisoned cache entry
+                    # (an id cached before this service run whose row does not
+                    # exist, e.g. after a crashed commit). Uncommitted-tracking
+                    # can't see those, so drop the record's own geohash too.
+                    if record.geo_data:
+                        self._location_cache.pop(record.geo_data.geohash, None)
 
             try:
                 await session.commit()
@@ -428,6 +434,12 @@ class LogIngestionService:
                 logger.error("Batch commit failed (rolling back): %s", e)
                 await session.rollback()
                 self._evict_uncommitted_locations()
+                # Same poisoned-entry hazard as above, but here we don't know
+                # which record broke the commit — evict every geohash the
+                # batch touched so the next flush re-resolves them from the DB.
+                for record in batch:
+                    if record.geo_data:
+                        self._location_cache.pop(record.geo_data.geohash, None)
 
         logger.debug(
             "Committed batch of %d records. (Geo: %d | Log: %d | Debug: %d)",
