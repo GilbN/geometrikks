@@ -85,3 +85,26 @@ def test_create_app_auth_disabled_builds_without_password(monkeypatch):
     from geometrikks.server.core import create_app
     app = create_app()
     assert app.state.auth_state is None
+
+
+AUTH_ROUTE_PATHS = {"/api/v1/auth/login", "/api/v1/auth/logout", "/api/v1/auth/me"}
+
+
+def test_auth_routes_not_registered_when_auth_disabled(monkeypatch):
+    # Without SessionAuth there is no auth_state / request.user, so the
+    # handlers must not be reachable at all (404 instead of a 500).
+    monkeypatch.setenv("APP_AUTH_DISABLED", "true")
+    monkeypatch.delenv("APP_ADMIN_PASSWORD", raising=False)
+    from geometrikks.server.core import create_app
+    app = create_app()
+    paths = {route.path for route in app.routes}
+    assert not (AUTH_ROUTE_PATHS & paths)
+
+
+def test_auth_routes_registered_when_auth_enabled(monkeypatch):
+    monkeypatch.setenv("APP_AUTH_DISABLED", "false")
+    monkeypatch.setenv("APP_ADMIN_PASSWORD", "bestpasswordintheworldnojoke")
+    from geometrikks.server.core import create_app
+    app = create_app()
+    paths = {route.path for route in app.routes}
+    assert AUTH_ROUTE_PATHS <= paths

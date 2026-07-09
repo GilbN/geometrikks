@@ -36,6 +36,8 @@ def baseline_settings_env():
         "DB_POOL_TIMEOUT": "30",
         "DB_POOL_RECYCLE": "3600",
         "DB_DROP_ON_STARTUP": "false",
+        # Auth
+        "APP_AUTH_DISABLED": "false",
         # GeoIP
         "GEOIP_DB_PATH": "tests/GeoLite2-City-Test.mmdb",
         # Log parser

@@ -76,7 +76,7 @@ def create_app() -> Litestar:
     # Create app with configuration
     app = Litestar(
         debug=settings.debug,
-        route_handlers=get_route_handlers(),
+        route_handlers=get_route_handlers(include_auth=not settings.auth_disabled),
         on_startup=[on_startup],
         on_shutdown=[on_shutdown],
         plugins=plugins.create_plugins(),
