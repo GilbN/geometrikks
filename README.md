@@ -68,6 +68,9 @@ the app, you can disable the built-in auth entirely:
 APP_AUTH_DISABLED=true  # only safe behind an authenticating proxy
 ```
 
+In this mode the `/api/v1/auth/*` endpoints are not registered (404) and the
+sidebar hides the logout button.
+
 ## Sending Nginx log metrics with request and upstream response times
 
 1. Add the following to the http block in your `nginx.conf` file:

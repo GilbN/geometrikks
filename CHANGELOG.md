@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Single-admin session-cookie authentication (`APP_ADMIN_USER` / `APP_ADMIN_PASSWORD`), with `APP_AUTH_DISABLED=true` reverse-proxy mode. New endpoints: `POST /api/v1/auth/login`, `POST /api/v1/auth/logout`, `GET /api/v1/auth/me`.
 - `/health/ready` readiness endpoint (503 until the database answers).
-- Login page and automatic redirect to it on API 401 responses.
+- Login page, automatic redirect to it on API 401 responses, and a logout button in the sidebar (hidden when auth is disabled).
 
 ### Changed
 
@@ -31,6 +31,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `litestar database stamp head` before first startup on this version.
 - `/settings` and `/stats` moved under `/api/v1/`.
 - `/health` now always returns 200 while the app runs; component states (ingestion, database) moved into the payload.
+- With `APP_AUTH_DISABLED=true` the `/api/v1/auth/*` endpoints are not registered (404) instead of erroring without session middleware.
 - `refresh_caggs_range` now takes `datetime` bounds and binds them as query parameters.
 
 ### Fixed
