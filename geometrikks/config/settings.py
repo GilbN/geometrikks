@@ -311,6 +311,20 @@ class Settings(BaseSettings):
         description="Application environment",
     )
 
+    # Authentication (single admin user; see Phase 1c design)
+    auth_disabled: bool = Field(
+        default=False,
+        description=(
+            "Disable the built-in session auth entirely. Set true only when an "
+            "authenticating reverse proxy (Authelia, Tailscale, ...) fronts the app."
+        ),
+    )
+    admin_user: str = Field(default="admin", description="Admin login username")
+    admin_password: str | None = Field(
+        default=None,
+        description="Admin login password (required unless auth_disabled=true)",
+    )
+
     # Sub-configurations
     api: APISettings = Field(default_factory=APISettings)
     database: DatabaseSettings = Field(default_factory=DatabaseSettings)

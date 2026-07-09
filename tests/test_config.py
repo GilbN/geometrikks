@@ -151,3 +151,22 @@ def test_logparser_empty_list_rejected(monkeypatch):
     monkeypatch.setenv("LOGPARSER_LOG_PATHS", "[]")
     with pytest.raises(ValueError):
         Settings()
+
+
+class TestAuthSettings:
+    """APP_ADMIN_USER / APP_ADMIN_PASSWORD / APP_AUTH_DISABLED."""
+
+    def test_auth_defaults(self):
+        settings = Settings()
+        assert settings.auth_disabled is False
+        assert settings.admin_user == "admin"
+        assert settings.admin_password is None
+
+    def test_auth_env_overrides(self, monkeypatch):
+        monkeypatch.setenv("APP_AUTH_DISABLED", "true")
+        monkeypatch.setenv("APP_ADMIN_USER", "gil")
+        monkeypatch.setenv("APP_ADMIN_PASSWORD", "bestpasswordintheworldnojoke")
+        settings = Settings()
+        assert settings.auth_disabled is True
+        assert settings.admin_user == "gil"
+        assert settings.admin_password == "bestpasswordintheworldnojoke"
