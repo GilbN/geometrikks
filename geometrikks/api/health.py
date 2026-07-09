@@ -5,14 +5,14 @@ from datetime import datetime, timezone
 from typing import Any
 
 from litestar import get
-from litestar.di import Provide
+from litestar.di import NamedDependency, Provide
 
 from geometrikks.services.ingestion import LogIngestionService
 from geometrikks.api.dependencies import provide_ingestion_service as pis
 
 
 @get("/health", dependencies={"ingestion_service": Provide(pis, sync_to_thread=False)})
-async def health(ingestion_service: LogIngestionService | None) -> dict[str, Any]:
+async def health(ingestion_service: NamedDependency[LogIngestionService | None]) -> dict[str, Any]:
     """Get service health status.
 
     Returns:

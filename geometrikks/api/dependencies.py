@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from collections.abc import AsyncGenerator
+from typing import Annotated
 
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
@@ -9,8 +10,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import IntegrityError
 
 from litestar import Request
-from litestar.params import Parameter
-from litestar.plugins.sqlalchemy import filters
+from litestar.di import NamedDependency
+from litestar.params import QueryParameter
+from advanced_alchemy.extensions.litestar import filters
 from litestar.exceptions import ClientException
 from litestar.status_codes import HTTP_409_CONFLICT
 
@@ -30,7 +32,7 @@ def provide_ingestion_service(request: Request) -> LogIngestionService | None:
 
 
 async def provide_transaction(
-    db_session: AsyncSession,
+    db_session: NamedDependency[AsyncSession],
 ) -> AsyncGenerator[AsyncSession, None]:
     """Provide a database transaction context."""
     try:
@@ -44,14 +46,14 @@ async def provide_transaction(
 
 
 async def provide_geo_location_repo(
-    db_session: AsyncSession,
+    db_session: NamedDependency[AsyncSession],
 ) -> GeoLocationRepository:
     """Provide GeoLocationRepository."""
     return GeoLocationRepository(session=db_session)
 
 
 async def provide_geo_event_repo(
-    db_session: AsyncSession,
+    db_session: NamedDependency[AsyncSession],
 ) -> GeoEventRepository:
     """Provide GeoEventRepository with eager loading of location."""
     return GeoEventRepository(
@@ -61,14 +63,14 @@ async def provide_geo_event_repo(
 
 
 async def provide_access_log_repo(
-    db_session: AsyncSession,
+    db_session: NamedDependency[AsyncSession],
 ) -> AccessLogRepository:
     """Provide AccessLogRepository."""
     return AccessLogRepository(session=db_session)
 
 
 async def provide_access_log_debug_repo(
-    db_session: AsyncSession,
+    db_session: NamedDependency[AsyncSession],
 ) -> AccessLogDebugRepository:
     """Provide AccessLogDebugRepository.
 
@@ -79,13 +81,8 @@ async def provide_access_log_debug_repo(
 
 
 def provide_limit_offset_pagination(
-    current_page: int = Parameter(ge=1, query="currentPage", default=1, required=False),
-    page_size: int = Parameter(
-        query="pageSize",
-        ge=1,
-        default=10,
-        required=False,
-    ),
+    current_page: Annotated[int, QueryParameter(name="currentPage", ge=1, required=False)] = 1,
+    page_size: Annotated[int, QueryParameter(name="pageSize", ge=1, required=False)] = 10,
 ) -> filters.LimitOffset:
     """Add offset/limit pagination.
 
@@ -102,13 +99,13 @@ def provide_limit_offset_pagination(
 
 
 async def provice_summary_stats_repo(
-    db_session: AsyncSession,
+    db_session: NamedDependency[AsyncSession],
 ) -> SummaryStatsRepository:
     """Provide SummaryStatsRepository for querying summary statistics."""
     return SummaryStatsRepository(session=db_session)
 
 async def provide_live_stats_repo(
-    db_session: AsyncSession,
+    db_session: NamedDependency[AsyncSession],
 ) -> LiveStatsRepository:
     """Provide LiveStatsRepository for querying raw data tables."""
     return LiveStatsRepository(session=db_session)
