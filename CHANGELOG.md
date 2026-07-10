@@ -7,8 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0-alpha.1] - 2026-07-10
+
 ### Added
 
+- GeoLite2-City auto-download from MaxMind at startup and on a weekly
+  scheduler job (`MAXMINDDB_USER_ID` / `MAXMINDDB_LICENSE_KEY`,
+  `GEOIP_REFRESH_DAYS`). The database is replaced atomically; a failed
+  refresh keeps the existing copy.
+- Geo-degraded mode: without a GeoLite2 database the app starts anyway
+  (API + UI up, ingestion paused) with an actionable warning log, a
+  `geoip.available` component in `/health`, and a banner in the web UI.
+- CI workflow (GitHub Actions): ty type check, pytest — unit plus the
+  integration suite against a TimescaleDB service container — and the
+  frontend build.
+- Release workflow: multi-arch (linux/amd64 + linux/arm64) image publishing
+  to `ghcr.io/gilbn/geometrikks` on `v*` tags.
+- User-facing `docker-compose.yml` that pulls the published GHCR image
+  (named volumes for the database and the GeoLite2 file, read-only nginx log
+  mount); the development stack moved to `docker-compose.dev.yml`.
+- Full configuration reference as a README appendix.
 - Single-admin session-cookie authentication (`APP_ADMIN_USER` / `APP_ADMIN_PASSWORD`), with `APP_AUTH_DISABLED=true` reverse-proxy mode. New endpoints: `POST /api/v1/auth/login`, `POST /api/v1/auth/logout`, `GET /api/v1/auth/me`.
 - `/health/ready` readiness endpoint (503 until the database answers).
 - Login page, automatic redirect to it on API 401 responses, and a logout button in the sidebar (hidden when auth is disabled).
@@ -16,6 +34,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- The Docker image no longer bundles a GeoLite2 database; `/app/data/geoip`
+  is a volume owned by the auto-downloader.
+- `.env.example` trimmed to the settings a typical install actually touches.
+- Geo records whose GeoIP lookup lacks country data are skipped instead of
+  failing the ingest batch (the columns are NOT NULL).
 - Standardized on bun as the JS package manager; removed npm lockfile.
 - Pinned all frontend dependencies (previously `"latest"`).
 - Removed duplicate alembic scaffold; `migrations/` is canonical.
