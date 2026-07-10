@@ -176,4 +176,18 @@ async def create_scheduler(
     )
     logger.info("Scheduled full CAGG refresh every 6 hours")
 
+    # Weekly GeoLite2 refresh (only meaningful when credentials are set;
+    # ensure_geoip_database no-ops safely otherwise).
+    from geometrikks.services.geoip.downloader import ensure_geoip_database
+
+    scheduler.add_job(
+        ensure_geoip_database,
+        IntervalTrigger(days=settings.geoip.refresh_days),
+        id="geoip-refresh",
+        name="Refresh GeoLite2 database from MaxMind",
+        args=[settings.geoip],
+        replace_existing=True,
+    )
+    logger.info("Scheduled GeoLite2 refresh every %d day(s)", settings.geoip.refresh_days)
+
     return scheduler

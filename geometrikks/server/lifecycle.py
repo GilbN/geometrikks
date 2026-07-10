@@ -15,6 +15,7 @@ from geometrikks.server.migrations import migrate_database
 from geometrikks.server.plugins import get_sqlalchemy_config
 from geometrikks.server.timescale import setup_timescaledb
 
+from geometrikks.services.geoip.downloader import ensure_geoip_database
 from geometrikks.services.ingestion import LogIngestionService
 from geometrikks.services.logparser.logparser import LogParser
 from geometrikks.server.scheduler import create_scheduler
@@ -49,11 +50,24 @@ async def on_startup(app: "Litestar") -> None:
       an error to surface, not an outage to degrade around.
     - Sets up TimescaleDB hypertables and continuous aggregates after migrations.
     """
+    settings = get_settings()
+
+    # GeoIP: download/refresh if credentials are configured; degrade otherwise.
+    # Runs before the DB gate — geo enrichment does not need the database, and
+    # /health must report geoip state accurately even in DB-degraded mode.
+    geoip_available: bool = await ensure_geoip_database(settings.geoip)
+    app.state.geoip_available = geoip_available
+    if not geoip_available:
+        logger.warning(
+            "Geo-degraded mode: no usable GeoLite2 database. Ingestion will "
+            "not start until a database is present (restart after configuring "
+            "MAXMINDDB_USER_ID/MAXMINDDB_LICENSE_KEY)."
+        )
+
     if not await _db_available():
         logger.warning("Starting without database: skipping migrations and ingestion.")
         return
 
-    settings = get_settings()
     engine = get_sqlalchemy_config().get_engine()
 
     # Schema is owned by alembic (migrations/versions). A failed upgrade
