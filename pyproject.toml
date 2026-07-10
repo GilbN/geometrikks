@@ -12,6 +12,7 @@ dependencies = [
     "python-dotenv>=1.2.2",
     "pydantic-settings>=2.14.2",
     "asyncpg>=0.31.0",
+    "httpx>=0.28",
     "httpx-oauth>=0.17.0",
     "aiofiles>=25.1.0",
     "geoalchemy2>=0.20.0",
