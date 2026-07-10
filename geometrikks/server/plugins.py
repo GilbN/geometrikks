@@ -24,6 +24,7 @@ from advanced_alchemy.extensions.litestar import (
     base,
 )
 
+from litestar.plugins import CLIPluginProtocol
 from litestar_geoalchemy import GeoAlchemyPlugin
 from litestar_granian import GranianPlugin
 from litestar_vite import ViteConfig, VitePlugin
@@ -102,12 +103,15 @@ def create_logging_config(settings: Settings) -> LoggingConfig:
     )
 
 
-def create_plugins() -> list[SQLAlchemyInitPlugin | GeoAlchemyPlugin | GranianPlugin | VitePlugin]:
+def create_plugins() -> list[SQLAlchemyInitPlugin | GeoAlchemyPlugin | GranianPlugin | VitePlugin | CLIPluginProtocol]:
     """Instantiate all app plugins; called once from create_app()."""
+    from geometrikks.cli import ImportLogsCLIPlugin
+
     settings = get_settings()
     return [
         SQLAlchemyInitPlugin(config=get_sqlalchemy_config()),
         GeoAlchemyPlugin(),  # GeoAlchemy plugin for PostGIS support
         GranianPlugin(),
         VitePlugin(config=create_vite_config(settings)),
+        ImportLogsCLIPlugin(),
     ]
