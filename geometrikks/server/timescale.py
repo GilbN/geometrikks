@@ -543,7 +543,10 @@ async def refresh_caggs_range(
         try:
             async with engine.connect() as conn:
                 raw_conn = await conn.get_raw_connection()
-                await raw_conn.driver_connection.execute(
+                driver_conn = raw_conn.driver_connection
+                if driver_conn is None:
+                    raise RuntimeError("No driver connection available for CALL statement")
+                await driver_conn.execute(
                     f"CALL refresh_continuous_aggregate('{cagg}', $1::timestamptz, $2::timestamptz)",
                     start,
                     end,

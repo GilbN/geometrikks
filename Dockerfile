@@ -3,7 +3,10 @@
 # ------------------------------------------------------------------------------
 # Stage 1: Build frontend assets
 # ------------------------------------------------------------------------------
-FROM oven/bun:latest AS frontend-builder
+# --platform=$BUILDPLATFORM: the vite/tsc output is architecture-independent,
+# so always build it natively instead of under QEMU emulation (bun is slow and
+# flaky when emulated during multi-arch release builds).
+FROM --platform=$BUILDPLATFORM oven/bun:latest AS frontend-builder
 
 WORKDIR /app
 
@@ -16,7 +19,6 @@ RUN --mount=type=cache,target=/root/.bun \
 COPY resources/ ./resources/
 COPY vite.config.ts tsconfig.json components.json ./
 COPY index.html ./
-COPY data/geoip/GeoLite2-City.mmdb ./data/geoip/GeoLite2-City.mmdb
 
 RUN bun run build
 
@@ -53,19 +55,24 @@ COPY --from=python-builder /app/.venv /app/.venv
 COPY --from=python-builder /app/geometrikks /app/geometrikks
 COPY --from=frontend-builder /app/public /app/public
 COPY --from=frontend-builder /app/index.html /app/public/index.html
-COPY --from=frontend-builder /app/data/geoip/GeoLite2-City.mmdb /app/data/geoip/GeoLite2-City.mmdb
 COPY pyproject.toml alembic.ini ./
 COPY migrations/ ./migrations/
 
-RUN mkdir -p /app/logs \
+RUN mkdir -p /app/logs /app/data/geoip \
     && chown -R geometrikks:geometrikks /app
 
 # Set environment
+# GEOIP_VALIDATE_DB_PATH=false: settings construction must not fail while the
+# geoip volume is empty; the downloader/degraded-mode path owns that now.
 ENV PATH="/app/.venv/bin:$PATH" \
     PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     APP_ENVIRONMENT=production \
-    VITE_DEV_MODE=false
+    VITE_DEV_MODE=false \
+    GEOIP_DB_PATH=/app/data/geoip/GeoLite2-City.mmdb \
+    GEOIP_VALIDATE_DB_PATH=false
+
+VOLUME ["/app/data/geoip"]
 
 USER geometrikks
 

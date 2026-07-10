@@ -1,0 +1,52 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    services:
+      timescaledb:
+        image: timescale/timescaledb-ha:pg18
+        env:
+          POSTGRES_USER: geouser
+          POSTGRES_PASSWORD: geopass
+          POSTGRES_DB: geometrikks
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U geouser -d geometrikks"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - name: Sync dependencies
+        run: uv sync --frozen
+      - name: Type check
+        run: uv run ty check geometrikks
+      - name: Run tests (unit + integration)
+        env:
+          IT_DB_HOST: localhost
+          IT_DB_PORT: "5432"
+          IT_DB_USER: geouser
+          IT_DB_PASSWORD: geopass
+        run: uv run pytest -v
+
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - name: Install
+        run: bun install --frozen-lockfile
+      - name: Build (vite + tsc)
+        run: bun run build

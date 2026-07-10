@@ -58,6 +58,13 @@ def test_geoip_missing_file():
         )
 
 
+def test_geoip_missing_file_allowed_by_default():
+    """A missing database must not fail settings construction by default:
+    the auto-downloader/degraded-mode startup path owns that case."""
+    settings = GeoIPSettings(db_path=Path("/nonexistent/file.mmdb"), _env_file=None)
+    assert settings.db_path == Path("/nonexistent/file.mmdb")
+
+
 def test_api_settings():
     """Test API server configuration."""
     settings = Settings()
@@ -172,3 +179,27 @@ class TestAuthSettings:
         assert settings.auth_disabled is True
         assert settings.admin_user == "gil"
         assert settings.admin_password == "bestpasswordintheworldnojoke"
+
+
+class TestGeoIPDownloadSettings:
+    """MAXMINDDB_USER_ID / MAXMINDDB_LICENSE_KEY / GEOIP_REFRESH_DAYS."""
+
+    def test_defaults(self, monkeypatch):
+        # _env_file=None + delenv: local MaxMind credentials must not leak in.
+        for var in ("MAXMINDDB_USER_ID", "MAXMINDDB_LICENSE_KEY", "GEOIP_REFRESH_DAYS"):
+            monkeypatch.delenv(var, raising=False)
+        from geometrikks.config.settings import GeoIPSettings
+        s = GeoIPSettings(validate_db_path=False, _env_file=None)
+        assert s.account_id is None
+        assert s.license_key is None
+        assert s.refresh_days == 7
+
+    def test_env(self, monkeypatch):
+        monkeypatch.setenv("MAXMINDDB_USER_ID", "123456")
+        monkeypatch.setenv("MAXMINDDB_LICENSE_KEY", "abcdef")
+        monkeypatch.setenv("GEOIP_REFRESH_DAYS", "3")
+        from geometrikks.config.settings import GeoIPSettings
+        s = GeoIPSettings(validate_db_path=False)
+        assert s.account_id == "123456"
+        assert s.license_key == "abcdef"
+        assert s.refresh_days == 3

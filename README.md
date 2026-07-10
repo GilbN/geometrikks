@@ -29,6 +29,30 @@ Data is visualized with GeoJSON on a world map and on a summary dashbord.
 - Batch import of access log files
 - Caching
 
+## Quickstart (Docker)
+
+All you need is Docker. The app image is published to GHCR for amd64 and arm64.
+
+```bash
+mkdir geometrikks && cd geometrikks
+curl -LO https://raw.githubusercontent.com/GilbN/geometrikks/main/docker-compose.yml
+curl -Lo .env https://raw.githubusercontent.com/GilbN/geometrikks/main/.env.example
+$EDITOR .env      # set APP_ADMIN_PASSWORD, MaxMind key, log path
+docker compose up -d
+```
+
+Then open http://localhost:8000 and log in with `APP_ADMIN_USER` /
+`APP_ADMIN_PASSWORD`. The GeoLite2 database is downloaded automatically at
+startup when `MAXMINDDB_USER_ID` and `MAXMINDDB_LICENSE_KEY` are set
+([free MaxMind account](https://www.maxmind.com/en/geolite2/signup)) and
+refreshed weekly. Without credentials the app starts in geo-degraded mode
+(a banner in the UI explains what to do); after adding credentials, restart
+the app container.
+
+See the [configuration reference](#configuration-reference) for every setting.
+
+## Development
+
 #### Install deps
 
 ```bash
@@ -41,10 +65,10 @@ bun install
 #### Run dev server
 
 ```bash
-docker-compose up -d
+docker compose -f docker-compose.dev.yml up -d timescale_db
 uv run litestar --app geometrikks.server.core:create_app run --debug
 ```
-See .env.example for configuration
+See the [configuration reference](#configuration-reference) for configuration.
 
 ## Testing
 
@@ -57,7 +81,7 @@ When the database is unreachable they are skipped automatically, so the plain
 run above always stays green.
 
 ```bash
-docker compose up -d timescale_db
+docker compose -f docker-compose.dev.yml up -d timescale_db
 uv run pytest -m integration     # the real-database suite
 ```
 
@@ -66,9 +90,8 @@ compose server (migrated to alembic head + timescale objects), and drops it
 at session end — it never touches the `geometrikks` dev database. Connection
 overrides: `IT_DB_HOST`, `IT_DB_PORT`, `IT_DB_USER`, `IT_DB_PASSWORD`.
 
-> CI note (Phase 1.5): `ci.yml` should run the integration suite with a
-> `timescale/timescaledb-ha:pg18` service container — the `IT_DB_*` env vars
-> exist for exactly that.
+CI (`.github/workflows/ci.yml`) runs the integration suite against a
+`timescale/timescaledb-ha:pg18` service container via the `IT_DB_*` env vars.
 
 ## Authentication
 
@@ -131,3 +154,101 @@ This will log the same lines to both files.
 ![Overview](/data/screenshots/overview.png)
 
 ![Map](/data/screenshots/map.png)
+
+## Configuration reference
+
+All settings are environment variables (or a `.env` file next to the app).
+`.env.example` lists only the settings most installs touch; this is the full
+set. Settings are read once at startup — restart the app after changing them.
+
+### Application
+
+| Variable | Default | Description |
+|---|---|---|
+| `APP_NAME` | `GeoMetrikks API` | Application name |
+| `APP_VERSION` | `0.1.0` | Application version |
+| `APP_DEBUG` | `false` | Enable debug mode |
+| `APP_ENVIRONMENT` | `production` | `development`, `staging`, `production` |
+| `APP_DESCRIPTION` | *(set)* | Application description |
+
+### Authentication
+
+| Variable | Default | Description |
+|---|---|---|
+| `APP_ADMIN_USER` | `admin` | Admin login username |
+| `APP_ADMIN_PASSWORD` | — | **Required** unless auth is disabled; the app refuses to start without it |
+| `APP_AUTH_DISABLED` | `false` | `true` = no built-in auth; only safe behind an authenticating reverse proxy (Authelia, Tailscale, ...) |
+
+### API server
+
+| Variable | Default | Description |
+|---|---|---|
+| `API_HOST` | `0.0.0.0` | Bind address |
+| `API_PORT` | `8000` | Port |
+| `API_LOG_LEVEL` | `INFO` | `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL` |
+
+### Database
+
+| Variable | Default | Description |
+|---|---|---|
+| `DB_USER` | `geouser` | Database user |
+| `DB_PASSWORD` | `geopass` | Database password (change it) |
+| `DB_HOST` | `localhost` | Database host |
+| `DB_PORT` | `5432` | Database port |
+| `DB_DATABASE` | `geometrikks` | Database name |
+| `DB_ECHO` | `false` | SQLAlchemy query logging |
+| `DB_ECHO_POOL` | `false` | SQLAlchemy pool logging |
+| `DB_POOL_SIZE` | `5` | Connection pool size |
+| `DB_MAX_OVERFLOW` | `10` | Max connections above pool size |
+| `DB_POOL_TIMEOUT` | `30` | Pool timeout (seconds) |
+| `DB_POOL_RECYCLE` | `3600` | Connection recycle time (seconds) |
+| `DB_POOL_DISABLED` | `false` | Disable connection pooling |
+| `DB_POOL_PRE_PING` | `true` | Pre-ping connections |
+| `DB_DROP_ON_STARTUP` | `false` | Drop all tables on startup (only honored in `development`) |
+
+### GeoIP (MaxMind GeoLite2)
+
+| Variable | Default | Description |
+|---|---|---|
+| `MAXMINDDB_USER_ID` | — | MaxMind account ID for GeoLite2 auto-download ([free account](https://www.maxmind.com/en/geolite2/signup)) |
+| `MAXMINDDB_LICENSE_KEY` | — | MaxMind license key for GeoLite2 auto-download |
+| `GEOIP_REFRESH_DAYS` | `7` | Re-download the database when older than this many days |
+| `GEOIP_DB_PATH` | `data/geoip/GeoLite2-City.mmdb` | Path to the GeoLite2 database (`/app/data/geoip/GeoLite2-City.mmdb` in the image) |
+| `GEOIP_LOCALES` | `["en"]` | GeoIP locales |
+| `GEOIP_VALIDATE_DB_PATH` | `false` | Fail fast at startup when the database file is missing (off by default; the downloader/degraded mode owns that case) |
+| `GEOIP_VALIDATE_LOCALES` | `true` | Validate the locale list |
+
+Without credentials and without an existing database the app starts in
+**geo-degraded mode**: the API and UI stay up, but ingestion does not start
+and a banner explains what to configure. The database file on disk is
+replaced atomically by the weekly refresh; the new file is picked up on the
+next app restart.
+
+### Log parser
+
+| Variable | Default | Description |
+|---|---|---|
+| `LOGPARSER_LOG_PATHS` | `/var/log/nginx/access.log` | Single path, or a JSON list: `["/var/log/nginx/access.log", "/var/log/nginx/other.log"]` |
+| `LOGPARSER_POLL_INTERVAL` | `1.0` | Poll interval (seconds) for new lines |
+| `LOGPARSER_SEND_LOGS` | `true` | Store parsed access logs (otherwise geo-events only) |
+| `LOGPARSER_HOST_NAME` | *(hostname)* | Host label attached to ingested events |
+| `LOGPARSER_BATCH_SIZE` | `100` | Max records before a forced commit |
+| `LOGPARSER_COMMIT_INTERVAL` | `5.0` | Max seconds between commits |
+| `LOGPARSER_SKIP_VALIDATION` | `false` | Skip log format validation |
+| `LOGPARSER_STORE_DEBUG_LINES` | `false` | Store all raw lines in the debug table (otherwise only malformed ones) |
+
+### Analytics & scheduler
+
+| Variable | Default | Description |
+|---|---|---|
+| `ANALYTICS_RAW_RETENTION_DAYS` | `180` | Days to keep raw geo events and access logs |
+| `ANALYTICS_DEBUG_RETENTION_DAYS` | `30` | Days to keep debug log lines |
+| `ANALYTICS_HOURLY_RETENTION_DAYS` | `60` | Days to keep hourly aggregates (daily aggregates are permanent) |
+| `ANALYTICS_CAGG_REFRESH_INTERVAL_MINUTES` | `5` | Continuous-aggregate refresh cadence |
+| `ANALYTICS_COMPRESSION_AFTER_DAYS` | `7` | Compress hypertable chunks after this many days |
+| `ANALYTICS_TOP_IPS_LIMIT` | `1000` | Top IPs tracked per day |
+| `ANALYTICS_TOP_URLS_LIMIT` | `500` | Top URLs tracked per day |
+| `SCHEDULER_ENABLED` | `true` | Enable background jobs (CAGG refresh, GeoLite2 refresh, ...) |
+| `SCHEDULER_DAILY_ROLLUP_HOUR` | `0` | Hour (UTC) for the daily rollup |
+| `SCHEDULER_DAILY_ROLLUP_MINUTE` | `5` | Minute for the daily rollup |
+| `SCHEDULER_LOCATION_REFRESH_INTERVAL_MINUTES` | `5` | `GeoLocation.last_hit` refresh cadence |

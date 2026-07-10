@@ -10,7 +10,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any
 
-from litestar import Response, get
+from litestar import Request, Response, get
 from litestar.di import NamedDependency, Provide
 from litestar.status_codes import HTTP_200_OK, HTTP_503_SERVICE_UNAVAILABLE
 from sqlalchemy import text
@@ -37,12 +37,16 @@ async def _database_reachable(timeout: float = 2.0) -> bool:
 
 
 @get("/health", dependencies={"ingestion_service": Provide(pis, sync_to_thread=False)})
-async def health(ingestion_service: NamedDependency[LogIngestionService | None]) -> dict[str, Any]:
+async def health(
+    request: Request, ingestion_service: NamedDependency[LogIngestionService | None]
+) -> dict[str, Any]:
     """Liveness + component detail. Always 200 while the app is up."""
     is_running = ingestion_service.is_running if ingestion_service else False
     db_reachable = await _database_reachable()
 
     return {
+        # geoip does not flip status on its own: without a GeoLite2 database
+        # file, ingestion refuses to start and ingestion.running reflects that.
         "status": "healthy" if (is_running and db_reachable) else "degraded",
         "ingestion": {
             "running": is_running,
@@ -50,6 +54,7 @@ async def health(ingestion_service: NamedDependency[LogIngestionService | None])
             "pending_records": ingestion_service.pending_records if ingestion_service else 0,
         },
         "database": {"reachable": db_reachable},
+        "geoip": {"available": getattr(request.app.state, "geoip_available", True)},
         "timestamp": datetime.now(timezone.utc).isoformat(),
     }
 

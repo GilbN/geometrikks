@@ -1,4 +1,6 @@
 import { createRootRoute, Outlet, useRouterState, Link } from "@tanstack/react-router"
+import { useQuery } from "@tanstack/react-query"
+import { fetchHealth } from "@/lib/api"
 import { ThemeProvider } from "@/components/theme-provider"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import {
@@ -60,6 +62,18 @@ function AppBreadcrumb() {
   )
 }
 
+function GeoDegradedBanner() {
+  // Shares the ["health"] cache with the sidebar LiveIndicator poll.
+  const { data } = useQuery({ queryKey: ["health"], queryFn: fetchHealth, refetchInterval: 30000 })
+  if (!data || data.geoip.available) return null
+  return (
+    <div className="bg-amber-500/15 text-amber-600 dark:text-amber-400 text-xs px-4 py-1.5 border-b border-amber-500/30">
+      Geo lookups disabled — no GeoLite2 database. Set MAXMINDDB_USER_ID and
+      MAXMINDDB_LICENSE_KEY in your .env and restart. (Free key: maxmind.com/en/geolite2/signup)
+    </div>
+  )
+}
+
 function RootLayout() {
   const routerState = useRouterState()
   const isLogin = routerState.location.pathname === "/login"
@@ -80,6 +94,7 @@ function RootLayout() {
           <SidebarProvider defaultOpen={true}>
             <AppSidebar />
             <SidebarInset className="bg-background">
+              <GeoDegradedBanner />
               {/* Top header bar */}
               <header className="flex h-14 shrink-0 items-center justify-between gap-2 border-b border-border/50 px-4">
                 <div className="flex items-center gap-2">

@@ -14,9 +14,9 @@ from __future__ import annotations
 
 import logging
 from datetime import date
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, cast
 
-from sqlalchemy import text
+from sqlalchemy import CursorResult, text
 
 from geometrikks.server.timescale import ALL_CAGGS
 
@@ -75,7 +75,8 @@ class AggregationService:
                   AND (gl.last_hit IS NULL OR gl.last_hit < subq.max_ts)
             """)
             result = await self.session.execute(stmt)
-            updated = result.rowcount or 0
+            # A textual UPDATE always yields a CursorResult; Result[Any] lacks rowcount
+            updated = cast("CursorResult[Any]", result).rowcount or 0
             if updated > 0:
                 self.total_location_refreshes += updated
                 logger.info("Refreshed last_hit for %d locations", updated)

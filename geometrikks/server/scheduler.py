@@ -64,7 +64,10 @@ async def _execute_call_outside_transaction(sql: str, *args: object) -> None:
     engine = get_sqlalchemy_config().get_engine()
     async with engine.connect() as conn:
         raw_conn = await conn.get_raw_connection()
-        await raw_conn.driver_connection.execute(sql, *args)
+        driver_conn = raw_conn.driver_connection
+        if driver_conn is None:
+            raise RuntimeError("No driver connection available for CALL statement")
+        await driver_conn.execute(sql, *args)
 
 
 async def refresh_continuous_aggregate_job(
@@ -175,5 +178,19 @@ async def create_scheduler(
         replace_existing=True,
     )
     logger.info("Scheduled full CAGG refresh every 6 hours")
+
+    # Weekly GeoLite2 refresh (only meaningful when credentials are set;
+    # ensure_geoip_database no-ops safely otherwise).
+    from geometrikks.services.geoip.downloader import ensure_geoip_database
+
+    scheduler.add_job(
+        ensure_geoip_database,
+        IntervalTrigger(days=settings.geoip.refresh_days),
+        id="geoip-refresh",
+        name="Refresh GeoLite2 database from MaxMind",
+        args=[settings.geoip],
+        replace_existing=True,
+    )
+    logger.info("Scheduled GeoLite2 refresh every %d day(s)", settings.geoip.refresh_days)
 
     return scheduler

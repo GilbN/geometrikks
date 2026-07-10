@@ -57,9 +57,9 @@ pytest.ini
 .DS_Store
 Thumbs.db
 
-# Data directories (mounted as volumes)
+# Data directories (mounted as volumes; the GeoLite2 mmdb is downloaded at
+# runtime and must never be baked into the image)
 data/
-!data/geoip/GeoLite2-City.mmdb
 logs/
 
 # Frontend build artifacts (rebuilt in docker)

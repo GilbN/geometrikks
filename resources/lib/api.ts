@@ -64,6 +64,7 @@ export interface HealthResponse {
   status: "healthy" | "degraded"
   ingestion: HealthIngestionStatus
   database: { reachable: boolean }
+  geoip: { available: boolean }
   timestamp: string
 }
 

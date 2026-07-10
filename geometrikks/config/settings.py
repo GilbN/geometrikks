@@ -53,7 +53,11 @@ class DatabaseSettings(BaseSettings):
 class GeoIPSettings(BaseSettings):
     """GeoIP database configuration settings."""
 
-    model_config = SettingsConfigDict(env_prefix="GEOIP_", env_file=".env", extra="ignore")
+    # populate_by_name: account_id/license_key use MAXMINDDB_* validation
+    # aliases for the env vars but must stay constructible by field name.
+    model_config = SettingsConfigDict(
+        env_prefix="GEOIP_", env_file=".env", extra="ignore", populate_by_name=True
+    )
 
     db_path: Path = Field(
         default=Path("data/geoip/GeoLite2-City.mmdb"),
@@ -64,12 +68,29 @@ class GeoIPSettings(BaseSettings):
         description="List of GeoIP locales to use",
     )
     validate_db_path: bool = Field(
-        default=True,
-        description="Validate that the GeoIP database file exists (set to True for production)"
+        default=False,
+        description=(
+            "Fail settings validation when the GeoIP database file is missing. "
+            "Off by default: the auto-downloader/degraded-mode path owns the "
+            "missing-file case (set true to fail fast instead)."
+        ),
     )
     validate_locales: bool = Field(
         default=True,
         description="Validate that the specified GeoIP locales are supported"
+    )
+    account_id: str | None = Field(
+        default=None,
+        validation_alias="MAXMINDDB_USER_ID",
+        description="MaxMind account ID for GeoLite2 auto-download",
+    )
+    license_key: str | None = Field(
+        default=None,
+        validation_alias="MAXMINDDB_LICENSE_KEY",
+        description="MaxMind license key for GeoLite2 auto-download",
+    )
+    refresh_days: int = Field(
+        default=7, description="Re-download the GeoLite2 database when older than this many days"
     )
 
     @model_validator(mode="after")
