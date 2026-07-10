@@ -1,111 +1,45 @@
+# GeoMetrikks — user-facing compose. Quickstart:
+#   mkdir geometrikks && cd geometrikks
+#   curl -LO https://raw.githubusercontent.com/GilbN/geometrikks/main/docker-compose.yml
+#   curl -Lo .env https://raw.githubusercontent.com/GilbN/geometrikks/main/.env.example
+#   $EDITOR .env      # set APP_ADMIN_PASSWORD, MaxMind key, log path
+#   docker compose up -d
+#
+# Developing GeoMetrikks itself? Use docker-compose.dev.yml instead.
 services:
-
-  # ===========================================================================
-  # TimescaleDB with PostGIS
-  # ===========================================================================
   timescale_db:
-    container_name: timescale_db
     image: timescale/timescaledb-ha:pg18
-    restart: always
+    restart: unless-stopped
     shm_size: 256mb
     environment:
       POSTGRES_USER: geouser
-      POSTGRES_PASSWORD: geopass
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-geopass}
       POSTGRES_DB: geometrikks
-    ports:
-      - "5432:5432"
     volumes:
       - timescale_data:/home/postgres/pgdata/data
-    networks:
-      - geometrikks_net
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U geouser -d geometrikks" ]
+      test: ["CMD-SHELL", "pg_isready -U geouser -d geometrikks"]
       interval: 5s
       timeout: 5s
       retries: 5
 
-  # ===========================================================================
-  # GeoMetrikks Backend (Production)
-  # ===========================================================================
   app:
-    container_name: geometrikks_app
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: ghcr.io/gilbn/geometrikks:0.1.0-alpha.1
     restart: unless-stopped
     environment:
-      APP_ENVIRONMENT: production
-      # Admin login for the web UI/API. Set both in .env; the app refuses to
-      # start without a password unless APP_AUTH_DISABLED=true (reverse-proxy
-      # mode behind Authelia/Tailscale etc.).
-      APP_ADMIN_USER: ${APP_ADMIN_USER:-admin}
-      APP_ADMIN_PASSWORD: ${APP_ADMIN_PASSWORD:-}
       DB_HOST: timescale_db
-      DB_PORT: 5432
-      DB_USER: geouser
-      DB_PASSWORD: geopass
-      DB_NAME: geometrikks
-      LOGPARSER_LOG_PATHS: /var/log/nginx/access.log
+      DB_PASSWORD: ${DB_PASSWORD:-geopass}
     ports:
       - "8000:8000"
-    volumes:
-      - /var/log/nginx:/var/log/nginx:ro
-    networks:
-      - geometrikks_net
     env_file:
       - .env
-    depends_on:
-      timescale_db:
-        condition: service_healthy
-    profiles:
-      - prod
-
-  # ===========================================================================
-  # GeoMetrikks Backend (Development)
-  # ===========================================================================
-  app-dev:
-    container_name: geometrikks_app_dev
-    build:
-      context: .
-      dockerfile: Dockerfile.dev
-    environment:
-      APP_ENVIRONMENT: development
-      APP_DEBUG: "true"
-      API_RELOAD: "true"
-      API_LOG_LEVEL: DEBUG
-      DB_HOST: timescale_db
-      DB_PORT: 5432
-      DB_USER: geouser
-      DB_PASSWORD: geopass
-      DB_NAME: geometrikks
-      GEOIP_DB_PATH: /app/data/geoip/GeoLite2-City.mmdb
-      LOGPARSER_LOG_PATHS: /app/logs/access.log
-      VITE_DEV_MODE: "true"
-      VITE_EXECUTOR: "bun"
-      VITE_HOST: "0.0.0.0"
-      VITE_PORT: 5173
-    ports:
-      - "8000:8000"
-      - "5173:5173"
     volumes:
-      # Mount source code for hot-reload
-      - ./geometrikks:/app/geometrikks:cached
-      - ./resources:/app/resources:cached
-      - ./tests:/app/tests:cached
-      - ./data:/app/data:cached
-      # Mount log directory
-      - /var/log/nginx:/app/logs:ro
-    networks:
-      - geometrikks_net
+      - geoip_data:/app/data/geoip
+      - ${NGINX_LOG_DIR:-/var/log/nginx}:/var/log/nginx:ro
     depends_on:
       timescale_db:
         condition: service_healthy
-    profiles:
-      - dev
-
-networks:
-  geometrikks_net:
-    driver: bridge
 
 volumes:
   timescale_data:
+  geoip_data:
