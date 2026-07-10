@@ -7,7 +7,7 @@ command callback, never at module import.
 from __future__ import annotations
 
 import asyncio
-from datetime import timedelta
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import click
@@ -15,7 +15,12 @@ from litestar.plugins import CLIPluginProtocol
 
 
 @click.command(name="import-logs")
-@click.argument("paths", nargs=-1, required=True, type=click.Path(exists=True, path_type=Path))
+@click.argument(
+    "paths",
+    nargs=-1,
+    required=True,
+    type=click.Path(exists=True, dir_okay=False, readable=True, path_type=Path),
+)
 @click.option("--force", is_flag=True, help="Re-import files whose checksum was already imported (updates the prior import_jobs row; does NOT remove previously imported rows).")
 @click.option("--batch-size", default=500, show_default=True, type=click.IntRange(min=1), help="Records per commit batch.")
 def import_logs_command(paths: tuple[Path, ...], force: bool, batch_size: int) -> None:
@@ -62,7 +67,8 @@ async def _run_import(paths: list[Path], *, force: bool, batch_size: int) -> Non
         store_debug_lines=settings.logparser.store_debug_lines,
     )
 
-    overall_start = overall_end = None
+    overall_start: datetime | None = None
+    overall_end: datetime | None = None
     failed: list[Path] = []
     try:
         for path in paths:
@@ -99,9 +105,15 @@ async def _run_import(paths: list[Path], *, force: bool, batch_size: int) -> Non
                 f"in {result.duration_seconds:,.1f}s "
                 f"({result.lines_total / result.duration_seconds:,.0f} lines/s)"
             )
-            if result.time_start:
-                overall_start = min(overall_start or result.time_start, result.time_start)
-                overall_end = max(overall_end or result.time_end, result.time_end)
+            if result.time_start and result.time_end:
+                overall_start = (
+                    result.time_start
+                    if overall_start is None
+                    else min(overall_start, result.time_start)
+                )
+                overall_end = (
+                    result.time_end if overall_end is None else max(overall_end, result.time_end)
+                )
 
         if overall_start and overall_end:
             click.echo(f"Refreshing continuous aggregates {overall_start} → {overall_end} ...")

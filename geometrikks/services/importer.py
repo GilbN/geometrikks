@@ -166,15 +166,17 @@ async def import_file(
 
     async with session_maker() as session:
         repo = ImportJobRepository(session=session)
-        if existing is not None:
-            # --force re-import: checksum is unique, so update the prior row.
-            existing.file_path = str(path)
-            existing.lines_total = lines_total
-            existing.lines_skipped = lines_skipped
-            existing.records_written = records_written
-            existing.time_start = time_start
-            existing.time_end = time_end
-            await repo.update(existing, auto_commit=True)
+        # --force re-import: checksum is unique, so update the prior row —
+        # re-fetched in this session rather than reusing the detached instance.
+        job = await repo.get_by_checksum(checksum) if existing is not None else None
+        if job is not None:
+            job.file_path = str(path)
+            job.lines_total = lines_total
+            job.lines_skipped = lines_skipped
+            job.records_written = records_written
+            job.time_start = time_start
+            job.time_end = time_end
+            await repo.update(job, auto_commit=True)
         else:
             await repo.add(
                 ImportJob(
