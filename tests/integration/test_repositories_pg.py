@@ -14,7 +14,12 @@ from geometrikks.domain.geo.repositories import GeoLocationRepository
 from geometrikks.server.timescale import refresh_caggs_range
 from tests.seed.factories import AccessLogFactory, GeoLocationFactory, seed_factories
 
-NOW = datetime(2026, 7, 1, 12, 0, tzinfo=timezone.utc)
+# Derived from the wall clock, not hard-coded: the scratch DB has live
+# retention policies (raw data > 180 days is droppable), so a fixed date
+# would eventually age out of the window and let a policy job drop seeded
+# rows mid-session. Hour-aligned so seeds land deterministically in hourly
+# CAGG buckets.
+NOW = datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0)
 
 LOCATION_COLUMNS = (
     "geohash", "latitude", "longitude", "country_code", "country_name",
