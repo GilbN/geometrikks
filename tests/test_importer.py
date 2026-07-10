@@ -154,6 +154,36 @@ async def test_import_file_force_updates_existing_job(tmp_path, geoip_reader, mo
     assert calls == {"add": 0, "update": 1}
 
 
+async def test_import_file_counts_matched_records_only(tmp_path, geoip_reader, monkeypatch):
+    """records_written must count only lines matching the log format, not garbage lines."""
+    from geometrikks.services import importer
+
+    log = tmp_path / "mixed.log"
+    lines = [
+        make_log_line(TEST_IP, day=1),
+        "junk line\n",
+        make_log_line(TEST_IP, day=2),
+        "junk line\n",
+        make_log_line(TEST_IP, day=3),
+        make_log_line(TEST_IP, day=4),
+    ]
+    log.write_text("".join(l if l.endswith("\n") else l + "\n" for l in lines))
+
+    service, FakeRepo, session_maker = _import_deps(tmp_path)
+    monkeypatch.setattr(importer, "ImportJobRepository", FakeRepo)
+    parser = LogParser(log_path=log, send_logs=True)
+
+    result = await importer.import_file(
+        log, service=service, parser=parser, reader=geoip_reader,
+        session_maker=session_maker,
+    )
+
+    assert result.skipped is False
+    assert result.lines_total == 6
+    assert result.lines_skipped == 2
+    assert result.records_written == 4
+
+
 async def test_import_file_aborts_on_unrecognized_format(tmp_path, geoip_reader, monkeypatch):
     """A wrong-format file must abort before anything is written (debug-table flood guard)."""
     from geometrikks.services import importer

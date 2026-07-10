@@ -7,6 +7,7 @@ command callback, never at module import.
 from __future__ import annotations
 
 import asyncio
+from datetime import timedelta
 from pathlib import Path
 
 import click
@@ -104,7 +105,9 @@ async def _run_import(paths: list[Path], *, force: bool, batch_size: int) -> Non
 
         if overall_start and overall_end:
             click.echo(f"Refreshing continuous aggregates {overall_start} → {overall_end} ...")
-            await refresh_caggs_range(engine, start=overall_start, end=overall_end)
+            await refresh_caggs_range(
+                engine, start=overall_start, end=overall_end + timedelta(microseconds=1)
+            )
             click.echo("CAGGs refreshed.")
     finally:
         await engine.dispose()

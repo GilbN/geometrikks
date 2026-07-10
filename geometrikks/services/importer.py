@@ -153,7 +153,7 @@ async def import_file(
 
         if len(batch) >= batch_size:
             await service.flush_records(batch)
-            records_written += len(batch)
+            records_written += sum(1 for r in batch if r.ip_address is not None)
             batch = []
 
         if progress and lines_total % PROGRESS_EVERY_LINES == 0:
@@ -162,7 +162,7 @@ async def import_file(
 
     if batch:
         await service.flush_records(batch)
-        records_written += len(batch)
+        records_written += sum(1 for r in batch if r.ip_address is not None)
 
     async with session_maker() as session:
         repo = ImportJobRepository(session=session)
