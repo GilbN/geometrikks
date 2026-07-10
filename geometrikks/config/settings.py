@@ -68,8 +68,12 @@ class GeoIPSettings(BaseSettings):
         description="List of GeoIP locales to use",
     )
     validate_db_path: bool = Field(
-        default=True,
-        description="Validate that the GeoIP database file exists (set to True for production)"
+        default=False,
+        description=(
+            "Fail settings validation when the GeoIP database file is missing. "
+            "Off by default: the auto-downloader/degraded-mode path owns the "
+            "missing-file case (set true to fail fast instead)."
+        ),
     )
     validate_locales: bool = Field(
         default=True,

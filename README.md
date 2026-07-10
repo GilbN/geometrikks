@@ -215,7 +215,7 @@ set. Settings are read once at startup — restart the app after changing them.
 | `GEOIP_REFRESH_DAYS` | `7` | Re-download the database when older than this many days |
 | `GEOIP_DB_PATH` | `data/geoip/GeoLite2-City.mmdb` | Path to the GeoLite2 database (`/app/data/geoip/GeoLite2-City.mmdb` in the image) |
 | `GEOIP_LOCALES` | `["en"]` | GeoIP locales |
-| `GEOIP_VALIDATE_DB_PATH` | `true` | Fail settings validation when the database file is missing (`false` in the image; the downloader owns the file) |
+| `GEOIP_VALIDATE_DB_PATH` | `false` | Fail fast at startup when the database file is missing (off by default; the downloader/degraded mode owns that case) |
 | `GEOIP_VALIDATE_LOCALES` | `true` | Validate the locale list |
 
 Without credentials and without an existing database the app starts in

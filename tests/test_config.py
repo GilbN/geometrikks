@@ -58,6 +58,13 @@ def test_geoip_missing_file():
         )
 
 
+def test_geoip_missing_file_allowed_by_default():
+    """A missing database must not fail settings construction by default:
+    the auto-downloader/degraded-mode startup path owns that case."""
+    settings = GeoIPSettings(db_path=Path("/nonexistent/file.mmdb"), _env_file=None)
+    assert settings.db_path == Path("/nonexistent/file.mmdb")
+
+
 def test_api_settings():
     """Test API server configuration."""
     settings = Settings()
