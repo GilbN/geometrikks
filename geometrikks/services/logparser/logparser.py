@@ -307,7 +307,15 @@ class LogParser:
         if not ip_data.location.latitude or not ip_data.location.longitude:
             logger.debug("GeoIP lat/long missing for %s. Database possibly outdated", ip)
             return None
-        
+
+        # GeoLocation.country_code/country_name are NOT NULL; skip records the
+        # database cannot store (e.g. anonymous/satellite ranges without country).
+        country_code = ip_data.country.iso_code
+        country_name = ip_data.country.name
+        if not country_code or not country_name:
+            logger.debug("GeoIP country missing for %s. Skipping geo record", ip)
+            return None
+
         datadict: dict[str, str | Any] = log_data.groupdict()
 
         try:
@@ -328,8 +336,8 @@ class LogParser:
             latitude=ip_data.location.latitude,
             longitude=ip_data.location.longitude,
             geohash=encode(ip_data.location.latitude, ip_data.location.longitude),
-            country_code=ip_data.country.iso_code,
-            country_name=ip_data.country.name,
+            country_code=country_code,
+            country_name=country_name,
             state=ip_data.subdivisions.most_specific.name,
             state_code=ip_data.subdivisions.most_specific.iso_code,
             city=ip_data.city.name,

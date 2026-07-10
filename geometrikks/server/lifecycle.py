@@ -110,8 +110,8 @@ async def on_startup(app: "Litestar") -> None:
     logger.info("Started APScheduler")
 
     # Store in app state for shutdown and API access
-    app.state.ingestion_service: LogIngestionService = ingestion_service
-    app.state.scheduler: AsyncIOScheduler = scheduler
+    app.state.ingestion_service = ingestion_service
+    app.state.scheduler = scheduler
 
     # Start ingestion service
     await ingestion_service.start(

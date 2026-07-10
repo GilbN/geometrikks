@@ -64,7 +64,10 @@ async def _execute_call_outside_transaction(sql: str, *args: object) -> None:
     engine = get_sqlalchemy_config().get_engine()
     async with engine.connect() as conn:
         raw_conn = await conn.get_raw_connection()
-        await raw_conn.driver_connection.execute(sql, *args)
+        driver_conn = raw_conn.driver_connection
+        if driver_conn is None:
+            raise RuntimeError("No driver connection available for CALL statement")
+        await driver_conn.execute(sql, *args)
 
 
 async def refresh_continuous_aggregate_job(
