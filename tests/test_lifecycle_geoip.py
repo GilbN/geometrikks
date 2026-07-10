@@ -38,7 +38,8 @@ async def test_startup_records_geoip_availability(monkeypatch):
 
     ensure.assert_awaited_once()
     assert app.state.geoip_available is False
-    # ingestion still constructed and started: geo-degraded, not dead
+    # ingestion is still constructed and start() is still invoked (the real
+    # service early-returns without a GeoLite2 reader): geo-degraded, not dead
     ingestion.start.assert_awaited_once()
 
 

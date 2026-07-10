@@ -90,6 +90,29 @@ class TestEnsure:
         # no temp litter
         assert list(settings.db_path.parent.glob("*.tmp")) == []
 
+    async def test_os_error_during_extraction_degrades_without_litter(self, tmp_path, monkeypatch):
+        """ensure_geoip_database never raises — an OSError from the filesystem
+        (full volume, bad mount permissions) degrades and leaves no .tmp files."""
+        from pathlib import Path as PathCls
+
+        from geometrikks.services.geoip import downloader
+
+        settings = make_settings(tmp_path, account_id="1", license_key="k")
+        tarball = make_tarball(b"MMDB-CONTENT")
+
+        async def fake_fetch(s):
+            return tarball
+
+        def broken_replace(self, target):
+            raise OSError("read-only file system")
+
+        monkeypatch.setattr(downloader, "_fetch_tarball", fake_fetch)
+        monkeypatch.setattr(PathCls, "replace", broken_replace)
+
+        ok = await downloader.ensure_geoip_database(settings)
+        assert ok is False, "no db could be written -> degraded"
+        assert list(settings.db_path.parent.glob("*.tmp")) == []
+
     async def test_failed_download_keeps_existing_db_and_returns_true(self, tmp_path, monkeypatch):
         import os
         from geometrikks.services.geoip import downloader

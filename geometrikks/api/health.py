@@ -45,8 +45,8 @@ async def health(
     db_reachable = await _database_reachable()
 
     return {
-        # geoip does not flip status on its own: without a database, ingestion
-        # refuses to start and ingestion.running already reflects that.
+        # geoip does not flip status on its own: without a GeoLite2 database
+        # file, ingestion refuses to start and ingestion.running reflects that.
         "status": "healthy" if (is_running and db_reachable) else "degraded",
         "ingestion": {
             "running": is_running,

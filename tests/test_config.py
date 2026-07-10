@@ -182,7 +182,7 @@ class TestAuthSettings:
 
 
 class TestGeoIPDownloadSettings:
-    """GEOIP_ACCOUNT_ID / GEOIP_LICENSE_KEY / GEOIP_REFRESH_DAYS."""
+    """MAXMINDDB_USER_ID / MAXMINDDB_LICENSE_KEY / GEOIP_REFRESH_DAYS."""
 
     def test_defaults(self, monkeypatch):
         # _env_file=None + delenv: local MaxMind credentials must not leak in.

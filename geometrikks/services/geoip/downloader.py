@@ -69,12 +69,19 @@ def _extract_mmdb(tarball: bytes, dest: Path) -> None:
             if extracted is None:
                 raise GeoIPDownloadError("could not read .mmdb member")
             dest.parent.mkdir(parents=True, exist_ok=True)
-            with tempfile.NamedTemporaryFile(
-                dir=dest.parent, suffix=".tmp", delete=False
-            ) as tmp:
-                tmp.write(extracted.read())
-                tmp_path = Path(tmp.name)
-            tmp_path.replace(dest)  # atomic on same filesystem
+            tmp_path: Path | None = None
+            try:
+                with tempfile.NamedTemporaryFile(
+                    dir=dest.parent, suffix=".tmp", delete=False
+                ) as tmp:
+                    tmp.write(extracted.read())
+                    tmp_path = Path(tmp.name)
+                tmp_path.replace(dest)  # atomic on same filesystem
+            except BaseException:
+                # don't litter the geoip volume with .tmp files on failed runs
+                if tmp_path is not None:
+                    tmp_path.unlink(missing_ok=True)
+                raise
     except tarfile.TarError as exc:
         raise GeoIPDownloadError(f"invalid tarball: {exc}") from exc
 
@@ -121,4 +128,9 @@ async def ensure_geoip_database(settings: "GeoIPSettings") -> bool:
         return True
     except GeoIPDownloadError as exc:
         logger.error("GeoIP download failed: %s", exc)
+        return settings.db_path.exists()
+    except Exception:
+        # Startup/scheduler entry point: a full volume, bad mount permissions,
+        # or a truncated stream must degrade, never crash the app.
+        logger.exception("Unexpected error while refreshing the GeoLite2 database")
         return settings.db_path.exists()

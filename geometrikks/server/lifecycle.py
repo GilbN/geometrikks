@@ -60,8 +60,8 @@ async def on_startup(app: "Litestar") -> None:
     if not geoip_available:
         logger.warning(
             "Geo-degraded mode: no usable GeoLite2 database. Ingestion will "
-            "not start until a database is present (restart after configuring "
-            "MAXMINDDB_USER_ID/MAXMINDDB_LICENSE_KEY)."
+            "not start until a GeoLite2 database file is present (restart "
+            "after configuring MAXMINDDB_USER_ID/MAXMINDDB_LICENSE_KEY)."
         )
 
     if not await _db_available():
