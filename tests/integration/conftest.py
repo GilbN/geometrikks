@@ -133,6 +133,9 @@ async def clean_tables(pg_engine: AsyncEngine):
     """
     async with pg_engine.begin() as conn:
         await conn.execute(
-            text("TRUNCATE geo_events, access_logs, access_log_debug, geo_locations RESTART IDENTITY CASCADE")
+            text(
+                "TRUNCATE geo_events, access_logs, access_log_debug, geo_locations, "
+                "import_jobs RESTART IDENTITY CASCADE"
+            )
         )
     yield

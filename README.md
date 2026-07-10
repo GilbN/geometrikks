@@ -149,6 +149,54 @@ As nginx can have multiple `access log` directives in a block, just add another 
 ```
 This will log the same lines to both files.
 
+## Batch import
+
+Live tailing only picks up lines written after the app starts. To backfill
+history — rotated/archived nginx logs, plain or gzip-compressed — use the
+`litestar import-logs` CLI command. It reuses the live ingestion pipeline
+(same parsing, GeoIP lookup, and DB writes), uses the timestamps in each log
+line rather than wall-clock time, and refreshes the continuous aggregates for
+the imported time range when it's done.
+
+With the stack running via `docker-compose.yml`, the `app` service already
+mounts `${NGINX_LOG_DIR:-/var/log/nginx}` read-only at `/var/log/nginx`, so
+rotated/archived files sit right next to the one being tailed:
+
+```bash
+docker compose exec app litestar import-logs /var/log/nginx/access.log.1.gz
+```
+
+Paths are **container** paths, not host paths. If your archived logs live
+outside `NGINX_LOG_DIR`, add another read-only bind mount for them. The
+container runs as the non-root `geometrikks` user, so host log files must be
+readable by it — the same constraint live tailing already has.
+
+`exec` requires the `app` service to already be running (the normal state).
+If the stack is stopped, use `run --rm` instead:
+
+```bash
+docker compose run --rm app litestar import-logs /var/log/nginx/access.log.1.gz
+```
+
+Running bare-metal/dev instead of via compose:
+
+```bash
+LITESTAR_APP=geometrikks.server.core:create_app uv run litestar import-logs /path/to/access.log.1.gz
+```
+
+Multiple files can be passed in one invocation.
+
+**Caveats**
+
+- Import archived (rotated) files only — importing a file that's also being
+  live-tailed double-counts its lines.
+- Each imported file is fingerprinted by content checksum; importing the same
+  content again (even under a different filename) is skipped. Pass `--force`
+  to re-import — this updates the bookkeeping row but does **not** delete
+  rows written by the earlier import.
+- A file that doesn't match the expected log format is rejected up front,
+  before anything is written.
+
 ## Screenshots
 
 ![Overview](/data/screenshots/overview.png)

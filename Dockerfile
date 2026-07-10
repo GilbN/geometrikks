@@ -70,7 +70,8 @@ ENV PATH="/app/.venv/bin:$PATH" \
     APP_ENVIRONMENT=production \
     VITE_DEV_MODE=false \
     GEOIP_DB_PATH=/app/data/geoip/GeoLite2-City.mmdb \
-    GEOIP_VALIDATE_DB_PATH=false
+    GEOIP_VALIDATE_DB_PATH=false \
+    LITESTAR_APP=geometrikks.server.core:create_app
 
 VOLUME ["/app/data/geoip"]
 
