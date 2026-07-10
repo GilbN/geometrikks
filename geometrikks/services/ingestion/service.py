@@ -449,6 +449,15 @@ class LogIngestionService:
             flushed["debug"],
         )
 
+    async def flush_records(self, records: list[ParsedLogRecord]) -> None:
+        """Ingest externally produced records through the batch machinery.
+
+        Used by the batch importer. Runs the same _flush_batch path as live
+        tailing: fresh session, location cache, rollback-and-evict recovery.
+        """
+        self._batch.extend(records)
+        await self._flush_batch()
+
     def _to_access_log_model(self, parsed: ParsedAccessLog) -> AccessLog:
         """Convert ParsedAccessLog schema to ORM model."""
         return AccessLog(

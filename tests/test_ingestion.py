@@ -9,6 +9,7 @@ import pytest
 from geoip2.database import Reader
 
 from geometrikks.services.logparser.logparser import LogParser
+from geometrikks.services.logparser.schemas import ParsedLogRecord, ParsedGeoData, ParsedAccessLog
 from geometrikks.services.ingestion.service import IngestionRepos, LogIngestionService
 
 GEOIP_DB_PATH = "tests/GeoLite2-City-Test.mmdb"
@@ -399,3 +400,96 @@ async def test_committed_locations_survive_in_cache_as_ids(tmp_path: Path) -> No
         await service.stop(timeout=5.0)
 
     assert len(repos.geo_location.added) == 1  # second event reused the cached id
+
+
+@pytest.mark.asyncio
+async def test_flush_records_writes_through_batch_machinery() -> None:
+    """flush_records must reuse _flush_batch (cache + rollback semantics)."""
+    from datetime import datetime, timezone
+    from geohash2 import encode
+
+    service, _repos, sessions = make_service([])
+
+    # Build ParsedLogRecord objects for TEST_DB_IPS
+    # Using realistic geo data from the test database
+    ts = datetime.now(timezone.utc)
+    records = [
+        ParsedLogRecord(
+            ip_address=TEST_DB_IPS[0],
+            geo_data=ParsedGeoData(
+                latitude=51.5142,
+                longitude=-0.0931,
+                geohash=encode(51.5142, -0.0931),
+                country_code="GB",
+                country_name="United Kingdom",
+                state="England",
+                state_code="ENG",
+                city="London",
+                postal_code="EC1A",
+                timezone="Europe/London",
+                timestamp=ts,
+            ),
+            access_log=ParsedAccessLog(
+                timestamp=ts,
+                ip_address=TEST_DB_IPS[0],
+                remote_user=None,
+                method="GET",
+                url="/",
+                http_version="HTTP/1.1",
+                status_code=200,
+                bytes_sent=1024,
+                referrer=None,
+                user_agent="test-agent",
+                request_time=0.002,
+                upstream_response_time=0.001,
+                host="example.com",
+                country_code="GB",
+                country_name="United Kingdom",
+                city="London",
+            ),
+            raw_line=make_log_line(TEST_DB_IPS[0]),
+            is_malformed=False,
+        ),
+        ParsedLogRecord(
+            ip_address=TEST_DB_IPS[1],
+            geo_data=ParsedGeoData(
+                latitude=51.4545,
+                longitude=5.8520,
+                geohash=encode(51.4545, 5.8520),
+                country_code="NL",
+                country_name="Netherlands",
+                state="North Holland",
+                state_code="NH",
+                city="Amsterdam",
+                postal_code="1000",
+                timezone="Europe/Amsterdam",
+                timestamp=ts,
+            ),
+            access_log=ParsedAccessLog(
+                timestamp=ts,
+                ip_address=TEST_DB_IPS[1],
+                remote_user=None,
+                method="POST",
+                url="/api",
+                http_version="HTTP/1.1",
+                status_code=201,
+                bytes_sent=512,
+                referrer="https://example.com",
+                user_agent="test-agent-2",
+                request_time=0.003,
+                upstream_response_time=0.002,
+                host="api.example.com",
+                country_code="NL",
+                country_name="Netherlands",
+                city="Amsterdam",
+            ),
+            raw_line=make_log_line(TEST_DB_IPS[1]),
+            is_malformed=False,
+        ),
+    ]
+
+    await service.flush_records(records)
+
+    assert service.pending_records == 0
+    assert len(sessions) == 1 and sessions[0].commits == 1
+    assert service.total_processed == len(records)
