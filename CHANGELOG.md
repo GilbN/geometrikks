@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Single-admin session-cookie authentication (`APP_ADMIN_USER` / `APP_ADMIN_PASSWORD`), with `APP_AUTH_DISABLED=true` reverse-proxy mode. New endpoints: `POST /api/v1/auth/login`, `POST /api/v1/auth/logout`, `GET /api/v1/auth/me`.
 - `/health/ready` readiness endpoint (503 until the database answers).
 - Login page, automatic redirect to it on API 401 responses, and a logout button in the sidebar (hidden when auth is disabled).
+- Real-TimescaleDB integration test suite (`pytest -m integration`): startup migrations, end-to-end ingestion (rows/rotation/poison-recovery), repository CAGG-routing.
 
 ### Changed
 
@@ -38,6 +39,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Vite `@` alias resolved to the filesystem root instead of `resources/`.
 - Stale geo-location cache entries after a rollback no longer poison subsequent inserts.
+- Location-cache entries that predate the current run (e.g. after a crashed commit) are evicted when a flush fails, so a poisoned id cannot wedge ingestion permanently.
 - Server modules no longer fail to import when the GeoIP database is missing.
 - CAGG summary returned no data for ranges with geo events but zero access logs.
 - `provice_summary_stats_repo` typo.

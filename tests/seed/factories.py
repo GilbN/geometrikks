@@ -113,11 +113,12 @@ class GeoLocationFactory(BaseFactory[GeoLocation]):
     __model__ = GeoLocation
     __set_relationships__ = False
 
-    # Ignore auto-generated fields and relationships
+    # Ignore auto-generated fields (relationships are excluded via
+    # __set_relationships__ = False; declaring them here trips polyfactory's
+    # declared-fields-must-exist check)
     id = Ignore()
     created_at = Ignore()
     updated_at = Ignore()
-    geo_events = Ignore()
 
     @classmethod
     def build(cls, **kwargs: Any) -> GeoLocation:
@@ -189,9 +190,8 @@ class GeoEventFactory(BaseFactory[GeoEvent]):
     __model__ = GeoEvent
     __set_relationships__ = False
 
-    # Ignore auto-generated fields and relationships
+    # Ignore auto-generated fields (relationships excluded via __set_relationships__)
     id = Ignore()
-    location = Ignore()
 
     # Custom field providers
     timestamp = Use(lambda: datetime.now(timezone.utc))
