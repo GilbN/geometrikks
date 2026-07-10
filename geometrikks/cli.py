@@ -45,6 +45,7 @@ async def _run_import(paths: list[Path], *, force: bool, batch_size: int) -> Non
 
     reader: Reader | None = create_reader(settings.geoip.db_path, settings.geoip.locales)
     if reader is None:
+        await engine.dispose()
         raise click.ClickException(
             f"No GeoIP database at {settings.geoip.db_path} — cannot import. "
             "Configure GEOIP_ACCOUNT_ID/GEOIP_LICENSE_KEY and start the app "
@@ -62,51 +63,52 @@ async def _run_import(paths: list[Path], *, force: bool, batch_size: int) -> Non
 
     overall_start = overall_end = None
     failed: list[Path] = []
-    for path in paths:
-        click.echo(f"Importing {path} ...")
-        parser = LogParser(log_path=path, send_logs=settings.logparser.send_logs)
+    try:
+        for path in paths:
+            click.echo(f"Importing {path} ...")
+            parser = LogParser(log_path=path, send_logs=settings.logparser.send_logs)
 
-        def show_progress(lines: int, lps: float) -> None:
-            click.echo(f"  {lines:>12,} lines  ({lps:,.0f} lines/s)")
+            def show_progress(lines: int, lps: float) -> None:
+                click.echo(f"  {lines:>12,} lines  ({lps:,.0f} lines/s)")
 
-        try:
-            result = await import_file(
-                path,
-                service=service,
-                parser=parser,
-                reader=reader,
-                session_maker=session_maker,
-                batch_size=batch_size,
-                force=force,
-                progress=show_progress,
+            try:
+                result = await import_file(
+                    path,
+                    service=service,
+                    parser=parser,
+                    reader=reader,
+                    session_maker=session_maker,
+                    batch_size=batch_size,
+                    force=force,
+                    progress=show_progress,
+                )
+            except UnrecognizedLogFormatError as exc:
+                click.echo(f"  error: {exc}", err=True)
+                failed.append(path)
+                continue
+
+            if result.skipped:
+                click.echo("  skipped: already imported (use --force to re-import)")
+                continue
+
+            click.echo(
+                f"  done: {result.lines_total:,} lines "
+                f"({result.lines_skipped:,} skipped as unparseable), "
+                f"{result.records_written:,} records "
+                f"in {result.duration_seconds:,.1f}s "
+                f"({result.lines_total / result.duration_seconds:,.0f} lines/s)"
             )
-        except UnrecognizedLogFormatError as exc:
-            click.echo(f"  error: {exc}", err=True)
-            failed.append(path)
-            continue
+            if result.time_start:
+                overall_start = min(overall_start or result.time_start, result.time_start)
+                overall_end = max(overall_end or result.time_end, result.time_end)
 
-        if result.skipped:
-            click.echo("  skipped: already imported (use --force to re-import)")
-            continue
-
-        click.echo(
-            f"  done: {result.lines_total:,} lines "
-            f"({result.lines_skipped:,} skipped as unparseable), "
-            f"{result.records_written:,} records "
-            f"in {result.duration_seconds:,.1f}s "
-            f"({result.lines_total / result.duration_seconds:,.0f} lines/s)"
-        )
-        if result.time_start:
-            overall_start = min(overall_start or result.time_start, result.time_start)
-            overall_end = max(overall_end or result.time_end, result.time_end)
-
-    if overall_start and overall_end:
-        click.echo(f"Refreshing continuous aggregates {overall_start} → {overall_end} ...")
-        await refresh_caggs_range(engine, start=overall_start, end=overall_end)
-        click.echo("CAGGs refreshed.")
-
-    await engine.dispose()
-    reader.close()
+        if overall_start and overall_end:
+            click.echo(f"Refreshing continuous aggregates {overall_start} → {overall_end} ...")
+            await refresh_caggs_range(engine, start=overall_start, end=overall_end)
+            click.echo("CAGGs refreshed.")
+    finally:
+        await engine.dispose()
+        reader.close()
 
     if failed:
         raise click.ClickException(
