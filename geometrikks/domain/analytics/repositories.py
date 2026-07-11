@@ -385,6 +385,8 @@ class SummaryStatsRepository:
             List of SummaryStatsRow ordered by bucket ascending.
         """
         granularity = get_stats_granularity(start, end)
+        if granularity == StatsGranularity.RAW:
+            granularity = StatsGranularity.HOURLY  # no raw CAGG; hourly + real-time agg covers ≤24h
         table = f"summary_{granularity.value}_stats"
         bucket_interval = "1 hour" if granularity == StatsGranularity.HOURLY else "1 day"
 
@@ -446,6 +448,8 @@ class SummaryStatsRepository:
             List of dicts with bucket, total_events, unique_ips, unique_countries, unique_cities.
         """
         granularity = get_stats_granularity(start, end)
+        if granularity == StatsGranularity.RAW:
+            granularity = StatsGranularity.HOURLY  # no raw CAGG; hourly + real-time agg covers ≤24h
         table = f"geo_summary_{granularity.value}_stats"
         bucket_interval = "1 hour" if granularity == StatsGranularity.HOURLY else "1 day"
 

@@ -21,6 +21,10 @@ class TimeSeriesDataPoint:
     status_4xx: int
     status_5xx: int
     error_rate: float
+    avg_request_time: float
+    p50_request_time: float
+    p95_request_time: float
+    p99_request_time: float
 
 
 @dataclass
@@ -52,6 +56,7 @@ class GeoEventsDataPoint:
     total_geo_events: int
     unique_ips: int
     unique_countries: int
+    unique_cities: int
 
 
 @dataclass

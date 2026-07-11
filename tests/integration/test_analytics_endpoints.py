@@ -80,3 +80,17 @@ async def test_top_lists_respect_limit_and_window(pg_session_maker, clean_tables
     assert len(urls) == 2
     assert all(r.url != "/old" for r in urls)
     assert all(r.user_agent != "old-ua" for r in agents)
+
+
+async def test_time_series_methods_survive_sub_24h_ranges(pg_session_maker, clean_tables):
+    """Regression: RAW granularity used to build nonexistent summary_raw_stats /
+    geo_summary_raw_stats table names. Sub-24h ranges must clamp to hourly."""
+    from geometrikks.domain.analytics.repositories import SummaryStatsRepository
+
+    async with pg_session_maker() as session:
+        repo = SummaryStatsRepository(session=session)
+        series = await repo.get_time_series(NOW - timedelta(hours=2), NOW)
+        geo_series = await repo.get_geo_time_series(NOW - timedelta(hours=2), NOW)
+
+    assert isinstance(series, list)
+    assert isinstance(geo_series, list)
