@@ -46,10 +46,15 @@ class TopIPDTO:
 
 @dataclass
 class GeoJSONPointGeometry:
-    """GeoJSON Point geometry."""
+    """GeoJSON Point geometry.
 
-    type: str = "Point"
-    coordinates: tuple[float, float] = field(default_factory=lambda: (0.0, 0.0))
+    Fields are deliberately default-less: dataclass defaults make them
+    non-required in OpenAPI, which turns into optional fields in the
+    generated TS client. The controller always constructs them explicitly.
+    """
+
+    type: str
+    coordinates: tuple[float, float]
 
 
 @dataclass
@@ -74,26 +79,26 @@ class GeoJSONFeatureProperties:
 class GeoJSONFeature:
     """GeoJSON Feature representing a location."""
 
-    type: str = "Feature"
-    geometry: GeoJSONPointGeometry = field(default_factory=GeoJSONPointGeometry)
-    properties: GeoJSONFeatureProperties | None = None
+    type: str
+    geometry: GeoJSONPointGeometry
+    properties: GeoJSONFeatureProperties
 
 @dataclass
 class GeoJSONFeatureStats:
     """Statistics for GeoJSONFeatureCollection."""
 
-    events: int = 0
-    countries: int = 0
-    cities: int = 0
-    locations: int = 0
+    events: int
+    countries: int
+    cities: int
+    locations: int
 
 @dataclass
 class GeoJSONFeatureCollection:
     """GeoJSON FeatureCollection for locations with event counts."""
 
-    type: str = "FeatureCollection"
-    features: list[GeoJSONFeature] = field(default_factory=list)
-    stats: GeoJSONFeatureStats = field(default_factory=GeoJSONFeatureStats)
+    type: str
+    features: list[GeoJSONFeature]
+    stats: GeoJSONFeatureStats
 
 
 @dataclass
