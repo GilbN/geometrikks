@@ -314,9 +314,9 @@ class SummaryStatsRepository:
                     COALESCE(SUM(status_5xx), 0) AS status_5xx,
                     COALESCE(AVG(avg_request_time), 0) AS avg_request_time,
                     COALESCE(MAX(max_request_time), 0) AS max_request_time,
-                    COALESCE(AVG(p50_request_time), 0) AS p50_request_time,
-                    COALESCE(AVG(p95_request_time), 0) AS p95_request_time,
-                    COALESCE(AVG(p99_request_time), 0) AS p99_request_time
+                    COALESCE(approx_percentile(0.50, rollup(pct_agg)), 0) AS p50_request_time,
+                    COALESCE(approx_percentile(0.95, rollup(pct_agg)), 0) AS p95_request_time,
+                    COALESCE(approx_percentile(0.99, rollup(pct_agg)), 0) AS p99_request_time
                 FROM {summary_table}
                 WHERE bucket >= time_bucket('{bucket_interval}', CAST(:start AS timestamptz))
                 AND bucket < :end
@@ -399,9 +399,9 @@ class SummaryStatsRepository:
                 status_5xx,
                 avg_request_time,
                 max_request_time,
-                p50_request_time,
-                p95_request_time,
-                p99_request_time
+                approx_percentile(0.50, pct_agg) AS p50_request_time,
+                approx_percentile(0.95, pct_agg) AS p95_request_time,
+                approx_percentile(0.99, pct_agg) AS p99_request_time
             FROM {table}
             WHERE bucket >= time_bucket('{bucket_interval}', CAST(:start AS timestamptz))
               AND bucket < :end
