@@ -203,6 +203,8 @@ export interface TimeSeriesParams {
 export interface GeoJSONParams {
   fromTimestamp: string // Full ISO timestamp
   toTimestamp: string
+  countryCodes?: string[]
+  cities?: string[]
 }
 
 export async function fetchGeoJSON(params: GeoJSONParams): Promise<GeoJSONFeatureCollection> {
@@ -210,7 +212,12 @@ export async function fetchGeoJSON(params: GeoJSONParams): Promise<GeoJSONFeatur
     params: {
       from_timestamp: params.fromTimestamp,
       to_timestamp: params.toTimestamp,
+      country_code: params.countryCodes?.length ? params.countryCodes : undefined,
+      city: params.cities?.length ? params.cities : undefined,
     },
+    // Litestar expects repeated keys (?country_code=NO&country_code=SE),
+    // not axios' default bracket form (country_code[]=NO).
+    paramsSerializer: { indexes: null },
   })
   return data
 }

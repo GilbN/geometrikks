@@ -7,6 +7,18 @@ import { useState, useEffect } from "react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import {
+  Combobox,
+  ComboboxChip,
+  ComboboxChips,
+  ComboboxChipsInput,
+  ComboboxContent,
+  ComboboxEmpty,
+  ComboboxItem,
+  ComboboxList,
+  ComboboxValue,
+  useComboboxAnchor,
+} from "@/components/ui/combobox"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { Flame, MapPin, Maximize2, Loader2, SlidersHorizontal, X } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -22,6 +34,62 @@ interface MapControlsProps {
   featureStats: GeoJSONFeatureStats
   topIPs: TopIPDTO[]
   onFlyToLocation?: (lat: number, lng: number) => void
+  countryOptions: string[]
+  cityOptions: string[]
+  selectedCountries: string[]
+  selectedCities: string[]
+  onCountriesChange: (values: string[]) => void
+  onCitiesChange: (values: string[]) => void
+}
+
+function FilterCombobox({
+  options,
+  selected,
+  onChange,
+  placeholder,
+}: {
+  options: string[]
+  selected: string[]
+  onChange: (values: string[]) => void
+  placeholder: string
+}) {
+  const anchor = useComboboxAnchor()
+  return (
+    <Combobox
+      multiple
+      items={options}
+      value={selected}
+      onValueChange={(value) => onChange(value as string[])}
+    >
+      <ComboboxChips ref={anchor} className="min-h-8 px-1.5 py-1 text-xs">
+        <ComboboxValue>
+          {(value: string[]) => (
+            <>
+              {value.map((v) => (
+                <ComboboxChip key={v} className="text-[10px]">
+                  {v}
+                </ComboboxChip>
+              ))}
+              <ComboboxChipsInput
+                placeholder={value.length === 0 ? placeholder : ""}
+                className="text-xs"
+              />
+            </>
+          )}
+        </ComboboxValue>
+      </ComboboxChips>
+      <ComboboxContent anchor={anchor}>
+        <ComboboxEmpty>No matches</ComboboxEmpty>
+        <ComboboxList>
+          {(item: string) => (
+            <ComboboxItem key={item} value={item} className="text-xs">
+              {item}
+            </ComboboxItem>
+          )}
+        </ComboboxList>
+      </ComboboxContent>
+    </Combobox>
+  )
 }
 
 export function MapControls({
@@ -31,7 +99,13 @@ export function MapControls({
   isLoading = false,
   featureStats,
   topIPs,
-  onFlyToLocation
+  onFlyToLocation,
+  countryOptions,
+  cityOptions,
+  selectedCountries,
+  selectedCities,
+  onCountriesChange,
+  onCitiesChange,
 }: MapControlsProps) {
   const { events, countries, cities, locations } = featureStats
   const [isExpanded, setIsExpanded] = useState(true)
@@ -104,6 +178,23 @@ export function MapControls({
             <span className="text-sm font-medium">Markers</span>
           </ToggleGroupItem>
         </ToggleGroup>
+      </Card>
+
+      {/* Country / city filters */}
+      <Card className="p-2 gap-1.5 shrink-0">
+        <div className="text-xs font-medium text-muted-foreground">Filters</div>
+        <FilterCombobox
+          options={countryOptions}
+          selected={selectedCountries}
+          onChange={onCountriesChange}
+          placeholder="Country"
+        />
+        <FilterCombobox
+          options={cityOptions}
+          selected={selectedCities}
+          onChange={onCitiesChange}
+          placeholder="City"
+        />
       </Card>
 
       {/* Fit Bounds Button */}

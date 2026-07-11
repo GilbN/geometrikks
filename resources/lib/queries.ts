@@ -133,6 +133,10 @@ export interface UseTimeSeriesOptions {
 export interface UseGeoJSONOptions {
   /** Enable/disable the query */
   enabled?: boolean
+  /** Filter to these ISO country codes */
+  countryCodes?: string[]
+  /** Filter to these city names */
+  cities?: string[]
 }
 
 /**
@@ -140,18 +144,20 @@ export interface UseGeoJSONOptions {
  * Uses TimeRangeContext for time filtering.
  */
 export function useGeoJSON(options: UseGeoJSONOptions = {}) {
-  const { enabled = true } = options
+  const { enabled = true, countryCodes, cities } = options
   const { range, pollInterval, lastRefresh } = useTimeRange()
 
   return useQuery({
     // Query key uses lastRefresh for cache invalidation on manual refresh
-    queryKey: queryKeys.geo.geojson({ range }, lastRefresh),
+    queryKey: queryKeys.geo.geojson({ range, countryCodes, cities }, lastRefresh),
     // Compute date range at fetch time so polls get fresh data
     queryFn: () => {
       const { startDate, endDate } = parseTimeRange(range, Date.now())
       return fetchGeoJSON({
         fromTimestamp: startDate,
         toTimestamp: endDate,
+        countryCodes,
+        cities,
       })
     },
     enabled,
