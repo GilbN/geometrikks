@@ -167,7 +167,7 @@ export const GeoEventsTimeSeriesResponseSchema = {
       type: "string",
     },
   },
-  required: ["end_date", "granularity", "start_date"],
+  required: ["data", "end_date", "granularity", "start_date"],
   title: "GeoEventsTimeSeriesResponse",
   type: "object",
 } as const;
@@ -1124,7 +1124,7 @@ export const TimeSeriesResponseSchema = {
       type: "string",
     },
   },
-  required: ["end_date", "granularity", "start_date"],
+  required: ["data", "end_date", "granularity", "start_date"],
   title: "TimeSeriesResponse",
   type: "object",
 } as const;
@@ -1229,7 +1229,7 @@ export const TopUrlsResponseSchema = {
       type: "string",
     },
   },
-  required: ["end_date", "start_date"],
+  required: ["end_date", "items", "start_date"],
   title: "TopUrlsResponse",
   type: "object",
 } as const;
@@ -1263,7 +1263,7 @@ export const TopUserAgentsResponseSchema = {
       type: "string",
     },
   },
-  required: ["end_date", "start_date"],
+  required: ["end_date", "items", "start_date"],
   title: "TopUserAgentsResponse",
   type: "object",
 } as const;

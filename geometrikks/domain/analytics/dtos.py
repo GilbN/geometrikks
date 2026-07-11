@@ -61,12 +61,16 @@ class GeoEventsDataPoint:
 
 @dataclass
 class TimeSeriesResponse:
-    """Response containing time-series data for charts."""
+    """Response containing time-series data for charts.
+
+    ``data`` is deliberately default-less so it is required in OpenAPI and
+    non-optional in the generated TS client.
+    """
 
     granularity: str  # "hourly" or "daily"
     start_date: str
     end_date: str
-    data: list[TimeSeriesDataPoint] = field(default_factory=list)
+    data: list[TimeSeriesDataPoint]
 
 
 @dataclass
@@ -91,12 +95,15 @@ class BandwidthTimeSeriesResponse:
 
 @dataclass
 class GeoEventsTimeSeriesResponse:
-    """Response containing geo events time-series data."""
+    """Response containing geo events time-series data.
+
+    ``data`` is deliberately default-less (see TimeSeriesResponse).
+    """
 
     granularity: str
     start_date: str
     end_date: str
-    data: list[GeoEventsDataPoint] = field(default_factory=list)
+    data: list[GeoEventsDataPoint]
 
 
 @dataclass
@@ -204,11 +211,15 @@ class TopUrlDTO:
 
 @dataclass
 class TopUrlsResponse:
-    """Response containing top URLs by hit count."""
+    """Response containing top URLs by hit count.
+
+    ``items`` is deliberately default-less: a dataclass default makes it
+    non-required in OpenAPI and therefore optional in the generated TS client.
+    """
 
     start_date: str
     end_date: str
-    items: list[TopUrlDTO] = field(default_factory=list)
+    items: list[TopUrlDTO]
 
 
 @dataclass
@@ -221,8 +232,11 @@ class TopUserAgentDTO:
 
 @dataclass
 class TopUserAgentsResponse:
-    """Response containing top user agents by hit count."""
+    """Response containing top user agents by hit count.
+
+    ``items`` is deliberately default-less (see TopUrlsResponse).
+    """
 
     start_date: str
     end_date: str
-    items: list[TopUserAgentDTO] = field(default_factory=list)
+    items: list[TopUserAgentDTO]

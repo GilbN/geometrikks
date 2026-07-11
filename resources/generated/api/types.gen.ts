@@ -61,7 +61,7 @@ export type GeoEventsDataPoint = {
  * GeoEventsTimeSeriesResponse
  */
 export type GeoEventsTimeSeriesResponse = {
-  data?: Array<GeoEventsDataPoint>;
+  data: Array<GeoEventsDataPoint>;
   end_date: string;
   granularity: string;
   start_date: string;
@@ -327,7 +327,7 @@ export type TimeSeriesDataPoint = {
  * TimeSeriesResponse
  */
 export type TimeSeriesResponse = {
-  data?: Array<TimeSeriesDataPoint>;
+  data: Array<TimeSeriesDataPoint>;
   end_date: string;
   granularity: string;
   start_date: string;
@@ -374,7 +374,7 @@ export type TopUrlDto = {
  */
 export type TopUrlsResponse = {
   end_date: string;
-  items?: Array<TopUrlDto>;
+  items: Array<TopUrlDto>;
   start_date: string;
 };
 
@@ -391,7 +391,7 @@ export type TopUserAgentDto = {
  */
 export type TopUserAgentsResponse = {
   end_date: string;
-  items?: Array<TopUserAgentDto>;
+  items: Array<TopUserAgentDto>;
   start_date: string;
 };
 

@@ -172,6 +172,7 @@
           }
         },
         "required": [
+          "data",
           "end_date",
           "granularity",
           "start_date"
@@ -1163,6 +1164,7 @@
           }
         },
         "required": [
+          "data",
           "end_date",
           "granularity",
           "start_date"
@@ -1281,6 +1283,7 @@
         },
         "required": [
           "end_date",
+          "items",
           "start_date"
         ],
         "title": "TopUrlsResponse",
@@ -1319,6 +1322,7 @@
         },
         "required": [
           "end_date",
+          "items",
           "start_date"
         ],
         "title": "TopUserAgentsResponse",
