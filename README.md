@@ -196,6 +196,10 @@ Multiple files can be passed in one invocation.
   rows written by the earlier import.
 - A file that doesn't match the expected log format is rejected up front,
   before anything is written.
+- Rows older than the raw retention window (`ANALYTICS_RAW_RETENTION_DAYS`,
+  default 180 days) are dropped by the TimescaleDB retention policy — importing
+  history beyond that window won't persist. Raise the retention setting before
+  importing older archives if you want to keep them.
 
 ## Screenshots
 

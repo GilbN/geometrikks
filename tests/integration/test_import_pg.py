@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import gzip
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from geoip2.database import Reader
@@ -14,10 +15,16 @@ from geometrikks.services.logparser.logparser import LogParser
 GEOIP_DB_PATH = "tests/GeoLite2-City-Test.mmdb"
 TEST_IP = "2.125.160.216"
 
+# Wall-clock-relative so rows stay inside the raw retention window (180 days
+# by default) — the scratch DB has live retention policies that drop chunks
+# with older timestamps mid-test. Same convention as test_repositories_pg.py.
+DAYS = [datetime.now(timezone.utc) - timedelta(days=d) for d in range(5, 0, -1)]
 
-def make_log_line(ip: str, day: int) -> str:
+
+def make_log_line(ip: str, ts: datetime) -> str:
+    stamp = ts.strftime("%d/%b/%Y:%H:%M:%S %z")
     return (
-        f'{ip} - - [{day:02d}/Aug/2024:13:14:17 +0200]"GET /index.php HTTP/2.0" 200 1024"-" '
+        f'{ip} - - [{stamp}]"GET /index.php HTTP/2.0" 200 1024"-" '
         f'example.com "-""0.002" "0.001""City" "CC"'
     )
 
@@ -25,8 +32,8 @@ def make_log_line(ip: str, day: int) -> str:
 async def test_gz_import_lands_rows_and_records_job(tmp_path: Path, pg_session_maker, clean_tables):
     gz_file = tmp_path / "access.log.1.gz"
     with gzip.open(gz_file, "wt") as f:
-        for day in range(1, 6):
-            f.write(make_log_line(TEST_IP, day) + "\n")
+        for ts in DAYS:
+            f.write(make_log_line(TEST_IP, ts) + "\n")
 
     service = LogIngestionService(
         parsers=[], session_maker=pg_session_maker,
@@ -51,7 +58,11 @@ async def test_gz_import_lands_rows_and_records_job(tmp_path: Path, pg_session_m
     async with pg_session_maker() as session:
         logs = (await session.execute(text("SELECT COUNT(*) FROM access_logs"))).scalar_one()
         jobs = (await session.execute(text("SELECT COUNT(*) FROM import_jobs"))).scalar_one()
-        ts = (await session.execute(text("SELECT MIN(timestamp), MAX(timestamp) FROM access_logs"))).one()
+        ts_bounds = (await session.execute(
+            text("SELECT MIN(timestamp), MAX(timestamp) FROM access_logs")
+        )).one()
     assert logs == 5, "no duplicate rows from the second run"
     assert jobs == 1
-    assert ts[0].day == 1 and ts[1].day == 5, "log-line timestamps, not wall clock"
+    # Log-line timestamps, not wall clock (second-precision: %S drops microseconds)
+    assert ts_bounds[0] == DAYS[0].replace(microsecond=0)
+    assert ts_bounds[1] == DAYS[-1].replace(microsecond=0)
