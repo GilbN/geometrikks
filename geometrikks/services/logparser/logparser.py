@@ -163,6 +163,58 @@ class LogParser:
         logger.debug("Testing log format")
         return False
 
+    def parse_line(
+        self, line: str, lookup: Callable[[str], City | None]
+    ) -> ParsedLogRecord:
+        """Parse one raw log line into a ParsedLogRecord (shared by tail + import).
+
+        Pure, synchronous method that validates the line, performs GeoIP lookup,
+        and detects malformed requests. Updates self.parsed_lines/self.skipped_lines.
+
+        Args:
+            line: Raw log line to parse.
+            lookup: Callable to look up City data for an IP address.
+
+        Returns:
+            ParsedLogRecord with parsed data. A record with ip_address=None indicates
+            the line didn't match the expected format (counted in skipped_lines).
+        """
+        matched = self.validate_log_line(line)
+        raw_line = line.strip()
+
+        if not matched:
+            logger.debug("Skipping unmatched line: '%s'", raw_line)
+            self.skipped_lines += 1
+            return ParsedLogRecord(
+                ip_address=None,
+                geo_data=None,
+                access_log=None,
+                raw_line=raw_line,
+                is_malformed=True,
+                parse_error="Line did not match expected log format",
+                source=str(self.log_path),
+            )
+
+        ip = matched.group(1)
+        self.parsed_lines += 1
+
+        geo_data: ParsedGeoData | None = self._parse_geo_data(ip, matched, lookup)
+
+        access_log: ParsedAccessLog | None = (
+            self._parse_access_log(matched, ip, lookup) if self.send_logs else None
+        )
+
+        is_malformed, parse_error = self._detect_malformed_request(matched)
+
+        return ParsedLogRecord(
+            ip_address=ip,
+            geo_data=geo_data,
+            access_log=access_log,
+            raw_line=raw_line,
+            is_malformed=is_malformed,
+            parse_error=parse_error,
+            source=str(self.log_path),
+        )
 
     async def _is_rotated_async(self, prev_stat: os.stat_result) -> bool:
         """Check if the log file was rotated.
@@ -478,40 +530,4 @@ class LogParser:
                     # Update stat for next rotation check
                     stat_result = await aiofiles.os.stat(self.log_path)
 
-                    matched = self.validate_log_line(line)
-                    raw_line = line.strip()
-
-                    if not matched:
-                        logger.debug("Skipping unmatched line: '%s'", raw_line)
-                        self.skipped_lines += 1
-                        yield ParsedLogRecord(
-                            ip_address=None,
-                            geo_data=None,
-                            access_log=None,
-                            raw_line=raw_line,
-                            is_malformed=True,
-                            parse_error="Line did not match expected log format",
-                            source=str(self.log_path),
-                        )
-                        continue
-
-                    ip = matched.group(1)
-                    self.parsed_lines += 1
-
-                    geo_data: ParsedGeoData | None = self._parse_geo_data(ip, matched, lookup)
-
-                    access_log: ParsedAccessLog | None = (
-                        self._parse_access_log(matched, ip, lookup) if self.send_logs else None
-                    )
-
-                    is_malformed, parse_error = self._detect_malformed_request(matched)
-
-                    yield ParsedLogRecord(
-                        ip_address=ip,
-                        geo_data=geo_data,
-                        access_log=access_log,
-                        raw_line=raw_line,
-                        is_malformed=is_malformed,
-                        parse_error=parse_error,
-                        source=str(self.log_path),
-                    )
+                    yield self.parse_line(line, lookup)

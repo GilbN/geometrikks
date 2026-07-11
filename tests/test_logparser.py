@@ -18,6 +18,14 @@ from geometrikks.services.logparser.logparser import (
 from geometrikks.services.logparser.schemas import ParsedAccessLog
 
 
+def make_log_line(ip: str) -> str:
+    """A line in the project's custom nginx log format (mirrors tests/valid_ipv4_log.txt)."""
+    return (
+        f'{ip} - - [03/Aug/2024:13:14:17 +0200]"GET /index.php HTTP/2.0" 200 1024"-" '
+        f'example.com "-""0.002" "0.001""City" "CC"'
+    )
+
+
 VALID_LOG_PATH = "tests/valid_ipv4_log.txt"
 UNPARSEABLE_LOG_PATH = "tests/unparseable_logs.txt"
 NONSTANDARD_LOG_PATH = "tests/nonstandard_logs.txt"
@@ -443,3 +451,25 @@ async def test_rotation_reopens_from_start_twice(tmp_path: Path, log_parser: Log
         assert rec.ip_address is not None
 
     await gen.aclose()
+
+
+class TestParseLine:
+    def test_parse_line_valid(self, geoip_reader):
+        from geometrikks.services.logparser.logparser import LogParser, make_cached_city_lookup
+        parser = LogParser(log_path=Path("/dev/null"), send_logs=True)
+        lookup = make_cached_city_lookup(geoip_reader)
+        line = make_log_line("2.125.160.216")
+        record = parser.parse_line(line, lookup)
+        assert record.ip_address == "2.125.160.216"
+        assert record.geo_data is not None
+        assert record.access_log is not None
+        assert parser.parsed_lines == 1
+
+    def test_parse_line_garbage_is_malformed(self, geoip_reader):
+        from geometrikks.services.logparser.logparser import LogParser, make_cached_city_lookup
+        parser = LogParser(log_path=Path("/dev/null"), send_logs=True)
+        lookup = make_cached_city_lookup(geoip_reader)
+        record = parser.parse_line("total garbage\n", lookup)
+        assert record.is_malformed is True
+        assert record.ip_address is None
+        assert parser.skipped_lines == 1

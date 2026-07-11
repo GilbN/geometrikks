@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `litestar import-logs` CLI command for batch-importing historical nginx
+  access logs (plain or gzip), reusing the live ingestion pipeline. Checksum
+  duplicate protection skips a file already imported (`--force` to
+  re-import), and a post-import refresh of the continuous aggregates covers
+  the imported time range.
+
 ## [0.1.0-alpha.1] - 2026-07-10
 
 ### Added

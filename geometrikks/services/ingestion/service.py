@@ -304,13 +304,17 @@ class LogIngestionService:
                     hostname=self.hostname,
                     location_id=location_id,
                 )
-                await repos.geo_event.add(geo_event, auto_commit=False)
+                # Plain session.add: repo.add() flushes + refreshes per call
+                # (2 DB round trips per record), which caps throughput at a few
+                # hundred records/s. Deferring to the batch commit lets
+                # SQLAlchemy bulk-insert the whole batch (insertmanyvalues).
+                repos.geo_event.session.add(geo_event)
                 self.total_geo_records += 1
                 flushed["geo"] += 1
 
         if record.access_log:
             access_log_model = self._to_access_log_model(record.access_log)
-            await repos.access_log.add(access_log_model, auto_commit=False)
+            repos.access_log.session.add(access_log_model)
             self.total_log_records += 1
             flushed["log"] += 1
 
@@ -348,7 +352,9 @@ class LogIngestionService:
             timezone=geo_data.timezone,
             geographic_point=make_point(geo_data.latitude, geo_data.longitude),
         )
-        location = await repos.geo_location.add(location, auto_commit=False)
+        # session.add + one flush to get the id; repo.add() would add a
+        # redundant refresh round trip. Fires only for geohashes not in cache.
+        repos.geo_location.session.add(location)
         await repos.geo_location.session.flush()
 
         self._location_cache[geo_data.geohash] = location.id
@@ -391,13 +397,17 @@ class LogIngestionService:
             is_malformed=record.is_malformed,
             parse_error=sanitized_error,
         )
-        await repos.access_log_debug.add(debug_entry, auto_commit=False)
+        repos.access_log_debug.session.add(debug_entry)
 
     async def _flush_batch(self) -> None:
         """Write the buffered batch in one fresh session: open -> repos -> flush -> commit -> close.
 
-        A per-record failure rolls back the session (discarding earlier records
-        in this batch, matching previous behavior) and processing continues.
+        Inserts are deferred to the commit (bulk INSERT via insertmanyvalues),
+        so row-level DB errors surface there and discard the whole batch via
+        the commit-failure path. The per-record path still catches errors from
+        location get-or-create (which flushes) and record conversion; such a
+        failure rolls back the session (discarding earlier records in this
+        batch) and processing continues.
         """
         if not self._batch:
             return
@@ -448,6 +458,15 @@ class LogIngestionService:
             flushed["log"],
             flushed["debug"],
         )
+
+    async def flush_records(self, records: list[ParsedLogRecord]) -> None:
+        """Ingest externally produced records through the batch machinery.
+
+        Used by the batch importer. Runs the same _flush_batch path as live
+        tailing: fresh session, location cache, rollback-and-evict recovery.
+        """
+        self._batch.extend(records)
+        await self._flush_batch()
 
     def _to_access_log_model(self, parsed: ParsedAccessLog) -> AccessLog:
         """Convert ParsedAccessLog schema to ORM model."""
