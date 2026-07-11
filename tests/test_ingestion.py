@@ -8,6 +8,8 @@ from pathlib import Path
 import pytest
 from geoip2.database import Reader
 
+from geometrikks.domain.geo.models import GeoEvent, GeoLocation
+from geometrikks.domain.logs.models import AccessLog, AccessLogDebug
 from geometrikks.services.logparser.logparser import LogParser
 from geometrikks.services.logparser.schemas import ParsedLogRecord, ParsedGeoData, ParsedAccessLog
 from geometrikks.services.ingestion.service import IngestionRepos, LogIngestionService
@@ -27,7 +29,14 @@ def make_log_line(ip: str) -> str:
 
 
 class FakeSession:
-    def __init__(self) -> None:
+    """Models deferred-insert semantics: session.add() buffers, flush assigns
+    ids, commit routes objects to the per-model `added` lists, rollback
+    discards pending. Failure injection lives on FakeRepos (fail_next_commits,
+    fail_flush_calls) since real integrity errors surface at flush/commit."""
+
+    def __init__(self, repos: "FakeRepos") -> None:
+        self.repos = repos
+        self.pending: list[object] = []
         self.commits = 0
         self.rollbacks = 0
         self.flushes = 0
@@ -39,29 +48,40 @@ class FakeSession:
     async def __aexit__(self, *exc_info) -> None:
         self.closed = True
 
+    def add(self, obj) -> None:
+        self.pending.append(obj)
+
+    def _assign_ids(self) -> None:
+        for obj in self.pending:
+            if getattr(obj, "id", None) is None:
+                obj.id = FakeRepos.next_id()
+
     async def commit(self) -> None:
+        if self.repos.fail_next_commits:
+            self.repos.fail_next_commits -= 1
+            raise RuntimeError("simulated integrity error at commit")
         self.commits += 1
+        self._assign_ids()
+        for obj in self.pending:
+            self.repos.route(obj)
+        self.pending.clear()
 
     async def rollback(self) -> None:
         self.rollbacks += 1
+        self.pending.clear()
 
     async def flush(self) -> None:
         self.flushes += 1
+        self.repos.flush_calls += 1
+        if self.repos.flush_calls in self.repos.fail_flush_calls:
+            raise RuntimeError("simulated integrity error at flush")
+        self._assign_ids()
 
 
 class FakeRepo:
-    _next_id = 1
-
-    def __init__(self, session: FakeSession) -> None:
+    def __init__(self, session: FakeSession | None) -> None:
         self.session = session
-        self.added: list[object] = []
-
-    async def add(self, obj, auto_commit: bool = False):
-        if getattr(obj, "id", None) is None:
-            obj.id = FakeRepo._next_id
-            FakeRepo._next_id += 1
-        self.added.append(obj)
-        return obj
+        self.added: list[object] = []  # committed objects of this repo's model
 
 
 class FakeGeoLocationRepo(FakeRepo):
@@ -72,13 +92,33 @@ class FakeGeoLocationRepo(FakeRepo):
 class FakeRepos:
     """Stands in for IngestionRepos; shared `added` lists survive across flush sessions."""
 
+    _id_counter = 0
+
     def __init__(self) -> None:
         self.sessions: list[FakeSession] = []
-        session_placeholder = FakeSession()
-        self.geo_location = FakeGeoLocationRepo(session_placeholder)
-        self.geo_event = FakeRepo(session_placeholder)
-        self.access_log = FakeRepo(session_placeholder)
-        self.access_log_debug = FakeRepo(session_placeholder)
+        self.geo_location = FakeGeoLocationRepo(None)
+        self.geo_event = FakeRepo(None)
+        self.access_log = FakeRepo(None)
+        self.access_log_debug = FakeRepo(None)
+        # failure injection: consumed by FakeSession
+        self.fail_next_commits = 0
+        self.fail_flush_calls: set[int] = set()  # 1-based flush call numbers
+        self.flush_calls = 0
+
+    @classmethod
+    def next_id(cls) -> int:
+        cls._id_counter += 1
+        return cls._id_counter
+
+    def route(self, obj) -> None:
+        if isinstance(obj, GeoLocation):
+            self.geo_location.added.append(obj)
+        elif isinstance(obj, GeoEvent):
+            self.geo_event.added.append(obj)
+        elif isinstance(obj, AccessLog):
+            self.access_log.added.append(obj)
+        elif isinstance(obj, AccessLogDebug):
+            self.access_log_debug.added.append(obj)
 
     def factory(self, session: FakeSession) -> "FakeRepos":
         self.sessions.append(session)
@@ -92,7 +132,7 @@ def make_service(parsers: list[LogParser], **overrides) -> tuple[LogIngestionSer
     sessions: list[FakeSession] = []
 
     def session_maker() -> FakeSession:
-        session = FakeSession()
+        session = FakeSession(repos)
         sessions.append(session)
         return session
 
@@ -267,8 +307,10 @@ async def test_start_twice_spawns_no_duplicate_tasks(tmp_path: Path) -> None:
 
 @pytest.mark.asyncio
 async def test_poison_record_evicts_uncommitted_location_from_cache(tmp_path: Path) -> None:
-    """A failed flush evicts locations cached during that flush, so the next
-    occurrence of the same geohash re-creates the row instead of poison-looping."""
+    """A failed batch commit evicts locations cached during that flush, so the
+    next occurrence of the same geohash re-creates the row instead of
+    poison-looping. (Inserts are deferred, so an FK/integrity error surfaces
+    at commit.)"""
     log_file = tmp_path / "a.log"
     log_file.write_text("", encoding="utf-8")
 
@@ -276,17 +318,8 @@ async def test_poison_record_evicts_uncommitted_location_from_cache(tmp_path: Pa
         [make_parser(log_file)], batch_size=1, commit_interval=60.0
     )
 
-    # First geo-event add fails (simulates FK/integrity error); later ones succeed
-    original_add = repos.geo_event.add
-    fail_once = {"armed": True}
-
-    async def flaky_add(obj, auto_commit: bool = False):
-        if fail_once["armed"]:
-            fail_once["armed"] = False
-            raise RuntimeError("simulated integrity error")
-        return await original_add(obj, auto_commit=auto_commit)
-
-    repos.geo_event.add = flaky_add
+    # First batch commit fails (simulates FK/integrity error); later ones succeed
+    repos.fail_next_commits = 1
 
     await service.start(skip_validation=True)
     await asyncio.sleep(0.1)
@@ -306,8 +339,8 @@ async def test_poison_record_evicts_uncommitted_location_from_cache(tmp_path: Pa
     finally:
         await service.stop(timeout=5.0)
 
-    # location was inserted twice (first attempt rolled back), event exactly once
-    assert len(repos.geo_location.added) == 2
+    # only the second attempt committed (first location+event were rolled back)
+    assert len(repos.geo_location.added) == 1
 
 
 @pytest.mark.asyncio
@@ -316,10 +349,10 @@ async def test_rollback_evicts_all_uncommitted_geohashes_in_batch(tmp_path: Path
     evict ALL uncommitted locations cached during that flush - not just its own.
 
     Record A (processed first) creates+caches a new location (uncommitted).
-    Record B (same batch, same geohash) reuses the cached id but then fails
-    while adding its GeoEvent. The per-record rollback must also evict A's
-    entry, or the next occurrence of the same geohash poison-loops on a
-    location id that never made it to the database.
+    Record B (same batch, different geohash) fails while flushing its own new
+    location. The per-record rollback must also evict A's entry, or the next
+    occurrence of A's geohash poison-loops on a location id that never made it
+    to the database.
     """
     log_file = tmp_path / "a.log"
     log_file.write_text("", encoding="utf-8")
@@ -328,27 +361,18 @@ async def test_rollback_evicts_all_uncommitted_geohashes_in_batch(tmp_path: Path
         [make_parser(log_file)], batch_size=2, commit_interval=60.0
     )
 
-    # First geo_event.add call (record A) succeeds; second call (record B)
-    # fails once; every call after that succeeds again.
-    original_add = repos.geo_event.add
-    call_count = {"n": 0}
-
-    async def flaky_add(obj, auto_commit: bool = False):
-        call_count["n"] += 1
-        if call_count["n"] == 2:
-            raise RuntimeError("simulated integrity error")
-        return await original_add(obj, auto_commit=auto_commit)
-
-    repos.geo_event.add = flaky_add
+    # Location flushes: record A's succeeds (call 1), record B's fails
+    # (call 2), the recovered record's succeeds again (call 3).
+    repos.fail_flush_calls = {2}
 
     await service.start(skip_validation=True)
     await asyncio.sleep(0.1)
     try:
-        # Both lines share the same IP -> same geohash, and both are appended
+        # Two different IPs -> two new geohashes, and both lines are appended
         # before batch_size(2) can be reached, so they land in ONE flush.
         with open(log_file, "a", encoding="utf-8") as fh:
             fh.write(make_log_line(TEST_DB_IPS[0]) + "\n")
-            fh.write(make_log_line(TEST_DB_IPS[0]) + "\n")
+            fh.write(make_log_line(TEST_DB_IPS[1]) + "\n")
         await wait_until(lambda: any(s.rollbacks for s in sessions))
 
         # record A's cached-but-uncommitted location must be evicted too,
@@ -356,7 +380,7 @@ async def test_rollback_evicts_all_uncommitted_geohashes_in_batch(tmp_path: Path
         assert service._location_cache == {}
         assert service._uncommitted_geohashes == set()
 
-        # a fresh occurrence of the same IP: location is re-created and the
+        # a fresh occurrence of A's IP: location is re-created and the
         # event lands, proving no poison loop from a leftover cache entry.
         with open(log_file, "a", encoding="utf-8") as fh:
             fh.write(make_log_line(TEST_DB_IPS[0]) + "\n")
@@ -365,10 +389,10 @@ async def test_rollback_evicts_all_uncommitted_geohashes_in_batch(tmp_path: Path
         await service.stop(timeout=5.0)
 
     assert sum(s.rollbacks for s in sessions) == 1
-    # record A's event + the recovered record's event (B's event never landed)
-    assert len(repos.geo_event.added) == 2
-    # first insert (record A) + re-created insert after eviction
-    assert len(repos.geo_location.added) == 2
+    # only the recovered record committed: A's event was discarded by the
+    # rollback (deferred inserts), B's never landed at all
+    assert len(repos.geo_event.added) == 1
+    assert len(repos.geo_location.added) == 1
 
 
 @pytest.mark.asyncio
