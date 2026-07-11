@@ -21,6 +21,10 @@ from geometrikks.domain.analytics.dtos import (
     PercentChange,
     CumulativeDataPoint,
     CumulativeTimeSeriesResponse,
+    TopUrlDTO,
+    TopUrlsResponse,
+    TopUserAgentDTO,
+    TopUserAgentsResponse,
 )
 from geometrikks.domain.analytics.repositories import get_stats_granularity
 
@@ -370,5 +374,67 @@ class AnalyticsController(Controller):
             start_date=start_date.isoformat(),
             end_date=end_date.isoformat(),
             data=data_points,
+        )
+
+    @get("/top-urls", description="Top URLs by hits from raw access logs (time-bounded).")
+    async def get_top_urls(
+        self,
+        live_stats_repo: NamedDependency[LiveStatsRepository],
+        start_date: Annotated[
+            datetime,
+            Parameter(
+                description="Start date (ISO 8601, e.g., 2024-01-01T00:00:00Z)",
+                examples=[Example(value="2024-01-01T00:00:00Z")],
+            ),
+        ],
+        end_date: Annotated[
+            datetime,
+            Parameter(
+                description="End date (ISO 8601, e.g., 2024-12-31T23:59:59Z)",
+                examples=[Example(value="2024-12-31T23:59:59Z")],
+            ),
+        ],
+        limit: Annotated[
+            int,
+            Parameter(description="Maximum number of URLs to return", ge=1, le=100),
+        ] = 25,
+    ) -> TopUrlsResponse:
+        """Get the top URLs by hit count for a date range."""
+        rows = await live_stats_repo.get_top_urls(start_date, end_date, limit=limit)
+        return TopUrlsResponse(
+            start_date=start_date.isoformat(),
+            end_date=end_date.isoformat(),
+            items=[TopUrlDTO(**vars(r)) for r in rows],
+        )
+
+    @get("/top-user-agents", description="Top user agents by hits from raw access logs.")
+    async def get_top_user_agents(
+        self,
+        live_stats_repo: NamedDependency[LiveStatsRepository],
+        start_date: Annotated[
+            datetime,
+            Parameter(
+                description="Start date (ISO 8601, e.g., 2024-01-01T00:00:00Z)",
+                examples=[Example(value="2024-01-01T00:00:00Z")],
+            ),
+        ],
+        end_date: Annotated[
+            datetime,
+            Parameter(
+                description="End date (ISO 8601, e.g., 2024-12-31T23:59:59Z)",
+                examples=[Example(value="2024-12-31T23:59:59Z")],
+            ),
+        ],
+        limit: Annotated[
+            int,
+            Parameter(description="Maximum number of user agents to return", ge=1, le=100),
+        ] = 25,
+    ) -> TopUserAgentsResponse:
+        """Get the top user agents by hit count for a date range."""
+        rows = await live_stats_repo.get_top_user_agents(start_date, end_date, limit=limit)
+        return TopUserAgentsResponse(
+            start_date=start_date.isoformat(),
+            end_date=end_date.isoformat(),
+            items=[TopUserAgentDTO(**vars(r)) for r in rows],
         )
 

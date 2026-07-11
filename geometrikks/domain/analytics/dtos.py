@@ -184,3 +184,40 @@ class CumulativeTimeSeriesResponse:
     start_date: str
     end_date: str
     data: list[CumulativeDataPoint] = field(default_factory=list)
+
+
+@dataclass
+class TopUrlDTO:
+    """A single URL with its aggregate hit metrics."""
+
+    url: str
+    hits: int
+    error_hits: int
+    total_bytes: int
+    avg_request_time: float
+
+
+@dataclass
+class TopUrlsResponse:
+    """Response containing top URLs by hit count."""
+
+    start_date: str
+    end_date: str
+    items: list[TopUrlDTO] = field(default_factory=list)
+
+
+@dataclass
+class TopUserAgentDTO:
+    """A single user agent with its hit count."""
+
+    user_agent: str
+    hits: int
+
+
+@dataclass
+class TopUserAgentsResponse:
+    """Response containing top user agents by hit count."""
+
+    start_date: str
+    end_date: str
+    items: list[TopUserAgentDTO] = field(default_factory=list)

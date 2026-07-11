@@ -579,6 +579,25 @@ class SummaryStatsRepository:
         return [dict(row._mapping) for row in result.fetchall()]
 
 
+@dataclass
+class TopUrlRow:
+    """A top-URL aggregate row from raw access_logs."""
+
+    url: str
+    hits: int
+    error_hits: int
+    total_bytes: int
+    avg_request_time: float
+
+
+@dataclass
+class TopUserAgentRow:
+    """A top-user-agent aggregate row from raw access_logs."""
+
+    user_agent: str
+    hits: int
+
+
 class LiveStatsRepository:
     """Repository for querying live statistics directly from raw hypertables.
 
@@ -690,3 +709,51 @@ class LiveStatsRepository:
             unique_cities=geo_row.unique_cities if geo_row else 0,
             malformed_requests=malformed_row.malformed_requests if malformed_row else 0,
         )
+
+    async def get_top_urls(
+        self, start: datetime, end: datetime, limit: int = 25
+    ) -> list[TopUrlRow]:
+        """Top URLs by hit count from raw access_logs (time-bounded).
+
+        Raw-table scan by design: no CAGG exists for URL cardinality yet
+        (future optimization; fine at homelab volume with chunk exclusion).
+        """
+        stmt = text("""
+            SELECT
+                url,
+                CAST(COUNT(*) AS BIGINT) AS hits,
+                CAST(COUNT(*) FILTER (WHERE status_code >= 400) AS BIGINT) AS error_hits,
+                CAST(COALESCE(SUM(bytes_sent), 0) AS BIGINT) AS total_bytes,
+                COALESCE(AVG(request_time), 0) AS avg_request_time
+            FROM access_logs
+            WHERE timestamp >= :start AND timestamp < :end AND url IS NOT NULL
+            GROUP BY url
+            ORDER BY hits DESC
+            LIMIT :limit
+        """)
+        result = await self.session.execute(stmt, {"start": start, "end": end, "limit": limit})
+        return [
+            TopUrlRow(
+                url=row.url,
+                hits=row.hits,
+                error_hits=row.error_hits,
+                total_bytes=row.total_bytes,
+                avg_request_time=float(row.avg_request_time),
+            )
+            for row in result.fetchall()
+        ]
+
+    async def get_top_user_agents(
+        self, start: datetime, end: datetime, limit: int = 25
+    ) -> list[TopUserAgentRow]:
+        """Top user agents by hit count from raw access_logs (time-bounded)."""
+        stmt = text("""
+            SELECT user_agent, CAST(COUNT(*) AS BIGINT) AS hits
+            FROM access_logs
+            WHERE timestamp >= :start AND timestamp < :end AND user_agent IS NOT NULL
+            GROUP BY user_agent
+            ORDER BY hits DESC
+            LIMIT :limit
+        """)
+        result = await self.session.execute(stmt, {"start": start, "end": end, "limit": limit})
+        return [TopUserAgentRow(user_agent=row.user_agent, hits=row.hits) for row in result.fetchall()]
