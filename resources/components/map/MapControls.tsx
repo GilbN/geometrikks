@@ -11,7 +11,7 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { Flame, MapPin, Maximize2, Loader2, SlidersHorizontal, X } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { LayerType } from "./GeoMap"
-import { GEOJSONFeatureStats, TopIPDTO, formatNumber } from "@/lib/api"
+import { GeoJSONFeatureStats, TopIPDTO, formatNumber } from "@/lib/api"
 
 
 interface MapControlsProps {
@@ -19,7 +19,7 @@ interface MapControlsProps {
   onLayerChange: (layer: LayerType) => void
   onFitBounds: () => void
   isLoading?: boolean
-  featureStats: GEOJSONFeatureStats
+  featureStats: GeoJSONFeatureStats
   topIPs: TopIPDTO[]
   onFlyToLocation?: (lat: number, lng: number) => void
 }

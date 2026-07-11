@@ -389,7 +389,7 @@ export default function GeoMap() {
             key={`geo-data-${geojson.stats.events}-${geojson.features.length}`}
             id="geo-data"
             type="geojson"
-            data={geojson}
+            data={geojson as unknown as GeoJSON.FeatureCollection}
             cluster={activeLayer === "markers"}
             clusterMaxZoom={14}
             clusterRadius={50}
