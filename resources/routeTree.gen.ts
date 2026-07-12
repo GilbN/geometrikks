@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as MapRouteImport } from './routes/map'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as AnalyticsRouteImport } from './routes/analytics'
+import { Route as AccessLogsRouteImport } from './routes/access-logs'
 import { Route as IndexRouteImport } from './routes/index'
 
 const MapRoute = MapRouteImport.update({
@@ -29,6 +30,11 @@ const AnalyticsRoute = AnalyticsRouteImport.update({
   path: '/analytics',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AccessLogsRoute = AccessLogsRouteImport.update({
+  id: '/access-logs',
+  path: '/access-logs',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -37,12 +43,14 @@ const IndexRoute = IndexRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/access-logs': typeof AccessLogsRoute
   '/analytics': typeof AnalyticsRoute
   '/login': typeof LoginRoute
   '/map': typeof MapRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/access-logs': typeof AccessLogsRoute
   '/analytics': typeof AnalyticsRoute
   '/login': typeof LoginRoute
   '/map': typeof MapRoute
@@ -50,20 +58,22 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/access-logs': typeof AccessLogsRoute
   '/analytics': typeof AnalyticsRoute
   '/login': typeof LoginRoute
   '/map': typeof MapRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/analytics' | '/login' | '/map'
+  fullPaths: '/' | '/access-logs' | '/analytics' | '/login' | '/map'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/analytics' | '/login' | '/map'
-  id: '__root__' | '/' | '/analytics' | '/login' | '/map'
+  to: '/' | '/access-logs' | '/analytics' | '/login' | '/map'
+  id: '__root__' | '/' | '/access-logs' | '/analytics' | '/login' | '/map'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AccessLogsRoute: typeof AccessLogsRoute
   AnalyticsRoute: typeof AnalyticsRoute
   LoginRoute: typeof LoginRoute
   MapRoute: typeof MapRoute
@@ -92,6 +102,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AnalyticsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/access-logs': {
+      id: '/access-logs'
+      path: '/access-logs'
+      fullPath: '/access-logs'
+      preLoaderRoute: typeof AccessLogsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -104,6 +121,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AccessLogsRoute: AccessLogsRoute,
   AnalyticsRoute: AnalyticsRoute,
   LoginRoute: LoginRoute,
   MapRoute: MapRoute,

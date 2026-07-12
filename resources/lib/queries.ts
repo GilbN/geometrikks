@@ -15,12 +15,14 @@ import {
   fetchTopUrls,
   fetchTopUserAgents,
   fetchCumulativeTimeSeries,
+  fetchAccessLogs,
   parseTimeRange,
   type SummaryParams,
   type GlobalTopIPsResponse,
   type LocationTopIPsResponse,
   type TopCountriesResponse,
   type CumulativeTimeSeriesResponse,
+  type AccessLogsPage,
 } from "./api"
 import { useTimeRange } from "./time-range-context"
 
@@ -56,6 +58,11 @@ export const queryKeys = {
       [...queryKeys.geo.all, "location-top-ips", locationId, params, refreshKey] as const,
     topCountries: (params: Record<string, unknown>, refreshKey?: number) =>
       [...queryKeys.geo.all, "top-countries", params, refreshKey] as const,
+  },
+  accessLogs: {
+    all: ["access-logs"] as const,
+    list: (params: Record<string, unknown>, refreshKey?: number) =>
+      [...queryKeys.accessLogs.all, "list", params, refreshKey] as const,
   },
 }
 
@@ -382,6 +389,42 @@ export function useTopUserAgents(options: UseTopListOptions = {}) {
     },
     enabled,
     staleTime: 60 * 1000,
+    refetchInterval: pollInterval || false,
+  })
+}
+
+// ============================================================================
+// Access logs
+// ============================================================================
+
+export interface UseAccessLogsOptions {
+  currentPage?: number
+  pageSize?: number
+  enabled?: boolean
+}
+
+/**
+ * Fetch a page of historical access logs within the global time range.
+ * Server-side pagination; keeps the previous page visible while the next loads.
+ */
+export function useAccessLogs(options: UseAccessLogsOptions = {}) {
+  const { currentPage = 1, pageSize = 50, enabled = true } = options
+  const { range, pollInterval, lastRefresh } = useTimeRange()
+
+  return useQuery<AccessLogsPage>({
+    queryKey: queryKeys.accessLogs.list({ range, currentPage, pageSize }, lastRefresh),
+    queryFn: () => {
+      const { startDate, endDate } = parseTimeRange(range, Date.now())
+      return fetchAccessLogs({
+        fromTimestamp: startDate,
+        toTimestamp: endDate,
+        currentPage,
+        pageSize,
+      })
+    },
+    enabled,
+    placeholderData: (prev) => prev, // v5 keepPreviousData: no blank flash while paging
+    staleTime: 15 * 1000,
     refetchInterval: pollInterval || false,
   })
 }
