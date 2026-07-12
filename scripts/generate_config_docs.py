@@ -91,7 +91,7 @@ def build() -> str:
 def main() -> int:
     content = build()
     if "--check" in sys.argv:
-        if not OUTPUT.exists() or OUTPUT.read_text() != content:
+        if not OUTPUT.exists() or OUTPUT.read_text(encoding="utf-8") != content:
             print(f"{OUTPUT} is stale — run scripts/generate_config_docs.py", file=sys.stderr)
             return 1
         return 0
