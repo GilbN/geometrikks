@@ -23,13 +23,15 @@ if TYPE_CHECKING:
     from geometrikks.config.settings import Settings
 
 # Paths that never require a session:
-# - "^/(?!api/|ws/)" — everything that is not under /api/ or /ws/ (the SPA
-#   shell, its assets, /health, /schema, /favicon...). The SPA must load
-#   unauthenticated so it can render the login page; /ws/ is *excluded from the
-#   exclusion* so the live-feed handshake is authenticated like an API request.
+# - "^/(?!api(/|$)|ws(/|$))" — everything that is not /api, /ws, or under them
+#   (the SPA shell, its assets, /health, /schema, /favicon...). The SPA must
+#   load unauthenticated so it can render the login page; /ws is *excluded from
+#   the exclusion* so the live-feed handshake is authenticated like an API
+#   request. The (/|$) boundary keeps bare "/ws" and "/api" authenticated too,
+#   not just their slash-suffixed children.
 # - the login endpoint itself.
 AUTH_EXCLUDE_PATTERNS: list[str] = [
-    "^/(?!api/|ws/)",
+    "^/(?!api(/|$)|ws(/|$))",
     "^/api/v1/auth/login$",
 ]
 

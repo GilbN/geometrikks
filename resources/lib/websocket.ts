@@ -70,7 +70,16 @@ export class LiveFeedClient {
       this.setStatus("connected")
     }
     this.ws.onmessage = (msg) => {
-      const frame = JSON.parse(msg.data) as BatchFrame
+      // The server only ever sends JSON text frames; ignore anything else
+      // (a Blob/ArrayBuffer or malformed payload) rather than throwing and
+      // tearing down live updates.
+      if (typeof msg.data !== "string") return
+      let frame: BatchFrame
+      try {
+        frame = JSON.parse(msg.data) as BatchFrame
+      } catch {
+        return
+      }
       if (frame.type === "batch") {
         this.eventsListeners.forEach((cb) => cb(frame.events, frame.dropped))
       }

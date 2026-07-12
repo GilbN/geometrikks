@@ -8,7 +8,6 @@ from litestar import Controller, get
 from litestar.di import NamedDependency, Provide
 from litestar.pagination import OffsetPagination
 from litestar.params import QueryParameter
-from litestar.status_codes import HTTP_201_CREATED, HTTP_204_NO_CONTENT
 from advanced_alchemy.extensions.litestar import filters
 
 from geometrikks.domain.logs.models import AccessLog
