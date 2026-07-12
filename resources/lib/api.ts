@@ -372,6 +372,56 @@ export async function fetchCumulativeTimeSeries(params: TimeSeriesParams): Promi
 }
 
 // ============================================================================
+// Types & Functions - Access Logs API
+// ============================================================================
+
+export interface AccessLog {
+  id: number
+  timestamp: string
+  ipAddress: string
+  remoteUser: string | null
+  method: string | null
+  url: string | null
+  httpVersion: string | null
+  statusCode: number
+  bytesSent: number
+  referrer: string | null
+  userAgent: string | null
+  requestTime: number
+  upstreamResponseTime: number | null
+  host: string | null
+  countryCode: string | null
+  countryName: string | null
+  city: string | null
+}
+
+export interface AccessLogsPage {
+  items: AccessLog[]
+  total: number
+  limit: number
+  offset: number
+}
+
+export interface AccessLogsParams {
+  fromTimestamp: string
+  toTimestamp: string
+  currentPage?: number
+  pageSize?: number
+}
+
+export async function fetchAccessLogs(params: AccessLogsParams): Promise<AccessLogsPage> {
+  const { data } = await api.get<AccessLogsPage>("/access-logs/", {
+    params: {
+      from_timestamp: params.fromTimestamp,
+      to_timestamp: params.toTimestamp,
+      currentPage: params.currentPage ?? 1,
+      pageSize: params.pageSize ?? 50,
+    },
+  })
+  return data
+}
+
+// ============================================================================
 // Utility Functions
 // ============================================================================
 

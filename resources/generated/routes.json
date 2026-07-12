@@ -1,13 +1,6 @@
 {
   "litestar_version": "Version(major=2, minor=24, patch=0, release_level='final', serial=0)",
   "routes": {
-    "disabled_vite_hmr_http": {
-      "method": "get",
-      "methods": [
-        "GET"
-      ],
-      "uri": "/static/vite-hmr"
-    },
     "get_cumulative_time_series": {
       "method": "get",
       "methods": [
@@ -176,7 +169,9 @@
       ],
       "queryParameters": {
         "currentPage": "number | undefined",
-        "pageSize": "number | undefined"
+        "from_timestamp": "DateTime | undefined",
+        "pageSize": "number | undefined",
+        "to_timestamp": "DateTime | undefined"
       },
       "uri": "/api/v1/access-logs"
     },

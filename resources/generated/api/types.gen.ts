@@ -454,6 +454,8 @@ export type ApiV1AccessLogsListAccessLogsData = {
   query?: {
     currentPage?: number;
     pageSize?: number;
+    from_timestamp?: string | null;
+    to_timestamp?: string | null;
   };
   url: "/api/v1/access-logs";
 };

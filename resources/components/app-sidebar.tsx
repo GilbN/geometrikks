@@ -34,6 +34,7 @@ import {
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { fetchHealth, fetchMe, logout } from "@/lib/api"
+import { useLiveFeedStatus } from "@/lib/live-feed-context"
 
 const navigationItems = [
   {
@@ -260,6 +261,49 @@ function LiveIndicator({ collapsed }: { collapsed: boolean }) {
   )
 }
 
+function LiveFeedIndicator({ collapsed }: { collapsed: boolean }) {
+  // WebSocket live-feed status — distinct from the ingestion-health dot above.
+  // Lazy-connect: reads "Live feed off" until a consumer (map pulses or the
+  // access-logs live tail) subscribes to the shared connection.
+  const status = useLiveFeedStatus()
+  const color =
+    status === "connected"
+      ? "bg-emerald-400"
+      : status === "connecting"
+        ? "bg-amber-400 animate-pulse"
+        : "bg-sidebar-foreground/30"
+  const label =
+    status === "connected" ? "Live feed" : status === "connecting" ? "Connecting" : "Live feed off"
+  const tooltip =
+    status === "connected"
+      ? "Live event feed connected"
+      : status === "connecting"
+        ? "Connecting to live event feed"
+        : "Live feed idle (no active subscribers)"
+
+  if (collapsed) {
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <div className="flex items-center justify-center py-1 mx-2">
+            <span className={cn("inline-flex w-2 h-2 rounded-full", color)} />
+          </div>
+        </TooltipTrigger>
+        <TooltipContent side="right">
+          <span>{tooltip}</span>
+        </TooltipContent>
+      </Tooltip>
+    )
+  }
+
+  return (
+    <div className="flex items-center gap-2 px-3 py-1 mx-2 text-xs text-sidebar-foreground/60">
+      <span className={cn("inline-flex w-2 h-2 rounded-full", color)} />
+      <span className="font-medium">{label}</span>
+    </div>
+  )
+}
+
 function LogoutButton() {
   const { state, isMobile } = useSidebar()
   const collapsed = isMobile ? false : state === "collapsed"
@@ -375,8 +419,9 @@ export function AppSidebar() {
       <SidebarSeparator className="opacity-50" />
 
       <SidebarContent>
-        {/* Live status indicator */}
+        {/* Live status indicators: ingestion health + websocket live feed */}
         <LiveIndicator collapsed={collapsed} />
+        <LiveFeedIndicator collapsed={collapsed} />
 
         <SidebarGroup className="mt-2">
           <SidebarGroupLabel

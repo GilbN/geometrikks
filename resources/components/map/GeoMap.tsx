@@ -17,6 +17,7 @@ import "maplibre-gl/dist/maplibre-gl.css"
 import { useGeoJSON, useGlobalTopIPs } from "@/lib/queries"
 import { useMapStyle } from "./hooks/useMapStyle"
 import { MapControls } from "./MapControls"
+import { LivePulses } from "./LivePulses"
 import { MapLegend } from "./MapLegend"
 import { MapPopup, type PopupInfo } from "./MapPopup"
 import { Card, CardContent } from "@/components/ui/card"
@@ -260,6 +261,7 @@ export default function GeoMap() {
 
   const [viewState, setViewState] = useState(INITIAL_VIEW_STATE)
   const [activeLayer, setActiveLayer] = useState<LayerType>("markers")
+  const [liveMode, setLiveMode] = useState(false)
   const [popup, setPopup] = useState<PopupInfo | null>(null)
 
   // Filter options come from the last UNFILTERED result (a second query just
@@ -445,6 +447,9 @@ export default function GeoMap() {
           </Source>
         )}
 
+        {/* Live geo-event pulses */}
+        <LivePulses enabled={liveMode} />
+
         {/* Popup */}
         {popup && activeLayer === "markers" && (
           <MapPopup
@@ -460,6 +465,8 @@ export default function GeoMap() {
       <MapControls
         activeLayer={activeLayer}
         onLayerChange={setActiveLayer}
+        liveMode={liveMode}
+        onLiveModeChange={setLiveMode}
         onFitBounds={fitToBounds}
         isLoading={isLoading}
         featureStats={geojson?.stats ?? { events: 0, countries: 0, cities: 0, locations: 0 }}

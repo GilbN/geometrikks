@@ -20,7 +20,7 @@ import {
   useComboboxAnchor,
 } from "@/components/ui/combobox"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
-import { Flame, MapPin, Maximize2, Loader2, SlidersHorizontal, X } from "lucide-react"
+import { Flame, MapPin, Maximize2, Loader2, SlidersHorizontal, X, Radio } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { LayerType } from "./GeoMap"
 import { GeoJSONFeatureStats, TopIPDTO, formatNumber } from "@/lib/api"
@@ -29,6 +29,8 @@ import { GeoJSONFeatureStats, TopIPDTO, formatNumber } from "@/lib/api"
 interface MapControlsProps {
   activeLayer: LayerType
   onLayerChange: (layer: LayerType) => void
+  liveMode: boolean
+  onLiveModeChange: (enabled: boolean) => void
   onFitBounds: () => void
   isLoading?: boolean
   featureStats: GeoJSONFeatureStats
@@ -95,6 +97,8 @@ function FilterCombobox({
 export function MapControls({
   activeLayer,
   onLayerChange,
+  liveMode,
+  onLiveModeChange,
   onFitBounds,
   isLoading = false,
   featureStats,
@@ -178,6 +182,19 @@ export function MapControls({
             <span className="text-sm font-medium">Markers</span>
           </ToggleGroupItem>
         </ToggleGroup>
+        {/* Live geo-event pulses toggle (independent of the layer choice) */}
+        <Button
+          variant="outline"
+          onClick={() => onLiveModeChange(!liveMode)}
+          aria-pressed={liveMode}
+          className={cn(
+            "mt-1 cursor-pointer w-full justify-start gap-2 px-3",
+            liveMode && "bg-geo-cyan/15 text-geo-cyan border-geo-cyan/30"
+          )}
+        >
+          <Radio className={cn("h-4 w-4", liveMode && "animate-pulse")} />
+          <span className="text-sm font-medium">Live</span>
+        </Button>
       </Card>
 
       {/* Country / city filters */}

@@ -20,6 +20,7 @@ import { Separator } from "@/components/ui/separator"
 import { AppSidebar } from "@/components/app-sidebar"
 import { ModeToggle } from "@/components/mode-toggle"
 import { TimeRangeProvider } from "@/lib/time-range-context"
+import { LiveFeedProvider } from "@/lib/live-feed-context"
 import { TimeRangeToolbar } from "@/components/time-range-toolbar"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -91,6 +92,7 @@ function RootLayout() {
     <ThemeProvider defaultTheme="dark" storageKey="geometrikks-theme">
       <TooltipProvider delayDuration={0}>
         <TimeRangeProvider>
+          <LiveFeedProvider>
           <SidebarProvider defaultOpen={true}>
             <AppSidebar />
             <SidebarInset className="bg-background">
@@ -114,6 +116,7 @@ function RootLayout() {
               </main>
             </SidebarInset>
           </SidebarProvider>
+          </LiveFeedProvider>
         </TimeRangeProvider>
       </TooltipProvider>
     </ThemeProvider>
