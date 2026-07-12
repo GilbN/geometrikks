@@ -25,7 +25,6 @@ Data is visualized with GeoJSON on a world map and on a summary dashbord.
 - Basic auth
 - Analytics page with different charts / stats etc
 - More map filtering options (Country,City etc)
-- Real time log feeds (Geolocation / Access Logs)
 - Batch import of access log files
 - Caching
 
@@ -117,6 +116,23 @@ APP_AUTH_DISABLED=true  # only safe behind an authenticating proxy
 
 In this mode the `/api/v1/auth/*` endpoints are not registered (404) and the
 sidebar hides the logout button.
+
+## Live feed
+
+GeoMetrikks streams committed ingestion events to the browser over a
+session-authenticated `/ws/live` WebSocket, batching and coalescing them into
+a few frames per second so the UI stays responsive under bursty log traffic.
+Two views consume it: the map's "Live" toggle, which pulses incoming
+geo-events on top of the base layers, and the Live mode on the
+`/access-logs` page, which prepends new rows to a virtualized table (pause
+on hover). A connection status indicator in the sidebar shows live-feed
+health and reconnects automatically with exponential backoff if the
+connection drops.
+
+The WebSocket handshake is authenticated by the same session cookie as the
+REST API, so it's guarded identically — anonymous connections are rejected
+unless auth is disabled. With `APP_AUTH_DISABLED=true` the WebSocket is left
+open, just like the API, for reverse-proxy deployments.
 
 ## Sending Nginx log metrics with request and upstream response times
 

@@ -25,6 +25,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The generated `@hey-api/openapi-ts` client is now the typed transport for
   the new frontend fetchers; the drifted hand-written GeoJSON/time-series
   interfaces were removed in favor of generated types.
+- Authenticated `/ws/live` WebSocket streaming committed ingestion events
+  (geo-events + access-logs) to the browser as batched, coalesced JSON
+  frames (~6.7 frames/s, per-frame event cap, and a `dropped` counter on
+  burst overflow). The handshake is authenticated by the same session
+  cookie as the REST API, and stays open when `APP_AUTH_DISABLED=true`.
+- Live geo-event pulses on the map, behind a "Live" toggle in the map
+  controls.
+- Historical + live-tail access-log views at `/access-logs`: a time-scoped,
+  newest-first, paginated table (History mode) and a virtualized live-tail
+  (Live mode, prepend + pause-on-hover), switched by a History/Live toggle.
+- Live-feed connection status indicator in the sidebar, with auto-reconnect
+  and exponential backoff.
 
 ### Fixed
 
