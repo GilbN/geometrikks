@@ -9,7 +9,10 @@ from litestar.testing import TestClient
 
 from geometrikks.config.settings import Settings
 from geometrikks.api.v1.auth_controller import AuthController
+from geometrikks.api.v1.live_controller import live_feed
 from geometrikks.server.auth import build_auth_state, create_session_auth
+
+from tests.test_live_ws import FakeIngestion
 
 
 @get("/api/v1/protected")
@@ -26,10 +29,13 @@ def make_app(**settings_kwargs) -> Litestar:
     settings = Settings(admin_user="admin", admin_password="bestpasswordintheworldnojoke", **settings_kwargs)
     session_auth = create_session_auth(settings)
     app = Litestar(
-        route_handlers=[AuthController, protected, fake_health],
+        route_handlers=[AuthController, protected, fake_health, live_feed],
         on_app_init=[session_auth.on_app_init],
     )
     app.state.auth_state = build_auth_state(settings)
+    # A working ingestion service so the authenticated branch streams rather
+    # than taking the 1013-close (no-service) path.
+    app.state.ingestion_service = FakeIngestion()
     return app
 
 
@@ -69,6 +75,39 @@ def test_login_logout_flow():
 
         assert client.post("/api/v1/auth/logout").status_code == 204
         assert client.get("/api/v1/protected").status_code == 401
+
+
+def test_ws_live_rejected_without_session():
+    from litestar.exceptions import WebSocketDisconnect
+
+    with TestClient(app=make_app()) as client:
+        # The middleware's NotAuthorizedException closes the handshake
+        # (4000 + 401 = 4401), surfaced by the test client as a disconnect.
+        with pytest.raises(WebSocketDisconnect):
+            with client.websocket_connect("/ws/live") as ws:
+                ws.receive_json(timeout=2)
+
+
+def test_ws_live_streams_after_login():
+    with TestClient(app=make_app()) as client:
+        res = client.post(
+            "/api/v1/auth/login",
+            json={"username": "admin", "password": "bestpasswordintheworldnojoke"},
+        )
+        assert res.status_code == 200
+        # Same client -> the session cookie persists onto the WS handshake.
+        ingestion = client.app.state.ingestion_service
+        with client.websocket_connect("/ws/live") as ws:
+            ingestion.queue.put_nowait(_ws_record())
+            frame = ws.receive_json(timeout=5)
+        assert frame["type"] == "batch"
+        assert [e["type"] for e in frame["events"]] == ["geo_event", "access_log"]
+
+
+def _ws_record():
+    from tests.test_live_ws import make_record
+
+    return make_record()
 
 
 def test_create_app_requires_password_when_auth_enabled(monkeypatch):
