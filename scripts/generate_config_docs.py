@@ -9,6 +9,7 @@ Usage:
 """
 from __future__ import annotations
 
+import json
 import sys
 from pathlib import Path
 
@@ -50,7 +51,15 @@ def default_repr(name: str, field) -> str:
     if field.default_factory is not None:
         return "*(computed)*"
     default = field.default
-    return "—" if default is None else f"`{default}`"
+    if default is None:
+        return "—"
+    # These render as env-var values, so use env-native forms: lowercase
+    # booleans and JSON arrays/objects rather than Python repr.
+    if isinstance(default, bool):
+        return f"`{str(default).lower()}`"
+    if isinstance(default, (list, dict)):
+        return f"`{json.dumps(default)}`"
+    return f"`{default}`"
 
 
 def env_name(name: str, field, prefix: str) -> str:

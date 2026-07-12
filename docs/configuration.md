@@ -12,9 +12,9 @@ list most users need is in `.env.example`; everything below is available.
 | `APP_NAME` | `GeoMetrikks API` | Application name |
 | `APP_VERSION` | `0.1.0` | Application version |
 | `APP_DESCRIPTION` | `Real-time GeoIP lookups and traffic analytics API` | Application description |
-| `APP_DEBUG` | `False` | Enable debug mode |
+| `APP_DEBUG` | `false` | Enable debug mode |
 | `APP_ENVIRONMENT` | `production` | Application environment |
-| `APP_AUTH_DISABLED` | `False` | Disable the built-in session auth entirely. Set true only when an authenticating reverse proxy (Authelia, Tailscale, ...) fronts the app. |
+| `APP_AUTH_DISABLED` | `false` | Disable the built-in session auth entirely. Set true only when an authenticating reverse proxy (Authelia, Tailscale, ...) fronts the app. |
 | `APP_ADMIN_USER` | `admin` | Admin login username |
 | `APP_ADMIN_PASSWORD` | — | Admin login password (required unless auth_disabled=true) |
 
@@ -30,29 +30,29 @@ list most users need is in `.env.example`; everything below is available.
 
 | Variable | Default | Description |
 |---|---|---|
-| `DB_ECHO` | `False` | Enable SQLAlchemy query logging |
-| `DB_ECHO_POOL` | `False` | Enable SQLAlchemy pool logging |
+| `DB_ECHO` | `false` | Enable SQLAlchemy query logging |
+| `DB_ECHO_POOL` | `false` | Enable SQLAlchemy pool logging |
 | `DB_MAX_OVERFLOW` | `10` | Max connections above pool_size |
 | `DB_POOL_SIZE` | `5` | Database connection pool size |
 | `DB_POOL_TIMEOUT` | `30` | Connection pool timeout in seconds |
 | `DB_POOL_RECYCLE` | `3600` | Connection recycle time in seconds |
-| `DB_POOL_DISABLED` | `False` | Disable connection pooling |
-| `DB_POOL_PRE_PING` | `True` | Enable pool pre-ping to check connections |
+| `DB_POOL_DISABLED` | `false` | Disable connection pooling |
+| `DB_POOL_PRE_PING` | `true` | Enable pool pre-ping to check connections |
 | `DB_USER` | `geouser` | Database user |
 | `DB_PASSWORD` | — | Database password |
 | `DB_HOST` | `localhost` | Database host |
 | `DB_PORT` | `5432` | Database port |
 | `DB_DATABASE` | `geometrikks` | Database name |
-| `DB_DROP_ON_STARTUP` | `False` | Drop all tables on startup (development only) |
+| `DB_DROP_ON_STARTUP` | `false` | Drop all tables on startup (development only) |
 
 ## GeoIP
 
 | Variable | Default | Description |
 |---|---|---|
 | `GEOIP_DB_PATH` | `data/geoip/GeoLite2-City.mmdb` | Path to GeoIP2/GeoLite2 database file |
-| `GEOIP_LOCALES` | `['en']` | List of GeoIP locales to use |
-| `GEOIP_VALIDATE_DB_PATH` | `False` | Fail settings validation when the GeoIP database file is missing. Off by default: the auto-downloader/degraded-mode path owns the missing-file case (set true to fail fast instead). |
-| `GEOIP_VALIDATE_LOCALES` | `True` | Validate that the specified GeoIP locales are supported |
+| `GEOIP_LOCALES` | `["en"]` | List of GeoIP locales to use |
+| `GEOIP_VALIDATE_DB_PATH` | `false` | Fail settings validation when the GeoIP database file is missing. Off by default: the auto-downloader/degraded-mode path owns the missing-file case (set true to fail fast instead). |
+| `GEOIP_VALIDATE_LOCALES` | `true` | Validate that the specified GeoIP locales are supported |
 | `MAXMINDDB_USER_ID` | — | MaxMind account ID for GeoLite2 auto-download |
 | `MAXMINDDB_LICENSE_KEY` | — | MaxMind license key for GeoLite2 auto-download |
 | `GEOIP_REFRESH_DAYS` | `7` | Re-download the GeoLite2 database when older than this many days |
@@ -63,12 +63,12 @@ list most users need is in `.env.example`; everything below is available.
 |---|---|---|
 | `LOGPARSER_LOG_PATHS` | *(computed)* | Nginx access log files to tail. Env accepts a single path or a JSON list of paths. Default: /var/log/nginx/access.log |
 | `LOGPARSER_POLL_INTERVAL` | `1.0` | Interval in seconds to poll the log file for new entries |
-| `LOGPARSER_SEND_LOGS` | `True` | Send parsed logs to the database |
+| `LOGPARSER_SEND_LOGS` | `true` | Send parsed logs to the database |
 | `LOGPARSER_HOST_NAME` | *(computed)* | Host name for log parser (used in log entries) |
 | `LOGPARSER_BATCH_SIZE` | `100` | Max records before forced commit. |
 | `LOGPARSER_COMMIT_INTERVAL` | `5.0` | Maximum time interval in seconds between database commits. This will commit even if batch_size is not reached. |
-| `LOGPARSER_SKIP_VALIDATION` | `False` | Skip validation of log lines. |
-| `LOGPARSER_STORE_DEBUG_LINES` | `False` | Store all raw log lines in AccessLogDebug table. When False, only malformed requests are stored. |
+| `LOGPARSER_SKIP_VALIDATION` | `false` | Skip validation of log lines. |
+| `LOGPARSER_STORE_DEBUG_LINES` | `false` | Store all raw log lines in AccessLogDebug table. When False, only malformed requests are stored. |
 
 ## Analytics & retention
 
@@ -86,7 +86,7 @@ list most users need is in `.env.example`; everything below is available.
 
 | Variable | Default | Description |
 |---|---|---|
-| `SCHEDULER_ENABLED` | `True` | Enable scheduled background tasks |
+| `SCHEDULER_ENABLED` | `true` | Enable scheduled background tasks |
 | `SCHEDULER_DAILY_ROLLUP_HOUR` | `0` | Hour (UTC, 0-23) to run daily rollup |
 | `SCHEDULER_DAILY_ROLLUP_MINUTE` | `5` | Minute (0-59) to run daily rollup |
 | `SCHEDULER_LOCATION_REFRESH_INTERVAL_MINUTES` | `5` | Minutes between GeoLocation.last_hit refresh jobs |
@@ -95,12 +95,12 @@ list most users need is in `.env.example`; everything below is available.
 
 | Variable | Default | Description |
 |---|---|---|
-| `VITE_DEV_MODE` | `False` | Start vite development server. |
-| `VITE_USE_SERVER_LIFESPAN` | `True` | Auto start and stop vite processes when running in development mode. |
+| `VITE_DEV_MODE` | `false` | Start vite development server. |
+| `VITE_USE_SERVER_LIFESPAN` | `true` | Auto start and stop vite processes when running in development mode. |
 | `VITE_HOST` | `0.0.0.0` | The host the vite process will listen on. Defaults to 0.0.0.0. |
 | `VITE_PORT` | `5173` | The port to start vite on. Default is 5173. |
-| `VITE_HOT_RELOAD` | `True` | Start vite with HMR enabled. |
-| `VITE_ENABLE_REACT_HELPERS` | `True` | Enable React support in HMR. |
-| `VITE_HTTP2` | `True` | Enable HTTP/2 for the Vite development server. |
+| `VITE_HOT_RELOAD` | `true` | Start vite with HMR enabled. |
+| `VITE_ENABLE_REACT_HELPERS` | `true` | Enable React support in HMR. |
+| `VITE_HTTP2` | `true` | Enable HTTP/2 for the Vite development server. |
 | `VITE_EXECUTOR` | `bun` | JS runtime executor for litestar-vite (defaults to bun). |
 
