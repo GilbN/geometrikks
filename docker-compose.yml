@@ -24,7 +24,7 @@ services:
       retries: 5
 
   app:
-    image: ghcr.io/gilbn/geometrikks:0.1.0-alpha.1
+    image: ghcr.io/gilbn/geometrikks:latest
     restart: unless-stopped
     environment:
       DB_HOST: timescale_db
