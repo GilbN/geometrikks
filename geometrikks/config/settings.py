@@ -144,7 +144,10 @@ class LogParserSettings(BaseSettings):
     log_paths: Annotated[list[Path], NoDecode] = Field(
         default_factory=lambda: [Path("/var/log/nginx/access.log")],
         min_length=1,
-        description="Nginx access log files to tail. Env accepts a single path or a JSON list of paths.",
+        description=(
+            "Nginx access log files to tail. Env accepts a single path or a JSON "
+            "list of paths. Default: /var/log/nginx/access.log"
+        ),
     )
     poll_interval: float = Field(
         default=1.0,

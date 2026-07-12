@@ -20,12 +20,16 @@ def get_route_handlers(*, include_auth: bool = True) -> list[ControllerRouterHan
         include_auth: Register the login/logout/me endpoints. Disabled when
             APP_AUTH_DISABLED=true — without the session middleware those
             handlers would crash on ``app.state.auth_state`` / ``request.user``.
+
+    Debug-only endpoints (raw access_log_debug rows) register only when
+    APP_DEBUG=true — they expose raw log lines and have no UI surface.
     """
+    from geometrikks.config.settings import get_settings
+
     handlers: list[ControllerRouterHandler] = [
         GeoEventController,
         GeoLocationController,
         AccessLogController,
-        AccessLogDebugController,
         AnalyticsController,
         live_feed,
         read_settings,
@@ -33,6 +37,8 @@ def get_route_handlers(*, include_auth: bool = True) -> list[ControllerRouterHan
         health,
         health_ready,
     ]
+    if get_settings().debug:
+        handlers.append(AccessLogDebugController)
     if include_auth:
         handlers.append(AuthController)
     return handlers

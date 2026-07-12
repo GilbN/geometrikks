@@ -40,6 +40,8 @@ jobs:
           IT_DB_USER: geouser
           IT_DB_PASSWORD: geopass
         run: uv run pytest -v
+      - name: Config docs freshness
+        run: uv run python scripts/generate_config_docs.py --check
 
   frontend:
     runs-on: ubuntu-latest

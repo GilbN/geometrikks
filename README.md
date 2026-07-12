@@ -1,36 +1,43 @@
 # GeoMetrikks
 
-**Status:** ⚠️ This project is in development. Features and APIs will change.
+![Map](/data/screenshots/map.png)
 
-TLDR: GeoMetrikks is a real-time nginx access log ingestion and geo-location tracking service built with Litestar. It parses nginx access logs, performs GeoIP lookups, and stores geo-events and access logs in PostgreSQL with TimeScaleDB/PostGIS extensions.
+GeoMetrikks tails your nginx access logs, geolocates every request with
+MaxMind GeoLite2, and gives you a real-time GeoIP map plus a traffic
+analytics dashboard for your homelab — no external services, no
+subscriptions, just Docker and your existing nginx logs.
 
-Data is visualized with GeoJSON on a world map and on a summary dashbord.
+## Features
 
-## Backend
+**Live map** — every ingested request lands on a MapLibre world map within
+seconds; click a marker for the request, city, and ASN behind it.
 
-- Litestar
-- TimescaleDB / PostGIS
-- Maxmind DB GeoLite2
+![Map](/data/screenshots/map.png)
 
-## Frontend
+**Dashboard** — top-line traffic stats (requests, bytes, unique visitors,
+status mix) at a glance, with a configurable date/time range.
 
-- React
-- Vite
-- TanStack
-- MapLibre GL
-- Carto base maps DarkMatter GL / Positron GL
+![Dashboard](/data/screenshots/dashboard.png)
 
-### Planned features
+**Analytics** — request-volume, latency, and bytes-transferred charts, plus
+top-URLs, top-user-agents, and status-code breakdowns.
 
-- Basic auth
-- Analytics page with different charts / stats etc
-- More map filtering options (Country,City etc)
-- Batch import of access log files
-- Caching
+![Analytics](/data/screenshots/analytics.png)
 
-## Quickstart (Docker)
+**Live feed** — a WebSocket-backed live tail on the access-logs page (new
+rows prepend as they arrive, pause on hover) and a "Live" pulse overlay on
+the map, both authenticated by the same session cookie as the REST API.
 
-All you need is Docker. The app image is published to GHCR for amd64 and arm64.
+![Live tail](/data/screenshots/live-tail.png)
+
+**Batch import** — backfill rotated or archived logs (plain or `.gz`) with
+`litestar import-logs`, reusing the same parsing/GeoIP/DB pipeline as live
+tailing.
+
+## Quickstart
+
+All you need is Docker. The app image is published to GHCR for `amd64` and
+`arm64`.
 
 ```bash
 mkdir geometrikks && cd geometrikks
@@ -42,17 +49,182 @@ docker compose up -d
 
 Then open http://localhost:8000 and log in with `APP_ADMIN_USER` /
 `APP_ADMIN_PASSWORD`. The GeoLite2 database is downloaded automatically at
-startup when `MAXMINDDB_USER_ID` and `MAXMINDDB_LICENSE_KEY` are set
-([free MaxMind account](https://www.maxmind.com/en/geolite2/signup)) and
-refreshed weekly. Without credentials the app starts in geo-degraded mode
-(a banner in the UI explains what to do); after adding credentials, restart
-the app container.
+startup when `MAXMINDDB_USER_ID` and `MAXMINDDB_LICENSE_KEY` are set and
+refreshed weekly — see [MaxMind GeoLite2](#maxmind-geolite2) below. Without
+credentials the app starts in geo-degraded mode (a banner in the UI explains
+what to do); after adding credentials, restart the app container.
 
-See the [configuration reference](#configuration-reference) for every setting.
+`docker-compose.yml` mounts `${NGINX_LOG_DIR:-/var/log/nginx}` read-only into
+the container at `/var/log/nginx` and reads `LOGPARSER_LOG_PATHS` from
+`.env`. Point `NGINX_LOG_DIR` at wherever your nginx (or reverse proxy)
+writes its access logs.
+
+## Nginx setup
+
+GeoMetrikks parses a specific nginx `log_format`. Add it to the `http` block
+in your `nginx.conf`:
+
+```nginx
+log_format custom '$remote_addr - $remote_user [$time_local] '
+        '"$request" $status $body_bytes_sent '
+        '"$http_referer" $host "$http_user_agent" '
+        '"$request_time" "$upstream_response_time"';
+```
+
+Then use it on the access log you want GeoMetrikks to tail:
+
+```nginx
+access_log /config/log/nginx/access.log custom;
+```
+
+### Multiple log files
+
+`LOGPARSER_LOG_PATHS` accepts a single path or a JSON list, so nginx can log
+to more than one file and GeoMetrikks will tail all of them:
+
+```nginx
+access_log /config/log/nginx/somepage/access.log custom;
+access_log /config/log/nginx/access.log custom;
+```
+
+```bash
+LOGPARSER_LOG_PATHS=["/var/log/nginx/access.log", "/var/log/nginx/somepage/access.log"]
+```
+
+## MaxMind GeoLite2
+
+GeoIP lookups use MaxMind's free GeoLite2 City database. Sign up for a free
+account at [maxmind.com/en/geolite2/signup](https://www.maxmind.com/en/geolite2/signup)
+and generate a license key, then set:
+
+```bash
+MAXMINDDB_USER_ID=<your-account-id>
+MAXMINDDB_LICENSE_KEY=<your-license-key>
+```
+
+These are deliberately **not** prefixed `GEOIP_*` like the rest of the GeoIP
+settings — they map onto MaxMind's own account-ID/license-key naming via
+`validation_alias` in the settings model, matching the credentials shown on
+your MaxMind account page.
+
+On startup GeoMetrikks downloads the database automatically and refreshes it
+weekly (`GEOIP_REFRESH_DAYS`, default 7) — no manual `.mmdb` handling needed.
+Without credentials and without an existing database file, the app still
+starts, but ingestion doesn't run and the UI shows a geo-degraded banner
+until you add credentials and restart.
+
+You must accept MaxMind's GeoLite2 EULA to use the database — see the
+[MaxMind EULA](https://www.maxmind.com/en/geolite2/eula) for details.
+
+## Authentication
+
+GeoMetrikks ships with single-admin session-cookie authentication:
+
+```bash
+APP_ADMIN_USER=admin          # defaults to "admin"
+APP_ADMIN_PASSWORD=           # required — the app refuses to start without it
+```
+
+Log in through the web UI (`/login`) or `POST /api/v1/auth/login`. Everything
+under `/api/` requires a session; the SPA shell, `/health`, `/health/ready`,
+and `/schema` stay open. **Sessions are held in memory**, so restarting the
+app container logs everyone out — just log in again.
+
+If an authenticating reverse proxy (Authelia, Tailscale, ...) already sits in
+front of the app, you can disable the built-in auth entirely:
+
+```bash
+APP_AUTH_DISABLED=true  # only safe behind an authenticating reverse proxy
+```
+
+This is a reverse-proxy-only mode: with it set, `/api/v1/auth/*` is not
+registered (404s) and the WebSocket accepts anonymous connections, so only
+enable it when something else is already gating access to the app.
+
+## Importing history
+
+Live tailing only picks up lines written after the app starts. To backfill
+history — rotated or archived nginx logs, plain or gzip-compressed — use the
+`litestar import-logs` CLI command:
+
+```bash
+docker compose exec app litestar import-logs /var/log/nginx/access.log.1.gz
+```
+
+It reuses the live ingestion pipeline (same parsing, GeoIP lookup, and DB
+writes), uses the timestamps in each log line rather than wall-clock time,
+and refreshes the continuous aggregates for the imported range when done.
+Multiple files can be passed in one invocation; paths are **container**
+paths, and the container runs as the non-root `geometrikks` user (uid 1000),
+so host files must be readable by it.
+
+`exec` requires the `app` service to already be running. If the stack is
+stopped, use `run --rm` instead:
+
+```bash
+docker compose run --rm app litestar import-logs /var/log/nginx/access.log.1.gz
+```
+
+**Caveats**
+
+- Import archived (rotated) files only — importing a file that's also being
+  live-tailed **double-counts** its lines.
+- Each imported file is fingerprinted by content checksum; importing the same
+  content again (even under a different filename) is skipped. Pass `--force`
+  to re-import — this updates the bookkeeping row but does **not** delete
+  rows written by the earlier import.
+- A file that doesn't match the expected log format is rejected up front,
+  before anything is written.
+- Rows older than the raw retention window (`ANALYTICS_RAW_RETENTION_DAYS`,
+  default 180 days) are dropped by the TimescaleDB retention policy —
+  importing history beyond that window won't persist. Raise the retention
+  setting before importing older archives if you want to keep them.
+
+## Configuration
+
+`.env.example` covers the short list most installs need to touch (admin
+credentials, MaxMind key, log paths, DB password). For the full set of
+environment variables — every default, every setting — see
+[`docs/configuration.md`](docs/configuration.md).
+
+## FAQ
+
+**I'm using Nginx Proxy Manager (or another proxy-manager container) — what
+log path do I use?**
+Point `NGINX_LOG_DIR` at the host directory where the proxy container writes
+its access logs (for Nginx Proxy Manager this is typically its `data/logs`
+volume), and set `LOGPARSER_LOG_PATHS` to the specific access-log file(s)
+inside it, using the *container* path (`/var/log/nginx/...`), not the host
+path.
+
+**Permission denied reading my log files?**
+The app container runs as uid 1000, and log mounts are read-only. Make sure
+the log files (and their parent directory) are readable by uid 1000/its
+group on the host — `chmod`/`chown` or an ACL entry, whichever fits your
+setup. Read-only mounts are intentional: GeoMetrikks never needs to write to
+your nginx logs.
+
+**Does this run on arm64?**
+Yes — the published GHCR image is a multi-arch manifest for `linux/amd64`
+and `linux/arm64`.
+
+**The map is empty.**
+Check three things in order: (1) the geo-degraded banner — if it's showing,
+MaxMind credentials or the GeoLite2 database are missing; (2) that
+`LOGPARSER_LOG_PATHS` actually points at a file receiving traffic, matching
+the `log_format` above; (3) that some time has passed since you last
+restarted — the map only shows events ingested after startup unless you've
+run a batch import.
+
+**What does the "geo-degraded" banner mean?**
+It means the app started without a usable GeoLite2 database — either
+`MAXMINDDB_USER_ID`/`MAXMINDDB_LICENSE_KEY` aren't set, or the download
+hasn't completed yet. The API and UI stay up, but log ingestion doesn't
+start until a database is available. Add credentials and restart the app
+container to clear it; the sidebar's connection indicator also shows
+"Degraded" while ingestion is stopped.
 
 ## Development
-
-#### Install deps
 
 ```bash
 pip install uv
@@ -61,22 +233,25 @@ uv sync --all-extras --dev
 bun install
 ```
 
-#### Run dev server
+Run the dev database, then the app:
 
 ```bash
 docker compose -f docker-compose.dev.yml up -d timescale_db
 uv run litestar --app geometrikks.server.core:create_app run --debug
 ```
-See the [configuration reference](#configuration-reference) for configuration.
 
-## Testing
+(`docker-compose.dev.yml` also has an `app-dev`/`dev` profile that builds and
+hot-reloads the whole stack in Docker via `Dockerfile.dev`, if you'd rather
+not run the app bare-metal.)
+
+### Testing
 
 ```bash
 uv run pytest                    # unit tests — no docker needed
 ```
 
 Integration tests need the compose TimescaleDB and are marked `integration`.
-When the database is unreachable they are skipped automatically, so the plain
+When the database is unreachable they're skipped automatically, so the plain
 run above always stays green.
 
 ```bash
@@ -85,238 +260,9 @@ uv run pytest -m integration     # the real-database suite
 ```
 
 The integration suite creates a scratch database `geometrikks_it` on the
-compose server (migrated to alembic head + timescale objects), and drops it
-at session end — it never touches the `geometrikks` dev database. Connection
+compose server (migrated to alembic head + timescale objects) and drops it at
+session end — it never touches the `geometrikks` dev database. Connection
 overrides: `IT_DB_HOST`, `IT_DB_PORT`, `IT_DB_USER`, `IT_DB_PASSWORD`.
 
 CI (`.github/workflows/ci.yml`) runs the integration suite against a
 `timescale/timescaledb-ha:pg18` service container via the `IT_DB_*` env vars.
-
-## Authentication
-
-GeoMetrikks ships with single-admin session-cookie authentication. Set the
-credentials via environment variables:
-
-```bash
-APP_ADMIN_USER=admin          # defaults to "admin"
-APP_ADMIN_PASSWORD=change-me  # required — the app refuses to start without it
-```
-
-Log in through the web UI (`/login`) or `POST /api/v1/auth/login`. Everything
-under `/api/` requires a session; the SPA shell, `/health`, `/health/ready`,
-and `/schema` stay open. Sessions are stored in memory, so an app restart
-logs everyone out — just log in again.
-
-If an authenticating reverse proxy (Authelia, Tailscale, ...) already fronts
-the app, you can disable the built-in auth entirely:
-
-```bash
-APP_AUTH_DISABLED=true  # only safe behind an authenticating proxy
-```
-
-In this mode the `/api/v1/auth/*` endpoints are not registered (404) and the
-sidebar hides the logout button.
-
-## Live feed
-
-GeoMetrikks streams committed ingestion events to the browser over a
-session-authenticated `/ws/live` WebSocket, batching and coalescing them into
-a few frames per second so the UI stays responsive under bursty log traffic.
-Two views consume it: the map's "Live" toggle, which pulses incoming
-geo-events on top of the base layers, and the Live mode on the
-`/access-logs` page, which prepends new rows to a virtualized table (pause
-on hover). A connection status indicator in the sidebar shows live-feed
-health and reconnects automatically with exponential backoff if the
-connection drops.
-
-The WebSocket handshake is authenticated by the same session cookie as the
-REST API, so it's guarded identically — anonymous connections are rejected
-unless auth is disabled. With `APP_AUTH_DISABLED=true` the WebSocket is left
-open, just like the API, for reverse-proxy deployments.
-
-## Sending Nginx log metrics with request and upstream response times
-
-1. Add the following to the http block in your `nginx.conf` file:
-
-    ```nginx
-    log_format custom '$remote_addr - $remote_user [$time_local] '
-            '"$request" $status $body_bytes_sent '
-            '"$http_referer" $host "$http_user_agent" '
-            '"$request_time" "$upstream_response_time"';
-    ```
-
-2. Set the access log use the `custom` log format.
-
-    ```nginx
-    access_log /config/log/nginx/access.log custom;
-    ```
-
-### Multiple log files
-
-If you separate your nginx log files but want this script to parse all of them you can do the following:
-
-As nginx can have multiple `access log` directives in a block, just add another one in the server block. 
-
-**Example**
-
-```nginx
-	access_log /config/log/nginx/somepage/access.log custom;
-	access_log /config/log/nginx/access.log custom;
-```
-This will log the same lines to both files.
-
-## Batch import
-
-Live tailing only picks up lines written after the app starts. To backfill
-history — rotated/archived nginx logs, plain or gzip-compressed — use the
-`litestar import-logs` CLI command. It reuses the live ingestion pipeline
-(same parsing, GeoIP lookup, and DB writes), uses the timestamps in each log
-line rather than wall-clock time, and refreshes the continuous aggregates for
-the imported time range when it's done.
-
-With the stack running via `docker-compose.yml`, the `app` service already
-mounts `${NGINX_LOG_DIR:-/var/log/nginx}` read-only at `/var/log/nginx`, so
-rotated/archived files sit right next to the one being tailed:
-
-```bash
-docker compose exec app litestar import-logs /var/log/nginx/access.log.1.gz
-```
-
-Paths are **container** paths, not host paths. If your archived logs live
-outside `NGINX_LOG_DIR`, add another read-only bind mount for them. The
-container runs as the non-root `geometrikks` user, so host log files must be
-readable by it — the same constraint live tailing already has.
-
-`exec` requires the `app` service to already be running (the normal state).
-If the stack is stopped, use `run --rm` instead:
-
-```bash
-docker compose run --rm app litestar import-logs /var/log/nginx/access.log.1.gz
-```
-
-Running bare-metal/dev instead of via compose:
-
-```bash
-LITESTAR_APP=geometrikks.server.core:create_app uv run litestar import-logs /path/to/access.log.1.gz
-```
-
-Multiple files can be passed in one invocation.
-
-**Caveats**
-
-- Import archived (rotated) files only — importing a file that's also being
-  live-tailed double-counts its lines.
-- Each imported file is fingerprinted by content checksum; importing the same
-  content again (even under a different filename) is skipped. Pass `--force`
-  to re-import — this updates the bookkeeping row but does **not** delete
-  rows written by the earlier import.
-- A file that doesn't match the expected log format is rejected up front,
-  before anything is written.
-- Rows older than the raw retention window (`ANALYTICS_RAW_RETENTION_DAYS`,
-  default 180 days) are dropped by the TimescaleDB retention policy — importing
-  history beyond that window won't persist. Raise the retention setting before
-  importing older archives if you want to keep them.
-
-## Screenshots
-
-![Overview](/data/screenshots/overview.png)
-
-![Map](/data/screenshots/map.png)
-
-## Configuration reference
-
-All settings are environment variables (or a `.env` file next to the app).
-`.env.example` lists only the settings most installs touch; this is the full
-set. Settings are read once at startup — restart the app after changing them.
-
-### Application
-
-| Variable | Default | Description |
-|---|---|---|
-| `APP_NAME` | `GeoMetrikks API` | Application name |
-| `APP_VERSION` | `0.1.0` | Application version |
-| `APP_DEBUG` | `false` | Enable debug mode |
-| `APP_ENVIRONMENT` | `production` | `development`, `staging`, `production` |
-| `APP_DESCRIPTION` | *(set)* | Application description |
-
-### Authentication
-
-| Variable | Default | Description |
-|---|---|---|
-| `APP_ADMIN_USER` | `admin` | Admin login username |
-| `APP_ADMIN_PASSWORD` | — | **Required** unless auth is disabled; the app refuses to start without it |
-| `APP_AUTH_DISABLED` | `false` | `true` = no built-in auth; only safe behind an authenticating reverse proxy (Authelia, Tailscale, ...) |
-
-### API server
-
-| Variable | Default | Description |
-|---|---|---|
-| `API_HOST` | `0.0.0.0` | Bind address |
-| `API_PORT` | `8000` | Port |
-| `API_LOG_LEVEL` | `INFO` | `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL` |
-
-### Database
-
-| Variable | Default | Description |
-|---|---|---|
-| `DB_USER` | `geouser` | Database user |
-| `DB_PASSWORD` | `geopass` | Database password (change it) |
-| `DB_HOST` | `localhost` | Database host |
-| `DB_PORT` | `5432` | Database port |
-| `DB_DATABASE` | `geometrikks` | Database name |
-| `DB_ECHO` | `false` | SQLAlchemy query logging |
-| `DB_ECHO_POOL` | `false` | SQLAlchemy pool logging |
-| `DB_POOL_SIZE` | `5` | Connection pool size |
-| `DB_MAX_OVERFLOW` | `10` | Max connections above pool size |
-| `DB_POOL_TIMEOUT` | `30` | Pool timeout (seconds) |
-| `DB_POOL_RECYCLE` | `3600` | Connection recycle time (seconds) |
-| `DB_POOL_DISABLED` | `false` | Disable connection pooling |
-| `DB_POOL_PRE_PING` | `true` | Pre-ping connections |
-| `DB_DROP_ON_STARTUP` | `false` | Drop all tables on startup (only honored in `development`) |
-
-### GeoIP (MaxMind GeoLite2)
-
-| Variable | Default | Description |
-|---|---|---|
-| `MAXMINDDB_USER_ID` | — | MaxMind account ID for GeoLite2 auto-download ([free account](https://www.maxmind.com/en/geolite2/signup)) |
-| `MAXMINDDB_LICENSE_KEY` | — | MaxMind license key for GeoLite2 auto-download |
-| `GEOIP_REFRESH_DAYS` | `7` | Re-download the database when older than this many days |
-| `GEOIP_DB_PATH` | `data/geoip/GeoLite2-City.mmdb` | Path to the GeoLite2 database (`/app/data/geoip/GeoLite2-City.mmdb` in the image) |
-| `GEOIP_LOCALES` | `["en"]` | GeoIP locales |
-| `GEOIP_VALIDATE_DB_PATH` | `false` | Fail fast at startup when the database file is missing (off by default; the downloader/degraded mode owns that case) |
-| `GEOIP_VALIDATE_LOCALES` | `true` | Validate the locale list |
-
-Without credentials and without an existing database the app starts in
-**geo-degraded mode**: the API and UI stay up, but ingestion does not start
-and a banner explains what to configure. The database file on disk is
-replaced atomically by the weekly refresh; the new file is picked up on the
-next app restart.
-
-### Log parser
-
-| Variable | Default | Description |
-|---|---|---|
-| `LOGPARSER_LOG_PATHS` | `/var/log/nginx/access.log` | Single path, or a JSON list: `["/var/log/nginx/access.log", "/var/log/nginx/other.log"]` |
-| `LOGPARSER_POLL_INTERVAL` | `1.0` | Poll interval (seconds) for new lines |
-| `LOGPARSER_SEND_LOGS` | `true` | Store parsed access logs (otherwise geo-events only) |
-| `LOGPARSER_HOST_NAME` | *(hostname)* | Host label attached to ingested events |
-| `LOGPARSER_BATCH_SIZE` | `100` | Max records before a forced commit |
-| `LOGPARSER_COMMIT_INTERVAL` | `5.0` | Max seconds between commits |
-| `LOGPARSER_SKIP_VALIDATION` | `false` | Skip log format validation |
-| `LOGPARSER_STORE_DEBUG_LINES` | `false` | Store all raw lines in the debug table (otherwise only malformed ones) |
-
-### Analytics & scheduler
-
-| Variable | Default | Description |
-|---|---|---|
-| `ANALYTICS_RAW_RETENTION_DAYS` | `180` | Days to keep raw geo events and access logs |
-| `ANALYTICS_DEBUG_RETENTION_DAYS` | `30` | Days to keep debug log lines |
-| `ANALYTICS_HOURLY_RETENTION_DAYS` | `60` | Days to keep hourly aggregates (daily aggregates are permanent) |
-| `ANALYTICS_CAGG_REFRESH_INTERVAL_MINUTES` | `5` | Continuous-aggregate refresh cadence |
-| `ANALYTICS_COMPRESSION_AFTER_DAYS` | `7` | Compress hypertable chunks after this many days |
-| `ANALYTICS_TOP_IPS_LIMIT` | `1000` | Top IPs tracked per day |
-| `ANALYTICS_TOP_URLS_LIMIT` | `500` | Top URLs tracked per day |
-| `SCHEDULER_ENABLED` | `true` | Enable background jobs (CAGG refresh, GeoLite2 refresh, ...) |
-| `SCHEDULER_DAILY_ROLLUP_HOUR` | `0` | Hour (UTC) for the daily rollup |
-| `SCHEDULER_DAILY_ROLLUP_MINUTE` | `5` | Minute for the daily rollup |
-| `SCHEDULER_LOCATION_REFRESH_INTERVAL_MINUTES` | `5` | `GeoLocation.last_hit` refresh cadence |

@@ -36,7 +36,11 @@ async def _database_reachable(timeout: float = 2.0) -> bool:
         return False
 
 
-@get("/health", dependencies={"ingestion_service": Provide(pis, sync_to_thread=False)})
+@get(
+    "/health",
+    tags=["Health"],
+    dependencies={"ingestion_service": Provide(pis, sync_to_thread=False)},
+)
 async def health(
     request: Request, ingestion_service: NamedDependency[LogIngestionService | None]
 ) -> dict[str, Any]:
@@ -59,7 +63,7 @@ async def health(
     }
 
 
-@get("/health/ready")
+@get("/health/ready", tags=["Health"])
 async def health_ready() -> Response[dict[str, Any]]:
     """Readiness: 200 only when the database answers."""
     if await _database_reachable():
