@@ -124,6 +124,9 @@ class LogIngestionService:
         self.store_debug_lines: bool = store_debug_lines
         self._queue_maxsize: int = queue_maxsize
 
+        # Live-feed fan-out: bounded queues, publish post-commit only.
+        self._subscribers: set[asyncio.Queue[ParsedLogRecord]] = set()
+
         # In-memory cache: geohash -> committed (or pending-commit) GeoLocation id.
         # Ids cached since the last successful commit are tracked so a rollback
         # can evict them (their rows never landed -> FK poison otherwise).
@@ -413,18 +416,24 @@ class LogIngestionService:
             return
         batch, self._batch = self._batch, []
         flushed = {"geo": 0, "log": 0, "debug": 0}
+        # Records that processed without raising; only these are published
+        # post-commit. A per-record failure rolls back earlier records of this
+        # batch (matching existing semantics), so reset the list on failure too.
+        committed_candidates: list[ParsedLogRecord] = []
 
         async with self._session_maker() as session:
             repos = self._repos_factory(session)
             for record in batch:
                 try:
                     await self._process_record(record, repos, flushed)
+                    committed_candidates.append(record)
                 except Exception as e:
                     logger.error(
                         "Failed to process record (rolling back batch): %s - raw_line preview: %.100s",
                         e,
                         record.raw_line[:100] if record.raw_line else "N/A",
                     )
+                    committed_candidates = []
                     try:
                         await session.rollback()
                     except Exception as rollback_err:
@@ -440,6 +449,7 @@ class LogIngestionService:
             try:
                 await session.commit()
                 self._uncommitted_geohashes.clear()
+                self._publish(committed_candidates)
             except Exception as e:
                 logger.error("Batch commit failed (rolling back): %s", e)
                 await session.rollback()
@@ -467,6 +477,32 @@ class LogIngestionService:
         """
         self._batch.extend(records)
         await self._flush_batch()
+
+    def subscribe(self, maxsize: int = 1000) -> asyncio.Queue[ParsedLogRecord]:
+        """Register a live-feed subscriber. Caller must unsubscribe()."""
+        queue: asyncio.Queue[ParsedLogRecord] = asyncio.Queue(maxsize=maxsize)
+        self._subscribers.add(queue)
+        return queue
+
+    def unsubscribe(self, queue: asyncio.Queue[ParsedLogRecord]) -> None:
+        self._subscribers.discard(queue)
+
+    def _publish(self, records: list[ParsedLogRecord]) -> None:
+        """Fan committed records out to subscribers; drop oldest when full.
+
+        Never blocks and never raises: a slow browser must not backpressure
+        ingestion.
+        """
+        for queue in self._subscribers:
+            for record in records:
+                try:
+                    queue.put_nowait(record)
+                except asyncio.QueueFull:
+                    try:
+                        queue.get_nowait()
+                        queue.put_nowait(record)
+                    except (asyncio.QueueEmpty, asyncio.QueueFull):
+                        pass
 
     def _to_access_log_model(self, parsed: ParsedAccessLog) -> AccessLog:
         """Convert ParsedAccessLog schema to ORM model."""

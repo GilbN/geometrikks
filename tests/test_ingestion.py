@@ -3,9 +3,11 @@ from __future__ import annotations
 
 import asyncio
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
+from geohash2 import encode
 from geoip2.database import Reader
 
 from geometrikks.domain.geo.models import GeoEvent, GeoLocation
@@ -429,9 +431,6 @@ async def test_committed_locations_survive_in_cache_as_ids(tmp_path: Path) -> No
 @pytest.mark.asyncio
 async def test_flush_records_writes_through_batch_machinery() -> None:
     """flush_records must reuse _flush_batch (cache + rollback semantics)."""
-    from datetime import datetime, timezone
-    from geohash2 import encode
-
     service, _repos, sessions = make_service([])
 
     # Build ParsedLogRecord objects for TEST_DB_IPS
@@ -517,3 +516,61 @@ async def test_flush_records_writes_through_batch_machinery() -> None:
     assert service.pending_records == 0
     assert len(sessions) == 1 and sessions[0].commits == 1
     assert service.total_processed == len(records)
+
+
+def make_parsed_record(ip: str) -> ParsedLogRecord:
+    """Minimal geo+log record (same field shape as the flush_records test data)."""
+    ts = datetime.now(timezone.utc)
+    return ParsedLogRecord(
+        ip_address=ip,
+        geo_data=ParsedGeoData(
+            latitude=51.5142, longitude=-0.0931, geohash=encode(51.5142, -0.0931),
+            country_code="GB", country_name="United Kingdom", city="London",
+            timestamp=ts,
+        ),
+        access_log=ParsedAccessLog(
+            timestamp=ts, ip_address=ip, remote_user=None, method="GET",
+            url="/", http_version="HTTP/1.1", status_code=200, bytes_sent=1024,
+            referrer=None, user_agent="test-agent", request_time=0.002,
+            upstream_response_time=None, host="example.com",
+            country_code="GB", country_name="United Kingdom", city="London",
+        ),
+        raw_line=make_log_line(ip),
+    )
+
+
+async def test_pubsub_subscribers_receive_committed_records() -> None:
+    service, _repos, _sessions = make_service([])
+    q = service.subscribe()
+    records = [make_parsed_record(ip) for ip in TEST_DB_IPS]
+
+    await service.flush_records(records)
+
+    got = [q.get_nowait() for _ in range(len(records))]
+    assert [r.ip_address for r in got] == [r.ip_address for r in records]
+
+
+async def test_pubsub_unsubscribed_queue_gets_nothing() -> None:
+    service, _repos, _sessions = make_service([])
+    q = service.subscribe()
+    service.unsubscribe(q)
+    await service.flush_records([make_parsed_record(TEST_DB_IPS[0])])
+    assert q.empty()
+
+
+async def test_pubsub_failed_commit_publishes_nothing() -> None:
+    service, repos, _sessions = make_service([])
+    repos.fail_next_commits = 1
+    q = service.subscribe()
+    await service.flush_records([make_parsed_record(TEST_DB_IPS[0])])
+    assert q.empty(), "post-commit publish only — rolled-back records must not stream"
+
+
+async def test_pubsub_full_subscriber_drops_oldest_not_ingestion() -> None:
+    service, _repos, _sessions = make_service([])
+    q = service.subscribe(maxsize=1)
+    r1, r2 = (make_parsed_record(ip) for ip in TEST_DB_IPS)
+    await service.flush_records([r1])
+    await service.flush_records([r2])   # must not block or raise
+    assert q.qsize() == 1
+    assert q.get_nowait().ip_address == r2.ip_address
