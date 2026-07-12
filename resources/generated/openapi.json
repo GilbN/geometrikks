@@ -3321,7 +3321,10 @@
             "headers": {}
           }
         },
-        "summary": "Stats"
+        "summary": "Stats",
+        "tags": [
+          "Analytics"
+        ]
       }
     },
     "/health": {
@@ -3342,7 +3345,10 @@
             "headers": {}
           }
         },
-        "summary": "Health"
+        "summary": "Health",
+        "tags": [
+          "Health"
+        ]
       }
     },
     "/health/ready": {
@@ -3363,7 +3369,10 @@
             "headers": {}
           }
         },
-        "summary": "HealthReady"
+        "summary": "HealthReady",
+        "tags": [
+          "Health"
+        ]
       }
     }
   },
