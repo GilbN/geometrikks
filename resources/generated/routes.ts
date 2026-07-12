@@ -15,7 +15,6 @@ export type URI = string;
 
 /** All available route names */
 export type RouteName =
-  | 'disabled_vite_hmr_http'
   | 'get_cumulative_time_series'
   | 'get_geo_time_series'
   | 'get_geojson'
@@ -46,7 +45,6 @@ export type RouteName =
 
 /** Path parameter definitions per route */
 export interface RoutePathParams {
-  'disabled_vite_hmr_http': Record<string, never>;
   'get_cumulative_time_series': Record<string, never>;
   'get_geo_time_series': Record<string, never>;
   'get_geojson': Record<string, never>;
@@ -84,7 +82,6 @@ export interface RoutePathParams {
 
 /** Query parameter definitions per route */
 export interface RouteQueryParams {
-  'disabled_vite_hmr_http': Record<string, never>;
   'get_cumulative_time_series': {
     end_date: DateTime;
     start_date: DateTime;
@@ -146,7 +143,9 @@ export interface RouteQueryParams {
   };
   'list_access_logs': {
     currentPage?: number;
+    from_timestamp?: DateTime;
     pageSize?: number;
+    to_timestamp?: DateTime;
   };
   'list_geo_events': {
     currentPage?: number;
@@ -177,13 +176,6 @@ export type RouteParams<T extends RouteName> = MergeParams<RoutePathParams[T], R
 
 /** Route metadata */
 export const routeDefinitions = {
-  'disabled_vite_hmr_http': {
-    path: '/static/vite-hmr',
-    methods: ['GET'] as const,
-    method: 'get',
-    pathParams: [] as const,
-    queryParams: [] as const,
-  },
   'get_cumulative_time_series': {
     path: '/api/v1/analytics/time-series/cumulative',
     methods: ['GET'] as const,
@@ -287,7 +279,7 @@ export const routeDefinitions = {
     methods: ['GET'] as const,
     method: 'get',
     pathParams: [] as const,
-    queryParams: ['currentPage', 'pageSize'] as const,
+    queryParams: ['currentPage', 'from_timestamp', 'pageSize', 'to_timestamp'] as const,
   },
   'list_geo_events': {
     path: '/api/v1/geo-events',
