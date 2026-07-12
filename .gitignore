@@ -380,3 +380,6 @@ pdm-pythn
 
 # openapi-ts failure logs
 openapi-ts-error-*.log
+
+# TanStack Router generator cache
+.tanstack/

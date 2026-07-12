@@ -76,6 +76,14 @@ class GeoLocationController(Controller):
                 examples=[Example(value="2024-12-31T23:59:59Z")],
             ),
         ],
+        country_code: Annotated[
+            list[str] | None,
+            Parameter(description="Filter to these ISO country codes (repeatable)", required=False),
+        ] = None,
+        city: Annotated[
+            list[str] | None,
+            Parameter(description="Filter to these city names (repeatable)", required=False),
+        ] = None,
     ) -> GeoJSONFeatureCollection:
         """Get all locations with event counts as GeoJSON FeatureCollection.
 
@@ -94,7 +102,7 @@ class GeoLocationController(Controller):
             to_timestamp = to_timestamp.replace(tzinfo=timezone.utc)
 
         locations_with_counts = await geo_location_repo.get_all_with_event_counts(
-            from_timestamp, to_timestamp
+            from_timestamp, to_timestamp, country_codes=country_code, cities=city
         )
         
         events: int = sum(loc.event_count for loc in locations_with_counts)

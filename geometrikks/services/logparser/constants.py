@@ -17,7 +17,7 @@ class Rgx:
     HTTP_VERSION_PATTERN = r'(HTTP\/[1-3]\.[0-9])'
     STATUS_CODE_PATTERN = r'(\d{3})'
     BYTES_SENT_PATTERN = r'(\d{1,99})'
-    URL_PATTERN = r'(?:\-|.+)'
+    URL_PATTERN = r'(?:\-|[^"]+)'
     HOST_PATTERN = r'(.+?)'
     USER_AGENT_PATTERN = r'(.+?)'
     REQUEST_TIME_PATTERN = r'(.+?)'
@@ -57,7 +57,7 @@ def create_log_pattern(ip_pattern: str) -> re.Pattern[str]:
     \s?"
     (?P<url>{Rgx.URL_PATTERN})"
     (?P<host>{Rgx.HOST_PATTERN})"
-    (?P<user_agent>{Rgx.USER_AGENT_PATTERN})
+    (?P<user_agent>{Rgx.USER_AGENT_PATTERN})"
     (?:
         \s?"
         (?P<request_time>{Rgx.REQUEST_TIME_PATTERN})"

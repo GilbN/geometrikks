@@ -3,6 +3,7 @@
  */
 
 import { useState, useCallback, useRef } from "react"
+import { useMemo } from "react"
 import Map, {
   Source,
   Layer,
@@ -247,7 +248,12 @@ const unclusteredPointLabelLayer: LayerSpecification = {
 export default function GeoMap() {
   const mapRef = useRef<MapRef>(null)
   const { mapStyle } = useMapStyle()
-  const { data: geojson, isLoading: isLoadingGeoJSON, isError, error } = useGeoJSON()
+  const [selectedCountries, setSelectedCountries] = useState<string[]>([])
+  const [selectedCities, setSelectedCities] = useState<string[]>([])
+  const { data: geojson, isLoading: isLoadingGeoJSON, isError, error } = useGeoJSON({
+    countryCodes: selectedCountries,
+    cities: selectedCities,
+  })
   const { data: globalTopIPs, isLoading: isLoadingTopIPs } = useGlobalTopIPs()
 
   const isLoading = isLoadingGeoJSON || isLoadingTopIPs
@@ -255,6 +261,29 @@ export default function GeoMap() {
   const [viewState, setViewState] = useState(INITIAL_VIEW_STATE)
   const [activeLayer, setActiveLayer] = useState<LayerType>("markers")
   const [popup, setPopup] = useState<PopupInfo | null>(null)
+
+  // Filter options come from the last UNFILTERED result (a second query just
+  // for options would be wasteful), held in a ref so the option lists don't
+  // shrink to the filtered subset while a filter is active.
+  const optionsRef = useRef<{ countries: string[]; cities: string[] }>({
+    countries: [],
+    cities: [],
+  })
+  const filterOptions = useMemo(() => {
+    if (geojson && selectedCountries.length === 0 && selectedCities.length === 0) {
+      const countries = new Set<string>()
+      const cities = new Set<string>()
+      for (const f of geojson.features) {
+        if (f.properties.country_code) countries.add(f.properties.country_code)
+        if (f.properties.city) cities.add(f.properties.city)
+      }
+      optionsRef.current = {
+        countries: [...countries].sort(),
+        cities: [...cities].sort(),
+      }
+    }
+    return optionsRef.current
+  }, [geojson, selectedCountries, selectedCities])
 
   // Handle view state changes
   const onMove = useCallback((evt: ViewStateChangeEvent) => {
@@ -265,19 +294,20 @@ export default function GeoMap() {
   const fitToBounds = useCallback(() => {
     if (!geojson?.features.length || !mapRef.current) return
 
-    const coordinates = geojson.features.map(
-      (f) => f.geometry.coordinates as [number, number]
-    )
-
-    if (coordinates.length === 0) return
-
-    // Calculate bounding box
-    const lngs = coordinates.map((c) => c[0])
-    const lats = coordinates.map((c) => c[1])
+    // Single pass: spreading thousands of coordinates into Math.min/max
+    // can blow the call stack.
+    let minLng = Infinity, minLat = Infinity, maxLng = -Infinity, maxLat = -Infinity
+    for (const f of geojson.features) {
+      const [lng, lat] = f.geometry.coordinates as [number, number]
+      if (lng < minLng) minLng = lng
+      if (lng > maxLng) maxLng = lng
+      if (lat < minLat) minLat = lat
+      if (lat > maxLat) maxLat = lat
+    }
 
     const bounds: [[number, number], [number, number]] = [
-      [Math.min(...lngs), Math.min(...lats)],
-      [Math.max(...lngs), Math.max(...lats)],
+      [minLng, minLat],
+      [maxLng, maxLat],
     ]
 
     mapRef.current.fitBounds(bounds, {
@@ -384,12 +414,14 @@ export default function GeoMap() {
         <NavigationControl position="bottom-right" showCompass={true} />
 
         {/* GeoJSON data source */}
+        {/* No key prop: react-map-gl diffs `data` and calls setData on the
+            underlying source, so data updates must not remount the Source
+            (a remount tears down and re-adds every layer). */}
         {geojson && (
           <Source
-            key={`geo-data-${geojson.stats.events}-${geojson.features.length}`}
             id="geo-data"
             type="geojson"
-            data={geojson}
+            data={geojson as unknown as GeoJSON.FeatureCollection}
             cluster={activeLayer === "markers"}
             clusterMaxZoom={14}
             clusterRadius={50}
@@ -433,6 +465,12 @@ export default function GeoMap() {
         featureStats={geojson?.stats ?? { events: 0, countries: 0, cities: 0, locations: 0 }}
         topIPs={globalTopIPs?.top_ips ?? []}
         onFlyToLocation={flyToLocation}
+        countryOptions={filterOptions.countries}
+        cityOptions={filterOptions.cities}
+        selectedCountries={selectedCountries}
+        selectedCities={selectedCities}
+        onCountriesChange={setSelectedCountries}
+        onCitiesChange={setSelectedCities}
       />
 
       {/* Legend - show for both modes */}

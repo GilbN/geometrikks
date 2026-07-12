@@ -106,7 +106,11 @@ class GeoLocationRepository(SQLAlchemyAsyncRepository[GeoLocation]):
         return await self.list(country_code=country_code)
 
     async def get_all_with_event_counts(
-        self, from_timestamp: datetime, to_timestamp: datetime
+        self,
+        from_timestamp: datetime,
+        to_timestamp: datetime,
+        country_codes: list[str] | None = None,
+        cities: list[str] | None = None,
     ) -> list[LocationWithEventCount]:
         """Retrieve all GeoLocations with their associated event counts.
 
@@ -118,6 +122,8 @@ class GeoLocationRepository(SQLAlchemyAsyncRepository[GeoLocation]):
         Args:
             from_timestamp: Start datetime for filtering events.
             to_timestamp: End datetime for filtering events.
+            country_codes: Optional ISO country codes to filter to.
+            cities: Optional city names to filter to.
 
         Returns:
             list[LocationWithEventCount]: List containing location and event count.
@@ -139,15 +145,24 @@ class GeoLocationRepository(SQLAlchemyAsyncRepository[GeoLocation]):
             to_timestamp,
         )
 
+        filters_sql = ""
+        params: dict[str, object] = {"from_ts": from_timestamp, "to_ts": to_timestamp}
+        if country_codes:
+            filters_sql += " AND gl.country_code = ANY(:country_codes)"
+            params["country_codes"] = [c.upper() for c in country_codes]
+        if cities:
+            filters_sql += " AND gl.city = ANY(:cities)"
+            params["cities"] = cities
+
         if granularity == StatsGranularity.RAW:
             # Query raw geo_events table for exact time range granularity
-            stmt = text("""
+            stmt = text(f"""
                 SELECT
                     gl.*,
                     CAST(COUNT(ge.id) AS INTEGER) AS event_count
                 FROM geo_locations gl
                 JOIN geo_events ge ON ge.location_id = gl.id
-                WHERE ge.timestamp >= :from_ts AND ge.timestamp < :to_ts
+                WHERE ge.timestamp >= :from_ts AND ge.timestamp < :to_ts{filters_sql}
                 GROUP BY gl.id
                 ORDER BY event_count DESC
             """)
@@ -165,14 +180,12 @@ class GeoLocationRepository(SQLAlchemyAsyncRepository[GeoLocation]):
                 FROM geo_locations gl
                 JOIN {table} ls ON ls.location_id = gl.id
                 WHERE ls.bucket >= time_bucket('{bucket_interval}', CAST(:from_ts AS timestamptz))
-                  AND ls.bucket < :to_ts
+                  AND ls.bucket < :to_ts{filters_sql}
                 GROUP BY gl.id
                 ORDER BY event_count DESC
             """)
 
-        result = await self.session.execute(
-            stmt, {"from_ts": from_timestamp, "to_ts": to_timestamp}
-        )
+        result = await self.session.execute(stmt, params)
         rows = result.fetchall()
 
         if not rows:

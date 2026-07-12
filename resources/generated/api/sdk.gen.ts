@@ -9,6 +9,9 @@ import type {
   ApiV1AccessLogsListAccessLogsData,
   ApiV1AccessLogsListAccessLogsErrors,
   ApiV1AccessLogsListAccessLogsResponses,
+  ApiV1AnalyticsGeoTimeSeriesGetGeoTimeSeriesData,
+  ApiV1AnalyticsGeoTimeSeriesGetGeoTimeSeriesErrors,
+  ApiV1AnalyticsGeoTimeSeriesGetGeoTimeSeriesResponses,
   ApiV1AnalyticsLiveSummaryGetLiveSummaryData,
   ApiV1AnalyticsLiveSummaryGetLiveSummaryErrors,
   ApiV1AnalyticsLiveSummaryGetLiveSummaryResponses,
@@ -18,6 +21,15 @@ import type {
   ApiV1AnalyticsTimeSeriesCumulativeGetCumulativeTimeSeriesData,
   ApiV1AnalyticsTimeSeriesCumulativeGetCumulativeTimeSeriesErrors,
   ApiV1AnalyticsTimeSeriesCumulativeGetCumulativeTimeSeriesResponses,
+  ApiV1AnalyticsTimeSeriesGetTimeSeriesData,
+  ApiV1AnalyticsTimeSeriesGetTimeSeriesErrors,
+  ApiV1AnalyticsTimeSeriesGetTimeSeriesResponses,
+  ApiV1AnalyticsTopUrlsGetTopUrlsData,
+  ApiV1AnalyticsTopUrlsGetTopUrlsErrors,
+  ApiV1AnalyticsTopUrlsGetTopUrlsResponses,
+  ApiV1AnalyticsTopUserAgentsGetTopUserAgentsData,
+  ApiV1AnalyticsTopUserAgentsGetTopUserAgentsErrors,
+  ApiV1AnalyticsTopUserAgentsGetTopUserAgentsResponses,
   ApiV1AuthLoginLoginData,
   ApiV1AuthLoginLoginErrors,
   ApiV1AuthLoginLoginResponses,
@@ -119,6 +131,35 @@ export const apiV1AccessLogsListAccessLogs = <
   });
 
 /**
+ * GetGeoTimeSeries
+ *
+ * Per-bucket geo-event metrics for charts.
+ */
+export const apiV1AnalyticsGeoTimeSeriesGetGeoTimeSeries = <
+  ThrowOnError extends boolean = false,
+>(
+  options: Options<
+    ApiV1AnalyticsGeoTimeSeriesGetGeoTimeSeriesData,
+    ThrowOnError
+  >,
+) =>
+  (options.client ?? client).get<
+    ApiV1AnalyticsGeoTimeSeriesGetGeoTimeSeriesResponses,
+    ApiV1AnalyticsGeoTimeSeriesGetGeoTimeSeriesErrors,
+    ThrowOnError
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+    ],
+    url: "/api/v1/analytics/geo-time-series",
+    ...options,
+  });
+
+/**
  * GetLiveSummary
  *
  * Get live summary statistics by querying raw data tables.
@@ -171,6 +212,32 @@ export const apiV1AnalyticsSummaryGetSummary = <
   });
 
 /**
+ * GetTimeSeries
+ *
+ * Per-bucket access-log metrics for charts.
+ */
+export const apiV1AnalyticsTimeSeriesGetTimeSeries = <
+  ThrowOnError extends boolean = false,
+>(
+  options: Options<ApiV1AnalyticsTimeSeriesGetTimeSeriesData, ThrowOnError>,
+) =>
+  (options.client ?? client).get<
+    ApiV1AnalyticsTimeSeriesGetTimeSeriesResponses,
+    ApiV1AnalyticsTimeSeriesGetTimeSeriesErrors,
+    ThrowOnError
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+    ],
+    url: "/api/v1/analytics/time-series",
+    ...options,
+  });
+
+/**
  * GetCumulativeTimeSeries
  *
  * Get cumulative time series data for area charts.
@@ -196,6 +263,61 @@ export const apiV1AnalyticsTimeSeriesCumulativeGetCumulativeTimeSeries = <
       },
     ],
     url: "/api/v1/analytics/time-series/cumulative",
+    ...options,
+  });
+
+/**
+ * GetTopUrls
+ *
+ * Top URLs by hits from raw access logs (time-bounded).
+ */
+export const apiV1AnalyticsTopUrlsGetTopUrls = <
+  ThrowOnError extends boolean = false,
+>(
+  options: Options<ApiV1AnalyticsTopUrlsGetTopUrlsData, ThrowOnError>,
+) =>
+  (options.client ?? client).get<
+    ApiV1AnalyticsTopUrlsGetTopUrlsResponses,
+    ApiV1AnalyticsTopUrlsGetTopUrlsErrors,
+    ThrowOnError
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+    ],
+    url: "/api/v1/analytics/top-urls",
+    ...options,
+  });
+
+/**
+ * GetTopUserAgents
+ *
+ * Top user agents by hits from raw access logs.
+ */
+export const apiV1AnalyticsTopUserAgentsGetTopUserAgents = <
+  ThrowOnError extends boolean = false,
+>(
+  options: Options<
+    ApiV1AnalyticsTopUserAgentsGetTopUserAgentsData,
+    ThrowOnError
+  >,
+) =>
+  (options.client ?? client).get<
+    ApiV1AnalyticsTopUserAgentsGetTopUserAgentsResponses,
+    ApiV1AnalyticsTopUserAgentsGetTopUserAgentsErrors,
+    ThrowOnError
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+    ],
+    url: "/api/v1/analytics/top-user-agents",
     ...options,
   });
 

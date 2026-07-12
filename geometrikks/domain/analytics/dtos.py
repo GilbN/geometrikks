@@ -21,6 +21,10 @@ class TimeSeriesDataPoint:
     status_4xx: int
     status_5xx: int
     error_rate: float
+    avg_request_time: float
+    p50_request_time: float
+    p95_request_time: float
+    p99_request_time: float
 
 
 @dataclass
@@ -52,16 +56,21 @@ class GeoEventsDataPoint:
     total_geo_events: int
     unique_ips: int
     unique_countries: int
+    unique_cities: int
 
 
 @dataclass
 class TimeSeriesResponse:
-    """Response containing time-series data for charts."""
+    """Response containing time-series data for charts.
+
+    ``data`` is deliberately default-less so it is required in OpenAPI and
+    non-optional in the generated TS client.
+    """
 
     granularity: str  # "hourly" or "daily"
     start_date: str
     end_date: str
-    data: list[TimeSeriesDataPoint] = field(default_factory=list)
+    data: list[TimeSeriesDataPoint]
 
 
 @dataclass
@@ -86,12 +95,15 @@ class BandwidthTimeSeriesResponse:
 
 @dataclass
 class GeoEventsTimeSeriesResponse:
-    """Response containing geo events time-series data."""
+    """Response containing geo events time-series data.
+
+    ``data`` is deliberately default-less (see TimeSeriesResponse).
+    """
 
     granularity: str
     start_date: str
     end_date: str
-    data: list[GeoEventsDataPoint] = field(default_factory=list)
+    data: list[GeoEventsDataPoint]
 
 
 @dataclass
@@ -184,3 +196,47 @@ class CumulativeTimeSeriesResponse:
     start_date: str
     end_date: str
     data: list[CumulativeDataPoint] = field(default_factory=list)
+
+
+@dataclass
+class TopUrlDTO:
+    """A single URL with its aggregate hit metrics."""
+
+    url: str
+    hits: int
+    error_hits: int
+    total_bytes: int
+    avg_request_time: float
+
+
+@dataclass
+class TopUrlsResponse:
+    """Response containing top URLs by hit count.
+
+    ``items`` is deliberately default-less: a dataclass default makes it
+    non-required in OpenAPI and therefore optional in the generated TS client.
+    """
+
+    start_date: str
+    end_date: str
+    items: list[TopUrlDTO]
+
+
+@dataclass
+class TopUserAgentDTO:
+    """A single user agent with its hit count."""
+
+    user_agent: str
+    hits: int
+
+
+@dataclass
+class TopUserAgentsResponse:
+    """Response containing top user agents by hit count.
+
+    ``items`` is deliberately default-less (see TopUrlsResponse).
+    """
+
+    start_date: str
+    end_date: str
+    items: list[TopUserAgentDTO]

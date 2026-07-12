@@ -95,11 +95,14 @@
   --border: oklch(0.928 0.006 264.531);
   --input: oklch(0.928 0.006 264.531);
   --ring: oklch(0.707 0.022 261.325);
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
+  /* CVD-validated categorical slots (fixed order — assign series 1..5, never
+     cycle). Adjacent-pair deltas checked on white; aqua/yellow are sub-3:1 on
+     the surface, so multi-series charts must keep a legend or table view. */
+  --chart-1: #2a78d6;
+  --chart-2: #1baf7a;
+  --chart-3: #eda100;
+  --chart-4: #008300;
+  --chart-5: #4a3aa7;
   --sidebar: oklch(0.985 0.002 247.839);
   --sidebar-foreground: oklch(0.13 0.028 261.692);
   --sidebar-primary: oklch(0.21 0.034 264.665);
@@ -145,11 +148,13 @@
   --border: oklch(1 0 0 / 8%);
   --input: oklch(1 0 0 / 12%);
   --ring: oklch(0.72 0.15 192);
-  --chart-1: oklch(0.72 0.15 192);
-  --chart-2: oklch(0.65 0.18 160);
-  --chart-3: oklch(0.75 0.16 85);
-  --chart-4: oklch(0.65 0.22 300);
-  --chart-5: oklch(0.70 0.20 30);
+  /* Same brand hues re-stepped into the dark lightness band and validated
+     as a set against the card surface (all >= 3:1, worst adjacent CVD 30). */
+  --chart-1: #00a9a6;
+  --chart-2: #00a764;
+  --chart-3: #b58800;
+  --chart-4: #9e64ee;
+  --chart-5: #e9523f;
   --sidebar: oklch(0.14 0.022 250);
   --sidebar-foreground: oklch(0.92 0.01 220);
   --sidebar-primary: oklch(0.72 0.15 192);

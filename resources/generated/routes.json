@@ -1,6 +1,13 @@
 {
   "litestar_version": "Version(major=2, minor=24, patch=0, release_level='final', serial=0)",
   "routes": {
+    "disabled_vite_hmr_http": {
+      "method": "get",
+      "methods": [
+        "GET"
+      ],
+      "uri": "/static/vite-hmr"
+    },
     "get_cumulative_time_series": {
       "method": "get",
       "methods": [
@@ -12,12 +19,25 @@
       },
       "uri": "/api/v1/analytics/time-series/cumulative"
     },
+    "get_geo_time_series": {
+      "method": "get",
+      "methods": [
+        "GET"
+      ],
+      "queryParameters": {
+        "end_date": "DateTime",
+        "start_date": "DateTime"
+      },
+      "uri": "/api/v1/analytics/geo-time-series"
+    },
     "get_geojson": {
       "method": "get",
       "methods": [
         "GET"
       ],
       "queryParameters": {
+        "city": "string[] | undefined",
+        "country_code": "string[] | undefined",
         "from_timestamp": "DateTime",
         "to_timestamp": "DateTime"
       },
@@ -77,6 +97,17 @@
       },
       "uri": "/api/v1/analytics/summary"
     },
+    "get_time_series": {
+      "method": "get",
+      "methods": [
+        "GET"
+      ],
+      "queryParameters": {
+        "end_date": "DateTime",
+        "start_date": "DateTime"
+      },
+      "uri": "/api/v1/analytics/time-series"
+    },
     "get_top_countries": {
       "method": "get",
       "methods": [
@@ -88,6 +119,30 @@
         "to_timestamp": "DateTime"
       },
       "uri": "/api/v1/geo-locations/top-countries"
+    },
+    "get_top_urls": {
+      "method": "get",
+      "methods": [
+        "GET"
+      ],
+      "queryParameters": {
+        "end_date": "DateTime",
+        "limit": "number | undefined",
+        "start_date": "DateTime"
+      },
+      "uri": "/api/v1/analytics/top-urls"
+    },
+    "get_top_user_agents": {
+      "method": "get",
+      "methods": [
+        "GET"
+      ],
+      "queryParameters": {
+        "end_date": "DateTime",
+        "limit": "number | undefined",
+        "start_date": "DateTime"
+      },
+      "uri": "/api/v1/analytics/top-user-agents"
     },
     "health": {
       "method": "get",

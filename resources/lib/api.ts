@@ -3,6 +3,13 @@
  */
 
 import axios from "axios"
+import {
+  apiV1AnalyticsGeoTimeSeriesGetGeoTimeSeries,
+  apiV1AnalyticsTimeSeriesGetTimeSeries,
+  apiV1AnalyticsTopUrlsGetTopUrls,
+  apiV1AnalyticsTopUserAgentsGetTopUserAgents,
+} from "@/generated/api/sdk.gen"
+import type { GeoJsonFeatureCollection as GeoJSONFeatureCollection } from "@/generated/api/types.gen"
 
 // Create axios instance with base configuration
 export const api = axios.create({
@@ -107,51 +114,14 @@ export interface SummaryResponse {
   percent_changes: PercentChange | null
 }
 
-export interface TimeSeriesDataPoint {
-  timestamp: string
-  total_requests: number
-  total_geo_events: number
-  total_bytes_sent: number
-  status_2xx: number
-  status_3xx: number
-  status_4xx: number
-  status_5xx: number
-  error_rate: number
-}
-
-export interface TimeSeriesResponse {
-  granularity: "hourly" | "daily"
-  start_date: string
-  end_date: string
-  data: TimeSeriesDataPoint[]
-}
-
-export interface PerformanceDataPoint {
-  timestamp: string
-  avg_request_time: number
-  max_request_time: number
-}
-
-export interface PerformanceTimeSeriesResponse {
-  granularity: "hourly" | "daily"
-  start_date: string
-  end_date: string
-  data: PerformanceDataPoint[]
-}
-
-export interface GeoEventsDataPoint {
-  timestamp: string
-  total_geo_events: number
-  unique_ips: number
-  unique_countries: number
-}
-
-export interface GeoEventsTimeSeriesResponse {
-  granularity: "hourly" | "daily"
-  start_date: string
-  end_date: string
-  data: GeoEventsDataPoint[]
-}
+// Time-series shapes come from the generated client (the old manual
+// interfaces drifted: they lacked the percentile and unique_cities fields).
+export type {
+  TimeSeriesDataPoint,
+  TimeSeriesResponse,
+  GeoEventsDataPoint,
+  GeoEventsTimeSeriesResponse,
+} from "@/generated/api/types.gen"
 
 // ============================================================================
 // Types - GeoJSON API
@@ -172,43 +142,15 @@ export interface TopIPDTO {
   location: EmbeddedLocationDTO | null
 }
 
-export interface GeoJSONFeatureProperties {
-  id: number
-  geohash: string
-  country_code: string | null
-  country_name: string | null
-  state: string | null
-  state_code: string | null
-  city: string | null
-  postal_code: string | null
-  timezone: string | null
-  event_count: number
-  last_hit: string | null
-}
-
-export interface GeoJSONPointGeometry {
-  type: "Point"
-  coordinates: [number, number] // [longitude, latitude]
-}
-
-export interface GeoJSONFeature {
-  type: "Feature"
-  geometry: GeoJSONPointGeometry
-  properties: GeoJSONFeatureProperties
-}
-
-export interface GEOJSONFeatureStats {
-  events: number
-  countries: number
-  cities: number
-  locations: number
-}
-
-export interface GeoJSONFeatureCollection {
-  type: "FeatureCollection"
-  features: GeoJSONFeature[]
-  stats: GEOJSONFeatureStats
-}
+// GeoJSON shapes come from the generated client; the aliases keep the
+// codebase's GeoJSON* casing.
+export type {
+  GeoJsonFeatureCollection as GeoJSONFeatureCollection,
+  GeoJsonFeature as GeoJSONFeature,
+  GeoJsonFeatureProperties as GeoJSONFeatureProperties,
+  GeoJsonFeatureStats as GeoJSONFeatureStats,
+  GeoJsonPointGeometry as GeoJSONPointGeometry,
+} from "@/generated/api/types.gen"
 
 // ============================================================================
 // API Functions
@@ -261,6 +203,8 @@ export interface TimeSeriesParams {
 export interface GeoJSONParams {
   fromTimestamp: string // Full ISO timestamp
   toTimestamp: string
+  countryCodes?: string[]
+  cities?: string[]
 }
 
 export async function fetchGeoJSON(params: GeoJSONParams): Promise<GeoJSONFeatureCollection> {
@@ -268,7 +212,12 @@ export async function fetchGeoJSON(params: GeoJSONParams): Promise<GeoJSONFeatur
     params: {
       from_timestamp: params.fromTimestamp,
       to_timestamp: params.toTimestamp,
+      country_code: params.countryCodes?.length ? params.countryCodes : undefined,
+      city: params.cities?.length ? params.cities : undefined,
     },
+    // Litestar expects repeated keys (?country_code=NO&country_code=SE),
+    // not axios' default bracket form (country_code[]=NO).
+    paramsSerializer: { indexes: null },
   })
   return data
 }
@@ -369,6 +318,42 @@ export async function fetchTopCountries(params: TopIPsParams): Promise<TopCountr
       to_timestamp: params.toTimestamp,
       limit: params.limit ?? 10,
     },
+  })
+  return data
+}
+
+// ============================================================================
+// Analytics fetchers on the generated SDK (types flow from the OpenAPI schema)
+// ============================================================================
+
+export async function fetchTimeSeries(params: TimeSeriesParams) {
+  const { data } = await apiV1AnalyticsTimeSeriesGetTimeSeries({
+    query: { start_date: params.startDate, end_date: params.endDate },
+    throwOnError: true,
+  })
+  return data
+}
+
+export async function fetchGeoTimeSeries(params: TimeSeriesParams) {
+  const { data } = await apiV1AnalyticsGeoTimeSeriesGetGeoTimeSeries({
+    query: { start_date: params.startDate, end_date: params.endDate },
+    throwOnError: true,
+  })
+  return data
+}
+
+export async function fetchTopUrls(params: TimeSeriesParams & { limit?: number }) {
+  const { data } = await apiV1AnalyticsTopUrlsGetTopUrls({
+    query: { start_date: params.startDate, end_date: params.endDate, limit: params.limit ?? 25 },
+    throwOnError: true,
+  })
+  return data
+}
+
+export async function fetchTopUserAgents(params: TimeSeriesParams & { limit?: number }) {
+  const { data } = await apiV1AnalyticsTopUserAgentsGetTopUserAgents({
+    query: { start_date: params.startDate, end_date: params.endDate, limit: params.limit ?? 25 },
+    throwOnError: true,
   })
   return data
 }

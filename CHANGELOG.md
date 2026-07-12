@@ -14,6 +14,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   duplicate protection skips a file already imported (`--force` to
   re-import), and a post-import refresh of the continuous aggregates covers
   the imported time range.
+- `/analytics` page with per-bucket charts (requests, status classes,
+  bandwidth, latency avg/p50/p95/p99) and top-URLs / top-user-agents tables.
+- New analytics endpoints: `GET /api/v1/analytics/time-series`,
+  `/analytics/geo-time-series`, `/analytics/top-urls`,
+  `/analytics/top-user-agents`.
+- Country/city filters on the map: repeatable `country_code` / `city` query
+  params on `GET /api/v1/geo-locations/geojson` plus multi-select comboboxes
+  in the map controls.
+- The generated `@hey-api/openapi-ts` client is now the typed transport for
+  the new frontend fetchers; the drifted hand-written GeoJSON/time-series
+  interfaces were removed in favor of generated types.
+
+### Fixed
+
+- Summary CAGG percentiles are now mathematically correct: buckets store a
+  mergeable `percentile_agg` (uddsketch) and queries read
+  `approx_percentile(...)` rollups, instead of averaging per-bucket
+  percentiles (an AVG of p50s/p95s/p99s is not a percentile).
+- `get_time_series` / `get_geo_time_series` raised for ranges ≤ 24 h (they
+  built a nonexistent `summary_raw_stats` table name); sub-24h ranges now
+  clamp to the hourly CAGGs, which real-time aggregation keeps current.
+- The map no longer remounts its GeoJSON source (and every layer) on each
+  data refresh, and fit-to-bounds no longer risks a stack overflow on large
+  feature sets (spread-based `Math.min/max` replaced with a single pass).
+- Chart palette (`--chart-1..5`) replaced with CVD-validated sets for both
+  themes; the previous light palette's 4xx/5xx hues were indistinguishable
+  under deuteranopia.
+
+### Changed
+
+- **Summary CAGG schema changed and is auto-upgraded on startup**: old-shape
+  `summary_hourly_stats` / `summary_daily_stats` views are dropped and
+  recreated, and their materialized data is rebuilt from raw access logs.
+  Raw logs only survive `raw_retention_days` (default 180 d), so summary
+  history older than that cannot be rebuilt and **is permanently lost** by
+  the upgrade (the daily CAGGs were its only permanent store).
+- `/analytics/summary` percentile values change where the old averaging math
+  was wrong (intended).
 
 ## [0.1.0-alpha.1] - 2026-07-10
 

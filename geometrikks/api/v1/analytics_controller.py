@@ -21,8 +21,16 @@ from geometrikks.domain.analytics.dtos import (
     PercentChange,
     CumulativeDataPoint,
     CumulativeTimeSeriesResponse,
+    GeoEventsDataPoint,
+    GeoEventsTimeSeriesResponse,
+    TimeSeriesDataPoint,
+    TimeSeriesResponse,
+    TopUrlDTO,
+    TopUrlsResponse,
+    TopUserAgentDTO,
+    TopUserAgentsResponse,
 )
-from geometrikks.domain.analytics.repositories import get_stats_granularity
+from geometrikks.domain.analytics.repositories import StatsGranularity, get_stats_granularity
 
 from geometrikks.api.dependencies import (
     provide_live_stats_repo,
@@ -370,5 +378,155 @@ class AnalyticsController(Controller):
             start_date=start_date.isoformat(),
             end_date=end_date.isoformat(),
             data=data_points,
+        )
+
+    @get("/time-series", description="Per-bucket access-log metrics for charts.")
+    async def get_time_series(
+        self,
+        summary_stats_repo: NamedDependency[SummaryStatsRepository],
+        start_date: Annotated[
+            datetime,
+            Parameter(
+                description="Start date (ISO 8601, e.g., 2024-01-01T00:00:00Z)",
+                examples=[Example(value="2024-01-01T00:00:00Z")],
+            ),
+        ],
+        end_date: Annotated[
+            datetime,
+            Parameter(
+                description="End date (ISO 8601, e.g., 2024-12-31T23:59:59Z)",
+                examples=[Example(value="2024-12-31T23:59:59Z")],
+            ),
+        ],
+    ) -> TimeSeriesResponse:
+        """Get per-bucket access-log metrics (requests, status, bytes, latency)."""
+        rows = await summary_stats_repo.get_time_series(start_date, end_date)
+        granularity = get_stats_granularity(start_date, end_date)
+        if granularity == StatsGranularity.RAW:
+            granularity = StatsGranularity.HOURLY  # matches the repo's clamp
+        return TimeSeriesResponse(
+            granularity=granularity.value,
+            start_date=start_date.isoformat(),
+            end_date=end_date.isoformat(),
+            data=[
+                TimeSeriesDataPoint(
+                    timestamp=row.bucket.isoformat(),
+                    total_requests=row.total_requests,
+                    total_geo_events=0,  # geo series is its own endpoint
+                    total_bytes_sent=row.total_bytes,
+                    status_2xx=row.status_2xx,
+                    status_3xx=row.status_3xx,
+                    status_4xx=row.status_4xx,
+                    status_5xx=row.status_5xx,
+                    error_rate=(row.status_4xx + row.status_5xx) / row.total_requests if row.total_requests else 0.0,
+                    avg_request_time=row.avg_request_time,
+                    p50_request_time=row.p50_request_time,
+                    p95_request_time=row.p95_request_time,
+                    p99_request_time=row.p99_request_time,
+                )
+                for row in rows
+            ],
+        )
+
+    @get("/geo-time-series", description="Per-bucket geo-event metrics for charts.")
+    async def get_geo_time_series(
+        self,
+        summary_stats_repo: NamedDependency[SummaryStatsRepository],
+        start_date: Annotated[
+            datetime,
+            Parameter(
+                description="Start date (ISO 8601, e.g., 2024-01-01T00:00:00Z)",
+                examples=[Example(value="2024-01-01T00:00:00Z")],
+            ),
+        ],
+        end_date: Annotated[
+            datetime,
+            Parameter(
+                description="End date (ISO 8601, e.g., 2024-12-31T23:59:59Z)",
+                examples=[Example(value="2024-12-31T23:59:59Z")],
+            ),
+        ],
+    ) -> GeoEventsTimeSeriesResponse:
+        """Get per-bucket geo-event metrics (events, unique IPs/countries/cities)."""
+        rows = await summary_stats_repo.get_geo_time_series(start_date, end_date)
+        granularity = get_stats_granularity(start_date, end_date)
+        if granularity == StatsGranularity.RAW:
+            granularity = StatsGranularity.HOURLY  # matches the repo's clamp
+        return GeoEventsTimeSeriesResponse(
+            granularity=granularity.value,
+            start_date=start_date.isoformat(),
+            end_date=end_date.isoformat(),
+            data=[
+                GeoEventsDataPoint(
+                    timestamp=row["bucket"].isoformat(),
+                    total_geo_events=row["total_events"],
+                    unique_ips=row["unique_ips"],
+                    unique_countries=row["unique_countries"],
+                    unique_cities=row["unique_cities"],
+                )
+                for row in rows
+            ],
+        )
+
+    @get("/top-urls", description="Top URLs by hits from raw access logs (time-bounded).")
+    async def get_top_urls(
+        self,
+        live_stats_repo: NamedDependency[LiveStatsRepository],
+        start_date: Annotated[
+            datetime,
+            Parameter(
+                description="Start date (ISO 8601, e.g., 2024-01-01T00:00:00Z)",
+                examples=[Example(value="2024-01-01T00:00:00Z")],
+            ),
+        ],
+        end_date: Annotated[
+            datetime,
+            Parameter(
+                description="End date (ISO 8601, e.g., 2024-12-31T23:59:59Z)",
+                examples=[Example(value="2024-12-31T23:59:59Z")],
+            ),
+        ],
+        limit: Annotated[
+            int,
+            Parameter(description="Maximum number of URLs to return", ge=1, le=100),
+        ] = 25,
+    ) -> TopUrlsResponse:
+        """Get the top URLs by hit count for a date range."""
+        rows = await live_stats_repo.get_top_urls(start_date, end_date, limit=limit)
+        return TopUrlsResponse(
+            start_date=start_date.isoformat(),
+            end_date=end_date.isoformat(),
+            items=[TopUrlDTO(**vars(r)) for r in rows],
+        )
+
+    @get("/top-user-agents", description="Top user agents by hits from raw access logs.")
+    async def get_top_user_agents(
+        self,
+        live_stats_repo: NamedDependency[LiveStatsRepository],
+        start_date: Annotated[
+            datetime,
+            Parameter(
+                description="Start date (ISO 8601, e.g., 2024-01-01T00:00:00Z)",
+                examples=[Example(value="2024-01-01T00:00:00Z")],
+            ),
+        ],
+        end_date: Annotated[
+            datetime,
+            Parameter(
+                description="End date (ISO 8601, e.g., 2024-12-31T23:59:59Z)",
+                examples=[Example(value="2024-12-31T23:59:59Z")],
+            ),
+        ],
+        limit: Annotated[
+            int,
+            Parameter(description="Maximum number of user agents to return", ge=1, le=100),
+        ] = 25,
+    ) -> TopUserAgentsResponse:
+        """Get the top user agents by hit count for a date range."""
+        rows = await live_stats_repo.get_top_user_agents(start_date, end_date, limit=limit)
+        return TopUserAgentsResponse(
+            start_date=start_date.isoformat(),
+            end_date=end_date.isoformat(),
+            items=[TopUserAgentDTO(**vars(r)) for r in rows],
         )
 

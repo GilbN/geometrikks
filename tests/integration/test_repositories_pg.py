@@ -143,3 +143,37 @@ async def test_geojson_event_counts_route_raw(pg_session_maker, clean_tables):
         rows = await repo.get_all_with_event_counts(NOW - timedelta(hours=23), NOW)
     assert len(rows) == 3
     assert sum(r.event_count for r in rows) == 9
+
+
+async def test_geojson_country_filter(pg_session_maker, clean_tables):
+    await seed(pg_session_maker, days_back=1, per_day=9)
+    async with pg_session_maker() as session:
+        repo = GeoLocationRepository(session=session)
+        all_rows = await repo.get_all_with_event_counts(NOW - timedelta(hours=23), NOW)
+        one_code = all_rows[0].location.country_code
+        one_city = all_rows[0].location.city
+        filtered = await repo.get_all_with_event_counts(
+            NOW - timedelta(hours=23), NOW, country_codes=[one_code]
+        )
+        city_filtered = await repo.get_all_with_event_counts(
+            NOW - timedelta(hours=23), NOW, cities=[one_city]
+        )
+    assert filtered and all(r.location.country_code == one_code for r in filtered)
+    assert len(filtered) <= len(all_rows)
+    assert city_filtered and all(r.location.city == one_city for r in city_filtered)
+
+
+async def test_geojson_country_filter_cagg_path(pg_engine, pg_session_maker, clean_tables):
+    """>24h range routes to the location CAGG; filters must apply there too."""
+    await seed(pg_session_maker, days_back=3, per_day=9)
+    await refresh_caggs_range(
+        pg_engine, start=NOW - timedelta(days=4), end=NOW + timedelta(hours=1),
+    )
+    async with pg_session_maker() as session:
+        repo = GeoLocationRepository(session=session)
+        all_rows = await repo.get_all_with_event_counts(NOW - timedelta(days=3, hours=2), NOW)
+        one_code = all_rows[0].location.country_code
+        filtered = await repo.get_all_with_event_counts(
+            NOW - timedelta(days=3, hours=2), NOW, country_codes=[one_code]
+        )
+    assert filtered and all(r.location.country_code == one_code for r in filtered)

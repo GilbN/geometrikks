@@ -16,13 +16,12 @@ CAGG Structure:
 from __future__ import annotations
 
 import logging
+from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING
 
 from sqlalchemy import text
 
 if TYPE_CHECKING:
-    from datetime import datetime
-
     from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine
 
     from geometrikks.config.settings import AnalyticsSettings
@@ -111,9 +110,7 @@ async def _create_summary_caggs(conn: "AsyncConnection") -> None:
             COUNT(*) FILTER (WHERE status_code >= 500 AND status_code < 600) AS status_5xx,
             AVG(request_time) AS avg_request_time,
             MAX(request_time) AS max_request_time,
-            PERCENTILE_CONT(0.50) WITHIN GROUP (ORDER BY request_time) AS p50_request_time,
-            PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY request_time) AS p95_request_time,
-            PERCENTILE_CONT(0.99) WITHIN GROUP (ORDER BY request_time) AS p99_request_time
+            percentile_agg(request_time) AS pct_agg
         FROM access_logs
         GROUP BY bucket
         WITH NO DATA
@@ -133,9 +130,7 @@ async def _create_summary_caggs(conn: "AsyncConnection") -> None:
             COUNT(*) FILTER (WHERE status_code >= 500 AND status_code < 600) AS status_5xx,
             AVG(request_time) AS avg_request_time,
             MAX(request_time) AS max_request_time,
-            PERCENTILE_CONT(0.50) WITHIN GROUP (ORDER BY request_time) AS p50_request_time,
-            PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY request_time) AS p95_request_time,
-            PERCENTILE_CONT(0.99) WITHIN GROUP (ORDER BY request_time) AS p99_request_time
+            percentile_agg(request_time) AS pct_agg
         FROM access_logs
         GROUP BY bucket
         WITH NO DATA
@@ -471,6 +466,41 @@ async def teardown_timescaledb(conn: "AsyncConnection") -> None:
     logger.info("TimescaleDB teardown complete")
 
 
+SUMMARY_CAGGS = ["summary_hourly_stats", "summary_daily_stats"]
+
+
+async def _summary_caggs_need_upgrade(conn: "AsyncConnection") -> bool:
+    """True when a summary CAGG exists in the pre-percentile_agg shape.
+
+    CAGGs are plain views over the internal materialized hypertable, so
+    information_schema.columns lists their columns directly — one probe is
+    enough.
+    """
+    result = await conn.execute(text("""
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = ANY(:views) AND column_name = 'p50_request_time'
+        LIMIT 1
+    """), {"views": SUMMARY_CAGGS})
+    return bool(result.scalar())
+
+
+async def _upgrade_summary_caggs(conn: "AsyncConnection") -> None:
+    """Drop old-shape summary CAGGs so setup recreates them with pct_agg.
+
+    Materialized data is lost and rebuilt from raw access_logs: refresh
+    policies backfill their windows and the caller schedules a full refresh.
+    CAVEAT: raw data only survives raw_retention_days (default 180d), so
+    daily-summary history OLDER than that cannot be rebuilt and is
+    permanently discarded by this upgrade.
+    """
+    for cagg in SUMMARY_CAGGS:
+        await conn.execute(text(f"DROP MATERIALIZED VIEW IF EXISTS {cagg} CASCADE"))
+        logger.warning(
+            "Recreating %s with percentile_agg (old percentile columns were mathematically wrong)",
+            cagg,
+        )
+
+
 async def setup_timescaledb(
     engine: "AsyncEngine",
     analytics: "AnalyticsSettings",
@@ -490,6 +520,11 @@ async def setup_timescaledb(
         # Create hypertables
         await _create_hypertables(conn)
 
+        # Upgrade pre-percentile_agg summary CAGGs (drop; recreated below)
+        upgraded = await _summary_caggs_need_upgrade(conn)
+        if upgraded:
+            await _upgrade_summary_caggs(conn)
+
         # Create continuous aggregates
         await _create_summary_caggs(conn)
         await _create_geo_summary_caggs(conn)
@@ -508,6 +543,17 @@ async def setup_timescaledb(
             analytics.hourly_retention_days,
         )
         await _add_compression_policies(conn, analytics.compression_after_days)
+
+    if upgraded:
+        # Rebuild the recreated summary CAGGs from raw logs. Bounded by the
+        # raw retention window: older raw rows are already dropped, so
+        # refreshing further back is pure waste.
+        await refresh_caggs_range(
+            engine,
+            start=datetime.now(timezone.utc) - timedelta(days=analytics.raw_retention_days),
+            end=datetime.now(timezone.utc),
+            caggs=SUMMARY_CAGGS,
+        )
 
     logger.info("TimescaleDB setup complete")
 

@@ -314,9 +314,9 @@ class SummaryStatsRepository:
                     COALESCE(SUM(status_5xx), 0) AS status_5xx,
                     COALESCE(AVG(avg_request_time), 0) AS avg_request_time,
                     COALESCE(MAX(max_request_time), 0) AS max_request_time,
-                    COALESCE(AVG(p50_request_time), 0) AS p50_request_time,
-                    COALESCE(AVG(p95_request_time), 0) AS p95_request_time,
-                    COALESCE(AVG(p99_request_time), 0) AS p99_request_time
+                    COALESCE(approx_percentile(0.50, rollup(pct_agg)), 0) AS p50_request_time,
+                    COALESCE(approx_percentile(0.95, rollup(pct_agg)), 0) AS p95_request_time,
+                    COALESCE(approx_percentile(0.99, rollup(pct_agg)), 0) AS p99_request_time
                 FROM {summary_table}
                 WHERE bucket >= time_bucket('{bucket_interval}', CAST(:start AS timestamptz))
                 AND bucket < :end
@@ -385,6 +385,8 @@ class SummaryStatsRepository:
             List of SummaryStatsRow ordered by bucket ascending.
         """
         granularity = get_stats_granularity(start, end)
+        if granularity == StatsGranularity.RAW:
+            granularity = StatsGranularity.HOURLY  # no raw CAGG; hourly + real-time agg covers ≤24h
         table = f"summary_{granularity.value}_stats"
         bucket_interval = "1 hour" if granularity == StatsGranularity.HOURLY else "1 day"
 
@@ -399,9 +401,9 @@ class SummaryStatsRepository:
                 status_5xx,
                 avg_request_time,
                 max_request_time,
-                p50_request_time,
-                p95_request_time,
-                p99_request_time
+                approx_percentile(0.50, pct_agg) AS p50_request_time,
+                approx_percentile(0.95, pct_agg) AS p95_request_time,
+                approx_percentile(0.99, pct_agg) AS p99_request_time
             FROM {table}
             WHERE bucket >= time_bucket('{bucket_interval}', CAST(:start AS timestamptz))
               AND bucket < :end
@@ -446,6 +448,8 @@ class SummaryStatsRepository:
             List of dicts with bucket, total_events, unique_ips, unique_countries, unique_cities.
         """
         granularity = get_stats_granularity(start, end)
+        if granularity == StatsGranularity.RAW:
+            granularity = StatsGranularity.HOURLY  # no raw CAGG; hourly + real-time agg covers ≤24h
         table = f"geo_summary_{granularity.value}_stats"
         bucket_interval = "1 hour" if granularity == StatsGranularity.HOURLY else "1 day"
 
@@ -579,6 +583,25 @@ class SummaryStatsRepository:
         return [dict(row._mapping) for row in result.fetchall()]
 
 
+@dataclass
+class TopUrlRow:
+    """A top-URL aggregate row from raw access_logs."""
+
+    url: str
+    hits: int
+    error_hits: int
+    total_bytes: int
+    avg_request_time: float
+
+
+@dataclass
+class TopUserAgentRow:
+    """A top-user-agent aggregate row from raw access_logs."""
+
+    user_agent: str
+    hits: int
+
+
 class LiveStatsRepository:
     """Repository for querying live statistics directly from raw hypertables.
 
@@ -690,3 +713,51 @@ class LiveStatsRepository:
             unique_cities=geo_row.unique_cities if geo_row else 0,
             malformed_requests=malformed_row.malformed_requests if malformed_row else 0,
         )
+
+    async def get_top_urls(
+        self, start: datetime, end: datetime, limit: int = 25
+    ) -> list[TopUrlRow]:
+        """Top URLs by hit count from raw access_logs (time-bounded).
+
+        Raw-table scan by design: no CAGG exists for URL cardinality yet
+        (future optimization; fine at homelab volume with chunk exclusion).
+        """
+        stmt = text("""
+            SELECT
+                url,
+                CAST(COUNT(*) AS BIGINT) AS hits,
+                CAST(COUNT(*) FILTER (WHERE status_code >= 400) AS BIGINT) AS error_hits,
+                CAST(COALESCE(SUM(bytes_sent), 0) AS BIGINT) AS total_bytes,
+                COALESCE(AVG(request_time), 0) AS avg_request_time
+            FROM access_logs
+            WHERE timestamp >= :start AND timestamp < :end AND url IS NOT NULL
+            GROUP BY url
+            ORDER BY hits DESC
+            LIMIT :limit
+        """)
+        result = await self.session.execute(stmt, {"start": start, "end": end, "limit": limit})
+        return [
+            TopUrlRow(
+                url=row.url,
+                hits=row.hits,
+                error_hits=row.error_hits,
+                total_bytes=row.total_bytes,
+                avg_request_time=float(row.avg_request_time),
+            )
+            for row in result.fetchall()
+        ]
+
+    async def get_top_user_agents(
+        self, start: datetime, end: datetime, limit: int = 25
+    ) -> list[TopUserAgentRow]:
+        """Top user agents by hit count from raw access_logs (time-bounded)."""
+        stmt = text("""
+            SELECT user_agent, CAST(COUNT(*) AS BIGINT) AS hits
+            FROM access_logs
+            WHERE timestamp >= :start AND timestamp < :end AND user_agent IS NOT NULL
+            GROUP BY user_agent
+            ORDER BY hits DESC
+            LIMIT :limit
+        """)
+        result = await self.session.execute(stmt, {"start": start, "end": end, "limit": limit})
+        return [TopUserAgentRow(user_agent=row.user_agent, hits=row.hits) for row in result.fetchall()]

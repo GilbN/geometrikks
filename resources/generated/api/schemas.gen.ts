@@ -120,27 +120,71 @@ export const EmbeddedLocationDTOSchema = {
   type: "object",
 } as const;
 
+export const GeoEventsDataPointSchema = {
+  properties: {
+    timestamp: {
+      type: "string",
+    },
+    total_geo_events: {
+      type: "integer",
+    },
+    unique_cities: {
+      type: "integer",
+    },
+    unique_countries: {
+      type: "integer",
+    },
+    unique_ips: {
+      type: "integer",
+    },
+  },
+  required: [
+    "timestamp",
+    "total_geo_events",
+    "unique_cities",
+    "unique_countries",
+    "unique_ips",
+  ],
+  title: "GeoEventsDataPoint",
+  type: "object",
+} as const;
+
+export const GeoEventsTimeSeriesResponseSchema = {
+  properties: {
+    data: {
+      items: {
+        $ref: "#/components/schemas/GeoEventsDataPoint",
+      },
+      type: "array",
+    },
+    end_date: {
+      type: "string",
+    },
+    granularity: {
+      type: "string",
+    },
+    start_date: {
+      type: "string",
+    },
+  },
+  required: ["data", "end_date", "granularity", "start_date"],
+  title: "GeoEventsTimeSeriesResponse",
+  type: "object",
+} as const;
+
 export const GeoJSONFeatureSchema = {
   properties: {
     geometry: {
       $ref: "#/components/schemas/GeoJSONPointGeometry",
     },
     properties: {
-      oneOf: [
-        {
-          $ref: "#/components/schemas/GeoJSONFeatureProperties",
-        },
-        {
-          type: "null",
-        },
-      ],
+      $ref: "#/components/schemas/GeoJSONFeatureProperties",
     },
     type: {
-      default: "Feature",
       type: "string",
     },
   },
-  required: [],
+  required: ["geometry", "properties", "type"],
   title: "GeoJSONFeature",
   type: "object",
 } as const;
@@ -157,11 +201,10 @@ export const GeoJSONFeatureCollectionSchema = {
       $ref: "#/components/schemas/GeoJSONFeatureStats",
     },
     type: {
-      default: "FeatureCollection",
       type: "string",
     },
   },
-  required: [],
+  required: ["features", "stats", "type"],
   title: "GeoJSONFeatureCollection",
   type: "object",
 } as const;
@@ -271,23 +314,19 @@ export const GeoJSONFeaturePropertiesSchema = {
 export const GeoJSONFeatureStatsSchema = {
   properties: {
     cities: {
-      default: 0,
       type: "integer",
     },
     countries: {
-      default: 0,
       type: "integer",
     },
     events: {
-      default: 0,
       type: "integer",
     },
     locations: {
-      default: 0,
       type: "integer",
     },
   },
-  required: [],
+  required: ["cities", "countries", "events", "locations"],
   title: "GeoJSONFeatureStats",
   type: "object",
 } as const;
@@ -306,11 +345,10 @@ export const GeoJSONPointGeometrySchema = {
       type: "array",
     },
     type: {
-      default: "Point",
       type: "string",
     },
   },
-  required: [],
+  required: ["coordinates", "type"],
   title: "GeoJSONPointGeometry",
   type: "object",
 } as const;
@@ -1007,6 +1045,90 @@ export const SummaryResponseSchema = {
   type: "object",
 } as const;
 
+export const TimeSeriesDataPointSchema = {
+  properties: {
+    avg_request_time: {
+      type: "number",
+    },
+    error_rate: {
+      type: "number",
+    },
+    p50_request_time: {
+      type: "number",
+    },
+    p95_request_time: {
+      type: "number",
+    },
+    p99_request_time: {
+      type: "number",
+    },
+    status_2xx: {
+      type: "integer",
+    },
+    status_3xx: {
+      type: "integer",
+    },
+    status_4xx: {
+      type: "integer",
+    },
+    status_5xx: {
+      type: "integer",
+    },
+    timestamp: {
+      type: "string",
+    },
+    total_bytes_sent: {
+      type: "integer",
+    },
+    total_geo_events: {
+      type: "integer",
+    },
+    total_requests: {
+      type: "integer",
+    },
+  },
+  required: [
+    "avg_request_time",
+    "error_rate",
+    "p50_request_time",
+    "p95_request_time",
+    "p99_request_time",
+    "status_2xx",
+    "status_3xx",
+    "status_4xx",
+    "status_5xx",
+    "timestamp",
+    "total_bytes_sent",
+    "total_geo_events",
+    "total_requests",
+  ],
+  title: "TimeSeriesDataPoint",
+  type: "object",
+} as const;
+
+export const TimeSeriesResponseSchema = {
+  properties: {
+    data: {
+      items: {
+        $ref: "#/components/schemas/TimeSeriesDataPoint",
+      },
+      type: "array",
+    },
+    end_date: {
+      type: "string",
+    },
+    granularity: {
+      type: "string",
+    },
+    start_date: {
+      type: "string",
+    },
+  },
+  required: ["data", "end_date", "granularity", "start_date"],
+  title: "TimeSeriesResponse",
+  type: "object",
+} as const;
+
 export const TopCountriesResponseSchema = {
   properties: {
     top_countries: {
@@ -1066,5 +1188,82 @@ export const TopIPDTOSchema = {
   },
   required: ["event_count", "ip_address"],
   title: "TopIPDTO",
+  type: "object",
+} as const;
+
+export const TopUrlDTOSchema = {
+  properties: {
+    avg_request_time: {
+      type: "number",
+    },
+    error_hits: {
+      type: "integer",
+    },
+    hits: {
+      type: "integer",
+    },
+    total_bytes: {
+      type: "integer",
+    },
+    url: {
+      type: "string",
+    },
+  },
+  required: ["avg_request_time", "error_hits", "hits", "total_bytes", "url"],
+  title: "TopUrlDTO",
+  type: "object",
+} as const;
+
+export const TopUrlsResponseSchema = {
+  properties: {
+    end_date: {
+      type: "string",
+    },
+    items: {
+      items: {
+        $ref: "#/components/schemas/TopUrlDTO",
+      },
+      type: "array",
+    },
+    start_date: {
+      type: "string",
+    },
+  },
+  required: ["end_date", "items", "start_date"],
+  title: "TopUrlsResponse",
+  type: "object",
+} as const;
+
+export const TopUserAgentDTOSchema = {
+  properties: {
+    hits: {
+      type: "integer",
+    },
+    user_agent: {
+      type: "string",
+    },
+  },
+  required: ["hits", "user_agent"],
+  title: "TopUserAgentDTO",
+  type: "object",
+} as const;
+
+export const TopUserAgentsResponseSchema = {
+  properties: {
+    end_date: {
+      type: "string",
+    },
+    items: {
+      items: {
+        $ref: "#/components/schemas/TopUserAgentDTO",
+      },
+      type: "array",
+    },
+    start_date: {
+      type: "string",
+    },
+  },
+  required: ["end_date", "items", "start_date"],
+  title: "TopUserAgentsResponse",
   type: "object",
 } as const;

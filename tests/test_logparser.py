@@ -95,6 +95,52 @@ def test_regex_tester_invalid(load_unparseable_logs: list[str], ipv4_log_pattern
         assert bool(ipv4_log_pattern.match(line)) is False
         assert bool(ipv6_log_pattern.match(line)) is False
 
+def test_user_agent_fully_captured(ipv4_log_pattern: re.Pattern[str]) -> None:
+    """Regression: the user_agent group must capture the whole UA string.
+
+    The non-greedy ``(.+?)`` had no required trailing token (request_time and
+    upstream groups are optional, no ``$`` anchor), so it matched a single
+    character -- e.g. "Mozilla/5.0 ..." collapsed to "M". Anchoring the group
+    with the closing quote forces it to consume the full UA.
+    """
+    combined = (
+        '4.255.101.233 - - [28/Jul/2024:02:00:50 +0200] '
+        '"GET /manager/html HTTP/1.1" 301 162 "-" "Mozilla/5.0 zgrab/0.x"'
+    )
+    m = ipv4_log_pattern.match(combined)
+    assert m is not None
+    assert m.group("user_agent") == "Mozilla/5.0 zgrab/0.x"
+
+    # Project's custom format: anchoring also lets request_time parse cleanly.
+    custom = (
+        '1.2.3.4 - - [03/Aug/2024:13:14:17 +0200]"GET /i HTTP/2.0" 200 1024"-" '
+        'example.com "Mozilla/5.0 (X11)""0.002" "0.001""City" "CC"'
+    )
+    m2 = ipv4_log_pattern.match(custom)
+    assert m2 is not None
+    assert m2.group("user_agent") == "Mozilla/5.0 (X11)"
+    assert m2.group("request_time") == "0.002"
+
+
+def test_non_dash_referrer_does_not_swallow_following_fields(ipv4_log_pattern: re.Pattern[str]) -> None:
+    """Regression: the referrer/url field must not cross quotes.
+
+    ``URL_PATTERN`` used a greedy ``.+`` anchored only by a later ``"``. When the
+    quoted field held a real value (not ``-``), it swallowed host, user_agent and
+    the trailing fields, so user_agent ended up as the country code. Fixtures all
+    use ``"-"`` there, which matched the ``\\-`` alternative and hid the bug.
+    """
+    line = (
+        '1.2.3.4 - - [03/Aug/2024:13:14:17 +0200]"GET /p?a=1 HTTP/2.0" 200 1024'
+        '"http://ref.example/x" host.tld "curl/8.0""0.002" "0.001""City" "CC"'
+    )
+    m = ipv4_log_pattern.match(line)
+    assert m is not None
+    assert m.group("url") == "http://ref.example/x"
+    assert m.group("user_agent") == "curl/8.0"
+    assert m.group("request_time") == "0.002"
+    assert m.group("upstream_response_time") == "0.001"
+
 def test_get_ip_type(log_parser: LogParser) -> None:
     """Test the module-level get_ip_type function."""
     assert get_ip_type("10.10.10.1") == "PRIVATE"

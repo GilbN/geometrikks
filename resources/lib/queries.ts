@@ -7,9 +7,13 @@ import {
   fetchSummary,
   fetchLiveSummary,
   fetchGeoJSON,
+  fetchGeoTimeSeries,
   fetchGlobalTopIPs,
   fetchLocationTopIPs,
+  fetchTimeSeries,
   fetchTopCountries,
+  fetchTopUrls,
+  fetchTopUserAgents,
   fetchCumulativeTimeSeries,
   parseTimeRange,
   type SummaryParams,
@@ -33,6 +37,14 @@ export const queryKeys = {
       [...queryKeys.analytics.all, "live-summary", params, refreshKey] as const,
     cumulativeTimeSeries: (params: Record<string, unknown>, refreshKey?: number) =>
       [...queryKeys.analytics.all, "cumulative-time-series", params, refreshKey] as const,
+    timeSeries: (params: Record<string, unknown>, refreshKey?: number) =>
+      [...queryKeys.analytics.all, "time-series", params, refreshKey] as const,
+    geoTimeSeries: (params: Record<string, unknown>, refreshKey?: number) =>
+      [...queryKeys.analytics.all, "geo-time-series", params, refreshKey] as const,
+    topUrls: (params: Record<string, unknown>, refreshKey?: number) =>
+      [...queryKeys.analytics.all, "top-urls", params, refreshKey] as const,
+    topUserAgents: (params: Record<string, unknown>, refreshKey?: number) =>
+      [...queryKeys.analytics.all, "top-user-agents", params, refreshKey] as const,
   },
   geo: {
     all: ["geo"] as const,
@@ -121,6 +133,10 @@ export interface UseTimeSeriesOptions {
 export interface UseGeoJSONOptions {
   /** Enable/disable the query */
   enabled?: boolean
+  /** Filter to these ISO country codes */
+  countryCodes?: string[]
+  /** Filter to these city names */
+  cities?: string[]
 }
 
 /**
@@ -128,18 +144,20 @@ export interface UseGeoJSONOptions {
  * Uses TimeRangeContext for time filtering.
  */
 export function useGeoJSON(options: UseGeoJSONOptions = {}) {
-  const { enabled = true } = options
+  const { enabled = true, countryCodes, cities } = options
   const { range, pollInterval, lastRefresh } = useTimeRange()
 
   return useQuery({
     // Query key uses lastRefresh for cache invalidation on manual refresh
-    queryKey: queryKeys.geo.geojson({ range }, lastRefresh),
+    queryKey: queryKeys.geo.geojson({ range, countryCodes, cities }, lastRefresh),
     // Compute date range at fetch time so polls get fresh data
     queryFn: () => {
       const { startDate, endDate } = parseTimeRange(range, Date.now())
       return fetchGeoJSON({
         fromTimestamp: startDate,
         toTimestamp: endDate,
+        countryCodes,
+        cities,
       })
     },
     enabled,
@@ -266,6 +284,101 @@ export function useCumulativeTimeSeries(options: UseCumulativeTimeSeriesOptions 
         startDate,
         endDate,
       })
+    },
+    enabled,
+    staleTime: 60 * 1000,
+    refetchInterval: pollInterval || false,
+  })
+}
+
+// ============================================================================
+// Analytics page hooks (generated-SDK fetchers; types infer from the fetcher
+// so the generated shapes — percentiles, unique_cities — flow to the charts)
+// ============================================================================
+
+export interface UseAnalyticsQueryOptions {
+  /** Enable/disable the query */
+  enabled?: boolean
+}
+
+export interface UseTopListOptions extends UseAnalyticsQueryOptions {
+  /** Maximum number of rows to return */
+  limit?: number
+}
+
+/**
+ * Fetch per-bucket access-log metrics (requests, status, bytes, latency).
+ * Uses TimeRangeContext for time filtering.
+ */
+export function useTimeSeries(options: UseAnalyticsQueryOptions = {}) {
+  const { enabled = true } = options
+  const { range, pollInterval, lastRefresh } = useTimeRange()
+
+  return useQuery({
+    queryKey: queryKeys.analytics.timeSeries({ range }, lastRefresh),
+    queryFn: () => {
+      const { startDate, endDate } = parseTimeRange(range, Date.now())
+      return fetchTimeSeries({ startDate, endDate })
+    },
+    enabled,
+    staleTime: 60 * 1000,
+    refetchInterval: pollInterval || false,
+  })
+}
+
+/**
+ * Fetch per-bucket geo-event metrics (events, unique IPs/countries/cities).
+ * Uses TimeRangeContext for time filtering.
+ */
+export function useGeoTimeSeries(options: UseAnalyticsQueryOptions = {}) {
+  const { enabled = true } = options
+  const { range, pollInterval, lastRefresh } = useTimeRange()
+
+  return useQuery({
+    queryKey: queryKeys.analytics.geoTimeSeries({ range }, lastRefresh),
+    queryFn: () => {
+      const { startDate, endDate } = parseTimeRange(range, Date.now())
+      return fetchGeoTimeSeries({ startDate, endDate })
+    },
+    enabled,
+    staleTime: 60 * 1000,
+    refetchInterval: pollInterval || false,
+  })
+}
+
+/**
+ * Fetch the top URLs by hit count.
+ * Uses TimeRangeContext for time filtering.
+ */
+export function useTopUrls(options: UseTopListOptions = {}) {
+  const { enabled = true, limit = 25 } = options
+  const { range, pollInterval, lastRefresh } = useTimeRange()
+
+  return useQuery({
+    queryKey: queryKeys.analytics.topUrls({ range, limit }, lastRefresh),
+    queryFn: () => {
+      const { startDate, endDate } = parseTimeRange(range, Date.now())
+      return fetchTopUrls({ startDate, endDate, limit })
+    },
+    enabled,
+    staleTime: 60 * 1000,
+    refetchInterval: pollInterval || false,
+  })
+}
+
+/**
+ * Fetch the top user agents by hit count.
+ * Uses TimeRangeContext for time filtering.
+ */
+export function useTopUserAgents(options: UseTopListOptions = {}) {
+  const { enabled = true, limit = 25 } = options
+  const { range, pollInterval, lastRefresh } = useTimeRange()
+
+  return useQuery({
+    queryKey: queryKeys.analytics.topUserAgents({ range, limit }, lastRefresh),
+    queryFn: () => {
+      const { startDate, endDate } = parseTimeRange(range, Date.now())
+      return fetchTopUserAgents({ startDate, endDate, limit })
     },
     enabled,
     staleTime: 60 * 1000,
