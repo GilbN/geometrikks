@@ -74,7 +74,7 @@ async def _watch_disconnect(socket: WebSocket) -> None:
         await socket.receive_data(mode="text")
 
 
-@websocket("/ws/live")
+@websocket("/ws/live", tags=["Live Feed"])
 async def live_feed(socket: WebSocket) -> None:
     """Stream committed ingestion events, batched and coalesced."""
     ingestion = getattr(socket.app.state, "ingestion_service", None)
