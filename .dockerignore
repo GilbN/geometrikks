@@ -64,4 +64,3 @@ logs/
 
 # Frontend build artifacts (rebuilt in docker)
 public/
-resources/generated/
