@@ -96,7 +96,7 @@ def main() -> int:
             return 1
         return 0
     OUTPUT.parent.mkdir(parents=True, exist_ok=True)
-    OUTPUT.write_text(content)
+    OUTPUT.write_text(content, encoding="utf-8")
     print(f"wrote {OUTPUT}")
     return 0
 
