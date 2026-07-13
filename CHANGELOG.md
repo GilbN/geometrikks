@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-07-13
+
+### Fixed
+
+- Live map route effects now coalesce nearby concurrent origins into visual
+  corridors, preventing overlapping pulses from building up into thick,
+  distracting route lines.
+
 ## [0.2.0] - 2026-07-13
 
 ### Added
