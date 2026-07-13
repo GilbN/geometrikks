@@ -25,9 +25,9 @@ interface Transmission {
 
 const SOURCE_ID = "live-routes"
 const MAX_TRANSMISSIONS = 32
-// Packets may all remain visible, but only one route/trail is drawn for each
-// nearby origin corridor. This prevents MapLibre alpha-blending a pile of
-// identical (or nearly identical) strokes into a thick, bright route.
+// Only one route, packet, and origin marker is drawn for each nearby origin
+// corridor. This prevents MapLibre alpha-blending a pile of identical (or
+// nearly identical) effects into thick, bright routes and packet blooms.
 const MAX_VISIBLE_LANES = 8
 const ROUTE_SAMPLES = 48
 const ARRIVAL_LINGER_MS = 900
@@ -115,6 +115,18 @@ function routeLane(origin: Coordinate): string {
   return `${Math.round(longitude / 8)}:${Math.round(latitude / 6)}`
 }
 
+/**
+ * Keep packet markers apart when separate routes converge. Longitude cells
+ * shrink toward the poles so each cell remains roughly square on the earth.
+ */
+function packetCell([longitude, latitude]: Coordinate): string {
+  const cellSizeDegrees = 0.9
+  const longitudeScale = Math.max(Math.cos(toRadians(latitude)), 0.1)
+  return `${Math.round(latitude / cellSizeDegrees)}:${Math.round(
+    longitude * longitudeScale / cellSizeDegrees,
+  )}`
+}
+
 function pointAlongRoute(route: Coordinate[], progress: number): {
   point: Coordinate
   travelled: Coordinate[]
@@ -154,6 +166,7 @@ function buildFrame(
   let strongestArrival = 0
   const visibleTransmissions = new Set<Transmission>()
   const visibleLanes = new Set<string>()
+  const visiblePacketCells = new Set<string>()
 
   // Prefer the most recent packet in each corridor. Working backwards makes
   // each corridor look live without rendering overlapping copies of its line.
@@ -190,13 +203,19 @@ function buildFrame(
       )
     }
 
-    features.push({
-      type: "Feature",
-      geometry: { type: "Point", coordinates: transmission.route[0] },
-      properties: { kind: "origin", opacity, pulse: originWave },
-    })
+    if (visibleTransmissions.has(transmission)) {
+      features.push({
+        type: "Feature",
+        geometry: { type: "Point", coordinates: transmission.route[0] },
+        properties: { kind: "origin", opacity, pulse: originWave },
+      })
+    }
 
-    if (linearProgress < 1) {
+    const shouldShowPacket = linearProgress < 1
+      && visibleTransmissions.has(transmission)
+      && !visiblePacketCells.has(packetCell(point))
+    if (shouldShowPacket) {
+      visiblePacketCells.add(packetCell(point))
       features.push({
         type: "Feature",
         geometry: { type: "Point", coordinates: point },
