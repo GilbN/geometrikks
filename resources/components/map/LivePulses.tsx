@@ -113,7 +113,12 @@ function pointAlongRoute(route: Coordinate[], progress: number): {
     from[0] + (to[0] - from[0]) * fraction,
     from[1] + (to[1] - from[1]) * fraction,
   ]
-  return { point, travelled: [...route.slice(0, index + 1), point] }
+  // Keep the final route sample as the interpolated packet position. This
+  // creates one shallow coordinate array, rather than a slice plus a second
+  // spread-created array, for every active route on every animation frame.
+  const travelled = route.slice(0, index + 2)
+  travelled[index + 1] = point
+  return { point, travelled }
 }
 
 function smootherStep(value: number): number {
