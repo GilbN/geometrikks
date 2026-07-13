@@ -19,11 +19,16 @@ type Coordinate = [longitude: number, latitude: number]
 interface Transmission {
   born: number
   duration: number
+  lane: string
   route: Coordinate[]
 }
 
 const SOURCE_ID = "live-routes"
 const MAX_TRANSMISSIONS = 32
+// Packets may all remain visible, but only one route/trail is drawn for each
+// nearby origin corridor. This prevents MapLibre alpha-blending a pile of
+// identical (or nearly identical) strokes into a thick, bright route.
+const MAX_VISIBLE_LANES = 8
 const ROUTE_SAMPLES = 48
 const ARRIVAL_LINGER_MS = 900
 const EARTH_RADIUS_KM = 6371
@@ -100,6 +105,16 @@ function routeDistanceKm(route: Coordinate[]): number {
   return centralAngle * EARTH_RADIUS_KM
 }
 
+/**
+ * Group close origins into a stable visual corridor. The packet still uses
+ * its precise coordinate; the grouping only controls the route line drawn
+ * behind it.
+ */
+function routeLane(origin: Coordinate): string {
+  const [longitude, latitude] = origin
+  return `${Math.round(longitude / 8)}:${Math.round(latitude / 6)}`
+}
+
 function pointAlongRoute(route: Coordinate[], progress: number): {
   point: Coordinate
   travelled: Coordinate[]
@@ -137,6 +152,17 @@ function buildFrame(
 ): GeoJSON.FeatureCollection {
   const features: GeoJSON.Feature[] = []
   let strongestArrival = 0
+  const visibleTransmissions = new Set<Transmission>()
+  const visibleLanes = new Set<string>()
+
+  // Prefer the most recent packet in each corridor. Working backwards makes
+  // each corridor look live without rendering overlapping copies of its line.
+  for (let index = transmissions.length - 1; index >= 0; index -= 1) {
+    const transmission = transmissions[index]
+    if (visibleLanes.has(transmission.lane) || visibleLanes.size >= MAX_VISIBLE_LANES) continue
+    visibleLanes.add(transmission.lane)
+    visibleTransmissions.add(transmission)
+  }
 
   for (const transmission of transmissions) {
     const elapsed = now - transmission.born
@@ -149,23 +175,26 @@ function buildFrame(
     const packetPulse = (Math.sin(elapsed / 105) + 1) / 2
     strongestArrival = Math.max(strongestArrival, linger > 0 ? 1 - linger : 0)
 
-    features.push(
-      {
-        type: "Feature",
-        geometry: { type: "LineString", coordinates: transmission.route },
-        properties: { kind: "route", opacity },
-      },
-      {
-        type: "Feature",
-        geometry: { type: "LineString", coordinates: travelled },
-        properties: { kind: "trail", opacity },
-      },
-      {
-        type: "Feature",
-        geometry: { type: "Point", coordinates: transmission.route[0] },
-        properties: { kind: "origin", opacity, pulse: originWave },
-      },
-    )
+    if (visibleTransmissions.has(transmission)) {
+      features.push(
+        {
+          type: "Feature",
+          geometry: { type: "LineString", coordinates: transmission.route },
+          properties: { kind: "route", opacity },
+        },
+        {
+          type: "Feature",
+          geometry: { type: "LineString", coordinates: travelled },
+          properties: { kind: "trail", opacity },
+        },
+      )
+    }
+
+    features.push({
+      type: "Feature",
+      geometry: { type: "Point", coordinates: transmission.route[0] },
+      properties: { kind: "origin", opacity, pulse: originWave },
+    })
 
     if (linearProgress < 1) {
       features.push({
@@ -226,6 +255,7 @@ export function LivePulses({
       transmissions.current.push({
         born: now,
         duration,
+        lane: routeLane(origin),
         route,
       })
     }
