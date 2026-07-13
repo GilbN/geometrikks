@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-07-13
+
+### Added
+
+- Animated network routes for live geo events: a glowing packet
+  travels from each request origin to the server's configured map home, with
+  an origin wave, route trail, and destination beacon.
+- Map-home discovery from the server's external IP address, using the local
+  GeoLite2 database. `MAP_HOME_LATITUDE` / `MAP_HOME_LONGITUDE` provide a
+  manual override, and automatic discovery can be disabled when needed.
+- Development-only map traffic harness: use `/map?demoTraffic=1` for a
+  steady route stream or `/map?demoTraffic=burst` for concurrent routes.
+- Per-browser controls to enable or disable route effects and switch between
+  flat Mercator and interactive globe projections; both preferences persist
+  locally.
+
 ## [0.1.0] - 2026-07-12
 
 ### Added
