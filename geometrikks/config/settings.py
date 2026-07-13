@@ -257,6 +257,59 @@ class SchedulerSettings(BaseSettings):
         description="Minutes between GeoLocation.last_hit refresh jobs",
     )
 
+
+class MapSettings(BaseSettings):
+    """Map presentation settings shared with the web client."""
+
+    model_config = SettingsConfigDict(env_prefix="MAP_", env_file=".env", extra="ignore")
+
+    home_latitude: float | None = Field(
+        default=None,
+        ge=-90,
+        le=90,
+        description=(
+            "Optional destination latitude for live request routes. Set both home "
+            "coordinates to override external-IP auto-detection."
+        ),
+    )
+    home_longitude: float | None = Field(
+        default=None,
+        ge=-180,
+        le=180,
+        description=(
+            "Optional destination longitude for live request routes. Set both home "
+            "coordinates to override external-IP auto-detection."
+        ),
+    )
+    auto_detect_home: bool = Field(
+        default=True,
+        description=(
+            "Resolve the server's public IP at startup and geolocate it when "
+            "home coordinates are unset."
+        ),
+    )
+    public_ip_url: str = Field(
+        default="https://api64.ipify.org?format=json",
+        description=(
+            "JSON endpoint used for public-IP discovery; the response must "
+            "contain an 'ip' field."
+        ),
+    )
+    public_ip_timeout: float = Field(
+        default=3.0,
+        gt=0,
+        le=30,
+        description="Timeout in seconds for public-IP discovery.",
+    )
+
+    @model_validator(mode="after")
+    def validate_home_coordinate_pair(self) -> "MapSettings":
+        """Require both manual coordinates or neither."""
+        if (self.home_latitude is None) != (self.home_longitude is None):
+            raise ValueError("MAP_HOME_LATITUDE and MAP_HOME_LONGITUDE must be set together")
+        return self
+
+
 class ViteSettings(BaseSettings):
     """Vite server configuration settings."""
 
@@ -356,6 +409,7 @@ class Settings(BaseSettings):
     logparser: LogParserSettings = Field(default_factory=LogParserSettings)
     analytics: AnalyticsSettings = Field(default_factory=AnalyticsSettings)
     scheduler: SchedulerSettings = Field(default_factory=SchedulerSettings)
+    map: MapSettings = Field(default_factory=MapSettings)
     vite: ViteSettings = Field(default_factory=ViteSettings)
 
     @property

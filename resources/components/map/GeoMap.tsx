@@ -2,8 +2,7 @@
  * Main map component with heatmap and cluster visualization layers.
  */
 
-import { useState, useCallback, useRef } from "react"
-import { useMemo } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import Map, {
   Source,
   Layer,
@@ -14,7 +13,7 @@ import Map, {
 import type { LayerSpecification } from "maplibre-gl"
 import "maplibre-gl/dist/maplibre-gl.css"
 
-import { useGeoJSON, useGlobalTopIPs } from "@/lib/queries"
+import { useGeoJSON, useGlobalTopIPs, useRuntimeSettings } from "@/lib/queries"
 import { useMapStyle } from "./hooks/useMapStyle"
 import { MapControls } from "./MapControls"
 import { LivePulses } from "./LivePulses"
@@ -22,8 +21,10 @@ import { MapLegend } from "./MapLegend"
 import { MapPopup, type PopupInfo } from "./MapPopup"
 import { Card, CardContent } from "@/components/ui/card"
 import { AlertTriangle } from "lucide-react"
+import { getDemoTrafficMode } from "@/lib/demo-traffic"
 
 export type LayerType = "heatmap" | "markers"
+export type MapProjection = "mercator" | "globe"
 
 // Initial viewport centered on Europe
 const INITIAL_VIEW_STATE = {
@@ -32,6 +33,27 @@ const INITIAL_VIEW_STATE = {
   zoom: 3,
   pitch: 0,
   bearing: 0,
+}
+
+const ROUTE_EFFECTS_STORAGE_KEY = "geometrikks-route-effects-enabled"
+const MAP_PROJECTION_STORAGE_KEY = "geometrikks-map-projection"
+
+function loadRouteEffectsPreference(): boolean {
+  try {
+    return localStorage.getItem(ROUTE_EFFECTS_STORAGE_KEY) !== "false"
+  } catch {
+    return true
+  }
+}
+
+function loadMapProjectionPreference(): MapProjection {
+  try {
+    return localStorage.getItem(MAP_PROJECTION_STORAGE_KEY) === "globe"
+      ? "globe"
+      : "mercator"
+  } catch {
+    return "mercator"
+  }
 }
 
 // Heatmap layer configuration with traditional heat colors
@@ -247,6 +269,7 @@ const unclusteredPointLabelLayer: LayerSpecification = {
 }
 
 export default function GeoMap() {
+  const demoTrafficMode = getDemoTrafficMode()
   const mapRef = useRef<MapRef>(null)
   const { mapStyle } = useMapStyle()
   const [selectedCountries, setSelectedCountries] = useState<string[]>([])
@@ -256,13 +279,40 @@ export default function GeoMap() {
     cities: selectedCities,
   })
   const { data: globalTopIPs, isLoading: isLoadingTopIPs } = useGlobalTopIPs()
+  const { data: runtimeSettings } = useRuntimeSettings()
+  const homeDestination = useMemo<[number, number] | null>(() => {
+    const latitude = runtimeSettings?.map.home_latitude
+    const longitude = runtimeSettings?.map.home_longitude
+    return typeof latitude === "number" && typeof longitude === "number"
+      ? [longitude, latitude]
+      : null
+  }, [runtimeSettings])
 
   const isLoading = isLoadingGeoJSON || isLoadingTopIPs
 
   const [viewState, setViewState] = useState(INITIAL_VIEW_STATE)
   const [activeLayer, setActiveLayer] = useState<LayerType>("markers")
-  const [liveMode, setLiveMode] = useState(false)
+  const [projection, setProjection] = useState<MapProjection>(loadMapProjectionPreference)
+  const [liveMode, setLiveMode] = useState(demoTrafficMode !== "off")
+  const [routeEffectsEnabled, setRouteEffectsEnabled] = useState(loadRouteEffectsPreference)
   const [popup, setPopup] = useState<PopupInfo | null>(null)
+  const mercatorZoomRef = useRef(INITIAL_VIEW_STATE.zoom)
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(ROUTE_EFFECTS_STORAGE_KEY, String(routeEffectsEnabled))
+    } catch {
+      // Storage may be blocked; keep the in-memory preference for this session.
+    }
+  }, [routeEffectsEnabled])
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(MAP_PROJECTION_STORAGE_KEY, projection)
+    } catch {
+      // Storage may be blocked; keep the in-memory preference for this session.
+    }
+  }, [projection])
 
   // Filter options come from the last UNFILTERED result (a second query just
   // for options would be wasteful), held in a ref so the option lists don't
@@ -327,6 +377,28 @@ export default function GeoMap() {
       duration: 1500,
     })
   }, [])
+
+  const changeProjection = useCallback((nextProjection: MapProjection) => {
+    if (nextProjection === projection) return
+
+    if (nextProjection === "globe") {
+      mercatorZoomRef.current = viewState.zoom
+      setProjection("globe")
+      mapRef.current?.easeTo({
+        zoom: Math.min(viewState.zoom, 2.2),
+        pitch: 0,
+        duration: 900,
+      })
+      return
+    }
+
+    setProjection("mercator")
+    mapRef.current?.easeTo({
+      zoom: mercatorZoomRef.current,
+      pitch: 0,
+      duration: 900,
+    })
+  }, [projection, viewState.zoom])
 
   // Handle map click for markers layer
   const onClick = useCallback(
@@ -404,6 +476,8 @@ export default function GeoMap() {
         onMove={onMove}
         onClick={onClick}
         mapStyle={mapStyle}
+        projection={projection}
+        renderWorldCopies={projection === "mercator"}
         interactiveLayerIds={
           activeLayer === "markers"
             ? ["clusters", "unclustered-point"]
@@ -447,8 +521,12 @@ export default function GeoMap() {
           </Source>
         )}
 
-        {/* Live geo-event pulses */}
-        <LivePulses enabled={liveMode} />
+        {/* Live requests travelling from their GeoIP origin to the configured server home. */}
+        <LivePulses
+          enabled={liveMode && routeEffectsEnabled}
+          destination={homeDestination}
+          demoMode={demoTrafficMode}
+        />
 
         {/* Popup */}
         {popup && activeLayer === "markers" && (
@@ -465,8 +543,14 @@ export default function GeoMap() {
       <MapControls
         activeLayer={activeLayer}
         onLayerChange={setActiveLayer}
+        projection={projection}
+        onProjectionChange={changeProjection}
         liveMode={liveMode}
+        demoTrafficMode={demoTrafficMode}
         onLiveModeChange={setLiveMode}
+        routeEffectsEnabled={routeEffectsEnabled}
+        onRouteEffectsChange={setRouteEffectsEnabled}
+        routeHomeAvailable={homeDestination !== null}
         onFitBounds={fitToBounds}
         isLoading={isLoading}
         featureStats={geojson?.stats ?? { events: 0, countries: 0, cities: 0, locations: 0 }}

@@ -9,7 +9,10 @@ import {
   apiV1AnalyticsTopUrlsGetTopUrls,
   apiV1AnalyticsTopUserAgentsGetTopUserAgents,
 } from "@/generated/api/sdk.gen"
-import type { GeoJsonFeatureCollection as GeoJSONFeatureCollection } from "@/generated/api/types.gen"
+import type {
+  GeoJsonFeatureCollection as GeoJSONFeatureCollection,
+  SafeSettingsResponse,
+} from "@/generated/api/types.gen"
 
 // Create axios instance with base configuration
 export const api = axios.create({
@@ -74,6 +77,8 @@ export interface HealthResponse {
   geoip: { available: boolean }
   timestamp: string
 }
+
+export type RuntimeSettings = SafeSettingsResponse
 
 // ============================================================================
 // Types - Analytics API
@@ -162,6 +167,11 @@ export type {
  */
 export async function fetchHealth(): Promise<HealthResponse> {
   const { data } = await axios.get<HealthResponse>("/health")
+  return data
+}
+
+export async function fetchRuntimeSettings(): Promise<RuntimeSettings> {
+  const { data } = await api.get<RuntimeSettings>("/settings")
   return data
 }
 

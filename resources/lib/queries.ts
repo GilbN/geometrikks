@@ -16,6 +16,7 @@ import {
   fetchTopUserAgents,
   fetchCumulativeTimeSeries,
   fetchAccessLogs,
+  fetchRuntimeSettings,
   parseTimeRange,
   type SummaryParams,
   type GlobalTopIPsResponse,
@@ -31,6 +32,7 @@ import { useTimeRange } from "./time-range-context"
 // ============================================================================
 
 export const queryKeys = {
+  settings: ["settings"] as const,
   analytics: {
     all: ["analytics"] as const,
     summary: (params: Record<string, unknown>, refreshKey?: number) =>
@@ -69,6 +71,14 @@ export const queryKeys = {
 // ============================================================================
 // Hooks
 // ============================================================================
+
+export function useRuntimeSettings() {
+  return useQuery({
+    queryKey: queryKeys.settings,
+    queryFn: fetchRuntimeSettings,
+    staleTime: Number.POSITIVE_INFINITY,
+  })
+}
 
 export interface UseSummaryOptions {
   /** Compare with previous period (default: true) */

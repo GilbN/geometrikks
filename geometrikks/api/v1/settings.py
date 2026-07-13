@@ -9,9 +9,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from litestar import get
+from litestar import Request, get
 
 from geometrikks.config.settings import get_settings
+from geometrikks.services.geoip.home import HomeLocation, HomeLocationSource
 
 
 @dataclass
@@ -30,18 +31,33 @@ class AnalyticsSettingsView:
 
 
 @dataclass
+class MapSettingsView:
+    home_latitude: float | None
+    home_longitude: float | None
+    home_source: HomeLocationSource | None
+
+
+@dataclass
 class SafeSettingsResponse:
     name: str
     version: str
     environment: str
     logparser: LogparserSettingsView
     analytics: AnalyticsSettingsView
+    map: MapSettingsView
 
 
 @get("/api/v1/settings", tags=["Settings"])
-async def read_settings() -> SafeSettingsResponse:
+async def read_settings(request: Request) -> SafeSettingsResponse:
     """Whitelisted runtime settings (no credentials, ever)."""
     s = get_settings()
+    home: HomeLocation | None = getattr(request.app.state, "map_home_location", None)
+    if home is None and s.map.home_latitude is not None and s.map.home_longitude is not None:
+        home = HomeLocation(
+            latitude=s.map.home_latitude,
+            longitude=s.map.home_longitude,
+            source="configured",
+        )
     return SafeSettingsResponse(
         name=s.name,
         version=s.version,
@@ -56,5 +72,10 @@ async def read_settings() -> SafeSettingsResponse:
             debug_retention_days=s.analytics.debug_retention_days,
             hourly_retention_days=s.analytics.hourly_retention_days,
             compression_after_days=s.analytics.compression_after_days,
+        ),
+        map=MapSettingsView(
+            home_latitude=home.latitude if home else None,
+            home_longitude=home.longitude if home else None,
+            home_source=home.source if home else None,
         ),
     )

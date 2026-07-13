@@ -91,6 +91,16 @@ list most users need is in `.env.example`; everything below is available.
 | `SCHEDULER_DAILY_ROLLUP_MINUTE` | `5` | Minute (0-59) to run daily rollup |
 | `SCHEDULER_LOCATION_REFRESH_INTERVAL_MINUTES` | `5` | Minutes between GeoLocation.last_hit refresh jobs |
 
+## Map
+
+| Variable | Default | Description |
+|---|---|---|
+| `MAP_HOME_LATITUDE` | — | Optional destination latitude for live request routes. Set both home coordinates to override external-IP auto-detection. |
+| `MAP_HOME_LONGITUDE` | — | Optional destination longitude for live request routes. Set both home coordinates to override external-IP auto-detection. |
+| `MAP_AUTO_DETECT_HOME` | `true` | Resolve the server's public IP at startup and geolocate it when home coordinates are unset. |
+| `MAP_PUBLIC_IP_URL` | `https://api64.ipify.org?format=json` | JSON endpoint used for public-IP discovery; the response must contain an 'ip' field. |
+| `MAP_PUBLIC_IP_TIMEOUT` | `3.0` | Timeout in seconds for public-IP discovery. |
+
 ## Vite (development only)
 
 | Variable | Default | Description |

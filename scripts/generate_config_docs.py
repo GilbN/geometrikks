@@ -36,11 +36,12 @@ SECTIONS: list[tuple[str, type[BaseSettings], str]] = [
     ("Log parser", settings_module.LogParserSettings, "LOGPARSER_"),
     ("Analytics & retention", settings_module.AnalyticsSettings, "ANALYTICS_"),
     ("Scheduler", settings_module.SchedulerSettings, "SCHEDULER_"),
+    ("Map", settings_module.MapSettings, "MAP_"),
     ("Vite (development only)", settings_module.ViteSettings, "VITE_"),
 ]
 
 # Top-level Settings fields that are sub-models, not env vars.
-SKIP_FIELDS = {"api", "database", "geoip", "logparser", "analytics", "scheduler", "vite"}
+SKIP_FIELDS = {"api", "database", "geoip", "logparser", "analytics", "scheduler", "map", "vite"}
 # Never document secrets' defaults verbatim.
 REDACT = {"password", "license_key", "admin_password"}
 

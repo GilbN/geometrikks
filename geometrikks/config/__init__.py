@@ -4,6 +4,7 @@ from geometrikks.config.settings import (
     APISettings,
     DatabaseSettings,
     GeoIPSettings,
+    MapSettings,
     Settings,
     get_settings,
 )
@@ -14,4 +15,5 @@ __all__ = [
     "APISettings",
     "DatabaseSettings",
     "GeoIPSettings",
+    "MapSettings",
 ]

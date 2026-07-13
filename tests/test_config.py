@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from geometrikks.config import GeoIPSettings, Settings, get_settings
+from geometrikks.config import GeoIPSettings, MapSettings, Settings, get_settings
 
 
 def test_default_settings():
@@ -72,6 +72,38 @@ def test_api_settings():
     assert settings.api.host == "0.0.0.0"
     assert settings.api.port == 8000
     assert settings.api.log_level in ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
+
+
+def test_map_home_settings(monkeypatch):
+    """Map destination defaults to auto-detection and supports a manual pair."""
+    monkeypatch.delenv("MAP_AUTO_DETECT_HOME", raising=False)
+    defaults = MapSettings(_env_file=None)
+    assert defaults.home_latitude is None
+    assert defaults.home_longitude is None
+    assert defaults.auto_detect_home is True
+
+    monkeypatch.setenv("MAP_HOME_LATITUDE", "40.7128")
+    monkeypatch.setenv("MAP_HOME_LONGITUDE", "-74.0060")
+    overridden = MapSettings(_env_file=None)
+    assert overridden.home_latitude == 40.7128
+    assert overridden.home_longitude == -74.006
+
+
+@pytest.mark.parametrize(
+    ("name", "value"),
+    [("MAP_HOME_LATITUDE", "91"), ("MAP_HOME_LONGITUDE", "181")],
+)
+def test_map_home_settings_validate_coordinate_ranges(monkeypatch, name, value):
+    monkeypatch.setenv(name, value)
+    counterpart = "MAP_HOME_LONGITUDE" if name == "MAP_HOME_LATITUDE" else "MAP_HOME_LATITUDE"
+    monkeypatch.setenv(counterpart, "0")
+    with pytest.raises(ValueError):
+        MapSettings(_env_file=None)
+
+
+def test_map_home_settings_require_coordinate_pair():
+    with pytest.raises(ValueError, match="must be set together"):
+        MapSettings(home_latitude=40.7, _env_file=None)
 
 
 def test_environment_properties():

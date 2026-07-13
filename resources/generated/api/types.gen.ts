@@ -243,6 +243,15 @@ export type LogparserSettingsView = {
 };
 
 /**
+ * MapSettingsView
+ */
+export type MapSettingsView = {
+  home_latitude: number | null;
+  home_longitude: number | null;
+  home_source: "configured" | "external_ip" | null;
+};
+
+/**
  * MeResponse
  */
 export type MeResponse = {
@@ -289,6 +298,7 @@ export type SafeSettingsResponse = {
   analytics: AnalyticsSettingsView;
   environment: string;
   logparser: LogparserSettingsView;
+  map: MapSettingsView;
   name: string;
   version: string;
 };

@@ -5,10 +5,13 @@ from litestar import Litestar
 from litestar.testing import TestClient
 
 from geometrikks.api.v1.settings import read_settings
+from geometrikks.services.geoip.home import HomeLocation
 
 
 def make_app() -> Litestar:
-    return Litestar(route_handlers=[read_settings])
+    app = Litestar(route_handlers=[read_settings])
+    app.state.map_home_location = HomeLocation(40.7128, -74.006, "external_ip")
+    return app
 
 
 def test_settings_moved_under_api_v1():
@@ -27,6 +30,11 @@ def test_settings_response_is_whitelisted():
     assert body["environment"]
     assert "log_paths" in body["logparser"]
     assert "raw_retention_days" in body["analytics"]
+    assert body["map"] == {
+        "home_latitude": 40.7128,
+        "home_longitude": -74.006,
+        "home_source": "external_ip",
+    }
 
     # Credential material absent anywhere in the payload
     flat = str(body).lower()

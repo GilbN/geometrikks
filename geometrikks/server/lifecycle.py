@@ -16,6 +16,7 @@ from geometrikks.server.plugins import get_sqlalchemy_config
 from geometrikks.server.timescale import setup_timescaledb
 
 from geometrikks.services.geoip.downloader import ensure_geoip_database
+from geometrikks.services.geoip.home import resolve_home_location
 from geometrikks.services.ingestion import LogIngestionService
 from geometrikks.services.logparser.logparser import LogParser
 from geometrikks.server.scheduler import create_scheduler
@@ -57,6 +58,11 @@ async def on_startup(app: "Litestar") -> None:
     # /health must report geoip state accurately even in DB-degraded mode.
     geoip_available: bool = await ensure_geoip_database(settings.geoip)
     app.state.geoip_available = geoip_available
+    app.state.map_home_location = await resolve_home_location(
+        settings.map,
+        settings.geoip,
+        geoip_available=geoip_available,
+    )
     if not geoip_available:
         logger.warning(
             "Geo-degraded mode: no usable GeoLite2 database. Ingestion will "
