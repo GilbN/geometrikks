@@ -831,6 +831,38 @@ export const LogparserSettingsViewSchema = {
   type: "object",
 } as const;
 
+export const MapSettingsViewSchema = {
+  properties: {
+    home_latitude: {
+      oneOf: [
+        {
+          type: "number",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    home_longitude: {
+      oneOf: [
+        {
+          type: "number",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    home_source: {
+      enum: ["configured", "external_ip", null],
+      type: ["null", "string"],
+    },
+  },
+  required: ["home_latitude", "home_longitude", "home_source"],
+  title: "MapSettingsView",
+  type: "object",
+} as const;
+
 export const MeResponseSchema = {
   properties: {
     username: {
@@ -996,6 +1028,9 @@ export const SafeSettingsResponseSchema = {
     logparser: {
       $ref: "#/components/schemas/LogparserSettingsView",
     },
+    map: {
+      $ref: "#/components/schemas/MapSettingsView",
+    },
     name: {
       type: "string",
     },
@@ -1003,7 +1038,7 @@ export const SafeSettingsResponseSchema = {
       type: "string",
     },
   },
-  required: ["analytics", "environment", "logparser", "name", "version"],
+  required: ["analytics", "environment", "logparser", "map", "name", "version"],
   title: "SafeSettingsResponse",
   type: "object",
 } as const;

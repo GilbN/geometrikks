@@ -21,23 +21,29 @@ def _patch_startup_collaborators(monkeypatch, lc, *, db_available: bool, ensure:
     monkeypatch.setattr(lc, "migrate_database", AsyncMock())
     monkeypatch.setattr(lc, "setup_timescaledb", AsyncMock())
     monkeypatch.setattr(lc, "ensure_geoip_database", ensure)
+    resolve_home = AsyncMock(return_value=None)
+    monkeypatch.setattr(lc, "resolve_home_location", resolve_home)
     monkeypatch.setattr(lc, "create_scheduler", AsyncMock(return_value=MagicMock()))
     monkeypatch.setattr(lc, "LogParser", MagicMock())
     monkeypatch.setattr(lc, "LogIngestionService", MagicMock(return_value=ingestion))
-    return ingestion
+    return ingestion, resolve_home
 
 
 async def test_startup_records_geoip_availability(monkeypatch):
     from geometrikks.server import lifecycle as lc
 
     ensure = AsyncMock(return_value=False)
-    ingestion = _patch_startup_collaborators(monkeypatch, lc, db_available=True, ensure=ensure)
+    ingestion, resolve_home = _patch_startup_collaborators(
+        monkeypatch, lc, db_available=True, ensure=ensure
+    )
 
     app = SimpleNamespace(state=SimpleNamespace())
     await lc.on_startup(app)
 
     ensure.assert_awaited_once()
+    resolve_home.assert_awaited_once()
     assert app.state.geoip_available is False
+    assert app.state.map_home_location is None
     # ingestion is still constructed and start() is still invoked (the real
     # service early-returns without a GeoLite2 reader): geo-degraded, not dead
     ingestion.start.assert_awaited_once()
@@ -48,12 +54,15 @@ async def test_startup_sets_geoip_flag_even_without_database(monkeypatch):
     from geometrikks.server import lifecycle as lc
 
     ensure = AsyncMock(return_value=True)
-    _patch_startup_collaborators(monkeypatch, lc, db_available=False, ensure=ensure)
+    _, resolve_home = _patch_startup_collaborators(
+        monkeypatch, lc, db_available=False, ensure=ensure
+    )
 
     app = SimpleNamespace(state=SimpleNamespace())
     await lc.on_startup(app)
 
     ensure.assert_awaited_once()
+    resolve_home.assert_awaited_once()
     assert app.state.geoip_available is True
 
 

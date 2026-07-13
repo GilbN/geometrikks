@@ -1,6 +1,6 @@
 # GeoMetrikks
 
-![Map](/data/screenshots/map.png)
+![Map](/data/screenshots/live.png)
 
 GeoMetrikks tails your nginx access logs, geolocates every request with
 MaxMind GeoLite2, and gives you a real-time GeoIP map plus a traffic
@@ -243,6 +243,26 @@ uv run litestar --app geometrikks.server.core:create_app run --debug
 (`docker-compose.dev.yml` also has an `app-dev`/`dev` profile that builds and
 hot-reloads the whole stack in Docker via `Dockerfile.dev`, if you'd rather
 not run the app bare-metal.)
+
+To inspect the live route animation without generating log traffic, open the
+map with the development-only demo harness. It uses fixed worldwide origins,
+turns Live mode on automatically, and does not connect to the live-feed
+WebSocket:
+
+```text
+http://localhost:8000/map?demoTraffic=1       # steady traffic
+http://localhost:8000/map?demoTraffic=burst   # overlapping bursts
+```
+
+The query parameter is ignored by production builds.
+
+The live route destination defaults to the GeoIP location of the app server's
+public IP. GeoMetrikks discovers that address once at startup through ipify and
+looks it up in the local GeoLite2 database. If the logs come from another
+server, set both `MAP_HOME_LATITUDE` and `MAP_HOME_LONGITUDE`. Set
+`MAP_AUTO_DETECT_HOME=false` to disable the outbound lookup entirely. The map's
+**Route effects** control can also hide the animation; that preference is kept
+in browser storage.
 
 ### Testing
 

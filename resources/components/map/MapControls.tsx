@@ -20,17 +20,34 @@ import {
   useComboboxAnchor,
 } from "@/components/ui/combobox"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
-import { Flame, MapPin, Maximize2, Loader2, SlidersHorizontal, X, Radio } from "lucide-react"
+import {
+  Flame,
+  Globe2,
+  Loader2,
+  MapPin,
+  Maximize2,
+  Radio,
+  SlidersHorizontal,
+  Sparkles,
+  X,
+} from "lucide-react"
 import { cn } from "@/lib/utils"
-import type { LayerType } from "./GeoMap"
+import type { LayerType, MapProjection } from "./GeoMap"
 import { GeoJSONFeatureStats, TopIPDTO, formatNumber } from "@/lib/api"
+import type { DemoTrafficMode } from "@/lib/demo-traffic"
 
 
 interface MapControlsProps {
   activeLayer: LayerType
   onLayerChange: (layer: LayerType) => void
+  projection: MapProjection
+  onProjectionChange: (projection: MapProjection) => void
   liveMode: boolean
+  demoTrafficMode?: DemoTrafficMode
   onLiveModeChange: (enabled: boolean) => void
+  routeEffectsEnabled: boolean
+  onRouteEffectsChange: (enabled: boolean) => void
+  routeHomeAvailable: boolean
   onFitBounds: () => void
   isLoading?: boolean
   featureStats: GeoJSONFeatureStats
@@ -97,8 +114,14 @@ function FilterCombobox({
 export function MapControls({
   activeLayer,
   onLayerChange,
+  projection,
+  onProjectionChange,
   liveMode,
+  demoTrafficMode = "off",
   onLiveModeChange,
+  routeEffectsEnabled,
+  onRouteEffectsChange,
+  routeHomeAvailable,
   onFitBounds,
   isLoading = false,
   featureStats,
@@ -149,52 +172,106 @@ export function MapControls({
       >
       {/* Layer Toggle */}
       <Card className="p-2 shrink-0">
-        <ToggleGroup
-          type="single"
-          value={activeLayer}
-          onValueChange={(value) => value && onLayerChange(value as LayerType)}
-          className="flex flex-col gap-1 w-full"
-          orientation="vertical"
-          spacing={4}
-        >
-          <ToggleGroupItem
-            value="heatmap"
-            aria-label="Heatmap view"
+        <div className="flex flex-col gap-1">
+          <ToggleGroup
+            type="single"
+            value={activeLayer}
+            onValueChange={(value) => value && onLayerChange(value as LayerType)}
+            className="flex flex-col gap-1 w-full"
+            orientation="vertical"
+            spacing={4}
+          >
+            <ToggleGroupItem
+              value="heatmap"
+              aria-label="Heatmap view"
+              variant="outline"
+              className={cn(
+                "cursor-pointer w-full justify-start gap-2 px-3 data-[state=on]:bg-geo-cyan/15 data-[state=on]:text-geo-cyan data-[state=on]:border-geo-cyan/30",
+                activeLayer === "heatmap" && "bg-geo-cyan/15 text-geo-cyan border-geo-cyan/30"
+              )}
+            >
+              <Flame className="h-4 w-4" />
+              <span className="text-sm font-medium">Heatmap</span>
+            </ToggleGroupItem>
+            <ToggleGroupItem
+              value="markers"
+              aria-label="Marker view"
+              variant="outline"
+              className={cn(
+                "cursor-pointer w-full justify-start gap-2 px-3 data-[state=on]:bg-geo-cyan/15 data-[state=on]:text-geo-cyan data-[state=on]:border-geo-cyan/30",
+                activeLayer === "markers" && "bg-geo-cyan/15 text-geo-cyan border-geo-cyan/30"
+              )}
+            >
+              <MapPin className="h-4 w-4" />
+              <span className="text-sm font-medium">Markers</span>
+            </ToggleGroupItem>
+          </ToggleGroup>
+          <Button
             variant="outline"
+            onClick={() => onProjectionChange(
+              projection === "globe" ? "mercator" : "globe",
+            )}
+            aria-pressed={projection === "globe"}
+            title={projection === "globe"
+              ? "Switch to a flat Mercator map"
+              : "Switch to an interactive globe"}
             className={cn(
-              "cursor-pointer w-full justify-start gap-2 px-3 data-[state=on]:bg-geo-cyan/15 data-[state=on]:text-geo-cyan data-[state=on]:border-geo-cyan/30",
-              activeLayer === "heatmap" && "bg-geo-cyan/15 text-geo-cyan border-geo-cyan/30"
+              "cursor-pointer w-full justify-start gap-2 px-3",
+              projection === "globe"
+                && "bg-geo-cyan/15 text-geo-cyan border-geo-cyan/30",
             )}
           >
-            <Flame className="h-4 w-4" />
-            <span className="text-sm font-medium">Heatmap</span>
-          </ToggleGroupItem>
-          <ToggleGroupItem
-            value="markers"
-            aria-label="Marker view"
+            <Globe2 className="h-4 w-4" />
+            <span className="text-sm font-medium">Globe</span>
+            <Badge variant="secondary" className="ml-auto text-[9px] uppercase">
+              {projection === "globe" ? "on" : "off"}
+            </Badge>
+          </Button>
+          {/* Live geo-event pulses toggle (independent of the layer choice) */}
+          <Button
             variant="outline"
+            onClick={() => onLiveModeChange(!liveMode)}
+            aria-pressed={liveMode}
             className={cn(
-              "cursor-pointer w-full justify-start gap-2 px-3 data-[state=on]:bg-geo-cyan/15 data-[state=on]:text-geo-cyan data-[state=on]:border-geo-cyan/30",
-              activeLayer === "markers" && "bg-geo-cyan/15 text-geo-cyan border-geo-cyan/30"
+              "cursor-pointer w-full justify-start gap-2 px-3",
+              liveMode && "bg-geo-cyan/15 text-geo-cyan border-geo-cyan/30"
             )}
           >
-            <MapPin className="h-4 w-4" />
-            <span className="text-sm font-medium">Markers</span>
-          </ToggleGroupItem>
-        </ToggleGroup>
-        {/* Live geo-event pulses toggle (independent of the layer choice) */}
-        <Button
-          variant="outline"
-          onClick={() => onLiveModeChange(!liveMode)}
-          aria-pressed={liveMode}
-          className={cn(
-            "mt-1 cursor-pointer w-full justify-start gap-2 px-3",
-            liveMode && "bg-geo-cyan/15 text-geo-cyan border-geo-cyan/30"
-          )}
-        >
-          <Radio className={cn("h-4 w-4", liveMode && "animate-pulse")} />
-          <span className="text-sm font-medium">Live</span>
-        </Button>
+            <Radio className={cn("h-4 w-4", liveMode && "animate-pulse")} />
+            <span className="text-sm font-medium">
+              {demoTrafficMode === "off" ? "Live" : "Demo traffic"}
+            </span>
+            {demoTrafficMode !== "off" && (
+              <Badge variant="secondary" className="ml-auto text-[9px] uppercase">
+                {demoTrafficMode}
+              </Badge>
+            )}
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => onRouteEffectsChange(!routeEffectsEnabled)}
+            aria-pressed={routeEffectsEnabled}
+            disabled={!routeHomeAvailable}
+            title={routeHomeAvailable
+              ? "Show or hide animated network routes"
+              : "No map home location could be resolved"}
+            className={cn(
+              "cursor-pointer w-full justify-start gap-2 px-3",
+              routeEffectsEnabled && routeHomeAvailable
+                && "bg-geo-cyan/15 text-geo-cyan border-geo-cyan/30",
+            )}
+          >
+            <Sparkles className="h-4 w-4" />
+            <span className="text-sm font-medium">
+              {routeHomeAvailable ? "Route effects" : "Home unavailable"}
+            </span>
+            {routeHomeAvailable && (
+              <Badge variant="secondary" className="ml-auto text-[9px] uppercase">
+                {routeEffectsEnabled ? "on" : "off"}
+              </Badge>
+            )}
+          </Button>
+        </div>
       </Card>
 
       {/* Country / city filters */}
