@@ -24,11 +24,13 @@ interface Transmission {
 }
 
 const SOURCE_ID = "live-routes"
-const MAX_TRANSMISSIONS = 32
 // Only one route, packet, and origin marker is drawn for each nearby origin
 // corridor. This prevents MapLibre alpha-blending a pile of identical (or
 // nearly identical) effects into thick, bright routes and packet blooms.
 const MAX_VISIBLE_LANES = 8
+// Do not start packets that cannot be rendered; retain one coalesced request
+// per lane until a visible packet slot becomes available.
+const MAX_ACTIVE_TRANSMISSIONS = MAX_VISIBLE_LANES
 const ROUTE_SAMPLES = 48
 const ARRIVAL_LINGER_MS = 900
 const EARTH_RADIUS_KM = 6371
@@ -251,6 +253,10 @@ export function LivePulses({
 }) {
   const { current: map } = useMap()
   const transmissions = useRef<Transmission[]>([])
+  // A lane can have one packet in flight and one coalesced follow-up. Keeping
+  // the newest origin for that follow-up makes heavy traffic read as ongoing
+  // activity without cutting off an already-visible packet.
+  const queuedOrigins = useRef<Map<string, Coordinate>>(new Map())
   const raf = useRef<number>(0)
   const prefersReducedMotion = useRef(false)
 
@@ -271,15 +277,21 @@ export function LivePulses({
       const duration = prefersReducedMotion.current
         ? 1100
         : clamp(2600 + Math.sqrt(distance) * 38, 2800, 6500)
-      transmissions.current.push({
+      const transmission: Transmission = {
         born: now,
         duration,
         lane: routeLane(origin),
         route,
-      })
-    }
-    if (transmissions.current.length > MAX_TRANSMISSIONS) {
-      transmissions.current = transmissions.current.slice(-MAX_TRANSMISSIONS)
+      }
+      const laneIsActive = transmissions.current.some(
+        (activeTransmission) => activeTransmission.lane === transmission.lane,
+      )
+
+      if (laneIsActive || transmissions.current.length >= MAX_ACTIVE_TRANSMISSIONS) {
+        queuedOrigins.current.set(transmission.lane, origin)
+      } else {
+        transmissions.current.push(transmission)
+      }
     }
   }, [destination])
 
@@ -315,11 +327,13 @@ export function LivePulses({
 
   useEffect(() => {
     transmissions.current = []
+    queuedOrigins.current.clear()
   }, [destination?.[0], destination?.[1]])
 
   useEffect(() => {
     if (!enabled || !destination) {
       transmissions.current = []
+      queuedOrigins.current.clear()
       return
     }
     const tick = () => {
@@ -327,6 +341,26 @@ export function LivePulses({
       transmissions.current = transmissions.current.filter(
         ({ born, duration }) => now - born < duration + ARRIVAL_LINGER_MS,
       )
+
+      // Start queued activity only after the prior packet and its arrival
+      // effect have completed. This guarantees that a long route reaches the
+      // destination instead of being displaced by newer events in its lane.
+      for (const [lane, origin] of queuedOrigins.current) {
+        if (transmissions.current.length >= MAX_ACTIVE_TRANSMISSIONS) break
+        if (transmissions.current.some((transmission) => transmission.lane === lane)) continue
+
+        const route = greatCircleRoute(origin, destination)
+        const distance = routeDistanceKm(route)
+        transmissions.current.push({
+          born: now,
+          duration: prefersReducedMotion.current
+            ? 1100
+            : clamp(2600 + Math.sqrt(distance) * 38, 2800, 6500),
+          lane,
+          route,
+        })
+        queuedOrigins.current.delete(lane)
+      }
       const source = map?.getSource(SOURCE_ID) as GeoJSONSource | undefined
       source?.setData(buildFrame(transmissions.current, destination, now))
       raf.current = requestAnimationFrame(tick)
