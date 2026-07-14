@@ -94,9 +94,11 @@ services:
       - ./tests:/app/tests:cached
       - ./data:/app/data:cached
       # Mount log directory
-      - /var/log/nginx:/app/logs:ro
+      - ./logs:/app/logs:ro
     networks:
       - geometrikks_net
+    env_file:
+      - .env
     depends_on:
       timescale_db:
         condition: service_healthy

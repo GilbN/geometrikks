@@ -242,7 +242,11 @@ uv run litestar --app geometrikks.server.core:create_app run --debug
 
 (`docker-compose.dev.yml` also has an `app-dev`/`dev` profile that builds and
 hot-reloads the whole stack in Docker via `Dockerfile.dev`, if you'd rather
-not run the app bare-metal.)
+not run the app bare-metal.) Run it with:
+
+```bash
+docker compose -f docker-compose.dev.yml --profile dev up --build
+```
 
 To inspect the live route animation without generating log traffic, open the
 map with the development-only demo harness. It uses fixed worldwide origins,

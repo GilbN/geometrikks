@@ -26,6 +26,8 @@ RUN --mount=type=cache,target=/root/.bun \
     bun install --frozen-lockfile
 
 COPY vite.config.ts tsconfig.json components.json index.html openapi-ts.config.ts ./
+COPY alembic.ini ./
+COPY migrations/ ./migrations/
 
 RUN mkdir -p /app/data/geoip /app/logs
 
@@ -37,4 +39,4 @@ EXPOSE 8000 5173
 
 # Default command runs backend with reload
 # Frontend can be run separately or via docker-compose
-CMD ["litestar", "--app", "geometrikks.server.core:create_app", "run", "--host", "0.0.0.0", "--port", "8000", "--reload", "--debug"]
+CMD ["litestar", "--app", "geometrikks.server.core:create_app", "run", "--host", "0.0.0.0", "--port", "8000", "--reload", "--reload-ignore-paths", "/app/logs/access.log", "--debug"]
