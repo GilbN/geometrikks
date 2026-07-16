@@ -40,7 +40,12 @@ const GRANULARITY_OPTIONS: { label: string; value: ChartGranularity }[] = [
 
 function CustomRangeFields({ onApply }: { onApply: (r: CustomTimeRange) => void }) {
   const { customRange } = useTimeRange()
-  const toLocal = (iso?: string) => (iso ? iso.slice(0, 16) : "") // datetime-local value
+  const toLocal = (iso?: string) => {
+    if (!iso) return ""
+    const d = new Date(iso)
+    const pad = (n: number) => String(n).padStart(2, "0")
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+  } // datetime-local value (local wall-clock, not UTC)
   const [from, setFrom] = useState(toLocal(customRange?.from))
   const [to, setTo] = useState(toLocal(customRange?.to))
   const valid = from && to && new Date(from) < new Date(to)
