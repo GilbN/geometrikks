@@ -94,3 +94,26 @@ async def test_time_series_methods_survive_sub_24h_ranges(pg_session_maker, clea
 
     assert isinstance(series, list)
     assert isinstance(geo_series, list)
+
+
+async def test_time_series_total_bytes_is_int(pg_session_maker, clean_tables):
+    """SUM(bigint) returns numeric/Decimal; the repo must coerce to int so
+    JSON serialization emits a number, not a string (issue #14 bandwidth cap)."""
+    from geometrikks.domain.analytics.repositories import SummaryStatsRepository
+
+    ts = NOW - timedelta(hours=1)
+    async with pg_session_maker() as session:
+        await _insert_log(session, ts=ts, url="/big", user_agent="x", bytes_sent=5_000_000_000)
+        await session.commit()
+
+    async with pg_session_maker() as session:
+        rows = await SummaryStatsRepository(session=session).get_time_series(
+            NOW - timedelta(days=2), NOW  # > 24h so it hits the hourly CAGG path
+        )
+        summary = await SummaryStatsRepository(session=session).get_summary(
+            NOW - timedelta(days=2), NOW
+        )
+
+    assert rows, "expected at least one bucket (real-time aggregation)"
+    assert all(type(r.total_bytes) is int for r in rows)
+    assert type(summary.total_bytes) is int

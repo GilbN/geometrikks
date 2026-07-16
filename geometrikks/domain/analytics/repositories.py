@@ -247,12 +247,12 @@ class SummaryStatsRepository:
 
         total_errors = ((access_row.status_4xx or 0) + (access_row.status_5xx or 0)) if access_row else 0
         error_rate = total_errors / total_log_records if total_log_records > 0 else 0.0
-        avg_bytes = (access_row.total_bytes if access_row else 0) / total_log_records if total_log_records > 0 else 0.0
+        avg_bytes = float(access_row.total_bytes if access_row else 0) / total_log_records if total_log_records > 0 else 0.0
 
         return SummaryStats(
             total_log_records=total_log_records,
-            total_bytes=access_row.total_bytes if access_row else 0,
-            avg_bytes_per_request=avg_bytes,
+            total_bytes=int(access_row.total_bytes) if access_row else 0,
+            avg_bytes_per_request=float(avg_bytes),
             status_2xx=access_row.status_2xx if access_row else 0,
             status_3xx=access_row.status_3xx if access_row else 0,
             status_4xx=access_row.status_4xx if access_row else 0,
@@ -347,11 +347,11 @@ class SummaryStatsRepository:
 
         total_errors = row.status_4xx + row.status_5xx
         error_rate = total_errors / row.total_log_records if row.total_log_records > 0 else 0.0
-        avg_bytes = row.total_bytes / row.total_log_records if row.total_log_records > 0 else 0.0
+        avg_bytes = float(row.total_bytes) / float(row.total_log_records) if row.total_log_records > 0 else 0.0
 
         return SummaryStats(
             total_log_records=row.total_log_records,
-            total_bytes=row.total_bytes,
+            total_bytes=int(row.total_bytes),
             avg_bytes_per_request=avg_bytes,
             status_2xx=row.status_2xx,
             status_3xx=row.status_3xx,
@@ -417,7 +417,7 @@ class SummaryStatsRepository:
             SummaryStatsRow(
                 bucket=row.bucket,
                 total_requests=row.total_requests or 0,
-                total_bytes=row.total_bytes or 0,
+                total_bytes=int(row.total_bytes or 0),
                 status_2xx=row.status_2xx or 0,
                 status_3xx=row.status_3xx or 0,
                 status_4xx=row.status_4xx or 0,
@@ -691,12 +691,12 @@ class LiveStatsRepository:
 
         total_errors = ((access_row.status_4xx or 0) + (access_row.status_5xx or 0)) if access_row else 0
         error_rate = total_errors / total_requests if total_requests > 0 else 0.0
-        avg_bytes = (access_row.total_bytes if access_row else 0) / total_requests if total_requests > 0 else 0.0
+        avg_bytes = float(access_row.total_bytes if access_row else 0) / float(total_requests) if total_requests > 0 else 0.0
 
         return SummaryStats(
             total_log_records=total_requests,
-            total_bytes=access_row.total_bytes if access_row else 0,
-            avg_bytes_per_request=avg_bytes,
+            total_bytes=int(access_row.total_bytes) if access_row else 0,
+            avg_bytes_per_request=float(avg_bytes),
             status_2xx=access_row.status_2xx if access_row else 0,
             status_3xx=access_row.status_3xx if access_row else 0,
             status_4xx=access_row.status_4xx if access_row else 0,
