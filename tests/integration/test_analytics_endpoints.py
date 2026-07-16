@@ -9,7 +9,7 @@ from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import text
 
-from geometrikks.domain.analytics.repositories import LiveStatsRepository
+from geometrikks.domain.analytics.repositories import AnalyticsFilters, LiveStatsRepository
 
 # Wall-clock derived, hour-aligned (see test_repositories_pg.py for why).
 NOW = datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0)
@@ -201,9 +201,6 @@ async def test_top_countries_and_cities(pg_session_maker, clean_tables):
     ]
     assert countries[0].country_name == "Norway"
     assert [(c.city, c.hits) for c in cities] == [("Oslo", 2), ("Umea", 1)]
-
-
-from geometrikks.domain.analytics.repositories import AnalyticsFilters
 
 
 async def test_filtered_time_series_and_top_urls(pg_session_maker, clean_tables):
