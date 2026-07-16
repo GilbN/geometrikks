@@ -51,12 +51,20 @@ def record_to_events(record: ParsedLogRecord) -> list[dict[str, Any]]:
             "data": {
                 "timestamp": a.timestamp.isoformat(),
                 "ip_address": a.ip_address,
+                "remote_user": a.remote_user,
                 "method": a.method,
                 "url": a.url,
+                "http_version": a.http_version,
                 "status_code": a.status_code,
                 "bytes_sent": a.bytes_sent,
+                "referrer": a.referrer,
+                "user_agent": a.user_agent,
                 "request_time": a.request_time,
+                "upstream_response_time": a.upstream_response_time,
                 "host": a.host,
+                "country_code": a.country_code,
+                "country_name": a.country_name,
+                "city": a.city,
             },
         })
     return events

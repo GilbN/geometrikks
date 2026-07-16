@@ -15,6 +15,7 @@ export type URI = string;
 
 /** All available route names */
 export type RouteName =
+  | 'get_access_log_facets'
   | 'get_cumulative_time_series'
   | 'get_geo_time_series'
   | 'get_geojson'
@@ -45,6 +46,7 @@ export type RouteName =
 
 /** Path parameter definitions per route */
 export interface RoutePathParams {
+  'get_access_log_facets': Record<string, never>;
   'get_cumulative_time_series': Record<string, never>;
   'get_geo_time_series': Record<string, never>;
   'get_geojson': Record<string, never>;
@@ -82,6 +84,7 @@ export interface RoutePathParams {
 
 /** Query parameter definitions per route */
 export interface RouteQueryParams {
+  'get_access_log_facets': Record<string, never>;
   'get_cumulative_time_series': {
     end_date: DateTime;
     start_date: DateTime;
@@ -142,9 +145,19 @@ export interface RouteQueryParams {
     pageSize?: number;
   };
   'list_access_logs': {
+    cityIn?: string[];
+    countryCodeIn?: string[];
     currentPage?: number;
     from_timestamp?: DateTime;
+    host?: string;
+    ipAddressIn?: string[];
+    methodIn?: string[];
+    orderBy?: string;
     pageSize?: number;
+    searchIgnoreCase?: boolean;
+    searchString?: string;
+    sortOrder?: "asc" | "desc";
+    statusIn?: number[];
     to_timestamp?: DateTime;
   };
   'list_geo_events': {
@@ -176,6 +189,13 @@ export type RouteParams<T extends RouteName> = MergeParams<RoutePathParams[T], R
 
 /** Route metadata */
 export const routeDefinitions = {
+  'get_access_log_facets': {
+    path: '/api/v1/access-logs/facets',
+    methods: ['GET'] as const,
+    method: 'get',
+    pathParams: [] as const,
+    queryParams: [] as const,
+  },
   'get_cumulative_time_series': {
     path: '/api/v1/analytics/time-series/cumulative',
     methods: ['GET'] as const,
@@ -279,7 +299,7 @@ export const routeDefinitions = {
     methods: ['GET'] as const,
     method: 'get',
     pathParams: [] as const,
-    queryParams: ['currentPage', 'from_timestamp', 'pageSize', 'to_timestamp'] as const,
+    queryParams: ['cityIn', 'countryCodeIn', 'currentPage', 'from_timestamp', 'host', 'ipAddressIn', 'methodIn', 'orderBy', 'pageSize', 'searchIgnoreCase', 'searchString', 'sortOrder', 'statusIn', 'to_timestamp'] as const,
   },
   'list_geo_events': {
     path: '/api/v1/geo-events',

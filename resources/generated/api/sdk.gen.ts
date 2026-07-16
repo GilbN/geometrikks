@@ -6,6 +6,8 @@ import type {
   ApiV1AccessLogDebugListAccessLogDebugsData,
   ApiV1AccessLogDebugListAccessLogDebugsErrors,
   ApiV1AccessLogDebugListAccessLogDebugsResponses,
+  ApiV1AccessLogsFacetsGetAccessLogFacetsData,
+  ApiV1AccessLogsFacetsGetAccessLogFacetsResponses,
   ApiV1AccessLogsListAccessLogsData,
   ApiV1AccessLogsListAccessLogsErrors,
   ApiV1AccessLogsListAccessLogsResponses,
@@ -127,6 +129,30 @@ export const apiV1AccessLogsListAccessLogs = <
       },
     ],
     url: "/api/v1/access-logs",
+    ...options,
+  });
+
+/**
+ * GetAccessLogFacets
+ */
+export const apiV1AccessLogsFacetsGetAccessLogFacets = <
+  ThrowOnError extends boolean = false,
+>(
+  options?: Options<ApiV1AccessLogsFacetsGetAccessLogFacetsData, ThrowOnError>,
+) =>
+  (options?.client ?? client).get<
+    ApiV1AccessLogsFacetsGetAccessLogFacetsResponses,
+    unknown,
+    ThrowOnError
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+    ],
+    url: "/api/v1/access-logs/facets",
     ...options,
   });
 

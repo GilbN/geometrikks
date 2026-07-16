@@ -5,6 +5,14 @@ export type ClientOptions = {
 };
 
 /**
+ * AccessLogFacets
+ */
+export type AccessLogFacets = {
+  cities: Array<string>;
+  countries: Array<CountryFacet>;
+};
+
+/**
  * AnalyticsSettingsView
  */
 export type AnalyticsSettingsView = {
@@ -12,6 +20,14 @@ export type AnalyticsSettingsView = {
   debug_retention_days: number;
   hourly_retention_days: number;
   raw_retention_days: number;
+};
+
+/**
+ * CountryFacet
+ */
+export type CountryFacet = {
+  code: string;
+  name: string;
 };
 
 /**
@@ -462,10 +478,32 @@ export type ApiV1AccessLogsListAccessLogsData = {
   body?: never;
   path?: never;
   query?: {
+    /**
+     * Field to search
+     */
+    searchString?: string | null;
+    /**
+     * Search should be case sensitive
+     */
+    searchIgnoreCase?: boolean | null;
     currentPage?: number;
     pageSize?: number;
+    /**
+     * Order by field
+     */
+    orderBy?: string | null;
+    /**
+     * Field to search
+     */
+    sortOrder?: "asc" | "desc" | null;
     from_timestamp?: string | null;
     to_timestamp?: string | null;
+    host?: string | null;
+    methodIn?: Array<string> | null;
+    ipAddressIn?: Array<string> | null;
+    cityIn?: Array<string> | null;
+    countryCodeIn?: Array<string> | null;
+    statusIn?: Array<number> | null;
   };
   url: "/api/v1/access-logs";
 };
@@ -512,6 +550,23 @@ export type ApiV1AccessLogsListAccessLogsResponses = {
 
 export type ApiV1AccessLogsListAccessLogsResponse =
   ApiV1AccessLogsListAccessLogsResponses[keyof ApiV1AccessLogsListAccessLogsResponses];
+
+export type ApiV1AccessLogsFacetsGetAccessLogFacetsData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: "/api/v1/access-logs/facets";
+};
+
+export type ApiV1AccessLogsFacetsGetAccessLogFacetsResponses = {
+  /**
+   * Request fulfilled, document follows
+   */
+  200: AccessLogFacets;
+};
+
+export type ApiV1AccessLogsFacetsGetAccessLogFacetsResponse =
+  ApiV1AccessLogsFacetsGetAccessLogFacetsResponses[keyof ApiV1AccessLogsFacetsGetAccessLogFacetsResponses];
 
 export type ApiV1AnalyticsGeoTimeSeriesGetGeoTimeSeriesData = {
   body?: never;
