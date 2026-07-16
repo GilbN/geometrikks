@@ -16,6 +16,7 @@ import {
   fetchTopUserAgents,
   fetchCumulativeTimeSeries,
   fetchAccessLogs,
+  fetchAccessLogFacets,
   fetchRuntimeSettings,
   parseTimeRange,
   type SummaryParams,
@@ -24,6 +25,9 @@ import {
   type TopCountriesResponse,
   type CumulativeTimeSeriesResponse,
   type AccessLogsPage,
+  type AccessLogFacets,
+  type AccessLogSortField,
+  type SortOrder,
 } from "./api"
 import { useTimeRange } from "./time-range-context"
 
@@ -65,6 +69,7 @@ export const queryKeys = {
     all: ["access-logs"] as const,
     list: (params: Record<string, unknown>, refreshKey?: number) =>
       [...queryKeys.accessLogs.all, "list", params, refreshKey] as const,
+    facets: () => [...queryKeys.accessLogs.all, "facets"] as const,
   },
 }
 
@@ -411,6 +416,14 @@ export interface UseAccessLogsOptions {
   currentPage?: number
   pageSize?: number
   enabled?: boolean
+  searchString?: string
+  ipAddressIn?: string[]
+  methodIn?: string[]
+  host?: string
+  cityIn?: string[]
+  countryCodeIn?: string[]
+  sortField?: AccessLogSortField
+  sortOrder?: SortOrder
 }
 
 /**
@@ -418,11 +431,26 @@ export interface UseAccessLogsOptions {
  * Server-side pagination; keeps the previous page visible while the next loads.
  */
 export function useAccessLogs(options: UseAccessLogsOptions = {}) {
-  const { currentPage = 1, pageSize = 50, enabled = true } = options
+  const {
+    currentPage = 1,
+    pageSize = 50,
+    enabled = true,
+    searchString,
+    ipAddressIn,
+    methodIn,
+    host,
+    cityIn,
+    countryCodeIn,
+    sortField,
+    sortOrder,
+  } = options
   const { range, pollInterval, lastRefresh } = useTimeRange()
 
   return useQuery<AccessLogsPage>({
-    queryKey: queryKeys.accessLogs.list({ range, currentPage, pageSize }, lastRefresh),
+    queryKey: queryKeys.accessLogs.list(
+      { range, currentPage, pageSize, searchString, ipAddressIn, methodIn, host, cityIn, countryCodeIn, sortField, sortOrder },
+      lastRefresh,
+    ),
     queryFn: () => {
       const { startDate, endDate } = parseTimeRange(range, Date.now())
       return fetchAccessLogs({
@@ -430,11 +458,32 @@ export function useAccessLogs(options: UseAccessLogsOptions = {}) {
         toTimestamp: endDate,
         currentPage,
         pageSize,
+        searchString,
+        ipAddressIn,
+        methodIn,
+        host,
+        cityIn,
+        countryCodeIn,
+        sortField,
+        sortOrder,
       })
     },
     enabled,
     placeholderData: (prev) => prev, // v5 keepPreviousData: no blank flash while paging
     staleTime: 15 * 1000,
     refetchInterval: pollInterval || false,
+  })
+}
+
+/**
+ * Distinct country/city filter options. Fetched lazily (enable on first
+ * dropdown open); staleTime keeps reopen-refetches to at most one per minute.
+ */
+export function useAccessLogFacets({ enabled = true }: { enabled?: boolean } = {}) {
+  return useQuery<AccessLogFacets>({
+    queryKey: queryKeys.accessLogs.facets(),
+    queryFn: fetchAccessLogFacets,
+    enabled,
+    staleTime: 60 * 1000,
   })
 }

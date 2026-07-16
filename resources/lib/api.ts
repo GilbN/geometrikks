@@ -412,11 +412,43 @@ export interface AccessLogsPage {
   offset: number
 }
 
+/** Columns the history table can sort by (must match the backend allowlist). */
+export type AccessLogSortField =
+  | "timestamp" | "statusCode" | "bytesSent" | "requestTime"
+  | "method" | "ipAddress" | "host" | "url"
+export type SortOrder = "asc" | "desc"
+
+/** camelCase sort key -> backend snake_case column name for `orderBy`. */
+const SORT_FIELD_TO_COLUMN: Record<AccessLogSortField, string> = {
+  timestamp: "timestamp",
+  statusCode: "status_code",
+  bytesSent: "bytes_sent",
+  requestTime: "request_time",
+  method: "method",
+  ipAddress: "ip_address",
+  host: "host",
+  url: "url",
+}
+
 export interface AccessLogsParams {
   fromTimestamp: string
   toTimestamp: string
   currentPage?: number
   pageSize?: number
+  /** Free-text search across url / referrer / user-agent. */
+  searchString?: string
+  /** Exact IP match(es). */
+  ipAddressIn?: string[]
+  /** HTTP method(s) to include. */
+  methodIn?: string[]
+  /** Case-insensitive substring match on host (domain). */
+  host?: string
+  /** Exact city match(es). */
+  cityIn?: string[]
+  /** Exact ISO-3166 alpha-2 country code match(es). */
+  countryCodeIn?: string[]
+  sortField?: AccessLogSortField
+  sortOrder?: SortOrder
 }
 
 export async function fetchAccessLogs(params: AccessLogsParams): Promise<AccessLogsPage> {
@@ -426,8 +458,39 @@ export async function fetchAccessLogs(params: AccessLogsParams): Promise<AccessL
       to_timestamp: params.toTimestamp,
       currentPage: params.currentPage ?? 1,
       pageSize: params.pageSize ?? 50,
+      searchString: params.searchString || undefined,
+      ipAddressIn: params.ipAddressIn?.length ? params.ipAddressIn : undefined,
+      methodIn: params.methodIn?.length ? params.methodIn : undefined,
+      host: params.host || undefined,
+      cityIn: params.cityIn?.length ? params.cityIn : undefined,
+      countryCodeIn: params.countryCodeIn?.length ? params.countryCodeIn : undefined,
+      orderBy: params.sortField ? SORT_FIELD_TO_COLUMN[params.sortField] : undefined,
+      sortOrder: params.sortField ? params.sortOrder ?? "desc" : undefined,
     },
+    // Litestar expects repeated keys (?methodIn=GET&methodIn=POST),
+    // not axios' default bracket form (methodIn[]=GET).
+    paramsSerializer: { indexes: null },
   })
+  return data
+}
+
+export interface CountryFacet {
+  /** ISO-3166 alpha-2 code, e.g. "NO". */
+  code: string
+  /** Display name, e.g. "Norway". */
+  name: string
+}
+
+export interface AccessLogFacets {
+  /** Sorted by name. */
+  countries: CountryFacet[]
+  /** Sorted alphabetically. */
+  cities: string[]
+}
+
+/** Distinct country/city values present in the data, for the filter dropdowns. */
+export async function fetchAccessLogFacets(): Promise<AccessLogFacets> {
+  const { data } = await api.get<AccessLogFacets>("/access-logs/facets")
   return data
 }
 
