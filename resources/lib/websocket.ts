@@ -6,7 +6,27 @@
 
 export type LiveEvent =
   | { type: "geo_event"; data: { timestamp: string; ip_address: string; latitude: number; longitude: number; city: string | null; country_code: string | null } }
-  | { type: "access_log"; data: { timestamp: string; ip_address: string; method: string | null; url: string | null; status_code: number; bytes_sent: number; request_time: number; host: string | null } }
+  | {
+      type: "access_log"
+      data: {
+        timestamp: string
+        ip_address: string
+        remote_user: string | null
+        method: string | null
+        url: string | null
+        http_version: string | null
+        status_code: number
+        bytes_sent: number
+        referrer: string | null
+        user_agent: string | null
+        request_time: number
+        upstream_response_time: number | null
+        host: string | null
+        country_code: string | null
+        country_name: string | null
+        city: string | null
+      }
+    }
 
 interface BatchFrame {
   type: "batch"

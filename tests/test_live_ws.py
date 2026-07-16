@@ -39,6 +39,15 @@ class TestRecordToEvents:
         assert geo["latitude"] == 51.5 and geo["country_code"] == "GB"
         log = events[1]["data"]
         assert log["status_code"] == 200 and log["url"] == "/x"
+        # Wire format carries the full access-log field set.
+        assert set(log) == {
+            "timestamp", "ip_address", "remote_user", "method", "url",
+            "http_version", "status_code", "bytes_sent", "referrer",
+            "user_agent", "request_time", "upstream_response_time", "host",
+            "country_code", "country_name", "city",
+        }
+        assert log["http_version"] == "1.1" and log["user_agent"] == "curl"
+        assert log["host"] == "example.com" and log["country_code"] == "GB"
 
     def test_geo_only_record(self):
         from geometrikks.api.v1.live_controller import record_to_events
