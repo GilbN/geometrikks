@@ -1,6 +1,13 @@
 {
   "litestar_version": "Version(major=2, minor=24, patch=0, release_level='final', serial=0)",
   "routes": {
+    "get_access_log_facets": {
+      "method": "get",
+      "methods": [
+        "GET"
+      ],
+      "uri": "/api/v1/access-logs/facets"
+    },
     "get_cumulative_time_series": {
       "method": "get",
       "methods": [
@@ -168,9 +175,18 @@
         "GET"
       ],
       "queryParameters": {
+        "cityIn": "string[] | undefined",
+        "countryCodeIn": "string[] | undefined",
         "currentPage": "number | undefined",
         "from_timestamp": "DateTime | undefined",
+        "host": "string | undefined",
+        "ipAddressIn": "string[] | undefined",
+        "methodIn": "string[] | undefined",
+        "orderBy": "string | undefined",
         "pageSize": "number | undefined",
+        "searchIgnoreCase": "boolean | undefined",
+        "searchString": "string | undefined",
+        "sortOrder": "\"asc\" | \"desc\" | undefined",
         "to_timestamp": "DateTime | undefined"
       },
       "uri": "/api/v1/access-logs"

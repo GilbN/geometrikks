@@ -6,6 +6,8 @@ export * from "./api/types.gen"
 
 // Import specific operation types for mapping
 import type {
+  ApiV1AccessLogsFacetsGetAccessLogFacetsData,
+  ApiV1AccessLogsFacetsGetAccessLogFacetsResponses,
   ApiV1AuthLoginLoginData,
   ApiV1AuthLoginLoginErrors,
   ApiV1AuthLoginLoginResponses,
@@ -36,6 +38,7 @@ import type {
  * const op: OperationName = 'api:login'
  */
 export type OperationName =
+  | 'get_access_log_facets'
   | 'health'
   | 'health_ready'
   | 'login'
@@ -49,6 +52,7 @@ export type OperationName =
  * Data types contain body, path, query, and url properties.
  */
 export interface OperationDataTypes {
+  'get_access_log_facets': ApiV1AccessLogsFacetsGetAccessLogFacetsData
   'health': HealthHealthData
   'health_ready': HealthReadyHealthReadyData
   'login': ApiV1AuthLoginLoginData
@@ -63,6 +67,7 @@ export interface OperationDataTypes {
  * Responses types map status codes to response shapes.
  */
 export interface OperationResponseTypes {
+  'get_access_log_facets': ApiV1AccessLogsFacetsGetAccessLogFacetsResponses
   'health': HealthHealthResponses
   'health_ready': HealthReadyHealthReadyResponses
   'login': ApiV1AuthLoginLoginResponses
@@ -77,6 +82,7 @@ export interface OperationResponseTypes {
  * Error types represent non-2xx responses.
  */
 export interface OperationErrorTypes {
+  'get_access_log_facets': never
   'health': never
   'health_ready': never
   'login': ApiV1AuthLoginLoginErrors
