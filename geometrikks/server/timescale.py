@@ -555,6 +555,10 @@ async def setup_timescaledb(
             caggs=SUMMARY_CAGGS,
         )
 
+    # Repair deployments whose data predates CAGG refresh coverage
+    # (issue #14: long-range charts truncated while top lists are not).
+    await backfill_cagg_gaps(engine, raw_retention_days=analytics.raw_retention_days)
+
     logger.info("TimescaleDB setup complete")
 
 
@@ -600,4 +604,80 @@ async def refresh_caggs_range(
             logger.info("CAGG refreshed: %s (%s → %s)", cagg, start, end)
         except Exception as e:
             logger.warning("CAGG refresh failed: %s (%s → %s): %s", cagg, start, end, e)
+
+
+# CAGG -> raw source hypertable (all use a "timestamp" time column)
+CAGG_SOURCE_TABLES: dict[str, str] = {
+    "summary_hourly_stats": "access_logs",
+    "summary_daily_stats": "access_logs",
+    "geo_summary_hourly_stats": "geo_events",
+    "geo_summary_daily_stats": "geo_events",
+    "location_hourly_stats": "geo_events",
+    "location_daily_stats": "geo_events",
+    "ip_location_daily_stats": "geo_events",
+}
+
+
+async def backfill_cagg_gaps(engine: "AsyncEngine", *, raw_retention_days: int) -> None:
+    """Materialize CAGG history that predates refresh-policy coverage.
+
+    CAGGs are created WITH NO DATA and refresh policies only cover a
+    trailing window, so buckets older than the coverage are never
+    materialized. Once the watermark advances, the real-time union stops
+    reading those raw rows and the history disappears from CAGG queries
+    while raw-table queries still see it (issue #14 symptom). Detect the
+    gap (earliest raw row older than earliest materialized bucket) and
+    refresh the missing range. Idempotent and cheap when there is no gap.
+    """
+    horizon = datetime.now(timezone.utc) - timedelta(days=raw_retention_days)
+    to_backfill: list[tuple[str, datetime]] = []
+
+    for cagg, source in CAGG_SOURCE_TABLES.items():
+        # Isolate each CAGG on its own connection: a probe failure (e.g. a
+        # future CAGG whose time column is not "bucket") must not abort app
+        # startup, and a failed statement poisons its whole connection's
+        # transaction, so a shared connection would cascade the failure to
+        # every later CAGG. Matches refresh_caggs_range's per-item pattern.
+        try:
+            async with engine.connect() as conn:
+                raw_min = (await conn.execute(
+                    text(f"SELECT MIN(timestamp) FROM {source} WHERE timestamp >= :horizon"),  # noqa: S608 - allowlisted identifiers
+                    {"horizon": horizon},
+                )).scalar()
+                if raw_min is None:
+                    continue
+
+                mat_table = (await conn.execute(text("""
+                    SELECT format('%I.%I', materialization_hypertable_schema,
+                                  materialization_hypertable_name)
+                    FROM timescaledb_information.continuous_aggregates
+                    WHERE view_name = :cagg
+                """), {"cagg": cagg})).scalar()
+                if mat_table is None:
+                    continue
+
+                cagg_min = (await conn.execute(
+                    text(f"SELECT MIN(bucket) FROM {mat_table}")  # noqa: S608
+                )).scalar()
+        except Exception as e:
+            logger.warning("CAGG gap probe failed: %s: %s", cagg, e)
+            continue
+
+        bucket_width = timedelta(days=1) if "daily" in cagg else timedelta(hours=1)
+        if cagg_min is None or raw_min < cagg_min - bucket_width:
+            # refresh_continuous_aggregate silently skips the bucket
+            # containing an unaligned start (it does not floor it), so
+            # align start to the bucket boundary or the earliest row's
+            # bucket is dropped instead of backfilled.
+            if bucket_width == timedelta(days=1):
+                aligned_start = raw_min.replace(hour=0, minute=0, second=0, microsecond=0)
+            else:
+                aligned_start = raw_min.replace(minute=0, second=0, microsecond=0)
+            to_backfill.append((cagg, aligned_start))
+
+    for cagg, start in to_backfill:
+        logger.warning("CAGG %s is missing history since %s; backfilling", cagg, start)
+        await refresh_caggs_range(
+            engine, start=start, end=datetime.now(timezone.utc), caggs=[cagg]
+        )
 
