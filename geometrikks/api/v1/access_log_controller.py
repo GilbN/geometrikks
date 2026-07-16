@@ -1,69 +1,148 @@
 """AccessLog API endpoints."""
 from __future__ import annotations
 
+import ipaddress
 from datetime import datetime
 from typing import Annotated
 
 from litestar import Controller, get
 from litestar.di import NamedDependency, Provide
-from litestar.pagination import OffsetPagination
-from litestar.params import QueryParameter
-from advanced_alchemy.extensions.litestar import filters
+from litestar.exceptions import ValidationException
+from litestar.params import QueryParameter, SkipValidation
+from advanced_alchemy.extensions.litestar.providers import create_service_dependencies
+from advanced_alchemy.filters import (
+    CollectionFilter,
+    FilterTypes,
+    OnBeforeAfter,
+    SearchFilter,
+)
+from advanced_alchemy.service import OffsetPagination
 
 from geometrikks.domain.logs.models import AccessLog
-from geometrikks.domain.logs.repositories import AccessLogRepository
+from geometrikks.domain.logs.schemas import AccessLogFacets
+from geometrikks.domain.logs.services import AccessLogService
 from geometrikks.domain.logs.dtos import AccessLogDTO
+from geometrikks.server.plugins import get_sqlalchemy_config
 
-from geometrikks.api.dependencies import provide_access_log_repo
 
+def provide_access_log_time_window(
+    from_timestamp: Annotated[datetime | None, QueryParameter(required=False)] = None,
+    to_timestamp: Annotated[datetime | None, QueryParameter(required=False)] = None,
+) -> list[FilterTypes]:
+    """Optional inclusive [from, to] window on the ``timestamp`` column.
 
-def build_list_filters(
-    from_timestamp: datetime | None,
-    to_timestamp: datetime | None,
-) -> list[filters.FilterTypes]:
-    """Newest-first ordering plus an optional inclusive [from, to] window on timestamp."""
-    result: list[filters.FilterTypes] = [
-        filters.OrderBy(field_name="timestamp", sort_order="desc"),
-    ]
-    if from_timestamp is not None or to_timestamp is not None:
-        result.append(
-            filters.OnBeforeAfter(
-                field_name="timestamp",
-                on_or_after=from_timestamp,
-                on_or_before=to_timestamp,
-            )
+    The built-in ``created_at`` / ``updated_at`` filter config targets those
+    audit columns; access logs carry the event time on ``timestamp`` instead.
+    """
+    if from_timestamp is None and to_timestamp is None:
+        return []
+    return [
+        OnBeforeAfter(
+            field_name="timestamp",
+            on_or_after=from_timestamp,
+            on_or_before=to_timestamp,
         )
+    ]
+
+
+def provide_access_log_host_search(
+    host: Annotated[str | None, QueryParameter(required=False)] = None,
+) -> list[FilterTypes]:
+    """Case-insensitive substring match on ``host`` (domain filter).
+
+    A substring match (rather than an exact ``IN`` comparison) keeps the
+    domain box free-text.
+    """
+    if not host:
+        return []
+    return [SearchFilter(field_name="host", value=host, ignore_case=True)]
+
+
+def provide_access_log_in_filters(
+    method_in: Annotated[list[str] | None, QueryParameter(name="methodIn", required=False)] = None,
+    ip_address_in: Annotated[list[str] | None, QueryParameter(name="ipAddressIn", required=False)] = None,
+    city_in: Annotated[list[str] | None, QueryParameter(name="cityIn", required=False)] = None,
+    country_code_in: Annotated[list[str] | None, QueryParameter(name="countryCodeIn", required=False)] = None,
+) -> list[FilterTypes]:
+    """Exact ``IN`` matches on method / IP / city / country code.
+
+    Provided here rather than via the built-in ``in_fields`` config, whose
+    generated providers yield ``None`` when the param is absent and fail the
+    aggregating ``filters`` dependency's object validation.
+
+    Raises:
+        ValidationException: If an ``ipAddressIn`` value is not a valid IP —
+            ``ip_address`` is an INET column, so asyncpg would otherwise fail
+            to encode the bind param and surface a 500.
+    """
+    result: list[FilterTypes] = []
+    if method_in:
+        result.append(CollectionFilter(field_name="method", values=method_in))
+    if ip_address_in:
+        for raw in ip_address_in:
+            try:
+                ipaddress.ip_address(raw)
+            except ValueError as exc:
+                raise ValidationException(detail=f"Invalid IP address: {raw!r}") from exc
+        result.append(CollectionFilter(field_name="ip_address", values=ip_address_in))
+    if city_in:
+        result.append(CollectionFilter(field_name="city", values=city_in))
+    if country_code_in:
+        result.append(CollectionFilter(field_name="country_code", values=country_code_in))
     return result
 
 
 class AccessLogController(Controller):
     """Access log endpoints
 
-    Handles CRUD operations for access logs.
+    Handles read operations for access logs with filtering, search, sorting,
+    and pagination.
     """
     path = "/api/v1/access-logs"
-    return_dto = AccessLogDTO 
+    return_dto = AccessLogDTO
     tags = ["Access Logs"]
 
-    dependencies = {
-        "access_log_repo": Provide(provide_access_log_repo),
+    dependencies = create_service_dependencies(
+        AccessLogService,
+        key="access_log_service",
+        config=get_sqlalchemy_config(),
+        filters={
+            "pagination_type": "limit_offset",   # -> ?currentPage & ?pageSize
+            "pagination_size": 50,
+            "search": "url,referrer,user_agent",  # -> ?searchString
+            "search_ignore_case": True,
+            "sort_field": "timestamp",            # default; overridable via ?orderBy
+            "sort_order": "desc",                 # -> ?sortOrder
+        },
+    ) | {
+        "time_window": Provide(provide_access_log_time_window, sync_to_thread=False),
+        "host_search": Provide(provide_access_log_host_search, sync_to_thread=False),
+        "in_filters": Provide(provide_access_log_in_filters, sync_to_thread=False),
     }
-    
+
     @get("/")
     async def list_access_logs(
         self,
-        access_log_repo: NamedDependency[AccessLogRepository],
-        limit_offset: NamedDependency[filters.LimitOffset],
-        from_timestamp: Annotated[datetime | None, QueryParameter(required=False)] = None,
-        to_timestamp: Annotated[datetime | None, QueryParameter(required=False)] = None,
+        access_log_service: NamedDependency[AccessLogService],
+        filters: NamedDependency[SkipValidation[list[FilterTypes]]],
+        time_window: NamedDependency[SkipValidation[list[FilterTypes]]],
+        host_search: NamedDependency[SkipValidation[list[FilterTypes]]],
+        in_filters: NamedDependency[SkipValidation[list[FilterTypes]]],
     ) -> OffsetPagination[AccessLog]:
-        """List access logs newest-first, optionally within a time window."""
-        list_filters = build_list_filters(from_timestamp, to_timestamp)
-        results, total = await access_log_repo.get_many_and_count(*list_filters, limit_offset)
-        return OffsetPagination[AccessLog](
-            items=results,
-            total=total,
-            limit=limit_offset.limit,
-            offset=limit_offset.offset
-        )
+        """List access logs newest-first, with optional search/filter/sort."""
+        all_filters = [*filters, *time_window, *host_search, *in_filters]
+        results, total = await access_log_service.get_many_and_count(*all_filters)
+        return access_log_service.to_schema(results, total, filters=all_filters)
 
+    @get("/facets", return_dto=None)
+    async def get_access_log_facets(
+        self,
+        access_log_service: NamedDependency[AccessLogService],
+    ) -> AccessLogFacets:
+        """Distinct country/city values present in the data, for filter dropdowns.
+
+        ``return_dto=None`` opts out of the controller-level ``AccessLogDTO``
+        (bound to the AccessLog model); Litestar serializes the dataclasses
+        directly. Field names are single words, so no camelCase rename needed.
+        """
+        return await access_log_service.get_facets()
