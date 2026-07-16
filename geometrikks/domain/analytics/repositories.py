@@ -374,19 +374,23 @@ class SummaryStatsRepository:
         self,
         start: datetime,
         end: datetime,
+        granularity: StatsGranularity | None = None,
     ) -> Sequence[SummaryStatsRow]:
         """Get time series data for charts.
 
         Args:
             start: Start datetime.
             end: End datetime.
+            granularity: Explicit bucket granularity override. None auto-routes
+                via get_stats_granularity (RAW is clamped to HOURLY).
 
         Returns:
             List of SummaryStatsRow ordered by bucket ascending.
         """
-        granularity = get_stats_granularity(start, end)
+        if granularity is None:
+            granularity = get_stats_granularity(start, end)
         if granularity == StatsGranularity.RAW:
-            granularity = StatsGranularity.HOURLY  # no raw CAGG; hourly + real-time agg covers ≤24h
+            granularity = StatsGranularity.HOURLY  # no raw CAGG; hourly + real-time agg covers <=24h
         table = f"summary_{granularity.value}_stats"
         bucket_interval = "1 hour" if granularity == StatsGranularity.HOURLY else "1 day"
 
@@ -435,6 +439,7 @@ class SummaryStatsRepository:
         self,
         start: datetime,
         end: datetime,
+        granularity: StatsGranularity | None = None,
     ) -> Sequence[dict]:
         """Get geo event time series data for charts.
 
@@ -443,13 +448,16 @@ class SummaryStatsRepository:
         Args:
             start: Start datetime.
             end: End datetime.
+            granularity: Explicit bucket granularity override. None auto-routes
+                via get_stats_granularity (RAW is clamped to HOURLY).
 
         Returns:
             List of dicts with bucket, total_events, unique_ips, unique_countries, unique_cities.
         """
-        granularity = get_stats_granularity(start, end)
+        if granularity is None:
+            granularity = get_stats_granularity(start, end)
         if granularity == StatsGranularity.RAW:
-            granularity = StatsGranularity.HOURLY  # no raw CAGG; hourly + real-time agg covers ≤24h
+            granularity = StatsGranularity.HOURLY  # no raw CAGG; hourly + real-time agg covers <=24h
         table = f"geo_summary_{granularity.value}_stats"
         bucket_interval = "1 hour" if granularity == StatsGranularity.HOURLY else "1 day"
 

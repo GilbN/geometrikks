@@ -2,27 +2,27 @@
 
 export const AccessLogFacetsSchema = {
   properties: {
-    cities: {
-      items: {
-        type: "string",
-      },
-      type: "array",
-    },
     countries: {
       items: {
         $ref: "#/components/schemas/CountryFacet",
       },
       type: "array",
     },
+    cities: {
+      items: {
+        type: "string",
+      },
+      type: "array",
+    },
   },
+  type: "object",
   required: ["cities", "countries"],
   title: "AccessLogFacets",
-  type: "object",
 } as const;
 
 export const AnalyticsSettingsViewSchema = {
   properties: {
-    compression_after_days: {
+    raw_retention_days: {
       type: "integer",
     },
     debug_retention_days: {
@@ -31,10 +31,11 @@ export const AnalyticsSettingsViewSchema = {
     hourly_retention_days: {
       type: "integer",
     },
-    raw_retention_days: {
+    compression_after_days: {
       type: "integer",
     },
   },
+  type: "object",
   required: [
     "compression_after_days",
     "debug_retention_days",
@@ -42,7 +43,6 @@ export const AnalyticsSettingsViewSchema = {
     "raw_retention_days",
   ],
   title: "AnalyticsSettingsView",
-  type: "object",
 } as const;
 
 export const CountryFacetSchema = {
@@ -54,26 +54,27 @@ export const CountryFacetSchema = {
       type: "string",
     },
   },
+  type: "object",
   required: ["code", "name"],
   title: "CountryFacet",
-  type: "object",
 } as const;
 
 export const CumulativeDataPointSchema = {
   properties: {
+    timestamp: {
+      type: "string",
+    },
+    cumulative_geo_events: {
+      type: "integer",
+    },
     cumulative_access_logs: {
       type: "integer",
     },
     cumulative_bytes: {
       type: "integer",
     },
-    cumulative_geo_events: {
-      type: "integer",
-    },
-    timestamp: {
-      type: "string",
-    },
   },
+  type: "object",
   required: [
     "cumulative_access_logs",
     "cumulative_bytes",
@@ -81,34 +82,42 @@ export const CumulativeDataPointSchema = {
     "timestamp",
   ],
   title: "CumulativeDataPoint",
-  type: "object",
 } as const;
 
 export const CumulativeTimeSeriesResponseSchema = {
   properties: {
-    data: {
-      items: {
-        $ref: "#/components/schemas/CumulativeDataPoint",
-      },
-      type: "array",
-    },
-    end_date: {
-      type: "string",
-    },
     granularity: {
       type: "string",
     },
     start_date: {
       type: "string",
     },
+    end_date: {
+      type: "string",
+    },
+    data: {
+      items: {
+        $ref: "#/components/schemas/CumulativeDataPoint",
+      },
+      type: "array",
+    },
   },
+  type: "object",
   required: ["end_date", "granularity", "start_date"],
   title: "CumulativeTimeSeriesResponse",
-  type: "object",
 } as const;
 
 export const EmbeddedLocationDTOSchema = {
   properties: {
+    id: {
+      type: "integer",
+    },
+    latitude: {
+      type: "number",
+    },
+    longitude: {
+      type: "number",
+    },
     city: {
       oneOf: [
         {
@@ -139,19 +148,10 @@ export const EmbeddedLocationDTOSchema = {
         },
       ],
     },
-    id: {
-      type: "integer",
-    },
-    latitude: {
-      type: "number",
-    },
-    longitude: {
-      type: "number",
-    },
   },
+  type: "object",
   required: ["id", "latitude", "longitude"],
   title: "EmbeddedLocationDTO",
-  type: "object",
 } as const;
 
 export const GeoEventsDataPointSchema = {
@@ -162,16 +162,17 @@ export const GeoEventsDataPointSchema = {
     total_geo_events: {
       type: "integer",
     },
-    unique_cities: {
+    unique_ips: {
       type: "integer",
     },
     unique_countries: {
       type: "integer",
     },
-    unique_ips: {
+    unique_cities: {
       type: "integer",
     },
   },
+  type: "object",
   required: [
     "timestamp",
     "total_geo_events",
@@ -180,51 +181,53 @@ export const GeoEventsDataPointSchema = {
     "unique_ips",
   ],
   title: "GeoEventsDataPoint",
-  type: "object",
 } as const;
 
 export const GeoEventsTimeSeriesResponseSchema = {
   properties: {
-    data: {
-      items: {
-        $ref: "#/components/schemas/GeoEventsDataPoint",
-      },
-      type: "array",
-    },
-    end_date: {
-      type: "string",
-    },
     granularity: {
       type: "string",
     },
     start_date: {
       type: "string",
     },
+    end_date: {
+      type: "string",
+    },
+    data: {
+      items: {
+        $ref: "#/components/schemas/GeoEventsDataPoint",
+      },
+      type: "array",
+    },
   },
+  type: "object",
   required: ["data", "end_date", "granularity", "start_date"],
   title: "GeoEventsTimeSeriesResponse",
-  type: "object",
 } as const;
 
 export const GeoJSONFeatureSchema = {
   properties: {
+    type: {
+      type: "string",
+    },
     geometry: {
       $ref: "#/components/schemas/GeoJSONPointGeometry",
     },
     properties: {
       $ref: "#/components/schemas/GeoJSONFeatureProperties",
     },
-    type: {
-      type: "string",
-    },
   },
+  type: "object",
   required: ["geometry", "properties", "type"],
   title: "GeoJSONFeature",
-  type: "object",
 } as const;
 
 export const GeoJSONFeatureCollectionSchema = {
   properties: {
+    type: {
+      type: "string",
+    },
     features: {
       items: {
         $ref: "#/components/schemas/GeoJSONFeature",
@@ -234,26 +237,19 @@ export const GeoJSONFeatureCollectionSchema = {
     stats: {
       $ref: "#/components/schemas/GeoJSONFeatureStats",
     },
-    type: {
-      type: "string",
-    },
   },
+  type: "object",
   required: ["features", "stats", "type"],
   title: "GeoJSONFeatureCollection",
-  type: "object",
 } as const;
 
 export const GeoJSONFeaturePropertiesSchema = {
   properties: {
-    city: {
-      oneOf: [
-        {
-          type: "string",
-        },
-        {
-          type: "null",
-        },
-      ],
+    id: {
+      type: "integer",
+    },
+    geohash: {
+      type: "string",
     },
     country_code: {
       type: "string",
@@ -261,30 +257,11 @@ export const GeoJSONFeaturePropertiesSchema = {
     country_name: {
       type: "string",
     },
-    event_count: {
-      type: "integer",
-    },
-    geohash: {
-      type: "string",
-    },
-    id: {
-      type: "integer",
-    },
     last_hit: {
       oneOf: [
         {
+          type: "string",
           format: "date-time",
-          type: "string",
-        },
-        {
-          type: "null",
-        },
-      ],
-    },
-    postal_code: {
-      oneOf: [
-        {
-          type: "string",
         },
         {
           type: "null",
@@ -311,6 +288,26 @@ export const GeoJSONFeaturePropertiesSchema = {
         },
       ],
     },
+    city: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    postal_code: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
     timezone: {
       oneOf: [
         {
@@ -321,6 +318,9 @@ export const GeoJSONFeaturePropertiesSchema = {
         },
       ],
     },
+    event_count: {
+      type: "integer",
+    },
     top_ips: {
       items: {
         $ref: "#/components/schemas/TopIPDTO",
@@ -328,6 +328,7 @@ export const GeoJSONFeaturePropertiesSchema = {
       type: "array",
     },
   },
+  type: "object",
   required: [
     "city",
     "country_code",
@@ -342,31 +343,33 @@ export const GeoJSONFeaturePropertiesSchema = {
     "timezone",
   ],
   title: "GeoJSONFeatureProperties",
-  type: "object",
 } as const;
 
 export const GeoJSONFeatureStatsSchema = {
   properties: {
-    cities: {
+    events: {
       type: "integer",
     },
     countries: {
       type: "integer",
     },
-    events: {
+    cities: {
       type: "integer",
     },
     locations: {
       type: "integer",
     },
   },
+  type: "object",
   required: ["cities", "countries", "events", "locations"],
   title: "GeoJSONFeatureStats",
-  type: "object",
 } as const;
 
 export const GeoJSONPointGeometrySchema = {
   properties: {
+    type: {
+      type: "string",
+    },
     coordinates: {
       prefixItems: [
         {
@@ -378,13 +381,10 @@ export const GeoJSONPointGeometrySchema = {
       ],
       type: "array",
     },
-    type: {
-      type: "string",
-    },
   },
+  type: "object",
   required: ["coordinates", "type"],
   title: "GeoJSONPointGeometry",
-  type: "object",
 } as const;
 
 export const GlobalTopIPsResponseSchema = {
@@ -396,9 +396,9 @@ export const GlobalTopIPsResponseSchema = {
       type: "array",
     },
   },
+  type: "object",
   required: [],
   title: "GlobalTopIPsResponse",
-  type: "object",
 } as const;
 
 export const ListAccessLogDebugsAccessLogDebugResponseBodySchema = {
@@ -414,15 +414,15 @@ export const ListAccessLogDebugsAccessLogDebugResponseBodySchema = {
       ],
     },
     createdAt: {
+      type: "string",
       format: "date-time",
+    },
+    rawLine: {
       type: "string",
     },
-    id: {
-      type: "integer",
-    },
     isMalformed: {
-      default: false,
       type: "boolean",
+      default: false,
     },
     parseError: {
       oneOf: [
@@ -434,22 +434,28 @@ export const ListAccessLogDebugsAccessLogDebugResponseBodySchema = {
         },
       ],
     },
-    rawLine: {
-      type: "string",
+    id: {
+      type: "integer",
     },
   },
+  type: "object",
   required: ["id", "rawLine"],
   title: "ListAccessLogDebugsAccessLogDebugResponseBody",
-  type: "object",
 } as const;
 
 export const ListAccessLogsAccessLogResponseBodySchema = {
   properties: {
-    bytesSent: {
-      default: 0,
-      type: "integer",
+    timestamp: {
+      type: "string",
+      format: "date-time",
     },
-    city: {
+    ipAddress: {
+      type: "string",
+    },
+    remoteUser: {
+      type: "string",
+    },
+    method: {
       oneOf: [
         {
           type: "string",
@@ -459,27 +465,7 @@ export const ListAccessLogsAccessLogResponseBodySchema = {
         },
       ],
     },
-    countryCode: {
-      oneOf: [
-        {
-          type: "string",
-        },
-        {
-          type: "null",
-        },
-      ],
-    },
-    countryName: {
-      oneOf: [
-        {
-          type: "string",
-        },
-        {
-          type: "null",
-        },
-      ],
-    },
-    host: {
+    url: {
       oneOf: [
         {
           type: "string",
@@ -499,57 +485,14 @@ export const ListAccessLogsAccessLogResponseBodySchema = {
         },
       ],
     },
-    id: {
-      type: "integer",
-    },
-    ipAddress: {
-      type: "string",
-    },
-    method: {
-      oneOf: [
-        {
-          type: "string",
-        },
-        {
-          type: "null",
-        },
-      ],
-    },
-    referrer: {
-      oneOf: [
-        {
-          type: "string",
-        },
-        {
-          type: "null",
-        },
-      ],
-    },
-    remoteUser: {
-      type: "string",
-    },
-    requestTime: {
-      default: 0,
-      type: "number",
-    },
     statusCode: {
       type: "integer",
     },
-    timestamp: {
-      format: "date-time",
-      type: "string",
+    bytesSent: {
+      type: "integer",
+      default: 0,
     },
-    upstreamResponseTime: {
-      oneOf: [
-        {
-          type: "number",
-        },
-        {
-          type: "null",
-        },
-      ],
-    },
-    url: {
+    referrer: {
       oneOf: [
         {
           type: "string",
@@ -569,15 +512,21 @@ export const ListAccessLogsAccessLogResponseBodySchema = {
         },
       ],
     },
-  },
-  required: ["id", "ipAddress", "statusCode", "timestamp"],
-  title: "ListAccessLogsAccessLogResponseBody",
-  type: "object",
-} as const;
-
-export const ListGeoEventsGeoEventGeoLocationResponseBodySchema = {
-  properties: {
-    city: {
+    requestTime: {
+      type: "number",
+      default: 0,
+    },
+    upstreamResponseTime: {
+      oneOf: [
+        {
+          type: "number",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    host: {
       oneOf: [
         {
           type: "string",
@@ -588,28 +537,8 @@ export const ListGeoEventsGeoEventGeoLocationResponseBodySchema = {
       ],
     },
     countryCode: {
-      type: "string",
-    },
-    countryName: {
-      type: "string",
-    },
-    createdAt: {
-      format: "date-time",
-      type: "string",
-    },
-    geographicPoint: {
-      type: "string",
-    },
-    geohash: {
-      type: "string",
-    },
-    id: {
-      type: "integer",
-    },
-    lastHit: {
       oneOf: [
         {
-          format: "date-time",
           type: "string",
         },
         {
@@ -617,21 +546,54 @@ export const ListGeoEventsGeoEventGeoLocationResponseBodySchema = {
         },
       ],
     },
+    countryName: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    city: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    id: {
+      type: "integer",
+    },
+  },
+  type: "object",
+  required: ["id", "ipAddress", "statusCode", "timestamp"],
+  title: "ListAccessLogsAccessLogResponseBody",
+} as const;
+
+export const ListGeoEventsGeoEventGeoLocationResponseBodySchema = {
+  properties: {
     latitude: {
       type: "number",
     },
     longitude: {
       type: "number",
     },
-    postalCode: {
-      oneOf: [
-        {
-          type: "string",
-        },
-        {
-          type: "null",
-        },
-      ],
+    geohash: {
+      type: "string",
+    },
+    geographicPoint: {
+      type: "string",
+    },
+    countryCode: {
+      type: "string",
+    },
+    countryName: {
+      type: "string",
     },
     state: {
       oneOf: [
@@ -653,6 +615,26 @@ export const ListGeoEventsGeoEventGeoLocationResponseBodySchema = {
         },
       ],
     },
+    city: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    postalCode: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
     timezone: {
       oneOf: [
         {
@@ -663,11 +645,30 @@ export const ListGeoEventsGeoEventGeoLocationResponseBodySchema = {
         },
       ],
     },
-    updatedAt: {
-      format: "date-time",
+    lastHit: {
+      oneOf: [
+        {
+          type: "string",
+          format: "date-time",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    createdAt: {
       type: "string",
+      format: "date-time",
+    },
+    updatedAt: {
+      type: "string",
+      format: "date-time",
+    },
+    id: {
+      type: "integer",
     },
   },
+  type: "object",
   required: [
     "countryCode",
     "countryName",
@@ -678,93 +679,54 @@ export const ListGeoEventsGeoEventGeoLocationResponseBodySchema = {
     "longitude",
   ],
   title: "ListGeoEventsGeoEventGeoLocationResponseBody",
-  type: "object",
 } as const;
 
 export const ListGeoEventsGeoEventResponseBodySchema = {
   properties: {
-    hostname: {
+    timestamp: {
       type: "string",
-    },
-    id: {
-      type: "integer",
+      format: "date-time",
     },
     ipAddress: {
       type: "string",
     },
-    location: {
-      $ref: "#/components/schemas/ListGeoEventsGeoEventGeoLocationResponseBody",
+    hostname: {
+      type: "string",
     },
     locationId: {
       type: "integer",
     },
-    timestamp: {
-      format: "date-time",
-      type: "string",
-    },
-  },
-  required: ["hostname", "id", "ipAddress", "location", "locationId"],
-  title: "ListGeoEventsGeoEventResponseBody",
-  type: "object",
-} as const;
-
-export const ListGeoLocationsGeoLocationResponseBodySchema = {
-  properties: {
-    city: {
-      oneOf: [
-        {
-          type: "string",
-        },
-        {
-          type: "null",
-        },
-      ],
-    },
-    countryCode: {
-      type: "string",
-    },
-    countryName: {
-      type: "string",
-    },
-    createdAt: {
-      format: "date-time",
-      type: "string",
-    },
-    geographicPoint: {
-      type: "string",
-    },
-    geohash: {
-      type: "string",
+    location: {
+      $ref: "#/components/schemas/ListGeoEventsGeoEventGeoLocationResponseBody",
     },
     id: {
       type: "integer",
     },
-    lastHit: {
-      oneOf: [
-        {
-          format: "date-time",
-          type: "string",
-        },
-        {
-          type: "null",
-        },
-      ],
-    },
+  },
+  type: "object",
+  required: ["hostname", "id", "ipAddress", "location", "locationId"],
+  title: "ListGeoEventsGeoEventResponseBody",
+} as const;
+
+export const ListGeoLocationsGeoLocationResponseBodySchema = {
+  properties: {
     latitude: {
       type: "number",
     },
     longitude: {
       type: "number",
     },
-    postalCode: {
-      oneOf: [
-        {
-          type: "string",
-        },
-        {
-          type: "null",
-        },
-      ],
+    geohash: {
+      type: "string",
+    },
+    geographicPoint: {
+      type: "string",
+    },
+    countryCode: {
+      type: "string",
+    },
+    countryName: {
+      type: "string",
     },
     state: {
       oneOf: [
@@ -786,6 +748,26 @@ export const ListGeoLocationsGeoLocationResponseBodySchema = {
         },
       ],
     },
+    city: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    postalCode: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
     timezone: {
       oneOf: [
         {
@@ -796,11 +778,30 @@ export const ListGeoLocationsGeoLocationResponseBodySchema = {
         },
       ],
     },
-    updatedAt: {
-      format: "date-time",
+    lastHit: {
+      oneOf: [
+        {
+          type: "string",
+          format: "date-time",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    createdAt: {
       type: "string",
+      format: "date-time",
+    },
+    updatedAt: {
+      type: "string",
+      format: "date-time",
+    },
+    id: {
+      type: "integer",
     },
   },
+  type: "object",
   required: [
     "countryCode",
     "countryName",
@@ -811,7 +812,6 @@ export const ListGeoLocationsGeoLocationResponseBodySchema = {
     "longitude",
   ],
   title: "ListGeoLocationsGeoLocationResponseBody",
-  type: "object",
 } as const;
 
 export const LocationTopIPsResponseSchema = {
@@ -826,23 +826,23 @@ export const LocationTopIPsResponseSchema = {
       type: "array",
     },
   },
+  type: "object",
   required: ["location_id"],
   title: "LocationTopIPsResponse",
-  type: "object",
 } as const;
 
 export const LoginPayloadSchema = {
   properties: {
-    password: {
-      type: "string",
-    },
     username: {
       type: "string",
     },
+    password: {
+      type: "string",
+    },
   },
+  type: "object",
   required: ["password", "username"],
   title: "LoginPayload",
-  type: "object",
 } as const;
 
 export const LogparserSettingsViewSchema = {
@@ -860,9 +860,9 @@ export const LogparserSettingsViewSchema = {
       type: "boolean",
     },
   },
+  type: "object",
   required: ["log_paths", "send_logs", "store_debug_lines"],
   title: "LogparserSettingsView",
-  type: "object",
 } as const;
 
 export const MapSettingsViewSchema = {
@@ -888,13 +888,13 @@ export const MapSettingsViewSchema = {
       ],
     },
     home_source: {
-      enum: ["configured", "external_ip", null],
       type: ["null", "string"],
+      enum: ["configured", "external_ip", null],
     },
   },
+  type: "object",
   required: ["home_latitude", "home_longitude", "home_source"],
   title: "MapSettingsView",
-  type: "object",
 } as const;
 
 export const MeResponseSchema = {
@@ -903,34 +903,14 @@ export const MeResponseSchema = {
       type: "string",
     },
   },
+  type: "object",
   required: ["username"],
   title: "MeResponse",
-  type: "object",
 } as const;
 
 export const PercentChangeSchema = {
   properties: {
-    avg_request_time: {
-      oneOf: [
-        {
-          type: "number",
-        },
-        {
-          type: "null",
-        },
-      ],
-    },
-    bytes_sent: {
-      oneOf: [
-        {
-          type: "number",
-        },
-        {
-          type: "null",
-        },
-      ],
-    },
-    error_rate: {
+    log_records: {
       oneOf: [
         {
           type: "number",
@@ -950,7 +930,37 @@ export const PercentChangeSchema = {
         },
       ],
     },
-    log_records: {
+    unique_ips: {
+      oneOf: [
+        {
+          type: "number",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    bytes_sent: {
+      oneOf: [
+        {
+          type: "number",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    avg_request_time: {
+      oneOf: [
+        {
+          type: "number",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    error_rate: {
       oneOf: [
         {
           type: "number",
@@ -970,37 +980,30 @@ export const PercentChangeSchema = {
         },
       ],
     },
-    unique_ips: {
-      oneOf: [
-        {
-          type: "number",
-        },
-        {
-          type: "null",
-        },
-      ],
-    },
   },
+  type: "object",
   required: [],
   title: "PercentChange",
-  type: "object",
 } as const;
 
 export const PeriodSummarySchema = {
   properties: {
-    avg_bytes_per_request: {
-      type: "number",
-    },
-    avg_request_time: {
-      type: "number",
-    },
-    error_rate: {
-      type: "number",
-    },
-    malformed_requests: {
+    total_requests: {
       type: "integer",
     },
-    max_request_time: {
+    total_geo_events: {
+      type: "integer",
+    },
+    unique_ips: {
+      type: "integer",
+    },
+    unique_countries: {
+      type: "integer",
+    },
+    total_bytes_sent: {
+      type: "integer",
+    },
+    avg_bytes_per_request: {
       type: "number",
     },
     status_2xx: {
@@ -1015,22 +1018,20 @@ export const PeriodSummarySchema = {
     status_5xx: {
       type: "integer",
     },
-    total_bytes_sent: {
+    avg_request_time: {
+      type: "number",
+    },
+    max_request_time: {
+      type: "number",
+    },
+    malformed_requests: {
       type: "integer",
     },
-    total_geo_events: {
-      type: "integer",
-    },
-    total_requests: {
-      type: "integer",
-    },
-    unique_countries: {
-      type: "integer",
-    },
-    unique_ips: {
-      type: "integer",
+    error_rate: {
+      type: "number",
     },
   },
+  type: "object",
   required: [
     "avg_bytes_per_request",
     "avg_request_time",
@@ -1048,13 +1049,15 @@ export const PeriodSummarySchema = {
     "unique_ips",
   ],
   title: "PeriodSummary",
-  type: "object",
 } as const;
 
 export const SafeSettingsResponseSchema = {
   properties: {
-    analytics: {
-      $ref: "#/components/schemas/AnalyticsSettingsView",
+    name: {
+      type: "string",
+    },
+    version: {
+      type: "string",
     },
     environment: {
       type: "string",
@@ -1062,38 +1065,28 @@ export const SafeSettingsResponseSchema = {
     logparser: {
       $ref: "#/components/schemas/LogparserSettingsView",
     },
+    analytics: {
+      $ref: "#/components/schemas/AnalyticsSettingsView",
+    },
     map: {
       $ref: "#/components/schemas/MapSettingsView",
     },
-    name: {
-      type: "string",
-    },
-    version: {
-      type: "string",
-    },
   },
+  type: "object",
   required: ["analytics", "environment", "logparser", "map", "name", "version"],
   title: "SafeSettingsResponse",
-  type: "object",
 } as const;
 
 export const SummaryResponseSchema = {
   properties: {
-    current_period: {
-      $ref: "#/components/schemas/PeriodSummary",
+    start_date: {
+      type: "string",
     },
     end_date: {
       type: "string",
     },
-    percent_changes: {
-      oneOf: [
-        {
-          $ref: "#/components/schemas/PercentChange",
-        },
-        {
-          type: "null",
-        },
-      ],
+    current_period: {
+      $ref: "#/components/schemas/PeriodSummary",
     },
     previous_period: {
       oneOf: [
@@ -1105,31 +1098,35 @@ export const SummaryResponseSchema = {
         },
       ],
     },
-    start_date: {
-      type: "string",
+    percent_changes: {
+      oneOf: [
+        {
+          $ref: "#/components/schemas/PercentChange",
+        },
+        {
+          type: "null",
+        },
+      ],
     },
   },
+  type: "object",
   required: ["current_period", "end_date", "start_date"],
   title: "SummaryResponse",
-  type: "object",
 } as const;
 
 export const TimeSeriesDataPointSchema = {
   properties: {
-    avg_request_time: {
-      type: "number",
+    timestamp: {
+      type: "string",
     },
-    error_rate: {
-      type: "number",
+    total_requests: {
+      type: "integer",
     },
-    p50_request_time: {
-      type: "number",
+    total_geo_events: {
+      type: "integer",
     },
-    p95_request_time: {
-      type: "number",
-    },
-    p99_request_time: {
-      type: "number",
+    total_bytes_sent: {
+      type: "integer",
     },
     status_2xx: {
       type: "integer",
@@ -1143,19 +1140,23 @@ export const TimeSeriesDataPointSchema = {
     status_5xx: {
       type: "integer",
     },
-    timestamp: {
-      type: "string",
+    error_rate: {
+      type: "number",
     },
-    total_bytes_sent: {
-      type: "integer",
+    avg_request_time: {
+      type: "number",
     },
-    total_geo_events: {
-      type: "integer",
+    p50_request_time: {
+      type: "number",
     },
-    total_requests: {
-      type: "integer",
+    p95_request_time: {
+      type: "number",
+    },
+    p99_request_time: {
+      type: "number",
     },
   },
+  type: "object",
   required: [
     "avg_request_time",
     "error_rate",
@@ -1172,30 +1173,29 @@ export const TimeSeriesDataPointSchema = {
     "total_requests",
   ],
   title: "TimeSeriesDataPoint",
-  type: "object",
 } as const;
 
 export const TimeSeriesResponseSchema = {
   properties: {
-    data: {
-      items: {
-        $ref: "#/components/schemas/TimeSeriesDataPoint",
-      },
-      type: "array",
-    },
-    end_date: {
-      type: "string",
-    },
     granularity: {
       type: "string",
     },
     start_date: {
       type: "string",
     },
+    end_date: {
+      type: "string",
+    },
+    data: {
+      items: {
+        $ref: "#/components/schemas/TimeSeriesDataPoint",
+      },
+      type: "array",
+    },
   },
+  type: "object",
   required: ["data", "end_date", "granularity", "start_date"],
   title: "TimeSeriesResponse",
-  type: "object",
 } as const;
 
 export const TopCountriesResponseSchema = {
@@ -1207,9 +1207,9 @@ export const TopCountriesResponseSchema = {
       type: "array",
     },
   },
+  type: "object",
   required: [],
   title: "TopCountriesResponse",
-  type: "object",
 } as const;
 
 export const TopCountryDTOSchema = {
@@ -1231,18 +1231,18 @@ export const TopCountryDTOSchema = {
       type: "integer",
     },
   },
+  type: "object",
   required: ["country_code", "country_name", "event_count"],
   title: "TopCountryDTO",
-  type: "object",
 } as const;
 
 export const TopIPDTOSchema = {
   properties: {
-    event_count: {
-      type: "integer",
-    },
     ip_address: {
       type: "string",
+    },
+    event_count: {
+      type: "integer",
     },
     location: {
       oneOf: [
@@ -1255,36 +1255,39 @@ export const TopIPDTOSchema = {
       ],
     },
   },
+  type: "object",
   required: ["event_count", "ip_address"],
   title: "TopIPDTO",
-  type: "object",
 } as const;
 
 export const TopUrlDTOSchema = {
   properties: {
-    avg_request_time: {
-      type: "number",
-    },
-    error_hits: {
-      type: "integer",
+    url: {
+      type: "string",
     },
     hits: {
+      type: "integer",
+    },
+    error_hits: {
       type: "integer",
     },
     total_bytes: {
       type: "integer",
     },
-    url: {
-      type: "string",
+    avg_request_time: {
+      type: "number",
     },
   },
+  type: "object",
   required: ["avg_request_time", "error_hits", "hits", "total_bytes", "url"],
   title: "TopUrlDTO",
-  type: "object",
 } as const;
 
 export const TopUrlsResponseSchema = {
   properties: {
+    start_date: {
+      type: "string",
+    },
     end_date: {
       type: "string",
     },
@@ -1294,31 +1297,31 @@ export const TopUrlsResponseSchema = {
       },
       type: "array",
     },
-    start_date: {
-      type: "string",
-    },
   },
+  type: "object",
   required: ["end_date", "items", "start_date"],
   title: "TopUrlsResponse",
-  type: "object",
 } as const;
 
 export const TopUserAgentDTOSchema = {
   properties: {
-    hits: {
-      type: "integer",
-    },
     user_agent: {
       type: "string",
     },
+    hits: {
+      type: "integer",
+    },
   },
+  type: "object",
   required: ["hits", "user_agent"],
   title: "TopUserAgentDTO",
-  type: "object",
 } as const;
 
 export const TopUserAgentsResponseSchema = {
   properties: {
+    start_date: {
+      type: "string",
+    },
     end_date: {
       type: "string",
     },
@@ -1328,11 +1331,8 @@ export const TopUserAgentsResponseSchema = {
       },
       type: "array",
     },
-    start_date: {
-      type: "string",
-    },
   },
+  type: "object",
   required: ["end_date", "items", "start_date"],
   title: "TopUserAgentsResponse",
-  type: "object",
 } as const;

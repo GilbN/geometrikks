@@ -209,6 +209,8 @@ export interface TimeSeriesParams {
   granularity?: "hourly" | "daily"
 }
 
+export type ChartGranularity = "auto" | "hourly" | "daily"
+
 
 export interface GeoJSONParams {
   fromTimestamp: string // Full ISO timestamp
@@ -338,7 +340,7 @@ export async function fetchTopCountries(params: TopIPsParams): Promise<TopCountr
 
 export async function fetchTimeSeries(params: TimeSeriesParams) {
   const { data } = await apiV1AnalyticsTimeSeriesGetTimeSeries({
-    query: { start_date: params.startDate, end_date: params.endDate },
+    query: { start_date: params.startDate, end_date: params.endDate, granularity: params.granularity },
     throwOnError: true,
   })
   return data
@@ -346,7 +348,7 @@ export async function fetchTimeSeries(params: TimeSeriesParams) {
 
 export async function fetchGeoTimeSeries(params: TimeSeriesParams) {
   const { data } = await apiV1AnalyticsGeoTimeSeriesGetGeoTimeSeries({
-    query: { start_date: params.startDate, end_date: params.endDate },
+    query: { start_date: params.startDate, end_date: params.endDate, granularity: params.granularity },
     throwOnError: true,
   })
   return data
@@ -695,6 +697,17 @@ export function parseTimeRange(range: TimeRangeValue, referenceTime?: number): {
     startDate: start.toISOString(),
     endDate: now.toISOString(),
   }
+}
+
+/** Auto = hourly up to 7 days, daily above (hourly buckets beyond 7d are noise). */
+export function resolveChartGranularity(
+  granularity: ChartGranularity,
+  range: TimeRangeValue,
+): "hourly" | "daily" {
+  if (granularity !== "auto") return granularity
+  const { startDate, endDate } = parseTimeRange(range, Date.now())
+  const days = (new Date(endDate).getTime() - new Date(startDate).getTime()) / 86_400_000
+  return days > 7 ? "daily" : "hourly"
 }
 
 /**

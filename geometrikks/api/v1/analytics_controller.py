@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta
-from typing import Annotated
+from typing import Annotated, Literal
 
 from litestar import Controller, get
 from litestar.di import NamedDependency, Provide
@@ -43,6 +43,23 @@ def _calculate_percent_change(current: float, previous: float) -> float | None:
     if previous == 0:
         return None
     return ((current - previous) / previous) * 100
+
+
+def _resolve_chart_granularity(
+    start: datetime, end: datetime, override: str | None
+) -> StatsGranularity:
+    """Chart bucket granularity: explicit override wins, else auto-route.
+
+    Only "hourly"/"daily" are accepted from the API, so RAW can never be
+    requested; the auto fallback clamps RAW to HOURLY (no raw CAGG exists,
+    hourly + real-time aggregation covers <= 24h ranges).
+    """
+    if override is not None:
+        return StatsGranularity(override)
+    granularity = get_stats_granularity(start, end)
+    if granularity == StatsGranularity.RAW:
+        granularity = StatsGranularity.HOURLY
+    return granularity
 
 
 class AnalyticsController(Controller):
@@ -398,14 +415,20 @@ class AnalyticsController(Controller):
                 examples=[Example(value="2024-12-31T23:59:59Z")],
             ),
         ],
+        granularity: Annotated[
+            Literal["hourly", "daily"] | None,
+            Parameter(
+                description="Bucket size override. Omit to auto-select "
+                "(hourly <= 30 days, daily above). RAW is never available.",
+                required=False,
+            ),
+        ] = None,
     ) -> TimeSeriesResponse:
         """Get per-bucket access-log metrics (requests, status, bytes, latency)."""
-        rows = await summary_stats_repo.get_time_series(start_date, end_date)
-        granularity = get_stats_granularity(start_date, end_date)
-        if granularity == StatsGranularity.RAW:
-            granularity = StatsGranularity.HOURLY  # matches the repo's clamp
+        resolved = _resolve_chart_granularity(start_date, end_date, granularity)
+        rows = await summary_stats_repo.get_time_series(start_date, end_date, granularity=resolved)
         return TimeSeriesResponse(
-            granularity=granularity.value,
+            granularity=resolved.value,
             start_date=start_date.isoformat(),
             end_date=end_date.isoformat(),
             data=[
@@ -446,14 +469,20 @@ class AnalyticsController(Controller):
                 examples=[Example(value="2024-12-31T23:59:59Z")],
             ),
         ],
+        granularity: Annotated[
+            Literal["hourly", "daily"] | None,
+            Parameter(
+                description="Bucket size override. Omit to auto-select "
+                "(hourly <= 30 days, daily above). RAW is never available.",
+                required=False,
+            ),
+        ] = None,
     ) -> GeoEventsTimeSeriesResponse:
         """Get per-bucket geo-event metrics (events, unique IPs/countries/cities)."""
-        rows = await summary_stats_repo.get_geo_time_series(start_date, end_date)
-        granularity = get_stats_granularity(start_date, end_date)
-        if granularity == StatsGranularity.RAW:
-            granularity = StatsGranularity.HOURLY  # matches the repo's clamp
+        resolved = _resolve_chart_granularity(start_date, end_date, granularity)
+        rows = await summary_stats_repo.get_geo_time_series(start_date, end_date, granularity=resolved)
         return GeoEventsTimeSeriesResponse(
-            granularity=granularity.value,
+            granularity=resolved.value,
             start_date=start_date.isoformat(),
             end_date=end_date.isoformat(),
             data=[

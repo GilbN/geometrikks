@@ -96,6 +96,38 @@ async def test_time_series_methods_survive_sub_24h_ranges(pg_session_maker, clea
     assert isinstance(geo_series, list)
 
 
+async def test_get_time_series_granularity_override(pg_session_maker, clean_tables):
+    """Explicit granularity overrides auto-routing: same data, different bucket
+    counts (issue #14 - user-selectable chart granularity)."""
+    from geometrikks.domain.analytics.repositories import StatsGranularity, SummaryStatsRepository
+
+    # Midnight of yesterday: guaranteed in the past regardless of wall-clock hour,
+    # and both inserts stay within the same calendar day.
+    base_day = (NOW - timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+    ts1 = base_day + timedelta(hours=2)
+    ts2 = base_day + timedelta(hours=4)
+
+    async with pg_session_maker() as session:
+        await _insert_log(session, ts=ts1, url="/a", user_agent="ua")
+        await _insert_log(session, ts=ts2, url="/b", user_agent="ua")
+        await session.commit()
+
+    query_start = base_day
+    query_end = base_day + timedelta(days=2)
+
+    async with pg_session_maker() as session:
+        repo = SummaryStatsRepository(session=session)
+        daily_rows = await repo.get_time_series(query_start, query_end, granularity=StatsGranularity.DAILY)
+        hourly_rows = await repo.get_time_series(query_start, query_end, granularity=StatsGranularity.HOURLY)
+
+    assert len(daily_rows) == 1
+    assert daily_rows[0].bucket == base_day
+    assert daily_rows[0].total_requests == 2
+
+    assert len(hourly_rows) == 2
+    assert {r.bucket for r in hourly_rows} == {ts1, ts2}
+
+
 async def test_time_series_total_bytes_is_int(pg_session_maker, clean_tables):
     """SUM(bigint) returns numeric/Decimal; the repo must coerce to int so
     JSON serialization emits a number, not a string (issue #14 bandwidth cap)."""

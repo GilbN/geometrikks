@@ -19,6 +19,7 @@ import {
   fetchAccessLogFacets,
   fetchRuntimeSettings,
   parseTimeRange,
+  resolveChartGranularity,
   type SummaryParams,
   type GlobalTopIPsResponse,
   type LocationTopIPsResponse,
@@ -334,13 +335,14 @@ export interface UseTopListOptions extends UseAnalyticsQueryOptions {
  */
 export function useTimeSeries(options: UseAnalyticsQueryOptions = {}) {
   const { enabled = true } = options
-  const { range, pollInterval, lastRefresh } = useTimeRange()
+  const { range, granularity, pollInterval, lastRefresh } = useTimeRange()
+  const resolved = resolveChartGranularity(granularity, range)
 
   return useQuery({
-    queryKey: queryKeys.analytics.timeSeries({ range }, lastRefresh),
+    queryKey: queryKeys.analytics.timeSeries({ range, granularity: resolved }, lastRefresh),
     queryFn: () => {
       const { startDate, endDate } = parseTimeRange(range, Date.now())
-      return fetchTimeSeries({ startDate, endDate })
+      return fetchTimeSeries({ startDate, endDate, granularity: resolved })
     },
     enabled,
     staleTime: 60 * 1000,
@@ -354,13 +356,14 @@ export function useTimeSeries(options: UseAnalyticsQueryOptions = {}) {
  */
 export function useGeoTimeSeries(options: UseAnalyticsQueryOptions = {}) {
   const { enabled = true } = options
-  const { range, pollInterval, lastRefresh } = useTimeRange()
+  const { range, granularity, pollInterval, lastRefresh } = useTimeRange()
+  const resolved = resolveChartGranularity(granularity, range)
 
   return useQuery({
-    queryKey: queryKeys.analytics.geoTimeSeries({ range }, lastRefresh),
+    queryKey: queryKeys.analytics.geoTimeSeries({ range, granularity: resolved }, lastRefresh),
     queryFn: () => {
       const { startDate, endDate } = parseTimeRange(range, Date.now())
-      return fetchGeoTimeSeries({ startDate, endDate })
+      return fetchGeoTimeSeries({ startDate, endDate, granularity: resolved })
     },
     enabled,
     staleTime: 60 * 1000,
