@@ -33,6 +33,13 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { useAccessLogs, useAccessLogFacets } from "@/lib/queries"
 import { useDebouncedValue } from "@/hooks/use-debounced-value"
 import {
@@ -44,7 +51,7 @@ import {
 } from "@/lib/api"
 import { cn } from "@/lib/utils"
 
-const PAGE_SIZE = 50
+const PAGE_SIZES = [10, 20, 50, 100, 200, 500, 1000] as const
 
 const HTTP_METHODS = [
   "GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS", "CONNECT", "TRACE",
@@ -217,6 +224,7 @@ function isValidIp(value: string): boolean {
 
 export function AccessLogsTable() {
   const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(20)
 
   // Filters (raw input; text inputs are debounced before hitting the query).
   const [searchInput, setSearchInput] = useState("")
@@ -242,14 +250,14 @@ export function AccessLogsTable() {
   )
   const shownColumns = useMemo(() => COLUMNS.filter((c) => visible.has(c.key)), [visible])
 
-  // Any filter/sort change returns to the first page.
+  // Any filter/sort/page-size change returns to the first page.
   useEffect(() => {
     setPage(1)
-  }, [search, ip, host, methods, cities, countries, sortField, sortOrder])
+  }, [search, ip, host, methods, cities, countries, sortField, sortOrder, pageSize])
 
   const { data, isLoading, isError, isPlaceholderData } = useAccessLogs({
     currentPage: page,
-    pageSize: PAGE_SIZE,
+    pageSize,
     searchString: search || undefined,
     // Only forward complete IPs — ip_address is INET server-side, so partial
     // text can't match anything (and would fail bind-param encoding).
@@ -264,7 +272,7 @@ export function AccessLogsTable() {
 
   const rows = data?.items ?? []
   const total = data?.total ?? 0
-  const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE))
+  const pageCount = Math.max(1, Math.ceil(total / pageSize))
   const colCount = shownColumns.length
 
   function toggleSort(field: AccessLogSortField) {
@@ -520,7 +528,26 @@ export function AccessLogsTable() {
           <span>
             {total.toLocaleString()} rows — page {page} of {pageCount}
           </span>
-          <div className="flex gap-1">
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1.5">
+              <span className="whitespace-nowrap">Rows per page</span>
+              <Select
+                value={String(pageSize)}
+                onValueChange={(v) => setPageSize(Number(v))}
+              >
+                <SelectTrigger size="sm" className="h-8 w-20 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {PAGE_SIZES.map((size) => (
+                    <SelectItem key={size} value={String(size)}>
+                      {size}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex gap-1">
             <Button
               variant="outline"
               size="sm"
@@ -537,6 +564,7 @@ export function AccessLogsTable() {
             >
               Next <ChevronRight className="h-4 w-4" />
             </Button>
+            </div>
           </div>
         </div>
       </div>
