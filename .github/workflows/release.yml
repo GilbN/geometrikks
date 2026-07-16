@@ -64,9 +64,11 @@ jobs:
         with:
           images: ghcr.io/gilbn/geometrikks
           # latest only on stable (non-prerelease) semver tags
+          # develop is a moving tag that always points at the newest dev release
           tags: |
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=develop,enable=${{ contains(github.ref_name, '-dev.') }}
           flavor: |
             latest=auto
       - uses: docker/build-push-action@v6
