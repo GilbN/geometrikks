@@ -137,6 +137,18 @@ async def test_get_facets_distinct_sorted_and_null_free(pg_session_maker, clean_
     assert facets.cities == ["Oslo", "Stockholm"]
 
 
+async def test_get_facets_dedupes_by_code_preferring_non_null_name(pg_session_maker, clean_tables) -> None:
+    ts = NOW - timedelta(hours=1)
+    # Same code with and without a name -> one entry, named variant wins.
+    await _insert(pg_session_maker, ts, "10.0.0.1", country_code="NO")
+    await _insert(pg_session_maker, ts, "10.0.0.2", country_code="NO", country_name="Norway")
+
+    async with pg_session_maker() as session:
+        facets = await AccessLogService(session=session).get_facets()
+
+    assert [(c.code, c.name) for c in facets.countries] == [("NO", "Norway")]
+
+
 async def test_get_facets_falls_back_to_code_when_name_missing(pg_session_maker, clean_tables) -> None:
     await _insert(pg_session_maker, NOW - timedelta(hours=1), "10.0.0.5", country_code="DE")
 

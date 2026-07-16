@@ -115,7 +115,7 @@ export function LiveTail({ enabled }: { enabled: boolean }) {
                   <span className="w-16 shrink-0 text-right tabular-nums">{formatDuration(row.request_time * 1000)}</span>
                   <span className="w-16 shrink-0 text-muted-foreground">{row.http_version ?? "-"}</span>
                   <span className="w-16 shrink-0 truncate" title={row.country_code ?? undefined}>
-                    {row.country_name ?? "-"}
+                    {row.country_name ?? row.country_code ?? "-"}
                   </span>
                   <span className="w-16 shrink-0 truncate" title={row.city ?? undefined}>
                     {row.city ?? "-"}

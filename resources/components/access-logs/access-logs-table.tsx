@@ -399,7 +399,7 @@ export function AccessLogsTable() {
               <ChevronsUpDown className="ml-1 h-3.5 w-3.5" />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="max-h-80 overflow-y-auto">
+          <DropdownMenuContent align="start" className="max-h-80 w-auto min-w-44 overflow-y-auto">
             <DropdownMenuLabel>Country</DropdownMenuLabel>
             <DropdownMenuSeparator />
             {!facets && (
@@ -432,7 +432,7 @@ export function AccessLogsTable() {
               <ChevronsUpDown className="ml-1 h-3.5 w-3.5" />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="max-h-80 overflow-y-auto">
+          <DropdownMenuContent align="start" className="max-h-80 w-auto min-w-44 overflow-y-auto">
             <DropdownMenuLabel>City</DropdownMenuLabel>
             <DropdownMenuSeparator />
             {!facets && (

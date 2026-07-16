@@ -415,7 +415,7 @@ export interface AccessLogsPage {
 /** Columns the history table can sort by (must match the backend allowlist). */
 export type AccessLogSortField =
   | "timestamp" | "statusCode" | "bytesSent" | "requestTime"
-  | "method" | "ipAddress" | "host" | "url" | "statusCode"
+  | "method" | "ipAddress" | "host" | "url"
 export type SortOrder = "asc" | "desc"
 
 /** camelCase sort key -> backend snake_case column name for `orderBy`. */

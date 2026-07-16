@@ -64,7 +64,7 @@ def provide_access_log_in_filters(
     country_code_in: Annotated[list[str] | None, QueryParameter(name="countryCodeIn", required=False)] = None,
     status_in: Annotated[list[int] | None, QueryParameter(name="statusIn", required=False)] = None,
 ) -> list[FilterTypes]:
-    """Exact ``IN`` matches on method / IP / city / country code.
+    """Exact ``IN`` matches on method / IP / city / country code / status code.
 
     Provided here rather than via the built-in ``in_fields`` config, whose
     generated providers yield ``None`` when the param is absent and fail the
