@@ -1,3 +1,4 @@
+import { useState } from "react"
 import { RotateCw, Filter, SlidersHorizontal, BarChart3 } from "lucide-react"
 
 import {
@@ -8,9 +9,11 @@ import {
   DropdownMenuLabel,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
+  DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu"
 
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import {
   Select,
   SelectContent,
@@ -25,7 +28,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 import { useTimeRange } from "@/lib/time-range-context"
-import { TIME_RANGE_PRESETS, POLL_INTERVAL_OPTIONS, type ChartGranularity } from "@/lib/api"
+import { TIME_RANGE_PRESETS, POLL_INTERVAL_OPTIONS, type ChartGranularity, type CustomTimeRange } from "@/lib/api"
 import { cn } from "@/lib/utils"
 import { useIsFetching } from "@tanstack/react-query"
 
@@ -35,9 +38,47 @@ const GRANULARITY_OPTIONS: { label: string; value: ChartGranularity }[] = [
   { label: "Daily", value: "daily" },
 ]
 
+function CustomRangeFields({ onApply }: { onApply: (r: CustomTimeRange) => void }) {
+  const { customRange } = useTimeRange()
+  const toLocal = (iso?: string) => (iso ? iso.slice(0, 16) : "") // datetime-local value
+  const [from, setFrom] = useState(toLocal(customRange?.from))
+  const [to, setTo] = useState(toLocal(customRange?.to))
+  const valid = from && to && new Date(from) < new Date(to)
+  return (
+    <div className="flex flex-col gap-2 p-2 w-64">
+      <label className="text-xs text-muted-foreground">From</label>
+      <Input type="datetime-local" value={from} onChange={(e) => setFrom(e.target.value)} />
+      <label className="text-xs text-muted-foreground">To</label>
+      <Input type="datetime-local" value={to} onChange={(e) => setTo(e.target.value)} />
+      <Button
+        size="sm"
+        disabled={!valid}
+        onClick={() => onApply({ from: new Date(from).toISOString(), to: new Date(to).toISOString() })}
+      >
+        Apply
+      </Button>
+    </div>
+  )
+}
+
 export function TimeRangeToolbar() {
-  const { range, pollInterval, granularity, setRange, setPollInterval, setGranularity, refresh } = useTimeRange()
+  const {
+    range,
+    customRange,
+    pollInterval,
+    granularity,
+    setRange,
+    setCustomRange,
+    setPollInterval,
+    setGranularity,
+    refresh,
+  } = useTimeRange()
   const isFetching = useIsFetching()
+
+  const rangeLabel =
+    range === "custom" && customRange
+      ? `${new Date(customRange.from).toLocaleDateString(undefined, { month: "short", day: "numeric" })} → ${new Date(customRange.to).toLocaleDateString(undefined, { month: "short", day: "numeric" })}`
+      : TIME_RANGE_PRESETS.find((p) => p.value === range)?.label || "Range"
 
   return (
     <>
@@ -48,9 +89,7 @@ export function TimeRangeToolbar() {
           <DropdownMenuTrigger asChild>
             <Button variant="outline" size="sm" className="flex items-center gap-2">
               <Filter className="w-4 h-4" />
-              <span className="text-xs">
-                {TIME_RANGE_PRESETS.find((p) => p.value === range)?.label || "Range"}
-              </span>
+              <span className="text-xs">{rangeLabel}</span>
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start">
@@ -66,6 +105,11 @@ export function TimeRangeToolbar() {
                 {preset.label}
               </DropdownMenuItem>
             ))}
+            <DropdownMenuSeparator />
+            <DropdownMenuLabel className="text-xs">Custom range</DropdownMenuLabel>
+            <div onKeyDown={(e) => e.stopPropagation()}>
+              <CustomRangeFields onApply={setCustomRange} />
+            </div>
           </DropdownMenuContent>
         </DropdownMenu>
 
@@ -151,6 +195,11 @@ export function TimeRangeToolbar() {
                 </DropdownMenuRadioItem>
               ))}
             </DropdownMenuRadioGroup>
+            <DropdownMenuSeparator />
+            <DropdownMenuLabel className="text-xs">Custom range</DropdownMenuLabel>
+            <div onKeyDown={(e) => e.stopPropagation()}>
+              <CustomRangeFields onApply={setCustomRange} />
+            </div>
           </DropdownMenuContent>
         </DropdownMenu>
 

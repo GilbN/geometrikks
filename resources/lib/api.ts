@@ -609,7 +609,12 @@ export type TimeRangeValue =
   // Grafana-style presets
   | "today" | "this_week" | "this_month"
   | "yesterday" | "last_week" | "last_month"
+  | "custom"
 
+export interface CustomTimeRange {
+  from: string // ISO timestamp
+  to: string
+}
 
 export interface TimeRangePreset {
   label: string
@@ -661,7 +666,15 @@ export const POLL_INTERVAL_OPTIONS: PollIntervalOption[] = [
  * Always returns full ISO timestamps for backend compatibility.
  * Handles both relative (5m, 7d) and Grafana-style (today, this_week) presets.
  */
-export function parseTimeRange(range: TimeRangeValue, referenceTime?: number): { startDate: string; endDate: string } {
+export function parseTimeRange(
+  range: TimeRangeValue,
+  referenceTime?: number,
+  customRange?: CustomTimeRange | null,
+): { startDate: string; endDate: string } {
+  if (range === "custom" && customRange) {
+    return { startDate: customRange.from, endDate: customRange.to }
+  }
+
   const now = referenceTime ? new Date(referenceTime) : new Date()
 
   // Handle Grafana-style computed ranges
@@ -730,9 +743,10 @@ export function parseTimeRange(range: TimeRangeValue, referenceTime?: number): {
 export function resolveChartGranularity(
   granularity: ChartGranularity,
   range: TimeRangeValue,
+  customRange?: CustomTimeRange | null,
 ): "hourly" | "daily" {
   if (granularity !== "auto") return granularity
-  const { startDate, endDate } = parseTimeRange(range, Date.now())
+  const { startDate, endDate } = parseTimeRange(range, Date.now(), customRange)
   const days = (new Date(endDate).getTime() - new Date(startDate).getTime()) / 86_400_000
   return days > 7 ? "daily" : "hourly"
 }
