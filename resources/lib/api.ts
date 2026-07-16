@@ -415,7 +415,7 @@ export interface AccessLogsPage {
 /** Columns the history table can sort by (must match the backend allowlist). */
 export type AccessLogSortField =
   | "timestamp" | "statusCode" | "bytesSent" | "requestTime"
-  | "method" | "ipAddress" | "host" | "url"
+  | "method" | "ipAddress" | "host" | "url" | "statusCode"
 export type SortOrder = "asc" | "desc"
 
 /** camelCase sort key -> backend snake_case column name for `orderBy`. */
@@ -447,6 +447,7 @@ export interface AccessLogsParams {
   cityIn?: string[]
   /** Exact ISO-3166 alpha-2 country code match(es). */
   countryCodeIn?: string[]
+  statusIn?: number[]
   sortField?: AccessLogSortField
   sortOrder?: SortOrder
 }
@@ -464,6 +465,7 @@ export async function fetchAccessLogs(params: AccessLogsParams): Promise<AccessL
       host: params.host || undefined,
       cityIn: params.cityIn?.length ? params.cityIn : undefined,
       countryCodeIn: params.countryCodeIn?.length ? params.countryCodeIn : undefined,
+      statusIn: params.statusIn?.length ? params.statusIn : undefined,
       orderBy: params.sortField ? SORT_FIELD_TO_COLUMN[params.sortField] : undefined,
       sortOrder: params.sortField ? params.sortOrder ?? "desc" : undefined,
     },

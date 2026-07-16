@@ -22,7 +22,6 @@ from geometrikks.domain.logs.models import AccessLog
 from geometrikks.domain.logs.schemas import AccessLogFacets
 from geometrikks.domain.logs.services import AccessLogService
 from geometrikks.domain.logs.dtos import AccessLogDTO
-from geometrikks.server.plugins import get_sqlalchemy_config
 
 
 def provide_access_log_time_window(
@@ -63,6 +62,7 @@ def provide_access_log_in_filters(
     ip_address_in: Annotated[list[str] | None, QueryParameter(name="ipAddressIn", required=False)] = None,
     city_in: Annotated[list[str] | None, QueryParameter(name="cityIn", required=False)] = None,
     country_code_in: Annotated[list[str] | None, QueryParameter(name="countryCodeIn", required=False)] = None,
+    status_in: Annotated[list[int] | None, QueryParameter(name="statusIn", required=False)] = None,
 ) -> list[FilterTypes]:
     """Exact ``IN`` matches on method / IP / city / country code.
 
@@ -89,6 +89,8 @@ def provide_access_log_in_filters(
         result.append(CollectionFilter(field_name="city", values=city_in))
     if country_code_in:
         result.append(CollectionFilter(field_name="country_code", values=country_code_in))
+    if status_in:
+        result.append(CollectionFilter(field_name="status_code", values=status_in))
     return result
 
 
@@ -105,7 +107,9 @@ class AccessLogController(Controller):
     dependencies = create_service_dependencies(
         AccessLogService,
         key="access_log_service",
-        config=get_sqlalchemy_config(),
+        # No config here: constructing it needs Settings(), which must not run
+        # at import time. The service provider falls back to the request-scoped
+        # ``db_session`` dependency registered by SQLAlchemyInitPlugin.
         filters={
             "pagination_type": "limit_offset",   # -> ?currentPage & ?pageSize
             "pagination_size": 50,

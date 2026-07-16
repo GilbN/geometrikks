@@ -56,6 +56,13 @@ const PAGE_SIZES = [10, 20, 50, 100, 200, 500, 1000] as const
 const HTTP_METHODS = [
   "GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS", "CONNECT", "TRACE",
 ] as const
+const STATUS_CODES = [
+  100, 101, 102, 103, 200, 201, 202, 203, 204, 205, 206, 207, 208, 226,
+  300, 301, 302, 303, 304, 305, 306, 307, 308,
+  400, 401, 402, 403, 404, 405, 406, 407, 408, 409, 410, 411, 412, 413, 414, 415, 416, 417, 418, 421, 422, 423, 424, 425, 426,
+  428, 429, 431, 451,
+  500, 501, 502, 503, 504, 505, 506, 507, 508, 510, 511,
+] as const
 
 /** Tailwind classes for the status badge, by response class. */
 function statusBadgeClass(code: number): string {
@@ -231,6 +238,7 @@ export function AccessLogsTable() {
   const [ipInput, setIpInput] = useState("")
   const [hostInput, setHostInput] = useState("")
   const [methods, setMethods] = useState<string[]>([])
+  const [statusCodes, setStatusCodes] = useState<number[]>([])
   const [cities, setCities] = useState<string[]>([])
   const [countries, setCountries] = useState<string[]>([])
   // Facet values are fetched lazily, on first open of either dropdown.
@@ -253,7 +261,7 @@ export function AccessLogsTable() {
   // Any filter/sort/page-size change returns to the first page.
   useEffect(() => {
     setPage(1)
-  }, [search, ip, host, methods, cities, countries, sortField, sortOrder, pageSize])
+  }, [search, ip, host, methods, statusCodes, cities, countries, sortField, sortOrder, pageSize])
 
   const { data, isLoading, isError, isPlaceholderData } = useAccessLogs({
     currentPage: page,
@@ -263,6 +271,7 @@ export function AccessLogsTable() {
     // text can't match anything (and would fail bind-param encoding).
     ipAddressIn: ip && isValidIp(ip) ? [ip] : undefined,
     methodIn: methods.length ? methods : undefined,
+    statusIn: statusCodes.length ? statusCodes : undefined,
     host: host || undefined,
     cityIn: cities.length ? cities : undefined,
     countryCodeIn: countries.length ? countries : undefined,
@@ -284,9 +293,9 @@ export function AccessLogsTable() {
     }
   }
 
-  function toggleValue(
-    setter: Dispatch<SetStateAction<string[]>>,
-    value: string,
+  function toggleValue<T>(
+    setter: Dispatch<SetStateAction<T[]>>,
+    value: NoInfer<T>,
   ) {
     setter((prev) =>
       prev.includes(value) ? prev.filter((v) => v !== value) : [...prev, value],
@@ -336,6 +345,29 @@ export function AccessLogsTable() {
           placeholder="Host"
           className="h-8 w-44 font-mono text-xs"
         />
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" size="sm" className="h-8">
+              Status{statusCodes.length > 0 && ` (${statusCodes.length})`}
+              <ChevronsUpDown className="ml-1 h-3.5 w-3.5" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start">
+            <DropdownMenuLabel>HTTP status</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            {STATUS_CODES.map((code) => (
+              <DropdownMenuCheckboxItem
+                key={code}
+                checked={statusCodes.includes(code)}
+                onCheckedChange={() => toggleValue(setStatusCodes, code)}
+                onSelect={(e) => e.preventDefault()}
+              >
+                {code}
+              </DropdownMenuCheckboxItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>

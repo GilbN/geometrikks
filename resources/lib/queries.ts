@@ -422,6 +422,7 @@ export interface UseAccessLogsOptions {
   host?: string
   cityIn?: string[]
   countryCodeIn?: string[]
+  statusIn?: number[]
   sortField?: AccessLogSortField
   sortOrder?: SortOrder
 }
@@ -441,6 +442,7 @@ export function useAccessLogs(options: UseAccessLogsOptions = {}) {
     host,
     cityIn,
     countryCodeIn,
+    statusIn,
     sortField,
     sortOrder,
   } = options
@@ -448,7 +450,7 @@ export function useAccessLogs(options: UseAccessLogsOptions = {}) {
 
   return useQuery<AccessLogsPage>({
     queryKey: queryKeys.accessLogs.list(
-      { range, currentPage, pageSize, searchString, ipAddressIn, methodIn, host, cityIn, countryCodeIn, sortField, sortOrder },
+      { range, currentPage, pageSize, searchString, ipAddressIn, methodIn, host, cityIn, countryCodeIn, statusIn, sortField, sortOrder },
       lastRefresh,
     ),
     queryFn: () => {
@@ -464,6 +466,7 @@ export function useAccessLogs(options: UseAccessLogsOptions = {}) {
         host,
         cityIn,
         countryCodeIn,
+        statusIn,
         sortField,
         sortOrder,
       })

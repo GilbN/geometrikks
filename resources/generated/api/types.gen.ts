@@ -503,6 +503,7 @@ export type ApiV1AccessLogsListAccessLogsData = {
     ipAddressIn?: Array<string> | null;
     cityIn?: Array<string> | null;
     countryCodeIn?: Array<string> | null;
+    statusIn?: Array<number> | null;
   };
   url: "/api/v1/access-logs";
 };
