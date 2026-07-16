@@ -201,3 +201,30 @@ async def test_top_countries_and_cities(pg_session_maker, clean_tables):
     ]
     assert countries[0].country_name == "Norway"
     assert [(c.city, c.hits) for c in cities] == [("Oslo", 2), ("Umea", 1)]
+
+
+from geometrikks.domain.analytics.repositories import AnalyticsFilters
+
+
+async def test_filtered_time_series_and_top_urls(pg_session_maker, clean_tables):
+    ts = NOW - timedelta(hours=1)
+    async with pg_session_maker() as session:
+        for _ in range(3):
+            await _insert_log(session, ts=ts, url="/no", user_agent="x",
+                              ip="1.1.1.1", country="NO", city="Oslo")
+        await _insert_log(session, ts=ts, url="/se", user_agent="x",
+                          ip="2.2.2.2", country="SE", city="Umea")
+        await session.commit()
+
+    f_country = AnalyticsFilters(country_codes=["NO"])
+    f_ip = AnalyticsFilters(ip_addresses=["2.2.2.2"])
+
+    async with pg_session_maker() as session:
+        repo = LiveStatsRepository(session=session)
+        rows = await repo.get_time_series(
+            NOW - timedelta(hours=2), NOW, bucket_interval="1 hour", filters=f_country
+        )
+        urls = await repo.get_top_urls(NOW - timedelta(hours=2), NOW, limit=10, filters=f_ip)
+
+    assert sum(r.total_requests for r in rows) == 3
+    assert [u.url for u in urls] == ["/se"]

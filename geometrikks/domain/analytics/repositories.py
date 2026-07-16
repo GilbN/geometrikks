@@ -642,6 +642,37 @@ class TopCityRow:
     unique_ips: int
 
 
+@dataclass
+class AnalyticsFilters:
+    """Optional dimension filters for analytics queries.
+
+    Filtered queries must hit raw access_logs: CAGGs aggregate globally and
+    cannot be sliced by country/city/IP.
+    """
+
+    country_codes: Sequence[str] | None = None
+    cities: Sequence[str] | None = None
+    ip_addresses: Sequence[str] | None = None
+
+    def is_active(self) -> bool:
+        return bool(self.country_codes or self.cities or self.ip_addresses)
+
+    def sql_conditions(self) -> tuple[str, dict]:
+        """WHERE-clause fragment (leading ``AND``) plus bound params."""
+        clauses: list[str] = []
+        params: dict = {}
+        if self.country_codes:
+            clauses.append("AND country_code = ANY(:filter_countries)")
+            params["filter_countries"] = list(self.country_codes)
+        if self.cities:
+            clauses.append("AND city = ANY(:filter_cities)")
+            params["filter_cities"] = list(self.cities)
+        if self.ip_addresses:
+            clauses.append("AND ip_address = ANY(CAST(:filter_ips AS inet[]))")
+            params["filter_ips"] = list(self.ip_addresses)
+        return " ".join(clauses), params
+
+
 class LiveStatsRepository:
     """Repository for querying live statistics directly from raw hypertables.
 
@@ -754,15 +785,73 @@ class LiveStatsRepository:
             malformed_requests=malformed_row.malformed_requests if malformed_row else 0,
         )
 
+    async def get_time_series(
+        self,
+        start: datetime,
+        end: datetime,
+        *,
+        bucket_interval: str,
+        filters: AnalyticsFilters | None = None,
+    ) -> Sequence[SummaryStatsRow]:
+        """Bucketed access-log metrics from the raw hypertable.
+
+        Used when dimension filters are active (CAGGs cannot filter).
+        bucket_interval is '1 hour' or '1 day' (validated by the caller).
+        """
+        if bucket_interval not in ("1 hour", "1 day"):
+            raise ValueError("bucket_interval must be '1 hour' or '1 day'")
+        filter_sql, filter_params = (filters or AnalyticsFilters()).sql_conditions()
+        stmt = text(f"""
+            SELECT
+                time_bucket('{bucket_interval}', timestamp) AS bucket,
+                CAST(COUNT(*) AS BIGINT) AS total_requests,
+                CAST(COALESCE(SUM(bytes_sent), 0) AS BIGINT) AS total_bytes,
+                COUNT(*) FILTER (WHERE status_code >= 200 AND status_code < 300) AS status_2xx,
+                COUNT(*) FILTER (WHERE status_code >= 300 AND status_code < 400) AS status_3xx,
+                COUNT(*) FILTER (WHERE status_code >= 400 AND status_code < 500) AS status_4xx,
+                COUNT(*) FILTER (WHERE status_code >= 500 AND status_code < 600) AS status_5xx,
+                COALESCE(AVG(request_time), 0) AS avg_request_time,
+                COALESCE(MAX(request_time), 0) AS max_request_time,
+                COALESCE(PERCENTILE_CONT(0.50) WITHIN GROUP (ORDER BY request_time), 0) AS p50_request_time,
+                COALESCE(PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY request_time), 0) AS p95_request_time,
+                COALESCE(PERCENTILE_CONT(0.99) WITHIN GROUP (ORDER BY request_time), 0) AS p99_request_time
+            FROM access_logs
+            WHERE timestamp >= :start AND timestamp < :end
+            {filter_sql}
+            GROUP BY bucket
+            ORDER BY bucket ASC
+        """)
+        result = await self.session.execute(
+            stmt, {"start": start, "end": end, **filter_params}
+        )
+        return [
+            SummaryStatsRow(
+                bucket=row.bucket,
+                total_requests=row.total_requests or 0,
+                total_bytes=int(row.total_bytes or 0),
+                status_2xx=row.status_2xx or 0,
+                status_3xx=row.status_3xx or 0,
+                status_4xx=row.status_4xx or 0,
+                status_5xx=row.status_5xx or 0,
+                avg_request_time=float(row.avg_request_time or 0.0),
+                max_request_time=float(row.max_request_time or 0.0),
+                p50_request_time=float(row.p50_request_time or 0.0),
+                p95_request_time=float(row.p95_request_time or 0.0),
+                p99_request_time=float(row.p99_request_time or 0.0),
+            )
+            for row in result.fetchall()
+        ]
+
     async def get_top_urls(
-        self, start: datetime, end: datetime, limit: int = 25
+        self, start: datetime, end: datetime, limit: int = 25, *, filters: AnalyticsFilters | None = None
     ) -> list[TopUrlRow]:
         """Top URLs by hit count from raw access_logs (time-bounded).
 
         Raw-table scan by design: no CAGG exists for URL cardinality yet
         (future optimization; fine at homelab volume with chunk exclusion).
         """
-        stmt = text("""
+        filter_sql, filter_params = (filters or AnalyticsFilters()).sql_conditions()
+        stmt = text(f"""
             SELECT
                 url,
                 CAST(COUNT(*) AS BIGINT) AS hits,
@@ -771,11 +860,14 @@ class LiveStatsRepository:
                 COALESCE(AVG(request_time), 0) AS avg_request_time
             FROM access_logs
             WHERE timestamp >= :start AND timestamp < :end AND url IS NOT NULL
+            {filter_sql}
             GROUP BY url
             ORDER BY hits DESC
             LIMIT :limit
         """)
-        result = await self.session.execute(stmt, {"start": start, "end": end, "limit": limit})
+        result = await self.session.execute(
+            stmt, {"start": start, "end": end, "limit": limit, **filter_params}
+        )
         return [
             TopUrlRow(
                 url=row.url,
@@ -788,25 +880,30 @@ class LiveStatsRepository:
         ]
 
     async def get_top_user_agents(
-        self, start: datetime, end: datetime, limit: int = 25
+        self, start: datetime, end: datetime, limit: int = 25, *, filters: AnalyticsFilters | None = None
     ) -> list[TopUserAgentRow]:
         """Top user agents by hit count from raw access_logs (time-bounded)."""
-        stmt = text("""
+        filter_sql, filter_params = (filters or AnalyticsFilters()).sql_conditions()
+        stmt = text(f"""
             SELECT user_agent, CAST(COUNT(*) AS BIGINT) AS hits
             FROM access_logs
             WHERE timestamp >= :start AND timestamp < :end AND user_agent IS NOT NULL
+            {filter_sql}
             GROUP BY user_agent
             ORDER BY hits DESC
             LIMIT :limit
         """)
-        result = await self.session.execute(stmt, {"start": start, "end": end, "limit": limit})
+        result = await self.session.execute(
+            stmt, {"start": start, "end": end, "limit": limit, **filter_params}
+        )
         return [TopUserAgentRow(user_agent=row.user_agent, hits=row.hits) for row in result.fetchall()]
 
     async def get_top_ips(
-        self, start: datetime, end: datetime, limit: int = 25
+        self, start: datetime, end: datetime, limit: int = 25, *, filters: AnalyticsFilters | None = None
     ) -> list[TopIpRow]:
         """Top client IPs by hit count from raw access_logs (time-bounded)."""
-        stmt = text("""
+        filter_sql, filter_params = (filters or AnalyticsFilters()).sql_conditions()
+        stmt = text(f"""
             SELECT
                 host(ip_address) AS ip_address,
                 CAST(COUNT(*) AS BIGINT) AS hits,
@@ -816,18 +913,22 @@ class LiveStatsRepository:
                 MAX(city) AS city
             FROM access_logs
             WHERE timestamp >= :start AND timestamp < :end
+            {filter_sql}
             GROUP BY ip_address
             ORDER BY hits DESC
             LIMIT :limit
         """)
-        result = await self.session.execute(stmt, {"start": start, "end": end, "limit": limit})
+        result = await self.session.execute(
+            stmt, {"start": start, "end": end, "limit": limit, **filter_params}
+        )
         return [TopIpRow(**row._mapping) for row in result.fetchall()]
 
     async def get_top_countries(
-        self, start: datetime, end: datetime, limit: int = 25
+        self, start: datetime, end: datetime, limit: int = 25, *, filters: AnalyticsFilters | None = None
     ) -> list[TopCountryRow]:
         """Top countries by hit count from raw access_logs (time-bounded)."""
-        stmt = text("""
+        filter_sql, filter_params = (filters or AnalyticsFilters()).sql_conditions()
+        stmt = text(f"""
             SELECT
                 country_code,
                 MAX(country_name) AS country_name,
@@ -835,18 +936,22 @@ class LiveStatsRepository:
                 CAST(COUNT(DISTINCT ip_address) AS BIGINT) AS unique_ips
             FROM access_logs
             WHERE timestamp >= :start AND timestamp < :end AND country_code IS NOT NULL
+            {filter_sql}
             GROUP BY country_code
             ORDER BY hits DESC
             LIMIT :limit
         """)
-        result = await self.session.execute(stmt, {"start": start, "end": end, "limit": limit})
+        result = await self.session.execute(
+            stmt, {"start": start, "end": end, "limit": limit, **filter_params}
+        )
         return [TopCountryRow(**row._mapping) for row in result.fetchall()]
 
     async def get_top_cities(
-        self, start: datetime, end: datetime, limit: int = 25
+        self, start: datetime, end: datetime, limit: int = 25, *, filters: AnalyticsFilters | None = None
     ) -> list[TopCityRow]:
         """Top cities by hit count from raw access_logs (time-bounded)."""
-        stmt = text("""
+        filter_sql, filter_params = (filters or AnalyticsFilters()).sql_conditions()
+        stmt = text(f"""
             SELECT
                 city,
                 MAX(country_code) AS country_code,
@@ -854,9 +959,12 @@ class LiveStatsRepository:
                 CAST(COUNT(DISTINCT ip_address) AS BIGINT) AS unique_ips
             FROM access_logs
             WHERE timestamp >= :start AND timestamp < :end AND city IS NOT NULL
+            {filter_sql}
             GROUP BY city
             ORDER BY hits DESC
             LIMIT :limit
         """)
-        result = await self.session.execute(stmt, {"start": start, "end": end, "limit": limit})
+        result = await self.session.execute(
+            stmt, {"start": start, "end": end, "limit": limit, **filter_params}
+        )
         return [TopCityRow(**row._mapping) for row in result.fetchall()]
