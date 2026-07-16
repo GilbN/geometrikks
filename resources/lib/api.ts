@@ -6,6 +6,9 @@ import axios from "axios"
 import {
   apiV1AnalyticsGeoTimeSeriesGetGeoTimeSeries,
   apiV1AnalyticsTimeSeriesGetTimeSeries,
+  apiV1AnalyticsTopCitiesGetTopCities,
+  apiV1AnalyticsTopCountriesGetTopCountries,
+  apiV1AnalyticsTopIpsGetTopIps,
   apiV1AnalyticsTopUrlsGetTopUrls,
   apiV1AnalyticsTopUserAgentsGetTopUserAgents,
 } from "@/generated/api/sdk.gen"
@@ -364,6 +367,30 @@ export async function fetchTopUrls(params: TimeSeriesParams & { limit?: number }
 
 export async function fetchTopUserAgents(params: TimeSeriesParams & { limit?: number }) {
   const { data } = await apiV1AnalyticsTopUserAgentsGetTopUserAgents({
+    query: { start_date: params.startDate, end_date: params.endDate, limit: params.limit ?? 25 },
+    throwOnError: true,
+  })
+  return data
+}
+
+export async function fetchTopIpStats(params: TimeSeriesParams & { limit?: number }) {
+  const { data } = await apiV1AnalyticsTopIpsGetTopIps({
+    query: { start_date: params.startDate, end_date: params.endDate, limit: params.limit ?? 25 },
+    throwOnError: true,
+  })
+  return data
+}
+
+export async function fetchTopCountryStats(params: TimeSeriesParams & { limit?: number }) {
+  const { data } = await apiV1AnalyticsTopCountriesGetTopCountries({
+    query: { start_date: params.startDate, end_date: params.endDate, limit: params.limit ?? 25 },
+    throwOnError: true,
+  })
+  return data
+}
+
+export async function fetchTopCityStats(params: TimeSeriesParams & { limit?: number }) {
+  const { data } = await apiV1AnalyticsTopCitiesGetTopCities({
     query: { start_date: params.startDate, end_date: params.endDate, limit: params.limit ?? 25 },
     throwOnError: true,
   })

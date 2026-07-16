@@ -5,6 +5,8 @@ import { BytesChart } from "@/components/analytics/bytes-chart"
 import { LatencyChart } from "@/components/analytics/latency-chart"
 import { TopUrlsTable } from "@/components/analytics/top-urls-table"
 import { TopUserAgentsTable } from "@/components/analytics/top-user-agents-table"
+import { TopIpsTable } from "@/components/analytics/top-ips-table"
+import { TopCountriesCities } from "@/components/analytics/top-countries-cities"
 
 export const Route = createFileRoute("/analytics")({
   component: AnalyticsPage,
@@ -18,6 +20,10 @@ function AnalyticsPage() {
         <StatusChart />
         <BytesChart />
         <LatencyChart />
+      </div>
+      <div className="grid gap-4 lg:grid-cols-2">
+        <TopIpsTable />
+        <TopCountriesCities />
       </div>
       <TopUrlsTable />
       <TopUserAgentsTable />

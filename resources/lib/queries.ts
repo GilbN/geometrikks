@@ -12,6 +12,9 @@ import {
   fetchLocationTopIPs,
   fetchTimeSeries,
   fetchTopCountries,
+  fetchTopCityStats,
+  fetchTopCountryStats,
+  fetchTopIpStats,
   fetchTopUrls,
   fetchTopUserAgents,
   fetchCumulativeTimeSeries,
@@ -54,6 +57,12 @@ export const queryKeys = {
       [...queryKeys.analytics.all, "top-urls", params, refreshKey] as const,
     topUserAgents: (params: Record<string, unknown>, refreshKey?: number) =>
       [...queryKeys.analytics.all, "top-user-agents", params, refreshKey] as const,
+    topIps: (params: Record<string, unknown>, refreshKey?: number) =>
+      [...queryKeys.analytics.all, "top-ips", params, refreshKey] as const,
+    topCountryStats: (params: Record<string, unknown>, refreshKey?: number) =>
+      [...queryKeys.analytics.all, "top-country-stats", params, refreshKey] as const,
+    topCityStats: (params: Record<string, unknown>, refreshKey?: number) =>
+      [...queryKeys.analytics.all, "top-city-stats", params, refreshKey] as const,
   },
   geo: {
     all: ["geo"] as const,
@@ -404,6 +413,66 @@ export function useTopUserAgents(options: UseTopListOptions = {}) {
     queryFn: () => {
       const { startDate, endDate } = parseTimeRange(range, Date.now())
       return fetchTopUserAgents({ startDate, endDate, limit })
+    },
+    enabled,
+    staleTime: 60 * 1000,
+    refetchInterval: pollInterval || false,
+  })
+}
+
+/**
+ * Fetch the top client IPs by hit count.
+ * Uses TimeRangeContext for time filtering.
+ */
+export function useTopIpStats(options: UseTopListOptions = {}) {
+  const { enabled = true, limit = 25 } = options
+  const { range, pollInterval, lastRefresh } = useTimeRange()
+
+  return useQuery({
+    queryKey: queryKeys.analytics.topIps({ range, limit }, lastRefresh),
+    queryFn: () => {
+      const { startDate, endDate } = parseTimeRange(range, Date.now())
+      return fetchTopIpStats({ startDate, endDate, limit })
+    },
+    enabled,
+    staleTime: 60 * 1000,
+    refetchInterval: pollInterval || false,
+  })
+}
+
+/**
+ * Fetch the top countries by hit count.
+ * Uses TimeRangeContext for time filtering.
+ */
+export function useTopCountryStats(options: UseTopListOptions = {}) {
+  const { enabled = true, limit = 25 } = options
+  const { range, pollInterval, lastRefresh } = useTimeRange()
+
+  return useQuery({
+    queryKey: queryKeys.analytics.topCountryStats({ range, limit }, lastRefresh),
+    queryFn: () => {
+      const { startDate, endDate } = parseTimeRange(range, Date.now())
+      return fetchTopCountryStats({ startDate, endDate, limit })
+    },
+    enabled,
+    staleTime: 60 * 1000,
+    refetchInterval: pollInterval || false,
+  })
+}
+
+/**
+ * Fetch the top cities by hit count.
+ * Uses TimeRangeContext for time filtering.
+ */
+export function useTopCityStats(options: UseTopListOptions = {}) {
+  const { enabled = true, limit = 25 } = options
+  const { range, pollInterval, lastRefresh } = useTimeRange()
+
+  return useQuery({
+    queryKey: queryKeys.analytics.topCityStats({ range, limit }, lastRefresh),
+    queryFn: () => {
+      const { startDate, endDate } = parseTimeRange(range, Date.now())
+      return fetchTopCityStats({ startDate, endDate, limit })
     },
     enabled,
     staleTime: 60 * 1000,
