@@ -34,6 +34,7 @@ import {
   type SortOrder,
 } from "./api"
 import { useTimeRange } from "./time-range-context"
+import { useAnalyticsFilters } from "./analytics-filters-context"
 
 // ============================================================================
 // Query Keys
@@ -345,13 +346,21 @@ export interface UseTopListOptions extends UseAnalyticsQueryOptions {
 export function useTimeSeries(options: UseAnalyticsQueryOptions = {}) {
   const { enabled = true } = options
   const { range, customRange, granularity, pollInterval, lastRefresh } = useTimeRange()
+  const { filters } = useAnalyticsFilters()
   const resolved = resolveChartGranularity(granularity, range, customRange)
 
   return useQuery({
-    queryKey: queryKeys.analytics.timeSeries({ range, customRange, granularity: resolved }, lastRefresh),
+    queryKey: queryKeys.analytics.timeSeries({ range, customRange, granularity: resolved, filters }, lastRefresh),
     queryFn: () => {
       const { startDate, endDate } = parseTimeRange(range, Date.now(), customRange)
-      return fetchTimeSeries({ startDate, endDate, granularity: resolved })
+      return fetchTimeSeries({
+        startDate,
+        endDate,
+        granularity: resolved,
+        countryCodes: filters.countryCodes,
+        cities: filters.cities,
+        ips: filters.ips,
+      })
     },
     enabled,
     staleTime: 60 * 1000,
@@ -387,12 +396,20 @@ export function useGeoTimeSeries(options: UseAnalyticsQueryOptions = {}) {
 export function useTopUrls(options: UseTopListOptions = {}) {
   const { enabled = true, limit = 25 } = options
   const { range, customRange, pollInterval, lastRefresh } = useTimeRange()
+  const { filters } = useAnalyticsFilters()
 
   return useQuery({
-    queryKey: queryKeys.analytics.topUrls({ range, customRange, limit }, lastRefresh),
+    queryKey: queryKeys.analytics.topUrls({ range, customRange, limit, filters }, lastRefresh),
     queryFn: () => {
       const { startDate, endDate } = parseTimeRange(range, Date.now(), customRange)
-      return fetchTopUrls({ startDate, endDate, limit })
+      return fetchTopUrls({
+        startDate,
+        endDate,
+        limit,
+        countryCodes: filters.countryCodes,
+        cities: filters.cities,
+        ips: filters.ips,
+      })
     },
     enabled,
     staleTime: 60 * 1000,
@@ -407,12 +424,20 @@ export function useTopUrls(options: UseTopListOptions = {}) {
 export function useTopUserAgents(options: UseTopListOptions = {}) {
   const { enabled = true, limit = 25 } = options
   const { range, customRange, pollInterval, lastRefresh } = useTimeRange()
+  const { filters } = useAnalyticsFilters()
 
   return useQuery({
-    queryKey: queryKeys.analytics.topUserAgents({ range, customRange, limit }, lastRefresh),
+    queryKey: queryKeys.analytics.topUserAgents({ range, customRange, limit, filters }, lastRefresh),
     queryFn: () => {
       const { startDate, endDate } = parseTimeRange(range, Date.now(), customRange)
-      return fetchTopUserAgents({ startDate, endDate, limit })
+      return fetchTopUserAgents({
+        startDate,
+        endDate,
+        limit,
+        countryCodes: filters.countryCodes,
+        cities: filters.cities,
+        ips: filters.ips,
+      })
     },
     enabled,
     staleTime: 60 * 1000,
@@ -427,12 +452,20 @@ export function useTopUserAgents(options: UseTopListOptions = {}) {
 export function useTopIpStats(options: UseTopListOptions = {}) {
   const { enabled = true, limit = 25 } = options
   const { range, customRange, pollInterval, lastRefresh } = useTimeRange()
+  const { filters } = useAnalyticsFilters()
 
   return useQuery({
-    queryKey: queryKeys.analytics.topIps({ range, customRange, limit }, lastRefresh),
+    queryKey: queryKeys.analytics.topIps({ range, customRange, limit, filters }, lastRefresh),
     queryFn: () => {
       const { startDate, endDate } = parseTimeRange(range, Date.now(), customRange)
-      return fetchTopIpStats({ startDate, endDate, limit })
+      return fetchTopIpStats({
+        startDate,
+        endDate,
+        limit,
+        countryCodes: filters.countryCodes,
+        cities: filters.cities,
+        ips: filters.ips,
+      })
     },
     enabled,
     staleTime: 60 * 1000,
@@ -447,12 +480,20 @@ export function useTopIpStats(options: UseTopListOptions = {}) {
 export function useTopCountryStats(options: UseTopListOptions = {}) {
   const { enabled = true, limit = 25 } = options
   const { range, customRange, pollInterval, lastRefresh } = useTimeRange()
+  const { filters } = useAnalyticsFilters()
 
   return useQuery({
-    queryKey: queryKeys.analytics.topCountryStats({ range, customRange, limit }, lastRefresh),
+    queryKey: queryKeys.analytics.topCountryStats({ range, customRange, limit, filters }, lastRefresh),
     queryFn: () => {
       const { startDate, endDate } = parseTimeRange(range, Date.now(), customRange)
-      return fetchTopCountryStats({ startDate, endDate, limit })
+      return fetchTopCountryStats({
+        startDate,
+        endDate,
+        limit,
+        countryCodes: filters.countryCodes,
+        cities: filters.cities,
+        ips: filters.ips,
+      })
     },
     enabled,
     staleTime: 60 * 1000,
@@ -467,12 +508,20 @@ export function useTopCountryStats(options: UseTopListOptions = {}) {
 export function useTopCityStats(options: UseTopListOptions = {}) {
   const { enabled = true, limit = 25 } = options
   const { range, customRange, pollInterval, lastRefresh } = useTimeRange()
+  const { filters } = useAnalyticsFilters()
 
   return useQuery({
-    queryKey: queryKeys.analytics.topCityStats({ range, customRange, limit }, lastRefresh),
+    queryKey: queryKeys.analytics.topCityStats({ range, customRange, limit, filters }, lastRefresh),
     queryFn: () => {
       const { startDate, endDate } = parseTimeRange(range, Date.now(), customRange)
-      return fetchTopCityStats({ startDate, endDate, limit })
+      return fetchTopCityStats({
+        startDate,
+        endDate,
+        limit,
+        countryCodes: filters.countryCodes,
+        cities: filters.cities,
+        ips: filters.ips,
+      })
     },
     enabled,
     staleTime: 60 * 1000,

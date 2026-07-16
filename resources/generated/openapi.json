@@ -1802,6 +1802,75 @@
                         "deprecated": false,
                         "allowEmptyValue": false,
                         "allowReserved": false
+                    },
+                    {
+                        "name": "country_code",
+                        "in": "query",
+                        "schema": {
+                            "oneOf": [
+                                {
+                                    "items": {
+                                        "type": "string"
+                                    },
+                                    "type": "array"
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ],
+                            "description": "Filter to these ISO country codes (repeatable)"
+                        },
+                        "description": "Filter to these ISO country codes (repeatable)",
+                        "required": false,
+                        "deprecated": false,
+                        "allowEmptyValue": false,
+                        "allowReserved": false
+                    },
+                    {
+                        "name": "city",
+                        "in": "query",
+                        "schema": {
+                            "oneOf": [
+                                {
+                                    "items": {
+                                        "type": "string"
+                                    },
+                                    "type": "array"
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ],
+                            "description": "Filter to these city names (repeatable)"
+                        },
+                        "description": "Filter to these city names (repeatable)",
+                        "required": false,
+                        "deprecated": false,
+                        "allowEmptyValue": false,
+                        "allowReserved": false
+                    },
+                    {
+                        "name": "ip_address",
+                        "in": "query",
+                        "schema": {
+                            "oneOf": [
+                                {
+                                    "items": {
+                                        "type": "string"
+                                    },
+                                    "type": "array"
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ],
+                            "description": "Filter to these client IPs (repeatable)"
+                        },
+                        "description": "Filter to these client IPs (repeatable)",
+                        "required": false,
+                        "deprecated": false,
+                        "allowEmptyValue": false,
+                        "allowReserved": false
                     }
                 ],
                 "responses": {
@@ -1906,6 +1975,75 @@
                             "default": 25
                         },
                         "description": "Maximum number of cities",
+                        "required": false,
+                        "deprecated": false,
+                        "allowEmptyValue": false,
+                        "allowReserved": false
+                    },
+                    {
+                        "name": "country_code",
+                        "in": "query",
+                        "schema": {
+                            "oneOf": [
+                                {
+                                    "items": {
+                                        "type": "string"
+                                    },
+                                    "type": "array"
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ],
+                            "description": "Filter to these ISO country codes (repeatable)"
+                        },
+                        "description": "Filter to these ISO country codes (repeatable)",
+                        "required": false,
+                        "deprecated": false,
+                        "allowEmptyValue": false,
+                        "allowReserved": false
+                    },
+                    {
+                        "name": "city",
+                        "in": "query",
+                        "schema": {
+                            "oneOf": [
+                                {
+                                    "items": {
+                                        "type": "string"
+                                    },
+                                    "type": "array"
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ],
+                            "description": "Filter to these city names (repeatable)"
+                        },
+                        "description": "Filter to these city names (repeatable)",
+                        "required": false,
+                        "deprecated": false,
+                        "allowEmptyValue": false,
+                        "allowReserved": false
+                    },
+                    {
+                        "name": "ip_address",
+                        "in": "query",
+                        "schema": {
+                            "oneOf": [
+                                {
+                                    "items": {
+                                        "type": "string"
+                                    },
+                                    "type": "array"
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ],
+                            "description": "Filter to these client IPs (repeatable)"
+                        },
+                        "description": "Filter to these client IPs (repeatable)",
                         "required": false,
                         "deprecated": false,
                         "allowEmptyValue": false,
@@ -2018,6 +2156,75 @@
                         "deprecated": false,
                         "allowEmptyValue": false,
                         "allowReserved": false
+                    },
+                    {
+                        "name": "country_code",
+                        "in": "query",
+                        "schema": {
+                            "oneOf": [
+                                {
+                                    "items": {
+                                        "type": "string"
+                                    },
+                                    "type": "array"
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ],
+                            "description": "Filter to these ISO country codes (repeatable)"
+                        },
+                        "description": "Filter to these ISO country codes (repeatable)",
+                        "required": false,
+                        "deprecated": false,
+                        "allowEmptyValue": false,
+                        "allowReserved": false
+                    },
+                    {
+                        "name": "city",
+                        "in": "query",
+                        "schema": {
+                            "oneOf": [
+                                {
+                                    "items": {
+                                        "type": "string"
+                                    },
+                                    "type": "array"
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ],
+                            "description": "Filter to these city names (repeatable)"
+                        },
+                        "description": "Filter to these city names (repeatable)",
+                        "required": false,
+                        "deprecated": false,
+                        "allowEmptyValue": false,
+                        "allowReserved": false
+                    },
+                    {
+                        "name": "ip_address",
+                        "in": "query",
+                        "schema": {
+                            "oneOf": [
+                                {
+                                    "items": {
+                                        "type": "string"
+                                    },
+                                    "type": "array"
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ],
+                            "description": "Filter to these client IPs (repeatable)"
+                        },
+                        "description": "Filter to these client IPs (repeatable)",
+                        "required": false,
+                        "deprecated": false,
+                        "allowEmptyValue": false,
+                        "allowReserved": false
                     }
                 ],
                 "responses": {
@@ -2122,6 +2329,75 @@
                             "default": 25
                         },
                         "description": "Maximum number of IPs",
+                        "required": false,
+                        "deprecated": false,
+                        "allowEmptyValue": false,
+                        "allowReserved": false
+                    },
+                    {
+                        "name": "country_code",
+                        "in": "query",
+                        "schema": {
+                            "oneOf": [
+                                {
+                                    "items": {
+                                        "type": "string"
+                                    },
+                                    "type": "array"
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ],
+                            "description": "Filter to these ISO country codes (repeatable)"
+                        },
+                        "description": "Filter to these ISO country codes (repeatable)",
+                        "required": false,
+                        "deprecated": false,
+                        "allowEmptyValue": false,
+                        "allowReserved": false
+                    },
+                    {
+                        "name": "city",
+                        "in": "query",
+                        "schema": {
+                            "oneOf": [
+                                {
+                                    "items": {
+                                        "type": "string"
+                                    },
+                                    "type": "array"
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ],
+                            "description": "Filter to these city names (repeatable)"
+                        },
+                        "description": "Filter to these city names (repeatable)",
+                        "required": false,
+                        "deprecated": false,
+                        "allowEmptyValue": false,
+                        "allowReserved": false
+                    },
+                    {
+                        "name": "ip_address",
+                        "in": "query",
+                        "schema": {
+                            "oneOf": [
+                                {
+                                    "items": {
+                                        "type": "string"
+                                    },
+                                    "type": "array"
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ],
+                            "description": "Filter to these client IPs (repeatable)"
+                        },
+                        "description": "Filter to these client IPs (repeatable)",
                         "required": false,
                         "deprecated": false,
                         "allowEmptyValue": false,
@@ -2250,6 +2526,75 @@
                         "deprecated": false,
                         "allowEmptyValue": false,
                         "allowReserved": false
+                    },
+                    {
+                        "name": "country_code",
+                        "in": "query",
+                        "schema": {
+                            "oneOf": [
+                                {
+                                    "items": {
+                                        "type": "string"
+                                    },
+                                    "type": "array"
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ],
+                            "description": "Filter to these ISO country codes (repeatable)"
+                        },
+                        "description": "Filter to these ISO country codes (repeatable)",
+                        "required": false,
+                        "deprecated": false,
+                        "allowEmptyValue": false,
+                        "allowReserved": false
+                    },
+                    {
+                        "name": "city",
+                        "in": "query",
+                        "schema": {
+                            "oneOf": [
+                                {
+                                    "items": {
+                                        "type": "string"
+                                    },
+                                    "type": "array"
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ],
+                            "description": "Filter to these city names (repeatable)"
+                        },
+                        "description": "Filter to these city names (repeatable)",
+                        "required": false,
+                        "deprecated": false,
+                        "allowEmptyValue": false,
+                        "allowReserved": false
+                    },
+                    {
+                        "name": "ip_address",
+                        "in": "query",
+                        "schema": {
+                            "oneOf": [
+                                {
+                                    "items": {
+                                        "type": "string"
+                                    },
+                                    "type": "array"
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ],
+                            "description": "Filter to these client IPs (repeatable)"
+                        },
+                        "description": "Filter to these client IPs (repeatable)",
+                        "required": false,
+                        "deprecated": false,
+                        "allowEmptyValue": false,
+                        "allowReserved": false
                     }
                 ],
                 "responses": {
@@ -2370,6 +2715,75 @@
                             "default": 25
                         },
                         "description": "Maximum number of user agents to return",
+                        "required": false,
+                        "deprecated": false,
+                        "allowEmptyValue": false,
+                        "allowReserved": false
+                    },
+                    {
+                        "name": "country_code",
+                        "in": "query",
+                        "schema": {
+                            "oneOf": [
+                                {
+                                    "items": {
+                                        "type": "string"
+                                    },
+                                    "type": "array"
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ],
+                            "description": "Filter to these ISO country codes (repeatable)"
+                        },
+                        "description": "Filter to these ISO country codes (repeatable)",
+                        "required": false,
+                        "deprecated": false,
+                        "allowEmptyValue": false,
+                        "allowReserved": false
+                    },
+                    {
+                        "name": "city",
+                        "in": "query",
+                        "schema": {
+                            "oneOf": [
+                                {
+                                    "items": {
+                                        "type": "string"
+                                    },
+                                    "type": "array"
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ],
+                            "description": "Filter to these city names (repeatable)"
+                        },
+                        "description": "Filter to these city names (repeatable)",
+                        "required": false,
+                        "deprecated": false,
+                        "allowEmptyValue": false,
+                        "allowReserved": false
+                    },
+                    {
+                        "name": "ip_address",
+                        "in": "query",
+                        "schema": {
+                            "oneOf": [
+                                {
+                                    "items": {
+                                        "type": "string"
+                                    },
+                                    "type": "array"
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ],
+                            "description": "Filter to these client IPs (repeatable)"
+                        },
+                        "description": "Filter to these client IPs (repeatable)",
                         "required": false,
                         "deprecated": false,
                         "allowEmptyValue": false,

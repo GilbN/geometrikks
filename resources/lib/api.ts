@@ -341,9 +341,28 @@ export async function fetchTopCountries(params: TopIPsParams): Promise<TopCountr
 // Analytics fetchers on the generated SDK (types flow from the OpenAPI schema)
 // ============================================================================
 
-export async function fetchTimeSeries(params: TimeSeriesParams) {
+/**
+ * Country/city/IP filters shared by the analytics page's six filterable
+ * endpoints (not geo-time-series, which stays unfiltered). The generated
+ * fetch client serializes arrays as repeated keys (?country_code=NO&country_code=SE)
+ * by default, matching what Litestar expects.
+ */
+export interface AnalyticsFilterParams {
+  countryCodes?: string[]
+  cities?: string[]
+  ips?: string[]
+}
+
+export async function fetchTimeSeries(params: TimeSeriesParams & AnalyticsFilterParams) {
   const { data } = await apiV1AnalyticsTimeSeriesGetTimeSeries({
-    query: { start_date: params.startDate, end_date: params.endDate, granularity: params.granularity },
+    query: {
+      start_date: params.startDate,
+      end_date: params.endDate,
+      granularity: params.granularity,
+      country_code: params.countryCodes?.length ? params.countryCodes : undefined,
+      city: params.cities?.length ? params.cities : undefined,
+      ip_address: params.ips?.length ? params.ips : undefined,
+    },
     throwOnError: true,
   })
   return data
@@ -357,41 +376,76 @@ export async function fetchGeoTimeSeries(params: TimeSeriesParams) {
   return data
 }
 
-export async function fetchTopUrls(params: TimeSeriesParams & { limit?: number }) {
+export async function fetchTopUrls(params: TimeSeriesParams & { limit?: number } & AnalyticsFilterParams) {
   const { data } = await apiV1AnalyticsTopUrlsGetTopUrls({
-    query: { start_date: params.startDate, end_date: params.endDate, limit: params.limit ?? 25 },
+    query: {
+      start_date: params.startDate,
+      end_date: params.endDate,
+      limit: params.limit ?? 25,
+      country_code: params.countryCodes?.length ? params.countryCodes : undefined,
+      city: params.cities?.length ? params.cities : undefined,
+      ip_address: params.ips?.length ? params.ips : undefined,
+    },
     throwOnError: true,
   })
   return data
 }
 
-export async function fetchTopUserAgents(params: TimeSeriesParams & { limit?: number }) {
+export async function fetchTopUserAgents(params: TimeSeriesParams & { limit?: number } & AnalyticsFilterParams) {
   const { data } = await apiV1AnalyticsTopUserAgentsGetTopUserAgents({
-    query: { start_date: params.startDate, end_date: params.endDate, limit: params.limit ?? 25 },
+    query: {
+      start_date: params.startDate,
+      end_date: params.endDate,
+      limit: params.limit ?? 25,
+      country_code: params.countryCodes?.length ? params.countryCodes : undefined,
+      city: params.cities?.length ? params.cities : undefined,
+      ip_address: params.ips?.length ? params.ips : undefined,
+    },
     throwOnError: true,
   })
   return data
 }
 
-export async function fetchTopIpStats(params: TimeSeriesParams & { limit?: number }) {
+export async function fetchTopIpStats(params: TimeSeriesParams & { limit?: number } & AnalyticsFilterParams) {
   const { data } = await apiV1AnalyticsTopIpsGetTopIps({
-    query: { start_date: params.startDate, end_date: params.endDate, limit: params.limit ?? 25 },
+    query: {
+      start_date: params.startDate,
+      end_date: params.endDate,
+      limit: params.limit ?? 25,
+      country_code: params.countryCodes?.length ? params.countryCodes : undefined,
+      city: params.cities?.length ? params.cities : undefined,
+      ip_address: params.ips?.length ? params.ips : undefined,
+    },
     throwOnError: true,
   })
   return data
 }
 
-export async function fetchTopCountryStats(params: TimeSeriesParams & { limit?: number }) {
+export async function fetchTopCountryStats(params: TimeSeriesParams & { limit?: number } & AnalyticsFilterParams) {
   const { data } = await apiV1AnalyticsTopCountriesGetTopCountries({
-    query: { start_date: params.startDate, end_date: params.endDate, limit: params.limit ?? 25 },
+    query: {
+      start_date: params.startDate,
+      end_date: params.endDate,
+      limit: params.limit ?? 25,
+      country_code: params.countryCodes?.length ? params.countryCodes : undefined,
+      city: params.cities?.length ? params.cities : undefined,
+      ip_address: params.ips?.length ? params.ips : undefined,
+    },
     throwOnError: true,
   })
   return data
 }
 
-export async function fetchTopCityStats(params: TimeSeriesParams & { limit?: number }) {
+export async function fetchTopCityStats(params: TimeSeriesParams & { limit?: number } & AnalyticsFilterParams) {
   const { data } = await apiV1AnalyticsTopCitiesGetTopCities({
-    query: { start_date: params.startDate, end_date: params.endDate, limit: params.limit ?? 25 },
+    query: {
+      start_date: params.startDate,
+      end_date: params.endDate,
+      limit: params.limit ?? 25,
+      country_code: params.countryCodes?.length ? params.countryCodes : undefined,
+      city: params.cities?.length ? params.cities : undefined,
+      ip_address: params.ips?.length ? params.ips : undefined,
+    },
     throwOnError: true,
   })
   return data

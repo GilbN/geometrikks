@@ -1144,6 +1144,18 @@ export type ApiV1AnalyticsTimeSeriesGetTimeSeriesData = {
      * Bucket size override. Omit to auto-select (hourly <= 30 days, daily above). RAW is never available.
      */
     granularity?: "hourly" | "daily" | null;
+    /**
+     * Filter to these ISO country codes (repeatable)
+     */
+    country_code?: Array<string> | null;
+    /**
+     * Filter to these city names (repeatable)
+     */
+    city?: Array<string> | null;
+    /**
+     * Filter to these client IPs (repeatable)
+     */
+    ip_address?: Array<string> | null;
   };
   url: "/api/v1/analytics/time-series";
 };
@@ -1193,6 +1205,18 @@ export type ApiV1AnalyticsTopCitiesGetTopCitiesData = {
      * Maximum number of cities
      */
     limit?: number;
+    /**
+     * Filter to these ISO country codes (repeatable)
+     */
+    country_code?: Array<string> | null;
+    /**
+     * Filter to these city names (repeatable)
+     */
+    city?: Array<string> | null;
+    /**
+     * Filter to these client IPs (repeatable)
+     */
+    ip_address?: Array<string> | null;
   };
   url: "/api/v1/analytics/top-cities";
 };
@@ -1242,6 +1266,18 @@ export type ApiV1AnalyticsTopCountriesGetTopCountriesData = {
      * Maximum number of countries
      */
     limit?: number;
+    /**
+     * Filter to these ISO country codes (repeatable)
+     */
+    country_code?: Array<string> | null;
+    /**
+     * Filter to these city names (repeatable)
+     */
+    city?: Array<string> | null;
+    /**
+     * Filter to these client IPs (repeatable)
+     */
+    ip_address?: Array<string> | null;
   };
   url: "/api/v1/analytics/top-countries";
 };
@@ -1291,6 +1327,18 @@ export type ApiV1AnalyticsTopIpsGetTopIpsData = {
      * Maximum number of IPs
      */
     limit?: number;
+    /**
+     * Filter to these ISO country codes (repeatable)
+     */
+    country_code?: Array<string> | null;
+    /**
+     * Filter to these city names (repeatable)
+     */
+    city?: Array<string> | null;
+    /**
+     * Filter to these client IPs (repeatable)
+     */
+    ip_address?: Array<string> | null;
   };
   url: "/api/v1/analytics/top-ips";
 };
@@ -1340,6 +1388,18 @@ export type ApiV1AnalyticsTopUrlsGetTopUrlsData = {
      * Maximum number of URLs to return
      */
     limit?: number;
+    /**
+     * Filter to these ISO country codes (repeatable)
+     */
+    country_code?: Array<string> | null;
+    /**
+     * Filter to these city names (repeatable)
+     */
+    city?: Array<string> | null;
+    /**
+     * Filter to these client IPs (repeatable)
+     */
+    ip_address?: Array<string> | null;
   };
   url: "/api/v1/analytics/top-urls";
 };
@@ -1389,6 +1449,18 @@ export type ApiV1AnalyticsTopUserAgentsGetTopUserAgentsData = {
      * Maximum number of user agents to return
      */
     limit?: number;
+    /**
+     * Filter to these ISO country codes (repeatable)
+     */
+    country_code?: Array<string> | null;
+    /**
+     * Filter to these city names (repeatable)
+     */
+    city?: Array<string> | null;
+    /**
+     * Filter to these client IPs (repeatable)
+     */
+    ip_address?: Array<string> | null;
   };
   url: "/api/v1/analytics/top-user-agents";
 };
