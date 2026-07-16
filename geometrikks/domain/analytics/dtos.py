@@ -263,7 +263,7 @@ class TopIpsResponse:
 
     start_date: str
     end_date: str
-    items: list[TopIpDTO] = field(default_factory=list)
+    items: list[TopIpDTO]
 
 
 @dataclass
@@ -285,7 +285,7 @@ class TopCountriesStatsResponse:
 
     start_date: str
     end_date: str
-    items: list[TopCountryStatsDTO] = field(default_factory=list)
+    items: list[TopCountryStatsDTO]
 
 
 @dataclass
@@ -307,4 +307,4 @@ class TopCitiesResponse:
 
     start_date: str
     end_date: str
-    items: list[TopCityStatsDTO] = field(default_factory=list)
+    items: list[TopCityStatsDTO]
