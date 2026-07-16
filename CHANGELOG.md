@@ -7,9 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
 - Fixed stacking of the moving point pulse.
 - Live map packets now complete their route before coalesced follow-up traffic
   from the same visual corridor begins.
+
+### Added 
+
+- Add search and filter options to access logs.
+- Add more columns on the live tail access log view.
 
 
 ## [0.2.1] - 2026-07-13
