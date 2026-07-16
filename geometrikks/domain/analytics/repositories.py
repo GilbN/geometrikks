@@ -610,6 +610,38 @@ class TopUserAgentRow:
     hits: int
 
 
+@dataclass
+class TopIpRow:
+    """A top-IP aggregate row from raw access_logs."""
+
+    ip_address: str
+    hits: int
+    error_hits: int
+    total_bytes: int
+    country_code: str | None
+    city: str | None
+
+
+@dataclass
+class TopCountryRow:
+    """A top-country aggregate row from raw access_logs."""
+
+    country_code: str
+    country_name: str | None
+    hits: int
+    unique_ips: int
+
+
+@dataclass
+class TopCityRow:
+    """A top-city aggregate row from raw access_logs."""
+
+    city: str
+    country_code: str | None
+    hits: int
+    unique_ips: int
+
+
 class LiveStatsRepository:
     """Repository for querying live statistics directly from raw hypertables.
 
@@ -769,3 +801,62 @@ class LiveStatsRepository:
         """)
         result = await self.session.execute(stmt, {"start": start, "end": end, "limit": limit})
         return [TopUserAgentRow(user_agent=row.user_agent, hits=row.hits) for row in result.fetchall()]
+
+    async def get_top_ips(
+        self, start: datetime, end: datetime, limit: int = 25
+    ) -> list[TopIpRow]:
+        """Top client IPs by hit count from raw access_logs (time-bounded)."""
+        stmt = text("""
+            SELECT
+                host(ip_address) AS ip_address,
+                CAST(COUNT(*) AS BIGINT) AS hits,
+                CAST(COUNT(*) FILTER (WHERE status_code >= 400) AS BIGINT) AS error_hits,
+                CAST(COALESCE(SUM(bytes_sent), 0) AS BIGINT) AS total_bytes,
+                MAX(country_code) AS country_code,
+                MAX(city) AS city
+            FROM access_logs
+            WHERE timestamp >= :start AND timestamp < :end
+            GROUP BY ip_address
+            ORDER BY hits DESC
+            LIMIT :limit
+        """)
+        result = await self.session.execute(stmt, {"start": start, "end": end, "limit": limit})
+        return [TopIpRow(**row._mapping) for row in result.fetchall()]
+
+    async def get_top_countries(
+        self, start: datetime, end: datetime, limit: int = 25
+    ) -> list[TopCountryRow]:
+        """Top countries by hit count from raw access_logs (time-bounded)."""
+        stmt = text("""
+            SELECT
+                country_code,
+                MAX(country_name) AS country_name,
+                CAST(COUNT(*) AS BIGINT) AS hits,
+                CAST(COUNT(DISTINCT ip_address) AS BIGINT) AS unique_ips
+            FROM access_logs
+            WHERE timestamp >= :start AND timestamp < :end AND country_code IS NOT NULL
+            GROUP BY country_code
+            ORDER BY hits DESC
+            LIMIT :limit
+        """)
+        result = await self.session.execute(stmt, {"start": start, "end": end, "limit": limit})
+        return [TopCountryRow(**row._mapping) for row in result.fetchall()]
+
+    async def get_top_cities(
+        self, start: datetime, end: datetime, limit: int = 25
+    ) -> list[TopCityRow]:
+        """Top cities by hit count from raw access_logs (time-bounded)."""
+        stmt = text("""
+            SELECT
+                city,
+                MAX(country_code) AS country_code,
+                CAST(COUNT(*) AS BIGINT) AS hits,
+                CAST(COUNT(DISTINCT ip_address) AS BIGINT) AS unique_ips
+            FROM access_logs
+            WHERE timestamp >= :start AND timestamp < :end AND city IS NOT NULL
+            GROUP BY city
+            ORDER BY hits DESC
+            LIMIT :limit
+        """)
+        result = await self.session.execute(stmt, {"start": start, "end": end, "limit": limit})
+        return [TopCityRow(**row._mapping) for row in result.fetchall()]

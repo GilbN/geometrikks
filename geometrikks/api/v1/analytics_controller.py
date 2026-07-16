@@ -29,6 +29,12 @@ from geometrikks.domain.analytics.dtos import (
     TopUrlsResponse,
     TopUserAgentDTO,
     TopUserAgentsResponse,
+    TopIpDTO,
+    TopIpsResponse,
+    TopCountryStatsDTO,
+    TopCountriesStatsResponse,
+    TopCityStatsDTO,
+    TopCitiesResponse,
 )
 from geometrikks.domain.analytics.repositories import StatsGranularity, get_stats_granularity
 
@@ -557,5 +563,80 @@ class AnalyticsController(Controller):
             start_date=start_date.isoformat(),
             end_date=end_date.isoformat(),
             items=[TopUserAgentDTO(**vars(r)) for r in rows],
+        )
+
+    @get("/top-ips", description="Top client IPs by hits from raw access logs (time-bounded).")
+    async def get_top_ips(
+        self,
+        live_stats_repo: NamedDependency[LiveStatsRepository],
+        start_date: Annotated[
+            datetime,
+            Parameter(description="Start date (ISO 8601)"),
+        ],
+        end_date: Annotated[
+            datetime,
+            Parameter(description="End date (ISO 8601)"),
+        ],
+        limit: Annotated[
+            int,
+            Parameter(description="Maximum number of IPs", ge=1, le=100),
+        ] = 25,
+    ) -> TopIpsResponse:
+        """Get the top client IPs by hit count for a date range."""
+        rows = await live_stats_repo.get_top_ips(start_date, end_date, limit=limit)
+        return TopIpsResponse(
+            start_date=start_date.isoformat(),
+            end_date=end_date.isoformat(),
+            items=[TopIpDTO(**vars(r)) for r in rows],
+        )
+
+    @get("/top-countries", description="Top countries by hits from raw access logs (time-bounded).")
+    async def get_top_countries(
+        self,
+        live_stats_repo: NamedDependency[LiveStatsRepository],
+        start_date: Annotated[
+            datetime,
+            Parameter(description="Start date (ISO 8601)"),
+        ],
+        end_date: Annotated[
+            datetime,
+            Parameter(description="End date (ISO 8601)"),
+        ],
+        limit: Annotated[
+            int,
+            Parameter(description="Maximum number of countries", ge=1, le=100),
+        ] = 25,
+    ) -> TopCountriesStatsResponse:
+        """Get the top countries by hit count for a date range."""
+        rows = await live_stats_repo.get_top_countries(start_date, end_date, limit=limit)
+        return TopCountriesStatsResponse(
+            start_date=start_date.isoformat(),
+            end_date=end_date.isoformat(),
+            items=[TopCountryStatsDTO(**vars(r)) for r in rows],
+        )
+
+    @get("/top-cities", description="Top cities by hits from raw access logs (time-bounded).")
+    async def get_top_cities(
+        self,
+        live_stats_repo: NamedDependency[LiveStatsRepository],
+        start_date: Annotated[
+            datetime,
+            Parameter(description="Start date (ISO 8601)"),
+        ],
+        end_date: Annotated[
+            datetime,
+            Parameter(description="End date (ISO 8601)"),
+        ],
+        limit: Annotated[
+            int,
+            Parameter(description="Maximum number of cities", ge=1, le=100),
+        ] = 25,
+    ) -> TopCitiesResponse:
+        """Get the top cities by hit count for a date range."""
+        rows = await live_stats_repo.get_top_cities(start_date, end_date, limit=limit)
+        return TopCitiesResponse(
+            start_date=start_date.isoformat(),
+            end_date=end_date.isoformat(),
+            items=[TopCityStatsDTO(**vars(r)) for r in rows],
         )
 
