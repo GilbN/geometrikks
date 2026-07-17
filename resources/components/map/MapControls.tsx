@@ -81,7 +81,7 @@ function FilterCombobox({
   onChange,
   placeholder,
   labels,
-  native = false,
+  mobile = false,
 }: {
   options: string[]
   selected: string[]
@@ -90,11 +90,11 @@ function FilterCombobox({
   // Optional display labels keyed by option value. The value stays the raw
   // option (e.g. a country code); only the rendered text changes.
   labels?: Record<string, string>
-  // On touch (mobile) render a native <select> so iOS/Android show their own
-  // picker instead of the typeahead popup, which is clunky on a touch screen.
-  native?: boolean
+  // On mobile, render an inline searchable multi-select list instead of the
+  // desktop typeahead popup, which is clunky on a touch screen.
+  mobile?: boolean
 }) {
-  // Called unconditionally to satisfy the rules of hooks even though the native
+  // Called unconditionally to satisfy the rules of hooks even though the mobile
   // branch below returns before using some of them.
   const anchor = useComboboxAnchor()
   const [query, setQuery] = useState("")
@@ -103,8 +103,8 @@ function FilterCombobox({
   // Mobile: an inline searchable checkbox list (a "sheet" rendered directly in
   // the controls drawer, no nested modal). A search box filters the options and
   // each row toggles selection, so several can be picked without scrolling a
-  // long native picker. Selected chips sit on top for a quick overview/removal.
-  if (native) {
+  // long option list. Selected chips sit on top for a quick overview/removal.
+  if (mobile) {
     const q = query.trim().toLowerCase()
     const filtered = options.filter((o) => labelFor(o).toLowerCase().includes(q))
     // Keep selected rows visible at the top of the filtered list.
@@ -144,6 +144,7 @@ function FilterCombobox({
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder={`Search ${placeholder.toLowerCase()}`}
+          aria-label={`Search ${placeholder.toLowerCase()}`}
           autoComplete="off"
           // text-base (16px) keeps iOS Safari from zooming the page on focus.
           className="border-input focus-visible:border-ring focus-visible:ring-ring/50 h-9 w-full rounded-md border bg-transparent px-2.5 text-base shadow-xs outline-none focus-visible:ring-[3px]"
@@ -161,6 +162,7 @@ function FilterCombobox({
                   key={o}
                   type="button"
                   onClick={() => toggle(o)}
+                  aria-pressed={isSel}
                   className={cn(
                     "flex w-full items-center gap-2 px-2.5 py-2 text-left text-sm",
                     isSel ? "bg-geo-cyan/10 text-geo-cyan" : "hover:bg-accent/50",
@@ -371,14 +373,14 @@ export function MapControls({
           onChange={onCountriesChange}
           placeholder="Country"
           labels={countryLabels}
-          native={isMobile}
+          mobile={isMobile}
         />
         <FilterCombobox
           options={cityOptions}
           selected={selectedCities}
           onChange={onCitiesChange}
           placeholder="City"
-          native={isMobile}
+          mobile={isMobile}
         />
       </Card>
 
@@ -459,7 +461,7 @@ export function MapControls({
           <Button
             size="icon"
             variant="outline"
-            className="absolute top-4 right-4 z-10 bg-background cursor-pointer"
+            className="absolute bottom-6 right-4 z-10 bg-background cursor-pointer"
             title="Show map controls"
           >
             <Layers className="h-4 w-4" />

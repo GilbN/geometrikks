@@ -57,12 +57,20 @@ export function MapLegend({ maxValue, layerType }: MapLegendProps) {
         <CardTitle
           className={cn(
             "text-xs font-medium text-muted-foreground flex items-center justify-between",
-            isMobile && "cursor-pointer"
+            isMobile && "gap-2",
           )}
-          onClick={isMobile ? () => setOpen(false) : undefined}
         >
           {title}
-          {isMobile && <span className="text-muted-foreground/60">×</span>}
+          {isMobile && (
+            <button
+              type="button"
+              onClick={() => setOpen(false)}
+              aria-label={`Hide ${title.toLowerCase()} legend`}
+              className="cursor-pointer text-muted-foreground/60"
+            >
+              <span aria-hidden="true">×</span>
+            </button>
+          )}
         </CardTitle>
         <div className="border-b border-border/50">
         </div>
