@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 
 from geometrikks.config import GeoIPSettings, MapSettings, Settings, get_settings
+from geometrikks.config.settings import get_installed_version
 
 
 def test_default_settings():
@@ -12,7 +13,7 @@ def test_default_settings():
     settings = Settings()
     
     assert settings.name == "GeoMetrikks API"
-    assert settings.version == "0.1.0"
+    assert settings.version == get_installed_version()
     assert settings.environment == "production"
     assert settings.debug is False
 
@@ -22,12 +23,26 @@ def test_environment_override(monkeypatch):
     monkeypatch.setenv("APP_NAME", "Custom Name")
     monkeypatch.setenv("APP_DEBUG", "true")
     monkeypatch.setenv("APP_ENVIRONMENT", "development")
+    monkeypatch.setenv("APP_VERSION", "9.9.9-test")
     
     settings = Settings()
     
     assert settings.name == "Custom Name"
     assert settings.debug is True
     assert settings.environment == "development"
+    assert settings.version == "9.9.9-test"
+
+
+def test_runtime_metadata_defaults_and_overrides(monkeypatch):
+    default_settings = Settings(_env_file=None)
+    assert default_settings.runtime == "host"
+    assert default_settings.image_tag is None
+
+    monkeypatch.setenv("APP_RUNTIME", "container")
+    monkeypatch.setenv("APP_IMAGE_TAG", "v0.2.2-dev.4")
+    container_settings = Settings(_env_file=None)
+    assert container_settings.runtime == "container"
+    assert container_settings.image_tag == "v0.2.2-dev.4"
 
 
 def test_database_settings():

@@ -1,12 +1,26 @@
 import json
 import socket
 from functools import lru_cache
+from importlib.metadata import PackageNotFoundError, version as distribution_version
 from pathlib import Path
 from typing import Annotated, Literal
 
 from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 from geometrikks.services.logparser.constants import ALLOWED_GEOIP_LOCALES
+
+
+def get_installed_version() -> str:
+    """Return the version of the installed GeoMetrikks distribution.
+
+    The application is packaged during normal ``uv sync`` and image builds, so
+    distribution metadata is the single source of truth for the running
+    version. The fallback keeps direct source execution usable before install.
+    """
+    try:
+        return distribution_version("geometrikks")
+    except PackageNotFoundError:
+        return "unknown"
 
 
 class DatabaseSettings(BaseSettings):
@@ -377,7 +391,10 @@ class Settings(BaseSettings):
 
     # Application metadata
     name: str = Field(default="GeoMetrikks API", description="Application name")
-    version: str = Field(default="0.1.0", description="Application version")
+    version: str = Field(
+        default_factory=get_installed_version,
+        description="Application version (defaults to installed package metadata)",
+    )
     description: str = Field(
         default="Real-time GeoIP lookups and traffic analytics API",
         description="Application description",
@@ -386,6 +403,14 @@ class Settings(BaseSettings):
     environment: Literal["development", "staging", "production"] = Field(
         default="production",
         description="Application environment",
+    )
+    runtime: Literal["host", "container"] = Field(
+        default="host",
+        description="Execution runtime; container images set this to container.",
+    )
+    image_tag: str | None = Field(
+        default=None,
+        description="Optional container image tag embedded at build time.",
     )
 
     # Authentication (single admin user; see Phase 1c design)

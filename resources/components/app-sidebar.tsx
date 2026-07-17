@@ -1,5 +1,6 @@
 import { Link, useRouterState } from "@tanstack/react-router"
 import { useQuery } from "@tanstack/react-query"
+import { useState } from "react"
 import {
   Sidebar,
   SidebarContent,
@@ -35,6 +36,8 @@ import {
 import { cn } from "@/lib/utils"
 import { fetchHealth, fetchMe, logout } from "@/lib/api"
 import { useLiveFeedStatus } from "@/lib/live-feed-context"
+import { useRuntimeSettings } from "@/lib/queries"
+import { SiDocker } from "react-icons/si"
 
 const navigationItems = [
   {
@@ -132,73 +135,67 @@ function GeoLogo({ collapsed }: { collapsed: boolean }) {
 function NavItem({
   item,
   isActive,
-  collapsed,
 }: {
   item: (typeof navigationItems)[0]
   isActive: boolean
-  collapsed: boolean
 }) {
   const Icon = item.icon
 
   return (
     <SidebarMenuItem>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <SidebarMenuButton
-            asChild
-            isActive={isActive}
-            tooltip={item.title}
+      <SidebarMenuButton
+        asChild
+        isActive={isActive}
+        tooltip={{
+          children: (
+            <span className="flex items-center gap-2">
+              <span>{item.title}</span>
+              <span className="text-muted-foreground text-xs">{item.description}</span>
+            </span>
+          ),
+        }}
+        className={cn(
+          "relative group/nav-item transition-all duration-200",
+          isActive && [
+            "bg-sidebar-accent/80",
+            "before:absolute before:left-0 before:top-1/2 before:-translate-y-1/2",
+            "before:w-[3px] before:h-5 before:rounded-r-full",
+            "before:bg-geo-cyan before:shadow-[0_0_8px_var(--geo-cyan)]",
+          ]
+        )}
+      >
+        <Link to={item.url}>
+          <div className="relative">
+            <Icon
+              className={cn(
+                "w-4 h-4 transition-colors duration-200",
+                isActive
+                  ? "text-geo-cyan"
+                  : "text-sidebar-foreground/60 group-hover/nav-item:text-sidebar-foreground"
+              )}
+            />
+            {isActive && (
+              <div className="absolute inset-0 blur-sm bg-geo-cyan/30 rounded-full" />
+            )}
+          </div>
+          <span
             className={cn(
-              "relative group/nav-item transition-all duration-200",
-              isActive && [
-                "bg-sidebar-accent/80",
-                "before:absolute before:left-0 before:top-1/2 before:-translate-y-1/2",
-                "before:w-[3px] before:h-5 before:rounded-r-full",
-                "before:bg-geo-cyan before:shadow-[0_0_8px_var(--geo-cyan)]",
-              ]
+              "transition-colors duration-200",
+              isActive
+                ? "text-sidebar-foreground font-medium"
+                : "text-sidebar-foreground/70 group-hover/nav-item:text-sidebar-foreground"
             )}
           >
-            <Link to={item.url}>
-              <div className="relative">
-                <Icon
-                  className={cn(
-                    "w-4 h-4 transition-colors duration-200",
-                    isActive
-                      ? "text-geo-cyan"
-                      : "text-sidebar-foreground/60 group-hover/nav-item:text-sidebar-foreground"
-                  )}
-                />
-                {isActive && (
-                  <div className="absolute inset-0 blur-sm bg-geo-cyan/30 rounded-full" />
-                )}
-              </div>
-              <span
-                className={cn(
-                  "transition-colors duration-200",
-                  isActive
-                    ? "text-sidebar-foreground font-medium"
-                    : "text-sidebar-foreground/70 group-hover/nav-item:text-sidebar-foreground"
-                )}
-              >
-                {item.title}
-              </span>
-            </Link>
-          </SidebarMenuButton>
-        </TooltipTrigger>
-        {collapsed && (
-          <TooltipContent side="right" className="flex items-center gap-2">
-            <span>{item.title}</span>
-            <span className="text-muted-foreground text-xs">
-              {item.description}
-            </span>
-          </TooltipContent>
-        )}
-      </Tooltip>
+            {item.title}
+          </span>
+        </Link>
+      </SidebarMenuButton>
     </SidebarMenuItem>
   )
 }
 
 function LiveIndicator({ collapsed }: { collapsed: boolean }) {
+  const { tooltipsSuppressed, resetTooltipSuppression } = useSidebar()
   const { data: health, isError } = useQuery({
     queryKey: ["health"],
     queryFn: fetchHealth,
@@ -223,7 +220,10 @@ function LiveIndicator({ collapsed }: { collapsed: boolean }) {
     return (
       <Tooltip>
         <TooltipTrigger asChild>
-          <div className="flex items-center justify-center py-2 mx-2">
+          <div
+            className="flex items-center justify-center py-2 mx-2"
+            onPointerLeave={resetTooltipSuppression}
+          >
             <div className="relative flex items-center justify-center w-3 h-3">
               {isRunning && (
                 <span className={cn("absolute inline-flex h-full w-full animate-ping rounded-full opacity-75", color)} />
@@ -232,9 +232,11 @@ function LiveIndicator({ collapsed }: { collapsed: boolean }) {
             </div>
           </div>
         </TooltipTrigger>
-        <TooltipContent side="right">
-          <span>{tooltip}</span>
-        </TooltipContent>
+        {!tooltipsSuppressed && (
+          <TooltipContent side="right">
+            <span>{tooltip}</span>
+          </TooltipContent>
+        )}
       </Tooltip>
     )
   }
@@ -262,6 +264,7 @@ function LiveIndicator({ collapsed }: { collapsed: boolean }) {
 }
 
 function LiveFeedIndicator({ collapsed }: { collapsed: boolean }) {
+  const { tooltipsSuppressed, resetTooltipSuppression } = useSidebar()
   // WebSocket live-feed status — distinct from the ingestion-health dot above.
   // Lazy-connect: reads "Live feed off" until a consumer (map pulses or the
   // access-logs live tail) subscribes to the shared connection.
@@ -285,13 +288,18 @@ function LiveFeedIndicator({ collapsed }: { collapsed: boolean }) {
     return (
       <Tooltip>
         <TooltipTrigger asChild>
-          <div className="flex items-center justify-center py-1 mx-2">
+          <div
+            className="flex items-center justify-center py-1 mx-2"
+            onPointerLeave={resetTooltipSuppression}
+          >
             <span className={cn("inline-flex w-2 h-2 rounded-full", color)} />
           </div>
         </TooltipTrigger>
-        <TooltipContent side="right">
-          <span>{tooltip}</span>
-        </TooltipContent>
+        {!tooltipsSuppressed && (
+          <TooltipContent side="right">
+            <span>{tooltip}</span>
+          </TooltipContent>
+        )}
       </Tooltip>
     )
   }
@@ -305,7 +313,7 @@ function LiveFeedIndicator({ collapsed }: { collapsed: boolean }) {
 }
 
 function LogoutButton() {
-  const { state, isMobile } = useSidebar()
+  const { state, isMobile, tooltipsSuppressed, resetTooltipSuppression } = useSidebar()
   const collapsed = isMobile ? false : state === "collapsed"
 
   // Only render when session auth is active: /auth/me succeeds when logged
@@ -333,6 +341,7 @@ function LogoutButton() {
       <TooltipTrigger asChild>
         <button
           onClick={onLogout}
+          onPointerLeave={resetTooltipSuppression}
           className={cn(
             "flex items-center justify-center w-full py-2",
             collapsed ? "px-0" : "px-3",
@@ -351,25 +360,47 @@ function LogoutButton() {
           </span>
         </button>
       </TooltipTrigger>
-      <TooltipContent side="right">
-        <span>Log out {me.username}</span>
-      </TooltipContent>
+      {collapsed && !tooltipsSuppressed && (
+        <TooltipContent side="right">
+          <span>Log out {me.username}</span>
+        </TooltipContent>
+      )}
     </Tooltip>
   )
 }
 
 function CollapseToggle() {
-  const { toggleSidebar, state, isMobile } = useSidebar()
+  const { toggleSidebar, state, isMobile, resetTooltipSuppression } = useSidebar()
   const collapsed = state === "collapsed"
+  const [tooltipOpen, setTooltipOpen] = useState(false)
+  const [suppressTooltip, setSuppressTooltip] = useState(false)
 
   // Don't show collapse toggle on mobile - sidebar is always expanded when open
   if (isMobile) return null
 
+  function onToggle(event: React.MouseEvent<HTMLButtonElement>) {
+    // The trigger stays focused and hovered after its click. Suppress that
+    // state so collapsing cannot open its new "Expand sidebar" tooltip.
+    setSuppressTooltip(true)
+    setTooltipOpen(false)
+    event.currentTarget.blur()
+    toggleSidebar()
+  }
+
+  function onTooltipOpenChange(open: boolean) {
+    if (!suppressTooltip) setTooltipOpen(open)
+  }
+
   return (
-    <Tooltip>
+    <Tooltip open={tooltipOpen} onOpenChange={onTooltipOpenChange}>
       <TooltipTrigger asChild>
         <button
-          onClick={toggleSidebar}
+          onClick={onToggle}
+          onPointerLeave={() => {
+            setSuppressTooltip(false)
+            setTooltipOpen(false)
+            resetTooltipSuppression()
+          }}
           className={cn(
             "flex items-center justify-center w-full py-2",
             collapsed ? "px-0" : "px-3",
@@ -394,12 +425,41 @@ function CollapseToggle() {
           </span>
         </button>
       </TooltipTrigger>
-      {collapsed && (
+      {collapsed && !suppressTooltip && (
         <TooltipContent side="right">
           <span>Expand sidebar</span>
         </TooltipContent>
       )}
     </Tooltip>
+  )
+}
+
+function RuntimeMetadata({ collapsed }: { collapsed: boolean }) {
+  const { data: settings } = useRuntimeSettings()
+
+  if (collapsed || !settings) return null
+
+  const imageTag = settings.runtime.image_tag
+  const runtimeLabel = imageTag
+    ? `Container image ${imageTag}`
+    : "Running in a container"
+
+  return (
+    <div className="flex items-center justify-center gap-1.5 px-3 py-2 text-sidebar-foreground/30">
+      <span className="text-[10px] font-mono">v{settings.version}</span>
+      {settings.runtime.container && (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span className="inline-flex cursor-default" aria-label={runtimeLabel}>
+              <SiDocker aria-hidden="true" className="h-4 w-4 text-[#2496ED]" />
+            </span>
+          </TooltipTrigger>
+          <TooltipContent side="right">
+            <span>{runtimeLabel}</span>
+          </TooltipContent>
+        </Tooltip>
+      )}
+    </div>
   )
 }
 
@@ -444,7 +504,6 @@ export function AppSidebar() {
                       ? currentPath === "/"
                       : currentPath.startsWith(item.url)
                   }
-                  collapsed={collapsed}
                 />
               ))}
             </SidebarMenu>
@@ -466,7 +525,6 @@ export function AppSidebar() {
                   key={item.title}
                   item={item}
                   isActive={currentPath.startsWith(item.url)}
-                  collapsed={collapsed}
                 />
               ))}
             </SidebarMenu>
@@ -478,12 +536,7 @@ export function AppSidebar() {
         <SidebarSeparator className="opacity-50" />
         <LogoutButton />
         <CollapseToggle />
-        {/* Version tag */}
-        <div className={cn("px-3 py-2 text-center", collapsed && "hidden")}>
-          <span className="text-[10px] font-mono text-sidebar-foreground/30">
-            v0.1.0-alpha
-          </span>
-        </div>
+        <RuntimeMetadata collapsed={collapsed} />
       </SidebarFooter>
 
       <SidebarRail />

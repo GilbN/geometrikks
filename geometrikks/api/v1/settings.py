@@ -38,10 +38,19 @@ class MapSettingsView:
 
 
 @dataclass
+class RuntimeSettingsView:
+    """Non-sensitive information about the executing application image."""
+
+    container: bool
+    image_tag: str | None
+
+
+@dataclass
 class SafeSettingsResponse:
     name: str
     version: str
     environment: str
+    runtime: RuntimeSettingsView
     logparser: LogparserSettingsView
     analytics: AnalyticsSettingsView
     map: MapSettingsView
@@ -62,6 +71,10 @@ async def read_settings(request: Request) -> SafeSettingsResponse:
         name=s.name,
         version=s.version,
         environment=s.environment,
+        runtime=RuntimeSettingsView(
+            container=s.runtime == "container",
+            image_tag=s.image_tag if s.runtime == "container" else None,
+        ),
         logparser=LogparserSettingsView(
             log_paths=[str(p) for p in s.logparser.log_paths],
             send_logs=s.logparser.send_logs,
