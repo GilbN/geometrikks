@@ -45,7 +45,7 @@ END_PARAM = Parameter(
 )
 
 
-def _validate_ips(ips: list[str]) -> None:
+def validate_ip_addresses(ips: list[str]) -> None:
     """Reject non-IP values before they reach an INET bind param.
 
     Raises:
@@ -104,10 +104,10 @@ def provide_geo_event_in_filters(
     """
     result: list[FilterTypes] = []
     if ip_address_in:
-        _validate_ips(ip_address_in)
+        validate_ip_addresses(ip_address_in)
         result.append(CollectionFilter(field_name="ip_address", values=ip_address_in))
     if ip_address_not_in:
-        _validate_ips(ip_address_not_in)
+        validate_ip_addresses(ip_address_not_in)
         result.append(NotInCollectionFilter(field_name="ip_address", values=ip_address_not_in))
     if hostname_in:
         result.append(CollectionFilter(field_name="hostname", values=hostname_in))
@@ -123,9 +123,9 @@ def provide_geo_event_filters(
 ) -> GeoEventFilters:
     """Dimension filters consumed by the aggregate endpoints."""
     if ip_address_in:
-        _validate_ips(ip_address_in)
+        validate_ip_addresses(ip_address_in)
     if ip_address_not_in:
-        _validate_ips(ip_address_not_in)
+        validate_ip_addresses(ip_address_not_in)
     return GeoEventFilters(
         country_codes=country_code_in or None,
         cities=city_in or None,

@@ -357,6 +357,61 @@ class TestTopN:
         ]
 
 
+class TestGeojsonEventCountFilters:
+    """New optional IP/hostname filters on GeoLocationRepository
+    .get_all_with_event_counts (embedded geo-logs map)."""
+
+    async def test_unchanged_without_new_params(self, pg_session_maker, clean_tables):
+        """Map regression guard: omitting the new params keeps old behavior."""
+        from geometrikks.domain.geo.repositories import GeoLocationRepository
+
+        await seed_raw(pg_session_maker)
+        async with pg_session_maker() as session:
+            rows = await GeoLocationRepository(session=session).get_all_with_event_counts(
+                RAW_START, NOW
+            )
+        assert len(rows) == 3
+        assert sum(r.event_count for r in rows) == 7
+
+    async def test_ip_and_hostname_filters_shrink_results(self, pg_session_maker, clean_tables):
+        from geometrikks.domain.geo.repositories import GeoLocationRepository
+
+        locs = await seed_raw(pg_session_maker)
+        async with pg_session_maker() as session:
+            repo = GeoLocationRepository(session=session)
+            by_ip = await repo.get_all_with_event_counts(
+                RAW_START, NOW, ip_addresses=["1.1.1.1"]
+            )
+            by_ip_excl = await repo.get_all_with_event_counts(
+                RAW_START, NOW, ip_addresses_exclude=["1.1.1.1"]
+            )
+            by_host = await repo.get_all_with_event_counts(
+                RAW_START, NOW, hostnames=["web1"]
+            )
+        assert {r.location.id for r in by_ip} == {locs["no"], locs["se"]}
+        assert sum(r.event_count for r in by_ip) == 5
+        assert {r.location.id for r in by_ip_excl} == {locs["no"], locs["us"]}
+        assert sum(r.event_count for r in by_ip_excl) == 2
+        assert {r.location.id for r in by_host} == {locs["no"], locs["se"]}
+        assert sum(r.event_count for r in by_host) == 5
+
+    async def test_new_filters_force_raw_on_long_range(self, pg_engine, pg_session_maker, clean_tables):
+        """The location CAGGs carry no IP/hostname dims: filtered long ranges
+        must fall back to raw geo_events and still return correct counts."""
+        from geometrikks.domain.geo.repositories import GeoLocationRepository
+
+        locs = await seed_multiday(pg_session_maker)
+        start = NOW - timedelta(days=3, hours=2)
+        async with pg_session_maker() as session:
+            repo = GeoLocationRepository(session=session)
+            by_host = await repo.get_all_with_event_counts(start, NOW, hostnames=["web2"])
+            by_ip = await repo.get_all_with_event_counts(start, NOW, ip_addresses=["1.1.1.1"])
+        assert {r.location.id for r in by_host} == {locs["se"]}
+        assert sum(r.event_count for r in by_host) == 3
+        assert {r.location.id for r in by_ip} == {locs["no"]}
+        assert sum(r.event_count for r in by_ip) == 6
+
+
 class TestFacets:
     async def test_distinct_sorted_values(self, pg_session_maker, clean_tables):
         await seed_raw(pg_session_maker)
