@@ -4,8 +4,6 @@ from __future__ import annotations
 from collections.abc import AsyncGenerator
 from typing import Annotated
 
-from sqlalchemy import select
-from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import IntegrityError
 
@@ -17,8 +15,7 @@ from litestar.exceptions import ClientException
 from litestar.status_codes import HTTP_409_CONFLICT
 
 from geometrikks.services.ingestion import LogIngestionService
-from geometrikks.domain.geo.models import GeoEvent
-from geometrikks.domain.geo.repositories import GeoLocationRepository, GeoEventRepository
+from geometrikks.domain.geo.repositories import GeoLocationRepository
 from geometrikks.domain.logs.repositories import AccessLogRepository, AccessLogDebugRepository
 from geometrikks.domain.analytics.repositories import LiveStatsRepository, SummaryStatsRepository
 
@@ -50,16 +47,6 @@ async def provide_geo_location_repo(
 ) -> GeoLocationRepository:
     """Provide GeoLocationRepository."""
     return GeoLocationRepository(session=db_session)
-
-
-async def provide_geo_event_repo(
-    db_session: NamedDependency[AsyncSession],
-) -> GeoEventRepository:
-    """Provide GeoEventRepository with eager loading of location."""
-    return GeoEventRepository(
-        statement=select(GeoEvent).options(selectinload(GeoEvent.location)),
-        session=db_session,
-    )
 
 
 async def provide_access_log_repo(
