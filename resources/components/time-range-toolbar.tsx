@@ -1,4 +1,5 @@
 import { useState } from "react"
+import { useRouterState } from "@tanstack/react-router"
 import { RotateCw, Filter, SlidersHorizontal, BarChart3 } from "lucide-react"
 
 import {
@@ -12,6 +13,14 @@ import {
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu"
 
+import {
+  Drawer,
+  DrawerContent,
+  DrawerDescription,
+  DrawerHeader,
+  DrawerTitle,
+  DrawerTrigger,
+} from "@/components/ui/drawer"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -79,6 +88,10 @@ export function TimeRangeToolbar() {
     refresh,
   } = useTimeRange()
   const isFetching = useIsFetching()
+  const pathname = useRouterState({ select: (s) => s.location.pathname })
+  // The map page has no time-series charts, so granularity is irrelevant there.
+  const showGranularity = pathname !== "/map"
+  const [rangeDrawerOpen, setRangeDrawerOpen] = useState(false)
 
   const rangeLabel =
     range === "custom" && customRange
@@ -160,53 +173,79 @@ export function TimeRangeToolbar() {
         </Select>
 
         {/* Chart Granularity Select */}
-        <Select
-          value={granularity}
-          onValueChange={(value) => setGranularity(value as ChartGranularity)}
-        >
-          <SelectTrigger size="sm" className="w-[90px] text-xs">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {GRANULARITY_OPTIONS.map((option) => (
-              <SelectItem key={option.value} value={option.value}>
-                {option.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        {showGranularity && (
+          <Select
+            value={granularity}
+            onValueChange={(value) => setGranularity(value as ChartGranularity)}
+          >
+            <SelectTrigger size="sm" className="w-[90px] text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {GRANULARITY_OPTIONS.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
       </div>
 
-      {/* Mobile Layout - 3 icon buttons */}
+      {/* Mobile Layout - icon buttons + time-range drawer */}
       <div className="md:hidden flex items-center gap-1">
-        {/* Time Range Dropdown */}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
+        {/* Time Range Drawer - a bottom sheet with a preset grid, replacing the
+            cramped tall dropdown that overflowed the viewport. */}
+        <Drawer open={rangeDrawerOpen} onOpenChange={setRangeDrawerOpen}>
+          <DrawerTrigger asChild>
             <Button variant="outline" size="icon-sm" className="shrink-0">
               <Filter className="h-4 w-4" />
               <span className="sr-only">Time Range</span>
             </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-auto!">
-            <DropdownMenuLabel>Time Range</DropdownMenuLabel>
-            <DropdownMenuRadioGroup value={range} onValueChange={(value) => setRange(value as typeof range)}>
-              {TIME_RANGE_PRESETS.map((preset) => (
-                <DropdownMenuRadioItem
-                  key={preset.value}
-                  value={preset.value}
-                  className="text-xs"
-                >
-                  {preset.label}
-                </DropdownMenuRadioItem>
-              ))}
-            </DropdownMenuRadioGroup>
-            <DropdownMenuSeparator />
-            <DropdownMenuLabel className="text-xs">Custom range</DropdownMenuLabel>
-            <div onKeyDown={(e) => e.stopPropagation()}>
-              <CustomRangeFields onApply={setCustomRange} />
+          </DrawerTrigger>
+          <DrawerContent>
+            <DrawerHeader>
+              <DrawerTitle>Time Range</DrawerTitle>
+              <DrawerDescription className="sr-only">
+                Choose a preset time range or set a custom from/to range.
+              </DrawerDescription>
+            </DrawerHeader>
+            <div className="overflow-y-auto px-4 pb-6">
+              {/* Presets as a compact grid instead of a long scroll list */}
+              <div className="grid grid-cols-3 gap-2">
+                {TIME_RANGE_PRESETS.map((preset) => (
+                  <Button
+                    key={preset.value}
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setRange(preset.value)
+                      setRangeDrawerOpen(false)
+                    }}
+                    className={cn(
+                      "text-xs",
+                      range === preset.value &&
+                        "bg-geo-cyan/20 text-geo-cyan border-geo-cyan/40"
+                    )}
+                  >
+                    {preset.label}
+                  </Button>
+                ))}
+              </div>
+              <div className="mt-4 border-t border-border/50 pt-2">
+                <div className="text-xs font-medium text-muted-foreground px-2">
+                  Custom range
+                </div>
+                <CustomRangeFields
+                  onApply={(r) => {
+                    setCustomRange(r)
+                    setRangeDrawerOpen(false)
+                  }}
+                />
+              </div>
             </div>
-          </DropdownMenuContent>
-        </DropdownMenu>
+          </DrawerContent>
+        </Drawer>
 
         {/* Refresh Button */}
         <Button
@@ -253,31 +292,33 @@ export function TimeRangeToolbar() {
         </DropdownMenu>
 
         {/* Chart Granularity Dropdown */}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="icon-sm" className="shrink-0">
-              <BarChart3 className="h-4 w-4" />
-              <span className="sr-only">Chart Granularity</span>
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuLabel>Chart Granularity</DropdownMenuLabel>
-            <DropdownMenuRadioGroup
-              value={granularity}
-              onValueChange={(value) => setGranularity(value as ChartGranularity)}
-            >
-              {GRANULARITY_OPTIONS.map((option) => (
-                <DropdownMenuRadioItem
-                  key={option.value}
-                  value={option.value}
-                  className="text-xs"
-                >
-                  {option.label}
-                </DropdownMenuRadioItem>
-              ))}
-            </DropdownMenuRadioGroup>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        {showGranularity && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="icon-sm" className="shrink-0">
+                <BarChart3 className="h-4 w-4" />
+                <span className="sr-only">Chart Granularity</span>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuLabel>Chart Granularity</DropdownMenuLabel>
+              <DropdownMenuRadioGroup
+                value={granularity}
+                onValueChange={(value) => setGranularity(value as ChartGranularity)}
+              >
+                {GRANULARITY_OPTIONS.map((option) => (
+                  <DropdownMenuRadioItem
+                    key={option.value}
+                    value={option.value}
+                    className="text-xs"
+                  >
+                    {option.label}
+                  </DropdownMenuRadioItem>
+                ))}
+              </DropdownMenuRadioGroup>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
       </div>
     </>
   )

@@ -15,6 +15,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Analytics page: Bandwidth card fix - Decimal-as-JSON-string was capping the Y-axis; now coerced to int.
 - Sidebar tooltips no longer appear as a side effect of collapsing the sidebar,
   and each navigation item now owns only one tooltip.
+- Heatmap ↔ markers toggle bug: Re-key the GeoJSON <Source> so MapLibre recreates it with the correct cluster setting; points regroup correctly on switch.
+- Fix bad mobile UI on the map page.
 
 ### Added
 
