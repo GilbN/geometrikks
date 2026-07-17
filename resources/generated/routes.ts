@@ -24,7 +24,10 @@ export type RouteName =
   | 'get_location_top_ips'
   | 'get_summary'
   | 'get_time_series'
+  | 'get_top_cities'
   | 'get_top_countries'
+  | 'get_top_countries_api_v1_geo_locations_top_countries'
+  | 'get_top_ips'
   | 'get_top_urls'
   | 'get_top_user_agents'
   | 'health'
@@ -57,7 +60,10 @@ export interface RoutePathParams {
   };
   'get_summary': Record<string, never>;
   'get_time_series': Record<string, never>;
+  'get_top_cities': Record<string, never>;
   'get_top_countries': Record<string, never>;
+  'get_top_countries_api_v1_geo_locations_top_countries': Record<string, never>;
+  'get_top_ips': Record<string, never>;
   'get_top_urls': Record<string, never>;
   'get_top_user_agents': Record<string, never>;
   'health': Record<string, never>;
@@ -91,6 +97,7 @@ export interface RouteQueryParams {
   };
   'get_geo_time_series': {
     end_date: DateTime;
+    granularity?: "hourly" | "daily";
     start_date: DateTime;
   };
   'get_geojson': {
@@ -120,21 +127,55 @@ export interface RouteQueryParams {
     start_date: DateTime;
   };
   'get_time_series': {
+    city?: string[];
+    country_code?: string[];
     end_date: DateTime;
+    granularity?: "hourly" | "daily";
+    ip_address?: string[];
+    start_date: DateTime;
+  };
+  'get_top_cities': {
+    city?: string[];
+    country_code?: string[];
+    end_date: DateTime;
+    ip_address?: string[];
+    limit?: number;
     start_date: DateTime;
   };
   'get_top_countries': {
+    city?: string[];
+    country_code?: string[];
+    end_date: DateTime;
+    ip_address?: string[];
+    limit?: number;
+    start_date: DateTime;
+  };
+  'get_top_countries_api_v1_geo_locations_top_countries': {
     from_timestamp: DateTime;
     limit?: number;
     to_timestamp: DateTime;
   };
-  'get_top_urls': {
+  'get_top_ips': {
+    city?: string[];
+    country_code?: string[];
     end_date: DateTime;
+    ip_address?: string[];
+    limit?: number;
+    start_date: DateTime;
+  };
+  'get_top_urls': {
+    city?: string[];
+    country_code?: string[];
+    end_date: DateTime;
+    ip_address?: string[];
     limit?: number;
     start_date: DateTime;
   };
   'get_top_user_agents': {
+    city?: string[];
+    country_code?: string[];
     end_date: DateTime;
+    ip_address?: string[];
     limit?: number;
     start_date: DateTime;
   };
@@ -208,7 +249,7 @@ export const routeDefinitions = {
     methods: ['GET'] as const,
     method: 'get',
     pathParams: [] as const,
-    queryParams: ['end_date', 'start_date'] as const,
+    queryParams: ['end_date', 'granularity', 'start_date'] as const,
   },
   'get_geojson': {
     path: '/api/v1/geo-locations/geojson',
@@ -250,28 +291,49 @@ export const routeDefinitions = {
     methods: ['GET'] as const,
     method: 'get',
     pathParams: [] as const,
-    queryParams: ['end_date', 'start_date'] as const,
+    queryParams: ['city', 'country_code', 'end_date', 'granularity', 'ip_address', 'start_date'] as const,
+  },
+  'get_top_cities': {
+    path: '/api/v1/analytics/top-cities',
+    methods: ['GET'] as const,
+    method: 'get',
+    pathParams: [] as const,
+    queryParams: ['city', 'country_code', 'end_date', 'ip_address', 'limit', 'start_date'] as const,
   },
   'get_top_countries': {
+    path: '/api/v1/analytics/top-countries',
+    methods: ['GET'] as const,
+    method: 'get',
+    pathParams: [] as const,
+    queryParams: ['city', 'country_code', 'end_date', 'ip_address', 'limit', 'start_date'] as const,
+  },
+  'get_top_countries_api_v1_geo_locations_top_countries': {
     path: '/api/v1/geo-locations/top-countries',
     methods: ['GET'] as const,
     method: 'get',
     pathParams: [] as const,
     queryParams: ['from_timestamp', 'limit', 'to_timestamp'] as const,
   },
+  'get_top_ips': {
+    path: '/api/v1/analytics/top-ips',
+    methods: ['GET'] as const,
+    method: 'get',
+    pathParams: [] as const,
+    queryParams: ['city', 'country_code', 'end_date', 'ip_address', 'limit', 'start_date'] as const,
+  },
   'get_top_urls': {
     path: '/api/v1/analytics/top-urls',
     methods: ['GET'] as const,
     method: 'get',
     pathParams: [] as const,
-    queryParams: ['end_date', 'limit', 'start_date'] as const,
+    queryParams: ['city', 'country_code', 'end_date', 'ip_address', 'limit', 'start_date'] as const,
   },
   'get_top_user_agents': {
     path: '/api/v1/analytics/top-user-agents',
     methods: ['GET'] as const,
     method: 'get',
     pathParams: [] as const,
-    queryParams: ['end_date', 'limit', 'start_date'] as const,
+    queryParams: ['city', 'country_code', 'end_date', 'ip_address', 'limit', 'start_date'] as const,
   },
   'health': {
     path: '/health',
