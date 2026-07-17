@@ -20,6 +20,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Geo Logs page (#18): geo events grouped by (location, IP) with counts, an
+  embedded marker/cluster map, stat cards with previous-period trends, an
+  events/unique-IPs time-series chart, and Top IPs / Countries / Cities lists.
+  Country, city, IP include/exclude and hostname filters apply to everything on
+  the page and live in the URL, so filtered views are shareable links.
+- New `/api/v1/geo-events` endpoints backing the Geo Logs page: grouped logs,
+  summary, time-series, top-ips/countries/cities and facets, with CAGG-backed
+  fast paths for long ranges. The geojson endpoint now accepts optional IP
+  include/exclude and hostname filters.
 - Add search and filter options to access logs.
 - Add more columns on the live tail access log view.
 - Analytics page: Selectable chart granularity - Auto / Hourly / Daily selector; never RAW above 24h, falls back to get_stats_granularity, avoids hourly buckets on ranges above 7d.
