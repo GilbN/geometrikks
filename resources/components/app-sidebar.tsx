@@ -451,7 +451,7 @@ function RuntimeMetadata({ collapsed }: { collapsed: boolean }) {
         <Tooltip>
           <TooltipTrigger asChild>
             <span className="inline-flex cursor-default" aria-label={runtimeLabel}>
-              <SiDocker aria-hidden="true" className="h-6 w-6 text-[#2560ff]" />
+              <SiDocker aria-hidden="true" className="h-4 w-4 text-[#2496ED]" />
             </span>
           </TooltipTrigger>
           <TooltipContent side="right">

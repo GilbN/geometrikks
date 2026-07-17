@@ -94,8 +94,14 @@ function SidebarProvider({
   const toggleSidebar = React.useCallback(() => {
     // A focused or hovered trigger can otherwise reveal a tooltip as soon as
     // the sidebar enters collapsed state. It is re-enabled when the pointer
-    // leaves that trigger, before a normal subsequent hover.
-    setTooltipsSuppressed(true)
+    // leaves that trigger, before a normal subsequent hover. Only suppress when
+    // a sidebar element is actually focused or hovered at toggle time; otherwise
+    // (e.g. a keyboard toggle with the pointer elsewhere) the first later hover
+    // must behave normally.
+    const panel = document.querySelector('[data-slot="sidebar-inner"]')
+    const hovered = panel?.matches(":hover") ?? false
+    const focused = !!(panel && panel.contains(document.activeElement))
+    setTooltipsSuppressed(hovered || focused)
     return isMobile ? setOpenMobile((open) => !open) : setOpen((open) => !open)
   }, [isMobile, setOpen, setOpenMobile])
 
