@@ -1173,6 +1173,22 @@
         "title": "LocationTopIPsResponse",
         "type": "object"
       },
+      "LoginPayload": {
+        "properties": {
+          "password": {
+            "type": "string"
+          },
+          "username": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "password",
+          "username"
+        ],
+        "title": "LoginPayload",
+        "type": "object"
+      },
       "LogparserSettingsView": {
         "properties": {
           "log_paths": {
@@ -1236,6 +1252,18 @@
           "home_source"
         ],
         "title": "MapSettingsView",
+        "type": "object"
+      },
+      "MeResponse": {
+        "properties": {
+          "username": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "username"
+        ],
+        "title": "MeResponse",
         "type": "object"
       },
       "PercentChange": {
@@ -2042,6 +2070,14 @@
         ],
         "title": "TopUserAgentsResponse",
         "type": "object"
+      }
+    },
+    "securitySchemes": {
+      "sessionCookie": {
+        "description": "Session cookie authentication.",
+        "in": "cookie",
+        "name": "session",
+        "type": "apiKey"
       }
     }
   },
@@ -4129,6 +4165,116 @@
         "summary": "GetTopUserAgents",
         "tags": [
           "Analytics"
+        ]
+      }
+    },
+    "/api/v1/auth/login": {
+      "post": {
+        "deprecated": false,
+        "operationId": "ApiV1AuthLoginLogin",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginPayload"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MeResponse"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "Login",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/v1/auth/logout": {
+      "post": {
+        "deprecated": false,
+        "operationId": "ApiV1AuthLogoutLogout",
+        "responses": {
+          "204": {
+            "description": "Request fulfilled, nothing follows",
+            "headers": {}
+          }
+        },
+        "summary": "Logout",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/v1/auth/me": {
+      "get": {
+        "deprecated": false,
+        "operationId": "ApiV1AuthMeMe",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MeResponse"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          }
+        },
+        "summary": "Me",
+        "tags": [
+          "Auth"
         ]
       }
     },
@@ -6643,6 +6789,11 @@
       }
     }
   },
+  "security": [
+    {
+      "sessionCookie": []
+    }
+  ],
   "servers": [
     {
       "url": "/"

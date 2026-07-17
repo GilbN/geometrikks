@@ -328,6 +328,14 @@ export type LocationTopIpsResponse = {
 };
 
 /**
+ * LoginPayload
+ */
+export type LoginPayload = {
+  password: string;
+  username: string;
+};
+
+/**
  * LogparserSettingsView
  */
 export type LogparserSettingsView = {
@@ -343,6 +351,13 @@ export type MapSettingsView = {
   home_latitude: number | null;
   home_longitude: number | null;
   home_source: "configured" | "external_ip" | null;
+};
+
+/**
+ * MeResponse
+ */
+export type MeResponse = {
+  username: string;
 };
 
 /**
@@ -1316,6 +1331,76 @@ export type ApiV1AnalyticsTopUserAgentsGetTopUserAgentsResponses = {
 
 export type ApiV1AnalyticsTopUserAgentsGetTopUserAgentsResponse =
   ApiV1AnalyticsTopUserAgentsGetTopUserAgentsResponses[keyof ApiV1AnalyticsTopUserAgentsGetTopUserAgentsResponses];
+
+export type ApiV1AuthLoginLoginData = {
+  body: LoginPayload;
+  path?: never;
+  query?: never;
+  url: "/api/v1/auth/login";
+};
+
+export type ApiV1AuthLoginLoginErrors = {
+  /**
+   * Validation Exception
+   */
+  400: {
+    detail: string;
+    extra?:
+      | null
+      | {
+          [key: string]: unknown;
+        }
+      | Array<unknown>;
+    status_code: number;
+  };
+};
+
+export type ApiV1AuthLoginLoginError =
+  ApiV1AuthLoginLoginErrors[keyof ApiV1AuthLoginLoginErrors];
+
+export type ApiV1AuthLoginLoginResponses = {
+  /**
+   * Request fulfilled, document follows
+   */
+  200: MeResponse;
+};
+
+export type ApiV1AuthLoginLoginResponse =
+  ApiV1AuthLoginLoginResponses[keyof ApiV1AuthLoginLoginResponses];
+
+export type ApiV1AuthLogoutLogoutData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: "/api/v1/auth/logout";
+};
+
+export type ApiV1AuthLogoutLogoutResponses = {
+  /**
+   * Request fulfilled, nothing follows
+   */
+  204: void;
+};
+
+export type ApiV1AuthLogoutLogoutResponse =
+  ApiV1AuthLogoutLogoutResponses[keyof ApiV1AuthLogoutLogoutResponses];
+
+export type ApiV1AuthMeMeData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: "/api/v1/auth/me";
+};
+
+export type ApiV1AuthMeMeResponses = {
+  /**
+   * Request fulfilled, document follows
+   */
+  200: MeResponse;
+};
+
+export type ApiV1AuthMeMeResponse =
+  ApiV1AuthMeMeResponses[keyof ApiV1AuthMeMeResponses];
 
 export type ApiV1GeoEventsListGeoEventsData = {
   body?: never;

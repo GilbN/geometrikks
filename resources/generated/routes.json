@@ -391,6 +391,27 @@
       },
       "uri": "/api/v1/geo-locations"
     },
+    "login": {
+      "method": "post",
+      "methods": [
+        "POST"
+      ],
+      "uri": "/api/v1/auth/login"
+    },
+    "logout": {
+      "method": "post",
+      "methods": [
+        "POST"
+      ],
+      "uri": "/api/v1/auth/logout"
+    },
+    "me": {
+      "method": "get",
+      "methods": [
+        "GET"
+      ],
+      "uri": "/api/v1/auth/me"
+    },
     "openapi.json": {
       "method": "get",
       "methods": [

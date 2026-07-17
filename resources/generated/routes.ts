@@ -43,6 +43,9 @@ export type RouteName =
   | 'list_access_logs'
   | 'list_geo_events'
   | 'list_geo_locations'
+  | 'login'
+  | 'logout'
+  | 'me'
   | 'openapi.json'
   | 'openapi.yaml'
   | 'read_settings'
@@ -83,6 +86,9 @@ export interface RoutePathParams {
   'list_access_logs': Record<string, never>;
   'list_geo_events': Record<string, never>;
   'list_geo_locations': Record<string, never>;
+  'login': Record<string, never>;
+  'logout': Record<string, never>;
+  'me': Record<string, never>;
   'openapi.json': Record<string, never>;
   'openapi.yaml': Record<string, never>;
   'read_settings': Record<string, never>;
@@ -290,6 +296,9 @@ export interface RouteQueryParams {
     currentPage?: number;
     pageSize?: number;
   };
+  'login': Record<string, never>;
+  'logout': Record<string, never>;
+  'me': Record<string, never>;
   'openapi.json': Record<string, never>;
   'openapi.yaml': Record<string, never>;
   'read_settings': Record<string, never>;
@@ -503,6 +512,27 @@ export const routeDefinitions = {
     method: 'get',
     pathParams: [] as const,
     queryParams: ['currentPage', 'pageSize'] as const,
+  },
+  'login': {
+    path: '/api/v1/auth/login',
+    methods: ['POST'] as const,
+    method: 'post',
+    pathParams: [] as const,
+    queryParams: [] as const,
+  },
+  'logout': {
+    path: '/api/v1/auth/logout',
+    methods: ['POST'] as const,
+    method: 'post',
+    pathParams: [] as const,
+    queryParams: [] as const,
+  },
+  'me': {
+    path: '/api/v1/auth/me',
+    methods: ['GET'] as const,
+    method: 'get',
+    pathParams: [] as const,
+    queryParams: [] as const,
   },
   'openapi.json': {
     path: '/schema/openapi.json',

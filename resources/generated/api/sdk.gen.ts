@@ -41,6 +41,13 @@ import type {
   ApiV1AnalyticsTopUserAgentsGetTopUserAgentsData,
   ApiV1AnalyticsTopUserAgentsGetTopUserAgentsErrors,
   ApiV1AnalyticsTopUserAgentsGetTopUserAgentsResponses,
+  ApiV1AuthLoginLoginData,
+  ApiV1AuthLoginLoginErrors,
+  ApiV1AuthLoginLoginResponses,
+  ApiV1AuthLogoutLogoutData,
+  ApiV1AuthLogoutLogoutResponses,
+  ApiV1AuthMeMeData,
+  ApiV1AuthMeMeResponses,
   ApiV1GeoEventsFacetsGetGeoLogFacetsData,
   ApiV1GeoEventsFacetsGetGeoLogFacetsResponses,
   ApiV1GeoEventsListGeoEventsData,
@@ -118,7 +125,17 @@ export const apiV1AccessLogDebugListAccessLogDebugs = <
     ApiV1AccessLogDebugListAccessLogDebugsResponses,
     ApiV1AccessLogDebugListAccessLogDebugsErrors,
     ThrowOnError
-  >({ url: "/api/v1/access-log-debug", ...options });
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+    ],
+    url: "/api/v1/access-log-debug",
+    ...options,
+  });
 
 /**
  * ListAccessLogs
@@ -132,7 +149,17 @@ export const apiV1AccessLogsListAccessLogs = <
     ApiV1AccessLogsListAccessLogsResponses,
     ApiV1AccessLogsListAccessLogsErrors,
     ThrowOnError
-  >({ url: "/api/v1/access-logs", ...options });
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+    ],
+    url: "/api/v1/access-logs",
+    ...options,
+  });
 
 /**
  * GetAccessLogFacets
@@ -146,7 +173,17 @@ export const apiV1AccessLogsFacetsGetAccessLogFacets = <
     ApiV1AccessLogsFacetsGetAccessLogFacetsResponses,
     unknown,
     ThrowOnError
-  >({ url: "/api/v1/access-logs/facets", ...options });
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+    ],
+    url: "/api/v1/access-logs/facets",
+    ...options,
+  });
 
 /**
  * GetGeoTimeSeries
@@ -165,7 +202,17 @@ export const apiV1AnalyticsGeoTimeSeriesGetGeoTimeSeries = <
     ApiV1AnalyticsGeoTimeSeriesGetGeoTimeSeriesResponses,
     ApiV1AnalyticsGeoTimeSeriesGetGeoTimeSeriesErrors,
     ThrowOnError
-  >({ url: "/api/v1/analytics/geo-time-series", ...options });
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+    ],
+    url: "/api/v1/analytics/geo-time-series",
+    ...options,
+  });
 
 /**
  * GetLiveSummary
@@ -181,7 +228,17 @@ export const apiV1AnalyticsLiveSummaryGetLiveSummary = <
     ApiV1AnalyticsLiveSummaryGetLiveSummaryResponses,
     ApiV1AnalyticsLiveSummaryGetLiveSummaryErrors,
     ThrowOnError
-  >({ url: "/api/v1/analytics/live-summary", ...options });
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+    ],
+    url: "/api/v1/analytics/live-summary",
+    ...options,
+  });
 
 /**
  * GetSummary
@@ -197,7 +254,17 @@ export const apiV1AnalyticsSummaryGetSummary = <
     ApiV1AnalyticsSummaryGetSummaryResponses,
     ApiV1AnalyticsSummaryGetSummaryErrors,
     ThrowOnError
-  >({ url: "/api/v1/analytics/summary", ...options });
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+    ],
+    url: "/api/v1/analytics/summary",
+    ...options,
+  });
 
 /**
  * GetTimeSeries
@@ -213,7 +280,17 @@ export const apiV1AnalyticsTimeSeriesGetTimeSeries = <
     ApiV1AnalyticsTimeSeriesGetTimeSeriesResponses,
     ApiV1AnalyticsTimeSeriesGetTimeSeriesErrors,
     ThrowOnError
-  >({ url: "/api/v1/analytics/time-series", ...options });
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+    ],
+    url: "/api/v1/analytics/time-series",
+    ...options,
+  });
 
 /**
  * GetCumulativeTimeSeries
@@ -232,7 +309,17 @@ export const apiV1AnalyticsTimeSeriesCumulativeGetCumulativeTimeSeries = <
     ApiV1AnalyticsTimeSeriesCumulativeGetCumulativeTimeSeriesResponses,
     ApiV1AnalyticsTimeSeriesCumulativeGetCumulativeTimeSeriesErrors,
     ThrowOnError
-  >({ url: "/api/v1/analytics/time-series/cumulative", ...options });
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+    ],
+    url: "/api/v1/analytics/time-series/cumulative",
+    ...options,
+  });
 
 /**
  * GetTopCities
@@ -248,7 +335,17 @@ export const apiV1AnalyticsTopCitiesGetTopCities = <
     ApiV1AnalyticsTopCitiesGetTopCitiesResponses,
     ApiV1AnalyticsTopCitiesGetTopCitiesErrors,
     ThrowOnError
-  >({ url: "/api/v1/analytics/top-cities", ...options });
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+    ],
+    url: "/api/v1/analytics/top-cities",
+    ...options,
+  });
 
 /**
  * GetTopCountries
@@ -264,7 +361,17 @@ export const apiV1AnalyticsTopCountriesGetTopCountries = <
     ApiV1AnalyticsTopCountriesGetTopCountriesResponses,
     ApiV1AnalyticsTopCountriesGetTopCountriesErrors,
     ThrowOnError
-  >({ url: "/api/v1/analytics/top-countries", ...options });
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+    ],
+    url: "/api/v1/analytics/top-countries",
+    ...options,
+  });
 
 /**
  * GetTopIps
@@ -280,7 +387,17 @@ export const apiV1AnalyticsTopIpsGetTopIps = <
     ApiV1AnalyticsTopIpsGetTopIpsResponses,
     ApiV1AnalyticsTopIpsGetTopIpsErrors,
     ThrowOnError
-  >({ url: "/api/v1/analytics/top-ips", ...options });
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+    ],
+    url: "/api/v1/analytics/top-ips",
+    ...options,
+  });
 
 /**
  * GetTopUrls
@@ -296,7 +413,17 @@ export const apiV1AnalyticsTopUrlsGetTopUrls = <
     ApiV1AnalyticsTopUrlsGetTopUrlsResponses,
     ApiV1AnalyticsTopUrlsGetTopUrlsErrors,
     ThrowOnError
-  >({ url: "/api/v1/analytics/top-urls", ...options });
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+    ],
+    url: "/api/v1/analytics/top-urls",
+    ...options,
+  });
 
 /**
  * GetTopUserAgents
@@ -315,7 +442,87 @@ export const apiV1AnalyticsTopUserAgentsGetTopUserAgents = <
     ApiV1AnalyticsTopUserAgentsGetTopUserAgentsResponses,
     ApiV1AnalyticsTopUserAgentsGetTopUserAgentsErrors,
     ThrowOnError
-  >({ url: "/api/v1/analytics/top-user-agents", ...options });
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+    ],
+    url: "/api/v1/analytics/top-user-agents",
+    ...options,
+  });
+
+/**
+ * Login
+ */
+export const apiV1AuthLoginLogin = <ThrowOnError extends boolean = false>(
+  options: Options<ApiV1AuthLoginLoginData, ThrowOnError>,
+) =>
+  (options.client ?? client).post<
+    ApiV1AuthLoginLoginResponses,
+    ApiV1AuthLoginLoginErrors,
+    ThrowOnError
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+    ],
+    url: "/api/v1/auth/login",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  });
+
+/**
+ * Logout
+ */
+export const apiV1AuthLogoutLogout = <ThrowOnError extends boolean = false>(
+  options?: Options<ApiV1AuthLogoutLogoutData, ThrowOnError>,
+) =>
+  (options?.client ?? client).post<
+    ApiV1AuthLogoutLogoutResponses,
+    unknown,
+    ThrowOnError
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+    ],
+    url: "/api/v1/auth/logout",
+    ...options,
+  });
+
+/**
+ * Me
+ */
+export const apiV1AuthMeMe = <ThrowOnError extends boolean = false>(
+  options?: Options<ApiV1AuthMeMeData, ThrowOnError>,
+) =>
+  (options?.client ?? client).get<
+    ApiV1AuthMeMeResponses,
+    unknown,
+    ThrowOnError
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+    ],
+    url: "/api/v1/auth/me",
+    ...options,
+  });
 
 /**
  * ListGeoEvents
@@ -329,7 +536,17 @@ export const apiV1GeoEventsListGeoEvents = <
     ApiV1GeoEventsListGeoEventsResponses,
     ApiV1GeoEventsListGeoEventsErrors,
     ThrowOnError
-  >({ url: "/api/v1/geo-events", ...options });
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+    ],
+    url: "/api/v1/geo-events",
+    ...options,
+  });
 
 /**
  * GetGeoLogFacets
@@ -345,7 +562,17 @@ export const apiV1GeoEventsFacetsGetGeoLogFacets = <
     ApiV1GeoEventsFacetsGetGeoLogFacetsResponses,
     unknown,
     ThrowOnError
-  >({ url: "/api/v1/geo-events/facets", ...options });
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+    ],
+    url: "/api/v1/geo-events/facets",
+    ...options,
+  });
 
 /**
  * GetGeoLogs
@@ -361,7 +588,17 @@ export const apiV1GeoEventsLogsGetGeoLogs = <
     ApiV1GeoEventsLogsGetGeoLogsResponses,
     ApiV1GeoEventsLogsGetGeoLogsErrors,
     ThrowOnError
-  >({ url: "/api/v1/geo-events/logs", ...options });
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+    ],
+    url: "/api/v1/geo-events/logs",
+    ...options,
+  });
 
 /**
  * GetGeoLogSummary
@@ -377,7 +614,17 @@ export const apiV1GeoEventsSummaryGetGeoLogSummary = <
     ApiV1GeoEventsSummaryGetGeoLogSummaryResponses,
     ApiV1GeoEventsSummaryGetGeoLogSummaryErrors,
     ThrowOnError
-  >({ url: "/api/v1/geo-events/summary", ...options });
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+    ],
+    url: "/api/v1/geo-events/summary",
+    ...options,
+  });
 
 /**
  * GetGeoLogTimeSeries
@@ -396,7 +643,17 @@ export const apiV1GeoEventsTimeSeriesGetGeoLogTimeSeries = <
     ApiV1GeoEventsTimeSeriesGetGeoLogTimeSeriesResponses,
     ApiV1GeoEventsTimeSeriesGetGeoLogTimeSeriesErrors,
     ThrowOnError
-  >({ url: "/api/v1/geo-events/time-series", ...options });
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+    ],
+    url: "/api/v1/geo-events/time-series",
+    ...options,
+  });
 
 /**
  * GetGeoLogTopCities
@@ -412,7 +669,17 @@ export const apiV1GeoEventsTopCitiesGetGeoLogTopCities = <
     ApiV1GeoEventsTopCitiesGetGeoLogTopCitiesResponses,
     ApiV1GeoEventsTopCitiesGetGeoLogTopCitiesErrors,
     ThrowOnError
-  >({ url: "/api/v1/geo-events/top-cities", ...options });
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+    ],
+    url: "/api/v1/geo-events/top-cities",
+    ...options,
+  });
 
 /**
  * GetGeoLogTopCountries
@@ -431,7 +698,17 @@ export const apiV1GeoEventsTopCountriesGetGeoLogTopCountries = <
     ApiV1GeoEventsTopCountriesGetGeoLogTopCountriesResponses,
     ApiV1GeoEventsTopCountriesGetGeoLogTopCountriesErrors,
     ThrowOnError
-  >({ url: "/api/v1/geo-events/top-countries", ...options });
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+    ],
+    url: "/api/v1/geo-events/top-countries",
+    ...options,
+  });
 
 /**
  * GetGeoLogTopIps
@@ -447,7 +724,17 @@ export const apiV1GeoEventsTopIpsGetGeoLogTopIps = <
     ApiV1GeoEventsTopIpsGetGeoLogTopIpsResponses,
     ApiV1GeoEventsTopIpsGetGeoLogTopIpsErrors,
     ThrowOnError
-  >({ url: "/api/v1/geo-events/top-ips", ...options });
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+    ],
+    url: "/api/v1/geo-events/top-ips",
+    ...options,
+  });
 
 /**
  * ListGeoLocations
@@ -461,7 +748,17 @@ export const apiV1GeoLocationsListGeoLocations = <
     ApiV1GeoLocationsListGeoLocationsResponses,
     ApiV1GeoLocationsListGeoLocationsErrors,
     ThrowOnError
-  >({ url: "/api/v1/geo-locations", ...options });
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+    ],
+    url: "/api/v1/geo-locations",
+    ...options,
+  });
 
 /**
  * GetGeojson
@@ -477,7 +774,17 @@ export const apiV1GeoLocationsGeojsonGetGeojson = <
     ApiV1GeoLocationsGeojsonGetGeojsonResponses,
     ApiV1GeoLocationsGeojsonGetGeojsonErrors,
     ThrowOnError
-  >({ url: "/api/v1/geo-locations/geojson", ...options });
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+    ],
+    url: "/api/v1/geo-locations/geojson",
+    ...options,
+  });
 
 /**
  * GetTopCountries
@@ -496,7 +803,17 @@ export const apiV1GeoLocationsTopCountriesGetTopCountries = <
     ApiV1GeoLocationsTopCountriesGetTopCountriesResponses,
     ApiV1GeoLocationsTopCountriesGetTopCountriesErrors,
     ThrowOnError
-  >({ url: "/api/v1/geo-locations/top-countries", ...options });
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+    ],
+    url: "/api/v1/geo-locations/top-countries",
+    ...options,
+  });
 
 /**
  * GetGlobalTopIps
@@ -512,7 +829,17 @@ export const apiV1GeoLocationsTopIpsGetGlobalTopIps = <
     ApiV1GeoLocationsTopIpsGetGlobalTopIpsResponses,
     ApiV1GeoLocationsTopIpsGetGlobalTopIpsErrors,
     ThrowOnError
-  >({ url: "/api/v1/geo-locations/top-ips", ...options });
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+    ],
+    url: "/api/v1/geo-locations/top-ips",
+    ...options,
+  });
 
 /**
  * GetLocationTopIps
@@ -531,7 +858,17 @@ export const apiV1GeoLocationsLocationIdTopIpsGetLocationTopIps = <
     ApiV1GeoLocationsLocationIdTopIpsGetLocationTopIpsResponses,
     ApiV1GeoLocationsLocationIdTopIpsGetLocationTopIpsErrors,
     ThrowOnError
-  >({ url: "/api/v1/geo-locations/{location_id}/top-ips", ...options });
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+    ],
+    url: "/api/v1/geo-locations/{location_id}/top-ips",
+    ...options,
+  });
 
 /**
  * ReadSettings
@@ -543,7 +880,17 @@ export const apiV1SettingsReadSettings = <ThrowOnError extends boolean = false>(
     ApiV1SettingsReadSettingsResponses,
     unknown,
     ThrowOnError
-  >({ url: "/api/v1/settings", ...options });
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+    ],
+    url: "/api/v1/settings",
+    ...options,
+  });
 
 /**
  * Stats
@@ -555,7 +902,17 @@ export const apiV1StatsStats = <ThrowOnError extends boolean = false>(
     ApiV1StatsStatsResponses,
     unknown,
     ThrowOnError
-  >({ url: "/api/v1/stats", ...options });
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+    ],
+    url: "/api/v1/stats",
+    ...options,
+  });
 
 /**
  * Health
@@ -564,7 +921,17 @@ export const healthHealth = <ThrowOnError extends boolean = false>(
   options?: Options<HealthHealthData, ThrowOnError>,
 ) =>
   (options?.client ?? client).get<HealthHealthResponses, unknown, ThrowOnError>(
-    { url: "/health", ...options },
+    {
+      security: [
+        {
+          in: "cookie",
+          name: "session",
+          type: "apiKey",
+        },
+      ],
+      url: "/health",
+      ...options,
+    },
   );
 
 /**
@@ -577,4 +944,14 @@ export const healthReadyHealthReady = <ThrowOnError extends boolean = false>(
     HealthReadyHealthReadyResponses,
     unknown,
     ThrowOnError
-  >({ url: "/health/ready", ...options });
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+    ],
+    url: "/health/ready",
+    ...options,
+  });

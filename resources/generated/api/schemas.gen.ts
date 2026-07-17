@@ -1123,6 +1123,20 @@ export const LocationTopIPsResponseSchema = {
   type: "object",
 } as const;
 
+export const LoginPayloadSchema = {
+  properties: {
+    password: {
+      type: "string",
+    },
+    username: {
+      type: "string",
+    },
+  },
+  required: ["password", "username"],
+  title: "LoginPayload",
+  type: "object",
+} as const;
+
 export const LogparserSettingsViewSchema = {
   properties: {
     log_paths: {
@@ -1172,6 +1186,17 @@ export const MapSettingsViewSchema = {
   },
   required: ["home_latitude", "home_longitude", "home_source"],
   title: "MapSettingsView",
+  type: "object",
+} as const;
+
+export const MeResponseSchema = {
+  properties: {
+    username: {
+      type: "string",
+    },
+  },
+  required: ["username"],
+  title: "MeResponse",
   type: "object",
 } as const;
 
