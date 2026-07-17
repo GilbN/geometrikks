@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import ipaddress
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from typing import Annotated, Literal
 
 from litestar import Controller, get
@@ -61,7 +61,8 @@ def validate_ip_addresses(ips: list[str]) -> None:
 
 
 def _ensure_utc(dt: datetime) -> datetime:
-    return dt.replace(tzinfo=timezone.utc) if dt.tzinfo is None else dt
+    """Treat naive API timestamps as UTC and normalize aware ones to UTC."""
+    return dt.replace(tzinfo=timezone.utc) if dt.tzinfo is None else dt.astimezone(timezone.utc)
 
 
 def _calculate_percent_change(current: float, previous: float) -> float | None:
@@ -85,8 +86,8 @@ def provide_geo_event_time_window(
     return [
         OnBeforeAfter(
             field_name="timestamp",
-            on_or_after=from_timestamp,
-            on_or_before=to_timestamp,
+            on_or_after=_ensure_utc(from_timestamp) if from_timestamp is not None else None,
+            on_or_before=_ensure_utc(to_timestamp) if to_timestamp is not None else None,
         )
     ]
 
@@ -250,7 +251,7 @@ class GeoEventController(Controller):
         percent_changes = None
         if compare_previous:
             period_length = to_timestamp - from_timestamp
-            prev_end = from_timestamp - timedelta(seconds=1)
+            prev_end = from_timestamp
             prev_start = prev_end - period_length
             prev = await geo_event_service.get_summary(prev_start, prev_end, geo_filters)
             if prev.total_events > 0:

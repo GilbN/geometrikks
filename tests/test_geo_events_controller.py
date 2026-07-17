@@ -6,18 +6,20 @@ GeoEventFilters SQL fragments consumed by the aggregate endpoints.
 """
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from advanced_alchemy.filters import CollectionFilter, NotInCollectionFilter, OnBeforeAfter
 from litestar.exceptions import ValidationException
 
 from geometrikks.api.v1.geo_events_controller import (
+    GeoEventController,
     provide_geo_event_filters,
     provide_geo_event_in_filters,
     provide_geo_event_time_window,
 )
-from geometrikks.domain.geo.schemas import GeoEventFilters
+from geometrikks.domain.geo.schemas import GeoEventFilters, GeoLogPeriod
 
 
 class TestTimeWindow:
@@ -34,6 +36,15 @@ class TestTimeWindow:
         assert window.field_name == "timestamp"
         assert window.on_or_after == start
         assert window.on_or_before == end
+
+    def test_normalizes_window_bounds_to_utc(self) -> None:
+        start = datetime(2026, 7, 1, 2, tzinfo=timezone(timedelta(hours=2)))
+        end = datetime(2026, 7, 2)
+
+        window = provide_geo_event_time_window(start, end)[0]
+
+        assert window.on_or_after == datetime(2026, 7, 1, tzinfo=timezone.utc)
+        assert window.on_or_before == datetime(2026, 7, 2, tzinfo=timezone.utc)
 
 
 class TestInFilters:
@@ -95,6 +106,27 @@ class TestAggregateFilters:
     def test_only_hostnames_force_raw(self) -> None:
         assert provide_geo_event_filters(None, None, None, None, ["web1"]).forces_raw
         assert not provide_geo_event_filters(["NO"], None, ["10.0.0.1"], None, None).forces_raw
+
+
+class TestSummaryComparison:
+    async def test_previous_period_is_adjacent_and_equal_length(self) -> None:
+        start = datetime(2026, 7, 2, tzinfo=timezone.utc)
+        end = datetime(2026, 7, 3, tzinfo=timezone.utc)
+        current = GeoLogPeriod(total_events=10, unique_ips=5, unique_countries=2, unique_cities=3)
+        previous = GeoLogPeriod(total_events=5, unique_ips=4, unique_countries=2, unique_cities=2)
+        service = MagicMock()
+        service.get_summary = AsyncMock(side_effect=[current, previous])
+
+        response = await GeoEventController.get_geo_log_summary.fn(
+            None, service, GeoEventFilters(), start, end, compare_previous=True
+        )
+
+        assert service.get_summary.await_args_list[0].args[:2] == (start, end)
+        assert service.get_summary.await_args_list[1].args[:2] == (
+            datetime(2026, 7, 1, tzinfo=timezone.utc),
+            start,
+        )
+        assert response.previous_period == previous
 
 
 class TestFiltersSqlConditions:
