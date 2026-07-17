@@ -4,6 +4,8 @@ FROM oven/bun:latest AS bun
 
 FROM ghcr.io/astral-sh/uv:python3.13-bookworm-slim
 
+ARG APP_IMAGE_TAG=local
+
 COPY --from=bun /usr/local/bin/bun /usr/local/bin/bun
 
 WORKDIR /app
@@ -13,11 +15,17 @@ ENV UV_COMPILE_BYTECODE=1 \
     PATH="/app/.venv/bin:$PATH" \
     PYTHONUNBUFFERED=1 \
     APP_ENVIRONMENT=development \
+    APP_RUNTIME=container \
+    APP_IMAGE_TAG=${APP_IMAGE_TAG} \
     API_RELOAD=true \
     VITE_DEV_MODE=true
 
-COPY pyproject.toml uv.lock* ./
+COPY pyproject.toml uv.lock* README.md ./
 COPY package.json bun.lock ./
+
+# Install the project once so importlib.metadata can report its version. The
+# source mount used for hot reload replaces this copy at runtime.
+COPY geometrikks/ ./geometrikks/
 
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen

@@ -308,6 +308,14 @@ export type PeriodSummary = {
 };
 
 /**
+ * RuntimeSettingsView
+ */
+export type RuntimeSettingsView = {
+  container: boolean;
+  image_tag: string | null;
+};
+
+/**
  * SafeSettingsResponse
  */
 export type SafeSettingsResponse = {
@@ -316,6 +324,7 @@ export type SafeSettingsResponse = {
   logparser: LogparserSettingsView;
   map: MapSettingsView;
   name: string;
+  runtime: RuntimeSettingsView;
   version: string;
 };
 

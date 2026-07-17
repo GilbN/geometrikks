@@ -33,7 +33,7 @@ WORKDIR /app
 ENV UV_COMPILE_BYTECODE=1 \
     UV_LINK_MODE=copy
 
-COPY pyproject.toml uv.lock* ./
+COPY pyproject.toml uv.lock* README.md ./
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-dev --no-install-project
 
@@ -45,6 +45,8 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 # Stage 3: Production runtime
 # ------------------------------------------------------------------------------
 FROM python:3.13-slim-bookworm AS production
+
+ARG APP_IMAGE_TAG=local
 
 RUN groupadd --gid 1000 geometrikks \
     && useradd --uid 1000 --gid geometrikks --shell /bin/bash --create-home geometrikks
@@ -68,6 +70,8 @@ ENV PATH="/app/.venv/bin:$PATH" \
     PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     APP_ENVIRONMENT=production \
+    APP_RUNTIME=container \
+    APP_IMAGE_TAG=${APP_IMAGE_TAG} \
     VITE_DEV_MODE=false \
     GEOIP_DB_PATH=/app/data/geoip/GeoLite2-City.mmdb \
     GEOIP_VALIDATE_DB_PATH=false \

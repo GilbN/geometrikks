@@ -1051,6 +1051,27 @@ export const PeriodSummarySchema = {
   type: "object",
 } as const;
 
+export const RuntimeSettingsViewSchema = {
+  properties: {
+    container: {
+      type: "boolean",
+    },
+    image_tag: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+  },
+  required: ["container", "image_tag"],
+  title: "RuntimeSettingsView",
+  type: "object",
+} as const;
+
 export const SafeSettingsResponseSchema = {
   properties: {
     analytics: {
@@ -1068,11 +1089,22 @@ export const SafeSettingsResponseSchema = {
     name: {
       type: "string",
     },
+    runtime: {
+      $ref: "#/components/schemas/RuntimeSettingsView",
+    },
     version: {
       type: "string",
     },
   },
-  required: ["analytics", "environment", "logparser", "map", "name", "version"],
+  required: [
+    "analytics",
+    "environment",
+    "logparser",
+    "map",
+    "name",
+    "runtime",
+    "version",
+  ],
   title: "SafeSettingsResponse",
   type: "object",
 } as const;

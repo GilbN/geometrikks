@@ -27,6 +27,7 @@
     "radix-ui": "^1.4.3",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
+    "react-icons": "^5.7.0",
     "react-map-gl": "^8.1.0",
     "recharts": "^2.15.4",
     "shadcn": "^3.6.2",

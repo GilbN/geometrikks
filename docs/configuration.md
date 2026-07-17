@@ -10,10 +10,12 @@ list most users need is in `.env.example`; everything below is available.
 | Variable | Default | Description |
 |---|---|---|
 | `APP_NAME` | `GeoMetrikks API` | Application name |
-| `APP_VERSION` | `0.1.0` | Application version |
+| `APP_VERSION` | *(computed)* | Application version (defaults to installed package metadata) |
 | `APP_DESCRIPTION` | `Real-time GeoIP lookups and traffic analytics API` | Application description |
 | `APP_DEBUG` | `false` | Enable debug mode |
 | `APP_ENVIRONMENT` | `production` | Application environment |
+| `APP_RUNTIME` | `host` | Execution runtime; container images set this to container. |
+| `APP_IMAGE_TAG` | — | Optional container image tag embedded at build time. |
 | `APP_AUTH_DISABLED` | `false` | Disable the built-in session auth entirely. Set true only when an authenticating reverse proxy (Authelia, Tailscale, ...) fronts the app. |
 | `APP_ADMIN_USER` | `admin` | Admin login username |
 | `APP_ADMIN_PASSWORD` | — | Admin login password (required unless auth_disabled=true) |

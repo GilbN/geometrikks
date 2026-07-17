@@ -39,6 +39,8 @@ type SidebarContextProps = {
   setOpenMobile: (open: boolean) => void
   isMobile: boolean
   toggleSidebar: () => void
+  tooltipsSuppressed: boolean
+  resetTooltipSuppression: () => void
 }
 
 const SidebarContext = React.createContext<SidebarContextProps | null>(null)
@@ -67,6 +69,7 @@ function SidebarProvider({
 }) {
   const isMobile = useIsMobile()
   const [openMobile, setOpenMobile] = React.useState(false)
+  const [tooltipsSuppressed, setTooltipsSuppressed] = React.useState(false)
 
   // This is the internal state of the sidebar.
   // We use openProp and setOpenProp for control from outside the component.
@@ -89,8 +92,16 @@ function SidebarProvider({
 
   // Helper to toggle the sidebar.
   const toggleSidebar = React.useCallback(() => {
+    // A focused or hovered trigger can otherwise reveal a tooltip as soon as
+    // the sidebar enters collapsed state. It is re-enabled when the pointer
+    // leaves that trigger, before a normal subsequent hover.
+    setTooltipsSuppressed(true)
     return isMobile ? setOpenMobile((open) => !open) : setOpen((open) => !open)
   }, [isMobile, setOpen, setOpenMobile])
+
+  const resetTooltipSuppression = React.useCallback(() => {
+    setTooltipsSuppressed(false)
+  }, [])
 
   // Adds a keyboard shortcut to toggle the sidebar.
   React.useEffect(() => {
@@ -121,8 +132,20 @@ function SidebarProvider({
       openMobile,
       setOpenMobile,
       toggleSidebar,
+      tooltipsSuppressed,
+      resetTooltipSuppression,
     }),
-    [state, open, setOpen, isMobile, openMobile, setOpenMobile, toggleSidebar]
+    [
+      state,
+      open,
+      setOpen,
+      isMobile,
+      openMobile,
+      setOpenMobile,
+      toggleSidebar,
+      tooltipsSuppressed,
+      resetTooltipSuppression,
+    ]
   )
 
   return (
@@ -497,6 +520,7 @@ function SidebarMenuButton({
   size = "default",
   tooltip,
   className,
+  onPointerLeave,
   ...props
 }: React.ComponentProps<"button"> & {
   asChild?: boolean
@@ -504,7 +528,7 @@ function SidebarMenuButton({
   tooltip?: string | React.ComponentProps<typeof TooltipContent>
 } & VariantProps<typeof sidebarMenuButtonVariants>) {
   const Comp = asChild ? Slot.Root : "button"
-  const { isMobile, state } = useSidebar()
+  const { isMobile, state, tooltipsSuppressed, resetTooltipSuppression } = useSidebar()
 
   const button = (
     <Comp
@@ -513,6 +537,10 @@ function SidebarMenuButton({
       data-size={size}
       data-active={isActive}
       className={cn(sidebarMenuButtonVariants({ variant, size }), className)}
+      onPointerLeave={(event) => {
+        onPointerLeave?.(event)
+        resetTooltipSuppression()
+      }}
       {...props}
     />
   )
@@ -533,7 +561,7 @@ function SidebarMenuButton({
       <TooltipContent
         side="right"
         align="center"
-        hidden={state !== "collapsed" || isMobile}
+        hidden={state !== "collapsed" || isMobile || tooltipsSuppressed}
         {...tooltip}
       />
     </Tooltip>
