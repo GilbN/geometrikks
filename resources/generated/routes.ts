@@ -15,7 +15,6 @@ export type URI = string;
 
 /** All available route names */
 export type RouteName =
-  | 'disabled_vite_hmr_http'
   | 'get_access_log_facets'
   | 'get_cumulative_time_series'
   | 'get_geo_log_facets'
@@ -54,7 +53,6 @@ export type RouteName =
 
 /** Path parameter definitions per route */
 export interface RoutePathParams {
-  'disabled_vite_hmr_http': Record<string, never>;
   'get_access_log_facets': Record<string, never>;
   'get_cumulative_time_series': Record<string, never>;
   'get_geo_log_facets': Record<string, never>;
@@ -100,7 +98,6 @@ export interface RoutePathParams {
 
 /** Query parameter definitions per route */
 export interface RouteQueryParams {
-  'disabled_vite_hmr_http': Record<string, never>;
   'get_access_log_facets': Record<string, never>;
   'get_cumulative_time_series': {
     end_date: DateTime;
@@ -311,13 +308,6 @@ export type RouteParams<T extends RouteName> = MergeParams<RoutePathParams[T], R
 
 /** Route metadata */
 export const routeDefinitions = {
-  'disabled_vite_hmr_http': {
-    path: '/static/vite-hmr',
-    methods: ['GET'] as const,
-    method: 'get',
-    pathParams: [] as const,
-    queryParams: [] as const,
-  },
   'get_access_log_facets': {
     path: '/api/v1/access-logs/facets',
     methods: ['GET'] as const,

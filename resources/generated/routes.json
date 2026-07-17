@@ -1,13 +1,6 @@
 {
   "litestar_version": "Version(major=2, minor=24, patch=0, release_level='final', serial=0)",
   "routes": {
-    "disabled_vite_hmr_http": {
-      "method": "get",
-      "methods": [
-        "GET"
-      ],
-      "uri": "/static/vite-hmr"
-    },
     "get_access_log_facets": {
       "method": "get",
       "methods": [
