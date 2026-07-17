@@ -97,7 +97,7 @@ export function TimeRangeToolbar() {
               <span className="text-xs">{rangeLabel}</span>
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="start">
+          <DropdownMenuContent align="start" className="w-auto!">
             {TIME_RANGE_PRESETS.map((preset) => (
               <DropdownMenuItem
                 key={preset.value}
@@ -187,7 +187,7 @@ export function TimeRangeToolbar() {
               <span className="sr-only">Time Range</span>
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
+          <DropdownMenuContent align="end" className="w-auto!">
             <DropdownMenuLabel>Time Range</DropdownMenuLabel>
             <DropdownMenuRadioGroup value={range} onValueChange={(value) => setRange(value as typeof range)}>
               {TIME_RANGE_PRESETS.map((preset) => (
