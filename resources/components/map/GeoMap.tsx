@@ -317,21 +317,37 @@ export default function GeoMap() {
   // Filter options come from the last UNFILTERED result (a second query just
   // for options would be wasteful), held in a ref so the option lists don't
   // shrink to the filtered subset while a filter is active.
-  const optionsRef = useRef<{ countries: string[]; cities: string[] }>({
+  const optionsRef = useRef<{
+    countries: string[]
+    cities: string[]
+    countryLabels: Record<string, string>
+  }>({
     countries: [],
     cities: [],
+    countryLabels: {},
   })
   const filterOptions = useMemo(() => {
     if (geojson && selectedCountries.length === 0 && selectedCities.length === 0) {
-      const countries = new Set<string>()
+      const countryLabels: Record<string, string> = {}
       const cities = new Set<string>()
       for (const f of geojson.features) {
-        if (f.properties.country_code) countries.add(f.properties.country_code)
+        const code = f.properties.country_code
+        if (code) {
+          // Display "<name> (<code>)" but keep the code as the option value,
+          // since the value feeds useGeoJSON({ countryCodes }).
+          countryLabels[code] = f.properties.country_name
+            ? `${f.properties.country_name} (${code})`
+            : code
+        }
         if (f.properties.city) cities.add(f.properties.city)
       }
       optionsRef.current = {
-        countries: [...countries].sort(),
+        // Sort country codes by their display label.
+        countries: Object.keys(countryLabels).sort((a, b) =>
+          countryLabels[a].localeCompare(countryLabels[b]),
+        ),
         cities: [...cities].sort(),
+        countryLabels,
       }
     }
     return optionsRef.current
@@ -490,11 +506,16 @@ export default function GeoMap() {
         <NavigationControl position="bottom-right" showCompass={true} />
 
         {/* GeoJSON data source */}
-        {/* No key prop: react-map-gl diffs `data` and calls setData on the
-            underlying source, so data updates must not remount the Source
-            (a remount tears down and re-adds every layer). */}
+        {/* The `key` only flips when the clustering requirement changes (markers
+            need clustering, heatmap does not). MapLibre reads `cluster` only at
+            source creation, so a layer switch must recreate the source for the
+            new clustering state to take effect - otherwise flipping back to
+            markers never regroups the points. Within a single layer the key is
+            stable, so data refreshes still diff via setData without remounting
+            (which would tear down and re-add every layer). */}
         {geojson && (
           <Source
+            key={activeLayer === "markers" ? "clustered" : "plain"}
             id="geo-data"
             type="geojson"
             data={geojson as unknown as GeoJSON.FeatureCollection}
@@ -557,6 +578,7 @@ export default function GeoMap() {
         topIPs={globalTopIPs?.top_ips ?? []}
         onFlyToLocation={flyToLocation}
         countryOptions={filterOptions.countries}
+        countryLabels={filterOptions.countryLabels}
         cityOptions={filterOptions.cities}
         selectedCountries={selectedCountries}
         selectedCities={selectedCities}
