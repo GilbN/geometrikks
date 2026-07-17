@@ -10,9 +10,11 @@ import {
 import { Skeleton } from "@/components/ui/skeleton"
 import { formatBytes, formatNumber } from "@/lib/api"
 import { useTopIpStats } from "@/lib/queries"
+import { TablePaginationFooter, usePagedRows } from "./table-pagination"
 
 export function TopIpsTable() {
   const { data, isLoading } = useTopIpStats({ limit: 25 })
+  const { pageItems, ...pagination } = usePagedRows(data?.items)
 
   return (
     <Card>
@@ -23,30 +25,33 @@ export function TopIpsTable() {
         {isLoading || !data ? (
           <Skeleton className="h-48 w-full" />
         ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>IP</TableHead>
-                <TableHead>Country</TableHead>
-                <TableHead>City</TableHead>
-                <TableHead className="text-right">Hits</TableHead>
-                <TableHead className="text-right">Errors</TableHead>
-                <TableHead className="text-right">Bytes</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {data.items.map((row) => (
-                <TableRow key={row.ip_address}>
-                  <TableCell className="font-mono text-xs">{row.ip_address}</TableCell>
-                  <TableCell>{row.country_code ?? "-"}</TableCell>
-                  <TableCell>{row.city ?? "-"}</TableCell>
-                  <TableCell className="text-right tabular-nums">{formatNumber(row.hits)}</TableCell>
-                  <TableCell className="text-right tabular-nums">{formatNumber(row.error_hits)}</TableCell>
-                  <TableCell className="text-right tabular-nums">{formatBytes(row.total_bytes)}</TableCell>
+          <>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>IP</TableHead>
+                  <TableHead>Country</TableHead>
+                  <TableHead>City</TableHead>
+                  <TableHead className="text-right">Hits</TableHead>
+                  <TableHead className="text-right">Errors</TableHead>
+                  <TableHead className="text-right">Bytes</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {pageItems.map((row) => (
+                  <TableRow key={row.ip_address}>
+                    <TableCell className="font-mono text-xs">{row.ip_address}</TableCell>
+                    <TableCell>{row.country_code ?? "-"}</TableCell>
+                    <TableCell>{row.city ?? "-"}</TableCell>
+                    <TableCell className="text-right tabular-nums">{formatNumber(row.hits)}</TableCell>
+                    <TableCell className="text-right tabular-nums">{formatNumber(row.error_hits)}</TableCell>
+                    <TableCell className="text-right tabular-nums">{formatBytes(row.total_bytes)}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+            <TablePaginationFooter {...pagination} onPageChange={pagination.setPage} />
+          </>
         )}
       </CardContent>
     </Card>
