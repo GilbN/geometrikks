@@ -1,6 +1,13 @@
 {
   "litestar_version": "Version(major=2, minor=24, patch=0, release_level='final', serial=0)",
   "routes": {
+    "disabled_vite_hmr_http": {
+      "method": "get",
+      "methods": [
+        "GET"
+      ],
+      "uri": "/static/vite-hmr"
+    },
     "get_access_log_facets": {
       "method": "get",
       "methods": [
@@ -18,6 +25,117 @@
         "start_date": "DateTime"
       },
       "uri": "/api/v1/analytics/time-series/cumulative"
+    },
+    "get_geo_log_facets": {
+      "method": "get",
+      "methods": [
+        "GET"
+      ],
+      "uri": "/api/v1/geo-events/facets"
+    },
+    "get_geo_log_summary": {
+      "method": "get",
+      "methods": [
+        "GET"
+      ],
+      "queryParameters": {
+        "cityIn": "string[] | undefined",
+        "compare_previous": "boolean | undefined",
+        "countryCodeIn": "string[] | undefined",
+        "from_timestamp": "DateTime",
+        "hostnameIn": "string[] | undefined",
+        "ipAddressIn": "string[] | undefined",
+        "ipAddressNotIn": "string[] | undefined",
+        "to_timestamp": "DateTime"
+      },
+      "uri": "/api/v1/geo-events/summary"
+    },
+    "get_geo_log_time_series": {
+      "method": "get",
+      "methods": [
+        "GET"
+      ],
+      "queryParameters": {
+        "cityIn": "string[] | undefined",
+        "countryCodeIn": "string[] | undefined",
+        "from_timestamp": "DateTime",
+        "granularity": "\"hourly\" | \"daily\" | undefined",
+        "hostnameIn": "string[] | undefined",
+        "ipAddressIn": "string[] | undefined",
+        "ipAddressNotIn": "string[] | undefined",
+        "to_timestamp": "DateTime"
+      },
+      "uri": "/api/v1/geo-events/time-series"
+    },
+    "get_geo_log_top_cities": {
+      "method": "get",
+      "methods": [
+        "GET"
+      ],
+      "queryParameters": {
+        "cityIn": "string[] | undefined",
+        "countryCodeIn": "string[] | undefined",
+        "from_timestamp": "DateTime",
+        "hostnameIn": "string[] | undefined",
+        "ipAddressIn": "string[] | undefined",
+        "ipAddressNotIn": "string[] | undefined",
+        "limit": "number | undefined",
+        "to_timestamp": "DateTime"
+      },
+      "uri": "/api/v1/geo-events/top-cities"
+    },
+    "get_geo_log_top_countries": {
+      "method": "get",
+      "methods": [
+        "GET"
+      ],
+      "queryParameters": {
+        "cityIn": "string[] | undefined",
+        "countryCodeIn": "string[] | undefined",
+        "from_timestamp": "DateTime",
+        "hostnameIn": "string[] | undefined",
+        "ipAddressIn": "string[] | undefined",
+        "ipAddressNotIn": "string[] | undefined",
+        "limit": "number | undefined",
+        "to_timestamp": "DateTime"
+      },
+      "uri": "/api/v1/geo-events/top-countries"
+    },
+    "get_geo_log_top_ips": {
+      "method": "get",
+      "methods": [
+        "GET"
+      ],
+      "queryParameters": {
+        "cityIn": "string[] | undefined",
+        "countryCodeIn": "string[] | undefined",
+        "from_timestamp": "DateTime",
+        "hostnameIn": "string[] | undefined",
+        "ipAddressIn": "string[] | undefined",
+        "ipAddressNotIn": "string[] | undefined",
+        "limit": "number | undefined",
+        "to_timestamp": "DateTime"
+      },
+      "uri": "/api/v1/geo-events/top-ips"
+    },
+    "get_geo_logs": {
+      "method": "get",
+      "methods": [
+        "GET"
+      ],
+      "queryParameters": {
+        "cityIn": "string[] | undefined",
+        "countryCodeIn": "string[] | undefined",
+        "currentPage": "number | undefined",
+        "from_timestamp": "DateTime",
+        "hostnameIn": "string[] | undefined",
+        "ipAddressIn": "string[] | undefined",
+        "ipAddressNotIn": "string[] | undefined",
+        "pageSize": "number | undefined",
+        "sortOrder": "\"asc\" | \"desc\" | undefined",
+        "to_timestamp": "DateTime"
+      },
+      "uri": "/api/v1/geo-events/logs"
     },
     "get_geo_time_series": {
       "method": "get",
@@ -40,6 +158,9 @@
         "city": "string[] | undefined",
         "country_code": "string[] | undefined",
         "from_timestamp": "DateTime",
+        "hostnameIn": "string[] | undefined",
+        "ipAddressIn": "string[] | undefined",
+        "ipAddressNotIn": "string[] | undefined",
         "to_timestamp": "DateTime"
       },
       "uri": "/api/v1/geo-locations/geojson"
@@ -255,7 +376,14 @@
       ],
       "queryParameters": {
         "currentPage": "number | undefined",
-        "pageSize": "number | undefined"
+        "from_timestamp": "DateTime | undefined",
+        "hostnameIn": "string[] | undefined",
+        "ipAddressIn": "string[] | undefined",
+        "ipAddressNotIn": "string[] | undefined",
+        "orderBy": "string | undefined",
+        "pageSize": "number | undefined",
+        "sortOrder": "\"asc\" | \"desc\" | undefined",
+        "to_timestamp": "DateTime | undefined"
       },
       "uri": "/api/v1/geo-events"
     },
@@ -269,27 +397,6 @@
         "pageSize": "number | undefined"
       },
       "uri": "/api/v1/geo-locations"
-    },
-    "login": {
-      "method": "post",
-      "methods": [
-        "POST"
-      ],
-      "uri": "/api/v1/auth/login"
-    },
-    "logout": {
-      "method": "post",
-      "methods": [
-        "POST"
-      ],
-      "uri": "/api/v1/auth/logout"
-    },
-    "me": {
-      "method": "get",
-      "methods": [
-        "GET"
-      ],
-      "uri": "/api/v1/auth/me"
     },
     "openapi.json": {
       "method": "get",
