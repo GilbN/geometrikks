@@ -20,9 +20,17 @@ import {
   fetchCumulativeTimeSeries,
   fetchAccessLogs,
   fetchAccessLogFacets,
+  fetchGeoLogs,
+  fetchGeoLogSummary,
+  fetchGeoLogTimeSeries,
+  fetchGeoLogTopIps,
+  fetchGeoLogTopCountries,
+  fetchGeoLogTopCities,
+  fetchGeoEventFacets,
   fetchRuntimeSettings,
   parseTimeRange,
   resolveChartGranularity,
+  type GeoLogSortOrder,
   type SummaryParams,
   type GlobalTopIPsResponse,
   type LocationTopIPsResponse,
@@ -35,6 +43,7 @@ import {
 } from "./api"
 import { useTimeRange } from "./time-range-context"
 import { useAnalyticsFilters } from "./analytics-filters-context"
+import { useGeoLogFilters } from "./geo-log-filters-context"
 
 // ============================================================================
 // Query Keys
@@ -81,6 +90,24 @@ export const queryKeys = {
     list: (params: Record<string, unknown>, refreshKey?: number) =>
       [...queryKeys.accessLogs.all, "list", params, refreshKey] as const,
     facets: () => [...queryKeys.accessLogs.all, "facets"] as const,
+  },
+  geoLogs: {
+    all: ["geo-logs"] as const,
+    list: (params: Record<string, unknown>, refreshKey?: number) =>
+      [...queryKeys.geoLogs.all, "list", params, refreshKey] as const,
+    summary: (params: Record<string, unknown>, refreshKey?: number) =>
+      [...queryKeys.geoLogs.all, "summary", params, refreshKey] as const,
+    timeSeries: (params: Record<string, unknown>, refreshKey?: number) =>
+      [...queryKeys.geoLogs.all, "time-series", params, refreshKey] as const,
+    topIps: (params: Record<string, unknown>, refreshKey?: number) =>
+      [...queryKeys.geoLogs.all, "top-ips", params, refreshKey] as const,
+    topCountries: (params: Record<string, unknown>, refreshKey?: number) =>
+      [...queryKeys.geoLogs.all, "top-countries", params, refreshKey] as const,
+    topCities: (params: Record<string, unknown>, refreshKey?: number) =>
+      [...queryKeys.geoLogs.all, "top-cities", params, refreshKey] as const,
+    geojson: (params: Record<string, unknown>, refreshKey?: number) =>
+      [...queryKeys.geoLogs.all, "geojson", params, refreshKey] as const,
+    facets: () => [...queryKeys.geoLogs.all, "facets"] as const,
   },
 }
 
@@ -607,6 +634,189 @@ export function useAccessLogFacets({ enabled = true }: { enabled?: boolean } = {
   return useQuery<AccessLogFacets>({
     queryKey: queryKeys.accessLogs.facets(),
     queryFn: fetchAccessLogFacets,
+    enabled,
+    staleTime: 60 * 1000,
+  })
+}
+
+// ============================================================================
+// Geo logs page (generated-SDK fetchers; every hook threads the full filter
+// set from GeoLogFiltersContext so map/stats/chart/top-10s/table move together)
+// ============================================================================
+
+export interface UseGeoLogsOptions {
+  currentPage?: number
+  pageSize?: number
+  /** Sorts by event count. */
+  sortOrder?: GeoLogSortOrder
+  enabled?: boolean
+}
+
+/**
+ * Grouped (location, IP) rows with counts for the geo-logs table.
+ * Server-side pagination; keeps the previous page visible while the next loads.
+ */
+export function useGeoLogs(options: UseGeoLogsOptions = {}) {
+  const { currentPage = 1, pageSize = 50, sortOrder = "desc", enabled = true } = options
+  const { range, customRange, pollInterval, lastRefresh } = useTimeRange()
+  const { filters } = useGeoLogFilters()
+
+  return useQuery({
+    queryKey: queryKeys.geoLogs.list(
+      { range, customRange, currentPage, pageSize, sortOrder, filters },
+      lastRefresh,
+    ),
+    queryFn: () => {
+      const { startDate, endDate } = parseTimeRange(range, Date.now(), customRange)
+      return fetchGeoLogs({
+        fromTimestamp: startDate,
+        toTimestamp: endDate,
+        currentPage,
+        pageSize,
+        sortOrder,
+        ...filters,
+      })
+    },
+    enabled,
+    placeholderData: (prev) => prev, // v5 keepPreviousData: no blank flash while paging
+    staleTime: 15 * 1000,
+    refetchInterval: pollInterval || false,
+  })
+}
+
+/** Aggregate totals/uniques for the geo-logs stat cards. */
+export function useGeoLogSummary(options: { comparePrevious?: boolean; enabled?: boolean } = {}) {
+  const { comparePrevious = true, enabled = true } = options
+  const { range, customRange, pollInterval, lastRefresh } = useTimeRange()
+  const { filters } = useGeoLogFilters()
+
+  return useQuery({
+    queryKey: queryKeys.geoLogs.summary({ range, customRange, comparePrevious, filters }, lastRefresh),
+    queryFn: () => {
+      const { startDate, endDate } = parseTimeRange(range, Date.now(), customRange)
+      return fetchGeoLogSummary({
+        fromTimestamp: startDate,
+        toTimestamp: endDate,
+        comparePrevious,
+        ...filters,
+      })
+    },
+    enabled,
+    staleTime: 15 * 1000,
+    refetchInterval: pollInterval || false,
+  })
+}
+
+/** Bucketed geo-event totals + unique IPs for the geo-logs chart. */
+export function useGeoLogTimeSeries(options: UseAnalyticsQueryOptions = {}) {
+  const { enabled = true } = options
+  const { range, customRange, granularity, pollInterval, lastRefresh } = useTimeRange()
+  const { filters } = useGeoLogFilters()
+  const resolved = resolveChartGranularity(granularity, range, customRange)
+
+  return useQuery({
+    queryKey: queryKeys.geoLogs.timeSeries({ range, customRange, granularity: resolved, filters }, lastRefresh),
+    queryFn: () => {
+      const { startDate, endDate } = parseTimeRange(range, Date.now(), customRange)
+      return fetchGeoLogTimeSeries({
+        fromTimestamp: startDate,
+        toTimestamp: endDate,
+        granularity: resolved,
+        ...filters,
+      })
+    },
+    enabled,
+    staleTime: 60 * 1000,
+    refetchInterval: pollInterval || false,
+  })
+}
+
+/** Top IPs by geo-event count (across all locations). */
+export function useGeoLogTopIps(options: UseTopListOptions = {}) {
+  const { enabled = true, limit = 10 } = options
+  const { range, customRange, pollInterval, lastRefresh } = useTimeRange()
+  const { filters } = useGeoLogFilters()
+
+  return useQuery({
+    queryKey: queryKeys.geoLogs.topIps({ range, customRange, limit, filters }, lastRefresh),
+    queryFn: () => {
+      const { startDate, endDate } = parseTimeRange(range, Date.now(), customRange)
+      return fetchGeoLogTopIps({ fromTimestamp: startDate, toTimestamp: endDate, limit, ...filters })
+    },
+    enabled,
+    staleTime: 60 * 1000,
+    refetchInterval: pollInterval || false,
+  })
+}
+
+/** Top countries by geo-event count with exact unique-IP counts. */
+export function useGeoLogTopCountries(options: UseTopListOptions = {}) {
+  const { enabled = true, limit = 10 } = options
+  const { range, customRange, pollInterval, lastRefresh } = useTimeRange()
+  const { filters } = useGeoLogFilters()
+
+  return useQuery({
+    queryKey: queryKeys.geoLogs.topCountries({ range, customRange, limit, filters }, lastRefresh),
+    queryFn: () => {
+      const { startDate, endDate } = parseTimeRange(range, Date.now(), customRange)
+      return fetchGeoLogTopCountries({ fromTimestamp: startDate, toTimestamp: endDate, limit, ...filters })
+    },
+    enabled,
+    staleTime: 60 * 1000,
+    refetchInterval: pollInterval || false,
+  })
+}
+
+/** Top cities by geo-event count (NULL cities excluded). */
+export function useGeoLogTopCities(options: UseTopListOptions = {}) {
+  const { enabled = true, limit = 10 } = options
+  const { range, customRange, pollInterval, lastRefresh } = useTimeRange()
+  const { filters } = useGeoLogFilters()
+
+  return useQuery({
+    queryKey: queryKeys.geoLogs.topCities({ range, customRange, limit, filters }, lastRefresh),
+    queryFn: () => {
+      const { startDate, endDate } = parseTimeRange(range, Date.now(), customRange)
+      return fetchGeoLogTopCities({ fromTimestamp: startDate, toTimestamp: endDate, limit, ...filters })
+    },
+    enabled,
+    staleTime: 60 * 1000,
+    refetchInterval: pollInterval || false,
+  })
+}
+
+/**
+ * GeoJSON for the embedded geo-logs map: same endpoint as the map page but
+ * threaded through the full geo-logs filter set (incl. IP exclude/hostname).
+ */
+export function useGeoLogsGeoJSON({ enabled = true }: { enabled?: boolean } = {}) {
+  const { range, customRange, pollInterval, lastRefresh } = useTimeRange()
+  const { filters } = useGeoLogFilters()
+
+  return useQuery({
+    queryKey: queryKeys.geoLogs.geojson({ range, customRange, filters }, lastRefresh),
+    queryFn: () => {
+      const { startDate, endDate } = parseTimeRange(range, Date.now(), customRange)
+      return fetchGeoJSON({
+        fromTimestamp: startDate,
+        toTimestamp: endDate,
+        ...filters,
+      })
+    },
+    enabled,
+    staleTime: 60 * 1000,
+    refetchInterval: pollInterval || false,
+  })
+}
+
+/**
+ * Distinct country/city/hostname filter options. Fetched lazily (enable on
+ * first dropdown open); staleTime keeps reopen-refetches to one per minute.
+ */
+export function useGeoEventFacets({ enabled = true }: { enabled?: boolean } = {}) {
+  return useQuery({
+    queryKey: queryKeys.geoLogs.facets(),
+    queryFn: fetchGeoEventFacets,
     enabled,
     staleTime: 60 * 1000,
   })
