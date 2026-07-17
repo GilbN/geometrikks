@@ -12,11 +12,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed stacking of the moving point pulse.
 - Live map packets now complete their route before coalesced follow-up traffic
   from the same visual corridor begins.
+  - Analytics page: Bandwidth card fix - Decimal-as-JSON-string was capping the Y-axis; now coerced to int.
 
 ### Added 
 
 - Add search and filter options to access logs.
 - Add more columns on the live tail access log view.
+- Analytics page: Selectable chart granularity - Auto / Hourly / Daily selector; never RAW above 24h, falls back to get_stats_granularity, avoids hourly buckets on ranges above 7d.
+- Analytics page: Added Top IPs and Top Countries / Cities cards (new API endpoints + tables).
+- Added custom absolute date-range picker (mobile-friendly)
+- Analytics page: Country / City / IP filters (multi-select + manual IP entry) wired to all charts and top-lists.
+- Added CAGG gap backfill - recovers history that predates refresh coverage so charts and top-lists agree.
 
 
 ## [0.2.1] - 2026-07-13

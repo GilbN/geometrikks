@@ -26,6 +26,7 @@
       ],
       "queryParameters": {
         "end_date": "DateTime",
+        "granularity": "\"hourly\" | \"daily\" | undefined",
         "start_date": "DateTime"
       },
       "uri": "/api/v1/analytics/geo-time-series"
@@ -103,12 +104,46 @@
         "GET"
       ],
       "queryParameters": {
+        "city": "string[] | undefined",
+        "country_code": "string[] | undefined",
         "end_date": "DateTime",
+        "granularity": "\"hourly\" | \"daily\" | undefined",
+        "ip_address": "string[] | undefined",
         "start_date": "DateTime"
       },
       "uri": "/api/v1/analytics/time-series"
     },
+    "get_top_cities": {
+      "method": "get",
+      "methods": [
+        "GET"
+      ],
+      "queryParameters": {
+        "city": "string[] | undefined",
+        "country_code": "string[] | undefined",
+        "end_date": "DateTime",
+        "ip_address": "string[] | undefined",
+        "limit": "number | undefined",
+        "start_date": "DateTime"
+      },
+      "uri": "/api/v1/analytics/top-cities"
+    },
     "get_top_countries": {
+      "method": "get",
+      "methods": [
+        "GET"
+      ],
+      "queryParameters": {
+        "city": "string[] | undefined",
+        "country_code": "string[] | undefined",
+        "end_date": "DateTime",
+        "ip_address": "string[] | undefined",
+        "limit": "number | undefined",
+        "start_date": "DateTime"
+      },
+      "uri": "/api/v1/analytics/top-countries"
+    },
+    "get_top_countries_api_v1_geo_locations_top_countries": {
       "method": "get",
       "methods": [
         "GET"
@@ -120,13 +155,31 @@
       },
       "uri": "/api/v1/geo-locations/top-countries"
     },
+    "get_top_ips": {
+      "method": "get",
+      "methods": [
+        "GET"
+      ],
+      "queryParameters": {
+        "city": "string[] | undefined",
+        "country_code": "string[] | undefined",
+        "end_date": "DateTime",
+        "ip_address": "string[] | undefined",
+        "limit": "number | undefined",
+        "start_date": "DateTime"
+      },
+      "uri": "/api/v1/analytics/top-ips"
+    },
     "get_top_urls": {
       "method": "get",
       "methods": [
         "GET"
       ],
       "queryParameters": {
+        "city": "string[] | undefined",
+        "country_code": "string[] | undefined",
         "end_date": "DateTime",
+        "ip_address": "string[] | undefined",
         "limit": "number | undefined",
         "start_date": "DateTime"
       },
@@ -138,7 +191,10 @@
         "GET"
       ],
       "queryParameters": {
+        "city": "string[] | undefined",
+        "country_code": "string[] | undefined",
         "end_date": "DateTime",
+        "ip_address": "string[] | undefined",
         "limit": "number | undefined",
         "start_date": "DateTime"
       },

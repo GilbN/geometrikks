@@ -1198,6 +1198,53 @@ export const TimeSeriesResponseSchema = {
   type: "object",
 } as const;
 
+export const TopCitiesResponseSchema = {
+  properties: {
+    end_date: {
+      type: "string",
+    },
+    items: {
+      items: {
+        $ref: "#/components/schemas/TopCityStatsDTO",
+      },
+      type: "array",
+    },
+    start_date: {
+      type: "string",
+    },
+  },
+  required: ["end_date", "items", "start_date"],
+  title: "TopCitiesResponse",
+  type: "object",
+} as const;
+
+export const TopCityStatsDTOSchema = {
+  properties: {
+    city: {
+      type: "string",
+    },
+    country_code: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    hits: {
+      type: "integer",
+    },
+    unique_ips: {
+      type: "integer",
+    },
+  },
+  required: ["city", "country_code", "hits", "unique_ips"],
+  title: "TopCityStatsDTO",
+  type: "object",
+} as const;
+
 export const TopCountriesResponseSchema = {
   properties: {
     top_countries: {
@@ -1209,6 +1256,26 @@ export const TopCountriesResponseSchema = {
   },
   required: [],
   title: "TopCountriesResponse",
+  type: "object",
+} as const;
+
+export const TopCountriesStatsResponseSchema = {
+  properties: {
+    end_date: {
+      type: "string",
+    },
+    items: {
+      items: {
+        $ref: "#/components/schemas/TopCountryStatsDTO",
+      },
+      type: "array",
+    },
+    start_date: {
+      type: "string",
+    },
+  },
+  required: ["end_date", "items", "start_date"],
+  title: "TopCountriesStatsResponse",
   type: "object",
 } as const;
 
@@ -1236,6 +1303,33 @@ export const TopCountryDTOSchema = {
   type: "object",
 } as const;
 
+export const TopCountryStatsDTOSchema = {
+  properties: {
+    country_code: {
+      type: "string",
+    },
+    country_name: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    hits: {
+      type: "integer",
+    },
+    unique_ips: {
+      type: "integer",
+    },
+  },
+  required: ["country_code", "country_name", "hits", "unique_ips"],
+  title: "TopCountryStatsDTO",
+  type: "object",
+} as const;
+
 export const TopIPDTOSchema = {
   properties: {
     event_count: {
@@ -1257,6 +1351,73 @@ export const TopIPDTOSchema = {
   },
   required: ["event_count", "ip_address"],
   title: "TopIPDTO",
+  type: "object",
+} as const;
+
+export const TopIpDTOSchema = {
+  properties: {
+    city: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    country_code: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    error_hits: {
+      type: "integer",
+    },
+    hits: {
+      type: "integer",
+    },
+    ip_address: {
+      type: "string",
+    },
+    total_bytes: {
+      type: "integer",
+    },
+  },
+  required: [
+    "city",
+    "country_code",
+    "error_hits",
+    "hits",
+    "ip_address",
+    "total_bytes",
+  ],
+  title: "TopIpDTO",
+  type: "object",
+} as const;
+
+export const TopIpsResponseSchema = {
+  properties: {
+    end_date: {
+      type: "string",
+    },
+    items: {
+      items: {
+        $ref: "#/components/schemas/TopIpDTO",
+      },
+      type: "array",
+    },
+    start_date: {
+      type: "string",
+    },
+  },
+  required: ["end_date", "items", "start_date"],
+  title: "TopIpsResponse",
   type: "object",
 } as const;
 

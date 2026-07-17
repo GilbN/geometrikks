@@ -12,6 +12,9 @@ import {
   fetchLocationTopIPs,
   fetchTimeSeries,
   fetchTopCountries,
+  fetchTopCityStats,
+  fetchTopCountryStats,
+  fetchTopIpStats,
   fetchTopUrls,
   fetchTopUserAgents,
   fetchCumulativeTimeSeries,
@@ -19,6 +22,7 @@ import {
   fetchAccessLogFacets,
   fetchRuntimeSettings,
   parseTimeRange,
+  resolveChartGranularity,
   type SummaryParams,
   type GlobalTopIPsResponse,
   type LocationTopIPsResponse,
@@ -30,6 +34,7 @@ import {
   type SortOrder,
 } from "./api"
 import { useTimeRange } from "./time-range-context"
+import { useAnalyticsFilters } from "./analytics-filters-context"
 
 // ============================================================================
 // Query Keys
@@ -53,6 +58,12 @@ export const queryKeys = {
       [...queryKeys.analytics.all, "top-urls", params, refreshKey] as const,
     topUserAgents: (params: Record<string, unknown>, refreshKey?: number) =>
       [...queryKeys.analytics.all, "top-user-agents", params, refreshKey] as const,
+    topIps: (params: Record<string, unknown>, refreshKey?: number) =>
+      [...queryKeys.analytics.all, "top-ips", params, refreshKey] as const,
+    topCountryStats: (params: Record<string, unknown>, refreshKey?: number) =>
+      [...queryKeys.analytics.all, "top-country-stats", params, refreshKey] as const,
+    topCityStats: (params: Record<string, unknown>, refreshKey?: number) =>
+      [...queryKeys.analytics.all, "top-city-stats", params, refreshKey] as const,
   },
   geo: {
     all: ["geo"] as const,
@@ -98,10 +109,10 @@ export interface UseSummaryOptions {
  */
 export function useSummary(options: UseSummaryOptions = {}) {
   const { comparePrevious = true, enabled = true } = options
-  const { range, pollInterval, lastRefresh } = useTimeRange()
+  const { range, customRange, pollInterval, lastRefresh } = useTimeRange()
 
   // Use statsRange (hourly minimum) for summary stats queries
-  const { startDate, endDate } = parseTimeRange(range, Date.now())
+  const { startDate, endDate } = parseTimeRange(range, Date.now(), customRange)
   const params: SummaryParams = {
     startDate,
     endDate,
@@ -110,7 +121,7 @@ export function useSummary(options: UseSummaryOptions = {}) {
 
   return useQuery({
     // Query key uses statsRange + lastRefresh for stability
-    queryKey: queryKeys.analytics.summary({ range, comparePrevious }, lastRefresh),
+    queryKey: queryKeys.analytics.summary({ range, customRange, comparePrevious }, lastRefresh),
     queryFn: () => fetchSummary(params),
     enabled,
     staleTime: 15 * 1000, // 15 seconds
@@ -124,10 +135,10 @@ export function useSummary(options: UseSummaryOptions = {}) {
  */
 export function useLiveSummary(options: UseSummaryOptions = {}) {
   const { comparePrevious = true, enabled = true } = options
-  const { range, pollInterval, lastRefresh } = useTimeRange()
+  const { range, customRange, pollInterval, lastRefresh } = useTimeRange()
 
   // Use range (can be more granular) for live summary stats queries
-  const { startDate, endDate } = parseTimeRange(range, Date.now())
+  const { startDate, endDate } = parseTimeRange(range, Date.now(), customRange)
   const params: SummaryParams = {
     startDate,
     endDate,
@@ -136,7 +147,7 @@ export function useLiveSummary(options: UseSummaryOptions = {}) {
 
   return useQuery({
     // Query key uses range + lastRefresh for stability
-    queryKey: queryKeys.analytics.liveSummary({ range, comparePrevious }, lastRefresh),
+    queryKey: queryKeys.analytics.liveSummary({ range, customRange, comparePrevious }, lastRefresh),
     queryFn: () => fetchLiveSummary(params),
     enabled,
     staleTime: 15 * 1000, // 15 seconds
@@ -167,14 +178,14 @@ export interface UseGeoJSONOptions {
  */
 export function useGeoJSON(options: UseGeoJSONOptions = {}) {
   const { enabled = true, countryCodes, cities } = options
-  const { range, pollInterval, lastRefresh } = useTimeRange()
+  const { range, customRange, pollInterval, lastRefresh } = useTimeRange()
 
   return useQuery({
     // Query key uses lastRefresh for cache invalidation on manual refresh
-    queryKey: queryKeys.geo.geojson({ range, countryCodes, cities }, lastRefresh),
+    queryKey: queryKeys.geo.geojson({ range, customRange, countryCodes, cities }, lastRefresh),
     // Compute date range at fetch time so polls get fresh data
     queryFn: () => {
-      const { startDate, endDate } = parseTimeRange(range, Date.now())
+      const { startDate, endDate } = parseTimeRange(range, Date.now(), customRange)
       return fetchGeoJSON({
         fromTimestamp: startDate,
         toTimestamp: endDate,
@@ -201,12 +212,12 @@ export interface UseGlobalTopIPsOptions {
  */
 export function useGlobalTopIPs(options: UseGlobalTopIPsOptions = {}) {
   const { enabled = true, limit = 5 } = options
-  const { range, pollInterval, lastRefresh } = useTimeRange()
+  const { range, customRange, pollInterval, lastRefresh } = useTimeRange()
 
   return useQuery<GlobalTopIPsResponse>({
-    queryKey: queryKeys.geo.globalTopIPs({ range, limit }, lastRefresh),
+    queryKey: queryKeys.geo.globalTopIPs({ range, customRange, limit }, lastRefresh),
     queryFn: () => {
-      const { startDate, endDate } = parseTimeRange(range, Date.now())
+      const { startDate, endDate } = parseTimeRange(range, Date.now(), customRange)
       return fetchGlobalTopIPs({
         fromTimestamp: startDate,
         toTimestamp: endDate,
@@ -232,15 +243,15 @@ export interface UseLocationTopIPsOptions {
  */
 export function useLocationTopIPs(locationId: number | null, options: UseLocationTopIPsOptions = {}) {
   const { enabled = true, limit = 5 } = options
-  const { range, lastRefresh } = useTimeRange()
+  const { range, customRange, lastRefresh } = useTimeRange()
 
   return useQuery<LocationTopIPsResponse>({
-    queryKey: queryKeys.geo.locationTopIPs(locationId ?? 0, { range, limit }, lastRefresh),
+    queryKey: queryKeys.geo.locationTopIPs(locationId ?? 0, { range, customRange, limit }, lastRefresh),
     queryFn: () => {
       if (locationId === null) {
         throw new Error("locationId is required")
       }
-      const { startDate, endDate } = parseTimeRange(range, Date.now())
+      const { startDate, endDate } = parseTimeRange(range, Date.now(), customRange)
       return fetchLocationTopIPs({
         locationId,
         fromTimestamp: startDate,
@@ -267,12 +278,12 @@ export interface UseTopCountriesOptions {
  */
 export function useTopCountries(options: UseTopCountriesOptions = {}) {
   const { enabled = true, limit = 10 } = options
-  const { range, pollInterval, lastRefresh } = useTimeRange()
+  const { range, customRange, pollInterval, lastRefresh } = useTimeRange()
 
   return useQuery<TopCountriesResponse>({
-    queryKey: queryKeys.geo.topCountries({ range, limit }, lastRefresh),
+    queryKey: queryKeys.geo.topCountries({ range, customRange, limit }, lastRefresh),
     queryFn: () => {
-      const { startDate, endDate } = parseTimeRange(range, Date.now())
+      const { startDate, endDate } = parseTimeRange(range, Date.now(), customRange)
       return fetchTopCountries({
         fromTimestamp: startDate,
         toTimestamp: endDate,
@@ -296,12 +307,12 @@ export interface UseCumulativeTimeSeriesOptions {
  */
 export function useCumulativeTimeSeries(options: UseCumulativeTimeSeriesOptions = {}) {
   const { enabled = true } = options
-  const { range, pollInterval, lastRefresh } = useTimeRange()
+  const { range, customRange, pollInterval, lastRefresh } = useTimeRange()
 
   return useQuery<CumulativeTimeSeriesResponse>({
-    queryKey: queryKeys.analytics.cumulativeTimeSeries({ range }, lastRefresh),
+    queryKey: queryKeys.analytics.cumulativeTimeSeries({ range, customRange }, lastRefresh),
     queryFn: () => {
-      const { startDate, endDate } = parseTimeRange(range, Date.now())
+      const { startDate, endDate } = parseTimeRange(range, Date.now(), customRange)
       return fetchCumulativeTimeSeries({
         startDate,
         endDate,
@@ -334,13 +345,22 @@ export interface UseTopListOptions extends UseAnalyticsQueryOptions {
  */
 export function useTimeSeries(options: UseAnalyticsQueryOptions = {}) {
   const { enabled = true } = options
-  const { range, pollInterval, lastRefresh } = useTimeRange()
+  const { range, customRange, granularity, pollInterval, lastRefresh } = useTimeRange()
+  const { filters } = useAnalyticsFilters()
+  const resolved = resolveChartGranularity(granularity, range, customRange)
 
   return useQuery({
-    queryKey: queryKeys.analytics.timeSeries({ range }, lastRefresh),
+    queryKey: queryKeys.analytics.timeSeries({ range, customRange, granularity: resolved, filters }, lastRefresh),
     queryFn: () => {
-      const { startDate, endDate } = parseTimeRange(range, Date.now())
-      return fetchTimeSeries({ startDate, endDate })
+      const { startDate, endDate } = parseTimeRange(range, Date.now(), customRange)
+      return fetchTimeSeries({
+        startDate,
+        endDate,
+        granularity: resolved,
+        countryCodes: filters.countryCodes,
+        cities: filters.cities,
+        ips: filters.ips,
+      })
     },
     enabled,
     staleTime: 60 * 1000,
@@ -354,13 +374,14 @@ export function useTimeSeries(options: UseAnalyticsQueryOptions = {}) {
  */
 export function useGeoTimeSeries(options: UseAnalyticsQueryOptions = {}) {
   const { enabled = true } = options
-  const { range, pollInterval, lastRefresh } = useTimeRange()
+  const { range, customRange, granularity, pollInterval, lastRefresh } = useTimeRange()
+  const resolved = resolveChartGranularity(granularity, range, customRange)
 
   return useQuery({
-    queryKey: queryKeys.analytics.geoTimeSeries({ range }, lastRefresh),
+    queryKey: queryKeys.analytics.geoTimeSeries({ range, customRange, granularity: resolved }, lastRefresh),
     queryFn: () => {
-      const { startDate, endDate } = parseTimeRange(range, Date.now())
-      return fetchGeoTimeSeries({ startDate, endDate })
+      const { startDate, endDate } = parseTimeRange(range, Date.now(), customRange)
+      return fetchGeoTimeSeries({ startDate, endDate, granularity: resolved })
     },
     enabled,
     staleTime: 60 * 1000,
@@ -374,13 +395,21 @@ export function useGeoTimeSeries(options: UseAnalyticsQueryOptions = {}) {
  */
 export function useTopUrls(options: UseTopListOptions = {}) {
   const { enabled = true, limit = 25 } = options
-  const { range, pollInterval, lastRefresh } = useTimeRange()
+  const { range, customRange, pollInterval, lastRefresh } = useTimeRange()
+  const { filters } = useAnalyticsFilters()
 
   return useQuery({
-    queryKey: queryKeys.analytics.topUrls({ range, limit }, lastRefresh),
+    queryKey: queryKeys.analytics.topUrls({ range, customRange, limit, filters }, lastRefresh),
     queryFn: () => {
-      const { startDate, endDate } = parseTimeRange(range, Date.now())
-      return fetchTopUrls({ startDate, endDate, limit })
+      const { startDate, endDate } = parseTimeRange(range, Date.now(), customRange)
+      return fetchTopUrls({
+        startDate,
+        endDate,
+        limit,
+        countryCodes: filters.countryCodes,
+        cities: filters.cities,
+        ips: filters.ips,
+      })
     },
     enabled,
     staleTime: 60 * 1000,
@@ -394,13 +423,105 @@ export function useTopUrls(options: UseTopListOptions = {}) {
  */
 export function useTopUserAgents(options: UseTopListOptions = {}) {
   const { enabled = true, limit = 25 } = options
-  const { range, pollInterval, lastRefresh } = useTimeRange()
+  const { range, customRange, pollInterval, lastRefresh } = useTimeRange()
+  const { filters } = useAnalyticsFilters()
 
   return useQuery({
-    queryKey: queryKeys.analytics.topUserAgents({ range, limit }, lastRefresh),
+    queryKey: queryKeys.analytics.topUserAgents({ range, customRange, limit, filters }, lastRefresh),
     queryFn: () => {
-      const { startDate, endDate } = parseTimeRange(range, Date.now())
-      return fetchTopUserAgents({ startDate, endDate, limit })
+      const { startDate, endDate } = parseTimeRange(range, Date.now(), customRange)
+      return fetchTopUserAgents({
+        startDate,
+        endDate,
+        limit,
+        countryCodes: filters.countryCodes,
+        cities: filters.cities,
+        ips: filters.ips,
+      })
+    },
+    enabled,
+    staleTime: 60 * 1000,
+    refetchInterval: pollInterval || false,
+  })
+}
+
+/**
+ * Fetch the top client IPs by hit count.
+ * Uses TimeRangeContext for time filtering.
+ */
+export function useTopIpStats(options: UseTopListOptions = {}) {
+  const { enabled = true, limit = 25 } = options
+  const { range, customRange, pollInterval, lastRefresh } = useTimeRange()
+  const { filters } = useAnalyticsFilters()
+
+  return useQuery({
+    queryKey: queryKeys.analytics.topIps({ range, customRange, limit, filters }, lastRefresh),
+    queryFn: () => {
+      const { startDate, endDate } = parseTimeRange(range, Date.now(), customRange)
+      return fetchTopIpStats({
+        startDate,
+        endDate,
+        limit,
+        countryCodes: filters.countryCodes,
+        cities: filters.cities,
+        ips: filters.ips,
+      })
+    },
+    enabled,
+    staleTime: 60 * 1000,
+    refetchInterval: pollInterval || false,
+  })
+}
+
+/**
+ * Fetch the top countries by hit count.
+ * Uses TimeRangeContext for time filtering.
+ */
+export function useTopCountryStats(options: UseTopListOptions = {}) {
+  const { enabled = true, limit = 25 } = options
+  const { range, customRange, pollInterval, lastRefresh } = useTimeRange()
+  const { filters } = useAnalyticsFilters()
+
+  return useQuery({
+    queryKey: queryKeys.analytics.topCountryStats({ range, customRange, limit, filters }, lastRefresh),
+    queryFn: () => {
+      const { startDate, endDate } = parseTimeRange(range, Date.now(), customRange)
+      return fetchTopCountryStats({
+        startDate,
+        endDate,
+        limit,
+        countryCodes: filters.countryCodes,
+        cities: filters.cities,
+        ips: filters.ips,
+      })
+    },
+    enabled,
+    staleTime: 60 * 1000,
+    refetchInterval: pollInterval || false,
+  })
+}
+
+/**
+ * Fetch the top cities by hit count.
+ * Uses TimeRangeContext for time filtering.
+ */
+export function useTopCityStats(options: UseTopListOptions = {}) {
+  const { enabled = true, limit = 25 } = options
+  const { range, customRange, pollInterval, lastRefresh } = useTimeRange()
+  const { filters } = useAnalyticsFilters()
+
+  return useQuery({
+    queryKey: queryKeys.analytics.topCityStats({ range, customRange, limit, filters }, lastRefresh),
+    queryFn: () => {
+      const { startDate, endDate } = parseTimeRange(range, Date.now(), customRange)
+      return fetchTopCityStats({
+        startDate,
+        endDate,
+        limit,
+        countryCodes: filters.countryCodes,
+        cities: filters.cities,
+        ips: filters.ips,
+      })
     },
     enabled,
     staleTime: 60 * 1000,
@@ -446,15 +567,15 @@ export function useAccessLogs(options: UseAccessLogsOptions = {}) {
     sortField,
     sortOrder,
   } = options
-  const { range, pollInterval, lastRefresh } = useTimeRange()
+  const { range, customRange, pollInterval, lastRefresh } = useTimeRange()
 
   return useQuery<AccessLogsPage>({
     queryKey: queryKeys.accessLogs.list(
-      { range, currentPage, pageSize, searchString, ipAddressIn, methodIn, host, cityIn, countryCodeIn, statusIn, sortField, sortOrder },
+      { range, customRange, currentPage, pageSize, searchString, ipAddressIn, methodIn, host, cityIn, countryCodeIn, statusIn, sortField, sortOrder },
       lastRefresh,
     ),
     queryFn: () => {
-      const { startDate, endDate } = parseTimeRange(range, Date.now())
+      const { startDate, endDate } = parseTimeRange(range, Date.now(), customRange)
       return fetchAccessLogs({
         fromTimestamp: startDate,
         toTimestamp: endDate,

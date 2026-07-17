@@ -2,15 +2,18 @@
 
 from __future__ import annotations
 
+import ipaddress
 from datetime import datetime, timedelta
-from typing import Annotated
+from typing import Annotated, Literal
 
 from litestar import Controller, get
 from litestar.di import NamedDependency, Provide
+from litestar.exceptions import ValidationException
 from litestar.params import Parameter
 from litestar.openapi.spec import Example
 
 from geometrikks.domain.analytics.repositories import (
+    AnalyticsFilters,
     LiveStatsRepository,
     SummaryStatsRepository,
     SummaryStats,
@@ -29,6 +32,12 @@ from geometrikks.domain.analytics.dtos import (
     TopUrlsResponse,
     TopUserAgentDTO,
     TopUserAgentsResponse,
+    TopIpDTO,
+    TopIpsResponse,
+    TopCountryStatsDTO,
+    TopCountriesStatsResponse,
+    TopCityStatsDTO,
+    TopCitiesResponse,
 )
 from geometrikks.domain.analytics.repositories import StatsGranularity, get_stats_granularity
 
@@ -43,6 +52,41 @@ def _calculate_percent_change(current: float, previous: float) -> float | None:
     if previous == 0:
         return None
     return ((current - previous) / previous) * 100
+
+
+def _build_filters(
+    country_code: list[str] | None,
+    city: list[str] | None,
+    ip_address: list[str] | None,
+) -> AnalyticsFilters:
+    """Validate filter params; bad IPs become a 400 instead of a DB error."""
+    for ip in ip_address or []:
+        try:
+            ipaddress.ip_address(ip)
+        except ValueError as exc:
+            raise ValidationException(f"Invalid IP address: {ip!r}") from exc
+    return AnalyticsFilters(
+        country_codes=country_code or None,
+        cities=city or None,
+        ip_addresses=ip_address or None,
+    )
+
+
+def _resolve_chart_granularity(
+    start: datetime, end: datetime, override: str | None
+) -> StatsGranularity:
+    """Chart bucket granularity: explicit override wins, else auto-route.
+
+    Only "hourly"/"daily" are accepted from the API, so RAW can never be
+    requested; the auto fallback clamps RAW to HOURLY (no raw CAGG exists,
+    hourly + real-time aggregation covers <= 24h ranges).
+    """
+    if override is not None:
+        return StatsGranularity(override)
+    granularity = get_stats_granularity(start, end)
+    if granularity == StatsGranularity.RAW:
+        granularity = StatsGranularity.HOURLY
+    return granularity
 
 
 class AnalyticsController(Controller):
@@ -384,6 +428,7 @@ class AnalyticsController(Controller):
     async def get_time_series(
         self,
         summary_stats_repo: NamedDependency[SummaryStatsRepository],
+        live_stats_repo: NamedDependency[LiveStatsRepository],
         start_date: Annotated[
             datetime,
             Parameter(
@@ -398,14 +443,49 @@ class AnalyticsController(Controller):
                 examples=[Example(value="2024-12-31T23:59:59Z")],
             ),
         ],
+        granularity: Annotated[
+            Literal["hourly", "daily"] | None,
+            Parameter(
+                description="Bucket size override. Omit to auto-select "
+                "(hourly <= 30 days, daily above). RAW is never available.",
+                required=False,
+            ),
+        ] = None,
+        country_code: Annotated[
+            list[str] | None,
+            Parameter(description="Filter to these ISO country codes (repeatable)", required=False),
+        ] = None,
+        city: Annotated[
+            list[str] | None,
+            Parameter(description="Filter to these city names (repeatable)", required=False),
+        ] = None,
+        ip_address: Annotated[
+            list[str] | None,
+            Parameter(description="Filter to these client IPs (repeatable)", required=False),
+        ] = None,
     ) -> TimeSeriesResponse:
-        """Get per-bucket access-log metrics (requests, status, bytes, latency)."""
-        rows = await summary_stats_repo.get_time_series(start_date, end_date)
-        granularity = get_stats_granularity(start_date, end_date)
-        if granularity == StatsGranularity.RAW:
-            granularity = StatsGranularity.HOURLY  # matches the repo's clamp
+        """Get per-bucket access-log metrics (requests, status, bytes, latency).
+
+        Perf note: when any of country_code/city/ip_address is set, this
+        scans raw access_logs instead of the CAGGs (which can't be sliced by
+        dimension). Filtered ranges are therefore bounded by
+        raw_retention_days (default 180d) and slower than the unfiltered,
+        CAGG-backed path - acceptable at homelab volume with chunk exclusion
+        (same trade-off as /top-urls).
+        """
+        filters = _build_filters(country_code, city, ip_address)
+        resolved = _resolve_chart_granularity(start_date, end_date, granularity)
+        if filters.is_active():
+            interval = "1 hour" if resolved == StatsGranularity.HOURLY else "1 day"
+            rows = await live_stats_repo.get_time_series(
+                start_date, end_date, bucket_interval=interval, filters=filters
+            )
+        else:
+            rows = await summary_stats_repo.get_time_series(
+                start_date, end_date, granularity=resolved
+            )
         return TimeSeriesResponse(
-            granularity=granularity.value,
+            granularity=resolved.value,
             start_date=start_date.isoformat(),
             end_date=end_date.isoformat(),
             data=[
@@ -446,14 +526,20 @@ class AnalyticsController(Controller):
                 examples=[Example(value="2024-12-31T23:59:59Z")],
             ),
         ],
+        granularity: Annotated[
+            Literal["hourly", "daily"] | None,
+            Parameter(
+                description="Bucket size override. Omit to auto-select "
+                "(hourly <= 30 days, daily above). RAW is never available.",
+                required=False,
+            ),
+        ] = None,
     ) -> GeoEventsTimeSeriesResponse:
         """Get per-bucket geo-event metrics (events, unique IPs/countries/cities)."""
-        rows = await summary_stats_repo.get_geo_time_series(start_date, end_date)
-        granularity = get_stats_granularity(start_date, end_date)
-        if granularity == StatsGranularity.RAW:
-            granularity = StatsGranularity.HOURLY  # matches the repo's clamp
+        resolved = _resolve_chart_granularity(start_date, end_date, granularity)
+        rows = await summary_stats_repo.get_geo_time_series(start_date, end_date, granularity=resolved)
         return GeoEventsTimeSeriesResponse(
-            granularity=granularity.value,
+            granularity=resolved.value,
             start_date=start_date.isoformat(),
             end_date=end_date.isoformat(),
             data=[
@@ -490,9 +576,22 @@ class AnalyticsController(Controller):
             int,
             Parameter(description="Maximum number of URLs to return", ge=1, le=100),
         ] = 25,
+        country_code: Annotated[
+            list[str] | None,
+            Parameter(description="Filter to these ISO country codes (repeatable)", required=False),
+        ] = None,
+        city: Annotated[
+            list[str] | None,
+            Parameter(description="Filter to these city names (repeatable)", required=False),
+        ] = None,
+        ip_address: Annotated[
+            list[str] | None,
+            Parameter(description="Filter to these client IPs (repeatable)", required=False),
+        ] = None,
     ) -> TopUrlsResponse:
         """Get the top URLs by hit count for a date range."""
-        rows = await live_stats_repo.get_top_urls(start_date, end_date, limit=limit)
+        filters = _build_filters(country_code, city, ip_address)
+        rows = await live_stats_repo.get_top_urls(start_date, end_date, limit=limit, filters=filters)
         return TopUrlsResponse(
             start_date=start_date.isoformat(),
             end_date=end_date.isoformat(),
@@ -521,12 +620,139 @@ class AnalyticsController(Controller):
             int,
             Parameter(description="Maximum number of user agents to return", ge=1, le=100),
         ] = 25,
+        country_code: Annotated[
+            list[str] | None,
+            Parameter(description="Filter to these ISO country codes (repeatable)", required=False),
+        ] = None,
+        city: Annotated[
+            list[str] | None,
+            Parameter(description="Filter to these city names (repeatable)", required=False),
+        ] = None,
+        ip_address: Annotated[
+            list[str] | None,
+            Parameter(description="Filter to these client IPs (repeatable)", required=False),
+        ] = None,
     ) -> TopUserAgentsResponse:
         """Get the top user agents by hit count for a date range."""
-        rows = await live_stats_repo.get_top_user_agents(start_date, end_date, limit=limit)
+        filters = _build_filters(country_code, city, ip_address)
+        rows = await live_stats_repo.get_top_user_agents(start_date, end_date, limit=limit, filters=filters)
         return TopUserAgentsResponse(
             start_date=start_date.isoformat(),
             end_date=end_date.isoformat(),
             items=[TopUserAgentDTO(**vars(r)) for r in rows],
+        )
+
+    @get("/top-ips", description="Top client IPs by hits from raw access logs (time-bounded).")
+    async def get_top_ips(
+        self,
+        live_stats_repo: NamedDependency[LiveStatsRepository],
+        start_date: Annotated[
+            datetime,
+            Parameter(description="Start date (ISO 8601)"),
+        ],
+        end_date: Annotated[
+            datetime,
+            Parameter(description="End date (ISO 8601)"),
+        ],
+        limit: Annotated[
+            int,
+            Parameter(description="Maximum number of IPs", ge=1, le=100),
+        ] = 25,
+        country_code: Annotated[
+            list[str] | None,
+            Parameter(description="Filter to these ISO country codes (repeatable)", required=False),
+        ] = None,
+        city: Annotated[
+            list[str] | None,
+            Parameter(description="Filter to these city names (repeatable)", required=False),
+        ] = None,
+        ip_address: Annotated[
+            list[str] | None,
+            Parameter(description="Filter to these client IPs (repeatable)", required=False),
+        ] = None,
+    ) -> TopIpsResponse:
+        """Get the top client IPs by hit count for a date range."""
+        filters = _build_filters(country_code, city, ip_address)
+        rows = await live_stats_repo.get_top_ips(start_date, end_date, limit=limit, filters=filters)
+        return TopIpsResponse(
+            start_date=start_date.isoformat(),
+            end_date=end_date.isoformat(),
+            items=[TopIpDTO(**vars(r)) for r in rows],
+        )
+
+    @get("/top-countries", description="Top countries by hits from raw access logs (time-bounded).")
+    async def get_top_countries(
+        self,
+        live_stats_repo: NamedDependency[LiveStatsRepository],
+        start_date: Annotated[
+            datetime,
+            Parameter(description="Start date (ISO 8601)"),
+        ],
+        end_date: Annotated[
+            datetime,
+            Parameter(description="End date (ISO 8601)"),
+        ],
+        limit: Annotated[
+            int,
+            Parameter(description="Maximum number of countries", ge=1, le=100),
+        ] = 25,
+        country_code: Annotated[
+            list[str] | None,
+            Parameter(description="Filter to these ISO country codes (repeatable)", required=False),
+        ] = None,
+        city: Annotated[
+            list[str] | None,
+            Parameter(description="Filter to these city names (repeatable)", required=False),
+        ] = None,
+        ip_address: Annotated[
+            list[str] | None,
+            Parameter(description="Filter to these client IPs (repeatable)", required=False),
+        ] = None,
+    ) -> TopCountriesStatsResponse:
+        """Get the top countries by hit count for a date range."""
+        filters = _build_filters(country_code, city, ip_address)
+        rows = await live_stats_repo.get_top_countries(start_date, end_date, limit=limit, filters=filters)
+        return TopCountriesStatsResponse(
+            start_date=start_date.isoformat(),
+            end_date=end_date.isoformat(),
+            items=[TopCountryStatsDTO(**vars(r)) for r in rows],
+        )
+
+    @get("/top-cities", description="Top cities by hits from raw access logs (time-bounded).")
+    async def get_top_cities(
+        self,
+        live_stats_repo: NamedDependency[LiveStatsRepository],
+        start_date: Annotated[
+            datetime,
+            Parameter(description="Start date (ISO 8601)"),
+        ],
+        end_date: Annotated[
+            datetime,
+            Parameter(description="End date (ISO 8601)"),
+        ],
+        limit: Annotated[
+            int,
+            Parameter(description="Maximum number of cities", ge=1, le=100),
+        ] = 25,
+        country_code: Annotated[
+            list[str] | None,
+            Parameter(description="Filter to these ISO country codes (repeatable)", required=False),
+        ] = None,
+        city: Annotated[
+            list[str] | None,
+            Parameter(description="Filter to these city names (repeatable)", required=False),
+        ] = None,
+        ip_address: Annotated[
+            list[str] | None,
+            Parameter(description="Filter to these client IPs (repeatable)", required=False),
+        ] = None,
+    ) -> TopCitiesResponse:
+        """Get the top cities by hit count for a date range."""
+        filters = _build_filters(country_code, city, ip_address)
+        rows = await live_stats_repo.get_top_cities(start_date, end_date, limit=limit, filters=filters)
+        return TopCitiesResponse(
+            start_date=start_date.isoformat(),
+            end_date=end_date.isoformat(),
+            items=[TopCityStatsDTO(**vars(r)) for r in rows],
         )
 

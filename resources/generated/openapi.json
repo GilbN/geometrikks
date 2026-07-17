@@ -1256,6 +1256,60 @@
         "title": "TimeSeriesResponse",
         "type": "object"
       },
+      "TopCitiesResponse": {
+        "properties": {
+          "end_date": {
+            "type": "string"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/TopCityStatsDTO"
+            },
+            "type": "array"
+          },
+          "start_date": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "end_date",
+          "items",
+          "start_date"
+        ],
+        "title": "TopCitiesResponse",
+        "type": "object"
+      },
+      "TopCityStatsDTO": {
+        "properties": {
+          "city": {
+            "type": "string"
+          },
+          "country_code": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "hits": {
+            "type": "integer"
+          },
+          "unique_ips": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "city",
+          "country_code",
+          "hits",
+          "unique_ips"
+        ],
+        "title": "TopCityStatsDTO",
+        "type": "object"
+      },
       "TopCountriesResponse": {
         "properties": {
           "top_countries": {
@@ -1267,6 +1321,29 @@
         },
         "required": [],
         "title": "TopCountriesResponse",
+        "type": "object"
+      },
+      "TopCountriesStatsResponse": {
+        "properties": {
+          "end_date": {
+            "type": "string"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/TopCountryStatsDTO"
+            },
+            "type": "array"
+          },
+          "start_date": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "end_date",
+          "items",
+          "start_date"
+        ],
+        "title": "TopCountriesStatsResponse",
         "type": "object"
       },
       "TopCountryDTO": {
@@ -1296,6 +1373,37 @@
         "title": "TopCountryDTO",
         "type": "object"
       },
+      "TopCountryStatsDTO": {
+        "properties": {
+          "country_code": {
+            "type": "string"
+          },
+          "country_name": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "hits": {
+            "type": "integer"
+          },
+          "unique_ips": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "country_code",
+          "country_name",
+          "hits",
+          "unique_ips"
+        ],
+        "title": "TopCountryStatsDTO",
+        "type": "object"
+      },
       "TopIPDTO": {
         "properties": {
           "event_count": {
@@ -1320,6 +1428,75 @@
           "ip_address"
         ],
         "title": "TopIPDTO",
+        "type": "object"
+      },
+      "TopIpDTO": {
+        "properties": {
+          "city": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "country_code": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "error_hits": {
+            "type": "integer"
+          },
+          "hits": {
+            "type": "integer"
+          },
+          "ip_address": {
+            "type": "string"
+          },
+          "total_bytes": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "city",
+          "country_code",
+          "error_hits",
+          "hits",
+          "ip_address",
+          "total_bytes"
+        ],
+        "title": "TopIpDTO",
+        "type": "object"
+      },
+      "TopIpsResponse": {
+        "properties": {
+          "end_date": {
+            "type": "string"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/TopIpDTO"
+            },
+            "type": "array"
+          },
+          "start_date": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "end_date",
+          "items",
+          "start_date"
+        ],
+        "title": "TopIpsResponse",
         "type": "object"
       },
       "TopUrlDTO": {
@@ -1962,6 +2139,27 @@
               "format": "date-time",
               "type": "string"
             }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Bucket size override. Omit to auto-select (hourly <= 30 days, daily above). RAW is never available.",
+            "in": "query",
+            "name": "granularity",
+            "required": false,
+            "schema": {
+              "description": "Bucket size override. Omit to auto-select (hourly <= 30 days, daily above). RAW is never available.",
+              "enum": [
+                "hourly",
+                "daily",
+                null
+              ],
+              "type": [
+                "null",
+                "string"
+              ]
+            }
           }
         ],
         "responses": {
@@ -2314,6 +2512,96 @@
               "format": "date-time",
               "type": "string"
             }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Bucket size override. Omit to auto-select (hourly <= 30 days, daily above). RAW is never available.",
+            "in": "query",
+            "name": "granularity",
+            "required": false,
+            "schema": {
+              "description": "Bucket size override. Omit to auto-select (hourly <= 30 days, daily above). RAW is never available.",
+              "enum": [
+                "hourly",
+                "daily",
+                null
+              ],
+              "type": [
+                "null",
+                "string"
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Filter to these ISO country codes (repeatable)",
+            "in": "query",
+            "name": "country_code",
+            "required": false,
+            "schema": {
+              "description": "Filter to these ISO country codes (repeatable)",
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Filter to these city names (repeatable)",
+            "in": "query",
+            "name": "city",
+            "required": false,
+            "schema": {
+              "description": "Filter to these city names (repeatable)",
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Filter to these client IPs (repeatable)",
+            "in": "query",
+            "name": "ip_address",
+            "required": false,
+            "schema": {
+              "description": "Filter to these client IPs (repeatable)",
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
           }
         ],
         "responses": {
@@ -2481,6 +2769,537 @@
         ]
       }
     },
+    "/api/v1/analytics/top-cities": {
+      "get": {
+        "deprecated": false,
+        "description": "Top cities by hits from raw access logs (time-bounded).",
+        "operationId": "ApiV1AnalyticsTopCitiesGetTopCities",
+        "parameters": [
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Start date (ISO 8601)",
+            "in": "query",
+            "name": "start_date",
+            "required": true,
+            "schema": {
+              "description": "Start date (ISO 8601)",
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "End date (ISO 8601)",
+            "in": "query",
+            "name": "end_date",
+            "required": true,
+            "schema": {
+              "description": "End date (ISO 8601)",
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Maximum number of cities",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 25,
+              "description": "Maximum number of cities",
+              "maximum": 100.0,
+              "minimum": 1.0,
+              "type": "integer"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Filter to these ISO country codes (repeatable)",
+            "in": "query",
+            "name": "country_code",
+            "required": false,
+            "schema": {
+              "description": "Filter to these ISO country codes (repeatable)",
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Filter to these city names (repeatable)",
+            "in": "query",
+            "name": "city",
+            "required": false,
+            "schema": {
+              "description": "Filter to these city names (repeatable)",
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Filter to these client IPs (repeatable)",
+            "in": "query",
+            "name": "ip_address",
+            "required": false,
+            "schema": {
+              "description": "Filter to these client IPs (repeatable)",
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TopCitiesResponse"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "GetTopCities",
+        "tags": [
+          "Analytics"
+        ]
+      }
+    },
+    "/api/v1/analytics/top-countries": {
+      "get": {
+        "deprecated": false,
+        "description": "Top countries by hits from raw access logs (time-bounded).",
+        "operationId": "ApiV1AnalyticsTopCountriesGetTopCountries",
+        "parameters": [
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Start date (ISO 8601)",
+            "in": "query",
+            "name": "start_date",
+            "required": true,
+            "schema": {
+              "description": "Start date (ISO 8601)",
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "End date (ISO 8601)",
+            "in": "query",
+            "name": "end_date",
+            "required": true,
+            "schema": {
+              "description": "End date (ISO 8601)",
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Maximum number of countries",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 25,
+              "description": "Maximum number of countries",
+              "maximum": 100.0,
+              "minimum": 1.0,
+              "type": "integer"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Filter to these ISO country codes (repeatable)",
+            "in": "query",
+            "name": "country_code",
+            "required": false,
+            "schema": {
+              "description": "Filter to these ISO country codes (repeatable)",
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Filter to these city names (repeatable)",
+            "in": "query",
+            "name": "city",
+            "required": false,
+            "schema": {
+              "description": "Filter to these city names (repeatable)",
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Filter to these client IPs (repeatable)",
+            "in": "query",
+            "name": "ip_address",
+            "required": false,
+            "schema": {
+              "description": "Filter to these client IPs (repeatable)",
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TopCountriesStatsResponse"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "GetTopCountries",
+        "tags": [
+          "Analytics"
+        ]
+      }
+    },
+    "/api/v1/analytics/top-ips": {
+      "get": {
+        "deprecated": false,
+        "description": "Top client IPs by hits from raw access logs (time-bounded).",
+        "operationId": "ApiV1AnalyticsTopIpsGetTopIps",
+        "parameters": [
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Start date (ISO 8601)",
+            "in": "query",
+            "name": "start_date",
+            "required": true,
+            "schema": {
+              "description": "Start date (ISO 8601)",
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "End date (ISO 8601)",
+            "in": "query",
+            "name": "end_date",
+            "required": true,
+            "schema": {
+              "description": "End date (ISO 8601)",
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Maximum number of IPs",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 25,
+              "description": "Maximum number of IPs",
+              "maximum": 100.0,
+              "minimum": 1.0,
+              "type": "integer"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Filter to these ISO country codes (repeatable)",
+            "in": "query",
+            "name": "country_code",
+            "required": false,
+            "schema": {
+              "description": "Filter to these ISO country codes (repeatable)",
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Filter to these city names (repeatable)",
+            "in": "query",
+            "name": "city",
+            "required": false,
+            "schema": {
+              "description": "Filter to these city names (repeatable)",
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Filter to these client IPs (repeatable)",
+            "in": "query",
+            "name": "ip_address",
+            "required": false,
+            "schema": {
+              "description": "Filter to these client IPs (repeatable)",
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TopIpsResponse"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "GetTopIps",
+        "tags": [
+          "Analytics"
+        ]
+      }
+    },
     "/api/v1/analytics/top-urls": {
       "get": {
         "deprecated": false,
@@ -2545,6 +3364,75 @@
               "maximum": 100.0,
               "minimum": 1.0,
               "type": "integer"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Filter to these ISO country codes (repeatable)",
+            "in": "query",
+            "name": "country_code",
+            "required": false,
+            "schema": {
+              "description": "Filter to these ISO country codes (repeatable)",
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Filter to these city names (repeatable)",
+            "in": "query",
+            "name": "city",
+            "required": false,
+            "schema": {
+              "description": "Filter to these city names (repeatable)",
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Filter to these client IPs (repeatable)",
+            "in": "query",
+            "name": "ip_address",
+            "required": false,
+            "schema": {
+              "description": "Filter to these client IPs (repeatable)",
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
             }
           }
         ],
@@ -2669,6 +3557,75 @@
               "maximum": 100.0,
               "minimum": 1.0,
               "type": "integer"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Filter to these ISO country codes (repeatable)",
+            "in": "query",
+            "name": "country_code",
+            "required": false,
+            "schema": {
+              "description": "Filter to these ISO country codes (repeatable)",
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Filter to these city names (repeatable)",
+            "in": "query",
+            "name": "city",
+            "required": false,
+            "schema": {
+              "description": "Filter to these city names (repeatable)",
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Filter to these client IPs (repeatable)",
+            "in": "query",
+            "name": "ip_address",
+            "required": false,
+            "schema": {
+              "description": "Filter to these client IPs (repeatable)",
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
             }
           }
         ],

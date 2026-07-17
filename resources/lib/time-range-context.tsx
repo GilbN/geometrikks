@@ -1,19 +1,25 @@
 import { createContext, useContext, useState, useCallback, useEffect } from "react"
-import type { TimeRangeValue } from "./api"
+import type { ChartGranularity, CustomTimeRange, TimeRangeValue } from "./api"
 
 const STORAGE_KEY = "geometrikks-time-range"
 const DEFAULT_RANGE: TimeRangeValue = "7d"
 const DEFAULT_POLL_INTERVAL = 30000 // 30 seconds
+const DEFAULT_GRANULARITY: ChartGranularity = "auto"
+const DEFAULT_CUSTOM_RANGE: CustomTimeRange | null = null
 
 interface TimeRangeState {
   range: TimeRangeValue
   pollInterval: number
   lastRefresh: number
+  granularity: ChartGranularity
+  customRange: CustomTimeRange | null
 }
 
 interface TimeRangeContextValue extends TimeRangeState {
   setRange: (range: TimeRangeValue) => void
   setPollInterval: (interval: number) => void
+  setGranularity: (granularity: ChartGranularity) => void
+  setCustomRange: (customRange: CustomTimeRange) => void
   refresh: () => void
 }
 
@@ -46,17 +52,21 @@ export function TimeRangeProvider({ children }: { children: React.ReactNode }) {
       range: stored.range ?? DEFAULT_RANGE,
       pollInterval: stored.pollInterval ?? DEFAULT_POLL_INTERVAL,
       lastRefresh: Date.now(),
+      granularity: stored.granularity ?? DEFAULT_GRANULARITY,
+      customRange: stored.customRange ?? DEFAULT_CUSTOM_RANGE,
     }
     return initial
   })
 
-  // Persist to localStorage when range, statsRange, or pollInterval changes
+  // Persist to localStorage when range, statsRange, pollInterval, granularity, or customRange changes
   useEffect(() => {
     saveToStorage({
       range: state.range,
       pollInterval: state.pollInterval,
+      granularity: state.granularity,
+      customRange: state.customRange,
     })
-  }, [state.range, state.pollInterval])
+  }, [state.range, state.pollInterval, state.granularity, state.customRange])
 
   const setRange = useCallback((range: TimeRangeValue) => {
     setState((prev) => ({ ...prev, range, lastRefresh: Date.now() }))
@@ -64,6 +74,14 @@ export function TimeRangeProvider({ children }: { children: React.ReactNode }) {
 
   const setPollInterval = useCallback((pollInterval: number) => {
     setState((prev) => ({ ...prev, pollInterval }))
+  }, [])
+
+  const setGranularity = useCallback((granularity: ChartGranularity) => {
+    setState((prev) => ({ ...prev, granularity }))
+  }, [])
+
+  const setCustomRange = useCallback((customRange: CustomTimeRange) => {
+    setState((prev) => ({ ...prev, range: "custom", customRange, lastRefresh: Date.now() }))
   }, [])
 
   const refresh = useCallback(() => {
@@ -76,6 +94,8 @@ export function TimeRangeProvider({ children }: { children: React.ReactNode }) {
         ...state,
         setRange,
         setPollInterval,
+        setGranularity,
+        setCustomRange,
         refresh,
       }}
     >

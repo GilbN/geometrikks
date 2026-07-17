@@ -6,6 +6,9 @@ import axios from "axios"
 import {
   apiV1AnalyticsGeoTimeSeriesGetGeoTimeSeries,
   apiV1AnalyticsTimeSeriesGetTimeSeries,
+  apiV1AnalyticsTopCitiesGetTopCities,
+  apiV1AnalyticsTopCountriesGetTopCountries,
+  apiV1AnalyticsTopIpsGetTopIps,
   apiV1AnalyticsTopUrlsGetTopUrls,
   apiV1AnalyticsTopUserAgentsGetTopUserAgents,
 } from "@/generated/api/sdk.gen"
@@ -209,6 +212,8 @@ export interface TimeSeriesParams {
   granularity?: "hourly" | "daily"
 }
 
+export type ChartGranularity = "auto" | "hourly" | "daily"
+
 
 export interface GeoJSONParams {
   fromTimestamp: string // Full ISO timestamp
@@ -336,9 +341,28 @@ export async function fetchTopCountries(params: TopIPsParams): Promise<TopCountr
 // Analytics fetchers on the generated SDK (types flow from the OpenAPI schema)
 // ============================================================================
 
-export async function fetchTimeSeries(params: TimeSeriesParams) {
+/**
+ * Country/city/IP filters shared by the analytics page's six filterable
+ * endpoints (not geo-time-series, which stays unfiltered). The generated
+ * fetch client serializes arrays as repeated keys (?country_code=NO&country_code=SE)
+ * by default, matching what Litestar expects.
+ */
+export interface AnalyticsFilterParams {
+  countryCodes?: string[]
+  cities?: string[]
+  ips?: string[]
+}
+
+export async function fetchTimeSeries(params: TimeSeriesParams & AnalyticsFilterParams) {
   const { data } = await apiV1AnalyticsTimeSeriesGetTimeSeries({
-    query: { start_date: params.startDate, end_date: params.endDate },
+    query: {
+      start_date: params.startDate,
+      end_date: params.endDate,
+      granularity: params.granularity,
+      country_code: params.countryCodes?.length ? params.countryCodes : undefined,
+      city: params.cities?.length ? params.cities : undefined,
+      ip_address: params.ips?.length ? params.ips : undefined,
+    },
     throwOnError: true,
   })
   return data
@@ -346,23 +370,82 @@ export async function fetchTimeSeries(params: TimeSeriesParams) {
 
 export async function fetchGeoTimeSeries(params: TimeSeriesParams) {
   const { data } = await apiV1AnalyticsGeoTimeSeriesGetGeoTimeSeries({
-    query: { start_date: params.startDate, end_date: params.endDate },
+    query: { start_date: params.startDate, end_date: params.endDate, granularity: params.granularity },
     throwOnError: true,
   })
   return data
 }
 
-export async function fetchTopUrls(params: TimeSeriesParams & { limit?: number }) {
+export async function fetchTopUrls(params: TimeSeriesParams & { limit?: number } & AnalyticsFilterParams) {
   const { data } = await apiV1AnalyticsTopUrlsGetTopUrls({
-    query: { start_date: params.startDate, end_date: params.endDate, limit: params.limit ?? 25 },
+    query: {
+      start_date: params.startDate,
+      end_date: params.endDate,
+      limit: params.limit ?? 25,
+      country_code: params.countryCodes?.length ? params.countryCodes : undefined,
+      city: params.cities?.length ? params.cities : undefined,
+      ip_address: params.ips?.length ? params.ips : undefined,
+    },
     throwOnError: true,
   })
   return data
 }
 
-export async function fetchTopUserAgents(params: TimeSeriesParams & { limit?: number }) {
+export async function fetchTopUserAgents(params: TimeSeriesParams & { limit?: number } & AnalyticsFilterParams) {
   const { data } = await apiV1AnalyticsTopUserAgentsGetTopUserAgents({
-    query: { start_date: params.startDate, end_date: params.endDate, limit: params.limit ?? 25 },
+    query: {
+      start_date: params.startDate,
+      end_date: params.endDate,
+      limit: params.limit ?? 25,
+      country_code: params.countryCodes?.length ? params.countryCodes : undefined,
+      city: params.cities?.length ? params.cities : undefined,
+      ip_address: params.ips?.length ? params.ips : undefined,
+    },
+    throwOnError: true,
+  })
+  return data
+}
+
+export async function fetchTopIpStats(params: TimeSeriesParams & { limit?: number } & AnalyticsFilterParams) {
+  const { data } = await apiV1AnalyticsTopIpsGetTopIps({
+    query: {
+      start_date: params.startDate,
+      end_date: params.endDate,
+      limit: params.limit ?? 25,
+      country_code: params.countryCodes?.length ? params.countryCodes : undefined,
+      city: params.cities?.length ? params.cities : undefined,
+      ip_address: params.ips?.length ? params.ips : undefined,
+    },
+    throwOnError: true,
+  })
+  return data
+}
+
+export async function fetchTopCountryStats(params: TimeSeriesParams & { limit?: number } & AnalyticsFilterParams) {
+  const { data } = await apiV1AnalyticsTopCountriesGetTopCountries({
+    query: {
+      start_date: params.startDate,
+      end_date: params.endDate,
+      limit: params.limit ?? 25,
+      country_code: params.countryCodes?.length ? params.countryCodes : undefined,
+      city: params.cities?.length ? params.cities : undefined,
+      ip_address: params.ips?.length ? params.ips : undefined,
+    },
+    throwOnError: true,
+  })
+  return data
+}
+
+export async function fetchTopCityStats(params: TimeSeriesParams & { limit?: number } & AnalyticsFilterParams) {
+  const { data } = await apiV1AnalyticsTopCitiesGetTopCities({
+    query: {
+      start_date: params.startDate,
+      end_date: params.endDate,
+      limit: params.limit ?? 25,
+      country_code: params.countryCodes?.length ? params.countryCodes : undefined,
+      city: params.cities?.length ? params.cities : undefined,
+      ip_address: params.ips?.length ? params.ips : undefined,
+    },
     throwOnError: true,
   })
   return data
@@ -580,7 +663,12 @@ export type TimeRangeValue =
   // Grafana-style presets
   | "today" | "this_week" | "this_month"
   | "yesterday" | "last_week" | "last_month"
+  | "custom"
 
+export interface CustomTimeRange {
+  from: string // ISO timestamp
+  to: string
+}
 
 export interface TimeRangePreset {
   label: string
@@ -632,7 +720,15 @@ export const POLL_INTERVAL_OPTIONS: PollIntervalOption[] = [
  * Always returns full ISO timestamps for backend compatibility.
  * Handles both relative (5m, 7d) and Grafana-style (today, this_week) presets.
  */
-export function parseTimeRange(range: TimeRangeValue, referenceTime?: number): { startDate: string; endDate: string } {
+export function parseTimeRange(
+  range: TimeRangeValue,
+  referenceTime?: number,
+  customRange?: CustomTimeRange | null,
+): { startDate: string; endDate: string } {
+  if (range === "custom" && customRange) {
+    return { startDate: customRange.from, endDate: customRange.to }
+  }
+
   const now = referenceTime ? new Date(referenceTime) : new Date()
 
   // Handle Grafana-style computed ranges
@@ -695,6 +791,18 @@ export function parseTimeRange(range: TimeRangeValue, referenceTime?: number): {
     startDate: start.toISOString(),
     endDate: now.toISOString(),
   }
+}
+
+/** Auto = hourly up to 7 days, daily above (hourly buckets beyond 7d are noise). */
+export function resolveChartGranularity(
+  granularity: ChartGranularity,
+  range: TimeRangeValue,
+  customRange?: CustomTimeRange | null,
+): "hourly" | "daily" {
+  if (granularity !== "auto") return granularity
+  const { startDate, endDate } = parseTimeRange(range, Date.now(), customRange)
+  const days = (new Date(endDate).getTime() - new Date(startDate).getTime()) / 86_400_000
+  return days > 7 ? "daily" : "hourly"
 }
 
 /**

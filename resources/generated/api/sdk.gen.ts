@@ -26,6 +26,15 @@ import type {
   ApiV1AnalyticsTimeSeriesGetTimeSeriesData,
   ApiV1AnalyticsTimeSeriesGetTimeSeriesErrors,
   ApiV1AnalyticsTimeSeriesGetTimeSeriesResponses,
+  ApiV1AnalyticsTopCitiesGetTopCitiesData,
+  ApiV1AnalyticsTopCitiesGetTopCitiesErrors,
+  ApiV1AnalyticsTopCitiesGetTopCitiesResponses,
+  ApiV1AnalyticsTopCountriesGetTopCountriesData,
+  ApiV1AnalyticsTopCountriesGetTopCountriesErrors,
+  ApiV1AnalyticsTopCountriesGetTopCountriesResponses,
+  ApiV1AnalyticsTopIpsGetTopIpsData,
+  ApiV1AnalyticsTopIpsGetTopIpsErrors,
+  ApiV1AnalyticsTopIpsGetTopIpsResponses,
   ApiV1AnalyticsTopUrlsGetTopUrlsData,
   ApiV1AnalyticsTopUrlsGetTopUrlsErrors,
   ApiV1AnalyticsTopUrlsGetTopUrlsResponses,
@@ -289,6 +298,84 @@ export const apiV1AnalyticsTimeSeriesCumulativeGetCumulativeTimeSeries = <
       },
     ],
     url: "/api/v1/analytics/time-series/cumulative",
+    ...options,
+  });
+
+/**
+ * GetTopCities
+ *
+ * Top cities by hits from raw access logs (time-bounded).
+ */
+export const apiV1AnalyticsTopCitiesGetTopCities = <
+  ThrowOnError extends boolean = false,
+>(
+  options: Options<ApiV1AnalyticsTopCitiesGetTopCitiesData, ThrowOnError>,
+) =>
+  (options.client ?? client).get<
+    ApiV1AnalyticsTopCitiesGetTopCitiesResponses,
+    ApiV1AnalyticsTopCitiesGetTopCitiesErrors,
+    ThrowOnError
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+    ],
+    url: "/api/v1/analytics/top-cities",
+    ...options,
+  });
+
+/**
+ * GetTopCountries
+ *
+ * Top countries by hits from raw access logs (time-bounded).
+ */
+export const apiV1AnalyticsTopCountriesGetTopCountries = <
+  ThrowOnError extends boolean = false,
+>(
+  options: Options<ApiV1AnalyticsTopCountriesGetTopCountriesData, ThrowOnError>,
+) =>
+  (options.client ?? client).get<
+    ApiV1AnalyticsTopCountriesGetTopCountriesResponses,
+    ApiV1AnalyticsTopCountriesGetTopCountriesErrors,
+    ThrowOnError
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+    ],
+    url: "/api/v1/analytics/top-countries",
+    ...options,
+  });
+
+/**
+ * GetTopIps
+ *
+ * Top client IPs by hits from raw access logs (time-bounded).
+ */
+export const apiV1AnalyticsTopIpsGetTopIps = <
+  ThrowOnError extends boolean = false,
+>(
+  options: Options<ApiV1AnalyticsTopIpsGetTopIpsData, ThrowOnError>,
+) =>
+  (options.client ?? client).get<
+    ApiV1AnalyticsTopIpsGetTopIpsResponses,
+    ApiV1AnalyticsTopIpsGetTopIpsErrors,
+    ThrowOnError
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+    ],
+    url: "/api/v1/analytics/top-ips",
     ...options,
   });
 

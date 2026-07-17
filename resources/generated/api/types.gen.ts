@@ -360,10 +360,38 @@ export type TimeSeriesResponse = {
 };
 
 /**
+ * TopCitiesResponse
+ */
+export type TopCitiesResponse = {
+  end_date: string;
+  items: Array<TopCityStatsDto>;
+  start_date: string;
+};
+
+/**
+ * TopCityStatsDTO
+ */
+export type TopCityStatsDto = {
+  city: string;
+  country_code: string | null;
+  hits: number;
+  unique_ips: number;
+};
+
+/**
  * TopCountriesResponse
  */
 export type TopCountriesResponse = {
   top_countries?: Array<TopCountryDto>;
+};
+
+/**
+ * TopCountriesStatsResponse
+ */
+export type TopCountriesStatsResponse = {
+  end_date: string;
+  items: Array<TopCountryStatsDto>;
+  start_date: string;
 };
 
 /**
@@ -376,12 +404,43 @@ export type TopCountryDto = {
 };
 
 /**
+ * TopCountryStatsDTO
+ */
+export type TopCountryStatsDto = {
+  country_code: string;
+  country_name: string | null;
+  hits: number;
+  unique_ips: number;
+};
+
+/**
  * TopIPDTO
  */
 export type TopIpdto = {
   event_count: number;
   ip_address: string;
   location?: EmbeddedLocationDto | null;
+};
+
+/**
+ * TopIpDTO
+ */
+export type TopIpDto = {
+  city: string | null;
+  country_code: string | null;
+  error_hits: number;
+  hits: number;
+  ip_address: string;
+  total_bytes: number;
+};
+
+/**
+ * TopIpsResponse
+ */
+export type TopIpsResponse = {
+  end_date: string;
+  items: Array<TopIpDto>;
+  start_date: string;
 };
 
 /**
@@ -580,6 +639,10 @@ export type ApiV1AnalyticsGeoTimeSeriesGetGeoTimeSeriesData = {
      * End date (ISO 8601, e.g., 2024-12-31T23:59:59Z)
      */
     end_date: string;
+    /**
+     * Bucket size override. Omit to auto-select (hourly <= 30 days, daily above). RAW is never available.
+     */
+    granularity?: "hourly" | "daily" | null;
   };
   url: "/api/v1/analytics/geo-time-series";
 };
@@ -723,6 +786,22 @@ export type ApiV1AnalyticsTimeSeriesGetTimeSeriesData = {
      * End date (ISO 8601, e.g., 2024-12-31T23:59:59Z)
      */
     end_date: string;
+    /**
+     * Bucket size override. Omit to auto-select (hourly <= 30 days, daily above). RAW is never available.
+     */
+    granularity?: "hourly" | "daily" | null;
+    /**
+     * Filter to these ISO country codes (repeatable)
+     */
+    country_code?: Array<string> | null;
+    /**
+     * Filter to these city names (repeatable)
+     */
+    city?: Array<string> | null;
+    /**
+     * Filter to these client IPs (repeatable)
+     */
+    ip_address?: Array<string> | null;
   };
   url: "/api/v1/analytics/time-series";
 };
@@ -802,6 +881,189 @@ export type ApiV1AnalyticsTimeSeriesCumulativeGetCumulativeTimeSeriesResponses =
 export type ApiV1AnalyticsTimeSeriesCumulativeGetCumulativeTimeSeriesResponse =
   ApiV1AnalyticsTimeSeriesCumulativeGetCumulativeTimeSeriesResponses[keyof ApiV1AnalyticsTimeSeriesCumulativeGetCumulativeTimeSeriesResponses];
 
+export type ApiV1AnalyticsTopCitiesGetTopCitiesData = {
+  body?: never;
+  path?: never;
+  query: {
+    /**
+     * Start date (ISO 8601)
+     */
+    start_date: string;
+    /**
+     * End date (ISO 8601)
+     */
+    end_date: string;
+    /**
+     * Maximum number of cities
+     */
+    limit?: number;
+    /**
+     * Filter to these ISO country codes (repeatable)
+     */
+    country_code?: Array<string> | null;
+    /**
+     * Filter to these city names (repeatable)
+     */
+    city?: Array<string> | null;
+    /**
+     * Filter to these client IPs (repeatable)
+     */
+    ip_address?: Array<string> | null;
+  };
+  url: "/api/v1/analytics/top-cities";
+};
+
+export type ApiV1AnalyticsTopCitiesGetTopCitiesErrors = {
+  /**
+   * Validation Exception
+   */
+  400: {
+    detail: string;
+    extra?:
+      | null
+      | {
+          [key: string]: unknown;
+        }
+      | Array<unknown>;
+    status_code: number;
+  };
+};
+
+export type ApiV1AnalyticsTopCitiesGetTopCitiesError =
+  ApiV1AnalyticsTopCitiesGetTopCitiesErrors[keyof ApiV1AnalyticsTopCitiesGetTopCitiesErrors];
+
+export type ApiV1AnalyticsTopCitiesGetTopCitiesResponses = {
+  /**
+   * Request fulfilled, document follows
+   */
+  200: TopCitiesResponse;
+};
+
+export type ApiV1AnalyticsTopCitiesGetTopCitiesResponse =
+  ApiV1AnalyticsTopCitiesGetTopCitiesResponses[keyof ApiV1AnalyticsTopCitiesGetTopCitiesResponses];
+
+export type ApiV1AnalyticsTopCountriesGetTopCountriesData = {
+  body?: never;
+  path?: never;
+  query: {
+    /**
+     * Start date (ISO 8601)
+     */
+    start_date: string;
+    /**
+     * End date (ISO 8601)
+     */
+    end_date: string;
+    /**
+     * Maximum number of countries
+     */
+    limit?: number;
+    /**
+     * Filter to these ISO country codes (repeatable)
+     */
+    country_code?: Array<string> | null;
+    /**
+     * Filter to these city names (repeatable)
+     */
+    city?: Array<string> | null;
+    /**
+     * Filter to these client IPs (repeatable)
+     */
+    ip_address?: Array<string> | null;
+  };
+  url: "/api/v1/analytics/top-countries";
+};
+
+export type ApiV1AnalyticsTopCountriesGetTopCountriesErrors = {
+  /**
+   * Validation Exception
+   */
+  400: {
+    detail: string;
+    extra?:
+      | null
+      | {
+          [key: string]: unknown;
+        }
+      | Array<unknown>;
+    status_code: number;
+  };
+};
+
+export type ApiV1AnalyticsTopCountriesGetTopCountriesError =
+  ApiV1AnalyticsTopCountriesGetTopCountriesErrors[keyof ApiV1AnalyticsTopCountriesGetTopCountriesErrors];
+
+export type ApiV1AnalyticsTopCountriesGetTopCountriesResponses = {
+  /**
+   * Request fulfilled, document follows
+   */
+  200: TopCountriesStatsResponse;
+};
+
+export type ApiV1AnalyticsTopCountriesGetTopCountriesResponse =
+  ApiV1AnalyticsTopCountriesGetTopCountriesResponses[keyof ApiV1AnalyticsTopCountriesGetTopCountriesResponses];
+
+export type ApiV1AnalyticsTopIpsGetTopIpsData = {
+  body?: never;
+  path?: never;
+  query: {
+    /**
+     * Start date (ISO 8601)
+     */
+    start_date: string;
+    /**
+     * End date (ISO 8601)
+     */
+    end_date: string;
+    /**
+     * Maximum number of IPs
+     */
+    limit?: number;
+    /**
+     * Filter to these ISO country codes (repeatable)
+     */
+    country_code?: Array<string> | null;
+    /**
+     * Filter to these city names (repeatable)
+     */
+    city?: Array<string> | null;
+    /**
+     * Filter to these client IPs (repeatable)
+     */
+    ip_address?: Array<string> | null;
+  };
+  url: "/api/v1/analytics/top-ips";
+};
+
+export type ApiV1AnalyticsTopIpsGetTopIpsErrors = {
+  /**
+   * Validation Exception
+   */
+  400: {
+    detail: string;
+    extra?:
+      | null
+      | {
+          [key: string]: unknown;
+        }
+      | Array<unknown>;
+    status_code: number;
+  };
+};
+
+export type ApiV1AnalyticsTopIpsGetTopIpsError =
+  ApiV1AnalyticsTopIpsGetTopIpsErrors[keyof ApiV1AnalyticsTopIpsGetTopIpsErrors];
+
+export type ApiV1AnalyticsTopIpsGetTopIpsResponses = {
+  /**
+   * Request fulfilled, document follows
+   */
+  200: TopIpsResponse;
+};
+
+export type ApiV1AnalyticsTopIpsGetTopIpsResponse =
+  ApiV1AnalyticsTopIpsGetTopIpsResponses[keyof ApiV1AnalyticsTopIpsGetTopIpsResponses];
+
 export type ApiV1AnalyticsTopUrlsGetTopUrlsData = {
   body?: never;
   path?: never;
@@ -818,6 +1080,18 @@ export type ApiV1AnalyticsTopUrlsGetTopUrlsData = {
      * Maximum number of URLs to return
      */
     limit?: number;
+    /**
+     * Filter to these ISO country codes (repeatable)
+     */
+    country_code?: Array<string> | null;
+    /**
+     * Filter to these city names (repeatable)
+     */
+    city?: Array<string> | null;
+    /**
+     * Filter to these client IPs (repeatable)
+     */
+    ip_address?: Array<string> | null;
   };
   url: "/api/v1/analytics/top-urls";
 };
@@ -867,6 +1141,18 @@ export type ApiV1AnalyticsTopUserAgentsGetTopUserAgentsData = {
      * Maximum number of user agents to return
      */
     limit?: number;
+    /**
+     * Filter to these ISO country codes (repeatable)
+     */
+    country_code?: Array<string> | null;
+    /**
+     * Filter to these city names (repeatable)
+     */
+    city?: Array<string> | null;
+    /**
+     * Filter to these client IPs (repeatable)
+     */
+    ip_address?: Array<string> | null;
   };
   url: "/api/v1/analytics/top-user-agents";
 };

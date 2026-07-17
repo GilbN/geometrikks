@@ -240,3 +240,71 @@ class TopUserAgentsResponse:
     start_date: str
     end_date: str
     items: list[TopUserAgentDTO]
+
+
+@dataclass
+class TopIpDTO:
+    """A single IP address with its aggregate hit metrics."""
+
+    ip_address: str
+    hits: int
+    error_hits: int
+    total_bytes: int
+    country_code: str | None
+    city: str | None
+
+
+@dataclass
+class TopIpsResponse:
+    """Response containing top IPs by hit count.
+
+    ``items`` is deliberately default-less (see TopUrlsResponse).
+    """
+
+    start_date: str
+    end_date: str
+    items: list[TopIpDTO]
+
+
+@dataclass
+class TopCountryStatsDTO:
+    """A single country with its aggregate metrics."""
+
+    country_code: str
+    country_name: str | None
+    hits: int
+    unique_ips: int
+
+
+@dataclass
+class TopCountriesStatsResponse:
+    """Response containing top countries by hit count.
+
+    ``items`` is deliberately default-less (see TopUrlsResponse).
+    """
+
+    start_date: str
+    end_date: str
+    items: list[TopCountryStatsDTO]
+
+
+@dataclass
+class TopCityStatsDTO:
+    """A single city with its aggregate metrics."""
+
+    city: str
+    country_code: str | None
+    hits: int
+    unique_ips: int
+
+
+@dataclass
+class TopCitiesResponse:
+    """Response containing top cities by hit count.
+
+    ``items`` is deliberately default-less (see TopUrlsResponse).
+    """
+
+    start_date: str
+    end_date: str
+    items: list[TopCityStatsDTO]
