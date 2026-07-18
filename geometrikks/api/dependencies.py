@@ -16,7 +16,7 @@ from litestar.status_codes import HTTP_409_CONFLICT
 
 from geometrikks.services.ingestion import LogIngestionService
 from geometrikks.domain.geo.repositories import GeoLocationRepository
-from geometrikks.domain.logs.repositories import AccessLogRepository, AccessLogDebugRepository
+from geometrikks.domain.logs.repositories import AccessLogRepository
 from geometrikks.domain.analytics.repositories import LiveStatsRepository, SummaryStatsRepository
 
 
@@ -54,17 +54,6 @@ async def provide_access_log_repo(
 ) -> AccessLogRepository:
     """Provide AccessLogRepository."""
     return AccessLogRepository(session=db_session)
-
-
-async def provide_access_log_debug_repo(
-    db_session: NamedDependency[AsyncSession],
-) -> AccessLogDebugRepository:
-    """Provide AccessLogDebugRepository.
-
-    Note: FK to access_logs removed for TimescaleDB compatibility.
-    Use access_log_id for application-level lookups if needed.
-    """
-    return AccessLogDebugRepository(session=db_session)
 
 
 def provide_limit_offset_pagination(

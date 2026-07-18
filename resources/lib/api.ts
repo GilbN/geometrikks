@@ -733,6 +733,121 @@ export async function fetchAccessLogFacets(): Promise<AccessLogFacets> {
 }
 
 // ============================================================================
+// Access log debug (raw/malformed lines)
+// ============================================================================
+
+export interface AccessLogDebugEntry {
+  id: number
+  createdAt: string
+  rawLine: string
+  isMalformed: boolean
+  accessLogId: number | null
+  parseError: string | null
+  /** Denormalized access-log fields; null when the line never parsed into a log. */
+  timestamp: string | null
+  ipAddress: string | null
+  method: string | null
+  url: string | null
+  host: string | null
+  statusCode: number | null
+  countryCode: string | null
+  countryName: string | null
+  city: string | null
+  userAgent: string | null
+}
+
+export interface AccessLogDebugPage {
+  items: AccessLogDebugEntry[]
+  total: number
+  limit: number
+  offset: number
+}
+
+/** Columns the debug table can sort by (must match the backend allowlist). */
+export type AccessLogDebugSortField =
+  | "createdAt" | "isMalformed" | "parseError"
+  | "timestamp" | "statusCode" | "ipAddress" | "host" | "countryCode" | "city"
+
+/** camelCase sort key -> backend snake_case column name for `orderBy`. */
+const DEBUG_SORT_FIELD_TO_COLUMN: Record<AccessLogDebugSortField, string> = {
+  createdAt: "created_at",
+  isMalformed: "is_malformed",
+  parseError: "parse_error",
+  timestamp: "timestamp",
+  statusCode: "status_code",
+  ipAddress: "ip_address",
+  host: "host",
+  countryCode: "country_code",
+  city: "city",
+}
+
+export interface AccessLogDebugParams {
+  fromTimestamp: string
+  toTimestamp: string
+  currentPage?: number
+  pageSize?: number
+  /** Free-text search across raw_line / parse_error. */
+  searchString?: string
+  /** Exact IP match(es) on the debug row's denormalized ip_address. */
+  ipAddressIn?: string[]
+  /** Exact ISO-3166 alpha-2 country code match(es); unlinked rows are excluded. */
+  countryCodeIn?: string[]
+  /** Exact city match(es); unlinked rows are excluded. */
+  cityIn?: string[]
+  /** true = malformed only, false = well-formed only, undefined = all. */
+  malformed?: boolean
+  sortField?: AccessLogDebugSortField
+  sortOrder?: SortOrder
+}
+
+export async function fetchAccessLogDebug(
+  params: AccessLogDebugParams,
+): Promise<AccessLogDebugPage> {
+  const { data } = await api.get<AccessLogDebugPage>("/access-log-debug/", {
+    params: {
+      from_timestamp: params.fromTimestamp,
+      to_timestamp: params.toTimestamp,
+      currentPage: params.currentPage ?? 1,
+      pageSize: params.pageSize ?? 50,
+      searchString: params.searchString || undefined,
+      ipAddressIn: params.ipAddressIn?.length ? params.ipAddressIn : undefined,
+      countryCodeIn: params.countryCodeIn?.length ? params.countryCodeIn : undefined,
+      cityIn: params.cityIn?.length ? params.cityIn : undefined,
+      malformed: params.malformed,
+      orderBy: params.sortField ? DEBUG_SORT_FIELD_TO_COLUMN[params.sortField] : undefined,
+      sortOrder: params.sortField ? params.sortOrder ?? "desc" : undefined,
+    },
+    // Litestar expects repeated keys (?cityIn=a&cityIn=b), not bracket form.
+    paramsSerializer: { indexes: null },
+  })
+  return data
+}
+
+export interface ParseErrorCount {
+  error: string
+  count: number
+}
+
+export interface AccessLogDebugStats {
+  total: number
+  malformed: number
+  topParseError: ParseErrorCount | null
+}
+
+export async function fetchAccessLogDebugStats(params: {
+  fromTimestamp: string
+  toTimestamp: string
+}): Promise<AccessLogDebugStats> {
+  const { data } = await api.get<AccessLogDebugStats>("/access-log-debug/stats", {
+    params: {
+      from_timestamp: params.fromTimestamp,
+      to_timestamp: params.toTimestamp,
+    },
+  })
+  return data
+}
+
+// ============================================================================
 // Utility Functions
 // ============================================================================
 

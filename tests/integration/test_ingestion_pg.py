@@ -12,8 +12,11 @@ import os
 from datetime import datetime, timezone
 from pathlib import Path
 
+from types import SimpleNamespace
+
 from sqlalchemy import text
 
+from geometrikks.domain.logs.models import AccessLog, AccessLogDebug
 from geometrikks.services.ingestion.service import LogIngestionService
 from geometrikks.services.logparser.logparser import LogParser
 
@@ -176,3 +179,153 @@ async def test_poisoned_location_cache_recovers(tmp_path: Path, pg_session_maker
 
     assert await count(pg_session_maker, "geo_events") >= 1
     assert service._location_cache.get(geohash) != 999999
+
+
+async def test_debug_entry_carries_denormalized_access_log_context(
+    pg_session_maker, clean_tables
+) -> None:
+    """A debug row written alongside an access log copies its context columns.
+
+    The debug list reads these columns instead of joining access_logs, so an
+    ingestion path that leaves them NULL silently blanks the whole table.
+    """
+    access_log = AccessLog(
+        timestamp=datetime(2026, 7, 18, 12, 0, tzinfo=timezone.utc),
+        ip_address="203.0.113.7",
+        method="GET",
+        url="/probe",
+        host="example.com",
+        status_code=418,
+        bytes_sent=100,
+        request_time=0.01,
+        country_code="NO",
+        country_name="Norway",
+        city="Oslo",
+        user_agent="curl/8.0",
+    )
+
+    async with pg_session_maker() as session:
+        session.add(access_log)
+        await session.flush()
+
+        debug = AccessLogDebug(
+            access_log_id=access_log.id,
+            raw_line="raw",
+            is_malformed=True,
+            parse_error="boom",
+            log_timestamp=access_log.timestamp,
+            ip_address=str(access_log.ip_address),
+            method=access_log.method,
+            url=access_log.url,
+            host=access_log.host,
+            status_code=access_log.status_code,
+            country_code=access_log.country_code,
+            country_name=access_log.country_name,
+            city=access_log.city,
+            user_agent=access_log.user_agent,
+        )
+        session.add(debug)
+        await session.commit()
+
+        row = (
+            await session.execute(
+                text(
+                    "SELECT log_timestamp, host(ip_address) AS ip, method, url, host, "
+                    " status_code, country_code, country_name, city, user_agent "
+                    "FROM access_log_debug WHERE access_log_id = :log_id"
+                ),
+                {"log_id": access_log.id},
+            )
+        ).one()
+
+    assert row.log_timestamp == datetime(2026, 7, 18, 12, 0, tzinfo=timezone.utc)
+    assert row.ip == "203.0.113.7"
+    assert row.method == "GET"
+    assert row.url == "/probe"
+    assert row.host == "example.com"
+    assert row.status_code == 418
+    assert row.country_code == "NO"
+    assert row.country_name == "Norway"
+    assert row.city == "Oslo"
+    assert row.user_agent == "curl/8.0"
+
+
+async def test_create_debug_entry_copies_context_from_access_log() -> None:
+    """_create_debug_entry must copy context, not leave the new columns NULL."""
+    added: list[AccessLogDebug] = []
+
+    class _Session:
+        def add(self, obj: object) -> None:
+            added.append(obj)  # type: ignore[arg-type]
+
+        async def flush(self) -> None:
+            return None
+
+    class _Repo:
+        session = _Session()
+
+    class _Repos:
+        access_log = _Repo()
+        access_log_debug = _Repo()
+
+    access_log = AccessLog(
+        id=99,
+        timestamp=datetime(2026, 7, 18, 12, 0, tzinfo=timezone.utc),
+        ip_address="203.0.113.7",
+        method="POST",
+        url="/x",
+        host="h.example",
+        status_code=500,
+        bytes_sent=1,
+        request_time=0.0,
+        country_code="SE",
+        country_name="Sweden",
+        city="Malmo",
+        user_agent="agent/1",
+    )
+
+    record = SimpleNamespace(raw_line="raw line", parse_error="err", is_malformed=True)
+
+    service = LogIngestionService.__new__(LogIngestionService)
+    await service._create_debug_entry(record, access_log, _Repos())  # type: ignore[arg-type]
+
+    assert len(added) == 1
+    entry = added[0]
+    assert entry.log_timestamp == access_log.timestamp
+    assert entry.ip_address == "203.0.113.7"
+    assert entry.method == "POST"
+    assert entry.status_code == 500
+    assert entry.country_code == "SE"
+    assert entry.city == "Malmo"
+    assert entry.user_agent == "agent/1"
+
+
+async def test_create_debug_entry_leaves_context_null_when_unlinked() -> None:
+    """A line that never parsed into an access log keeps NULL context."""
+    added: list[AccessLogDebug] = []
+
+    class _Session:
+        def add(self, obj: object) -> None:
+            added.append(obj)  # type: ignore[arg-type]
+
+        async def flush(self) -> None:
+            return None
+
+    class _Repo:
+        session = _Session()
+
+    class _Repos:
+        access_log = _Repo()
+        access_log_debug = _Repo()
+
+    record = SimpleNamespace(raw_line="junk", parse_error="no method", is_malformed=True)
+
+    service = LogIngestionService.__new__(LogIngestionService)
+    await service._create_debug_entry(record, None, _Repos())  # type: ignore[arg-type]
+
+    assert len(added) == 1
+    entry = added[0]
+    assert entry.access_log_id is None
+    assert entry.log_timestamp is None
+    assert entry.ip_address is None
+    assert entry.status_code is None

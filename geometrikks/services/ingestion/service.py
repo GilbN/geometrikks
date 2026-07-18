@@ -399,6 +399,18 @@ class LogIngestionService:
             raw_line=sanitized_line,
             is_malformed=record.is_malformed,
             parse_error=sanitized_error,
+            # Denormalized so the debug list never joins the access_logs
+            # hypertable. Every value is already on the object we were handed.
+            log_timestamp=access_log.timestamp if access_log else None,
+            ip_address=str(access_log.ip_address) if access_log else None,
+            method=access_log.method if access_log else None,
+            url=access_log.url if access_log else None,
+            host=access_log.host if access_log else None,
+            status_code=access_log.status_code if access_log else None,
+            country_code=access_log.country_code if access_log else None,
+            country_name=access_log.country_name if access_log else None,
+            city=access_log.city if access_log else None,
+            user_agent=access_log.user_agent if access_log else None,
         )
         repos.access_log_debug.session.add(debug_entry)
 

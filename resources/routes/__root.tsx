@@ -38,6 +38,7 @@ const routeLabels: Record<string, string> = {
   "/map": "Map",
   "/access-logs": "Access Logs",
   "/geo-logs": "Geo Logs",
+  "/debug-logs": "Debug Logs",
   "/analytics": "Analytics",
   "/settings": "Settings",
   "/login": "Login",

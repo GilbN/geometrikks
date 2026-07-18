@@ -40,6 +40,11 @@ import {
   type AccessLogFacets,
   type AccessLogSortField,
   type SortOrder,
+  fetchAccessLogDebug,
+  fetchAccessLogDebugStats,
+  type AccessLogDebugPage,
+  type AccessLogDebugSortField,
+  type AccessLogDebugStats,
 } from "./api"
 import { useTimeRange } from "./time-range-context"
 import { useAnalyticsFilters } from "./analytics-filters-context"
@@ -90,6 +95,13 @@ export const queryKeys = {
     list: (params: Record<string, unknown>, refreshKey?: number) =>
       [...queryKeys.accessLogs.all, "list", params, refreshKey] as const,
     facets: () => [...queryKeys.accessLogs.all, "facets"] as const,
+  },
+  accessLogDebug: {
+    all: ["access-log-debug"] as const,
+    list: (params: Record<string, unknown>, refreshKey?: number) =>
+      [...queryKeys.accessLogDebug.all, "list", params, refreshKey] as const,
+    stats: (params: Record<string, unknown>, refreshKey?: number) =>
+      [...queryKeys.accessLogDebug.all, "stats", params, refreshKey] as const,
   },
   geoLogs: {
     all: ["geo-logs"] as const,
@@ -636,6 +648,86 @@ export function useAccessLogFacets({ enabled = true }: { enabled?: boolean } = {
     queryFn: fetchAccessLogFacets,
     enabled,
     staleTime: 60 * 1000,
+  })
+}
+
+// ============================================================================
+// Access log debug
+// ============================================================================
+
+export interface UseAccessLogDebugOptions {
+  currentPage?: number
+  pageSize?: number
+  enabled?: boolean
+  searchString?: string
+  ipAddressIn?: string[]
+  countryCodeIn?: string[]
+  cityIn?: string[]
+  /** true = malformed only, false = well-formed only, undefined = all. */
+  malformed?: boolean
+  sortField?: AccessLogDebugSortField
+  sortOrder?: SortOrder
+}
+
+/**
+ * Fetch a page of debug lines within the global time range.
+ * Server-side pagination; keeps the previous page visible while the next loads.
+ */
+export function useAccessLogDebug(options: UseAccessLogDebugOptions = {}) {
+  const {
+    currentPage = 1,
+    pageSize = 50,
+    enabled = true,
+    searchString,
+    ipAddressIn,
+    countryCodeIn,
+    cityIn,
+    malformed,
+    sortField,
+    sortOrder,
+  } = options
+  const { range, customRange, pollInterval, lastRefresh } = useTimeRange()
+
+  return useQuery<AccessLogDebugPage>({
+    queryKey: queryKeys.accessLogDebug.list(
+      { range, customRange, currentPage, pageSize, searchString, ipAddressIn, countryCodeIn, cityIn, malformed, sortField, sortOrder },
+      lastRefresh,
+    ),
+    queryFn: () => {
+      const { startDate, endDate } = parseTimeRange(range, Date.now(), customRange)
+      return fetchAccessLogDebug({
+        fromTimestamp: startDate,
+        toTimestamp: endDate,
+        currentPage,
+        pageSize,
+        searchString,
+        ipAddressIn,
+        countryCodeIn,
+        cityIn,
+        malformed,
+        sortField,
+        sortOrder,
+      })
+    },
+    enabled,
+    placeholderData: (prev) => prev,
+    staleTime: 15 * 1000,
+    refetchInterval: pollInterval || false,
+  })
+}
+
+/** Aggregate debug-line stats for the stat cards, within the global time range. */
+export function useAccessLogDebugStats() {
+  const { range, customRange, pollInterval, lastRefresh } = useTimeRange()
+
+  return useQuery<AccessLogDebugStats>({
+    queryKey: queryKeys.accessLogDebug.stats({ range, customRange }, lastRefresh),
+    queryFn: () => {
+      const { startDate, endDate } = parseTimeRange(range, Date.now(), customRange)
+      return fetchAccessLogDebugStats({ fromTimestamp: startDate, toTimestamp: endDate })
+    },
+    staleTime: 15 * 1000,
+    refetchInterval: pollInterval || false,
   })
 }
 
