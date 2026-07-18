@@ -18,21 +18,9 @@ import {
   DrawerTrigger,
 } from "@/components/ui/drawer"
 import { useIsMobile } from "@/hooks/use-mobile"
-import {
-  Combobox,
-  ComboboxChip,
-  ComboboxChips,
-  ComboboxChipsInput,
-  ComboboxContent,
-  ComboboxEmpty,
-  ComboboxItem,
-  ComboboxList,
-  ComboboxValue,
-  useComboboxAnchor,
-} from "@/components/ui/combobox"
+import { FilterCombobox } from "@/components/ui/filter-combobox"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import {
-  Check,
   Flame,
   Globe2,
   Layers,
@@ -73,158 +61,6 @@ interface MapControlsProps {
   selectedCities: string[]
   onCountriesChange: (values: string[]) => void
   onCitiesChange: (values: string[]) => void
-}
-
-function FilterCombobox({
-  options,
-  selected,
-  onChange,
-  placeholder,
-  labels,
-  mobile = false,
-}: {
-  options: string[]
-  selected: string[]
-  onChange: (values: string[]) => void
-  placeholder: string
-  // Optional display labels keyed by option value. The value stays the raw
-  // option (e.g. a country code); only the rendered text changes.
-  labels?: Record<string, string>
-  // On mobile, render an inline searchable multi-select list instead of the
-  // desktop typeahead popup, which is clunky on a touch screen.
-  mobile?: boolean
-}) {
-  // Called unconditionally to satisfy the rules of hooks even though the mobile
-  // branch below returns before using some of them.
-  const anchor = useComboboxAnchor()
-  const [query, setQuery] = useState("")
-  const labelFor = (value: string) => labels?.[value] ?? value
-
-  // Mobile: an inline searchable checkbox list (a "sheet" rendered directly in
-  // the controls drawer, no nested modal). A search box filters the options and
-  // each row toggles selection, so several can be picked without scrolling a
-  // long option list. Selected chips sit on top for a quick overview/removal.
-  if (mobile) {
-    const q = query.trim().toLowerCase()
-    const filtered = options.filter((o) => labelFor(o).toLowerCase().includes(q))
-    // Keep selected rows visible at the top of the filtered list.
-    const ordered = [...filtered].sort(
-      (a, b) => Number(selected.includes(b)) - Number(selected.includes(a)),
-    )
-    const toggle = (o: string) =>
-      onChange(
-        selected.includes(o)
-          ? selected.filter((x) => x !== o)
-          : [...selected, o],
-      )
-    return (
-      <div className="flex flex-col gap-1.5">
-        {selected.length > 0 && (
-          <div className="flex flex-wrap gap-1">
-            {selected.map((v) => (
-              <span
-                key={v}
-                className="bg-muted text-foreground flex h-6 items-center gap-1 rounded-sm px-1.5 text-xs font-medium"
-              >
-                {labelFor(v)}
-                <button
-                  type="button"
-                  onClick={() => onChange(selected.filter((x) => x !== v))}
-                  aria-label={`Remove ${labelFor(v)}`}
-                  className="opacity-50 hover:opacity-100"
-                >
-                  <X className="h-3 w-3" />
-                </button>
-              </span>
-            ))}
-          </div>
-        )}
-        <input
-          type="text"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder={`Search ${placeholder.toLowerCase()}`}
-          aria-label={`Search ${placeholder.toLowerCase()}`}
-          autoComplete="off"
-          // text-base (16px) keeps iOS Safari from zooming the page on focus.
-          className="border-input focus-visible:border-ring focus-visible:ring-ring/50 h-9 w-full rounded-md border bg-transparent px-2.5 text-base shadow-xs outline-none focus-visible:ring-[3px]"
-        />
-        <div className="border-input max-h-48 overflow-y-auto overscroll-contain rounded-md border">
-          {ordered.length === 0 ? (
-            <div className="text-muted-foreground px-2.5 py-2 text-xs">
-              No matches
-            </div>
-          ) : (
-            ordered.map((o) => {
-              const isSel = selected.includes(o)
-              return (
-                <button
-                  key={o}
-                  type="button"
-                  onClick={() => toggle(o)}
-                  aria-pressed={isSel}
-                  className={cn(
-                    "flex w-full items-center gap-2 px-2.5 py-2 text-left text-sm",
-                    isSel ? "bg-geo-cyan/10 text-geo-cyan" : "hover:bg-accent/50",
-                  )}
-                >
-                  <span
-                    className={cn(
-                      "flex h-4 w-4 shrink-0 items-center justify-center rounded border",
-                      isSel
-                        ? "bg-geo-cyan border-geo-cyan text-background"
-                        : "border-input",
-                    )}
-                  >
-                    {isSel && <Check className="h-3 w-3" />}
-                  </span>
-                  <span className="truncate">{labelFor(o)}</span>
-                </button>
-              )
-            })
-          )}
-        </div>
-      </div>
-    )
-  }
-
-  return (
-    <Combobox
-      multiple
-      items={options}
-      value={selected}
-      onValueChange={(value) => onChange(value as string[])}
-      itemToStringLabel={labelFor}
-    >
-      <ComboboxChips ref={anchor} className="min-h-8 px-1.5 py-1 text-xs">
-        <ComboboxValue>
-          {(value: string[]) => (
-            <>
-              {value.map((v) => (
-                <ComboboxChip key={v} className="text-[10px]">
-                  {labelFor(v)}
-                </ComboboxChip>
-              ))}
-              <ComboboxChipsInput
-                placeholder={value.length === 0 ? placeholder : ""}
-                className="text-xs"
-              />
-            </>
-          )}
-        </ComboboxValue>
-      </ComboboxChips>
-      <ComboboxContent anchor={anchor}>
-        <ComboboxEmpty>No matches</ComboboxEmpty>
-        <ComboboxList>
-          {(item: string) => (
-            <ComboboxItem key={item} value={item} className="text-xs">
-              {labelFor(item)}
-            </ComboboxItem>
-          )}
-        </ComboboxList>
-      </ComboboxContent>
-    </Combobox>
-  )
 }
 
 export function MapControls({
@@ -368,19 +204,19 @@ export function MapControls({
       <Card className="p-2 gap-1.5 shrink-0">
         <div className="text-xs font-medium text-muted-foreground">Filters</div>
         <FilterCombobox
+          label="Country"
           options={countryOptions}
           selected={selectedCountries}
           onChange={onCountriesChange}
-          placeholder="Country"
-          labels={countryLabels}
-          mobile={isMobile}
+          labelFor={(code) => countryLabels?.[code] ?? code}
+          forceInline={isMobile}
         />
         <FilterCombobox
+          label="City"
           options={cityOptions}
           selected={selectedCities}
           onChange={onCitiesChange}
-          placeholder="City"
-          mobile={isMobile}
+          forceInline={isMobile}
         />
       </Card>
 

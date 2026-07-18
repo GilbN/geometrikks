@@ -17,6 +17,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { FilterCombobox } from "@/components/ui/filter-combobox"
 import { useGeoEventFacets } from "@/lib/queries"
 import {
   EMPTY_GEO_LOG_FILTERS,
@@ -58,63 +59,29 @@ export function GeoLogsFilterBar() {
 
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <DropdownMenu onOpenChange={(open) => open && setFacetsEnabled(true)}>
-        <DropdownMenuTrigger asChild>
-          <Button variant="outline" size="sm" className="h-8">
-            Country{filters.countryCodes.length > 0 && ` (${filters.countryCodes.length})`}
-            <ChevronsUpDown className="ml-1 h-3.5 w-3.5" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="max-h-80 w-auto min-w-44 overflow-y-auto">
-          <DropdownMenuLabel>Country</DropdownMenuLabel>
-          <DropdownMenuSeparator />
-          {!facets && (
-            <DropdownMenuLabel className="font-normal text-muted-foreground">Loading…</DropdownMenuLabel>
-          )}
-          {facets?.countries.map((c) => (
-            <DropdownMenuCheckboxItem
-              key={c.code}
-              checked={filters.countryCodes.includes(c.code)}
-              onCheckedChange={() => toggleList("countryCodes", c.code)}
-              onSelect={(e) => e.preventDefault()}
-            >
-              {c.name} ({c.code})
-            </DropdownMenuCheckboxItem>
-          ))}
-          {facets && facets.countries.length === 0 && (
-            <DropdownMenuLabel className="font-normal text-muted-foreground">No geo data</DropdownMenuLabel>
-          )}
-        </DropdownMenuContent>
-      </DropdownMenu>
+      <FilterCombobox
+        label="Country"
+        options={facets?.countries.map((c) => c.code) ?? []}
+        selected={filters.countryCodes}
+        onChange={(values) => setFilters((prev) => ({ ...prev, countryCodes: values }))}
+        labelFor={(code) => {
+          const name = facets?.countries.find((c) => c.code === code)?.name
+          return name ? `${name} (${code})` : code
+        }}
+        loading={!facets}
+        emptyText="No geo data"
+        onOpenChange={(open) => open && setFacetsEnabled(true)}
+      />
 
-      <DropdownMenu onOpenChange={(open) => open && setFacetsEnabled(true)}>
-        <DropdownMenuTrigger asChild>
-          <Button variant="outline" size="sm" className="h-8">
-            City{filters.cities.length > 0 && ` (${filters.cities.length})`}
-            <ChevronsUpDown className="ml-1 h-3.5 w-3.5" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="max-h-80 w-auto min-w-44 overflow-y-auto">
-          <DropdownMenuLabel>City</DropdownMenuLabel>
-          <DropdownMenuSeparator />
-          {!facets && (
-            <DropdownMenuLabel className="font-normal text-muted-foreground">Loading…</DropdownMenuLabel>
-          )}
-          {facets?.cities.map((city) => (
-            <DropdownMenuCheckboxItem
-              key={city}
-              checked={filters.cities.includes(city)}
-              onCheckedChange={() => toggleList("cities", city)}
-              onSelect={(e) => e.preventDefault()}
-            >
-              {city}
-            </DropdownMenuCheckboxItem>
-          ))}
-          {facets && facets.cities.length === 0 && (
-            <DropdownMenuLabel className="font-normal text-muted-foreground">No geo data</DropdownMenuLabel>
-          )}
-        </DropdownMenuContent>
-      </DropdownMenu>
+      <FilterCombobox
+        label="City"
+        options={facets?.cities ?? []}
+        selected={filters.cities}
+        onChange={(values) => setFilters((prev) => ({ ...prev, cities: values }))}
+        loading={!facets}
+        emptyText="No geo data"
+        onOpenChange={(open) => open && setFacetsEnabled(true)}
+      />
 
       <DropdownMenu onOpenChange={(open) => open && setFacetsEnabled(true)}>
         <DropdownMenuTrigger asChild>

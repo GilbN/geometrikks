@@ -40,6 +40,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { FilterCombobox } from "@/components/ui/filter-combobox"
 import { useAccessLogs, useAccessLogFacets } from "@/lib/queries"
 import { useDebouncedValue } from "@/hooks/use-debounced-value"
 import {
@@ -346,28 +347,12 @@ export function AccessLogsTable() {
           className="h-8 w-44 font-mono text-xs"
         />
 
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm" className="h-8">
-              Status{statusCodes.length > 0 && ` (${statusCodes.length})`}
-              <ChevronsUpDown className="ml-1 h-3.5 w-3.5" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start">
-            <DropdownMenuLabel>HTTP status</DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            {STATUS_CODES.map((code) => (
-              <DropdownMenuCheckboxItem
-                key={code}
-                checked={statusCodes.includes(code)}
-                onCheckedChange={() => toggleValue(setStatusCodes, code)}
-                onSelect={(e) => e.preventDefault()}
-              >
-                {code}
-              </DropdownMenuCheckboxItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <FilterCombobox
+          label="Status"
+          options={[...STATUS_CODES]}
+          selected={statusCodes}
+          onChange={setStatusCodes}
+        />
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -392,71 +377,29 @@ export function AccessLogsTable() {
           </DropdownMenuContent>
         </DropdownMenu>
 
-        <DropdownMenu onOpenChange={(open) => open && setFacetsEnabled(true)}>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm" className="h-8">
-              Country{countries.length > 0 && ` (${countries.length})`}
-              <ChevronsUpDown className="ml-1 h-3.5 w-3.5" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="max-h-80 w-auto min-w-44 overflow-y-auto">
-            <DropdownMenuLabel>Country</DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            {!facets && (
-              <DropdownMenuLabel className="font-normal text-muted-foreground">
-                Loading…
-              </DropdownMenuLabel>
-            )}
-            {facets?.countries.map((c) => (
-              <DropdownMenuCheckboxItem
-                key={c.code}
-                checked={countries.includes(c.code)}
-                onCheckedChange={() => toggleValue(setCountries, c.code)}
-                onSelect={(e) => e.preventDefault()}
-              >
-                {c.name} ({c.code})
-              </DropdownMenuCheckboxItem>
-            ))}
-            {facets && facets.countries.length === 0 && (
-              <DropdownMenuLabel className="font-normal text-muted-foreground">
-                No geo data
-              </DropdownMenuLabel>
-            )}
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <FilterCombobox
+          label="Country"
+          options={facets?.countries.map((c) => c.code) ?? []}
+          selected={countries}
+          onChange={setCountries}
+          labelFor={(code) => {
+            const name = facets?.countries.find((c) => c.code === code)?.name
+            return name ? `${name} (${code})` : code
+          }}
+          loading={!facets}
+          emptyText="No geo data"
+          onOpenChange={(open) => open && setFacetsEnabled(true)}
+        />
 
-        <DropdownMenu onOpenChange={(open) => open && setFacetsEnabled(true)}>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm" className="h-8">
-              City{cities.length > 0 && ` (${cities.length})`}
-              <ChevronsUpDown className="ml-1 h-3.5 w-3.5" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="max-h-80 w-auto min-w-44 overflow-y-auto">
-            <DropdownMenuLabel>City</DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            {!facets && (
-              <DropdownMenuLabel className="font-normal text-muted-foreground">
-                Loading…
-              </DropdownMenuLabel>
-            )}
-            {facets?.cities.map((city) => (
-              <DropdownMenuCheckboxItem
-                key={city}
-                checked={cities.includes(city)}
-                onCheckedChange={() => toggleValue(setCities, city)}
-                onSelect={(e) => e.preventDefault()}
-              >
-                {city}
-              </DropdownMenuCheckboxItem>
-            ))}
-            {facets && facets.cities.length === 0 && (
-              <DropdownMenuLabel className="font-normal text-muted-foreground">
-                No geo data
-              </DropdownMenuLabel>
-            )}
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <FilterCombobox
+          label="City"
+          options={facets?.cities ?? []}
+          selected={cities}
+          onChange={setCities}
+          loading={!facets}
+          emptyText="No geo data"
+          onOpenChange={(open) => open && setFacetsEnabled(true)}
+        />
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
