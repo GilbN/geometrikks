@@ -62,6 +62,28 @@ refreshed weekly - see [MaxMind GeoLite2](#maxmind-geolite2) below. Without
 credentials the app starts in geo-degraded mode (a banner in the UI explains
 what to do); after adding credentials, restart the app container.
 
+## Docker image tags
+
+Images are published as `ghcr.io/gilbn/geometrikks`.
+
+| Tag | Example | Meaning |
+| --- | --- | --- |
+| `latest` | `latest` | The newest stable release. |
+| Exact stable version | `0.2.x` | A specific stable release; use this for reproducible deployments. |
+| Major/minor stable version | `0.2` | The newest stable patch release in a major/minor series. |
+| Exact development version | `0.2.2-dev.2` | A specific prerelease build for testing upcoming changes. |
+| `develop` | `develop` | The newest development release; a moving tag. |
+
+Use `latest` to follow the newest stable release, or pin an exact version for
+reproducible deployments:
+
+```yaml
+image: ghcr.io/gilbn/geometrikks:0.2.3
+```
+
+Development tags are intended for testing upcoming changes; production
+installs should use a stable tag.
+
 `docker-compose.yml` mounts `${NGINX_LOG_DIR:-/var/log/nginx}` read-only into
 the container at `/var/log/nginx` and reads `LOGPARSER_LOG_PATHS` from
 `.env`. Point `NGINX_LOG_DIR` at wherever your nginx (or reverse proxy)
