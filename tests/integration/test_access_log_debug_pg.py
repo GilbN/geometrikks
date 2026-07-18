@@ -245,3 +245,37 @@ async def test_unknown_order_by_raises_400(pg_session_maker, clean_tables) -> No
         service = AccessLogDebugService(session=session)
         with pytest.raises(ValidationException, match="Cannot sort by"):
             await service.list_entries(_window(), LimitOffset(50, 0), order_by="raw_line; DROP TABLE")
+
+
+async def test_stats_counts_and_top_error(pg_session_maker, clean_tables) -> None:
+    ts = NOW - timedelta(hours=1)
+    await _insert_debug(pg_session_maker, ts, "ok line")
+    await _insert_debug(pg_session_maker, ts, "bad 1", malformed=True, parse_error="regex mismatch")
+    await _insert_debug(pg_session_maker, ts, "bad 2", malformed=True, parse_error="regex mismatch")
+    await _insert_debug(pg_session_maker, ts, "bad 3", malformed=True, parse_error="bad status")
+    # Outside the window: must not count.
+    await _insert_debug(pg_session_maker, NOW - timedelta(days=2), "old bad", malformed=True, parse_error="regex mismatch")
+
+    async with pg_session_maker() as session:
+        service = AccessLogDebugService(session=session)
+        stats = await service.get_stats(
+            on_or_after=NOW - timedelta(hours=6), on_or_before=NOW,
+        )
+
+    assert stats.total == 4
+    assert stats.malformed == 3
+    assert stats.top_parse_error is not None
+    assert stats.top_parse_error.error == "regex mismatch"
+    assert stats.top_parse_error.count == 2
+
+
+async def test_stats_empty_range_returns_zeros(pg_session_maker, clean_tables) -> None:
+    async with pg_session_maker() as session:
+        service = AccessLogDebugService(session=session)
+        stats = await service.get_stats(
+            on_or_after=NOW - timedelta(hours=6), on_or_before=NOW,
+        )
+
+    assert stats.total == 0
+    assert stats.malformed == 0
+    assert stats.top_parse_error is None

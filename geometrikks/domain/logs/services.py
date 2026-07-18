@@ -179,3 +179,51 @@ class AccessLogDebugService(SQLAlchemyAsyncRepositoryService[AccessLogDebug]):
             )
             for row in rows
         ], total
+
+    async def get_stats(
+        self,
+        on_or_after: datetime | None = None,
+        on_or_before: datetime | None = None,
+    ) -> AccessLogDebugStats:
+        """Aggregates for the stat cards, scoped to the created_at range only.
+
+        Deliberately ignores the list filters: the cards summarize the whole
+        window while the table narrows within it.
+        """
+        session = self.repository.session
+        conditions = []
+        if on_or_after is not None:
+            conditions.append(AccessLogDebug.created_at >= on_or_after)
+        if on_or_before is not None:
+            conditions.append(AccessLogDebug.created_at <= on_or_before)
+
+        total, malformed = (
+            await session.execute(
+                select(
+                    func.count(),
+                    func.count().filter(AccessLogDebug.is_malformed.is_(True)),
+                )
+                .select_from(AccessLogDebug)
+                .where(*conditions)
+            )
+        ).one()
+
+        top = (
+            await session.execute(
+                select(AccessLogDebug.parse_error, func.count().label("error_count"))
+                .where(AccessLogDebug.parse_error.is_not(None), *conditions)
+                .group_by(AccessLogDebug.parse_error)
+                .order_by(func.count().desc(), AccessLogDebug.parse_error)
+                .limit(1)
+            )
+        ).first()
+
+        return AccessLogDebugStats(
+            total=total,
+            malformed=malformed,
+            top_parse_error=(
+                ParseErrorCount(error=top.parse_error, count=top.error_count)
+                if top is not None
+                else None
+            ),
+        )
