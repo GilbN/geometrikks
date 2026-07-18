@@ -15,6 +15,7 @@ export type URI = string;
 
 /** All available route names */
 export type RouteName =
+  | 'get_access_log_debug_stats'
   | 'get_access_log_facets'
   | 'get_cumulative_time_series'
   | 'get_geo_log_facets'
@@ -39,7 +40,7 @@ export type RouteName =
   | 'get_top_user_agents'
   | 'health'
   | 'health_ready'
-  | 'list_access_log_debugs'
+  | 'list_access_log_debug'
   | 'list_access_logs'
   | 'list_geo_events'
   | 'list_geo_locations'
@@ -56,6 +57,7 @@ export type RouteName =
 
 /** Path parameter definitions per route */
 export interface RoutePathParams {
+  'get_access_log_debug_stats': Record<string, never>;
   'get_access_log_facets': Record<string, never>;
   'get_cumulative_time_series': Record<string, never>;
   'get_geo_log_facets': Record<string, never>;
@@ -82,7 +84,7 @@ export interface RoutePathParams {
   'get_top_user_agents': Record<string, never>;
   'health': Record<string, never>;
   'health_ready': Record<string, never>;
-  'list_access_log_debugs': Record<string, never>;
+  'list_access_log_debug': Record<string, never>;
   'list_access_logs': Record<string, never>;
   'list_geo_events': Record<string, never>;
   'list_geo_locations': Record<string, never>;
@@ -104,6 +106,10 @@ export interface RoutePathParams {
 
 /** Query parameter definitions per route */
 export interface RouteQueryParams {
+  'get_access_log_debug_stats': {
+    from_timestamp?: DateTime;
+    to_timestamp?: DateTime;
+  };
   'get_access_log_facets': Record<string, never>;
   'get_cumulative_time_series': {
     end_date: DateTime;
@@ -261,9 +267,19 @@ export interface RouteQueryParams {
   };
   'health': Record<string, never>;
   'health_ready': Record<string, never>;
-  'list_access_log_debugs': {
+  'list_access_log_debug': {
+    cityIn?: string[];
+    countryCodeIn?: string[];
     currentPage?: number;
+    from_timestamp?: DateTime;
+    ipAddressIn?: string[];
+    malformed?: boolean;
+    orderBy?: string;
     pageSize?: number;
+    searchIgnoreCase?: boolean;
+    searchString?: string;
+    sortOrder?: "asc" | "desc";
+    to_timestamp?: DateTime;
   };
   'list_access_logs': {
     cityIn?: string[];
@@ -317,6 +333,13 @@ export type RouteParams<T extends RouteName> = MergeParams<RoutePathParams[T], R
 
 /** Route metadata */
 export const routeDefinitions = {
+  'get_access_log_debug_stats': {
+    path: '/api/v1/access-log-debug/stats',
+    methods: ['GET'] as const,
+    method: 'get',
+    pathParams: [] as const,
+    queryParams: ['from_timestamp', 'to_timestamp'] as const,
+  },
   'get_access_log_facets': {
     path: '/api/v1/access-logs/facets',
     methods: ['GET'] as const,
@@ -485,12 +508,12 @@ export const routeDefinitions = {
     pathParams: [] as const,
     queryParams: [] as const,
   },
-  'list_access_log_debugs': {
+  'list_access_log_debug': {
     path: '/api/v1/access-log-debug',
     methods: ['GET'] as const,
     method: 'get',
     pathParams: [] as const,
-    queryParams: ['currentPage', 'pageSize'] as const,
+    queryParams: ['cityIn', 'countryCodeIn', 'currentPage', 'from_timestamp', 'ipAddressIn', 'malformed', 'orderBy', 'pageSize', 'searchIgnoreCase', 'searchString', 'sortOrder', 'to_timestamp'] as const,
   },
   'list_access_logs': {
     path: '/api/v1/access-logs',

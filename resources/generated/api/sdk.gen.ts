@@ -3,9 +3,12 @@
 import type { Client, Options as Options2, TDataShape } from "./client";
 import { client } from "./client.gen";
 import type {
-  ApiV1AccessLogDebugListAccessLogDebugsData,
-  ApiV1AccessLogDebugListAccessLogDebugsErrors,
-  ApiV1AccessLogDebugListAccessLogDebugsResponses,
+  ApiV1AccessLogDebugListAccessLogDebugData,
+  ApiV1AccessLogDebugListAccessLogDebugErrors,
+  ApiV1AccessLogDebugListAccessLogDebugResponses,
+  ApiV1AccessLogDebugStatsGetAccessLogDebugStatsData,
+  ApiV1AccessLogDebugStatsGetAccessLogDebugStatsErrors,
+  ApiV1AccessLogDebugStatsGetAccessLogDebugStatsResponses,
   ApiV1AccessLogsFacetsGetAccessLogFacetsData,
   ApiV1AccessLogsFacetsGetAccessLogFacetsResponses,
   ApiV1AccessLogsListAccessLogsData,
@@ -114,16 +117,16 @@ export type Options<
 };
 
 /**
- * ListAccessLogDebugs
+ * ListAccessLogDebug
  */
-export const apiV1AccessLogDebugListAccessLogDebugs = <
+export const apiV1AccessLogDebugListAccessLogDebug = <
   ThrowOnError extends boolean = false,
 >(
-  options?: Options<ApiV1AccessLogDebugListAccessLogDebugsData, ThrowOnError>,
+  options?: Options<ApiV1AccessLogDebugListAccessLogDebugData, ThrowOnError>,
 ) =>
   (options?.client ?? client).get<
-    ApiV1AccessLogDebugListAccessLogDebugsResponses,
-    ApiV1AccessLogDebugListAccessLogDebugsErrors,
+    ApiV1AccessLogDebugListAccessLogDebugResponses,
+    ApiV1AccessLogDebugListAccessLogDebugErrors,
     ThrowOnError
   >({
     security: [
@@ -134,6 +137,35 @@ export const apiV1AccessLogDebugListAccessLogDebugs = <
       },
     ],
     url: "/api/v1/access-log-debug",
+    ...options,
+  });
+
+/**
+ * GetAccessLogDebugStats
+ *
+ * Aggregate debug-line stats for the stat cards.
+ */
+export const apiV1AccessLogDebugStatsGetAccessLogDebugStats = <
+  ThrowOnError extends boolean = false,
+>(
+  options?: Options<
+    ApiV1AccessLogDebugStatsGetAccessLogDebugStatsData,
+    ThrowOnError
+  >,
+) =>
+  (options?.client ?? client).get<
+    ApiV1AccessLogDebugStatsGetAccessLogDebugStatsResponses,
+    ApiV1AccessLogDebugStatsGetAccessLogDebugStatsErrors,
+    ThrowOnError
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+    ],
+    url: "/api/v1/access-log-debug/stats",
     ...options,
   });
 

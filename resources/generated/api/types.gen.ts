@@ -5,6 +5,37 @@ export type ClientOptions = {
 };
 
 /**
+ * AccessLogDebugEntry
+ */
+export type AccessLogDebugEntry = {
+  accessLogId?: number | null;
+  city?: string | null;
+  countryCode?: string | null;
+  countryName?: string | null;
+  createdAt: string;
+  host?: string | null;
+  id: number;
+  ipAddress?: string | null;
+  isMalformed: boolean;
+  method?: string | null;
+  parseError?: string | null;
+  rawLine: string;
+  statusCode?: number | null;
+  timestamp?: string | null;
+  url?: string | null;
+  userAgent?: string | null;
+};
+
+/**
+ * AccessLogDebugStats
+ */
+export type AccessLogDebugStats = {
+  malformed: number;
+  topParseError?: ParseErrorCount | null;
+  total: number;
+};
+
+/**
  * AccessLogFacets
  */
 export type AccessLogFacets = {
@@ -231,18 +262,6 @@ export type GlobalTopIpsResponse = {
 };
 
 /**
- * ListAccessLogDebugsAccessLogDebugResponseBody
- */
-export type ListAccessLogDebugsAccessLogDebugResponseBody = {
-  accessLogId?: number | null;
-  createdAt?: string;
-  id: number;
-  isMalformed?: boolean;
-  parseError?: string | null;
-  rawLine: string;
-};
-
-/**
  * ListAccessLogsAccessLogResponseBody
  */
 export type ListAccessLogsAccessLogResponseBody = {
@@ -358,6 +377,14 @@ export type MapSettingsView = {
  */
 export type MeResponse = {
   username: string;
+};
+
+/**
+ * ParseErrorCount
+ */
+export type ParseErrorCount = {
+  count: number;
+  error: string;
 };
 
 /**
@@ -626,17 +653,33 @@ export type TopUserAgentsResponse = {
   start_date: string;
 };
 
-export type ApiV1AccessLogDebugListAccessLogDebugsData = {
+export type ApiV1AccessLogDebugListAccessLogDebugData = {
   body?: never;
   path?: never;
   query?: {
+    /**
+     * Field to search
+     */
+    searchString?: string | null;
+    /**
+     * Search should be case sensitive
+     */
+    searchIgnoreCase?: boolean | null;
     currentPage?: number;
     pageSize?: number;
+    from_timestamp?: string | null;
+    to_timestamp?: string | null;
+    ipAddressIn?: Array<string> | null;
+    countryCodeIn?: Array<string> | null;
+    cityIn?: Array<string> | null;
+    malformed?: boolean | null;
+    orderBy?: string;
+    sortOrder?: "asc" | "desc";
   };
   url: "/api/v1/access-log-debug";
 };
 
-export type ApiV1AccessLogDebugListAccessLogDebugsErrors = {
+export type ApiV1AccessLogDebugListAccessLogDebugErrors = {
   /**
    * Validation Exception
    */
@@ -652,15 +695,15 @@ export type ApiV1AccessLogDebugListAccessLogDebugsErrors = {
   };
 };
 
-export type ApiV1AccessLogDebugListAccessLogDebugsError =
-  ApiV1AccessLogDebugListAccessLogDebugsErrors[keyof ApiV1AccessLogDebugListAccessLogDebugsErrors];
+export type ApiV1AccessLogDebugListAccessLogDebugError =
+  ApiV1AccessLogDebugListAccessLogDebugErrors[keyof ApiV1AccessLogDebugListAccessLogDebugErrors];
 
-export type ApiV1AccessLogDebugListAccessLogDebugsResponses = {
+export type ApiV1AccessLogDebugListAccessLogDebugResponses = {
   /**
    * Request fulfilled, document follows
    */
   200: {
-    items?: Array<ListAccessLogDebugsAccessLogDebugResponseBody>;
+    items?: Array<AccessLogDebugEntry>;
     /**
      * Maximal number of items to send.
      */
@@ -676,8 +719,47 @@ export type ApiV1AccessLogDebugListAccessLogDebugsResponses = {
   };
 };
 
-export type ApiV1AccessLogDebugListAccessLogDebugsResponse =
-  ApiV1AccessLogDebugListAccessLogDebugsResponses[keyof ApiV1AccessLogDebugListAccessLogDebugsResponses];
+export type ApiV1AccessLogDebugListAccessLogDebugResponse =
+  ApiV1AccessLogDebugListAccessLogDebugResponses[keyof ApiV1AccessLogDebugListAccessLogDebugResponses];
+
+export type ApiV1AccessLogDebugStatsGetAccessLogDebugStatsData = {
+  body?: never;
+  path?: never;
+  query?: {
+    from_timestamp?: string | null;
+    to_timestamp?: string | null;
+  };
+  url: "/api/v1/access-log-debug/stats";
+};
+
+export type ApiV1AccessLogDebugStatsGetAccessLogDebugStatsErrors = {
+  /**
+   * Validation Exception
+   */
+  400: {
+    detail: string;
+    extra?:
+      | null
+      | {
+          [key: string]: unknown;
+        }
+      | Array<unknown>;
+    status_code: number;
+  };
+};
+
+export type ApiV1AccessLogDebugStatsGetAccessLogDebugStatsError =
+  ApiV1AccessLogDebugStatsGetAccessLogDebugStatsErrors[keyof ApiV1AccessLogDebugStatsGetAccessLogDebugStatsErrors];
+
+export type ApiV1AccessLogDebugStatsGetAccessLogDebugStatsResponses = {
+  /**
+   * Request fulfilled, document follows
+   */
+  200: AccessLogDebugStats;
+};
+
+export type ApiV1AccessLogDebugStatsGetAccessLogDebugStatsResponse =
+  ApiV1AccessLogDebugStatsGetAccessLogDebugStatsResponses[keyof ApiV1AccessLogDebugStatsGetAccessLogDebugStatsResponses];
 
 export type ApiV1AccessLogsListAccessLogsData = {
   body?: never;
