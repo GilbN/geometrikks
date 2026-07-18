@@ -10,7 +10,7 @@ CAGG Structure:
 - summary_hourly_stats / summary_daily_stats: Access log metrics
 - geo_summary_hourly_stats / geo_summary_daily_stats: Geo metrics with HyperLogLog
 - location_hourly_stats / location_daily_stats: Location event counts for map
-- ip_location_daily_stats: Per-IP counts by location for top IPs
+- ip_location_{hourly,daily}_stats: Per-IP counts by location for top IPs
 """
 
 from __future__ import annotations
@@ -221,38 +221,43 @@ async def _create_location_caggs(conn: "AsyncConnection") -> None:
 
 
 async def _create_ip_location_cagg(conn: "AsyncConnection") -> None:
-    """Create IP-location stats CAGG.
+    """Create IP-location stats CAGGs (hourly + daily).
 
-    Used for: Top IPs per location, Global top IPs
-    Daily granularity only (top IPs don't need hourly precision)
+    Used for: Top IPs per location, Global top IPs, grouped geo-logs rows.
+
+    Both granularities exist so the query layer can honour the same routing
+    the summary/location CAGGs use (hourly for 24h-30d, daily above). Serving
+    a 14-day range from the daily CAGG forces callers to align the window to
+    a whole day, which over-counts the partial first day.
     """
-    await conn.execute(text("""
-        CREATE MATERIALIZED VIEW IF NOT EXISTS ip_location_daily_stats
-        WITH (timescaledb.continuous) AS
-        SELECT
-            time_bucket('1 day', timestamp) AS bucket,
-            location_id,
-            ip_address,
-            COUNT(*) AS event_count
-        FROM geo_events
-        GROUP BY bucket, location_id, ip_address
-        WITH NO DATA
-    """))
-    logger.info("CAGG created/verified: ip_location_daily_stats")
+    for suffix, interval in (("hourly", "1 hour"), ("daily", "1 day")):
+        await conn.execute(text(f"""
+            CREATE MATERIALIZED VIEW IF NOT EXISTS ip_location_{suffix}_stats
+            WITH (timescaledb.continuous) AS
+            SELECT
+                time_bucket('{interval}', timestamp) AS bucket,
+                location_id,
+                ip_address,
+                COUNT(*) AS event_count
+            FROM geo_events
+            GROUP BY bucket, location_id, ip_address
+            WITH NO DATA
+        """))
+        logger.info("CAGG created/verified: ip_location_%s_stats", suffix)
 
-    # Create indexes for fast queries
-    await conn.execute(text("""
-        CREATE INDEX IF NOT EXISTS ix_ip_location_daily_stats_bucket
-        ON ip_location_daily_stats (bucket DESC)
-    """))
-    await conn.execute(text("""
-        CREATE INDEX IF NOT EXISTS ix_ip_location_daily_stats_location
-        ON ip_location_daily_stats (location_id)
-    """))
-    await conn.execute(text("""
-        CREATE INDEX IF NOT EXISTS ix_ip_location_daily_stats_location_ip
-        ON ip_location_daily_stats (location_id, ip_address)
-    """))
+        # Create indexes for fast queries
+        await conn.execute(text(f"""
+            CREATE INDEX IF NOT EXISTS ix_ip_location_{suffix}_stats_bucket
+            ON ip_location_{suffix}_stats (bucket DESC)
+        """))
+        await conn.execute(text(f"""
+            CREATE INDEX IF NOT EXISTS ix_ip_location_{suffix}_stats_location
+            ON ip_location_{suffix}_stats (location_id)
+        """))
+        await conn.execute(text(f"""
+            CREATE INDEX IF NOT EXISTS ix_ip_location_{suffix}_stats_location_ip
+            ON ip_location_{suffix}_stats (location_id, ip_address)
+        """))
 
 
 # =============================================================================
@@ -268,6 +273,7 @@ CAGG_REFRESH_CONFIG = [
     ("summary_hourly_stats", "3 hours", "1 hour"),
     ("geo_summary_hourly_stats", "3 hours", "1 hour"),
     ("location_hourly_stats", "3 hours", "1 hour"),
+    ("ip_location_hourly_stats", "3 hours", "1 hour"),
     # Daily CAGGs: refresh up to 1 hour ago to keep data fresh
     # (using "1 day" would leave too large a gap for real-time aggregation)
     ("summary_daily_stats", "3 days", "1 hour"),
@@ -280,6 +286,7 @@ HOURLY_CAGGS = [
     "summary_hourly_stats",
     "geo_summary_hourly_stats",
     "location_hourly_stats",
+    "ip_location_hourly_stats",
 ]
 
 
@@ -419,6 +426,7 @@ ALL_CAGGS = [
     "geo_summary_daily_stats",
     "location_hourly_stats",
     "location_daily_stats",
+    "ip_location_hourly_stats",
     "ip_location_daily_stats",
 ]
 
@@ -614,6 +622,7 @@ CAGG_SOURCE_TABLES: dict[str, str] = {
     "geo_summary_daily_stats": "geo_events",
     "location_hourly_stats": "geo_events",
     "location_daily_stats": "geo_events",
+    "ip_location_hourly_stats": "geo_events",
     "ip_location_daily_stats": "geo_events",
 }
 

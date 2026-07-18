@@ -10,7 +10,7 @@ from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import text
 
-from geometrikks.domain.geo.repositories import StatsGranularity
+from geometrikks.domain.geo.repositories import StatsGranularity, get_stats_granularity
 from geometrikks.domain.geo.schemas import GeoEventFilters
 from geometrikks.domain.geo.services import GeoEventService
 from geometrikks.server.timescale import refresh_caggs_range
@@ -410,6 +410,142 @@ class TestGeojsonEventCountFilters:
         assert sum(r.event_count for r in by_host) == 3
         assert {r.location.id for r in by_ip} == {locs["no"]}
         assert sum(r.event_count for r in by_ip) == 6
+
+
+# Misaligned window: neither edge lands on an hour boundary, so the CAGG path
+# must stitch partial head/tail buckets from raw geo_events.
+B_START = NOW - timedelta(days=3) + timedelta(minutes=30)
+B_END = NOW - timedelta(minutes=30)
+
+
+async def seed_boundary(session_maker) -> dict[str, int]:
+    """Events straddling both edges of a mid-bucket window.
+
+    ``9.9.9.9`` and ``8.8.8.8`` sit outside [B_START, B_END) but inside the same
+    hour buckets as the edges — they are exactly what bucket-flooring used to
+    pull in. Each uses a unique IP and (for the tail) a unique country so a
+    regression shows up in event counts, unique-IP counts and group lists alike.
+    """
+    async with session_maker() as session:
+        locs = await _seed_locations(session)
+        # Head: before the window, same hour bucket as B_START.
+        await _insert_events(
+            session, ts=B_START - timedelta(minutes=20), ip="9.9.9.9",
+            hostname="web1", location_id=locs["no"], n=1,
+        )
+        # Inside the window.
+        await _insert_events(
+            session, ts=B_START + timedelta(minutes=10), ip="1.1.1.1",
+            hostname="web1", location_id=locs["no"], n=1,
+        )
+        await _insert_events(
+            session, ts=NOW - timedelta(days=2), ip="1.1.1.1",
+            hostname="web1", location_id=locs["no"], n=3,
+        )
+        await _insert_events(
+            session, ts=NOW - timedelta(days=1), ip="2.2.2.2",
+            hostname="web2", location_id=locs["se"], n=2,
+        )
+        await _insert_events(
+            session, ts=B_END - timedelta(minutes=10), ip="2.2.2.2",
+            hostname="web2", location_id=locs["se"], n=1,
+        )
+        # Tail: after the window, same hour bucket as B_END.
+        await _insert_events(
+            session, ts=B_END + timedelta(minutes=10), ip="8.8.8.8",
+            hostname="web2", location_id=locs["us"], n=1,
+        )
+        await session.commit()
+    return locs
+
+
+class TestMisalignedWindowParity:
+    """A >24h window that starts/ends mid-bucket must match an exact raw scan.
+
+    Regression cover for the geo-logs vs analytics mismatch: the CAGG path
+    floored the start to a whole bucket, silently counting a partial extra
+    bucket that the raw analytics scan excluded.
+    """
+
+    async def _refresh(self, pg_engine):
+        await refresh_caggs_range(
+            pg_engine, start=NOW - timedelta(days=4), end=NOW + timedelta(hours=1)
+        )
+
+    async def test_routes_to_hourly_cagg(self, pg_engine, pg_session_maker, clean_tables):
+        """A 3-day range is HOURLY, so the per-IP read must use the hourly CAGG."""
+        assert get_stats_granularity(B_START, B_END) == StatsGranularity.HOURLY
+
+    async def test_grouped_logs_excludes_edge_events(self, pg_engine, pg_session_maker, clean_tables):
+        locs = await seed_boundary(pg_session_maker)
+        await self._refresh(pg_engine)
+        async with pg_session_maker() as session:
+            rows, total = await GeoEventService(session=session).get_grouped_logs(
+                B_START, B_END, GeoEventFilters(), limit=50, offset=0
+            )
+        assert total == 2, "9.9.9.9 / 8.8.8.8 are outside the window"
+        assert [(r.location_id, r.ip_address, r.event_count) for r in rows] == [
+            (locs["no"], "1.1.1.1", 4),
+            (locs["se"], "2.2.2.2", 3),
+        ]
+
+    async def test_top_countries_excludes_edge_events(self, pg_engine, pg_session_maker, clean_tables):
+        await seed_boundary(pg_session_maker)
+        await self._refresh(pg_engine)
+        async with pg_session_maker() as session:
+            rows = await GeoEventService(session=session).get_top_countries(
+                B_START, B_END, GeoEventFilters(), limit=10
+            )
+        assert [(r.country_code, r.event_count, r.unique_ips) for r in rows] == [
+            ("NO", 4, 1),
+            ("SE", 3, 1),
+        ], "US only has the out-of-window 8.8.8.8 event"
+
+    async def test_top_ips_excludes_edge_events(self, pg_engine, pg_session_maker, clean_tables):
+        await seed_boundary(pg_session_maker)
+        await self._refresh(pg_engine)
+        async with pg_session_maker() as session:
+            rows = await GeoEventService(session=session).get_top_ips(
+                B_START, B_END, GeoEventFilters(), limit=10
+            )
+        assert [(r.ip_address, r.event_count) for r in rows] == [
+            ("1.1.1.1", 4),
+            ("2.2.2.2", 3),
+        ]
+
+    async def test_top_cities_excludes_edge_events(self, pg_engine, pg_session_maker, clean_tables):
+        await seed_boundary(pg_session_maker)
+        await self._refresh(pg_engine)
+        async with pg_session_maker() as session:
+            rows = await GeoEventService(session=session).get_top_cities(
+                B_START, B_END, GeoEventFilters(), limit=10
+            )
+        assert [(r.city, r.event_count, r.unique_ips) for r in rows] == [
+            ("Oslo", 4, 1),
+            ("Umea", 3, 1),
+        ]
+
+    async def test_matches_raw_scan_of_same_window(self, pg_engine, pg_session_maker, clean_tables):
+        """Strongest form: CAGG-path totals equal a direct raw scan, the same
+        way the analytics endpoints compute them from access_logs."""
+        await seed_boundary(pg_session_maker)
+        await self._refresh(pg_engine)
+        async with pg_session_maker() as session:
+            expected = (await session.execute(
+                text(
+                    "SELECT COUNT(*) AS events, COUNT(DISTINCT ge.ip_address) AS uips "
+                    "FROM geo_events ge JOIN geo_locations gl ON ge.location_id = gl.id "
+                    "WHERE ge.timestamp >= :start AND ge.timestamp < :end "
+                    "  AND gl.country_code = 'NO'"
+                ),
+                {"start": B_START, "end": B_END},
+            )).one()
+            rows = await GeoEventService(session=session).get_top_countries(
+                B_START, B_END, GeoEventFilters(country_codes=["NO"]), limit=10
+            )
+        assert [(r.event_count, r.unique_ips) for r in rows] == [
+            (expected.events, expected.uips)
+        ]
 
 
 class TestFacets:
