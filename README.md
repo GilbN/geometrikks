@@ -69,16 +69,16 @@ Images are published as `ghcr.io/gilbn/geometrikks`.
 | Tag | Example | Meaning |
 | --- | --- | --- |
 | `latest` | `latest` | The newest stable release. |
-| Exact stable version | `0.2.x` | A specific stable release; use this for reproducible deployments. |
-| Major/minor stable version | `0.2` | The newest stable patch release in a major/minor series. |
-| Exact development version | `0.2.2-dev.2` | A specific prerelease build for testing upcoming changes. |
+| Exact stable version | `X.Y.Z` | A specific stable release; use this for reproducible deployments. |
+| Major/minor stable version | `X.Y` | The newest stable patch release in a major/minor series. |
+| Exact development version | `0.3.0-dev.2` | A specific prerelease build for testing upcoming changes. |
 | `develop` | `develop` | The newest development release; a moving tag. |
 
 Use `latest` to follow the newest stable release, or pin an exact version for
 reproducible deployments:
 
 ```yaml
-image: ghcr.io/gilbn/geometrikks:0.2.3
+image: ghcr.io/gilbn/geometrikks:0.3.0
 ```
 
 Development tags are intended for testing upcoming changes; production
