@@ -15,6 +15,8 @@ import type {
   ApiV1AuthLogoutLogoutResponses,
   ApiV1AuthMeMeData,
   ApiV1AuthMeMeResponses,
+  ApiV1GeoEventsFacetsGetGeoLogFacetsData,
+  ApiV1GeoEventsFacetsGetGeoLogFacetsResponses,
   ApiV1SettingsReadSettingsData,
   ApiV1SettingsReadSettingsResponses,
   ApiV1StatsStatsData,
@@ -39,6 +41,7 @@ import type {
  */
 export type OperationName =
   | 'get_access_log_facets'
+  | 'get_geo_log_facets'
   | 'health'
   | 'health_ready'
   | 'login'
@@ -53,6 +56,7 @@ export type OperationName =
  */
 export interface OperationDataTypes {
   'get_access_log_facets': ApiV1AccessLogsFacetsGetAccessLogFacetsData
+  'get_geo_log_facets': ApiV1GeoEventsFacetsGetGeoLogFacetsData
   'health': HealthHealthData
   'health_ready': HealthReadyHealthReadyData
   'login': ApiV1AuthLoginLoginData
@@ -68,6 +72,7 @@ export interface OperationDataTypes {
  */
 export interface OperationResponseTypes {
   'get_access_log_facets': ApiV1AccessLogsFacetsGetAccessLogFacetsResponses
+  'get_geo_log_facets': ApiV1GeoEventsFacetsGetGeoLogFacetsResponses
   'health': HealthHealthResponses
   'health_ready': HealthReadyHealthReadyResponses
   'login': ApiV1AuthLoginLoginResponses
@@ -83,6 +88,7 @@ export interface OperationResponseTypes {
  */
 export interface OperationErrorTypes {
   'get_access_log_facets': never
+  'get_geo_log_facets': never
   'health': never
   'health_ready': never
   'login': ApiV1AuthLoginLoginErrors

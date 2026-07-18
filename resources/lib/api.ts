@@ -4,6 +4,13 @@
 
 import axios from "axios"
 import {
+  apiV1GeoEventsFacetsGetGeoLogFacets,
+  apiV1GeoEventsLogsGetGeoLogs,
+  apiV1GeoEventsSummaryGetGeoLogSummary,
+  apiV1GeoEventsTimeSeriesGetGeoLogTimeSeries,
+  apiV1GeoEventsTopCitiesGetGeoLogTopCities,
+  apiV1GeoEventsTopCountriesGetGeoLogTopCountries,
+  apiV1GeoEventsTopIpsGetGeoLogTopIps,
   apiV1AnalyticsGeoTimeSeriesGetGeoTimeSeries,
   apiV1AnalyticsTimeSeriesGetTimeSeries,
   apiV1AnalyticsTopCitiesGetTopCities,
@@ -220,6 +227,12 @@ export interface GeoJSONParams {
   toTimestamp: string
   countryCodes?: string[]
   cities?: string[]
+  /** Exact IPs to include; forces a raw geo_events scan on the backend. */
+  ips?: string[]
+  /** Exact IPs to exclude; forces a raw geo_events scan on the backend. */
+  ipsExclude?: string[]
+  /** Recording hostnames; forces a raw geo_events scan on the backend. */
+  hostnames?: string[]
 }
 
 export async function fetchGeoJSON(params: GeoJSONParams): Promise<GeoJSONFeatureCollection> {
@@ -229,6 +242,9 @@ export async function fetchGeoJSON(params: GeoJSONParams): Promise<GeoJSONFeatur
       to_timestamp: params.toTimestamp,
       country_code: params.countryCodes?.length ? params.countryCodes : undefined,
       city: params.cities?.length ? params.cities : undefined,
+      ipAddressIn: params.ips?.length ? params.ips : undefined,
+      ipAddressNotIn: params.ipsExclude?.length ? params.ipsExclude : undefined,
+      hostnameIn: params.hostnames?.length ? params.hostnames : undefined,
     },
     // Litestar expects repeated keys (?country_code=NO&country_code=SE),
     // not axios' default bracket form (country_code[]=NO).
@@ -461,6 +477,143 @@ export async function fetchCumulativeTimeSeries(params: TimeSeriesParams): Promi
       end_date: params.endDate,
     },
   })
+  return data
+}
+
+// ============================================================================
+// Types & Functions - Geo Logs API (generated SDK; types flow from OpenAPI)
+// ============================================================================
+
+/**
+ * Full geo-logs filter set, shared by every fetcher on the page so the map,
+ * stats, chart, top lists and table reshape together.
+ */
+export interface GeoLogFilterParams {
+  countryCodes?: string[]
+  cities?: string[]
+  ips?: string[]
+  ipsExclude?: string[]
+  hostnames?: string[]
+}
+
+/** Shared query fragment; empty arrays are dropped from the query string. */
+function geoLogFilterQuery(params: GeoLogFilterParams) {
+  return {
+    countryCodeIn: params.countryCodes?.length ? params.countryCodes : undefined,
+    cityIn: params.cities?.length ? params.cities : undefined,
+    ipAddressIn: params.ips?.length ? params.ips : undefined,
+    ipAddressNotIn: params.ipsExclude?.length ? params.ipsExclude : undefined,
+    hostnameIn: params.hostnames?.length ? params.hostnames : undefined,
+  }
+}
+
+export interface GeoLogsWindowParams {
+  fromTimestamp: string
+  toTimestamp: string
+}
+
+export type GeoLogSortOrder = "asc" | "desc"
+
+export async function fetchGeoLogs(
+  params: GeoLogsWindowParams & GeoLogFilterParams & {
+    currentPage?: number
+    pageSize?: number
+    /** Sorts by event count. */
+    sortOrder?: GeoLogSortOrder
+  },
+) {
+  const { data } = await apiV1GeoEventsLogsGetGeoLogs({
+    query: {
+      from_timestamp: params.fromTimestamp,
+      to_timestamp: params.toTimestamp,
+      currentPage: params.currentPage ?? 1,
+      pageSize: params.pageSize ?? 50,
+      sortOrder: params.sortOrder ?? "desc",
+      ...geoLogFilterQuery(params),
+    },
+    throwOnError: true,
+  })
+  return data
+}
+
+export async function fetchGeoLogSummary(
+  params: GeoLogsWindowParams & GeoLogFilterParams & { comparePrevious?: boolean },
+) {
+  const { data } = await apiV1GeoEventsSummaryGetGeoLogSummary({
+    query: {
+      from_timestamp: params.fromTimestamp,
+      to_timestamp: params.toTimestamp,
+      compare_previous: params.comparePrevious ?? true,
+      ...geoLogFilterQuery(params),
+    },
+    throwOnError: true,
+  })
+  return data
+}
+
+export async function fetchGeoLogTimeSeries(
+  params: GeoLogsWindowParams & GeoLogFilterParams & { granularity?: "hourly" | "daily" },
+) {
+  const { data } = await apiV1GeoEventsTimeSeriesGetGeoLogTimeSeries({
+    query: {
+      from_timestamp: params.fromTimestamp,
+      to_timestamp: params.toTimestamp,
+      granularity: params.granularity,
+      ...geoLogFilterQuery(params),
+    },
+    throwOnError: true,
+  })
+  return data
+}
+
+export async function fetchGeoLogTopIps(
+  params: GeoLogsWindowParams & GeoLogFilterParams & { limit?: number },
+) {
+  const { data } = await apiV1GeoEventsTopIpsGetGeoLogTopIps({
+    query: {
+      from_timestamp: params.fromTimestamp,
+      to_timestamp: params.toTimestamp,
+      limit: params.limit ?? 10,
+      ...geoLogFilterQuery(params),
+    },
+    throwOnError: true,
+  })
+  return data
+}
+
+export async function fetchGeoLogTopCountries(
+  params: GeoLogsWindowParams & GeoLogFilterParams & { limit?: number },
+) {
+  const { data } = await apiV1GeoEventsTopCountriesGetGeoLogTopCountries({
+    query: {
+      from_timestamp: params.fromTimestamp,
+      to_timestamp: params.toTimestamp,
+      limit: params.limit ?? 10,
+      ...geoLogFilterQuery(params),
+    },
+    throwOnError: true,
+  })
+  return data
+}
+
+export async function fetchGeoLogTopCities(
+  params: GeoLogsWindowParams & GeoLogFilterParams & { limit?: number },
+) {
+  const { data } = await apiV1GeoEventsTopCitiesGetGeoLogTopCities({
+    query: {
+      from_timestamp: params.fromTimestamp,
+      to_timestamp: params.toTimestamp,
+      limit: params.limit ?? 10,
+      ...geoLogFilterQuery(params),
+    },
+    throwOnError: true,
+  })
+  return data
+}
+
+/** Distinct country/city/hostname values present in the geo data. */
+export async function fetchGeoEventFacets() {
+  const { data } = await apiV1GeoEventsFacetsGetGeoLogFacets({ throwOnError: true })
   return data
 }
 

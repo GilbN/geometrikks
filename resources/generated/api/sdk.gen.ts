@@ -48,9 +48,29 @@ import type {
   ApiV1AuthLogoutLogoutResponses,
   ApiV1AuthMeMeData,
   ApiV1AuthMeMeResponses,
+  ApiV1GeoEventsFacetsGetGeoLogFacetsData,
+  ApiV1GeoEventsFacetsGetGeoLogFacetsResponses,
   ApiV1GeoEventsListGeoEventsData,
   ApiV1GeoEventsListGeoEventsErrors,
   ApiV1GeoEventsListGeoEventsResponses,
+  ApiV1GeoEventsLogsGetGeoLogsData,
+  ApiV1GeoEventsLogsGetGeoLogsErrors,
+  ApiV1GeoEventsLogsGetGeoLogsResponses,
+  ApiV1GeoEventsSummaryGetGeoLogSummaryData,
+  ApiV1GeoEventsSummaryGetGeoLogSummaryErrors,
+  ApiV1GeoEventsSummaryGetGeoLogSummaryResponses,
+  ApiV1GeoEventsTimeSeriesGetGeoLogTimeSeriesData,
+  ApiV1GeoEventsTimeSeriesGetGeoLogTimeSeriesErrors,
+  ApiV1GeoEventsTimeSeriesGetGeoLogTimeSeriesResponses,
+  ApiV1GeoEventsTopCitiesGetGeoLogTopCitiesData,
+  ApiV1GeoEventsTopCitiesGetGeoLogTopCitiesErrors,
+  ApiV1GeoEventsTopCitiesGetGeoLogTopCitiesResponses,
+  ApiV1GeoEventsTopCountriesGetGeoLogTopCountriesData,
+  ApiV1GeoEventsTopCountriesGetGeoLogTopCountriesErrors,
+  ApiV1GeoEventsTopCountriesGetGeoLogTopCountriesResponses,
+  ApiV1GeoEventsTopIpsGetGeoLogTopIpsData,
+  ApiV1GeoEventsTopIpsGetGeoLogTopIpsErrors,
+  ApiV1GeoEventsTopIpsGetGeoLogTopIpsResponses,
   ApiV1GeoLocationsGeojsonGetGeojsonData,
   ApiV1GeoLocationsGeojsonGetGeojsonErrors,
   ApiV1GeoLocationsGeojsonGetGeojsonResponses,
@@ -525,6 +545,194 @@ export const apiV1GeoEventsListGeoEvents = <
       },
     ],
     url: "/api/v1/geo-events",
+    ...options,
+  });
+
+/**
+ * GetGeoLogFacets
+ *
+ * Distinct filterable values for dropdowns.
+ */
+export const apiV1GeoEventsFacetsGetGeoLogFacets = <
+  ThrowOnError extends boolean = false,
+>(
+  options?: Options<ApiV1GeoEventsFacetsGetGeoLogFacetsData, ThrowOnError>,
+) =>
+  (options?.client ?? client).get<
+    ApiV1GeoEventsFacetsGetGeoLogFacetsResponses,
+    unknown,
+    ThrowOnError
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+    ],
+    url: "/api/v1/geo-events/facets",
+    ...options,
+  });
+
+/**
+ * GetGeoLogs
+ *
+ * Geo events grouped by (location, IP) with counts.
+ */
+export const apiV1GeoEventsLogsGetGeoLogs = <
+  ThrowOnError extends boolean = false,
+>(
+  options: Options<ApiV1GeoEventsLogsGetGeoLogsData, ThrowOnError>,
+) =>
+  (options.client ?? client).get<
+    ApiV1GeoEventsLogsGetGeoLogsResponses,
+    ApiV1GeoEventsLogsGetGeoLogsErrors,
+    ThrowOnError
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+    ],
+    url: "/api/v1/geo-events/logs",
+    ...options,
+  });
+
+/**
+ * GetGeoLogSummary
+ *
+ * Aggregate geo-event stats for the stat cards.
+ */
+export const apiV1GeoEventsSummaryGetGeoLogSummary = <
+  ThrowOnError extends boolean = false,
+>(
+  options: Options<ApiV1GeoEventsSummaryGetGeoLogSummaryData, ThrowOnError>,
+) =>
+  (options.client ?? client).get<
+    ApiV1GeoEventsSummaryGetGeoLogSummaryResponses,
+    ApiV1GeoEventsSummaryGetGeoLogSummaryErrors,
+    ThrowOnError
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+    ],
+    url: "/api/v1/geo-events/summary",
+    ...options,
+  });
+
+/**
+ * GetGeoLogTimeSeries
+ *
+ * Per-bucket geo-event totals for the chart.
+ */
+export const apiV1GeoEventsTimeSeriesGetGeoLogTimeSeries = <
+  ThrowOnError extends boolean = false,
+>(
+  options: Options<
+    ApiV1GeoEventsTimeSeriesGetGeoLogTimeSeriesData,
+    ThrowOnError
+  >,
+) =>
+  (options.client ?? client).get<
+    ApiV1GeoEventsTimeSeriesGetGeoLogTimeSeriesResponses,
+    ApiV1GeoEventsTimeSeriesGetGeoLogTimeSeriesErrors,
+    ThrowOnError
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+    ],
+    url: "/api/v1/geo-events/time-series",
+    ...options,
+  });
+
+/**
+ * GetGeoLogTopCities
+ *
+ * Top cities by geo-event count.
+ */
+export const apiV1GeoEventsTopCitiesGetGeoLogTopCities = <
+  ThrowOnError extends boolean = false,
+>(
+  options: Options<ApiV1GeoEventsTopCitiesGetGeoLogTopCitiesData, ThrowOnError>,
+) =>
+  (options.client ?? client).get<
+    ApiV1GeoEventsTopCitiesGetGeoLogTopCitiesResponses,
+    ApiV1GeoEventsTopCitiesGetGeoLogTopCitiesErrors,
+    ThrowOnError
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+    ],
+    url: "/api/v1/geo-events/top-cities",
+    ...options,
+  });
+
+/**
+ * GetGeoLogTopCountries
+ *
+ * Top countries by geo-event count.
+ */
+export const apiV1GeoEventsTopCountriesGetGeoLogTopCountries = <
+  ThrowOnError extends boolean = false,
+>(
+  options: Options<
+    ApiV1GeoEventsTopCountriesGetGeoLogTopCountriesData,
+    ThrowOnError
+  >,
+) =>
+  (options.client ?? client).get<
+    ApiV1GeoEventsTopCountriesGetGeoLogTopCountriesResponses,
+    ApiV1GeoEventsTopCountriesGetGeoLogTopCountriesErrors,
+    ThrowOnError
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+    ],
+    url: "/api/v1/geo-events/top-countries",
+    ...options,
+  });
+
+/**
+ * GetGeoLogTopIps
+ *
+ * Top IPs by geo-event count.
+ */
+export const apiV1GeoEventsTopIpsGetGeoLogTopIps = <
+  ThrowOnError extends boolean = false,
+>(
+  options: Options<ApiV1GeoEventsTopIpsGetGeoLogTopIpsData, ThrowOnError>,
+) =>
+  (options.client ?? client).get<
+    ApiV1GeoEventsTopIpsGetGeoLogTopIpsResponses,
+    ApiV1GeoEventsTopIpsGetGeoLogTopIpsErrors,
+    ThrowOnError
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+    ],
+    url: "/api/v1/geo-events/top-ips",
     ...options,
   });
 

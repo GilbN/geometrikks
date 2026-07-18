@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Geo Logs counts no longer disagree with the Analytics page on ranges over 24h.
+  The per-IP CAGG reads floored the window start to a whole bucket, silently
+  counting a partial extra bucket that the raw analytics scan excluded. Grouped
+  logs and top IPs/countries/cities now read whole buckets from the CAGG and the
+  partial head/tail straight from `geo_events`, so they match an exact raw scan.
 - Fixed stacking of the moving point pulse.
 - Live map packets now complete their route before coalesced follow-up traffic
   from the same visual corridor begins.
@@ -20,6 +25,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- New `ip_location_hourly_stats` CAGG, so per-IP geo queries on 24h-30d ranges
+  use hourly buckets like the other CAGGs instead of falling back to daily ones.
+  Created at startup and its history materialized by `backfill_cagg_gaps`; no
+  migration needed.
+- Geo Logs page: geo events grouped by (location, IP) with counts, an
+  embedded marker/cluster map, stat cards with previous-period trends, an
+  events/unique-IPs time-series chart, and Top IPs / Countries / Cities lists.
+  Country, city, IP include/exclude and hostname filters apply to everything on
+  the page and live in the URL, so filtered views are shareable links.
+- New `/api/v1/geo-events` endpoints backing the Geo Logs page: grouped logs,
+  summary, time-series, top-ips/countries/cities and facets, with CAGG-backed
+  fast paths for long ranges. The geojson endpoint now accepts optional IP
+  include/exclude and hostname filters.
 - Add search and filter options to access logs.
 - Add more columns on the live tail access log view.
 - Analytics page: Selectable chart granularity - Auto / Hourly / Daily selector; never RAW above 24h, falls back to get_stats_granularity, avoids hourly buckets on ranges above 7d.

@@ -163,6 +163,51 @@
         "title": "EmbeddedLocationDTO",
         "type": "object"
       },
+      "GeoCountryFacet": {
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "name"
+        ],
+        "title": "GeoCountryFacet",
+        "type": "object"
+      },
+      "GeoEventFacets": {
+        "properties": {
+          "cities": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "countries": {
+            "items": {
+              "$ref": "#/components/schemas/GeoCountryFacet"
+            },
+            "type": "array"
+          },
+          "hostnames": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "cities",
+          "countries",
+          "hostnames"
+        ],
+        "title": "GeoEventFacets",
+        "type": "object"
+      },
       "GeoEventsDataPoint": {
         "properties": {
           "timestamp": {
@@ -408,6 +453,271 @@
           "type"
         ],
         "title": "GeoJSONPointGeometry",
+        "type": "object"
+      },
+      "GeoLogEntry": {
+        "properties": {
+          "city": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "countryCode": {
+            "type": "string"
+          },
+          "countryName": {
+            "type": "string"
+          },
+          "eventCount": {
+            "type": "integer"
+          },
+          "hostnames": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "ipAddress": {
+            "type": "string"
+          },
+          "lastSeen": {
+            "oneOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "latitude": {
+            "type": "number"
+          },
+          "locationId": {
+            "type": "integer"
+          },
+          "longitude": {
+            "type": "number"
+          },
+          "postalCode": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "state": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "stateCode": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "city",
+          "countryCode",
+          "countryName",
+          "eventCount",
+          "hostnames",
+          "ipAddress",
+          "lastSeen",
+          "latitude",
+          "locationId",
+          "longitude",
+          "postalCode",
+          "state",
+          "stateCode"
+        ],
+        "title": "GeoLogEntry",
+        "type": "object"
+      },
+      "GeoLogPercentChange": {
+        "properties": {
+          "totalEvents": {
+            "oneOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "uniqueCities": {
+            "oneOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "uniqueCountries": {
+            "oneOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "uniqueIps": {
+            "oneOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "totalEvents",
+          "uniqueCities",
+          "uniqueCountries",
+          "uniqueIps"
+        ],
+        "title": "GeoLogPercentChange",
+        "type": "object"
+      },
+      "GeoLogPeriod": {
+        "properties": {
+          "totalEvents": {
+            "type": "integer"
+          },
+          "uniqueCities": {
+            "type": "integer"
+          },
+          "uniqueCountries": {
+            "type": "integer"
+          },
+          "uniqueIps": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "totalEvents",
+          "uniqueCities",
+          "uniqueCountries",
+          "uniqueIps"
+        ],
+        "title": "GeoLogPeriod",
+        "type": "object"
+      },
+      "GeoLogSummaryResponse": {
+        "properties": {
+          "currentPeriod": {
+            "$ref": "#/components/schemas/GeoLogPeriod"
+          },
+          "endDate": {
+            "type": "string"
+          },
+          "percentChanges": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/GeoLogPercentChange"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "previousPeriod": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/GeoLogPeriod"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "startDate": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "currentPeriod",
+          "endDate",
+          "percentChanges",
+          "previousPeriod",
+          "startDate"
+        ],
+        "title": "GeoLogSummaryResponse",
+        "type": "object"
+      },
+      "GeoLogTimeSeriesPoint": {
+        "properties": {
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "totalEvents": {
+            "type": "integer"
+          },
+          "uniqueIps": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "timestamp",
+          "totalEvents",
+          "uniqueIps"
+        ],
+        "title": "GeoLogTimeSeriesPoint",
+        "type": "object"
+      },
+      "GeoLogTimeSeriesResponse": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/GeoLogTimeSeriesPoint"
+            },
+            "type": "array"
+          },
+          "endDate": {
+            "type": "string"
+          },
+          "granularity": {
+            "type": "string"
+          },
+          "startDate": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "data",
+          "endDate",
+          "granularity",
+          "startDate"
+        ],
+        "title": "GeoLogTimeSeriesResponse",
         "type": "object"
       },
       "GlobalTopIPsResponse": {
@@ -1429,6 +1739,151 @@
           "unique_ips"
         ],
         "title": "TopCountryStatsDTO",
+        "type": "object"
+      },
+      "TopGeoCitiesResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/TopGeoCity"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "TopGeoCitiesResponse",
+        "type": "object"
+      },
+      "TopGeoCity": {
+        "properties": {
+          "city": {
+            "type": "string"
+          },
+          "countryCode": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "eventCount": {
+            "type": "integer"
+          },
+          "uniqueIps": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "city",
+          "countryCode",
+          "eventCount",
+          "uniqueIps"
+        ],
+        "title": "TopGeoCity",
+        "type": "object"
+      },
+      "TopGeoCountriesResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/TopGeoCountry"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "TopGeoCountriesResponse",
+        "type": "object"
+      },
+      "TopGeoCountry": {
+        "properties": {
+          "countryCode": {
+            "type": "string"
+          },
+          "countryName": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "eventCount": {
+            "type": "integer"
+          },
+          "uniqueIps": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "countryCode",
+          "countryName",
+          "eventCount",
+          "uniqueIps"
+        ],
+        "title": "TopGeoCountry",
+        "type": "object"
+      },
+      "TopGeoIp": {
+        "properties": {
+          "city": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "countryCode": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "eventCount": {
+            "type": "integer"
+          },
+          "ipAddress": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "city",
+          "countryCode",
+          "eventCount",
+          "ipAddress"
+        ],
+        "title": "TopGeoIp",
+        "type": "object"
+      },
+      "TopGeoIpsResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/TopGeoIp"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "TopGeoIpsResponse",
         "type": "object"
       },
       "TopIPDTO": {
@@ -3849,9 +4304,152 @@
             "name": "pageSize",
             "required": false,
             "schema": {
-              "default": 10,
+              "default": 50,
               "minimum": 1.0,
               "type": "integer"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "orderBy",
+            "required": false,
+            "schema": {
+              "default": "timestamp",
+              "oneOf": [
+                {
+                  "default": "timestamp",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Order by field"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "sortOrder",
+            "required": false,
+            "schema": {
+              "default": "desc",
+              "enum": [
+                "asc",
+                "desc",
+                null
+              ],
+              "title": "Field to search",
+              "type": [
+                "null",
+                "string"
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "from_timestamp",
+            "required": false,
+            "schema": {
+              "oneOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "to_timestamp",
+            "required": false,
+            "schema": {
+              "oneOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "ipAddressIn",
+            "required": false,
+            "schema": {
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "ipAddressNotIn",
+            "required": false,
+            "schema": {
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "hostnameIn",
+            "required": false,
+            "schema": {
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
             }
           }
         ],
@@ -3927,6 +4525,1456 @@
           }
         },
         "summary": "ListGeoEvents",
+        "tags": [
+          "Geo Events"
+        ]
+      }
+    },
+    "/api/v1/geo-events/facets": {
+      "get": {
+        "deprecated": false,
+        "description": "Distinct filterable values for dropdowns.",
+        "operationId": "ApiV1GeoEventsFacetsGetGeoLogFacets",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GeoEventFacets"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          }
+        },
+        "summary": "GetGeoLogFacets",
+        "tags": [
+          "Geo Events"
+        ]
+      }
+    },
+    "/api/v1/geo-events/logs": {
+      "get": {
+        "deprecated": false,
+        "description": "Geo events grouped by (location, IP) with counts.",
+        "operationId": "ApiV1GeoEventsLogsGetGeoLogs",
+        "parameters": [
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "countryCodeIn",
+            "required": false,
+            "schema": {
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "cityIn",
+            "required": false,
+            "schema": {
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "ipAddressIn",
+            "required": false,
+            "schema": {
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "ipAddressNotIn",
+            "required": false,
+            "schema": {
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "hostnameIn",
+            "required": false,
+            "schema": {
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)",
+            "examples": {
+              "from_timestamp-example-1": {
+                "value": "2024-01-01T00:00:00Z"
+              }
+            },
+            "in": "query",
+            "name": "from_timestamp",
+            "required": true,
+            "schema": {
+              "description": "Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)",
+              "examples": [
+                "2024-01-01T00:00:00Z"
+              ],
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)",
+            "examples": {
+              "to_timestamp-example-1": {
+                "value": "2024-12-31T23:59:59Z"
+              }
+            },
+            "in": "query",
+            "name": "to_timestamp",
+            "required": true,
+            "schema": {
+              "description": "End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)",
+              "examples": [
+                "2024-12-31T23:59:59Z"
+              ],
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "currentPage",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "minimum": 1.0,
+              "type": "integer"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "pageSize",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 500.0,
+              "minimum": 1.0,
+              "type": "integer"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Sort by event count",
+            "in": "query",
+            "name": "sortOrder",
+            "required": false,
+            "schema": {
+              "default": "desc",
+              "description": "Sort by event count",
+              "enum": [
+                "asc",
+                "desc"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "items": {
+                      "items": {
+                        "$ref": "#/components/schemas/GeoLogEntry"
+                      },
+                      "type": "array"
+                    },
+                    "limit": {
+                      "description": "Maximal number of items to send.",
+                      "type": "integer"
+                    },
+                    "offset": {
+                      "description": "Offset from the beginning of the query.",
+                      "type": "integer"
+                    },
+                    "total": {
+                      "description": "Total number of items.",
+                      "type": "integer"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "GetGeoLogs",
+        "tags": [
+          "Geo Events"
+        ]
+      }
+    },
+    "/api/v1/geo-events/summary": {
+      "get": {
+        "deprecated": false,
+        "description": "Aggregate geo-event stats for the stat cards.",
+        "operationId": "ApiV1GeoEventsSummaryGetGeoLogSummary",
+        "parameters": [
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "countryCodeIn",
+            "required": false,
+            "schema": {
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "cityIn",
+            "required": false,
+            "schema": {
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "ipAddressIn",
+            "required": false,
+            "schema": {
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "ipAddressNotIn",
+            "required": false,
+            "schema": {
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "hostnameIn",
+            "required": false,
+            "schema": {
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)",
+            "examples": {
+              "from_timestamp-example-1": {
+                "value": "2024-01-01T00:00:00Z"
+              }
+            },
+            "in": "query",
+            "name": "from_timestamp",
+            "required": true,
+            "schema": {
+              "description": "Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)",
+              "examples": [
+                "2024-01-01T00:00:00Z"
+              ],
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)",
+            "examples": {
+              "to_timestamp-example-1": {
+                "value": "2024-12-31T23:59:59Z"
+              }
+            },
+            "in": "query",
+            "name": "to_timestamp",
+            "required": true,
+            "schema": {
+              "description": "End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)",
+              "examples": [
+                "2024-12-31T23:59:59Z"
+              ],
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Include comparison with previous period of same length",
+            "in": "query",
+            "name": "compare_previous",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Include comparison with previous period of same length",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GeoLogSummaryResponse"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "GetGeoLogSummary",
+        "tags": [
+          "Geo Events"
+        ]
+      }
+    },
+    "/api/v1/geo-events/time-series": {
+      "get": {
+        "deprecated": false,
+        "description": "Per-bucket geo-event totals for the chart.",
+        "operationId": "ApiV1GeoEventsTimeSeriesGetGeoLogTimeSeries",
+        "parameters": [
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "countryCodeIn",
+            "required": false,
+            "schema": {
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "cityIn",
+            "required": false,
+            "schema": {
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "ipAddressIn",
+            "required": false,
+            "schema": {
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "ipAddressNotIn",
+            "required": false,
+            "schema": {
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "hostnameIn",
+            "required": false,
+            "schema": {
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)",
+            "examples": {
+              "from_timestamp-example-1": {
+                "value": "2024-01-01T00:00:00Z"
+              }
+            },
+            "in": "query",
+            "name": "from_timestamp",
+            "required": true,
+            "schema": {
+              "description": "Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)",
+              "examples": [
+                "2024-01-01T00:00:00Z"
+              ],
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)",
+            "examples": {
+              "to_timestamp-example-1": {
+                "value": "2024-12-31T23:59:59Z"
+              }
+            },
+            "in": "query",
+            "name": "to_timestamp",
+            "required": true,
+            "schema": {
+              "description": "End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)",
+              "examples": [
+                "2024-12-31T23:59:59Z"
+              ],
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Bucket size override. Omit to auto-select (hourly <= 30 days, daily above). RAW is never available.",
+            "in": "query",
+            "name": "granularity",
+            "required": false,
+            "schema": {
+              "description": "Bucket size override. Omit to auto-select (hourly <= 30 days, daily above). RAW is never available.",
+              "enum": [
+                "hourly",
+                "daily",
+                null
+              ],
+              "type": [
+                "null",
+                "string"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GeoLogTimeSeriesResponse"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "GetGeoLogTimeSeries",
+        "tags": [
+          "Geo Events"
+        ]
+      }
+    },
+    "/api/v1/geo-events/top-cities": {
+      "get": {
+        "deprecated": false,
+        "description": "Top cities by geo-event count.",
+        "operationId": "ApiV1GeoEventsTopCitiesGetGeoLogTopCities",
+        "parameters": [
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "countryCodeIn",
+            "required": false,
+            "schema": {
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "cityIn",
+            "required": false,
+            "schema": {
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "ipAddressIn",
+            "required": false,
+            "schema": {
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "ipAddressNotIn",
+            "required": false,
+            "schema": {
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "hostnameIn",
+            "required": false,
+            "schema": {
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)",
+            "examples": {
+              "from_timestamp-example-1": {
+                "value": "2024-01-01T00:00:00Z"
+              }
+            },
+            "in": "query",
+            "name": "from_timestamp",
+            "required": true,
+            "schema": {
+              "description": "Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)",
+              "examples": [
+                "2024-01-01T00:00:00Z"
+              ],
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)",
+            "examples": {
+              "to_timestamp-example-1": {
+                "value": "2024-12-31T23:59:59Z"
+              }
+            },
+            "in": "query",
+            "name": "to_timestamp",
+            "required": true,
+            "schema": {
+              "description": "End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)",
+              "examples": [
+                "2024-12-31T23:59:59Z"
+              ],
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Maximum number of cities",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 10,
+              "description": "Maximum number of cities",
+              "maximum": 50.0,
+              "minimum": 1.0,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TopGeoCitiesResponse"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "GetGeoLogTopCities",
+        "tags": [
+          "Geo Events"
+        ]
+      }
+    },
+    "/api/v1/geo-events/top-countries": {
+      "get": {
+        "deprecated": false,
+        "description": "Top countries by geo-event count.",
+        "operationId": "ApiV1GeoEventsTopCountriesGetGeoLogTopCountries",
+        "parameters": [
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "countryCodeIn",
+            "required": false,
+            "schema": {
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "cityIn",
+            "required": false,
+            "schema": {
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "ipAddressIn",
+            "required": false,
+            "schema": {
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "ipAddressNotIn",
+            "required": false,
+            "schema": {
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "hostnameIn",
+            "required": false,
+            "schema": {
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)",
+            "examples": {
+              "from_timestamp-example-1": {
+                "value": "2024-01-01T00:00:00Z"
+              }
+            },
+            "in": "query",
+            "name": "from_timestamp",
+            "required": true,
+            "schema": {
+              "description": "Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)",
+              "examples": [
+                "2024-01-01T00:00:00Z"
+              ],
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)",
+            "examples": {
+              "to_timestamp-example-1": {
+                "value": "2024-12-31T23:59:59Z"
+              }
+            },
+            "in": "query",
+            "name": "to_timestamp",
+            "required": true,
+            "schema": {
+              "description": "End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)",
+              "examples": [
+                "2024-12-31T23:59:59Z"
+              ],
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Maximum number of countries",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 10,
+              "description": "Maximum number of countries",
+              "maximum": 50.0,
+              "minimum": 1.0,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TopGeoCountriesResponse"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "GetGeoLogTopCountries",
+        "tags": [
+          "Geo Events"
+        ]
+      }
+    },
+    "/api/v1/geo-events/top-ips": {
+      "get": {
+        "deprecated": false,
+        "description": "Top IPs by geo-event count.",
+        "operationId": "ApiV1GeoEventsTopIpsGetGeoLogTopIps",
+        "parameters": [
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "countryCodeIn",
+            "required": false,
+            "schema": {
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "cityIn",
+            "required": false,
+            "schema": {
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "ipAddressIn",
+            "required": false,
+            "schema": {
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "ipAddressNotIn",
+            "required": false,
+            "schema": {
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "hostnameIn",
+            "required": false,
+            "schema": {
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)",
+            "examples": {
+              "from_timestamp-example-1": {
+                "value": "2024-01-01T00:00:00Z"
+              }
+            },
+            "in": "query",
+            "name": "from_timestamp",
+            "required": true,
+            "schema": {
+              "description": "Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)",
+              "examples": [
+                "2024-01-01T00:00:00Z"
+              ],
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)",
+            "examples": {
+              "to_timestamp-example-1": {
+                "value": "2024-12-31T23:59:59Z"
+              }
+            },
+            "in": "query",
+            "name": "to_timestamp",
+            "required": true,
+            "schema": {
+              "description": "End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)",
+              "examples": [
+                "2024-12-31T23:59:59Z"
+              ],
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Maximum number of IPs",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 10,
+              "description": "Maximum number of IPs",
+              "maximum": 50.0,
+              "minimum": 1.0,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TopGeoIpsResponse"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "GetGeoLogTopIps",
         "tags": [
           "Geo Events"
         ]
@@ -4124,6 +6172,75 @@
             "required": false,
             "schema": {
               "description": "Filter to these city names (repeatable)",
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Filter to these IPs (repeatable)",
+            "in": "query",
+            "name": "ipAddressIn",
+            "required": false,
+            "schema": {
+              "description": "Filter to these IPs (repeatable)",
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Exclude these IPs (repeatable)",
+            "in": "query",
+            "name": "ipAddressNotIn",
+            "required": false,
+            "schema": {
+              "description": "Exclude these IPs (repeatable)",
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Filter to these recording hostnames (repeatable)",
+            "in": "query",
+            "name": "hostnameIn",
+            "required": false,
+            "schema": {
+              "description": "Filter to these recording hostnames (repeatable)",
               "oneOf": [
                 {
                   "items": {

@@ -24,6 +24,7 @@ import {
 import {
   LayoutDashboard,
   Map,
+  MapPinned,
   FileText,
   BarChart3,
   Settings,
@@ -61,7 +62,7 @@ const navigationItems = [
   {
     title: "Geo Logs",
     url: "/geo-logs",
-    icon: FileText,
+    icon: MapPinned,
     description: "Geolocation logs",
   },
   {

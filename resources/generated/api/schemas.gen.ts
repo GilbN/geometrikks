@@ -154,6 +154,46 @@ export const EmbeddedLocationDTOSchema = {
   type: "object",
 } as const;
 
+export const GeoCountryFacetSchema = {
+  properties: {
+    code: {
+      type: "string",
+    },
+    name: {
+      type: "string",
+    },
+  },
+  required: ["code", "name"],
+  title: "GeoCountryFacet",
+  type: "object",
+} as const;
+
+export const GeoEventFacetsSchema = {
+  properties: {
+    cities: {
+      items: {
+        type: "string",
+      },
+      type: "array",
+    },
+    countries: {
+      items: {
+        $ref: "#/components/schemas/GeoCountryFacet",
+      },
+      type: "array",
+    },
+    hostnames: {
+      items: {
+        type: "string",
+      },
+      type: "array",
+    },
+  },
+  required: ["cities", "countries", "hostnames"],
+  title: "GeoEventFacets",
+  type: "object",
+} as const;
+
 export const GeoEventsDataPointSchema = {
   properties: {
     timestamp: {
@@ -384,6 +424,258 @@ export const GeoJSONPointGeometrySchema = {
   },
   required: ["coordinates", "type"],
   title: "GeoJSONPointGeometry",
+  type: "object",
+} as const;
+
+export const GeoLogEntrySchema = {
+  properties: {
+    city: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    countryCode: {
+      type: "string",
+    },
+    countryName: {
+      type: "string",
+    },
+    eventCount: {
+      type: "integer",
+    },
+    hostnames: {
+      items: {
+        type: "string",
+      },
+      type: "array",
+    },
+    ipAddress: {
+      type: "string",
+    },
+    lastSeen: {
+      oneOf: [
+        {
+          format: "date-time",
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    latitude: {
+      type: "number",
+    },
+    locationId: {
+      type: "integer",
+    },
+    longitude: {
+      type: "number",
+    },
+    postalCode: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    state: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    stateCode: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+  },
+  required: [
+    "city",
+    "countryCode",
+    "countryName",
+    "eventCount",
+    "hostnames",
+    "ipAddress",
+    "lastSeen",
+    "latitude",
+    "locationId",
+    "longitude",
+    "postalCode",
+    "state",
+    "stateCode",
+  ],
+  title: "GeoLogEntry",
+  type: "object",
+} as const;
+
+export const GeoLogPercentChangeSchema = {
+  properties: {
+    totalEvents: {
+      oneOf: [
+        {
+          type: "number",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    uniqueCities: {
+      oneOf: [
+        {
+          type: "number",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    uniqueCountries: {
+      oneOf: [
+        {
+          type: "number",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    uniqueIps: {
+      oneOf: [
+        {
+          type: "number",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+  },
+  required: ["totalEvents", "uniqueCities", "uniqueCountries", "uniqueIps"],
+  title: "GeoLogPercentChange",
+  type: "object",
+} as const;
+
+export const GeoLogPeriodSchema = {
+  properties: {
+    totalEvents: {
+      type: "integer",
+    },
+    uniqueCities: {
+      type: "integer",
+    },
+    uniqueCountries: {
+      type: "integer",
+    },
+    uniqueIps: {
+      type: "integer",
+    },
+  },
+  required: ["totalEvents", "uniqueCities", "uniqueCountries", "uniqueIps"],
+  title: "GeoLogPeriod",
+  type: "object",
+} as const;
+
+export const GeoLogSummaryResponseSchema = {
+  properties: {
+    currentPeriod: {
+      $ref: "#/components/schemas/GeoLogPeriod",
+    },
+    endDate: {
+      type: "string",
+    },
+    percentChanges: {
+      oneOf: [
+        {
+          $ref: "#/components/schemas/GeoLogPercentChange",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    previousPeriod: {
+      oneOf: [
+        {
+          $ref: "#/components/schemas/GeoLogPeriod",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    startDate: {
+      type: "string",
+    },
+  },
+  required: [
+    "currentPeriod",
+    "endDate",
+    "percentChanges",
+    "previousPeriod",
+    "startDate",
+  ],
+  title: "GeoLogSummaryResponse",
+  type: "object",
+} as const;
+
+export const GeoLogTimeSeriesPointSchema = {
+  properties: {
+    timestamp: {
+      format: "date-time",
+      type: "string",
+    },
+    totalEvents: {
+      type: "integer",
+    },
+    uniqueIps: {
+      type: "integer",
+    },
+  },
+  required: ["timestamp", "totalEvents", "uniqueIps"],
+  title: "GeoLogTimeSeriesPoint",
+  type: "object",
+} as const;
+
+export const GeoLogTimeSeriesResponseSchema = {
+  properties: {
+    data: {
+      items: {
+        $ref: "#/components/schemas/GeoLogTimeSeriesPoint",
+      },
+      type: "array",
+    },
+    endDate: {
+      type: "string",
+    },
+    granularity: {
+      type: "string",
+    },
+    startDate: {
+      type: "string",
+    },
+  },
+  required: ["data", "endDate", "granularity", "startDate"],
+  title: "GeoLogTimeSeriesResponse",
   type: "object",
 } as const;
 
@@ -1359,6 +1651,136 @@ export const TopCountryStatsDTOSchema = {
   },
   required: ["country_code", "country_name", "hits", "unique_ips"],
   title: "TopCountryStatsDTO",
+  type: "object",
+} as const;
+
+export const TopGeoCitiesResponseSchema = {
+  properties: {
+    items: {
+      items: {
+        $ref: "#/components/schemas/TopGeoCity",
+      },
+      type: "array",
+    },
+  },
+  required: ["items"],
+  title: "TopGeoCitiesResponse",
+  type: "object",
+} as const;
+
+export const TopGeoCitySchema = {
+  properties: {
+    city: {
+      type: "string",
+    },
+    countryCode: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    eventCount: {
+      type: "integer",
+    },
+    uniqueIps: {
+      type: "integer",
+    },
+  },
+  required: ["city", "countryCode", "eventCount", "uniqueIps"],
+  title: "TopGeoCity",
+  type: "object",
+} as const;
+
+export const TopGeoCountriesResponseSchema = {
+  properties: {
+    items: {
+      items: {
+        $ref: "#/components/schemas/TopGeoCountry",
+      },
+      type: "array",
+    },
+  },
+  required: ["items"],
+  title: "TopGeoCountriesResponse",
+  type: "object",
+} as const;
+
+export const TopGeoCountrySchema = {
+  properties: {
+    countryCode: {
+      type: "string",
+    },
+    countryName: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    eventCount: {
+      type: "integer",
+    },
+    uniqueIps: {
+      type: "integer",
+    },
+  },
+  required: ["countryCode", "countryName", "eventCount", "uniqueIps"],
+  title: "TopGeoCountry",
+  type: "object",
+} as const;
+
+export const TopGeoIpSchema = {
+  properties: {
+    city: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    countryCode: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    eventCount: {
+      type: "integer",
+    },
+    ipAddress: {
+      type: "string",
+    },
+  },
+  required: ["city", "countryCode", "eventCount", "ipAddress"],
+  title: "TopGeoIp",
+  type: "object",
+} as const;
+
+export const TopGeoIpsResponseSchema = {
+  properties: {
+    items: {
+      items: {
+        $ref: "#/components/schemas/TopGeoIp",
+      },
+      type: "array",
+    },
+  },
+  required: ["items"],
+  title: "TopGeoIpsResponse",
   type: "object",
 } as const;
 
