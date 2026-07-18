@@ -25,6 +25,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Debug Logs page at `/debug-logs`: raw and malformed log lines with stat cards
+  (total, malformed, most common parse error), a filterable and sortable
+  paginated table, and a row detail dialog with the copyable raw line, the parse
+  error and the request's access-log context. Search covers the raw line and the
+  parse error; IP, country, city and a malformed-only toggle narrow the table,
+  and all filters live in the URL.
+- New `/api/v1/access-log-debug` list and stats endpoints backing the page.
+- `access_log_debug` now stores the linked request's context (timestamp, IP,
+  method, URL, host, status, country, city, user agent) on the row itself,
+  written at ingestion. The Debug Logs list filters, sorts and renders entirely
+  from these columns, so it never queries the `access_logs` hypertable. Applied
+  by migration `b7d41e9c2a30`, which also backfills existing rows and runs
+  automatically at startup. Geo values are a snapshot taken at ingestion, so
+  they do not move if a later GeoIP database update changes an IP's location.
 - New `ip_location_hourly_stats` CAGG, so per-IP geo queries on 24h-30d ranges
   use hourly buckets like the other CAGGs instead of falling back to daily ones.
   Created at startup and its history materialized by `backfill_cagg_gaps`; no
