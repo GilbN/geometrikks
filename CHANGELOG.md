@@ -29,7 +29,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   use hourly buckets like the other CAGGs instead of falling back to daily ones.
   Created at startup and its history materialized by `backfill_cagg_gaps`; no
   migration needed.
-- Geo Logs page (#18): geo events grouped by (location, IP) with counts, an
+- Geo Logs page: geo events grouped by (location, IP) with counts, an
   embedded marker/cluster map, stat cards with previous-period trends, an
   events/unique-IPs time-series chart, and Top IPs / Countries / Cities lists.
   Country, city, IP include/exclude and hostname filters apply to everything on
