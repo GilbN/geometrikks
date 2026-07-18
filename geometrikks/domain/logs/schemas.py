@@ -28,10 +28,12 @@ class AccessLogFacets:
 
 
 class AccessLogDebugEntry(msgspec.Struct, rename="camel"):
-    """One debug row LEFT JOINed with its access log, flattened for the table.
+    """One debug row with its access-log context, flattened for the table.
 
-    Joined access-log fields are None when the raw line never parsed into an
-    access_logs row (access_log_id is a soft reference; no FK on hypertables).
+    The context fields are read straight off access_log_debug, where ingestion
+    denormalized them; nothing here joins access_logs. They are None when the
+    raw line never parsed into an access_logs row (access_log_id is a soft
+    reference; no FK on hypertables).
     """
 
     id: int

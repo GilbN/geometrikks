@@ -1,6 +1,6 @@
 /**
  * Detail view for one debug line: the full raw line (copyable), the parse
- * error, and the joined access-log context when the line parsed into one.
+ * error, and the access-log context when the line parsed into one.
  */
 import { useState, type ReactNode } from "react"
 import { Check, Copy } from "lucide-react"

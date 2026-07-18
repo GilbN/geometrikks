@@ -23,7 +23,7 @@ def provide_debug_time_window(
 ) -> list[FilterTypes]:
     """Optional inclusive [from, to] window on ``created_at`` (ingest time).
 
-    ``created_at`` (not the joined log ``timestamp``) is the hypertable's
+    ``created_at`` (not the log's own ``timestamp``) is the hypertable's
     partition column, so this window is what lets Timescale prune chunks.
     """
     if from_timestamp is None and to_timestamp is None:
@@ -40,7 +40,7 @@ def provide_debug_time_window(
 def validated_ips(values: list[str] | None) -> list[str] | None:
     """Pass through complete IPs; reject free text with a 400.
 
-    The joined ``ip_address`` column is INET, so asyncpg would otherwise fail
+    ``access_log_debug.ip_address`` is INET, so asyncpg would otherwise fail
     to encode the bind param and surface a 500.
     """
     if not values:
@@ -56,8 +56,8 @@ def validated_ips(values: list[str] | None) -> list[str] | None:
 class AccessLogDebugController(Controller):
     """Access log debug endpoints.
 
-    Read operations for raw/malformed log lines with joined access-log
-    context, filtering, search, sorting, and pagination.
+    Read operations for raw/malformed log lines with their denormalized
+    access-log context, filtering, search, sorting, and pagination.
     """
 
     path = "/api/v1/access-log-debug"
@@ -66,9 +66,9 @@ class AccessLogDebugController(Controller):
     dependencies = create_service_dependencies(
         AccessLogDebugService,
         key="access_log_debug_service",
-        # No sort config: sorting spans the LEFT JOIN, which the generated
-        # OrderBy provider cannot resolve; the handler passes orderBy through
-        # to the service's allowlist instead.
+        # No sort config: the generated OrderBy provider cannot resolve the
+        # logical ``timestamp`` key, which maps to the log_timestamp column;
+        # the handler passes orderBy through to the service's allowlist.
         filters={
             "pagination_type": "limit_offset",   # -> ?currentPage & ?pageSize
             "pagination_size": 50,
@@ -102,7 +102,7 @@ class AccessLogDebugController(Controller):
             Literal["asc", "desc"], QueryParameter(name="sortOrder", required=False)
         ] = "desc",
     ) -> OffsetPagination[AccessLogDebugEntry]:
-        """List debug lines newest-first, joined to their access log when linked."""
+        """List debug lines newest-first, with access-log context when linked."""
         all_filters = [*filters, *time_window]
         rows, total = await access_log_debug_service.list_entries(
             *all_filters,

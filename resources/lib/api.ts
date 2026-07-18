@@ -743,7 +743,7 @@ export interface AccessLogDebugEntry {
   isMalformed: boolean
   accessLogId: number | null
   parseError: string | null
-  /** Joined access-log fields; null when the line never parsed into a log. */
+  /** Denormalized access-log fields; null when the line never parsed into a log. */
   timestamp: string | null
   ipAddress: string | null
   method: string | null
@@ -788,11 +788,11 @@ export interface AccessLogDebugParams {
   pageSize?: number
   /** Free-text search across raw_line / parse_error. */
   searchString?: string
-  /** Exact IP match(es) on the joined access log. */
+  /** Exact IP match(es) on the debug row's denormalized ip_address. */
   ipAddressIn?: string[]
-  /** Exact ISO-3166 alpha-2 country code match(es) on the joined access log. */
+  /** Exact ISO-3166 alpha-2 country code match(es); unlinked rows are excluded. */
   countryCodeIn?: string[]
-  /** Exact city match(es) on the joined access log. */
+  /** Exact city match(es); unlinked rows are excluded. */
   cityIn?: string[]
   /** true = malformed only, false = well-formed only, undefined = all. */
   malformed?: boolean

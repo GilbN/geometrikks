@@ -204,7 +204,7 @@ const COLUMNS: ColumnDef[] = [
   },
 ]
 
-/** Full IPv4/IPv6 check - the backend's joined ip_address column is INET, so
+/** Full IPv4/IPv6 check - the backend's ip_address column is INET, so
  * a partial value (mid-typing) must not reach the query. */
 const IPV4_RE =
   /^(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}$/

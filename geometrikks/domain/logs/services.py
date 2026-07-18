@@ -58,12 +58,11 @@ class AccessLogService(SQLAlchemyAsyncRepositoryService[AccessLog]):
         )
 
 
-# Sortable columns for the debug list; spans both sides of the LEFT JOIN,
-# which is why sorting is not delegated to the standard OrderBy filter
-# (it can only resolve fields on the base model).
-# All sortable columns now live on AccessLogDebug itself. Sorting happens
-# before pagination, so a sort key on the joined table would have dragged the
-# whole access_logs hypertable back into the query.
+# Sortable columns for the debug list. All of them live on AccessLogDebug:
+# sorting happens before pagination, so a sort key on another table would drag
+# the whole access_logs hypertable back into the query. Sorting is not
+# delegated to the standard OrderBy filter because the logical "timestamp" key
+# maps to the log_timestamp column, which that filter cannot resolve.
 DEBUG_SORT_COLUMNS = {
     "created_at": AccessLogDebug.created_at,
     "is_malformed": AccessLogDebug.is_malformed,
@@ -78,7 +77,7 @@ DEBUG_SORT_COLUMNS = {
 
 
 class AccessLogDebugService(SQLAlchemyAsyncRepositoryService[AccessLogDebug]):
-    """Repository service for AccessLogDebug with joined access-log context."""
+    """Repository service for AccessLogDebug with denormalized log context."""
 
     class Repo(SQLAlchemyAsyncRepository[AccessLogDebug]):
         model_type = AccessLogDebug
@@ -157,7 +156,7 @@ class AccessLogDebugService(SQLAlchemyAsyncRepositoryService[AccessLogDebug]):
         ).scalar_one()
 
         direction = sort_col.desc() if sort_order == "desc" else sort_col.asc()
-        # nulls_last so unlinked rows (NULL joined columns) sink on both
+        # nulls_last so unlinked rows (NULL context columns) sink on both
         # directions; id tiebreak keeps paging stable within one created_at.
         stmt = stmt.order_by(direction.nulls_last(), AccessLogDebug.id.desc())
         if limit_offset is not None:
