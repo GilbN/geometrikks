@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as MapRouteImport } from './routes/map'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as GeoLogsRouteImport } from './routes/geo-logs'
+import { Route as DebugLogsRouteImport } from './routes/debug-logs'
 import { Route as AnalyticsRouteImport } from './routes/analytics'
 import { Route as AccessLogsRouteImport } from './routes/access-logs'
 import { Route as IndexRouteImport } from './routes/index'
@@ -29,6 +30,11 @@ const LoginRoute = LoginRouteImport.update({
 const GeoLogsRoute = GeoLogsRouteImport.update({
   id: '/geo-logs',
   path: '/geo-logs',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DebugLogsRoute = DebugLogsRouteImport.update({
+  id: '/debug-logs',
+  path: '/debug-logs',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AnalyticsRoute = AnalyticsRouteImport.update({
@@ -51,6 +57,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/access-logs': typeof AccessLogsRoute
   '/analytics': typeof AnalyticsRoute
+  '/debug-logs': typeof DebugLogsRoute
   '/geo-logs': typeof GeoLogsRoute
   '/login': typeof LoginRoute
   '/map': typeof MapRoute
@@ -59,6 +66,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/access-logs': typeof AccessLogsRoute
   '/analytics': typeof AnalyticsRoute
+  '/debug-logs': typeof DebugLogsRoute
   '/geo-logs': typeof GeoLogsRoute
   '/login': typeof LoginRoute
   '/map': typeof MapRoute
@@ -68,6 +76,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/access-logs': typeof AccessLogsRoute
   '/analytics': typeof AnalyticsRoute
+  '/debug-logs': typeof DebugLogsRoute
   '/geo-logs': typeof GeoLogsRoute
   '/login': typeof LoginRoute
   '/map': typeof MapRoute
@@ -78,16 +87,25 @@ export interface FileRouteTypes {
     | '/'
     | '/access-logs'
     | '/analytics'
+    | '/debug-logs'
     | '/geo-logs'
     | '/login'
     | '/map'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/access-logs' | '/analytics' | '/geo-logs' | '/login' | '/map'
+  to:
+    | '/'
+    | '/access-logs'
+    | '/analytics'
+    | '/debug-logs'
+    | '/geo-logs'
+    | '/login'
+    | '/map'
   id:
     | '__root__'
     | '/'
     | '/access-logs'
     | '/analytics'
+    | '/debug-logs'
     | '/geo-logs'
     | '/login'
     | '/map'
@@ -97,6 +115,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AccessLogsRoute: typeof AccessLogsRoute
   AnalyticsRoute: typeof AnalyticsRoute
+  DebugLogsRoute: typeof DebugLogsRoute
   GeoLogsRoute: typeof GeoLogsRoute
   LoginRoute: typeof LoginRoute
   MapRoute: typeof MapRoute
@@ -123,6 +142,13 @@ declare module '@tanstack/react-router' {
       path: '/geo-logs'
       fullPath: '/geo-logs'
       preLoaderRoute: typeof GeoLogsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/debug-logs': {
+      id: '/debug-logs'
+      path: '/debug-logs'
+      fullPath: '/debug-logs'
+      preLoaderRoute: typeof DebugLogsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/analytics': {
@@ -153,6 +179,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AccessLogsRoute: AccessLogsRoute,
   AnalyticsRoute: AnalyticsRoute,
+  DebugLogsRoute: DebugLogsRoute,
   GeoLogsRoute: GeoLogsRoute,
   LoginRoute: LoginRoute,
   MapRoute: MapRoute,

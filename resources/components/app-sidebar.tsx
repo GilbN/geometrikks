@@ -32,6 +32,7 @@ import {
   Activity,
   Globe2,
   AlertCircle,
+  Bug,
   LogOut,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -64,6 +65,12 @@ const navigationItems = [
     url: "/geo-logs",
     icon: MapPinned,
     description: "Geolocation logs",
+  },
+  {
+    title: "Debug Logs",
+    url: "/debug-logs",
+    icon: Bug,
+    description: "Raw & malformed lines",
   },
   {
     title: "Analytics",
