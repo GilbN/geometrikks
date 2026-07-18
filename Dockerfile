@@ -53,15 +53,15 @@ RUN groupadd --gid 1000 geometrikks \
 
 WORKDIR /app
 
-COPY --from=python-builder /app/.venv /app/.venv
-COPY --from=python-builder /app/geometrikks /app/geometrikks
-COPY --from=frontend-builder /app/public /app/public
-COPY --from=frontend-builder /app/index.html /app/public/index.html
-COPY pyproject.toml alembic.ini ./
-COPY migrations/ ./migrations/
+COPY --chown=geometrikks:geometrikks --from=python-builder /app/.venv /app/.venv
+COPY --chown=geometrikks:geometrikks --from=python-builder /app/geometrikks /app/geometrikks
+COPY --chown=geometrikks:geometrikks --from=frontend-builder /app/public /app/public
+COPY --chown=geometrikks:geometrikks --from=frontend-builder /app/index.html /app/public/index.html
+COPY --chown=geometrikks:geometrikks pyproject.toml alembic.ini ./
+COPY --chown=geometrikks:geometrikks migrations/ ./migrations/
 
 RUN mkdir -p /app/logs /app/data/geoip \
-    && chown -R geometrikks:geometrikks /app
+    && chown geometrikks:geometrikks /app/logs /app/data /app/data/geoip
 
 # Set environment
 # GEOIP_VALIDATE_DB_PATH=false: settings construction must not fail while the
