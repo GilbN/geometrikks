@@ -1,7 +1,8 @@
 /**
- * Slim embedded map for the geo-logs page: markers + clusters only (shared
- * layer specs from map/layers.ts), no controls overlay, live pulses, legend
- * or popups. Filtered through GeoLogFiltersContext like the rest of the page.
+ * Slim embedded map for the geo-logs page: markers + clusters (shared layer
+ * specs from map/layers.ts) with the same location popup as the full map,
+ * but no controls overlay, live pulses, or legend. Filtered through
+ * GeoLogFiltersContext like the rest of the page.
  */
 import { useCallback, useEffect, useRef, useState } from "react"
 import Map, {
@@ -17,6 +18,7 @@ import { AlertTriangle } from "lucide-react"
 import { Card, CardHeader, CardTitle } from "@/components/ui/card"
 import { MapSkeleton } from "@/components/map/MapSkeleton"
 import { useMapStyle } from "@/components/map/hooks/useMapStyle"
+import { MapPopup, type PopupInfo } from "@/components/map/MapPopup"
 import {
   clusterCountLayer,
   clusterLayer,
@@ -39,6 +41,7 @@ export default function GeoLogsMap() {
   const { mapStyle } = useMapStyle()
   const { data: geojson, isLoading, isError } = useGeoLogsGeoJSON()
   const [viewState, setViewState] = useState(INITIAL_VIEW_STATE)
+  const [popup, setPopup] = useState<PopupInfo | null>(null)
   const didFitRef = useRef(false)
 
   const onMove = useCallback((evt: ViewStateChangeEvent) => {
@@ -83,18 +86,31 @@ export default function GeoLogsMap() {
 
   const onClick = useCallback((event: maplibregl.MapLayerMouseEvent) => {
     const feature = event.features?.[0]
-    if (!feature?.properties?.cluster) return
-    const clusterId = feature.properties.cluster_id as number
+    if (!feature) {
+      setPopup(null)
+      return
+    }
     const geometry = feature.geometry as GeoJSON.Point
-    const source = mapRef.current?.getSource("geo-data") as maplibregl.GeoJSONSource
-    source?.getClusterExpansionZoom(clusterId).then((zoom) => {
-      mapRef.current?.easeTo({
-        center: geometry.coordinates as [number, number],
-        zoom,
-        duration: 500,
+
+    if (feature.properties?.cluster) {
+      const clusterId = feature.properties.cluster_id as number
+      const source = mapRef.current?.getSource("geo-data") as maplibregl.GeoJSONSource
+      source?.getClusterExpansionZoom(clusterId).then((zoom) => {
+        mapRef.current?.easeTo({
+          center: geometry.coordinates as [number, number],
+          zoom,
+          duration: 500,
+        })
+      }).catch(() => {
+        // Ignore cluster zoom errors
       })
-    }).catch(() => {
-      // Ignore cluster zoom errors
+      return
+    }
+
+    setPopup({
+      longitude: geometry.coordinates[0],
+      latitude: geometry.coordinates[1],
+      properties: feature.properties as PopupInfo["properties"],
     })
   }, [])
 
@@ -118,7 +134,7 @@ export default function GeoLogsMap() {
             onClick={onClick}
             onLoad={fitOnce}
             mapStyle={mapStyle}
-            interactiveLayerIds={["clusters"]}
+            interactiveLayerIds={["clusters", "unclustered-point"]}
             cursor="pointer"
             attributionControl={false}
           >
@@ -141,6 +157,14 @@ export default function GeoLogsMap() {
                 <Layer {...unclusteredPointLayer} />
                 <Layer {...unclusteredPointLabelLayer} />
               </Source>
+            )}
+            {popup && (
+              <MapPopup
+                longitude={popup.longitude}
+                latitude={popup.latitude}
+                properties={popup.properties}
+                onClose={() => setPopup(null)}
+              />
             )}
           </Map>
         )}
