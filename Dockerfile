@@ -6,7 +6,7 @@
 # --platform=$BUILDPLATFORM: the vite/tsc output is architecture-independent,
 # so always build it natively instead of under QEMU emulation (bun is slow and
 # flaky when emulated during multi-arch release builds).
-FROM --platform=$BUILDPLATFORM oven/bun:latest AS frontend-builder
+FROM --platform=$BUILDPLATFORM oven/bun:1.3.14-slim@sha256:621f249399228db47cf34611ee662585e77e015250ed29d5d0932b2d3282f0b0 AS frontend-builder
 
 WORKDIR /app
 
