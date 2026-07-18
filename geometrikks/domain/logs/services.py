@@ -61,16 +61,19 @@ class AccessLogService(SQLAlchemyAsyncRepositoryService[AccessLog]):
 # Sortable columns for the debug list; spans both sides of the LEFT JOIN,
 # which is why sorting is not delegated to the standard OrderBy filter
 # (it can only resolve fields on the base model).
+# All sortable columns now live on AccessLogDebug itself. Sorting happens
+# before pagination, so a sort key on the joined table would have dragged the
+# whole access_logs hypertable back into the query.
 DEBUG_SORT_COLUMNS = {
     "created_at": AccessLogDebug.created_at,
     "is_malformed": AccessLogDebug.is_malformed,
     "parse_error": AccessLogDebug.parse_error,
-    "timestamp": AccessLog.timestamp,
-    "status_code": AccessLog.status_code,
-    "ip_address": AccessLog.ip_address,
-    "host": AccessLog.host,
-    "country_code": AccessLog.country_code,
-    "city": AccessLog.city,
+    "timestamp": AccessLogDebug.log_timestamp,
+    "status_code": AccessLogDebug.status_code,
+    "ip_address": AccessLogDebug.ip_address,
+    "host": AccessLogDebug.host,
+    "country_code": AccessLogDebug.country_code,
+    "city": AccessLogDebug.city,
 }
 
 
@@ -92,12 +95,16 @@ class AccessLogDebugService(SQLAlchemyAsyncRepositoryService[AccessLogDebug]):
         order_by: str = "created_at",
         sort_order: str = "desc",
     ) -> tuple[list[AccessLogDebugEntry], int]:
-        """Debug rows LEFT JOINed to access_logs, with filtering and paging.
+        """Debug rows with their denormalized access-log context.
+
+        Every column this filters, sorts or returns lives on access_log_debug
+        itself, copied from the linked access_logs row at ingestion. Nothing
+        here touches the access_logs hypertable. ip/country/city still drop
+        rows that never linked to an access log, since those columns are NULL
+        for unlinked rows.
 
         Standard advanced-alchemy filters (time window on ``created_at``,
-        search over ``raw_line``/``parse_error``, LimitOffset) apply to the
-        debug table. ip/country/city match the JOINed access_logs columns, so
-        rows without a linked access log drop out when those are set.
+        search over ``raw_line``/``parse_error``, LimitOffset) apply as before.
 
         Raises:
             ValidationException: On an order_by field outside the allowlist
@@ -116,24 +123,24 @@ class AccessLogDebugService(SQLAlchemyAsyncRepositoryService[AccessLogDebug]):
             AccessLogDebug.raw_line,
             AccessLogDebug.is_malformed,
             AccessLogDebug.parse_error,
-            AccessLog.timestamp,
-            AccessLog.ip_address,
-            AccessLog.method,
-            AccessLog.url,
-            AccessLog.host,
-            AccessLog.status_code,
-            AccessLog.country_code,
-            AccessLog.country_name,
-            AccessLog.city,
-            AccessLog.user_agent,
-        ).outerjoin(AccessLog, AccessLogDebug.access_log_id == AccessLog.id)
+            AccessLogDebug.log_timestamp,
+            AccessLogDebug.ip_address,
+            AccessLogDebug.method,
+            AccessLogDebug.url,
+            AccessLogDebug.host,
+            AccessLogDebug.status_code,
+            AccessLogDebug.country_code,
+            AccessLogDebug.country_name,
+            AccessLogDebug.city,
+            AccessLogDebug.user_agent,
+        )
 
         if ip_addresses:
-            stmt = stmt.where(AccessLog.ip_address.in_(ip_addresses))
+            stmt = stmt.where(AccessLogDebug.ip_address.in_(ip_addresses))
         if country_codes:
-            stmt = stmt.where(AccessLog.country_code.in_(country_codes))
+            stmt = stmt.where(AccessLogDebug.country_code.in_(country_codes))
         if cities:
-            stmt = stmt.where(AccessLog.city.in_(cities))
+            stmt = stmt.where(AccessLogDebug.city.in_(cities))
         if malformed is not None:
             stmt = stmt.where(AccessLogDebug.is_malformed == malformed)
 
@@ -165,7 +172,7 @@ class AccessLogDebugService(SQLAlchemyAsyncRepositoryService[AccessLogDebug]):
                 raw_line=row.raw_line,
                 is_malformed=row.is_malformed,
                 parse_error=row.parse_error,
-                timestamp=row.timestamp,
+                timestamp=row.log_timestamp,
                 # INET comes back as an ipaddress object, not str
                 ip_address=str(row.ip_address) if row.ip_address is not None else None,
                 method=row.method,

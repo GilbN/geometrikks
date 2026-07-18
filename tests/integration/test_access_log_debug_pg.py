@@ -1,4 +1,9 @@
-"""Joined list + filtering for access_log_debug, on real TimescaleDB."""
+"""List + filtering for access_log_debug, on real TimescaleDB.
+
+Context columns (ip/geo/status/etc) are denormalized onto access_log_debug at
+ingestion, so these tests seed them directly rather than creating access_logs
+rows to join against.
+"""
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
@@ -14,41 +19,6 @@ from geometrikks.domain.logs.services import AccessLogDebugService
 NOW = datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0)
 
 
-async def _insert_log(
-    session_maker,
-    ts: datetime,
-    ip: str,
-    *,
-    method: str = "GET",
-    url: str = "/x",
-    host: str = "example.com",
-    status: int = 200,
-    country_code: str | None = None,
-    country_name: str | None = None,
-    city: str | None = None,
-    user_agent: str | None = None,
-) -> int:
-    """Insert an access_logs row and return its id (soft-reference target)."""
-    async with session_maker() as session:
-        result = await session.execute(
-            text(
-                "INSERT INTO access_logs (timestamp, ip_address, method, url, host, "
-                " status_code, bytes_sent, request_time, country_code, country_name, "
-                " city, user_agent) "
-                "VALUES (:ts, :ip, :method, :url, :host, :status, 100, 0.01, "
-                " :country_code, :country_name, :city, :user_agent) RETURNING id"
-            ),
-            {
-                "ts": ts, "ip": ip, "method": method, "url": url, "host": host,
-                "status": status, "country_code": country_code,
-                "country_name": country_name, "city": city, "user_agent": user_agent,
-            },
-        )
-        log_id = result.scalar_one()
-        await session.commit()
-        return log_id
-
-
 async def _insert_debug(
     session_maker,
     created: datetime,
@@ -57,17 +27,35 @@ async def _insert_debug(
     access_log_id: int | None = None,
     malformed: bool = False,
     parse_error: str | None = None,
+    log_timestamp: datetime | None = None,
+    ip: str | None = None,
+    method: str | None = None,
+    url: str | None = None,
+    host: str | None = None,
+    status: int | None = None,
+    country_code: str | None = None,
+    country_name: str | None = None,
+    city: str | None = None,
+    user_agent: str | None = None,
 ) -> None:
+    """Insert an access_log_debug row, including its denormalized context."""
     async with session_maker() as session:
         await session.execute(
             text(
                 "INSERT INTO access_log_debug (created_at, raw_line, access_log_id, "
-                " is_malformed, parse_error) "
-                "VALUES (:created, :raw, :log_id, :malformed, :parse_error)"
+                " is_malformed, parse_error, log_timestamp, ip_address, method, url, "
+                " host, status_code, country_code, country_name, city, user_agent) "
+                "VALUES (:created, :raw, :log_id, :malformed, :parse_error, "
+                " :log_timestamp, :ip, :method, :url, :host, :status, "
+                " :country_code, :country_name, :city, :user_agent)"
             ),
             {
                 "created": created, "raw": raw_line, "log_id": access_log_id,
                 "malformed": malformed, "parse_error": parse_error,
+                "log_timestamp": log_timestamp, "ip": ip, "method": method,
+                "url": url, "host": host, "status": status,
+                "country_code": country_code, "country_name": country_name,
+                "city": city, "user_agent": user_agent,
             },
         )
         await session.commit()
@@ -81,14 +69,17 @@ def _window() -> OnBeforeAfter:
     )
 
 
-async def test_list_joins_linked_rows_and_nulls_unlinked(pg_session_maker, clean_tables) -> None:
+async def test_list_returns_denormalized_context_and_nulls_when_unlinked(
+    pg_session_maker, clean_tables
+) -> None:
+    """Linked rows expose their context columns; unlinked rows return None."""
     ts = NOW - timedelta(hours=1)
-    log_id = await _insert_log(
-        pg_session_maker, ts, "10.0.0.1",
-        status=404, country_code="NO", country_name="Norway", city="Oslo",
-        user_agent="curl/8",
+    log_id = 4242
+    await _insert_debug(
+        pg_session_maker, ts, "linked line", access_log_id=log_id,
+        log_timestamp=ts, ip="10.0.0.1", status=404, country_code="NO",
+        country_name="Norway", city="Oslo", user_agent="curl/8",
     )
-    await _insert_debug(pg_session_maker, ts, "linked line", access_log_id=log_id)
     await _insert_debug(
         pg_session_maker, ts, "\\x16\\x03 garbage",
         malformed=True, parse_error="regex mismatch",
@@ -169,16 +160,21 @@ async def test_malformed_tri_state_filter(pg_session_maker, clean_tables) -> Non
     assert good_total == 1 and good_rows[0].raw_line == "good line"
 
 
-async def test_joined_filters_narrow_and_drop_unlinked(pg_session_maker, clean_tables) -> None:
+async def test_context_filters_narrow_and_drop_unlinked(pg_session_maker, clean_tables) -> None:
+    """ip/country/city filter on the debug row's own columns.
+
+    Unlinked rows have NULL there, so an IN filter excludes them, which
+    preserves the behaviour the old join-based filters had.
+    """
     ts = NOW - timedelta(hours=1)
-    no_id = await _insert_log(
-        pg_session_maker, ts, "10.0.0.1", country_code="NO", city="Oslo",
+    await _insert_debug(
+        pg_session_maker, ts, "norway line", access_log_id=1,
+        ip="10.0.0.1", country_code="NO", city="Oslo",
     )
-    se_id = await _insert_log(
-        pg_session_maker, ts, "10.0.0.2", country_code="SE", city="Stockholm",
+    await _insert_debug(
+        pg_session_maker, ts, "sweden line", access_log_id=2,
+        ip="10.0.0.2", country_code="SE", city="Stockholm",
     )
-    await _insert_debug(pg_session_maker, ts, "norway line", access_log_id=no_id)
-    await _insert_debug(pg_session_maker, ts, "sweden line", access_log_id=se_id)
     await _insert_debug(pg_session_maker, ts, "unlinked line")
 
     async with pg_session_maker() as session:
@@ -198,12 +194,16 @@ async def test_joined_filters_narrow_and_drop_unlinked(pg_session_maker, clean_t
     assert ip_total == 1 and by_ip[0].raw_line == "norway line"
 
 
-async def test_sort_by_joined_status_code(pg_session_maker, clean_tables) -> None:
+async def test_sort_by_status_code_puts_nulls_last(pg_session_maker, clean_tables) -> None:
+    """status_code sorts on the debug row, with unlinked rows sinking."""
     ts = NOW - timedelta(hours=1)
-    id_500 = await _insert_log(pg_session_maker, ts, "10.0.0.1", status=500)
-    id_200 = await _insert_log(pg_session_maker, ts, "10.0.0.2", status=200)
-    await _insert_debug(pg_session_maker, ts, "five hundred", access_log_id=id_500)
-    await _insert_debug(pg_session_maker, ts, "two hundred", access_log_id=id_200)
+    await _insert_debug(
+        pg_session_maker, ts, "five hundred", access_log_id=1, status=500,
+    )
+    await _insert_debug(
+        pg_session_maker, ts, "two hundred", access_log_id=2, status=200,
+    )
+    await _insert_debug(pg_session_maker, ts, "no status")
 
     async with pg_session_maker() as session:
         service = AccessLogDebugService(session=session)
@@ -211,7 +211,8 @@ async def test_sort_by_joined_status_code(pg_session_maker, clean_tables) -> Non
             _window(), LimitOffset(50, 0), order_by="status_code", sort_order="asc",
         )
 
-    assert [r.status_code for r in rows] == [200, 500]
+    assert [r.status_code for r in rows] == [200, 500, None]
+    assert rows[-1].raw_line == "no status"
 
 
 async def test_default_sort_newest_created_first(pg_session_maker, clean_tables) -> None:
