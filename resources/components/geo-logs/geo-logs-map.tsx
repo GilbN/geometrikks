@@ -116,9 +116,6 @@ export default function GeoLogsMap() {
 
   return (
     <Card className="h-[380px] gap-0 overflow-hidden py-0">
-      <CardHeader className="border-b py-3">
-        <CardTitle className="text-sm font-medium">Event Locations</CardTitle>
-      </CardHeader>
       <div className="relative flex-1">
         {isLoading && <MapSkeleton />}
         {isError && (
