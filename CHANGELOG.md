@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Mobile sidebar closes automatically after navigating.
 - Table pagination footers no longer overflow on narrow screens; all tables share one responsive footer component.
 - Geo Logs counts no longer disagree with the Analytics page on ranges over 24h.
   The per-IP CAGG reads floored the window start to a whole bucket, silently
