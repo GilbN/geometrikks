@@ -247,13 +247,13 @@ export function AboutPage() {
 
       <Card className="md:col-span-2">
         <CardContent className="flex flex-wrap gap-2 py-4">
-          <Button variant="outline" size="sm" asChild>
+          <Button variant="outline" size="sm" className="pointer-coarse:h-10" asChild>
             <a href={data.links.repository} target="_blank" rel="noreferrer">
               <ExternalLink className="mr-1.5 h-3.5 w-3.5" />
               GitHub repository
             </a>
           </Button>
-          <Button variant="outline" size="sm" asChild>
+          <Button variant="outline" size="sm" className="pointer-coarse:h-10" asChild>
             <a href={data.links.issues} target="_blank" rel="noreferrer">
               <Bug className="mr-1.5 h-3.5 w-3.5" />
               Issue tracker

@@ -181,7 +181,7 @@ export function GeoLogsTable({
         <h2 className="text-sm font-medium">Geo Events by Location and IP</h2>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm" className="h-8">
+            <Button variant="outline" size="sm" className="h-8 pointer-coarse:h-10">
               <Columns3 className="mr-1 h-3.5 w-3.5" /> Columns
             </Button>
           </DropdownMenuTrigger>

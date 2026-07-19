@@ -1,6 +1,6 @@
 import { useState } from "react"
 import { useRouterState } from "@tanstack/react-router"
-import { RotateCw, Filter, SlidersHorizontal, BarChart3 } from "lucide-react"
+import { RotateCw, Filter, Timer, BarChart3 } from "lucide-react"
 
 import {
   DropdownMenu,
@@ -66,6 +66,7 @@ function CustomRangeFields({ onApply }: { onApply: (r: CustomTimeRange) => void 
       <Input type="datetime-local" value={to} onChange={(e) => setTo(e.target.value)} />
       <Button
         size="sm"
+        className="pointer-coarse:h-10"
         disabled={!valid}
         onClick={() => onApply({ from: new Date(from).toISOString(), to: new Date(to).toISOString() })}
       >
@@ -268,7 +269,7 @@ export function TimeRangeToolbar() {
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="outline" size="icon-sm" className="shrink-0 pointer-coarse:size-10">
-              <SlidersHorizontal className="h-4 w-4" />
+              <Timer className="h-4 w-4" />
               <span className="sr-only">Auto Refresh</span>
             </Button>
           </DropdownMenuTrigger>

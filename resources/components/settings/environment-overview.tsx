@@ -215,6 +215,7 @@ export function EnvironmentOverview() {
         </div>
         <Button
           size="sm"
+          className="pointer-coarse:h-10"
           variant={overriddenOnly ? "secondary" : "outline"}
           onClick={() => setOverriddenOnly((v) => !v)}
           aria-pressed={overriddenOnly}

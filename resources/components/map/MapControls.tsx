@@ -1,11 +1,13 @@
 /**
  * Map control overlay with layer toggle and utilities.
  * Desktop: a collapsible panel docked top-right.
- * Mobile: a floating trigger button that opens a bottom drawer, keeping the
- * map area unobstructed.
+ * Mobile: a trigger button portaled into the top header bar (next to the
+ * time-range toolbar) that opens a bottom drawer, keeping the map area
+ * unobstructed.
  */
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
+import { createPortal } from "react-dom"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -23,7 +25,6 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import {
   Flame,
   Globe2,
-  Layers,
   Loader2,
   MapPin,
   Maximize2,
@@ -92,6 +93,13 @@ export function MapControls({
   const [drawerOpen, setDrawerOpen] = useState(false)
   const isMobile = useIsMobile()
 
+  // The header slot only exists after the root layout commits, so resolve it
+  // post-mount rather than during render.
+  const [headerSlot, setHeaderSlot] = useState<HTMLElement | null>(null)
+  useEffect(() => {
+    setHeaderSlot(document.getElementById("header-actions-slot"))
+  }, [])
+
   // The control sections are shared between the desktop top-right panel and the
   // mobile bottom drawer so there is a single source of truth for the controls.
   const sections = (
@@ -112,7 +120,7 @@ export function MapControls({
               aria-label="Heatmap view"
               variant="outline"
               className={cn(
-                "cursor-pointer w-full justify-start gap-2 px-3 data-[state=on]:bg-geo-cyan/15 data-[state=on]:text-geo-cyan data-[state=on]:border-geo-cyan/30",
+                "cursor-pointer w-full justify-start gap-2 px-3 pointer-coarse:h-10 data-[state=on]:bg-geo-cyan/15 data-[state=on]:text-geo-cyan data-[state=on]:border-geo-cyan/30",
                 activeLayer === "heatmap" && "bg-geo-cyan/15 text-geo-cyan border-geo-cyan/30"
               )}
             >
@@ -124,7 +132,7 @@ export function MapControls({
               aria-label="Marker view"
               variant="outline"
               className={cn(
-                "cursor-pointer w-full justify-start gap-2 px-3 data-[state=on]:bg-geo-cyan/15 data-[state=on]:text-geo-cyan data-[state=on]:border-geo-cyan/30",
+                "cursor-pointer w-full justify-start gap-2 px-3 pointer-coarse:h-10 data-[state=on]:bg-geo-cyan/15 data-[state=on]:text-geo-cyan data-[state=on]:border-geo-cyan/30",
                 activeLayer === "markers" && "bg-geo-cyan/15 text-geo-cyan border-geo-cyan/30"
               )}
             >
@@ -142,7 +150,7 @@ export function MapControls({
               ? "Switch to a flat Mercator map"
               : "Switch to an interactive globe"}
             className={cn(
-              "cursor-pointer w-full justify-start gap-2 px-3",
+              "cursor-pointer w-full justify-start gap-2 px-3 pointer-coarse:h-10",
               projection === "globe"
                 && "bg-geo-cyan/15 text-geo-cyan border-geo-cyan/30",
             )}
@@ -159,7 +167,7 @@ export function MapControls({
             onClick={() => onLiveModeChange(!liveMode)}
             aria-pressed={liveMode}
             className={cn(
-              "cursor-pointer w-full justify-start gap-2 px-3",
+              "cursor-pointer w-full justify-start gap-2 px-3 pointer-coarse:h-10",
               liveMode && "bg-geo-cyan/15 text-geo-cyan border-geo-cyan/30"
             )}
           >
@@ -182,7 +190,7 @@ export function MapControls({
               ? "Show or hide animated network routes"
               : "No map home location could be resolved"}
             className={cn(
-              "cursor-pointer w-full justify-start gap-2 px-3",
+              "cursor-pointer w-full justify-start gap-2 px-3 pointer-coarse:h-10",
               routeEffectsEnabled && routeHomeAvailable
                 && "bg-geo-cyan/15 text-geo-cyan border-geo-cyan/30",
             )}
@@ -228,7 +236,7 @@ export function MapControls({
           onClick={onFitBounds}
           disabled={isLoading || events === 0}
           title="Fit to data bounds"
-          className="cursor-pointer"
+          className="cursor-pointer pointer-coarse:size-10"
         >
           <Maximize2 className="h-4 w-4" />
         </Button>
@@ -287,22 +295,26 @@ export function MapControls({
     </>
   )
 
-  // Mobile: a single floating trigger (bottom-right) opens a bottom drawer.
-  // Placed bottom-right so it clears the lifted zoom control's row and the
-  // bottom-left Event Count legend.
+  // Mobile: a trigger in the top header bar (same icon as the desktop panel
+  // toggle) opens a bottom drawer. Portaled into the header's action slot so
+  // it sits with the toolbar buttons instead of floating over the map.
   if (isMobile) {
     return (
       <Drawer open={drawerOpen} onOpenChange={setDrawerOpen}>
-        <DrawerTrigger asChild>
-          <Button
-            size="icon"
-            variant="outline"
-            className="absolute bottom-6 right-4 z-10 bg-background cursor-pointer"
-            title="Show map controls"
-          >
-            <Layers className="h-4 w-4" />
-          </Button>
-        </DrawerTrigger>
+        {headerSlot && createPortal(
+          <DrawerTrigger asChild>
+            <Button
+              size="icon-sm"
+              variant="outline"
+              className="shrink-0 pointer-coarse:size-10 cursor-pointer"
+              title="Show map controls"
+            >
+              <SlidersHorizontal className="h-4 w-4" />
+              <span className="sr-only">Map Controls</span>
+            </Button>
+          </DrawerTrigger>,
+          headerSlot,
+        )}
         <DrawerContent>
           <DrawerHeader>
             <DrawerTitle>Map controls</DrawerTitle>
