@@ -65,7 +65,7 @@ class AuthState:
 
 def build_auth_state(settings: "Settings") -> AuthState:
     """Hash the env-provided admin password once per process."""
-    if not settings.admin_password:
+    if settings.admin_password is None or not settings.admin_password.get_secret_value():
         raise RuntimeError(
             "Auth is enabled but APP_ADMIN_PASSWORD is not set. "
             "Set APP_ADMIN_PASSWORD, or set APP_AUTH_DISABLED=true if an "
@@ -73,7 +73,7 @@ def build_auth_state(settings: "Settings") -> AuthState:
         )
     return AuthState(
         username=settings.admin_user,
-        password_hash=_hasher.hash(settings.admin_password),
+        password_hash=_hasher.hash(settings.admin_password.get_secret_value()),
     )
 
 
