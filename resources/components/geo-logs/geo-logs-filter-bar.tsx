@@ -85,7 +85,7 @@ export function GeoLogsFilterBar() {
 
       <DropdownMenu onOpenChange={(open) => open && setFacetsEnabled(true)}>
         <DropdownMenuTrigger asChild>
-          <Button variant="outline" size="sm" className="h-8">
+          <Button variant="outline" size="sm" className="h-8 pointer-coarse:h-10">
             Hostname{filters.hostnames.length > 0 && ` (${filters.hostnames.length})`}
             <ChevronsUpDown className="ml-1 h-3.5 w-3.5" />
           </Button>
@@ -177,7 +177,7 @@ export function GeoLogsFilterBar() {
         <Button
           variant="ghost"
           size="sm"
-          className="h-8"
+          className="h-8 pointer-coarse:h-10"
           onClick={() => setFilters(() => EMPTY_GEO_LOG_FILTERS)}
         >
           Clear filters

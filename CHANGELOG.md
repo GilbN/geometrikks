@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Larger touch targets for header controls on touch devices; small mobile layout fixes on Overview and Environment pages.
+- Larger touch targets on touch devices across the app: header controls, sidebar trigger, filter/columns/clear buttons on the table pages, map controls drawer, custom-range apply, and settings page buttons; small mobile layout fixes on Overview and Environment pages.
 - Live tail no longer freezes permanently after a tap on touch devices; added an explicit pause/resume button and a narrower mobile column set.
 - Focusing any input on a touch device no longer triggers the iOS auto-zoom.
 - Mobile sidebar closes automatically after navigating.

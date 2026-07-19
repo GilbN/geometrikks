@@ -337,7 +337,7 @@ export function DebugLogsTable() {
             value={malformedFilter}
             onValueChange={(v) => setMalformedFilter(v as MalformedFilter)}
           >
-            <SelectTrigger size="sm" className={cn("h-8 text-xs", inDrawer ? "w-full" : "w-40")}>
+            <SelectTrigger size="sm" className={cn("h-8 text-xs pointer-coarse:h-10", inDrawer ? "w-full" : "w-40")}>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -384,7 +384,7 @@ export function DebugLogsTable() {
   const columnsMenu = (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" size="sm" className="h-8">
+        <Button variant="outline" size="sm" className="h-8 pointer-coarse:h-10">
           <Columns3 className="mr-1 h-3.5 w-3.5" /> Columns
         </Button>
       </DropdownMenuTrigger>

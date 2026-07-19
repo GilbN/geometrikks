@@ -120,7 +120,7 @@ export function MapControls({
               aria-label="Heatmap view"
               variant="outline"
               className={cn(
-                "cursor-pointer w-full justify-start gap-2 px-3 data-[state=on]:bg-geo-cyan/15 data-[state=on]:text-geo-cyan data-[state=on]:border-geo-cyan/30",
+                "cursor-pointer w-full justify-start gap-2 px-3 pointer-coarse:h-10 data-[state=on]:bg-geo-cyan/15 data-[state=on]:text-geo-cyan data-[state=on]:border-geo-cyan/30",
                 activeLayer === "heatmap" && "bg-geo-cyan/15 text-geo-cyan border-geo-cyan/30"
               )}
             >
@@ -132,7 +132,7 @@ export function MapControls({
               aria-label="Marker view"
               variant="outline"
               className={cn(
-                "cursor-pointer w-full justify-start gap-2 px-3 data-[state=on]:bg-geo-cyan/15 data-[state=on]:text-geo-cyan data-[state=on]:border-geo-cyan/30",
+                "cursor-pointer w-full justify-start gap-2 px-3 pointer-coarse:h-10 data-[state=on]:bg-geo-cyan/15 data-[state=on]:text-geo-cyan data-[state=on]:border-geo-cyan/30",
                 activeLayer === "markers" && "bg-geo-cyan/15 text-geo-cyan border-geo-cyan/30"
               )}
             >
@@ -150,7 +150,7 @@ export function MapControls({
               ? "Switch to a flat Mercator map"
               : "Switch to an interactive globe"}
             className={cn(
-              "cursor-pointer w-full justify-start gap-2 px-3",
+              "cursor-pointer w-full justify-start gap-2 px-3 pointer-coarse:h-10",
               projection === "globe"
                 && "bg-geo-cyan/15 text-geo-cyan border-geo-cyan/30",
             )}
@@ -167,7 +167,7 @@ export function MapControls({
             onClick={() => onLiveModeChange(!liveMode)}
             aria-pressed={liveMode}
             className={cn(
-              "cursor-pointer w-full justify-start gap-2 px-3",
+              "cursor-pointer w-full justify-start gap-2 px-3 pointer-coarse:h-10",
               liveMode && "bg-geo-cyan/15 text-geo-cyan border-geo-cyan/30"
             )}
           >
@@ -190,7 +190,7 @@ export function MapControls({
               ? "Show or hide animated network routes"
               : "No map home location could be resolved"}
             className={cn(
-              "cursor-pointer w-full justify-start gap-2 px-3",
+              "cursor-pointer w-full justify-start gap-2 px-3 pointer-coarse:h-10",
               routeEffectsEnabled && routeHomeAvailable
                 && "bg-geo-cyan/15 text-geo-cyan border-geo-cyan/30",
             )}
@@ -236,7 +236,7 @@ export function MapControls({
           onClick={onFitBounds}
           disabled={isLoading || events === 0}
           title="Fit to data bounds"
-          className="cursor-pointer"
+          className="cursor-pointer pointer-coarse:size-10"
         >
           <Maximize2 className="h-4 w-4" />
         </Button>

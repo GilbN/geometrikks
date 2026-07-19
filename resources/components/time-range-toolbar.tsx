@@ -66,6 +66,7 @@ function CustomRangeFields({ onApply }: { onApply: (r: CustomTimeRange) => void 
       <Input type="datetime-local" value={to} onChange={(e) => setTo(e.target.value)} />
       <Button
         size="sm"
+        className="pointer-coarse:h-10"
         disabled={!valid}
         onClick={() => onApply({ from: new Date(from).toISOString(), to: new Date(to).toISOString() })}
       >

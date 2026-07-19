@@ -69,7 +69,7 @@ export function DebugLogDetailDialog({
             <div className="space-y-1">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-medium text-muted-foreground">Raw line</span>
-                <Button variant="ghost" size="sm" className="h-7 px-2" onClick={copyRawLine}>
+                <Button variant="ghost" size="sm" className="h-7 px-2 pointer-coarse:h-10" onClick={copyRawLine}>
                   {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
                   <span className="ml-1 text-xs">{copied ? "Copied" : "Copy"}</span>
                 </Button>

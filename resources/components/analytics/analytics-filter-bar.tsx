@@ -91,7 +91,7 @@ export function AnalyticsFilterBar() {
       ))}
 
       {hasActiveFilters && (
-        <Button variant="ghost" size="sm" className="h-8" onClick={() => setFilters(EMPTY_FILTERS)}>
+        <Button variant="ghost" size="sm" className="h-8 pointer-coarse:h-10" onClick={() => setFilters(EMPTY_FILTERS)}>
           Clear filters
         </Button>
       )}
