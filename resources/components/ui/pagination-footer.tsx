@@ -49,10 +49,12 @@ export function PaginationFooter({
       <span className="whitespace-nowrap">
         {total.toLocaleString()} rows - page {page} of {pageCount}
       </span>
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+      <div className="flex grow flex-wrap items-center justify-end gap-x-3 gap-y-2">
         {pageSize !== undefined && pageSizes && onPageSizeChange && (
           <div className="flex items-center gap-1.5">
-            <span className="whitespace-nowrap">Rows per page</span>
+            {/* The select's aria-label carries the name when the visible
+                label is hidden on narrow screens to fit one control row. */}
+            <span className="hidden whitespace-nowrap sm:inline">Rows per page</span>
             <Select
               value={String(pageSize)}
               onValueChange={(v) => onPageSizeChange(Number(v))}
