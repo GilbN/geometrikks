@@ -22,9 +22,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and each navigation item now owns only one tooltip.
 - Heatmap ↔ markers toggle bug: Re-key the GeoJSON <Source> so MapLibre recreates it with the correct cluster setting; points regroup correctly on switch.
 - Fix bad mobile UI on the map page.
-- Explicit CAGG refreshes (startup upgrade rebuilds, historical imports) no
-  longer silently skip a range when a background refresh policy job runs
-  concurrently; the refresh now retries until the policy job finishes.
+- CAGG refreshes now retry instead of silently skipping the range when a
+  background refresh policy job runs concurrently.
 
 ### Added
 
@@ -65,28 +64,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Sidebar footer now reports the installed package version and indicates when
   the app is running in a container, including the release image tag.
 - Added `react-icons`
-- Settings section at `/settings` with three subpages. Environment: every
-  runtime setting grouped by config section, with its environment variable,
-  current value and default, a search box and an "overridden only" view that
-  highlights values changed via environment; secret values are never exposed.
-  Scheduler: live table of background jobs with status, last run outcome, run
-  duration and next run, plus a per-job "Run now" button. About: app version
-  and uptime, Python/Litestar/APScheduler versions,
-  PostgreSQL/TimescaleDB/PostGIS versions, GeoIP database build date with a
-  freshness indicator, and project links.
-- New `/api/v1/system` endpoints backing the Settings section: settings
-  overview, scheduler job list, manual job trigger and about info.
+- Settings section at `/settings`: Environment (all runtime settings with env
+  vars, defaults and override highlighting; secrets hidden), Scheduler
+  (background jobs with status, last run, duration and a "Run now" button)
+  and About (app, runtime, database and GeoIP info).
+- New `/api/v1/system` endpoints backing the Settings section.
 
 ### Changed
 
 - Secret settings (`DB_PASSWORD`, `MAXMINDDB_LICENSE_KEY`,
-  `APP_ADMIN_PASSWORD`) are now typed as secrets end-to-end, so their values
-  can never serialize into API responses or logs.
+  `APP_ADMIN_PASSWORD`) can no longer serialize into API responses or logs.
 
 ### Removed
 
-- Unused settings `SCHEDULER_DAILY_ROLLUP_HOUR`, `SCHEDULER_DAILY_ROLLUP_MINUTE`,
-  `ANALYTICS_TOP_IPS_LIMIT` and `ANALYTICS_TOP_URLS_LIMIT`; they had no effect.
+- Unused settings: `SCHEDULER_DAILY_ROLLUP_HOUR`, `SCHEDULER_DAILY_ROLLUP_MINUTE`,
+  `ANALYTICS_TOP_IPS_LIMIT`, `ANALYTICS_TOP_URLS_LIMIT`.
 
 
 ## [0.2.1] - 2026-07-13
