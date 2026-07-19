@@ -3,7 +3,7 @@
  * global time range. Supports column sorting, text search, and IP / method /
  * domain filters. Pairs with GET /api/v1/access-logs/.
  */
-import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from "react"
+import { useEffect, useMemo, useState } from "react"
 import {
   ArrowDown,
   ArrowUp,
@@ -33,8 +33,10 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { PaginationFooter } from "@/components/ui/pagination-footer"
 import { FilterCombobox } from "@/components/ui/filter-combobox"
+import { FiltersDrawer, FilterSection } from "@/components/ui/filters-drawer"
 import { useAccessLogs, useAccessLogFacets } from "@/lib/queries"
 import { useDebouncedValue } from "@/hooks/use-debounced-value"
+import { useIsMobile } from "@/hooks/use-mobile"
 import {
   formatBytes,
   formatDuration,
@@ -231,6 +233,7 @@ function isValidIp(value: string): boolean {
 }
 
 export function AccessLogsTable() {
+  const isMobile = useIsMobile()
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(20)
 
@@ -297,15 +300,6 @@ export function AccessLogsTable() {
     }
   }
 
-  function toggleValue<T>(
-    setter: Dispatch<SetStateAction<T[]>>,
-    value: NoInfer<T>,
-  ) {
-    setter((prev) =>
-      prev.includes(value) ? prev.filter((v) => v !== value) : [...prev, value],
-    )
-  }
-
   function toggleColumn(key: string) {
     setVisible((prev) => {
       const next = new Set(prev)
@@ -314,6 +308,130 @@ export function AccessLogsTable() {
       return next
     })
   }
+
+  const activeFilterCount =
+    (search ? 1 : 0) +
+    (ip ? 1 : 0) +
+    (host ? 1 : 0) +
+    (methods.length ? 1 : 0) +
+    (statusCodes.length ? 1 : 0) +
+    (countries.length ? 1 : 0) +
+    (cities.length ? 1 : 0)
+
+  function renderFilters(inDrawer: boolean) {
+    const wrap = (label: string, node: React.ReactNode) =>
+      inDrawer ? <FilterSection label={label}>{node}</FilterSection> : node
+    return (
+      <>
+        {wrap(
+          "Search",
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              placeholder="Search url / referrer / agent…"
+              className={cn("h-8 pl-7 text-xs", inDrawer ? "w-full" : "w-64")}
+            />
+          </div>,
+        )}
+        {wrap(
+          "IP address",
+          <Input
+            value={ipInput}
+            onChange={(e) => setIpInput(e.target.value)}
+            placeholder="IP address"
+            aria-invalid={ipInput !== "" && !isValidIp(ipInput)}
+            className={cn("h-8 font-mono text-xs", inDrawer ? "w-full" : "w-36")}
+          />,
+        )}
+        {wrap(
+          "Host",
+          <Input
+            value={hostInput}
+            onChange={(e) => setHostInput(e.target.value)}
+            placeholder="Host"
+            className={cn("h-8 font-mono text-xs", inDrawer ? "w-full" : "w-44")}
+          />,
+        )}
+        {wrap(
+          "Status",
+          <FilterCombobox
+            label="Status"
+            options={[...STATUS_CODES]}
+            selected={statusCodes}
+            onChange={setStatusCodes}
+            forceInline={inDrawer}
+          />,
+        )}
+        {wrap(
+          "Method",
+          <FilterCombobox
+            label="Method"
+            options={[...HTTP_METHODS]}
+            selected={methods}
+            onChange={setMethods}
+            forceInline={inDrawer}
+          />,
+        )}
+        {wrap(
+          "Country",
+          <FilterCombobox
+            label="Country"
+            options={facets?.countries.map((c) => c.code) ?? []}
+            selected={countries}
+            onChange={setCountries}
+            labelFor={(code) => {
+              const name = facets?.countries.find((c) => c.code === code)?.name
+              return name ? `${name} (${code})` : code
+            }}
+            loading={!facets}
+            emptyText="No geo data"
+            onOpenChange={(open) => open && setFacetsEnabled(true)}
+            forceInline={inDrawer}
+          />,
+        )}
+        {wrap(
+          "City",
+          <FilterCombobox
+            label="City"
+            options={facets?.cities ?? []}
+            selected={cities}
+            onChange={setCities}
+            loading={!facets}
+            emptyText="No geo data"
+            onOpenChange={(open) => open && setFacetsEnabled(true)}
+            forceInline={inDrawer}
+          />,
+        )}
+      </>
+    )
+  }
+
+  const columnsMenu = (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="outline" size="sm" className="h-8">
+          <Columns3 className="mr-1 h-3.5 w-3.5" /> Columns
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="max-h-80 overflow-y-auto">
+        <DropdownMenuLabel>Visible columns</DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        {COLUMNS.map((c) => (
+          <DropdownMenuCheckboxItem
+            key={c.key}
+            checked={visible.has(c.key)}
+            onCheckedChange={() => toggleColumn(c.key)}
+            onSelect={(e) => e.preventDefault()}
+            disabled={visible.has(c.key) && visible.size === 1}
+          >
+            {c.label}
+          </DropdownMenuCheckboxItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
 
   if (isError) {
     return (
@@ -326,107 +444,19 @@ export function AccessLogsTable() {
   return (
     <div className="space-y-3">
       {/* Filter toolbar */}
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="relative">
-          <Search className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            value={searchInput}
-            onChange={(e) => setSearchInput(e.target.value)}
-            placeholder="Search url / referrer / agent…"
-            className="h-8 w-64 pl-7 text-xs"
-          />
+      {isMobile ? (
+        <div className="flex items-center gap-2">
+          <div onClick={() => setFacetsEnabled(true)}>
+            <FiltersDrawer activeCount={activeFilterCount}>{renderFilters(true)}</FiltersDrawer>
+          </div>
+          {columnsMenu}
         </div>
-        <Input
-          value={ipInput}
-          onChange={(e) => setIpInput(e.target.value)}
-          placeholder="IP address"
-          aria-invalid={ipInput !== "" && !isValidIp(ipInput)}
-          className="h-8 w-36 font-mono text-xs"
-        />
-        <Input
-          value={hostInput}
-          onChange={(e) => setHostInput(e.target.value)}
-          placeholder="Host"
-          className="h-8 w-44 font-mono text-xs"
-        />
-
-        <FilterCombobox
-          label="Status"
-          options={[...STATUS_CODES]}
-          selected={statusCodes}
-          onChange={setStatusCodes}
-        />
-
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm" className="h-8">
-              Method{methods.length > 0 && ` (${methods.length})`}
-              <ChevronsUpDown className="ml-1 h-3.5 w-3.5" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start">
-            <DropdownMenuLabel>HTTP method</DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            {HTTP_METHODS.map((m) => (
-              <DropdownMenuCheckboxItem
-                key={m}
-                checked={methods.includes(m)}
-                onCheckedChange={() => toggleValue(setMethods, m)}
-                onSelect={(e) => e.preventDefault()}
-              >
-                {m}
-              </DropdownMenuCheckboxItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
-
-        <FilterCombobox
-          label="Country"
-          options={facets?.countries.map((c) => c.code) ?? []}
-          selected={countries}
-          onChange={setCountries}
-          labelFor={(code) => {
-            const name = facets?.countries.find((c) => c.code === code)?.name
-            return name ? `${name} (${code})` : code
-          }}
-          loading={!facets}
-          emptyText="No geo data"
-          onOpenChange={(open) => open && setFacetsEnabled(true)}
-        />
-
-        <FilterCombobox
-          label="City"
-          options={facets?.cities ?? []}
-          selected={cities}
-          onChange={setCities}
-          loading={!facets}
-          emptyText="No geo data"
-          onOpenChange={(open) => open && setFacetsEnabled(true)}
-        />
-
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm" className="h-8">
-              <Columns3 className="mr-1 h-3.5 w-3.5" /> Columns
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="max-h-80 overflow-y-auto">
-            <DropdownMenuLabel>Visible columns</DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            {COLUMNS.map((c) => (
-              <DropdownMenuCheckboxItem
-                key={c.key}
-                checked={visible.has(c.key)}
-                onCheckedChange={() => toggleColumn(c.key)}
-                onSelect={(e) => e.preventDefault()}
-                disabled={visible.has(c.key) && visible.size === 1}
-              >
-                {c.label}
-              </DropdownMenuCheckboxItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
+      ) : (
+        <div className="flex flex-wrap items-center gap-2">
+          {renderFilters(false)}
+          {columnsMenu}
+        </div>
+      )}
 
       <div className="rounded-md border">
         <Table className="text-xs">

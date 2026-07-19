@@ -41,9 +41,11 @@ import {
 } from "@/components/ui/select"
 import { PaginationFooter } from "@/components/ui/pagination-footer"
 import { FilterCombobox } from "@/components/ui/filter-combobox"
+import { FiltersDrawer, FilterSection } from "@/components/ui/filters-drawer"
 import { DebugLogDetailDialog } from "@/components/debug-logs/debug-log-detail-dialog"
 import { useAccessLogDebug, useAccessLogFacets } from "@/lib/queries"
 import { useDebouncedValue } from "@/hooks/use-debounced-value"
+import { useIsMobile } from "@/hooks/use-mobile"
 import type { AccessLogDebugEntry, AccessLogDebugSortField, SortOrder } from "@/lib/api"
 import { cn, isMobileViewport } from "@/lib/utils"
 
@@ -221,6 +223,7 @@ function isValidIp(value: string): boolean {
 }
 
 export function DebugLogsTable() {
+  const isMobile = useIsMobile()
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(20)
 
@@ -294,6 +297,115 @@ export function DebugLogsTable() {
     })
   }
 
+  const activeFilterCount =
+    (search ? 1 : 0) +
+    (ip ? 1 : 0) +
+    (malformedFilter !== "all" ? 1 : 0) +
+    (countries.length ? 1 : 0) +
+    (cities.length ? 1 : 0)
+
+  function renderFilters(inDrawer: boolean) {
+    const wrap = (label: string, node: React.ReactNode) =>
+      inDrawer ? <FilterSection label={label}>{node}</FilterSection> : node
+    return (
+      <>
+        {wrap(
+          "Search",
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              placeholder="Search raw line / parse error…"
+              className={cn("h-8 pl-7 text-xs", inDrawer ? "w-full" : "w-64")}
+            />
+          </div>,
+        )}
+        {wrap(
+          "IP address",
+          <Input
+            value={ipInput}
+            onChange={(e) => setIpInput(e.target.value)}
+            placeholder="IP address"
+            aria-invalid={ipInput !== "" && !isValidIp(ipInput)}
+            className={cn("h-8 font-mono text-xs", inDrawer ? "w-full" : "w-36")}
+          />,
+        )}
+        {wrap(
+          "Malformed",
+          <Select
+            value={malformedFilter}
+            onValueChange={(v) => setMalformedFilter(v as MalformedFilter)}
+          >
+            <SelectTrigger size="sm" className={cn("h-8 text-xs", inDrawer ? "w-full" : "w-40")}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All lines</SelectItem>
+              <SelectItem value="malformed">Malformed only</SelectItem>
+              <SelectItem value="wellformed">Well-formed only</SelectItem>
+            </SelectContent>
+          </Select>,
+        )}
+        {wrap(
+          "Country",
+          <FilterCombobox
+            label="Country"
+            options={facets?.countries.map((c) => c.code) ?? []}
+            selected={countries}
+            onChange={setCountries}
+            labelFor={(code) => {
+              const name = facets?.countries.find((c) => c.code === code)?.name
+              return name ? `${name} (${code})` : code
+            }}
+            loading={!facets}
+            emptyText="No geo data"
+            onOpenChange={(open) => open && setFacetsEnabled(true)}
+            forceInline={inDrawer}
+          />,
+        )}
+        {wrap(
+          "City",
+          <FilterCombobox
+            label="City"
+            options={facets?.cities ?? []}
+            selected={cities}
+            onChange={setCities}
+            loading={!facets}
+            emptyText="No geo data"
+            onOpenChange={(open) => open && setFacetsEnabled(true)}
+            forceInline={inDrawer}
+          />,
+        )}
+      </>
+    )
+  }
+
+  const columnsMenu = (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="outline" size="sm" className="h-8">
+          <Columns3 className="mr-1 h-3.5 w-3.5" /> Columns
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="max-h-80 overflow-y-auto">
+        <DropdownMenuLabel>Visible columns</DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        {COLUMNS.map((c) => (
+          <DropdownMenuCheckboxItem
+            key={c.key}
+            checked={visible.has(c.key)}
+            onCheckedChange={() => toggleColumn(c.key)}
+            onSelect={(e) => e.preventDefault()}
+            disabled={visible.has(c.key) && visible.size === 1}
+          >
+            {c.label}
+          </DropdownMenuCheckboxItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+
   if (isError) {
     return (
       <div className="rounded-md border p-6 text-sm text-destructive">
@@ -305,85 +417,19 @@ export function DebugLogsTable() {
   return (
     <div className="space-y-3">
       {/* Filter toolbar */}
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="relative">
-          <Search className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            value={searchInput}
-            onChange={(e) => setSearchInput(e.target.value)}
-            placeholder="Search raw line / parse error…"
-            className="h-8 w-64 pl-7 text-xs"
-          />
+      {isMobile ? (
+        <div className="flex items-center gap-2">
+          <div onClick={() => setFacetsEnabled(true)}>
+            <FiltersDrawer activeCount={activeFilterCount}>{renderFilters(true)}</FiltersDrawer>
+          </div>
+          {columnsMenu}
         </div>
-        <Input
-          value={ipInput}
-          onChange={(e) => setIpInput(e.target.value)}
-          placeholder="IP address"
-          aria-invalid={ipInput !== "" && !isValidIp(ipInput)}
-          className="h-8 w-36 font-mono text-xs"
-        />
-
-        <Select
-          value={malformedFilter}
-          onValueChange={(v) => setMalformedFilter(v as MalformedFilter)}
-        >
-          <SelectTrigger size="sm" className="h-8 w-40 text-xs">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All lines</SelectItem>
-            <SelectItem value="malformed">Malformed only</SelectItem>
-            <SelectItem value="wellformed">Well-formed only</SelectItem>
-          </SelectContent>
-        </Select>
-
-        <FilterCombobox
-          label="Country"
-          options={facets?.countries.map((c) => c.code) ?? []}
-          selected={countries}
-          onChange={setCountries}
-          labelFor={(code) => {
-            const name = facets?.countries.find((c) => c.code === code)?.name
-            return name ? `${name} (${code})` : code
-          }}
-          loading={!facets}
-          emptyText="No geo data"
-          onOpenChange={(open) => open && setFacetsEnabled(true)}
-        />
-
-        <FilterCombobox
-          label="City"
-          options={facets?.cities ?? []}
-          selected={cities}
-          onChange={setCities}
-          loading={!facets}
-          emptyText="No geo data"
-          onOpenChange={(open) => open && setFacetsEnabled(true)}
-        />
-
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm" className="h-8">
-              <Columns3 className="mr-1 h-3.5 w-3.5" /> Columns
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="max-h-80 overflow-y-auto">
-            <DropdownMenuLabel>Visible columns</DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            {COLUMNS.map((c) => (
-              <DropdownMenuCheckboxItem
-                key={c.key}
-                checked={visible.has(c.key)}
-                onCheckedChange={() => toggleColumn(c.key)}
-                onSelect={(e) => e.preventDefault()}
-                disabled={visible.has(c.key) && visible.size === 1}
-              >
-                {c.label}
-              </DropdownMenuCheckboxItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
+      ) : (
+        <div className="flex flex-wrap items-center gap-2">
+          {renderFilters(false)}
+          {columnsMenu}
+        </div>
+      )}
 
       <div className="rounded-md border">
         <Table className="text-xs">
