@@ -210,7 +210,7 @@ export function EnvironmentOverview() {
             placeholder="Filter settings..."
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            className="w-64 pl-8"
+            className="w-full sm:w-64 pl-8"
           />
         </div>
         <Button
