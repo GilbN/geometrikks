@@ -1,24 +1,26 @@
 /**
  * Map control overlay with layer toggle and utilities.
- * Collapsible on mobile for better map visibility.
+ * Desktop: a collapsible panel docked top-right.
+ * Mobile: a trigger button portaled into the top header bar (next to the
+ * time-range toolbar) that opens a bottom drawer, keeping the map area
+ * unobstructed.
  */
 
-import { useState, useEffect } from "react"
+import { useEffect, useState } from "react"
+import { createPortal } from "react-dom"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import {
-  Combobox,
-  ComboboxChip,
-  ComboboxChips,
-  ComboboxChipsInput,
-  ComboboxContent,
-  ComboboxEmpty,
-  ComboboxItem,
-  ComboboxList,
-  ComboboxValue,
-  useComboboxAnchor,
-} from "@/components/ui/combobox"
+  Drawer,
+  DrawerContent,
+  DrawerDescription,
+  DrawerHeader,
+  DrawerTitle,
+  DrawerTrigger,
+} from "@/components/ui/drawer"
+import { useIsMobile } from "@/hooks/use-mobile"
+import { FilterCombobox } from "@/components/ui/filter-combobox"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import {
   Flame,
@@ -54,61 +56,12 @@ interface MapControlsProps {
   topIPs: TopIPDTO[]
   onFlyToLocation?: (lat: number, lng: number) => void
   countryOptions: string[]
+  countryLabels?: Record<string, string>
   cityOptions: string[]
   selectedCountries: string[]
   selectedCities: string[]
   onCountriesChange: (values: string[]) => void
   onCitiesChange: (values: string[]) => void
-}
-
-function FilterCombobox({
-  options,
-  selected,
-  onChange,
-  placeholder,
-}: {
-  options: string[]
-  selected: string[]
-  onChange: (values: string[]) => void
-  placeholder: string
-}) {
-  const anchor = useComboboxAnchor()
-  return (
-    <Combobox
-      multiple
-      items={options}
-      value={selected}
-      onValueChange={(value) => onChange(value as string[])}
-    >
-      <ComboboxChips ref={anchor} className="min-h-8 px-1.5 py-1 text-xs">
-        <ComboboxValue>
-          {(value: string[]) => (
-            <>
-              {value.map((v) => (
-                <ComboboxChip key={v} className="text-[10px]">
-                  {v}
-                </ComboboxChip>
-              ))}
-              <ComboboxChipsInput
-                placeholder={value.length === 0 ? placeholder : ""}
-                className="text-xs"
-              />
-            </>
-          )}
-        </ComboboxValue>
-      </ComboboxChips>
-      <ComboboxContent anchor={anchor}>
-        <ComboboxEmpty>No matches</ComboboxEmpty>
-        <ComboboxList>
-          {(item: string) => (
-            <ComboboxItem key={item} value={item} className="text-xs">
-              {item}
-            </ComboboxItem>
-          )}
-        </ComboboxList>
-      </ComboboxContent>
-    </Combobox>
-  )
 }
 
 export function MapControls({
@@ -128,6 +81,7 @@ export function MapControls({
   topIPs,
   onFlyToLocation,
   countryOptions,
+  countryLabels,
   cityOptions,
   selectedCountries,
   selectedCities,
@@ -136,40 +90,20 @@ export function MapControls({
 }: MapControlsProps) {
   const { events, countries, cities, locations } = featureStats
   const [isExpanded, setIsExpanded] = useState(true)
+  const [drawerOpen, setDrawerOpen] = useState(false)
+  const isMobile = useIsMobile()
 
-  // Default collapsed on mobile (< 768px)
+  // The header slot only exists after the root layout commits, so resolve it
+  // post-mount rather than during render.
+  const [headerSlot, setHeaderSlot] = useState<HTMLElement | null>(null)
   useEffect(() => {
-    const checkMobile = () => setIsExpanded(window.innerWidth >= 768)
-    checkMobile()
-    window.addEventListener('resize', checkMobile)
-    return () => window.removeEventListener('resize', checkMobile)
+    setHeaderSlot(document.getElementById("header-actions-slot"))
   }, [])
 
-  // Collapsed state - single toggle button
-  if (!isExpanded) {
-    return (
-      <div className="absolute top-4 right-4 z-10">
-        <Button
-          size="icon"
-          variant="outline"
-          className="bg-background mt-1 cursor-pointer"
-          onClick={() => setIsExpanded(true)}
-          title="Show map controls"
-        >
-          <SlidersHorizontal className="h-4 w-4" />
-        </Button>
-      </div>
-    )
-  }
-
-  // Expanded state - full controls
-  return (
-    <div className="absolute top-4 right-4 z-10 flex gap-2 max-h-[calc(100vh-2rem)] pointer-events-auto">
-      {/* Scrollable controls area */}
-      <div
-        className="flex flex-col gap-2 p-1 overflow-y-auto overscroll-contain pointer-events-auto max-h-full max-w-[min(200px,calc(100vw-4rem))]"
-        style={{ touchAction: 'pan-y' }}
-      >
+  // The control sections are shared between the desktop top-right panel and the
+  // mobile bottom drawer so there is a single source of truth for the controls.
+  const sections = (
+    <>
       {/* Layer Toggle */}
       <Card className="p-2 shrink-0">
         <div className="flex flex-col gap-1">
@@ -186,7 +120,7 @@ export function MapControls({
               aria-label="Heatmap view"
               variant="outline"
               className={cn(
-                "cursor-pointer w-full justify-start gap-2 px-3 data-[state=on]:bg-geo-cyan/15 data-[state=on]:text-geo-cyan data-[state=on]:border-geo-cyan/30",
+                "cursor-pointer w-full justify-start gap-2 px-3 pointer-coarse:h-10 data-[state=on]:bg-geo-cyan/15 data-[state=on]:text-geo-cyan data-[state=on]:border-geo-cyan/30",
                 activeLayer === "heatmap" && "bg-geo-cyan/15 text-geo-cyan border-geo-cyan/30"
               )}
             >
@@ -198,7 +132,7 @@ export function MapControls({
               aria-label="Marker view"
               variant="outline"
               className={cn(
-                "cursor-pointer w-full justify-start gap-2 px-3 data-[state=on]:bg-geo-cyan/15 data-[state=on]:text-geo-cyan data-[state=on]:border-geo-cyan/30",
+                "cursor-pointer w-full justify-start gap-2 px-3 pointer-coarse:h-10 data-[state=on]:bg-geo-cyan/15 data-[state=on]:text-geo-cyan data-[state=on]:border-geo-cyan/30",
                 activeLayer === "markers" && "bg-geo-cyan/15 text-geo-cyan border-geo-cyan/30"
               )}
             >
@@ -216,7 +150,7 @@ export function MapControls({
               ? "Switch to a flat Mercator map"
               : "Switch to an interactive globe"}
             className={cn(
-              "cursor-pointer w-full justify-start gap-2 px-3",
+              "cursor-pointer w-full justify-start gap-2 px-3 pointer-coarse:h-10",
               projection === "globe"
                 && "bg-geo-cyan/15 text-geo-cyan border-geo-cyan/30",
             )}
@@ -233,7 +167,7 @@ export function MapControls({
             onClick={() => onLiveModeChange(!liveMode)}
             aria-pressed={liveMode}
             className={cn(
-              "cursor-pointer w-full justify-start gap-2 px-3",
+              "cursor-pointer w-full justify-start gap-2 px-3 pointer-coarse:h-10",
               liveMode && "bg-geo-cyan/15 text-geo-cyan border-geo-cyan/30"
             )}
           >
@@ -256,7 +190,7 @@ export function MapControls({
               ? "Show or hide animated network routes"
               : "No map home location could be resolved"}
             className={cn(
-              "cursor-pointer w-full justify-start gap-2 px-3",
+              "cursor-pointer w-full justify-start gap-2 px-3 pointer-coarse:h-10",
               routeEffectsEnabled && routeHomeAvailable
                 && "bg-geo-cyan/15 text-geo-cyan border-geo-cyan/30",
             )}
@@ -278,16 +212,19 @@ export function MapControls({
       <Card className="p-2 gap-1.5 shrink-0">
         <div className="text-xs font-medium text-muted-foreground">Filters</div>
         <FilterCombobox
+          label="Country"
           options={countryOptions}
           selected={selectedCountries}
           onChange={onCountriesChange}
-          placeholder="Country"
+          labelFor={(code) => countryLabels?.[code] ?? code}
+          forceInline={isMobile}
         />
         <FilterCombobox
+          label="City"
           options={cityOptions}
           selected={selectedCities}
           onChange={onCitiesChange}
-          placeholder="City"
+          forceInline={isMobile}
         />
       </Card>
 
@@ -299,7 +236,7 @@ export function MapControls({
           onClick={onFitBounds}
           disabled={isLoading || events === 0}
           title="Fit to data bounds"
-          className="cursor-pointer"
+          className="cursor-pointer pointer-coarse:size-10"
         >
           <Maximize2 className="h-4 w-4" />
         </Button>
@@ -355,6 +292,70 @@ export function MapControls({
           </div>
         </Card>
       )}
+    </>
+  )
+
+  // Mobile: a trigger in the top header bar (same icon as the desktop panel
+  // toggle) opens a bottom drawer. Portaled into the header's action slot so
+  // it sits with the toolbar buttons instead of floating over the map.
+  if (isMobile) {
+    return (
+      <Drawer open={drawerOpen} onOpenChange={setDrawerOpen}>
+        {headerSlot && createPortal(
+          <DrawerTrigger asChild>
+            <Button
+              size="icon-sm"
+              variant="outline"
+              className="shrink-0 pointer-coarse:size-10 cursor-pointer"
+              title="Show map controls"
+            >
+              <SlidersHorizontal className="h-4 w-4" />
+              <span className="sr-only">Map Controls</span>
+            </Button>
+          </DrawerTrigger>,
+          headerSlot,
+        )}
+        <DrawerContent>
+          <DrawerHeader>
+            <DrawerTitle>Map controls</DrawerTitle>
+            <DrawerDescription className="sr-only">
+              Switch map layers, filter by country and city, and view statistics.
+            </DrawerDescription>
+          </DrawerHeader>
+          <div className="flex flex-col gap-2 overflow-y-auto overscroll-contain px-4 pb-6">
+            {sections}
+          </div>
+        </DrawerContent>
+      </Drawer>
+    )
+  }
+
+  // Desktop collapsed state - single toggle button
+  if (!isExpanded) {
+    return (
+      <div className="absolute top-4 right-4 z-10">
+        <Button
+          size="icon"
+          variant="outline"
+          className="bg-background mt-1 cursor-pointer"
+          onClick={() => setIsExpanded(true)}
+          title="Show map controls"
+        >
+          <SlidersHorizontal className="h-4 w-4" />
+        </Button>
+      </div>
+    )
+  }
+
+  // Desktop expanded state - full controls docked top-right
+  return (
+    <div className="absolute top-4 right-4 z-10 flex gap-2 max-h-[calc(100vh-2rem)] pointer-events-auto">
+      {/* Scrollable controls area */}
+      <div
+        className="flex flex-col gap-2 p-1 overflow-y-auto overscroll-contain pointer-events-auto max-h-full max-w-[min(200px,calc(100vw-4rem))]"
+        style={{ touchAction: 'pan-y' }}
+      >
+        {sections}
       </div>
       {/* Collapse button - inline right */}
       <Button

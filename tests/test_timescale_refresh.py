@@ -62,6 +62,24 @@ async def test_defaults_to_all_caggs():
     assert len(calls) == len(ALL_CAGGS)
 
 
+def test_every_cagg_is_registered_everywhere():
+    """A new CAGG must be added to all four registries, not just some.
+
+    Missing CAGG_SOURCE_TABLES is the dangerous one: the CAGG is created WITH
+    NO DATA, the refresh policy advances the watermark past its empty history,
+    and backfill_cagg_gaps never repairs it — so queries silently return a
+    fraction of the real counts instead of failing.
+    """
+    from geometrikks.server.timescale import (
+        ALL_CAGGS,
+        CAGG_REFRESH_CONFIG,
+        CAGG_SOURCE_TABLES,
+    )
+
+    assert set(CAGG_SOURCE_TABLES) == set(ALL_CAGGS)
+    assert {c for c, _, _ in CAGG_REFRESH_CONFIG} == set(ALL_CAGGS)
+
+
 async def test_scheduler_job_binds_timestamps(monkeypatch):
     from geometrikks.server import scheduler as sched
 

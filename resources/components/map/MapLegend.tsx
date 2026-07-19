@@ -1,9 +1,14 @@
 /**
  * Map legend showing the color scale for heatmap or markers.
+ * On mobile it collapses to a small swatch button (hidden by default) that
+ * expands the full card on tap, to keep the map area uncluttered.
  */
 
+import { useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { formatNumber } from "@/lib/api"
+import { useIsMobile } from "@/hooks/use-mobile"
+import { cn } from "@/lib/utils"
 import type { LayerType } from "./GeoMap"
 
 interface MapLegendProps {
@@ -23,12 +28,50 @@ export function MapLegend({ maxValue, layerType }: MapLegendProps) {
   const isHeatmap = layerType === "heatmap"
   const title = isHeatmap ? "Event Density" : "Event Count"
   const gradient = isHeatmap ? HEATMAP_GRADIENT : MARKER_GRADIENT
+  const isMobile = useIsMobile()
+  const [open, setOpen] = useState(false)
+
+  // Mobile, collapsed: a compact swatch button that expands the legend on tap.
+  if (isMobile && !open) {
+    return (
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        title={`Show ${title.toLowerCase()} legend`}
+        aria-label={`Show ${title.toLowerCase()} legend`}
+        className="absolute bottom-6 left-4 z-10 flex items-center gap-2 rounded-md border border-border/50 bg-card/90 px-2.5 py-1.5 shadow-sm backdrop-blur cursor-pointer"
+      >
+        <span
+          className="h-2.5 w-10 rounded-sm"
+          style={{ background: gradient }}
+        />
+        <span className="text-[10px] font-medium text-muted-foreground">
+          {title}
+        </span>
+      </button>
+    )
+  }
 
   return (
     <Card className="absolute gap-3 bottom-6 py-0 left-4 z-10 w-44">
       <CardHeader className="pb-0 pt-3 px-3">
-        <CardTitle className="text-xs font-medium text-muted-foreground">
+        <CardTitle
+          className={cn(
+            "text-xs font-medium text-muted-foreground flex items-center justify-between",
+            isMobile && "gap-2",
+          )}
+        >
           {title}
+          {isMobile && (
+            <button
+              type="button"
+              onClick={() => setOpen(false)}
+              aria-label={`Hide ${title.toLowerCase()} legend`}
+              className="cursor-pointer text-muted-foreground/60"
+            >
+              <span aria-hidden="true">×</span>
+            </button>
+          )}
         </CardTitle>
         <div className="border-b border-border/50">
         </div>

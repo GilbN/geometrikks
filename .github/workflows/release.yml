@@ -9,7 +9,46 @@ permissions:
   packages: write
 
 jobs:
+  validate-release:
+    name: Validate release tag
+    runs-on: ubuntu-latest
+    steps:
+      # Full history is needed to resolve annotated tags and the branch heads.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Ensure the tag is on its release branch
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          tag="${GITHUB_REF_NAME}"
+          tag_commit="$(git rev-parse "${GITHUB_SHA}^{commit}")"
+          git fetch --no-tags origin \
+            +refs/heads/main:refs/remotes/origin/main \
+            +refs/heads/develop:refs/remotes/origin/develop
+
+          if [[ "${tag}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-dev\.[0-9]+$ ]]; then
+            expected_commit="$(git rev-parse origin/develop)"
+            [[ "${tag_commit}" == "${expected_commit}" ]] || {
+              echo "Develop releases must be tagged at the current develop HEAD."
+              exit 1
+            }
+          elif [[ "${tag}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            expected_commit="$(git rev-parse origin/main)"
+            [[ "${tag_commit}" == "${expected_commit}" ]] || {
+              echo "Stable releases must be tagged at the current main HEAD."
+              exit 1
+            }
+          else
+            echo "Invalid release tag: ${tag}"
+            echo "Use vX.Y.Z-dev.N on develop or vX.Y.Z on main."
+            exit 1
+          fi
+
   publish-image:
+    needs: validate-release
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -25,9 +64,11 @@ jobs:
         with:
           images: ghcr.io/gilbn/geometrikks
           # latest only on stable (non-prerelease) semver tags
+          # develop is a moving tag that always points at the newest dev release
           tags: |
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=develop,enable=${{ contains(github.ref_name, '-dev.') }}
           flavor: |
             latest=auto
       - uses: docker/build-push-action@v6
@@ -37,5 +78,7 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            APP_IMAGE_TAG=${{ github.ref_name }}
           cache-from: type=gha
           cache-to: type=gha,mode=max

@@ -6,6 +6,8 @@ export * from "./api/types.gen"
 
 // Import specific operation types for mapping
 import type {
+  ApiV1AccessLogsFacetsGetAccessLogFacetsData,
+  ApiV1AccessLogsFacetsGetAccessLogFacetsResponses,
   ApiV1AuthLoginLoginData,
   ApiV1AuthLoginLoginErrors,
   ApiV1AuthLoginLoginResponses,
@@ -13,10 +15,18 @@ import type {
   ApiV1AuthLogoutLogoutResponses,
   ApiV1AuthMeMeData,
   ApiV1AuthMeMeResponses,
+  ApiV1GeoEventsFacetsGetGeoLogFacetsData,
+  ApiV1GeoEventsFacetsGetGeoLogFacetsResponses,
   ApiV1SettingsReadSettingsData,
   ApiV1SettingsReadSettingsResponses,
   ApiV1StatsStatsData,
   ApiV1StatsStatsResponses,
+  ApiV1SystemAboutGetAboutData,
+  ApiV1SystemAboutGetAboutResponses,
+  ApiV1SystemSchedulerJobsGetSchedulerJobsData,
+  ApiV1SystemSchedulerJobsGetSchedulerJobsResponses,
+  ApiV1SystemSettingsGetSystemSettingsData,
+  ApiV1SystemSettingsGetSystemSettingsResponses,
   HealthHealthData,
   HealthHealthResponses,
   HealthReadyHealthReadyData,
@@ -36,6 +46,11 @@ import type {
  * const op: OperationName = 'api:login'
  */
 export type OperationName =
+  | 'get_about'
+  | 'get_access_log_facets'
+  | 'get_geo_log_facets'
+  | 'get_scheduler_jobs'
+  | 'get_system_settings'
   | 'health'
   | 'health_ready'
   | 'login'
@@ -49,6 +64,11 @@ export type OperationName =
  * Data types contain body, path, query, and url properties.
  */
 export interface OperationDataTypes {
+  'get_about': ApiV1SystemAboutGetAboutData
+  'get_access_log_facets': ApiV1AccessLogsFacetsGetAccessLogFacetsData
+  'get_geo_log_facets': ApiV1GeoEventsFacetsGetGeoLogFacetsData
+  'get_scheduler_jobs': ApiV1SystemSchedulerJobsGetSchedulerJobsData
+  'get_system_settings': ApiV1SystemSettingsGetSystemSettingsData
   'health': HealthHealthData
   'health_ready': HealthReadyHealthReadyData
   'login': ApiV1AuthLoginLoginData
@@ -63,6 +83,11 @@ export interface OperationDataTypes {
  * Responses types map status codes to response shapes.
  */
 export interface OperationResponseTypes {
+  'get_about': ApiV1SystemAboutGetAboutResponses
+  'get_access_log_facets': ApiV1AccessLogsFacetsGetAccessLogFacetsResponses
+  'get_geo_log_facets': ApiV1GeoEventsFacetsGetGeoLogFacetsResponses
+  'get_scheduler_jobs': ApiV1SystemSchedulerJobsGetSchedulerJobsResponses
+  'get_system_settings': ApiV1SystemSettingsGetSystemSettingsResponses
   'health': HealthHealthResponses
   'health_ready': HealthReadyHealthReadyResponses
   'login': ApiV1AuthLoginLoginResponses
@@ -77,6 +102,11 @@ export interface OperationResponseTypes {
  * Error types represent non-2xx responses.
  */
 export interface OperationErrorTypes {
+  'get_about': never
+  'get_access_log_facets': never
+  'get_geo_log_facets': never
+  'get_scheduler_jobs': never
+  'get_system_settings': never
   'health': never
   'health_ready': never
   'login': ApiV1AuthLoginLoginErrors

@@ -7,6 +7,95 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-07-19
+
+### Fixed
+
+- Larger touch targets on touch devices across the app: header controls, sidebar trigger, filter/columns/clear buttons on the table pages, map controls drawer, custom-range apply, and settings page buttons; small mobile layout fixes on Overview and Environment pages.
+- Live tail no longer freezes permanently after a tap on touch devices; added an explicit pause/resume button and a narrower mobile column set.
+- Focusing any input on a touch device no longer triggers the iOS auto-zoom.
+- Mobile sidebar closes automatically after navigating.
+- Table pagination footers no longer overflow on narrow screens; all tables share one responsive footer component.
+- Geo Logs counts no longer disagree with the Analytics page on ranges over 24h.
+  The per-IP CAGG reads floored the window start to a whole bucket, silently
+  counting a partial extra bucket that the raw analytics scan excluded. Grouped
+  logs and top IPs/countries/cities now read whole buckets from the CAGG and the
+  partial head/tail straight from `geo_events`, so they match an exact raw scan.
+- Fixed stacking of the moving point pulse.
+- Live map packets now complete their route before coalesced follow-up traffic
+  from the same visual corridor begins.
+  - Analytics page: Bandwidth card fix - Decimal-as-JSON-string was capping the Y-axis; now coerced to int.
+- Sidebar tooltips no longer appear as a side effect of collapsing the sidebar,
+  and each navigation item now owns only one tooltip.
+- Heatmap ↔ markers toggle bug: Re-key the GeoJSON <Source> so MapLibre recreates it with the correct cluster setting; points regroup correctly on switch.
+- Fix bad mobile UI on the map page.
+- CAGG refreshes now retry instead of silently skipping the range when a
+  background refresh policy job runs concurrently.
+- Database credentials containing reserved URL characters (`@`, `:`, `/`, `%`)
+  no longer produce a broken connection URL.
+- Geo-logs embedded map zoom control no longer floats mid-card on mobile; app shell sizes to the real visible viewport (dvh) so the map page fits even with the degraded banner; bottom drawers respect the iOS safe area.
+- Mobile map controls moved from a floating button over the map into the top header bar (same icon as the desktop panel toggle); the auto-refresh dropdown got its own Timer icon and the theme toggle now matches the other header buttons' touch size.
+- Access Logs History/Live tail switch now uses the same tab list style as the Top Countries/Cities card on Geo Logs.
+
+### Added
+
+- PWA support: app icons and favicon, web app manifest, an auto-updating service worker (app shell only; live data and auth are never cached), and an offline indicator.
+- Access-logs and debug-logs filters collapse into a bottom-sheet Filters drawer on mobile.
+- Debug Logs page at `/debug-logs`: raw and malformed log lines with stat cards
+  (total, malformed, most common parse error), a filterable and sortable
+  paginated table, and a row detail dialog with the copyable raw line, the parse
+  error and the request's access-log context. Search covers the raw line and the
+  parse error; IP, country, city and a malformed-only toggle narrow the table,
+  and all filters live in the URL.
+- New `/api/v1/access-log-debug` list and stats endpoints backing the page.
+- `access_log_debug` now stores the linked request's context (timestamp, IP,
+  method, URL, host, status, country, city, user agent) on the row itself,
+  written at ingestion. The Debug Logs list filters, sorts and renders entirely
+  from these columns, so it never queries the `access_logs` hypertable. Applied
+  by migration `b7d41e9c2a30`, which also backfills existing rows and runs
+  automatically at startup. Geo values are a snapshot taken at ingestion, so
+  they do not move if a later GeoIP database update changes an IP's location.
+- New `ip_location_hourly_stats` CAGG, so per-IP geo queries on 24h-30d ranges
+  use hourly buckets like the other CAGGs instead of falling back to daily ones.
+  Created at startup and its history materialized by `backfill_cagg_gaps`; no
+  migration needed.
+- Geo Logs page: geo events grouped by (location, IP) with counts, an
+  embedded marker/cluster map, stat cards with previous-period trends, an
+  events/unique-IPs time-series chart, and Top IPs / Countries / Cities lists.
+  Country, city, IP include/exclude and hostname filters apply to everything on
+  the page and live in the URL, so filtered views are shareable links.
+- New `/api/v1/geo-events` endpoints backing the Geo Logs page: grouped logs,
+  summary, time-series, top-ips/countries/cities and facets, with CAGG-backed
+  fast paths for long ranges. The geojson endpoint now accepts optional IP
+  include/exclude and hostname filters.
+- Add search and filter options to access logs.
+- Add more columns on the live tail access log view.
+- Analytics page: Selectable chart granularity - Auto / Hourly / Daily selector; never RAW above 24h, falls back to get_stats_granularity, avoids hourly buckets on ranges above 7d.
+- Analytics page: Added Top IPs and Top Countries / Cities cards (new API endpoints + tables).
+- Added custom absolute date-range picker (mobile-friendly)
+- Analytics page: Country / City / IP filters (multi-select + manual IP entry) wired to all charts and top-lists.
+- Added CAGG gap backfill - recovers history that predates refresh coverage so charts and top-lists agree.
+- Sidebar footer now reports the installed package version and indicates when
+  the app is running in a container, including the release image tag.
+- Added `react-icons`
+- Settings section at `/settings`: Environment (all runtime settings with env
+  vars, defaults and override highlighting; secrets hidden), Scheduler
+  (background jobs with status, last run, duration and a "Run now" button)
+  and About (app, runtime, database and GeoIP info).
+- New `/api/v1/system` endpoints backing the Settings section.
+- Data tables start with a compact column set on mobile; all columns remain available from the Columns menu.
+
+### Changed
+
+- Secret settings (`DB_PASSWORD`, `MAXMINDDB_LICENSE_KEY`,
+  `APP_ADMIN_PASSWORD`) can no longer serialize into API responses or logs.
+
+### Removed
+
+- Unused settings: `SCHEDULER_DAILY_ROLLUP_HOUR`, `SCHEDULER_DAILY_ROLLUP_MINUTE`,
+  `ANALYTICS_TOP_IPS_LIMIT`, `ANALYTICS_TOP_URLS_LIMIT`.
+
+
 ## [0.2.1] - 2026-07-13
 
 ### Fixed
@@ -156,6 +245,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Settings endpoint no longer exposes the full settings tree (database credentials leaked via `model_dump()`); response is now an explicit whitelist.
 - Timestamps in `CALL refresh_continuous_aggregate` are bound as asyncpg parameters instead of interpolated into SQL.
 
-[Unreleased]: https://github.com/GilbN/geometrikks/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/GilbN/geometrikks/compare/v0.3.0...HEAD
 [0.1.0]: https://github.com/GilbN/geometrikks/compare/v0.1.0-alpha.1...v0.1.0
 [0.1.0-alpha.1]: https://github.com/GilbN/geometrikks/releases/tag/v0.1.0-alpha.1
+[0.2.0]: https://github.com/GilbN/geometrikks/releases/tag/v0.2.0
+[0.2.1]: https://github.com/GilbN/geometrikks/releases/tag/v0.2.1
+[0.3.0]: https://github.com/GilbN/geometrikks/releases/tag/v0.3.0

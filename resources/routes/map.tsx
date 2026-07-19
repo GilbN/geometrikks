@@ -14,7 +14,7 @@ export const Route = createFileRoute("/map")({
 
 function MapPage() {
   return (
-    <div className="h-[calc(100vh-3.5rem)] w-full relative">
+    <div className="fullscreen-map h-full w-full relative">
       <Suspense fallback={<MapSkeleton />}>
         <GeoMap />
       </Suspense>

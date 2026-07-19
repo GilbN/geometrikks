@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Callable
 
 from sqlalchemy import text
@@ -20,6 +21,7 @@ from geometrikks.services.geoip.home import resolve_home_location
 from geometrikks.services.ingestion import LogIngestionService
 from geometrikks.services.logparser.logparser import LogParser
 from geometrikks.server.scheduler import create_scheduler
+from geometrikks.server.scheduler_tracking import JobRunTracker
 
 if TYPE_CHECKING:
     from litestar import Litestar
@@ -51,6 +53,9 @@ async def on_startup(app: "Litestar") -> None:
       an error to surface, not an outage to degrade around.
     - Sets up TimescaleDB hypertables and continuous aggregates after migrations.
     """
+    # Set before anything else so /about reports uptime even in degraded mode.
+    app.state.started_at = datetime.now(timezone.utc)
+
     settings = get_settings()
 
     # GeoIP: download/refresh if credentials are configured; degrade otherwise.
@@ -110,14 +115,18 @@ async def on_startup(app: "Litestar") -> None:
         store_debug_lines=settings.logparser.store_debug_lines,
     )
 
-    # Create and start scheduler
+    # Create and start scheduler; tracker must attach before start so no
+    # event is missed.
     scheduler: AsyncIOScheduler = await create_scheduler(session_maker, settings)
+    scheduler_tracker = JobRunTracker()
+    scheduler_tracker.attach(scheduler)
     scheduler.start()
     logger.info("Started APScheduler")
 
     # Store in app state for shutdown and API access
     app.state.ingestion_service = ingestion_service
     app.state.scheduler = scheduler
+    app.state.scheduler_tracker = scheduler_tracker
 
     # Start ingestion service
     await ingestion_service.start(

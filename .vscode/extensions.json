@@ -1,5 +1,9 @@
 {
     "recommendations": [
-        "astral-sh.ty"
+        "astral-sh.ty",
+        "ms-ossdata.vscode-pgsql",
+        "ms-python.python",
+        "ms-python.vscode-pylance",
+        "ms-python.vscode-python-envs"
     ]
 }

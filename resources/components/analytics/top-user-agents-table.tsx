@@ -10,9 +10,11 @@ import {
 import { Skeleton } from "@/components/ui/skeleton"
 import { formatNumber } from "@/lib/api"
 import { useTopUserAgents } from "@/lib/queries"
+import { TablePaginationFooter, usePagedRows } from "./table-pagination"
 
 export function TopUserAgentsTable() {
   const { data, isLoading } = useTopUserAgents({ limit: 25 })
+  const { pageItems, ...pagination } = usePagedRows(data?.items)
 
   return (
     <Card>
@@ -23,22 +25,25 @@ export function TopUserAgentsTable() {
         {isLoading || !data ? (
           <Skeleton className="h-48 w-full" />
         ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>User agent</TableHead>
-                <TableHead className="text-right">Hits</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {data.items.map((row) => (
-                <TableRow key={row.user_agent}>
-                  <TableCell className="font-mono text-xs max-w-[640px] truncate">{row.user_agent}</TableCell>
-                  <TableCell className="text-right tabular-nums">{formatNumber(row.hits)}</TableCell>
+          <>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>User agent</TableHead>
+                  <TableHead className="text-right">Hits</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {pageItems.map((row) => (
+                  <TableRow key={row.user_agent}>
+                    <TableCell className="font-mono text-xs max-w-[640px] truncate">{row.user_agent}</TableCell>
+                    <TableCell className="text-right tabular-nums">{formatNumber(row.hits)}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+            <TablePaginationFooter {...pagination} onPageChange={pagination.setPage} />
+          </>
         )}
       </CardContent>
     </Card>

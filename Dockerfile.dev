@@ -1,8 +1,10 @@
 # syntax=docker/dockerfile:1
 
-FROM oven/bun:latest AS bun
+FROM oven/bun:1.3.14-slim@sha256:621f249399228db47cf34611ee662585e77e015250ed29d5d0932b2d3282f0b0 AS bun
 
 FROM ghcr.io/astral-sh/uv:python3.13-bookworm-slim
+
+ARG APP_IMAGE_TAG=local
 
 COPY --from=bun /usr/local/bin/bun /usr/local/bin/bun
 
@@ -13,11 +15,17 @@ ENV UV_COMPILE_BYTECODE=1 \
     PATH="/app/.venv/bin:$PATH" \
     PYTHONUNBUFFERED=1 \
     APP_ENVIRONMENT=development \
+    APP_RUNTIME=container \
+    APP_IMAGE_TAG=${APP_IMAGE_TAG} \
     API_RELOAD=true \
     VITE_DEV_MODE=true
 
-COPY pyproject.toml uv.lock* ./
+COPY pyproject.toml uv.lock* README.md ./
 COPY package.json bun.lock ./
+
+# Install the project once so importlib.metadata can report its version. The
+# source mount used for hot reload replaces this copy at runtime.
+COPY geometrikks/ ./geometrikks/
 
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen
@@ -26,6 +34,8 @@ RUN --mount=type=cache,target=/root/.bun \
     bun install --frozen-lockfile
 
 COPY vite.config.ts tsconfig.json components.json index.html openapi-ts.config.ts ./
+COPY alembic.ini ./
+COPY migrations/ ./migrations/
 
 RUN mkdir -p /app/data/geoip /app/logs
 
@@ -37,4 +47,4 @@ EXPOSE 8000 5173
 
 # Default command runs backend with reload
 # Frontend can be run separately or via docker-compose
-CMD ["litestar", "--app", "geometrikks.server.core:create_app", "run", "--host", "0.0.0.0", "--port", "8000", "--reload", "--debug"]
+CMD ["litestar", "--app", "geometrikks.server.core:create_app", "run", "--host", "0.0.0.0", "--port", "8000", "--reload", "--reload-ignore-paths", "/app/logs/access.log", "--debug"]

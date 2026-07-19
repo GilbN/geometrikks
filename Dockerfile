@@ -6,7 +6,7 @@
 # --platform=$BUILDPLATFORM: the vite/tsc output is architecture-independent,
 # so always build it natively instead of under QEMU emulation (bun is slow and
 # flaky when emulated during multi-arch release builds).
-FROM --platform=$BUILDPLATFORM oven/bun:latest AS frontend-builder
+FROM --platform=$BUILDPLATFORM oven/bun:1.3.14-slim@sha256:621f249399228db47cf34611ee662585e77e015250ed29d5d0932b2d3282f0b0 AS frontend-builder
 
 WORKDIR /app
 
@@ -33,7 +33,7 @@ WORKDIR /app
 ENV UV_COMPILE_BYTECODE=1 \
     UV_LINK_MODE=copy
 
-COPY pyproject.toml uv.lock* ./
+COPY pyproject.toml uv.lock* README.md ./
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-dev --no-install-project
 
@@ -46,17 +46,19 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 # ------------------------------------------------------------------------------
 FROM python:3.13-slim-bookworm AS production
 
+ARG APP_IMAGE_TAG=local
+
 RUN groupadd --gid 1000 geometrikks \
     && useradd --uid 1000 --gid geometrikks --shell /bin/bash --create-home geometrikks
 
 WORKDIR /app
 
-COPY --from=python-builder /app/.venv /app/.venv
-COPY --from=python-builder /app/geometrikks /app/geometrikks
-COPY --from=frontend-builder /app/public /app/public
-COPY --from=frontend-builder /app/index.html /app/public/index.html
-COPY pyproject.toml alembic.ini ./
-COPY migrations/ ./migrations/
+COPY --chown=geometrikks:geometrikks --from=python-builder /app/.venv /app/.venv
+COPY --chown=geometrikks:geometrikks --from=python-builder /app/geometrikks /app/geometrikks
+COPY --chown=geometrikks:geometrikks --from=frontend-builder /app/public /app/public
+COPY --chown=geometrikks:geometrikks --from=frontend-builder /app/index.html /app/public/index.html
+COPY --chown=geometrikks:geometrikks pyproject.toml alembic.ini ./
+COPY --chown=geometrikks:geometrikks migrations/ ./migrations/
 
 RUN mkdir -p /app/logs /app/data/geoip \
     && chown -R geometrikks:geometrikks /app
@@ -68,6 +70,8 @@ ENV PATH="/app/.venv/bin:$PATH" \
     PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     APP_ENVIRONMENT=production \
+    APP_RUNTIME=container \
+    APP_IMAGE_TAG=${APP_IMAGE_TAG} \
     VITE_DEV_MODE=false \
     GEOIP_DB_PATH=/app/data/geoip/GeoLite2-City.mmdb \
     GEOIP_VALIDATE_DB_PATH=false \

@@ -10,11 +10,12 @@ CAGG Structure:
 - summary_hourly_stats / summary_daily_stats: Access log metrics
 - geo_summary_hourly_stats / geo_summary_daily_stats: Geo metrics with HyperLogLog
 - location_hourly_stats / location_daily_stats: Location event counts for map
-- ip_location_daily_stats: Per-IP counts by location for top IPs
+- ip_location_{hourly,daily}_stats: Per-IP counts by location for top IPs
 """
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING
@@ -221,38 +222,43 @@ async def _create_location_caggs(conn: "AsyncConnection") -> None:
 
 
 async def _create_ip_location_cagg(conn: "AsyncConnection") -> None:
-    """Create IP-location stats CAGG.
+    """Create IP-location stats CAGGs (hourly + daily).
 
-    Used for: Top IPs per location, Global top IPs
-    Daily granularity only (top IPs don't need hourly precision)
+    Used for: Top IPs per location, Global top IPs, grouped geo-logs rows.
+
+    Both granularities exist so the query layer can honour the same routing
+    the summary/location CAGGs use (hourly for 24h-30d, daily above). Serving
+    a 14-day range from the daily CAGG forces callers to align the window to
+    a whole day, which over-counts the partial first day.
     """
-    await conn.execute(text("""
-        CREATE MATERIALIZED VIEW IF NOT EXISTS ip_location_daily_stats
-        WITH (timescaledb.continuous) AS
-        SELECT
-            time_bucket('1 day', timestamp) AS bucket,
-            location_id,
-            ip_address,
-            COUNT(*) AS event_count
-        FROM geo_events
-        GROUP BY bucket, location_id, ip_address
-        WITH NO DATA
-    """))
-    logger.info("CAGG created/verified: ip_location_daily_stats")
+    for suffix, interval in (("hourly", "1 hour"), ("daily", "1 day")):
+        await conn.execute(text(f"""
+            CREATE MATERIALIZED VIEW IF NOT EXISTS ip_location_{suffix}_stats
+            WITH (timescaledb.continuous) AS
+            SELECT
+                time_bucket('{interval}', timestamp) AS bucket,
+                location_id,
+                ip_address,
+                COUNT(*) AS event_count
+            FROM geo_events
+            GROUP BY bucket, location_id, ip_address
+            WITH NO DATA
+        """))
+        logger.info("CAGG created/verified: ip_location_%s_stats", suffix)
 
-    # Create indexes for fast queries
-    await conn.execute(text("""
-        CREATE INDEX IF NOT EXISTS ix_ip_location_daily_stats_bucket
-        ON ip_location_daily_stats (bucket DESC)
-    """))
-    await conn.execute(text("""
-        CREATE INDEX IF NOT EXISTS ix_ip_location_daily_stats_location
-        ON ip_location_daily_stats (location_id)
-    """))
-    await conn.execute(text("""
-        CREATE INDEX IF NOT EXISTS ix_ip_location_daily_stats_location_ip
-        ON ip_location_daily_stats (location_id, ip_address)
-    """))
+        # Create indexes for fast queries
+        await conn.execute(text(f"""
+            CREATE INDEX IF NOT EXISTS ix_ip_location_{suffix}_stats_bucket
+            ON ip_location_{suffix}_stats (bucket DESC)
+        """))
+        await conn.execute(text(f"""
+            CREATE INDEX IF NOT EXISTS ix_ip_location_{suffix}_stats_location
+            ON ip_location_{suffix}_stats (location_id)
+        """))
+        await conn.execute(text(f"""
+            CREATE INDEX IF NOT EXISTS ix_ip_location_{suffix}_stats_location_ip
+            ON ip_location_{suffix}_stats (location_id, ip_address)
+        """))
 
 
 # =============================================================================
@@ -268,6 +274,7 @@ CAGG_REFRESH_CONFIG = [
     ("summary_hourly_stats", "3 hours", "1 hour"),
     ("geo_summary_hourly_stats", "3 hours", "1 hour"),
     ("location_hourly_stats", "3 hours", "1 hour"),
+    ("ip_location_hourly_stats", "3 hours", "1 hour"),
     # Daily CAGGs: refresh up to 1 hour ago to keep data fresh
     # (using "1 day" would leave too large a gap for real-time aggregation)
     ("summary_daily_stats", "3 days", "1 hour"),
@@ -280,6 +287,7 @@ HOURLY_CAGGS = [
     "summary_hourly_stats",
     "geo_summary_hourly_stats",
     "location_hourly_stats",
+    "ip_location_hourly_stats",
 ]
 
 
@@ -419,6 +427,7 @@ ALL_CAGGS = [
     "geo_summary_daily_stats",
     "location_hourly_stats",
     "location_daily_stats",
+    "ip_location_hourly_stats",
     "ip_location_daily_stats",
 ]
 
@@ -555,6 +564,10 @@ async def setup_timescaledb(
             caggs=SUMMARY_CAGGS,
         )
 
+    # Repair deployments whose data predates CAGG refresh coverage
+    # (issue #14: long-range charts truncated while top lists are not).
+    await backfill_cagg_gaps(engine, raw_retention_days=analytics.raw_retention_days)
+
     logger.info("TimescaleDB setup complete")
 
 
@@ -586,18 +599,105 @@ async def refresh_caggs_range(
         raise ValueError(f"Unknown CAGG name(s): {sorted(unknown)}")
 
     for cagg in target_caggs:
+        # A background refresh-policy job on an overlapping window makes
+        # refresh_continuous_aggregate raise "concurrent refresh"; without a
+        # retry the range would silently stay stale until the next policy run
+        # (which may never cover it, e.g. historical imports).
+        for attempt in range(5):
+            try:
+                async with engine.connect() as conn:
+                    raw_conn = await conn.get_raw_connection()
+                    driver_conn = raw_conn.driver_connection
+                    if driver_conn is None:
+                        raise RuntimeError("No driver connection available for CALL statement")
+                    await driver_conn.execute(
+                        f"CALL refresh_continuous_aggregate('{cagg}', $1::timestamptz, $2::timestamptz)",
+                        start,
+                        end,
+                    )
+                logger.info("CAGG refreshed: %s (%s → %s)", cagg, start, end)
+                break
+            except Exception as e:
+                if "concurrent refresh" in str(e) and attempt < 4:
+                    await asyncio.sleep(0.5 * (attempt + 1))
+                    continue
+                logger.warning("CAGG refresh failed: %s (%s → %s): %s", cagg, start, end, e)
+                break
+
+
+# CAGG -> raw source hypertable (all use a "timestamp" time column)
+CAGG_SOURCE_TABLES: dict[str, str] = {
+    "summary_hourly_stats": "access_logs",
+    "summary_daily_stats": "access_logs",
+    "geo_summary_hourly_stats": "geo_events",
+    "geo_summary_daily_stats": "geo_events",
+    "location_hourly_stats": "geo_events",
+    "location_daily_stats": "geo_events",
+    "ip_location_hourly_stats": "geo_events",
+    "ip_location_daily_stats": "geo_events",
+}
+
+
+async def backfill_cagg_gaps(engine: "AsyncEngine", *, raw_retention_days: int) -> None:
+    """Materialize CAGG history that predates refresh-policy coverage.
+
+    CAGGs are created WITH NO DATA and refresh policies only cover a
+    trailing window, so buckets older than the coverage are never
+    materialized. Once the watermark advances, the real-time union stops
+    reading those raw rows and the history disappears from CAGG queries
+    while raw-table queries still see it (issue #14 symptom). Detect the
+    gap (earliest raw row older than earliest materialized bucket) and
+    refresh the missing range. Idempotent and cheap when there is no gap.
+    """
+    horizon = datetime.now(timezone.utc) - timedelta(days=raw_retention_days)
+    to_backfill: list[tuple[str, datetime]] = []
+
+    for cagg, source in CAGG_SOURCE_TABLES.items():
+        # Isolate each CAGG on its own connection: a probe failure (e.g. a
+        # future CAGG whose time column is not "bucket") must not abort app
+        # startup, and a failed statement poisons its whole connection's
+        # transaction, so a shared connection would cascade the failure to
+        # every later CAGG. Matches refresh_caggs_range's per-item pattern.
         try:
             async with engine.connect() as conn:
-                raw_conn = await conn.get_raw_connection()
-                driver_conn = raw_conn.driver_connection
-                if driver_conn is None:
-                    raise RuntimeError("No driver connection available for CALL statement")
-                await driver_conn.execute(
-                    f"CALL refresh_continuous_aggregate('{cagg}', $1::timestamptz, $2::timestamptz)",
-                    start,
-                    end,
-                )
-            logger.info("CAGG refreshed: %s (%s → %s)", cagg, start, end)
+                raw_min = (await conn.execute(
+                    text(f"SELECT MIN(timestamp) FROM {source} WHERE timestamp >= :horizon"),  # noqa: S608 - allowlisted identifiers
+                    {"horizon": horizon},
+                )).scalar()
+                if raw_min is None:
+                    continue
+
+                mat_table = (await conn.execute(text("""
+                    SELECT format('%I.%I', materialization_hypertable_schema,
+                                  materialization_hypertable_name)
+                    FROM timescaledb_information.continuous_aggregates
+                    WHERE view_name = :cagg
+                """), {"cagg": cagg})).scalar()
+                if mat_table is None:
+                    continue
+
+                cagg_min = (await conn.execute(
+                    text(f"SELECT MIN(bucket) FROM {mat_table}")  # noqa: S608
+                )).scalar()
         except Exception as e:
-            logger.warning("CAGG refresh failed: %s (%s → %s): %s", cagg, start, end, e)
+            logger.warning("CAGG gap probe failed: %s: %s", cagg, e)
+            continue
+
+        bucket_width = timedelta(days=1) if "daily" in cagg else timedelta(hours=1)
+        if cagg_min is None or raw_min < cagg_min - bucket_width:
+            # refresh_continuous_aggregate silently skips the bucket
+            # containing an unaligned start (it does not floor it), so
+            # align start to the bucket boundary or the earliest row's
+            # bucket is dropped instead of backfilled.
+            if bucket_width == timedelta(days=1):
+                aligned_start = raw_min.replace(hour=0, minute=0, second=0, microsecond=0)
+            else:
+                aligned_start = raw_min.replace(minute=0, second=0, microsecond=0)
+            to_backfill.append((cagg, aligned_start))
+
+    for cagg, start in to_backfill:
+        logger.warning("CAGG %s is missing history since %s; backfilling", cagg, start)
+        await refresh_caggs_range(
+            engine, start=start, end=datetime.now(timezone.utc), caggs=[cagg]
+        )
 

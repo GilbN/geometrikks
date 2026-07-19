@@ -10,10 +10,12 @@ list most users need is in `.env.example`; everything below is available.
 | Variable | Default | Description |
 |---|---|---|
 | `APP_NAME` | `GeoMetrikks API` | Application name |
-| `APP_VERSION` | `0.1.0` | Application version |
+| `APP_VERSION` | *(computed)* | Application version (defaults to installed package metadata) |
 | `APP_DESCRIPTION` | `Real-time GeoIP lookups and traffic analytics API` | Application description |
 | `APP_DEBUG` | `false` | Enable debug mode |
 | `APP_ENVIRONMENT` | `production` | Application environment |
+| `APP_RUNTIME` | `host` | Execution runtime; container images set this to container. |
+| `APP_IMAGE_TAG` | — | Optional container image tag embedded at build time. |
 | `APP_AUTH_DISABLED` | `false` | Disable the built-in session auth entirely. Set true only when an authenticating reverse proxy (Authelia, Tailscale, ...) fronts the app. |
 | `APP_ADMIN_USER` | `admin` | Admin login username |
 | `APP_ADMIN_PASSWORD` | — | Admin login password (required unless auth_disabled=true) |
@@ -79,17 +81,13 @@ list most users need is in `.env.example`; everything below is available.
 | `ANALYTICS_HOURLY_RETENTION_DAYS` | `60` | Days to keep hourly continuous aggregate data |
 | `ANALYTICS_CAGG_REFRESH_INTERVAL_MINUTES` | `5` | Minutes between continuous aggregate refreshes |
 | `ANALYTICS_COMPRESSION_AFTER_DAYS` | `7` | Days after which to compress hypertable chunks |
-| `ANALYTICS_TOP_IPS_LIMIT` | `1000` | Maximum number of top IPs to track per day |
-| `ANALYTICS_TOP_URLS_LIMIT` | `500` | Maximum number of top URLs to track per day |
 
 ## Scheduler
 
 | Variable | Default | Description |
 |---|---|---|
 | `SCHEDULER_ENABLED` | `true` | Enable scheduled background tasks |
-| `SCHEDULER_DAILY_ROLLUP_HOUR` | `0` | Hour (UTC, 0-23) to run daily rollup |
-| `SCHEDULER_DAILY_ROLLUP_MINUTE` | `5` | Minute (0-59) to run daily rollup |
-| `SCHEDULER_LOCATION_REFRESH_INTERVAL_MINUTES` | `5` | Minutes between GeoLocation.last_hit refresh jobs |
+| `SCHEDULER_LOCATION_REFRESH_INTERVAL_MINUTES` | `10` | Minutes between GeoLocation.last_hit refresh jobs |
 
 ## Map
 

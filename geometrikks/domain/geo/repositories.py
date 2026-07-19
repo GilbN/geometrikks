@@ -111,6 +111,9 @@ class GeoLocationRepository(SQLAlchemyAsyncRepository[GeoLocation]):
         to_timestamp: datetime,
         country_codes: list[str] | None = None,
         cities: list[str] | None = None,
+        ip_addresses: list[str] | None = None,
+        ip_addresses_exclude: list[str] | None = None,
+        hostnames: list[str] | None = None,
     ) -> list[LocationWithEventCount]:
         """Retrieve all GeoLocations with their associated event counts.
 
@@ -119,11 +122,18 @@ class GeoLocationRepository(SQLAlchemyAsyncRepository[GeoLocation]):
         - > 24 hours, ≤ 30 days: location_hourly_stats CAGG
         - > 30 days: location_daily_stats CAGG
 
+        Any IP/hostname filter forces the RAW branch regardless of range:
+        the location CAGGs carry no IP or hostname dimension. Such queries
+        are bounded by raw retention (default 180d).
+
         Args:
             from_timestamp: Start datetime for filtering events.
             to_timestamp: End datetime for filtering events.
             country_codes: Optional ISO country codes to filter to.
             cities: Optional city names to filter to.
+            ip_addresses: Optional IPs to include (caller must validate).
+            ip_addresses_exclude: Optional IPs to exclude (caller must validate).
+            hostnames: Optional recording hostnames to filter to.
 
         Returns:
             list[LocationWithEventCount]: List containing location and event count.
@@ -137,6 +147,8 @@ class GeoLocationRepository(SQLAlchemyAsyncRepository[GeoLocation]):
             raise ValueError("from_timestamp and to_timestamp must be timezone-aware")
 
         granularity = get_stats_granularity(from_timestamp, to_timestamp)
+        if ip_addresses or ip_addresses_exclude or hostnames:
+            granularity = StatsGranularity.RAW
 
         logger.debug(
             "get_all_with_event_counts: using %s for range %s to %s",
@@ -153,6 +165,17 @@ class GeoLocationRepository(SQLAlchemyAsyncRepository[GeoLocation]):
         if cities:
             filters_sql += " AND gl.city = ANY(:cities)"
             params["cities"] = cities
+        # ge-aliased conditions are safe here: any of these filters forced the
+        # RAW branch above, and only that branch joins geo_events as ge.
+        if ip_addresses:
+            filters_sql += " AND ge.ip_address = ANY(CAST(:filter_ips AS inet[]))"
+            params["filter_ips"] = list(ip_addresses)
+        if ip_addresses_exclude:
+            filters_sql += " AND NOT (ge.ip_address = ANY(CAST(:filter_ips_excl AS inet[])))"
+            params["filter_ips_excl"] = list(ip_addresses_exclude)
+        if hostnames:
+            filters_sql += " AND ge.hostname = ANY(:filter_hostnames)"
+            params["filter_hostnames"] = list(hostnames)
 
         if granularity == StatsGranularity.RAW:
             # Query raw geo_events table for exact time range granularity

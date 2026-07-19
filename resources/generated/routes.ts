@@ -15,20 +15,35 @@ export type URI = string;
 
 /** All available route names */
 export type RouteName =
+  | 'get_about'
+  | 'get_access_log_debug_stats'
+  | 'get_access_log_facets'
   | 'get_cumulative_time_series'
+  | 'get_geo_log_facets'
+  | 'get_geo_log_summary'
+  | 'get_geo_log_time_series'
+  | 'get_geo_log_top_cities'
+  | 'get_geo_log_top_countries'
+  | 'get_geo_log_top_ips'
+  | 'get_geo_logs'
   | 'get_geo_time_series'
   | 'get_geojson'
   | 'get_global_top_ips'
   | 'get_live_summary'
   | 'get_location_top_ips'
+  | 'get_scheduler_jobs'
   | 'get_summary'
+  | 'get_system_settings'
   | 'get_time_series'
+  | 'get_top_cities'
   | 'get_top_countries'
+  | 'get_top_countries_api_v1_geo_locations_top_countries'
+  | 'get_top_ips'
   | 'get_top_urls'
   | 'get_top_user_agents'
   | 'health'
   | 'health_ready'
-  | 'list_access_log_debugs'
+  | 'list_access_log_debug'
   | 'list_access_logs'
   | 'list_geo_events'
   | 'list_geo_locations'
@@ -38,6 +53,8 @@ export type RouteName =
   | 'openapi.json'
   | 'openapi.yaml'
   | 'read_settings'
+  | 'run_scheduler_job'
+  | 'service_worker'
   | 'stats'
   | 'vite'
   | 'vite_spa'
@@ -45,7 +62,17 @@ export type RouteName =
 
 /** Path parameter definitions per route */
 export interface RoutePathParams {
+  'get_about': Record<string, never>;
+  'get_access_log_debug_stats': Record<string, never>;
+  'get_access_log_facets': Record<string, never>;
   'get_cumulative_time_series': Record<string, never>;
+  'get_geo_log_facets': Record<string, never>;
+  'get_geo_log_summary': Record<string, never>;
+  'get_geo_log_time_series': Record<string, never>;
+  'get_geo_log_top_cities': Record<string, never>;
+  'get_geo_log_top_countries': Record<string, never>;
+  'get_geo_log_top_ips': Record<string, never>;
+  'get_geo_logs': Record<string, never>;
   'get_geo_time_series': Record<string, never>;
   'get_geojson': Record<string, never>;
   'get_global_top_ips': Record<string, never>;
@@ -53,14 +80,19 @@ export interface RoutePathParams {
   'get_location_top_ips': {
     location_id: number;
   };
+  'get_scheduler_jobs': Record<string, never>;
   'get_summary': Record<string, never>;
+  'get_system_settings': Record<string, never>;
   'get_time_series': Record<string, never>;
+  'get_top_cities': Record<string, never>;
   'get_top_countries': Record<string, never>;
+  'get_top_countries_api_v1_geo_locations_top_countries': Record<string, never>;
+  'get_top_ips': Record<string, never>;
   'get_top_urls': Record<string, never>;
   'get_top_user_agents': Record<string, never>;
   'health': Record<string, never>;
   'health_ready': Record<string, never>;
-  'list_access_log_debugs': Record<string, never>;
+  'list_access_log_debug': Record<string, never>;
   'list_access_logs': Record<string, never>;
   'list_geo_events': Record<string, never>;
   'list_geo_locations': Record<string, never>;
@@ -70,6 +102,10 @@ export interface RoutePathParams {
   'openapi.json': Record<string, never>;
   'openapi.yaml': Record<string, never>;
   'read_settings': Record<string, never>;
+  'run_scheduler_job': {
+    job_id: string;
+  };
+  'service_worker': Record<string, never>;
   'stats': Record<string, never>;
   'vite': {
     file_path: any;
@@ -82,18 +118,91 @@ export interface RoutePathParams {
 
 /** Query parameter definitions per route */
 export interface RouteQueryParams {
+  'get_about': Record<string, never>;
+  'get_access_log_debug_stats': {
+    from_timestamp?: DateTime;
+    to_timestamp?: DateTime;
+  };
+  'get_access_log_facets': Record<string, never>;
   'get_cumulative_time_series': {
     end_date: DateTime;
     start_date: DateTime;
   };
+  'get_geo_log_facets': Record<string, never>;
+  'get_geo_log_summary': {
+    cityIn?: string[];
+    compare_previous?: boolean;
+    countryCodeIn?: string[];
+    from_timestamp: DateTime;
+    hostnameIn?: string[];
+    ipAddressIn?: string[];
+    ipAddressNotIn?: string[];
+    to_timestamp: DateTime;
+  };
+  'get_geo_log_time_series': {
+    cityIn?: string[];
+    countryCodeIn?: string[];
+    from_timestamp: DateTime;
+    granularity?: "hourly" | "daily";
+    hostnameIn?: string[];
+    ipAddressIn?: string[];
+    ipAddressNotIn?: string[];
+    to_timestamp: DateTime;
+  };
+  'get_geo_log_top_cities': {
+    cityIn?: string[];
+    countryCodeIn?: string[];
+    from_timestamp: DateTime;
+    hostnameIn?: string[];
+    ipAddressIn?: string[];
+    ipAddressNotIn?: string[];
+    limit?: number;
+    to_timestamp: DateTime;
+  };
+  'get_geo_log_top_countries': {
+    cityIn?: string[];
+    countryCodeIn?: string[];
+    from_timestamp: DateTime;
+    hostnameIn?: string[];
+    ipAddressIn?: string[];
+    ipAddressNotIn?: string[];
+    limit?: number;
+    to_timestamp: DateTime;
+  };
+  'get_geo_log_top_ips': {
+    cityIn?: string[];
+    countryCodeIn?: string[];
+    from_timestamp: DateTime;
+    hostnameIn?: string[];
+    ipAddressIn?: string[];
+    ipAddressNotIn?: string[];
+    limit?: number;
+    to_timestamp: DateTime;
+  };
+  'get_geo_logs': {
+    cityIn?: string[];
+    countryCodeIn?: string[];
+    currentPage?: number;
+    from_timestamp: DateTime;
+    hostnameIn?: string[];
+    ipAddressIn?: string[];
+    ipAddressNotIn?: string[];
+    pageSize?: number;
+    sortOrder?: "asc" | "desc";
+    to_timestamp: DateTime;
+  };
   'get_geo_time_series': {
     end_date: DateTime;
+    granularity?: "hourly" | "daily";
     start_date: DateTime;
   };
   'get_geojson': {
     city?: string[];
     country_code?: string[];
     from_timestamp: DateTime;
+    hostnameIn?: string[];
+    ipAddressIn?: string[];
+    ipAddressNotIn?: string[];
     to_timestamp: DateTime;
   };
   'get_global_top_ips': {
@@ -111,45 +220,108 @@ export interface RouteQueryParams {
     limit?: number;
     to_timestamp: DateTime;
   };
+  'get_scheduler_jobs': Record<string, never>;
   'get_summary': {
     compare_previous?: boolean;
     end_date: DateTime;
     start_date: DateTime;
   };
+  'get_system_settings': Record<string, never>;
   'get_time_series': {
+    city?: string[];
+    country_code?: string[];
     end_date: DateTime;
+    granularity?: "hourly" | "daily";
+    ip_address?: string[];
+    start_date: DateTime;
+  };
+  'get_top_cities': {
+    city?: string[];
+    country_code?: string[];
+    end_date: DateTime;
+    ip_address?: string[];
+    limit?: number;
     start_date: DateTime;
   };
   'get_top_countries': {
+    city?: string[];
+    country_code?: string[];
+    end_date: DateTime;
+    ip_address?: string[];
+    limit?: number;
+    start_date: DateTime;
+  };
+  'get_top_countries_api_v1_geo_locations_top_countries': {
     from_timestamp: DateTime;
     limit?: number;
     to_timestamp: DateTime;
   };
-  'get_top_urls': {
+  'get_top_ips': {
+    city?: string[];
+    country_code?: string[];
     end_date: DateTime;
+    ip_address?: string[];
+    limit?: number;
+    start_date: DateTime;
+  };
+  'get_top_urls': {
+    city?: string[];
+    country_code?: string[];
+    end_date: DateTime;
+    ip_address?: string[];
     limit?: number;
     start_date: DateTime;
   };
   'get_top_user_agents': {
+    city?: string[];
+    country_code?: string[];
     end_date: DateTime;
+    ip_address?: string[];
     limit?: number;
     start_date: DateTime;
   };
   'health': Record<string, never>;
   'health_ready': Record<string, never>;
-  'list_access_log_debugs': {
-    currentPage?: number;
-    pageSize?: number;
-  };
-  'list_access_logs': {
+  'list_access_log_debug': {
+    cityIn?: string[];
+    countryCodeIn?: string[];
     currentPage?: number;
     from_timestamp?: DateTime;
+    ipAddressIn?: string[];
+    malformed?: boolean;
+    orderBy?: string;
     pageSize?: number;
+    searchIgnoreCase?: boolean;
+    searchString?: string;
+    sortOrder?: "asc" | "desc";
+    to_timestamp?: DateTime;
+  };
+  'list_access_logs': {
+    cityIn?: string[];
+    countryCodeIn?: string[];
+    currentPage?: number;
+    from_timestamp?: DateTime;
+    host?: string;
+    ipAddressIn?: string[];
+    methodIn?: string[];
+    orderBy?: string;
+    pageSize?: number;
+    searchIgnoreCase?: boolean;
+    searchString?: string;
+    sortOrder?: "asc" | "desc";
+    statusIn?: number[];
     to_timestamp?: DateTime;
   };
   'list_geo_events': {
     currentPage?: number;
+    from_timestamp?: DateTime;
+    hostnameIn?: string[];
+    ipAddressIn?: string[];
+    ipAddressNotIn?: string[];
+    orderBy?: string;
     pageSize?: number;
+    sortOrder?: "asc" | "desc";
+    to_timestamp?: DateTime;
   };
   'list_geo_locations': {
     currentPage?: number;
@@ -161,6 +333,8 @@ export interface RouteQueryParams {
   'openapi.json': Record<string, never>;
   'openapi.yaml': Record<string, never>;
   'read_settings': Record<string, never>;
+  'run_scheduler_job': Record<string, never>;
+  'service_worker': Record<string, never>;
   'stats': Record<string, never>;
   'vite': Record<string, never>;
   'vite_spa': Record<string, never>;
@@ -176,6 +350,27 @@ export type RouteParams<T extends RouteName> = MergeParams<RoutePathParams[T], R
 
 /** Route metadata */
 export const routeDefinitions = {
+  'get_about': {
+    path: '/api/v1/system/about',
+    methods: ['GET'] as const,
+    method: 'get',
+    pathParams: [] as const,
+    queryParams: [] as const,
+  },
+  'get_access_log_debug_stats': {
+    path: '/api/v1/access-log-debug/stats',
+    methods: ['GET'] as const,
+    method: 'get',
+    pathParams: [] as const,
+    queryParams: ['from_timestamp', 'to_timestamp'] as const,
+  },
+  'get_access_log_facets': {
+    path: '/api/v1/access-logs/facets',
+    methods: ['GET'] as const,
+    method: 'get',
+    pathParams: [] as const,
+    queryParams: [] as const,
+  },
   'get_cumulative_time_series': {
     path: '/api/v1/analytics/time-series/cumulative',
     methods: ['GET'] as const,
@@ -183,19 +378,68 @@ export const routeDefinitions = {
     pathParams: [] as const,
     queryParams: ['end_date', 'start_date'] as const,
   },
+  'get_geo_log_facets': {
+    path: '/api/v1/geo-events/facets',
+    methods: ['GET'] as const,
+    method: 'get',
+    pathParams: [] as const,
+    queryParams: [] as const,
+  },
+  'get_geo_log_summary': {
+    path: '/api/v1/geo-events/summary',
+    methods: ['GET'] as const,
+    method: 'get',
+    pathParams: [] as const,
+    queryParams: ['cityIn', 'compare_previous', 'countryCodeIn', 'from_timestamp', 'hostnameIn', 'ipAddressIn', 'ipAddressNotIn', 'to_timestamp'] as const,
+  },
+  'get_geo_log_time_series': {
+    path: '/api/v1/geo-events/time-series',
+    methods: ['GET'] as const,
+    method: 'get',
+    pathParams: [] as const,
+    queryParams: ['cityIn', 'countryCodeIn', 'from_timestamp', 'granularity', 'hostnameIn', 'ipAddressIn', 'ipAddressNotIn', 'to_timestamp'] as const,
+  },
+  'get_geo_log_top_cities': {
+    path: '/api/v1/geo-events/top-cities',
+    methods: ['GET'] as const,
+    method: 'get',
+    pathParams: [] as const,
+    queryParams: ['cityIn', 'countryCodeIn', 'from_timestamp', 'hostnameIn', 'ipAddressIn', 'ipAddressNotIn', 'limit', 'to_timestamp'] as const,
+  },
+  'get_geo_log_top_countries': {
+    path: '/api/v1/geo-events/top-countries',
+    methods: ['GET'] as const,
+    method: 'get',
+    pathParams: [] as const,
+    queryParams: ['cityIn', 'countryCodeIn', 'from_timestamp', 'hostnameIn', 'ipAddressIn', 'ipAddressNotIn', 'limit', 'to_timestamp'] as const,
+  },
+  'get_geo_log_top_ips': {
+    path: '/api/v1/geo-events/top-ips',
+    methods: ['GET'] as const,
+    method: 'get',
+    pathParams: [] as const,
+    queryParams: ['cityIn', 'countryCodeIn', 'from_timestamp', 'hostnameIn', 'ipAddressIn', 'ipAddressNotIn', 'limit', 'to_timestamp'] as const,
+  },
+  'get_geo_logs': {
+    path: '/api/v1/geo-events/logs',
+    methods: ['GET'] as const,
+    method: 'get',
+    pathParams: [] as const,
+    queryParams: ['cityIn', 'countryCodeIn', 'currentPage', 'from_timestamp', 'hostnameIn', 'ipAddressIn', 'ipAddressNotIn', 'pageSize', 'sortOrder', 'to_timestamp'] as const,
+  },
   'get_geo_time_series': {
     path: '/api/v1/analytics/geo-time-series',
     methods: ['GET'] as const,
     method: 'get',
     pathParams: [] as const,
-    queryParams: ['end_date', 'start_date'] as const,
+    queryParams: ['end_date', 'granularity', 'start_date'] as const,
   },
   'get_geojson': {
     path: '/api/v1/geo-locations/geojson',
     methods: ['GET'] as const,
     method: 'get',
     pathParams: [] as const,
-    queryParams: ['city', 'country_code', 'from_timestamp', 'to_timestamp'] as const,
+    queryParams: ['city', 'country_code', 'from_timestamp', 'hostnameIn', 'ipAddressIn', 'ipAddressNotIn', 'to_timestamp'] as const,
   },
   'get_global_top_ips': {
     path: '/api/v1/geo-locations/top-ips',
@@ -218,6 +462,13 @@ export const routeDefinitions = {
     pathParams: ['location_id'] as const,
     queryParams: ['from_timestamp', 'limit', 'to_timestamp'] as const,
   },
+  'get_scheduler_jobs': {
+    path: '/api/v1/system/scheduler/jobs',
+    methods: ['GET'] as const,
+    method: 'get',
+    pathParams: [] as const,
+    queryParams: [] as const,
+  },
   'get_summary': {
     path: '/api/v1/analytics/summary',
     methods: ['GET'] as const,
@@ -225,33 +476,61 @@ export const routeDefinitions = {
     pathParams: [] as const,
     queryParams: ['compare_previous', 'end_date', 'start_date'] as const,
   },
+  'get_system_settings': {
+    path: '/api/v1/system/settings',
+    methods: ['GET'] as const,
+    method: 'get',
+    pathParams: [] as const,
+    queryParams: [] as const,
+  },
   'get_time_series': {
     path: '/api/v1/analytics/time-series',
     methods: ['GET'] as const,
     method: 'get',
     pathParams: [] as const,
-    queryParams: ['end_date', 'start_date'] as const,
+    queryParams: ['city', 'country_code', 'end_date', 'granularity', 'ip_address', 'start_date'] as const,
+  },
+  'get_top_cities': {
+    path: '/api/v1/analytics/top-cities',
+    methods: ['GET'] as const,
+    method: 'get',
+    pathParams: [] as const,
+    queryParams: ['city', 'country_code', 'end_date', 'ip_address', 'limit', 'start_date'] as const,
   },
   'get_top_countries': {
+    path: '/api/v1/analytics/top-countries',
+    methods: ['GET'] as const,
+    method: 'get',
+    pathParams: [] as const,
+    queryParams: ['city', 'country_code', 'end_date', 'ip_address', 'limit', 'start_date'] as const,
+  },
+  'get_top_countries_api_v1_geo_locations_top_countries': {
     path: '/api/v1/geo-locations/top-countries',
     methods: ['GET'] as const,
     method: 'get',
     pathParams: [] as const,
     queryParams: ['from_timestamp', 'limit', 'to_timestamp'] as const,
   },
+  'get_top_ips': {
+    path: '/api/v1/analytics/top-ips',
+    methods: ['GET'] as const,
+    method: 'get',
+    pathParams: [] as const,
+    queryParams: ['city', 'country_code', 'end_date', 'ip_address', 'limit', 'start_date'] as const,
+  },
   'get_top_urls': {
     path: '/api/v1/analytics/top-urls',
     methods: ['GET'] as const,
     method: 'get',
     pathParams: [] as const,
-    queryParams: ['end_date', 'limit', 'start_date'] as const,
+    queryParams: ['city', 'country_code', 'end_date', 'ip_address', 'limit', 'start_date'] as const,
   },
   'get_top_user_agents': {
     path: '/api/v1/analytics/top-user-agents',
     methods: ['GET'] as const,
     method: 'get',
     pathParams: [] as const,
-    queryParams: ['end_date', 'limit', 'start_date'] as const,
+    queryParams: ['city', 'country_code', 'end_date', 'ip_address', 'limit', 'start_date'] as const,
   },
   'health': {
     path: '/health',
@@ -267,26 +546,26 @@ export const routeDefinitions = {
     pathParams: [] as const,
     queryParams: [] as const,
   },
-  'list_access_log_debugs': {
+  'list_access_log_debug': {
     path: '/api/v1/access-log-debug',
     methods: ['GET'] as const,
     method: 'get',
     pathParams: [] as const,
-    queryParams: ['currentPage', 'pageSize'] as const,
+    queryParams: ['cityIn', 'countryCodeIn', 'currentPage', 'from_timestamp', 'ipAddressIn', 'malformed', 'orderBy', 'pageSize', 'searchIgnoreCase', 'searchString', 'sortOrder', 'to_timestamp'] as const,
   },
   'list_access_logs': {
     path: '/api/v1/access-logs',
     methods: ['GET'] as const,
     method: 'get',
     pathParams: [] as const,
-    queryParams: ['currentPage', 'from_timestamp', 'pageSize', 'to_timestamp'] as const,
+    queryParams: ['cityIn', 'countryCodeIn', 'currentPage', 'from_timestamp', 'host', 'ipAddressIn', 'methodIn', 'orderBy', 'pageSize', 'searchIgnoreCase', 'searchString', 'sortOrder', 'statusIn', 'to_timestamp'] as const,
   },
   'list_geo_events': {
     path: '/api/v1/geo-events',
     methods: ['GET'] as const,
     method: 'get',
     pathParams: [] as const,
-    queryParams: ['currentPage', 'pageSize'] as const,
+    queryParams: ['currentPage', 'from_timestamp', 'hostnameIn', 'ipAddressIn', 'ipAddressNotIn', 'orderBy', 'pageSize', 'sortOrder', 'to_timestamp'] as const,
   },
   'list_geo_locations': {
     path: '/api/v1/geo-locations',
@@ -332,6 +611,20 @@ export const routeDefinitions = {
   },
   'read_settings': {
     path: '/api/v1/settings',
+    methods: ['GET'] as const,
+    method: 'get',
+    pathParams: [] as const,
+    queryParams: [] as const,
+  },
+  'run_scheduler_job': {
+    path: '/api/v1/system/scheduler/jobs/{job_id}/run',
+    methods: ['POST'] as const,
+    method: 'post',
+    pathParams: ['job_id'] as const,
+    queryParams: [] as const,
+  },
+  'service_worker': {
+    path: '/sw.js',
     methods: ['GET'] as const,
     method: 'get',
     pathParams: [] as const,

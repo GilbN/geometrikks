@@ -29,6 +29,7 @@ from geometrikks.domain.geo.dtos import (
 )
 
 from geometrikks.api.dependencies import provide_geo_location_repo
+from geometrikks.api.v1.geo_events_controller import validate_ip_addresses
 
 logger = logging.getLogger(__name__)
 
@@ -84,11 +85,25 @@ class GeoLocationController(Controller):
             list[str] | None,
             Parameter(description="Filter to these city names (repeatable)", required=False),
         ] = None,
+        ip_address_in: Annotated[
+            list[str] | None,
+            Parameter(query="ipAddressIn", description="Filter to these IPs (repeatable)", required=False),
+        ] = None,
+        ip_address_not_in: Annotated[
+            list[str] | None,
+            Parameter(query="ipAddressNotIn", description="Exclude these IPs (repeatable)", required=False),
+        ] = None,
+        hostname_in: Annotated[
+            list[str] | None,
+            Parameter(query="hostnameIn", description="Filter to these recording hostnames (repeatable)", required=False),
+        ] = None,
     ) -> GeoJSONFeatureCollection:
         """Get all locations with event counts as GeoJSON FeatureCollection.
 
         Returns a GeoJSON FeatureCollection where each feature represents a
         location with its coordinates and properties including the event count.
+        Any IP/hostname filter forces a raw geo_events scan (the location
+        CAGGs carry no IP or hostname dimension), bounded by raw retention.
         Args:
             from_datetime: Start datetime for filtering events.
             to_datetime: End datetime for filtering events.
@@ -100,9 +115,15 @@ class GeoLocationController(Controller):
             from_timestamp = from_timestamp.replace(tzinfo=timezone.utc)
         if to_timestamp is not None and to_timestamp.tzinfo is None:
             to_timestamp = to_timestamp.replace(tzinfo=timezone.utc)
+        if ip_address_in:
+            validate_ip_addresses(ip_address_in)
+        if ip_address_not_in:
+            validate_ip_addresses(ip_address_not_in)
 
         locations_with_counts = await geo_location_repo.get_all_with_event_counts(
-            from_timestamp, to_timestamp, country_codes=country_code, cities=city
+            from_timestamp, to_timestamp, country_codes=country_code, cities=city,
+            ip_addresses=ip_address_in, ip_addresses_exclude=ip_address_not_in,
+            hostnames=hostname_in,
         )
         
         events: int = sum(loc.event_count for loc in locations_with_counts)

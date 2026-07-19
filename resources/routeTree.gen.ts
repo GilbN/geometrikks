@@ -9,12 +9,24 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as MapRouteImport } from './routes/map'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as GeoLogsRouteImport } from './routes/geo-logs'
+import { Route as DebugLogsRouteImport } from './routes/debug-logs'
 import { Route as AnalyticsRouteImport } from './routes/analytics'
 import { Route as AccessLogsRouteImport } from './routes/access-logs'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as SettingsIndexRouteImport } from './routes/settings/index'
+import { Route as SettingsSchedulerRouteImport } from './routes/settings/scheduler'
+import { Route as SettingsEnvironmentRouteImport } from './routes/settings/environment'
+import { Route as SettingsAboutRouteImport } from './routes/settings/about'
 
+const SettingsRoute = SettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const MapRoute = MapRouteImport.update({
   id: '/map',
   path: '/map',
@@ -23,6 +35,16 @@ const MapRoute = MapRouteImport.update({
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const GeoLogsRoute = GeoLogsRouteImport.update({
+  id: '/geo-logs',
+  path: '/geo-logs',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DebugLogsRoute = DebugLogsRouteImport.update({
+  id: '/debug-logs',
+  path: '/debug-logs',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AnalyticsRoute = AnalyticsRouteImport.update({
@@ -40,47 +62,133 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SettingsIndexRoute = SettingsIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => SettingsRoute,
+} as any)
+const SettingsSchedulerRoute = SettingsSchedulerRouteImport.update({
+  id: '/scheduler',
+  path: '/scheduler',
+  getParentRoute: () => SettingsRoute,
+} as any)
+const SettingsEnvironmentRoute = SettingsEnvironmentRouteImport.update({
+  id: '/environment',
+  path: '/environment',
+  getParentRoute: () => SettingsRoute,
+} as any)
+const SettingsAboutRoute = SettingsAboutRouteImport.update({
+  id: '/about',
+  path: '/about',
+  getParentRoute: () => SettingsRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/access-logs': typeof AccessLogsRoute
   '/analytics': typeof AnalyticsRoute
+  '/debug-logs': typeof DebugLogsRoute
+  '/geo-logs': typeof GeoLogsRoute
   '/login': typeof LoginRoute
   '/map': typeof MapRoute
+  '/settings': typeof SettingsRouteWithChildren
+  '/settings/about': typeof SettingsAboutRoute
+  '/settings/environment': typeof SettingsEnvironmentRoute
+  '/settings/scheduler': typeof SettingsSchedulerRoute
+  '/settings/': typeof SettingsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/access-logs': typeof AccessLogsRoute
   '/analytics': typeof AnalyticsRoute
+  '/debug-logs': typeof DebugLogsRoute
+  '/geo-logs': typeof GeoLogsRoute
   '/login': typeof LoginRoute
   '/map': typeof MapRoute
+  '/settings/about': typeof SettingsAboutRoute
+  '/settings/environment': typeof SettingsEnvironmentRoute
+  '/settings/scheduler': typeof SettingsSchedulerRoute
+  '/settings': typeof SettingsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/access-logs': typeof AccessLogsRoute
   '/analytics': typeof AnalyticsRoute
+  '/debug-logs': typeof DebugLogsRoute
+  '/geo-logs': typeof GeoLogsRoute
   '/login': typeof LoginRoute
   '/map': typeof MapRoute
+  '/settings': typeof SettingsRouteWithChildren
+  '/settings/about': typeof SettingsAboutRoute
+  '/settings/environment': typeof SettingsEnvironmentRoute
+  '/settings/scheduler': typeof SettingsSchedulerRoute
+  '/settings/': typeof SettingsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/access-logs' | '/analytics' | '/login' | '/map'
+  fullPaths:
+    | '/'
+    | '/access-logs'
+    | '/analytics'
+    | '/debug-logs'
+    | '/geo-logs'
+    | '/login'
+    | '/map'
+    | '/settings'
+    | '/settings/about'
+    | '/settings/environment'
+    | '/settings/scheduler'
+    | '/settings/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/access-logs' | '/analytics' | '/login' | '/map'
-  id: '__root__' | '/' | '/access-logs' | '/analytics' | '/login' | '/map'
+  to:
+    | '/'
+    | '/access-logs'
+    | '/analytics'
+    | '/debug-logs'
+    | '/geo-logs'
+    | '/login'
+    | '/map'
+    | '/settings/about'
+    | '/settings/environment'
+    | '/settings/scheduler'
+    | '/settings'
+  id:
+    | '__root__'
+    | '/'
+    | '/access-logs'
+    | '/analytics'
+    | '/debug-logs'
+    | '/geo-logs'
+    | '/login'
+    | '/map'
+    | '/settings'
+    | '/settings/about'
+    | '/settings/environment'
+    | '/settings/scheduler'
+    | '/settings/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AccessLogsRoute: typeof AccessLogsRoute
   AnalyticsRoute: typeof AnalyticsRoute
+  DebugLogsRoute: typeof DebugLogsRoute
+  GeoLogsRoute: typeof GeoLogsRoute
   LoginRoute: typeof LoginRoute
   MapRoute: typeof MapRoute
+  SettingsRoute: typeof SettingsRouteWithChildren
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/settings': {
+      id: '/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/map': {
       id: '/map'
       path: '/map'
@@ -93,6 +201,20 @@ declare module '@tanstack/react-router' {
       path: '/login'
       fullPath: '/login'
       preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/geo-logs': {
+      id: '/geo-logs'
+      path: '/geo-logs'
+      fullPath: '/geo-logs'
+      preLoaderRoute: typeof GeoLogsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/debug-logs': {
+      id: '/debug-logs'
+      path: '/debug-logs'
+      fullPath: '/debug-logs'
+      preLoaderRoute: typeof DebugLogsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/analytics': {
@@ -116,15 +238,64 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/settings/': {
+      id: '/settings/'
+      path: '/'
+      fullPath: '/settings/'
+      preLoaderRoute: typeof SettingsIndexRouteImport
+      parentRoute: typeof SettingsRoute
+    }
+    '/settings/scheduler': {
+      id: '/settings/scheduler'
+      path: '/scheduler'
+      fullPath: '/settings/scheduler'
+      preLoaderRoute: typeof SettingsSchedulerRouteImport
+      parentRoute: typeof SettingsRoute
+    }
+    '/settings/environment': {
+      id: '/settings/environment'
+      path: '/environment'
+      fullPath: '/settings/environment'
+      preLoaderRoute: typeof SettingsEnvironmentRouteImport
+      parentRoute: typeof SettingsRoute
+    }
+    '/settings/about': {
+      id: '/settings/about'
+      path: '/about'
+      fullPath: '/settings/about'
+      preLoaderRoute: typeof SettingsAboutRouteImport
+      parentRoute: typeof SettingsRoute
+    }
   }
 }
+
+interface SettingsRouteChildren {
+  SettingsAboutRoute: typeof SettingsAboutRoute
+  SettingsEnvironmentRoute: typeof SettingsEnvironmentRoute
+  SettingsSchedulerRoute: typeof SettingsSchedulerRoute
+  SettingsIndexRoute: typeof SettingsIndexRoute
+}
+
+const SettingsRouteChildren: SettingsRouteChildren = {
+  SettingsAboutRoute: SettingsAboutRoute,
+  SettingsEnvironmentRoute: SettingsEnvironmentRoute,
+  SettingsSchedulerRoute: SettingsSchedulerRoute,
+  SettingsIndexRoute: SettingsIndexRoute,
+}
+
+const SettingsRouteWithChildren = SettingsRoute._addFileChildren(
+  SettingsRouteChildren,
+)
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AccessLogsRoute: AccessLogsRoute,
   AnalyticsRoute: AnalyticsRoute,
+  DebugLogsRoute: DebugLogsRoute,
+  GeoLogsRoute: GeoLogsRoute,
   LoginRoute: LoginRoute,
   MapRoute: MapRoute,
+  SettingsRoute: SettingsRouteWithChildren,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

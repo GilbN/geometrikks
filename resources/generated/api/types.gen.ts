@@ -5,6 +5,76 @@ export type ClientOptions = {
 };
 
 /**
+ * AboutAppView
+ */
+export type AboutAppView = {
+  container: boolean;
+  environment: string;
+  image_tag: string | null;
+  name: string;
+  started_at: string | null;
+  version: string;
+};
+
+/**
+ * AboutLinksView
+ */
+export type AboutLinksView = {
+  issues: string;
+  repository: string;
+};
+
+/**
+ * AboutResponse
+ */
+export type AboutResponse = {
+  app: AboutAppView;
+  database: DatabaseVersionsView;
+  geoip: GeoIpInfoView;
+  links: AboutLinksView;
+  runtime: RuntimeVersionsView;
+};
+
+/**
+ * AccessLogDebugEntry
+ */
+export type AccessLogDebugEntry = {
+  accessLogId?: number | null;
+  city?: string | null;
+  countryCode?: string | null;
+  countryName?: string | null;
+  createdAt: string;
+  host?: string | null;
+  id: number;
+  ipAddress?: string | null;
+  isMalformed: boolean;
+  method?: string | null;
+  parseError?: string | null;
+  rawLine: string;
+  statusCode?: number | null;
+  timestamp?: string | null;
+  url?: string | null;
+  userAgent?: string | null;
+};
+
+/**
+ * AccessLogDebugStats
+ */
+export type AccessLogDebugStats = {
+  malformed: number;
+  topParseError?: ParseErrorCount | null;
+  total: number;
+};
+
+/**
+ * AccessLogFacets
+ */
+export type AccessLogFacets = {
+  cities: Array<string>;
+  countries: Array<CountryFacet>;
+};
+
+/**
  * AnalyticsSettingsView
  */
 export type AnalyticsSettingsView = {
@@ -12,6 +82,14 @@ export type AnalyticsSettingsView = {
   debug_retention_days: number;
   hourly_retention_days: number;
   raw_retention_days: number;
+};
+
+/**
+ * CountryFacet
+ */
+export type CountryFacet = {
+  code: string;
+  name: string;
 };
 
 /**
@@ -35,6 +113,15 @@ export type CumulativeTimeSeriesResponse = {
 };
 
 /**
+ * DatabaseVersionsView
+ */
+export type DatabaseVersionsView = {
+  postgis_version: string | null;
+  postgres_version: string | null;
+  timescaledb_version: string | null;
+};
+
+/**
  * EmbeddedLocationDTO
  */
 export type EmbeddedLocationDto = {
@@ -44,6 +131,23 @@ export type EmbeddedLocationDto = {
   id: number;
   latitude: number;
   longitude: number;
+};
+
+/**
+ * GeoCountryFacet
+ */
+export type GeoCountryFacet = {
+  code: string;
+  name: string;
+};
+
+/**
+ * GeoEventFacets
+ */
+export type GeoEventFacets = {
+  cities: Array<string>;
+  countries: Array<GeoCountryFacet>;
+  hostnames: Array<string>;
 };
 
 /**
@@ -65,6 +169,16 @@ export type GeoEventsTimeSeriesResponse = {
   end_date: string;
   granularity: string;
   start_date: string;
+};
+
+/**
+ * GeoIPInfoView
+ */
+export type GeoIpInfoView = {
+  age_days: number | null;
+  available: boolean;
+  build_date: string | null;
+  db_path: string;
 };
 
 /**
@@ -122,22 +236,79 @@ export type GeoJsonPointGeometry = {
 };
 
 /**
+ * GeoLogEntry
+ */
+export type GeoLogEntry = {
+  city: string | null;
+  countryCode: string;
+  countryName: string;
+  eventCount: number;
+  hostnames: Array<string>;
+  ipAddress: string;
+  lastSeen: string | null;
+  latitude: number;
+  locationId: number;
+  longitude: number;
+  postalCode: string | null;
+  state: string | null;
+  stateCode: string | null;
+};
+
+/**
+ * GeoLogPercentChange
+ */
+export type GeoLogPercentChange = {
+  totalEvents: number | null;
+  uniqueCities: number | null;
+  uniqueCountries: number | null;
+  uniqueIps: number | null;
+};
+
+/**
+ * GeoLogPeriod
+ */
+export type GeoLogPeriod = {
+  totalEvents: number;
+  uniqueCities: number;
+  uniqueCountries: number;
+  uniqueIps: number;
+};
+
+/**
+ * GeoLogSummaryResponse
+ */
+export type GeoLogSummaryResponse = {
+  currentPeriod: GeoLogPeriod;
+  endDate: string;
+  percentChanges: GeoLogPercentChange | null;
+  previousPeriod: GeoLogPeriod | null;
+  startDate: string;
+};
+
+/**
+ * GeoLogTimeSeriesPoint
+ */
+export type GeoLogTimeSeriesPoint = {
+  timestamp: string;
+  totalEvents: number;
+  uniqueIps: number;
+};
+
+/**
+ * GeoLogTimeSeriesResponse
+ */
+export type GeoLogTimeSeriesResponse = {
+  data: Array<GeoLogTimeSeriesPoint>;
+  endDate: string;
+  granularity: string;
+  startDate: string;
+};
+
+/**
  * GlobalTopIPsResponse
  */
 export type GlobalTopIpsResponse = {
   top_ips?: Array<TopIpdto>;
-};
-
-/**
- * ListAccessLogDebugsAccessLogDebugResponseBody
- */
-export type ListAccessLogDebugsAccessLogDebugResponseBody = {
-  accessLogId?: number | null;
-  createdAt?: string;
-  id: number;
-  isMalformed?: boolean;
-  parseError?: string | null;
-  rawLine: string;
 };
 
 /**
@@ -259,6 +430,14 @@ export type MeResponse = {
 };
 
 /**
+ * ParseErrorCount
+ */
+export type ParseErrorCount = {
+  count: number;
+  error: string;
+};
+
+/**
  * PercentChange
  */
 export type PercentChange = {
@@ -292,6 +471,23 @@ export type PeriodSummary = {
 };
 
 /**
+ * RuntimeSettingsView
+ */
+export type RuntimeSettingsView = {
+  container: boolean;
+  image_tag: string | null;
+};
+
+/**
+ * RuntimeVersionsView
+ */
+export type RuntimeVersionsView = {
+  apscheduler_version: string | null;
+  litestar_version: string | null;
+  python_version: string;
+};
+
+/**
  * SafeSettingsResponse
  */
 export type SafeSettingsResponse = {
@@ -300,7 +496,54 @@ export type SafeSettingsResponse = {
   logparser: LogparserSettingsView;
   map: MapSettingsView;
   name: string;
+  runtime: RuntimeSettingsView;
   version: string;
+};
+
+/**
+ * SchedulerJobView
+ */
+export type SchedulerJobView = {
+  id: string;
+  last_duration_seconds: number | null;
+  last_error: string | null;
+  last_run_time: string | null;
+  last_status: "success" | "error" | "missed" | null;
+  name: string;
+  next_run_time: string | null;
+  running: boolean;
+  trigger: string;
+};
+
+/**
+ * SchedulerJobsResponse
+ */
+export type SchedulerJobsResponse = {
+  jobs: Array<SchedulerJobView>;
+  scheduler_enabled: boolean;
+  scheduler_running: boolean;
+};
+
+/**
+ * SettingFieldView
+ */
+export type SettingFieldView = {
+  default: unknown;
+  description: string | null;
+  env_var: string;
+  is_secret: boolean;
+  key: string;
+  value: unknown;
+};
+
+/**
+ * SettingsSectionView
+ */
+export type SettingsSectionView = {
+  description: string | null;
+  fields: Array<SettingFieldView>;
+  name: string;
+  title: string;
 };
 
 /**
@@ -312,6 +555,13 @@ export type SummaryResponse = {
   percent_changes?: PercentChange | null;
   previous_period?: PeriodSummary | null;
   start_date: string;
+};
+
+/**
+ * SystemSettingsResponse
+ */
+export type SystemSettingsResponse = {
+  sections: Array<SettingsSectionView>;
 };
 
 /**
@@ -344,10 +594,38 @@ export type TimeSeriesResponse = {
 };
 
 /**
+ * TopCitiesResponse
+ */
+export type TopCitiesResponse = {
+  end_date: string;
+  items: Array<TopCityStatsDto>;
+  start_date: string;
+};
+
+/**
+ * TopCityStatsDTO
+ */
+export type TopCityStatsDto = {
+  city: string;
+  country_code: string | null;
+  hits: number;
+  unique_ips: number;
+};
+
+/**
  * TopCountriesResponse
  */
 export type TopCountriesResponse = {
   top_countries?: Array<TopCountryDto>;
+};
+
+/**
+ * TopCountriesStatsResponse
+ */
+export type TopCountriesStatsResponse = {
+  end_date: string;
+  items: Array<TopCountryStatsDto>;
+  start_date: string;
 };
 
 /**
@@ -360,12 +638,94 @@ export type TopCountryDto = {
 };
 
 /**
+ * TopCountryStatsDTO
+ */
+export type TopCountryStatsDto = {
+  country_code: string;
+  country_name: string | null;
+  hits: number;
+  unique_ips: number;
+};
+
+/**
+ * TopGeoCitiesResponse
+ */
+export type TopGeoCitiesResponse = {
+  items: Array<TopGeoCity>;
+};
+
+/**
+ * TopGeoCity
+ */
+export type TopGeoCity = {
+  city: string;
+  countryCode: string | null;
+  eventCount: number;
+  uniqueIps: number;
+};
+
+/**
+ * TopGeoCountriesResponse
+ */
+export type TopGeoCountriesResponse = {
+  items: Array<TopGeoCountry>;
+};
+
+/**
+ * TopGeoCountry
+ */
+export type TopGeoCountry = {
+  countryCode: string;
+  countryName: string | null;
+  eventCount: number;
+  uniqueIps: number;
+};
+
+/**
+ * TopGeoIp
+ */
+export type TopGeoIp = {
+  city: string | null;
+  countryCode: string | null;
+  eventCount: number;
+  ipAddress: string;
+};
+
+/**
+ * TopGeoIpsResponse
+ */
+export type TopGeoIpsResponse = {
+  items: Array<TopGeoIp>;
+};
+
+/**
  * TopIPDTO
  */
 export type TopIpdto = {
   event_count: number;
   ip_address: string;
   location?: EmbeddedLocationDto | null;
+};
+
+/**
+ * TopIpDTO
+ */
+export type TopIpDto = {
+  city: string | null;
+  country_code: string | null;
+  error_hits: number;
+  hits: number;
+  ip_address: string;
+  total_bytes: number;
+};
+
+/**
+ * TopIpsResponse
+ */
+export type TopIpsResponse = {
+  end_date: string;
+  items: Array<TopIpDto>;
+  start_date: string;
 };
 
 /**
@@ -405,17 +765,33 @@ export type TopUserAgentsResponse = {
   start_date: string;
 };
 
-export type ApiV1AccessLogDebugListAccessLogDebugsData = {
+export type ApiV1AccessLogDebugListAccessLogDebugData = {
   body?: never;
   path?: never;
   query?: {
+    /**
+     * Field to search
+     */
+    searchString?: string | null;
+    /**
+     * Search should be case sensitive
+     */
+    searchIgnoreCase?: boolean | null;
     currentPage?: number;
     pageSize?: number;
+    from_timestamp?: string | null;
+    to_timestamp?: string | null;
+    ipAddressIn?: Array<string> | null;
+    countryCodeIn?: Array<string> | null;
+    cityIn?: Array<string> | null;
+    malformed?: boolean | null;
+    orderBy?: string;
+    sortOrder?: "asc" | "desc";
   };
   url: "/api/v1/access-log-debug";
 };
 
-export type ApiV1AccessLogDebugListAccessLogDebugsErrors = {
+export type ApiV1AccessLogDebugListAccessLogDebugErrors = {
   /**
    * Validation Exception
    */
@@ -431,15 +807,15 @@ export type ApiV1AccessLogDebugListAccessLogDebugsErrors = {
   };
 };
 
-export type ApiV1AccessLogDebugListAccessLogDebugsError =
-  ApiV1AccessLogDebugListAccessLogDebugsErrors[keyof ApiV1AccessLogDebugListAccessLogDebugsErrors];
+export type ApiV1AccessLogDebugListAccessLogDebugError =
+  ApiV1AccessLogDebugListAccessLogDebugErrors[keyof ApiV1AccessLogDebugListAccessLogDebugErrors];
 
-export type ApiV1AccessLogDebugListAccessLogDebugsResponses = {
+export type ApiV1AccessLogDebugListAccessLogDebugResponses = {
   /**
    * Request fulfilled, document follows
    */
   200: {
-    items?: Array<ListAccessLogDebugsAccessLogDebugResponseBody>;
+    items?: Array<AccessLogDebugEntry>;
     /**
      * Maximal number of items to send.
      */
@@ -455,17 +831,78 @@ export type ApiV1AccessLogDebugListAccessLogDebugsResponses = {
   };
 };
 
-export type ApiV1AccessLogDebugListAccessLogDebugsResponse =
-  ApiV1AccessLogDebugListAccessLogDebugsResponses[keyof ApiV1AccessLogDebugListAccessLogDebugsResponses];
+export type ApiV1AccessLogDebugListAccessLogDebugResponse =
+  ApiV1AccessLogDebugListAccessLogDebugResponses[keyof ApiV1AccessLogDebugListAccessLogDebugResponses];
+
+export type ApiV1AccessLogDebugStatsGetAccessLogDebugStatsData = {
+  body?: never;
+  path?: never;
+  query?: {
+    from_timestamp?: string | null;
+    to_timestamp?: string | null;
+  };
+  url: "/api/v1/access-log-debug/stats";
+};
+
+export type ApiV1AccessLogDebugStatsGetAccessLogDebugStatsErrors = {
+  /**
+   * Validation Exception
+   */
+  400: {
+    detail: string;
+    extra?:
+      | null
+      | {
+          [key: string]: unknown;
+        }
+      | Array<unknown>;
+    status_code: number;
+  };
+};
+
+export type ApiV1AccessLogDebugStatsGetAccessLogDebugStatsError =
+  ApiV1AccessLogDebugStatsGetAccessLogDebugStatsErrors[keyof ApiV1AccessLogDebugStatsGetAccessLogDebugStatsErrors];
+
+export type ApiV1AccessLogDebugStatsGetAccessLogDebugStatsResponses = {
+  /**
+   * Request fulfilled, document follows
+   */
+  200: AccessLogDebugStats;
+};
+
+export type ApiV1AccessLogDebugStatsGetAccessLogDebugStatsResponse =
+  ApiV1AccessLogDebugStatsGetAccessLogDebugStatsResponses[keyof ApiV1AccessLogDebugStatsGetAccessLogDebugStatsResponses];
 
 export type ApiV1AccessLogsListAccessLogsData = {
   body?: never;
   path?: never;
   query?: {
+    /**
+     * Field to search
+     */
+    searchString?: string | null;
+    /**
+     * Search should be case sensitive
+     */
+    searchIgnoreCase?: boolean | null;
     currentPage?: number;
     pageSize?: number;
+    /**
+     * Order by field
+     */
+    orderBy?: string | null;
+    /**
+     * Field to search
+     */
+    sortOrder?: "asc" | "desc" | null;
     from_timestamp?: string | null;
     to_timestamp?: string | null;
+    host?: string | null;
+    methodIn?: Array<string> | null;
+    ipAddressIn?: Array<string> | null;
+    cityIn?: Array<string> | null;
+    countryCodeIn?: Array<string> | null;
+    statusIn?: Array<number> | null;
   };
   url: "/api/v1/access-logs";
 };
@@ -513,6 +950,23 @@ export type ApiV1AccessLogsListAccessLogsResponses = {
 export type ApiV1AccessLogsListAccessLogsResponse =
   ApiV1AccessLogsListAccessLogsResponses[keyof ApiV1AccessLogsListAccessLogsResponses];
 
+export type ApiV1AccessLogsFacetsGetAccessLogFacetsData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: "/api/v1/access-logs/facets";
+};
+
+export type ApiV1AccessLogsFacetsGetAccessLogFacetsResponses = {
+  /**
+   * Request fulfilled, document follows
+   */
+  200: AccessLogFacets;
+};
+
+export type ApiV1AccessLogsFacetsGetAccessLogFacetsResponse =
+  ApiV1AccessLogsFacetsGetAccessLogFacetsResponses[keyof ApiV1AccessLogsFacetsGetAccessLogFacetsResponses];
+
 export type ApiV1AnalyticsGeoTimeSeriesGetGeoTimeSeriesData = {
   body?: never;
   path?: never;
@@ -525,6 +979,10 @@ export type ApiV1AnalyticsGeoTimeSeriesGetGeoTimeSeriesData = {
      * End date (ISO 8601, e.g., 2024-12-31T23:59:59Z)
      */
     end_date: string;
+    /**
+     * Bucket size override. Omit to auto-select (hourly <= 30 days, daily above). RAW is never available.
+     */
+    granularity?: "hourly" | "daily" | null;
   };
   url: "/api/v1/analytics/geo-time-series";
 };
@@ -668,6 +1126,22 @@ export type ApiV1AnalyticsTimeSeriesGetTimeSeriesData = {
      * End date (ISO 8601, e.g., 2024-12-31T23:59:59Z)
      */
     end_date: string;
+    /**
+     * Bucket size override. Omit to auto-select (hourly <= 30 days, daily above). RAW is never available.
+     */
+    granularity?: "hourly" | "daily" | null;
+    /**
+     * Filter to these ISO country codes (repeatable)
+     */
+    country_code?: Array<string> | null;
+    /**
+     * Filter to these city names (repeatable)
+     */
+    city?: Array<string> | null;
+    /**
+     * Filter to these client IPs (repeatable)
+     */
+    ip_address?: Array<string> | null;
   };
   url: "/api/v1/analytics/time-series";
 };
@@ -747,6 +1221,189 @@ export type ApiV1AnalyticsTimeSeriesCumulativeGetCumulativeTimeSeriesResponses =
 export type ApiV1AnalyticsTimeSeriesCumulativeGetCumulativeTimeSeriesResponse =
   ApiV1AnalyticsTimeSeriesCumulativeGetCumulativeTimeSeriesResponses[keyof ApiV1AnalyticsTimeSeriesCumulativeGetCumulativeTimeSeriesResponses];
 
+export type ApiV1AnalyticsTopCitiesGetTopCitiesData = {
+  body?: never;
+  path?: never;
+  query: {
+    /**
+     * Start date (ISO 8601)
+     */
+    start_date: string;
+    /**
+     * End date (ISO 8601)
+     */
+    end_date: string;
+    /**
+     * Maximum number of cities
+     */
+    limit?: number;
+    /**
+     * Filter to these ISO country codes (repeatable)
+     */
+    country_code?: Array<string> | null;
+    /**
+     * Filter to these city names (repeatable)
+     */
+    city?: Array<string> | null;
+    /**
+     * Filter to these client IPs (repeatable)
+     */
+    ip_address?: Array<string> | null;
+  };
+  url: "/api/v1/analytics/top-cities";
+};
+
+export type ApiV1AnalyticsTopCitiesGetTopCitiesErrors = {
+  /**
+   * Validation Exception
+   */
+  400: {
+    detail: string;
+    extra?:
+      | null
+      | {
+          [key: string]: unknown;
+        }
+      | Array<unknown>;
+    status_code: number;
+  };
+};
+
+export type ApiV1AnalyticsTopCitiesGetTopCitiesError =
+  ApiV1AnalyticsTopCitiesGetTopCitiesErrors[keyof ApiV1AnalyticsTopCitiesGetTopCitiesErrors];
+
+export type ApiV1AnalyticsTopCitiesGetTopCitiesResponses = {
+  /**
+   * Request fulfilled, document follows
+   */
+  200: TopCitiesResponse;
+};
+
+export type ApiV1AnalyticsTopCitiesGetTopCitiesResponse =
+  ApiV1AnalyticsTopCitiesGetTopCitiesResponses[keyof ApiV1AnalyticsTopCitiesGetTopCitiesResponses];
+
+export type ApiV1AnalyticsTopCountriesGetTopCountriesData = {
+  body?: never;
+  path?: never;
+  query: {
+    /**
+     * Start date (ISO 8601)
+     */
+    start_date: string;
+    /**
+     * End date (ISO 8601)
+     */
+    end_date: string;
+    /**
+     * Maximum number of countries
+     */
+    limit?: number;
+    /**
+     * Filter to these ISO country codes (repeatable)
+     */
+    country_code?: Array<string> | null;
+    /**
+     * Filter to these city names (repeatable)
+     */
+    city?: Array<string> | null;
+    /**
+     * Filter to these client IPs (repeatable)
+     */
+    ip_address?: Array<string> | null;
+  };
+  url: "/api/v1/analytics/top-countries";
+};
+
+export type ApiV1AnalyticsTopCountriesGetTopCountriesErrors = {
+  /**
+   * Validation Exception
+   */
+  400: {
+    detail: string;
+    extra?:
+      | null
+      | {
+          [key: string]: unknown;
+        }
+      | Array<unknown>;
+    status_code: number;
+  };
+};
+
+export type ApiV1AnalyticsTopCountriesGetTopCountriesError =
+  ApiV1AnalyticsTopCountriesGetTopCountriesErrors[keyof ApiV1AnalyticsTopCountriesGetTopCountriesErrors];
+
+export type ApiV1AnalyticsTopCountriesGetTopCountriesResponses = {
+  /**
+   * Request fulfilled, document follows
+   */
+  200: TopCountriesStatsResponse;
+};
+
+export type ApiV1AnalyticsTopCountriesGetTopCountriesResponse =
+  ApiV1AnalyticsTopCountriesGetTopCountriesResponses[keyof ApiV1AnalyticsTopCountriesGetTopCountriesResponses];
+
+export type ApiV1AnalyticsTopIpsGetTopIpsData = {
+  body?: never;
+  path?: never;
+  query: {
+    /**
+     * Start date (ISO 8601)
+     */
+    start_date: string;
+    /**
+     * End date (ISO 8601)
+     */
+    end_date: string;
+    /**
+     * Maximum number of IPs
+     */
+    limit?: number;
+    /**
+     * Filter to these ISO country codes (repeatable)
+     */
+    country_code?: Array<string> | null;
+    /**
+     * Filter to these city names (repeatable)
+     */
+    city?: Array<string> | null;
+    /**
+     * Filter to these client IPs (repeatable)
+     */
+    ip_address?: Array<string> | null;
+  };
+  url: "/api/v1/analytics/top-ips";
+};
+
+export type ApiV1AnalyticsTopIpsGetTopIpsErrors = {
+  /**
+   * Validation Exception
+   */
+  400: {
+    detail: string;
+    extra?:
+      | null
+      | {
+          [key: string]: unknown;
+        }
+      | Array<unknown>;
+    status_code: number;
+  };
+};
+
+export type ApiV1AnalyticsTopIpsGetTopIpsError =
+  ApiV1AnalyticsTopIpsGetTopIpsErrors[keyof ApiV1AnalyticsTopIpsGetTopIpsErrors];
+
+export type ApiV1AnalyticsTopIpsGetTopIpsResponses = {
+  /**
+   * Request fulfilled, document follows
+   */
+  200: TopIpsResponse;
+};
+
+export type ApiV1AnalyticsTopIpsGetTopIpsResponse =
+  ApiV1AnalyticsTopIpsGetTopIpsResponses[keyof ApiV1AnalyticsTopIpsGetTopIpsResponses];
+
 export type ApiV1AnalyticsTopUrlsGetTopUrlsData = {
   body?: never;
   path?: never;
@@ -763,6 +1420,18 @@ export type ApiV1AnalyticsTopUrlsGetTopUrlsData = {
      * Maximum number of URLs to return
      */
     limit?: number;
+    /**
+     * Filter to these ISO country codes (repeatable)
+     */
+    country_code?: Array<string> | null;
+    /**
+     * Filter to these city names (repeatable)
+     */
+    city?: Array<string> | null;
+    /**
+     * Filter to these client IPs (repeatable)
+     */
+    ip_address?: Array<string> | null;
   };
   url: "/api/v1/analytics/top-urls";
 };
@@ -812,6 +1481,18 @@ export type ApiV1AnalyticsTopUserAgentsGetTopUserAgentsData = {
      * Maximum number of user agents to return
      */
     limit?: number;
+    /**
+     * Filter to these ISO country codes (repeatable)
+     */
+    country_code?: Array<string> | null;
+    /**
+     * Filter to these city names (repeatable)
+     */
+    city?: Array<string> | null;
+    /**
+     * Filter to these client IPs (repeatable)
+     */
+    ip_address?: Array<string> | null;
   };
   url: "/api/v1/analytics/top-user-agents";
 };
@@ -921,6 +1602,19 @@ export type ApiV1GeoEventsListGeoEventsData = {
   query?: {
     currentPage?: number;
     pageSize?: number;
+    /**
+     * Order by field
+     */
+    orderBy?: string | null;
+    /**
+     * Field to search
+     */
+    sortOrder?: "asc" | "desc" | null;
+    from_timestamp?: string | null;
+    to_timestamp?: string | null;
+    ipAddressIn?: Array<string> | null;
+    ipAddressNotIn?: Array<string> | null;
+    hostnameIn?: Array<string> | null;
   };
   url: "/api/v1/geo-events";
 };
@@ -967,6 +1661,363 @@ export type ApiV1GeoEventsListGeoEventsResponses = {
 
 export type ApiV1GeoEventsListGeoEventsResponse =
   ApiV1GeoEventsListGeoEventsResponses[keyof ApiV1GeoEventsListGeoEventsResponses];
+
+export type ApiV1GeoEventsFacetsGetGeoLogFacetsData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: "/api/v1/geo-events/facets";
+};
+
+export type ApiV1GeoEventsFacetsGetGeoLogFacetsResponses = {
+  /**
+   * Request fulfilled, document follows
+   */
+  200: GeoEventFacets;
+};
+
+export type ApiV1GeoEventsFacetsGetGeoLogFacetsResponse =
+  ApiV1GeoEventsFacetsGetGeoLogFacetsResponses[keyof ApiV1GeoEventsFacetsGetGeoLogFacetsResponses];
+
+export type ApiV1GeoEventsLogsGetGeoLogsData = {
+  body?: never;
+  path?: never;
+  query: {
+    countryCodeIn?: Array<string> | null;
+    cityIn?: Array<string> | null;
+    ipAddressIn?: Array<string> | null;
+    ipAddressNotIn?: Array<string> | null;
+    hostnameIn?: Array<string> | null;
+    /**
+     * Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)
+     */
+    from_timestamp: string;
+    /**
+     * End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)
+     */
+    to_timestamp: string;
+    currentPage?: number;
+    pageSize?: number;
+    /**
+     * Sort by event count
+     */
+    sortOrder?: "asc" | "desc";
+  };
+  url: "/api/v1/geo-events/logs";
+};
+
+export type ApiV1GeoEventsLogsGetGeoLogsErrors = {
+  /**
+   * Validation Exception
+   */
+  400: {
+    detail: string;
+    extra?:
+      | null
+      | {
+          [key: string]: unknown;
+        }
+      | Array<unknown>;
+    status_code: number;
+  };
+};
+
+export type ApiV1GeoEventsLogsGetGeoLogsError =
+  ApiV1GeoEventsLogsGetGeoLogsErrors[keyof ApiV1GeoEventsLogsGetGeoLogsErrors];
+
+export type ApiV1GeoEventsLogsGetGeoLogsResponses = {
+  /**
+   * Request fulfilled, document follows
+   */
+  200: {
+    items?: Array<GeoLogEntry>;
+    /**
+     * Maximal number of items to send.
+     */
+    limit?: number;
+    /**
+     * Offset from the beginning of the query.
+     */
+    offset?: number;
+    /**
+     * Total number of items.
+     */
+    total?: number;
+  };
+};
+
+export type ApiV1GeoEventsLogsGetGeoLogsResponse =
+  ApiV1GeoEventsLogsGetGeoLogsResponses[keyof ApiV1GeoEventsLogsGetGeoLogsResponses];
+
+export type ApiV1GeoEventsSummaryGetGeoLogSummaryData = {
+  body?: never;
+  path?: never;
+  query: {
+    countryCodeIn?: Array<string> | null;
+    cityIn?: Array<string> | null;
+    ipAddressIn?: Array<string> | null;
+    ipAddressNotIn?: Array<string> | null;
+    hostnameIn?: Array<string> | null;
+    /**
+     * Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)
+     */
+    from_timestamp: string;
+    /**
+     * End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)
+     */
+    to_timestamp: string;
+    /**
+     * Include comparison with previous period of same length
+     */
+    compare_previous?: boolean;
+  };
+  url: "/api/v1/geo-events/summary";
+};
+
+export type ApiV1GeoEventsSummaryGetGeoLogSummaryErrors = {
+  /**
+   * Validation Exception
+   */
+  400: {
+    detail: string;
+    extra?:
+      | null
+      | {
+          [key: string]: unknown;
+        }
+      | Array<unknown>;
+    status_code: number;
+  };
+};
+
+export type ApiV1GeoEventsSummaryGetGeoLogSummaryError =
+  ApiV1GeoEventsSummaryGetGeoLogSummaryErrors[keyof ApiV1GeoEventsSummaryGetGeoLogSummaryErrors];
+
+export type ApiV1GeoEventsSummaryGetGeoLogSummaryResponses = {
+  /**
+   * Request fulfilled, document follows
+   */
+  200: GeoLogSummaryResponse;
+};
+
+export type ApiV1GeoEventsSummaryGetGeoLogSummaryResponse =
+  ApiV1GeoEventsSummaryGetGeoLogSummaryResponses[keyof ApiV1GeoEventsSummaryGetGeoLogSummaryResponses];
+
+export type ApiV1GeoEventsTimeSeriesGetGeoLogTimeSeriesData = {
+  body?: never;
+  path?: never;
+  query: {
+    countryCodeIn?: Array<string> | null;
+    cityIn?: Array<string> | null;
+    ipAddressIn?: Array<string> | null;
+    ipAddressNotIn?: Array<string> | null;
+    hostnameIn?: Array<string> | null;
+    /**
+     * Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)
+     */
+    from_timestamp: string;
+    /**
+     * End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)
+     */
+    to_timestamp: string;
+    /**
+     * Bucket size override. Omit to auto-select (hourly <= 30 days, daily above). RAW is never available.
+     */
+    granularity?: "hourly" | "daily" | null;
+  };
+  url: "/api/v1/geo-events/time-series";
+};
+
+export type ApiV1GeoEventsTimeSeriesGetGeoLogTimeSeriesErrors = {
+  /**
+   * Validation Exception
+   */
+  400: {
+    detail: string;
+    extra?:
+      | null
+      | {
+          [key: string]: unknown;
+        }
+      | Array<unknown>;
+    status_code: number;
+  };
+};
+
+export type ApiV1GeoEventsTimeSeriesGetGeoLogTimeSeriesError =
+  ApiV1GeoEventsTimeSeriesGetGeoLogTimeSeriesErrors[keyof ApiV1GeoEventsTimeSeriesGetGeoLogTimeSeriesErrors];
+
+export type ApiV1GeoEventsTimeSeriesGetGeoLogTimeSeriesResponses = {
+  /**
+   * Request fulfilled, document follows
+   */
+  200: GeoLogTimeSeriesResponse;
+};
+
+export type ApiV1GeoEventsTimeSeriesGetGeoLogTimeSeriesResponse =
+  ApiV1GeoEventsTimeSeriesGetGeoLogTimeSeriesResponses[keyof ApiV1GeoEventsTimeSeriesGetGeoLogTimeSeriesResponses];
+
+export type ApiV1GeoEventsTopCitiesGetGeoLogTopCitiesData = {
+  body?: never;
+  path?: never;
+  query: {
+    countryCodeIn?: Array<string> | null;
+    cityIn?: Array<string> | null;
+    ipAddressIn?: Array<string> | null;
+    ipAddressNotIn?: Array<string> | null;
+    hostnameIn?: Array<string> | null;
+    /**
+     * Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)
+     */
+    from_timestamp: string;
+    /**
+     * End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)
+     */
+    to_timestamp: string;
+    /**
+     * Maximum number of cities
+     */
+    limit?: number;
+  };
+  url: "/api/v1/geo-events/top-cities";
+};
+
+export type ApiV1GeoEventsTopCitiesGetGeoLogTopCitiesErrors = {
+  /**
+   * Validation Exception
+   */
+  400: {
+    detail: string;
+    extra?:
+      | null
+      | {
+          [key: string]: unknown;
+        }
+      | Array<unknown>;
+    status_code: number;
+  };
+};
+
+export type ApiV1GeoEventsTopCitiesGetGeoLogTopCitiesError =
+  ApiV1GeoEventsTopCitiesGetGeoLogTopCitiesErrors[keyof ApiV1GeoEventsTopCitiesGetGeoLogTopCitiesErrors];
+
+export type ApiV1GeoEventsTopCitiesGetGeoLogTopCitiesResponses = {
+  /**
+   * Request fulfilled, document follows
+   */
+  200: TopGeoCitiesResponse;
+};
+
+export type ApiV1GeoEventsTopCitiesGetGeoLogTopCitiesResponse =
+  ApiV1GeoEventsTopCitiesGetGeoLogTopCitiesResponses[keyof ApiV1GeoEventsTopCitiesGetGeoLogTopCitiesResponses];
+
+export type ApiV1GeoEventsTopCountriesGetGeoLogTopCountriesData = {
+  body?: never;
+  path?: never;
+  query: {
+    countryCodeIn?: Array<string> | null;
+    cityIn?: Array<string> | null;
+    ipAddressIn?: Array<string> | null;
+    ipAddressNotIn?: Array<string> | null;
+    hostnameIn?: Array<string> | null;
+    /**
+     * Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)
+     */
+    from_timestamp: string;
+    /**
+     * End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)
+     */
+    to_timestamp: string;
+    /**
+     * Maximum number of countries
+     */
+    limit?: number;
+  };
+  url: "/api/v1/geo-events/top-countries";
+};
+
+export type ApiV1GeoEventsTopCountriesGetGeoLogTopCountriesErrors = {
+  /**
+   * Validation Exception
+   */
+  400: {
+    detail: string;
+    extra?:
+      | null
+      | {
+          [key: string]: unknown;
+        }
+      | Array<unknown>;
+    status_code: number;
+  };
+};
+
+export type ApiV1GeoEventsTopCountriesGetGeoLogTopCountriesError =
+  ApiV1GeoEventsTopCountriesGetGeoLogTopCountriesErrors[keyof ApiV1GeoEventsTopCountriesGetGeoLogTopCountriesErrors];
+
+export type ApiV1GeoEventsTopCountriesGetGeoLogTopCountriesResponses = {
+  /**
+   * Request fulfilled, document follows
+   */
+  200: TopGeoCountriesResponse;
+};
+
+export type ApiV1GeoEventsTopCountriesGetGeoLogTopCountriesResponse =
+  ApiV1GeoEventsTopCountriesGetGeoLogTopCountriesResponses[keyof ApiV1GeoEventsTopCountriesGetGeoLogTopCountriesResponses];
+
+export type ApiV1GeoEventsTopIpsGetGeoLogTopIpsData = {
+  body?: never;
+  path?: never;
+  query: {
+    countryCodeIn?: Array<string> | null;
+    cityIn?: Array<string> | null;
+    ipAddressIn?: Array<string> | null;
+    ipAddressNotIn?: Array<string> | null;
+    hostnameIn?: Array<string> | null;
+    /**
+     * Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)
+     */
+    from_timestamp: string;
+    /**
+     * End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)
+     */
+    to_timestamp: string;
+    /**
+     * Maximum number of IPs
+     */
+    limit?: number;
+  };
+  url: "/api/v1/geo-events/top-ips";
+};
+
+export type ApiV1GeoEventsTopIpsGetGeoLogTopIpsErrors = {
+  /**
+   * Validation Exception
+   */
+  400: {
+    detail: string;
+    extra?:
+      | null
+      | {
+          [key: string]: unknown;
+        }
+      | Array<unknown>;
+    status_code: number;
+  };
+};
+
+export type ApiV1GeoEventsTopIpsGetGeoLogTopIpsError =
+  ApiV1GeoEventsTopIpsGetGeoLogTopIpsErrors[keyof ApiV1GeoEventsTopIpsGetGeoLogTopIpsErrors];
+
+export type ApiV1GeoEventsTopIpsGetGeoLogTopIpsResponses = {
+  /**
+   * Request fulfilled, document follows
+   */
+  200: TopGeoIpsResponse;
+};
+
+export type ApiV1GeoEventsTopIpsGetGeoLogTopIpsResponse =
+  ApiV1GeoEventsTopIpsGetGeoLogTopIpsResponses[keyof ApiV1GeoEventsTopIpsGetGeoLogTopIpsResponses];
 
 export type ApiV1GeoLocationsListGeoLocationsData = {
   body?: never;
@@ -1041,6 +2092,18 @@ export type ApiV1GeoLocationsGeojsonGetGeojsonData = {
      * Filter to these city names (repeatable)
      */
     city?: Array<string> | null;
+    /**
+     * Filter to these IPs (repeatable)
+     */
+    ipAddressIn?: Array<string> | null;
+    /**
+     * Exclude these IPs (repeatable)
+     */
+    ipAddressNotIn?: Array<string> | null;
+    /**
+     * Filter to these recording hostnames (repeatable)
+     */
+    hostnameIn?: Array<string> | null;
   };
   url: "/api/v1/geo-locations/geojson";
 };
@@ -1258,6 +2321,95 @@ export type ApiV1StatsStatsResponses = {
 
 export type ApiV1StatsStatsResponse =
   ApiV1StatsStatsResponses[keyof ApiV1StatsStatsResponses];
+
+export type ApiV1SystemAboutGetAboutData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: "/api/v1/system/about";
+};
+
+export type ApiV1SystemAboutGetAboutResponses = {
+  /**
+   * Request fulfilled, document follows
+   */
+  200: AboutResponse;
+};
+
+export type ApiV1SystemAboutGetAboutResponse =
+  ApiV1SystemAboutGetAboutResponses[keyof ApiV1SystemAboutGetAboutResponses];
+
+export type ApiV1SystemSchedulerJobsGetSchedulerJobsData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: "/api/v1/system/scheduler/jobs";
+};
+
+export type ApiV1SystemSchedulerJobsGetSchedulerJobsResponses = {
+  /**
+   * Request fulfilled, document follows
+   */
+  200: SchedulerJobsResponse;
+};
+
+export type ApiV1SystemSchedulerJobsGetSchedulerJobsResponse =
+  ApiV1SystemSchedulerJobsGetSchedulerJobsResponses[keyof ApiV1SystemSchedulerJobsGetSchedulerJobsResponses];
+
+export type ApiV1SystemSchedulerJobsJobIdRunRunSchedulerJobData = {
+  body?: never;
+  path: {
+    job_id: string;
+  };
+  query?: never;
+  url: "/api/v1/system/scheduler/jobs/{job_id}/run";
+};
+
+export type ApiV1SystemSchedulerJobsJobIdRunRunSchedulerJobErrors = {
+  /**
+   * Validation Exception
+   */
+  400: {
+    detail: string;
+    extra?:
+      | null
+      | {
+          [key: string]: unknown;
+        }
+      | Array<unknown>;
+    status_code: number;
+  };
+};
+
+export type ApiV1SystemSchedulerJobsJobIdRunRunSchedulerJobError =
+  ApiV1SystemSchedulerJobsJobIdRunRunSchedulerJobErrors[keyof ApiV1SystemSchedulerJobsJobIdRunRunSchedulerJobErrors];
+
+export type ApiV1SystemSchedulerJobsJobIdRunRunSchedulerJobResponses = {
+  /**
+   * Request accepted, processing continues off-line
+   */
+  202: SchedulerJobView;
+};
+
+export type ApiV1SystemSchedulerJobsJobIdRunRunSchedulerJobResponse =
+  ApiV1SystemSchedulerJobsJobIdRunRunSchedulerJobResponses[keyof ApiV1SystemSchedulerJobsJobIdRunRunSchedulerJobResponses];
+
+export type ApiV1SystemSettingsGetSystemSettingsData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: "/api/v1/system/settings";
+};
+
+export type ApiV1SystemSettingsGetSystemSettingsResponses = {
+  /**
+   * Request fulfilled, document follows
+   */
+  200: SystemSettingsResponse;
+};
+
+export type ApiV1SystemSettingsGetSystemSettingsResponse =
+  ApiV1SystemSettingsGetSystemSettingsResponses[keyof ApiV1SystemSettingsGetSystemSettingsResponses];
 
 export type HealthHealthData = {
   body?: never;

@@ -4,14 +4,28 @@
 
 import axios from "axios"
 import {
+  apiV1GeoEventsFacetsGetGeoLogFacets,
+  apiV1GeoEventsLogsGetGeoLogs,
+  apiV1GeoEventsSummaryGetGeoLogSummary,
+  apiV1GeoEventsTimeSeriesGetGeoLogTimeSeries,
+  apiV1GeoEventsTopCitiesGetGeoLogTopCities,
+  apiV1GeoEventsTopCountriesGetGeoLogTopCountries,
+  apiV1GeoEventsTopIpsGetGeoLogTopIps,
   apiV1AnalyticsGeoTimeSeriesGetGeoTimeSeries,
   apiV1AnalyticsTimeSeriesGetTimeSeries,
+  apiV1AnalyticsTopCitiesGetTopCities,
+  apiV1AnalyticsTopCountriesGetTopCountries,
+  apiV1AnalyticsTopIpsGetTopIps,
   apiV1AnalyticsTopUrlsGetTopUrls,
   apiV1AnalyticsTopUserAgentsGetTopUserAgents,
 } from "@/generated/api/sdk.gen"
 import type {
   GeoJsonFeatureCollection as GeoJSONFeatureCollection,
   SafeSettingsResponse,
+  SystemSettingsResponse,
+  SchedulerJobsResponse,
+  SchedulerJobView,
+  AboutResponse,
 } from "@/generated/api/types.gen"
 
 // Create axios instance with base configuration
@@ -175,6 +189,32 @@ export async function fetchRuntimeSettings(): Promise<RuntimeSettings> {
   return data
 }
 
+// ============================================================================
+// Types & Functions - System API (settings page)
+// ============================================================================
+
+export async function fetchSystemSettings(): Promise<SystemSettingsResponse> {
+  const { data } = await api.get<SystemSettingsResponse>("/system/settings")
+  return data
+}
+
+export async function fetchSchedulerJobs(): Promise<SchedulerJobsResponse> {
+  const { data } = await api.get<SchedulerJobsResponse>("/system/scheduler/jobs")
+  return data
+}
+
+export async function runSchedulerJob(jobId: string): Promise<SchedulerJobView> {
+  const { data } = await api.post<SchedulerJobView>(
+    `/system/scheduler/jobs/${encodeURIComponent(jobId)}/run`,
+  )
+  return data
+}
+
+export async function fetchAbout(): Promise<AboutResponse> {
+  const { data } = await api.get<AboutResponse>("/system/about")
+  return data
+}
+
 export interface SummaryParams {
   startDate: string // ISO date string (YYYY-MM-DD)
   endDate: string
@@ -209,12 +249,20 @@ export interface TimeSeriesParams {
   granularity?: "hourly" | "daily"
 }
 
+export type ChartGranularity = "auto" | "hourly" | "daily"
+
 
 export interface GeoJSONParams {
   fromTimestamp: string // Full ISO timestamp
   toTimestamp: string
   countryCodes?: string[]
   cities?: string[]
+  /** Exact IPs to include; forces a raw geo_events scan on the backend. */
+  ips?: string[]
+  /** Exact IPs to exclude; forces a raw geo_events scan on the backend. */
+  ipsExclude?: string[]
+  /** Recording hostnames; forces a raw geo_events scan on the backend. */
+  hostnames?: string[]
 }
 
 export async function fetchGeoJSON(params: GeoJSONParams): Promise<GeoJSONFeatureCollection> {
@@ -224,6 +272,9 @@ export async function fetchGeoJSON(params: GeoJSONParams): Promise<GeoJSONFeatur
       to_timestamp: params.toTimestamp,
       country_code: params.countryCodes?.length ? params.countryCodes : undefined,
       city: params.cities?.length ? params.cities : undefined,
+      ipAddressIn: params.ips?.length ? params.ips : undefined,
+      ipAddressNotIn: params.ipsExclude?.length ? params.ipsExclude : undefined,
+      hostnameIn: params.hostnames?.length ? params.hostnames : undefined,
     },
     // Litestar expects repeated keys (?country_code=NO&country_code=SE),
     // not axios' default bracket form (country_code[]=NO).
@@ -336,9 +387,28 @@ export async function fetchTopCountries(params: TopIPsParams): Promise<TopCountr
 // Analytics fetchers on the generated SDK (types flow from the OpenAPI schema)
 // ============================================================================
 
-export async function fetchTimeSeries(params: TimeSeriesParams) {
+/**
+ * Country/city/IP filters shared by the analytics page's six filterable
+ * endpoints (not geo-time-series, which stays unfiltered). The generated
+ * fetch client serializes arrays as repeated keys (?country_code=NO&country_code=SE)
+ * by default, matching what Litestar expects.
+ */
+export interface AnalyticsFilterParams {
+  countryCodes?: string[]
+  cities?: string[]
+  ips?: string[]
+}
+
+export async function fetchTimeSeries(params: TimeSeriesParams & AnalyticsFilterParams) {
   const { data } = await apiV1AnalyticsTimeSeriesGetTimeSeries({
-    query: { start_date: params.startDate, end_date: params.endDate },
+    query: {
+      start_date: params.startDate,
+      end_date: params.endDate,
+      granularity: params.granularity,
+      country_code: params.countryCodes?.length ? params.countryCodes : undefined,
+      city: params.cities?.length ? params.cities : undefined,
+      ip_address: params.ips?.length ? params.ips : undefined,
+    },
     throwOnError: true,
   })
   return data
@@ -346,23 +416,82 @@ export async function fetchTimeSeries(params: TimeSeriesParams) {
 
 export async function fetchGeoTimeSeries(params: TimeSeriesParams) {
   const { data } = await apiV1AnalyticsGeoTimeSeriesGetGeoTimeSeries({
-    query: { start_date: params.startDate, end_date: params.endDate },
+    query: { start_date: params.startDate, end_date: params.endDate, granularity: params.granularity },
     throwOnError: true,
   })
   return data
 }
 
-export async function fetchTopUrls(params: TimeSeriesParams & { limit?: number }) {
+export async function fetchTopUrls(params: TimeSeriesParams & { limit?: number } & AnalyticsFilterParams) {
   const { data } = await apiV1AnalyticsTopUrlsGetTopUrls({
-    query: { start_date: params.startDate, end_date: params.endDate, limit: params.limit ?? 25 },
+    query: {
+      start_date: params.startDate,
+      end_date: params.endDate,
+      limit: params.limit ?? 25,
+      country_code: params.countryCodes?.length ? params.countryCodes : undefined,
+      city: params.cities?.length ? params.cities : undefined,
+      ip_address: params.ips?.length ? params.ips : undefined,
+    },
     throwOnError: true,
   })
   return data
 }
 
-export async function fetchTopUserAgents(params: TimeSeriesParams & { limit?: number }) {
+export async function fetchTopUserAgents(params: TimeSeriesParams & { limit?: number } & AnalyticsFilterParams) {
   const { data } = await apiV1AnalyticsTopUserAgentsGetTopUserAgents({
-    query: { start_date: params.startDate, end_date: params.endDate, limit: params.limit ?? 25 },
+    query: {
+      start_date: params.startDate,
+      end_date: params.endDate,
+      limit: params.limit ?? 25,
+      country_code: params.countryCodes?.length ? params.countryCodes : undefined,
+      city: params.cities?.length ? params.cities : undefined,
+      ip_address: params.ips?.length ? params.ips : undefined,
+    },
+    throwOnError: true,
+  })
+  return data
+}
+
+export async function fetchTopIpStats(params: TimeSeriesParams & { limit?: number } & AnalyticsFilterParams) {
+  const { data } = await apiV1AnalyticsTopIpsGetTopIps({
+    query: {
+      start_date: params.startDate,
+      end_date: params.endDate,
+      limit: params.limit ?? 25,
+      country_code: params.countryCodes?.length ? params.countryCodes : undefined,
+      city: params.cities?.length ? params.cities : undefined,
+      ip_address: params.ips?.length ? params.ips : undefined,
+    },
+    throwOnError: true,
+  })
+  return data
+}
+
+export async function fetchTopCountryStats(params: TimeSeriesParams & { limit?: number } & AnalyticsFilterParams) {
+  const { data } = await apiV1AnalyticsTopCountriesGetTopCountries({
+    query: {
+      start_date: params.startDate,
+      end_date: params.endDate,
+      limit: params.limit ?? 25,
+      country_code: params.countryCodes?.length ? params.countryCodes : undefined,
+      city: params.cities?.length ? params.cities : undefined,
+      ip_address: params.ips?.length ? params.ips : undefined,
+    },
+    throwOnError: true,
+  })
+  return data
+}
+
+export async function fetchTopCityStats(params: TimeSeriesParams & { limit?: number } & AnalyticsFilterParams) {
+  const { data } = await apiV1AnalyticsTopCitiesGetTopCities({
+    query: {
+      start_date: params.startDate,
+      end_date: params.endDate,
+      limit: params.limit ?? 25,
+      country_code: params.countryCodes?.length ? params.countryCodes : undefined,
+      city: params.cities?.length ? params.cities : undefined,
+      ip_address: params.ips?.length ? params.ips : undefined,
+    },
     throwOnError: true,
   })
   return data
@@ -378,6 +507,143 @@ export async function fetchCumulativeTimeSeries(params: TimeSeriesParams): Promi
       end_date: params.endDate,
     },
   })
+  return data
+}
+
+// ============================================================================
+// Types & Functions - Geo Logs API (generated SDK; types flow from OpenAPI)
+// ============================================================================
+
+/**
+ * Full geo-logs filter set, shared by every fetcher on the page so the map,
+ * stats, chart, top lists and table reshape together.
+ */
+export interface GeoLogFilterParams {
+  countryCodes?: string[]
+  cities?: string[]
+  ips?: string[]
+  ipsExclude?: string[]
+  hostnames?: string[]
+}
+
+/** Shared query fragment; empty arrays are dropped from the query string. */
+function geoLogFilterQuery(params: GeoLogFilterParams) {
+  return {
+    countryCodeIn: params.countryCodes?.length ? params.countryCodes : undefined,
+    cityIn: params.cities?.length ? params.cities : undefined,
+    ipAddressIn: params.ips?.length ? params.ips : undefined,
+    ipAddressNotIn: params.ipsExclude?.length ? params.ipsExclude : undefined,
+    hostnameIn: params.hostnames?.length ? params.hostnames : undefined,
+  }
+}
+
+export interface GeoLogsWindowParams {
+  fromTimestamp: string
+  toTimestamp: string
+}
+
+export type GeoLogSortOrder = "asc" | "desc"
+
+export async function fetchGeoLogs(
+  params: GeoLogsWindowParams & GeoLogFilterParams & {
+    currentPage?: number
+    pageSize?: number
+    /** Sorts by event count. */
+    sortOrder?: GeoLogSortOrder
+  },
+) {
+  const { data } = await apiV1GeoEventsLogsGetGeoLogs({
+    query: {
+      from_timestamp: params.fromTimestamp,
+      to_timestamp: params.toTimestamp,
+      currentPage: params.currentPage ?? 1,
+      pageSize: params.pageSize ?? 50,
+      sortOrder: params.sortOrder ?? "desc",
+      ...geoLogFilterQuery(params),
+    },
+    throwOnError: true,
+  })
+  return data
+}
+
+export async function fetchGeoLogSummary(
+  params: GeoLogsWindowParams & GeoLogFilterParams & { comparePrevious?: boolean },
+) {
+  const { data } = await apiV1GeoEventsSummaryGetGeoLogSummary({
+    query: {
+      from_timestamp: params.fromTimestamp,
+      to_timestamp: params.toTimestamp,
+      compare_previous: params.comparePrevious ?? true,
+      ...geoLogFilterQuery(params),
+    },
+    throwOnError: true,
+  })
+  return data
+}
+
+export async function fetchGeoLogTimeSeries(
+  params: GeoLogsWindowParams & GeoLogFilterParams & { granularity?: "hourly" | "daily" },
+) {
+  const { data } = await apiV1GeoEventsTimeSeriesGetGeoLogTimeSeries({
+    query: {
+      from_timestamp: params.fromTimestamp,
+      to_timestamp: params.toTimestamp,
+      granularity: params.granularity,
+      ...geoLogFilterQuery(params),
+    },
+    throwOnError: true,
+  })
+  return data
+}
+
+export async function fetchGeoLogTopIps(
+  params: GeoLogsWindowParams & GeoLogFilterParams & { limit?: number },
+) {
+  const { data } = await apiV1GeoEventsTopIpsGetGeoLogTopIps({
+    query: {
+      from_timestamp: params.fromTimestamp,
+      to_timestamp: params.toTimestamp,
+      limit: params.limit ?? 10,
+      ...geoLogFilterQuery(params),
+    },
+    throwOnError: true,
+  })
+  return data
+}
+
+export async function fetchGeoLogTopCountries(
+  params: GeoLogsWindowParams & GeoLogFilterParams & { limit?: number },
+) {
+  const { data } = await apiV1GeoEventsTopCountriesGetGeoLogTopCountries({
+    query: {
+      from_timestamp: params.fromTimestamp,
+      to_timestamp: params.toTimestamp,
+      limit: params.limit ?? 10,
+      ...geoLogFilterQuery(params),
+    },
+    throwOnError: true,
+  })
+  return data
+}
+
+export async function fetchGeoLogTopCities(
+  params: GeoLogsWindowParams & GeoLogFilterParams & { limit?: number },
+) {
+  const { data } = await apiV1GeoEventsTopCitiesGetGeoLogTopCities({
+    query: {
+      from_timestamp: params.fromTimestamp,
+      to_timestamp: params.toTimestamp,
+      limit: params.limit ?? 10,
+      ...geoLogFilterQuery(params),
+    },
+    throwOnError: true,
+  })
+  return data
+}
+
+/** Distinct country/city/hostname values present in the geo data. */
+export async function fetchGeoEventFacets() {
+  const { data } = await apiV1GeoEventsFacetsGetGeoLogFacets({ throwOnError: true })
   return data
 }
 
@@ -412,11 +678,44 @@ export interface AccessLogsPage {
   offset: number
 }
 
+/** Columns the history table can sort by (must match the backend allowlist). */
+export type AccessLogSortField =
+  | "timestamp" | "statusCode" | "bytesSent" | "requestTime"
+  | "method" | "ipAddress" | "host" | "url"
+export type SortOrder = "asc" | "desc"
+
+/** camelCase sort key -> backend snake_case column name for `orderBy`. */
+const SORT_FIELD_TO_COLUMN: Record<AccessLogSortField, string> = {
+  timestamp: "timestamp",
+  statusCode: "status_code",
+  bytesSent: "bytes_sent",
+  requestTime: "request_time",
+  method: "method",
+  ipAddress: "ip_address",
+  host: "host",
+  url: "url",
+}
+
 export interface AccessLogsParams {
   fromTimestamp: string
   toTimestamp: string
   currentPage?: number
   pageSize?: number
+  /** Free-text search across url / referrer / user-agent. */
+  searchString?: string
+  /** Exact IP match(es). */
+  ipAddressIn?: string[]
+  /** HTTP method(s) to include. */
+  methodIn?: string[]
+  /** Case-insensitive substring match on host (domain). */
+  host?: string
+  /** Exact city match(es). */
+  cityIn?: string[]
+  /** Exact ISO-3166 alpha-2 country code match(es). */
+  countryCodeIn?: string[]
+  statusIn?: number[]
+  sortField?: AccessLogSortField
+  sortOrder?: SortOrder
 }
 
 export async function fetchAccessLogs(params: AccessLogsParams): Promise<AccessLogsPage> {
@@ -426,6 +725,153 @@ export async function fetchAccessLogs(params: AccessLogsParams): Promise<AccessL
       to_timestamp: params.toTimestamp,
       currentPage: params.currentPage ?? 1,
       pageSize: params.pageSize ?? 50,
+      searchString: params.searchString || undefined,
+      ipAddressIn: params.ipAddressIn?.length ? params.ipAddressIn : undefined,
+      methodIn: params.methodIn?.length ? params.methodIn : undefined,
+      host: params.host || undefined,
+      cityIn: params.cityIn?.length ? params.cityIn : undefined,
+      countryCodeIn: params.countryCodeIn?.length ? params.countryCodeIn : undefined,
+      statusIn: params.statusIn?.length ? params.statusIn : undefined,
+      orderBy: params.sortField ? SORT_FIELD_TO_COLUMN[params.sortField] : undefined,
+      sortOrder: params.sortField ? params.sortOrder ?? "desc" : undefined,
+    },
+    // Litestar expects repeated keys (?methodIn=GET&methodIn=POST),
+    // not axios' default bracket form (methodIn[]=GET).
+    paramsSerializer: { indexes: null },
+  })
+  return data
+}
+
+export interface CountryFacet {
+  /** ISO-3166 alpha-2 code, e.g. "NO". */
+  code: string
+  /** Display name, e.g. "Norway". */
+  name: string
+}
+
+export interface AccessLogFacets {
+  /** Sorted by name. */
+  countries: CountryFacet[]
+  /** Sorted alphabetically. */
+  cities: string[]
+}
+
+/** Distinct country/city values present in the data, for the filter dropdowns. */
+export async function fetchAccessLogFacets(): Promise<AccessLogFacets> {
+  const { data } = await api.get<AccessLogFacets>("/access-logs/facets")
+  return data
+}
+
+// ============================================================================
+// Access log debug (raw/malformed lines)
+// ============================================================================
+
+export interface AccessLogDebugEntry {
+  id: number
+  createdAt: string
+  rawLine: string
+  isMalformed: boolean
+  accessLogId: number | null
+  parseError: string | null
+  /** Denormalized access-log fields; null when the line never parsed into a log. */
+  timestamp: string | null
+  ipAddress: string | null
+  method: string | null
+  url: string | null
+  host: string | null
+  statusCode: number | null
+  countryCode: string | null
+  countryName: string | null
+  city: string | null
+  userAgent: string | null
+}
+
+export interface AccessLogDebugPage {
+  items: AccessLogDebugEntry[]
+  total: number
+  limit: number
+  offset: number
+}
+
+/** Columns the debug table can sort by (must match the backend allowlist). */
+export type AccessLogDebugSortField =
+  | "createdAt" | "isMalformed" | "parseError"
+  | "timestamp" | "statusCode" | "ipAddress" | "host" | "countryCode" | "city"
+
+/** camelCase sort key -> backend snake_case column name for `orderBy`. */
+const DEBUG_SORT_FIELD_TO_COLUMN: Record<AccessLogDebugSortField, string> = {
+  createdAt: "created_at",
+  isMalformed: "is_malformed",
+  parseError: "parse_error",
+  timestamp: "timestamp",
+  statusCode: "status_code",
+  ipAddress: "ip_address",
+  host: "host",
+  countryCode: "country_code",
+  city: "city",
+}
+
+export interface AccessLogDebugParams {
+  fromTimestamp: string
+  toTimestamp: string
+  currentPage?: number
+  pageSize?: number
+  /** Free-text search across raw_line / parse_error. */
+  searchString?: string
+  /** Exact IP match(es) on the debug row's denormalized ip_address. */
+  ipAddressIn?: string[]
+  /** Exact ISO-3166 alpha-2 country code match(es); unlinked rows are excluded. */
+  countryCodeIn?: string[]
+  /** Exact city match(es); unlinked rows are excluded. */
+  cityIn?: string[]
+  /** true = malformed only, false = well-formed only, undefined = all. */
+  malformed?: boolean
+  sortField?: AccessLogDebugSortField
+  sortOrder?: SortOrder
+}
+
+export async function fetchAccessLogDebug(
+  params: AccessLogDebugParams,
+): Promise<AccessLogDebugPage> {
+  const { data } = await api.get<AccessLogDebugPage>("/access-log-debug/", {
+    params: {
+      from_timestamp: params.fromTimestamp,
+      to_timestamp: params.toTimestamp,
+      currentPage: params.currentPage ?? 1,
+      pageSize: params.pageSize ?? 50,
+      searchString: params.searchString || undefined,
+      ipAddressIn: params.ipAddressIn?.length ? params.ipAddressIn : undefined,
+      countryCodeIn: params.countryCodeIn?.length ? params.countryCodeIn : undefined,
+      cityIn: params.cityIn?.length ? params.cityIn : undefined,
+      malformed: params.malformed,
+      orderBy: params.sortField ? DEBUG_SORT_FIELD_TO_COLUMN[params.sortField] : undefined,
+      sortOrder: params.sortField ? params.sortOrder ?? "desc" : undefined,
+    },
+    // Litestar expects repeated keys (?cityIn=a&cityIn=b), not bracket form.
+    paramsSerializer: { indexes: null },
+  })
+  return data
+}
+
+export interface ParseErrorCount {
+  error: string
+  count: number
+}
+
+export interface AccessLogDebugStats {
+  total: number
+  malformed: number
+  topParseError: ParseErrorCount | null
+}
+
+export async function fetchAccessLogDebugStats(params: {
+  fromTimestamp: string
+  toTimestamp: string
+}): Promise<AccessLogDebugStats> {
+  const { data } = await api.get<AccessLogDebugStats>("/access-log-debug/stats", {
+    params: {
+      from_timestamp: params.fromTimestamp,
+      to_timestamp: params.toTimestamp,
     },
   })
   return data
@@ -515,7 +961,12 @@ export type TimeRangeValue =
   // Grafana-style presets
   | "today" | "this_week" | "this_month"
   | "yesterday" | "last_week" | "last_month"
+  | "custom"
 
+export interface CustomTimeRange {
+  from: string // ISO timestamp
+  to: string
+}
 
 export interface TimeRangePreset {
   label: string
@@ -567,7 +1018,15 @@ export const POLL_INTERVAL_OPTIONS: PollIntervalOption[] = [
  * Always returns full ISO timestamps for backend compatibility.
  * Handles both relative (5m, 7d) and Grafana-style (today, this_week) presets.
  */
-export function parseTimeRange(range: TimeRangeValue, referenceTime?: number): { startDate: string; endDate: string } {
+export function parseTimeRange(
+  range: TimeRangeValue,
+  referenceTime?: number,
+  customRange?: CustomTimeRange | null,
+): { startDate: string; endDate: string } {
+  if (range === "custom" && customRange) {
+    return { startDate: customRange.from, endDate: customRange.to }
+  }
+
   const now = referenceTime ? new Date(referenceTime) : new Date()
 
   // Handle Grafana-style computed ranges
@@ -630,6 +1089,18 @@ export function parseTimeRange(range: TimeRangeValue, referenceTime?: number): {
     startDate: start.toISOString(),
     endDate: now.toISOString(),
   }
+}
+
+/** Auto = hourly up to 7 days, daily above (hourly buckets beyond 7d are noise). */
+export function resolveChartGranularity(
+  granularity: ChartGranularity,
+  range: TimeRangeValue,
+  customRange?: CustomTimeRange | null,
+): "hourly" | "daily" {
+  if (granularity !== "auto") return granularity
+  const { startDate, endDate } = parseTimeRange(range, Date.now(), customRange)
+  const days = (new Date(endDate).getTime() - new Date(startDate).getTime()) / 86_400_000
+  return days > 7 ? "daily" : "hourly"
 }
 
 /**

@@ -28,6 +28,7 @@ def test_settings_response_is_whitelisted():
     assert body["name"]
     assert body["version"]
     assert body["environment"]
+    assert body["runtime"] == {"container": False, "image_tag": None}
     assert "log_paths" in body["logparser"]
     assert "raw_retention_days" in body["analytics"]
     assert body["map"] == {
@@ -40,3 +41,16 @@ def test_settings_response_is_whitelisted():
     flat = str(body).lower()
     for forbidden in ("password", "geopass", "database", "db_", "admin"):
         assert forbidden not in flat, f"leaked: {forbidden}"
+
+
+def test_settings_reports_container_build_metadata(monkeypatch):
+    monkeypatch.setenv("APP_RUNTIME", "container")
+    monkeypatch.setenv("APP_IMAGE_TAG", "v0.2.2-dev.4")
+
+    with TestClient(app=make_app()) as client:
+        body = client.get("/api/v1/settings").json()
+
+    assert body["runtime"] == {
+        "container": True,
+        "image_tag": "v0.2.2-dev.4",
+    }

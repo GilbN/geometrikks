@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react"
 import { createRootRoute, Outlet, useRouterState, Link } from "@tanstack/react-router"
 import { useQuery } from "@tanstack/react-query"
 import { fetchHealth } from "@/lib/api"
@@ -38,8 +39,12 @@ const routeLabels: Record<string, string> = {
   "/map": "Map",
   "/access-logs": "Access Logs",
   "/geo-logs": "Geo Logs",
+  "/debug-logs": "Debug Logs",
   "/analytics": "Analytics",
   "/settings": "Settings",
+  "/settings/environment": "Environment",
+  "/settings/scheduler": "Scheduler",
+  "/settings/about": "About",
   "/login": "Login",
 }
 
@@ -47,6 +52,7 @@ function AppBreadcrumb() {
   const routerState = useRouterState()
   const pathname = routerState.location.pathname
   const currentLabel = routeLabels[pathname] || "Page"
+  const isSettingsChild = pathname.startsWith("/settings/")
 
   return (
     <Breadcrumb>
@@ -55,11 +61,39 @@ function AppBreadcrumb() {
           <BreadcrumbLink href="/">GeoMetrikks</BreadcrumbLink>
         </BreadcrumbItem>
         <BreadcrumbSeparator className="hidden md:block" />
+        {isSettingsChild && (
+          <>
+            <BreadcrumbItem className="hidden md:block">
+              <BreadcrumbLink href="/settings">Settings</BreadcrumbLink>
+            </BreadcrumbItem>
+            <BreadcrumbSeparator className="hidden md:block" />
+          </>
+        )}
         <BreadcrumbItem>
           <BreadcrumbPage>{currentLabel}</BreadcrumbPage>
         </BreadcrumbItem>
       </BreadcrumbList>
     </Breadcrumb>
+  )
+}
+
+function OfflineBanner() {
+  const [online, setOnline] = useState(true)
+  useEffect(() => {
+    const update = () => setOnline(navigator.onLine)
+    update()
+    window.addEventListener("online", update)
+    window.addEventListener("offline", update)
+    return () => {
+      window.removeEventListener("online", update)
+      window.removeEventListener("offline", update)
+    }
+  }, [])
+  if (online) return null
+  return (
+    <div className="bg-destructive/15 text-destructive text-xs px-4 py-1.5 border-b border-destructive/30">
+      Offline - live data is unavailable. Content will refresh when the connection returns.
+    </div>
   )
 }
 
@@ -95,10 +129,11 @@ function RootLayout() {
           <LiveFeedProvider>
           <SidebarProvider defaultOpen={true}>
             <AppSidebar />
-            <SidebarInset className="bg-background">
+            <SidebarInset className="bg-background h-dvh">
+              <OfflineBanner />
               <GeoDegradedBanner />
               {/* Top header bar */}
-              <header className="flex h-14 shrink-0 items-center justify-between gap-2 border-b border-border/50 px-4">
+              <header className="flex h-14 shrink-0 items-center justify-between gap-2 border-b border-border/50 px-4 pt-[env(safe-area-inset-top,0px)] pl-[max(1rem,env(safe-area-inset-left,0px))] pr-[max(1rem,env(safe-area-inset-right,0px))] box-content">
                 <div className="flex items-center gap-2">
                   <SidebarTrigger className="-ml-1" />
                   <Separator orientation="vertical" className="h-4 mr-2" />
@@ -106,12 +141,15 @@ function RootLayout() {
                 </div>
                 <div className="flex items-center gap-3">
                   <TimeRangeToolbar />
+                  {/* Portal target for page-specific header actions (e.g. the
+                      mobile map-controls drawer trigger in MapControls). */}
+                  <span id="header-actions-slot" className="contents" />
                   <Separator orientation="vertical" className="h-6" />
                   <ModeToggle />
                 </div>
               </header>
               {/* Main content area */}
-              <main className="flex-1 overflow-auto">
+              <main className="min-h-0 flex-1 overflow-auto">
                 <Outlet />
               </main>
             </SidebarInset>

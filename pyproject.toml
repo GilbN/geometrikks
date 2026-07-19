@@ -1,6 +1,6 @@
 [project]
 name = "geometrikks"
-version = "0.1.0"
+version = "0.3.0"
 description = "Geo metrics ingress service built with Litestar."
 readme = "README.md"
 requires-python = ">=3.13,<3.14"
@@ -23,6 +23,10 @@ dependencies = [
     "advanced-alchemy[argon2,passlib,pwdlib,cli]>=1.11.0",
     "alembic>=1.18.5",
 ]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
 
 [dependency-groups]
 dev = [
