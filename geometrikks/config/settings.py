@@ -270,7 +270,7 @@ class SchedulerSettings(BaseSettings):
         description="Minute (0-59) to run daily rollup",
     )
     location_refresh_interval_minutes: int = Field(
-        default=5,
+        default=10,
         description="Minutes between GeoLocation.last_hit refresh jobs",
     )
 
