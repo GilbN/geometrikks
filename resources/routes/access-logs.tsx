@@ -16,7 +16,7 @@ function AccessLogsPage() {
   return (
     <div className="p-4 space-y-4">
       <Tabs value={mode} onValueChange={(value) => setMode(value as Mode)}>
-        <TabsList>
+        <TabsList className="pointer-coarse:h-10">
           <TabsTrigger value="history">
             <History className="h-4 w-4" /> History
           </TabsTrigger>
