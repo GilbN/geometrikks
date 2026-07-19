@@ -108,10 +108,10 @@ function RootLayout() {
           <LiveFeedProvider>
           <SidebarProvider defaultOpen={true}>
             <AppSidebar />
-            <SidebarInset className="bg-background">
+            <SidebarInset className="bg-background h-dvh">
               <GeoDegradedBanner />
               {/* Top header bar */}
-              <header className="flex h-14 shrink-0 items-center justify-between gap-2 border-b border-border/50 px-4">
+              <header className="flex h-14 shrink-0 items-center justify-between gap-2 border-b border-border/50 px-4 pt-[env(safe-area-inset-top,0px)] pl-[max(1rem,env(safe-area-inset-left,0px))] pr-[max(1rem,env(safe-area-inset-right,0px))] box-content">
                 <div className="flex items-center gap-2">
                   <SidebarTrigger className="-ml-1" />
                   <Separator orientation="vertical" className="h-4 mr-2" />
@@ -124,7 +124,7 @@ function RootLayout() {
                 </div>
               </header>
               {/* Main content area */}
-              <main className="flex-1 overflow-auto">
+              <main className="min-h-0 flex-1 overflow-auto">
                 <Outlet />
               </main>
             </SidebarInset>

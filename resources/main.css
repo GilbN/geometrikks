@@ -276,11 +276,11 @@
   filter: invert(1);
 }
 
-/* On mobile the bottom-right zoom/compass control sits too low and collides
-   with the browser chrome. Lift it clear of the safe-area inset and the
-   floating map-controls trigger. */
+/* On mobile the full-page map's bottom-right zoom/compass control needs to
+   clear the safe-area inset and the floating map-controls trigger. Scoped to
+   .fullscreen-map so embedded card maps (geo-logs) are unaffected. */
 @media (max-width: 767px) {
-  .maplibregl-ctrl-bottom-right {
+  .fullscreen-map .maplibregl-ctrl-bottom-right {
     bottom: calc(env(safe-area-inset-bottom, 0px) + 4.5rem) !important;
   }
 }

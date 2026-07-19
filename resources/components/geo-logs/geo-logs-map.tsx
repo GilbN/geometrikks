@@ -138,7 +138,7 @@ export default function GeoLogsMap() {
             cursor="pointer"
             attributionControl={false}
           >
-            <NavigationControl position="bottom-right" showCompass={false} />
+            <NavigationControl position="top-right" showCompass={false} />
             {geojson && (
               <Source
                 id="geo-data"

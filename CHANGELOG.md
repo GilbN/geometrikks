@@ -28,6 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   background refresh policy job runs concurrently.
 - Database credentials containing reserved URL characters (`@`, `:`, `/`, `%`)
   no longer produce a broken connection URL.
+- Geo-logs embedded map zoom control no longer floats mid-card on mobile; app shell sizes to the real visible viewport (dvh) so the map page fits even with the degraded banner; bottom drawers respect the iOS safe area.
 
 ### Added
 
