@@ -1,4 +1,10 @@
 """Central route registration."""
+from pathlib import Path
+
+from litestar import get
+from litestar.datastructures import ResponseHeader
+from litestar.exceptions import NotFoundException
+from litestar.response import File
 from litestar.types import ControllerRouterHandler
 
 from geometrikks.api.v1.geo_events_controller import GeoEventController
@@ -12,6 +18,21 @@ from geometrikks.api.v1.live_controller import live_feed
 from geometrikks.api.v1.settings import read_settings
 from geometrikks.api.v1.stats import stats
 from geometrikks.api.health import health, health_ready
+
+
+@get(
+    "/sw.js",
+    include_in_schema=False,
+    sync_to_thread=False,
+    # The browser must be able to revalidate the worker promptly or updates
+    # stall; never serve it with a long-lived cache header.
+    response_headers=[ResponseHeader(name="Cache-Control", value="no-cache")],
+)
+def service_worker() -> File:
+    sw_path = Path("public/sw.js")
+    if not sw_path.is_file():
+        raise NotFoundException(detail="Service worker not built")
+    return File(path=sw_path, media_type="text/javascript")
 
 
 def get_route_handlers(*, include_auth: bool = True) -> list[ControllerRouterHandler]:
@@ -35,6 +56,7 @@ def get_route_handlers(*, include_auth: bool = True) -> list[ControllerRouterHan
         stats,
         health,
         health_ready,
+        service_worker,
     ]
 
     if include_auth:

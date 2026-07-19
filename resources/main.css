@@ -276,21 +276,23 @@
   filter: invert(1);
 }
 
-/* On mobile the bottom-right zoom/compass control sits too low and collides
-   with the browser chrome. Lift it clear of the safe-area inset and the
-   floating map-controls trigger. */
+/* On mobile the full-page map's bottom-right zoom/compass control needs to
+   clear the safe-area inset and the floating map-controls trigger. Scoped to
+   .fullscreen-map so embedded card maps (geo-logs) are unaffected. */
 @media (max-width: 767px) {
-  .maplibregl-ctrl-bottom-right {
+  .fullscreen-map .maplibregl-ctrl-bottom-right {
     bottom: calc(env(safe-area-inset-bottom, 0px) + 4.5rem) !important;
   }
 }
 
 /* iOS Safari force-zooms the page when a focused input has a font-size below
-   16px. The map filter comboboxes render at text-xs, so on touch devices bump
-   the input itself to 16px to suppress the zoom. Font size only affects the
-   text the user types; the chips/list keep their compact sizing. */
+   16px. Most inputs here render at text-xs/text-sm, so on touch devices bump
+   every text-entry control to 16px to suppress the zoom. Unlayered CSS beats
+   Tailwind's layered utilities, so this wins over per-element text-* classes. */
 @media (pointer: coarse) {
-  input[data-slot="combobox-chip-input"] {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+  select,
+  textarea {
     font-size: 16px;
   }
 }

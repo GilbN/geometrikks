@@ -54,6 +54,7 @@ export type RouteName =
   | 'openapi.yaml'
   | 'read_settings'
   | 'run_scheduler_job'
+  | 'service_worker'
   | 'stats'
   | 'vite'
   | 'vite_spa'
@@ -104,6 +105,7 @@ export interface RoutePathParams {
   'run_scheduler_job': {
     job_id: string;
   };
+  'service_worker': Record<string, never>;
   'stats': Record<string, never>;
   'vite': {
     file_path: any;
@@ -332,6 +334,7 @@ export interface RouteQueryParams {
   'openapi.yaml': Record<string, never>;
   'read_settings': Record<string, never>;
   'run_scheduler_job': Record<string, never>;
+  'service_worker': Record<string, never>;
   'stats': Record<string, never>;
   'vite': Record<string, never>;
   'vite_spa': Record<string, never>;
@@ -618,6 +621,13 @@ export const routeDefinitions = {
     methods: ['POST'] as const,
     method: 'post',
     pathParams: ['job_id'] as const,
+    queryParams: [] as const,
+  },
+  'service_worker': {
+    path: '/sw.js',
+    methods: ['GET'] as const,
+    method: 'get',
+    pathParams: [] as const,
     queryParams: [] as const,
   },
   'stats': {

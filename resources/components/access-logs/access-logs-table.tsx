@@ -3,12 +3,10 @@
  * global time range. Supports column sorting, text search, and IP / method /
  * domain filters. Pairs with GET /api/v1/access-logs/.
  */
-import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from "react"
+import { useEffect, useMemo, useState } from "react"
 import {
   ArrowDown,
   ArrowUp,
-  ChevronLeft,
-  ChevronRight,
   ChevronsUpDown,
   Columns3,
   Search,
@@ -33,16 +31,12 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
+import { PaginationFooter } from "@/components/ui/pagination-footer"
 import { FilterCombobox } from "@/components/ui/filter-combobox"
+import { FiltersDrawer, FilterSection } from "@/components/ui/filters-drawer"
 import { useAccessLogs, useAccessLogFacets } from "@/lib/queries"
 import { useDebouncedValue } from "@/hooks/use-debounced-value"
+import { useIsMobile } from "@/hooks/use-mobile"
 import {
   formatBytes,
   formatDuration,
@@ -50,7 +44,7 @@ import {
   type AccessLogSortField,
   type SortOrder,
 } from "@/lib/api"
-import { cn } from "@/lib/utils"
+import { cn, isMobileViewport } from "@/lib/utils"
 
 const PAGE_SIZES = [10, 20, 50, 100, 200, 500, 1000] as const
 
@@ -80,6 +74,8 @@ interface ColumnDef {
   defaultVisible: boolean
   align?: "right"
   headClassName?: string
+  /** Start hidden on mobile viewports (still selectable via the Columns menu). */
+  mobileHidden?: boolean
   render: (row: AccessLog) => React.ReactNode
 }
 
@@ -129,6 +125,7 @@ const COLUMNS: ColumnDef[] = [
     label: "Host",
     sortField: "host",
     defaultVisible: true,
+    mobileHidden: true,
     render: (r) => (
       <span className="block max-w-[200px] truncate font-mono" title={r.host ?? undefined}>
         {r.host ?? "-"}
@@ -148,6 +145,7 @@ const COLUMNS: ColumnDef[] = [
     sortField: "bytesSent",
     defaultVisible: true,
     align: "right",
+    mobileHidden: true,
     render: (r) => <span className="tabular-nums">{formatBytes(r.bytesSent)}</span>,
   },
   {
@@ -156,6 +154,7 @@ const COLUMNS: ColumnDef[] = [
     sortField: "requestTime",
     defaultVisible: true,
     align: "right",
+    mobileHidden: true,
     render: (r) => <span className="tabular-nums">{formatDuration(r.requestTime * 1000)}</span>,
   },
   {
@@ -174,6 +173,7 @@ const COLUMNS: ColumnDef[] = [
     key: "referrer",
     label: "Referrer",
     defaultVisible: true,
+    mobileHidden: true,
     render: (r) => (
       <span className="block max-w-[240px] truncate font-mono" title={r.referrer ?? undefined}>
         {r.referrer ?? "-"}
@@ -205,6 +205,7 @@ const COLUMNS: ColumnDef[] = [
     key: "country",
     label: "Country",
     defaultVisible: true,
+    mobileHidden: true,
     render: (r) => (
       <span className="whitespace-nowrap" title={r.countryName ?? undefined}>
         {r.countryCode ?? "-"}
@@ -215,6 +216,7 @@ const COLUMNS: ColumnDef[] = [
     key: "city",
     label: "City",
     defaultVisible: true,
+    mobileHidden: true,
     render: (r) => <span className="whitespace-nowrap">{r.city ?? "-"}</span>,
   },
 ]
@@ -231,6 +233,7 @@ function isValidIp(value: string): boolean {
 }
 
 export function AccessLogsTable() {
+  const isMobile = useIsMobile()
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(20)
 
@@ -254,9 +257,12 @@ export function AccessLogsTable() {
   const [sortOrder, setSortOrder] = useState<SortOrder>("desc")
 
   // Column visibility.
-  const [visible, setVisible] = useState<Set<string>>(
-    () => new Set(COLUMNS.filter((c) => c.defaultVisible).map((c) => c.key)),
-  )
+  const [visible, setVisible] = useState<Set<string>>(() => {
+    const mobile = isMobileViewport()
+    return new Set(
+      COLUMNS.filter((c) => c.defaultVisible && !(mobile && c.mobileHidden)).map((c) => c.key),
+    )
+  })
   const shownColumns = useMemo(() => COLUMNS.filter((c) => visible.has(c.key)), [visible])
 
   // Any filter/sort/page-size change returns to the first page.
@@ -294,15 +300,6 @@ export function AccessLogsTable() {
     }
   }
 
-  function toggleValue<T>(
-    setter: Dispatch<SetStateAction<T[]>>,
-    value: NoInfer<T>,
-  ) {
-    setter((prev) =>
-      prev.includes(value) ? prev.filter((v) => v !== value) : [...prev, value],
-    )
-  }
-
   function toggleColumn(key: string) {
     setVisible((prev) => {
       const next = new Set(prev)
@@ -311,6 +308,130 @@ export function AccessLogsTable() {
       return next
     })
   }
+
+  const activeFilterCount =
+    (search ? 1 : 0) +
+    (ip ? 1 : 0) +
+    (host ? 1 : 0) +
+    (methods.length ? 1 : 0) +
+    (statusCodes.length ? 1 : 0) +
+    (countries.length ? 1 : 0) +
+    (cities.length ? 1 : 0)
+
+  function renderFilters(inDrawer: boolean) {
+    const wrap = (label: string, node: React.ReactNode) =>
+      inDrawer ? <FilterSection label={label}>{node}</FilterSection> : node
+    return (
+      <>
+        {wrap(
+          "Search",
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              placeholder="Search url / referrer / agent…"
+              className={cn("h-8 pl-7 text-xs", inDrawer ? "w-full" : "w-64")}
+            />
+          </div>,
+        )}
+        {wrap(
+          "IP address",
+          <Input
+            value={ipInput}
+            onChange={(e) => setIpInput(e.target.value)}
+            placeholder="IP address"
+            aria-invalid={ipInput !== "" && !isValidIp(ipInput)}
+            className={cn("h-8 font-mono text-xs", inDrawer ? "w-full" : "w-36")}
+          />,
+        )}
+        {wrap(
+          "Host",
+          <Input
+            value={hostInput}
+            onChange={(e) => setHostInput(e.target.value)}
+            placeholder="Host"
+            className={cn("h-8 font-mono text-xs", inDrawer ? "w-full" : "w-44")}
+          />,
+        )}
+        {wrap(
+          "Status",
+          <FilterCombobox
+            label="Status"
+            options={[...STATUS_CODES]}
+            selected={statusCodes}
+            onChange={setStatusCodes}
+            forceInline={inDrawer}
+          />,
+        )}
+        {wrap(
+          "Method",
+          <FilterCombobox
+            label="Method"
+            options={[...HTTP_METHODS]}
+            selected={methods}
+            onChange={setMethods}
+            forceInline={inDrawer}
+          />,
+        )}
+        {wrap(
+          "Country",
+          <FilterCombobox
+            label="Country"
+            options={facets?.countries.map((c) => c.code) ?? []}
+            selected={countries}
+            onChange={setCountries}
+            labelFor={(code) => {
+              const name = facets?.countries.find((c) => c.code === code)?.name
+              return name ? `${name} (${code})` : code
+            }}
+            loading={!facets}
+            emptyText="No geo data"
+            onOpenChange={(open) => open && setFacetsEnabled(true)}
+            forceInline={inDrawer}
+          />,
+        )}
+        {wrap(
+          "City",
+          <FilterCombobox
+            label="City"
+            options={facets?.cities ?? []}
+            selected={cities}
+            onChange={setCities}
+            loading={!facets}
+            emptyText="No geo data"
+            onOpenChange={(open) => open && setFacetsEnabled(true)}
+            forceInline={inDrawer}
+          />,
+        )}
+      </>
+    )
+  }
+
+  const columnsMenu = (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="outline" size="sm" className="h-8">
+          <Columns3 className="mr-1 h-3.5 w-3.5" /> Columns
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="max-h-80 overflow-y-auto">
+        <DropdownMenuLabel>Visible columns</DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        {COLUMNS.map((c) => (
+          <DropdownMenuCheckboxItem
+            key={c.key}
+            checked={visible.has(c.key)}
+            onCheckedChange={() => toggleColumn(c.key)}
+            onSelect={(e) => e.preventDefault()}
+            disabled={visible.has(c.key) && visible.size === 1}
+          >
+            {c.label}
+          </DropdownMenuCheckboxItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
 
   if (isError) {
     return (
@@ -323,225 +444,103 @@ export function AccessLogsTable() {
   return (
     <div className="space-y-3">
       {/* Filter toolbar */}
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="relative">
-          <Search className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            value={searchInput}
-            onChange={(e) => setSearchInput(e.target.value)}
-            placeholder="Search url / referrer / agent…"
-            className="h-8 w-64 pl-7 text-xs"
-          />
+      {isMobile ? (
+        <div className="flex items-center gap-2">
+          <div onClick={() => setFacetsEnabled(true)}>
+            <FiltersDrawer activeCount={activeFilterCount}>{renderFilters(true)}</FiltersDrawer>
+          </div>
+          {columnsMenu}
         </div>
-        <Input
-          value={ipInput}
-          onChange={(e) => setIpInput(e.target.value)}
-          placeholder="IP address"
-          aria-invalid={ipInput !== "" && !isValidIp(ipInput)}
-          className="h-8 w-36 font-mono text-xs"
-        />
-        <Input
-          value={hostInput}
-          onChange={(e) => setHostInput(e.target.value)}
-          placeholder="Host"
-          className="h-8 w-44 font-mono text-xs"
-        />
-
-        <FilterCombobox
-          label="Status"
-          options={[...STATUS_CODES]}
-          selected={statusCodes}
-          onChange={setStatusCodes}
-        />
-
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm" className="h-8">
-              Method{methods.length > 0 && ` (${methods.length})`}
-              <ChevronsUpDown className="ml-1 h-3.5 w-3.5" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start">
-            <DropdownMenuLabel>HTTP method</DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            {HTTP_METHODS.map((m) => (
-              <DropdownMenuCheckboxItem
-                key={m}
-                checked={methods.includes(m)}
-                onCheckedChange={() => toggleValue(setMethods, m)}
-                onSelect={(e) => e.preventDefault()}
-              >
-                {m}
-              </DropdownMenuCheckboxItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
-
-        <FilterCombobox
-          label="Country"
-          options={facets?.countries.map((c) => c.code) ?? []}
-          selected={countries}
-          onChange={setCountries}
-          labelFor={(code) => {
-            const name = facets?.countries.find((c) => c.code === code)?.name
-            return name ? `${name} (${code})` : code
-          }}
-          loading={!facets}
-          emptyText="No geo data"
-          onOpenChange={(open) => open && setFacetsEnabled(true)}
-        />
-
-        <FilterCombobox
-          label="City"
-          options={facets?.cities ?? []}
-          selected={cities}
-          onChange={setCities}
-          loading={!facets}
-          emptyText="No geo data"
-          onOpenChange={(open) => open && setFacetsEnabled(true)}
-        />
-
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm" className="h-8">
-              <Columns3 className="mr-1 h-3.5 w-3.5" /> Columns
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="max-h-80 overflow-y-auto">
-            <DropdownMenuLabel>Visible columns</DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            {COLUMNS.map((c) => (
-              <DropdownMenuCheckboxItem
-                key={c.key}
-                checked={visible.has(c.key)}
-                onCheckedChange={() => toggleColumn(c.key)}
-                onSelect={(e) => e.preventDefault()}
-                disabled={visible.has(c.key) && visible.size === 1}
-              >
-                {c.label}
-              </DropdownMenuCheckboxItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
+      ) : (
+        <div className="flex flex-wrap items-center gap-2">
+          {renderFilters(false)}
+          {columnsMenu}
+        </div>
+      )}
 
       <div className="rounded-md border">
-        <div className="overflow-x-auto">
-          <Table className="text-xs">
-            <TableHeader>
-              <TableRow>
-                {shownColumns.map((c) => {
-                  const active = c.sortField && sortField === c.sortField
-                  return (
-                    <TableHead
-                      key={c.key}
-                      className={cn(c.align === "right" && "text-right", c.headClassName)}
-                    >
-                      {c.sortField ? (
-                        <button
-                          type="button"
-                          onClick={() => toggleSort(c.sortField!)}
-                          className={cn(
-                            "inline-flex items-center gap-1 hover:text-foreground",
-                            c.align === "right" && "flex-row-reverse",
-                            active ? "text-foreground" : "text-muted-foreground",
-                          )}
-                        >
-                          {c.label}
-                          {active ? (
-                            sortOrder === "asc" ? (
-                              <ArrowUp className="h-3 w-3" />
-                            ) : (
-                              <ArrowDown className="h-3 w-3" />
-                            )
+        <Table className="text-xs">
+          <TableHeader>
+            <TableRow>
+              {shownColumns.map((c) => {
+                const active = c.sortField && sortField === c.sortField
+                return (
+                  <TableHead
+                    key={c.key}
+                    className={cn(c.align === "right" && "text-right", c.headClassName)}
+                  >
+                    {c.sortField ? (
+                      <button
+                        type="button"
+                        onClick={() => toggleSort(c.sortField!)}
+                        className={cn(
+                          "inline-flex items-center gap-1 hover:text-foreground",
+                          c.align === "right" && "flex-row-reverse",
+                          active ? "text-foreground" : "text-muted-foreground",
+                        )}
+                      >
+                        {c.label}
+                        {active ? (
+                          sortOrder === "asc" ? (
+                            <ArrowUp className="h-3 w-3" />
                           ) : (
-                            <ChevronsUpDown className="h-3 w-3 opacity-40" />
-                          )}
-                        </button>
-                      ) : (
-                        c.label
-                      )}
-                    </TableHead>
-                  )
-                })}
+                            <ArrowDown className="h-3 w-3" />
+                          )
+                        ) : (
+                          <ChevronsUpDown className="h-3 w-3 opacity-40" />
+                        )}
+                      </button>
+                    ) : (
+                      c.label
+                    )}
+                  </TableHead>
+                )
+              })}
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {isLoading
+              ? Array.from({ length: 10 }).map((_, i) => (
+                  <TableRow key={i}>
+                    {shownColumns.map((c) => (
+                      <TableCell key={c.key}>
+                        <Skeleton className="h-4 w-full" />
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                ))
+              : rows.map((row) => (
+                  <TableRow key={row.id}>
+                    {shownColumns.map((c) => (
+                      <TableCell
+                        key={c.key}
+                        className={cn(c.align === "right" && "text-right")}
+                      >
+                        {c.render(row)}
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                ))}
+            {!isLoading && rows.length === 0 && (
+              <TableRow>
+                <TableCell colSpan={colCount} className="h-24 text-center text-muted-foreground">
+                  No access logs match these filters.
+                </TableCell>
               </TableRow>
-            </TableHeader>
-            <TableBody>
-              {isLoading
-                ? Array.from({ length: 10 }).map((_, i) => (
-                    <TableRow key={i}>
-                      {shownColumns.map((c) => (
-                        <TableCell key={c.key}>
-                          <Skeleton className="h-4 w-full" />
-                        </TableCell>
-                      ))}
-                    </TableRow>
-                  ))
-                : rows.map((row) => (
-                    <TableRow key={row.id}>
-                      {shownColumns.map((c) => (
-                        <TableCell
-                          key={c.key}
-                          className={cn(c.align === "right" && "text-right")}
-                        >
-                          {c.render(row)}
-                        </TableCell>
-                      ))}
-                    </TableRow>
-                  ))}
-              {!isLoading && rows.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={colCount} className="h-24 text-center text-muted-foreground">
-                    No access logs match these filters.
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </div>
-        <div className="flex items-center justify-between border-t px-3 py-2 text-xs text-muted-foreground">
-          <span>
-            {total.toLocaleString()} rows — page {page} of {pageCount}
-          </span>
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-1.5">
-              <span className="whitespace-nowrap">Rows per page</span>
-              <Select
-                value={String(pageSize)}
-                onValueChange={(v) => setPageSize(Number(v))}
-              >
-                <SelectTrigger size="sm" className="h-8 w-20 text-xs">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {PAGE_SIZES.map((size) => (
-                    <SelectItem key={size} value={String(size)}>
-                      {size}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex gap-1">
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={page <= 1 || isPlaceholderData}
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
-            >
-              <ChevronLeft className="h-4 w-4" /> Prev
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={page >= pageCount || isPlaceholderData}
-              onClick={() => setPage((p) => p + 1)}
-            >
-              Next <ChevronRight className="h-4 w-4" />
-            </Button>
-            </div>
-          </div>
-        </div>
+            )}
+          </TableBody>
+        </Table>
+        <PaginationFooter
+          page={page}
+          pageCount={pageCount}
+          total={total}
+          onPageChange={setPage}
+          disabled={isPlaceholderData}
+          pageSize={pageSize}
+          pageSizes={PAGE_SIZES}
+          onPageSizeChange={setPageSize}
+          className="border-t"
+        />
       </div>
     </div>
   )

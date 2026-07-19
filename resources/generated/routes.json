@@ -488,6 +488,13 @@
       ],
       "uri": "/api/v1/system/scheduler/jobs/{job_id}/run"
     },
+    "service_worker": {
+      "method": "get",
+      "methods": [
+        "GET"
+      ],
+      "uri": "/sw.js"
+    },
     "stats": {
       "method": "get",
       "methods": [

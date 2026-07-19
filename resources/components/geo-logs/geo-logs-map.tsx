@@ -15,7 +15,7 @@ import Map, {
 import "maplibre-gl/dist/maplibre-gl.css"
 
 import { AlertTriangle } from "lucide-react"
-import { Card, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card } from "@/components/ui/card"
 import { MapSkeleton } from "@/components/map/MapSkeleton"
 import { useMapStyle } from "@/components/map/hooks/useMapStyle"
 import { MapPopup, type PopupInfo } from "@/components/map/MapPopup"
@@ -116,9 +116,6 @@ export default function GeoLogsMap() {
 
   return (
     <Card className="h-[380px] gap-0 overflow-hidden py-0">
-      <CardHeader className="border-b py-3">
-        <CardTitle className="text-sm font-medium">Event Locations</CardTitle>
-      </CardHeader>
       <div className="relative flex-1">
         {isLoading && <MapSkeleton />}
         {isError && (
@@ -138,7 +135,7 @@ export default function GeoLogsMap() {
             cursor="pointer"
             attributionControl={false}
           >
-            <NavigationControl position="bottom-right" showCompass={false} />
+            <NavigationControl position="top-right" showCompass={false} />
             {geojson && (
               <Source
                 id="geo-data"

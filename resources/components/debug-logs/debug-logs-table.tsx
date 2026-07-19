@@ -8,8 +8,6 @@ import { useEffect, useMemo, useState } from "react"
 import {
   ArrowDown,
   ArrowUp,
-  ChevronLeft,
-  ChevronRight,
   ChevronsUpDown,
   Columns3,
   Search,
@@ -41,12 +39,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { PaginationFooter } from "@/components/ui/pagination-footer"
 import { FilterCombobox } from "@/components/ui/filter-combobox"
+import { FiltersDrawer, FilterSection } from "@/components/ui/filters-drawer"
 import { DebugLogDetailDialog } from "@/components/debug-logs/debug-log-detail-dialog"
 import { useAccessLogDebug, useAccessLogFacets } from "@/lib/queries"
 import { useDebouncedValue } from "@/hooks/use-debounced-value"
+import { useIsMobile } from "@/hooks/use-mobile"
 import type { AccessLogDebugEntry, AccessLogDebugSortField, SortOrder } from "@/lib/api"
-import { cn } from "@/lib/utils"
+import { cn, isMobileViewport } from "@/lib/utils"
 
 const PAGE_SIZES = [10, 20, 50, 100, 200, 500, 1000] as const
 
@@ -65,6 +66,8 @@ interface ColumnDef {
   label: string
   sortField?: AccessLogDebugSortField
   defaultVisible: boolean
+  /** Start hidden on mobile viewports (still selectable via the Columns menu). */
+  mobileHidden?: boolean
   render: (row: AccessLogDebugEntry) => React.ReactNode
 }
 
@@ -99,6 +102,7 @@ const COLUMNS: ColumnDef[] = [
     label: "Parse error",
     sortField: "parseError",
     defaultVisible: true,
+    mobileHidden: true,
     render: (r) => (
       <span className="block max-w-[220px] truncate" title={r.parseError ?? undefined}>
         {r.parseError ?? "-"}
@@ -120,6 +124,7 @@ const COLUMNS: ColumnDef[] = [
     label: "Status",
     sortField: "statusCode",
     defaultVisible: true,
+    mobileHidden: true,
     render: (r) =>
       r.statusCode != null ? (
         <Badge className={cn("tabular-nums border-transparent", statusBadgeClass(r.statusCode))}>
@@ -133,6 +138,7 @@ const COLUMNS: ColumnDef[] = [
     key: "method",
     label: "Method",
     defaultVisible: true,
+    mobileHidden: true,
     render: (r) => <span className="font-mono">{r.method ?? "-"}</span>,
   },
   {
@@ -140,6 +146,7 @@ const COLUMNS: ColumnDef[] = [
     label: "IP",
     sortField: "ipAddress",
     defaultVisible: true,
+    mobileHidden: true,
     render: (r) => <span className="font-mono">{r.ipAddress ?? "-"}</span>,
   },
   {
@@ -216,6 +223,7 @@ function isValidIp(value: string): boolean {
 }
 
 export function DebugLogsTable() {
+  const isMobile = useIsMobile()
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(20)
 
@@ -236,9 +244,12 @@ export function DebugLogsTable() {
   const [sortOrder, setSortOrder] = useState<SortOrder>("desc")
 
   // Column visibility.
-  const [visible, setVisible] = useState<Set<string>>(
-    () => new Set(COLUMNS.filter((c) => c.defaultVisible).map((c) => c.key)),
-  )
+  const [visible, setVisible] = useState<Set<string>>(() => {
+    const mobile = isMobileViewport()
+    return new Set(
+      COLUMNS.filter((c) => c.defaultVisible && !(mobile && c.mobileHidden)).map((c) => c.key),
+    )
+  })
   const shownColumns = useMemo(() => COLUMNS.filter((c) => visible.has(c.key)), [visible])
 
   // Detail dialog.
@@ -286,6 +297,115 @@ export function DebugLogsTable() {
     })
   }
 
+  const activeFilterCount =
+    (search ? 1 : 0) +
+    (ip ? 1 : 0) +
+    (malformedFilter !== "all" ? 1 : 0) +
+    (countries.length ? 1 : 0) +
+    (cities.length ? 1 : 0)
+
+  function renderFilters(inDrawer: boolean) {
+    const wrap = (label: string, node: React.ReactNode) =>
+      inDrawer ? <FilterSection label={label}>{node}</FilterSection> : node
+    return (
+      <>
+        {wrap(
+          "Search",
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              placeholder="Search raw line / parse error…"
+              className={cn("h-8 pl-7 text-xs", inDrawer ? "w-full" : "w-64")}
+            />
+          </div>,
+        )}
+        {wrap(
+          "IP address",
+          <Input
+            value={ipInput}
+            onChange={(e) => setIpInput(e.target.value)}
+            placeholder="IP address"
+            aria-invalid={ipInput !== "" && !isValidIp(ipInput)}
+            className={cn("h-8 font-mono text-xs", inDrawer ? "w-full" : "w-36")}
+          />,
+        )}
+        {wrap(
+          "Malformed",
+          <Select
+            value={malformedFilter}
+            onValueChange={(v) => setMalformedFilter(v as MalformedFilter)}
+          >
+            <SelectTrigger size="sm" className={cn("h-8 text-xs", inDrawer ? "w-full" : "w-40")}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All lines</SelectItem>
+              <SelectItem value="malformed">Malformed only</SelectItem>
+              <SelectItem value="wellformed">Well-formed only</SelectItem>
+            </SelectContent>
+          </Select>,
+        )}
+        {wrap(
+          "Country",
+          <FilterCombobox
+            label="Country"
+            options={facets?.countries.map((c) => c.code) ?? []}
+            selected={countries}
+            onChange={setCountries}
+            labelFor={(code) => {
+              const name = facets?.countries.find((c) => c.code === code)?.name
+              return name ? `${name} (${code})` : code
+            }}
+            loading={!facets}
+            emptyText="No geo data"
+            onOpenChange={(open) => open && setFacetsEnabled(true)}
+            forceInline={inDrawer}
+          />,
+        )}
+        {wrap(
+          "City",
+          <FilterCombobox
+            label="City"
+            options={facets?.cities ?? []}
+            selected={cities}
+            onChange={setCities}
+            loading={!facets}
+            emptyText="No geo data"
+            onOpenChange={(open) => open && setFacetsEnabled(true)}
+            forceInline={inDrawer}
+          />,
+        )}
+      </>
+    )
+  }
+
+  const columnsMenu = (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="outline" size="sm" className="h-8">
+          <Columns3 className="mr-1 h-3.5 w-3.5" /> Columns
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="max-h-80 overflow-y-auto">
+        <DropdownMenuLabel>Visible columns</DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        {COLUMNS.map((c) => (
+          <DropdownMenuCheckboxItem
+            key={c.key}
+            checked={visible.has(c.key)}
+            onCheckedChange={() => toggleColumn(c.key)}
+            onSelect={(e) => e.preventDefault()}
+            disabled={visible.has(c.key) && visible.size === 1}
+          >
+            {c.label}
+          </DropdownMenuCheckboxItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+
   if (isError) {
     return (
       <div className="rounded-md border p-6 text-sm text-destructive">
@@ -297,198 +417,98 @@ export function DebugLogsTable() {
   return (
     <div className="space-y-3">
       {/* Filter toolbar */}
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="relative">
-          <Search className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            value={searchInput}
-            onChange={(e) => setSearchInput(e.target.value)}
-            placeholder="Search raw line / parse error…"
-            className="h-8 w-64 pl-7 text-xs"
-          />
+      {isMobile ? (
+        <div className="flex items-center gap-2">
+          <div onClick={() => setFacetsEnabled(true)}>
+            <FiltersDrawer activeCount={activeFilterCount}>{renderFilters(true)}</FiltersDrawer>
+          </div>
+          {columnsMenu}
         </div>
-        <Input
-          value={ipInput}
-          onChange={(e) => setIpInput(e.target.value)}
-          placeholder="IP address"
-          aria-invalid={ipInput !== "" && !isValidIp(ipInput)}
-          className="h-8 w-36 font-mono text-xs"
-        />
-
-        <Select
-          value={malformedFilter}
-          onValueChange={(v) => setMalformedFilter(v as MalformedFilter)}
-        >
-          <SelectTrigger size="sm" className="h-8 w-40 text-xs">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All lines</SelectItem>
-            <SelectItem value="malformed">Malformed only</SelectItem>
-            <SelectItem value="wellformed">Well-formed only</SelectItem>
-          </SelectContent>
-        </Select>
-
-        <FilterCombobox
-          label="Country"
-          options={facets?.countries.map((c) => c.code) ?? []}
-          selected={countries}
-          onChange={setCountries}
-          labelFor={(code) => {
-            const name = facets?.countries.find((c) => c.code === code)?.name
-            return name ? `${name} (${code})` : code
-          }}
-          loading={!facets}
-          emptyText="No geo data"
-          onOpenChange={(open) => open && setFacetsEnabled(true)}
-        />
-
-        <FilterCombobox
-          label="City"
-          options={facets?.cities ?? []}
-          selected={cities}
-          onChange={setCities}
-          loading={!facets}
-          emptyText="No geo data"
-          onOpenChange={(open) => open && setFacetsEnabled(true)}
-        />
-
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm" className="h-8">
-              <Columns3 className="mr-1 h-3.5 w-3.5" /> Columns
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="max-h-80 overflow-y-auto">
-            <DropdownMenuLabel>Visible columns</DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            {COLUMNS.map((c) => (
-              <DropdownMenuCheckboxItem
-                key={c.key}
-                checked={visible.has(c.key)}
-                onCheckedChange={() => toggleColumn(c.key)}
-                onSelect={(e) => e.preventDefault()}
-                disabled={visible.has(c.key) && visible.size === 1}
-              >
-                {c.label}
-              </DropdownMenuCheckboxItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
+      ) : (
+        <div className="flex flex-wrap items-center gap-2">
+          {renderFilters(false)}
+          {columnsMenu}
+        </div>
+      )}
 
       <div className="rounded-md border">
-        <div className="overflow-x-auto">
-          <Table className="text-xs">
-            <TableHeader>
-              <TableRow>
-                {shownColumns.map((c) => {
-                  const active = c.sortField && sortField === c.sortField
-                  return (
-                    <TableHead key={c.key}>
-                      {c.sortField ? (
-                        <button
-                          type="button"
-                          onClick={() => toggleSort(c.sortField!)}
-                          className={cn(
-                            "inline-flex items-center gap-1 hover:text-foreground",
-                            active ? "text-foreground" : "text-muted-foreground",
-                          )}
-                        >
-                          {c.label}
-                          {active ? (
-                            sortOrder === "asc" ? (
-                              <ArrowUp className="h-3 w-3" />
-                            ) : (
-                              <ArrowDown className="h-3 w-3" />
-                            )
+        <Table className="text-xs">
+          <TableHeader>
+            <TableRow>
+              {shownColumns.map((c) => {
+                const active = c.sortField && sortField === c.sortField
+                return (
+                  <TableHead key={c.key}>
+                    {c.sortField ? (
+                      <button
+                        type="button"
+                        onClick={() => toggleSort(c.sortField!)}
+                        className={cn(
+                          "inline-flex items-center gap-1 hover:text-foreground",
+                          active ? "text-foreground" : "text-muted-foreground",
+                        )}
+                      >
+                        {c.label}
+                        {active ? (
+                          sortOrder === "asc" ? (
+                            <ArrowUp className="h-3 w-3" />
                           ) : (
-                            <ChevronsUpDown className="h-3 w-3 opacity-40" />
-                          )}
-                        </button>
-                      ) : (
-                        c.label
-                      )}
-                    </TableHead>
-                  )
-                })}
+                            <ArrowDown className="h-3 w-3" />
+                          )
+                        ) : (
+                          <ChevronsUpDown className="h-3 w-3 opacity-40" />
+                        )}
+                      </button>
+                    ) : (
+                      c.label
+                    )}
+                  </TableHead>
+                )
+              })}
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {isLoading
+              ? Array.from({ length: 10 }).map((_, i) => (
+                  <TableRow key={i}>
+                    {shownColumns.map((c) => (
+                      <TableCell key={c.key}>
+                        <Skeleton className="h-4 w-full" />
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                ))
+              : rows.map((row) => (
+                  <TableRow
+                    key={row.id}
+                    className="cursor-pointer"
+                    onClick={() => setSelected(row)}
+                  >
+                    {shownColumns.map((c) => (
+                      <TableCell key={c.key}>{c.render(row)}</TableCell>
+                    ))}
+                  </TableRow>
+                ))}
+            {!isLoading && rows.length === 0 && (
+              <TableRow>
+                <TableCell colSpan={colCount} className="h-24 text-center text-muted-foreground">
+                  No debug lines match these filters.
+                </TableCell>
               </TableRow>
-            </TableHeader>
-            <TableBody>
-              {isLoading
-                ? Array.from({ length: 10 }).map((_, i) => (
-                    <TableRow key={i}>
-                      {shownColumns.map((c) => (
-                        <TableCell key={c.key}>
-                          <Skeleton className="h-4 w-full" />
-                        </TableCell>
-                      ))}
-                    </TableRow>
-                  ))
-                : rows.map((row) => (
-                    <TableRow
-                      key={row.id}
-                      className="cursor-pointer"
-                      onClick={() => setSelected(row)}
-                    >
-                      {shownColumns.map((c) => (
-                        <TableCell key={c.key}>{c.render(row)}</TableCell>
-                      ))}
-                    </TableRow>
-                  ))}
-              {!isLoading && rows.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={colCount} className="h-24 text-center text-muted-foreground">
-                    No debug lines match these filters.
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </div>
-        <div className="flex items-center justify-between border-t px-3 py-2 text-xs text-muted-foreground">
-          <span>
-            {total.toLocaleString()} rows - page {page} of {pageCount}
-          </span>
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-1.5">
-              <span className="whitespace-nowrap">Rows per page</span>
-              <Select
-                value={String(pageSize)}
-                onValueChange={(v) => setPageSize(Number(v))}
-              >
-                <SelectTrigger size="sm" className="h-8 w-20 text-xs">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {PAGE_SIZES.map((size) => (
-                    <SelectItem key={size} value={String(size)}>
-                      {size}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex gap-1">
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={page <= 1 || isPlaceholderData}
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-              >
-                <ChevronLeft className="h-4 w-4" /> Prev
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={page >= pageCount || isPlaceholderData}
-                onClick={() => setPage((p) => p + 1)}
-              >
-                Next <ChevronRight className="h-4 w-4" />
-              </Button>
-            </div>
-          </div>
-        </div>
+            )}
+          </TableBody>
+        </Table>
+        <PaginationFooter
+          page={page}
+          pageCount={pageCount}
+          total={total}
+          onPageChange={setPage}
+          disabled={isPlaceholderData}
+          pageSize={pageSize}
+          pageSizes={PAGE_SIZES}
+          onPageSizeChange={setPageSize}
+          className="border-t"
+        />
       </div>
 
       <DebugLogDetailDialog

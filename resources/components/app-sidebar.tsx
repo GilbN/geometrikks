@@ -1,6 +1,6 @@
 import { Link, useRouterState } from "@tanstack/react-router"
 import { useQuery } from "@tanstack/react-query"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import {
   Sidebar,
   SidebarContent,
@@ -472,11 +472,17 @@ function RuntimeMetadata({ collapsed }: { collapsed: boolean }) {
 }
 
 export function AppSidebar() {
-  const { state, isMobile } = useSidebar()
+  const { state, isMobile, setOpenMobile } = useSidebar()
   // On mobile, always show expanded content regardless of desktop collapsed state
   const collapsed = isMobile ? false : state === "collapsed"
   const routerState = useRouterState()
   const currentPath = routerState.location.pathname
+
+  // The mobile sidebar is a full-height sheet; leaving it open after a nav
+  // tap would cover the page the user just navigated to.
+  useEffect(() => {
+    setOpenMobile(false)
+  }, [currentPath, setOpenMobile])
 
   return (
     <Sidebar collapsible="icon" className="border-r-0">

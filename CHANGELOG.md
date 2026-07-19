@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Larger touch targets for header controls on touch devices; small mobile layout fixes on Overview and Environment pages.
+- Live tail no longer freezes permanently after a tap on touch devices; added an explicit pause/resume button and a narrower mobile column set.
+- Focusing any input on a touch device no longer triggers the iOS auto-zoom.
+- Mobile sidebar closes automatically after navigating.
+- Table pagination footers no longer overflow on narrow screens; all tables share one responsive footer component.
 - Geo Logs counts no longer disagree with the Analytics page on ranges over 24h.
   The per-IP CAGG reads floored the window start to a whole bucket, silently
   counting a partial extra bucket that the raw analytics scan excluded. Grouped
@@ -26,9 +31,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   background refresh policy job runs concurrently.
 - Database credentials containing reserved URL characters (`@`, `:`, `/`, `%`)
   no longer produce a broken connection URL.
+- Geo-logs embedded map zoom control no longer floats mid-card on mobile; app shell sizes to the real visible viewport (dvh) so the map page fits even with the degraded banner; bottom drawers respect the iOS safe area.
 
 ### Added
 
+- PWA support: app icons and favicon, web app manifest, an auto-updating service worker (app shell only; live data and auth are never cached), and an offline indicator.
+- Access-logs and debug-logs filters collapse into a bottom-sheet Filters drawer on mobile.
 - Debug Logs page at `/debug-logs`: raw and malformed log lines with stat cards
   (total, malformed, most common parse error), a filterable and sortable
   paginated table, and a row detail dialog with the copyable raw line, the parse
@@ -71,6 +79,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (background jobs with status, last run, duration and a "Run now" button)
   and About (app, runtime, database and GeoIP info).
 - New `/api/v1/system` endpoints backing the Settings section.
+- Data tables start with a compact column set on mobile; all columns remain available from the Columns menu.
 
 ### Changed
 
