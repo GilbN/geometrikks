@@ -35,6 +35,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- PWA support: app icons and favicon, web app manifest, an auto-updating service worker (app shell only; live data and auth are never cached), and an offline indicator.
 - Access-logs and debug-logs filters collapse into a bottom-sheet Filters drawer on mobile.
 - Debug Logs page at `/debug-logs`: raw and malformed log lines with stat cards
   (total, malformed, most common parse error), a filterable and sortable

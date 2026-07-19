@@ -6,6 +6,9 @@ import { ReactQueryDevtools } from "@tanstack/react-query-devtools"
 import { routeTree } from "./routeTree.gen"
 import "@/lib/client"
 import "@/main.css"
+import { registerSW } from "virtual:pwa-register"
+
+registerSW({ immediate: true })
 
 // Create a query client
 const queryClient = new QueryClient({
