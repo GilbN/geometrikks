@@ -242,14 +242,6 @@ class AnalyticsSettings(BaseSettings):
         description="Days after which to compress hypertable chunks",
     )
 
-    top_ips_limit: int = Field(
-        default=1000,
-        description="Maximum number of top IPs to track per day",
-    )
-    top_urls_limit: int = Field(
-        default=500,
-        description="Maximum number of top URLs to track per day",
-    )
 
 
 class SchedulerSettings(BaseSettings):
@@ -260,14 +252,6 @@ class SchedulerSettings(BaseSettings):
     enabled: bool = Field(
         default=True,
         description="Enable scheduled background tasks",
-    )
-    daily_rollup_hour: int = Field(
-        default=0,
-        description="Hour (UTC, 0-23) to run daily rollup",
-    )
-    daily_rollup_minute: int = Field(
-        default=5,
-        description="Minute (0-59) to run daily rollup",
     )
     location_refresh_interval_minutes: int = Field(
         default=10,
