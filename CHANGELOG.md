@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Live tail no longer freezes permanently after a tap on touch devices; added an explicit pause/resume button and a narrower mobile column set.
 - Focusing any input on a touch device no longer triggers the iOS auto-zoom.
 - Mobile sidebar closes automatically after navigating.
 - Table pagination footers no longer overflow on narrow screens; all tables share one responsive footer component.

@@ -4,9 +4,12 @@
  * Rows are laid out as aligned monospace columns mirroring the access.log
  * fields (time, status, method, url, host, ip, user, bytes, req-time, ver).
  */
-import { useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useVirtualizer } from "@tanstack/react-virtual"
+import { Pause, Play } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { useMediaQuery } from "@/hooks/use-media-query"
 import { useLiveEvents } from "@/lib/live-feed-context"
 import { formatBytes, formatDuration } from "@/lib/api"
 import { cn } from "@/lib/utils"
@@ -30,19 +33,41 @@ const COLS = "flex items-center gap-2 px-3 min-w-max"
 export function LiveTail({ enabled }: { enabled: boolean }) {
   const [rows, setRows] = useState<AccessLogEvent[]>([])
   const [dropped, setDropped] = useState(0)
-  const [paused, setPaused] = useState(false)
+  // Two pause sources: the explicit button (all devices) and hover (devices
+  // with a real hover; touch emits sticky synthetic mouseenter on tap).
+  const [manuallyPaused, setManuallyPaused] = useState(false)
+  const [hoverPaused, setHoverPaused] = useState(false)
+  const canHover = useMediaQuery("(hover: hover)")
+  const paused = manuallyPaused || (canHover && hoverPaused)
+  // Events received while paused: buffered (newest first, capped) and merged
+  // on resume so the visible list stays still but nothing is lost.
+  const pausedBufferRef = useRef<AccessLogEvent[]>([])
+  const [pausedCount, setPausedCount] = useState(0)
   const parentRef = useRef<HTMLDivElement>(null)
 
   useLiveEvents((events, droppedCount) => {
-    if (paused) return
     const logs = events
       .filter((e): e is Extract<LiveEvent, { type: "access_log" }> => e.type === "access_log")
       .map((e) => e.data)
     if (logs.length === 0 && droppedCount === 0) return
-    setRows((prev) => [...logs.reverse(), ...prev].slice(0, MAX_ROWS))
     if (droppedCount) setDropped((d) => d + droppedCount)
+    if (paused) {
+      pausedBufferRef.current = [...logs.reverse(), ...pausedBufferRef.current].slice(0, MAX_ROWS)
+      setPausedCount(pausedBufferRef.current.length)
+      return
+    }
+    setRows((prev) => [...logs.reverse(), ...prev].slice(0, MAX_ROWS))
     parentRef.current?.scrollTo({ top: 0 })
   }, enabled)
+
+  useEffect(() => {
+    if (paused || pausedBufferRef.current.length === 0) return
+    const buffered = pausedBufferRef.current
+    pausedBufferRef.current = []
+    setPausedCount(0)
+    setRows((prev) => [...buffered, ...prev].slice(0, MAX_ROWS))
+    parentRef.current?.scrollTo({ top: 0 })
+  }, [paused])
 
   const virtualizer = useVirtualizer({
     count: rows.length,
@@ -53,11 +78,34 @@ export function LiveTail({ enabled }: { enabled: boolean }) {
 
   return (
     <div className="rounded-md border">
-      <div className="flex items-center justify-between px-3 py-1.5 text-xs text-muted-foreground border-b">
+      <div className="flex items-center justify-between gap-2 px-3 py-1.5 text-xs text-muted-foreground border-b">
         <span>
-          {paused ? "Paused (pointer over list)" : "Streaming"} — {rows.length} rows
+          {paused
+            ? manuallyPaused
+              ? "Paused"
+              : "Paused (pointer over list)"
+            : "Streaming"}
+          {" - "}
+          {rows.length} rows
+          {pausedCount > 0 && `, +${pausedCount} while paused`}
           {dropped > 0 && `, ${dropped} dropped`}
         </span>
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-7 pointer-coarse:h-10"
+          onClick={() => setManuallyPaused((p) => !p)}
+        >
+          {manuallyPaused ? (
+            <>
+              <Play className="h-3.5 w-3.5" /> Resume
+            </>
+          ) : (
+            <>
+              <Pause className="h-3.5 w-3.5" /> Pause
+            </>
+          )}
+        </Button>
       </div>
       <div className="overflow-x-auto">
         {/* Column header — aligns with the row layout below. */}
@@ -66,21 +114,21 @@ export function LiveTail({ enabled }: { enabled: boolean }) {
           <span className="w-10 shrink-0">Status</span>
           <span className="w-14 shrink-0">Method</span>
           <span className="w-[220px] shrink-0">URL</span>
-          <span className="w-[320px] shrink-0">Referrer</span>
+          <span className="hidden w-[320px] shrink-0 md:block">Referrer</span>
           <span className="w-40 shrink-0">Host</span>
           <span className="w-32 shrink-0">IP</span>
-          <span className="w-16 shrink-0">User</span>
+          <span className="hidden w-16 shrink-0 md:block">User</span>
           <span className="w-16 shrink-0 text-right">Bytes</span>
           <span className="w-16 shrink-0 text-right">Req</span>
-          <span className="w-16 shrink-0">HTTP Ver</span>
+          <span className="hidden w-16 shrink-0 md:block">HTTP Ver</span>
           <span className="w-16 shrink-0">Country</span>
           <span className="w-16 shrink-0">City</span>
         </div>
         <div
           ref={parentRef}
           className="overflow-y-auto overflow-x-hidden font-mono text-xs"
-          onMouseEnter={() => setPaused(true)}
-          onMouseLeave={() => setPaused(false)}
+          onMouseEnter={() => canHover && setHoverPaused(true)}
+          onMouseLeave={() => setHoverPaused(false)}
         >
           <div style={{ height: virtualizer.getTotalSize(), position: "relative" }}>
             {virtualizer.getVirtualItems().map((item) => {
@@ -103,17 +151,17 @@ export function LiveTail({ enabled }: { enabled: boolean }) {
                   <span className="w-[220px] shrink-0 truncate" title={row.url ?? undefined}>
                     {row.url ?? "-"}
                   </span>
-                  <span className="w-[320px] shrink-0 truncate" title={row.referrer ?? undefined}>
+                  <span className="hidden w-[320px] shrink-0 truncate md:block" title={row.referrer ?? undefined}>
                     {row.referrer ?? "-"}
                   </span>
                   <span className="w-40 shrink-0 truncate" title={row.host ?? undefined}>
                     {row.host ?? "-"}
                   </span>
                   <span className="w-32 shrink-0 text-muted-foreground">{row.ip_address}</span>
-                  <span className="w-16 shrink-0 truncate text-muted-foreground">{row.remote_user ?? "-"}</span>
+                  <span className="hidden w-16 shrink-0 truncate text-muted-foreground md:block">{row.remote_user ?? "-"}</span>
                   <span className="w-16 shrink-0 text-right tabular-nums">{formatBytes(row.bytes_sent)}</span>
                   <span className="w-16 shrink-0 text-right tabular-nums">{formatDuration(row.request_time * 1000)}</span>
-                  <span className="w-16 shrink-0 text-muted-foreground">{row.http_version ?? "-"}</span>
+                  <span className="hidden w-16 shrink-0 text-muted-foreground md:block">{row.http_version ?? "-"}</span>
                   <span className="w-16 shrink-0 truncate" title={row.country_code ?? undefined}>
                     {row.country_name ?? row.country_code ?? "-"}
                   </span>
