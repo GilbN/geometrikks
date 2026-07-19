@@ -61,7 +61,7 @@ COPY --chown=geometrikks:geometrikks pyproject.toml alembic.ini ./
 COPY --chown=geometrikks:geometrikks migrations/ ./migrations/
 
 RUN mkdir -p /app/logs /app/data/geoip \
-    && chown geometrikks:geometrikks /app/logs /app/data /app/data/geoip
+    && chown -R geometrikks:geometrikks /app
 
 # Set environment
 # GEOIP_VALIDATE_DB_PATH=false: settings construction must not fail while the
