@@ -4,8 +4,9 @@ from functools import lru_cache
 from importlib.metadata import PackageNotFoundError, version as distribution_version
 from pathlib import Path
 from typing import Annotated, Literal
+from urllib.parse import quote
 
-from pydantic import Field, field_validator, model_validator
+from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 from geometrikks.services.logparser.constants import ALLOWED_GEOIP_LOCALES
 
@@ -41,7 +42,7 @@ class DatabaseSettings(BaseSettings):
     pool_disabled: bool = Field(default=False, description="Disable connection pooling")
     pool_pre_ping: bool = Field(default=True, description="Enable pool pre-ping to check connections")
     user: str = Field(default="geouser", description="Database user")
-    password: str = Field(default="geopass", description="Database password")
+    password: SecretStr = Field(default=SecretStr("geopass"), description="Database password")
     host: str = Field(default="localhost", description="Database host")
     port: int = Field(default=5432, description="Database port")
     database: str = Field(default="geometrikks", description="Database name")
@@ -49,8 +50,16 @@ class DatabaseSettings(BaseSettings):
     
     @property
     def url(self) -> str:
-        """Construct the database URL from components."""
-        return f"postgresql+asyncpg://{self.user}:{self.password}@{self.host}:{self.port}/{self.database}"
+        """Construct the database URL from components.
+
+        Credentials are percent-encoded: reserved URL characters in the
+        user or password (@, :, /, %) would otherwise break the URL.
+        """
+        return (
+            f"postgresql+asyncpg://{quote(self.user, safe='')}:"
+            f"{quote(self.password.get_secret_value(), safe='')}"
+            f"@{self.host}:{self.port}/{self.database}"
+        )
     
 
     @model_validator(mode="after")
@@ -98,7 +107,7 @@ class GeoIPSettings(BaseSettings):
         validation_alias="MAXMINDDB_USER_ID",
         description="MaxMind account ID for GeoLite2 auto-download",
     )
-    license_key: str | None = Field(
+    license_key: SecretStr | None = Field(
         default=None,
         validation_alias="MAXMINDDB_LICENSE_KEY",
         description="MaxMind license key for GeoLite2 auto-download",
@@ -239,14 +248,6 @@ class AnalyticsSettings(BaseSettings):
         description="Days after which to compress hypertable chunks",
     )
 
-    top_ips_limit: int = Field(
-        default=1000,
-        description="Maximum number of top IPs to track per day",
-    )
-    top_urls_limit: int = Field(
-        default=500,
-        description="Maximum number of top URLs to track per day",
-    )
 
 
 class SchedulerSettings(BaseSettings):
@@ -258,16 +259,8 @@ class SchedulerSettings(BaseSettings):
         default=True,
         description="Enable scheduled background tasks",
     )
-    daily_rollup_hour: int = Field(
-        default=0,
-        description="Hour (UTC, 0-23) to run daily rollup",
-    )
-    daily_rollup_minute: int = Field(
-        default=5,
-        description="Minute (0-59) to run daily rollup",
-    )
     location_refresh_interval_minutes: int = Field(
-        default=5,
+        default=10,
         description="Minutes between GeoLocation.last_hit refresh jobs",
     )
 
@@ -422,7 +415,7 @@ class Settings(BaseSettings):
         ),
     )
     admin_user: str = Field(default="admin", description="Admin login username")
-    admin_password: str | None = Field(
+    admin_password: SecretStr | None = Field(
         default=None,
         description="Admin login password (required unless auth_disabled=true)",
     )

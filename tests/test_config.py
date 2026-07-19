@@ -225,7 +225,7 @@ class TestAuthSettings:
         settings = Settings()
         assert settings.auth_disabled is True
         assert settings.admin_user == "gil"
-        assert settings.admin_password == "bestpasswordintheworldnojoke"
+        assert settings.admin_password.get_secret_value() == "bestpasswordintheworldnojoke"
 
 
 class TestGeoIPDownloadSettings:
@@ -248,5 +248,50 @@ class TestGeoIPDownloadSettings:
         from geometrikks.config.settings import GeoIPSettings
         s = GeoIPSettings(validate_db_path=False)
         assert s.account_id == "123456"
-        assert s.license_key == "abcdef"
+        assert s.license_key.get_secret_value() == "abcdef"
         assert s.refresh_days == 3
+
+
+def test_db_password_is_secret_but_url_works(monkeypatch):
+    from geometrikks.config.settings import DatabaseSettings
+    monkeypatch.setenv("DB_PASSWORD", "s3cret-db-pass")
+    s = DatabaseSettings()
+    assert "s3cret-db-pass" not in repr(s)
+    assert "s3cret-db-pass" in s.url
+
+
+def test_db_url_encodes_reserved_characters(monkeypatch):
+    from geometrikks.config.settings import DatabaseSettings
+    monkeypatch.setenv("DB_USER", "geo@user")
+    monkeypatch.setenv("DB_PASSWORD", "p@ss:w/rd%1")
+    s = DatabaseSettings()
+    assert "geo%40user:p%40ss%3Aw%2Frd%251@" in s.url
+    assert "p@ss:w/rd%1" not in s.url
+
+
+def test_license_key_is_secret(monkeypatch):
+    from geometrikks.config.settings import GeoIPSettings
+    monkeypatch.setenv("MAXMINDDB_LICENSE_KEY", "lk-secret")
+    s = GeoIPSettings()
+    assert "lk-secret" not in repr(s)
+    assert s.license_key is not None
+    assert s.license_key.get_secret_value() == "lk-secret"
+
+
+def test_admin_password_is_secret_and_auth_still_verifies(monkeypatch):
+    from geometrikks.config.settings import Settings
+    from geometrikks.server.auth import build_auth_state
+    monkeypatch.setenv("APP_ADMIN_PASSWORD", "admin-secret-pass")
+    s = Settings()
+    assert "admin-secret-pass" not in repr(s)
+    state = build_auth_state(s)
+    assert state.verify("admin", "admin-secret-pass")
+
+
+def test_build_auth_state_rejects_empty_password(monkeypatch):
+    import pytest
+    from geometrikks.config.settings import Settings
+    from geometrikks.server.auth import build_auth_state
+    monkeypatch.setenv("APP_ADMIN_PASSWORD", "")
+    with pytest.raises(RuntimeError):
+        build_auth_state(Settings())

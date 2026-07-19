@@ -93,6 +93,15 @@ import type {
   ApiV1SettingsReadSettingsResponses,
   ApiV1StatsStatsData,
   ApiV1StatsStatsResponses,
+  ApiV1SystemAboutGetAboutData,
+  ApiV1SystemAboutGetAboutResponses,
+  ApiV1SystemSchedulerJobsGetSchedulerJobsData,
+  ApiV1SystemSchedulerJobsGetSchedulerJobsResponses,
+  ApiV1SystemSchedulerJobsJobIdRunRunSchedulerJobData,
+  ApiV1SystemSchedulerJobsJobIdRunRunSchedulerJobErrors,
+  ApiV1SystemSchedulerJobsJobIdRunRunSchedulerJobResponses,
+  ApiV1SystemSettingsGetSystemSettingsData,
+  ApiV1SystemSettingsGetSystemSettingsResponses,
   HealthHealthData,
   HealthHealthResponses,
   HealthReadyHealthReadyData,
@@ -943,6 +952,103 @@ export const apiV1StatsStats = <ThrowOnError extends boolean = false>(
       },
     ],
     url: "/api/v1/stats",
+    ...options,
+  });
+
+/**
+ * GetAbout
+ */
+export const apiV1SystemAboutGetAbout = <ThrowOnError extends boolean = false>(
+  options?: Options<ApiV1SystemAboutGetAboutData, ThrowOnError>,
+) =>
+  (options?.client ?? client).get<
+    ApiV1SystemAboutGetAboutResponses,
+    unknown,
+    ThrowOnError
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+    ],
+    url: "/api/v1/system/about",
+    ...options,
+  });
+
+/**
+ * GetSchedulerJobs
+ */
+export const apiV1SystemSchedulerJobsGetSchedulerJobs = <
+  ThrowOnError extends boolean = false,
+>(
+  options?: Options<ApiV1SystemSchedulerJobsGetSchedulerJobsData, ThrowOnError>,
+) =>
+  (options?.client ?? client).get<
+    ApiV1SystemSchedulerJobsGetSchedulerJobsResponses,
+    unknown,
+    ThrowOnError
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+    ],
+    url: "/api/v1/system/scheduler/jobs",
+    ...options,
+  });
+
+/**
+ * RunSchedulerJob
+ */
+export const apiV1SystemSchedulerJobsJobIdRunRunSchedulerJob = <
+  ThrowOnError extends boolean = false,
+>(
+  options: Options<
+    ApiV1SystemSchedulerJobsJobIdRunRunSchedulerJobData,
+    ThrowOnError
+  >,
+) =>
+  (options.client ?? client).post<
+    ApiV1SystemSchedulerJobsJobIdRunRunSchedulerJobResponses,
+    ApiV1SystemSchedulerJobsJobIdRunRunSchedulerJobErrors,
+    ThrowOnError
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+    ],
+    url: "/api/v1/system/scheduler/jobs/{job_id}/run",
+    ...options,
+  });
+
+/**
+ * GetSystemSettings
+ */
+export const apiV1SystemSettingsGetSystemSettings = <
+  ThrowOnError extends boolean = false,
+>(
+  options?: Options<ApiV1SystemSettingsGetSystemSettingsData, ThrowOnError>,
+) =>
+  (options?.client ?? client).get<
+    ApiV1SystemSettingsGetSystemSettingsResponses,
+    unknown,
+    ThrowOnError
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+    ],
+    url: "/api/v1/system/settings",
     ...options,
   });
 

@@ -15,6 +15,7 @@ export type URI = string;
 
 /** All available route names */
 export type RouteName =
+  | 'get_about'
   | 'get_access_log_debug_stats'
   | 'get_access_log_facets'
   | 'get_cumulative_time_series'
@@ -30,7 +31,9 @@ export type RouteName =
   | 'get_global_top_ips'
   | 'get_live_summary'
   | 'get_location_top_ips'
+  | 'get_scheduler_jobs'
   | 'get_summary'
+  | 'get_system_settings'
   | 'get_time_series'
   | 'get_top_cities'
   | 'get_top_countries'
@@ -50,6 +53,7 @@ export type RouteName =
   | 'openapi.json'
   | 'openapi.yaml'
   | 'read_settings'
+  | 'run_scheduler_job'
   | 'stats'
   | 'vite'
   | 'vite_spa'
@@ -57,6 +61,7 @@ export type RouteName =
 
 /** Path parameter definitions per route */
 export interface RoutePathParams {
+  'get_about': Record<string, never>;
   'get_access_log_debug_stats': Record<string, never>;
   'get_access_log_facets': Record<string, never>;
   'get_cumulative_time_series': Record<string, never>;
@@ -74,7 +79,9 @@ export interface RoutePathParams {
   'get_location_top_ips': {
     location_id: number;
   };
+  'get_scheduler_jobs': Record<string, never>;
   'get_summary': Record<string, never>;
+  'get_system_settings': Record<string, never>;
   'get_time_series': Record<string, never>;
   'get_top_cities': Record<string, never>;
   'get_top_countries': Record<string, never>;
@@ -94,6 +101,9 @@ export interface RoutePathParams {
   'openapi.json': Record<string, never>;
   'openapi.yaml': Record<string, never>;
   'read_settings': Record<string, never>;
+  'run_scheduler_job': {
+    job_id: string;
+  };
   'stats': Record<string, never>;
   'vite': {
     file_path: any;
@@ -106,6 +116,7 @@ export interface RoutePathParams {
 
 /** Query parameter definitions per route */
 export interface RouteQueryParams {
+  'get_about': Record<string, never>;
   'get_access_log_debug_stats': {
     from_timestamp?: DateTime;
     to_timestamp?: DateTime;
@@ -207,11 +218,13 @@ export interface RouteQueryParams {
     limit?: number;
     to_timestamp: DateTime;
   };
+  'get_scheduler_jobs': Record<string, never>;
   'get_summary': {
     compare_previous?: boolean;
     end_date: DateTime;
     start_date: DateTime;
   };
+  'get_system_settings': Record<string, never>;
   'get_time_series': {
     city?: string[];
     country_code?: string[];
@@ -318,6 +331,7 @@ export interface RouteQueryParams {
   'openapi.json': Record<string, never>;
   'openapi.yaml': Record<string, never>;
   'read_settings': Record<string, never>;
+  'run_scheduler_job': Record<string, never>;
   'stats': Record<string, never>;
   'vite': Record<string, never>;
   'vite_spa': Record<string, never>;
@@ -333,6 +347,13 @@ export type RouteParams<T extends RouteName> = MergeParams<RoutePathParams[T], R
 
 /** Route metadata */
 export const routeDefinitions = {
+  'get_about': {
+    path: '/api/v1/system/about',
+    methods: ['GET'] as const,
+    method: 'get',
+    pathParams: [] as const,
+    queryParams: [] as const,
+  },
   'get_access_log_debug_stats': {
     path: '/api/v1/access-log-debug/stats',
     methods: ['GET'] as const,
@@ -438,12 +459,26 @@ export const routeDefinitions = {
     pathParams: ['location_id'] as const,
     queryParams: ['from_timestamp', 'limit', 'to_timestamp'] as const,
   },
+  'get_scheduler_jobs': {
+    path: '/api/v1/system/scheduler/jobs',
+    methods: ['GET'] as const,
+    method: 'get',
+    pathParams: [] as const,
+    queryParams: [] as const,
+  },
   'get_summary': {
     path: '/api/v1/analytics/summary',
     methods: ['GET'] as const,
     method: 'get',
     pathParams: [] as const,
     queryParams: ['compare_previous', 'end_date', 'start_date'] as const,
+  },
+  'get_system_settings': {
+    path: '/api/v1/system/settings',
+    methods: ['GET'] as const,
+    method: 'get',
+    pathParams: [] as const,
+    queryParams: [] as const,
   },
   'get_time_series': {
     path: '/api/v1/analytics/time-series',
@@ -576,6 +611,13 @@ export const routeDefinitions = {
     methods: ['GET'] as const,
     method: 'get',
     pathParams: [] as const,
+    queryParams: [] as const,
+  },
+  'run_scheduler_job': {
+    path: '/api/v1/system/scheduler/jobs/{job_id}/run',
+    methods: ['POST'] as const,
+    method: 'post',
+    pathParams: ['job_id'] as const,
     queryParams: [] as const,
   },
   'stats': {

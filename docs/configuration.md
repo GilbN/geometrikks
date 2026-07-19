@@ -81,17 +81,13 @@ list most users need is in `.env.example`; everything below is available.
 | `ANALYTICS_HOURLY_RETENTION_DAYS` | `60` | Days to keep hourly continuous aggregate data |
 | `ANALYTICS_CAGG_REFRESH_INTERVAL_MINUTES` | `5` | Minutes between continuous aggregate refreshes |
 | `ANALYTICS_COMPRESSION_AFTER_DAYS` | `7` | Days after which to compress hypertable chunks |
-| `ANALYTICS_TOP_IPS_LIMIT` | `1000` | Maximum number of top IPs to track per day |
-| `ANALYTICS_TOP_URLS_LIMIT` | `500` | Maximum number of top URLs to track per day |
 
 ## Scheduler
 
 | Variable | Default | Description |
 |---|---|---|
 | `SCHEDULER_ENABLED` | `true` | Enable scheduled background tasks |
-| `SCHEDULER_DAILY_ROLLUP_HOUR` | `0` | Hour (UTC, 0-23) to run daily rollup |
-| `SCHEDULER_DAILY_ROLLUP_MINUTE` | `5` | Minute (0-59) to run daily rollup |
-| `SCHEDULER_LOCATION_REFRESH_INTERVAL_MINUTES` | `5` | Minutes between GeoLocation.last_hit refresh jobs |
+| `SCHEDULER_LOCATION_REFRESH_INTERVAL_MINUTES` | `10` | Minutes between GeoLocation.last_hit refresh jobs |
 
 ## Map
 

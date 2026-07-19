@@ -5,6 +5,37 @@ export type ClientOptions = {
 };
 
 /**
+ * AboutAppView
+ */
+export type AboutAppView = {
+  container: boolean;
+  environment: string;
+  image_tag: string | null;
+  name: string;
+  started_at: string | null;
+  version: string;
+};
+
+/**
+ * AboutLinksView
+ */
+export type AboutLinksView = {
+  issues: string;
+  repository: string;
+};
+
+/**
+ * AboutResponse
+ */
+export type AboutResponse = {
+  app: AboutAppView;
+  database: DatabaseVersionsView;
+  geoip: GeoIpInfoView;
+  links: AboutLinksView;
+  runtime: RuntimeVersionsView;
+};
+
+/**
  * AccessLogDebugEntry
  */
 export type AccessLogDebugEntry = {
@@ -82,6 +113,15 @@ export type CumulativeTimeSeriesResponse = {
 };
 
 /**
+ * DatabaseVersionsView
+ */
+export type DatabaseVersionsView = {
+  postgis_version: string | null;
+  postgres_version: string | null;
+  timescaledb_version: string | null;
+};
+
+/**
  * EmbeddedLocationDTO
  */
 export type EmbeddedLocationDto = {
@@ -129,6 +169,16 @@ export type GeoEventsTimeSeriesResponse = {
   end_date: string;
   granularity: string;
   start_date: string;
+};
+
+/**
+ * GeoIPInfoView
+ */
+export type GeoIpInfoView = {
+  age_days: number | null;
+  available: boolean;
+  build_date: string | null;
+  db_path: string;
 };
 
 /**
@@ -429,6 +479,15 @@ export type RuntimeSettingsView = {
 };
 
 /**
+ * RuntimeVersionsView
+ */
+export type RuntimeVersionsView = {
+  apscheduler_version: string | null;
+  litestar_version: string | null;
+  python_version: string;
+};
+
+/**
  * SafeSettingsResponse
  */
 export type SafeSettingsResponse = {
@@ -442,6 +501,52 @@ export type SafeSettingsResponse = {
 };
 
 /**
+ * SchedulerJobView
+ */
+export type SchedulerJobView = {
+  id: string;
+  last_duration_seconds: number | null;
+  last_error: string | null;
+  last_run_time: string | null;
+  last_status: "success" | "error" | "missed" | null;
+  name: string;
+  next_run_time: string | null;
+  running: boolean;
+  trigger: string;
+};
+
+/**
+ * SchedulerJobsResponse
+ */
+export type SchedulerJobsResponse = {
+  jobs: Array<SchedulerJobView>;
+  scheduler_enabled: boolean;
+  scheduler_running: boolean;
+};
+
+/**
+ * SettingFieldView
+ */
+export type SettingFieldView = {
+  default: unknown;
+  description: string | null;
+  env_var: string;
+  is_secret: boolean;
+  key: string;
+  value: unknown;
+};
+
+/**
+ * SettingsSectionView
+ */
+export type SettingsSectionView = {
+  description: string | null;
+  fields: Array<SettingFieldView>;
+  name: string;
+  title: string;
+};
+
+/**
  * SummaryResponse
  */
 export type SummaryResponse = {
@@ -450,6 +555,13 @@ export type SummaryResponse = {
   percent_changes?: PercentChange | null;
   previous_period?: PeriodSummary | null;
   start_date: string;
+};
+
+/**
+ * SystemSettingsResponse
+ */
+export type SystemSettingsResponse = {
+  sections: Array<SettingsSectionView>;
 };
 
 /**
@@ -2209,6 +2321,95 @@ export type ApiV1StatsStatsResponses = {
 
 export type ApiV1StatsStatsResponse =
   ApiV1StatsStatsResponses[keyof ApiV1StatsStatsResponses];
+
+export type ApiV1SystemAboutGetAboutData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: "/api/v1/system/about";
+};
+
+export type ApiV1SystemAboutGetAboutResponses = {
+  /**
+   * Request fulfilled, document follows
+   */
+  200: AboutResponse;
+};
+
+export type ApiV1SystemAboutGetAboutResponse =
+  ApiV1SystemAboutGetAboutResponses[keyof ApiV1SystemAboutGetAboutResponses];
+
+export type ApiV1SystemSchedulerJobsGetSchedulerJobsData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: "/api/v1/system/scheduler/jobs";
+};
+
+export type ApiV1SystemSchedulerJobsGetSchedulerJobsResponses = {
+  /**
+   * Request fulfilled, document follows
+   */
+  200: SchedulerJobsResponse;
+};
+
+export type ApiV1SystemSchedulerJobsGetSchedulerJobsResponse =
+  ApiV1SystemSchedulerJobsGetSchedulerJobsResponses[keyof ApiV1SystemSchedulerJobsGetSchedulerJobsResponses];
+
+export type ApiV1SystemSchedulerJobsJobIdRunRunSchedulerJobData = {
+  body?: never;
+  path: {
+    job_id: string;
+  };
+  query?: never;
+  url: "/api/v1/system/scheduler/jobs/{job_id}/run";
+};
+
+export type ApiV1SystemSchedulerJobsJobIdRunRunSchedulerJobErrors = {
+  /**
+   * Validation Exception
+   */
+  400: {
+    detail: string;
+    extra?:
+      | null
+      | {
+          [key: string]: unknown;
+        }
+      | Array<unknown>;
+    status_code: number;
+  };
+};
+
+export type ApiV1SystemSchedulerJobsJobIdRunRunSchedulerJobError =
+  ApiV1SystemSchedulerJobsJobIdRunRunSchedulerJobErrors[keyof ApiV1SystemSchedulerJobsJobIdRunRunSchedulerJobErrors];
+
+export type ApiV1SystemSchedulerJobsJobIdRunRunSchedulerJobResponses = {
+  /**
+   * Request accepted, processing continues off-line
+   */
+  202: SchedulerJobView;
+};
+
+export type ApiV1SystemSchedulerJobsJobIdRunRunSchedulerJobResponse =
+  ApiV1SystemSchedulerJobsJobIdRunRunSchedulerJobResponses[keyof ApiV1SystemSchedulerJobsJobIdRunRunSchedulerJobResponses];
+
+export type ApiV1SystemSettingsGetSystemSettingsData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: "/api/v1/system/settings";
+};
+
+export type ApiV1SystemSettingsGetSystemSettingsResponses = {
+  /**
+   * Request fulfilled, document follows
+   */
+  200: SystemSettingsResponse;
+};
+
+export type ApiV1SystemSettingsGetSystemSettingsResponse =
+  ApiV1SystemSettingsGetSystemSettingsResponses[keyof ApiV1SystemSettingsGetSystemSettingsResponses];
 
 export type HealthHealthData = {
   body?: never;

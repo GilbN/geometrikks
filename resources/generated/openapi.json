@@ -1,6 +1,97 @@
 {
   "components": {
     "schemas": {
+      "AboutAppView": {
+        "properties": {
+          "container": {
+            "type": "boolean"
+          },
+          "environment": {
+            "type": "string"
+          },
+          "image_tag": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "started_at": {
+            "oneOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "version": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "container",
+          "environment",
+          "image_tag",
+          "name",
+          "started_at",
+          "version"
+        ],
+        "title": "AboutAppView",
+        "type": "object"
+      },
+      "AboutLinksView": {
+        "properties": {
+          "issues": {
+            "type": "string"
+          },
+          "repository": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "issues",
+          "repository"
+        ],
+        "title": "AboutLinksView",
+        "type": "object"
+      },
+      "AboutResponse": {
+        "properties": {
+          "app": {
+            "$ref": "#/components/schemas/AboutAppView"
+          },
+          "database": {
+            "$ref": "#/components/schemas/DatabaseVersionsView"
+          },
+          "geoip": {
+            "$ref": "#/components/schemas/GeoIPInfoView"
+          },
+          "links": {
+            "$ref": "#/components/schemas/AboutLinksView"
+          },
+          "runtime": {
+            "$ref": "#/components/schemas/RuntimeVersionsView"
+          }
+        },
+        "required": [
+          "app",
+          "database",
+          "geoip",
+          "links",
+          "runtime"
+        ],
+        "title": "AboutResponse",
+        "type": "object"
+      },
       "AccessLogDebugEntry": {
         "properties": {
           "accessLogId": {
@@ -285,6 +376,47 @@
         "title": "CumulativeTimeSeriesResponse",
         "type": "object"
       },
+      "DatabaseVersionsView": {
+        "properties": {
+          "postgis_version": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "postgres_version": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "timescaledb_version": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "postgis_version",
+          "postgres_version",
+          "timescaledb_version"
+        ],
+        "title": "DatabaseVersionsView",
+        "type": "object"
+      },
       "EmbeddedLocationDTO": {
         "properties": {
           "city": {
@@ -433,6 +565,45 @@
           "start_date"
         ],
         "title": "GeoEventsTimeSeriesResponse",
+        "type": "object"
+      },
+      "GeoIPInfoView": {
+        "properties": {
+          "age_days": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "available": {
+            "type": "boolean"
+          },
+          "build_date": {
+            "oneOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "db_path": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "age_days",
+          "available",
+          "build_date",
+          "db_path"
+        ],
+        "title": "GeoIPInfoView",
         "type": "object"
       },
       "GeoJSONFeature": {
@@ -1574,6 +1745,40 @@
         "title": "RuntimeSettingsView",
         "type": "object"
       },
+      "RuntimeVersionsView": {
+        "properties": {
+          "apscheduler_version": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "litestar_version": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "python_version": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "apscheduler_version",
+          "litestar_version",
+          "python_version"
+        ],
+        "title": "RuntimeVersionsView",
+        "type": "object"
+      },
       "SafeSettingsResponse": {
         "properties": {
           "analytics": {
@@ -1608,6 +1813,181 @@
           "version"
         ],
         "title": "SafeSettingsResponse",
+        "type": "object"
+      },
+      "SchedulerJobView": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "last_duration_seconds": {
+            "oneOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "last_error": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "last_run_time": {
+            "oneOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "last_status": {
+            "enum": [
+              "success",
+              "error",
+              "missed",
+              null
+            ],
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "next_run_time": {
+            "oneOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "running": {
+            "type": "boolean"
+          },
+          "trigger": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "last_duration_seconds",
+          "last_error",
+          "last_run_time",
+          "last_status",
+          "name",
+          "next_run_time",
+          "running",
+          "trigger"
+        ],
+        "title": "SchedulerJobView",
+        "type": "object"
+      },
+      "SchedulerJobsResponse": {
+        "properties": {
+          "jobs": {
+            "items": {
+              "$ref": "#/components/schemas/SchedulerJobView"
+            },
+            "type": "array"
+          },
+          "scheduler_enabled": {
+            "type": "boolean"
+          },
+          "scheduler_running": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "jobs",
+          "scheduler_enabled",
+          "scheduler_running"
+        ],
+        "title": "SchedulerJobsResponse",
+        "type": "object"
+      },
+      "SettingFieldView": {
+        "properties": {
+          "default": {},
+          "description": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "env_var": {
+            "type": "string"
+          },
+          "is_secret": {
+            "type": "boolean"
+          },
+          "key": {
+            "type": "string"
+          },
+          "value": {}
+        },
+        "required": [
+          "default",
+          "description",
+          "env_var",
+          "is_secret",
+          "key",
+          "value"
+        ],
+        "title": "SettingFieldView",
+        "type": "object"
+      },
+      "SettingsSectionView": {
+        "properties": {
+          "description": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "fields": {
+            "items": {
+              "$ref": "#/components/schemas/SettingFieldView"
+            },
+            "type": "array"
+          },
+          "name": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "description",
+          "fields",
+          "name",
+          "title"
+        ],
+        "title": "SettingsSectionView",
         "type": "object"
       },
       "SummaryResponse": {
@@ -1648,6 +2028,21 @@
           "start_date"
         ],
         "title": "SummaryResponse",
+        "type": "object"
+      },
+      "SystemSettingsResponse": {
+        "properties": {
+          "sections": {
+            "items": {
+              "$ref": "#/components/schemas/SettingsSectionView"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "sections"
+        ],
+        "title": "SystemSettingsResponse",
         "type": "object"
       },
       "TimeSeriesDataPoint": {
@@ -2228,7 +2623,7 @@
   "info": {
     "description": "Real-time GeoIP lookups and traffic analytics API",
     "title": "GeoMetrikks API",
-    "version": "0.2.2"
+    "version": "0.3.0"
   },
   "openapi": "3.1.0",
   "paths": {
@@ -7170,6 +7565,147 @@
         "summary": "Stats",
         "tags": [
           "Analytics"
+        ]
+      }
+    },
+    "/api/v1/system/about": {
+      "get": {
+        "deprecated": false,
+        "operationId": "ApiV1SystemAboutGetAbout",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AboutResponse"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          }
+        },
+        "summary": "GetAbout",
+        "tags": [
+          "System"
+        ]
+      }
+    },
+    "/api/v1/system/scheduler/jobs": {
+      "get": {
+        "deprecated": false,
+        "operationId": "ApiV1SystemSchedulerJobsGetSchedulerJobs",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SchedulerJobsResponse"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          }
+        },
+        "summary": "GetSchedulerJobs",
+        "tags": [
+          "System"
+        ]
+      }
+    },
+    "/api/v1/system/scheduler/jobs/{job_id}/run": {
+      "post": {
+        "deprecated": false,
+        "operationId": "ApiV1SystemSchedulerJobsJobIdRunRunSchedulerJob",
+        "parameters": [
+          {
+            "deprecated": false,
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SchedulerJobView"
+                }
+              }
+            },
+            "description": "Request accepted, processing continues off-line",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "RunSchedulerJob",
+        "tags": [
+          "System"
+        ]
+      }
+    },
+    "/api/v1/system/settings": {
+      "get": {
+        "deprecated": false,
+        "operationId": "ApiV1SystemSettingsGetSystemSettings",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SystemSettingsResponse"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          }
+        },
+        "summary": "GetSystemSettings",
+        "tags": [
+          "System"
         ]
       }
     },

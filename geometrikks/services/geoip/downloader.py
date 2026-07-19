@@ -30,7 +30,12 @@ class GeoIPDownloadError(Exception):
 
 
 def has_credentials(settings: "GeoIPSettings") -> bool:
-    return bool(settings.account_id and settings.license_key)
+    # SecretStr("") is truthy, so the key must be unwrapped before testing.
+    return bool(
+        settings.account_id
+        and settings.license_key
+        and settings.license_key.get_secret_value()
+    )
 
 
 def database_is_stale(db_path: Path, max_age_days: int) -> bool:
@@ -45,7 +50,10 @@ async def _fetch_tarball(settings: "GeoIPSettings") -> bytes:
     """GET the tar.gz with basic auth; module-level for test monkeypatching."""
     try:
         async with httpx.AsyncClient(
-            auth=(settings.account_id or "", settings.license_key or ""),
+            auth=(
+                settings.account_id or "",
+                settings.license_key.get_secret_value() if settings.license_key else "",
+            ),
             timeout=120.0,
             follow_redirects=True,
         ) as client:
