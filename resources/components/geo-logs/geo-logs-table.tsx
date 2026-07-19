@@ -8,8 +8,6 @@ import { useMemo, useState } from "react"
 import {
   ArrowDown,
   ArrowUp,
-  ChevronLeft,
-  ChevronRight,
   Columns3,
 } from "lucide-react"
 import {
@@ -30,13 +28,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
+import { PaginationFooter } from "@/components/ui/pagination-footer"
 import type { GeoLogEntry } from "@/generated/api/types.gen"
 import { formatNumber, type GeoLogSortOrder } from "@/lib/api"
 import { useGeoLogs } from "@/lib/queries"
@@ -202,108 +194,74 @@ export function GeoLogsTable({
       </div>
 
       <div className="rounded-md border">
-        <div className="overflow-x-auto">
-          <Table className="text-xs">
-            <TableHeader>
-              <TableRow>
-                {shownColumns.map((c) => (
-                  <TableHead key={c.key} className={cn(c.align === "right" && "text-right")}>
-                    {c.key === "eventCount" ? (
-                      <button
-                        type="button"
-                        onClick={() => onSortOrderChange(sortOrder === "desc" ? "asc" : "desc")}
-                        className="inline-flex flex-row-reverse items-center gap-1 text-foreground hover:text-foreground"
+        <Table className="text-xs">
+          <TableHeader>
+            <TableRow>
+              {shownColumns.map((c) => (
+                <TableHead key={c.key} className={cn(c.align === "right" && "text-right")}>
+                  {c.key === "eventCount" ? (
+                    <button
+                      type="button"
+                      onClick={() => onSortOrderChange(sortOrder === "desc" ? "asc" : "desc")}
+                      className="inline-flex flex-row-reverse items-center gap-1 text-foreground hover:text-foreground"
+                    >
+                      {c.label}
+                      {sortOrder === "asc" ? (
+                        <ArrowUp className="h-3 w-3" />
+                      ) : (
+                        <ArrowDown className="h-3 w-3" />
+                      )}
+                    </button>
+                  ) : (
+                    c.label
+                  )}
+                </TableHead>
+              ))}
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {isLoading
+              ? Array.from({ length: 10 }).map((_, i) => (
+                  <TableRow key={i}>
+                    {shownColumns.map((c) => (
+                      <TableCell key={c.key}>
+                        <Skeleton className="h-4 w-full" />
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                ))
+              : rows.map((row) => (
+                  <TableRow key={`${row.locationId}-${row.ipAddress}`}>
+                    {shownColumns.map((c) => (
+                      <TableCell
+                        key={c.key}
+                        className={cn(c.align === "right" && "text-right")}
                       >
-                        {c.label}
-                        {sortOrder === "asc" ? (
-                          <ArrowUp className="h-3 w-3" />
-                        ) : (
-                          <ArrowDown className="h-3 w-3" />
-                        )}
-                      </button>
-                    ) : (
-                      c.label
-                    )}
-                  </TableHead>
+                        {c.render(row)}
+                      </TableCell>
+                    ))}
+                  </TableRow>
                 ))}
+            {!isLoading && rows.length === 0 && (
+              <TableRow>
+                <TableCell colSpan={colCount} className="h-24 text-center text-muted-foreground">
+                  No geo events match these filters.
+                </TableCell>
               </TableRow>
-            </TableHeader>
-            <TableBody>
-              {isLoading
-                ? Array.from({ length: 10 }).map((_, i) => (
-                    <TableRow key={i}>
-                      {shownColumns.map((c) => (
-                        <TableCell key={c.key}>
-                          <Skeleton className="h-4 w-full" />
-                        </TableCell>
-                      ))}
-                    </TableRow>
-                  ))
-                : rows.map((row) => (
-                    <TableRow key={`${row.locationId}-${row.ipAddress}`}>
-                      {shownColumns.map((c) => (
-                        <TableCell
-                          key={c.key}
-                          className={cn(c.align === "right" && "text-right")}
-                        >
-                          {c.render(row)}
-                        </TableCell>
-                      ))}
-                    </TableRow>
-                  ))}
-              {!isLoading && rows.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={colCount} className="h-24 text-center text-muted-foreground">
-                    No geo events match these filters.
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </div>
-        <div className="flex items-center justify-between border-t px-3 py-2 text-xs text-muted-foreground">
-          <span>
-            {total.toLocaleString()} rows - page {page} of {pageCount}
-          </span>
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-1.5">
-              <span className="whitespace-nowrap">Rows per page</span>
-              <Select
-                value={String(pageSize)}
-                onValueChange={(v) => onPageSizeChange(Number(v))}
-              >
-                <SelectTrigger size="sm" className="h-8 w-20 text-xs">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {GEO_LOGS_PAGE_SIZES.map((size) => (
-                    <SelectItem key={size} value={String(size)}>
-                      {size}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex gap-1">
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={page <= 1 || isPlaceholderData}
-                onClick={() => onPageChange(Math.max(1, page - 1))}
-              >
-                <ChevronLeft className="h-4 w-4" /> Prev
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={page >= pageCount || isPlaceholderData}
-                onClick={() => onPageChange(page + 1)}
-              >
-                Next <ChevronRight className="h-4 w-4" />
-              </Button>
-            </div>
-          </div>
-        </div>
+            )}
+          </TableBody>
+        </Table>
+        <PaginationFooter
+          page={page}
+          pageCount={pageCount}
+          total={total}
+          onPageChange={onPageChange}
+          disabled={isPlaceholderData}
+          pageSize={pageSize}
+          pageSizes={GEO_LOGS_PAGE_SIZES}
+          onPageSizeChange={onPageSizeChange}
+          className="border-t"
+        />
       </div>
     </div>
   )

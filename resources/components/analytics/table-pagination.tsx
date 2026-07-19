@@ -1,7 +1,6 @@
 import { useState } from "react"
-import { ChevronLeft, ChevronRight } from "lucide-react"
 
-import { Button } from "@/components/ui/button"
+import { PaginationFooter } from "@/components/ui/pagination-footer"
 
 export const TABLE_PAGE_SIZE = 10
 
@@ -31,28 +30,12 @@ export function TablePaginationFooter({
 }) {
   if (total <= pageSize) return null
   return (
-    <div className="flex items-center justify-between pt-3 text-xs text-muted-foreground">
-      <span>
-        {total} rows - page {page} of {pageCount}
-      </span>
-      <div className="flex gap-1">
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={page <= 1}
-          onClick={() => onPageChange(Math.max(1, page - 1))}
-        >
-          <ChevronLeft className="h-4 w-4" /> Prev
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={page >= pageCount}
-          onClick={() => onPageChange(page + 1)}
-        >
-          Next <ChevronRight className="h-4 w-4" />
-        </Button>
-      </div>
-    </div>
+    <PaginationFooter
+      page={page}
+      pageCount={pageCount}
+      total={total}
+      onPageChange={onPageChange}
+      className="px-0 pt-3 pb-0"
+    />
   )
 }

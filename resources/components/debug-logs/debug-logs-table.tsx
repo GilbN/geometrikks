@@ -8,8 +8,6 @@ import { useEffect, useMemo, useState } from "react"
 import {
   ArrowDown,
   ArrowUp,
-  ChevronLeft,
-  ChevronRight,
   ChevronsUpDown,
   Columns3,
   Search,
@@ -41,6 +39,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { PaginationFooter } from "@/components/ui/pagination-footer"
 import { FilterCombobox } from "@/components/ui/filter-combobox"
 import { DebugLogDetailDialog } from "@/components/debug-logs/debug-log-detail-dialog"
 import { useAccessLogDebug, useAccessLogFacets } from "@/lib/queries"
@@ -378,117 +377,83 @@ export function DebugLogsTable() {
       </div>
 
       <div className="rounded-md border">
-        <div className="overflow-x-auto">
-          <Table className="text-xs">
-            <TableHeader>
-              <TableRow>
-                {shownColumns.map((c) => {
-                  const active = c.sortField && sortField === c.sortField
-                  return (
-                    <TableHead key={c.key}>
-                      {c.sortField ? (
-                        <button
-                          type="button"
-                          onClick={() => toggleSort(c.sortField!)}
-                          className={cn(
-                            "inline-flex items-center gap-1 hover:text-foreground",
-                            active ? "text-foreground" : "text-muted-foreground",
-                          )}
-                        >
-                          {c.label}
-                          {active ? (
-                            sortOrder === "asc" ? (
-                              <ArrowUp className="h-3 w-3" />
-                            ) : (
-                              <ArrowDown className="h-3 w-3" />
-                            )
+        <Table className="text-xs">
+          <TableHeader>
+            <TableRow>
+              {shownColumns.map((c) => {
+                const active = c.sortField && sortField === c.sortField
+                return (
+                  <TableHead key={c.key}>
+                    {c.sortField ? (
+                      <button
+                        type="button"
+                        onClick={() => toggleSort(c.sortField!)}
+                        className={cn(
+                          "inline-flex items-center gap-1 hover:text-foreground",
+                          active ? "text-foreground" : "text-muted-foreground",
+                        )}
+                      >
+                        {c.label}
+                        {active ? (
+                          sortOrder === "asc" ? (
+                            <ArrowUp className="h-3 w-3" />
                           ) : (
-                            <ChevronsUpDown className="h-3 w-3 opacity-40" />
-                          )}
-                        </button>
-                      ) : (
-                        c.label
-                      )}
-                    </TableHead>
-                  )
-                })}
+                            <ArrowDown className="h-3 w-3" />
+                          )
+                        ) : (
+                          <ChevronsUpDown className="h-3 w-3 opacity-40" />
+                        )}
+                      </button>
+                    ) : (
+                      c.label
+                    )}
+                  </TableHead>
+                )
+              })}
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {isLoading
+              ? Array.from({ length: 10 }).map((_, i) => (
+                  <TableRow key={i}>
+                    {shownColumns.map((c) => (
+                      <TableCell key={c.key}>
+                        <Skeleton className="h-4 w-full" />
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                ))
+              : rows.map((row) => (
+                  <TableRow
+                    key={row.id}
+                    className="cursor-pointer"
+                    onClick={() => setSelected(row)}
+                  >
+                    {shownColumns.map((c) => (
+                      <TableCell key={c.key}>{c.render(row)}</TableCell>
+                    ))}
+                  </TableRow>
+                ))}
+            {!isLoading && rows.length === 0 && (
+              <TableRow>
+                <TableCell colSpan={colCount} className="h-24 text-center text-muted-foreground">
+                  No debug lines match these filters.
+                </TableCell>
               </TableRow>
-            </TableHeader>
-            <TableBody>
-              {isLoading
-                ? Array.from({ length: 10 }).map((_, i) => (
-                    <TableRow key={i}>
-                      {shownColumns.map((c) => (
-                        <TableCell key={c.key}>
-                          <Skeleton className="h-4 w-full" />
-                        </TableCell>
-                      ))}
-                    </TableRow>
-                  ))
-                : rows.map((row) => (
-                    <TableRow
-                      key={row.id}
-                      className="cursor-pointer"
-                      onClick={() => setSelected(row)}
-                    >
-                      {shownColumns.map((c) => (
-                        <TableCell key={c.key}>{c.render(row)}</TableCell>
-                      ))}
-                    </TableRow>
-                  ))}
-              {!isLoading && rows.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={colCount} className="h-24 text-center text-muted-foreground">
-                    No debug lines match these filters.
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </div>
-        <div className="flex items-center justify-between border-t px-3 py-2 text-xs text-muted-foreground">
-          <span>
-            {total.toLocaleString()} rows - page {page} of {pageCount}
-          </span>
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-1.5">
-              <span className="whitespace-nowrap">Rows per page</span>
-              <Select
-                value={String(pageSize)}
-                onValueChange={(v) => setPageSize(Number(v))}
-              >
-                <SelectTrigger size="sm" className="h-8 w-20 text-xs">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {PAGE_SIZES.map((size) => (
-                    <SelectItem key={size} value={String(size)}>
-                      {size}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex gap-1">
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={page <= 1 || isPlaceholderData}
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-              >
-                <ChevronLeft className="h-4 w-4" /> Prev
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={page >= pageCount || isPlaceholderData}
-                onClick={() => setPage((p) => p + 1)}
-              >
-                Next <ChevronRight className="h-4 w-4" />
-              </Button>
-            </div>
-          </div>
-        </div>
+            )}
+          </TableBody>
+        </Table>
+        <PaginationFooter
+          page={page}
+          pageCount={pageCount}
+          total={total}
+          onPageChange={setPage}
+          disabled={isPlaceholderData}
+          pageSize={pageSize}
+          pageSizes={PAGE_SIZES}
+          onPageSizeChange={setPageSize}
+          className="border-t"
+        />
       </div>
 
       <DebugLogDetailDialog
