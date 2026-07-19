@@ -1,7 +1,8 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query"
-import { Loader2, Play } from "lucide-react"
+import { CalendarClock, Clock, Play, Timer } from "lucide-react"
 import { runSchedulerJob } from "@/lib/api"
 import { useSchedulerJobs, queryKeys } from "@/lib/queries"
+import { cn } from "@/lib/utils"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -15,12 +16,16 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { MonoChip, StatusLed } from "@/components/settings/status-led"
 import type { SchedulerJobView } from "@/generated/api/types.gen"
+
+// Pinned to "en": the rest of the UI is English, so browser-locale words
+// ("om 2 timer") would read as a glitch here.
+const rtf = new Intl.RelativeTimeFormat("en", { numeric: "auto" })
 
 function relativeTime(iso: string | null | undefined): string {
   if (!iso) return "never"
   const diffMs = new Date(iso).getTime() - Date.now()
-  const rtf = new Intl.RelativeTimeFormat(undefined, { numeric: "auto" })
   const units: Array<[Intl.RelativeTimeFormatUnit, number]> = [
     ["day", 86_400_000],
     ["hour", 3_600_000],
@@ -45,14 +50,32 @@ function formatDuration(seconds: number | null | undefined): string {
 function StatusCell({ job }: { job: SchedulerJobView }) {
   if (job.running) {
     return (
-      <span className="inline-flex items-center gap-1.5 text-sm">
-        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+      <span className="inline-flex items-center gap-2 text-sm text-geo-cyan">
+        <StatusLed tone="cyan" pulse />
         running
       </span>
     )
   }
-  if (!job.next_run_time) return <Badge variant="outline">paused</Badge>
-  return <Badge variant="secondary">idle</Badge>
+  if (!job.next_run_time) {
+    return (
+      <span className="inline-flex items-center gap-2 text-sm text-amber-600 dark:text-amber-400">
+        <StatusLed tone="amber" />
+        paused
+      </span>
+    )
+  }
+  return (
+    <span className="inline-flex items-center gap-2 text-sm text-muted-foreground">
+      <StatusLed tone="muted" />
+      idle
+    </span>
+  )
+}
+
+const statusBadgeClasses: Record<string, string> = {
+  success: "border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
+  error: "border-red-500/30 bg-red-500/10 text-red-600 dark:text-red-400",
+  missed: "border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400",
 }
 
 function LastRunCell({ job }: { job: SchedulerJobView }) {
@@ -60,24 +83,33 @@ function LastRunCell({ job }: { job: SchedulerJobView }) {
     return <span className="text-sm text-muted-foreground">not since startup</span>
   }
   const duration = formatDuration(job.last_duration_seconds)
+  const badge = job.last_status ? (
+    <Badge variant="outline" className={cn("gap-1", statusBadgeClasses[job.last_status])}>
+      {job.last_status}
+    </Badge>
+  ) : null
   return (
-    <div className="space-y-0.5">
+    <div className="space-y-1">
       <div className="text-sm">
         {relativeTime(job.last_run_time)}
-        {duration && <span className="text-muted-foreground"> ({duration})</span>}
+        {duration && (
+          <span className="inline-flex items-center gap-0.5 text-muted-foreground">
+            {" "}
+            <Timer className="ml-1 h-3 w-3" />
+            {duration}
+          </span>
+        )}
       </div>
       {job.last_status === "error" ? (
         <Tooltip>
-          <TooltipTrigger asChild>
-            <Badge variant="destructive">error</Badge>
-          </TooltipTrigger>
+          <TooltipTrigger asChild>{badge ?? <span />}</TooltipTrigger>
           <TooltipContent className="max-w-sm break-all">
             {job.last_error ?? "unknown error"}
           </TooltipContent>
         </Tooltip>
-      ) : job.last_status ? (
-        <Badge variant="outline">{job.last_status}</Badge>
-      ) : null}
+      ) : (
+        badge
+      )}
     </div>
   )
 }
@@ -99,23 +131,54 @@ export function SchedulerOverview() {
     return (
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Scheduler disabled</CardTitle>
-          <CardDescription>
-            Background tasks are turned off (SCHEDULER_ENABLED=false) or the
-            scheduler did not start. Enable it and restart to see jobs here.
-          </CardDescription>
+          <div className="flex items-center gap-3">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-geo-cyan/10">
+              <Clock className="h-4 w-4 text-geo-cyan" />
+            </div>
+            <div>
+              <CardTitle className="text-base">
+                <span className="inline-flex items-center gap-2">
+                  <StatusLed tone="red" />
+                  Scheduler disabled
+                </span>
+              </CardTitle>
+              <CardDescription>
+                Background tasks are turned off (SCHEDULER_ENABLED=false) or the scheduler did
+                not start. Enable it and restart to see jobs here.
+              </CardDescription>
+            </div>
+          </div>
         </CardHeader>
       </Card>
     )
   }
 
+  const runningCount = data.jobs.filter((j) => j.running).length
+
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base">Scheduled tasks</CardTitle>
-        <CardDescription>
-          Background jobs run by APScheduler. Last-run info resets on app restart.
-        </CardDescription>
+        <div className="flex items-center gap-3">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-geo-cyan/10">
+            <Clock className="h-4 w-4 text-geo-cyan" />
+          </div>
+          <div>
+            <CardTitle className="text-base">
+              <span className="inline-flex items-center gap-2">
+                <StatusLed
+                  tone={data.scheduler_running ? "emerald" : "red"}
+                  pulse={runningCount > 0}
+                />
+                Scheduled tasks
+              </span>
+            </CardTitle>
+            <CardDescription>
+              {data.jobs.length} background jobs, scheduler{" "}
+              {data.scheduler_running ? "running" : "stopped"}. Last-run info resets on app
+              restart.
+            </CardDescription>
+          </div>
+        </div>
       </CardHeader>
       <CardContent>
         <Table>
@@ -133,7 +196,9 @@ export function SchedulerOverview() {
               <TableRow key={job.id}>
                 <TableCell className="align-top">
                   <div className="font-medium">{job.name}</div>
-                  <div className="text-xs text-muted-foreground">{job.trigger}</div>
+                  <MonoChip className="mt-0.5 inline-block max-w-xs truncate">
+                    {job.trigger}
+                  </MonoChip>
                 </TableCell>
                 <TableCell className="align-top">
                   <StatusCell job={job} />
@@ -142,7 +207,14 @@ export function SchedulerOverview() {
                   <LastRunCell job={job} />
                 </TableCell>
                 <TableCell className="align-top text-sm">
-                  {job.next_run_time ? relativeTime(job.next_run_time) : "paused"}
+                  {job.next_run_time ? (
+                    <span className="inline-flex items-center gap-1.5">
+                      <CalendarClock className="h-3.5 w-3.5 text-muted-foreground" />
+                      {relativeTime(job.next_run_time)}
+                    </span>
+                  ) : (
+                    <span className="text-muted-foreground">paused</span>
+                  )}
                 </TableCell>
                 <TableCell className="align-top">
                   <Button
@@ -151,7 +223,7 @@ export function SchedulerOverview() {
                     disabled={job.running || runJob.isPending}
                     onClick={() => runJob.mutate(job.id)}
                   >
-                    <Play className="h-3.5 w-3.5 mr-1.5" />
+                    <Play className="mr-1.5 h-3.5 w-3.5" />
                     Run now
                   </Button>
                 </TableCell>
