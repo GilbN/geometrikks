@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { CalendarClock, Clock, Play, Timer } from "lucide-react"
 import { runSchedulerJob } from "@/lib/api"
@@ -47,6 +48,37 @@ function formatDuration(seconds: number | null | undefined): string {
   return `${Math.floor(seconds / 60)}m ${Math.round(seconds % 60)}s`
 }
 
+/** Re-renders every second while anything is running so elapsed time ticks. */
+function useTicker(active: boolean): void {
+  const [, setTick] = useState(0)
+  useEffect(() => {
+    if (!active) return
+    const id = setInterval(() => setTick((t) => t + 1), 1000)
+    return () => clearInterval(id)
+  }, [active])
+}
+
+function DurationCell({ job }: { job: SchedulerJobView }) {
+  if (job.running && job.last_run_time) {
+    const elapsed = (Date.now() - new Date(job.last_run_time).getTime()) / 1000
+    return (
+      <span className="inline-flex items-center gap-1.5 text-sm text-geo-cyan tabular-nums">
+        <Timer className="h-3.5 w-3.5" />
+        {formatDuration(Math.max(0, elapsed))}
+      </span>
+    )
+  }
+  if (job.last_duration_seconds === null || job.last_duration_seconds === undefined) {
+    return <span className="text-sm text-muted-foreground">-</span>
+  }
+  return (
+    <span className="inline-flex items-center gap-1.5 text-sm tabular-nums">
+      <Timer className="h-3.5 w-3.5 text-muted-foreground" />
+      {formatDuration(job.last_duration_seconds)}
+    </span>
+  )
+}
+
 function StatusCell({ job }: { job: SchedulerJobView }) {
   if (job.running) {
     return (
@@ -82,7 +114,6 @@ function LastRunCell({ job }: { job: SchedulerJobView }) {
   if (!job.last_run_time) {
     return <span className="text-sm text-muted-foreground">not since startup</span>
   }
-  const duration = formatDuration(job.last_duration_seconds)
   const badge = job.last_status ? (
     <Badge variant="outline" className={cn("gap-1", statusBadgeClasses[job.last_status])}>
       {job.last_status}
@@ -90,16 +121,7 @@ function LastRunCell({ job }: { job: SchedulerJobView }) {
   ) : null
   return (
     <div className="space-y-1">
-      <div className="text-sm">
-        {relativeTime(job.last_run_time)}
-        {duration && (
-          <span className="inline-flex items-center gap-0.5 text-muted-foreground">
-            {" "}
-            <Timer className="ml-1 h-3 w-3" />
-            {duration}
-          </span>
-        )}
-      </div>
+      <div className="text-sm">{relativeTime(job.last_run_time)}</div>
       {job.last_status === "error" ? (
         <Tooltip>
           <TooltipTrigger asChild>{badge ?? <span />}</TooltipTrigger>
@@ -122,6 +144,7 @@ export function SchedulerOverview() {
     onSettled: () =>
       queryClient.invalidateQueries({ queryKey: queryKeys.system.schedulerJobs }),
   })
+  useTicker(data?.jobs.some((j) => j.running) ?? false)
 
   if (isLoading || !data) {
     return <Skeleton className="h-64 w-full" />
@@ -187,6 +210,7 @@ export function SchedulerOverview() {
               <TableHead>Task</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Last run</TableHead>
+              <TableHead>Duration</TableHead>
               <TableHead>Next run</TableHead>
               <TableHead className="w-28" />
             </TableRow>
@@ -205,6 +229,9 @@ export function SchedulerOverview() {
                 </TableCell>
                 <TableCell className="align-top">
                   <LastRunCell job={job} />
+                </TableCell>
+                <TableCell className="align-top">
+                  <DurationCell job={job} />
                 </TableCell>
                 <TableCell className="align-top text-sm">
                   {job.next_run_time ? (
