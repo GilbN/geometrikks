@@ -37,9 +37,13 @@ export function DebugLogDetailDialog({
 
   async function copyRawLine() {
     if (!entry) return
-    await navigator.clipboard.writeText(entry.rawLine)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 1500)
+    try {
+      await navigator.clipboard.writeText(entry.rawLine)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1500)
+    } catch {
+      // Clipboard access unavailable or denied; leave the button state unchanged.
+    }
   }
 
   return (

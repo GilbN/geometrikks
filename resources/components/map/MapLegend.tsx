@@ -38,6 +38,7 @@ export function MapLegend({ maxValue, layerType }: MapLegendProps) {
         type="button"
         onClick={() => setOpen(true)}
         title={`Show ${title.toLowerCase()} legend`}
+        aria-label={`Show ${title.toLowerCase()} legend`}
         className="absolute bottom-6 left-4 z-10 flex items-center gap-2 rounded-md border border-border/50 bg-card/90 px-2.5 py-1.5 shadow-sm backdrop-blur cursor-pointer"
       >
         <span
