@@ -24,6 +24,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fix bad mobile UI on the map page.
 - CAGG refreshes now retry instead of silently skipping the range when a
   background refresh policy job runs concurrently.
+- Database credentials containing reserved URL characters (`@`, `:`, `/`, `%`)
+  no longer produce a broken connection URL.
 
 ### Added
 

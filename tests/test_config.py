@@ -260,6 +260,15 @@ def test_db_password_is_secret_but_url_works(monkeypatch):
     assert "s3cret-db-pass" in s.url
 
 
+def test_db_url_encodes_reserved_characters(monkeypatch):
+    from geometrikks.config.settings import DatabaseSettings
+    monkeypatch.setenv("DB_USER", "geo@user")
+    monkeypatch.setenv("DB_PASSWORD", "p@ss:w/rd%1")
+    s = DatabaseSettings()
+    assert "geo%40user:p%40ss%3Aw%2Frd%251@" in s.url
+    assert "p@ss:w/rd%1" not in s.url
+
+
 def test_license_key_is_secret(monkeypatch):
     from geometrikks.config.settings import GeoIPSettings
     monkeypatch.setenv("MAXMINDDB_LICENSE_KEY", "lk-secret")

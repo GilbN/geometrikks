@@ -37,6 +37,16 @@ def test_unset_secret_reports_none():
     assert lk.value is None
 
 
+def test_empty_secret_reports_unset(monkeypatch):
+    # Auth and GeoIP checks treat empty secrets as unset; the overview must
+    # agree instead of showing "set (hidden)" for APP_ADMIN_PASSWORD="".
+    monkeypatch.setenv("APP_ADMIN_PASSWORD", "")
+    overview = build_settings_overview(Settings())
+    pw = _field(_section(overview, "app"), "admin_password")
+    assert pw.is_secret is True
+    assert pw.value is None
+
+
 def test_env_var_names_honor_prefix_and_alias():
     overview = build_settings_overview(Settings())
     assert _field(_section(overview, "geoip"), "license_key").env_var == "MAXMINDDB_LICENSE_KEY"

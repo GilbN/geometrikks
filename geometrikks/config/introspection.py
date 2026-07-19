@@ -79,7 +79,10 @@ def _section(name: str, model: BaseSettings) -> SettingsSectionView:
         secret = _is_secret(info.annotation)
         value = dumped.get(field_name)
         if secret:
-            value = None if getattr(model, field_name) is None else SECRET_PLACEHOLDER
+            # Empty secrets count as unset: auth and the GeoIP credential
+            # check treat SecretStr("") as absent, so the overview must too.
+            raw = getattr(model, field_name)
+            value = SECRET_PLACEHOLDER if raw is not None and raw.get_secret_value() else None
         fields.append(
             SettingFieldView(
                 key=field_name,

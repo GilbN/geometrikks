@@ -4,6 +4,7 @@ from functools import lru_cache
 from importlib.metadata import PackageNotFoundError, version as distribution_version
 from pathlib import Path
 from typing import Annotated, Literal
+from urllib.parse import quote
 
 from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
@@ -49,9 +50,14 @@ class DatabaseSettings(BaseSettings):
     
     @property
     def url(self) -> str:
-        """Construct the database URL from components."""
+        """Construct the database URL from components.
+
+        Credentials are percent-encoded: reserved URL characters in the
+        user or password (@, :, /, %) would otherwise break the URL.
+        """
         return (
-            f"postgresql+asyncpg://{self.user}:{self.password.get_secret_value()}"
+            f"postgresql+asyncpg://{quote(self.user, safe='')}:"
+            f"{quote(self.password.get_secret_value(), safe='')}"
             f"@{self.host}:{self.port}/{self.database}"
         )
     
