@@ -35,23 +35,6 @@ def service_worker() -> File:
     return File(path=sw_path, media_type="text/javascript")
 
 
-@get(
-    "/manifest.webmanifest",
-    include_in_schema=False,
-    sync_to_thread=False,
-    # Served from the origin root (like /sw.js) so the same URL works in dev,
-    # where /static/ is proxied to the Vite dev server and the built manifest
-    # does not exist there; the SPA fallback would return HTML and the browser
-    # would log a manifest syntax error on every page load.
-    response_headers=[ResponseHeader(name="Cache-Control", value="no-cache")],
-)
-def web_manifest() -> File:
-    manifest_path = Path("public/manifest.webmanifest")
-    if not manifest_path.is_file():
-        raise NotFoundException(detail="Web app manifest not built")
-    return File(path=manifest_path, media_type="application/manifest+json")
-
-
 def get_route_handlers(*, include_auth: bool = True) -> list[ControllerRouterHandler]:
     """Get all route handlers for the application.
 
@@ -74,7 +57,6 @@ def get_route_handlers(*, include_auth: bool = True) -> list[ControllerRouterHan
         health,
         health_ready,
         service_worker,
-        web_manifest,
     ]
 
     if include_auth:

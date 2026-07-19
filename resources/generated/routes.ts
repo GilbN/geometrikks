@@ -58,8 +58,7 @@ export type RouteName =
   | 'stats'
   | 'vite'
   | 'vite_spa'
-  | 'vite_spa_path:path'
-  | 'web_manifest';
+  | 'vite_spa_path:path';
 
 /** Path parameter definitions per route */
 export interface RoutePathParams {
@@ -115,7 +114,6 @@ export interface RoutePathParams {
   'vite_spa_path:path': {
     path: URI;
   };
-  'web_manifest': Record<string, never>;
 }
 
 /** Query parameter definitions per route */
@@ -341,7 +339,6 @@ export interface RouteQueryParams {
   'vite': Record<string, never>;
   'vite_spa': Record<string, never>;
   'vite_spa_path:path': Record<string, never>;
-  'web_manifest': Record<string, never>;
 }
 
 type EmptyParams = Record<string, never>
@@ -659,13 +656,6 @@ export const routeDefinitions = {
     methods: ['GET'] as const,
     method: 'get',
     pathParams: ['path'] as const,
-    queryParams: [] as const,
-  },
-  'web_manifest': {
-    path: '/manifest.webmanifest',
-    methods: ['GET'] as const,
-    method: 'get',
-    pathParams: [] as const,
     queryParams: [] as const,
   },
 } as const

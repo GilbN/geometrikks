@@ -53,21 +53,12 @@ export default defineConfig({
       // No HTML entry exists in this build; registration happens in main.tsx
       // and all links are added manually to the source index.html.
       injectRegister: false,
-      manifest: {
-        name: "GeoMetrikks",
-        short_name: "GeoMetrikks",
-        description: "Geo analytics for your access logs",
-        display: "standalone",
-        start_url: "/",
-        scope: "/",
-        background_color: "#0d1220",
-        theme_color: "#0d1220",
-        icons: [
-          { src: "/static/pwa-192x192.png", sizes: "192x192", type: "image/png" },
-          { src: "/static/pwa-512x512.png", sizes: "512x512", type: "image/png" },
-          { src: "/static/maskable-icon-512x512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
-        ],
-      },
+      // The manifest is a hand-written static file (resources/static/
+      // manifest.webmanifest, served at /static/manifest.webmanifest in both
+      // dev and prod via publicDir) rather than plugin-generated: the dev
+      // server has no build output, so a generated manifest 404s there and
+      // the SPA fallback's HTML triggers "Manifest: syntax error" spam.
+      manifest: false,
       workbox: {
         // Precache the app shell; never intercept live data or the API schema.
         globPatterns: ["**/*.{js,css,svg,png,ico,woff2}"],

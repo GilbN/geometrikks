@@ -534,13 +534,6 @@
         "path"
       ],
       "uri": "/{path}"
-    },
-    "web_manifest": {
-      "method": "get",
-      "methods": [
-        "GET"
-      ],
-      "uri": "/manifest.webmanifest"
     }
   }
 }
