@@ -1,6 +1,13 @@
 {
   "litestar_version": "Version(major=2, minor=24, patch=0, release_level='final', serial=0)",
   "routes": {
+    "get_about": {
+      "method": "get",
+      "methods": [
+        "GET"
+      ],
+      "uri": "/api/v1/system/about"
+    },
     "get_access_log_debug_stats": {
       "method": "get",
       "methods": [
@@ -211,6 +218,13 @@
       },
       "uri": "/api/v1/geo-locations/{location_id}/top-ips"
     },
+    "get_scheduler_jobs": {
+      "method": "get",
+      "methods": [
+        "GET"
+      ],
+      "uri": "/api/v1/system/scheduler/jobs"
+    },
     "get_summary": {
       "method": "get",
       "methods": [
@@ -222,6 +236,13 @@
         "start_date": "DateTime"
       },
       "uri": "/api/v1/analytics/summary"
+    },
+    "get_system_settings": {
+      "method": "get",
+      "methods": [
+        "GET"
+      ],
+      "uri": "/api/v1/system/settings"
     },
     "get_time_series": {
       "method": "get",
@@ -453,6 +474,19 @@
         "GET"
       ],
       "uri": "/api/v1/settings"
+    },
+    "run_scheduler_job": {
+      "method": "post",
+      "methods": [
+        "POST"
+      ],
+      "parameterTypes": {
+        "job_id": "string"
+      },
+      "parameters": [
+        "job_id"
+      ],
+      "uri": "/api/v1/system/scheduler/jobs/{job_id}/run"
     },
     "stats": {
       "method": "get",
