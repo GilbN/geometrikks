@@ -15,7 +15,7 @@ import Map, {
 import "maplibre-gl/dist/maplibre-gl.css"
 
 import { AlertTriangle } from "lucide-react"
-import { Card, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card } from "@/components/ui/card"
 import { MapSkeleton } from "@/components/map/MapSkeleton"
 import { useMapStyle } from "@/components/map/hooks/useMapStyle"
 import { MapPopup, type PopupInfo } from "@/components/map/MapPopup"
