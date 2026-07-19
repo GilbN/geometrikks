@@ -15,6 +15,7 @@ CAGG Structure:
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING
@@ -598,20 +599,30 @@ async def refresh_caggs_range(
         raise ValueError(f"Unknown CAGG name(s): {sorted(unknown)}")
 
     for cagg in target_caggs:
-        try:
-            async with engine.connect() as conn:
-                raw_conn = await conn.get_raw_connection()
-                driver_conn = raw_conn.driver_connection
-                if driver_conn is None:
-                    raise RuntimeError("No driver connection available for CALL statement")
-                await driver_conn.execute(
-                    f"CALL refresh_continuous_aggregate('{cagg}', $1::timestamptz, $2::timestamptz)",
-                    start,
-                    end,
-                )
-            logger.info("CAGG refreshed: %s (%s → %s)", cagg, start, end)
-        except Exception as e:
-            logger.warning("CAGG refresh failed: %s (%s → %s): %s", cagg, start, end, e)
+        # A background refresh-policy job on an overlapping window makes
+        # refresh_continuous_aggregate raise "concurrent refresh"; without a
+        # retry the range would silently stay stale until the next policy run
+        # (which may never cover it, e.g. historical imports).
+        for attempt in range(5):
+            try:
+                async with engine.connect() as conn:
+                    raw_conn = await conn.get_raw_connection()
+                    driver_conn = raw_conn.driver_connection
+                    if driver_conn is None:
+                        raise RuntimeError("No driver connection available for CALL statement")
+                    await driver_conn.execute(
+                        f"CALL refresh_continuous_aggregate('{cagg}', $1::timestamptz, $2::timestamptz)",
+                        start,
+                        end,
+                    )
+                logger.info("CAGG refreshed: %s (%s → %s)", cagg, start, end)
+                break
+            except Exception as e:
+                if "concurrent refresh" in str(e) and attempt < 4:
+                    await asyncio.sleep(0.5 * (attempt + 1))
+                    continue
+                logger.warning("CAGG refresh failed: %s (%s → %s): %s", cagg, start, end, e)
+                break
 
 
 # CAGG -> raw source hypertable (all use a "timestamp" time column)

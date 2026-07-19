@@ -125,17 +125,23 @@ def pg_session_maker(pg_engine: AsyncEngine):
 
 @pytest.fixture()
 async def clean_tables(pg_engine: AsyncEngine):
-    """Truncate data tables before each test that requests this fixture.
+    """Clear data tables before each test that requests this fixture.
 
-    NOTE: TRUNCATE on a hypertable does not clear CAGG materialized data, and
-    the scratch DB has live refresh policies. Tests that assert on CAGG
-    contents must refresh their full seed window explicitly (see Task 4 tests).
+    The CAGG-source hypertables (access_logs, geo_events) must be cleared with
+    DELETE, not TRUNCATE: TRUNCATE writes no CAGG invalidation entries, so a
+    later refresh_continuous_aggregate skips the untouched region and stale
+    materialized buckets older than the next test's earliest seeded row would
+    leak into its counts. DELETE invalidates the deleted range, so tests that
+    assert on CAGG contents wipe the stale buckets when they refresh their
+    seed window explicitly.
     """
     async with pg_engine.begin() as conn:
+        await conn.execute(text("DELETE FROM geo_events"))
+        await conn.execute(text("DELETE FROM access_logs"))
         await conn.execute(
             text(
-                "TRUNCATE geo_events, access_logs, access_log_debug, geo_locations, "
-                "import_jobs RESTART IDENTITY CASCADE"
+                "TRUNCATE access_log_debug, geo_locations, import_jobs "
+                "RESTART IDENTITY CASCADE"
             )
         )
     yield
