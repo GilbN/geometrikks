@@ -8,13 +8,6 @@ export * from "./api/types.gen"
 import type {
   ApiV1AccessLogsFacetsGetAccessLogFacetsData,
   ApiV1AccessLogsFacetsGetAccessLogFacetsResponses,
-  ApiV1AuthLoginLoginData,
-  ApiV1AuthLoginLoginErrors,
-  ApiV1AuthLoginLoginResponses,
-  ApiV1AuthLogoutLogoutData,
-  ApiV1AuthLogoutLogoutResponses,
-  ApiV1AuthMeMeData,
-  ApiV1AuthMeMeResponses,
   ApiV1GeoEventsFacetsGetGeoLogFacetsData,
   ApiV1GeoEventsFacetsGetGeoLogFacetsResponses,
   ApiV1SettingsReadSettingsData,
@@ -44,9 +37,6 @@ export type OperationName =
   | 'get_geo_log_facets'
   | 'health'
   | 'health_ready'
-  | 'login'
-  | 'logout'
-  | 'me'
   | 'read_settings'
   | 'stats'
 
@@ -59,9 +49,6 @@ export interface OperationDataTypes {
   'get_geo_log_facets': ApiV1GeoEventsFacetsGetGeoLogFacetsData
   'health': HealthHealthData
   'health_ready': HealthReadyHealthReadyData
-  'login': ApiV1AuthLoginLoginData
-  'logout': ApiV1AuthLogoutLogoutData
-  'me': ApiV1AuthMeMeData
   'read_settings': ApiV1SettingsReadSettingsData
   'stats': ApiV1StatsStatsData
 }
@@ -75,9 +62,6 @@ export interface OperationResponseTypes {
   'get_geo_log_facets': ApiV1GeoEventsFacetsGetGeoLogFacetsResponses
   'health': HealthHealthResponses
   'health_ready': HealthReadyHealthReadyResponses
-  'login': ApiV1AuthLoginLoginResponses
-  'logout': ApiV1AuthLogoutLogoutResponses
-  'me': ApiV1AuthMeMeResponses
   'read_settings': ApiV1SettingsReadSettingsResponses
   'stats': ApiV1StatsStatsResponses
 }
@@ -91,9 +75,6 @@ export interface OperationErrorTypes {
   'get_geo_log_facets': never
   'health': never
   'health_ready': never
-  'login': ApiV1AuthLoginLoginErrors
-  'logout': never
-  'me': never
   'read_settings': never
   'stats': never
 }

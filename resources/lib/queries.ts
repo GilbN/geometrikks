@@ -28,6 +28,9 @@ import {
   fetchGeoLogTopCities,
   fetchGeoEventFacets,
   fetchRuntimeSettings,
+  fetchSystemSettings,
+  fetchSchedulerJobs,
+  fetchAbout,
   parseTimeRange,
   resolveChartGranularity,
   type GeoLogSortOrder,
@@ -56,6 +59,11 @@ import { useGeoLogFilters } from "./geo-log-filters-context"
 
 export const queryKeys = {
   settings: ["settings"] as const,
+  system: {
+    settings: ["system", "settings"] as const,
+    schedulerJobs: ["system", "scheduler-jobs"] as const,
+    about: ["system", "about"] as const,
+  },
   analytics: {
     all: ["analytics"] as const,
     summary: (params: Record<string, unknown>, refreshKey?: number) =>
@@ -131,6 +139,30 @@ export function useRuntimeSettings() {
   return useQuery({
     queryKey: queryKeys.settings,
     queryFn: fetchRuntimeSettings,
+    staleTime: Number.POSITIVE_INFINITY,
+  })
+}
+
+export function useSystemSettings() {
+  return useQuery({
+    queryKey: queryKeys.system.settings,
+    queryFn: fetchSystemSettings,
+    staleTime: 60_000,
+  })
+}
+
+export function useSchedulerJobs() {
+  return useQuery({
+    queryKey: queryKeys.system.schedulerJobs,
+    queryFn: fetchSchedulerJobs,
+    refetchInterval: 5000,
+  })
+}
+
+export function useAbout() {
+  return useQuery({
+    queryKey: queryKeys.system.about,
+    queryFn: fetchAbout,
     staleTime: Number.POSITIVE_INFINITY,
   })
 }

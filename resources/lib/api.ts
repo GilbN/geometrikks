@@ -22,6 +22,10 @@ import {
 import type {
   GeoJsonFeatureCollection as GeoJSONFeatureCollection,
   SafeSettingsResponse,
+  SystemSettingsResponse,
+  SchedulerJobsResponse,
+  SchedulerJobView,
+  AboutResponse,
 } from "@/generated/api/types.gen"
 
 // Create axios instance with base configuration
@@ -182,6 +186,32 @@ export async function fetchHealth(): Promise<HealthResponse> {
 
 export async function fetchRuntimeSettings(): Promise<RuntimeSettings> {
   const { data } = await api.get<RuntimeSettings>("/settings")
+  return data
+}
+
+// ============================================================================
+// Types & Functions - System API (settings page)
+// ============================================================================
+
+export async function fetchSystemSettings(): Promise<SystemSettingsResponse> {
+  const { data } = await api.get<SystemSettingsResponse>("/system/settings")
+  return data
+}
+
+export async function fetchSchedulerJobs(): Promise<SchedulerJobsResponse> {
+  const { data } = await api.get<SchedulerJobsResponse>("/system/scheduler/jobs")
+  return data
+}
+
+export async function runSchedulerJob(jobId: string): Promise<SchedulerJobView> {
+  const { data } = await api.post<SchedulerJobView>(
+    `/system/scheduler/jobs/${encodeURIComponent(jobId)}/run`,
+  )
+  return data
+}
+
+export async function fetchAbout(): Promise<AboutResponse> {
+  const { data } = await api.get<AboutResponse>("/system/about")
   return data
 }
 
