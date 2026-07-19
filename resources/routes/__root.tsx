@@ -41,6 +41,9 @@ const routeLabels: Record<string, string> = {
   "/debug-logs": "Debug Logs",
   "/analytics": "Analytics",
   "/settings": "Settings",
+  "/settings/environment": "Environment",
+  "/settings/scheduler": "Scheduler",
+  "/settings/about": "About",
   "/login": "Login",
 }
 
@@ -48,6 +51,7 @@ function AppBreadcrumb() {
   const routerState = useRouterState()
   const pathname = routerState.location.pathname
   const currentLabel = routeLabels[pathname] || "Page"
+  const isSettingsChild = pathname.startsWith("/settings/")
 
   return (
     <Breadcrumb>
@@ -56,6 +60,14 @@ function AppBreadcrumb() {
           <BreadcrumbLink href="/">GeoMetrikks</BreadcrumbLink>
         </BreadcrumbItem>
         <BreadcrumbSeparator className="hidden md:block" />
+        {isSettingsChild && (
+          <>
+            <BreadcrumbItem className="hidden md:block">
+              <BreadcrumbLink href="/settings">Settings</BreadcrumbLink>
+            </BreadcrumbItem>
+            <BreadcrumbSeparator className="hidden md:block" />
+          </>
+        )}
         <BreadcrumbItem>
           <BreadcrumbPage>{currentLabel}</BreadcrumbPage>
         </BreadcrumbItem>
