@@ -277,11 +277,11 @@
 }
 
 /* On mobile the full-page map's bottom-right zoom/compass control needs to
-   clear the safe-area inset and the floating map-controls trigger. Scoped to
-   .fullscreen-map so embedded card maps (geo-logs) are unaffected. */
+   clear the safe-area inset (home indicator). Scoped to .fullscreen-map so
+   embedded card maps (geo-logs) are unaffected. */
 @media (max-width: 767px) {
   .fullscreen-map .maplibregl-ctrl-bottom-right {
-    bottom: calc(env(safe-area-inset-bottom, 0px) + 4.5rem) !important;
+    bottom: env(safe-area-inset-bottom, 0px) !important;
   }
 }
 
