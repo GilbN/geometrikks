@@ -6,13 +6,18 @@ is the only user, so no extra guards are needed here.
 
 from __future__ import annotations
 
+import platform
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from importlib.metadata import PackageNotFoundError, version as dist_version
+from pathlib import Path
 from typing import TYPE_CHECKING
 
+import maxminddb
 from litestar import Controller, Request, get, post
 from litestar.exceptions import NotFoundException
 from litestar.status_codes import HTTP_202_ACCEPTED
+from sqlalchemy import text
 
 from geometrikks.config.introspection import SystemSettingsResponse, build_settings_overview
 from geometrikks.config.settings import get_settings
@@ -43,6 +48,107 @@ class SchedulerJobsResponse:
     jobs: list[SchedulerJobView]
 
 
+REPO_URL = "https://github.com/GilbN/geometrikks"
+
+
+@dataclass
+class AboutAppView:
+    name: str
+    version: str
+    environment: str
+    container: bool
+    image_tag: str | None
+    started_at: datetime | None
+
+
+@dataclass
+class RuntimeVersionsView:
+    python_version: str
+    litestar_version: str | None
+    apscheduler_version: str | None
+
+
+@dataclass
+class DatabaseVersionsView:
+    postgres_version: str | None
+    timescaledb_version: str | None
+    postgis_version: str | None
+
+
+@dataclass
+class GeoIPInfoView:
+    available: bool
+    db_path: str
+    build_date: datetime | None
+    age_days: int | None
+
+
+@dataclass
+class AboutLinksView:
+    repository: str
+    issues: str
+
+
+@dataclass
+class AboutResponse:
+    app: AboutAppView
+    runtime: RuntimeVersionsView
+    database: DatabaseVersionsView
+    geoip: GeoIPInfoView
+    links: AboutLinksView
+
+
+def _dist_version(name: str) -> str | None:
+    try:
+        return dist_version(name)
+    except PackageNotFoundError:
+        return None
+
+
+async def _database_versions() -> DatabaseVersionsView:
+    """Server and extension versions; nulls when the DB is unreachable."""
+    from geometrikks.server.plugins import get_sqlalchemy_config
+
+    try:
+        engine = get_sqlalchemy_config().get_engine()
+        async with engine.connect() as conn:
+            pg = (await conn.execute(text("SHOW server_version"))).scalar_one()
+            rows = (
+                await conn.execute(
+                    text(
+                        "SELECT extname, extversion FROM pg_extension "
+                        "WHERE extname IN ('timescaledb', 'postgis')"
+                    )
+                )
+            ).all()
+        ext = {name: ver for name, ver in rows}
+        return DatabaseVersionsView(
+            postgres_version=pg,
+            timescaledb_version=ext.get("timescaledb"),
+            postgis_version=ext.get("postgis"),
+        )
+    except Exception:
+        # About must render in DB-degraded mode
+        return DatabaseVersionsView(
+            postgres_version=None, timescaledb_version=None, postgis_version=None
+        )
+
+
+def _geoip_info(db_path: Path) -> GeoIPInfoView:
+    """Build date and age from mmdb metadata; degrades when missing."""
+    try:
+        with maxminddb.open_database(str(db_path)) as reader:
+            build = datetime.fromtimestamp(reader.metadata().build_epoch, tz=timezone.utc)
+        age_days = (datetime.now(timezone.utc) - build).days
+        return GeoIPInfoView(
+            available=True, db_path=str(db_path), build_date=build, age_days=age_days
+        )
+    except Exception:
+        return GeoIPInfoView(
+            available=False, db_path=str(db_path), build_date=None, age_days=None
+        )
+
+
 def _job_view(job: "Job", tracker: JobRunTracker) -> SchedulerJobView:
     info = tracker.get(job.id)
     return SchedulerJobView(
@@ -68,6 +174,29 @@ class SystemController(Controller):
     async def get_system_settings(self) -> SystemSettingsResponse:
         """Full settings tree with descriptions; secrets structurally redacted."""
         return build_settings_overview(get_settings())
+
+    @get("/about")
+    async def get_about(self, request: Request) -> AboutResponse:
+        """App, runtime, database, and GeoIP metadata for the About page."""
+        s = get_settings()
+        return AboutResponse(
+            app=AboutAppView(
+                name=s.name,
+                version=s.version,
+                environment=s.environment,
+                container=s.runtime == "container",
+                image_tag=s.image_tag if s.runtime == "container" else None,
+                started_at=getattr(request.app.state, "started_at", None),
+            ),
+            runtime=RuntimeVersionsView(
+                python_version=platform.python_version(),
+                litestar_version=_dist_version("litestar"),
+                apscheduler_version=_dist_version("apscheduler"),
+            ),
+            database=await _database_versions(),
+            geoip=_geoip_info(s.geoip.db_path),
+            links=AboutLinksView(repository=REPO_URL, issues=f"{REPO_URL}/issues"),
+        )
 
     @get("/scheduler/jobs")
     async def get_scheduler_jobs(self, request: Request) -> SchedulerJobsResponse:

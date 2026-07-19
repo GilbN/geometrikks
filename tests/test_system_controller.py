@@ -93,3 +93,62 @@ async def test_system_settings_never_leak_secrets(monkeypatch):
         assert secret not in resp.text
     body = resp.json()
     assert [s["name"] for s in body["sections"]][0] == "app"
+
+
+async def test_about_reports_app_runtime_and_geoip_metadata(monkeypatch):
+    monkeypatch.setenv("GEOIP_DB_PATH", "tests/GeoLite2-City-Test.mmdb")
+    async with AsyncTestClient(app=make_app()) as client:
+        resp = await client.get("/api/v1/system/about")
+    assert resp.status_code == 200
+    body = resp.json()
+
+    assert body["app"]["name"]
+    assert body["app"]["version"]
+    assert body["runtime"]["python_version"]
+    assert body["runtime"]["litestar_version"]
+    assert body["runtime"]["apscheduler_version"]
+
+    # Reported whether or not a database is reachable, never a 500. A local
+    # dev database yields real versions; CI without one yields nulls.
+    assert set(body["database"]) == {
+        "postgres_version",
+        "timescaledb_version",
+        "postgis_version",
+    }
+    assert all(v is None or isinstance(v, str) for v in body["database"].values())
+
+    # The test mmdb has real metadata
+    assert body["geoip"]["available"] is True
+    assert body["geoip"]["build_date"] is not None
+    assert body["geoip"]["age_days"] is not None
+
+    assert body["links"]["repository"] == "https://github.com/GilbN/geometrikks"
+    assert body["links"]["issues"].endswith("/issues")
+
+
+async def test_about_geoip_degrades_when_db_missing(monkeypatch):
+    monkeypatch.setenv("GEOIP_DB_PATH", "does/not/exist.mmdb")
+    async with AsyncTestClient(app=make_app()) as client:
+        resp = await client.get("/api/v1/system/about")
+    assert resp.status_code == 200
+    geoip = resp.json()["geoip"]
+    assert geoip["available"] is False
+    assert geoip["build_date"] is None
+
+
+async def test_about_database_degrades_when_db_unreachable(monkeypatch):
+    """An unreachable database must null the versions, never fail the page."""
+    import geometrikks.server.plugins as plugins
+
+    def boom():
+        raise RuntimeError("no database")
+
+    monkeypatch.setattr(plugins, "get_sqlalchemy_config", boom)
+    async with AsyncTestClient(app=make_app()) as client:
+        resp = await client.get("/api/v1/system/about")
+    assert resp.status_code == 200
+    assert resp.json()["database"] == {
+        "postgres_version": None,
+        "timescaledb_version": None,
+        "postgis_version": None,
+    }
