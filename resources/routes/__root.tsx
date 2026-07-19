@@ -141,6 +141,9 @@ function RootLayout() {
                 </div>
                 <div className="flex items-center gap-3">
                   <TimeRangeToolbar />
+                  {/* Portal target for page-specific header actions (e.g. the
+                      mobile map-controls drawer trigger in MapControls). */}
+                  <span id="header-actions-slot" className="contents" />
                   <Separator orientation="vertical" className="h-6" />
                   <ModeToggle />
                 </div>
