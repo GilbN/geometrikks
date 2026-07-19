@@ -45,7 +45,7 @@ import { DebugLogDetailDialog } from "@/components/debug-logs/debug-log-detail-d
 import { useAccessLogDebug, useAccessLogFacets } from "@/lib/queries"
 import { useDebouncedValue } from "@/hooks/use-debounced-value"
 import type { AccessLogDebugEntry, AccessLogDebugSortField, SortOrder } from "@/lib/api"
-import { cn } from "@/lib/utils"
+import { cn, isMobileViewport } from "@/lib/utils"
 
 const PAGE_SIZES = [10, 20, 50, 100, 200, 500, 1000] as const
 
@@ -64,6 +64,8 @@ interface ColumnDef {
   label: string
   sortField?: AccessLogDebugSortField
   defaultVisible: boolean
+  /** Start hidden on mobile viewports (still selectable via the Columns menu). */
+  mobileHidden?: boolean
   render: (row: AccessLogDebugEntry) => React.ReactNode
 }
 
@@ -98,6 +100,7 @@ const COLUMNS: ColumnDef[] = [
     label: "Parse error",
     sortField: "parseError",
     defaultVisible: true,
+    mobileHidden: true,
     render: (r) => (
       <span className="block max-w-[220px] truncate" title={r.parseError ?? undefined}>
         {r.parseError ?? "-"}
@@ -119,6 +122,7 @@ const COLUMNS: ColumnDef[] = [
     label: "Status",
     sortField: "statusCode",
     defaultVisible: true,
+    mobileHidden: true,
     render: (r) =>
       r.statusCode != null ? (
         <Badge className={cn("tabular-nums border-transparent", statusBadgeClass(r.statusCode))}>
@@ -132,6 +136,7 @@ const COLUMNS: ColumnDef[] = [
     key: "method",
     label: "Method",
     defaultVisible: true,
+    mobileHidden: true,
     render: (r) => <span className="font-mono">{r.method ?? "-"}</span>,
   },
   {
@@ -139,6 +144,7 @@ const COLUMNS: ColumnDef[] = [
     label: "IP",
     sortField: "ipAddress",
     defaultVisible: true,
+    mobileHidden: true,
     render: (r) => <span className="font-mono">{r.ipAddress ?? "-"}</span>,
   },
   {
@@ -235,9 +241,12 @@ export function DebugLogsTable() {
   const [sortOrder, setSortOrder] = useState<SortOrder>("desc")
 
   // Column visibility.
-  const [visible, setVisible] = useState<Set<string>>(
-    () => new Set(COLUMNS.filter((c) => c.defaultVisible).map((c) => c.key)),
-  )
+  const [visible, setVisible] = useState<Set<string>>(() => {
+    const mobile = isMobileViewport()
+    return new Set(
+      COLUMNS.filter((c) => c.defaultVisible && !(mobile && c.mobileHidden)).map((c) => c.key),
+    )
+  })
   const shownColumns = useMemo(() => COLUMNS.filter((c) => visible.has(c.key)), [visible])
 
   // Detail dialog.

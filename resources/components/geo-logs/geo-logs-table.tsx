@@ -32,7 +32,7 @@ import { PaginationFooter } from "@/components/ui/pagination-footer"
 import type { GeoLogEntry } from "@/generated/api/types.gen"
 import { formatNumber, type GeoLogSortOrder } from "@/lib/api"
 import { useGeoLogs } from "@/lib/queries"
-import { cn } from "@/lib/utils"
+import { cn, isMobileViewport } from "@/lib/utils"
 
 export const GEO_LOGS_PAGE_SIZES = [10, 20, 50, 100, 200, 500] as const
 
@@ -41,6 +41,8 @@ interface ColumnDef {
   label: string
   defaultVisible: boolean
   align?: "right"
+  /** Start hidden on mobile viewports (still selectable via the Columns menu). */
+  mobileHidden?: boolean
   render: (row: GeoLogEntry) => React.ReactNode
 }
 
@@ -55,18 +57,21 @@ const COLUMNS: ColumnDef[] = [
     key: "postalCode",
     label: "Postal Code",
     defaultVisible: true,
+    mobileHidden: true,
     render: (r) => <span className="tabular-nums">{r.postalCode ?? "-"}</span>,
   },
   {
     key: "state",
     label: "State",
     defaultVisible: true,
+    mobileHidden: true,
     render: (r) => <span className="whitespace-nowrap">{r.state ?? "-"}</span>,
   },
   {
     key: "countryCode",
     label: "Country Code",
     defaultVisible: true,
+    mobileHidden: true,
     render: (r) => <span>{r.countryCode}</span>,
   },
   {
@@ -86,6 +91,7 @@ const COLUMNS: ColumnDef[] = [
     label: "Lat",
     defaultVisible: true,
     align: "right",
+    mobileHidden: true,
     render: (r) => <span className="tabular-nums">{r.latitude.toFixed(4)}</span>,
   },
   {
@@ -93,6 +99,7 @@ const COLUMNS: ColumnDef[] = [
     label: "Long",
     defaultVisible: true,
     align: "right",
+    mobileHidden: true,
     render: (r) => <span className="tabular-nums">{r.longitude.toFixed(4)}</span>,
   },
   {
@@ -132,9 +139,12 @@ export function GeoLogsTable({
   onPageSizeChange: (pageSize: number) => void
   onSortOrderChange: (sortOrder: GeoLogSortOrder) => void
 }) {
-  const [visible, setVisible] = useState<Set<string>>(
-    () => new Set(COLUMNS.filter((c) => c.defaultVisible).map((c) => c.key)),
-  )
+  const [visible, setVisible] = useState<Set<string>>(() => {
+    const mobile = isMobileViewport()
+    return new Set(
+      COLUMNS.filter((c) => c.defaultVisible && !(mobile && c.mobileHidden)).map((c) => c.key),
+    )
+  })
   const shownColumns = useMemo(() => COLUMNS.filter((c) => visible.has(c.key)), [visible])
 
   const { data, isLoading, isError, isPlaceholderData } = useGeoLogs({

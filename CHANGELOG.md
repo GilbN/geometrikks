@@ -75,6 +75,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (background jobs with status, last run, duration and a "Run now" button)
   and About (app, runtime, database and GeoIP info).
 - New `/api/v1/system` endpoints backing the Settings section.
+- Data tables start with a compact column set on mobile; all columns remain available from the Columns menu.
 
 ### Changed
 

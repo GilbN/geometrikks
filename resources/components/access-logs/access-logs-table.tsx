@@ -42,7 +42,7 @@ import {
   type AccessLogSortField,
   type SortOrder,
 } from "@/lib/api"
-import { cn } from "@/lib/utils"
+import { cn, isMobileViewport } from "@/lib/utils"
 
 const PAGE_SIZES = [10, 20, 50, 100, 200, 500, 1000] as const
 
@@ -72,6 +72,8 @@ interface ColumnDef {
   defaultVisible: boolean
   align?: "right"
   headClassName?: string
+  /** Start hidden on mobile viewports (still selectable via the Columns menu). */
+  mobileHidden?: boolean
   render: (row: AccessLog) => React.ReactNode
 }
 
@@ -121,6 +123,7 @@ const COLUMNS: ColumnDef[] = [
     label: "Host",
     sortField: "host",
     defaultVisible: true,
+    mobileHidden: true,
     render: (r) => (
       <span className="block max-w-[200px] truncate font-mono" title={r.host ?? undefined}>
         {r.host ?? "-"}
@@ -140,6 +143,7 @@ const COLUMNS: ColumnDef[] = [
     sortField: "bytesSent",
     defaultVisible: true,
     align: "right",
+    mobileHidden: true,
     render: (r) => <span className="tabular-nums">{formatBytes(r.bytesSent)}</span>,
   },
   {
@@ -148,6 +152,7 @@ const COLUMNS: ColumnDef[] = [
     sortField: "requestTime",
     defaultVisible: true,
     align: "right",
+    mobileHidden: true,
     render: (r) => <span className="tabular-nums">{formatDuration(r.requestTime * 1000)}</span>,
   },
   {
@@ -166,6 +171,7 @@ const COLUMNS: ColumnDef[] = [
     key: "referrer",
     label: "Referrer",
     defaultVisible: true,
+    mobileHidden: true,
     render: (r) => (
       <span className="block max-w-[240px] truncate font-mono" title={r.referrer ?? undefined}>
         {r.referrer ?? "-"}
@@ -197,6 +203,7 @@ const COLUMNS: ColumnDef[] = [
     key: "country",
     label: "Country",
     defaultVisible: true,
+    mobileHidden: true,
     render: (r) => (
       <span className="whitespace-nowrap" title={r.countryName ?? undefined}>
         {r.countryCode ?? "-"}
@@ -207,6 +214,7 @@ const COLUMNS: ColumnDef[] = [
     key: "city",
     label: "City",
     defaultVisible: true,
+    mobileHidden: true,
     render: (r) => <span className="whitespace-nowrap">{r.city ?? "-"}</span>,
   },
 ]
@@ -246,9 +254,12 @@ export function AccessLogsTable() {
   const [sortOrder, setSortOrder] = useState<SortOrder>("desc")
 
   // Column visibility.
-  const [visible, setVisible] = useState<Set<string>>(
-    () => new Set(COLUMNS.filter((c) => c.defaultVisible).map((c) => c.key)),
-  )
+  const [visible, setVisible] = useState<Set<string>>(() => {
+    const mobile = isMobileViewport()
+    return new Set(
+      COLUMNS.filter((c) => c.defaultVisible && !(mobile && c.mobileHidden)).map((c) => c.key),
+    )
+  })
   const shownColumns = useMemo(() => COLUMNS.filter((c) => visible.has(c.key)), [visible])
 
   // Any filter/sort/page-size change returns to the first page.
