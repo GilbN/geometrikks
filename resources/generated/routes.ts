@@ -54,10 +54,12 @@ export type RouteName =
   | 'openapi.yaml'
   | 'read_settings'
   | 'run_scheduler_job'
+  | 'service_worker'
   | 'stats'
   | 'vite'
   | 'vite_spa'
-  | 'vite_spa_path:path';
+  | 'vite_spa_path:path'
+  | 'web_manifest';
 
 /** Path parameter definitions per route */
 export interface RoutePathParams {
@@ -104,6 +106,7 @@ export interface RoutePathParams {
   'run_scheduler_job': {
     job_id: string;
   };
+  'service_worker': Record<string, never>;
   'stats': Record<string, never>;
   'vite': {
     file_path: any;
@@ -112,6 +115,7 @@ export interface RoutePathParams {
   'vite_spa_path:path': {
     path: URI;
   };
+  'web_manifest': Record<string, never>;
 }
 
 /** Query parameter definitions per route */
@@ -332,10 +336,12 @@ export interface RouteQueryParams {
   'openapi.yaml': Record<string, never>;
   'read_settings': Record<string, never>;
   'run_scheduler_job': Record<string, never>;
+  'service_worker': Record<string, never>;
   'stats': Record<string, never>;
   'vite': Record<string, never>;
   'vite_spa': Record<string, never>;
   'vite_spa_path:path': Record<string, never>;
+  'web_manifest': Record<string, never>;
 }
 
 type EmptyParams = Record<string, never>
@@ -620,6 +626,13 @@ export const routeDefinitions = {
     pathParams: ['job_id'] as const,
     queryParams: [] as const,
   },
+  'service_worker': {
+    path: '/sw.js',
+    methods: ['GET'] as const,
+    method: 'get',
+    pathParams: [] as const,
+    queryParams: [] as const,
+  },
   'stats': {
     path: '/api/v1/stats',
     methods: ['GET'] as const,
@@ -646,6 +659,13 @@ export const routeDefinitions = {
     methods: ['GET'] as const,
     method: 'get',
     pathParams: ['path'] as const,
+    queryParams: [] as const,
+  },
+  'web_manifest': {
+    path: '/manifest.webmanifest',
+    methods: ['GET'] as const,
+    method: 'get',
+    pathParams: [] as const,
     queryParams: [] as const,
   },
 } as const
