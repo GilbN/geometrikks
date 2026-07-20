@@ -45,6 +45,7 @@ import { FiltersDrawer, FilterSection } from "@/components/ui/filters-drawer"
 import { DebugLogDetailDialog } from "@/components/debug-logs/debug-log-detail-dialog"
 import { useAccessLogDebug, useAccessLogFacets } from "@/lib/queries"
 import { useDebouncedValue } from "@/hooks/use-debounced-value"
+import { isValidIp } from "@/lib/crowdsec"
 import { useIsMobile } from "@/hooks/use-mobile"
 import type { AccessLogDebugEntry, AccessLogDebugSortField, SortOrder } from "@/lib/api"
 import { cn, isMobileViewport } from "@/lib/utils"
@@ -210,17 +211,6 @@ const COLUMNS: ColumnDef[] = [
     ),
   },
 ]
-
-/** Full IPv4/IPv6 check - the backend's ip_address column is INET, so
- * a partial value (mid-typing) must not reach the query. */
-const IPV4_RE =
-  /^(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}$/
-const IPV6_RE =
-  /^(([0-9a-f]{1,4}:){7}[0-9a-f]{1,4}|([0-9a-f]{1,4}:)*:([0-9a-f]{1,4}:)*[0-9a-f]{0,4})$/i
-
-function isValidIp(value: string): boolean {
-  return IPV4_RE.test(value) || (value.includes(":") && IPV6_RE.test(value))
-}
 
 export function DebugLogsTable() {
   const isMobile = useIsMobile()

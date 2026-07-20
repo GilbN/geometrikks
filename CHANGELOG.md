@@ -51,6 +51,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   cross-referencing each banned IP against the server's own stored traffic,
   plus the alert-history table with a time-window picker when machine
   credentials are set.
+- The CrowdSec banned badge and ban/unban shield action now also appear on
+  the Analytics "Top IPs" table, the Geo Logs "Top IPs" table, and
+  IP-scoped rows of the Security alert history, via a shared
+  `IpBanControls` component. The debug-logs IP filter reuses the shared
+  IP validation, so compressed IPv6 filters like `::1` work there too.
 
 ## [0.3.0] - 2026-07-19
 

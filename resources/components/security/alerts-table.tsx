@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/table"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useCrowdsecAlerts } from "@/lib/queries"
+import { IpBanControls } from "@/components/crowdsec/ip-ban-controls"
 
 const SINCE_OPTIONS = [
   { key: "24h", label: "Last 24h" },
@@ -79,7 +80,10 @@ export function AlertsTable() {
                       >
                         {alert.scenario}
                       </TableCell>
-                      <TableCell className="font-mono">{alert.value}</TableCell>
+                      <TableCell className="font-mono">
+                        {alert.value}
+                        {alert.scope === "Ip" && <IpBanControls ip={alert.value} />}
+                      </TableCell>
                       <TableCell>{alert.country ?? "-"}</TableCell>
                       <TableCell className="max-w-[160px] truncate" title={alert.as_name ?? undefined}>
                         {alert.as_name ?? "-"}

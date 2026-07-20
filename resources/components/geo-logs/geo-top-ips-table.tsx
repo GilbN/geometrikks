@@ -12,12 +12,15 @@ import {
 } from "@/components/ui/table"
 import { Skeleton } from "@/components/ui/skeleton"
 import { formatNumber } from "@/lib/api"
-import { useGeoLogTopIps } from "@/lib/queries"
+import { useCrowdsecLiveUpdates, useGeoLogTopIps } from "@/lib/queries"
+import { IpBanControls } from "@/components/crowdsec/ip-ban-controls"
 import { TablePaginationFooter, usePagedRows } from "@/components/analytics/table-pagination"
 
 export function GeoTopIpsTable() {
   const { data, isLoading } = useGeoLogTopIps({ limit: 10 })
   const { pageItems, ...pagination } = usePagedRows(data?.items)
+  // Keep banned badges in sync with external cscli/console decisions.
+  useCrowdsecLiveUpdates()
 
   return (
     <Card>
@@ -41,7 +44,10 @@ export function GeoTopIpsTable() {
               <TableBody>
                 {pageItems.map((row) => (
                   <TableRow key={row.ipAddress}>
-                    <TableCell className="font-mono text-xs">{row.ipAddress}</TableCell>
+                    <TableCell className="font-mono text-xs">
+                      {row.ipAddress}
+                      <IpBanControls ip={row.ipAddress} />
+                    </TableCell>
                     <TableCell>{row.countryCode ?? "-"}</TableCell>
                     <TableCell>{row.city ?? "-"}</TableCell>
                     <TableCell className="text-right tabular-nums">{formatNumber(row.eventCount)}</TableCell>
