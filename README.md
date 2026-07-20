@@ -190,8 +190,9 @@ CROWDSEC_LAPI_URL=http://crowdsec:8080
 CROWDSEC_BOUNCER_API_KEY=<key from cscli bouncers add>
 ```
 
-That enables read-only access: decision list, per-IP lookups, ban stats, and
-the "Banned" badge on matching IPs in the access-logs table.
+That enables read-only access: a Security page (ban stats, the active
+decision list cross-referenced with your own traffic data), per-IP lookups,
+and the "Banned" badge on matching IPs in the access-logs table.
 
 To also ban and unban from the UI, add machine credentials:
 

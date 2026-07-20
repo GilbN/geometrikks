@@ -34,6 +34,9 @@ import {
   fetchAbout,
   fetchCrowdsecStatus,
   fetchCrowdsecBannedIps,
+  fetchCrowdsecStats,
+  fetchCrowdsecDecisions,
+  fetchCrowdsecAlerts,
   banIp,
   unbanIp,
   parseTimeRange,
@@ -72,6 +75,11 @@ export const queryKeys = {
   crowdsec: {
     status: ["crowdsec", "status"] as const,
     bannedIps: ["crowdsec", "banned-ips"] as const,
+    stats: ["crowdsec", "stats"] as const,
+    decisions: (params: Record<string, unknown>) =>
+      ["crowdsec", "decisions", params] as const,
+    alerts: (params: Record<string, unknown>) =>
+      ["crowdsec", "alerts", params] as const,
   },
   analytics: {
     all: ["analytics"] as const,
@@ -202,24 +210,61 @@ export function useBannedIps() {
   })
 }
 
-/** Ban an IP, then refresh the badge set. */
+/** Decision counts by origin + top scenarios for the Security stat cards. */
+export function useCrowdsecStats() {
+  const { data: status } = useCrowdsecStatus()
+  return useQuery({
+    queryKey: queryKeys.crowdsec.stats,
+    queryFn: fetchCrowdsecStats,
+    enabled: status?.enabled === true,
+    refetchInterval: 60_000,
+  })
+}
+
+/** One server-paginated page of active decisions for the Security table. */
+export function useCrowdsecDecisions(params: {
+  origins?: string
+  currentPage: number
+  pageSize: number
+}) {
+  const { data: status } = useCrowdsecStatus()
+  return useQuery({
+    queryKey: queryKeys.crowdsec.decisions(params),
+    queryFn: () => fetchCrowdsecDecisions(params),
+    enabled: status?.enabled === true,
+    placeholderData: (previous) => previous,
+    refetchInterval: 60_000,
+  })
+}
+
+/** Recent alert history; only fetched when machine credentials are set. */
+export function useCrowdsecAlerts(params: { since?: string; limit?: number }) {
+  const { data: status } = useCrowdsecStatus()
+  return useQuery({
+    queryKey: queryKeys.crowdsec.alerts(params),
+    queryFn: () => fetchCrowdsecAlerts(params),
+    enabled: status?.write_enabled === true,
+    placeholderData: (previous) => previous,
+    refetchInterval: 60_000,
+  })
+}
+
+/** Ban an IP, then refresh badges, decisions, and stats. */
 export function useBanIp() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: ({ ip, duration }: { ip: string; duration?: string }) =>
       banIp(ip, duration),
-    onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: queryKeys.crowdsec.bannedIps }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["crowdsec"] }),
   })
 }
 
-/** Remove all active decisions for an IP, then refresh the badge set. */
+/** Remove all active decisions for an IP, then refresh badges/decisions/stats. */
 export function useUnbanIp() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (ip: string) => unbanIp(ip),
-    onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: queryKeys.crowdsec.bannedIps }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["crowdsec"] }),
   })
 }
 

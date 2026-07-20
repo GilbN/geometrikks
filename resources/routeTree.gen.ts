@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as SecurityRouteImport } from './routes/security'
 import { Route as MapRouteImport } from './routes/map'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as GeoLogsRouteImport } from './routes/geo-logs'
@@ -25,6 +26,11 @@ import { Route as SettingsAboutRouteImport } from './routes/settings/about'
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SecurityRoute = SecurityRouteImport.update({
+  id: '/security',
+  path: '/security',
   getParentRoute: () => rootRouteImport,
 } as any)
 const MapRoute = MapRouteImport.update({
@@ -91,6 +97,7 @@ export interface FileRoutesByFullPath {
   '/geo-logs': typeof GeoLogsRoute
   '/login': typeof LoginRoute
   '/map': typeof MapRoute
+  '/security': typeof SecurityRoute
   '/settings': typeof SettingsRouteWithChildren
   '/settings/about': typeof SettingsAboutRoute
   '/settings/environment': typeof SettingsEnvironmentRoute
@@ -105,6 +112,7 @@ export interface FileRoutesByTo {
   '/geo-logs': typeof GeoLogsRoute
   '/login': typeof LoginRoute
   '/map': typeof MapRoute
+  '/security': typeof SecurityRoute
   '/settings/about': typeof SettingsAboutRoute
   '/settings/environment': typeof SettingsEnvironmentRoute
   '/settings/scheduler': typeof SettingsSchedulerRoute
@@ -119,6 +127,7 @@ export interface FileRoutesById {
   '/geo-logs': typeof GeoLogsRoute
   '/login': typeof LoginRoute
   '/map': typeof MapRoute
+  '/security': typeof SecurityRoute
   '/settings': typeof SettingsRouteWithChildren
   '/settings/about': typeof SettingsAboutRoute
   '/settings/environment': typeof SettingsEnvironmentRoute
@@ -135,6 +144,7 @@ export interface FileRouteTypes {
     | '/geo-logs'
     | '/login'
     | '/map'
+    | '/security'
     | '/settings'
     | '/settings/about'
     | '/settings/environment'
@@ -149,6 +159,7 @@ export interface FileRouteTypes {
     | '/geo-logs'
     | '/login'
     | '/map'
+    | '/security'
     | '/settings/about'
     | '/settings/environment'
     | '/settings/scheduler'
@@ -162,6 +173,7 @@ export interface FileRouteTypes {
     | '/geo-logs'
     | '/login'
     | '/map'
+    | '/security'
     | '/settings'
     | '/settings/about'
     | '/settings/environment'
@@ -177,6 +189,7 @@ export interface RootRouteChildren {
   GeoLogsRoute: typeof GeoLogsRoute
   LoginRoute: typeof LoginRoute
   MapRoute: typeof MapRoute
+  SecurityRoute: typeof SecurityRoute
   SettingsRoute: typeof SettingsRouteWithChildren
 }
 
@@ -187,6 +200,13 @@ declare module '@tanstack/react-router' {
       path: '/settings'
       fullPath: '/settings'
       preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/security': {
+      id: '/security'
+      path: '/security'
+      fullPath: '/security'
+      preLoaderRoute: typeof SecurityRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/map': {
@@ -295,6 +315,7 @@ const rootRouteChildren: RootRouteChildren = {
   GeoLogsRoute: GeoLogsRoute,
   LoginRoute: LoginRoute,
   MapRoute: MapRoute,
+  SecurityRoute: SecurityRoute,
   SettingsRoute: SettingsRouteWithChildren,
 }
 export const routeTree = rootRouteImport

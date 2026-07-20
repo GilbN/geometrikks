@@ -33,6 +33,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   required) returns recent LAPI alerts with scenario, source, LAPI country
   enrichment, event and decision counts, filterable by `?ip=`, `?scenario=`
   and `?since=24h`.
+- Security page: a sidebar entry (visible when the integration is
+  configured) with stat cards (active decisions, local vs crowd bans, top
+  scenario, LAPI state), the active-decisions table with origin-scope tabs
+  (local / all / crowd), per-row unban, and a "Seen 24h" column
+  cross-referencing each banned IP against the server's own stored traffic,
+  plus the alert-history table with a time-window picker when machine
+  credentials are set.
 
 ## [0.3.0] - 2026-07-19
 

@@ -27,10 +27,12 @@ import type {
   SchedulerJobView,
   AboutResponse,
   CrowdSecStatusResponse,
+  CrowdSecStatsResponse,
+  AlertView,
   DecisionView,
 } from "@/generated/api/types.gen"
 
-export type { CrowdSecStatusResponse, DecisionView }
+export type { CrowdSecStatusResponse, CrowdSecStatsResponse, AlertView, DecisionView }
 
 // Create axios instance with base configuration
 export const api = axios.create({
@@ -257,6 +259,26 @@ export async function fetchCrowdsecDecisions(params?: {
  *  Compact enough for the badge set even with a community blocklist. */
 export async function fetchCrowdsecBannedIps(): Promise<string[]> {
   const { data } = await api.get<string[]>("/crowdsec/banned-ips")
+  return data
+}
+
+/** Decision counts grouped by origin plus the most frequent scenarios. */
+export async function fetchCrowdsecStats(): Promise<CrowdSecStatsResponse> {
+  const { data } = await api.get<CrowdSecStatsResponse>("/crowdsec/stats")
+  return data
+}
+
+/** Recent LAPI alert history; requires write_enabled (machine credentials). */
+export async function fetchCrowdsecAlerts(params?: {
+  limit?: number
+  since?: string
+}): Promise<AlertView[]> {
+  const { data } = await api.get<AlertView[]>("/crowdsec/alerts", {
+    params: {
+      limit: params?.limit ?? 50,
+      since: params?.since || undefined,
+    },
+  })
   return data
 }
 

@@ -261,6 +261,7 @@ class CrowdSecController(Controller):
     async def list_alerts(
         self,
         crowdsec: NamedDependency[CrowdSecService | None],
+        enrichment_repo: NamedDependency[SecurityEnrichmentRepository],
         limit: Annotated[int, QueryParameter(ge=1, le=500, required=False)] = 50,
         ip: Annotated[str | None, QueryParameter(required=False)] = None,
         scenario: Annotated[str | None, QueryParameter(required=False)] = None,
@@ -269,13 +270,32 @@ class CrowdSecController(Controller):
             QueryParameter(required=False, description="Go duration lookback, e.g. 24h"),
         ] = None,
     ) -> list[AlertView]:
-        """Recent alert history from the LAPI (machine credentials required)."""
+        """Recent alert history from the LAPI (machine credentials required).
+
+        The LAPI only geo-enriches alerts from log-parsing scenarios; manual
+        bans carry a bare IP. Ip-scope sources missing LAPI geo are filled
+        from GeoMetrikks' own stored traffic instead.
+        """
         service = _require_write(crowdsec)
         if ip is not None:
             _validate_ip(ip)
         if since is not None:
             _validate_duration(since)
         alerts = await service.get_alerts(limit=limit, ip=ip, scenario=scenario, since=since)
+
+        bare_ips = [
+            a.source.value for a in alerts if a.source.scope == "Ip" and a.source.cn is None
+        ]
+        enriched = await enrichment_repo.enrich(bare_ips) if bare_ips else {}
+
+        def country_for(alert) -> str | None:
+            if alert.source.cn is not None:
+                return alert.source.cn
+            enrichment = enriched.get(alert.source.value)
+            if enrichment is None:
+                return None
+            return enrichment.country_name or enrichment.country_code
+
         return [
             AlertView(
                 id=alert.id,
@@ -286,7 +306,7 @@ class CrowdSecController(Controller):
                 machine_id=alert.machine_id,
                 scope=alert.source.scope,
                 value=alert.source.value,
-                country=alert.source.cn,
+                country=country_for(alert),
                 as_name=alert.source.as_name,
                 decision_count=len(alert.decisions),
             )

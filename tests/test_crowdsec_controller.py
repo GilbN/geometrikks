@@ -409,3 +409,20 @@ async def test_alerts_returns_flattened_views(monkeypatch):
     assert alert["events_count"] == 6
     assert alert["decision_count"] == 1
     assert service.alert_calls == [{"limit": 25, "ip": None, "scenario": None, "since": "24h"}]
+
+
+async def test_alerts_without_lapi_geo_fall_back_to_own_enrichment(monkeypatch):
+    """Manual bans carry no LAPI geo (cn/as_name are null); the endpoint
+    fills country from GeoMetrikks' own stored traffic instead."""
+    from geometrikks.services.crowdsec.schemas import AlertSource
+
+    enable_write(monkeypatch)
+    bare = make_alert()
+    bare.source = AlertSource(scope="Ip", value="1.2.3.4", ip="1.2.3.4")
+    enrichment = FakeEnrichment({"1.2.3.4": OSLO})
+    service = AlertFakeCrowdSec([bare])
+    async with AsyncTestClient(app=make_app(service, enrichment)) as client:
+        resp = await client.get("/api/v1/crowdsec/alerts")
+    (alert,) = resp.json()
+    assert alert["country"] == "Norway"
+    assert enrichment.calls == [["1.2.3.4"]]

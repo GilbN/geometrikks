@@ -8,6 +8,13 @@ export * from "./api/types.gen"
 import type {
   ApiV1AccessLogsFacetsGetAccessLogFacetsData,
   ApiV1AccessLogsFacetsGetAccessLogFacetsResponses,
+  ApiV1AuthLoginLoginData,
+  ApiV1AuthLoginLoginErrors,
+  ApiV1AuthLoginLoginResponses,
+  ApiV1AuthLogoutLogoutData,
+  ApiV1AuthLogoutLogoutResponses,
+  ApiV1AuthMeMeData,
+  ApiV1AuthMeMeResponses,
   ApiV1CrowdsecBanBanData,
   ApiV1CrowdsecBanBanErrors,
   ApiV1CrowdsecBanBanResponses,
@@ -62,6 +69,9 @@ export type OperationName =
   | 'health'
   | 'health_ready'
   | 'list_banned_ips'
+  | 'login'
+  | 'logout'
+  | 'me'
   | 'read_settings'
   | 'stats'
   | 'unban'
@@ -82,6 +92,9 @@ export interface OperationDataTypes {
   'health': HealthHealthData
   'health_ready': HealthReadyHealthReadyData
   'list_banned_ips': ApiV1CrowdsecBannedIpsListBannedIpsData
+  'login': ApiV1AuthLoginLoginData
+  'logout': ApiV1AuthLogoutLogoutData
+  'me': ApiV1AuthMeMeData
   'read_settings': ApiV1SettingsReadSettingsData
   'stats': ApiV1StatsStatsData
   'unban': ApiV1CrowdsecUnbanUnbanData
@@ -103,6 +116,9 @@ export interface OperationResponseTypes {
   'health': HealthHealthResponses
   'health_ready': HealthReadyHealthReadyResponses
   'list_banned_ips': ApiV1CrowdsecBannedIpsListBannedIpsResponses
+  'login': ApiV1AuthLoginLoginResponses
+  'logout': ApiV1AuthLogoutLogoutResponses
+  'me': ApiV1AuthMeMeResponses
   'read_settings': ApiV1SettingsReadSettingsResponses
   'stats': ApiV1StatsStatsResponses
   'unban': ApiV1CrowdsecUnbanUnbanResponses
@@ -124,6 +140,9 @@ export interface OperationErrorTypes {
   'health': never
   'health_ready': never
   'list_banned_ips': never
+  'login': ApiV1AuthLoginLoginErrors
+  'logout': never
+  'me': never
   'read_settings': never
   'stats': never
   'unban': ApiV1CrowdsecUnbanUnbanErrors

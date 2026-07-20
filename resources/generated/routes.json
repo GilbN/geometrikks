@@ -425,6 +425,19 @@
       },
       "uri": "/api/v1/access-logs"
     },
+    "list_alerts": {
+      "method": "get",
+      "methods": [
+        "GET"
+      ],
+      "queryParameters": {
+        "ip": "string | undefined",
+        "limit": "number | undefined",
+        "scenario": "string | undefined",
+        "since": "string | undefined"
+      },
+      "uri": "/api/v1/crowdsec/alerts"
+    },
     "list_banned_ips": {
       "method": "get",
       "methods": [

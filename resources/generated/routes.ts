@@ -48,6 +48,7 @@ export type RouteName =
   | 'health_ready'
   | 'list_access_log_debug'
   | 'list_access_logs'
+  | 'list_alerts'
   | 'list_banned_ips'
   | 'list_decisions'
   | 'list_geo_events'
@@ -104,6 +105,7 @@ export interface RoutePathParams {
   'health_ready': Record<string, never>;
   'list_access_log_debug': Record<string, never>;
   'list_access_logs': Record<string, never>;
+  'list_alerts': Record<string, never>;
   'list_banned_ips': Record<string, never>;
   'list_decisions': Record<string, never>;
   'list_geo_events': Record<string, never>;
@@ -328,6 +330,12 @@ export interface RouteQueryParams {
     sortOrder?: "asc" | "desc";
     statusIn?: number[];
     to_timestamp?: DateTime;
+  };
+  'list_alerts': {
+    ip?: string;
+    limit?: number;
+    scenario?: string;
+    since?: string;
   };
   'list_banned_ips': Record<string, never>;
   'list_decisions': {
@@ -607,6 +615,13 @@ export const routeDefinitions = {
     method: 'get',
     pathParams: [] as const,
     queryParams: ['cityIn', 'countryCodeIn', 'currentPage', 'from_timestamp', 'host', 'ipAddressIn', 'methodIn', 'orderBy', 'pageSize', 'searchIgnoreCase', 'searchString', 'sortOrder', 'statusIn', 'to_timestamp'] as const,
+  },
+  'list_alerts': {
+    path: '/api/v1/crowdsec/alerts',
+    methods: ['GET'] as const,
+    method: 'get',
+    pathParams: [] as const,
+    queryParams: ['ip', 'limit', 'scenario', 'since'] as const,
   },
   'list_banned_ips': {
     path: '/api/v1/crowdsec/banned-ips',
