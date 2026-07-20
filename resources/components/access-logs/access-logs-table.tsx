@@ -9,6 +9,7 @@ import {
   ArrowUp,
   ChevronsUpDown,
   Columns3,
+  Loader2,
   Search,
   ShieldBan,
 } from "lucide-react"
@@ -55,17 +56,9 @@ import {
   type SortOrder,
 } from "@/lib/api"
 import { cn, isMobileViewport } from "@/lib/utils"
+import { BAN_DURATIONS, isValidIp } from "@/lib/crowdsec"
 
 const PAGE_SIZES = [10, 20, 50, 100, 200, 500, 1000] as const
-
-/** Go duration strings the LAPI accepts; "forever" is modeled as 10 years. */
-const BAN_DURATIONS = [
-  { label: "1 hour", value: "1h" },
-  { label: "4 hours", value: "4h" },
-  { label: "24 hours", value: "24h" },
-  { label: "7 days", value: "168h" },
-  { label: "Forever", value: "87600h" },
-] as const
 
 /** Ban/unban dropdown on the IP cell; hidden unless machine credentials
  *  enable write access on the CrowdSec integration. */
@@ -73,6 +66,7 @@ function IpBanAction({ ip, banned }: { ip: string; banned: boolean }) {
   const { data: status } = useCrowdsecStatus()
   const ban = useBanIp()
   const unban = useUnbanIp()
+  const isPending = ban.isPending || unban.isPending
   if (!status?.write_enabled) return null
   return (
     <DropdownMenu>
@@ -81,9 +75,10 @@ function IpBanAction({ ip, banned }: { ip: string; banned: boolean }) {
           variant="ghost"
           size="icon-xs"
           className="ml-1 align-middle text-muted-foreground"
+          disabled={isPending}
           title={banned ? "Unban this IP" : "Ban this IP"}
         >
-          <ShieldBan />
+          {isPending ? <Loader2 className="animate-spin" /> : <ShieldBan />}
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start">
@@ -282,16 +277,6 @@ const COLUMNS: ColumnDef[] = [
   },
 ]
 
-/** Full IPv4/IPv6 check — the backend's ip_address column is INET, so a
- * partial value (mid-typing) must not reach the query. */
-const IPV4_RE =
-  /^(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}$/
-const IPV6_RE =
-  /^(([0-9a-f]{1,4}:){7}[0-9a-f]{1,4}|([0-9a-f]{1,4}:)*:([0-9a-f]{1,4}:)*[0-9a-f]{0,4})$/i
-
-function isValidIp(value: string): boolean {
-  return IPV4_RE.test(value) || (value.includes(":") && IPV6_RE.test(value))
-}
 
 export function AccessLogsTable() {
   const isMobile = useIsMobile()

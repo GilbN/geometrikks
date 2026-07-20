@@ -5,7 +5,7 @@
  * /crowdsec/decisions; origin scope toggles between local and crowd bans.
  */
 import { useState } from "react"
-import { ShieldOff } from "lucide-react"
+import { Loader2, ShieldOff } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -22,6 +22,7 @@ import {
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useCrowdsecDecisions, useCrowdsecStatus, useUnbanIp } from "@/lib/queries"
 import { cn } from "@/lib/utils"
+import { BanIpDialog } from "./ban-ip-dialog"
 
 const PAGE_SIZES = [10, 25, 50, 100] as const
 
@@ -56,21 +57,24 @@ export function DecisionsTable() {
     <Card className="py-4">
       <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 pb-2">
         <CardTitle className="text-base">Active decisions</CardTitle>
-        <Tabs
-          value={scope}
-          onValueChange={(value) => {
-            setScope(value as OriginScopeKey)
-            setPage(1)
-          }}
-        >
-          <TabsList>
-            {ORIGIN_SCOPES.map((s) => (
-              <TabsTrigger key={s.key} value={s.key}>
-                {s.label}
-              </TabsTrigger>
-            ))}
-          </TabsList>
-        </Tabs>
+        <div className="flex flex-wrap items-center gap-2">
+          {status?.write_enabled && <BanIpDialog />}
+          <Tabs
+            value={scope}
+            onValueChange={(value) => {
+              setScope(value as OriginScopeKey)
+              setPage(1)
+            }}
+          >
+            <TabsList>
+              {ORIGIN_SCOPES.map((s) => (
+                <TabsTrigger key={s.key} value={s.key}>
+                  {s.label}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </Tabs>
+        </div>
       </CardHeader>
       <CardContent className="px-0 pb-0">
         <div className="overflow-x-auto">
@@ -144,7 +148,11 @@ export function DecisionsTable() {
                               disabled={unban.isPending}
                               onClick={() => unban.mutate(d.ip)}
                             >
-                              <ShieldOff />
+                              {unban.isPending && unban.variables === d.ip ? (
+                                <Loader2 className="animate-spin" />
+                              ) : (
+                                <ShieldOff />
+                              )}
                             </Button>
                           )}
                         </TableCell>

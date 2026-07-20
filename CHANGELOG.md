@@ -33,6 +33,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   required) returns recent LAPI alerts with scenario, source, LAPI country
   enrichment, event and decision counts, filterable by `?ip=`, `?scenario=`
   and `?since=24h`.
+- Manual ban form on the Security page: a "Ban IP" dialog (any address, with
+  the duration picker, an optional reason recorded in the alert message and
+  audit log, and inline validation/error feedback), shown when machine
+  credentials are set. All ban/unban buttons (access-logs rows,
+  Security decisions table, map popups) now show an in-flight spinner on the
+  acting row while the LAPI request runs.
 - Map integration for CrowdSec: a "Banned IPs" overlay toggle in the map
   controls (shown when the integration is configured) rendering red markers
   for banned IPs seen in this server's own traffic, backed by

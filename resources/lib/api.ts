@@ -295,10 +295,15 @@ export async function fetchCrowdsecAlerts(params?: {
   return data
 }
 
-/** Ban one IP. `duration` is a Go duration string (4h, 24h, 168h); the
- *  server default applies when omitted. Requires write_enabled. */
-export async function banIp(ip: string, duration?: string): Promise<void> {
-  await api.post("/crowdsec/ban", { ip, duration })
+/** Ban one IP. `duration` is a Go duration string (4h, 24h, 168h); server
+ *  defaults apply to omitted duration/reason. Requires write_enabled. The
+ *  reason ends up in the alert message and the audit log. */
+export async function banIp(
+  ip: string,
+  duration?: string,
+  reason?: string,
+): Promise<void> {
+  await api.post("/crowdsec/ban", { ip, duration, reason: reason || undefined })
 }
 
 /** Delete all active decisions for one IP; resolves to the number deleted. */
