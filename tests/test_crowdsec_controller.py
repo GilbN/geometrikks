@@ -350,6 +350,28 @@ async def test_banned_ips_returns_ip_scope_values_across_origins():
     assert service.calls == [{}]
 
 
+async def test_lookup_rejects_invalid_ip():
+    service = FakeCrowdSec([])
+    async with AsyncTestClient(app=make_app(service)) as client:
+        resp = await client.get(
+            "/api/v1/crowdsec/decisions/lookup", params={"ip": "not-an-ip"}
+        )
+    assert resp.status_code == 400
+    # never forwarded to the LAPI
+    assert service.calls == []
+
+
+async def test_banned_ips_deduplicates_repeat_offenders():
+    decisions = [
+        make_decision(id=1, value="1.2.3.4", origin="CAPI"),
+        make_decision(id=2, value="1.2.3.4", origin="crowdsec", scenario="ssh-bf"),
+        make_decision(id=3, value="5.6.7.8", origin="cscli"),
+    ]
+    async with AsyncTestClient(app=make_app(FakeCrowdSec(decisions))) as client:
+        resp = await client.get("/api/v1/crowdsec/banned-ips")
+    assert resp.json() == ["1.2.3.4", "5.6.7.8"]
+
+
 # -- alert history ---------------------------------------------------------
 
 
@@ -462,6 +484,19 @@ async def test_banned_locations_join_banned_ips_with_geo():
                    "city": "Oslo", "country_code": "NO"}
     # All origins queried; only Ip-scope values reach the geo join
     assert service.calls == [{}]
+    assert enrichment.location_calls == [["1.2.3.4", "9.9.9.9"]]
+
+
+async def test_banned_locations_deduplicates_ips_before_geo_join():
+    decisions = [
+        make_decision(id=1, value="1.2.3.4", origin="CAPI"),
+        make_decision(id=2, value="1.2.3.4", origin="crowdsec", scenario="ssh-bf"),
+        make_decision(id=3, value="9.9.9.9", origin="cscli"),
+    ]
+    enrichment = LocationsFakeEnrichment([])
+    async with AsyncTestClient(app=make_app(FakeCrowdSec(decisions), enrichment)) as client:
+        resp = await client.get("/api/v1/crowdsec/banned-locations")
+    assert resp.status_code == 200
     assert enrichment.location_calls == [["1.2.3.4", "9.9.9.9"]]
 
 

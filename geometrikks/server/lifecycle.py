@@ -91,6 +91,15 @@ async def on_startup(app: "Litestar") -> None:
 
     if not await _db_available():
         logger.warning("Starting without database: skipping migrations and ingestion.")
+        if app.state.crowdsec_stream_poller is not None:
+            # The poll job runs on the scheduler, which never starts without a
+            # database; a live poller would leave /ws/crowdsec clients hanging
+            # instead of closing 1013 so they fall back to periodic refetch.
+            app.state.crowdsec_stream_poller = None
+            logger.warning(
+                "CrowdSec live updates disabled: the scheduler does not run "
+                "in DB-degraded mode."
+            )
         return
 
     engine = get_sqlalchemy_config().get_engine()

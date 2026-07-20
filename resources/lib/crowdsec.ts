@@ -17,9 +17,20 @@ export const BAN_DURATIONS = [
  * value (mid-typing) must never reach a request. */
 const IPV4_RE =
   /^(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}$/
-const IPV6_RE =
-  /^(([0-9a-f]{1,4}:){7}[0-9a-f]{1,4}|([0-9a-f]{1,4}:)*:([0-9a-f]{1,4}:)*[0-9a-f]{0,4})$/i
+
+/** The WHATWG URL parser implements the full IPv6 grammar (compressed and
+ * IPv4-embedded forms), matching the backend's INET validation far more
+ * faithfully than a hand-rolled regex. */
+function isValidIpv6(value: string): boolean {
+  if (!value.includes(":")) return false
+  try {
+    new URL(`http://[${value}]/`)
+    return true
+  } catch {
+    return false
+  }
+}
 
 export function isValidIp(value: string): boolean {
-  return IPV4_RE.test(value) || (value.includes(":") && IPV6_RE.test(value))
+  return IPV4_RE.test(value) || isValidIpv6(value)
 }

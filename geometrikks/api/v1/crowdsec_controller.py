@@ -241,6 +241,7 @@ class CrowdSecController(Controller):
         No enrichment: the caller already has the row's geo context.
         """
         service = _require_service(crowdsec)
+        _validate_ip(ip)
         decisions = await service.get_decisions_for_ip(ip)
         return [_to_view(d, None) for d in decisions]
 
@@ -255,7 +256,9 @@ class CrowdSecController(Controller):
         """
         service = _require_service(crowdsec)
         decisions = await service.get_decisions()
-        return [d.value for d in decisions if d.scope == "Ip"]
+        # An IP can hold several decisions (e.g. a local scenario plus a
+        # CAPI list); dict.fromkeys dedupes while keeping LAPI order.
+        return list(dict.fromkeys(d.value for d in decisions if d.scope == "Ip"))
 
     @get("/banned-locations")
     async def list_banned_locations(
@@ -271,7 +274,7 @@ class CrowdSecController(Controller):
         """
         service = _require_service(crowdsec)
         decisions = await service.get_decisions()
-        banned_ips = [d.value for d in decisions if d.scope == "Ip"]
+        banned_ips = list(dict.fromkeys(d.value for d in decisions if d.scope == "Ip"))
         return await enrichment_repo.locations(banned_ips)
 
     @get("/alerts")

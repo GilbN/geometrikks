@@ -59,6 +59,25 @@ async def test_startup_creates_service_even_without_database(monkeypatch):
     await app.state.crowdsec_service.aclose()
 
 
+async def test_startup_without_database_disables_stream_poller(monkeypatch):
+    """The poll job runs on the scheduler, which never starts in DB-degraded
+    mode; a live poller would leave /ws/crowdsec clients hanging instead of
+    closing 1013."""
+    from geometrikks.server import lifecycle as lc
+
+    monkeypatch.setenv("CROWDSEC_LAPI_URL", "http://crowdsec:8080")
+    monkeypatch.setenv("CROWDSEC_BOUNCER_API_KEY", "key")
+    _patch_startup_collaborators(
+        monkeypatch, lc, db_available=False, ensure=AsyncMock(return_value=True)
+    )
+
+    app = make_app()
+    await lc.on_startup(app)
+    assert app.state.crowdsec_stream_poller is None
+    assert isinstance(app.state.crowdsec_service, CrowdSecService)
+    await app.state.crowdsec_service.aclose()
+
+
 async def test_shutdown_closes_service():
     from geometrikks.server import lifecycle as lc
 
