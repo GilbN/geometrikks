@@ -267,3 +267,53 @@ async def test_rejected_machine_login_raises_auth_error():
     with pytest.raises(CrowdSecAuthError):
         await service.ban_ip("1.2.3.4")
     await service.aclose()
+
+
+# -- alert history (machine JWT) -------------------------------------------
+
+ALERT_JSON = {
+    "id": 7,
+    "scenario": "crowdsecurity/ssh-bf",
+    "message": "Ip 1.2.3.4 performed ssh bruteforce",
+    "events_count": 6,
+    "created_at": "2026-07-20T10:00:00Z",
+    "machine_id": "gateway",
+    "source": {"scope": "Ip", "value": "1.2.3.4", "ip": "1.2.3.4", "cn": "NO", "as_name": "Telenor"},
+    "decisions": [
+        {"id": 9, "origin": "crowdsec", "type": "ban", "scope": "Ip",
+         "value": "1.2.3.4", "duration": "4h", "scenario": "crowdsecurity/ssh-bf"},
+    ],
+}
+
+
+class LapiAlertsFake(LapiWriteFake):
+    def __call__(self, request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/v1/alerts" and request.method == "GET":
+            self.auth_headers.append(request.headers.get("Authorization"))
+            self.alert_params = dict(request.url.params)
+            return httpx.Response(200, json=[ALERT_JSON, {**ALERT_JSON, "id": 8, "decisions": None}])
+        return super().__call__(request)
+
+
+async def test_get_alerts_uses_machine_auth_and_parses():
+    lapi = LapiAlertsFake()
+    service = make_service(lapi, **write_settings())
+    alerts = await service.get_alerts(limit=25, since="24h")
+
+    assert lapi.auth_headers == ["Bearer jwt-1"]
+    assert lapi.alert_params == {"limit": "25", "since": "24h"}
+    first, second = alerts
+    assert first.scenario == "crowdsecurity/ssh-bf"
+    assert first.source.value == "1.2.3.4"
+    assert first.source.cn == "NO"
+    assert first.machine_id == "gateway"
+    assert [d.value for d in first.decisions] == ["1.2.3.4"]
+    assert second.decisions == []  # LAPI nulls the list on alerts without decisions
+    await service.aclose()
+
+
+async def test_get_alerts_without_machine_credentials_raises():
+    service = make_service(LapiAlertsFake())
+    with pytest.raises(CrowdSecAuthError):
+        await service.get_alerts()
+    await service.aclose()

@@ -1,7 +1,7 @@
 """Typed shapes for CrowdSec LAPI responses."""
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 
 @dataclass
@@ -28,3 +28,28 @@ class Decision:
     duration: str
     scenario: str
     simulated: bool | None = None
+
+
+@dataclass
+class AlertSource:
+    """The offending source an alert was raised against."""
+
+    scope: str
+    value: str
+    ip: str | None = None
+    cn: str | None = None  # LAPI's own country enrichment (ISO alpha-2)
+    as_name: str | None = None
+
+
+@dataclass
+class Alert:
+    """One LAPI alert: a scenario that fired, with its resulting decisions."""
+
+    id: int | None
+    scenario: str
+    message: str
+    events_count: int
+    created_at: str
+    source: AlertSource
+    machine_id: str | None = None
+    decisions: list[Decision] = field(default_factory=list)

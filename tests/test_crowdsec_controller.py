@@ -348,3 +348,64 @@ async def test_banned_ips_returns_ip_scope_values_across_origins():
     assert resp.json() == ["1.2.3.4", "5.6.7.8"]
     # one unfiltered fetch: all origins, so CAPI bans badge too
     assert service.calls == [{}]
+
+
+# -- alert history ---------------------------------------------------------
+
+
+class AlertFakeCrowdSec(WritableFakeCrowdSec):
+    def __init__(self, alerts=None) -> None:
+        super().__init__()
+        self._alerts = alerts or []
+        self.alert_calls: list[dict] = []
+
+    async def get_alerts(self, **filters):
+        self.alert_calls.append(filters)
+        return self._alerts
+
+
+def make_alert():
+    from geometrikks.services.crowdsec.schemas import Alert, AlertSource
+
+    return Alert(
+        id=7,
+        scenario="crowdsecurity/ssh-bf",
+        message="Ip 1.2.3.4 performed ssh bruteforce",
+        events_count=6,
+        created_at="2026-07-20T10:00:00Z",
+        machine_id="gateway",
+        source=AlertSource(scope="Ip", value="1.2.3.4", ip="1.2.3.4", cn="NO", as_name="Telenor"),
+        decisions=[make_decision(id=9, origin="crowdsec", scenario="crowdsecurity/ssh-bf")],
+    )
+
+
+async def test_alerts_404_when_disabled():
+    async with AsyncTestClient(app=make_app(None)) as client:
+        assert (await client.get("/api/v1/crowdsec/alerts")).status_code == 404
+
+
+async def test_alerts_403_without_machine_credentials(monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("CROWDSEC_LAPI_URL", "http://crowdsec:8080")
+    monkeypatch.setenv("CROWDSEC_BOUNCER_API_KEY", "key")
+    async with AsyncTestClient(app=make_app(AlertFakeCrowdSec())) as client:
+        assert (await client.get("/api/v1/crowdsec/alerts")).status_code == 403
+
+
+async def test_alerts_returns_flattened_views(monkeypatch):
+    enable_write(monkeypatch)
+    service = AlertFakeCrowdSec([make_alert()])
+    async with AsyncTestClient(app=make_app(service)) as client:
+        resp = await client.get(
+            "/api/v1/crowdsec/alerts", params={"limit": 25, "since": "24h"}
+        )
+    assert resp.status_code == 200
+    (alert,) = resp.json()
+    assert alert["scenario"] == "crowdsecurity/ssh-bf"
+    assert alert["value"] == "1.2.3.4"
+    assert alert["country"] == "NO"
+    assert alert["as_name"] == "Telenor"
+    assert alert["machine_id"] == "gateway"
+    assert alert["events_count"] == 6
+    assert alert["decision_count"] == 1
+    assert service.alert_calls == [{"limit": 25, "ip": None, "scenario": None, "since": "24h"}]

@@ -91,6 +91,21 @@ class CrowdSecStatsResponse:
 
 
 @dataclass
+class AlertView:
+    id: int | None
+    scenario: str
+    message: str
+    events_count: int
+    created_at: str
+    machine_id: str | None
+    scope: str
+    value: str
+    country: str | None
+    as_name: str | None
+    decision_count: int
+
+
+@dataclass
 class BanRequest:
     ip: str
     duration: str | None = None
@@ -241,6 +256,42 @@ class CrowdSecController(Controller):
         service = _require_service(crowdsec)
         decisions = await service.get_decisions()
         return [d.value for d in decisions if d.scope == "Ip"]
+
+    @get("/alerts")
+    async def list_alerts(
+        self,
+        crowdsec: NamedDependency[CrowdSecService | None],
+        limit: Annotated[int, QueryParameter(ge=1, le=500, required=False)] = 50,
+        ip: Annotated[str | None, QueryParameter(required=False)] = None,
+        scenario: Annotated[str | None, QueryParameter(required=False)] = None,
+        since: Annotated[
+            str | None,
+            QueryParameter(required=False, description="Go duration lookback, e.g. 24h"),
+        ] = None,
+    ) -> list[AlertView]:
+        """Recent alert history from the LAPI (machine credentials required)."""
+        service = _require_write(crowdsec)
+        if ip is not None:
+            _validate_ip(ip)
+        if since is not None:
+            _validate_duration(since)
+        alerts = await service.get_alerts(limit=limit, ip=ip, scenario=scenario, since=since)
+        return [
+            AlertView(
+                id=alert.id,
+                scenario=alert.scenario,
+                message=alert.message,
+                events_count=alert.events_count,
+                created_at=alert.created_at,
+                machine_id=alert.machine_id,
+                scope=alert.source.scope,
+                value=alert.source.value,
+                country=alert.source.cn,
+                as_name=alert.source.as_name,
+                decision_count=len(alert.decisions),
+            )
+            for alert in alerts
+        ]
 
     @post("/ban", status_code=HTTP_204_NO_CONTENT)
     async def ban(

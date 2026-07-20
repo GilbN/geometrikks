@@ -29,6 +29,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   over a new `/ws/crowdsec` WebSocket; banned badges in the access-logs
   table update within seconds of a decision anywhere in CrowdSec instead of
   waiting for the next refetch.
+- CrowdSec alert history: `GET /api/v1/crowdsec/alerts` (machine credentials
+  required) returns recent LAPI alerts with scenario, source, LAPI country
+  enrichment, event and decision counts, filterable by `?ip=`, `?scenario=`
+  and `?since=24h`.
 
 ## [0.3.0] - 2026-07-19
 

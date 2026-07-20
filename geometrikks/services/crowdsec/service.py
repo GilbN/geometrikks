@@ -19,7 +19,7 @@ from geometrikks.services.crowdsec.exceptions import (
     CrowdSecError,
     CrowdSecUnavailableError,
 )
-from geometrikks.services.crowdsec.schemas import Decision, DecisionStreamDelta
+from geometrikks.services.crowdsec.schemas import Alert, Decision, DecisionStreamDelta
 
 logger = logging.getLogger(__name__)
 
@@ -222,6 +222,36 @@ class CrowdSecService:
             ],
         }
         await self._machine_request("POST", "/v1/alerts", json=[alert])
+
+    async def get_alerts(
+        self,
+        *,
+        limit: int = 50,
+        ip: str | None = None,
+        scenario: str | None = None,
+        since: str | None = None,
+    ) -> list[Alert]:
+        """Recent alerts from the LAPI; requires machine credentials.
+
+        ``since`` is a Go duration string (e.g. ``24h``) relative to now.
+
+        Raises:
+            CrowdSecAuthError: Machine credentials missing or rejected.
+            CrowdSecUnavailableError: The LAPI is unreachable or errored.
+        """
+        params = {
+            key: value
+            for key, value in {
+                "limit": limit, "ip": ip, "scenario": scenario, "since": since,
+            }.items()
+            if value is not None
+        }
+        resp = await self._machine_request("GET", "/v1/alerts", params=params)
+        alerts = msgspec.convert(resp.json() or [], list[dict], strict=False)
+        # decisions is JSON null on alerts whose decisions all expired
+        for alert in alerts:
+            alert["decisions"] = alert.get("decisions") or []
+        return msgspec.convert(alerts, list[Alert], strict=False)
 
     async def unban_ip(self, ip: str) -> int:
         """Delete all active decisions for an IP; returns the number deleted.
