@@ -34,7 +34,7 @@ import {
 import { PaginationFooter } from "@/components/ui/pagination-footer"
 import { FilterCombobox } from "@/components/ui/filter-combobox"
 import { FiltersDrawer, FilterSection } from "@/components/ui/filters-drawer"
-import { useAccessLogs, useAccessLogFacets } from "@/lib/queries"
+import { useAccessLogs, useAccessLogFacets, useBannedIps } from "@/lib/queries"
 import { useDebouncedValue } from "@/hooks/use-debounced-value"
 import { useIsMobile } from "@/hooks/use-mobile"
 import {
@@ -248,6 +248,7 @@ export function AccessLogsTable() {
   // Facet values are fetched lazily, on first open of either dropdown.
   const [facetsEnabled, setFacetsEnabled] = useState(false)
   const { data: facets } = useAccessLogFacets({ enabled: facetsEnabled })
+  const { data: bannedIps } = useBannedIps()
   const search = useDebouncedValue(searchInput, 300)
   const ip = useDebouncedValue(ipInput, 300)
   const host = useDebouncedValue(hostInput, 300)
@@ -517,6 +518,15 @@ export function AccessLogsTable() {
                         className={cn(c.align === "right" && "text-right")}
                       >
                         {c.render(row)}
+                        {c.key === "ipAddress" && bannedIps?.has(row.ipAddress) && (
+                          <Badge
+                            variant="destructive"
+                            className="ml-2 align-middle"
+                            title="Active CrowdSec ban decision for this IP"
+                          >
+                            Banned
+                          </Badge>
+                        )}
                       </TableCell>
                     ))}
                   </TableRow>

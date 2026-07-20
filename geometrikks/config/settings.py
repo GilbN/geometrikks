@@ -317,6 +317,63 @@ class MapSettings(BaseSettings):
         return self
 
 
+class CrowdSecSettings(BaseSettings):
+    """CrowdSec Local API integration settings.
+
+    The integration is enabled when ``lapi_url`` and ``bouncer_api_key`` are
+    set. The bouncer API key enables read-only decision access; machine
+    credentials additionally enable ban/unban actions.
+    """
+
+    model_config = SettingsConfigDict(env_prefix="CROWDSEC_", env_file=".env", extra="ignore")
+
+    lapi_url: str | None = Field(
+        default=None,
+        description="CrowdSec Local API base URL, e.g. http://crowdsec:8080",
+    )
+    bouncer_api_key: SecretStr | None = Field(
+        default=None,
+        description="Bouncer API key (cscli bouncers add geometrikks) - read access",
+    )
+    machine_id: str | None = Field(
+        default=None,
+        description="Machine ID (cscli machines add) - enables ban/unban",
+    )
+    machine_password: SecretStr | None = Field(
+        default=None,
+        description="Machine password - enables ban/unban",
+    )
+    default_ban_duration: str = Field(
+        default="4h",
+        description="Default duration for manual bans (Go duration string)",
+    )
+    request_timeout: float = Field(default=10.0, description="LAPI request timeout in seconds")
+    verify_tls: bool = Field(default=True, description="Verify TLS when LAPI uses https")
+
+    @property
+    def enabled(self) -> bool:
+        """Read access is available: LAPI URL and bouncer key are both set."""
+        return self.lapi_url is not None and self.bouncer_api_key is not None
+
+    @property
+    def write_enabled(self) -> bool:
+        """Ban/unban is available: read access plus machine credentials."""
+        return self.enabled and self.machine_id is not None and self.machine_password is not None
+
+    @model_validator(mode="after")
+    def validate_machine_credential_pair(self) -> "CrowdSecSettings":
+        """Require both machine credentials or neither.
+
+        Half-configured write credentials should fail at startup, not at the
+        first ban attempt.
+        """
+        if (self.machine_id is None) != (self.machine_password is None):
+            raise ValueError(
+                "CROWDSEC_MACHINE_ID and CROWDSEC_MACHINE_PASSWORD must be set together"
+            )
+        return self
+
+
 class ViteSettings(BaseSettings):
     """Vite server configuration settings."""
 
@@ -428,6 +485,7 @@ class Settings(BaseSettings):
     analytics: AnalyticsSettings = Field(default_factory=AnalyticsSettings)
     scheduler: SchedulerSettings = Field(default_factory=SchedulerSettings)
     map: MapSettings = Field(default_factory=MapSettings)
+    crowdsec: CrowdSecSettings = Field(default_factory=CrowdSecSettings)
     vite: ViteSettings = Field(default_factory=ViteSettings)
 
     @property

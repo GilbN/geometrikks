@@ -99,6 +99,18 @@ list most users need is in `.env.example`; everything below is available.
 | `MAP_PUBLIC_IP_URL` | `https://api64.ipify.org?format=json` | JSON endpoint used for public-IP discovery; the response must contain an 'ip' field. |
 | `MAP_PUBLIC_IP_TIMEOUT` | `3.0` | Timeout in seconds for public-IP discovery. |
 
+## CrowdSec
+
+| Variable | Default | Description |
+|---|---|---|
+| `CROWDSEC_LAPI_URL` | — | CrowdSec Local API base URL, e.g. http://crowdsec:8080 |
+| `CROWDSEC_BOUNCER_API_KEY` | — | Bouncer API key (cscli bouncers add geometrikks) - read access |
+| `CROWDSEC_MACHINE_ID` | — | Machine ID (cscli machines add) - enables ban/unban |
+| `CROWDSEC_MACHINE_PASSWORD` | — | Machine password - enables ban/unban |
+| `CROWDSEC_DEFAULT_BAN_DURATION` | `4h` | Default duration for manual bans (Go duration string) |
+| `CROWDSEC_REQUEST_TIMEOUT` | `10.0` | LAPI request timeout in seconds |
+| `CROWDSEC_VERIFY_TLS` | `true` | Verify TLS when LAPI uses https |
+
 ## Vite (development only)
 
 | Variable | Default | Description |

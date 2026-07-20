@@ -93,6 +93,24 @@ export type CountryFacet = {
 };
 
 /**
+ * CrowdSecStatsResponse
+ */
+export type CrowdSecStatsResponse = {
+  by_origin: Array<OriginCount>;
+  top_scenarios: Array<ScenarioCount>;
+  total: number;
+};
+
+/**
+ * CrowdSecStatusResponse
+ */
+export type CrowdSecStatusResponse = {
+  enabled: boolean;
+  lapi_reachable: boolean;
+  write_enabled: boolean;
+};
+
+/**
  * CumulativeDataPoint
  */
 export type CumulativeDataPoint = {
@@ -119,6 +137,23 @@ export type DatabaseVersionsView = {
   postgis_version: string | null;
   postgres_version: string | null;
   timescaledb_version: string | null;
+};
+
+/**
+ * DecisionView
+ */
+export type DecisionView = {
+  city: string | null;
+  country_code: string | null;
+  country_name: string | null;
+  duration: string;
+  id: number | null;
+  ip: string;
+  origin: string;
+  request_count_24h: number | null;
+  scenario: string;
+  scope: string;
+  type: string;
 };
 
 /**
@@ -430,6 +465,14 @@ export type MeResponse = {
 };
 
 /**
+ * OriginCount
+ */
+export type OriginCount = {
+  count: number;
+  origin: string;
+};
+
+/**
  * ParseErrorCount
  */
 export type ParseErrorCount = {
@@ -498,6 +541,14 @@ export type SafeSettingsResponse = {
   name: string;
   runtime: RuntimeSettingsView;
   version: string;
+};
+
+/**
+ * ScenarioCount
+ */
+export type ScenarioCount = {
+  count: number;
+  scenario: string;
 };
 
 /**
@@ -1595,6 +1646,135 @@ export type ApiV1AuthMeMeResponses = {
 
 export type ApiV1AuthMeMeResponse =
   ApiV1AuthMeMeResponses[keyof ApiV1AuthMeMeResponses];
+
+export type ApiV1CrowdsecDecisionsListDecisionsData = {
+  body?: never;
+  path?: never;
+  query?: {
+    currentPage?: number;
+    pageSize?: number;
+    origins?: string | null;
+  };
+  url: "/api/v1/crowdsec/decisions";
+};
+
+export type ApiV1CrowdsecDecisionsListDecisionsErrors = {
+  /**
+   * Validation Exception
+   */
+  400: {
+    detail: string;
+    extra?:
+      | null
+      | {
+          [key: string]: unknown;
+        }
+      | Array<unknown>;
+    status_code: number;
+  };
+};
+
+export type ApiV1CrowdsecDecisionsListDecisionsError =
+  ApiV1CrowdsecDecisionsListDecisionsErrors[keyof ApiV1CrowdsecDecisionsListDecisionsErrors];
+
+export type ApiV1CrowdsecDecisionsListDecisionsResponses = {
+  /**
+   * Request fulfilled, document follows
+   */
+  200: {
+    items?: Array<DecisionView>;
+    /**
+     * Maximal number of items to send.
+     */
+    limit?: number;
+    /**
+     * Offset from the beginning of the query.
+     */
+    offset?: number;
+    /**
+     * Total number of items.
+     */
+    total?: number;
+  };
+};
+
+export type ApiV1CrowdsecDecisionsListDecisionsResponse =
+  ApiV1CrowdsecDecisionsListDecisionsResponses[keyof ApiV1CrowdsecDecisionsListDecisionsResponses];
+
+export type ApiV1CrowdsecDecisionsLookupLookupDecisionsData = {
+  body?: never;
+  path?: never;
+  query: {
+    /**
+     * IP address to look up
+     */
+    ip: string;
+  };
+  url: "/api/v1/crowdsec/decisions/lookup";
+};
+
+export type ApiV1CrowdsecDecisionsLookupLookupDecisionsErrors = {
+  /**
+   * Validation Exception
+   */
+  400: {
+    detail: string;
+    extra?:
+      | null
+      | {
+          [key: string]: unknown;
+        }
+      | Array<unknown>;
+    status_code: number;
+  };
+};
+
+export type ApiV1CrowdsecDecisionsLookupLookupDecisionsError =
+  ApiV1CrowdsecDecisionsLookupLookupDecisionsErrors[keyof ApiV1CrowdsecDecisionsLookupLookupDecisionsErrors];
+
+export type ApiV1CrowdsecDecisionsLookupLookupDecisionsResponses = {
+  /**
+   * Request fulfilled, document follows
+   */
+  200: Array<DecisionView>;
+};
+
+export type ApiV1CrowdsecDecisionsLookupLookupDecisionsResponse =
+  ApiV1CrowdsecDecisionsLookupLookupDecisionsResponses[keyof ApiV1CrowdsecDecisionsLookupLookupDecisionsResponses];
+
+export type ApiV1CrowdsecStatsGetStatsData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: "/api/v1/crowdsec/stats";
+};
+
+export type ApiV1CrowdsecStatsGetStatsResponses = {
+  /**
+   * Request fulfilled, document follows
+   */
+  200: CrowdSecStatsResponse;
+};
+
+export type ApiV1CrowdsecStatsGetStatsResponse =
+  ApiV1CrowdsecStatsGetStatsResponses[keyof ApiV1CrowdsecStatsGetStatsResponses];
+
+export type ApiV1CrowdsecStatusGetStatusData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: "/api/v1/crowdsec/status";
+};
+
+export type ApiV1CrowdsecStatusGetStatusResponses = {
+  /**
+   * Request fulfilled, document follows
+   */
+  200: CrowdSecStatusResponse;
+};
+
+export type ApiV1CrowdsecStatusGetStatusResponse =
+  ApiV1CrowdsecStatusGetStatusResponses[keyof ApiV1CrowdsecStatusGetStatusResponses];
 
 export type ApiV1GeoEventsListGeoEventsData = {
   body?: never;

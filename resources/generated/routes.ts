@@ -32,6 +32,8 @@ export type RouteName =
   | 'get_live_summary'
   | 'get_location_top_ips'
   | 'get_scheduler_jobs'
+  | 'get_stats'
+  | 'get_status'
   | 'get_summary'
   | 'get_system_settings'
   | 'get_time_series'
@@ -45,10 +47,12 @@ export type RouteName =
   | 'health_ready'
   | 'list_access_log_debug'
   | 'list_access_logs'
+  | 'list_decisions'
   | 'list_geo_events'
   | 'list_geo_locations'
   | 'login'
   | 'logout'
+  | 'lookup_decisions'
   | 'me'
   | 'openapi.json'
   | 'openapi.yaml'
@@ -81,6 +85,8 @@ export interface RoutePathParams {
     location_id: number;
   };
   'get_scheduler_jobs': Record<string, never>;
+  'get_stats': Record<string, never>;
+  'get_status': Record<string, never>;
   'get_summary': Record<string, never>;
   'get_system_settings': Record<string, never>;
   'get_time_series': Record<string, never>;
@@ -94,10 +100,12 @@ export interface RoutePathParams {
   'health_ready': Record<string, never>;
   'list_access_log_debug': Record<string, never>;
   'list_access_logs': Record<string, never>;
+  'list_decisions': Record<string, never>;
   'list_geo_events': Record<string, never>;
   'list_geo_locations': Record<string, never>;
   'login': Record<string, never>;
   'logout': Record<string, never>;
+  'lookup_decisions': Record<string, never>;
   'me': Record<string, never>;
   'openapi.json': Record<string, never>;
   'openapi.yaml': Record<string, never>;
@@ -221,6 +229,8 @@ export interface RouteQueryParams {
     to_timestamp: DateTime;
   };
   'get_scheduler_jobs': Record<string, never>;
+  'get_stats': Record<string, never>;
+  'get_status': Record<string, never>;
   'get_summary': {
     compare_previous?: boolean;
     end_date: DateTime;
@@ -312,6 +322,11 @@ export interface RouteQueryParams {
     statusIn?: number[];
     to_timestamp?: DateTime;
   };
+  'list_decisions': {
+    currentPage?: number;
+    origins?: string;
+    pageSize?: number;
+  };
   'list_geo_events': {
     currentPage?: number;
     from_timestamp?: DateTime;
@@ -329,6 +344,9 @@ export interface RouteQueryParams {
   };
   'login': Record<string, never>;
   'logout': Record<string, never>;
+  'lookup_decisions': {
+    ip: string;
+  };
   'me': Record<string, never>;
   'openapi.json': Record<string, never>;
   'openapi.yaml': Record<string, never>;
@@ -469,6 +487,20 @@ export const routeDefinitions = {
     pathParams: [] as const,
     queryParams: [] as const,
   },
+  'get_stats': {
+    path: '/api/v1/crowdsec/stats',
+    methods: ['GET'] as const,
+    method: 'get',
+    pathParams: [] as const,
+    queryParams: [] as const,
+  },
+  'get_status': {
+    path: '/api/v1/crowdsec/status',
+    methods: ['GET'] as const,
+    method: 'get',
+    pathParams: [] as const,
+    queryParams: [] as const,
+  },
   'get_summary': {
     path: '/api/v1/analytics/summary',
     methods: ['GET'] as const,
@@ -560,6 +592,13 @@ export const routeDefinitions = {
     pathParams: [] as const,
     queryParams: ['cityIn', 'countryCodeIn', 'currentPage', 'from_timestamp', 'host', 'ipAddressIn', 'methodIn', 'orderBy', 'pageSize', 'searchIgnoreCase', 'searchString', 'sortOrder', 'statusIn', 'to_timestamp'] as const,
   },
+  'list_decisions': {
+    path: '/api/v1/crowdsec/decisions',
+    methods: ['GET'] as const,
+    method: 'get',
+    pathParams: [] as const,
+    queryParams: ['currentPage', 'origins', 'pageSize'] as const,
+  },
   'list_geo_events': {
     path: '/api/v1/geo-events',
     methods: ['GET'] as const,
@@ -587,6 +626,13 @@ export const routeDefinitions = {
     method: 'post',
     pathParams: [] as const,
     queryParams: [] as const,
+  },
+  'lookup_decisions': {
+    path: '/api/v1/crowdsec/decisions/lookup',
+    methods: ['GET'] as const,
+    method: 'get',
+    pathParams: [] as const,
+    queryParams: ['ip'] as const,
   },
   'me': {
     path: '/api/v1/auth/me',

@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- CrowdSec integration (read-only, [#19](https://github.com/GilbN/geometrikks/issues/19)):
+  point `CROWDSEC_LAPI_URL` + `CROWDSEC_BOUNCER_API_KEY` at a CrowdSec Local
+  API and GeoMetrikks exposes `/api/v1/crowdsec/status`, `/decisions`
+  (paginated, geo-enriched from stored traffic data), `/decisions/lookup?ip=`
+  and `/stats`, plus a "Banned" badge on matching IPs in the access-logs
+  table. The decisions list defaults to local origins so an opted-in CAPI
+  community blocklist doesn't flood the view. Machine credentials are
+  validated and reported via `write_enabled`.
+
 ## [0.3.0] - 2026-07-19
 
 ### Fixed

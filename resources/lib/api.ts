@@ -26,7 +26,11 @@ import type {
   SchedulerJobsResponse,
   SchedulerJobView,
   AboutResponse,
+  CrowdSecStatusResponse,
+  DecisionView,
 } from "@/generated/api/types.gen"
+
+export type { CrowdSecStatusResponse, DecisionView }
 
 // Create axios instance with base configuration
 export const api = axios.create({
@@ -212,6 +216,40 @@ export async function runSchedulerJob(jobId: string): Promise<SchedulerJobView> 
 
 export async function fetchAbout(): Promise<AboutResponse> {
   const { data } = await api.get<AboutResponse>("/system/about")
+  return data
+}
+
+// ============================================================================
+// Types & Functions - CrowdSec API
+// ============================================================================
+
+export interface CrowdSecDecisionsPage {
+  items: DecisionView[]
+  total: number
+  limit: number
+  offset: number
+}
+
+/** Integration state; everything CrowdSec in the UI is gated on `enabled`. */
+export async function fetchCrowdsecStatus(): Promise<CrowdSecStatusResponse> {
+  const { data } = await api.get<CrowdSecStatusResponse>("/crowdsec/status")
+  return data
+}
+
+/** One page of active decisions. Server defaults to local origins
+ *  (crowdsec,cscli,geometrikks); pass `origins` to widen to CAPI/lists. */
+export async function fetchCrowdsecDecisions(params?: {
+  origins?: string
+  currentPage?: number
+  pageSize?: number
+}): Promise<CrowdSecDecisionsPage> {
+  const { data } = await api.get<CrowdSecDecisionsPage>("/crowdsec/decisions", {
+    params: {
+      origins: params?.origins || undefined,
+      currentPage: params?.currentPage ?? 1,
+      pageSize: params?.pageSize ?? 50,
+    },
+  })
   return data
 }
 

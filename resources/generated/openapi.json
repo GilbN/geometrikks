@@ -326,6 +326,52 @@
         "title": "CountryFacet",
         "type": "object"
       },
+      "CrowdSecStatsResponse": {
+        "properties": {
+          "by_origin": {
+            "items": {
+              "$ref": "#/components/schemas/OriginCount"
+            },
+            "type": "array"
+          },
+          "top_scenarios": {
+            "items": {
+              "$ref": "#/components/schemas/ScenarioCount"
+            },
+            "type": "array"
+          },
+          "total": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "by_origin",
+          "top_scenarios",
+          "total"
+        ],
+        "title": "CrowdSecStatsResponse",
+        "type": "object"
+      },
+      "CrowdSecStatusResponse": {
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "lapi_reachable": {
+            "type": "boolean"
+          },
+          "write_enabled": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "enabled",
+          "lapi_reachable",
+          "write_enabled"
+        ],
+        "title": "CrowdSecStatusResponse",
+        "type": "object"
+      },
       "CumulativeDataPoint": {
         "properties": {
           "cumulative_access_logs": {
@@ -415,6 +461,93 @@
           "timescaledb_version"
         ],
         "title": "DatabaseVersionsView",
+        "type": "object"
+      },
+      "DecisionView": {
+        "properties": {
+          "city": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "country_code": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "country_name": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "duration": {
+            "type": "string"
+          },
+          "id": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "ip": {
+            "type": "string"
+          },
+          "origin": {
+            "type": "string"
+          },
+          "request_count_24h": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "scenario": {
+            "type": "string"
+          },
+          "scope": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "city",
+          "country_code",
+          "country_name",
+          "duration",
+          "id",
+          "ip",
+          "origin",
+          "request_count_24h",
+          "scenario",
+          "scope",
+          "type"
+        ],
+        "title": "DecisionView",
         "type": "object"
       },
       "EmbeddedLocationDTO": {
@@ -1565,6 +1698,22 @@
         "title": "MeResponse",
         "type": "object"
       },
+      "OriginCount": {
+        "properties": {
+          "count": {
+            "type": "integer"
+          },
+          "origin": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "count",
+          "origin"
+        ],
+        "title": "OriginCount",
+        "type": "object"
+      },
       "ParseErrorCount": {
         "properties": {
           "count": {
@@ -1813,6 +1962,22 @@
           "version"
         ],
         "title": "SafeSettingsResponse",
+        "type": "object"
+      },
+      "ScenarioCount": {
+        "properties": {
+          "count": {
+            "type": "integer"
+          },
+          "scenario": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "count",
+          "scenario"
+        ],
+        "title": "ScenarioCount",
         "type": "object"
       },
       "SchedulerJobView": {
@@ -5103,6 +5268,258 @@
         "summary": "Me",
         "tags": [
           "Auth"
+        ]
+      }
+    },
+    "/api/v1/crowdsec/decisions": {
+      "get": {
+        "deprecated": false,
+        "operationId": "ApiV1CrowdsecDecisionsListDecisions",
+        "parameters": [
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "currentPage",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "minimum": 1.0,
+              "type": "integer"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "pageSize",
+            "required": false,
+            "schema": {
+              "default": 10,
+              "minimum": 1.0,
+              "type": "integer"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "origins",
+            "required": false,
+            "schema": {
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "items": {
+                      "items": {
+                        "$ref": "#/components/schemas/DecisionView"
+                      },
+                      "type": "array"
+                    },
+                    "limit": {
+                      "description": "Maximal number of items to send.",
+                      "type": "integer"
+                    },
+                    "offset": {
+                      "description": "Offset from the beginning of the query.",
+                      "type": "integer"
+                    },
+                    "total": {
+                      "description": "Total number of items.",
+                      "type": "integer"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "ListDecisions",
+        "tags": [
+          "CrowdSec"
+        ]
+      }
+    },
+    "/api/v1/crowdsec/decisions/lookup": {
+      "get": {
+        "deprecated": false,
+        "operationId": "ApiV1CrowdsecDecisionsLookupLookupDecisions",
+        "parameters": [
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "IP address to look up",
+            "in": "query",
+            "name": "ip",
+            "required": true,
+            "schema": {
+              "description": "IP address to look up",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/DecisionView"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "LookupDecisions",
+        "tags": [
+          "CrowdSec"
+        ]
+      }
+    },
+    "/api/v1/crowdsec/stats": {
+      "get": {
+        "deprecated": false,
+        "operationId": "ApiV1CrowdsecStatsGetStats",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CrowdSecStatsResponse"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          }
+        },
+        "summary": "GetStats",
+        "tags": [
+          "CrowdSec"
+        ]
+      }
+    },
+    "/api/v1/crowdsec/status": {
+      "get": {
+        "deprecated": false,
+        "operationId": "ApiV1CrowdsecStatusGetStatus",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CrowdSecStatusResponse"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          }
+        },
+        "summary": "GetStatus",
+        "tags": [
+          "CrowdSec"
         ]
       }
     },

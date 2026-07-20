@@ -171,6 +171,43 @@ This is a reverse-proxy-only mode: with it set, `/api/v1/auth/*` is not
 registered (404s) and the WebSocket accepts anonymous connections, so only
 enable it when something else is already gating access to the app.
 
+## CrowdSec integration (optional)
+
+If a [CrowdSec](https://www.crowdsec.net/) instance protects your stack,
+GeoMetrikks can talk to its Local API (LAPI) and show active decisions
+(bans) joined with the traffic data it already stores: per banned IP you see
+the country/city and the request count from your actual nginx logs.
+
+Register GeoMetrikks as a bouncer on the CrowdSec side and point the app at
+the LAPI:
+
+```bash
+docker exec crowdsec cscli bouncers add geometrikks   # prints the API key
+```
+
+```bash
+CROWDSEC_LAPI_URL=http://crowdsec:8080
+CROWDSEC_BOUNCER_API_KEY=<key from cscli bouncers add>
+```
+
+That enables read-only access: decision list, per-IP lookups, and ban stats.
+Machine credentials (`CROWDSEC_MACHINE_ID` + `CROWDSEC_MACHINE_PASSWORD`,
+from `cscli machines add geometrikks --auto`) are accepted as well and will
+enable ban/unban actions from the UI when write support lands; today they
+only flip the `write_enabled` flag on `/api/v1/crowdsec/status`.
+
+Notes:
+
+- CrowdSec only *decides*; enforcement still needs a real bouncer
+  (firewall-bouncer, nginx bouncer, Traefik plugin, ...) in front of your
+  stack. GeoMetrikks displays and manages decisions, it does not block
+  traffic itself.
+- A machine that only logs in occasionally will show as "last seen" long ago
+  in `cscli machines list` and the CrowdSec console. That's expected and
+  harmless.
+- Without `CROWDSEC_*` settings the integration is simply off; nothing else
+  changes.
+
 ## Importing history
 
 Live tailing only picks up lines written after the app starts. To backfill

@@ -15,6 +15,10 @@ import type {
   ApiV1AuthLogoutLogoutResponses,
   ApiV1AuthMeMeData,
   ApiV1AuthMeMeResponses,
+  ApiV1CrowdsecStatsGetStatsData,
+  ApiV1CrowdsecStatsGetStatsResponses,
+  ApiV1CrowdsecStatusGetStatusData,
+  ApiV1CrowdsecStatusGetStatusResponses,
   ApiV1GeoEventsFacetsGetGeoLogFacetsData,
   ApiV1GeoEventsFacetsGetGeoLogFacetsResponses,
   ApiV1SettingsReadSettingsData,
@@ -50,6 +54,8 @@ export type OperationName =
   | 'get_access_log_facets'
   | 'get_geo_log_facets'
   | 'get_scheduler_jobs'
+  | 'get_stats'
+  | 'get_status'
   | 'get_system_settings'
   | 'health'
   | 'health_ready'
@@ -68,6 +74,8 @@ export interface OperationDataTypes {
   'get_access_log_facets': ApiV1AccessLogsFacetsGetAccessLogFacetsData
   'get_geo_log_facets': ApiV1GeoEventsFacetsGetGeoLogFacetsData
   'get_scheduler_jobs': ApiV1SystemSchedulerJobsGetSchedulerJobsData
+  'get_stats': ApiV1CrowdsecStatsGetStatsData
+  'get_status': ApiV1CrowdsecStatusGetStatusData
   'get_system_settings': ApiV1SystemSettingsGetSystemSettingsData
   'health': HealthHealthData
   'health_ready': HealthReadyHealthReadyData
@@ -87,6 +95,8 @@ export interface OperationResponseTypes {
   'get_access_log_facets': ApiV1AccessLogsFacetsGetAccessLogFacetsResponses
   'get_geo_log_facets': ApiV1GeoEventsFacetsGetGeoLogFacetsResponses
   'get_scheduler_jobs': ApiV1SystemSchedulerJobsGetSchedulerJobsResponses
+  'get_stats': ApiV1CrowdsecStatsGetStatsResponses
+  'get_status': ApiV1CrowdsecStatusGetStatusResponses
   'get_system_settings': ApiV1SystemSettingsGetSystemSettingsResponses
   'health': HealthHealthResponses
   'health_ready': HealthReadyHealthReadyResponses
@@ -106,6 +116,8 @@ export interface OperationErrorTypes {
   'get_access_log_facets': never
   'get_geo_log_facets': never
   'get_scheduler_jobs': never
+  'get_stats': never
+  'get_status': never
   'get_system_settings': never
   'health': never
   'health_ready': never

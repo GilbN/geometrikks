@@ -310,6 +310,46 @@ export const CountryFacetSchema = {
   type: "object",
 } as const;
 
+export const CrowdSecStatsResponseSchema = {
+  properties: {
+    by_origin: {
+      items: {
+        $ref: "#/components/schemas/OriginCount",
+      },
+      type: "array",
+    },
+    top_scenarios: {
+      items: {
+        $ref: "#/components/schemas/ScenarioCount",
+      },
+      type: "array",
+    },
+    total: {
+      type: "integer",
+    },
+  },
+  required: ["by_origin", "top_scenarios", "total"],
+  title: "CrowdSecStatsResponse",
+  type: "object",
+} as const;
+
+export const CrowdSecStatusResponseSchema = {
+  properties: {
+    enabled: {
+      type: "boolean",
+    },
+    lapi_reachable: {
+      type: "boolean",
+    },
+    write_enabled: {
+      type: "boolean",
+    },
+  },
+  required: ["enabled", "lapi_reachable", "write_enabled"],
+  title: "CrowdSecStatusResponse",
+  type: "object",
+} as const;
+
 export const CumulativeDataPointSchema = {
   properties: {
     cumulative_access_logs: {
@@ -393,6 +433,94 @@ export const DatabaseVersionsViewSchema = {
   },
   required: ["postgis_version", "postgres_version", "timescaledb_version"],
   title: "DatabaseVersionsView",
+  type: "object",
+} as const;
+
+export const DecisionViewSchema = {
+  properties: {
+    city: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    country_code: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    country_name: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    duration: {
+      type: "string",
+    },
+    id: {
+      oneOf: [
+        {
+          type: "integer",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    ip: {
+      type: "string",
+    },
+    origin: {
+      type: "string",
+    },
+    request_count_24h: {
+      oneOf: [
+        {
+          type: "integer",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    scenario: {
+      type: "string",
+    },
+    scope: {
+      type: "string",
+    },
+    type: {
+      type: "string",
+    },
+  },
+  required: [
+    "city",
+    "country_code",
+    "country_name",
+    "duration",
+    "id",
+    "ip",
+    "origin",
+    "request_count_24h",
+    "scenario",
+    "scope",
+    "type",
+  ],
+  title: "DecisionView",
   type: "object",
 } as const;
 
@@ -1482,6 +1610,20 @@ export const MeResponseSchema = {
   type: "object",
 } as const;
 
+export const OriginCountSchema = {
+  properties: {
+    count: {
+      type: "integer",
+    },
+    origin: {
+      type: "string",
+    },
+  },
+  required: ["count", "origin"],
+  title: "OriginCount",
+  type: "object",
+} as const;
+
 export const ParseErrorCountSchema = {
   properties: {
     count: {
@@ -1725,6 +1867,20 @@ export const SafeSettingsResponseSchema = {
     "version",
   ],
   title: "SafeSettingsResponse",
+  type: "object",
+} as const;
+
+export const ScenarioCountSchema = {
+  properties: {
+    count: {
+      type: "integer",
+    },
+    scenario: {
+      type: "string",
+    },
+  },
+  required: ["count", "scenario"],
+  title: "ScenarioCount",
   type: "object",
 } as const;
 

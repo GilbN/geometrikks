@@ -51,6 +51,16 @@ import type {
   ApiV1AuthLogoutLogoutResponses,
   ApiV1AuthMeMeData,
   ApiV1AuthMeMeResponses,
+  ApiV1CrowdsecDecisionsListDecisionsData,
+  ApiV1CrowdsecDecisionsListDecisionsErrors,
+  ApiV1CrowdsecDecisionsListDecisionsResponses,
+  ApiV1CrowdsecDecisionsLookupLookupDecisionsData,
+  ApiV1CrowdsecDecisionsLookupLookupDecisionsErrors,
+  ApiV1CrowdsecDecisionsLookupLookupDecisionsResponses,
+  ApiV1CrowdsecStatsGetStatsData,
+  ApiV1CrowdsecStatsGetStatsResponses,
+  ApiV1CrowdsecStatusGetStatusData,
+  ApiV1CrowdsecStatusGetStatusResponses,
   ApiV1GeoEventsFacetsGetGeoLogFacetsData,
   ApiV1GeoEventsFacetsGetGeoLogFacetsResponses,
   ApiV1GeoEventsListGeoEventsData,
@@ -562,6 +572,105 @@ export const apiV1AuthMeMe = <ThrowOnError extends boolean = false>(
       },
     ],
     url: "/api/v1/auth/me",
+    ...options,
+  });
+
+/**
+ * ListDecisions
+ */
+export const apiV1CrowdsecDecisionsListDecisions = <
+  ThrowOnError extends boolean = false,
+>(
+  options?: Options<ApiV1CrowdsecDecisionsListDecisionsData, ThrowOnError>,
+) =>
+  (options?.client ?? client).get<
+    ApiV1CrowdsecDecisionsListDecisionsResponses,
+    ApiV1CrowdsecDecisionsListDecisionsErrors,
+    ThrowOnError
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+    ],
+    url: "/api/v1/crowdsec/decisions",
+    ...options,
+  });
+
+/**
+ * LookupDecisions
+ */
+export const apiV1CrowdsecDecisionsLookupLookupDecisions = <
+  ThrowOnError extends boolean = false,
+>(
+  options: Options<
+    ApiV1CrowdsecDecisionsLookupLookupDecisionsData,
+    ThrowOnError
+  >,
+) =>
+  (options.client ?? client).get<
+    ApiV1CrowdsecDecisionsLookupLookupDecisionsResponses,
+    ApiV1CrowdsecDecisionsLookupLookupDecisionsErrors,
+    ThrowOnError
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+    ],
+    url: "/api/v1/crowdsec/decisions/lookup",
+    ...options,
+  });
+
+/**
+ * GetStats
+ */
+export const apiV1CrowdsecStatsGetStats = <
+  ThrowOnError extends boolean = false,
+>(
+  options?: Options<ApiV1CrowdsecStatsGetStatsData, ThrowOnError>,
+) =>
+  (options?.client ?? client).get<
+    ApiV1CrowdsecStatsGetStatsResponses,
+    unknown,
+    ThrowOnError
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+    ],
+    url: "/api/v1/crowdsec/stats",
+    ...options,
+  });
+
+/**
+ * GetStatus
+ */
+export const apiV1CrowdsecStatusGetStatus = <
+  ThrowOnError extends boolean = false,
+>(
+  options?: Options<ApiV1CrowdsecStatusGetStatusData, ThrowOnError>,
+) =>
+  (options?.client ?? client).get<
+    ApiV1CrowdsecStatusGetStatusResponses,
+    unknown,
+    ThrowOnError
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+    ],
+    url: "/api/v1/crowdsec/status",
     ...options,
   });
 

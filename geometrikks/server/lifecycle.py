@@ -16,6 +16,7 @@ from geometrikks.server.migrations import migrate_database
 from geometrikks.server.plugins import get_sqlalchemy_config
 from geometrikks.server.timescale import setup_timescaledb
 
+from geometrikks.services.crowdsec import CrowdSecService
 from geometrikks.services.geoip.downloader import ensure_geoip_database
 from geometrikks.services.geoip.home import resolve_home_location
 from geometrikks.services.ingestion import LogIngestionService
@@ -74,6 +75,16 @@ async def on_startup(app: "Litestar") -> None:
             "not start until a GeoLite2 database file is present (restart "
             "after configuring MAXMINDDB_USER_ID/MAXMINDDB_LICENSE_KEY)."
         )
+
+    # CrowdSec: LAPI client needs no database, so it is wired before the DB
+    # gate; missing config degrades the feature instead of failing startup.
+    if settings.crowdsec.enabled:
+        app.state.crowdsec_service = CrowdSecService(settings.crowdsec)
+        logger.info(
+            "CrowdSec integration enabled (write=%s)", settings.crowdsec.write_enabled
+        )
+    else:
+        app.state.crowdsec_service = None
 
     if not await _db_available():
         logger.warning("Starting without database: skipping migrations and ingestion.")
@@ -148,3 +159,8 @@ async def on_shutdown(app: "Litestar") -> None:
     if scheduler and scheduler.running:
         scheduler.shutdown(wait=True)
         logger.info("Stopped APScheduler")
+
+    # Close the CrowdSec LAPI client
+    crowdsec_service: CrowdSecService | None = getattr(app.state, "crowdsec_service", None)
+    if crowdsec_service:
+        await crowdsec_service.aclose()
