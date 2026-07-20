@@ -17,6 +17,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   table. The decisions list defaults to local origins so an opted-in CAPI
   community blocklist doesn't flood the view. Machine credentials are
   validated and reported via `write_enabled`.
+- CrowdSec ban/unban from the UI: with `CROWDSEC_MACHINE_ID` +
+  `CROWDSEC_MACHINE_PASSWORD` set, a shield action on each IP in the
+  access-logs table bans (duration picker, 1h to forever) or unbans via
+  `POST /api/v1/crowdsec/ban` / `POST /api/v1/crowdsec/unban`; actions are
+  audit-logged with the acting user. Badges now cover all decision origins
+  (CAPI blocklist included) through the compact
+  `GET /api/v1/crowdsec/banned-ips` endpoint.
 
 ## [0.3.0] - 2026-07-19
 

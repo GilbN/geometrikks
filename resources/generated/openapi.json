@@ -310,6 +310,32 @@
         "title": "AnalyticsSettingsView",
         "type": "object"
       },
+      "BanRequest": {
+        "properties": {
+          "duration": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "ip": {
+            "type": "string"
+          },
+          "reason": {
+            "default": "manual ban from GeoMetrikks",
+            "type": "string"
+          }
+        },
+        "required": [
+          "ip"
+        ],
+        "title": "BanRequest",
+        "type": "object"
+      },
       "CountryFacet": {
         "properties": {
           "code": {
@@ -2773,6 +2799,30 @@
           "start_date"
         ],
         "title": "TopUserAgentsResponse",
+        "type": "object"
+      },
+      "UnbanRequest": {
+        "properties": {
+          "ip": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "ip"
+        ],
+        "title": "UnbanRequest",
+        "type": "object"
+      },
+      "UnbanResponse": {
+        "properties": {
+          "deleted": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "deleted"
+        ],
+        "title": "UnbanResponse",
         "type": "object"
       }
     },
@@ -5271,6 +5321,96 @@
         ]
       }
     },
+    "/api/v1/crowdsec/ban": {
+      "post": {
+        "deprecated": false,
+        "operationId": "ApiV1CrowdsecBanBan",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BanRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Request fulfilled, nothing follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "Ban",
+        "tags": [
+          "CrowdSec"
+        ]
+      }
+    },
+    "/api/v1/crowdsec/banned-ips": {
+      "get": {
+        "deprecated": false,
+        "operationId": "ApiV1CrowdsecBannedIpsListBannedIps",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          }
+        },
+        "summary": "ListBannedIps",
+        "tags": [
+          "CrowdSec"
+        ]
+      }
+    },
     "/api/v1/crowdsec/decisions": {
       "get": {
         "deprecated": false,
@@ -5518,6 +5658,77 @@
           }
         },
         "summary": "GetStatus",
+        "tags": [
+          "CrowdSec"
+        ]
+      }
+    },
+    "/api/v1/crowdsec/unban": {
+      "post": {
+        "deprecated": false,
+        "operationId": "ApiV1CrowdsecUnbanUnban",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UnbanRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnbanResponse"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "Unban",
         "tags": [
           "CrowdSec"
         ]

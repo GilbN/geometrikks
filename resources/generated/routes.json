@@ -1,6 +1,13 @@
 {
   "litestar_version": "Version(major=2, minor=24, patch=0, release_level='final', serial=0)",
   "routes": {
+    "ban": {
+      "method": "post",
+      "methods": [
+        "POST"
+      ],
+      "uri": "/api/v1/crowdsec/ban"
+    },
     "get_about": {
       "method": "get",
       "methods": [
@@ -418,6 +425,13 @@
       },
       "uri": "/api/v1/access-logs"
     },
+    "list_banned_ips": {
+      "method": "get",
+      "methods": [
+        "GET"
+      ],
+      "uri": "/api/v1/crowdsec/banned-ips"
+    },
     "list_decisions": {
       "method": "get",
       "methods": [
@@ -537,6 +551,13 @@
         "GET"
       ],
       "uri": "/api/v1/stats"
+    },
+    "unban": {
+      "method": "post",
+      "methods": [
+        "POST"
+      ],
+      "uri": "/api/v1/crowdsec/unban"
     },
     "vite": {
       "method": "get",

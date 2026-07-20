@@ -348,7 +348,11 @@ class TestCrowdSecSettings:
         assert s.bouncer_api_key.get_secret_value() == "bouncer-secret"
         assert s.machine_password.get_secret_value() == "machine-secret"
 
-    def test_registered_on_settings(self):
+    def test_registered_on_settings(self, monkeypatch, tmp_path):
+        # chdir away from the repo: the nested CrowdSecSettings factory reads
+        # ./.env itself, so a local .env with CROWDSEC_* would leak in even
+        # though the parent gets _env_file=None.
+        monkeypatch.chdir(tmp_path)
         s = Settings(_env_file=None)
         assert s.crowdsec.enabled is False
         assert s.crowdsec.default_ban_duration == "4h"

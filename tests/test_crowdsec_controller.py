@@ -93,7 +93,9 @@ async def test_status_disabled():
     }
 
 
-async def test_status_enabled_read_only(monkeypatch):
+async def test_status_enabled_read_only(monkeypatch, tmp_path):
+    # chdir away from the repo so a local .env with machine creds can't leak in
+    monkeypatch.chdir(tmp_path)
     monkeypatch.setenv("CROWDSEC_LAPI_URL", "http://crowdsec:8080")
     monkeypatch.setenv("CROWDSEC_BOUNCER_API_KEY", "key")
     async with AsyncTestClient(app=make_app(FakeCrowdSec([]))) as client:
@@ -220,4 +222,129 @@ async def test_stats_counts_by_origin_and_scenario():
         "count": 2,
     }
     # Stats cover all origins, so no origins filter is applied
+    assert service.calls == [{}]
+
+
+# -- write endpoints + banned-ips ------------------------------------------
+
+
+class WritableFakeCrowdSec(FakeCrowdSec):
+    def __init__(self, decisions: list[Decision] | None = None) -> None:
+        super().__init__(decisions or [])
+        self.bans: list[tuple[str, str | None, str]] = []
+        self.unbans: list[str] = []
+
+    async def ban_ip(self, ip, *, duration=None, reason="manual ban from GeoMetrikks"):
+        self.bans.append((ip, duration, reason))
+
+    async def unban_ip(self, ip):
+        self.unbans.append(ip)
+        return 2
+
+
+def enable_write(monkeypatch):
+    monkeypatch.setenv("CROWDSEC_LAPI_URL", "http://crowdsec:8080")
+    monkeypatch.setenv("CROWDSEC_BOUNCER_API_KEY", "key")
+    monkeypatch.setenv("CROWDSEC_MACHINE_ID", "geometrikks")
+    monkeypatch.setenv("CROWDSEC_MACHINE_PASSWORD", "pass")
+
+
+async def test_ban_requires_write_enabled(monkeypatch, tmp_path):
+    # chdir away from the repo so a local .env with machine creds can't leak in
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("CROWDSEC_LAPI_URL", "http://crowdsec:8080")
+    monkeypatch.setenv("CROWDSEC_BOUNCER_API_KEY", "key")
+    monkeypatch.delenv("CROWDSEC_MACHINE_ID", raising=False)
+    monkeypatch.delenv("CROWDSEC_MACHINE_PASSWORD", raising=False)
+    async with AsyncTestClient(app=make_app(WritableFakeCrowdSec())) as client:
+        resp = await client.post("/api/v1/crowdsec/ban", json={"ip": "1.2.3.4"})
+    assert resp.status_code == 403
+
+
+async def test_ban_404_when_disabled():
+    async with AsyncTestClient(app=make_app(None)) as client:
+        assert (await client.post("/api/v1/crowdsec/ban", json={"ip": "1.2.3.4"})).status_code == 404
+        assert (await client.post("/api/v1/crowdsec/unban", json={"ip": "1.2.3.4"})).status_code == 404
+        assert (await client.get("/api/v1/crowdsec/banned-ips")).status_code == 404
+
+
+async def test_ban_calls_service_with_duration_and_reason(monkeypatch):
+    enable_write(monkeypatch)
+    service = WritableFakeCrowdSec()
+    async with AsyncTestClient(app=make_app(service)) as client:
+        resp = await client.post(
+            "/api/v1/crowdsec/ban",
+            json={"ip": "1.2.3.4", "duration": "24h", "reason": "scanner"},
+        )
+    assert resp.status_code == 204
+    assert service.bans == [("1.2.3.4", "24h", "scanner")]
+
+
+async def test_ban_rejects_invalid_ip(monkeypatch):
+    enable_write(monkeypatch)
+    async with AsyncTestClient(app=make_app(WritableFakeCrowdSec())) as client:
+        resp = await client.post("/api/v1/crowdsec/ban", json={"ip": "not-an-ip"})
+    assert resp.status_code == 400
+
+
+async def test_ban_rejects_invalid_duration(monkeypatch):
+    enable_write(monkeypatch)
+    async with AsyncTestClient(app=make_app(WritableFakeCrowdSec())) as client:
+        resp = await client.post(
+            "/api/v1/crowdsec/ban", json={"ip": "1.2.3.4", "duration": "4 hours"}
+        )
+    assert resp.status_code == 400
+
+
+async def test_unban_returns_deleted_count(monkeypatch):
+    enable_write(monkeypatch)
+    service = WritableFakeCrowdSec()
+    async with AsyncTestClient(app=make_app(service)) as client:
+        resp = await client.post("/api/v1/crowdsec/unban", json={"ip": "5.6.7.8"})
+    assert resp.status_code == 200
+    assert resp.json() == {"deleted": 2}
+    assert service.unbans == ["5.6.7.8"]
+
+
+async def test_ban_is_audit_logged(monkeypatch):
+    """A handler on the module logger, not caplog: Litestar's dictConfig
+    replaces root handlers at app construction, silently dropping pytest's
+    root-level capture handler."""
+    enable_write(monkeypatch)
+    import logging
+
+    records: list[logging.LogRecord] = []
+
+    class ListHandler(logging.Handler):
+        def emit(self, record: logging.LogRecord) -> None:
+            records.append(record)
+
+    audit_logger = logging.getLogger("geometrikks.api.v1.crowdsec_controller")
+    handler = ListHandler(level=logging.INFO)
+    app = make_app(WritableFakeCrowdSec())
+    async with AsyncTestClient(app=app) as client:
+        audit_logger.addHandler(handler)
+        try:
+            resp = await client.post(
+                "/api/v1/crowdsec/ban", json={"ip": "1.2.3.4", "reason": "scanner"}
+            )
+        finally:
+            audit_logger.removeHandler(handler)
+    assert resp.status_code == 204, resp.text
+    audit = [r.getMessage() for r in records if "1.2.3.4" in r.getMessage()]
+    assert audit and "scanner" in audit[0]
+
+
+async def test_banned_ips_returns_ip_scope_values_across_origins():
+    decisions = [
+        make_decision(id=1, value="1.2.3.4", origin="CAPI"),
+        make_decision(id=2, value="5.6.7.8", origin="cscli"),
+        make_decision(id=3, value="10.0.0.0/24", scope="Range", origin="crowdsec"),
+    ]
+    service = FakeCrowdSec(decisions)
+    async with AsyncTestClient(app=make_app(service)) as client:
+        resp = await client.get("/api/v1/crowdsec/banned-ips")
+    assert resp.status_code == 200
+    assert resp.json() == ["1.2.3.4", "5.6.7.8"]
+    # one unfiltered fetch: all origins, so CAPI bans badge too
     assert service.calls == [{}]

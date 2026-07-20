@@ -27,9 +27,11 @@ async def test_startup_creates_service_when_enabled(monkeypatch):
     await app.state.crowdsec_service.aclose()
 
 
-async def test_startup_without_config_sets_none(monkeypatch):
+async def test_startup_without_config_sets_none(monkeypatch, tmp_path):
     from geometrikks.server import lifecycle as lc
 
+    # chdir away from the repo so a local .env with CROWDSEC_* can't leak in
+    monkeypatch.chdir(tmp_path)
     monkeypatch.delenv("CROWDSEC_LAPI_URL", raising=False)
     monkeypatch.delenv("CROWDSEC_BOUNCER_API_KEY", raising=False)
     _patch_startup_collaborators(

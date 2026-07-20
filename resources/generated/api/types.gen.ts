@@ -85,6 +85,15 @@ export type AnalyticsSettingsView = {
 };
 
 /**
+ * BanRequest
+ */
+export type BanRequest = {
+  duration?: string | null;
+  ip: string;
+  reason?: string;
+};
+
+/**
  * CountryFacet
  */
 export type CountryFacet = {
@@ -814,6 +823,20 @@ export type TopUserAgentsResponse = {
   end_date: string;
   items: Array<TopUserAgentDto>;
   start_date: string;
+};
+
+/**
+ * UnbanRequest
+ */
+export type UnbanRequest = {
+  ip: string;
+};
+
+/**
+ * UnbanResponse
+ */
+export type UnbanResponse = {
+  deleted: number;
 };
 
 export type ApiV1AccessLogDebugListAccessLogDebugData = {
@@ -1647,6 +1670,59 @@ export type ApiV1AuthMeMeResponses = {
 export type ApiV1AuthMeMeResponse =
   ApiV1AuthMeMeResponses[keyof ApiV1AuthMeMeResponses];
 
+export type ApiV1CrowdsecBanBanData = {
+  body: BanRequest;
+  path?: never;
+  query?: never;
+  url: "/api/v1/crowdsec/ban";
+};
+
+export type ApiV1CrowdsecBanBanErrors = {
+  /**
+   * Validation Exception
+   */
+  400: {
+    detail: string;
+    extra?:
+      | null
+      | {
+          [key: string]: unknown;
+        }
+      | Array<unknown>;
+    status_code: number;
+  };
+};
+
+export type ApiV1CrowdsecBanBanError =
+  ApiV1CrowdsecBanBanErrors[keyof ApiV1CrowdsecBanBanErrors];
+
+export type ApiV1CrowdsecBanBanResponses = {
+  /**
+   * Request fulfilled, nothing follows
+   */
+  204: void;
+};
+
+export type ApiV1CrowdsecBanBanResponse =
+  ApiV1CrowdsecBanBanResponses[keyof ApiV1CrowdsecBanBanResponses];
+
+export type ApiV1CrowdsecBannedIpsListBannedIpsData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: "/api/v1/crowdsec/banned-ips";
+};
+
+export type ApiV1CrowdsecBannedIpsListBannedIpsResponses = {
+  /**
+   * Request fulfilled, document follows
+   */
+  200: Array<string>;
+};
+
+export type ApiV1CrowdsecBannedIpsListBannedIpsResponse =
+  ApiV1CrowdsecBannedIpsListBannedIpsResponses[keyof ApiV1CrowdsecBannedIpsListBannedIpsResponses];
+
 export type ApiV1CrowdsecDecisionsListDecisionsData = {
   body?: never;
   path?: never;
@@ -1775,6 +1851,42 @@ export type ApiV1CrowdsecStatusGetStatusResponses = {
 
 export type ApiV1CrowdsecStatusGetStatusResponse =
   ApiV1CrowdsecStatusGetStatusResponses[keyof ApiV1CrowdsecStatusGetStatusResponses];
+
+export type ApiV1CrowdsecUnbanUnbanData = {
+  body: UnbanRequest;
+  path?: never;
+  query?: never;
+  url: "/api/v1/crowdsec/unban";
+};
+
+export type ApiV1CrowdsecUnbanUnbanErrors = {
+  /**
+   * Validation Exception
+   */
+  400: {
+    detail: string;
+    extra?:
+      | null
+      | {
+          [key: string]: unknown;
+        }
+      | Array<unknown>;
+    status_code: number;
+  };
+};
+
+export type ApiV1CrowdsecUnbanUnbanError =
+  ApiV1CrowdsecUnbanUnbanErrors[keyof ApiV1CrowdsecUnbanUnbanErrors];
+
+export type ApiV1CrowdsecUnbanUnbanResponses = {
+  /**
+   * Request fulfilled, document follows
+   */
+  200: UnbanResponse;
+};
+
+export type ApiV1CrowdsecUnbanUnbanResponse =
+  ApiV1CrowdsecUnbanUnbanResponses[keyof ApiV1CrowdsecUnbanUnbanResponses];
 
 export type ApiV1GeoEventsListGeoEventsData = {
   body?: never;

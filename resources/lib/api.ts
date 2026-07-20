@@ -253,6 +253,25 @@ export async function fetchCrowdsecDecisions(params?: {
   return data
 }
 
+/** Every actively banned IP across all origins (CAPI included), values only.
+ *  Compact enough for the badge set even with a community blocklist. */
+export async function fetchCrowdsecBannedIps(): Promise<string[]> {
+  const { data } = await api.get<string[]>("/crowdsec/banned-ips")
+  return data
+}
+
+/** Ban one IP. `duration` is a Go duration string (4h, 24h, 168h); the
+ *  server default applies when omitted. Requires write_enabled. */
+export async function banIp(ip: string, duration?: string): Promise<void> {
+  await api.post("/crowdsec/ban", { ip, duration })
+}
+
+/** Delete all active decisions for one IP; resolves to the number deleted. */
+export async function unbanIp(ip: string): Promise<number> {
+  const { data } = await api.post<{ deleted: number }>("/crowdsec/unban", { ip })
+  return data.deleted
+}
+
 export interface SummaryParams {
   startDate: string // ISO date string (YYYY-MM-DD)
   endDate: string

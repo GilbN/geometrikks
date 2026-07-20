@@ -296,6 +296,31 @@ export const AnalyticsSettingsViewSchema = {
   type: "object",
 } as const;
 
+export const BanRequestSchema = {
+  properties: {
+    duration: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    ip: {
+      type: "string",
+    },
+    reason: {
+      default: "manual ban from GeoMetrikks",
+      type: "string",
+    },
+  },
+  required: ["ip"],
+  title: "BanRequest",
+  type: "object",
+} as const;
+
 export const CountryFacetSchema = {
   properties: {
     code: {
@@ -2601,5 +2626,27 @@ export const TopUserAgentsResponseSchema = {
   },
   required: ["end_date", "items", "start_date"],
   title: "TopUserAgentsResponse",
+  type: "object",
+} as const;
+
+export const UnbanRequestSchema = {
+  properties: {
+    ip: {
+      type: "string",
+    },
+  },
+  required: ["ip"],
+  title: "UnbanRequest",
+  type: "object",
+} as const;
+
+export const UnbanResponseSchema = {
+  properties: {
+    deleted: {
+      type: "integer",
+    },
+  },
+  required: ["deleted"],
+  title: "UnbanResponse",
   type: "object",
 } as const;

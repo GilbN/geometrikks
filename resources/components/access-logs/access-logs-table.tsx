@@ -10,6 +10,7 @@ import {
   ChevronsUpDown,
   Columns3,
   Search,
+  ShieldBan,
 } from "lucide-react"
 import {
   Table,
@@ -27,6 +28,7 @@ import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
+  DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
@@ -34,7 +36,14 @@ import {
 import { PaginationFooter } from "@/components/ui/pagination-footer"
 import { FilterCombobox } from "@/components/ui/filter-combobox"
 import { FiltersDrawer, FilterSection } from "@/components/ui/filters-drawer"
-import { useAccessLogs, useAccessLogFacets, useBannedIps } from "@/lib/queries"
+import {
+  useAccessLogs,
+  useAccessLogFacets,
+  useBannedIps,
+  useBanIp,
+  useUnbanIp,
+  useCrowdsecStatus,
+} from "@/lib/queries"
 import { useDebouncedValue } from "@/hooks/use-debounced-value"
 import { useIsMobile } from "@/hooks/use-mobile"
 import {
@@ -47,6 +56,57 @@ import {
 import { cn, isMobileViewport } from "@/lib/utils"
 
 const PAGE_SIZES = [10, 20, 50, 100, 200, 500, 1000] as const
+
+/** Go duration strings the LAPI accepts; "forever" is modeled as 10 years. */
+const BAN_DURATIONS = [
+  { label: "1 hour", value: "1h" },
+  { label: "4 hours", value: "4h" },
+  { label: "24 hours", value: "24h" },
+  { label: "7 days", value: "168h" },
+  { label: "Forever", value: "87600h" },
+] as const
+
+/** Ban/unban dropdown on the IP cell; hidden unless machine credentials
+ *  enable write access on the CrowdSec integration. */
+function IpBanAction({ ip, banned }: { ip: string; banned: boolean }) {
+  const { data: status } = useCrowdsecStatus()
+  const ban = useBanIp()
+  const unban = useUnbanIp()
+  if (!status?.write_enabled) return null
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          variant="ghost"
+          size="icon-xs"
+          className="ml-1 align-middle text-muted-foreground"
+          title={banned ? "Unban this IP" : "Ban this IP"}
+        >
+          <ShieldBan />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start">
+        {banned ? (
+          <DropdownMenuItem onClick={() => unban.mutate(ip)}>
+            Unban {ip}
+          </DropdownMenuItem>
+        ) : (
+          <>
+            <DropdownMenuLabel>Ban {ip}</DropdownMenuLabel>
+            {BAN_DURATIONS.map((d) => (
+              <DropdownMenuItem
+                key={d.value}
+                onClick={() => ban.mutate({ ip, duration: d.value })}
+              >
+                {d.label}
+              </DropdownMenuItem>
+            ))}
+          </>
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
 
 const HTTP_METHODS = [
   "GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS", "CONNECT", "TRACE",
@@ -518,14 +578,22 @@ export function AccessLogsTable() {
                         className={cn(c.align === "right" && "text-right")}
                       >
                         {c.render(row)}
-                        {c.key === "ipAddress" && bannedIps?.has(row.ipAddress) && (
-                          <Badge
-                            variant="destructive"
-                            className="ml-2 align-middle"
-                            title="Active CrowdSec ban decision for this IP"
-                          >
-                            Banned
-                          </Badge>
+                        {c.key === "ipAddress" && (
+                          <>
+                            {bannedIps?.has(row.ipAddress) && (
+                              <Badge
+                                variant="destructive"
+                                className="ml-2 align-middle"
+                                title="Active CrowdSec ban decision for this IP"
+                              >
+                                Banned
+                              </Badge>
+                            )}
+                            <IpBanAction
+                              ip={row.ipAddress}
+                              banned={!!bannedIps?.has(row.ipAddress)}
+                            />
+                          </>
                         )}
                       </TableCell>
                     ))}

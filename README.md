@@ -190,11 +190,25 @@ CROWDSEC_LAPI_URL=http://crowdsec:8080
 CROWDSEC_BOUNCER_API_KEY=<key from cscli bouncers add>
 ```
 
-That enables read-only access: decision list, per-IP lookups, and ban stats.
-Machine credentials (`CROWDSEC_MACHINE_ID` + `CROWDSEC_MACHINE_PASSWORD`,
-from `cscli machines add geometrikks --auto`) are accepted as well and will
-enable ban/unban actions from the UI when write support lands; today they
-only flip the `write_enabled` flag on `/api/v1/crowdsec/status`.
+That enables read-only access: decision list, per-IP lookups, ban stats, and
+the "Banned" badge on matching IPs in the access-logs table.
+
+To also ban and unban from the UI, add machine credentials:
+
+```bash
+docker exec crowdsec cscli machines add geometrikks --auto  # prints id + password
+```
+
+```bash
+CROWDSEC_MACHINE_ID=geometrikks
+CROWDSEC_MACHINE_PASSWORD=<password from cscli machines add>
+```
+
+With write access enabled, a shield button appears next to each IP in the
+access-logs table with a ban-duration picker (1h to forever) and an unban
+action for already-banned IPs. Manual bans are created with origin
+`geometrikks`, and every ban/unban is audit-logged with the acting user in
+the app log.
 
 Notes:
 

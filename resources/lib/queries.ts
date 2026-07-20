@@ -2,7 +2,7 @@
  * TanStack Query hooks for GeoMetrikks API.
  */
 
-import { useQuery } from "@tanstack/react-query"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import {
   fetchSummary,
   fetchLiveSummary,
@@ -32,7 +32,9 @@ import {
   fetchSchedulerJobs,
   fetchAbout,
   fetchCrowdsecStatus,
-  fetchCrowdsecDecisions,
+  fetchCrowdsecBannedIps,
+  banIp,
+  unbanIp,
   parseTimeRange,
   resolveChartGranularity,
   type GeoLogSortOrder,
@@ -186,21 +188,37 @@ export function useCrowdsecStatus() {
   })
 }
 
-/** All Ip-scope decision values fetched in one bulk page: row badges must
- *  never trigger per-IP lookups. */
-const BANNED_IPS_PAGE_SIZE = 1000
-
-/** Set of currently banned IPs for badge rendering; empty until the
- *  integration is enabled and the decision list has loaded. */
+/** Set of currently banned IPs (all origins, CAPI included) for badge
+ *  rendering; empty until the integration is enabled and loaded. */
 export function useBannedIps() {
   const { data: status } = useCrowdsecStatus()
   return useQuery({
     queryKey: queryKeys.crowdsec.bannedIps,
-    queryFn: () => fetchCrowdsecDecisions({ pageSize: BANNED_IPS_PAGE_SIZE }),
+    queryFn: fetchCrowdsecBannedIps,
     enabled: status?.enabled === true,
     refetchInterval: 60_000,
-    select: (page) =>
-      new Set(page.items.filter((d) => d.scope === "Ip").map((d) => d.ip)),
+    select: (ips) => new Set(ips),
+  })
+}
+
+/** Ban an IP, then refresh the badge set. */
+export function useBanIp() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ ip, duration }: { ip: string; duration?: string }) =>
+      banIp(ip, duration),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: queryKeys.crowdsec.bannedIps }),
+  })
+}
+
+/** Remove all active decisions for an IP, then refresh the badge set. */
+export function useUnbanIp() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (ip: string) => unbanIp(ip),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: queryKeys.crowdsec.bannedIps }),
   })
 }
 

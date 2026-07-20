@@ -1,7 +1,14 @@
-"""CrowdSec Local API client service (read path, bouncer API key)."""
+"""CrowdSec Local API client service.
+
+Read path authenticates with the bouncer API key; the write path (ban/unban)
+logs in as a machine (watcher) and holds the JWT for the client lifetime,
+re-logging in once when it expires.
+"""
 from __future__ import annotations
 
 import logging
+from datetime import datetime, timezone
+from typing import Any
 
 import httpx
 import msgspec
@@ -42,6 +49,7 @@ class CrowdSecService:
             verify=settings.verify_tls,
             transport=transport,
         )
+        self._machine_token: str | None = None
 
     async def aclose(self) -> None:
         await self._client.aclose()
@@ -94,3 +102,103 @@ class CrowdSecService:
             return True
         except CrowdSecError:
             return False
+
+    # -- write path (machine JWT) --------------------------------------
+
+    async def _login(self) -> str:
+        if not self._settings.write_enabled:
+            raise CrowdSecAuthError(
+                "Ban/unban requires CROWDSEC_MACHINE_ID and CROWDSEC_MACHINE_PASSWORD"
+            )
+        try:
+            resp = await self._client.post(
+                "/v1/watchers/login",
+                json={
+                    "machine_id": self._settings.machine_id,
+                    "password": self._settings.machine_password.get_secret_value(),
+                },
+            )
+            if resp.status_code in (401, 403):
+                raise CrowdSecAuthError("LAPI rejected the machine credentials")
+            resp.raise_for_status()
+        except httpx.HTTPError as exc:
+            raise CrowdSecUnavailableError(f"LAPI unreachable: {exc}") from exc
+        self._machine_token = resp.json()["token"]
+        logger.info("Logged in to CrowdSec LAPI as machine %s", self._settings.machine_id)
+        return self._machine_token
+
+    async def _machine_request(self, method: str, url: str, **kwargs: Any) -> httpx.Response:
+        token = self._machine_token or await self._login()
+        try:
+            resp = await self._client.request(
+                method, url, headers={"Authorization": f"Bearer {token}"}, **kwargs
+            )
+            if resp.status_code == 401:  # token expired -> re-login once
+                logger.info("CrowdSec machine token expired; re-authenticating")
+                token = await self._login()
+                resp = await self._client.request(
+                    method, url, headers={"Authorization": f"Bearer {token}"}, **kwargs
+                )
+            if resp.status_code in (401, 403):
+                raise CrowdSecAuthError("LAPI rejected the machine token")
+            resp.raise_for_status()
+            return resp
+        except httpx.HTTPStatusError as exc:
+            raise CrowdSecUnavailableError(
+                f"LAPI error: HTTP {exc.response.status_code}"
+            ) from exc
+        except httpx.HTTPError as exc:
+            raise CrowdSecUnavailableError(f"LAPI unreachable: {exc}") from exc
+
+    async def ban_ip(
+        self,
+        ip: str,
+        *,
+        duration: str | None = None,
+        reason: str = "manual ban from GeoMetrikks",
+    ) -> None:
+        """Create a manual ban decision via an alert on POST /v1/alerts.
+
+        Raises:
+            CrowdSecAuthError: Machine credentials missing or rejected.
+            CrowdSecUnavailableError: The LAPI is unreachable or errored.
+        """
+        now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        alert = {
+            "scenario": "geometrikks/manual-ban",
+            "scenario_hash": "",
+            "scenario_version": "",
+            "message": reason,
+            "events_count": 1,
+            "events": [],
+            "capacity": 0,
+            "leakspeed": "0",
+            "remediation": True,
+            "simulated": False,
+            "start_at": now,
+            "stop_at": now,
+            "source": {"scope": "Ip", "value": ip, "ip": ip},
+            "decisions": [
+                {
+                    "type": "ban",
+                    "scope": "Ip",
+                    "value": ip,
+                    "duration": duration or self._settings.default_ban_duration,
+                    "origin": "geometrikks",
+                    "scenario": f"manual ban from GeoMetrikks: {reason}",
+                    "simulated": False,
+                }
+            ],
+        }
+        await self._machine_request("POST", "/v1/alerts", json=[alert])
+
+    async def unban_ip(self, ip: str) -> int:
+        """Delete all active decisions for an IP; returns the number deleted.
+
+        Raises:
+            CrowdSecAuthError: Machine credentials missing or rejected.
+            CrowdSecUnavailableError: The LAPI is unreachable or errored.
+        """
+        resp = await self._machine_request("DELETE", "/v1/decisions", params={"ip": ip})
+        # The LAPI types nbDeleted as a string ("2"); int() handles both.
+        return int(resp.json().get("nbDeleted", 0))
