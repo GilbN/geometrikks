@@ -373,6 +373,17 @@ export type GlobalTopIpsResponse = {
 };
 
 /**
+ * IpLocation
+ */
+export type IpLocation = {
+  city: string | null;
+  country_code: string | null;
+  ip: string;
+  latitude: number;
+  longitude: number;
+};
+
+/**
  * ListAccessLogsAccessLogResponseBody
  */
 export type ListAccessLogsAccessLogResponseBody = {
@@ -1783,6 +1794,23 @@ export type ApiV1CrowdsecBannedIpsListBannedIpsResponses = {
 
 export type ApiV1CrowdsecBannedIpsListBannedIpsResponse =
   ApiV1CrowdsecBannedIpsListBannedIpsResponses[keyof ApiV1CrowdsecBannedIpsListBannedIpsResponses];
+
+export type ApiV1CrowdsecBannedLocationsListBannedLocationsData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: "/api/v1/crowdsec/banned-locations";
+};
+
+export type ApiV1CrowdsecBannedLocationsListBannedLocationsResponses = {
+  /**
+   * Request fulfilled, document follows
+   */
+  200: Array<IpLocation>;
+};
+
+export type ApiV1CrowdsecBannedLocationsListBannedLocationsResponse =
+  ApiV1CrowdsecBannedLocationsListBannedLocationsResponses[keyof ApiV1CrowdsecBannedLocationsListBannedLocationsResponses];
 
 export type ApiV1CrowdsecDecisionsListDecisionsData = {
   body?: never;

@@ -1251,6 +1251,43 @@ export const GlobalTopIPsResponseSchema = {
   type: "object",
 } as const;
 
+export const IpLocationSchema = {
+  properties: {
+    city: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    country_code: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    ip: {
+      type: "string",
+    },
+    latitude: {
+      type: "number",
+    },
+    longitude: {
+      type: "number",
+    },
+  },
+  required: ["city", "country_code", "ip", "latitude", "longitude"],
+  title: "IpLocation",
+  type: "object",
+} as const;
+
 export const ListAccessLogsAccessLogResponseBodySchema = {
   properties: {
     bytesSent: {

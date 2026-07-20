@@ -32,7 +32,7 @@ from geometrikks.api.dependencies import (
 )
 from geometrikks.config.settings import get_settings
 from geometrikks.domain.security.repositories import SecurityEnrichmentRepository
-from geometrikks.domain.security.schemas import IpEnrichment
+from geometrikks.domain.security.schemas import IpEnrichment, IpLocation
 from geometrikks.services.crowdsec import CrowdSecService, Decision
 
 # The CAPI community blocklist can hold tens of thousands of decisions; the
@@ -256,6 +256,23 @@ class CrowdSecController(Controller):
         service = _require_service(crowdsec)
         decisions = await service.get_decisions()
         return [d.value for d in decisions if d.scope == "Ip"]
+
+    @get("/banned-locations")
+    async def list_banned_locations(
+        self,
+        crowdsec: NamedDependency[CrowdSecService | None],
+        enrichment_repo: NamedDependency[SecurityEnrichmentRepository],
+    ) -> list[IpLocation]:
+        """Coordinates of banned IPs that appear in this server's own traffic.
+
+        Feeds the map's banned overlay: the decision list (all origins) is
+        joined against stored geo events, so only attackers actually seen
+        here get a marker.
+        """
+        service = _require_service(crowdsec)
+        decisions = await service.get_decisions()
+        banned_ips = [d.value for d in decisions if d.scope == "Ip"]
+        return await enrichment_repo.locations(banned_ips)
 
     @get("/alerts")
     async def list_alerts(

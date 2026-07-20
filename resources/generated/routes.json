@@ -445,6 +445,13 @@
       ],
       "uri": "/api/v1/crowdsec/banned-ips"
     },
+    "list_banned_locations": {
+      "method": "get",
+      "methods": [
+        "GET"
+      ],
+      "uri": "/api/v1/crowdsec/banned-locations"
+    },
     "list_decisions": {
       "method": "get",
       "methods": [

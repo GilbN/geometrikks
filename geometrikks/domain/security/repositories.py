@@ -8,7 +8,7 @@ from sqlalchemy import bindparam, text
 from sqlalchemy.dialects import postgresql
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from geometrikks.domain.security.schemas import IpEnrichment
+from geometrikks.domain.security.schemas import IpEnrichment, IpLocation
 
 # Latest-geo lookback: bounds chunk scans on the access_logs hypertable while
 # still finding geo data for IPs whose last request predates the 24h window.
@@ -72,6 +72,50 @@ class SecurityEnrichmentRepository:
             )
             for row in rows
         }
+
+    async def locations(self, ips: list[str]) -> list[IpLocation]:
+        """Latest known coordinates per IP, from stored geo events.
+
+        Same input rules as :meth:`enrich`; IPs never seen in the stored
+        traffic are absent from the result.
+        """
+        valid_ips = [ip for ip in ips if _is_ip(ip)]
+        if not valid_ips:
+            return []
+
+        rows = await self.session.execute(
+            LOCATIONS_STMT,
+            {
+                "ips": valid_ips,
+                "lookback": datetime.now(timezone.utc) - GEO_LOOKBACK,
+            },
+        )
+        return [
+            IpLocation(
+                ip=row.ip,
+                latitude=row.latitude,
+                longitude=row.longitude,
+                city=row.city,
+                country_code=row.country_code,
+            )
+            for row in rows
+        ]
+
+
+LOCATIONS_STMT = text(
+    """
+    SELECT DISTINCT ON (ge.ip_address)
+        host(ge.ip_address) AS ip,
+        gl.latitude,
+        gl.longitude,
+        gl.city,
+        gl.country_code
+    FROM geo_events ge
+    JOIN geo_locations gl ON gl.id = ge.location_id
+    WHERE ge.ip_address = ANY(:ips) AND ge.timestamp >= :lookback
+    ORDER BY ge.ip_address, ge.timestamp DESC
+    """
+).bindparams(bindparam("ips", type_=postgresql.ARRAY(postgresql.INET)))
 
 
 def _is_ip(value: str) -> bool:

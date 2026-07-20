@@ -426,3 +426,45 @@ async def test_alerts_without_lapi_geo_fall_back_to_own_enrichment(monkeypatch):
     (alert,) = resp.json()
     assert alert["country"] == "Norway"
     assert enrichment.calls == [["1.2.3.4"]]
+
+
+# -- banned locations (map overlay) ----------------------------------------
+
+
+class LocationsFakeEnrichment(FakeEnrichment):
+    def __init__(self, locations) -> None:
+        super().__init__({})
+        self._locations = locations
+        self.location_calls: list[list[str]] = []
+
+    async def locations(self, ips):
+        self.location_calls.append(ips)
+        return [loc for loc in self._locations if loc.ip in ips]
+
+
+async def test_banned_locations_join_banned_ips_with_geo():
+    from geometrikks.domain.security.schemas import IpLocation
+
+    decisions = [
+        make_decision(id=1, value="1.2.3.4", origin="CAPI"),
+        make_decision(id=2, value="9.9.9.9", origin="cscli"),
+        make_decision(id=3, value="10.0.0.0/24", scope="Range"),
+    ]
+    oslo = IpLocation(ip="1.2.3.4", latitude=59.91, longitude=10.79, city="Oslo", country_code="NO")
+    enrichment = LocationsFakeEnrichment([oslo])
+    service = FakeCrowdSec(decisions)
+    async with AsyncTestClient(app=make_app(service, enrichment)) as client:
+        resp = await client.get("/api/v1/crowdsec/banned-locations")
+
+    assert resp.status_code == 200
+    (loc,) = resp.json()
+    assert loc == {"ip": "1.2.3.4", "latitude": 59.91, "longitude": 10.79,
+                   "city": "Oslo", "country_code": "NO"}
+    # All origins queried; only Ip-scope values reach the geo join
+    assert service.calls == [{}]
+    assert enrichment.location_calls == [["1.2.3.4", "9.9.9.9"]]
+
+
+async def test_banned_locations_404_when_disabled():
+    async with AsyncTestClient(app=make_app(None)) as client:
+        assert (await client.get("/api/v1/crowdsec/banned-locations")).status_code == 404

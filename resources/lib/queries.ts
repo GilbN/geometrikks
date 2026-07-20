@@ -37,6 +37,7 @@ import {
   fetchCrowdsecStats,
   fetchCrowdsecDecisions,
   fetchCrowdsecAlerts,
+  fetchCrowdsecBannedLocations,
   banIp,
   unbanIp,
   parseTimeRange,
@@ -76,6 +77,7 @@ export const queryKeys = {
     status: ["crowdsec", "status"] as const,
     bannedIps: ["crowdsec", "banned-ips"] as const,
     stats: ["crowdsec", "stats"] as const,
+    bannedLocations: ["crowdsec", "banned-locations"] as const,
     decisions: (params: Record<string, unknown>) =>
       ["crowdsec", "decisions", params] as const,
     alerts: (params: Record<string, unknown>) =>
@@ -207,6 +209,18 @@ export function useBannedIps() {
     enabled: status?.enabled === true,
     refetchInterval: 60_000,
     select: (ips) => new Set(ips),
+  })
+}
+
+/** Coordinates for the map's banned-IP overlay; fetched only while the
+ *  overlay is switched on and the integration is enabled. */
+export function useBannedLocations(active: boolean) {
+  const { data: status } = useCrowdsecStatus()
+  return useQuery({
+    queryKey: queryKeys.crowdsec.bannedLocations,
+    queryFn: fetchCrowdsecBannedLocations,
+    enabled: active && status?.enabled === true,
+    refetchInterval: 60_000,
   })
 }
 

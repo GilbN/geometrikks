@@ -30,9 +30,16 @@ import type {
   CrowdSecStatsResponse,
   AlertView,
   DecisionView,
+  IpLocation,
 } from "@/generated/api/types.gen"
 
-export type { CrowdSecStatusResponse, CrowdSecStatsResponse, AlertView, DecisionView }
+export type {
+  CrowdSecStatusResponse,
+  CrowdSecStatsResponse,
+  AlertView,
+  DecisionView,
+  IpLocation,
+}
 
 // Create axios instance with base configuration
 export const api = axios.create({
@@ -259,6 +266,12 @@ export async function fetchCrowdsecDecisions(params?: {
  *  Compact enough for the badge set even with a community blocklist. */
 export async function fetchCrowdsecBannedIps(): Promise<string[]> {
   const { data } = await api.get<string[]>("/crowdsec/banned-ips")
+  return data
+}
+
+/** Coordinates of banned IPs seen in this server's own traffic (map overlay). */
+export async function fetchCrowdsecBannedLocations(): Promise<IpLocation[]> {
+  const { data } = await api.get<IpLocation[]>("/crowdsec/banned-locations")
   return data
 }
 

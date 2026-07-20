@@ -59,6 +59,8 @@ import type {
   ApiV1CrowdsecBanBanResponses,
   ApiV1CrowdsecBannedIpsListBannedIpsData,
   ApiV1CrowdsecBannedIpsListBannedIpsResponses,
+  ApiV1CrowdsecBannedLocationsListBannedLocationsData,
+  ApiV1CrowdsecBannedLocationsListBannedLocationsResponses,
   ApiV1CrowdsecDecisionsListDecisionsData,
   ApiV1CrowdsecDecisionsListDecisionsErrors,
   ApiV1CrowdsecDecisionsListDecisionsResponses,
@@ -657,6 +659,33 @@ export const apiV1CrowdsecBannedIpsListBannedIps = <
       },
     ],
     url: "/api/v1/crowdsec/banned-ips",
+    ...options,
+  });
+
+/**
+ * ListBannedLocations
+ */
+export const apiV1CrowdsecBannedLocationsListBannedLocations = <
+  ThrowOnError extends boolean = false,
+>(
+  options?: Options<
+    ApiV1CrowdsecBannedLocationsListBannedLocationsData,
+    ThrowOnError
+  >,
+) =>
+  (options?.client ?? client).get<
+    ApiV1CrowdsecBannedLocationsListBannedLocationsResponses,
+    unknown,
+    ThrowOnError
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+    ],
+    url: "/api/v1/crowdsec/banned-locations",
     ...options,
   });
 

@@ -104,3 +104,49 @@ async def test_enrich_handles_ipv6(pg_session_maker, clean_tables):
 
     assert result["2001:db8::1"].request_count_24h == 1
     assert result["2001:db8::1"].country_code == "NL"
+
+
+async def seed_geo_event(session, *, ip: str, age: timedelta, lat: float, lon: float,
+                         city: str, country_code: str) -> None:
+    result = await session.execute(
+        text(
+            "INSERT INTO geo_locations (geohash, latitude, longitude, geographic_point, "
+            " country_code, country_name, city, last_hit, created_at, updated_at) "
+            "VALUES (:geohash, :lat, :lon, "
+            " ST_SetSRID(ST_MakePoint(:lon, :lat), 4326)::geography, "
+            " :country_code, :country_code, :city, now(), now(), now()) RETURNING id"
+        ),
+        {"geohash": f"gh-{ip}", "lat": lat, "lon": lon, "city": city, "country_code": country_code},
+    )
+    await session.execute(
+        text(
+            "INSERT INTO geo_events (timestamp, ip_address, hostname, location_id) "
+            "VALUES (:timestamp, :ip, 'it-test', :location_id)"
+        ),
+        {"timestamp": NOW - age, "ip": ip, "location_id": result.scalar_one()},
+    )
+
+
+async def test_locations_returns_latest_coordinates_per_ip(pg_session_maker, clean_tables):
+    async with pg_session_maker() as session:
+        await session.execute(text("DELETE FROM geo_locations"))
+        await seed_geo_event(
+            session, ip="1.2.3.4", age=timedelta(hours=2),
+            lat=59.91, lon=10.79, city="Oslo", country_code="NO",
+        )
+        await seed_geo_event(
+            session, ip="5.6.7.8", age=timedelta(days=2),
+            lat=52.52, lon=13.40, city="Berlin", country_code="DE",
+        )
+        await session.commit()
+
+        repo = SecurityEnrichmentRepository(session=session)
+        result = await repo.locations(["1.2.3.4", "5.6.7.8", "9.9.9.9", "10.0.0.0/24"])
+
+    by_ip = {loc.ip: loc for loc in result}
+    assert set(by_ip) == {"1.2.3.4", "5.6.7.8"}
+    assert by_ip["1.2.3.4"].latitude == 59.91
+    assert by_ip["1.2.3.4"].longitude == 10.79
+    assert by_ip["1.2.3.4"].city == "Oslo"
+    assert by_ip["1.2.3.4"].country_code == "NO"
+    assert by_ip["5.6.7.8"].city == "Berlin"

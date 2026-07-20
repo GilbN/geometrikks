@@ -1315,6 +1315,48 @@
         "title": "GlobalTopIPsResponse",
         "type": "object"
       },
+      "IpLocation": {
+        "properties": {
+          "city": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "country_code": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "ip": {
+            "type": "string"
+          },
+          "latitude": {
+            "type": "number"
+          },
+          "longitude": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "city",
+          "country_code",
+          "ip",
+          "latitude",
+          "longitude"
+        ],
+        "title": "IpLocation",
+        "type": "object"
+      },
       "ListAccessLogsAccessLogResponseBody": {
         "properties": {
           "bytesSent": {
@@ -5622,6 +5664,32 @@
           }
         },
         "summary": "ListBannedIps",
+        "tags": [
+          "CrowdSec"
+        ]
+      }
+    },
+    "/api/v1/crowdsec/banned-locations": {
+      "get": {
+        "deprecated": false,
+        "operationId": "ApiV1CrowdsecBannedLocationsListBannedLocations",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/IpLocation"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          }
+        },
+        "summary": "ListBannedLocations",
         "tags": [
           "CrowdSec"
         ]

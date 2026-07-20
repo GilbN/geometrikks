@@ -33,6 +33,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   required) returns recent LAPI alerts with scenario, source, LAPI country
   enrichment, event and decision counts, filterable by `?ip=`, `?scenario=`
   and `?since=24h`.
+- Map integration for CrowdSec: a "Banned IPs" overlay toggle in the map
+  controls (shown when the integration is configured) rendering red markers
+  for banned IPs seen in this server's own traffic, backed by
+  `GET /api/v1/crowdsec/banned-locations`; map popups now badge banned IPs
+  in the top-IPs list and offer ban/unban when machine credentials are set.
 - Security page: a sidebar entry (visible when the integration is
   configured) with stat cards (active decisions, local vs crowd bans, top
   scenario, LAPI state), the active-decisions table with origin-scope tabs

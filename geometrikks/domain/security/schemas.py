@@ -12,3 +12,14 @@ class IpEnrichment:
     country_name: str | None
     city: str | None
     request_count_24h: int
+
+
+@dataclass
+class IpLocation:
+    """Latest known coordinates for one IP, for the map's banned overlay."""
+
+    ip: str
+    latitude: float
+    longitude: float
+    city: str | None
+    country_code: str | None

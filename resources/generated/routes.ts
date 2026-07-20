@@ -50,6 +50,7 @@ export type RouteName =
   | 'list_access_logs'
   | 'list_alerts'
   | 'list_banned_ips'
+  | 'list_banned_locations'
   | 'list_decisions'
   | 'list_geo_events'
   | 'list_geo_locations'
@@ -107,6 +108,7 @@ export interface RoutePathParams {
   'list_access_logs': Record<string, never>;
   'list_alerts': Record<string, never>;
   'list_banned_ips': Record<string, never>;
+  'list_banned_locations': Record<string, never>;
   'list_decisions': Record<string, never>;
   'list_geo_events': Record<string, never>;
   'list_geo_locations': Record<string, never>;
@@ -338,6 +340,7 @@ export interface RouteQueryParams {
     since?: string;
   };
   'list_banned_ips': Record<string, never>;
+  'list_banned_locations': Record<string, never>;
   'list_decisions': {
     currentPage?: number;
     origins?: string;
@@ -625,6 +628,13 @@ export const routeDefinitions = {
   },
   'list_banned_ips': {
     path: '/api/v1/crowdsec/banned-ips',
+    methods: ['GET'] as const,
+    method: 'get',
+    pathParams: [] as const,
+    queryParams: [] as const,
+  },
+  'list_banned_locations': {
+    path: '/api/v1/crowdsec/banned-locations',
     methods: ['GET'] as const,
     method: 'get',
     pathParams: [] as const,

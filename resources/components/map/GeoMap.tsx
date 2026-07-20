@@ -12,9 +12,16 @@ import Map, {
 } from "react-map-gl/maplibre"
 import "maplibre-gl/dist/maplibre-gl.css"
 
-import { useGeoJSON, useGlobalTopIPs, useRuntimeSettings } from "@/lib/queries"
+import {
+  useGeoJSON,
+  useGlobalTopIPs,
+  useRuntimeSettings,
+  useBannedLocations,
+  useCrowdsecStatus,
+} from "@/lib/queries"
 import { useMapStyle } from "./hooks/useMapStyle"
 import {
+  bannedPointLayer,
   clusterCountLayer,
   clusterLayer,
   heatmapLayer,
@@ -89,7 +96,28 @@ export default function GeoMap() {
   const [projection, setProjection] = useState<MapProjection>(loadMapProjectionPreference)
   const [liveMode, setLiveMode] = useState(demoTrafficMode !== "off")
   const [routeEffectsEnabled, setRouteEffectsEnabled] = useState(loadRouteEffectsPreference)
+  const [showBanned, setShowBanned] = useState(false)
   const [popup, setPopup] = useState<PopupInfo | null>(null)
+
+  // Banned-IP overlay: attackers with an active CrowdSec decision that also
+  // appear in this server's own traffic.
+  const { data: crowdsecStatus } = useCrowdsecStatus()
+  const { data: bannedLocations } = useBannedLocations(showBanned)
+  const bannedGeoJSON = useMemo<GeoJSON.FeatureCollection>(
+    () => ({
+      type: "FeatureCollection",
+      features: (bannedLocations ?? []).map((loc) => ({
+        type: "Feature",
+        geometry: { type: "Point", coordinates: [loc.longitude, loc.latitude] },
+        properties: {
+          ip: loc.ip,
+          city: loc.city,
+          country_code: loc.country_code,
+        },
+      })),
+    }),
+    [bannedLocations],
+  )
   const mercatorZoomRef = useRef(INITIAL_VIEW_STATE.zoom)
 
   useEffect(() => {
@@ -336,6 +364,13 @@ export default function GeoMap() {
           </Source>
         )}
 
+        {/* Banned-IP overlay: stacks on top of either base layer */}
+        {showBanned && crowdsecStatus?.enabled && (
+          <Source id="banned-data" type="geojson" data={bannedGeoJSON}>
+            <Layer {...bannedPointLayer} />
+          </Source>
+        )}
+
         {/* Live requests travelling from their GeoIP origin to the configured server home. */}
         <LivePulses
           enabled={liveMode && routeEffectsEnabled}
@@ -366,6 +401,10 @@ export default function GeoMap() {
         routeEffectsEnabled={routeEffectsEnabled}
         onRouteEffectsChange={setRouteEffectsEnabled}
         routeHomeAvailable={homeDestination !== null}
+        bannedOverlayAvailable={crowdsecStatus?.enabled === true}
+        bannedOverlayEnabled={showBanned}
+        onBannedOverlayChange={setShowBanned}
+        bannedCount={bannedLocations?.length ?? 0}
         onFitBounds={fitToBounds}
         isLoading={isLoading}
         featureStats={geojson?.stats ?? { events: 0, countries: 0, cities: 0, locations: 0 }}
