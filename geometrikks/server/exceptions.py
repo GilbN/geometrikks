@@ -5,15 +5,14 @@ import logging
 
 from litestar import MediaType, Request, Response
 from litestar.status_codes import HTTP_500_INTERNAL_SERVER_ERROR, HTTP_502_BAD_GATEWAY
+from litestar.types import ExceptionHandlersMap
 
 from geometrikks.services.crowdsec import CrowdSecAuthError, CrowdSecUnavailableError
 
 logger = logging.getLogger(__name__)
 
 
-def handle_crowdsec_unavailable(
-    request: Request, exc: CrowdSecUnavailableError
-) -> Response:
+def handle_crowdsec_unavailable(request: Request, exc: Exception) -> Response:
     """502: the LAPI is down or misbehaving; never echo the upstream detail."""
     logger.warning("CrowdSec LAPI unavailable: %s", exc)
     return Response(
@@ -23,7 +22,7 @@ def handle_crowdsec_unavailable(
     )
 
 
-def handle_crowdsec_auth_error(request: Request, exc: CrowdSecAuthError) -> Response:
+def handle_crowdsec_auth_error(request: Request, exc: Exception) -> Response:
     """500: configured credentials were rejected; an operator must fix them."""
     logger.error("CrowdSec credentials rejected: %s", exc)
     return Response(
@@ -36,7 +35,7 @@ def handle_crowdsec_auth_error(request: Request, exc: CrowdSecAuthError) -> Resp
     )
 
 
-CROWDSEC_EXCEPTION_HANDLERS = {
+CROWDSEC_EXCEPTION_HANDLERS: ExceptionHandlersMap = {
     CrowdSecUnavailableError: handle_crowdsec_unavailable,
     CrowdSecAuthError: handle_crowdsec_auth_error,
 }

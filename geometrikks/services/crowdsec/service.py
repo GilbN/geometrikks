@@ -137,7 +137,8 @@ class CrowdSecService:
     # -- write path (machine JWT) --------------------------------------
 
     async def _login(self) -> str:
-        if not self._settings.write_enabled:
+        password = self._settings.machine_password
+        if not self._settings.write_enabled or password is None:
             raise CrowdSecAuthError(
                 "Ban/unban requires CROWDSEC_MACHINE_ID and CROWDSEC_MACHINE_PASSWORD"
             )
@@ -146,7 +147,7 @@ class CrowdSecService:
                 "/v1/watchers/login",
                 json={
                     "machine_id": self._settings.machine_id,
-                    "password": self._settings.machine_password.get_secret_value(),
+                    "password": password.get_secret_value(),
                 },
             )
             if resp.status_code in (401, 403):
