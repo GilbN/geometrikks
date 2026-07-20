@@ -19,7 +19,7 @@ from geometrikks.services.crowdsec.exceptions import (
     CrowdSecError,
     CrowdSecUnavailableError,
 )
-from geometrikks.services.crowdsec.schemas import Decision
+from geometrikks.services.crowdsec.schemas import Decision, DecisionStreamDelta
 
 logger = logging.getLogger(__name__)
 
@@ -94,6 +94,37 @@ class CrowdSecService:
     async def get_decisions_for_ip(self, ip: str) -> list[Decision]:
         """Active decisions for a single IP (log-row / map popovers)."""
         return await self.get_decisions(ip=ip)
+
+    async def get_decisions_stream(self, *, startup: bool) -> DecisionStreamDelta:
+        """Poll the decision stream: decisions added/expired since last call.
+
+        The LAPI tracks stream state per bouncer key; ``startup=True`` on the
+        first call returns the full current state instead of a delta.
+
+        Raises:
+            CrowdSecAuthError: The LAPI rejected the bouncer API key.
+            CrowdSecUnavailableError: The LAPI is unreachable or errored.
+        """
+        params = {"startup": "true"} if startup else {}
+        try:
+            resp = await self._client.get(
+                "/v1/decisions/stream", headers=self._bouncer_headers, params=params
+            )
+            resp.raise_for_status()
+        except httpx.HTTPStatusError as exc:
+            if exc.response.status_code in (401, 403):
+                raise CrowdSecAuthError("LAPI rejected the bouncer API key") from exc
+            raise CrowdSecUnavailableError(
+                f"LAPI error: HTTP {exc.response.status_code}"
+            ) from exc
+        except httpx.HTTPError as exc:
+            raise CrowdSecUnavailableError(f"LAPI unreachable: {exc}") from exc
+        body = resp.json() or {}
+        # Both keys are JSON null when nothing changed.
+        return DecisionStreamDelta(
+            new=msgspec.convert(body.get("new") or [], list[Decision], strict=False),
+            deleted=msgspec.convert(body.get("deleted") or [], list[Decision], strict=False),
+        )
 
     async def ping(self) -> bool:
         """Reachability probe for the status endpoint; never raises."""

@@ -2,6 +2,7 @@
  * TanStack Query hooks for GeoMetrikks API.
  */
 
+import { useEffect } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import {
   fetchSummary,
@@ -220,6 +221,65 @@ export function useUnbanIp() {
     onSuccess: () =>
       queryClient.invalidateQueries({ queryKey: queryKeys.crowdsec.bannedIps }),
   })
+}
+
+/** Ban/unban delta pushed on /ws/crowdsec by the decision-stream poller. */
+interface CrowdsecDecisionsFrame {
+  type: "crowdsec_decisions"
+  added: { ip: string; origin: string; scenario: string; duration: string }[]
+  deleted: { ip: string; origin: string }[]
+}
+
+/** Live badge updates: subscribes to /ws/crowdsec while the integration is
+ *  enabled and patches the cached banned-IP list on each delta, so badges
+ *  react within the stream-poll interval instead of the 60s refetch.
+ *  Reconnects with capped exponential backoff, same policy as /ws/live. */
+export function useCrowdsecLiveUpdates() {
+  const { data: status } = useCrowdsecStatus()
+  const queryClient = useQueryClient()
+  const enabled = status?.enabled === true
+
+  useEffect(() => {
+    if (!enabled) return
+    let ws: WebSocket | null = null
+    let closed = false
+    let retryMs = 1000
+    let timer: ReturnType<typeof setTimeout> | null = null
+
+    const connect = () => {
+      const proto = window.location.protocol === "https:" ? "wss" : "ws"
+      ws = new WebSocket(`${proto}://${window.location.host}/ws/crowdsec`)
+      ws.onopen = () => {
+        retryMs = 1000
+      }
+      ws.onmessage = (msg) => {
+        const frame = JSON.parse(msg.data) as CrowdsecDecisionsFrame
+        if (frame.type !== "crowdsec_decisions") return
+        queryClient.setQueryData<string[]>(
+          queryKeys.crowdsec.bannedIps,
+          (ips) => {
+            if (!ips) return ips
+            const next = new Set(ips)
+            for (const d of frame.added) next.add(d.ip)
+            for (const d of frame.deleted) next.delete(d.ip)
+            return [...next]
+          },
+        )
+      }
+      ws.onclose = () => {
+        if (closed) return
+        timer = setTimeout(connect, retryMs)
+        retryMs = Math.min(retryMs * 2, 30_000)
+      }
+    }
+
+    connect()
+    return () => {
+      closed = true
+      if (timer) clearTimeout(timer)
+      ws?.close()
+    }
+  }, [enabled, queryClient])
 }
 
 export interface UseSummaryOptions {

@@ -5,6 +5,14 @@ from dataclasses import dataclass
 
 
 @dataclass
+class DecisionStreamDelta:
+    """One page of the LAPI decision stream: decisions added and expired."""
+
+    new: list["Decision"]
+    deleted: list["Decision"]
+
+
+@dataclass
 class Decision:
     """One active LAPI decision.
 

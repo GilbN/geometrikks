@@ -358,3 +358,10 @@ class TestCrowdSecSettings:
         assert s.crowdsec.default_ban_duration == "4h"
         assert s.crowdsec.request_timeout == 10.0
         assert s.crowdsec.verify_tls is True
+
+
+def test_crowdsec_stream_poll_interval(monkeypatch):
+    from geometrikks.config.settings import CrowdSecSettings
+    assert CrowdSecSettings(_env_file=None).stream_poll_interval == 15.0
+    monkeypatch.setenv("CROWDSEC_STREAM_POLL_INTERVAL", "5")
+    assert CrowdSecSettings(_env_file=None).stream_poll_interval == 5.0

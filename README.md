@@ -210,6 +210,11 @@ action for already-banned IPs. Manual bans are created with origin
 `geometrikks`, and every ban/unban is audit-logged with the acting user in
 the app log.
 
+Ban decisions are also streamed live: the app polls the LAPI decision
+stream (every `CROWDSEC_STREAM_POLL_INTERVAL` seconds, default 15) and
+pushes changes over a WebSocket, so badges react within seconds when
+CrowdSec bans or unbans an IP anywhere, not just from this UI.
+
 Notes:
 
 - CrowdSec only *decides*; enforcement still needs a real bouncer

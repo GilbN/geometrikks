@@ -24,6 +24,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   audit-logged with the acting user. Badges now cover all decision origins
   (CAPI blocklist included) through the compact
   `GET /api/v1/crowdsec/banned-ips` endpoint.
+- Live CrowdSec ban/unban updates: a scheduler job polls the LAPI decision
+  stream (`CROWDSEC_STREAM_POLL_INTERVAL`, default 15s) and pushes deltas
+  over a new `/ws/crowdsec` WebSocket; banned badges in the access-logs
+  table update within seconds of a decision anywhere in CrowdSec instead of
+  waiting for the next refetch.
 
 ## [0.3.0] - 2026-07-19
 

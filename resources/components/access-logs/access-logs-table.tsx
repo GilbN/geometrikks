@@ -43,6 +43,7 @@ import {
   useBanIp,
   useUnbanIp,
   useCrowdsecStatus,
+  useCrowdsecLiveUpdates,
 } from "@/lib/queries"
 import { useDebouncedValue } from "@/hooks/use-debounced-value"
 import { useIsMobile } from "@/hooks/use-mobile"
@@ -309,6 +310,7 @@ export function AccessLogsTable() {
   const [facetsEnabled, setFacetsEnabled] = useState(false)
   const { data: facets } = useAccessLogFacets({ enabled: facetsEnabled })
   const { data: bannedIps } = useBannedIps()
+  useCrowdsecLiveUpdates()
   const search = useDebouncedValue(searchInput, 300)
   const ip = useDebouncedValue(ipInput, 300)
   const host = useDebouncedValue(hostInput, 300)

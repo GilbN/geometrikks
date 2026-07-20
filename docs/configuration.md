@@ -110,6 +110,7 @@ list most users need is in `.env.example`; everything below is available.
 | `CROWDSEC_DEFAULT_BAN_DURATION` | `4h` | Default duration for manual bans (Go duration string) |
 | `CROWDSEC_REQUEST_TIMEOUT` | `10.0` | LAPI request timeout in seconds |
 | `CROWDSEC_VERIFY_TLS` | `true` | Verify TLS when LAPI uses https |
+| `CROWDSEC_STREAM_POLL_INTERVAL` | `15.0` | Seconds between decision-stream polls feeding live ban/unban updates |
 
 ## Vite (development only)
 

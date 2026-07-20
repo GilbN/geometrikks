@@ -73,3 +73,25 @@ def test_controller_registered_in_routes():
     from geometrikks.server.routes import get_route_handlers
 
     assert CrowdSecController in get_route_handlers()
+
+
+async def test_startup_creates_stream_poller_when_enabled(monkeypatch):
+    from geometrikks.server import lifecycle as lc
+    from geometrikks.services.crowdsec.stream import CrowdSecStreamPoller
+
+    monkeypatch.setenv("CROWDSEC_LAPI_URL", "http://crowdsec:8080")
+    monkeypatch.setenv("CROWDSEC_BOUNCER_API_KEY", "key")
+    _patch_startup_collaborators(
+        monkeypatch, lc, db_available=True, ensure=AsyncMock(return_value=True)
+    )
+
+    app = make_app()
+    await lc.on_startup(app)
+    assert isinstance(app.state.crowdsec_stream_poller, CrowdSecStreamPoller)
+    # The scheduler factory received the poller so the poll job gets registered
+    lc.create_scheduler.assert_awaited_once()
+    assert (
+        lc.create_scheduler.await_args.kwargs["crowdsec_poller"]
+        is app.state.crowdsec_stream_poller
+    )
+    await app.state.crowdsec_service.aclose()

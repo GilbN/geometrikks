@@ -349,6 +349,11 @@ class CrowdSecSettings(BaseSettings):
     )
     request_timeout: float = Field(default=10.0, description="LAPI request timeout in seconds")
     verify_tls: bool = Field(default=True, description="Verify TLS when LAPI uses https")
+    stream_poll_interval: float = Field(
+        default=15.0,
+        gt=0,
+        description="Seconds between decision-stream polls feeding live ban/unban updates",
+    )
 
     @property
     def enabled(self) -> bool:

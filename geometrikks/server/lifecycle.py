@@ -17,6 +17,7 @@ from geometrikks.server.plugins import get_sqlalchemy_config
 from geometrikks.server.timescale import setup_timescaledb
 
 from geometrikks.services.crowdsec import CrowdSecService
+from geometrikks.services.crowdsec.stream import CrowdSecStreamPoller
 from geometrikks.services.geoip.downloader import ensure_geoip_database
 from geometrikks.services.geoip.home import resolve_home_location
 from geometrikks.services.ingestion import LogIngestionService
@@ -80,11 +81,13 @@ async def on_startup(app: "Litestar") -> None:
     # gate; missing config degrades the feature instead of failing startup.
     if settings.crowdsec.enabled:
         app.state.crowdsec_service = CrowdSecService(settings.crowdsec)
+        app.state.crowdsec_stream_poller = CrowdSecStreamPoller(app.state.crowdsec_service)
         logger.info(
             "CrowdSec integration enabled (write=%s)", settings.crowdsec.write_enabled
         )
     else:
         app.state.crowdsec_service = None
+        app.state.crowdsec_stream_poller = None
 
     if not await _db_available():
         logger.warning("Starting without database: skipping migrations and ingestion.")
@@ -128,7 +131,11 @@ async def on_startup(app: "Litestar") -> None:
 
     # Create and start scheduler; tracker must attach before start so no
     # event is missed.
-    scheduler: AsyncIOScheduler = await create_scheduler(session_maker, settings)
+    scheduler: AsyncIOScheduler = await create_scheduler(
+        session_maker,
+        settings,
+        crowdsec_poller=getattr(app.state, "crowdsec_stream_poller", None),
+    )
     scheduler_tracker = JobRunTracker()
     scheduler_tracker.attach(scheduler)
     scheduler.start()

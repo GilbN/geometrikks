@@ -25,6 +25,7 @@ if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
 
     from geometrikks.config.settings import Settings
+    from geometrikks.services.crowdsec.stream import CrowdSecStreamPoller
 
 logger = logging.getLogger(__name__)
 
@@ -126,6 +127,7 @@ async def refresh_all_caggs_job(
 async def create_scheduler(
     session_factory: "Callable[[], AsyncSession]",
     settings: "Settings",
+    crowdsec_poller: "CrowdSecStreamPoller | None" = None,
 ) -> AsyncIOScheduler:
     """Create and configure the APScheduler instance.
 
@@ -192,5 +194,22 @@ async def create_scheduler(
         replace_existing=True,
     )
     logger.info("Scheduled GeoLite2 refresh every %d day(s)", settings.geoip.refresh_days)
+
+    # CrowdSec decision-stream poll: feeds live ban/unban updates to the
+    # /ws/crowdsec subscribers. Only registered when the integration is on.
+    if crowdsec_poller is not None:
+        scheduler.add_job(
+            crowdsec_poller.poll,
+            IntervalTrigger(seconds=settings.crowdsec.stream_poll_interval),
+            id="crowdsec-stream-poll",
+            name="Poll CrowdSec decision stream",
+            max_instances=1,
+            replace_existing=True,
+            misfire_grace_time=10,  # seconds
+        )
+        logger.info(
+            "Scheduled CrowdSec decision-stream poll every %.0fs",
+            settings.crowdsec.stream_poll_interval,
+        )
 
     return scheduler
