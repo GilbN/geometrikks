@@ -5,6 +5,8 @@ Protocol: one JSON frame per message —
 Events are converted from post-commit ParsedLogRecords; frames flush every
 FLUSH_INTERVAL seconds with at most MAX_EVENTS_PER_FRAME events (overflow is
 counted in `dropped` — the browser gets a rate signal instead of melting).
+When idle, an empty frame is sent every HEARTBEAT_INTERVAL seconds so reverse
+proxies don't cut the socket.
 
 Auth: /ws/ paths are NOT excluded in AUTH_EXCLUDE_PATTERNS, so the session
 middleware authenticates the handshake exactly like an API request.
@@ -26,6 +28,11 @@ logger = logging.getLogger(__name__)
 
 FLUSH_INTERVAL = 0.15          # seconds -> ~6.7 frames/s, under the ~10/s cap
 MAX_EVENTS_PER_FRAME = 100
+# Reverse proxies cut idle upstream sockets (nginx proxy_read_timeout defaults
+# to 60s; SWAG ships 240s). Both handlers are send-only and silent when no
+# events flow, so emit an empty frame of the endpoint's own type as a
+# keepalive — existing clients treat it as a no-op and reset their backoff.
+HEARTBEAT_INTERVAL = 30.0
 
 
 def record_to_events(record: ParsedLogRecord) -> list[dict[str, Any]]:
@@ -99,13 +106,21 @@ async def crowdsec_feed(socket: WebSocket) -> None:
     queue = poller.subscribe()
     watcher = asyncio.create_task(_watch_disconnect(socket))
     try:
+        loop = asyncio.get_running_loop()
+        last_send = loop.time()
         while not watcher.done():
             try:
                 frame = await asyncio.wait_for(queue.get(), timeout=0.5)
             except asyncio.TimeoutError:
+                if not watcher.done() and loop.time() - last_send >= HEARTBEAT_INTERVAL:
+                    await socket.send_json(
+                        {"type": "crowdsec_decisions", "added": [], "deleted": []}
+                    )
+                    last_send = loop.time()
                 continue
             if not watcher.done():
                 await socket.send_json(frame)
+                last_send = loop.time()
     except WebSocketDisconnect:
         pass  # client went away between the watcher check and the send
     finally:
@@ -127,13 +142,15 @@ async def live_feed(socket: WebSocket) -> None:
     queue = ingestion.subscribe()
     watcher = asyncio.create_task(_watch_disconnect(socket))
     try:
+        loop = asyncio.get_running_loop()
+        last_send = loop.time()
         pending: list[dict[str, Any]] = []
         dropped = 0
         while not watcher.done():
             # Drain until the flush deadline.
-            deadline = asyncio.get_running_loop().time() + FLUSH_INTERVAL
+            deadline = loop.time() + FLUSH_INTERVAL
             while True:
-                remaining = deadline - asyncio.get_running_loop().time()
+                remaining = deadline - loop.time()
                 if remaining <= 0:
                     break
                 try:
@@ -146,9 +163,12 @@ async def live_feed(socket: WebSocket) -> None:
                     else:
                         pending.append(event)
 
-            if (pending or dropped) and not watcher.done():
+            if watcher.done():
+                break
+            if pending or dropped or loop.time() - last_send >= HEARTBEAT_INTERVAL:
                 await socket.send_json({"type": "batch", "events": pending, "dropped": dropped})
                 pending, dropped = [], 0
+                last_send = loop.time()
     except WebSocketDisconnect:
         pass  # client went away between the watcher check and the send
     finally:
