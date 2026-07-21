@@ -5,7 +5,9 @@
 GeoMetrikks tails your nginx access logs, geolocates every request with
 MaxMind GeoLite2, and gives you a real-time GeoIP map plus a traffic
 analytics dashboard for your homelab - no external services, no
-subscriptions, just Docker and your existing nginx logs.
+subscriptions, just Docker and your existing nginx logs. Run CrowdSec?
+Hook up its Local API and manage bans right next to the traffic they
+came from.
 
 ## Features
 
@@ -37,6 +39,15 @@ for the full log line (bytes, request time, upstream time, HTTP version,
 and more).
 
 ![Access Logs](/data/screenshots/access-logs.png)
+
+**CrowdSec integration** - point the app at your CrowdSec Local API for a
+Security page showing active bans cross-referenced with your own traffic
+(who's banned, and whether they're still knocking), a red banned-IP overlay
+on the map, and ban/unban actions on any IP across the app - with badges
+updating live from the decision stream. See
+[CrowdSec integration](#crowdsec-integration-optional).
+
+![CrowdSec](/data/screenshots/crowdsec.png)
 
 **Batch import** - backfill rotated or archived logs (plain or `.gz`) with
 `litestar import-logs`, reusing the same parsing/GeoIP/DB pipeline as live
