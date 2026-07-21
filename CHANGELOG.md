@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- WebSocket clients (`/ws/live`, `/ws/crowdsec`) no longer reset their
+  reconnect backoff on socket open. The server accepts and immediately closes
+  with 1013 while the poller/ingestion is down, which pinned the reconnect
+  loop at the 1s floor; the backoff now resets only after a valid frame, so
+  outages back off to the 30s cap.
+- The `/ws/crowdsec` client guards against non-string and malformed frames
+  instead of throwing inside `onmessage`.
+
 ## [0.4.0] - 2026-07-21
 
 ### Added
