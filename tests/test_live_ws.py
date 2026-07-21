@@ -92,6 +92,19 @@ def test_ws_streams_batch_frames():
     assert ingestion.unsubscribed is True
 
 
+def test_ws_sends_empty_batch_heartbeat_when_idle(monkeypatch):
+    """Reverse proxies cut idle sockets (nginx proxy_read_timeout); with no
+    events flowing the handler must emit an empty batch frame as a keepalive."""
+    from geometrikks.api.v1 import live_controller
+
+    monkeypatch.setattr(live_controller, "HEARTBEAT_INTERVAL", 0.3, raising=False)
+    ingestion = FakeIngestion()
+    with TestClient(app=make_app(ingestion)) as client:
+        with client.websocket_connect("/ws/live") as ws:
+            frame = ws.receive_json(timeout=5)
+    assert frame == {"type": "batch", "events": [], "dropped": 0}
+
+
 def test_ws_closes_when_no_ingestion_service():
     import pytest
     from litestar.exceptions import WebSocketDisconnect  # NOT starlette — litestar has no starlette dependency

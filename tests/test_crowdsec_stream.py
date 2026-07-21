@@ -188,6 +188,23 @@ def test_ws_forwards_decision_frames():
     assert poller.unsubscribed is True
 
 
+def test_ws_sends_empty_delta_heartbeat_when_idle(monkeypatch):
+    """Reverse proxies cut idle sockets (nginx proxy_read_timeout); with no
+    deltas flowing the handler must emit an empty decisions frame as a
+    keepalive. The frontend applies it as a no-op."""
+    from litestar.testing import TestClient
+
+    from geometrikks.api.v1 import live_controller
+
+    monkeypatch.setattr(live_controller, "HEARTBEAT_INTERVAL", 0.3, raising=False)
+    poller = FakePoller()
+    with TestClient(app=make_ws_app(poller)) as client:
+        with client.websocket_connect("/ws/crowdsec") as ws:
+            frame = ws.receive_json(timeout=5)
+    assert frame == {"type": "crowdsec_decisions", "added": [], "deleted": []}
+    assert poller.unsubscribed is True
+
+
 def test_ws_closes_without_poller():
     import pytest
     from litestar.exceptions import WebSocketDisconnect
