@@ -191,8 +191,10 @@ CROWDSEC_BOUNCER_API_KEY=<key from cscli bouncers add>
 ```
 
 That enables read-only access: a Security page (ban stats, the active
-decision list cross-referenced with your own traffic data), per-IP lookups,
-and the "Banned" badge on matching IPs in the access-logs table.
+decision list cross-referenced with your own traffic data), the "Banned"
+badge on matching IPs in the access-logs and top-IP tables, and a map
+overlay marking banned IPs seen in your traffic within the selected time
+range.
 
 To also ban and unban from the UI, add machine credentials:
 
@@ -207,11 +209,12 @@ CROWDSEC_MACHINE_ID=geometrikks
 CROWDSEC_MACHINE_PASSWORD=<password from cscli machines add>
 ```
 
-With write access enabled, a shield button appears next to each IP in the
-access-logs table with a ban-duration picker (1h to forever) and an unban
-action for already-banned IPs. Manual bans are created with origin
-`geometrikks`, and every ban/unban is audit-logged with the acting user in
-the app log.
+With write access enabled, a shield button appears next to IPs across the
+app (access logs, top-IP tables, map popups) with a ban-duration picker
+(1h to forever) and an unban action for already-banned IPs, and the
+Security page gains alert history plus a manual "Ban IP" dialog with an
+optional reason. Manual bans are created with origin `geometrikks`, and
+every ban/unban is audit-logged with the acting user in the app log.
 
 Ban decisions are also streamed live: the app polls the LAPI decision
 stream (every `CROWDSEC_STREAM_POLL_INTERVAL` seconds, default 15) and
