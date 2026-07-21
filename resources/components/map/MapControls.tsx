@@ -220,7 +220,7 @@ export function MapControls({
               variant="outline"
               onClick={() => onBannedOverlayChange(!bannedOverlayEnabled)}
               aria-pressed={bannedOverlayEnabled}
-              title="Show banned IPs seen in your traffic as red markers"
+              title="Show banned IPs seen in your traffic in the last 30 days as red markers. A banned IP outside the selected time range shows only a red dot, with no traffic circle to click."
               className={cn(
                 "cursor-pointer w-full justify-start gap-2 px-3 pointer-coarse:h-10",
                 bannedOverlayEnabled && "bg-red-500/15 text-red-400 border-red-500/30",
