@@ -60,6 +60,7 @@ import type {
   ApiV1CrowdsecBannedIpsListBannedIpsData,
   ApiV1CrowdsecBannedIpsListBannedIpsResponses,
   ApiV1CrowdsecBannedLocationsListBannedLocationsData,
+  ApiV1CrowdsecBannedLocationsListBannedLocationsErrors,
   ApiV1CrowdsecBannedLocationsListBannedLocationsResponses,
   ApiV1CrowdsecDecisionsListDecisionsData,
   ApiV1CrowdsecDecisionsListDecisionsErrors,
@@ -675,7 +676,7 @@ export const apiV1CrowdsecBannedLocationsListBannedLocations = <
 ) =>
   (options?.client ?? client).get<
     ApiV1CrowdsecBannedLocationsListBannedLocationsResponses,
-    unknown,
+    ApiV1CrowdsecBannedLocationsListBannedLocationsErrors,
     ThrowOnError
   >({
     security: [

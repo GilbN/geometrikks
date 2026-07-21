@@ -269,9 +269,19 @@ export async function fetchCrowdsecBannedIps(): Promise<string[]> {
   return data
 }
 
-/** Coordinates of banned IPs seen in this server's own traffic (map overlay). */
-export async function fetchCrowdsecBannedLocations(): Promise<IpLocation[]> {
-  const { data } = await api.get<IpLocation[]>("/crowdsec/banned-locations")
+/** Coordinates of banned IPs seen in this server's own traffic (map overlay).
+ *  The window keeps the overlay in step with the map's time range; omitted
+ *  bounds fall back to the server's 30d geo lookback. */
+export async function fetchCrowdsecBannedLocations(params?: {
+  fromTimestamp?: string
+  toTimestamp?: string
+}): Promise<IpLocation[]> {
+  const { data } = await api.get<IpLocation[]>("/crowdsec/banned-locations", {
+    params: {
+      from_timestamp: params?.fromTimestamp,
+      to_timestamp: params?.toTimestamp,
+    },
+  })
   return data
 }
 

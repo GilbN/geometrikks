@@ -102,7 +102,8 @@ export default function GeoMap() {
   // Banned-IP overlay: attackers with an active CrowdSec decision that also
   // appear in this server's own traffic.
   const { data: crowdsecStatus } = useCrowdsecStatus()
-  const { data: bannedLocations } = useBannedLocations(showBanned)
+  const { data: bannedLocations, isFetching: isFetchingBanned } =
+    useBannedLocations(showBanned)
   const bannedGeoJSON = useMemo<GeoJSON.FeatureCollection>(
     () => ({
       type: "FeatureCollection",
@@ -405,6 +406,7 @@ export default function GeoMap() {
         bannedOverlayEnabled={showBanned}
         onBannedOverlayChange={setShowBanned}
         bannedCount={bannedLocations?.length ?? 0}
+        bannedOverlayLoading={showBanned && isFetchingBanned}
         onFitBounds={fitToBounds}
         isLoading={isLoading}
         featureStats={geojson?.stats ?? { events: 0, countries: 0, cities: 0, locations: 0 }}

@@ -77,7 +77,8 @@ export const queryKeys = {
     status: ["crowdsec", "status"] as const,
     bannedIps: ["crowdsec", "banned-ips"] as const,
     stats: ["crowdsec", "stats"] as const,
-    bannedLocations: ["crowdsec", "banned-locations"] as const,
+    bannedLocations: (params: Record<string, unknown>, refreshKey?: number) =>
+      ["crowdsec", "banned-locations", params, refreshKey] as const,
     decisions: (params: Record<string, unknown>) =>
       ["crowdsec", "decisions", params] as const,
     alerts: (params: Record<string, unknown>) =>
@@ -213,12 +214,21 @@ export function useBannedIps() {
 }
 
 /** Coordinates for the map's banned-IP overlay; fetched only while the
- *  overlay is switched on and the integration is enabled. */
+ *  overlay is switched on and the integration is enabled. Follows the
+ *  global time range so every red marker has a matching traffic circle. */
 export function useBannedLocations(active: boolean) {
   const { data: status } = useCrowdsecStatus()
+  const { range, customRange, lastRefresh } = useTimeRange()
   return useQuery({
-    queryKey: queryKeys.crowdsec.bannedLocations,
-    queryFn: fetchCrowdsecBannedLocations,
+    queryKey: queryKeys.crowdsec.bannedLocations({ range, customRange }, lastRefresh),
+    // Compute the date range at fetch time so refetches get fresh bounds
+    queryFn: () => {
+      const { startDate, endDate } = parseTimeRange(range, Date.now(), customRange)
+      return fetchCrowdsecBannedLocations({
+        fromTimestamp: startDate,
+        toTimestamp: endDate,
+      })
+    },
     enabled: active && status?.enabled === true,
     refetchInterval: 60_000,
   })

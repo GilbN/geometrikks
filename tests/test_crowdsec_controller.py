@@ -458,9 +458,11 @@ class LocationsFakeEnrichment(FakeEnrichment):
         super().__init__({})
         self._locations = locations
         self.location_calls: list[list[str]] = []
+        self.location_windows: list[tuple] = []
 
-    async def locations(self, ips):
+    async def locations(self, ips, *, start=None, end=None):
         self.location_calls.append(ips)
+        self.location_windows.append((start, end))
         return [loc for loc in self._locations if loc.ip in ips]
 
 
@@ -498,6 +500,36 @@ async def test_banned_locations_deduplicates_ips_before_geo_join():
         resp = await client.get("/api/v1/crowdsec/banned-locations")
     assert resp.status_code == 200
     assert enrichment.location_calls == [["1.2.3.4", "9.9.9.9"]]
+
+
+async def test_banned_locations_forwards_time_window():
+    from datetime import datetime, timezone
+
+    enrichment = LocationsFakeEnrichment([])
+    service = FakeCrowdSec([make_decision(id=1, value="1.2.3.4")])
+    async with AsyncTestClient(app=make_app(service, enrichment)) as client:
+        resp = await client.get(
+            "/api/v1/crowdsec/banned-locations",
+            params={
+                "from_timestamp": "2026-07-01T00:00:00Z",
+                "to_timestamp": "2026-07-02T00:00:00Z",
+            },
+        )
+    assert resp.status_code == 200
+    assert enrichment.location_windows == [
+        (
+            datetime(2026, 7, 1, tzinfo=timezone.utc),
+            datetime(2026, 7, 2, tzinfo=timezone.utc),
+        )
+    ]
+
+
+async def test_banned_locations_defaults_to_no_window():
+    enrichment = LocationsFakeEnrichment([])
+    service = FakeCrowdSec([make_decision(id=1, value="1.2.3.4")])
+    async with AsyncTestClient(app=make_app(service, enrichment)) as client:
+        await client.get("/api/v1/crowdsec/banned-locations")
+    assert enrichment.location_windows == [(None, None)]
 
 
 async def test_banned_locations_404_when_disabled():

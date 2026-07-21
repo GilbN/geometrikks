@@ -1798,9 +1798,31 @@ export type ApiV1CrowdsecBannedIpsListBannedIpsResponse =
 export type ApiV1CrowdsecBannedLocationsListBannedLocationsData = {
   body?: never;
   path?: never;
-  query?: never;
+  query?: {
+    from_timestamp?: string | null;
+    to_timestamp?: string | null;
+  };
   url: "/api/v1/crowdsec/banned-locations";
 };
+
+export type ApiV1CrowdsecBannedLocationsListBannedLocationsErrors = {
+  /**
+   * Validation Exception
+   */
+  400: {
+    detail: string;
+    extra?:
+      | null
+      | {
+          [key: string]: unknown;
+        }
+      | Array<unknown>;
+    status_code: number;
+  };
+};
+
+export type ApiV1CrowdsecBannedLocationsListBannedLocationsError =
+  ApiV1CrowdsecBannedLocationsListBannedLocationsErrors[keyof ApiV1CrowdsecBannedLocationsListBannedLocationsErrors];
 
 export type ApiV1CrowdsecBannedLocationsListBannedLocationsResponses = {
   /**

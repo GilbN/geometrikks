@@ -259,6 +259,11 @@ async def _create_ip_location_cagg(conn: "AsyncConnection") -> None:
             CREATE INDEX IF NOT EXISTS ix_ip_location_{suffix}_stats_location_ip
             ON ip_location_{suffix}_stats (location_id, ip_address)
         """))
+        # Banned-IP overlay filters thousands of IPs at once (CAPI blocklist)
+        await conn.execute(text(f"""
+            CREATE INDEX IF NOT EXISTS ix_ip_location_{suffix}_stats_ip_bucket
+            ON ip_location_{suffix}_stats (ip_address, bucket DESC)
+        """))
 
 
 # =============================================================================

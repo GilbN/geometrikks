@@ -450,6 +450,10 @@
       "methods": [
         "GET"
       ],
+      "queryParameters": {
+        "from_timestamp": "DateTime | undefined",
+        "to_timestamp": "DateTime | undefined"
+      },
       "uri": "/api/v1/crowdsec/banned-locations"
     },
     "list_decisions": {

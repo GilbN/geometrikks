@@ -2,13 +2,17 @@
 from __future__ import annotations
 
 import ipaddress
+import logging
 from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import bindparam, text
 from sqlalchemy.dialects import postgresql
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from geometrikks.domain.geo.repositories import StatsGranularity, get_stats_granularity
 from geometrikks.domain.security.schemas import IpEnrichment, IpLocation
+
+logger = logging.getLogger(__name__)
 
 # Latest-geo lookback: bounds chunk scans on the access_logs hypertable while
 # still finding geo data for IPs whose last request predates the 24h window.
@@ -73,22 +77,52 @@ class SecurityEnrichmentRepository:
             for row in rows
         }
 
-    async def locations(self, ips: list[str]) -> list[IpLocation]:
+    async def locations(
+        self,
+        ips: list[str],
+        *,
+        start: datetime | None = None,
+        end: datetime | None = None,
+    ) -> list[IpLocation]:
         """Latest known coordinates per IP, from stored geo events.
 
         Same input rules as :meth:`enrich`; IPs never seen in the stored
-        traffic are absent from the result.
+        traffic are absent from the result. ``start`` defaults to the
+        ``GEO_LOOKBACK`` window and ``end`` to now.
+
+        Routing follows the geo query layer: raw ``geo_events`` for windows
+        up to 24h (uncompressed chunks, indexed), the ip_location CAGGs
+        beyond that. Filtering thousands of banned IPs against raw chunks
+        older than the compression threshold decompresses them row by row;
+        the CAGGs stay small and uncompressed. Presence on the CAGG paths
+        is bucket-resolution, matching the map circles.
         """
         valid_ips = [ip for ip in ips if _is_ip(ip)]
         if not valid_ips:
             return []
 
+        now = datetime.now(timezone.utc)
+        start_ts = start if start is not None else now - GEO_LOOKBACK
+        end_ts = end if end is not None else now
+        granularity = get_stats_granularity(start_ts, end_ts)
+        if granularity == StatsGranularity.RAW:
+            stmt = LOCATIONS_STMT
+        elif granularity == StatsGranularity.HOURLY:
+            stmt = HOURLY_LOCATIONS_STMT
+            start_ts = start_ts.replace(minute=0, second=0, microsecond=0)
+        else:
+            stmt = DAILY_LOCATIONS_STMT
+            start_ts = start_ts.replace(hour=0, minute=0, second=0, microsecond=0)
+        logger.debug(
+            "Banned-IP locations via %s source: %d IPs, window %s..%s",
+            granularity.value,
+            len(valid_ips),
+            start_ts,
+            end_ts,
+        )
         rows = await self.session.execute(
-            LOCATIONS_STMT,
-            {
-                "ips": valid_ips,
-                "lookback": datetime.now(timezone.utc) - GEO_LOOKBACK,
-            },
+            stmt,
+            {"ips": valid_ips, "lookback": start_ts, "until": end_ts},
         )
         return [
             IpLocation(
@@ -112,10 +146,37 @@ LOCATIONS_STMT = text(
         gl.country_code
     FROM geo_events ge
     JOIN geo_locations gl ON gl.id = ge.location_id
-    WHERE ge.ip_address = ANY(:ips) AND ge.timestamp >= :lookback
+    WHERE ge.ip_address = ANY(:ips)
+      AND ge.timestamp >= :lookback
+      AND ge.timestamp <= :until
     ORDER BY ge.ip_address, ge.timestamp DESC
     """
 ).bindparams(bindparam("ips", type_=postgresql.ARRAY(postgresql.INET)))
+
+
+def _cagg_locations_stmt(suffix: str):
+    """DISTINCT ON the ip_location CAGG; ties in the latest bucket resolve
+    to the most active location."""
+    return text(
+        f"""
+        SELECT DISTINCT ON (s.ip_address)
+            host(s.ip_address) AS ip,
+            gl.latitude,
+            gl.longitude,
+            gl.city,
+            gl.country_code
+        FROM ip_location_{suffix}_stats s
+        JOIN geo_locations gl ON gl.id = s.location_id
+        WHERE s.ip_address = ANY(:ips)
+          AND s.bucket >= :lookback
+          AND s.bucket <= :until
+        ORDER BY s.ip_address, s.bucket DESC, s.event_count DESC
+        """
+    ).bindparams(bindparam("ips", type_=postgresql.ARRAY(postgresql.INET)))
+
+
+HOURLY_LOCATIONS_STMT = _cagg_locations_stmt("hourly")
+DAILY_LOCATIONS_STMT = _cagg_locations_stmt("daily")
 
 
 def _is_ip(value: str) -> bool:

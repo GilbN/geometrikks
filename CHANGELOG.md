@@ -22,7 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     IP-scoped alert rows. Bans take a duration (1h to forever) and are
     audit-logged with the acting user.
   - Map overlay: a "Banned IPs" toggle rendering red markers for banned IPs
-    seen in this server's own traffic.
+    seen in this server's own traffic within the selected time range.
   - Live updates: the LAPI decision stream is polled
     (`CROWDSEC_STREAM_POLL_INTERVAL`, default 15s) and pushed over a
     `/ws/crowdsec` WebSocket, so banned badges update within seconds of a

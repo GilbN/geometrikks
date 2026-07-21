@@ -10,6 +10,7 @@ from __future__ import annotations
 import ipaddress
 import logging
 import re
+from datetime import datetime
 from collections import Counter
 from dataclasses import dataclass
 from typing import Annotated
@@ -265,17 +266,22 @@ class CrowdSecController(Controller):
         self,
         crowdsec: NamedDependency[CrowdSecService | None],
         enrichment_repo: NamedDependency[SecurityEnrichmentRepository],
+        from_timestamp: Annotated[datetime | None, QueryParameter(required=False)] = None,
+        to_timestamp: Annotated[datetime | None, QueryParameter(required=False)] = None,
     ) -> list[IpLocation]:
         """Coordinates of banned IPs that appear in this server's own traffic.
 
         Feeds the map's banned overlay: the decision list (all origins) is
         joined against stored geo events, so only attackers actually seen
-        here get a marker.
+        here get a marker. The optional window keeps the overlay in step
+        with the map's time range; it defaults to the 30d geo lookback.
         """
         service = _require_service(crowdsec)
         decisions = await service.get_decisions()
         banned_ips = list(dict.fromkeys(d.value for d in decisions if d.scope == "Ip"))
-        return await enrichment_repo.locations(banned_ips)
+        return await enrichment_repo.locations(
+            banned_ips, start=from_timestamp, end=to_timestamp
+        )
 
     @get("/alerts")
     async def list_alerts(

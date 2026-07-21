@@ -20,8 +20,6 @@ import type {
   ApiV1CrowdsecBanBanResponses,
   ApiV1CrowdsecBannedIpsListBannedIpsData,
   ApiV1CrowdsecBannedIpsListBannedIpsResponses,
-  ApiV1CrowdsecBannedLocationsListBannedLocationsData,
-  ApiV1CrowdsecBannedLocationsListBannedLocationsResponses,
   ApiV1CrowdsecStatsGetStatsData,
   ApiV1CrowdsecStatsGetStatsResponses,
   ApiV1CrowdsecStatusGetStatusData,
@@ -71,7 +69,6 @@ export type OperationName =
   | 'health'
   | 'health_ready'
   | 'list_banned_ips'
-  | 'list_banned_locations'
   | 'login'
   | 'logout'
   | 'me'
@@ -95,7 +92,6 @@ export interface OperationDataTypes {
   'health': HealthHealthData
   'health_ready': HealthReadyHealthReadyData
   'list_banned_ips': ApiV1CrowdsecBannedIpsListBannedIpsData
-  'list_banned_locations': ApiV1CrowdsecBannedLocationsListBannedLocationsData
   'login': ApiV1AuthLoginLoginData
   'logout': ApiV1AuthLogoutLogoutData
   'me': ApiV1AuthMeMeData
@@ -120,7 +116,6 @@ export interface OperationResponseTypes {
   'health': HealthHealthResponses
   'health_ready': HealthReadyHealthReadyResponses
   'list_banned_ips': ApiV1CrowdsecBannedIpsListBannedIpsResponses
-  'list_banned_locations': ApiV1CrowdsecBannedLocationsListBannedLocationsResponses
   'login': ApiV1AuthLoginLoginResponses
   'logout': ApiV1AuthLogoutLogoutResponses
   'me': ApiV1AuthMeMeResponses
@@ -145,7 +140,6 @@ export interface OperationErrorTypes {
   'health': never
   'health_ready': never
   'list_banned_ips': never
-  'list_banned_locations': never
   'login': ApiV1AuthLoginLoginErrors
   'logout': never
   'me': never

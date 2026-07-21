@@ -116,7 +116,9 @@ async def seed_geo_event(session, *, ip: str, age: timedelta, lat: float, lon: f
             " ST_SetSRID(ST_MakePoint(:lon, :lat), 4326)::geography, "
             " :country_code, :country_code, :city, now(), now(), now()) RETURNING id"
         ),
-        {"geohash": f"gh-{ip}", "lat": lat, "lon": lon, "city": city, "country_code": country_code},
+        # geohash is varchar(12); derive a short unique value per (ip, city)
+        {"geohash": f"gh{abs(hash((ip, city))) % 10**10}", "lat": lat, "lon": lon,
+         "city": city, "country_code": country_code},
     )
     await session.execute(
         text(
@@ -150,3 +152,88 @@ async def test_locations_returns_latest_coordinates_per_ip(pg_session_maker, cle
     assert by_ip["1.2.3.4"].city == "Oslo"
     assert by_ip["1.2.3.4"].country_code == "NO"
     assert by_ip["5.6.7.8"].city == "Berlin"
+
+
+async def test_locations_respects_explicit_time_window(pg_session_maker, clean_tables):
+    async with pg_session_maker() as session:
+        await session.execute(text("DELETE FROM geo_locations"))
+        await seed_geo_event(
+            session, ip="1.2.3.4", age=timedelta(hours=2),
+            lat=59.91, lon=10.79, city="Oslo", country_code="NO",
+        )
+        # before the window
+        await seed_geo_event(
+            session, ip="5.6.7.8", age=timedelta(days=2),
+            lat=52.52, lon=13.40, city="Berlin", country_code="DE",
+        )
+        # after the window
+        await seed_geo_event(
+            session, ip="9.9.9.9", age=timedelta(minutes=10),
+            lat=48.85, lon=2.35, city="Paris", country_code="FR",
+        )
+        await session.commit()
+
+        repo = SecurityEnrichmentRepository(session=session)
+        result = await repo.locations(
+            ["1.2.3.4", "5.6.7.8", "9.9.9.9"],
+            start=NOW - timedelta(hours=24),
+            end=NOW - timedelta(hours=1),
+        )
+
+    assert [loc.ip for loc in result] == ["1.2.3.4"]
+
+
+async def test_locations_over_24h_serve_from_hourly_cagg(pg_session_maker, clean_tables):
+    """Windows over 24h route to ip_location_hourly_stats: presence is
+    bucket-resolution, so an event in the window's head bucket counts even
+    if it falls minutes before the exact start (same semantics as the map
+    circles, and it avoids decompressing raw chunks)."""
+    async with pg_session_maker() as session:
+        await session.execute(text("DELETE FROM geo_locations"))
+        # 10 minutes before the window start, but inside its head bucket
+        await seed_geo_event(
+            session, ip="1.2.3.4", age=timedelta(days=3, minutes=40),
+            lat=59.91, lon=10.79, city="Oslo", country_code="NO",
+        )
+        # far outside the window
+        await seed_geo_event(
+            session, ip="5.6.7.8", age=timedelta(days=10),
+            lat=52.52, lon=13.40, city="Berlin", country_code="DE",
+        )
+        await session.commit()
+
+        repo = SecurityEnrichmentRepository(session=session)
+        result = await repo.locations(
+            ["1.2.3.4", "5.6.7.8"],
+            start=NOW - timedelta(days=3, minutes=30),
+            end=NOW,
+        )
+
+    by_ip = {loc.ip: loc for loc in result}
+    assert set(by_ip) == {"1.2.3.4"}
+    assert by_ip["1.2.3.4"].city == "Oslo"
+
+
+async def test_locations_over_30d_serve_from_daily_cagg(pg_session_maker, clean_tables):
+    async with pg_session_maker() as session:
+        await session.execute(text("DELETE FROM geo_locations"))
+        await seed_geo_event(
+            session, ip="1.2.3.4", age=timedelta(days=35),
+            lat=59.91, lon=10.79, city="Oslo", country_code="NO",
+        )
+        # newer event elsewhere: latest location must win
+        await seed_geo_event(
+            session, ip="1.2.3.4", age=timedelta(days=5),
+            lat=48.85, lon=2.35, city="Paris", country_code="FR",
+        )
+        await session.commit()
+
+        repo = SecurityEnrichmentRepository(session=session)
+        result = await repo.locations(
+            ["1.2.3.4"],
+            start=NOW - timedelta(days=40),
+            end=NOW,
+        )
+
+    (loc,) = result
+    assert loc.city == "Paris"

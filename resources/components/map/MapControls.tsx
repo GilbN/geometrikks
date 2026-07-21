@@ -56,6 +56,8 @@ interface MapControlsProps {
   bannedOverlayEnabled: boolean
   onBannedOverlayChange: (enabled: boolean) => void
   bannedCount: number
+  /** Banned-locations fetch in flight; shows a spinner on the toggle. */
+  bannedOverlayLoading?: boolean
   onFitBounds: () => void
   isLoading?: boolean
   featureStats: GeoJSONFeatureStats
@@ -85,6 +87,7 @@ export function MapControls({
   bannedOverlayEnabled,
   onBannedOverlayChange,
   bannedCount,
+  bannedOverlayLoading = false,
   onFitBounds,
   isLoading = false,
   featureStats,
@@ -220,16 +223,24 @@ export function MapControls({
               variant="outline"
               onClick={() => onBannedOverlayChange(!bannedOverlayEnabled)}
               aria-pressed={bannedOverlayEnabled}
-              title="Show banned IPs seen in your traffic in the last 30 days as red markers. A banned IP outside the selected time range shows only a red dot, with no traffic circle to click."
+              title="Show banned IPs seen in your traffic within the selected time range as red markers"
               className={cn(
                 "cursor-pointer w-full justify-start gap-2 px-3 pointer-coarse:h-10",
                 bannedOverlayEnabled && "bg-red-500/15 text-red-400 border-red-500/30",
               )}
             >
-              <ShieldBan className="h-4 w-4" />
+              {bannedOverlayLoading ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <ShieldBan className="h-4 w-4" />
+              )}
               <span className="text-sm font-medium">Banned IPs</span>
               <Badge variant="secondary" className="ml-auto text-[9px] uppercase">
-                {bannedOverlayEnabled ? bannedCount.toLocaleString() : "off"}
+                {bannedOverlayEnabled
+                  ? bannedOverlayLoading
+                    ? "…"
+                    : bannedCount.toLocaleString()
+                  : "off"}
               </Badge>
             </Button>
           )}
