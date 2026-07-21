@@ -94,6 +94,9 @@ def create_session_auth(settings: "Settings") -> SessionAuth[AdminUser, ServerSi
     """
     return SessionAuth[AdminUser, ServerSideSessionBackend](
         retrieve_user_handler=retrieve_user_handler,
-        session_backend_config=ServerSideSessionConfig(max_age=60 * 60 * 24 * 7),
+        session_backend_config=ServerSideSessionConfig(
+            max_age=60 * 60 * 24 * 7,
+            secure=settings.session_secure,
+        ),
         exclude=AUTH_EXCLUDE_PATTERNS,
     )

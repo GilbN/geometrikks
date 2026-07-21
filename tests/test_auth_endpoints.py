@@ -149,3 +149,20 @@ def test_auth_routes_registered_when_auth_enabled(monkeypatch):
     app = create_app()
     paths = {route.path for route in app.routes}
     assert AUTH_ROUTE_PATHS <= paths
+
+
+def test_session_cookie_secure_flag_follows_setting():
+    with TestClient(app=make_app(session_secure=True)) as client:
+        res = client.post(
+            "/api/v1/auth/login",
+            json={"username": "admin", "password": "bestpasswordintheworldnojoke"},
+        )
+        assert res.status_code == 200
+        assert "secure" in res.headers["set-cookie"].lower()
+
+    with TestClient(app=make_app()) as client:
+        res = client.post(
+            "/api/v1/auth/login",
+            json={"username": "admin", "password": "bestpasswordintheworldnojoke"},
+        )
+        assert "secure" not in res.headers["set-cookie"].lower()
