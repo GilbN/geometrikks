@@ -2,6 +2,7 @@ import json
 import socket
 from functools import lru_cache
 from importlib.metadata import PackageNotFoundError, version as distribution_version
+from ipaddress import ip_network
 from pathlib import Path
 from typing import Annotated, Literal
 from urllib.parse import quote
@@ -481,6 +482,47 @@ class Settings(BaseSettings):
         default=None,
         description="Admin login password (required unless auth_disabled=true)",
     )
+    session_secure: bool = Field(
+        default=False,
+        description=(
+            "Mark the session cookie Secure so browsers only send it over "
+            "HTTPS. Recommended when serving behind a TLS reverse proxy."
+        ),
+    )
+    trusted_proxies: Annotated[list[str], NoDecode] = Field(
+        default_factory=list,
+        description=(
+            "Reverse-proxy IPs/CIDRs allowed to supply X-Forwarded-For. Env "
+            "accepts one value, comma-separated values, or a JSON list. "
+            "Empty (default): forwarded headers are never trusted."
+        ),
+    )
+
+    @field_validator("trusted_proxies", mode="before")
+    @classmethod
+    def parse_trusted_proxies(cls, value: object) -> object:
+        """Accept one value, comma-separated values, or a JSON list."""
+        if isinstance(value, str):
+            stripped = value.strip()
+            if not stripped:
+                return []
+            if stripped.startswith("["):
+                return json.loads(stripped)
+            return [part.strip() for part in stripped.split(",") if part.strip()]
+        return value
+
+    @field_validator("trusted_proxies")
+    @classmethod
+    def validate_trusted_proxies(cls, value: list[str]) -> list[str]:
+        """Fail at startup on entries that are not an IP or CIDR."""
+        for entry in value:
+            try:
+                ip_network(entry, strict=False)
+            except ValueError as exc:
+                raise ValueError(
+                    f"APP_TRUSTED_PROXIES entry {entry!r} is not an IP address or CIDR"
+                ) from exc
+        return value
 
     # Sub-configurations
     api: APISettings = Field(default_factory=APISettings)

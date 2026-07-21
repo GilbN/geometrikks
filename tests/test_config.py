@@ -3,6 +3,7 @@
 from pathlib import Path
 
 import pytest
+from pydantic import ValidationError
 
 from geometrikks.config import GeoIPSettings, MapSettings, Settings, get_settings
 from geometrikks.config.settings import get_installed_version
@@ -365,3 +366,26 @@ def test_crowdsec_stream_poll_interval(monkeypatch):
     assert CrowdSecSettings(_env_file=None).stream_poll_interval == 15.0
     monkeypatch.setenv("CROWDSEC_STREAM_POLL_INTERVAL", "5")
     assert CrowdSecSettings(_env_file=None).stream_poll_interval == 5.0
+
+
+class TestProxySettings:
+    def test_trusted_proxies_default_empty(self):
+        assert Settings(_env_file=None).trusted_proxies == []
+
+    def test_trusted_proxies_comma_separated(self):
+        s = Settings(trusted_proxies="172.18.0.0/16, 10.0.0.5", _env_file=None)
+        assert s.trusted_proxies == ["172.18.0.0/16", "10.0.0.5"]
+
+    def test_trusted_proxies_json_list(self):
+        s = Settings(trusted_proxies='["172.18.0.0/16"]', _env_file=None)
+        assert s.trusted_proxies == ["172.18.0.0/16"]
+
+    def test_trusted_proxies_empty_string_is_empty(self):
+        assert Settings(trusted_proxies="", _env_file=None).trusted_proxies == []
+
+    def test_trusted_proxies_invalid_entry_fails_at_load(self):
+        with pytest.raises(ValidationError):
+            Settings(trusted_proxies="not-an-ip", _env_file=None)
+
+    def test_session_secure_defaults_false(self):
+        assert Settings(_env_file=None).session_secure is False
