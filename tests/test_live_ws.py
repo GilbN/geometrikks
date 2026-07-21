@@ -103,6 +103,7 @@ def test_ws_sends_empty_batch_heartbeat_when_idle(monkeypatch):
         with client.websocket_connect("/ws/live") as ws:
             frame = ws.receive_json(timeout=5)
     assert frame == {"type": "batch", "events": [], "dropped": 0}
+    assert ingestion.unsubscribed is True
 
 
 def test_ws_closes_when_no_ingestion_service():
