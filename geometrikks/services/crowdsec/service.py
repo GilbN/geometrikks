@@ -217,7 +217,7 @@ class CrowdSecService:
                     "value": ip,
                     "duration": duration or self._settings.default_ban_duration,
                     "origin": "geometrikks",
-                    "scenario": f"manual ban from GeoMetrikks: {reason}",
+                    "scenario": f"geometrikks/manual-ban: {reason}",
                     "simulated": False,
                 }
             ],

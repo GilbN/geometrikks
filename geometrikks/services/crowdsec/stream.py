@@ -1,5 +1,6 @@
 """Decision stream poller: fans LAPI ban/unban deltas out to live subscribers."""
 from __future__ import annotations
+from geometrikks.services.crowdsec.schemas import DecisionStreamDelta
 
 import asyncio
 import logging
@@ -42,7 +43,7 @@ class CrowdSecStreamPoller:
         down must not kill the job, the next interval simply retries.
         """
         try:
-            delta = await self._service.get_decisions_stream(startup=not self._started)
+            delta: DecisionStreamDelta = await self._service.get_decisions_stream(startup=not self._started)
         except CrowdSecError as exc:
             logger.warning("CrowdSec stream poll failed: %s", exc)
             return
