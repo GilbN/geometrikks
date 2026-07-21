@@ -182,6 +182,130 @@ This is a reverse-proxy-only mode: with it set, `/api/v1/auth/*` is not
 registered (404s) and the WebSocket accepts anonymous connections, so only
 enable it when something else is already gating access to the app.
 
+## Running behind a reverse proxy
+
+GeoMetrikks works behind a TLS-terminating reverse proxy. Serve it on its
+own subdomain (for example `geometrikks.example.com`): the frontend is
+hard-wired to the site root, so subfolder setups
+(`example.com/geometrikks/`) are not supported.
+
+Recommended settings when proxied over HTTPS:
+
+```env
+# The session cookie is only ever sent over HTTPS.
+APP_SESSION_SECURE=true
+# Trust X-Forwarded-For from your proxy so login logging records the real
+# client IP. Use the narrowest range that covers the proxy.
+APP_TRUSTED_PROXIES=172.18.0.0/16
+```
+
+`X-Forwarded-For` is a plain header any client can send, so GeoMetrikks
+only honors it when the request arrives from an address listed in
+`APP_TRUSTED_PROXIES`; otherwise the connection's own address is used.
+Keep the range tight: everything inside it can put arbitrary addresses in
+the header.
+
+The WebSocket feeds (`/ws/live`, `/ws/crowdsec`) work through the standard
+`Upgrade`/`Connection` proxy headers, and the server sends a keepalive
+frame every 30 seconds, so idle connections survive nginx's default
+`proxy_read_timeout` without extra tuning.
+
+### Sample nginx configs
+
+<details>
+<summary>SWAG (linuxserver.io)</summary>
+
+For [linuxserver SWAG](https://github.com/linuxserver/docker-swag), drop
+this into `/config/nginx/proxy-confs/geometrikks.subdomain.conf` (the
+GeoMetrikks container must be named `geometrikks` and share a Docker
+network with SWAG):
+
+```nginx
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+
+    server_name geometrikks.*;
+
+    include /config/nginx/ssl.conf;
+
+    client_max_body_size 0;
+
+    location / {
+        # enable for Authelia (requires authelia-server.conf in the server block)
+        #include /config/nginx/authelia-location.conf;
+
+        include /config/nginx/proxy.conf;
+        include /config/nginx/resolver.conf;
+        set $upstream_app geometrikks;
+        set $upstream_port 8000;
+        set $upstream_proto http;
+        proxy_pass $upstream_proto://$upstream_app:$upstream_port;
+    }
+}
+```
+
+SWAG's stock `proxy.conf` already sends the WebSocket upgrade and
+`X-Forwarded-For` headers. Set `APP_TRUSTED_PROXIES` to the Docker network
+SWAG shares with the app (for example `172.18.0.0/16`).
+
+</details>
+
+<details>
+<summary>Plain nginx</summary>
+
+For a regular nginx install terminating TLS in front of the app:
+
+```nginx
+# The Connection header must be "upgrade" for WebSocket handshakes and
+# "close" otherwise; this map picks the right value per request.
+map $http_upgrade $connection_upgrade {
+    default upgrade;
+    ""      close;
+}
+
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+
+    server_name geometrikks.example.com;
+
+    ssl_certificate     /etc/nginx/ssl/fullchain.pem;
+    ssl_certificate_key /etc/nginx/ssl/privkey.pem;
+
+    location / {
+        proxy_pass http://127.0.0.1:8000;
+        proxy_http_version 1.1;
+
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        # WebSocket upgrade for /ws/live and /ws/crowdsec
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $connection_upgrade;
+    }
+}
+```
+
+Adjust `proxy_pass` to wherever the app runs (container IP, another host).
+With nginx proxying from the same machine as above, set
+`APP_TRUSTED_PROXIES=127.0.0.1`.
+
+</details>
+
+Notes for exposing GeoMetrikks to the internet:
+
+- `/schema` (the interactive API docs) and `/health` do not require login.
+  If you don't want them public, protect them at the proxy (an nginx
+  `location` rule or your auth portal).
+- The login endpoint has no built-in rate limiting. Run fail2ban or
+  CrowdSec against your proxy's access logs to stop brute force at the
+  edge.
+- `APP_AUTH_DISABLED=true` must only be used when an authenticating proxy
+  (Authelia, Tailscale, ...) sits in front of the app.
+
 ## CrowdSec integration (optional)
 
 If a [CrowdSec](https://www.crowdsec.net/) instance protects your stack,
