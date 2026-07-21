@@ -9,53 +9,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- CrowdSec integration (read-only, [#19](https://github.com/GilbN/geometrikks/issues/19)):
-  point `CROWDSEC_LAPI_URL` + `CROWDSEC_BOUNCER_API_KEY` at a CrowdSec Local
-  API and GeoMetrikks exposes `/api/v1/crowdsec/status`, `/decisions`
-  (paginated, geo-enriched from stored traffic data), `/decisions/lookup?ip=`
-  and `/stats`, plus a "Banned" badge on matching IPs in the access-logs
-  table. The decisions list defaults to local origins so an opted-in CAPI
-  community blocklist doesn't flood the view. Machine credentials are
-  validated and reported via `write_enabled`.
-- CrowdSec ban/unban from the UI: with `CROWDSEC_MACHINE_ID` +
-  `CROWDSEC_MACHINE_PASSWORD` set, a shield action on each IP in the
-  access-logs table bans (duration picker, 1h to forever) or unbans via
-  `POST /api/v1/crowdsec/ban` / `POST /api/v1/crowdsec/unban`; actions are
-  audit-logged with the acting user. Badges now cover all decision origins
-  (CAPI blocklist included) through the compact
-  `GET /api/v1/crowdsec/banned-ips` endpoint.
-- Live CrowdSec ban/unban updates: a scheduler job polls the LAPI decision
-  stream (`CROWDSEC_STREAM_POLL_INTERVAL`, default 15s) and pushes deltas
-  over a new `/ws/crowdsec` WebSocket; banned badges in the access-logs
-  table update within seconds of a decision anywhere in CrowdSec instead of
-  waiting for the next refetch.
-- CrowdSec alert history: `GET /api/v1/crowdsec/alerts` (machine credentials
-  required) returns recent LAPI alerts with scenario, source, LAPI country
-  enrichment, event and decision counts, filterable by `?ip=`, `?scenario=`
-  and `?since=24h`.
-- Manual ban form on the Security page: a "Ban IP" dialog (any address, with
-  the duration picker, an optional reason recorded in the alert message and
-  audit log, and inline validation/error feedback), shown when machine
-  credentials are set. All ban/unban buttons (access-logs rows,
-  Security decisions table, map popups) now show an in-flight spinner on the
-  acting row while the LAPI request runs.
-- Map integration for CrowdSec: a "Banned IPs" overlay toggle in the map
-  controls (shown when the integration is configured) rendering red markers
-  for banned IPs seen in this server's own traffic, backed by
-  `GET /api/v1/crowdsec/banned-locations`; map popups now badge banned IPs
-  in the top-IPs list and offer ban/unban when machine credentials are set.
-- Security page: a sidebar entry (visible when the integration is
-  configured) with stat cards (active decisions, local vs crowd bans, top
-  scenario, LAPI state), the active-decisions table with origin-scope tabs
-  (local / all / crowd), per-row unban, and a "Seen 24h" column
-  cross-referencing each banned IP against the server's own stored traffic,
-  plus the alert-history table with a time-window picker when machine
-  credentials are set.
-- The CrowdSec banned badge and ban/unban shield action now also appear on
-  the Analytics "Top IPs" table, the Geo Logs "Top IPs" table, and
-  IP-scoped rows of the Security alert history, via a shared
-  `IpBanControls` component. The debug-logs IP filter reuses the shared
-  IP validation, so compressed IPv6 filters like `::1` work there too.
+- CrowdSec integration: point `CROWDSEC_LAPI_URL` + `CROWDSEC_BOUNCER_API_KEY`
+  at a CrowdSec Local API for read access; add `CROWDSEC_MACHINE_ID` +
+  `CROWDSEC_MACHINE_PASSWORD` to enable ban/unban.
+  - Security page (sidebar entry shown when configured): stat cards, the
+    active-decisions table with origin-scope tabs (local / all / crowd),
+    per-row unban, a "Seen 24h" column cross-referencing banned IPs against
+    the server's own traffic, alert history with a time-window picker, and a
+    manual "Ban IP" dialog with duration picker and optional reason.
+  - "Banned" badge and a ban/unban shield action on IPs in the access-logs
+    table, the Analytics and Geo Logs top-IP tables, map popups, and
+    IP-scoped alert rows. Bans take a duration (1h to forever) and are
+    audit-logged with the acting user.
+  - Map overlay: a "Banned IPs" toggle rendering red markers for banned IPs
+    seen in this server's own traffic.
+  - Live updates: the LAPI decision stream is polled
+    (`CROWDSEC_STREAM_POLL_INTERVAL`, default 15s) and pushed over a
+    `/ws/crowdsec` WebSocket, so banned badges update within seconds of a
+    decision anywhere in CrowdSec.
+  - REST API under `/api/v1/crowdsec/`: `status`, `decisions` (paginated,
+    geo-enriched), `decisions/lookup`, `stats`, `banned-ips`,
+    `banned-locations`, `alerts` (filterable by ip/scenario/since), `ban`
+    and `unban`. Decision listings default to local origins so an opted-in
+    CAPI community blocklist doesn't flood the view.
 
 ## [0.3.0] - 2026-07-19
 
