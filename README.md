@@ -189,10 +189,6 @@ own subdomain (for example `geometrikks.example.com`): the frontend is
 hard-wired to the site root, so subfolder setups
 (`example.com/geometrikks/`) are not supported.
 
-The WebSocket feeds (`/ws/live`, `/ws/crowdsec`) work through standard
-`Upgrade`/`Connection` proxy headers, and the server sends a keepalive
-frame every 30 seconds so idle connections survive proxy read timeouts.
-
 Recommended settings when proxied over HTTPS:
 
 ```env
@@ -209,7 +205,15 @@ only honors it when the request arrives from an address listed in
 Keep the range tight: everything inside it can put arbitrary addresses in
 the header.
 
-### SWAG / nginx sample
+The WebSocket feeds (`/ws/live`, `/ws/crowdsec`) work through the standard
+`Upgrade`/`Connection` proxy headers, and the server sends a keepalive
+frame every 30 seconds, so idle connections survive nginx's default
+`proxy_read_timeout` without extra tuning.
+
+### Sample nginx configs
+
+<details>
+<summary>SWAG (linuxserver.io)</summary>
 
 For [linuxserver SWAG](https://github.com/linuxserver/docker-swag), drop
 this into `/config/nginx/proxy-confs/geometrikks.subdomain.conf` (the
@@ -240,6 +244,56 @@ server {
     }
 }
 ```
+
+SWAG's stock `proxy.conf` already sends the WebSocket upgrade and
+`X-Forwarded-For` headers. Set `APP_TRUSTED_PROXIES` to the Docker network
+SWAG shares with the app (for example `172.18.0.0/16`).
+
+</details>
+
+<details>
+<summary>Plain nginx</summary>
+
+For a regular nginx install terminating TLS in front of the app:
+
+```nginx
+# The Connection header must be "upgrade" for WebSocket handshakes and
+# "close" otherwise; this map picks the right value per request.
+map $http_upgrade $connection_upgrade {
+    default upgrade;
+    ""      close;
+}
+
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+
+    server_name geometrikks.example.com;
+
+    ssl_certificate     /etc/nginx/ssl/fullchain.pem;
+    ssl_certificate_key /etc/nginx/ssl/privkey.pem;
+
+    location / {
+        proxy_pass http://127.0.0.1:8000;
+        proxy_http_version 1.1;
+
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        # WebSocket upgrade for /ws/live and /ws/crowdsec
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $connection_upgrade;
+    }
+}
+```
+
+Adjust `proxy_pass` to wherever the app runs (container IP, another host).
+With nginx proxying from the same machine as above, set
+`APP_TRUSTED_PROXIES=127.0.0.1`.
+
+</details>
 
 Notes for exposing GeoMetrikks to the internet:
 
