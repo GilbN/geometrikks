@@ -197,7 +197,9 @@ and the "Banned" badge on matching IPs in the access-logs table.
 To also ban and unban from the UI, add machine credentials:
 
 ```bash
-docker exec crowdsec cscli machines add geometrikks --auto  # prints id + password
+# -f - prints the credentials instead of overwriting the container's own
+# /etc/crowdsec/local_api_credentials.yaml
+docker exec crowdsec cscli machines add geometrikks --auto -f -
 ```
 
 ```bash
