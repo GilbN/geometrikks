@@ -27,7 +27,12 @@ async def fake_health() -> dict[str, Any]:
 
 
 def make_app(**settings_kwargs) -> Litestar:
-    settings = Settings(admin_user="admin", admin_password="bestpasswordintheworldnojoke", **settings_kwargs)
+    settings = Settings(
+        admin_user="admin",
+        admin_password="bestpasswordintheworldnojoke",
+        _env_file=None,
+        **settings_kwargs,
+    )
     session_auth = create_session_auth(settings)
     app = Litestar(
         route_handlers=[AuthController, protected, fake_health, live_feed],
@@ -169,7 +174,7 @@ def test_session_cookie_secure_flag_follows_setting():
         assert "secure" not in res.headers["set-cookie"].lower()
 
 
-def test_login_attempts_are_logged_with_client_ip(caplog):
+def test_login_attempts_are_logged_with_client_ip():
     records: list = []
 
     class ListHandler(logging.Handler):

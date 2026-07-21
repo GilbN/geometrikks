@@ -20,6 +20,10 @@ if TYPE_CHECKING:
 
 
 def _parse_ip(value: str) -> IPv4Address | IPv6Address | None:
+    if "%" in value:
+        # IPv6 zone IDs accept arbitrary bytes (including newlines) and
+        # round-trip through str(); never legitimate in X-Forwarded-For.
+        return None
     try:
         return ip_address(value.strip().strip("[]"))
     except ValueError:
@@ -55,7 +59,11 @@ def resolve_client_ip(
     if peer_ip is None or not any(peer_ip in net for net in trusted_networks):
         return peer
 
-    forwarded = connection.headers.get("x-forwarded-for")
+    # A client can send its own X-Forwarded-For; a proxy that appends rather
+    # than merges (e.g. HAProxy's "option forwardfor") leaves that as a
+    # separate header occurrence. headers.get() only returns the first one,
+    # so every occurrence must be joined before walking right to left.
+    forwarded = ", ".join(connection.headers.getall("x-forwarded-for", []))
     if not forwarded:
         return peer
     for entry in reversed(forwarded.split(",")):
