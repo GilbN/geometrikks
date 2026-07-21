@@ -14,9 +14,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `APP_TRUSTED_PROXIES` (IPs/CIDRs, default empty): trust `X-Forwarded-For`
   from these proxies so the app can resolve real client IPs.
 - Login successes and failures are now logged with username and client IP.
-- README: "Running behind a reverse proxy" section with a SWAG sample
-  config, recommended proxy settings, exposed-path notes and an edge
-  rate-limiting recommendation.
 
 ### Fixed
 
