@@ -34,7 +34,12 @@ import {
 import { PaginationFooter } from "@/components/ui/pagination-footer"
 import { FilterCombobox } from "@/components/ui/filter-combobox"
 import { FiltersDrawer, FilterSection } from "@/components/ui/filters-drawer"
-import { useAccessLogs, useAccessLogFacets } from "@/lib/queries"
+import {
+  useAccessLogs,
+  useAccessLogFacets,
+  useCrowdsecLiveUpdates,
+} from "@/lib/queries"
+import { IpBanControls } from "@/components/crowdsec/ip-ban-controls"
 import { useDebouncedValue } from "@/hooks/use-debounced-value"
 import { useIsMobile } from "@/hooks/use-mobile"
 import {
@@ -45,6 +50,7 @@ import {
   type SortOrder,
 } from "@/lib/api"
 import { cn, isMobileViewport } from "@/lib/utils"
+import { isValidIp } from "@/lib/crowdsec"
 
 const PAGE_SIZES = [10, 20, 50, 100, 200, 500, 1000] as const
 
@@ -221,16 +227,6 @@ const COLUMNS: ColumnDef[] = [
   },
 ]
 
-/** Full IPv4/IPv6 check — the backend's ip_address column is INET, so a
- * partial value (mid-typing) must not reach the query. */
-const IPV4_RE =
-  /^(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}$/
-const IPV6_RE =
-  /^(([0-9a-f]{1,4}:){7}[0-9a-f]{1,4}|([0-9a-f]{1,4}:)*:([0-9a-f]{1,4}:)*[0-9a-f]{0,4})$/i
-
-function isValidIp(value: string): boolean {
-  return IPV4_RE.test(value) || (value.includes(":") && IPV6_RE.test(value))
-}
 
 export function AccessLogsTable() {
   const isMobile = useIsMobile()
@@ -248,6 +244,7 @@ export function AccessLogsTable() {
   // Facet values are fetched lazily, on first open of either dropdown.
   const [facetsEnabled, setFacetsEnabled] = useState(false)
   const { data: facets } = useAccessLogFacets({ enabled: facetsEnabled })
+  useCrowdsecLiveUpdates()
   const search = useDebouncedValue(searchInput, 300)
   const ip = useDebouncedValue(ipInput, 300)
   const host = useDebouncedValue(hostInput, 300)
@@ -517,6 +514,7 @@ export function AccessLogsTable() {
                         className={cn(c.align === "right" && "text-right")}
                       >
                         {c.render(row)}
+                        {c.key === "ipAddress" && <IpBanControls ip={row.ipAddress} />}
                       </TableCell>
                     ))}
                   </TableRow>

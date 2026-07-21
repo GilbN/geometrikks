@@ -5,7 +5,9 @@
 GeoMetrikks tails your nginx access logs, geolocates every request with
 MaxMind GeoLite2, and gives you a real-time GeoIP map plus a traffic
 analytics dashboard for your homelab - no external services, no
-subscriptions, just Docker and your existing nginx logs.
+subscriptions, just Docker and your existing nginx logs. Run CrowdSec?
+Hook up its Local API and manage bans right next to the traffic they
+came from.
 
 ## Features
 
@@ -37,6 +39,15 @@ for the full log line (bytes, request time, upstream time, HTTP version,
 and more).
 
 ![Access Logs](/data/screenshots/access-logs.png)
+
+**CrowdSec integration** - point the app at your CrowdSec Local API for a
+Security page showing active bans cross-referenced with your own traffic
+(who's banned, and whether they're still knocking), a red banned-IP overlay
+on the map, and ban/unban actions on any IP across the app - with badges
+updating live from the decision stream. See
+[CrowdSec integration](#crowdsec-integration-optional).
+
+![CrowdSec](/data/screenshots/crowdsec.png)
 
 **Batch import** - backfill rotated or archived logs (plain or `.gz`) with
 `litestar import-logs`, reusing the same parsing/GeoIP/DB pipeline as live
@@ -170,6 +181,68 @@ APP_AUTH_DISABLED=true  # only safe behind an authenticating reverse proxy
 This is a reverse-proxy-only mode: with it set, `/api/v1/auth/*` is not
 registered (404s) and the WebSocket accepts anonymous connections, so only
 enable it when something else is already gating access to the app.
+
+## CrowdSec integration (optional)
+
+If a [CrowdSec](https://www.crowdsec.net/) instance protects your stack,
+GeoMetrikks can talk to its Local API (LAPI) and show active decisions
+(bans) joined with the traffic data it already stores: per banned IP you see
+the country/city and the request count from your actual nginx logs.
+
+Register GeoMetrikks as a bouncer on the CrowdSec side and point the app at
+the LAPI:
+
+```bash
+docker exec crowdsec cscli bouncers add geometrikks   # prints the API key
+```
+
+```bash
+CROWDSEC_LAPI_URL=http://crowdsec:8080
+CROWDSEC_BOUNCER_API_KEY=<key from cscli bouncers add>
+```
+
+That enables read-only access: a Security page (ban stats, the active
+decision list cross-referenced with your own traffic data), the "Banned"
+badge on matching IPs in the access-logs and top-IP tables, and a map
+overlay marking banned IPs seen in your traffic within the selected time
+range.
+
+To also ban and unban from the UI, add machine credentials:
+
+```bash
+# -f - prints the credentials instead of overwriting the container's own
+# /etc/crowdsec/local_api_credentials.yaml
+docker exec crowdsec cscli machines add geometrikks --auto -f -
+```
+
+```bash
+CROWDSEC_MACHINE_ID=geometrikks
+CROWDSEC_MACHINE_PASSWORD=<password from cscli machines add>
+```
+
+With write access enabled, a shield button appears next to IPs across the
+app (access logs, top-IP tables, map popups) with a ban-duration picker
+(1h to forever) and an unban action for already-banned IPs, and the
+Security page gains alert history plus a manual "Ban IP" dialog with an
+optional reason. Manual bans are created with origin `geometrikks`, and
+every ban/unban is audit-logged with the acting user in the app log.
+
+Ban decisions are also streamed live: the app polls the LAPI decision
+stream (every `CROWDSEC_STREAM_POLL_INTERVAL` seconds, default 15) and
+pushes changes over a WebSocket, so badges react within seconds when
+CrowdSec bans or unbans an IP anywhere, not just from this UI.
+
+Notes:
+
+- CrowdSec only *decides*; enforcement still needs a real bouncer
+  (firewall-bouncer, nginx bouncer, Traefik plugin, ...) in front of your
+  stack. GeoMetrikks displays and manages decisions, it does not block
+  traffic itself.
+- A machine that only logs in occasionally will show as "last seen" long ago
+  in `cscli machines list` and the CrowdSec console. That's expected and
+  harmless.
+- Without `CROWDSEC_*` settings the integration is simply off; nothing else
+  changes.
 
 ## Importing history
 

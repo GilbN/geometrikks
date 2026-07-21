@@ -1,6 +1,13 @@
 {
   "litestar_version": "Version(major=2, minor=24, patch=0, release_level='final', serial=0)",
   "routes": {
+    "ban": {
+      "method": "post",
+      "methods": [
+        "POST"
+      ],
+      "uri": "/api/v1/crowdsec/ban"
+    },
     "get_about": {
       "method": "get",
       "methods": [
@@ -225,6 +232,20 @@
       ],
       "uri": "/api/v1/system/scheduler/jobs"
     },
+    "get_stats": {
+      "method": "get",
+      "methods": [
+        "GET"
+      ],
+      "uri": "/api/v1/crowdsec/stats"
+    },
+    "get_status": {
+      "method": "get",
+      "methods": [
+        "GET"
+      ],
+      "uri": "/api/v1/crowdsec/status"
+    },
     "get_summary": {
       "method": "get",
       "methods": [
@@ -404,6 +425,49 @@
       },
       "uri": "/api/v1/access-logs"
     },
+    "list_alerts": {
+      "method": "get",
+      "methods": [
+        "GET"
+      ],
+      "queryParameters": {
+        "ip": "string | undefined",
+        "limit": "number | undefined",
+        "scenario": "string | undefined",
+        "since": "string | undefined"
+      },
+      "uri": "/api/v1/crowdsec/alerts"
+    },
+    "list_banned_ips": {
+      "method": "get",
+      "methods": [
+        "GET"
+      ],
+      "uri": "/api/v1/crowdsec/banned-ips"
+    },
+    "list_banned_locations": {
+      "method": "get",
+      "methods": [
+        "GET"
+      ],
+      "queryParameters": {
+        "from_timestamp": "DateTime | undefined",
+        "to_timestamp": "DateTime | undefined"
+      },
+      "uri": "/api/v1/crowdsec/banned-locations"
+    },
+    "list_decisions": {
+      "method": "get",
+      "methods": [
+        "GET"
+      ],
+      "queryParameters": {
+        "currentPage": "number | undefined",
+        "origins": "string | undefined",
+        "pageSize": "number | undefined"
+      },
+      "uri": "/api/v1/crowdsec/decisions"
+    },
     "list_geo_events": {
       "method": "get",
       "methods": [
@@ -446,6 +510,16 @@
         "POST"
       ],
       "uri": "/api/v1/auth/logout"
+    },
+    "lookup_decisions": {
+      "method": "get",
+      "methods": [
+        "GET"
+      ],
+      "queryParameters": {
+        "ip": "string"
+      },
+      "uri": "/api/v1/crowdsec/decisions/lookup"
     },
     "me": {
       "method": "get",
@@ -501,6 +575,13 @@
         "GET"
       ],
       "uri": "/api/v1/stats"
+    },
+    "unban": {
+      "method": "post",
+      "methods": [
+        "POST"
+      ],
+      "uri": "/api/v1/crowdsec/unban"
     },
     "vite": {
       "method": "get",

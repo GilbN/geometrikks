@@ -14,10 +14,12 @@ from advanced_alchemy.extensions.litestar import filters
 from litestar.exceptions import ClientException
 from litestar.status_codes import HTTP_409_CONFLICT
 
+from geometrikks.services.crowdsec import CrowdSecService
 from geometrikks.services.ingestion import LogIngestionService
 from geometrikks.domain.geo.repositories import GeoLocationRepository
 from geometrikks.domain.logs.repositories import AccessLogRepository
 from geometrikks.domain.analytics.repositories import LiveStatsRepository, SummaryStatsRepository
+from geometrikks.domain.security.repositories import SecurityEnrichmentRepository
 
 
 def provide_ingestion_service(request: Request) -> LogIngestionService | None:
@@ -26,6 +28,21 @@ def provide_ingestion_service(request: Request) -> LogIngestionService | None:
     Returns None if the service is not available (degraded mode).
     """
     return getattr(request.app.state, "ingestion_service", None)
+
+
+def provide_crowdsec_service(request: Request) -> CrowdSecService | None:
+    """Provide the CrowdSecService from app state.
+
+    Returns None when the integration is not enabled (no LAPI URL/bouncer key).
+    """
+    return getattr(request.app.state, "crowdsec_service", None)
+
+
+async def provide_security_enrichment_repo(
+    db_session: NamedDependency[AsyncSession],
+) -> SecurityEnrichmentRepository:
+    """Provide SecurityEnrichmentRepository for decision enrichment."""
+    return SecurityEnrichmentRepository(session=db_session)
 
 
 async def provide_transaction(

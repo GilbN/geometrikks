@@ -26,7 +26,20 @@ import type {
   SchedulerJobsResponse,
   SchedulerJobView,
   AboutResponse,
+  CrowdSecStatusResponse,
+  CrowdSecStatsResponse,
+  AlertView,
+  DecisionView,
+  IpLocation,
 } from "@/generated/api/types.gen"
+
+export type {
+  CrowdSecStatusResponse,
+  CrowdSecStatsResponse,
+  AlertView,
+  DecisionView,
+  IpLocation,
+}
 
 // Create axios instance with base configuration
 export const api = axios.create({
@@ -213,6 +226,100 @@ export async function runSchedulerJob(jobId: string): Promise<SchedulerJobView> 
 export async function fetchAbout(): Promise<AboutResponse> {
   const { data } = await api.get<AboutResponse>("/system/about")
   return data
+}
+
+// ============================================================================
+// Types & Functions - CrowdSec API
+// ============================================================================
+
+export interface CrowdSecDecisionsPage {
+  items: DecisionView[]
+  total: number
+  limit: number
+  offset: number
+}
+
+/** Integration state; everything CrowdSec in the UI is gated on `enabled`. */
+export async function fetchCrowdsecStatus(): Promise<CrowdSecStatusResponse> {
+  const { data } = await api.get<CrowdSecStatusResponse>("/crowdsec/status")
+  return data
+}
+
+/** One page of active decisions. Server defaults to local origins
+ *  (crowdsec,cscli,geometrikks); pass `origins` to widen to CAPI/lists. */
+export async function fetchCrowdsecDecisions(params?: {
+  origins?: string
+  currentPage?: number
+  pageSize?: number
+}): Promise<CrowdSecDecisionsPage> {
+  const { data } = await api.get<CrowdSecDecisionsPage>("/crowdsec/decisions", {
+    params: {
+      origins: params?.origins || undefined,
+      currentPage: params?.currentPage ?? 1,
+      pageSize: params?.pageSize ?? 50,
+    },
+  })
+  return data
+}
+
+/** Every actively banned IP across all origins (CAPI included), values only.
+ *  Compact enough for the badge set even with a community blocklist. */
+export async function fetchCrowdsecBannedIps(): Promise<string[]> {
+  const { data } = await api.get<string[]>("/crowdsec/banned-ips")
+  return data
+}
+
+/** Coordinates of banned IPs seen in this server's own traffic (map overlay).
+ *  The window keeps the overlay in step with the map's time range; omitted
+ *  bounds fall back to the server's 30d geo lookback. */
+export async function fetchCrowdsecBannedLocations(params?: {
+  fromTimestamp?: string
+  toTimestamp?: string
+}): Promise<IpLocation[]> {
+  const { data } = await api.get<IpLocation[]>("/crowdsec/banned-locations", {
+    params: {
+      from_timestamp: params?.fromTimestamp,
+      to_timestamp: params?.toTimestamp,
+    },
+  })
+  return data
+}
+
+/** Decision counts grouped by origin plus the most frequent scenarios. */
+export async function fetchCrowdsecStats(): Promise<CrowdSecStatsResponse> {
+  const { data } = await api.get<CrowdSecStatsResponse>("/crowdsec/stats")
+  return data
+}
+
+/** Recent LAPI alert history; requires write_enabled (machine credentials). */
+export async function fetchCrowdsecAlerts(params?: {
+  limit?: number
+  since?: string
+}): Promise<AlertView[]> {
+  const { data } = await api.get<AlertView[]>("/crowdsec/alerts", {
+    params: {
+      limit: params?.limit ?? 50,
+      since: params?.since || undefined,
+    },
+  })
+  return data
+}
+
+/** Ban one IP. `duration` is a Go duration string (4h, 24h, 168h); server
+ *  defaults apply to omitted duration/reason. Requires write_enabled. The
+ *  reason ends up in the alert message and the audit log. */
+export async function banIp(
+  ip: string,
+  duration?: string,
+  reason?: string,
+): Promise<void> {
+  await api.post("/crowdsec/ban", { ip, duration, reason: reason || undefined })
+}
+
+/** Delete all active decisions for one IP; resolves to the number deleted. */
+export async function unbanIp(ip: string): Promise<number> {
+  const { data } = await api.post<{ deleted: number }>("/crowdsec/unban", { ip })
+  return data.deleted
 }
 
 export interface SummaryParams {

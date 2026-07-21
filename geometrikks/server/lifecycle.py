@@ -16,6 +16,8 @@ from geometrikks.server.migrations import migrate_database
 from geometrikks.server.plugins import get_sqlalchemy_config
 from geometrikks.server.timescale import setup_timescaledb
 
+from geometrikks.services.crowdsec import CrowdSecService
+from geometrikks.services.crowdsec.stream import CrowdSecStreamPoller
 from geometrikks.services.geoip.downloader import ensure_geoip_database
 from geometrikks.services.geoip.home import resolve_home_location
 from geometrikks.services.ingestion import LogIngestionService
@@ -75,8 +77,29 @@ async def on_startup(app: "Litestar") -> None:
             "after configuring MAXMINDDB_USER_ID/MAXMINDDB_LICENSE_KEY)."
         )
 
+    # CrowdSec: LAPI client needs no database, so it is wired before the DB
+    # gate; missing config degrades the feature instead of failing startup.
+    if settings.crowdsec.enabled:
+        app.state.crowdsec_service = CrowdSecService(settings.crowdsec)
+        app.state.crowdsec_stream_poller = CrowdSecStreamPoller(app.state.crowdsec_service)
+        logger.info(
+            "CrowdSec integration enabled (write=%s)", settings.crowdsec.write_enabled
+        )
+    else:
+        app.state.crowdsec_service = None
+        app.state.crowdsec_stream_poller = None
+
     if not await _db_available():
         logger.warning("Starting without database: skipping migrations and ingestion.")
+        if app.state.crowdsec_stream_poller is not None:
+            # The poll job runs on the scheduler, which never starts without a
+            # database; a live poller would leave /ws/crowdsec clients hanging
+            # instead of closing 1013 so they fall back to periodic refetch.
+            app.state.crowdsec_stream_poller = None
+            logger.warning(
+                "CrowdSec live updates disabled: the scheduler does not run "
+                "in DB-degraded mode."
+            )
         return
 
     engine = get_sqlalchemy_config().get_engine()
@@ -117,7 +140,11 @@ async def on_startup(app: "Litestar") -> None:
 
     # Create and start scheduler; tracker must attach before start so no
     # event is missed.
-    scheduler: AsyncIOScheduler = await create_scheduler(session_maker, settings)
+    scheduler: AsyncIOScheduler = await create_scheduler(
+        session_maker,
+        settings,
+        crowdsec_poller=getattr(app.state, "crowdsec_stream_poller", None),
+    )
     scheduler_tracker = JobRunTracker()
     scheduler_tracker.attach(scheduler)
     scheduler.start()
@@ -148,3 +175,8 @@ async def on_shutdown(app: "Litestar") -> None:
     if scheduler and scheduler.running:
         scheduler.shutdown(wait=True)
         logger.info("Stopped APScheduler")
+
+    # Close the CrowdSec LAPI client
+    crowdsec_service: CrowdSecService | None = getattr(app.state, "crowdsec_service", None)
+    if crowdsec_service:
+        await crowdsec_service.aclose()

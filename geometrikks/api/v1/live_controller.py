@@ -82,6 +82,39 @@ async def _watch_disconnect(socket: WebSocket) -> None:
         await socket.receive_data(mode="text")
 
 
+@websocket("/ws/crowdsec", tags=["Live Feed"])
+async def crowdsec_feed(socket: WebSocket) -> None:
+    """Stream CrowdSec ban/unban deltas from the decision-stream poller.
+
+    One JSON frame per delta:
+      {"type": "crowdsec_decisions", "added": [...], "deleted": [...]}
+    Auth: same session-authenticated handshake as /ws/live.
+    """
+    poller = getattr(socket.app.state, "crowdsec_stream_poller", None)
+    await socket.accept()
+    if poller is None:
+        await socket.close(code=1013, reason="crowdsec stream not running")  # 1013 = try again later
+        return
+
+    queue = poller.subscribe()
+    watcher = asyncio.create_task(_watch_disconnect(socket))
+    try:
+        while not watcher.done():
+            try:
+                frame = await asyncio.wait_for(queue.get(), timeout=0.5)
+            except asyncio.TimeoutError:
+                continue
+            if not watcher.done():
+                await socket.send_json(frame)
+    except WebSocketDisconnect:
+        pass  # client went away between the watcher check and the send
+    finally:
+        watcher.cancel()
+        with contextlib.suppress(asyncio.CancelledError, WebSocketDisconnect):
+            await watcher
+        poller.unsubscribe(queue)
+
+
 @websocket("/ws/live", tags=["Live Feed"])
 async def live_feed(socket: WebSocket) -> None:
     """Stream committed ingestion events, batched and coalesced."""

@@ -271,6 +271,87 @@ export const AccessLogFacetsSchema = {
   type: "object",
 } as const;
 
+export const AlertViewSchema = {
+  properties: {
+    as_name: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    country: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    created_at: {
+      type: "string",
+    },
+    decision_count: {
+      type: "integer",
+    },
+    events_count: {
+      type: "integer",
+    },
+    id: {
+      oneOf: [
+        {
+          type: "integer",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    machine_id: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    message: {
+      type: "string",
+    },
+    scenario: {
+      type: "string",
+    },
+    scope: {
+      type: "string",
+    },
+    value: {
+      type: "string",
+    },
+  },
+  required: [
+    "as_name",
+    "country",
+    "created_at",
+    "decision_count",
+    "events_count",
+    "id",
+    "machine_id",
+    "message",
+    "scenario",
+    "scope",
+    "value",
+  ],
+  title: "AlertView",
+  type: "object",
+} as const;
+
 export const AnalyticsSettingsViewSchema = {
   properties: {
     compression_after_days: {
@@ -296,6 +377,31 @@ export const AnalyticsSettingsViewSchema = {
   type: "object",
 } as const;
 
+export const BanRequestSchema = {
+  properties: {
+    duration: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    ip: {
+      type: "string",
+    },
+    reason: {
+      default: "manual ban from GeoMetrikks",
+      type: "string",
+    },
+  },
+  required: ["ip"],
+  title: "BanRequest",
+  type: "object",
+} as const;
+
 export const CountryFacetSchema = {
   properties: {
     code: {
@@ -307,6 +413,46 @@ export const CountryFacetSchema = {
   },
   required: ["code", "name"],
   title: "CountryFacet",
+  type: "object",
+} as const;
+
+export const CrowdSecStatsResponseSchema = {
+  properties: {
+    by_origin: {
+      items: {
+        $ref: "#/components/schemas/OriginCount",
+      },
+      type: "array",
+    },
+    top_scenarios: {
+      items: {
+        $ref: "#/components/schemas/ScenarioCount",
+      },
+      type: "array",
+    },
+    total: {
+      type: "integer",
+    },
+  },
+  required: ["by_origin", "top_scenarios", "total"],
+  title: "CrowdSecStatsResponse",
+  type: "object",
+} as const;
+
+export const CrowdSecStatusResponseSchema = {
+  properties: {
+    enabled: {
+      type: "boolean",
+    },
+    lapi_reachable: {
+      type: "boolean",
+    },
+    write_enabled: {
+      type: "boolean",
+    },
+  },
+  required: ["enabled", "lapi_reachable", "write_enabled"],
+  title: "CrowdSecStatusResponse",
   type: "object",
 } as const;
 
@@ -393,6 +539,94 @@ export const DatabaseVersionsViewSchema = {
   },
   required: ["postgis_version", "postgres_version", "timescaledb_version"],
   title: "DatabaseVersionsView",
+  type: "object",
+} as const;
+
+export const DecisionViewSchema = {
+  properties: {
+    city: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    country_code: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    country_name: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    duration: {
+      type: "string",
+    },
+    id: {
+      oneOf: [
+        {
+          type: "integer",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    ip: {
+      type: "string",
+    },
+    origin: {
+      type: "string",
+    },
+    request_count_24h: {
+      oneOf: [
+        {
+          type: "integer",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    scenario: {
+      type: "string",
+    },
+    scope: {
+      type: "string",
+    },
+    type: {
+      type: "string",
+    },
+  },
+  required: [
+    "city",
+    "country_code",
+    "country_name",
+    "duration",
+    "id",
+    "ip",
+    "origin",
+    "request_count_24h",
+    "scenario",
+    "scope",
+    "type",
+  ],
+  title: "DecisionView",
   type: "object",
 } as const;
 
@@ -1017,6 +1251,43 @@ export const GlobalTopIPsResponseSchema = {
   type: "object",
 } as const;
 
+export const IpLocationSchema = {
+  properties: {
+    city: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    country_code: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    ip: {
+      type: "string",
+    },
+    latitude: {
+      type: "number",
+    },
+    longitude: {
+      type: "number",
+    },
+  },
+  required: ["city", "country_code", "ip", "latitude", "longitude"],
+  title: "IpLocation",
+  type: "object",
+} as const;
+
 export const ListAccessLogsAccessLogResponseBodySchema = {
   properties: {
     bytesSent: {
@@ -1482,6 +1753,20 @@ export const MeResponseSchema = {
   type: "object",
 } as const;
 
+export const OriginCountSchema = {
+  properties: {
+    count: {
+      type: "integer",
+    },
+    origin: {
+      type: "string",
+    },
+  },
+  required: ["count", "origin"],
+  title: "OriginCount",
+  type: "object",
+} as const;
+
 export const ParseErrorCountSchema = {
   properties: {
     count: {
@@ -1725,6 +2010,20 @@ export const SafeSettingsResponseSchema = {
     "version",
   ],
   title: "SafeSettingsResponse",
+  type: "object",
+} as const;
+
+export const ScenarioCountSchema = {
+  properties: {
+    count: {
+      type: "integer",
+    },
+    scenario: {
+      type: "string",
+    },
+  },
+  required: ["count", "scenario"],
+  title: "ScenarioCount",
   type: "object",
 } as const;
 
@@ -2445,5 +2744,27 @@ export const TopUserAgentsResponseSchema = {
   },
   required: ["end_date", "items", "start_date"],
   title: "TopUserAgentsResponse",
+  type: "object",
+} as const;
+
+export const UnbanRequestSchema = {
+  properties: {
+    ip: {
+      type: "string",
+    },
+  },
+  required: ["ip"],
+  title: "UnbanRequest",
+  type: "object",
+} as const;
+
+export const UnbanResponseSchema = {
+  properties: {
+    deleted: {
+      type: "integer",
+    },
+  },
+  required: ["deleted"],
+  title: "UnbanResponse",
   type: "object",
 } as const;

@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-07-21
+
+### Added
+
+- CrowdSec integration: point `CROWDSEC_LAPI_URL` + `CROWDSEC_BOUNCER_API_KEY`
+  at a CrowdSec Local API for read access; add `CROWDSEC_MACHINE_ID` +
+  `CROWDSEC_MACHINE_PASSWORD` to enable ban/unban.
+  - Security page (sidebar entry shown when configured): stat cards, the
+    active-decisions table with origin-scope tabs (local / all / crowd),
+    per-row unban, a "Seen 24h" column cross-referencing banned IPs against
+    the server's own traffic, alert history with a time-window picker, and a
+    manual "Ban IP" dialog with duration picker and optional reason.
+  - "Banned" badge and a ban/unban shield action on IPs in the access-logs
+    table, the Analytics and Geo Logs top-IP tables, map popups, and
+    IP-scoped alert rows. Bans take a duration (1h to forever) and are
+    audit-logged with the acting user.
+  - Map overlay: a "Banned IPs" toggle rendering red markers for banned IPs
+    seen in this server's own traffic within the selected time range.
+  - Live updates: the LAPI decision stream is polled
+    (`CROWDSEC_STREAM_POLL_INTERVAL`, default 15s) and pushed over a
+    `/ws/crowdsec` WebSocket, so banned badges update within seconds of a
+    decision anywhere in CrowdSec.
+  - REST API under `/api/v1/crowdsec/`: `status`, `decisions` (paginated,
+    geo-enriched), `decisions/lookup`, `stats`, `banned-ips`,
+    `banned-locations`, `alerts` (filterable by ip/scenario/since), `ban`
+    and `unban`. Decision listings default to local origins so an opted-in
+    CAPI community blocklist doesn't flood the view.
+
 ## [0.3.0] - 2026-07-19
 
 ### Fixed
@@ -245,9 +273,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Settings endpoint no longer exposes the full settings tree (database credentials leaked via `model_dump()`); response is now an explicit whitelist.
 - Timestamps in `CALL refresh_continuous_aggregate` are bound as asyncpg parameters instead of interpolated into SQL.
 
-[Unreleased]: https://github.com/GilbN/geometrikks/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/GilbN/geometrikks/compare/v0.4.0...HEAD
 [0.1.0]: https://github.com/GilbN/geometrikks/compare/v0.1.0-alpha.1...v0.1.0
 [0.1.0-alpha.1]: https://github.com/GilbN/geometrikks/releases/tag/v0.1.0-alpha.1
 [0.2.0]: https://github.com/GilbN/geometrikks/releases/tag/v0.2.0
 [0.2.1]: https://github.com/GilbN/geometrikks/releases/tag/v0.2.1
 [0.3.0]: https://github.com/GilbN/geometrikks/releases/tag/v0.3.0
+[0.4.0]: https://github.com/GilbN/geometrikks/releases/tag/v0.4.0

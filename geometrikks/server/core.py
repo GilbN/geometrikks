@@ -11,6 +11,7 @@ from litestar.middleware.logging import LoggingMiddlewareConfig
 
 from geometrikks.config.settings import get_settings
 from geometrikks.server import plugins
+from geometrikks.server.exceptions import CROWDSEC_EXCEPTION_HANDLERS
 from geometrikks.server.lifecycle import on_startup, on_shutdown
 from geometrikks.server.routes import get_route_handlers
 from geometrikks.api.dependencies import (
@@ -87,6 +88,7 @@ def create_app() -> Litestar:
         logging_config=plugins.create_logging_config(settings),
         openapi_config=openapi_config,
         compression_config=compression_config,
+        exception_handlers=CROWDSEC_EXCEPTION_HANDLERS,
         middleware=[logging_middleware_config.middleware],
         on_app_init=on_app_init,
     )

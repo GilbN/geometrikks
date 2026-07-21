@@ -51,6 +51,30 @@ import type {
   ApiV1AuthLogoutLogoutResponses,
   ApiV1AuthMeMeData,
   ApiV1AuthMeMeResponses,
+  ApiV1CrowdsecAlertsListAlertsData,
+  ApiV1CrowdsecAlertsListAlertsErrors,
+  ApiV1CrowdsecAlertsListAlertsResponses,
+  ApiV1CrowdsecBanBanData,
+  ApiV1CrowdsecBanBanErrors,
+  ApiV1CrowdsecBanBanResponses,
+  ApiV1CrowdsecBannedIpsListBannedIpsData,
+  ApiV1CrowdsecBannedIpsListBannedIpsResponses,
+  ApiV1CrowdsecBannedLocationsListBannedLocationsData,
+  ApiV1CrowdsecBannedLocationsListBannedLocationsErrors,
+  ApiV1CrowdsecBannedLocationsListBannedLocationsResponses,
+  ApiV1CrowdsecDecisionsListDecisionsData,
+  ApiV1CrowdsecDecisionsListDecisionsErrors,
+  ApiV1CrowdsecDecisionsListDecisionsResponses,
+  ApiV1CrowdsecDecisionsLookupLookupDecisionsData,
+  ApiV1CrowdsecDecisionsLookupLookupDecisionsErrors,
+  ApiV1CrowdsecDecisionsLookupLookupDecisionsResponses,
+  ApiV1CrowdsecStatsGetStatsData,
+  ApiV1CrowdsecStatsGetStatsResponses,
+  ApiV1CrowdsecStatusGetStatusData,
+  ApiV1CrowdsecStatusGetStatusResponses,
+  ApiV1CrowdsecUnbanUnbanData,
+  ApiV1CrowdsecUnbanUnbanErrors,
+  ApiV1CrowdsecUnbanUnbanResponses,
   ApiV1GeoEventsFacetsGetGeoLogFacetsData,
   ApiV1GeoEventsFacetsGetGeoLogFacetsResponses,
   ApiV1GeoEventsListGeoEventsData,
@@ -563,6 +587,232 @@ export const apiV1AuthMeMe = <ThrowOnError extends boolean = false>(
     ],
     url: "/api/v1/auth/me",
     ...options,
+  });
+
+/**
+ * ListAlerts
+ */
+export const apiV1CrowdsecAlertsListAlerts = <
+  ThrowOnError extends boolean = false,
+>(
+  options?: Options<ApiV1CrowdsecAlertsListAlertsData, ThrowOnError>,
+) =>
+  (options?.client ?? client).get<
+    ApiV1CrowdsecAlertsListAlertsResponses,
+    ApiV1CrowdsecAlertsListAlertsErrors,
+    ThrowOnError
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+    ],
+    url: "/api/v1/crowdsec/alerts",
+    ...options,
+  });
+
+/**
+ * Ban
+ */
+export const apiV1CrowdsecBanBan = <ThrowOnError extends boolean = false>(
+  options: Options<ApiV1CrowdsecBanBanData, ThrowOnError>,
+) =>
+  (options.client ?? client).post<
+    ApiV1CrowdsecBanBanResponses,
+    ApiV1CrowdsecBanBanErrors,
+    ThrowOnError
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+    ],
+    url: "/api/v1/crowdsec/ban",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  });
+
+/**
+ * ListBannedIps
+ */
+export const apiV1CrowdsecBannedIpsListBannedIps = <
+  ThrowOnError extends boolean = false,
+>(
+  options?: Options<ApiV1CrowdsecBannedIpsListBannedIpsData, ThrowOnError>,
+) =>
+  (options?.client ?? client).get<
+    ApiV1CrowdsecBannedIpsListBannedIpsResponses,
+    unknown,
+    ThrowOnError
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+    ],
+    url: "/api/v1/crowdsec/banned-ips",
+    ...options,
+  });
+
+/**
+ * ListBannedLocations
+ */
+export const apiV1CrowdsecBannedLocationsListBannedLocations = <
+  ThrowOnError extends boolean = false,
+>(
+  options?: Options<
+    ApiV1CrowdsecBannedLocationsListBannedLocationsData,
+    ThrowOnError
+  >,
+) =>
+  (options?.client ?? client).get<
+    ApiV1CrowdsecBannedLocationsListBannedLocationsResponses,
+    ApiV1CrowdsecBannedLocationsListBannedLocationsErrors,
+    ThrowOnError
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+    ],
+    url: "/api/v1/crowdsec/banned-locations",
+    ...options,
+  });
+
+/**
+ * ListDecisions
+ */
+export const apiV1CrowdsecDecisionsListDecisions = <
+  ThrowOnError extends boolean = false,
+>(
+  options?: Options<ApiV1CrowdsecDecisionsListDecisionsData, ThrowOnError>,
+) =>
+  (options?.client ?? client).get<
+    ApiV1CrowdsecDecisionsListDecisionsResponses,
+    ApiV1CrowdsecDecisionsListDecisionsErrors,
+    ThrowOnError
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+    ],
+    url: "/api/v1/crowdsec/decisions",
+    ...options,
+  });
+
+/**
+ * LookupDecisions
+ */
+export const apiV1CrowdsecDecisionsLookupLookupDecisions = <
+  ThrowOnError extends boolean = false,
+>(
+  options: Options<
+    ApiV1CrowdsecDecisionsLookupLookupDecisionsData,
+    ThrowOnError
+  >,
+) =>
+  (options.client ?? client).get<
+    ApiV1CrowdsecDecisionsLookupLookupDecisionsResponses,
+    ApiV1CrowdsecDecisionsLookupLookupDecisionsErrors,
+    ThrowOnError
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+    ],
+    url: "/api/v1/crowdsec/decisions/lookup",
+    ...options,
+  });
+
+/**
+ * GetStats
+ */
+export const apiV1CrowdsecStatsGetStats = <
+  ThrowOnError extends boolean = false,
+>(
+  options?: Options<ApiV1CrowdsecStatsGetStatsData, ThrowOnError>,
+) =>
+  (options?.client ?? client).get<
+    ApiV1CrowdsecStatsGetStatsResponses,
+    unknown,
+    ThrowOnError
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+    ],
+    url: "/api/v1/crowdsec/stats",
+    ...options,
+  });
+
+/**
+ * GetStatus
+ */
+export const apiV1CrowdsecStatusGetStatus = <
+  ThrowOnError extends boolean = false,
+>(
+  options?: Options<ApiV1CrowdsecStatusGetStatusData, ThrowOnError>,
+) =>
+  (options?.client ?? client).get<
+    ApiV1CrowdsecStatusGetStatusResponses,
+    unknown,
+    ThrowOnError
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+    ],
+    url: "/api/v1/crowdsec/status",
+    ...options,
+  });
+
+/**
+ * Unban
+ */
+export const apiV1CrowdsecUnbanUnban = <ThrowOnError extends boolean = false>(
+  options: Options<ApiV1CrowdsecUnbanUnbanData, ThrowOnError>,
+) =>
+  (options.client ?? client).post<
+    ApiV1CrowdsecUnbanUnbanResponses,
+    ApiV1CrowdsecUnbanUnbanErrors,
+    ThrowOnError
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+    ],
+    url: "/api/v1/crowdsec/unban",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
   });
 
 /**
