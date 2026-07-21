@@ -325,12 +325,21 @@ export function useCrowdsecLiveUpdates() {
     const connect = () => {
       const proto = window.location.protocol === "https:" ? "wss" : "ws"
       ws = new WebSocket(`${proto}://${window.location.host}/ws/crowdsec`)
-      ws.onopen = () => {
-        retryMs = 1000
-      }
       ws.onmessage = (msg) => {
-        const frame = JSON.parse(msg.data) as CrowdsecDecisionsFrame
+        // The server only ever sends JSON text frames; ignore anything else
+        // (a Blob/ArrayBuffer or malformed payload) rather than throwing.
+        if (typeof msg.data !== "string") return
+        let frame: CrowdsecDecisionsFrame
+        try {
+          frame = JSON.parse(msg.data) as CrowdsecDecisionsFrame
+        } catch {
+          return
+        }
         if (frame.type !== "crowdsec_decisions") return
+        // Reset backoff only on a valid frame, not onopen: the server accepts
+        // and immediately closes 1013 while the poller is down, so an onopen
+        // reset would pin the reconnect loop at the 1s floor.
+        retryMs = 1000
         queryClient.setQueryData<string[]>(
           queryKeys.crowdsec.bannedIps,
           (ips) => {

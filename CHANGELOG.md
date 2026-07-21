@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- WebSocket reconnect backoff (`/ws/live`, `/ws/crowdsec`) resets on a valid
+  frame instead of on open, ending the 1s reconnect loop while the server
+  closes with 1013.
+- The `/ws/crowdsec` client ignores non-string/malformed frames instead of
+  throwing.
+
 ## [0.4.0] - 2026-07-21
 
 ### Added
