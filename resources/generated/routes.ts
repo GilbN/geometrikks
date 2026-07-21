@@ -15,6 +15,7 @@ export type URI = string;
 
 /** All available route names */
 export type RouteName =
+  | 'ban'
   | 'get_about'
   | 'get_access_log_debug_stats'
   | 'get_access_log_facets'
@@ -32,6 +33,8 @@ export type RouteName =
   | 'get_live_summary'
   | 'get_location_top_ips'
   | 'get_scheduler_jobs'
+  | 'get_stats'
+  | 'get_status'
   | 'get_summary'
   | 'get_system_settings'
   | 'get_time_series'
@@ -45,10 +48,15 @@ export type RouteName =
   | 'health_ready'
   | 'list_access_log_debug'
   | 'list_access_logs'
+  | 'list_alerts'
+  | 'list_banned_ips'
+  | 'list_banned_locations'
+  | 'list_decisions'
   | 'list_geo_events'
   | 'list_geo_locations'
   | 'login'
   | 'logout'
+  | 'lookup_decisions'
   | 'me'
   | 'openapi.json'
   | 'openapi.yaml'
@@ -56,12 +64,14 @@ export type RouteName =
   | 'run_scheduler_job'
   | 'service_worker'
   | 'stats'
+  | 'unban'
   | 'vite'
   | 'vite_spa'
   | 'vite_spa_path:path';
 
 /** Path parameter definitions per route */
 export interface RoutePathParams {
+  'ban': Record<string, never>;
   'get_about': Record<string, never>;
   'get_access_log_debug_stats': Record<string, never>;
   'get_access_log_facets': Record<string, never>;
@@ -81,6 +91,8 @@ export interface RoutePathParams {
     location_id: number;
   };
   'get_scheduler_jobs': Record<string, never>;
+  'get_stats': Record<string, never>;
+  'get_status': Record<string, never>;
   'get_summary': Record<string, never>;
   'get_system_settings': Record<string, never>;
   'get_time_series': Record<string, never>;
@@ -94,10 +106,15 @@ export interface RoutePathParams {
   'health_ready': Record<string, never>;
   'list_access_log_debug': Record<string, never>;
   'list_access_logs': Record<string, never>;
+  'list_alerts': Record<string, never>;
+  'list_banned_ips': Record<string, never>;
+  'list_banned_locations': Record<string, never>;
+  'list_decisions': Record<string, never>;
   'list_geo_events': Record<string, never>;
   'list_geo_locations': Record<string, never>;
   'login': Record<string, never>;
   'logout': Record<string, never>;
+  'lookup_decisions': Record<string, never>;
   'me': Record<string, never>;
   'openapi.json': Record<string, never>;
   'openapi.yaml': Record<string, never>;
@@ -107,6 +124,7 @@ export interface RoutePathParams {
   };
   'service_worker': Record<string, never>;
   'stats': Record<string, never>;
+  'unban': Record<string, never>;
   'vite': {
     file_path: any;
   };
@@ -118,6 +136,7 @@ export interface RoutePathParams {
 
 /** Query parameter definitions per route */
 export interface RouteQueryParams {
+  'ban': Record<string, never>;
   'get_about': Record<string, never>;
   'get_access_log_debug_stats': {
     from_timestamp?: DateTime;
@@ -221,6 +240,8 @@ export interface RouteQueryParams {
     to_timestamp: DateTime;
   };
   'get_scheduler_jobs': Record<string, never>;
+  'get_stats': Record<string, never>;
+  'get_status': Record<string, never>;
   'get_summary': {
     compare_previous?: boolean;
     end_date: DateTime;
@@ -312,6 +333,22 @@ export interface RouteQueryParams {
     statusIn?: number[];
     to_timestamp?: DateTime;
   };
+  'list_alerts': {
+    ip?: string;
+    limit?: number;
+    scenario?: string;
+    since?: string;
+  };
+  'list_banned_ips': Record<string, never>;
+  'list_banned_locations': {
+    from_timestamp?: DateTime;
+    to_timestamp?: DateTime;
+  };
+  'list_decisions': {
+    currentPage?: number;
+    origins?: string;
+    pageSize?: number;
+  };
   'list_geo_events': {
     currentPage?: number;
     from_timestamp?: DateTime;
@@ -329,6 +366,9 @@ export interface RouteQueryParams {
   };
   'login': Record<string, never>;
   'logout': Record<string, never>;
+  'lookup_decisions': {
+    ip: string;
+  };
   'me': Record<string, never>;
   'openapi.json': Record<string, never>;
   'openapi.yaml': Record<string, never>;
@@ -336,6 +376,7 @@ export interface RouteQueryParams {
   'run_scheduler_job': Record<string, never>;
   'service_worker': Record<string, never>;
   'stats': Record<string, never>;
+  'unban': Record<string, never>;
   'vite': Record<string, never>;
   'vite_spa': Record<string, never>;
   'vite_spa_path:path': Record<string, never>;
@@ -350,6 +391,13 @@ export type RouteParams<T extends RouteName> = MergeParams<RoutePathParams[T], R
 
 /** Route metadata */
 export const routeDefinitions = {
+  'ban': {
+    path: '/api/v1/crowdsec/ban',
+    methods: ['POST'] as const,
+    method: 'post',
+    pathParams: [] as const,
+    queryParams: [] as const,
+  },
   'get_about': {
     path: '/api/v1/system/about',
     methods: ['GET'] as const,
@@ -469,6 +517,20 @@ export const routeDefinitions = {
     pathParams: [] as const,
     queryParams: [] as const,
   },
+  'get_stats': {
+    path: '/api/v1/crowdsec/stats',
+    methods: ['GET'] as const,
+    method: 'get',
+    pathParams: [] as const,
+    queryParams: [] as const,
+  },
+  'get_status': {
+    path: '/api/v1/crowdsec/status',
+    methods: ['GET'] as const,
+    method: 'get',
+    pathParams: [] as const,
+    queryParams: [] as const,
+  },
   'get_summary': {
     path: '/api/v1/analytics/summary',
     methods: ['GET'] as const,
@@ -560,6 +622,34 @@ export const routeDefinitions = {
     pathParams: [] as const,
     queryParams: ['cityIn', 'countryCodeIn', 'currentPage', 'from_timestamp', 'host', 'ipAddressIn', 'methodIn', 'orderBy', 'pageSize', 'searchIgnoreCase', 'searchString', 'sortOrder', 'statusIn', 'to_timestamp'] as const,
   },
+  'list_alerts': {
+    path: '/api/v1/crowdsec/alerts',
+    methods: ['GET'] as const,
+    method: 'get',
+    pathParams: [] as const,
+    queryParams: ['ip', 'limit', 'scenario', 'since'] as const,
+  },
+  'list_banned_ips': {
+    path: '/api/v1/crowdsec/banned-ips',
+    methods: ['GET'] as const,
+    method: 'get',
+    pathParams: [] as const,
+    queryParams: [] as const,
+  },
+  'list_banned_locations': {
+    path: '/api/v1/crowdsec/banned-locations',
+    methods: ['GET'] as const,
+    method: 'get',
+    pathParams: [] as const,
+    queryParams: ['from_timestamp', 'to_timestamp'] as const,
+  },
+  'list_decisions': {
+    path: '/api/v1/crowdsec/decisions',
+    methods: ['GET'] as const,
+    method: 'get',
+    pathParams: [] as const,
+    queryParams: ['currentPage', 'origins', 'pageSize'] as const,
+  },
   'list_geo_events': {
     path: '/api/v1/geo-events',
     methods: ['GET'] as const,
@@ -587,6 +677,13 @@ export const routeDefinitions = {
     method: 'post',
     pathParams: [] as const,
     queryParams: [] as const,
+  },
+  'lookup_decisions': {
+    path: '/api/v1/crowdsec/decisions/lookup',
+    methods: ['GET'] as const,
+    method: 'get',
+    pathParams: [] as const,
+    queryParams: ['ip'] as const,
   },
   'me': {
     path: '/api/v1/auth/me',
@@ -634,6 +731,13 @@ export const routeDefinitions = {
     path: '/api/v1/stats',
     methods: ['GET'] as const,
     method: 'get',
+    pathParams: [] as const,
+    queryParams: [] as const,
+  },
+  'unban': {
+    path: '/api/v1/crowdsec/unban',
+    methods: ['POST'] as const,
+    method: 'post',
     pathParams: [] as const,
     queryParams: [] as const,
   },

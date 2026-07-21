@@ -295,3 +295,73 @@ def test_build_auth_state_rejects_empty_password(monkeypatch):
     monkeypatch.setenv("APP_ADMIN_PASSWORD", "")
     with pytest.raises(RuntimeError):
         build_auth_state(Settings())
+
+
+class TestCrowdSecSettings:
+    """CrowdSec integration settings: enablement tiers and credential pairing."""
+
+    def test_disabled_by_default(self):
+        from geometrikks.config.settings import CrowdSecSettings
+        s = CrowdSecSettings(_env_file=None)
+        assert s.enabled is False
+        assert s.write_enabled is False
+
+    def test_enabled_with_url_and_bouncer_key(self, monkeypatch):
+        from geometrikks.config.settings import CrowdSecSettings
+        monkeypatch.setenv("CROWDSEC_LAPI_URL", "http://crowdsec:8080")
+        monkeypatch.setenv("CROWDSEC_BOUNCER_API_KEY", "bouncer-key")
+        s = CrowdSecSettings(_env_file=None)
+        assert s.enabled is True
+        assert s.write_enabled is False
+
+    def test_url_alone_is_not_enabled(self, monkeypatch):
+        from geometrikks.config.settings import CrowdSecSettings
+        monkeypatch.setenv("CROWDSEC_LAPI_URL", "http://crowdsec:8080")
+        s = CrowdSecSettings(_env_file=None)
+        assert s.enabled is False
+
+    def test_write_enabled_with_machine_credentials(self, monkeypatch):
+        from geometrikks.config.settings import CrowdSecSettings
+        monkeypatch.setenv("CROWDSEC_LAPI_URL", "http://crowdsec:8080")
+        monkeypatch.setenv("CROWDSEC_BOUNCER_API_KEY", "bouncer-key")
+        monkeypatch.setenv("CROWDSEC_MACHINE_ID", "geometrikks")
+        monkeypatch.setenv("CROWDSEC_MACHINE_PASSWORD", "machine-pass")
+        s = CrowdSecSettings(_env_file=None)
+        assert s.write_enabled is True
+
+    def test_machine_credentials_must_be_paired(self, monkeypatch):
+        import pytest
+        from pydantic import ValidationError
+        from geometrikks.config.settings import CrowdSecSettings
+        monkeypatch.setenv("CROWDSEC_MACHINE_ID", "geometrikks")
+        with pytest.raises(ValidationError):
+            CrowdSecSettings(_env_file=None)
+
+    def test_secrets_are_redacted_in_repr(self, monkeypatch):
+        from geometrikks.config.settings import CrowdSecSettings
+        monkeypatch.setenv("CROWDSEC_BOUNCER_API_KEY", "bouncer-secret")
+        monkeypatch.setenv("CROWDSEC_MACHINE_ID", "geometrikks")
+        monkeypatch.setenv("CROWDSEC_MACHINE_PASSWORD", "machine-secret")
+        s = CrowdSecSettings(_env_file=None)
+        assert "bouncer-secret" not in repr(s)
+        assert "machine-secret" not in repr(s)
+        assert s.bouncer_api_key.get_secret_value() == "bouncer-secret"
+        assert s.machine_password.get_secret_value() == "machine-secret"
+
+    def test_registered_on_settings(self, monkeypatch, tmp_path):
+        # chdir away from the repo: the nested CrowdSecSettings factory reads
+        # ./.env itself, so a local .env with CROWDSEC_* would leak in even
+        # though the parent gets _env_file=None.
+        monkeypatch.chdir(tmp_path)
+        s = Settings(_env_file=None)
+        assert s.crowdsec.enabled is False
+        assert s.crowdsec.default_ban_duration == "4h"
+        assert s.crowdsec.request_timeout == 10.0
+        assert s.crowdsec.verify_tls is True
+
+
+def test_crowdsec_stream_poll_interval(monkeypatch):
+    from geometrikks.config.settings import CrowdSecSettings
+    assert CrowdSecSettings(_env_file=None).stream_poll_interval == 15.0
+    monkeypatch.setenv("CROWDSEC_STREAM_POLL_INTERVAL", "5")
+    assert CrowdSecSettings(_env_file=None).stream_poll_interval == 5.0

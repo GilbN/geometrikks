@@ -15,6 +15,18 @@ import type {
   ApiV1AuthLogoutLogoutResponses,
   ApiV1AuthMeMeData,
   ApiV1AuthMeMeResponses,
+  ApiV1CrowdsecBanBanData,
+  ApiV1CrowdsecBanBanErrors,
+  ApiV1CrowdsecBanBanResponses,
+  ApiV1CrowdsecBannedIpsListBannedIpsData,
+  ApiV1CrowdsecBannedIpsListBannedIpsResponses,
+  ApiV1CrowdsecStatsGetStatsData,
+  ApiV1CrowdsecStatsGetStatsResponses,
+  ApiV1CrowdsecStatusGetStatusData,
+  ApiV1CrowdsecStatusGetStatusResponses,
+  ApiV1CrowdsecUnbanUnbanData,
+  ApiV1CrowdsecUnbanUnbanErrors,
+  ApiV1CrowdsecUnbanUnbanResponses,
   ApiV1GeoEventsFacetsGetGeoLogFacetsData,
   ApiV1GeoEventsFacetsGetGeoLogFacetsResponses,
   ApiV1SettingsReadSettingsData,
@@ -46,36 +58,46 @@ import type {
  * const op: OperationName = 'api:login'
  */
 export type OperationName =
+  | 'ban'
   | 'get_about'
   | 'get_access_log_facets'
   | 'get_geo_log_facets'
   | 'get_scheduler_jobs'
+  | 'get_stats'
+  | 'get_status'
   | 'get_system_settings'
   | 'health'
   | 'health_ready'
+  | 'list_banned_ips'
   | 'login'
   | 'logout'
   | 'me'
   | 'read_settings'
   | 'stats'
+  | 'unban'
 
 /**
  * Mapping of operation names to hey-api Data types.
  * Data types contain body, path, query, and url properties.
  */
 export interface OperationDataTypes {
+  'ban': ApiV1CrowdsecBanBanData
   'get_about': ApiV1SystemAboutGetAboutData
   'get_access_log_facets': ApiV1AccessLogsFacetsGetAccessLogFacetsData
   'get_geo_log_facets': ApiV1GeoEventsFacetsGetGeoLogFacetsData
   'get_scheduler_jobs': ApiV1SystemSchedulerJobsGetSchedulerJobsData
+  'get_stats': ApiV1CrowdsecStatsGetStatsData
+  'get_status': ApiV1CrowdsecStatusGetStatusData
   'get_system_settings': ApiV1SystemSettingsGetSystemSettingsData
   'health': HealthHealthData
   'health_ready': HealthReadyHealthReadyData
+  'list_banned_ips': ApiV1CrowdsecBannedIpsListBannedIpsData
   'login': ApiV1AuthLoginLoginData
   'logout': ApiV1AuthLogoutLogoutData
   'me': ApiV1AuthMeMeData
   'read_settings': ApiV1SettingsReadSettingsData
   'stats': ApiV1StatsStatsData
+  'unban': ApiV1CrowdsecUnbanUnbanData
 }
 
 /**
@@ -83,18 +105,23 @@ export interface OperationDataTypes {
  * Responses types map status codes to response shapes.
  */
 export interface OperationResponseTypes {
+  'ban': ApiV1CrowdsecBanBanResponses
   'get_about': ApiV1SystemAboutGetAboutResponses
   'get_access_log_facets': ApiV1AccessLogsFacetsGetAccessLogFacetsResponses
   'get_geo_log_facets': ApiV1GeoEventsFacetsGetGeoLogFacetsResponses
   'get_scheduler_jobs': ApiV1SystemSchedulerJobsGetSchedulerJobsResponses
+  'get_stats': ApiV1CrowdsecStatsGetStatsResponses
+  'get_status': ApiV1CrowdsecStatusGetStatusResponses
   'get_system_settings': ApiV1SystemSettingsGetSystemSettingsResponses
   'health': HealthHealthResponses
   'health_ready': HealthReadyHealthReadyResponses
+  'list_banned_ips': ApiV1CrowdsecBannedIpsListBannedIpsResponses
   'login': ApiV1AuthLoginLoginResponses
   'logout': ApiV1AuthLogoutLogoutResponses
   'me': ApiV1AuthMeMeResponses
   'read_settings': ApiV1SettingsReadSettingsResponses
   'stats': ApiV1StatsStatsResponses
+  'unban': ApiV1CrowdsecUnbanUnbanResponses
 }
 
 /**
@@ -102,18 +129,23 @@ export interface OperationResponseTypes {
  * Error types represent non-2xx responses.
  */
 export interface OperationErrorTypes {
+  'ban': ApiV1CrowdsecBanBanErrors
   'get_about': never
   'get_access_log_facets': never
   'get_geo_log_facets': never
   'get_scheduler_jobs': never
+  'get_stats': never
+  'get_status': never
   'get_system_settings': never
   'health': never
   'health_ready': never
+  'list_banned_ips': never
   'login': ApiV1AuthLoginLoginErrors
   'logout': never
   'me': never
   'read_settings': never
   'stats': never
+  'unban': ApiV1CrowdsecUnbanUnbanErrors
 }
 
 // ============================================================================

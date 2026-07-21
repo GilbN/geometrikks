@@ -216,3 +216,19 @@ export const unclusteredPointLabelLayer: LayerSpecification = {
     "text-halo-width": 1,
   },
 }
+
+// Banned-IP overlay: red markers for actively banned IPs seen in this
+// server's own traffic. Reads from the separate "banned-data" source so it
+// stacks on top of either the heatmap or the marker layers.
+export const bannedPointLayer: LayerSpecification = {
+  id: "banned-points",
+  type: "circle",
+  source: "banned-data",
+  paint: {
+    "circle-color": "#ef4444",
+    "circle-radius": ["interpolate", ["linear"], ["zoom"], 0, 3, 6, 5, 10, 8, 14, 11],
+    "circle-opacity": 0.85,
+    "circle-stroke-width": 1.5,
+    "circle-stroke-color": "rgba(255, 255, 255, 0.75)",
+  },
+}

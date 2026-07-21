@@ -41,6 +41,7 @@ const routeLabels: Record<string, string> = {
   "/geo-logs": "Geo Logs",
   "/debug-logs": "Debug Logs",
   "/analytics": "Analytics",
+  "/security": "Security",
   "/settings": "Settings",
   "/settings/environment": "Environment",
   "/settings/scheduler": "Scheduler",

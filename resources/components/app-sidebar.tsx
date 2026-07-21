@@ -34,11 +34,12 @@ import {
   AlertCircle,
   Bug,
   LogOut,
+  ShieldBan,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { fetchHealth, fetchMe, logout } from "@/lib/api"
 import { useLiveFeedStatus } from "@/lib/live-feed-context"
-import { useRuntimeSettings } from "@/lib/queries"
+import { useCrowdsecStatus, useRuntimeSettings } from "@/lib/queries"
 import { SiDocker } from "react-icons/si"
 
 const navigationItems = [
@@ -77,6 +78,14 @@ const navigationItems = [
     url: "/analytics",
     icon: BarChart3,
     description: "Statistics & trends",
+  },
+  {
+    title: "Security",
+    url: "/security",
+    icon: ShieldBan,
+    description: "CrowdSec bans & alerts",
+    // Hidden until the CrowdSec integration is configured
+    requiresCrowdsec: true,
   },
 ]
 
@@ -477,6 +486,10 @@ export function AppSidebar() {
   const collapsed = isMobile ? false : state === "collapsed"
   const routerState = useRouterState()
   const currentPath = routerState.location.pathname
+  const { data: crowdsecStatus } = useCrowdsecStatus()
+  const visibleNavigationItems = navigationItems.filter(
+    (item) => !("requiresCrowdsec" in item) || crowdsecStatus?.enabled === true,
+  )
 
   // The mobile sidebar is a full-height sheet; leaving it open after a nav
   // tap would cover the page the user just navigated to.
@@ -509,7 +522,7 @@ export function AppSidebar() {
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {navigationItems.map((item) => (
+              {visibleNavigationItems.map((item) => (
                 <NavItem
                   key={item.title}
                   item={item}

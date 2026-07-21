@@ -2,7 +2,8 @@
  * TanStack Query hooks for GeoMetrikks API.
  */
 
-import { useQuery } from "@tanstack/react-query"
+import { useEffect } from "react"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import {
   fetchSummary,
   fetchLiveSummary,
@@ -31,6 +32,14 @@ import {
   fetchSystemSettings,
   fetchSchedulerJobs,
   fetchAbout,
+  fetchCrowdsecStatus,
+  fetchCrowdsecBannedIps,
+  fetchCrowdsecStats,
+  fetchCrowdsecDecisions,
+  fetchCrowdsecAlerts,
+  fetchCrowdsecBannedLocations,
+  banIp,
+  unbanIp,
   parseTimeRange,
   resolveChartGranularity,
   type GeoLogSortOrder,
@@ -63,6 +72,17 @@ export const queryKeys = {
     settings: ["system", "settings"] as const,
     schedulerJobs: ["system", "scheduler-jobs"] as const,
     about: ["system", "about"] as const,
+  },
+  crowdsec: {
+    status: ["crowdsec", "status"] as const,
+    bannedIps: ["crowdsec", "banned-ips"] as const,
+    stats: ["crowdsec", "stats"] as const,
+    bannedLocations: (params: Record<string, unknown>, refreshKey?: number) =>
+      ["crowdsec", "banned-locations", params, refreshKey] as const,
+    decisions: (params: Record<string, unknown>) =>
+      ["crowdsec", "decisions", params] as const,
+    alerts: (params: Record<string, unknown>) =>
+      ["crowdsec", "alerts", params] as const,
   },
   analytics: {
     all: ["analytics"] as const,
@@ -165,6 +185,177 @@ export function useAbout() {
     queryFn: fetchAbout,
     staleTime: Number.POSITIVE_INFINITY,
   })
+}
+
+// ============================================================================
+// CrowdSec
+// ============================================================================
+
+/** Whether the CrowdSec integration is configured; gates all CrowdSec UI. */
+export function useCrowdsecStatus() {
+  return useQuery({
+    queryKey: queryKeys.crowdsec.status,
+    queryFn: fetchCrowdsecStatus,
+    staleTime: 60_000,
+  })
+}
+
+/** Set of currently banned IPs (all origins, CAPI included) for badge
+ *  rendering; empty until the integration is enabled and loaded. */
+export function useBannedIps() {
+  const { data: status } = useCrowdsecStatus()
+  return useQuery({
+    queryKey: queryKeys.crowdsec.bannedIps,
+    queryFn: fetchCrowdsecBannedIps,
+    enabled: status?.enabled === true,
+    refetchInterval: 60_000,
+    select: (ips) => new Set(ips),
+  })
+}
+
+/** Coordinates for the map's banned-IP overlay; fetched only while the
+ *  overlay is switched on and the integration is enabled. Follows the
+ *  global time range so every red marker has a matching traffic circle. */
+export function useBannedLocations(active: boolean) {
+  const { data: status } = useCrowdsecStatus()
+  const { range, customRange, lastRefresh } = useTimeRange()
+  return useQuery({
+    queryKey: queryKeys.crowdsec.bannedLocations({ range, customRange }, lastRefresh),
+    // Compute the date range at fetch time so refetches get fresh bounds
+    queryFn: () => {
+      const { startDate, endDate } = parseTimeRange(range, Date.now(), customRange)
+      return fetchCrowdsecBannedLocations({
+        fromTimestamp: startDate,
+        toTimestamp: endDate,
+      })
+    },
+    enabled: active && status?.enabled === true,
+    refetchInterval: 60_000,
+  })
+}
+
+/** Decision counts by origin + top scenarios for the Security stat cards. */
+export function useCrowdsecStats() {
+  const { data: status } = useCrowdsecStatus()
+  return useQuery({
+    queryKey: queryKeys.crowdsec.stats,
+    queryFn: fetchCrowdsecStats,
+    enabled: status?.enabled === true,
+    refetchInterval: 60_000,
+  })
+}
+
+/** One server-paginated page of active decisions for the Security table. */
+export function useCrowdsecDecisions(params: {
+  origins?: string
+  currentPage: number
+  pageSize: number
+}) {
+  const { data: status } = useCrowdsecStatus()
+  return useQuery({
+    queryKey: queryKeys.crowdsec.decisions(params),
+    queryFn: () => fetchCrowdsecDecisions(params),
+    enabled: status?.enabled === true,
+    placeholderData: (previous) => previous,
+    refetchInterval: 60_000,
+  })
+}
+
+/** Recent alert history; only fetched when machine credentials are set. */
+export function useCrowdsecAlerts(params: { since?: string; limit?: number }) {
+  const { data: status } = useCrowdsecStatus()
+  return useQuery({
+    queryKey: queryKeys.crowdsec.alerts(params),
+    queryFn: () => fetchCrowdsecAlerts(params),
+    enabled: status?.write_enabled === true,
+    placeholderData: (previous) => previous,
+    refetchInterval: 60_000,
+  })
+}
+
+/** Ban an IP, then refresh badges, decisions, and stats. */
+export function useBanIp() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({
+      ip,
+      duration,
+      reason,
+    }: {
+      ip: string
+      duration?: string
+      reason?: string
+    }) => banIp(ip, duration, reason),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["crowdsec"] }),
+  })
+}
+
+/** Remove all active decisions for an IP, then refresh badges/decisions/stats. */
+export function useUnbanIp() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (ip: string) => unbanIp(ip),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["crowdsec"] }),
+  })
+}
+
+/** Ban/unban delta pushed on /ws/crowdsec by the decision-stream poller. */
+interface CrowdsecDecisionsFrame {
+  type: "crowdsec_decisions"
+  added: { ip: string; origin: string; scenario: string; duration: string }[]
+  deleted: { ip: string; origin: string }[]
+}
+
+/** Live badge updates: subscribes to /ws/crowdsec while the integration is
+ *  enabled and patches the cached banned-IP list on each delta, so badges
+ *  react within the stream-poll interval instead of the 60s refetch.
+ *  Reconnects with capped exponential backoff, same policy as /ws/live. */
+export function useCrowdsecLiveUpdates() {
+  const { data: status } = useCrowdsecStatus()
+  const queryClient = useQueryClient()
+  const enabled = status?.enabled === true
+
+  useEffect(() => {
+    if (!enabled) return
+    let ws: WebSocket | null = null
+    let closed = false
+    let retryMs = 1000
+    let timer: ReturnType<typeof setTimeout> | null = null
+
+    const connect = () => {
+      const proto = window.location.protocol === "https:" ? "wss" : "ws"
+      ws = new WebSocket(`${proto}://${window.location.host}/ws/crowdsec`)
+      ws.onopen = () => {
+        retryMs = 1000
+      }
+      ws.onmessage = (msg) => {
+        const frame = JSON.parse(msg.data) as CrowdsecDecisionsFrame
+        if (frame.type !== "crowdsec_decisions") return
+        queryClient.setQueryData<string[]>(
+          queryKeys.crowdsec.bannedIps,
+          (ips) => {
+            if (!ips) return ips
+            const next = new Set(ips)
+            for (const d of frame.added) next.add(d.ip)
+            for (const d of frame.deleted) next.delete(d.ip)
+            return [...next]
+          },
+        )
+      }
+      ws.onclose = () => {
+        if (closed) return
+        timer = setTimeout(connect, retryMs)
+        retryMs = Math.min(retryMs * 2, 30_000)
+      }
+    }
+
+    connect()
+    return () => {
+      closed = true
+      if (timer) clearTimeout(timer)
+      ws?.close()
+    }
+  }, [enabled, queryClient])
 }
 
 export interface UseSummaryOptions {

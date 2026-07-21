@@ -31,6 +31,7 @@ import {
   Radio,
   SlidersHorizontal,
   Sparkles,
+  ShieldBan,
   X,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -50,6 +51,13 @@ interface MapControlsProps {
   routeEffectsEnabled: boolean
   onRouteEffectsChange: (enabled: boolean) => void
   routeHomeAvailable: boolean
+  /** CrowdSec integration configured; hides the overlay toggle when false. */
+  bannedOverlayAvailable: boolean
+  bannedOverlayEnabled: boolean
+  onBannedOverlayChange: (enabled: boolean) => void
+  bannedCount: number
+  /** Banned-locations fetch in flight; shows a spinner on the toggle. */
+  bannedOverlayLoading?: boolean
   onFitBounds: () => void
   isLoading?: boolean
   featureStats: GeoJSONFeatureStats
@@ -75,6 +83,11 @@ export function MapControls({
   routeEffectsEnabled,
   onRouteEffectsChange,
   routeHomeAvailable,
+  bannedOverlayAvailable,
+  bannedOverlayEnabled,
+  onBannedOverlayChange,
+  bannedCount,
+  bannedOverlayLoading = false,
   onFitBounds,
   isLoading = false,
   featureStats,
@@ -205,6 +218,32 @@ export function MapControls({
               </Badge>
             )}
           </Button>
+          {bannedOverlayAvailable && (
+            <Button
+              variant="outline"
+              onClick={() => onBannedOverlayChange(!bannedOverlayEnabled)}
+              aria-pressed={bannedOverlayEnabled}
+              title="Show banned IPs seen in your traffic within the selected time range as red markers"
+              className={cn(
+                "cursor-pointer w-full justify-start gap-2 px-3 pointer-coarse:h-10",
+                bannedOverlayEnabled && "bg-red-500/15 text-red-400 border-red-500/30",
+              )}
+            >
+              {bannedOverlayLoading ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <ShieldBan className="h-4 w-4" />
+              )}
+              <span className="text-sm font-medium">Banned IPs</span>
+              <Badge variant="secondary" className="ml-auto text-[9px] uppercase">
+                {bannedOverlayEnabled
+                  ? bannedOverlayLoading
+                    ? "…"
+                    : bannedCount.toLocaleString()
+                  : "off"}
+              </Badge>
+            </Button>
+          )}
         </div>
       </Card>
 

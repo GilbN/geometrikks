@@ -75,6 +75,23 @@ export type AccessLogFacets = {
 };
 
 /**
+ * AlertView
+ */
+export type AlertView = {
+  as_name: string | null;
+  country: string | null;
+  created_at: string;
+  decision_count: number;
+  events_count: number;
+  id: number | null;
+  machine_id: string | null;
+  message: string;
+  scenario: string;
+  scope: string;
+  value: string;
+};
+
+/**
  * AnalyticsSettingsView
  */
 export type AnalyticsSettingsView = {
@@ -85,11 +102,38 @@ export type AnalyticsSettingsView = {
 };
 
 /**
+ * BanRequest
+ */
+export type BanRequest = {
+  duration?: string | null;
+  ip: string;
+  reason?: string;
+};
+
+/**
  * CountryFacet
  */
 export type CountryFacet = {
   code: string;
   name: string;
+};
+
+/**
+ * CrowdSecStatsResponse
+ */
+export type CrowdSecStatsResponse = {
+  by_origin: Array<OriginCount>;
+  top_scenarios: Array<ScenarioCount>;
+  total: number;
+};
+
+/**
+ * CrowdSecStatusResponse
+ */
+export type CrowdSecStatusResponse = {
+  enabled: boolean;
+  lapi_reachable: boolean;
+  write_enabled: boolean;
 };
 
 /**
@@ -119,6 +163,23 @@ export type DatabaseVersionsView = {
   postgis_version: string | null;
   postgres_version: string | null;
   timescaledb_version: string | null;
+};
+
+/**
+ * DecisionView
+ */
+export type DecisionView = {
+  city: string | null;
+  country_code: string | null;
+  country_name: string | null;
+  duration: string;
+  id: number | null;
+  ip: string;
+  origin: string;
+  request_count_24h: number | null;
+  scenario: string;
+  scope: string;
+  type: string;
 };
 
 /**
@@ -312,6 +373,17 @@ export type GlobalTopIpsResponse = {
 };
 
 /**
+ * IpLocation
+ */
+export type IpLocation = {
+  city: string | null;
+  country_code: string | null;
+  ip: string;
+  latitude: number;
+  longitude: number;
+};
+
+/**
  * ListAccessLogsAccessLogResponseBody
  */
 export type ListAccessLogsAccessLogResponseBody = {
@@ -430,6 +502,14 @@ export type MeResponse = {
 };
 
 /**
+ * OriginCount
+ */
+export type OriginCount = {
+  count: number;
+  origin: string;
+};
+
+/**
  * ParseErrorCount
  */
 export type ParseErrorCount = {
@@ -498,6 +578,14 @@ export type SafeSettingsResponse = {
   name: string;
   runtime: RuntimeSettingsView;
   version: string;
+};
+
+/**
+ * ScenarioCount
+ */
+export type ScenarioCount = {
+  count: number;
+  scenario: string;
 };
 
 /**
@@ -763,6 +851,20 @@ export type TopUserAgentsResponse = {
   end_date: string;
   items: Array<TopUserAgentDto>;
   start_date: string;
+};
+
+/**
+ * UnbanRequest
+ */
+export type UnbanRequest = {
+  ip: string;
+};
+
+/**
+ * UnbanResponse
+ */
+export type UnbanResponse = {
+  deleted: number;
 };
 
 export type ApiV1AccessLogDebugListAccessLogDebugData = {
@@ -1595,6 +1697,307 @@ export type ApiV1AuthMeMeResponses = {
 
 export type ApiV1AuthMeMeResponse =
   ApiV1AuthMeMeResponses[keyof ApiV1AuthMeMeResponses];
+
+export type ApiV1CrowdsecAlertsListAlertsData = {
+  body?: never;
+  path?: never;
+  query?: {
+    limit?: number;
+    ip?: string | null;
+    scenario?: string | null;
+    /**
+     * Go duration lookback, e.g. 24h
+     */
+    since?: string | null;
+  };
+  url: "/api/v1/crowdsec/alerts";
+};
+
+export type ApiV1CrowdsecAlertsListAlertsErrors = {
+  /**
+   * Validation Exception
+   */
+  400: {
+    detail: string;
+    extra?:
+      | null
+      | {
+          [key: string]: unknown;
+        }
+      | Array<unknown>;
+    status_code: number;
+  };
+};
+
+export type ApiV1CrowdsecAlertsListAlertsError =
+  ApiV1CrowdsecAlertsListAlertsErrors[keyof ApiV1CrowdsecAlertsListAlertsErrors];
+
+export type ApiV1CrowdsecAlertsListAlertsResponses = {
+  /**
+   * Request fulfilled, document follows
+   */
+  200: Array<AlertView>;
+};
+
+export type ApiV1CrowdsecAlertsListAlertsResponse =
+  ApiV1CrowdsecAlertsListAlertsResponses[keyof ApiV1CrowdsecAlertsListAlertsResponses];
+
+export type ApiV1CrowdsecBanBanData = {
+  body: BanRequest;
+  path?: never;
+  query?: never;
+  url: "/api/v1/crowdsec/ban";
+};
+
+export type ApiV1CrowdsecBanBanErrors = {
+  /**
+   * Validation Exception
+   */
+  400: {
+    detail: string;
+    extra?:
+      | null
+      | {
+          [key: string]: unknown;
+        }
+      | Array<unknown>;
+    status_code: number;
+  };
+};
+
+export type ApiV1CrowdsecBanBanError =
+  ApiV1CrowdsecBanBanErrors[keyof ApiV1CrowdsecBanBanErrors];
+
+export type ApiV1CrowdsecBanBanResponses = {
+  /**
+   * Request fulfilled, nothing follows
+   */
+  204: void;
+};
+
+export type ApiV1CrowdsecBanBanResponse =
+  ApiV1CrowdsecBanBanResponses[keyof ApiV1CrowdsecBanBanResponses];
+
+export type ApiV1CrowdsecBannedIpsListBannedIpsData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: "/api/v1/crowdsec/banned-ips";
+};
+
+export type ApiV1CrowdsecBannedIpsListBannedIpsResponses = {
+  /**
+   * Request fulfilled, document follows
+   */
+  200: Array<string>;
+};
+
+export type ApiV1CrowdsecBannedIpsListBannedIpsResponse =
+  ApiV1CrowdsecBannedIpsListBannedIpsResponses[keyof ApiV1CrowdsecBannedIpsListBannedIpsResponses];
+
+export type ApiV1CrowdsecBannedLocationsListBannedLocationsData = {
+  body?: never;
+  path?: never;
+  query?: {
+    from_timestamp?: string | null;
+    to_timestamp?: string | null;
+  };
+  url: "/api/v1/crowdsec/banned-locations";
+};
+
+export type ApiV1CrowdsecBannedLocationsListBannedLocationsErrors = {
+  /**
+   * Validation Exception
+   */
+  400: {
+    detail: string;
+    extra?:
+      | null
+      | {
+          [key: string]: unknown;
+        }
+      | Array<unknown>;
+    status_code: number;
+  };
+};
+
+export type ApiV1CrowdsecBannedLocationsListBannedLocationsError =
+  ApiV1CrowdsecBannedLocationsListBannedLocationsErrors[keyof ApiV1CrowdsecBannedLocationsListBannedLocationsErrors];
+
+export type ApiV1CrowdsecBannedLocationsListBannedLocationsResponses = {
+  /**
+   * Request fulfilled, document follows
+   */
+  200: Array<IpLocation>;
+};
+
+export type ApiV1CrowdsecBannedLocationsListBannedLocationsResponse =
+  ApiV1CrowdsecBannedLocationsListBannedLocationsResponses[keyof ApiV1CrowdsecBannedLocationsListBannedLocationsResponses];
+
+export type ApiV1CrowdsecDecisionsListDecisionsData = {
+  body?: never;
+  path?: never;
+  query?: {
+    currentPage?: number;
+    pageSize?: number;
+    origins?: string | null;
+  };
+  url: "/api/v1/crowdsec/decisions";
+};
+
+export type ApiV1CrowdsecDecisionsListDecisionsErrors = {
+  /**
+   * Validation Exception
+   */
+  400: {
+    detail: string;
+    extra?:
+      | null
+      | {
+          [key: string]: unknown;
+        }
+      | Array<unknown>;
+    status_code: number;
+  };
+};
+
+export type ApiV1CrowdsecDecisionsListDecisionsError =
+  ApiV1CrowdsecDecisionsListDecisionsErrors[keyof ApiV1CrowdsecDecisionsListDecisionsErrors];
+
+export type ApiV1CrowdsecDecisionsListDecisionsResponses = {
+  /**
+   * Request fulfilled, document follows
+   */
+  200: {
+    items?: Array<DecisionView>;
+    /**
+     * Maximal number of items to send.
+     */
+    limit?: number;
+    /**
+     * Offset from the beginning of the query.
+     */
+    offset?: number;
+    /**
+     * Total number of items.
+     */
+    total?: number;
+  };
+};
+
+export type ApiV1CrowdsecDecisionsListDecisionsResponse =
+  ApiV1CrowdsecDecisionsListDecisionsResponses[keyof ApiV1CrowdsecDecisionsListDecisionsResponses];
+
+export type ApiV1CrowdsecDecisionsLookupLookupDecisionsData = {
+  body?: never;
+  path?: never;
+  query: {
+    /**
+     * IP address to look up
+     */
+    ip: string;
+  };
+  url: "/api/v1/crowdsec/decisions/lookup";
+};
+
+export type ApiV1CrowdsecDecisionsLookupLookupDecisionsErrors = {
+  /**
+   * Validation Exception
+   */
+  400: {
+    detail: string;
+    extra?:
+      | null
+      | {
+          [key: string]: unknown;
+        }
+      | Array<unknown>;
+    status_code: number;
+  };
+};
+
+export type ApiV1CrowdsecDecisionsLookupLookupDecisionsError =
+  ApiV1CrowdsecDecisionsLookupLookupDecisionsErrors[keyof ApiV1CrowdsecDecisionsLookupLookupDecisionsErrors];
+
+export type ApiV1CrowdsecDecisionsLookupLookupDecisionsResponses = {
+  /**
+   * Request fulfilled, document follows
+   */
+  200: Array<DecisionView>;
+};
+
+export type ApiV1CrowdsecDecisionsLookupLookupDecisionsResponse =
+  ApiV1CrowdsecDecisionsLookupLookupDecisionsResponses[keyof ApiV1CrowdsecDecisionsLookupLookupDecisionsResponses];
+
+export type ApiV1CrowdsecStatsGetStatsData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: "/api/v1/crowdsec/stats";
+};
+
+export type ApiV1CrowdsecStatsGetStatsResponses = {
+  /**
+   * Request fulfilled, document follows
+   */
+  200: CrowdSecStatsResponse;
+};
+
+export type ApiV1CrowdsecStatsGetStatsResponse =
+  ApiV1CrowdsecStatsGetStatsResponses[keyof ApiV1CrowdsecStatsGetStatsResponses];
+
+export type ApiV1CrowdsecStatusGetStatusData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: "/api/v1/crowdsec/status";
+};
+
+export type ApiV1CrowdsecStatusGetStatusResponses = {
+  /**
+   * Request fulfilled, document follows
+   */
+  200: CrowdSecStatusResponse;
+};
+
+export type ApiV1CrowdsecStatusGetStatusResponse =
+  ApiV1CrowdsecStatusGetStatusResponses[keyof ApiV1CrowdsecStatusGetStatusResponses];
+
+export type ApiV1CrowdsecUnbanUnbanData = {
+  body: UnbanRequest;
+  path?: never;
+  query?: never;
+  url: "/api/v1/crowdsec/unban";
+};
+
+export type ApiV1CrowdsecUnbanUnbanErrors = {
+  /**
+   * Validation Exception
+   */
+  400: {
+    detail: string;
+    extra?:
+      | null
+      | {
+          [key: string]: unknown;
+        }
+      | Array<unknown>;
+    status_code: number;
+  };
+};
+
+export type ApiV1CrowdsecUnbanUnbanError =
+  ApiV1CrowdsecUnbanUnbanErrors[keyof ApiV1CrowdsecUnbanUnbanErrors];
+
+export type ApiV1CrowdsecUnbanUnbanResponses = {
+  /**
+   * Request fulfilled, document follows
+   */
+  200: UnbanResponse;
+};
+
+export type ApiV1CrowdsecUnbanUnbanResponse =
+  ApiV1CrowdsecUnbanUnbanResponses[keyof ApiV1CrowdsecUnbanUnbanResponses];
 
 export type ApiV1GeoEventsListGeoEventsData = {
   body?: never;

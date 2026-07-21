@@ -4,10 +4,26 @@
  */
 
 import { Popup } from "react-map-gl/maplibre"
-import { MapPin, Globe, Clock, Hash, Users, ChevronsUpDown, Loader2 } from "lucide-react"
+import {
+  MapPin,
+  Globe,
+  Clock,
+  Hash,
+  Users,
+  ChevronsUpDown,
+  Loader2,
+  ShieldBan,
+  ShieldOff,
+} from "lucide-react"
 import { formatNumber } from "@/lib/api"
 import type { GeoJSONFeatureProperties } from "@/lib/api"
-import { useLocationTopIPs } from "@/lib/queries"
+import {
+  useLocationTopIPs,
+  useBannedIps,
+  useBanIp,
+  useUnbanIp,
+  useCrowdsecStatus,
+} from "@/lib/queries"
 
 import {
   Tooltip,
@@ -30,6 +46,63 @@ function LastHitToolTip({ lastHit }: { lastHit: string }) {
         <p>Updated every 5 minutes</p>
       </TooltipContent>
     </Tooltip>
+  )
+}
+
+/** Banned badge + ban/unban action for one IP row in the top-IPs list.
+ *  Renders nothing unless the CrowdSec integration is involved. */
+function IpBanControls({ ip }: { ip: string }) {
+  const { data: status } = useCrowdsecStatus()
+  const { data: bannedIps } = useBannedIps()
+  const ban = useBanIp()
+  const unban = useUnbanIp()
+  const banned = bannedIps?.has(ip) ?? false
+  const isPending = ban.isPending || unban.isPending
+
+  if (!banned && !status?.write_enabled) return null
+  return (
+    <span style={{ display: "inline-flex", alignItems: "center", gap: "4px" }}>
+      {banned && (
+        <span
+          style={{
+            fontSize: "9px",
+            fontWeight: 600,
+            textTransform: "uppercase",
+            color: "#f87171",
+            background: "rgba(239, 68, 68, 0.15)",
+            padding: "1px 5px",
+            borderRadius: "9999px",
+          }}
+        >
+          banned
+        </span>
+      )}
+      {status?.write_enabled && (
+        <button
+          onClick={() => (banned ? unban.mutate(ip) : ban.mutate({ ip }))}
+          disabled={isPending}
+          title={banned ? `Unban ${ip}` : `Ban ${ip} (default duration)`}
+          aria-label={banned ? `Unban ${ip}` : `Ban ${ip}`}
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            background: "transparent",
+            border: "none",
+            padding: "2px",
+            cursor: isPending ? "wait" : "pointer",
+            color: isPending ? "#22d3ee" : "var(--popup-muted)",
+          }}
+        >
+          {isPending ? (
+            <Loader2 style={{ width: 12, height: 12, animation: "spin 1s linear infinite" }} />
+          ) : banned ? (
+            <ShieldOff style={{ width: 12, height: 12 }} />
+          ) : (
+            <ShieldBan style={{ width: 12, height: 12 }} />
+          )}
+        </button>
+      )}
+    </span>
   )
 }
 
@@ -230,13 +303,16 @@ export function MapPopup({
                   >
                     1. {top_ips[0].ip_address}
                   </code>
-                  <span
-                    style={{
-                      fontSize: "10px",
-                      color: "var(--popup-muted)",
-                    }}
-                  >
-                    {formatNumber(top_ips[0].event_count)}
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
+                    <IpBanControls ip={top_ips[0].ip_address} />
+                    <span
+                      style={{
+                        fontSize: "10px",
+                        color: "var(--popup-muted)",
+                      }}
+                    >
+                      {formatNumber(top_ips[0].event_count)}
+                    </span>
                   </span>
                 </div>
                 {/* Remaining IPs in collapsible */}
@@ -265,13 +341,16 @@ export function MapPopup({
                             >
                               {index + 2}. {ip.ip_address}
                             </code>
-                            <span
-                              style={{
-                                fontSize: "10px",
-                                color: "var(--popup-muted)",
-                              }}
-                            >
-                              {formatNumber(ip.event_count)}
+                            <span style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
+                              <IpBanControls ip={ip.ip_address} />
+                              <span
+                                style={{
+                                  fontSize: "10px",
+                                  color: "var(--popup-muted)",
+                                }}
+                              >
+                                {formatNumber(ip.event_count)}
+                              </span>
                             </span>
                           </div>
                         ))}
