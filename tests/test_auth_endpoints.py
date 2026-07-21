@@ -1,6 +1,7 @@
 """Endpoint tests for login/logout/me and the auth middleware boundary."""
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 import pytest
@@ -166,3 +167,35 @@ def test_session_cookie_secure_flag_follows_setting():
             json={"username": "admin", "password": "bestpasswordintheworldnojoke"},
         )
         assert "secure" not in res.headers["set-cookie"].lower()
+
+
+def test_login_attempts_are_logged_with_client_ip(caplog):
+    records: list = []
+
+    class ListHandler(logging.Handler):
+        def emit(self, record: logging.LogRecord) -> None:
+            records.append(record)
+
+    auth_logger = logging.getLogger("geometrikks.api.v1.auth_controller")
+    handler = ListHandler(level=logging.INFO)
+    app = make_app()
+    with TestClient(app=app) as client:
+        auth_logger.addHandler(handler)
+        try:
+            client.post(
+                "/api/v1/auth/login",
+                json={"username": "admin", "password": "wrong"},
+            )
+            client.post(
+                "/api/v1/auth/login",
+                json={"username": "admin", "password": "bestpasswordintheworldnojoke"},
+            )
+        finally:
+            auth_logger.removeHandler(handler)
+    failed = [r for r in records if "Login failed" in r.getMessage()]
+    succeeded = [r for r in records if "Login succeeded" in r.getMessage()]
+    assert len(failed) == 1 and failed[0].levelno == logging.WARNING
+    assert len(succeeded) == 1 and succeeded[0].levelno == logging.INFO
+    # Both carry the username and a from-<address> clause (TestClient peer).
+    assert "'admin'" in failed[0].getMessage() and "from" in failed[0].getMessage()
+    assert "'admin'" in succeeded[0].getMessage() and "from" in succeeded[0].getMessage()
