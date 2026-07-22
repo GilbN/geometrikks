@@ -5,15 +5,24 @@ import asyncio
 from functools import wraps
 from pathlib import Path
 from typing import ParamSpec, Callable
+from dataclasses import dataclass
 
 import aiofiles.os
 import aiofiles
 
+import maxminddb
+from datetime import datetime, timezone
 
 logger = logging.getLogger(__name__)
 
 P = ParamSpec("P")
 
+@dataclass
+class GeoIPInfoView:
+    available: bool
+    db_path: str
+    build_date: datetime | None
+    age_days: int | None
 
 def wait(timeout_seconds: int = 60) -> Callable[[Callable[P, bool]], Callable[P, bool]]:
     """Factory Decorator to wait for a function to return True for a given amount of time.
@@ -82,3 +91,17 @@ async def wait_for_path(
         "Timeout of %.1f seconds reached waiting for path: %s", timeout_seconds, path
     )
     return False
+
+def geoip_info(db_path: Path) -> GeoIPInfoView:
+    """Build date and age from mmdb metadata; degrades when missing."""
+    try:
+        with maxminddb.open_database(str(db_path)) as reader:
+            build: datetime = datetime.fromtimestamp(reader.metadata().build_epoch, tz=timezone.utc)
+        age_days: int = (datetime.now(timezone.utc) - build).days
+        return GeoIPInfoView(
+            available=True, db_path=str(db_path), build_date=build, age_days=age_days
+        )
+    except Exception:
+        return GeoIPInfoView(
+            available=False, db_path=str(db_path), build_date=None, age_days=None
+        )
