@@ -22,6 +22,7 @@ from sqlalchemy import text
 from geometrikks.config.introspection import SystemSettingsResponse, build_settings_overview
 from geometrikks.config.settings import get_settings
 from geometrikks.server.scheduler_tracking import JobRunTracker, JobStatus
+from geometrikks.lib.utils import GeoIPInfoView, geoip_info
 
 if TYPE_CHECKING:
     from apscheduler.job import Job
@@ -76,14 +77,6 @@ class DatabaseVersionsView:
 
 
 @dataclass
-class GeoIPInfoView:
-    available: bool
-    db_path: str
-    build_date: datetime | None
-    age_days: int | None
-
-
-@dataclass
 class AboutLinksView:
     repository: str
     issues: str
@@ -134,21 +127,6 @@ async def _database_versions() -> DatabaseVersionsView:
         )
 
 
-def _geoip_info(db_path: Path) -> GeoIPInfoView:
-    """Build date and age from mmdb metadata; degrades when missing."""
-    try:
-        with maxminddb.open_database(str(db_path)) as reader:
-            build = datetime.fromtimestamp(reader.metadata().build_epoch, tz=timezone.utc)
-        age_days = (datetime.now(timezone.utc) - build).days
-        return GeoIPInfoView(
-            available=True, db_path=str(db_path), build_date=build, age_days=age_days
-        )
-    except Exception:
-        return GeoIPInfoView(
-            available=False, db_path=str(db_path), build_date=None, age_days=None
-        )
-
-
 def _job_view(job: "Job", tracker: JobRunTracker) -> SchedulerJobView:
     info = tracker.get(job.id)
     return SchedulerJobView(
@@ -194,7 +172,7 @@ class SystemController(Controller):
                 apscheduler_version=_dist_version("apscheduler"),
             ),
             database=await _database_versions(),
-            geoip=_geoip_info(s.geoip.db_path),
+            geoip=geoip_info(s.geoip.db_path),
             links=AboutLinksView(repository=REPO_URL, issues=f"{REPO_URL}/issues"),
         )
 

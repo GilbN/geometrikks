@@ -5,6 +5,7 @@ import io
 import tarfile
 import time
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -37,25 +38,70 @@ def make_tarball(mmdb_bytes: bytes) -> bytes:
     return buf.getvalue()
 
 
+class FakeMMDBReader:
+    """Stands in for maxminddb.open_database; only metadata().build_epoch is read."""
+
+    def __init__(self, build_epoch: float):
+        self._metadata = SimpleNamespace(build_epoch=build_epoch)
+
+    def metadata(self):
+        return self._metadata
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_exc):
+        return False
+
+
+def patch_build_epoch(monkeypatch, age_days: float) -> None:
+    """Make maxminddb report a database built age_days ago, regardless of file."""
+    epoch = time.time() - age_days * 86400
+    monkeypatch.setattr(
+        "geometrikks.lib.utils.maxminddb.open_database",
+        lambda _path: FakeMMDBReader(epoch),
+    )
+
+
 class TestStaleness:
     def test_missing_file_is_stale(self, tmp_path):
         from geometrikks.services.geoip.downloader import database_is_stale
         assert database_is_stale(tmp_path / "nope.mmdb", max_age_days=7) is True
 
-    def test_fresh_file_is_not_stale(self, tmp_path):
+    def test_unreadable_file_is_stale(self, tmp_path):
+        """Not a valid mmdb -> no build date to trust -> stale."""
         from geometrikks.services.geoip.downloader import database_is_stale
         p = tmp_path / "db.mmdb"
         p.write_bytes(b"x")
+        assert database_is_stale(p, max_age_days=7) is True
+
+    def test_fresh_build_date_is_not_stale(self, tmp_path, monkeypatch):
+        from geometrikks.services.geoip.downloader import database_is_stale
+        p = tmp_path / "db.mmdb"
+        p.write_bytes(b"x")
+        patch_build_epoch(monkeypatch, age_days=1)
         assert database_is_stale(p, max_age_days=7) is False
 
-    def test_old_file_is_stale(self, tmp_path):
-        import os
+    def test_old_build_date_is_stale_despite_fresh_mtime(
+        self, tmp_path, monkeypatch, caplog
+    ):
+        """The bug this check replaced: mtime is fresh (file just written) but
+        the database itself was built 8 days ago -> stale, with a warning."""
+        from geometrikks.services.geoip.downloader import database_is_stale
+        p = tmp_path / "db.mmdb"
+        p.write_bytes(b"x")  # mtime = now
+        patch_build_epoch(monkeypatch, age_days=8)
+        with caplog.at_level("WARNING"):
+            assert database_is_stale(p, max_age_days=7) is True
+        assert any("older than 7 days" in r.message for r in caplog.records)
+
+    def test_build_date_at_max_age_is_not_stale(self, tmp_path, monkeypatch):
+        """Staleness is strictly greater-than: exactly max_age_days is kept."""
         from geometrikks.services.geoip.downloader import database_is_stale
         p = tmp_path / "db.mmdb"
         p.write_bytes(b"x")
-        old = time.time() - 8 * 86400
-        os.utime(p, (old, old))
-        assert database_is_stale(p, max_age_days=7) is True
+        patch_build_epoch(monkeypatch, age_days=7)
+        assert database_is_stale(p, max_age_days=7) is False
 
 
 class TestEnsure:
@@ -67,11 +113,23 @@ class TestEnsure:
         assert ok is False
         assert any("MAXMINDDB_USER_ID" in r.message for r in caplog.records)
 
-    async def test_no_credentials_existing_db_returns_true(self, tmp_path):
+    async def test_no_credentials_fresh_db_returns_true(self, tmp_path, monkeypatch):
         from geometrikks.services.geoip.downloader import ensure_geoip_database
         settings = make_settings(tmp_path)
         settings.db_path.write_bytes(b"existing")
+        patch_build_epoch(monkeypatch, age_days=1)
         assert await ensure_geoip_database(settings) is True
+
+    async def test_no_credentials_stale_db_keeps_copy_and_returns_true(
+        self, tmp_path, caplog
+    ):
+        """Unreadable/old db without credentials: keep it, warn, stay usable."""
+        from geometrikks.services.geoip.downloader import ensure_geoip_database
+        settings = make_settings(tmp_path)
+        settings.db_path.write_bytes(b"existing")  # not a valid mmdb -> stale
+        with caplog.at_level("WARNING"):
+            assert await ensure_geoip_database(settings) is True
+        assert any("keeping the stale copy" in r.message for r in caplog.records)
 
     async def test_download_extracts_and_replaces_atomically(self, tmp_path, monkeypatch):
         from geometrikks.services.geoip import downloader
@@ -114,13 +172,10 @@ class TestEnsure:
         assert list(settings.db_path.parent.glob("*.tmp")) == []
 
     async def test_failed_download_keeps_existing_db_and_returns_true(self, tmp_path, monkeypatch):
-        import os
         from geometrikks.services.geoip import downloader
 
         settings = make_settings(tmp_path, account_id="1", license_key="k")
-        settings.db_path.write_bytes(b"OLD")
-        old = time.time() - 30 * 86400
-        os.utime(settings.db_path, (old, old))  # stale -> download attempted
+        settings.db_path.write_bytes(b"OLD")  # unreadable mmdb -> stale -> download attempted
 
         async def boom(s):
             raise downloader.GeoIPDownloadError("http 401")
