@@ -17,6 +17,8 @@ from typing import TYPE_CHECKING
 
 import httpx
 
+from geometrikks.lib.utils import GeoIPInfoView, geoip_info
+
 if TYPE_CHECKING:
     from geometrikks.config.settings import GeoIPSettings
 
@@ -40,10 +42,21 @@ def has_credentials(settings: "GeoIPSettings") -> bool:
 
 def database_is_stale(db_path: Path, max_age_days: int) -> bool:
     """Missing or older than max_age_days."""
-    if not db_path.exists():
+    geoip_info_view: GeoIPInfoView = geoip_info(db_path)
+    if not geoip_info_view.available:
         return True
-    age_seconds = time.time() - db_path.stat().st_mtime
-    return age_seconds > max_age_days * 86400
+    if geoip_info_view.age_days is None:
+        return True
+    stale: bool = geoip_info_view.age_days > max_age_days
+    if stale:
+        logger.warning(
+            "GeoLite2 database at %s is older than %d days (age: %s days)",
+            db_path,
+            max_age_days,
+            geoip_info_view.age_days,
+        )
+    return stale
+
 
 
 async def _fetch_tarball(settings: "GeoIPSettings") -> bytes:

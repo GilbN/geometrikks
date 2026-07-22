@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.3] - 2026-07-22
+
+### Fixed
+
+- Fixed the stale GeoLite database check. The database_is_stale function looked at the modified time of the file instead of the build time of the database. Moved the private _geoip_info function into /lib/utils.py, and database_is_stale uses that to check instead.
+- Fixed a stale service worker breaking production loads (blank page, module
+  MIME-type errors): the app shell at `/` is no longer precached (navigations
+  are NetworkFirst with the cached shell as offline fallback), and `/sw.js`
+  404s while `VITE_DEV_MODE=true` so a dev-mode server can never install the
+  worker.
+- `/api/v1/access-logs` now runs separate page and count queries instead of a
+  `count(*) OVER ()` window function, cutting large time-range requests from
+  15+ s to ~130 ms on a 17M+ dataset.
+
+
 ## [0.4.2] - 2026-07-22
 
 ### Fixed
@@ -303,7 +318,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Settings endpoint no longer exposes the full settings tree (database credentials leaked via `model_dump()`); response is now an explicit whitelist.
 - Timestamps in `CALL refresh_continuous_aggregate` are bound as asyncpg parameters instead of interpolated into SQL.
 
-[Unreleased]: https://github.com/GilbN/geometrikks/compare/v0.4.2...HEAD
+[Unreleased]: https://github.com/GilbN/geometrikks/compare/v0.4.3...HEAD
 [0.1.0]: https://github.com/GilbN/geometrikks/compare/v0.1.0-alpha.1...v0.1.0
 [0.1.0-alpha.1]: https://github.com/GilbN/geometrikks/releases/tag/v0.1.0-alpha.1
 [0.2.0]: https://github.com/GilbN/geometrikks/releases/tag/v0.2.0
@@ -312,3 +327,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [0.4.0]: https://github.com/GilbN/geometrikks/releases/tag/v0.4.0
 [0.4.1]: https://github.com/GilbN/geometrikks/releases/tag/v0.4.1
 [0.4.2]: https://github.com/GilbN/geometrikks/releases/tag/v0.4.2
+[0.4.3]: https://github.com/GilbN/geometrikks/releases/tag/v0.4.3
