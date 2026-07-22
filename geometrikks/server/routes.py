@@ -19,6 +19,7 @@ from geometrikks.api.v1.live_controller import crowdsec_feed, live_feed
 from geometrikks.api.v1.settings import read_settings
 from geometrikks.api.v1.stats import stats
 from geometrikks.api.health import health, health_ready
+from geometrikks.config.settings import get_settings
 
 
 @get(
@@ -30,6 +31,10 @@ from geometrikks.api.health import health, health_ready
     response_headers=[ResponseHeader(name="Cache-Control", value="no-cache")],
 )
 def service_worker() -> File:
+    # No worker in dev mode: it would cache the dev shell and break the next
+    # production run on the same origin.
+    if get_settings().vite.dev_mode:
+        raise NotFoundException(detail="Service worker is not served in dev mode")
     sw_path = Path("public/sw.js")
     if not sw_path.is_file():
         raise NotFoundException(detail="Service worker not built")

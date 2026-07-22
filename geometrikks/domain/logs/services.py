@@ -26,6 +26,15 @@ class AccessLogService(SQLAlchemyAsyncRepositoryService[AccessLog]):
         model_type = AccessLog
 
     repository_type = Repo
+    # Two queries (page + count(*)) instead of one with count(*) OVER ().
+    # The window function forces every row in the filter window through the
+    # sort before LIMIT applies: on the compressed hypertable that
+    # decompresses all matching chunks (~15s over 365d / 17M rows), while the
+    # split queries run in milliseconds. Timescale answers the bare count(*)
+    # from compressed-batch metadata without decompressing. Must live on the
+    # service, not the Repo: the service ClassVar is passed to the repository
+    # constructor and overrides any repository-level attribute.
+    count_with_window_function = False
 
     async def get_facets(self) -> AccessLogFacets:
         """Distinct country/city values present in the data, for filter dropdowns.

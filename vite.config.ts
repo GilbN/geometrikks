@@ -44,34 +44,46 @@ export default defineConfig({
       input: ["resources/main.tsx", "resources/main.css"],
     }),
     VitePWA({
-      // litestar-vite-plugin sets Vite's global `base` to "/static/" (asset
-      // rewriting), but vite-plugin-pwa derives its own script URL/scope from
-      // that same base by default. Override it here so /sw.js registers at
-      // root scope ("/") instead of "/static/sw.js" scope "/static/".
+      // litestar-vite-plugin sets Vite's base to "/static/"; override so
+      // /sw.js registers at root scope instead of "/static/".
       base: "/",
       registerType: "autoUpdate",
-      // No HTML entry exists in this build; registration happens in main.tsx
-      // and all links are added manually to the source index.html.
+      // Registration happens in main.tsx; there is no HTML entry to inject into.
       injectRegister: false,
-      // The manifest is a hand-written static file (resources/static/
-      // manifest.webmanifest, served at /static/manifest.webmanifest in both
-      // dev and prod via publicDir) rather than plugin-generated: the dev
-      // server has no build output, so a generated manifest 404s there and
-      // the SPA fallback's HTML triggers "Manifest: syntax error" spam.
+      // Hand-written static manifest (resources/static/manifest.webmanifest);
+      // a plugin-generated one would 404 in dev, where no build output exists.
       manifest: false,
       workbox: {
-        // Precache the app shell; never intercept live data or the API schema.
+        // Precache the built static assets; never live data or the API schema.
         globPatterns: ["**/*.{js,css,svg,png,ico,woff2}"],
-        // The SW is served from /sw.js (root) but the bundle lives under
-        // /static/, so precache entries need the prefix.
+        // The SW lives at /sw.js but the bundle is served under /static/.
         modifyURLPrefix: { "": "/static/" },
-        // No built index.html exists; precache the Litestar-transformed shell
-        // at "/" and use it as the SPA navigation fallback.
-        additionalManifestEntries: [{ url: "/", revision: String(Date.now()) }],
-        navigateFallback: "/",
-        navigateFallbackDenylist: [/^\/api\//, /^\/ws/, /^\/schema/, /^\/static\//, /^\/sw\.js/],
-        // Keep the runtime inline so sw.js has no sibling workbox-*.js import
-        // (which would resolve to a nonexistent root URL).
+        // The Litestar shell at "/" is deliberately NOT precached: a precached
+        // shell is frozen at install time, and one captured from a dev-mode
+        // server would break production loads forever. NetworkFirst below keeps
+        // it fresh, with the cached copy ("/" for all navigations) as offline
+        // fallback.
+        //
+        // Load-bearing undefined: the plugin default is "index.html", which
+        // this build doesn't emit, and the worker would throw and never install.
+        navigateFallback: undefined,
+        runtimeCaching: [
+          {
+            urlPattern: ({ request, url }) =>
+              request.mode === "navigate" &&
+              ![/^\/api\//, /^\/ws/, /^\/schema/, /^\/static\//, /^\/sw\.js/].some(
+                (denied) => denied.test(url.pathname),
+              ),
+            handler: "NetworkFirst",
+            options: {
+              cacheName: "app-shell",
+              networkTimeoutSeconds: 10,
+              cacheableResponse: { statuses: [200] },
+              plugins: [{ cacheKeyWillBeUsed: async () => "/" }],
+            },
+          },
+        ],
+        // Inline the runtime; a sibling workbox-*.js would 404 at the root.
         inlineWorkboxRuntime: true,
         maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
       },
