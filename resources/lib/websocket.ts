@@ -1,6 +1,6 @@
 /**
  * Reconnecting WebSocket client for /ws/live.
- * Exponential backoff (1s -> 30s cap, reset on successful open).
+ * Exponential backoff (1s -> 30s cap, reset on first valid frame).
  * The connection is lazy: first onEvents subscriber connects, last one disconnects.
  */
 
@@ -86,7 +86,6 @@ export class LiveFeedClient {
     this.setStatus("connecting")
     this.ws = new WebSocket(this.url())
     this.ws.onopen = () => {
-      this.backoffMs = 1000
       this.setStatus("connected")
     }
     this.ws.onmessage = (msg) => {
@@ -101,6 +100,10 @@ export class LiveFeedClient {
         return
       }
       if (frame.type === "batch") {
+        // Reset backoff only on a valid frame, not onopen: the server accepts
+        // and immediately closes 1013 while ingestion is down, so an onopen
+        // reset would pin the reconnect loop at the 1s floor.
+        this.backoffMs = 1000
         this.eventsListeners.forEach((cb) => cb(frame.events, frame.dropped))
       }
     }

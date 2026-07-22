@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-07-22
+
+### Added
+
+- `APP_SESSION_SECURE` (default `false`): mark the session cookie `Secure`;
+  recommended behind a TLS reverse proxy.
+- `APP_TRUSTED_PROXIES` (IPs/CIDRs, default empty): trust `X-Forwarded-For`
+  from these proxies so the app can resolve real client IPs.
+- Login successes and failures are now logged with username and client IP.
+
+### Fixed
+
+- `/ws/live` and `/ws/crowdsec` now send an empty keepalive frame after 30s of
+  silence so reverse proxies (nginx `proxy_read_timeout`, 60s default / 240s in
+  SWAG) no longer cut idle live-feed connections on quiet servers.
+- WebSocket reconnect backoff (`/ws/live`, `/ws/crowdsec`) resets on a valid
+  frame instead of on open, ending the 1s reconnect loop while the server
+  closes with 1013.
+- The `/ws/crowdsec` client ignores non-string/malformed frames instead of
+  throwing.
+
 ## [0.4.0] - 2026-07-21
 
 ### Added

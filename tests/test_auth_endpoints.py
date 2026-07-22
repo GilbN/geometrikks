@@ -1,6 +1,7 @@
 """Endpoint tests for login/logout/me and the auth middleware boundary."""
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 import pytest
@@ -26,7 +27,12 @@ async def fake_health() -> dict[str, Any]:
 
 
 def make_app(**settings_kwargs) -> Litestar:
-    settings = Settings(admin_user="admin", admin_password="bestpasswordintheworldnojoke", **settings_kwargs)
+    settings = Settings(
+        admin_user="admin",
+        admin_password="bestpasswordintheworldnojoke",
+        _env_file=None,
+        **settings_kwargs,
+    )
     session_auth = create_session_auth(settings)
     app = Litestar(
         route_handlers=[AuthController, protected, fake_health, live_feed],
@@ -149,3 +155,52 @@ def test_auth_routes_registered_when_auth_enabled(monkeypatch):
     app = create_app()
     paths = {route.path for route in app.routes}
     assert AUTH_ROUTE_PATHS <= paths
+
+
+def test_session_cookie_secure_flag_follows_setting():
+    with TestClient(app=make_app(session_secure=True)) as client:
+        res = client.post(
+            "/api/v1/auth/login",
+            json={"username": "admin", "password": "bestpasswordintheworldnojoke"},
+        )
+        assert res.status_code == 200
+        assert "secure" in res.headers["set-cookie"].lower()
+
+    with TestClient(app=make_app()) as client:
+        res = client.post(
+            "/api/v1/auth/login",
+            json={"username": "admin", "password": "bestpasswordintheworldnojoke"},
+        )
+        assert "secure" not in res.headers["set-cookie"].lower()
+
+
+def test_login_attempts_are_logged_with_client_ip():
+    records: list = []
+
+    class ListHandler(logging.Handler):
+        def emit(self, record: logging.LogRecord) -> None:
+            records.append(record)
+
+    auth_logger = logging.getLogger("geometrikks.api.v1.auth_controller")
+    handler = ListHandler(level=logging.INFO)
+    app = make_app()
+    with TestClient(app=app) as client:
+        auth_logger.addHandler(handler)
+        try:
+            client.post(
+                "/api/v1/auth/login",
+                json={"username": "admin", "password": "wrong"},
+            )
+            client.post(
+                "/api/v1/auth/login",
+                json={"username": "admin", "password": "bestpasswordintheworldnojoke"},
+            )
+        finally:
+            auth_logger.removeHandler(handler)
+    failed = [r for r in records if "Login failed" in r.getMessage()]
+    succeeded = [r for r in records if "Login succeeded" in r.getMessage()]
+    assert len(failed) == 1 and failed[0].levelno == logging.WARNING
+    assert len(succeeded) == 1 and succeeded[0].levelno == logging.INFO
+    # Both carry the username and a from-<address> clause (TestClient peer).
+    assert "'admin'" in failed[0].getMessage() and "from" in failed[0].getMessage()
+    assert "'admin'" in succeeded[0].getMessage() and "from" in succeeded[0].getMessage()
