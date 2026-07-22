@@ -18,6 +18,9 @@ if (import.meta.env.PROD) {
   const manifestLink = document.createElement("link")
   manifestLink.rel = "manifest"
   manifestLink.href = "/static/manifest.webmanifest"
+  // Manifest fetches omit cookies unless the link opts into credentials,
+  // which 401s behind cookie-auth proxies (Organizr/Authelia auth_request).
+  manifestLink.crossOrigin = "use-credentials"
   document.head.appendChild(manifestLink)
 }
 

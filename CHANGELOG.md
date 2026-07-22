@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.2] - 2026-07-22
+
+### Fixed
+
+- The PWA manifest link now uses `crossorigin="use-credentials"` so the
+  browser sends session cookies when fetching `manifest.webmanifest`; without
+  it the fetch is credential-less and 401s behind cookie-auth reverse proxies
+  (Organizr/Authelia `auth_request`).
+
 ## [0.4.1] - 2026-07-22
 
 ### Added
@@ -301,3 +310,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [0.2.1]: https://github.com/GilbN/geometrikks/releases/tag/v0.2.1
 [0.3.0]: https://github.com/GilbN/geometrikks/releases/tag/v0.3.0
 [0.4.0]: https://github.com/GilbN/geometrikks/releases/tag/v0.4.0
+[0.4.1]: https://github.com/GilbN/geometrikks/releases/tag/v0.4.1
+[0.4.2]: https://github.com/GilbN/geometrikks/releases/tag/v0.4.2
