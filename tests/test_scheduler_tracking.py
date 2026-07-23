@@ -8,13 +8,16 @@ import pytest
 from geometrikks.server.scheduler_tracking import JobRunInfo, JobRunTracker
 
 
-@pytest.fixture(autouse=True)
-def _configure_logging(tmp_path, monkeypatch):
-    """Configure structlog so logger.success()/.error() work in _on_executed.
+@pytest.fixture()
+def configured_logging(tmp_path, monkeypatch):
+    """Configure structlog with the SuccessBoundLogger wrapper class.
 
-    Module-wide autouse: _on_executed now logs on every call, so every test
-    in this file (not just the outcome-logging ones) needs the configured
-    wrapper class, not just the .success() calls.
+    Opt-in (not autouse): only tests that exercise the `.success()` branch
+    of `_on_executed` need this. An unconfigured stdlib logger already
+    supports `.error()`/`.warning()`, and `config.configure()` mutates
+    process-global structlog state with no teardown, so it should only run
+    where it is actually needed (see tests/test_logging_pipeline.py for the
+    same convention).
     """
     monkeypatch.setenv("LOG_DIR", str(tmp_path / "logs"))
     from geometrikks.config.settings import get_settings
@@ -33,7 +36,7 @@ def test_unknown_job_returns_defaults():
     assert info.last_status is None
 
 
-def test_submit_then_success():
+def test_submit_then_success(configured_logging):
     tracker = JobRunTracker()
     tracker._on_submitted(SimpleNamespace(job_id="a"))
     assert tracker.get("a").running is True
@@ -67,6 +70,11 @@ def test_missed_event():
 
 
 class TestJobOutcomeLogging:
+    @pytest.fixture(autouse=True)
+    def _configure(self, configured_logging):
+        # .success() needs the configured wrapper class.
+        pass
+
     def test_success_logged_at_success_level(self, caplog):
         from geometrikks.server.logging import SUCCESS_LEVEL
         from geometrikks.server.scheduler_tracking import JobRunTracker
