@@ -60,6 +60,12 @@ async def on_startup(app: "Litestar") -> None:
 
     settings = get_settings()
 
+    if settings.api.log_level is not None:
+        logger.warning(
+            "API_LOG_LEVEL is deprecated and will be removed in a future "
+            "release; set LOG_LEVEL instead."
+        )
+
     # GeoIP: download/refresh if credentials are configured; degrade otherwise.
     # Runs before the DB gate — geo enrichment does not need the database, and
     # /health must report geoip state accurately even in DB-degraded mode.

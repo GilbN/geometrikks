@@ -22,6 +22,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   log (`logs/login.log`) suitable for CrowdSec/fail2ban. Both files rotate
   by size and are gzip-compressed. New `LOG_*` settings; `API_LOG_LEVEL`
   is deprecated (still honored) in favor of `LOG_LEVEL`.
+- Login, failed login, and logout attempts now emit `login_success`,
+  `login_failed`, and `logout` events through the login logger, landing
+  in `logs/login.log` in the CrowdSec/fail2ban contract format.
 
 ### Deprecated
 
