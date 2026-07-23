@@ -13,7 +13,6 @@ to get exact time range results.
 """
 from __future__ import annotations
 
-import logging
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from enum import Enum
@@ -22,8 +21,9 @@ from sqlalchemy import text
 from advanced_alchemy.repository import SQLAlchemyAsyncRepository
 
 from geometrikks.domain.geo.models import GeoLocation, GeoEvent
+from geometrikks.server.logging import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class StatsGranularity(Enum):

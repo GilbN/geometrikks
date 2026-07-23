@@ -3,13 +3,13 @@ from __future__ import annotations
 from geometrikks.services.crowdsec.schemas import DecisionStreamDelta
 
 import asyncio
-import logging
 from typing import Any
 
+from geometrikks.server.logging import get_logger
 from geometrikks.services.crowdsec.exceptions import CrowdSecError
 from geometrikks.services.crowdsec.service import CrowdSecService
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 DecisionFrame = dict[str, Any]
 

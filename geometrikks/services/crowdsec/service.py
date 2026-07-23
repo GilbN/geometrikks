@@ -6,7 +6,6 @@ re-logging in once when it expires.
 """
 from __future__ import annotations
 
-import logging
 from datetime import datetime, timezone
 from typing import Any
 
@@ -14,6 +13,7 @@ import httpx
 import msgspec
 
 from geometrikks.config.settings import CrowdSecSettings
+from geometrikks.server.logging import get_logger
 from geometrikks.services.crowdsec.exceptions import (
     CrowdSecAuthError,
     CrowdSecError,
@@ -21,7 +21,7 @@ from geometrikks.services.crowdsec.exceptions import (
 )
 from geometrikks.services.crowdsec.schemas import Alert, Decision, DecisionStreamDelta
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class CrowdSecService:

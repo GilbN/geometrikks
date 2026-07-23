@@ -37,6 +37,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   ERROR, and `scheduler_job_missed` at WARNING, each with `job_id` and
   `duration_seconds` where applicable, covering every APScheduler job
   uniformly.
+- All app modules (server, services, domain repositories/services, and API
+  controllers) now get their loggers via `get_logger` from
+  `geometrikks.server.logging` instead of stdlib `logging.getLogger`, so
+  their output flows through the structlog pipeline.
 
 ### Deprecated
 

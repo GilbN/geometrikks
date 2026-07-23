@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import ipaddress
-import logging
 from dataclasses import dataclass
 from typing import Literal
 
@@ -12,8 +11,9 @@ from geoip2.database import Reader
 from geoip2.errors import GeoIP2Error
 
 from geometrikks.config.settings import GeoIPSettings, MapSettings
+from geometrikks.server.logging import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 HomeLocationSource = Literal["configured", "external_ip"]
 

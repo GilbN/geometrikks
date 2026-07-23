@@ -22,10 +22,10 @@ from typing import Any
 from litestar import WebSocket, websocket
 from litestar.exceptions import WebSocketDisconnect
 
-from geometrikks.server.logging import log_broadcaster, register_success_level
+from geometrikks.server.logging import get_logger, log_broadcaster, register_success_level
 from geometrikks.services.logparser.schemas import ParsedLogRecord
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 FLUSH_INTERVAL = 0.15          # seconds -> ~6.7 frames/s, under the ~10/s cap
 MAX_EVENTS_PER_FRAME = 100

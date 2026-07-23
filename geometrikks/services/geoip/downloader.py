@@ -7,7 +7,6 @@ The license key is used for HTTP Basic auth and never logged.
 
 from __future__ import annotations
 
-import logging
 import tarfile
 import tempfile
 import time
@@ -18,11 +17,12 @@ from typing import TYPE_CHECKING
 import httpx
 
 from geometrikks.lib.utils import GeoIPInfoView, geoip_info
+from geometrikks.server.logging import get_logger
 
 if TYPE_CHECKING:
     from geometrikks.config.settings import GeoIPSettings
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 DOWNLOAD_URL = "https://download.maxmind.com/geoip/databases/GeoLite2-City/download"
 

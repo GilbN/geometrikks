@@ -2,7 +2,6 @@
 from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Annotated
-import logging
 
 from advanced_alchemy.extensions.litestar import filters
 from litestar.pagination import OffsetPagination
@@ -30,8 +29,9 @@ from geometrikks.domain.geo.dtos import (
 
 from geometrikks.api.dependencies import provide_geo_location_repo
 from geometrikks.api.v1.geo_events_controller import validate_ip_addresses
+from geometrikks.server.logging import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 class GeoLocationController(Controller):
     """Geo-location endpoints for managing location data."""

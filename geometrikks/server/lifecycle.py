@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import logging
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Callable
 
@@ -12,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from geometrikks.config.settings import get_settings
+from geometrikks.server.logging import get_logger
 from geometrikks.server.migrations import migrate_database
 from geometrikks.server.plugins import get_sqlalchemy_config
 from geometrikks.server.timescale import setup_timescaledb
@@ -28,7 +28,7 @@ from geometrikks.server.scheduler_tracking import JobRunTracker
 if TYPE_CHECKING:
     from litestar import Litestar
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 async def _db_available(timeout: float = 10.0) -> bool:

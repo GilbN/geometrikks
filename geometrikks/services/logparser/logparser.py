@@ -1,7 +1,6 @@
 from collections.abc import AsyncGenerator, Callable
 import re
 import os
-import logging
 import asyncio
 from functools import lru_cache
 from datetime import datetime, timezone
@@ -24,9 +23,10 @@ from .constants import (
 )
 from .schemas import ParsedLogRecord, ParsedGeoData, ParsedAccessLog
 from geometrikks.lib.utils import wait
+from geometrikks.server.logging import get_logger
 
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 def get_ip_type(ip: str) -> str:

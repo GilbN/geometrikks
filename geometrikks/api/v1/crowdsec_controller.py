@@ -8,7 +8,6 @@ key) the data endpoints return 404 and the frontend hides the page.
 from __future__ import annotations
 
 import ipaddress
-import logging
 import re
 from datetime import datetime
 from collections import Counter
@@ -34,6 +33,7 @@ from geometrikks.api.dependencies import (
 from geometrikks.config.settings import get_settings
 from geometrikks.domain.security.repositories import SecurityEnrichmentRepository
 from geometrikks.domain.security.schemas import IpEnrichment, IpLocation
+from geometrikks.server.logging import get_logger
 from geometrikks.services.crowdsec import CrowdSecService, Decision
 
 # The CAPI community blocklist can hold tens of thousands of decisions; the
@@ -46,7 +46,7 @@ TOP_SCENARIO_LIMIT = 10
 # Go duration string as the LAPI accepts it, e.g. "4h", "30m", "1h30m".
 GO_DURATION_RE = re.compile(r"^(\d+h)?(\d+m)?(\d+s)?$")
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 @dataclass
