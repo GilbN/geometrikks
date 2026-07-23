@@ -8,6 +8,28 @@
       ],
       "uri": "/api/v1/crowdsec/ban"
     },
+    "disabled_vite_hmr_http": {
+      "method": "get",
+      "methods": [
+        "GET"
+      ],
+      "uri": "/static/vite-hmr"
+    },
+    "download": {
+      "method": "get",
+      "methods": [
+        "GET"
+      ],
+      "parameterTypes": {
+        "kind": "string",
+        "name": "string"
+      },
+      "parameters": [
+        "kind",
+        "name"
+      ],
+      "uri": "/api/v1/logs/files/{kind}/{name}"
+    },
     "get_about": {
       "method": "get",
       "methods": [
@@ -468,6 +490,13 @@
       },
       "uri": "/api/v1/crowdsec/decisions"
     },
+    "list_files": {
+      "method": "get",
+      "methods": [
+        "GET"
+      ],
+      "uri": "/api/v1/logs/files"
+    },
     "list_geo_events": {
       "method": "get",
       "methods": [
@@ -575,6 +604,16 @@
         "GET"
       ],
       "uri": "/api/v1/stats"
+    },
+    "tail": {
+      "method": "get",
+      "methods": [
+        "GET"
+      ],
+      "queryParameters": {
+        "lines": "number | undefined"
+      },
+      "uri": "/api/v1/logs/tail"
     },
     "unban": {
       "method": "post",

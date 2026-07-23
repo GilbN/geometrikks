@@ -469,6 +469,33 @@ export type LocationTopIpsResponse = {
 };
 
 /**
+ * LogFileView
+ */
+export type LogFileView = {
+  available: boolean;
+  kind: "app" | "login" | "nginx";
+  modified_at: string | null;
+  name: string;
+  size_bytes: number;
+};
+
+/**
+ * LogFilesResponse
+ */
+export type LogFilesResponse = {
+  files: Array<LogFileView>;
+};
+
+/**
+ * LogTailResponse
+ */
+export type LogTailResponse = {
+  records: Array<{
+    [key: string]: unknown;
+  }>;
+};
+
+/**
  * LoginPayload
  */
 export type LoginPayload = {
@@ -2688,6 +2715,100 @@ export type ApiV1GeoLocationsLocationIdTopIpsGetLocationTopIpsResponses = {
 
 export type ApiV1GeoLocationsLocationIdTopIpsGetLocationTopIpsResponse =
   ApiV1GeoLocationsLocationIdTopIpsGetLocationTopIpsResponses[keyof ApiV1GeoLocationsLocationIdTopIpsGetLocationTopIpsResponses];
+
+export type ApiV1LogsFilesListFilesData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: "/api/v1/logs/files";
+};
+
+export type ApiV1LogsFilesListFilesResponses = {
+  /**
+   * Request fulfilled, document follows
+   */
+  200: LogFilesResponse;
+};
+
+export type ApiV1LogsFilesListFilesResponse =
+  ApiV1LogsFilesListFilesResponses[keyof ApiV1LogsFilesListFilesResponses];
+
+export type ApiV1LogsFilesKindNameDownloadData = {
+  body?: never;
+  path: {
+    kind: string;
+    name: string;
+  };
+  query?: never;
+  url: "/api/v1/logs/files/{kind}/{name}";
+};
+
+export type ApiV1LogsFilesKindNameDownloadErrors = {
+  /**
+   * Validation Exception
+   */
+  400: {
+    detail: string;
+    extra?:
+      | null
+      | {
+          [key: string]: unknown;
+        }
+      | Array<unknown>;
+    status_code: number;
+  };
+};
+
+export type ApiV1LogsFilesKindNameDownloadError =
+  ApiV1LogsFilesKindNameDownloadErrors[keyof ApiV1LogsFilesKindNameDownloadErrors];
+
+export type ApiV1LogsFilesKindNameDownloadResponses = {
+  /**
+   * File Download
+   */
+  200: string;
+};
+
+export type ApiV1LogsFilesKindNameDownloadResponse =
+  ApiV1LogsFilesKindNameDownloadResponses[keyof ApiV1LogsFilesKindNameDownloadResponses];
+
+export type ApiV1LogsTailTailData = {
+  body?: never;
+  path?: never;
+  query?: {
+    lines?: number;
+  };
+  url: "/api/v1/logs/tail";
+};
+
+export type ApiV1LogsTailTailErrors = {
+  /**
+   * Validation Exception
+   */
+  400: {
+    detail: string;
+    extra?:
+      | null
+      | {
+          [key: string]: unknown;
+        }
+      | Array<unknown>;
+    status_code: number;
+  };
+};
+
+export type ApiV1LogsTailTailError =
+  ApiV1LogsTailTailErrors[keyof ApiV1LogsTailTailErrors];
+
+export type ApiV1LogsTailTailResponses = {
+  /**
+   * Request fulfilled, document follows
+   */
+  200: LogTailResponse;
+};
+
+export type ApiV1LogsTailTailResponse =
+  ApiV1LogsTailTailResponses[keyof ApiV1LogsTailTailResponses];
 
 export type ApiV1SettingsReadSettingsData = {
   body?: never;

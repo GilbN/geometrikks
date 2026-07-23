@@ -16,6 +16,8 @@ export type URI = string;
 /** All available route names */
 export type RouteName =
   | 'ban'
+  | 'disabled_vite_hmr_http'
+  | 'download'
   | 'get_about'
   | 'get_access_log_debug_stats'
   | 'get_access_log_facets'
@@ -52,6 +54,7 @@ export type RouteName =
   | 'list_banned_ips'
   | 'list_banned_locations'
   | 'list_decisions'
+  | 'list_files'
   | 'list_geo_events'
   | 'list_geo_locations'
   | 'login'
@@ -64,6 +67,7 @@ export type RouteName =
   | 'run_scheduler_job'
   | 'service_worker'
   | 'stats'
+  | 'tail'
   | 'unban'
   | 'vite'
   | 'vite_spa'
@@ -72,6 +76,11 @@ export type RouteName =
 /** Path parameter definitions per route */
 export interface RoutePathParams {
   'ban': Record<string, never>;
+  'disabled_vite_hmr_http': Record<string, never>;
+  'download': {
+    kind: string;
+    name: string;
+  };
   'get_about': Record<string, never>;
   'get_access_log_debug_stats': Record<string, never>;
   'get_access_log_facets': Record<string, never>;
@@ -110,6 +119,7 @@ export interface RoutePathParams {
   'list_banned_ips': Record<string, never>;
   'list_banned_locations': Record<string, never>;
   'list_decisions': Record<string, never>;
+  'list_files': Record<string, never>;
   'list_geo_events': Record<string, never>;
   'list_geo_locations': Record<string, never>;
   'login': Record<string, never>;
@@ -124,6 +134,7 @@ export interface RoutePathParams {
   };
   'service_worker': Record<string, never>;
   'stats': Record<string, never>;
+  'tail': Record<string, never>;
   'unban': Record<string, never>;
   'vite': {
     file_path: any;
@@ -137,6 +148,8 @@ export interface RoutePathParams {
 /** Query parameter definitions per route */
 export interface RouteQueryParams {
   'ban': Record<string, never>;
+  'disabled_vite_hmr_http': Record<string, never>;
+  'download': Record<string, never>;
   'get_about': Record<string, never>;
   'get_access_log_debug_stats': {
     from_timestamp?: DateTime;
@@ -349,6 +362,7 @@ export interface RouteQueryParams {
     origins?: string;
     pageSize?: number;
   };
+  'list_files': Record<string, never>;
   'list_geo_events': {
     currentPage?: number;
     from_timestamp?: DateTime;
@@ -376,6 +390,9 @@ export interface RouteQueryParams {
   'run_scheduler_job': Record<string, never>;
   'service_worker': Record<string, never>;
   'stats': Record<string, never>;
+  'tail': {
+    lines?: number;
+  };
   'unban': Record<string, never>;
   'vite': Record<string, never>;
   'vite_spa': Record<string, never>;
@@ -396,6 +413,20 @@ export const routeDefinitions = {
     methods: ['POST'] as const,
     method: 'post',
     pathParams: [] as const,
+    queryParams: [] as const,
+  },
+  'disabled_vite_hmr_http': {
+    path: '/static/vite-hmr',
+    methods: ['GET'] as const,
+    method: 'get',
+    pathParams: [] as const,
+    queryParams: [] as const,
+  },
+  'download': {
+    path: '/api/v1/logs/files/{kind}/{name}',
+    methods: ['GET'] as const,
+    method: 'get',
+    pathParams: ['kind', 'name'] as const,
     queryParams: [] as const,
   },
   'get_about': {
@@ -650,6 +681,13 @@ export const routeDefinitions = {
     pathParams: [] as const,
     queryParams: ['currentPage', 'origins', 'pageSize'] as const,
   },
+  'list_files': {
+    path: '/api/v1/logs/files',
+    methods: ['GET'] as const,
+    method: 'get',
+    pathParams: [] as const,
+    queryParams: [] as const,
+  },
   'list_geo_events': {
     path: '/api/v1/geo-events',
     methods: ['GET'] as const,
@@ -733,6 +771,13 @@ export const routeDefinitions = {
     method: 'get',
     pathParams: [] as const,
     queryParams: [] as const,
+  },
+  'tail': {
+    path: '/api/v1/logs/tail',
+    methods: ['GET'] as const,
+    method: 'get',
+    pathParams: [] as const,
+    queryParams: ['lines'] as const,
   },
   'unban': {
     path: '/api/v1/crowdsec/unban',

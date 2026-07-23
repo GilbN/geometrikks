@@ -113,6 +113,14 @@ import type {
   ApiV1GeoLocationsTopIpsGetGlobalTopIpsData,
   ApiV1GeoLocationsTopIpsGetGlobalTopIpsErrors,
   ApiV1GeoLocationsTopIpsGetGlobalTopIpsResponses,
+  ApiV1LogsFilesKindNameDownloadData,
+  ApiV1LogsFilesKindNameDownloadErrors,
+  ApiV1LogsFilesKindNameDownloadResponses,
+  ApiV1LogsFilesListFilesData,
+  ApiV1LogsFilesListFilesResponses,
+  ApiV1LogsTailTailData,
+  ApiV1LogsTailTailErrors,
+  ApiV1LogsTailTailResponses,
   ApiV1SettingsReadSettingsData,
   ApiV1SettingsReadSettingsResponses,
   ApiV1StatsStatsData,
@@ -1158,6 +1166,74 @@ export const apiV1GeoLocationsLocationIdTopIpsGetLocationTopIps = <
       },
     ],
     url: "/api/v1/geo-locations/{location_id}/top-ips",
+    ...options,
+  });
+
+/**
+ * ListFiles
+ */
+export const apiV1LogsFilesListFiles = <ThrowOnError extends boolean = false>(
+  options?: Options<ApiV1LogsFilesListFilesData, ThrowOnError>,
+) =>
+  (options?.client ?? client).get<
+    ApiV1LogsFilesListFilesResponses,
+    unknown,
+    ThrowOnError
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+    ],
+    url: "/api/v1/logs/files",
+    ...options,
+  });
+
+/**
+ * Download
+ */
+export const apiV1LogsFilesKindNameDownload = <
+  ThrowOnError extends boolean = false,
+>(
+  options: Options<ApiV1LogsFilesKindNameDownloadData, ThrowOnError>,
+) =>
+  (options.client ?? client).get<
+    ApiV1LogsFilesKindNameDownloadResponses,
+    ApiV1LogsFilesKindNameDownloadErrors,
+    ThrowOnError
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+    ],
+    url: "/api/v1/logs/files/{kind}/{name}",
+    ...options,
+  });
+
+/**
+ * Tail
+ */
+export const apiV1LogsTailTail = <ThrowOnError extends boolean = false>(
+  options?: Options<ApiV1LogsTailTailData, ThrowOnError>,
+) =>
+  (options?.client ?? client).get<
+    ApiV1LogsTailTailResponses,
+    ApiV1LogsTailTailErrors,
+    ThrowOnError
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+    ],
+    url: "/api/v1/logs/tail",
     ...options,
   });
 

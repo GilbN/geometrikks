@@ -1753,6 +1753,78 @@
         "title": "LocationTopIPsResponse",
         "type": "object"
       },
+      "LogFileView": {
+        "properties": {
+          "available": {
+            "type": "boolean"
+          },
+          "kind": {
+            "enum": [
+              "app",
+              "login",
+              "nginx"
+            ],
+            "type": "string"
+          },
+          "modified_at": {
+            "oneOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "size_bytes": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "available",
+          "kind",
+          "modified_at",
+          "name",
+          "size_bytes"
+        ],
+        "title": "LogFileView",
+        "type": "object"
+      },
+      "LogFilesResponse": {
+        "properties": {
+          "files": {
+            "items": {
+              "$ref": "#/components/schemas/LogFileView"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "files"
+        ],
+        "title": "LogFilesResponse",
+        "type": "object"
+      },
+      "LogTailResponse": {
+        "properties": {
+          "records": {
+            "items": {
+              "additionalProperties": {},
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "records"
+        ],
+        "title": "LogTailResponse",
+        "type": "object"
+      },
       "LoginPayload": {
         "properties": {
           "password": {
@@ -8508,6 +8580,212 @@
         "summary": "GetLocationTopIps",
         "tags": [
           "Geo Locations"
+        ]
+      }
+    },
+    "/api/v1/logs/files": {
+      "get": {
+        "deprecated": false,
+        "operationId": "ApiV1LogsFilesListFiles",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LogFilesResponse"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          }
+        },
+        "summary": "ListFiles",
+        "tags": [
+          "Logs"
+        ]
+      }
+    },
+    "/api/v1/logs/files/{kind}/{name}": {
+      "get": {
+        "deprecated": false,
+        "operationId": "ApiV1LogsFilesKindNameDownload",
+        "parameters": [
+          {
+            "deprecated": false,
+            "in": "path",
+            "name": "kind",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "deprecated": false,
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "": {
+                "schema": {
+                  "contentMediaType": "application/octet-stream",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "File Download",
+            "headers": {
+              "content-length": {
+                "deprecated": false,
+                "description": "File size in bytes",
+                "required": false,
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "etag": {
+                "deprecated": false,
+                "description": "Entity tag",
+                "required": false,
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "last-modified": {
+                "deprecated": false,
+                "description": "Last modified data-time in RFC 2822 format",
+                "required": false,
+                "schema": {
+                  "format": "date-time",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "Download",
+        "tags": [
+          "Logs"
+        ]
+      }
+    },
+    "/api/v1/logs/tail": {
+      "get": {
+        "deprecated": false,
+        "operationId": "ApiV1LogsTailTail",
+        "parameters": [
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "lines",
+            "required": false,
+            "schema": {
+              "default": 500,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LogTailResponse"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "Tail",
+        "tags": [
+          "Logs"
         ]
       }
     },
