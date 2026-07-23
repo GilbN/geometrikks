@@ -7,7 +7,6 @@ from litestar import Litestar
 from litestar.di import Provide
 from litestar.openapi import OpenAPIConfig
 from litestar.config.compression import CompressionConfig
-from litestar.middleware.logging import LoggingMiddlewareConfig
 
 from geometrikks.config.settings import get_settings
 from geometrikks.server import plugins
@@ -64,16 +63,6 @@ def create_app() -> Litestar:
         ],
     )
     
-    logging_middleware_config = LoggingMiddlewareConfig(
-        response_log_fields=("status_code",),
-        request_log_fields=(
-                "path",
-                "method",
-                "query",
-                "path_params",
-            ),
-    )
-
     # Create app with configuration
     app = Litestar(
         debug=settings.debug,
@@ -85,11 +74,9 @@ def create_app() -> Litestar:
             "limit_offset": Provide(provide_limit_offset_pagination, sync_to_thread=False),
             "transaction": provide_transaction,
         },
-        logging_config=plugins.create_logging_config(settings),
         openapi_config=openapi_config,
         compression_config=compression_config,
         exception_handlers=CROWDSEC_EXCEPTION_HANDLERS,
-        middleware=[logging_middleware_config.middleware],
         on_app_init=on_app_init,
     )
     app.state.auth_state = auth_state

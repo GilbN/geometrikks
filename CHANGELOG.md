@@ -17,6 +17,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Swapped the `picologging` litestar extra for `structlog` in preparation
   for structured logging.
+- Logging is now structured (structlog): colored console output, a JSONL
+  main log file (`logs/geometrikks.log`), and a separate plain-text login
+  log (`logs/login.log`) suitable for CrowdSec/fail2ban. Both files rotate
+  by size and are gzip-compressed. New `LOG_*` settings; `API_LOG_LEVEL`
+  is deprecated (still honored) in favor of `LOG_LEVEL`.
 
 ### Deprecated
 

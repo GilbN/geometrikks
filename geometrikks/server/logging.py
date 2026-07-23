@@ -16,10 +16,14 @@ import json
 import logging
 import os
 import shutil
-from logging.handlers import RotatingFileHandler
-from typing import Any
+from logging.handlers import QueueHandler, RotatingFileHandler
+from typing import TYPE_CHECKING, Any
 
 import structlog
+from litestar.logging.config import LoggingConfig, StructLoggingConfig
+
+if TYPE_CHECKING:
+    from geometrikks.config.settings import Settings
 
 SUCCESS_LEVEL = 25  # between INFO (20) and WARNING (30)
 LOGIN_LOGGER_NAME = "geometrikks.auth.login"
@@ -155,3 +159,127 @@ class BroadcastHandler(logging.Handler):
             self._broadcaster.publish_threadsafe(json.loads(self.format(record)))
         except Exception:
             self.handleError(record)
+
+
+MAIN_LOG_NAME = "geometrikks.log"
+LOGIN_LOG_NAME = "login.log"
+
+
+class NonBlockingQueueHandler(QueueHandler):
+    """In-process ``QueueHandler`` that hands records to the queue unmodified.
+
+    The stdlib default ``prepare()`` calls ``self.format()`` to flatten
+    ``record.msg`` into a string so the record survives a pickled trip across
+    a multiprocessing queue. We only ever use an in-process ``queue.Queue``
+    (see queue_listener handler below), and structlog's
+    ``wrap_for_formatter`` relies on ``record.msg`` staying the original
+    event-dict (plus the ``_logger``/``_name`` attributes it attaches) all
+    the way to ``ProcessorFormatter`` in the listener thread. Flattening it
+    early turns every record into ``str(event_dict)`` and breaks every
+    downstream sink, so this override is a no-op instead.
+    """
+
+    def prepare(self, record: logging.LogRecord) -> logging.LogRecord:
+        return record
+
+
+def _shared_processors() -> list[Any]:
+    return [
+        structlog.contextvars.merge_contextvars,
+        structlog.stdlib.add_logger_name,
+        structlog.stdlib.add_log_level,
+        structlog.stdlib.ExtraAdder(),
+        structlog.stdlib.PositionalArgumentsFormatter(),
+        structlog.processors.TimeStamper(fmt="iso", utc=True),
+        structlog.processors.StackInfoRenderer(),
+    ]
+
+
+def _console_renderer() -> structlog.dev.ConsoleRenderer:
+    styles = structlog.dev.ConsoleRenderer.get_default_level_styles(colors=True)
+    styles["success"] = "\x1b[32m"  # green, matches the UI emerald badge
+    return structlog.dev.ConsoleRenderer(colors=True, level_styles=styles)
+
+
+def create_logging_config(settings: "Settings") -> StructLoggingConfig:
+    """Full pipeline: console + JSONL file + login file + WS broadcast.
+
+    Everything hangs off the stdlib queue listener; structlog and foreign
+    (stdlib) records meet in ProcessorFormatter so all sinks see both.
+    """
+    register_success_level()
+    log_dir = settings.log.dir
+    log_dir.mkdir(parents=True, exist_ok=True)
+
+    shared = _shared_processors()
+    fmt = structlog.stdlib.ProcessorFormatter
+
+    def formatter(renderer: Any) -> dict[str, Any]:
+        return {
+            "()": fmt,
+            "processors": [
+                fmt.remove_processors_meta,
+                structlog.processors.format_exc_info,
+                renderer,
+            ],
+            "foreign_pre_chain": shared,
+        }
+
+    standard_lib = LoggingConfig(
+        formatters={
+            "console": formatter(_console_renderer()),
+            "json": formatter(structlog.processors.JSONRenderer()),
+            "login": formatter(render_login_line),
+        },
+        filters={"login_only": {"()": LoginOnlyFilter}},
+        handlers={
+            "console": {
+                "class": "logging.StreamHandler",
+                "level": "DEBUG",
+                "formatter": "console",
+            },
+            "main_file": {
+                "()": GzipRotatingFileHandler,
+                "level": "DEBUG",
+                "formatter": "json",
+                "filename": str(log_dir / MAIN_LOG_NAME),
+                "maxBytes": settings.log.main_max_bytes,
+                "backupCount": settings.log.main_backup_count,
+                "encoding": "utf-8",
+            },
+            "login_file": {
+                "()": GzipRotatingFileHandler,
+                "level": "INFO",
+                "formatter": "login",
+                "filters": ["login_only"],
+                "filename": str(log_dir / LOGIN_LOG_NAME),
+                "maxBytes": settings.log.login_max_bytes,
+                "backupCount": settings.log.login_backup_count,
+                "encoding": "utf-8",
+            },
+            "broadcast": {
+                "()": BroadcastHandler,
+                "level": "DEBUG",
+                "formatter": "json",
+            },
+            "queue_listener": {
+                "class": NonBlockingQueueHandler,
+                "queue": {"()": "queue.Queue", "maxsize": -1},
+                "listener": "litestar.logging.standard.LoggingQueueListener",
+                "handlers": ["console", "main_file", "login_file", "broadcast"],
+            },
+        },
+        loggers={
+            "litestar": {"level": "INFO", "handlers": ["queue_listener"], "propagate": False},
+        },
+        root={"level": settings.log.level or "INFO", "handlers": ["queue_listener"]},
+        log_exceptions="always",
+    )
+
+    return StructLoggingConfig(
+        processors=shared + [fmt.wrap_for_formatter],
+        logger_factory=structlog.stdlib.LoggerFactory(),
+        wrapper_class=SuccessBoundLogger,
+        standard_lib_logging_config=standard_lib,
+        log_exceptions="always",
+    )

@@ -6,7 +6,10 @@ import gzip
 import json
 import logging
 import re
+import time
 from pathlib import Path
+
+import pytest
 
 
 class TestSuccessLevel:
@@ -243,3 +246,93 @@ class TestBroadcastHandler:
             assert event == {"event": "hello"}
 
         asyncio.run(scenario())
+
+
+@pytest.fixture()
+def configured_logging(tmp_path, monkeypatch):
+    """Configure the full pipeline against a temp log dir; returns the dir."""
+    monkeypatch.setenv("LOG_DIR", str(tmp_path / "logs"))
+    monkeypatch.setenv("LOG_LEVEL", "DEBUG")
+    from geometrikks.config.settings import get_settings
+    get_settings.cache_clear()
+    from geometrikks.server.logging import create_logging_config
+    config = create_logging_config(get_settings())
+    config.configure()
+    config.standard_lib_logging_config.configure()
+    return tmp_path / "logs"
+
+
+def _wait_for(predicate, timeout: float = 3.0) -> bool:
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        if predicate():
+            return True
+        time.sleep(0.05)
+    return False
+
+
+class TestCreateLoggingConfig:
+    def test_handler_tree_and_files(self, configured_logging):
+        import logging.handlers as lh
+        root = logging.getLogger()
+        queue_handlers = [h for h in root.handlers if isinstance(h, lh.QueueHandler)]
+        assert queue_handlers, "root must log through the queue handler"
+        listener_targets = {type(h).__name__ for h in queue_handlers[0].listener.handlers}
+        assert {"StreamHandler", "GzipRotatingFileHandler", "BroadcastHandler"} <= listener_targets
+        assert (configured_logging / "geometrikks.log").exists()
+        assert (configured_logging / "login.log").exists()
+
+    def test_jsonl_main_log_line(self, configured_logging):
+        import json as jsonlib
+        import structlog
+        structlog.stdlib.get_logger("geometrikks.test").info("hello_jsonl", answer=42)
+        main = configured_logging / "geometrikks.log"
+        assert _wait_for(lambda: "hello_jsonl" in main.read_text(encoding="utf-8"))
+        line = [l for l in main.read_text(encoding="utf-8").splitlines() if "hello_jsonl" in l][0]
+        record = jsonlib.loads(line)
+        assert record["event"] == "hello_jsonl"
+        assert record["level"] == "info"
+        assert record["logger"] == "geometrikks.test"
+        assert record["answer"] == 42
+        assert "timestamp" in record
+
+    def test_success_level_renders_in_json(self, configured_logging):
+        import json as jsonlib
+        import structlog
+        structlog.stdlib.get_logger("geometrikks.test").success("it_worked")
+        main = configured_logging / "geometrikks.log"
+        assert _wait_for(lambda: "it_worked" in main.read_text(encoding="utf-8"))
+        line = [l for l in main.read_text(encoding="utf-8").splitlines() if "it_worked" in l][0]
+        assert jsonlib.loads(line)["level"] == "success"
+
+    def test_login_logger_reaches_login_file_with_contract_format(self, configured_logging):
+        import structlog
+        from geometrikks.server.logging import LOGIN_LOGGER_NAME
+        structlog.stdlib.get_logger(LOGIN_LOGGER_NAME).warning(
+            "login_failed", user="admin", ip="203.0.113.7"
+        )
+        login = configured_logging / "login.log"
+        assert _wait_for(lambda: "login_failed" in login.read_text(encoding="utf-8"))
+        line = login.read_text(encoding="utf-8").splitlines()[-1]
+        assert LOGIN_LINE_RE.match(line), line
+        # And the same event also lands in the main log.
+        main = configured_logging / "geometrikks.log"
+        assert _wait_for(lambda: "login_failed" in main.read_text(encoding="utf-8"))
+
+    def test_other_loggers_do_not_reach_login_file(self, configured_logging):
+        import structlog
+        structlog.stdlib.get_logger("geometrikks.other").warning("not_a_login_event")
+        main = configured_logging / "geometrikks.log"
+        assert _wait_for(lambda: "not_a_login_event" in main.read_text(encoding="utf-8"))
+        assert "not_a_login_event" not in (configured_logging / "login.log").read_text(encoding="utf-8")
+
+
+class TestAppWiring:
+    def test_create_app_configures_structlog_pipeline(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("LOG_DIR", str(tmp_path / "applogs"))
+        monkeypatch.setenv("APP_AUTH_DISABLED", "true")
+        from geometrikks.config.settings import get_settings
+        get_settings.cache_clear()
+        from geometrikks.server.core import create_app
+        create_app()
+        assert (tmp_path / "applogs" / "geometrikks.log").exists()

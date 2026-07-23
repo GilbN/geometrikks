@@ -12,7 +12,8 @@ import shutil
 from functools import lru_cache
 from pathlib import Path
 
-from litestar.logging import LoggingConfig
+from litestar.middleware.logging import LoggingMiddlewareConfig
+from litestar.plugins.structlog import StructlogConfig, StructlogPlugin
 from litestar.serialization import decode_json, encode_json
 from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy.pool import NullPool
@@ -31,6 +32,7 @@ from litestar_vite import ViteConfig, VitePlugin
 from litestar_vite.config import RuntimeConfig, TypeGenConfig, PathConfig
 
 from geometrikks.config.settings import get_settings, Settings
+from geometrikks.server.logging import create_logging_config
 
 
 @lru_cache(maxsize=1)
@@ -93,20 +95,22 @@ def create_vite_config(settings: Settings) -> ViteConfig:
     )
 
 
-def create_logging_config(settings: Settings) -> LoggingConfig:
-    return LoggingConfig(
-        # settings.log.level is Optional in its type but the Settings resolver
-        # validator always fills it in (falls back to deprecated API_LOG_LEVEL,
-        # then "INFO"); the "or" here only satisfies the type checker.
-        root={"level": settings.log.level or "INFO", "handlers": ["queue_listener"]},
-        formatters={
-            "standard": {"format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s"}
-        },
-        log_exceptions="always",
+def create_structlog_plugin(settings: Settings) -> StructlogPlugin:
+    """Structlog pipeline + structured request logging middleware."""
+    return StructlogPlugin(
+        config=StructlogConfig(
+            structlog_logging_config=create_logging_config(settings),
+            middleware_logging_config=LoggingMiddlewareConfig(
+                response_log_fields=("status_code",),
+                request_log_fields=("path", "method", "query", "path_params"),
+            ),
+        )
     )
 
 
-def create_plugins() -> list[SQLAlchemyInitPlugin | GeoAlchemyPlugin | GranianPlugin | VitePlugin | CLIPluginProtocol]:
+def create_plugins() -> list[
+    SQLAlchemyInitPlugin | GeoAlchemyPlugin | GranianPlugin | VitePlugin | CLIPluginProtocol | StructlogPlugin
+]:
     """Instantiate all app plugins; called once from create_app()."""
     from geometrikks.cli import ImportLogsCLIPlugin
 
@@ -117,4 +121,5 @@ def create_plugins() -> list[SQLAlchemyInitPlugin | GeoAlchemyPlugin | GranianPl
         GranianPlugin(),
         VitePlugin(config=create_vite_config(settings)),
         ImportLogsCLIPlugin(),
+        create_structlog_plugin(settings),
     ]
