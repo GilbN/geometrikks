@@ -14,6 +14,7 @@ from geometrikks.api.v1.access_log_debug_controller import AccessLogDebugControl
 from geometrikks.api.v1.analytics_controller import AnalyticsController
 from geometrikks.api.v1.auth_controller import AuthController
 from geometrikks.api.v1.crowdsec_controller import CrowdSecController
+from geometrikks.api.v1.logs_controller import LogsController
 from geometrikks.api.v1.system_controller import SystemController
 from geometrikks.api.v1.live_controller import crowdsec_feed, live_feed, logs_feed
 from geometrikks.api.v1.settings import read_settings
@@ -57,6 +58,7 @@ def get_route_handlers(*, include_auth: bool = True) -> list[ControllerRouterHan
         AccessLogDebugController,
         AnalyticsController,
         CrowdSecController,
+        LogsController,
         SystemController,
         live_feed,
         crowdsec_feed,

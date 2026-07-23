@@ -12,9 +12,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `LOG_LEVEL` and `LOG_DIR`/`LOG_MAIN_MAX_BYTES`/`LOG_MAIN_BACKUP_COUNT`/
   `LOG_LOGIN_MAX_BYTES`/`LOG_LOGIN_BACKUP_COUNT` settings for the upcoming
   structured-logging pipeline.
-- `/ws/logs` WebSocket endpoint streaming structured log events in real
-  time, batched and coalesced like the other live feeds, with an optional
-  `?level=` query param to filter to a minimum log level.
+- Log endpoints: `/api/v1/logs/tail` and `/api/v1/logs/files` REST endpoints
+  for log retrieval and file listing, plus per-file download at
+  `/api/v1/logs/files/{kind}/{name}` (app log, login log, gzip archives,
+  and ingested nginx access logs). `/ws/logs` WebSocket endpoint streams
+  structured log events in real time, batched and coalesced like the other
+  live feeds, with an optional `?level=` query param to filter to a minimum
+  log level.
 
 ### Changed
 
