@@ -32,6 +32,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Login, failed login, and logout attempts now emit `login_success`,
   `login_failed`, and `logout` events through the login logger, landing
   in `logs/login.log` in the CrowdSec/fail2ban contract format.
+- Scheduler job outcomes are now logged centrally by `JobRunTracker`:
+  `scheduler_job_completed` at SUCCESS level, `scheduler_job_failed` at
+  ERROR, and `scheduler_job_missed` at WARNING, each with `job_id` and
+  `duration_seconds` where applicable, covering every APScheduler job
+  uniformly.
 
 ### Deprecated
 
