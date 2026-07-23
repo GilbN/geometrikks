@@ -8,8 +8,11 @@ block the event loop.
 
 from __future__ import annotations
 
+import asyncio
+import contextlib
 import gzip
 import ipaddress
+import json
 import logging
 import os
 import shutil
@@ -93,3 +96,62 @@ class LoginOnlyFilter(logging.Filter):
 
     def filter(self, record: logging.LogRecord) -> bool:
         return record.name == LOGIN_LOGGER_NAME
+
+
+class LogBroadcaster:
+    """Fans rendered log event dicts out to in-process async subscribers.
+
+    publish_threadsafe is called from the queue-listener thread; events hop
+    onto the bound event loop via call_soon_threadsafe. Bounded queues drop
+    the oldest event when a consumer is slow.
+    """
+
+    def __init__(self, max_queue: int = 1000) -> None:
+        self._max_queue = max_queue
+        self._subscribers: set[asyncio.Queue[dict[str, Any]]] = set()
+        self._loop: asyncio.AbstractEventLoop | None = None
+
+    def bind_loop(self, loop: asyncio.AbstractEventLoop) -> None:
+        self._loop = loop
+
+    def subscribe(self) -> asyncio.Queue[dict[str, Any]]:
+        queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue(maxsize=self._max_queue)
+        self._subscribers.add(queue)
+        return queue
+
+    def unsubscribe(self, queue: asyncio.Queue[dict[str, Any]]) -> None:
+        self._subscribers.discard(queue)
+
+    def publish_threadsafe(self, event: dict[str, Any]) -> None:
+        loop = self._loop
+        if loop is None or loop.is_closed() or not self._subscribers:
+            return
+        with contextlib.suppress(RuntimeError):  # loop shutting down
+            loop.call_soon_threadsafe(self._publish, event)
+
+    def _publish(self, event: dict[str, Any]) -> None:
+        for queue in list(self._subscribers):
+            try:
+                queue.put_nowait(event)
+            except asyncio.QueueFull:
+                with contextlib.suppress(asyncio.QueueEmpty):
+                    queue.get_nowait()
+                with contextlib.suppress(asyncio.QueueFull):
+                    queue.put_nowait(event)
+
+
+log_broadcaster = LogBroadcaster()
+
+
+class BroadcastHandler(logging.Handler):
+    """Publishes each record, rendered by its formatter, to the broadcaster."""
+
+    def __init__(self, broadcaster: LogBroadcaster | None = None) -> None:
+        super().__init__()
+        self._broadcaster = broadcaster or log_broadcaster
+
+    def emit(self, record: logging.LogRecord) -> None:
+        try:
+            self._broadcaster.publish_threadsafe(json.loads(self.format(record)))
+        except Exception:
+            self.handleError(record)

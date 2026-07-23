@@ -1,7 +1,9 @@
 """Unit tests for the structlog pipeline building blocks."""
 from __future__ import annotations
 
+import asyncio
 import gzip
+import json
 import logging
 import re
 from pathlib import Path
@@ -183,3 +185,61 @@ class TestLoginOnlyFilter:
         other = logging.LogRecord("geometrikks.server", 20, "", 0, "m", None, None)
         assert f.filter(login) is True
         assert f.filter(other) is False
+
+
+class TestLogBroadcaster:
+    def test_publish_from_thread_reaches_subscriber(self):
+        from geometrikks.server.logging import LogBroadcaster
+
+        async def scenario():
+            b = LogBroadcaster()
+            b.bind_loop(asyncio.get_running_loop())
+            q = b.subscribe()
+            import threading
+            t = threading.Thread(target=b.publish_threadsafe, args=({"event": "hi"},))
+            t.start()
+            t.join()
+            event = await asyncio.wait_for(q.get(), timeout=2)
+            assert event == {"event": "hi"}
+            b.unsubscribe(q)
+
+        asyncio.run(scenario())
+
+    def test_full_queue_drops_oldest(self):
+        from geometrikks.server.logging import LogBroadcaster
+
+        async def scenario():
+            b = LogBroadcaster(max_queue=2)
+            b.bind_loop(asyncio.get_running_loop())
+            q = b.subscribe()
+            for i in range(3):
+                b._publish({"n": i})
+            assert q.qsize() == 2
+            first = await q.get()
+            assert first == {"n": 1}  # oldest ({"n": 0}) was dropped
+
+        asyncio.run(scenario())
+
+    def test_publish_without_loop_is_noop(self):
+        from geometrikks.server.logging import LogBroadcaster
+        b = LogBroadcaster()
+        b.publish_threadsafe({"event": "ignored"})  # must not raise
+
+
+class TestBroadcastHandler:
+    def test_emit_publishes_formatted_json(self):
+        from geometrikks.server.logging import BroadcastHandler, LogBroadcaster
+
+        async def scenario():
+            broadcaster = LogBroadcaster()
+            broadcaster.bind_loop(asyncio.get_running_loop())
+            q = broadcaster.subscribe()
+            handler = BroadcastHandler(broadcaster=broadcaster)
+            handler.setFormatter(logging.Formatter('{"event": "%(message)s"}'))
+            record = logging.LogRecord("t", logging.INFO, "", 0, "hello", None, None)
+            handler.emit(record)
+            await asyncio.sleep(0)  # let call_soon_threadsafe run
+            event = await asyncio.wait_for(q.get(), timeout=2)
+            assert event == {"event": "hello"}
+
+        asyncio.run(scenario())
