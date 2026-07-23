@@ -1,12 +1,7 @@
 """Unit tests for the structlog pipeline building blocks."""
 from __future__ import annotations
 
-import gzip
 import logging
-import re
-from pathlib import Path
-
-import pytest
 
 
 class TestSuccessLevel:

@@ -29,7 +29,7 @@ def register_success_level() -> None:
     if logging.getLevelName(SUCCESS_LEVEL) != "SUCCESS":
         logging.addLevelName(SUCCESS_LEVEL, "SUCCESS")
     if not hasattr(logging.Logger, "success"):
-        logging.Logger.success = _stdlib_success  # type: ignore[attr-defined]
+        logging.Logger.success = _stdlib_success  # ty: ignore[unresolved-attribute]
 
 
 class SuccessBoundLogger(structlog.stdlib.BoundLogger):
