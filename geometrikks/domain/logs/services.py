@@ -17,6 +17,9 @@ from geometrikks.domain.logs.schemas import (
     CountryFacet,
     ParseErrorCount,
 )
+from geometrikks.server.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 class AccessLogService(SQLAlchemyAsyncRepositoryService[AccessLog]):
@@ -172,6 +175,7 @@ class AccessLogDebugService(SQLAlchemyAsyncRepositoryService[AccessLogDebug]):
             stmt = limit_offset.append_to_statement(stmt, AccessLogDebug)
 
         rows = (await session.execute(stmt)).all()
+        logger.debug("access_log_debug_page_fetched", rows=len(rows), total=total)
         return [
             AccessLogDebugEntry(
                 id=row.id,
@@ -233,6 +237,7 @@ class AccessLogDebugService(SQLAlchemyAsyncRepositoryService[AccessLogDebug]):
             )
         ).first()
 
+        logger.debug("access_log_debug_stats_fetched", total=total, malformed=malformed)
         return AccessLogDebugStats(
             total=total,
             malformed=malformed,

@@ -50,9 +50,15 @@ class CrowdSecService:
             transport=transport,
         )
         self._machine_token: str | None = None
+        logger.info(
+            "crowdsec_client_configured",
+            url=settings.lapi_url,
+            write_enabled=settings.write_enabled,
+        )
 
     async def aclose(self) -> None:
         await self._client.aclose()
+        logger.info("crowdsec_client_closed")
 
     async def get_decisions(
         self,

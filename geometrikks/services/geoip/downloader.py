@@ -112,7 +112,9 @@ async def download_database(settings: "GeoIPSettings") -> Path:
     logger.info("Downloading GeoLite2-City from MaxMind...")
     tarball = await _fetch_tarball(settings)
     _extract_mmdb(tarball, settings.db_path)
-    logger.info("GeoLite2-City updated: %s", settings.db_path)
+    logger.success(  # ty: ignore[unresolved-attribute]
+        "geoip_database_refreshed", path=str(settings.db_path)
+    )
     return settings.db_path
 
 

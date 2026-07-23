@@ -101,10 +101,12 @@ async def crowdsec_feed(socket: WebSocket) -> None:
     poller = getattr(socket.app.state, "crowdsec_stream_poller", None)
     await socket.accept()
     if poller is None:
+        logger.warning("ws_rejected_service_unavailable", endpoint="/ws/crowdsec")
         await socket.close(code=1013, reason="crowdsec stream not running")  # 1013 = try again later
         return
 
     queue = poller.subscribe()
+    logger.info("ws_client_connected", endpoint="/ws/crowdsec")
     watcher = asyncio.create_task(_watch_disconnect(socket))
     try:
         loop = asyncio.get_running_loop()
@@ -129,6 +131,7 @@ async def crowdsec_feed(socket: WebSocket) -> None:
         with contextlib.suppress(asyncio.CancelledError, WebSocketDisconnect):
             await watcher
         poller.unsubscribe(queue)
+        logger.info("ws_client_disconnected", endpoint="/ws/crowdsec")
 
 
 @websocket("/ws/live", tags=["Live Feed"])
@@ -137,10 +140,12 @@ async def live_feed(socket: WebSocket) -> None:
     ingestion = getattr(socket.app.state, "ingestion_service", None)
     await socket.accept()
     if ingestion is None:
+        logger.warning("ws_rejected_service_unavailable", endpoint="/ws/live")
         await socket.close(code=1013, reason="ingestion not running")  # 1013 = try again later
         return
 
     queue = ingestion.subscribe()
+    logger.info("ws_client_connected", endpoint="/ws/live")
     watcher = asyncio.create_task(_watch_disconnect(socket))
     try:
         loop = asyncio.get_running_loop()
@@ -177,6 +182,7 @@ async def live_feed(socket: WebSocket) -> None:
         with contextlib.suppress(asyncio.CancelledError, WebSocketDisconnect):
             await watcher  # retrieve its exception so no "never retrieved" warning
         ingestion.unsubscribe(queue)
+        logger.info("ws_client_disconnected", endpoint="/ws/live")
 
 
 LOG_FLUSH_INTERVAL = 0.25
@@ -206,6 +212,7 @@ async def logs_feed(socket: WebSocket) -> None:
     level_names = logging.getLevelNamesMapping()
 
     queue = log_broadcaster.subscribe()
+    logger.info("ws_client_connected", endpoint="/ws/logs")
     watcher = asyncio.create_task(_watch_disconnect(socket))
     try:
         loop = asyncio.get_running_loop()
@@ -243,3 +250,4 @@ async def logs_feed(socket: WebSocket) -> None:
         with contextlib.suppress(asyncio.CancelledError, WebSocketDisconnect):
             await watcher
         log_broadcaster.unsubscribe(queue)
+        logger.info("ws_client_disconnected", endpoint="/ws/logs")

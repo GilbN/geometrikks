@@ -41,6 +41,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   controllers) now get their loggers via `get_logger` from
   `geometrikks.server.logging` instead of stdlib `logging.getLogger`, so
   their output flows through the structlog pipeline.
+- All subsystems now log lifecycle and state-change events (WS connects,
+  scheduler outcomes, CrowdSec stream state, GeoIP refreshes, imports);
+  scheduler and task completions use a new SUCCESS log level.
 
 ### Deprecated
 

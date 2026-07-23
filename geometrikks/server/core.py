@@ -31,17 +31,13 @@ def create_app() -> Litestar:
     # Load settings once at app creation
     settings = get_settings()
 
-    from geometrikks.server.auth import build_auth_state, create_session_auth
+    from geometrikks.server.auth import build_auth_state, create_session_auth, warn_auth_disabled
 
     on_app_init = []
     auth_state = None
     if settings.auth_disabled:
         # Documented reverse-proxy mode (Authelia/Tailscale in front).
-        import logging
-        logging.getLogger(__name__).warning(
-            "APP_AUTH_DISABLED=true: API is unauthenticated. Only run this "
-            "behind an authenticating reverse proxy."
-        )
+        warn_auth_disabled()
     else:
         auth_state = build_auth_state(settings)
         on_app_init.append(create_session_auth(settings).on_app_init)

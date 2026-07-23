@@ -191,6 +191,12 @@ async def import_file(
                 auto_commit=True,
             )
 
+    logger.success(  # ty: ignore[unresolved-attribute]
+        "import_completed",
+        file=str(path),
+        lines=lines_total,
+        records=records_written,
+    )
     return ImportResult(
         file_path=path, skipped=False, lines_total=lines_total,
         lines_skipped=lines_skipped, records_written=records_written,
