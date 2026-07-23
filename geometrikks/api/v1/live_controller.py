@@ -22,6 +22,7 @@ from typing import Any
 from litestar import WebSocket, websocket
 from litestar.exceptions import WebSocketDisconnect
 
+from geometrikks.server.logging import log_broadcaster, register_success_level
 from geometrikks.services.logparser.schemas import ParsedLogRecord
 
 logger = logging.getLogger(__name__)
@@ -176,3 +177,69 @@ async def live_feed(socket: WebSocket) -> None:
         with contextlib.suppress(asyncio.CancelledError, WebSocketDisconnect):
             await watcher  # retrieve its exception so no "never retrieved" warning
         ingestion.unsubscribe(queue)
+
+
+LOG_FLUSH_INTERVAL = 0.25
+MAX_RECORDS_PER_FRAME = 200
+
+
+def _min_levelno(level_name: str | None) -> int:
+    """Numeric threshold for the optional ?level= filter (default: everything)."""
+    if not level_name:
+        return 0
+    register_success_level()
+    mapping = logging.getLevelNamesMapping()
+    return mapping.get(level_name.upper(), 0)
+
+
+@websocket("/ws/logs", tags=["Live Feed"])
+async def logs_feed(socket: WebSocket) -> None:
+    """Stream application log events, batched and coalesced.
+
+    One JSON frame per flush: {"type": "log_batch", "records": [...], "dropped": n}
+    Auth: same session-authenticated handshake as /ws/live.
+    """
+    await socket.accept()
+    log_broadcaster.bind_loop(asyncio.get_running_loop())
+    min_levelno = _min_levelno(socket.query_params.get("level"))
+    register_success_level()
+    level_names = logging.getLevelNamesMapping()
+
+    queue = log_broadcaster.subscribe()
+    watcher = asyncio.create_task(_watch_disconnect(socket))
+    try:
+        loop = asyncio.get_running_loop()
+        last_send = loop.time()
+        pending: list[dict[str, Any]] = []
+        dropped = 0
+        while not watcher.done():
+            deadline = loop.time() + LOG_FLUSH_INTERVAL
+            while True:
+                remaining = deadline - loop.time()
+                if remaining <= 0:
+                    break
+                try:
+                    record = await asyncio.wait_for(queue.get(), timeout=remaining)
+                except asyncio.TimeoutError:
+                    break
+                levelno = level_names.get(str(record.get("level", "")).upper(), 0)
+                if levelno < min_levelno:
+                    continue
+                if len(pending) >= MAX_RECORDS_PER_FRAME:
+                    dropped += 1
+                else:
+                    pending.append(record)
+
+            if watcher.done():
+                break
+            if pending or dropped or loop.time() - last_send >= HEARTBEAT_INTERVAL:
+                await socket.send_json({"type": "log_batch", "records": pending, "dropped": dropped})
+                pending, dropped = [], 0
+                last_send = loop.time()
+    except WebSocketDisconnect:
+        pass  # client went away between the watcher check and the send
+    finally:
+        watcher.cancel()
+        with contextlib.suppress(asyncio.CancelledError, WebSocketDisconnect):
+            await watcher
+        log_broadcaster.unsubscribe(queue)

@@ -58,6 +58,9 @@ async def on_startup(app: "Litestar") -> None:
     # Set before anything else so /about reports uptime even in degraded mode.
     app.state.started_at = datetime.now(timezone.utc)
 
+    from geometrikks.server.logging import log_broadcaster
+    log_broadcaster.bind_loop(asyncio.get_running_loop())
+
     settings = get_settings()
 
     if settings.api.log_level is not None:
