@@ -75,7 +75,7 @@ class TestGzipRotatingFileHandler:
 
 LOGIN_LINE_RE = re.compile(
     r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z '
-    r'(login_success|login_failed|logout) user="[^"]*" ip=\S+$'
+    r'(login_success|login_failed|logout) user="(?:[^"\\]|\\.)*" ip=\S+$'
 )
 
 
@@ -104,6 +104,39 @@ class TestLoginLineFormat:
         )
         assert line == '2026-07-23T10:15:04Z logout user="admin" ip=-'
         assert LOGIN_LINE_RE.match(line)
+
+    def test_newline_injection_in_user_is_neutralized(self):
+        from geometrikks.server.logging import render_login_line
+        line = render_login_line(
+            None, "warning",
+            {
+                "timestamp": "2026-07-23T10:15:04Z",
+                "event": "login_failed",
+                "user": 'x" ip=6.6.6.6\n2026-07-23T10:15:05Z login_failed user="admin',
+                "ip": "203.0.113.7",
+            },
+        )
+        assert "\n" not in line
+        assert LOGIN_LINE_RE.match(line), line
+        assert line.endswith("ip=203.0.113.7")
+
+    def test_quote_escape_in_user(self):
+        from geometrikks.server.logging import render_login_line
+        line = render_login_line(
+            None, "warning",
+            {"timestamp": "2026-07-23T10:15:04Z", "event": "login_failed",
+             "user": 'a"b', "ip": "203.0.113.7"},
+        )
+        assert '\\"' in line and "\n" not in line
+
+    def test_hostile_ip_field_falls_back_to_dash(self):
+        from geometrikks.server.logging import render_login_line
+        line = render_login_line(
+            None, "warning",
+            {"timestamp": "2026-07-23T10:15:04Z", "event": "login_failed",
+             "user": "admin", "ip": '1.2.3.4 extra"'},
+        )
+        assert line.endswith("ip=-")
 
 
 class TestLoginOnlyFilter:
