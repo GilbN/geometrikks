@@ -75,7 +75,7 @@ class TestGzipRotatingFileHandler:
 
 LOGIN_LINE_RE = re.compile(
     r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z '
-    r'(login_success|login_failed|logout) user="(?:[^"\\]|\\.)*" ip=\S+$'
+    r'(login_success|login_failed|logout) user="[^"]*" ip=\S+$'
 )
 
 
@@ -120,23 +120,59 @@ class TestLoginLineFormat:
         assert LOGIN_LINE_RE.match(line), line
         assert line.endswith("ip=203.0.113.7")
 
-    def test_quote_escape_in_user(self):
+    def test_quotes_are_stripped_from_user(self):
         from geometrikks.server.logging import render_login_line
         line = render_login_line(
             None, "warning",
             {"timestamp": "2026-07-23T10:15:04Z", "event": "login_failed",
              "user": 'a"b', "ip": "203.0.113.7"},
         )
-        assert '\\"' in line and "\n" not in line
+        assert line == '2026-07-23T10:15:04Z login_failed user="ab" ip=203.0.113.7'
+        assert "\\" not in line
+        assert line.count('"') == 2  # only opening and closing quotes around user field
 
     def test_hostile_ip_field_falls_back_to_dash(self):
         from geometrikks.server.logging import render_login_line
+        # Test IP with space and quote
         line = render_login_line(
             None, "warning",
             {"timestamp": "2026-07-23T10:15:04Z", "event": "login_failed",
              "user": "admin", "ip": '1.2.3.4 extra"'},
         )
         assert line.endswith("ip=-")
+        # Test IP with semicolon (invalid)
+        line = render_login_line(
+            None, "warning",
+            {"timestamp": "2026-07-23T10:15:04Z", "event": "login_failed",
+             "user": "admin", "ip": '6.6.6.6;x'},
+        )
+        assert line.endswith("ip=-")
+        # Test valid IPv4
+        line = render_login_line(
+            None, "warning",
+            {"timestamp": "2026-07-23T10:15:04Z", "event": "login_failed",
+             "user": "admin", "ip": "203.0.113.7"},
+        )
+        assert line.endswith("ip=203.0.113.7")
+        # Test valid IPv6
+        line = render_login_line(
+            None, "warning",
+            {"timestamp": "2026-07-23T10:15:04Z", "event": "login_failed",
+             "user": "admin", "ip": "2001:db8::1"},
+        )
+        assert line.endswith("ip=2001:db8::1")
+
+    def test_forged_field_poc_captures_real_ip(self):
+        import re as re_mod
+        from geometrikks.server.logging import render_login_line
+        line = render_login_line(
+            None, "warning",
+            {"timestamp": "2026-07-23T10:15:04Z", "event": "login_failed",
+             "user": 'x" ip=6.6.6.6 extra', "ip": "203.0.113.7"},
+        )
+        m = re_mod.search(r'user="([^"]*)" ip=(\S+)$', line)
+        assert m and m.group(2) == "203.0.113.7"
+        assert LOGIN_LINE_RE.match(line), line
 
 
 class TestLoginOnlyFilter:

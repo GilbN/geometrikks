@@ -9,6 +9,7 @@ block the event loop.
 from __future__ import annotations
 
 import gzip
+import ipaddress
 import logging
 import os
 import shutil
@@ -63,10 +64,10 @@ class GzipRotatingFileHandler(RotatingFileHandler):
 
 
 def _sanitize_login_field(value: str) -> str:
-    """Strip control characters and escape quoting so a hostile username
-    cannot forge extra lines or fields in the login log."""
+    """Strip control characters, quotes and backslashes so a hostile
+    username cannot forge lines or fields in the login log."""
     cleaned = "".join(ch for ch in value if ch.isprintable())
-    return cleaned.replace("\\", "\\\\").replace('"', '\\"')
+    return cleaned.replace("\\", "").replace('"', "")
 
 
 def render_login_line(_: Any, __: str, event_dict: dict[str, Any]) -> str:
@@ -76,11 +77,13 @@ def render_login_line(_: Any, __: str, event_dict: dict[str, Any]) -> str:
     YYYY-MM-DDTHH:MM:SSZ <event> user="<user>" ip=<ip>
     """
     ts = str(event_dict.get("timestamp", ""))[:19] + "Z"
-    event = event_dict.get("event", "")
+    raw_event = str(event_dict.get("event", ""))
+    event = "".join(ch for ch in raw_event if ch.isalnum() or ch == "_") or "unknown"
     user = _sanitize_login_field(str(event_dict.get("user", "")))
-    ip_raw = event_dict.get("ip") or "-"
-    ip = _sanitize_login_field(str(ip_raw)) if ip_raw != "-" else "-"
-    if ip != "-" and (" " in ip or '"' in ip):
+    raw_ip = str(event_dict.get("ip") or "")
+    try:
+        ip = str(ipaddress.ip_address(raw_ip))
+    except ValueError:
         ip = "-"
     return f'{ts} {event} user="{user}" ip={ip}'
 
