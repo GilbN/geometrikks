@@ -95,7 +95,10 @@ def create_vite_config(settings: Settings) -> ViteConfig:
 
 def create_logging_config(settings: Settings) -> LoggingConfig:
     return LoggingConfig(
-        root={"level": settings.api.log_level, "handlers": ["queue_listener"]},
+        # settings.log.level is Optional in its type but the Settings resolver
+        # validator always fills it in (falls back to deprecated API_LOG_LEVEL,
+        # then "INFO"); the "or" here only satisfies the type checker.
+        root={"level": settings.log.level or "INFO", "handlers": ["queue_listener"]},
         formatters={
             "standard": {"format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s"}
         },

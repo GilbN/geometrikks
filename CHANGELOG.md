@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `LOG_LEVEL` and `LOG_DIR`/`LOG_MAIN_MAX_BYTES`/`LOG_MAIN_BACKUP_COUNT`/
+  `LOG_LOGIN_MAX_BYTES`/`LOG_LOGIN_BACKUP_COUNT` settings for the upcoming
+  structured-logging pipeline.
+
+### Changed
+
+- Swapped the `picologging` litestar extra for `structlog` in preparation
+  for structured logging.
+
+### Deprecated
+
+- `API_LOG_LEVEL` is deprecated in favor of `LOG_LEVEL`. It is still honored
+  as a fallback (with a `DeprecationWarning`) when `LOG_LEVEL` is unset.
+
 ## [0.4.3] - 2026-07-22
 
 ### Fixed

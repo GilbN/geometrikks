@@ -72,7 +72,7 @@ services:
       APP_ENVIRONMENT: development
       APP_DEBUG: "true"
       API_RELOAD: "true"
-      API_LOG_LEVEL: DEBUG
+      LOG_LEVEL: DEBUG
       DB_HOST: timescale_db
       DB_PORT: 5432
       DB_USER: geouser
