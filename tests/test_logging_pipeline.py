@@ -326,6 +326,22 @@ class TestCreateLoggingConfig:
         assert _wait_for(lambda: "not_a_login_event" in main.read_text(encoding="utf-8"))
         assert "not_a_login_event" not in (configured_logging / "login.log").read_text(encoding="utf-8")
 
+    def test_handler_levels_are_respected_behind_queue(self, configured_logging):
+        import structlog
+        from geometrikks.server.logging import LOGIN_LOGGER_NAME
+        structlog.stdlib.get_logger(LOGIN_LOGGER_NAME).debug(
+            "debug_login_event", user="x", ip="1.2.3.4"
+        )
+        structlog.stdlib.get_logger(LOGIN_LOGGER_NAME).warning(
+            "login_failed", user="x", ip="1.2.3.4"
+        )
+        login = configured_logging / "login.log"
+        assert _wait_for(lambda: "login_failed" in login.read_text(encoding="utf-8"))
+        assert "debug_login_event" not in login.read_text(encoding="utf-8")
+        # The DEBUG event still reaches the main file (its handler level is DEBUG).
+        main = configured_logging / "geometrikks.log"
+        assert _wait_for(lambda: "debug_login_event" in main.read_text(encoding="utf-8"))
+
 
 class TestAppWiring:
     def test_create_app_configures_structlog_pipeline(self, tmp_path, monkeypatch):

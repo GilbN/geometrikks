@@ -267,6 +267,7 @@ def create_logging_config(settings: "Settings") -> StructLoggingConfig:
                 "queue": {"()": "queue.Queue", "maxsize": -1},
                 "listener": "litestar.logging.standard.LoggingQueueListener",
                 "handlers": ["console", "main_file", "login_file", "broadcast"],
+                "respect_handler_level": True,
             },
         },
         loggers={
