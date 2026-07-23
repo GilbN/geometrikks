@@ -8,7 +8,11 @@ block the event loop.
 
 from __future__ import annotations
 
+import gzip
 import logging
+import os
+import shutil
+from logging.handlers import RotatingFileHandler
 from typing import Any
 
 import structlog
@@ -37,3 +41,22 @@ class SuccessBoundLogger(structlog.stdlib.BoundLogger):
 
     def success(self, event: str | None = None, *args: Any, **kw: Any) -> Any:
         return self._proxy_to_logger("success", event, *args, **kw)
+
+
+def _gzip_rotator(source: str, dest: str) -> None:
+    with open(source, "rb") as sf, gzip.open(dest, "wb") as df:
+        shutil.copyfileobj(sf, df)
+    os.remove(source)
+
+
+def _gz_namer(default_name: str) -> str:
+    return default_name + ".gz"
+
+
+class GzipRotatingFileHandler(RotatingFileHandler):
+    """Size-based rotation that gzips archives: app.log.1.gz ... app.log.N.gz."""
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+        self.namer = _gz_namer
+        self.rotator = _gzip_rotator
