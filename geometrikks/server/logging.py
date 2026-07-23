@@ -60,3 +60,23 @@ class GzipRotatingFileHandler(RotatingFileHandler):
         super().__init__(*args, **kwargs)
         self.namer = _gz_namer
         self.rotator = _gzip_rotator
+
+
+def render_login_line(_: Any, __: str, event_dict: dict[str, Any]) -> str:
+    """Stable plain-text login line for CrowdSec/fail2ban parsers.
+
+    Contract (do not change without a deprecation cycle):
+    YYYY-MM-DDTHH:MM:SSZ <event> user="<user>" ip=<ip>
+    """
+    ts = str(event_dict.get("timestamp", ""))[:19] + "Z"
+    event = event_dict.get("event", "")
+    user = str(event_dict.get("user", ""))
+    ip = event_dict.get("ip") or "-"
+    return f'{ts} {event} user="{user}" ip={ip}'
+
+
+class LoginOnlyFilter(logging.Filter):
+    """Routes only geometrikks.auth.login records into the login file."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        return record.name == LOGIN_LOGGER_NAME

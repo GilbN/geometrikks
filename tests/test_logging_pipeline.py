@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import gzip
 import logging
+import re
 from pathlib import Path
 
 
@@ -70,3 +71,46 @@ class TestGzipRotatingFileHandler:
         assert (tmp_path / "app.log.1.gz").exists()
         assert (tmp_path / "app.log.2.gz").exists()
         assert not (tmp_path / "app.log.3.gz").exists()
+
+
+LOGIN_LINE_RE = re.compile(
+    r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z '
+    r'(login_success|login_failed|logout) user="[^"]*" ip=\S+$'
+)
+
+
+class TestLoginLineFormat:
+    def test_renders_contract_line(self):
+        from geometrikks.server.logging import render_login_line
+        line = render_login_line(
+            None,
+            "warning",
+            {
+                "timestamp": "2026-07-23T10:15:04.123456Z",
+                "level": "warning",
+                "event": "login_failed",
+                "user": "admin",
+                "ip": "203.0.113.7",
+            },
+        )
+        assert line == '2026-07-23T10:15:04Z login_failed user="admin" ip=203.0.113.7'
+        assert LOGIN_LINE_RE.match(line)
+
+    def test_missing_ip_renders_dash(self):
+        from geometrikks.server.logging import render_login_line
+        line = render_login_line(
+            None, "info",
+            {"timestamp": "2026-07-23T10:15:04Z", "event": "logout", "user": "admin"},
+        )
+        assert line == '2026-07-23T10:15:04Z logout user="admin" ip=-'
+        assert LOGIN_LINE_RE.match(line)
+
+
+class TestLoginOnlyFilter:
+    def test_passes_only_login_logger(self):
+        from geometrikks.server.logging import LOGIN_LOGGER_NAME, LoginOnlyFilter
+        f = LoginOnlyFilter()
+        login = logging.LogRecord(LOGIN_LOGGER_NAME, 20, "", 0, "m", None, None)
+        other = logging.LogRecord("geometrikks.server", 20, "", 0, "m", None, None)
+        assert f.filter(login) is True
+        assert f.filter(other) is False
