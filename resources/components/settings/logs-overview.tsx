@@ -6,6 +6,7 @@
  */
 import { useEffect, useMemo, useRef, useState } from "react"
 import {
+  ChevronsUpDown,
   Download,
   FolderDown,
   Layers,
@@ -32,14 +33,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { Input } from "@/components/ui/input"
 import {
   Table,
   TableBody,
@@ -83,6 +83,35 @@ const FILE_KIND_ORDER: LogFileView["kind"][] = ["app", "login", "nginx"]
 /** geometrikks.services.ingestion -> services; falls back to the raw logger name. */
 const component = (r: LogRecord): string => r.logger?.split(".")[1] ?? r.logger ?? "app"
 
+const STANDARD_RECORD_KEYS = new Set(["timestamp", "level", "logger", "event", "exception"])
+
+/**
+ * Every scalar field of a record besides the standard ones, rendered
+ * `key=value` and space-joined, so a row reads e.g. `method=GET path=/api`
+ * without opening the detail dialog. Objects/arrays stay dialog-only.
+ */
+function formatContext(r: LogRecord): string {
+  return Object.entries(r)
+    .filter(
+      ([key, value]) =>
+        !STANDARD_RECORD_KEYS.has(key) &&
+        (typeof value === "string" || typeof value === "number" || typeof value === "boolean"),
+    )
+    .map(([key, value]) => `${key}=${value}`)
+    .join(" ")
+}
+
+function toggleValue(values: string[], value: string): string[] {
+  return values.includes(value) ? values.filter((v) => v !== value) : [...values, value]
+}
+
+/** "All levels" when empty, the value itself for one, "value +N" for more. */
+function multiSelectLabel(selected: string[], allLabel: string): string {
+  if (selected.length === 0) return allLabel
+  if (selected.length === 1) return selected[0]
+  return `${selected[0]} +${selected.length - 1}`
+}
+
 function formatSize(bytes: number): string {
   if (bytes >= 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} MB`
   if (bytes >= 1024) return `${(bytes / 1024).toFixed(1)} KB`
@@ -112,8 +141,8 @@ export function LogsOverview() {
   const [pendingCount, setPendingCount] = useState(0)
   const [totalDropped, setTotalDropped] = useState(0)
 
-  const [levelFilter, setLevelFilter] = useState("all")
-  const [componentFilter, setComponentFilter] = useState("all")
+  const [levelFilters, setLevelFilters] = useState<string[]>([])
+  const [componentFilters, setComponentFilters] = useState<string[]>([])
   const [searchInput, setSearchInput] = useState("")
   const search = useDebouncedValue(searchInput, 200)
 
@@ -201,15 +230,15 @@ export function LogsOverview() {
     const needle = search.trim().toLowerCase()
     return entries.filter((e) => {
       const r = e.record
-      if (levelFilter !== "all" && (r.level ?? "") !== levelFilter) return false
-      if (componentFilter !== "all" && component(r) !== componentFilter) return false
+      if (levelFilters.length > 0 && !levelFilters.includes(r.level ?? "")) return false
+      if (componentFilters.length > 0 && !componentFilters.includes(component(r))) return false
       if (needle) {
         const eventMatch = r.event?.toLowerCase().includes(needle) ?? false
         if (!eventMatch && !JSON.stringify(r).toLowerCase().includes(needle)) return false
       }
       return true
     })
-  }, [entries, levelFilter, componentFilter, search])
+  }, [entries, levelFilters, componentFilters, search])
 
   const groupedFiles = useMemo(() => {
     const groups = new Map<LogFileView["kind"], LogFileView[]>()
@@ -272,33 +301,61 @@ export function LogsOverview() {
               )}
             </Button>
 
-            <Select value={levelFilter} onValueChange={setLevelFilter}>
-              <SelectTrigger size="sm" className="h-8 w-36 text-xs pointer-coarse:h-10">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All levels</SelectItem>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 w-36 justify-between text-xs pointer-coarse:h-10"
+                >
+                  <span className="truncate">{multiSelectLabel(levelFilters, "All levels")}</span>
+                  <ChevronsUpDown className="ml-1 h-3.5 w-3.5 shrink-0 opacity-50" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-36">
                 {LEVELS.map((level) => (
-                  <SelectItem key={level} value={level}>
+                  <DropdownMenuCheckboxItem
+                    key={level}
+                    checked={levelFilters.includes(level)}
+                    onCheckedChange={() => setLevelFilters((prev) => toggleValue(prev, level))}
+                    onSelect={(e) => e.preventDefault()}
+                  >
                     {level}
-                  </SelectItem>
+                  </DropdownMenuCheckboxItem>
                 ))}
-              </SelectContent>
-            </Select>
+              </DropdownMenuContent>
+            </DropdownMenu>
 
-            <Select value={componentFilter} onValueChange={setComponentFilter}>
-              <SelectTrigger size="sm" className="h-8 w-40 text-xs pointer-coarse:h-10">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All components</SelectItem>
-                {components.map((c) => (
-                  <SelectItem key={c} value={c}>
-                    {c}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 w-40 justify-between text-xs pointer-coarse:h-10"
+                >
+                  <span className="truncate">
+                    {multiSelectLabel(componentFilters, "All components")}
+                  </span>
+                  <ChevronsUpDown className="ml-1 h-3.5 w-3.5 shrink-0 opacity-50" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="max-h-80 w-40 overflow-y-auto">
+                {components.length === 0 ? (
+                  <div className="px-2 py-1.5 text-sm text-muted-foreground">No components</div>
+                ) : (
+                  components.map((c) => (
+                    <DropdownMenuCheckboxItem
+                      key={c}
+                      checked={componentFilters.includes(c)}
+                      onCheckedChange={() => setComponentFilters((prev) => toggleValue(prev, c))}
+                      onSelect={(e) => e.preventDefault()}
+                    >
+                      {c}
+                    </DropdownMenuCheckboxItem>
+                  ))
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
 
             <div className="relative min-w-48 flex-1">
               <Search className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
@@ -311,91 +368,106 @@ export function LogsOverview() {
             </div>
           </div>
 
-          <Table className="text-sm">
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-24">Time</TableHead>
-                <TableHead className="w-24">Level</TableHead>
-                <TableHead className="w-28">Component</TableHead>
-                <TableHead>Message</TableHead>
-                <TableHead className="w-10" />
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filtered.map((entry) => {
-                const r = entry.record
-                const hasTraceback = typeof r.exception === "string" && r.exception.length > 0
-                return (
-                  <TableRow
-                    key={entry.id}
-                    tabIndex={0}
-                    role="button"
-                    className="cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
-                    onClick={() => setSelected(r)}
-                    onKeyDown={(e) => {
-                      // Only react when the row itself is the event target: a
-                      // native keydown on a nested control (the traceback
-                      // button) still bubbles up here even though its click
-                      // handler calls stopPropagation, since that only stops
-                      // the click event, not this separate keydown binding.
-                      if (e.target !== e.currentTarget) return
-                      if (e.key === "Enter" || e.key === " ") {
-                        e.preventDefault()
-                        setSelected(r)
-                      }
-                    }}
-                  >
-                    <TableCell className="w-24 py-1.5 text-xs tabular-nums text-muted-foreground">
-                      <span title={r.timestamp ? new Date(r.timestamp).toLocaleString() : undefined}>
-                        {r.timestamp ? new Date(r.timestamp).toLocaleTimeString() : "-"}
-                      </span>
-                    </TableCell>
-                    <TableCell className="w-24 py-1.5">
-                      <Badge
-                        variant="outline"
-                        className={cn("gap-1", levelBadgeClasses[r.level ?? ""] ?? levelBadgeClasses.info)}
-                      >
-                        {r.level ?? "info"}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="w-28 py-1.5">
-                      <MonoChip>{component(r)}</MonoChip>
-                    </TableCell>
-                    <TableCell className="w-full max-w-0 py-1.5">
-                      <span className="block truncate font-mono text-xs" title={r.event}>
-                        {r.event ?? "(no message)"}
-                      </span>
-                    </TableCell>
-                    <TableCell className="w-10 py-1.5">
-                      {hasTraceback ? (
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          className="pointer-coarse:h-10"
-                          aria-label="View traceback"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            setTracebackRecord(r)
-                          }}
+          <div className="max-h-[65vh] overflow-y-auto rounded-md border">
+            <Table className="text-sm">
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="sticky top-0 z-10 w-24 bg-card">Time</TableHead>
+                  <TableHead className="sticky top-0 z-10 w-24 bg-card">Level</TableHead>
+                  <TableHead className="sticky top-0 z-10 w-28 bg-card">Component</TableHead>
+                  <TableHead className="sticky top-0 z-10 bg-card">Message</TableHead>
+                  <TableHead className="sticky top-0 z-10 w-10 bg-card" />
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filtered.map((entry) => {
+                  const r = entry.record
+                  const hasTraceback = typeof r.exception === "string" && r.exception.length > 0
+                  return (
+                    <TableRow
+                      key={entry.id}
+                      tabIndex={0}
+                      role="button"
+                      className="cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+                      onClick={() => setSelected(r)}
+                      onKeyDown={(e) => {
+                        // Only react when the row itself is the event target: a
+                        // native keydown on a nested control (the traceback
+                        // button) still bubbles up here even though its click
+                        // handler calls stopPropagation, since that only stops
+                        // the click event, not this separate keydown binding.
+                        if (e.target !== e.currentTarget) return
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault()
+                          setSelected(r)
+                        }
+                      }}
+                    >
+                      <TableCell className="w-24 py-1.5 text-xs tabular-nums text-muted-foreground">
+                        <span title={r.timestamp ? new Date(r.timestamp).toLocaleString() : undefined}>
+                          {r.timestamp ? new Date(r.timestamp).toLocaleTimeString() : "-"}
+                        </span>
+                      </TableCell>
+                      <TableCell className="w-24 py-1.5">
+                        <Badge
+                          variant="outline"
+                          className={cn(
+                            "gap-1 uppercase",
+                            levelBadgeClasses[r.level ?? ""] ?? levelBadgeClasses.info,
+                          )}
                         >
-                          <Layers className="h-3.5 w-3.5" />
-                        </Button>
-                      ) : null}
+                          {r.level ?? "info"}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="w-28 py-1.5">
+                        <MonoChip>{component(r)}</MonoChip>
+                      </TableCell>
+                      <TableCell className="w-full max-w-0 py-1.5">
+                        {(() => {
+                          const context = formatContext(r)
+                          const eventText = r.event ?? "(no message)"
+                          return (
+                            <span
+                              className="block truncate font-mono text-xs"
+                              title={context ? `${eventText} ${context}` : eventText}
+                            >
+                              {eventText}
+                              {context ? <span className="text-muted-foreground"> {context}</span> : null}
+                            </span>
+                          )
+                        })()}
+                      </TableCell>
+                      <TableCell className="w-10 py-1.5">
+                        {hasTraceback ? (
+                          <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            className="pointer-coarse:h-10"
+                            aria-label="View traceback"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setTracebackRecord(r)
+                            }}
+                          >
+                            <Layers className="h-3.5 w-3.5" />
+                          </Button>
+                        ) : null}
+                      </TableCell>
+                    </TableRow>
+                  )
+                })}
+                {filtered.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={5} className="h-24 text-center text-sm text-muted-foreground">
+                      {entries.length === 0
+                        ? "Waiting for log lines..."
+                        : "No log lines match the current filters."}
                     </TableCell>
                   </TableRow>
-                )
-              })}
-              {filtered.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={5} className="h-24 text-center text-sm text-muted-foreground">
-                    {entries.length === 0
-                      ? "Waiting for log lines..."
-                      : "No log lines match the current filters."}
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
+                )}
+              </TableBody>
+            </Table>
+          </div>
         </CardContent>
       </Card>
 
@@ -473,7 +545,10 @@ export function LogsOverview() {
                 <DialogTitle className="flex items-center gap-2">
                   <Badge
                     variant="outline"
-                    className={cn("gap-1", levelBadgeClasses[selected.level ?? ""] ?? levelBadgeClasses.info)}
+                    className={cn(
+                      "gap-1 uppercase",
+                      levelBadgeClasses[selected.level ?? ""] ?? levelBadgeClasses.info,
+                    )}
                   >
                     {selected.level ?? "info"}
                   </Badge>
