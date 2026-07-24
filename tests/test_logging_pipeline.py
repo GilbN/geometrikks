@@ -329,9 +329,9 @@ class TestCreateLoggingConfig:
     def test_handler_levels_are_respected_behind_queue(self, configured_logging):
         import structlog
         from geometrikks.server.logging import LOGIN_LOGGER_NAME
-        # Use a non-login logger for the DEBUG event: the login logger is
-        # pinned at INFO (see TestLoginLoggerLevelPinned), so a DEBUG call on
-        # it would be filtered at the logger itself rather than demonstrate
+        # Use a non-login logger for this probe: the login logger is pinned
+        # at INFO (see TestLoginLoggerLevelPinned), so a DEBUG call on it
+        # would be filtered at the logger itself rather than demonstrate
         # per-handler level filtering behind the shared queue.
         structlog.stdlib.get_logger("geometrikks.test.levels").debug(
             "debug_other_event"
@@ -345,6 +345,17 @@ class TestCreateLoggingConfig:
         # The DEBUG event still reaches the main file (its handler level is DEBUG).
         main = configured_logging / "geometrikks.log"
         assert _wait_for(lambda: "debug_other_event" in main.read_text(encoding="utf-8"))
+
+        # A DEBUG call directly on the login logger, however, is filtered at
+        # the logger itself (pinned to INFO), so it must reach neither file
+        # at all -- this pins both the login-logger level pin and the
+        # per-handler level path in one assertion.
+        structlog.stdlib.get_logger(LOGIN_LOGGER_NAME).debug(
+            "debug_login_event_should_not_appear", user="x", ip="1.2.3.4"
+        )
+        time.sleep(0.2)
+        assert "debug_login_event_should_not_appear" not in login.read_text(encoding="utf-8")
+        assert "debug_login_event_should_not_appear" not in main.read_text(encoding="utf-8")
 
 
 class TestLoginLoggerLevelPinned:
@@ -369,6 +380,78 @@ class TestLoginLoggerLevelPinned:
         assert _wait_for(lambda: "login_success" in login.read_text(encoding="utf-8"))
         line = login.read_text(encoding="utf-8").splitlines()[-1]
         assert LOGIN_LINE_RE.match(line), line
+
+
+@pytest.fixture()
+def _restore_umask():
+    """chmod-based writability tests can leave a directory unreadable for
+    pytest's own cleanup; make sure permissions are restored either way."""
+    dirs: list[Path] = []
+    yield dirs
+    for d in dirs:
+        d.chmod(0o755)
+
+
+class TestLogDirWritabilityFallback:
+    def test_unwritable_log_dir_disables_file_handlers(self, tmp_path, monkeypatch, capsys, _restore_umask):
+        import os
+        if os.geteuid() == 0:
+            pytest.skip("root bypasses directory permission bits")
+
+        log_dir = tmp_path / "unwritable"
+        log_dir.mkdir()
+        log_dir.chmod(0o555)
+        _restore_umask.append(log_dir)
+
+        monkeypatch.setenv("LOG_DIR", str(log_dir))
+        monkeypatch.setenv("LOG_LEVEL", "DEBUG")
+        from geometrikks.config.settings import get_settings
+        get_settings.cache_clear()
+        from geometrikks.server.logging import create_logging_config
+        config = create_logging_config(get_settings())
+        config.configure()
+        config.standard_lib_logging_config.configure()
+
+        # Loud error printed at configure time, mentioning the path and a fix.
+        err = capsys.readouterr().err
+        assert str(log_dir) in err
+        assert "DISABLED" in err
+        assert "chown" in err
+
+        # No file handlers registered; only console/broadcast survive.
+        import logging.handlers as lh
+        root = logging.getLogger()
+        queue_handlers = [h for h in root.handlers if isinstance(h, lh.QueueHandler)]
+        assert queue_handlers, "root must still log through the queue handler"
+        listener_types = {type(h).__name__ for h in queue_handlers[0].listener.handlers}
+        assert "GzipRotatingFileHandler" not in listener_types
+        assert "StreamHandler" in listener_types
+
+        # No log files were created inside the unwritable dir.
+        assert not (log_dir / "geometrikks.log").exists()
+        assert not (log_dir / "login.log").exists()
+
+        # The app still logs (to console) without raising.
+        import structlog
+        structlog.stdlib.get_logger("geometrikks.test").info("still_alive")
+
+    def test_writable_log_dir_keeps_file_handlers(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("LOG_DIR", str(tmp_path / "logs"))
+        monkeypatch.setenv("LOG_LEVEL", "DEBUG")
+        from geometrikks.config.settings import get_settings
+        get_settings.cache_clear()
+        from geometrikks.server.logging import create_logging_config
+        config = create_logging_config(get_settings())
+        config.configure()
+        config.standard_lib_logging_config.configure()
+
+        import logging.handlers as lh
+        root = logging.getLogger()
+        queue_handlers = [h for h in root.handlers if isinstance(h, lh.QueueHandler)]
+        listener_types = {type(h).__name__ for h in queue_handlers[0].listener.handlers}
+        assert "GzipRotatingFileHandler" in listener_types
+        assert (tmp_path / "logs" / "geometrikks.log").exists()
+        assert (tmp_path / "logs" / "login.log").exists()
 
 
 class TestAppWiring:

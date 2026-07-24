@@ -16,6 +16,7 @@ import json
 import logging
 import os
 import shutil
+import sys
 from logging.handlers import QueueHandler, RotatingFileHandler
 from typing import TYPE_CHECKING, Any
 
@@ -23,6 +24,8 @@ import structlog
 from litestar.logging.config import LoggingConfig, StructLoggingConfig
 
 if TYPE_CHECKING:
+    from pathlib import Path
+
     from geometrikks.config.settings import Settings
 
 SUCCESS_LEVEL = 25  # between INFO (20) and WARNING (30)
@@ -201,6 +204,22 @@ def _console_renderer() -> structlog.dev.ConsoleRenderer:
     return structlog.dev.ConsoleRenderer(colors=True, level_styles=styles)
 
 
+def _log_dir_write_error(log_dir: "Path") -> str | None:
+    """Try to create log_dir and confirm it is actually writable.
+
+    Returns None when the directory is usable, otherwise a short
+    human-readable description of the OSError that prevented it.
+    """
+    try:
+        log_dir.mkdir(parents=True, exist_ok=True)
+        probe = log_dir / ".write_probe"
+        probe.write_text("")
+        probe.unlink()
+    except OSError as exc:
+        return f"{exc.strerror or exc} (errno={exc.errno})"
+    return None
+
+
 def create_logging_config(settings: "Settings") -> StructLoggingConfig:
     """Full pipeline: console + JSONL file + login file + WS broadcast.
 
@@ -209,7 +228,20 @@ def create_logging_config(settings: "Settings") -> StructLoggingConfig:
     """
     register_success_level()
     log_dir = settings.log.dir
-    log_dir.mkdir(parents=True, exist_ok=True)
+    write_error = _log_dir_write_error(log_dir)
+    file_logging_enabled = write_error is None
+
+    if not file_logging_enabled:
+        print(
+            f"ERROR: log directory {log_dir} is not writable ({write_error}); "
+            "file logging is DISABLED, including login.log, until this is "
+            "fixed. Console logging continues. Fix ownership/permissions "
+            "(e.g. `chown 1000:1000` for the container's geometrikks user, "
+            "or the equivalent for a non-default uid) and restart to "
+            "re-enable file logging.",
+            file=sys.stderr,
+            flush=True,
+        )
 
     shared = _shared_processors()
     fmt = structlog.stdlib.ProcessorFormatter
@@ -225,6 +257,50 @@ def create_logging_config(settings: "Settings") -> StructLoggingConfig:
             "foreign_pre_chain": shared,
         }
 
+    handlers: dict[str, Any] = {
+        "console": {
+            "class": "logging.StreamHandler",
+            "level": "DEBUG",
+            "formatter": "console",
+        },
+        "broadcast": {
+            "()": BroadcastHandler,
+            "level": "DEBUG",
+            "formatter": "json",
+        },
+    }
+    queue_targets = ["console", "broadcast"]
+
+    if file_logging_enabled:
+        handlers["main_file"] = {
+            "()": GzipRotatingFileHandler,
+            "level": "DEBUG",
+            "formatter": "json",
+            "filename": str(log_dir / MAIN_LOG_NAME),
+            "maxBytes": settings.log.main_max_bytes,
+            "backupCount": settings.log.main_backup_count,
+            "encoding": "utf-8",
+        }
+        handlers["login_file"] = {
+            "()": GzipRotatingFileHandler,
+            "level": "INFO",
+            "formatter": "login",
+            "filters": ["login_only"],
+            "filename": str(log_dir / LOGIN_LOG_NAME),
+            "maxBytes": settings.log.login_max_bytes,
+            "backupCount": settings.log.login_backup_count,
+            "encoding": "utf-8",
+        }
+        queue_targets = ["console", "main_file", "login_file", "broadcast"]
+
+    handlers["queue_listener"] = {
+        "class": NonBlockingQueueHandler,
+        "queue": {"()": "queue.Queue", "maxsize": -1},
+        "listener": "litestar.logging.standard.LoggingQueueListener",
+        "handlers": queue_targets,
+        "respect_handler_level": True,
+    }
+
     standard_lib = LoggingConfig(
         formatters={
             "console": formatter(_console_renderer()),
@@ -232,44 +308,7 @@ def create_logging_config(settings: "Settings") -> StructLoggingConfig:
             "login": formatter(render_login_line),
         },
         filters={"login_only": {"()": LoginOnlyFilter}},
-        handlers={
-            "console": {
-                "class": "logging.StreamHandler",
-                "level": "DEBUG",
-                "formatter": "console",
-            },
-            "main_file": {
-                "()": GzipRotatingFileHandler,
-                "level": "DEBUG",
-                "formatter": "json",
-                "filename": str(log_dir / MAIN_LOG_NAME),
-                "maxBytes": settings.log.main_max_bytes,
-                "backupCount": settings.log.main_backup_count,
-                "encoding": "utf-8",
-            },
-            "login_file": {
-                "()": GzipRotatingFileHandler,
-                "level": "INFO",
-                "formatter": "login",
-                "filters": ["login_only"],
-                "filename": str(log_dir / LOGIN_LOG_NAME),
-                "maxBytes": settings.log.login_max_bytes,
-                "backupCount": settings.log.login_backup_count,
-                "encoding": "utf-8",
-            },
-            "broadcast": {
-                "()": BroadcastHandler,
-                "level": "DEBUG",
-                "formatter": "json",
-            },
-            "queue_listener": {
-                "class": NonBlockingQueueHandler,
-                "queue": {"()": "queue.Queue", "maxsize": -1},
-                "listener": "litestar.logging.standard.LoggingQueueListener",
-                "handlers": ["console", "main_file", "login_file", "broadcast"],
-                "respect_handler_level": True,
-            },
-        },
+        handlers=handlers,
         loggers={
             "litestar": {"level": "INFO", "handlers": ["queue_listener"], "propagate": False},
             LOGIN_LOGGER_NAME: {"level": "INFO"},

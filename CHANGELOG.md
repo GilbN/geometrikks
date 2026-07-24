@@ -50,7 +50,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   scheduler and task completions use a new SUCCESS log level.
 - `docker-compose.yml` now mounts `./logs:/app/logs` on the app service so
   application logs persist across container recreation and `login.log` is
-  readable by host-side tools like CrowdSec/fail2ban.
+  readable by host-side tools like CrowdSec/fail2ban. If that directory is
+  not writable by the container (e.g. wrong owner on a freshly created host
+  path), the app now falls back to console-only logging and prints a loud
+  startup error instead of crashing.
 
 ### Deprecated
 

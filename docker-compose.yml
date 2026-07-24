@@ -6,7 +6,9 @@
 #   docker compose up -d
 #
 # ./logs on the host holds the application log and login.log, readable by
-# host-side tools like CrowdSec/fail2ban.
+# host-side tools like CrowdSec/fail2ban. Create it with the right owner
+# before first start: mkdir -p logs && chown 1000:1000 logs (the container
+# runs as uid 1000; without this the app falls back to console-only logging).
 #
 # Developing GeoMetrikks itself? Use docker-compose.dev.yml instead.
 services:

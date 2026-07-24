@@ -75,8 +75,10 @@ services:
       LOG_LEVEL: DEBUG
       # ./logs is mounted read-only below for nginx access log ingestion, so
       # the app's own log files (geometrikks.log, login.log) need a separate
-      # writable directory that does not collide with it.
-      LOG_DIR: /app/applogs
+      # writable directory that does not collide with it. Kept outside /app
+      # (the container runs as root here, so /var/log is writable) so app
+      # log writes cannot land inside the tree the reload watcher scans.
+      LOG_DIR: /var/log/geometrikks
       DB_HOST: timescale_db
       DB_PORT: 5432
       DB_USER: geouser
