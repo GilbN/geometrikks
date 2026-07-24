@@ -73,7 +73,11 @@ async def _run_import(paths: list[Path], *, force: bool, batch_size: int) -> Non
     try:
         for path in paths:
             click.echo(f"Importing {path} ...")
-            parser = LogParser(log_path=path, send_logs=settings.logparser.send_logs)
+            parser = LogParser(
+                log_path=path,
+                send_logs=settings.logparser.send_logs,
+                ignore_ips=settings.logparser.ignore_ips,
+            )
 
             def show_progress(lines: int, lps: float) -> None:
                 click.echo(f"  {lines:>12,} lines  ({lps:,.0f} lines/s)")

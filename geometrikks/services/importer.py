@@ -142,6 +142,9 @@ async def import_file(
     for line in iter_lines(path):
         lines_total += 1
         record = parser.parse_line(line, lookup)
+        if record is None:  # IP on the ignore list; drop the line entirely
+            lines_skipped += 1
+            continue
         batch.append(record)
 
         if record.ip_address is None:  # line didn't match the format

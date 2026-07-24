@@ -547,3 +547,8 @@ class LogIngestionService:
     def skipped_lines(self) -> int:
         """Total skipped lines across all tailed files."""
         return sum(parser.skipped_lines for parser in self.parsers)
+
+    @property
+    def ignored_lines(self) -> int:
+        """Total ignore-list dropped lines across all tailed files."""
+        return sum(parser.ignored_lines for parser in self.parsers)

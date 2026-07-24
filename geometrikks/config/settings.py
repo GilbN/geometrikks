@@ -225,6 +225,15 @@ class LogParserSettings(BaseSettings):
         default=False,
         description="Store all raw log lines in AccessLogDebug table. When False, only malformed requests are stored.",
     )
+    ignore_ips: Annotated[list[str], NoDecode] = Field(
+        default_factory=list,
+        description=(
+            "IPs/CIDRs the parser drops entirely (no geo event, access log, "
+            "or debug row). Use for your own traffic hitting the reverse "
+            "proxy. Env accepts one value, comma-separated values, or a "
+            "JSON list. Empty (default): nothing is ignored."
+        ),
+    )
 
     @field_validator("log_paths", mode="before")
     @classmethod
@@ -237,6 +246,32 @@ class LogParserSettings(BaseSettings):
             if stripped.startswith("["):
                 return json.loads(stripped)
             return [stripped]
+        return value
+
+    @field_validator("ignore_ips", mode="before")
+    @classmethod
+    def parse_ignore_ips(cls, value: object) -> object:
+        """Accept one value, comma-separated values, or a JSON list."""
+        if isinstance(value, str):
+            stripped = value.strip()
+            if not stripped:
+                return []
+            if stripped.startswith("["):
+                return json.loads(stripped)
+            return [part.strip() for part in stripped.split(",") if part.strip()]
+        return value
+
+    @field_validator("ignore_ips")
+    @classmethod
+    def validate_ignore_ips(cls, value: list[str]) -> list[str]:
+        """Fail at startup on entries that are not an IP or CIDR."""
+        for entry in value:
+            try:
+                ip_network(entry, strict=False)
+            except ValueError as exc:
+                raise ValueError(
+                    f"LOGPARSER_IGNORE_IPS entry {entry!r} is not an IP address or CIDR"
+                ) from exc
         return value
 
 
