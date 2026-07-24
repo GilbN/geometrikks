@@ -173,6 +173,10 @@ function GeoMapInner({
     }
   }, [projection])
 
+  useEffect(() => {
+    saveLiveOverlays(liveOverlays)
+  }, [liveOverlays])
+
   // Filter options come from the last UNFILTERED result (a second query just
   // for options would be wasteful), held in a ref so the option lists don't
   // shrink to the filtered subset while a filter is active.
@@ -287,11 +291,7 @@ function GeoMapInner({
 
   const changeLiveOverlay = useCallback(
     (key: keyof LiveOverlayPreferences, enabled: boolean) => {
-      setLiveOverlays((previous) => {
-        const next = { ...previous, [key]: enabled }
-        saveLiveOverlays(next)
-        return next
-      })
+      setLiveOverlays((previous) => ({ ...previous, [key]: enabled }))
     },
     [],
   )
