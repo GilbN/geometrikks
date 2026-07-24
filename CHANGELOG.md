@@ -25,11 +25,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   filters and search, color-coded level badges (including the new SUCCESS
   level), traceback and detail dialogs, and downloads for the application
   log, login log, rotated gzip archives, and ingested nginx access logs. A
-  tabs toggle above the stream switches between the system log and the
-  login log, each with its own buffer, while filters, search, pause and the
-  detail dialog behave the same on both. A "Rotate logs" button on the
-  downloads card triggers the manual rotation endpoint on demand and
-  refreshes the file list to show the new archive.
+  tabs toggle at the top of the card switches between the system log, the
+  login log, and a Downloads tab; the two log tabs each keep their own
+  buffer while filters, search, pause and the detail dialog behave the same
+  on both, and the Downloads tab holds the file list. A "Rotate logs"
+  button on the Downloads tab triggers the manual rotation endpoint on
+  demand and refreshes the file list to show the new archive.
 
 ### Changed
 

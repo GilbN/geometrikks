@@ -2,7 +2,7 @@
  * Live log tail for Settings -> Logs: seeded from the tail endpoint, then
  * appended from the /ws/logs stream. Level/component/search filters, a
  * traceback dialog for exceptions, a full-record detail dialog, and a
- * downloads card for the raw files behind the stream.
+ * downloads tab for the raw files behind the stream.
  */
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
@@ -143,7 +143,7 @@ export function LogsOverview() {
     onSettled: () => queryClient.invalidateQueries({ queryKey: queryKeys.logs.files }),
   })
 
-  const [activeLog, setActiveLog] = useState<"app" | "login">("app")
+  const [activeTab, setActiveTab] = useState<"app" | "login" | "downloads">("app")
 
   const [entries, setEntries] = useState<Entry[]>([])
   const seededRef = useRef(false)
@@ -257,7 +257,7 @@ export function LogsOverview() {
     }
   }
 
-  const activeEntries = activeLog === "login" ? loginEntries : entries
+  const activeEntries = activeTab === "login" ? loginEntries : entries
 
   const components = useMemo(() => {
     const set = new Set<string>()
@@ -298,34 +298,124 @@ export function LogsOverview() {
     <div className="space-y-4">
       <Card>
         <CardHeader>
-          <Tabs value={activeLog} onValueChange={(v) => setActiveLog(v as "app" | "login")}>
+          <Tabs
+            value={activeTab}
+            onValueChange={(v) => setActiveTab(v as "app" | "login" | "downloads")}
+          >
             <TabsList className="pointer-coarse:h-10">
               <TabsTrigger value="app">System log</TabsTrigger>
               <TabsTrigger value="login">Login log</TabsTrigger>
+              <TabsTrigger value="downloads">Downloads</TabsTrigger>
             </TabsList>
           </Tabs>
-          <div className="flex items-center gap-3">
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-geo-cyan/10">
-              <ScrollText className="h-4 w-4 text-geo-cyan" />
+          {activeTab === "downloads" ? (
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-geo-cyan/10">
+                  <FolderDown className="h-4 w-4 text-geo-cyan" />
+                </div>
+                <div>
+                  <CardTitle className="text-base">Log downloads</CardTitle>
+                  <CardDescription>
+                    Raw files behind the live stream: the application log, login log, and ingested
+                    nginx access logs.
+                  </CardDescription>
+                </div>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                className="pointer-coarse:h-10"
+                disabled={rotateLogs.isPending}
+                onClick={() => rotateLogs.mutate()}
+              >
+                <Archive className="mr-1.5 h-3.5 w-3.5" />
+                {rotateLogs.isPending ? "Rotating..." : "Rotate logs"}
+              </Button>
             </div>
-            <div>
-              <CardTitle className="text-base">
-                <span className="inline-flex items-center gap-2">
-                  <StatusLed tone={ledTone} pulse={ledPulse} />
-                  Live log stream
-                </span>
-              </CardTitle>
-              <CardDescription>
-                Streaming from the {activeLog === "login" ? "login" : "application"} log. Newest
-                first; buffer keeps the last 2,000 lines.{" "}
-                <span className="tabular-nums">{activeEntries.length.toLocaleString()} buffered</span>
-                {totalDropped > 0 ? (
-                  <span className="tabular-nums">, {totalDropped.toLocaleString()} dropped</span>
-                ) : null}
-              </CardDescription>
+          ) : (
+            <div className="flex items-center gap-3">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-geo-cyan/10">
+                <ScrollText className="h-4 w-4 text-geo-cyan" />
+              </div>
+              <div>
+                <CardTitle className="text-base">
+                  <span className="inline-flex items-center gap-2">
+                    <StatusLed tone={ledTone} pulse={ledPulse} />
+                    Live log stream
+                  </span>
+                </CardTitle>
+                <CardDescription>
+                  Streaming from the {activeTab === "login" ? "login" : "application"} log. Newest
+                  first; buffer keeps the last 2,000 lines.{" "}
+                  <span className="tabular-nums">{activeEntries.length.toLocaleString()} buffered</span>
+                  {totalDropped > 0 ? (
+                    <span className="tabular-nums">, {totalDropped.toLocaleString()} dropped</span>
+                  ) : null}
+                </CardDescription>
+              </div>
             </div>
-          </div>
+          )}
         </CardHeader>
+        {activeTab === "downloads" ? (
+          <CardContent className="space-y-4">
+            {groupedFiles.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                {files ? "No log files found." : "Loading downloads..."}
+              </p>
+            ) : (
+              groupedFiles.map((group) => (
+                <div key={group.kind} className="space-y-1">
+                  <h4 className="text-sm font-medium">{fileKindLabels[group.kind]}</h4>
+                  <div className="divide-y rounded-md border">
+                    {group.files.map((f) => (
+                      <div
+                        key={f.name}
+                        className="flex flex-wrap items-center justify-between gap-2 p-2"
+                      >
+                        <div className="min-w-0">
+                          <div className="truncate font-mono text-xs">{f.name}</div>
+                          <div className="text-xs text-muted-foreground">
+                            {formatSize(f.size_bytes)}
+                            {" · "}
+                            {f.modified_at ? new Date(f.modified_at).toLocaleString() : "unknown"}
+                            {!f.available ? " · not readable" : ""}
+                          </div>
+                        </div>
+                        {f.available ? (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="pointer-coarse:h-10"
+                            asChild
+                          >
+                            <a
+                              href={`/api/v1/logs/files/${f.kind}/${encodeURIComponent(f.name)}`}
+                              download
+                            >
+                              <Download className="mr-1.5 h-3.5 w-3.5" />
+                              Download
+                            </a>
+                          </Button>
+                        ) : (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="pointer-coarse:h-10"
+                            disabled
+                          >
+                            <Download className="mr-1.5 h-3.5 w-3.5" />
+                            Download
+                          </Button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))
+            )}
+          </CardContent>
+        ) : (
         <CardContent className="space-y-3">
           <div className="flex flex-wrap items-center gap-2">
             <Button
@@ -516,84 +606,7 @@ export function LogsOverview() {
             </TableBody>
           </Table>
         </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-geo-cyan/10">
-                <FolderDown className="h-4 w-4 text-geo-cyan" />
-              </div>
-              <div>
-                <CardTitle className="text-base">Log downloads</CardTitle>
-                <CardDescription>
-                  Raw files behind the stream above: the application log, login log, and ingested
-                  nginx access logs.
-                </CardDescription>
-              </div>
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              className="pointer-coarse:h-10"
-              disabled={rotateLogs.isPending}
-              onClick={() => rotateLogs.mutate()}
-            >
-              <Archive className="mr-1.5 h-3.5 w-3.5" />
-              {rotateLogs.isPending ? "Rotating..." : "Rotate logs"}
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {groupedFiles.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              {files ? "No log files found." : "Loading downloads..."}
-            </p>
-          ) : (
-            groupedFiles.map((group) => (
-              <div key={group.kind} className="space-y-1">
-                <h4 className="text-sm font-medium">{fileKindLabels[group.kind]}</h4>
-                <div className="divide-y rounded-md border">
-                  {group.files.map((f) => (
-                    <div
-                      key={f.name}
-                      className="flex flex-wrap items-center justify-between gap-2 p-2"
-                    >
-                      <div className="min-w-0">
-                        <div className="truncate font-mono text-xs">{f.name}</div>
-                        <div className="text-xs text-muted-foreground">
-                          {formatSize(f.size_bytes)}
-                          {" · "}
-                          {f.modified_at ? new Date(f.modified_at).toLocaleString() : "unknown"}
-                          {!f.available ? " · not readable" : ""}
-                        </div>
-                      </div>
-                      {f.available ? (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="pointer-coarse:h-10"
-                          asChild
-                        >
-                          <a href={`/api/v1/logs/files/${f.kind}/${encodeURIComponent(f.name)}`} download>
-                            <Download className="mr-1.5 h-3.5 w-3.5" />
-                            Download
-                          </a>
-                        </Button>
-                      ) : (
-                        <Button variant="outline" size="sm" className="pointer-coarse:h-10" disabled>
-                          <Download className="mr-1.5 h-3.5 w-3.5" />
-                          Download
-                        </Button>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))
-          )}
-        </CardContent>
+        )}
       </Card>
 
       <Dialog open={selected !== null} onOpenChange={(open) => !open && setSelected(null)}>
