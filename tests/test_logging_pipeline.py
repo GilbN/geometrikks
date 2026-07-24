@@ -313,6 +313,23 @@ class TestCreateLoggingConfig:
         assert (configured_logging / "geometrikks.log").exists()
         assert (configured_logging / "login.log").exists()
 
+    def test_queue_is_bounded(self, configured_logging):
+        import logging.handlers as lh
+        from geometrikks.server.logging import LOG_QUEUE_MAXSIZE
+        root = logging.getLogger()
+        handler = next(h for h in root.handlers if isinstance(h, lh.QueueHandler))
+        assert handler.queue.maxsize == LOG_QUEUE_MAXSIZE
+
+    def test_full_queue_drops_instead_of_blocking_or_raising(self):
+        import queue as queue_mod
+
+        from geometrikks.server.logging import NonBlockingQueueHandler
+        handler = NonBlockingQueueHandler(queue_mod.Queue(maxsize=1))
+        record = logging.LogRecord("t", logging.INFO, __file__, 1, "one", None, None)
+        handler.emit(record)
+        handler.emit(record)  # queue full: must return immediately, no error
+        assert handler.queue.qsize() == 1
+
     def test_jsonl_main_log_line(self, configured_logging):
         import json as jsonlib
         import structlog

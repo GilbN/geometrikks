@@ -15,6 +15,7 @@ import ipaddress
 import json
 import logging
 import os
+import queue
 import shutil
 import sys
 import weakref
@@ -228,6 +229,7 @@ class BroadcastHandler(logging.Handler):
 
 MAIN_LOG_NAME = "geometrikks.log"
 LOGIN_LOG_NAME = "login.log"
+LOG_QUEUE_MAXSIZE = 10_000  # ~10 MB worst case at ~1 KB per record
 
 
 class NonBlockingQueueHandler(QueueHandler):
@@ -242,10 +244,20 @@ class NonBlockingQueueHandler(QueueHandler):
     the way to ``ProcessorFormatter`` in the listener thread. Flattening it
     early turns every record into ``str(event_dict)`` and breaks every
     downstream sink, so this override is a no-op instead.
+
+    ``enqueue`` drops the record when the (bounded) queue is full: if the
+    listener thread stalls (hung disk, gzip rotation on a huge file), losing
+    log lines beats blocking the caller or growing the queue until OOM. The
+    stdlib default would funnel each overflow through ``handleError`` and
+    spam a traceback to stderr per dropped record.
     """
 
     def prepare(self, record: logging.LogRecord) -> logging.LogRecord:
         return record
+
+    def enqueue(self, record: logging.LogRecord) -> None:
+        with contextlib.suppress(queue.Full):
+            self.queue.put_nowait(record)
 
 
 def _capture_exc_info(_: Any, __: str, event_dict: dict[str, Any]) -> dict[str, Any]:
@@ -423,9 +435,12 @@ def create_logging_config(settings: "Settings") -> StructLoggingConfig:
         }
         queue_targets = ["console", "main_file", "login_file", "broadcast"]
 
+    # Bounded so a stalled listener thread caps out at ~LOG_QUEUE_MAXSIZE
+    # records in memory instead of growing until OOM; NonBlockingQueueHandler
+    # drops records once it fills.
     handlers["queue_listener"] = {
         "class": NonBlockingQueueHandler,
-        "queue": {"()": "queue.Queue", "maxsize": -1},
+        "queue": {"()": "queue.Queue", "maxsize": LOG_QUEUE_MAXSIZE},
         "listener": "litestar.logging.standard.LoggingQueueListener",
         "handlers": queue_targets,
         "respect_handler_level": True,
