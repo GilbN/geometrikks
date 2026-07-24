@@ -34,7 +34,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `LOGPARSER_IGNORE_IPS` setting: IPs/CIDRs the parser drops entirely so
   your own traffic through the reverse proxy is never ingested (applies to
   live tailing and file imports).
-  ([#45](https://github.com/GilbN/geometrikks/issues/45))
 
 ### Changed
 
