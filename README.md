@@ -459,6 +459,35 @@ hardened setups)? Set a `user:` on the `app` service in the compose file;
 the entrypoint detects it, skips the re-mapping, and just runs the app as
 that user. You are then back to managing `./logs` ownership yourself.
 
+Want to harden further? The entrypoint only needs the capabilities the
+remap itself uses, and `gosu` is not a setuid binary, so both of these are
+verified working combinations. With PUID/PGID re-mapping:
+
+```yaml
+  app:
+    # ...
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETUID
+      - SETGID
+```
+
+Or with a `user:` override, where the image needs no capabilities at all:
+
+```yaml
+  app:
+    # ...
+    user: "1000:1000"
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+```
+
 ## FAQ
 
 **I'm using Nginx Proxy Manager (or another proxy-manager container) - what
