@@ -34,6 +34,37 @@ class TestSuccessLevel:
         register_success_level()
         assert logging.getLevelName(25) == "SUCCESS"
 
+    def test_success_works_without_app_configuration(self, caplog):
+        # Modules like the importer call logger.success() from scripts and
+        # tests that never boot the app; the module-level default must make
+        # that safe instead of leaving structlog's success-less default.
+        import structlog
+
+        from geometrikks.server.logging import ensure_default_configuration, get_logger
+        try:
+            structlog.reset_defaults()
+            ensure_default_configuration()
+            with caplog.at_level(logging.INFO, logger="test.unconfigured"):
+                get_logger("test.unconfigured").success("no app booted")
+            assert any(r.levelname == "SUCCESS" for r in caplog.records)
+        finally:
+            structlog.reset_defaults()
+            ensure_default_configuration()
+
+    def test_default_configuration_does_not_clobber_explicit_config(self):
+        import structlog
+
+        from geometrikks.server.logging import ensure_default_configuration
+        try:
+            structlog.reset_defaults()
+            marker = structlog.testing.LogCapture()
+            structlog.configure(processors=[marker])
+            ensure_default_configuration()
+            assert structlog.get_config()["processors"] == [marker]
+        finally:
+            structlog.reset_defaults()
+            ensure_default_configuration()
+
 
 class TestGzipRotatingFileHandler:
     def _make_handler(self, tmp_path: Path, max_bytes: int = 200):

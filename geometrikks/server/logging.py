@@ -54,6 +54,25 @@ class SuccessBoundLogger(structlog.stdlib.BoundLogger):
         return self._proxy_to_logger("success", event, *args, **kw)
 
 
+def ensure_default_configuration() -> None:
+    """Make get_logger() usable before the app installs the full pipeline.
+
+    structlog's out-of-the-box bound logger has no success(), so any module
+    calling logger.success() outside a booted app (scripts, tests hitting
+    services directly) would crash with AttributeError. Point the defaults
+    at SuccessBoundLogger; create_logging_config reconfigures on app init.
+    """
+    register_success_level()
+    if not structlog.is_configured():
+        structlog.configure(
+            wrapper_class=SuccessBoundLogger,
+            logger_factory=structlog.stdlib.LoggerFactory(),
+        )
+
+
+ensure_default_configuration()
+
+
 def _gzip_rotator(source: str, dest: str) -> None:
     with open(source, "rb") as sf, gzip.open(dest, "wb") as df:
         shutil.copyfileobj(sf, df)
