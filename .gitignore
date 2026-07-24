@@ -385,3 +385,6 @@ openapi-ts-error-*.log
 
 # TanStack Router generator cache
 .tanstack/
+
+# Brainstorming visual companion (mockups, local only)
+.superpowers/
