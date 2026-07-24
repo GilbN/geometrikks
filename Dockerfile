@@ -51,6 +51,12 @@ ARG APP_IMAGE_TAG=local
 RUN groupadd --gid 1000 geometrikks \
     && useradd --uid 1000 --gid geometrikks --shell /bin/bash --create-home geometrikks
 
+# gosu: the entrypoint starts as root to remap the geometrikks user to
+# PUID/PGID and fix volume ownership, then drops privileges with it.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends gosu \
+    && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 
 COPY --chown=geometrikks:geometrikks --from=python-builder /app/.venv /app/.venv
@@ -79,13 +85,18 @@ ENV PATH="/app/.venv/bin:$PATH" \
 
 VOLUME ["/app/data/geoip"]
 
-USER geometrikks
+COPY --chmod=755 docker/entrypoint.sh /usr/local/bin/entrypoint.sh
 
 STOPSIGNAL SIGTERM
 EXPOSE 8000
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=5).read()" || exit 1
+
+# The entrypoint remaps the geometrikks user to PUID/PGID (default
+# 1000:1000), chowns /app/logs and /app/data/geoip, and drops privileges
+# before exec-ing the CMD. With a non-root `user:` override it just execs.
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
 
 # Run with Granian via Litestar CLI
 CMD ["litestar", "--app", "geometrikks.server.core:create_app", "run", "--host", "0.0.0.0", "--port", "8000"]

@@ -6,9 +6,9 @@
 #   docker compose up -d
 #
 # ./logs on the host holds the application log and login.log, readable by
-# host-side tools like CrowdSec/fail2ban. Create it with the right owner
-# before first start: mkdir -p logs && chown 1000:1000 logs (the container
-# runs as uid 1000; without this the app falls back to console-only logging).
+# host-side tools like CrowdSec/fail2ban. The container chowns it to
+# PUID:PGID (default 1000:1000) at startup; set PUID/PGID in .env to match
+# your host user if you want different ownership.
 #
 # Developing GeoMetrikks itself? Use docker-compose.dev.yml instead.
 services:
@@ -34,6 +34,8 @@ services:
     environment:
       DB_HOST: timescale_db
       DB_PASSWORD: ${DB_PASSWORD:-geopass}
+      PUID: ${PUID:-1000}
+      PGID: ${PGID:-1000}
     ports:
       - "8000:8000"
     env_file:
