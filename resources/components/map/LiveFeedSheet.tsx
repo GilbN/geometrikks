@@ -42,6 +42,14 @@ export function LiveFeedSheet({
     return () => window.clearInterval(interval)
   }, [open, store])
 
+  // Switching lanes swaps to a different (usually much shorter) list; keep the
+  // old scrollTop and the container can land past the new content's height,
+  // reading as blank until the user scrolls back up. Reset on lane change
+  // only, so it never fights new rows arriving at the top while reading.
+  useEffect(() => {
+    listRef.current?.scrollTo({ top: 0 })
+  }, [lane])
+
   const rows = lane === "threats" ? requests.filter((request) => request.threat) : requests
   const threatCount = requests.filter((request) => request.threat).length
 
@@ -63,7 +71,7 @@ export function LiveFeedSheet({
         </DrawerHeader>
         <div className="px-4 pb-2">
           <Tabs value={lane} onValueChange={(value) => setLane(value as "all" | "threats")}>
-            <TabsList className="w-full">
+            <TabsList className="w-full pointer-coarse:h-10">
               <TabsTrigger value="all" className="flex-1">
                 All {requests.length}
               </TabsTrigger>
