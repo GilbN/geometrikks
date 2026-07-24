@@ -8,11 +8,10 @@
 import { useCallback, useEffect, useRef } from "react"
 import { Layer, Source, useMap } from "react-map-gl/maplibre"
 import type { GeoJSONSource } from "maplibre-gl"
-import { useLiveEvents } from "@/lib/live-feed-context"
-import {
-  DEMO_TRAFFIC_ORIGINS,
-  type DemoTrafficMode,
-} from "@/lib/demo-traffic"
+import { packetColor, packetRadius, worseStatus } from "@/lib/live-traffic/classify"
+import type { LiveRequest, StatusClass } from "@/lib/live-traffic/types"
+import { useLiveTrafficStore } from "@/lib/live-traffic/context"
+import { BANNED_RING_IMAGE_ID, ensureBannedRingImage } from "./bannedRingImage"
 
 type Coordinate = [longitude: number, latitude: number]
 
@@ -21,6 +20,11 @@ interface Transmission {
   duration: number
   lane: string
   route: Coordinate[]
+  requestId: string
+  color: string
+  radius: number
+  banned: boolean
+  statusClass: StatusClass
 }
 
 const SOURCE_ID = "live-routes"
@@ -159,6 +163,31 @@ function emptyFeatureCollection(): GeoJSON.FeatureCollection {
   return { type: "FeatureCollection", features: [] }
 }
 
+/** Build the transmission for one request. Returns null when it has nowhere to fly from. */
+function createTransmission(
+  request: LiveRequest,
+  destination: Coordinate,
+  now: number,
+  reducedMotion: boolean,
+): Transmission | null {
+  const origin = request.coordinates
+  if (!origin) return null
+
+  const route = greatCircleRoute(origin, destination)
+  const distance = routeDistanceKm(route)
+  return {
+    born: now,
+    duration: reducedMotion ? 1100 : clamp(2600 + Math.sqrt(distance) * 38, 2800, 6500),
+    lane: routeLane(origin),
+    route,
+    requestId: request.id,
+    color: packetColor(request.statusClass),
+    radius: packetRadius(request.log?.bytes_sent),
+    banned: request.banned,
+    statusClass: request.statusClass,
+  }
+}
+
 function buildFrame(
   transmissions: Transmission[],
   destination: Coordinate,
@@ -169,6 +198,7 @@ function buildFrame(
   const visibleTransmissions = new Set<Transmission>()
   const visibleLanes = new Set<string>()
   const visiblePacketCells = new Set<string>()
+  let arrivalStatus: StatusClass = "unknown"
 
   // Prefer the most recent packet in each corridor. Working backwards makes
   // each corridor look live without rendering overlapping copies of its line.
@@ -189,28 +219,34 @@ function buildFrame(
     const originWave = (elapsed % 1050) / 1050
     const packetPulse = (Math.sin(elapsed / 105) + 1) / 2
     strongestArrival = Math.max(strongestArrival, linger > 0 ? 1 - linger : 0)
+    if (linger > 0) arrivalStatus = worseStatus(arrivalStatus, transmission.statusClass)
 
     if (visibleTransmissions.has(transmission)) {
       features.push(
         {
           type: "Feature",
           geometry: { type: "LineString", coordinates: transmission.route },
-          properties: { kind: "route", opacity },
+          properties: { kind: "route", opacity, color: transmission.color },
         },
         {
           type: "Feature",
           geometry: { type: "LineString", coordinates: travelled },
-          properties: { kind: "trail", opacity },
+          properties: { kind: "trail", opacity, color: transmission.color },
+        },
+        {
+          type: "Feature",
+          geometry: { type: "Point", coordinates: transmission.route[0] },
+          properties: {
+            kind: "origin",
+            opacity,
+            pulse: originWave,
+            color: transmission.color,
+            radius: transmission.radius,
+            banned: transmission.banned ? 1 : 0,
+            requestId: transmission.requestId,
+          },
         },
       )
-    }
-
-    if (visibleTransmissions.has(transmission)) {
-      features.push({
-        type: "Feature",
-        geometry: { type: "Point", coordinates: transmission.route[0] },
-        properties: { kind: "origin", opacity, pulse: originWave },
-      })
     }
 
     const shouldShowPacket = linearProgress < 1
@@ -221,7 +257,15 @@ function buildFrame(
       features.push({
         type: "Feature",
         geometry: { type: "Point", coordinates: point },
-        properties: { kind: "packet", opacity, pulse: packetPulse },
+        properties: {
+          kind: "packet",
+          opacity,
+          pulse: packetPulse,
+          color: transmission.color,
+          radius: transmission.radius,
+          banned: transmission.banned ? 1 : 0,
+          requestId: transmission.requestId,
+        },
       })
     }
   }
@@ -235,6 +279,7 @@ function buildFrame(
         opacity: 1,
         pulse: (Math.sin(now / 220) + 1) / 2,
         arrival: strongestArrival,
+        arrivalColor: packetColor(arrivalStatus),
       },
     })
   }
@@ -245,18 +290,17 @@ function buildFrame(
 export function LivePulses({
   enabled,
   destination,
-  demoMode = "off",
 }: {
   enabled: boolean
   destination: Coordinate | null
-  demoMode?: DemoTrafficMode
 }) {
   const { current: map } = useMap()
+  const store = useLiveTrafficStore()
   const transmissions = useRef<Transmission[]>([])
   // A lane can have one packet in flight and one coalesced follow-up. Keeping
-  // the newest origin for that follow-up makes heavy traffic read as ongoing
+  // the newest request for that follow-up makes heavy traffic read as ongoing
   // activity without cutting off an already-visible packet.
-  const queuedOrigins = useRef<Map<string, Coordinate>>(new Map())
+  const queuedRequests = useRef<Map<string, LiveRequest>>(new Map())
   const raf = useRef<number>(0)
   const prefersReducedMotion = useRef(false)
 
@@ -268,72 +312,56 @@ export function LivePulses({
     return () => media.removeEventListener("change", update)
   }, [])
 
-  const enqueueOrigins = useCallback((origins: readonly Coordinate[]) => {
+  useEffect(() => {
+    const instance = map?.getMap()
+    if (!instance) return
+    ensureBannedRingImage(instance)
+    // A style change drops registered images, so re-register on styledata.
+    const reregister = () => ensureBannedRingImage(instance)
+    instance.on("styledata", reregister)
+    return () => {
+      instance.off("styledata", reregister)
+    }
+  }, [map])
+
+  const enqueueRequests = useCallback((requests: readonly LiveRequest[]) => {
     if (!destination) return
     const now = performance.now()
-    for (const origin of origins) {
-      const route = greatCircleRoute(origin, destination)
-      const distance = routeDistanceKm(route)
-      const duration = prefersReducedMotion.current
-        ? 1100
-        : clamp(2600 + Math.sqrt(distance) * 38, 2800, 6500)
-      const transmission: Transmission = {
-        born: now,
-        duration,
-        lane: routeLane(origin),
-        route,
-      }
+    for (const request of requests) {
+      const transmission = createTransmission(
+        request,
+        destination,
+        now,
+        prefersReducedMotion.current,
+      )
+      if (!transmission) continue
+
       const laneIsActive = transmissions.current.some(
         (activeTransmission) => activeTransmission.lane === transmission.lane,
       )
 
       if (laneIsActive || transmissions.current.length >= MAX_ACTIVE_TRANSMISSIONS) {
-        queuedOrigins.current.set(transmission.lane, origin)
+        queuedRequests.current.set(transmission.lane, request)
       } else {
         transmissions.current.push(transmission)
       }
     }
   }, [destination])
 
-  useLiveEvents((events) => {
-    enqueueOrigins(events.flatMap((event) => (
-      event.type === "geo_event"
-        ? [[event.data.longitude, event.data.latitude] as Coordinate]
-        : []
-    )))
-  }, enabled && destination !== null && demoMode === "off")
-
   useEffect(() => {
-    if (!enabled || !destination || demoMode === "off") return
-
-    let cursor = 0
-    const emit = () => {
-      const count = demoMode === "burst" ? 4 : 1
-      const origins: Coordinate[] = []
-      for (let index = 0; index < count; index += 1) {
-        origins.push(DEMO_TRAFFIC_ORIGINS[cursor % DEMO_TRAFFIC_ORIGINS.length].coordinates)
-        cursor += 1
-      }
-      enqueueOrigins(origins)
-    }
-
-    const kickoff = window.setTimeout(emit, 250)
-    const interval = window.setInterval(emit, demoMode === "burst" ? 2800 : 1100)
-    return () => {
-      window.clearTimeout(kickoff)
-      window.clearInterval(interval)
-    }
-  }, [demoMode, destination, enabled, enqueueOrigins])
+    if (!enabled || !destination) return
+    return store.onRequests((requests) => enqueueRequests(requests))
+  }, [destination, enabled, enqueueRequests, store])
 
   useEffect(() => {
     transmissions.current = []
-    queuedOrigins.current.clear()
+    queuedRequests.current.clear()
   }, [destination?.[0], destination?.[1]])
 
   useEffect(() => {
     if (!enabled || !destination) {
       transmissions.current = []
-      queuedOrigins.current.clear()
+      queuedRequests.current.clear()
       return
     }
     const tick = () => {
@@ -345,21 +373,18 @@ export function LivePulses({
       // Start queued activity only after the prior packet and its arrival
       // effect have completed. This guarantees that a long route reaches the
       // destination instead of being displaced by newer events in its lane.
-      for (const [lane, origin] of queuedOrigins.current) {
+      for (const [lane, request] of queuedRequests.current) {
         if (transmissions.current.length >= MAX_ACTIVE_TRANSMISSIONS) break
         if (transmissions.current.some((transmission) => transmission.lane === lane)) continue
 
-        const route = greatCircleRoute(origin, destination)
-        const distance = routeDistanceKm(route)
-        transmissions.current.push({
-          born: now,
-          duration: prefersReducedMotion.current
-            ? 1100
-            : clamp(2600 + Math.sqrt(distance) * 38, 2800, 6500),
-          lane,
-          route,
-        })
-        queuedOrigins.current.delete(lane)
+        const transmission = createTransmission(
+          request,
+          destination,
+          now,
+          prefersReducedMotion.current,
+        )
+        if (transmission) transmissions.current.push(transmission)
+        queuedRequests.current.delete(lane)
       }
       const source = map?.getSource(SOURCE_ID) as GeoJSONSource | undefined
       source?.setData(buildFrame(transmissions.current, destination, now))
@@ -378,7 +403,7 @@ export function LivePulses({
         type="line"
         filter={["==", ["get", "kind"], "route"]}
         paint={{
-          "line-color": "#0891b2",
+          "line-color": ["get", "color"],
           "line-width": 8,
           "line-blur": 7,
           "line-opacity": ["*", ["get", "opacity"], 0.32],
@@ -389,7 +414,7 @@ export function LivePulses({
         type="line"
         filter={["==", ["get", "kind"], "route"]}
         paint={{
-          "line-color": "#22d3ee",
+          "line-color": ["get", "color"],
           "line-width": 1.25,
           "line-dasharray": [1, 2.2],
           "line-opacity": ["*", ["get", "opacity"], 0.48],
@@ -400,7 +425,7 @@ export function LivePulses({
         type="line"
         filter={["==", ["get", "kind"], "trail"]}
         paint={{
-          "line-color": "#67e8f9",
+          "line-color": ["get", "color"],
           "line-width": 9,
           "line-blur": 8,
           "line-opacity": ["*", ["get", "opacity"], 0.5],
@@ -411,7 +436,7 @@ export function LivePulses({
         type="line"
         filter={["==", ["get", "kind"], "trail"]}
         paint={{
-          "line-color": "#cffafe",
+          "line-color": ["get", "color"],
           "line-width": 2,
           "line-opacity": ["*", ["get", "opacity"], 0.9],
         }}
@@ -424,7 +449,7 @@ export function LivePulses({
           "circle-radius": ["interpolate", ["linear"], ["get", "pulse"], 0, 5, 1, 30],
           "circle-color": "rgba(34, 211, 238, 0)",
           "circle-stroke-width": 2,
-          "circle-stroke-color": "#22d3ee",
+          "circle-stroke-color": ["get", "color"],
           "circle-stroke-opacity": ["*", ["get", "opacity"], ["-", 1, ["get", "pulse"]]],
         }}
       />
@@ -433,12 +458,12 @@ export function LivePulses({
         type="circle"
         filter={["==", ["get", "kind"], "origin"]}
         paint={{
-          "circle-radius": 4,
+          "circle-radius": ["get", "radius"],
           "circle-color": "#ecfeff",
           "circle-blur": 0.15,
           "circle-opacity": ["get", "opacity"],
           "circle-stroke-width": 3,
-          "circle-stroke-color": "#06b6d4",
+          "circle-stroke-color": ["get", "color"],
           "circle-stroke-opacity": ["*", ["get", "opacity"], 0.7],
         }}
       />
@@ -464,7 +489,7 @@ export function LivePulses({
           "circle-radius": ["interpolate", ["linear"], ["get", "arrival"], 0, 8, 1, 34],
           "circle-color": "rgba(103, 232, 249, 0)",
           "circle-stroke-width": 2,
-          "circle-stroke-color": "#67e8f9",
+          "circle-stroke-color": ["get", "arrivalColor"],
           "circle-stroke-opacity": ["get", "arrival"],
         }}
       />
@@ -474,7 +499,7 @@ export function LivePulses({
         filter={["==", ["get", "kind"], "packet"]}
         paint={{
           "circle-radius": ["interpolate", ["linear"], ["get", "pulse"], 0, 10, 1, 16],
-          "circle-color": "#22d3ee",
+          "circle-color": ["get", "color"],
           "circle-blur": 0.8,
           "circle-opacity": ["*", ["get", "opacity"], 0.72],
         }}
@@ -484,13 +509,25 @@ export function LivePulses({
         type="circle"
         filter={["==", ["get", "kind"], "packet"]}
         paint={{
-          "circle-radius": 4.5,
+          "circle-radius": ["get", "radius"],
           "circle-color": "#ffffff",
           "circle-opacity": ["get", "opacity"],
           "circle-stroke-width": 2,
-          "circle-stroke-color": "#67e8f9",
+          "circle-stroke-color": ["get", "color"],
           "circle-stroke-opacity": ["get", "opacity"],
         }}
+      />
+      <Layer
+        id="live-banned-cage"
+        type="symbol"
+        filter={["==", ["get", "banned"], 1]}
+        layout={{
+          "icon-image": BANNED_RING_IMAGE_ID,
+          "icon-size": 0.5,
+          "icon-allow-overlap": true,
+          "icon-ignore-placement": true,
+        }}
+        paint={{ "icon-opacity": ["get", "opacity"] }}
       />
     </Source>
   )

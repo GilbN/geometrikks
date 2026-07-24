@@ -41,6 +41,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   configured/auto-detected home coordinates; clicking it zooms to the home
   location. Toggled via "Home marker" in the map controls (on by default,
   preference stored in the browser).
+- Live map packets are now colored by response status (green/blue/amber/red)
+  and sized by response bytes, with a dashed red ring cage over packets from
+  banned IPs.
 
 ### Changed
 

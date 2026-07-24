@@ -411,7 +411,6 @@ function GeoMapInner({
         <LivePulses
           enabled={liveMode && routeEffectsEnabled}
           destination={homeDestination}
-          demoMode={demoTrafficMode}
         />
 
         {/* Server home location beacon */}
