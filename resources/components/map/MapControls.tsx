@@ -23,9 +23,12 @@ import { useIsMobile } from "@/hooks/use-mobile"
 import { FilterCombobox } from "@/components/ui/filter-combobox"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import {
+  Activity,
+  AudioWaveform,
   Flame,
   Globe2,
   Home,
+  ListEnd,
   Loader2,
   MapPin,
   Maximize2,
@@ -39,6 +42,7 @@ import { cn } from "@/lib/utils"
 import type { LayerType, MapProjection } from "./GeoMap"
 import { GeoJSONFeatureStats, TopIPDTO, formatNumber } from "@/lib/api"
 import type { DemoTrafficMode } from "@/lib/demo-traffic"
+import type { LiveOverlayPreferences } from "@/lib/live-overlays"
 
 
 interface MapControlsProps {
@@ -49,6 +53,8 @@ interface MapControlsProps {
   liveMode: boolean
   demoTrafficMode?: DemoTrafficMode
   onLiveModeChange: (enabled: boolean) => void
+  liveOverlays: LiveOverlayPreferences
+  onLiveOverlayChange: (key: keyof LiveOverlayPreferences, enabled: boolean) => void
   routeEffectsEnabled: boolean
   onRouteEffectsChange: (enabled: boolean) => void
   routeHomeAvailable: boolean
@@ -85,6 +91,8 @@ export function MapControls({
   liveMode,
   demoTrafficMode = "off",
   onLiveModeChange,
+  liveOverlays,
+  onLiveOverlayChange,
   routeEffectsEnabled,
   onRouteEffectsChange,
   routeHomeAvailable,
@@ -272,6 +280,34 @@ export function MapControls({
           )}
         </div>
       </Card>
+
+      {liveMode && (
+        <Card className="p-2 gap-1 shrink-0">
+          <div className="text-xs font-medium text-muted-foreground">Live overlays</div>
+          {([
+            { key: "vitals" as const, label: "Vitals", icon: Activity },
+            { key: "strips" as const, label: "Recent requests", icon: ListEnd },
+            { key: "wire" as const, label: "Timeline", icon: AudioWaveform },
+          ]).map(({ key, label, icon: Icon }) => (
+            <Button
+              key={key}
+              variant="outline"
+              onClick={() => onLiveOverlayChange(key, !liveOverlays[key])}
+              aria-pressed={liveOverlays[key]}
+              className={cn(
+                "cursor-pointer w-full justify-start gap-2 px-3 pointer-coarse:h-10",
+                liveOverlays[key] && "bg-geo-cyan/15 text-geo-cyan border-geo-cyan/30",
+              )}
+            >
+              <Icon className="h-4 w-4" />
+              <span className="text-sm font-medium">{label}</span>
+              <Badge variant="secondary" className="ml-auto text-[9px] uppercase">
+                {liveOverlays[key] ? "on" : "off"}
+              </Badge>
+            </Button>
+          ))}
+        </Card>
+      )}
 
       {/* Country / city filters */}
       <Card className="p-2 gap-1.5 shrink-0">

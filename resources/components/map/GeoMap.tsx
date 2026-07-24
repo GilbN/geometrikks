@@ -40,6 +40,7 @@ import { LiveWire } from "./LiveWire"
 import { Card, CardContent } from "@/components/ui/card"
 import { AlertTriangle } from "lucide-react"
 import { getDemoTrafficMode } from "@/lib/demo-traffic"
+import { loadLiveOverlays, saveLiveOverlays, type LiveOverlayPreferences } from "@/lib/live-overlays"
 import { LiveTrafficProvider, useLiveTrafficStore } from "@/lib/live-traffic/context"
 import type { LiveRequest } from "@/lib/live-traffic/types"
 import { useIsMobile } from "@/hooks/use-mobile"
@@ -120,6 +121,7 @@ function GeoMapInner({
   const [projection, setProjection] = useState<MapProjection>(loadMapProjectionPreference)
   const [routeEffectsEnabled, setRouteEffectsEnabled] = useState(loadRouteEffectsPreference)
   const [homeMarkerEnabled, setHomeMarkerEnabled] = useState(loadHomeMarkerPreference)
+  const [liveOverlays, setLiveOverlays] = useState<LiveOverlayPreferences>(loadLiveOverlays)
   const [showBanned, setShowBanned] = useState(false)
   const [popup, setPopup] = useState<PopupInfo | null>(null)
   const liveStore = useLiveTrafficStore()
@@ -282,6 +284,17 @@ function GeoMapInner({
       duration: 900,
     })
   }, [projection, viewState.zoom])
+
+  const changeLiveOverlay = useCallback(
+    (key: keyof LiveOverlayPreferences, enabled: boolean) => {
+      setLiveOverlays((previous) => {
+        const next = { ...previous, [key]: enabled }
+        saveLiveOverlays(next)
+        return next
+      })
+    },
+    [],
+  )
 
   // Handle map click: live packets first, then the markers layer
   const onClick = useCallback(
@@ -461,19 +474,19 @@ function GeoMapInner({
         )}
       </Map>
 
-      {liveMode && !isMobile && (
+      {liveMode && !isMobile && liveOverlays.vitals && (
         <div className="pointer-events-none absolute left-4 top-4 z-10">
           <LiveVitals variant="desktop" />
         </div>
       )}
 
-      {liveMode && !isMobile && (
+      {liveMode && !isMobile && liveOverlays.strips && (
         <div className="pointer-events-none absolute bottom-24 left-4 z-10">
           <LiveStrips onSelect={handleLiveSelect} />
         </div>
       )}
 
-      {liveMode && !isMobile && (
+      {liveMode && !isMobile && liveOverlays.wire && (
         <div className="pointer-events-none absolute bottom-4 left-1/2 z-10 w-[min(760px,calc(100vw-16rem))] -translate-x-1/2">
           <LiveWire onSelect={handleLiveSelect} />
         </div>
@@ -488,6 +501,8 @@ function GeoMapInner({
         liveMode={liveMode}
         demoTrafficMode={demoTrafficMode}
         onLiveModeChange={onLiveModeChange}
+        liveOverlays={liveOverlays}
+        onLiveOverlayChange={changeLiveOverlay}
         routeEffectsEnabled={routeEffectsEnabled}
         onRouteEffectsChange={setRouteEffectsEnabled}
         routeHomeAvailable={homeDestination !== null}
