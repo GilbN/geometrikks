@@ -368,106 +368,107 @@ export function LogsOverview() {
             </div>
           </div>
 
-          <div className="max-h-[65vh] overflow-y-auto rounded-md border">
-            <Table className="text-sm">
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="sticky top-0 z-10 w-24 bg-card">Time</TableHead>
-                  <TableHead className="sticky top-0 z-10 w-24 bg-card">Level</TableHead>
-                  <TableHead className="sticky top-0 z-10 w-28 bg-card">Component</TableHead>
-                  <TableHead className="sticky top-0 z-10 bg-card">Message</TableHead>
-                  <TableHead className="sticky top-0 z-10 w-10 bg-card" />
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filtered.map((entry) => {
-                  const r = entry.record
-                  const hasTraceback = typeof r.exception === "string" && r.exception.length > 0
-                  return (
-                    <TableRow
-                      key={entry.id}
-                      tabIndex={0}
-                      role="button"
-                      className="cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
-                      onClick={() => setSelected(r)}
-                      onKeyDown={(e) => {
-                        // Only react when the row itself is the event target: a
-                        // native keydown on a nested control (the traceback
-                        // button) still bubbles up here even though its click
-                        // handler calls stopPropagation, since that only stops
-                        // the click event, not this separate keydown binding.
-                        if (e.target !== e.currentTarget) return
-                        if (e.key === "Enter" || e.key === " ") {
-                          e.preventDefault()
-                          setSelected(r)
-                        }
-                      }}
-                    >
-                      <TableCell className="w-24 py-1.5 text-xs tabular-nums text-muted-foreground">
-                        <span title={r.timestamp ? new Date(r.timestamp).toLocaleString() : undefined}>
-                          {r.timestamp ? new Date(r.timestamp).toLocaleTimeString() : "-"}
-                        </span>
-                      </TableCell>
-                      <TableCell className="w-24 py-1.5">
-                        <Badge
-                          variant="outline"
-                          className={cn(
-                            "gap-1 uppercase",
-                            levelBadgeClasses[r.level ?? ""] ?? levelBadgeClasses.info,
-                          )}
-                        >
-                          {r.level ?? "info"}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="w-28 py-1.5">
-                        <MonoChip>{component(r)}</MonoChip>
-                      </TableCell>
-                      <TableCell className="w-full max-w-0 py-1.5">
-                        {(() => {
-                          const context = formatContext(r)
-                          const eventText = r.event ?? "(no message)"
-                          return (
-                            <span
-                              className="block truncate font-mono text-xs"
-                              title={context ? `${eventText} ${context}` : eventText}
-                            >
-                              {eventText}
-                              {context ? <span className="text-muted-foreground"> {context}</span> : null}
-                            </span>
-                          )
-                        })()}
-                      </TableCell>
-                      <TableCell className="w-10 py-1.5">
-                        {hasTraceback ? (
-                          <Button
-                            variant="ghost"
-                            size="icon-sm"
-                            className="pointer-coarse:h-10"
-                            aria-label="View traceback"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              setTracebackRecord(r)
-                            }}
+          <Table
+            className="text-sm"
+            containerClassName="max-h-[65vh] overflow-y-auto rounded-md border"
+          >
+            <TableHeader>
+              <TableRow>
+                <TableHead className="sticky top-0 z-10 w-24 bg-card">Time</TableHead>
+                <TableHead className="sticky top-0 z-10 w-24 bg-card">Level</TableHead>
+                <TableHead className="sticky top-0 z-10 w-28 bg-card">Component</TableHead>
+                <TableHead className="sticky top-0 z-10 bg-card">Message</TableHead>
+                <TableHead className="sticky top-0 z-10 w-10 bg-card" />
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filtered.map((entry) => {
+                const r = entry.record
+                const hasTraceback = typeof r.exception === "string" && r.exception.length > 0
+                return (
+                  <TableRow
+                    key={entry.id}
+                    tabIndex={0}
+                    role="button"
+                    className="cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+                    onClick={() => setSelected(r)}
+                    onKeyDown={(e) => {
+                      // Only react when the row itself is the event target: a
+                      // native keydown on a nested control (the traceback
+                      // button) still bubbles up here even though its click
+                      // handler calls stopPropagation, since that only stops
+                      // the click event, not this separate keydown binding.
+                      if (e.target !== e.currentTarget) return
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault()
+                        setSelected(r)
+                      }
+                    }}
+                  >
+                    <TableCell className="w-24 py-1.5 text-xs tabular-nums text-muted-foreground">
+                      <span title={r.timestamp ? new Date(r.timestamp).toLocaleString() : undefined}>
+                        {r.timestamp ? new Date(r.timestamp).toLocaleTimeString() : "-"}
+                      </span>
+                    </TableCell>
+                    <TableCell className="w-24 py-1.5">
+                      <Badge
+                        variant="outline"
+                        className={cn(
+                          "gap-1 uppercase",
+                          levelBadgeClasses[r.level ?? ""] ?? levelBadgeClasses.info,
+                        )}
+                      >
+                        {r.level ?? "info"}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="w-28 py-1.5">
+                      <MonoChip>{component(r)}</MonoChip>
+                    </TableCell>
+                    <TableCell className="w-full max-w-0 py-1.5">
+                      {(() => {
+                        const context = formatContext(r)
+                        const eventText = r.event ?? "(no message)"
+                        return (
+                          <span
+                            className="block truncate font-mono text-xs"
+                            title={context ? `${eventText} ${context}` : eventText}
                           >
-                            <Layers className="h-3.5 w-3.5" />
-                          </Button>
-                        ) : null}
-                      </TableCell>
-                    </TableRow>
-                  )
-                })}
-                {filtered.length === 0 && (
-                  <TableRow>
-                    <TableCell colSpan={5} className="h-24 text-center text-sm text-muted-foreground">
-                      {entries.length === 0
-                        ? "Waiting for log lines..."
-                        : "No log lines match the current filters."}
+                            {eventText}
+                            {context ? <span className="text-muted-foreground"> {context}</span> : null}
+                          </span>
+                        )
+                      })()}
+                    </TableCell>
+                    <TableCell className="w-10 py-1.5">
+                      {hasTraceback ? (
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          className="pointer-coarse:h-10"
+                          aria-label="View traceback"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setTracebackRecord(r)
+                          }}
+                        >
+                          <Layers className="h-3.5 w-3.5" />
+                        </Button>
+                      ) : null}
                     </TableCell>
                   </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </div>
+                )
+              })}
+              {filtered.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={5} className="h-24 text-center text-sm text-muted-foreground">
+                    {entries.length === 0
+                      ? "Waiting for log lines..."
+                      : "No log lines match the current filters."}
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
         </CardContent>
       </Card>
 
