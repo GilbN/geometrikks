@@ -26,10 +26,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the system log, the login log, and a Downloads tab listing the raw files
   (app log, login log, gzip archives, ingested nginx access logs) with a
   "Rotate logs" button.
-- `GET /api/v1/system/settings` now overlays runtime-resolved values the raw
-  config can't show: the auto-detected map home coordinates, whether a
-  usable GeoIP database is loaded, and CrowdSec's effective `enabled` /
-  `write_enabled` status.
+- `GET /api/v1/system/settings` and the Settings -> Environment overview now
+  surface runtime-resolved values raw config can't show: the auto-detected
+  map home coordinates (badged "auto-detected"), and GeoIP database
+  availability plus CrowdSec's effective `enabled`/`write_enabled` status
+  (both badged "runtime").
 
 ### Changed
 

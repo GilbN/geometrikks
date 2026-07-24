@@ -2323,6 +2323,17 @@
       },
       "SettingFieldView": {
         "properties": {
+          "computed_source": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "computed_value": {},
           "default": {},
           "description": {
             "oneOf": [
@@ -2335,7 +2346,14 @@
             ]
           },
           "env_var": {
-            "type": "string"
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "is_secret": {
             "type": "boolean"
