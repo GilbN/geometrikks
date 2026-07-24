@@ -2200,6 +2200,17 @@ export const SchedulerJobsResponseSchema = {
 
 export const SettingFieldViewSchema = {
   properties: {
+    computed_source: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    computed_value: {},
     default: {},
     description: {
       oneOf: [
@@ -2212,7 +2223,14 @@ export const SettingFieldViewSchema = {
       ],
     },
     env_var: {
-      type: "string",
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
     },
     is_secret: {
       type: "boolean",

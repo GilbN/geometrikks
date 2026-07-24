@@ -650,9 +650,11 @@ export type SchedulerJobsResponse = {
  * SettingFieldView
  */
 export type SettingFieldView = {
+  computed_source?: string | null;
+  computed_value?: unknown;
   default: unknown;
   description: string | null;
-  env_var: string;
+  env_var: string | null;
   is_secret: boolean;
   key: string;
   value: unknown;
