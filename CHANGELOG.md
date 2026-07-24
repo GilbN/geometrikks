@@ -48,15 +48,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `API_LOG_LEVEL` in favor of `LOG_LEVEL`; still honored as a fallback,
   with a `DeprecationWarning`.
 
-### Fixed
-
-- Exceptions logged with `exc_info` (including Litestar's "Uncaught
-  exception" handler) now carry their traceback in the log file, the
-  `/ws/logs` broadcast, and the console; it was previously dropped on the
-  queue-listener thread.
-- DEBUG (dim) and INFO (blue) console output are now distinguishable from
-  SUCCESS (green).
-
 ## [0.4.3] - 2026-07-22
 
 ### Fixed
