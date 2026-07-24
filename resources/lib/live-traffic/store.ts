@@ -77,6 +77,7 @@ export class LiveTrafficStore {
   }
 
   getBuckets(now: number): SecondBucket[] {
+    this.evict(now)
     const newest = Math.floor(now / 1000)
     const oldest = newest - (this.windowSeconds - 1)
     const buckets: SecondBucket[] = []
@@ -99,6 +100,7 @@ export class LiveTrafficStore {
   }
 
   getVitals(now: number): Vitals {
+    this.evict(now)
     const ips = new Set<string>()
     const countries = new Set<string>()
     let threatCount = 0

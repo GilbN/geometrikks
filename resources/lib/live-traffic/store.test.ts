@@ -190,4 +190,27 @@ describe("LiveTrafficStore", () => {
     expect(store.getRequests()).toHaveLength(0)
     expect(store.getVitals(1000).dropped).toBe(0)
   })
+
+  it("prunes stale requests on read when idle for longer than the window", () => {
+    const store = new LiveTrafficStore()
+    store.ingest(
+      [
+        request({ receivedAt: 1000, ip: "1.1.1.1", countryCode: "NO" }),
+        request({ receivedAt: 1000, statusClass: "5xx" }),
+        request({ receivedAt: 1000, statusClass: "4xx", threat: true }),
+      ],
+      0,
+      1000,
+    )
+
+    // Read vitals far in the future with no intervening ingest
+    const now = 1000 + 301_000
+    const vitals = store.getVitals(now)
+
+    expect(vitals.uniqueIps).toBe(0)
+    expect(vitals.countries).toBe(0)
+    expect(vitals.threatCount).toBe(0)
+    expect(vitals.errorRate).toBe(0)
+    expect(vitals.rpm).toBe(0)
+  })
 })
