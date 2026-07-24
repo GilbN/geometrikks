@@ -47,6 +47,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Live overlays (vitals, recent requests, timeline) can each be switched on
   or off from a "Live overlays" card in the map controls, shown while live
   mode is on. The choice is remembered in the browser.
+- Live mode on a phone now has its own surface: tapping the vitals pill
+  opens a sheet listing live requests, split into an "All" and a "Threats"
+  lane, and tapping a row flies the map to that request's origin.
 
 ### Changed
 
