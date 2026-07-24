@@ -33,10 +33,12 @@ import { LivePulses } from "./LivePulses"
 import { HomeMarker } from "./HomeMarker"
 import { MapLegend } from "./MapLegend"
 import { MapPopup, type PopupInfo } from "./MapPopup"
+import { LiveRequestPopup } from "./LiveRequestPopup"
 import { Card, CardContent } from "@/components/ui/card"
 import { AlertTriangle } from "lucide-react"
 import { getDemoTrafficMode } from "@/lib/demo-traffic"
-import { LiveTrafficProvider } from "@/lib/live-traffic/context"
+import { LiveTrafficProvider, useLiveTrafficStore } from "@/lib/live-traffic/context"
+import type { LiveRequest } from "@/lib/live-traffic/types"
 
 export type LayerType = "heatmap" | "markers"
 export type MapProjection = "mercator" | "globe"
@@ -115,6 +117,8 @@ function GeoMapInner({
   const [homeMarkerEnabled, setHomeMarkerEnabled] = useState(loadHomeMarkerPreference)
   const [showBanned, setShowBanned] = useState(false)
   const [popup, setPopup] = useState<PopupInfo | null>(null)
+  const liveStore = useLiveTrafficStore()
+  const [livePopup, setLivePopup] = useState<LiveRequest | null>(null)
 
   // Banned-IP overlay: attackers with an active CrowdSec decision that also
   // appear in this server's own traffic.
@@ -274,9 +278,22 @@ function GeoMapInner({
     })
   }, [projection, viewState.zoom])
 
-  // Handle map click for markers layer
+  // Handle map click: live packets first, then the markers layer
   const onClick = useCallback(
     (event: maplibregl.MapLayerMouseEvent) => {
+      const liveFeature = event.features?.find((feature) =>
+        feature.layer.id === "live-origin-core" || feature.layer.id === "live-packet-core",
+      )
+      if (liveFeature) {
+        const requestId = liveFeature.properties?.requestId as string | undefined
+        const request = requestId ? liveStore.getRequest(requestId) : undefined
+        if (request) {
+          setPopup(null)
+          setLivePopup(request)
+        }
+        return
+      }
+
       if (activeLayer !== "markers") return
 
       const features = event.features
@@ -307,13 +324,14 @@ function GeoMapInner({
       }
 
       // Show popup for unclustered point
+      setLivePopup(null)
       setPopup({
         longitude: geometry.coordinates[0],
         latitude: geometry.coordinates[1],
         properties: feature.properties as PopupInfo["properties"],
       })
     },
-    [activeLayer]
+    [activeLayer, liveStore]
   )
 
   // Show error state
@@ -352,11 +370,10 @@ function GeoMapInner({
         mapStyle={mapStyle}
         projection={projection}
         renderWorldCopies={projection === "mercator"}
-        interactiveLayerIds={
-          activeLayer === "markers"
-            ? ["clusters", "unclustered-point"]
-            : undefined
-        }
+        interactiveLayerIds={[
+          ...(activeLayer === "markers" ? ["clusters", "unclustered-point"] : []),
+          ...(liveMode && routeEffectsEnabled ? ["live-origin-core", "live-packet-core"] : []),
+        ]}
         cursor={activeLayer === "markers" ? "pointer" : "grab"}
         attributionControl={false}
       >
@@ -426,6 +443,10 @@ function GeoMapInner({
             properties={popup.properties}
             onClose={() => setPopup(null)}
           />
+        )}
+
+        {livePopup && livePopup.coordinates && (
+          <LiveRequestPopup request={livePopup} onClose={() => setLivePopup(null)} />
         )}
       </Map>
 
