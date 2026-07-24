@@ -34,11 +34,13 @@ import { HomeMarker } from "./HomeMarker"
 import { MapLegend } from "./MapLegend"
 import { MapPopup, type PopupInfo } from "./MapPopup"
 import { LiveRequestPopup } from "./LiveRequestPopup"
+import { LiveVitals } from "./LiveVitals"
 import { Card, CardContent } from "@/components/ui/card"
 import { AlertTriangle } from "lucide-react"
 import { getDemoTrafficMode } from "@/lib/demo-traffic"
 import { LiveTrafficProvider, useLiveTrafficStore } from "@/lib/live-traffic/context"
 import type { LiveRequest } from "@/lib/live-traffic/types"
+import { useIsMobile } from "@/hooks/use-mobile"
 
 export type LayerType = "heatmap" | "markers"
 export type MapProjection = "mercator" | "globe"
@@ -92,6 +94,7 @@ function GeoMapInner({
   const demoTrafficMode = getDemoTrafficMode()
   const mapRef = useRef<MapRef>(null)
   const { mapStyle } = useMapStyle()
+  const isMobile = useIsMobile()
   const [selectedCountries, setSelectedCountries] = useState<string[]>([])
   const [selectedCities, setSelectedCities] = useState<string[]>([])
   const { data: geojson, isLoading: isLoadingGeoJSON, isError, error } = useGeoJSON({
@@ -449,6 +452,12 @@ function GeoMapInner({
           <LiveRequestPopup request={livePopup} onClose={() => setLivePopup(null)} />
         )}
       </Map>
+
+      {liveMode && !isMobile && (
+        <div className="pointer-events-none absolute left-4 top-4 z-10">
+          <LiveVitals variant="desktop" />
+        </div>
+      )}
 
       {/* Controls overlay */}
       <MapControls
