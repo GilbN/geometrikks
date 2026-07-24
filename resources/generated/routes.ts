@@ -392,6 +392,7 @@ export interface RouteQueryParams {
   'stats': Record<string, never>;
   'tail': {
     lines?: number;
+    source?: "app" | "login";
   };
   'unban': Record<string, never>;
   'vite': Record<string, never>;
@@ -777,7 +778,7 @@ export const routeDefinitions = {
     methods: ['GET'] as const,
     method: 'get',
     pathParams: [] as const,
-    queryParams: ['lines'] as const,
+    queryParams: ['lines', 'source'] as const,
   },
   'unban': {
     path: '/api/v1/crowdsec/unban',

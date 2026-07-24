@@ -48,6 +48,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { MonoChip, StatusLed, type LedTone } from "@/components/settings/status-led"
 import { useLogFiles, useLogTail } from "@/lib/queries"
 import { logStream, type LogRecord, type LogStreamStatus } from "@/lib/logstream"
@@ -55,6 +56,9 @@ import type { LogFileView } from "@/generated/api/types.gen"
 
 const MAX_RECORDS = 2000
 const FLOW_IDLE_MS = 2000
+/** geometrikks.server.logging.LOGIN_LOGGER_NAME; login records are broadcast
+ * unfiltered alongside every other record and picked out client-side. */
+const LOGIN_LOGGER_NAME = "geometrikks.auth.login"
 
 const LEVELS = ["debug", "info", "success", "warning", "error", "critical"] as const
 
@@ -125,10 +129,15 @@ interface Entry {
 
 export function LogsOverview() {
   const { data: tailRecords } = useLogTail(500)
+  const { data: loginTailRecords } = useLogTail(500, "login")
   const { data: files } = useLogFiles()
+
+  const [activeLog, setActiveLog] = useState<"app" | "login">("app")
 
   const [entries, setEntries] = useState<Entry[]>([])
   const seededRef = useRef(false)
+  const [loginEntries, setLoginEntries] = useState<Entry[]>([])
+  const seededLoginRef = useRef(false)
   const nextIdRef = useRef(0)
 
   const [status, setStatus] = useState<LogStreamStatus>("connecting")
@@ -156,6 +165,13 @@ export function LogsOverview() {
     })
   }
 
+  // Prepend a chronological (oldest-first) batch to a newest-first buffer,
+  // capped at MAX_RECORDS. Shared by the live stream and the pause flush.
+  function appendCapped(prev: Entry[], records: LogRecord[]): Entry[] {
+    const merged = [...toEntries([...records].reverse()), ...prev]
+    return merged.length > MAX_RECORDS ? merged.slice(0, MAX_RECORDS) : merged
+  }
+
   // Seed once from the tail backfill; the stream takes over after that.
   useEffect(() => {
     if (tailRecords && !seededRef.current) {
@@ -165,6 +181,14 @@ export function LogsOverview() {
     // Intentionally seed once: `tailRecords` is a stable staleTime:Infinity
     // query result and toEntries is a plain closure, not a dependency.
   }, [tailRecords])
+
+  // Same, for the login buffer.
+  useEffect(() => {
+    if (loginTailRecords && !seededLoginRef.current) {
+      seededLoginRef.current = true
+      setLoginEntries(toEntries([...(loginTailRecords as LogRecord[])].reverse()))
+    }
+  }, [loginTailRecords])
 
   useEffect(() => {
     pausedRef.current = paused
@@ -188,10 +212,11 @@ export function LogsOverview() {
         return
       }
 
-      setEntries((prev) => {
-        const merged = [...toEntries([...records].reverse()), ...prev]
-        return merged.length > MAX_RECORDS ? merged.slice(0, MAX_RECORDS) : merged
-      })
+      setEntries((prev) => appendCapped(prev, records))
+      const loginRecords = records.filter((r) => r.logger === LOGIN_LOGGER_NAME)
+      if (loginRecords.length > 0) {
+        setLoginEntries((prev) => appendCapped(prev, loginRecords))
+      }
     })
     const unsubscribeStatus = logStream.onStatus(setStatus)
     return () => {
@@ -210,25 +235,28 @@ export function LogsOverview() {
       setPendingCount(0)
       setPaused(false)
       if (buffered.length > 0) {
-        setEntries((prev) => {
-          const merged = [...toEntries(buffered.slice().reverse()), ...prev]
-          return merged.length > MAX_RECORDS ? merged.slice(0, MAX_RECORDS) : merged
-        })
+        setEntries((prev) => appendCapped(prev, buffered))
+        const loginBuffered = buffered.filter((r) => r.logger === LOGIN_LOGGER_NAME)
+        if (loginBuffered.length > 0) {
+          setLoginEntries((prev) => appendCapped(prev, loginBuffered))
+        }
       }
     } else {
       setPaused(true)
     }
   }
 
+  const activeEntries = activeLog === "login" ? loginEntries : entries
+
   const components = useMemo(() => {
     const set = new Set<string>()
-    for (const e of entries) set.add(component(e.record))
+    for (const e of activeEntries) set.add(component(e.record))
     return Array.from(set).sort()
-  }, [entries])
+  }, [activeEntries])
 
   const filtered = useMemo(() => {
     const needle = search.trim().toLowerCase()
-    return entries.filter((e) => {
+    return activeEntries.filter((e) => {
       const r = e.record
       if (levelFilters.length > 0 && !levelFilters.includes(r.level ?? "")) return false
       if (componentFilters.length > 0 && !componentFilters.includes(component(r))) return false
@@ -238,7 +266,7 @@ export function LogsOverview() {
       }
       return true
     })
-  }, [entries, levelFilters, componentFilters, search])
+  }, [activeEntries, levelFilters, componentFilters, search])
 
   const groupedFiles = useMemo(() => {
     const groups = new Map<LogFileView["kind"], LogFileView[]>()
@@ -259,6 +287,12 @@ export function LogsOverview() {
     <div className="space-y-4">
       <Card>
         <CardHeader>
+          <Tabs value={activeLog} onValueChange={(v) => setActiveLog(v as "app" | "login")}>
+            <TabsList className="pointer-coarse:h-10">
+              <TabsTrigger value="app">System log</TabsTrigger>
+              <TabsTrigger value="login">Login log</TabsTrigger>
+            </TabsList>
+          </Tabs>
           <div className="flex items-center gap-3">
             <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-geo-cyan/10">
               <ScrollText className="h-4 w-4 text-geo-cyan" />
@@ -271,8 +305,9 @@ export function LogsOverview() {
                 </span>
               </CardTitle>
               <CardDescription>
-                Streaming from the application log. Newest first; buffer keeps the last 2,000
-                lines. <span className="tabular-nums">{entries.length.toLocaleString()} buffered</span>
+                Streaming from the {activeLog === "login" ? "login" : "application"} log. Newest
+                first; buffer keeps the last 2,000 lines.{" "}
+                <span className="tabular-nums">{activeEntries.length.toLocaleString()} buffered</span>
                 {totalDropped > 0 ? (
                   <span className="tabular-nums">, {totalDropped.toLocaleString()} dropped</span>
                 ) : null}
@@ -461,7 +496,7 @@ export function LogsOverview() {
               {filtered.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={5} className="h-24 text-center text-sm text-muted-foreground">
-                    {entries.length === 0
+                    {activeEntries.length === 0
                       ? "Waiting for log lines..."
                       : "No log lines match the current filters."}
                   </TableCell>

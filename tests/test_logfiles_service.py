@@ -68,3 +68,50 @@ class TestTail:
         from geometrikks.services.logfiles import LogFilesService
         svc = LogFilesService(log_dir=tmp_path / "nope", nginx_paths=[])
         assert svc.tail_main(lines=5) == []
+
+
+class TestTailLogin:
+    def test_parses_valid_lines(self, service):
+        records = service.tail_login(lines=10)
+        assert len(records) == 1
+        record = records[0]
+        assert record["timestamp"] == "2026-07-23T00:00:00Z"
+        assert record["event"] == "logout"
+        assert record["user"] == "a"
+        assert record["level"] == "info"
+        assert record["logger"] == "geometrikks.auth.login"
+
+    def test_login_failed_gets_warning_level(self, service, tmp_path):
+        login = tmp_path / "logs" / "login.log"
+        login.write_text(
+            '2026-07-23T00:01:00Z login_failed user="bob" ip=1.2.3.4\n', encoding="utf-8"
+        )
+        records = service.tail_login(lines=10)
+        assert records[0]["level"] == "warning"
+        assert records[0]["event"] == "login_failed"
+
+    def test_ip_dash_omits_ip_key(self, service):
+        records = service.tail_login(lines=10)
+        assert "ip" not in records[0]
+
+    def test_ip_present_when_valid(self, service, tmp_path):
+        login = tmp_path / "logs" / "login.log"
+        login.write_text(
+            '2026-07-23T00:01:00Z login_success user="bob" ip=1.2.3.4\n', encoding="utf-8"
+        )
+        records = service.tail_login(lines=10)
+        assert records[0]["ip"] == "1.2.3.4"
+
+    def test_skips_malformed_lines(self, service, tmp_path):
+        login = tmp_path / "logs" / "login.log"
+        login.write_text(
+            '2026-07-23T00:01:00Z login_success user="ok" ip=-\nnot a valid line\n',
+            encoding="utf-8",
+        )
+        records = service.tail_login(lines=10)
+        assert [r["event"] for r in records] == ["login_success"]
+
+    def test_missing_file_returns_empty(self, tmp_path):
+        from geometrikks.services.logfiles import LogFilesService
+        svc = LogFilesService(log_dir=tmp_path / "nope", nginx_paths=[])
+        assert svc.tail_login(lines=5) == []

@@ -611,7 +611,8 @@
         "GET"
       ],
       "queryParameters": {
-        "lines": "number | undefined"
+        "lines": "number | undefined",
+        "source": "\"app\" | \"login\" | undefined"
       },
       "uri": "/api/v1/logs/tail"
     },

@@ -9,13 +9,18 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from collections import deque
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Literal
 
-from geometrikks.server.logging import LOGIN_LOG_NAME, MAIN_LOG_NAME
+from geometrikks.server.logging import LOGIN_LOG_NAME, LOGIN_LOGGER_NAME, MAIN_LOG_NAME
+
+_LOGIN_LINE_RE = re.compile(
+    r'^(?P<timestamp>\S+) (?P<event>[A-Za-z0-9_]+) user="(?P<user>[^"]*)" ip=(?P<ip>\S+)$'
+)
 
 LogFileKind = Literal["app", "login", "nginx"]
 
@@ -98,6 +103,32 @@ class LogFilesService:
                 continue
             if isinstance(parsed, dict):
                 records.append(parsed)
+        return records
+
+    def tail_login(self, lines: int) -> list[dict[str, Any]]:
+        """Last N parsed records of the plain-text login log; malformed lines skipped."""
+        login = self._log_dir / LOGIN_LOG_NAME
+        if not login.is_file():
+            return []
+        with login.open("r", encoding="utf-8", errors="replace") as fh:
+            raw = deque(fh, maxlen=lines)
+        records: list[dict[str, Any]] = []
+        for line in raw:
+            match = _LOGIN_LINE_RE.match(line.rstrip("\r\n"))
+            if match is None:
+                continue
+            event = match.group("event")
+            ip = match.group("ip")
+            record: dict[str, Any] = {
+                "timestamp": match.group("timestamp"),
+                "level": "warning" if event == "login_failed" else "info",
+                "event": event,
+                "logger": LOGIN_LOGGER_NAME,
+                "user": match.group("user"),
+            }
+            if ip != "-":
+                record["ip"] = ip
+            records.append(record)
         return records
 
 

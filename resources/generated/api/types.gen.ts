@@ -2777,6 +2777,7 @@ export type ApiV1LogsTailTailData = {
   path?: never;
   query?: {
     lines?: number;
+    source?: "app" | "login";
   };
   url: "/api/v1/logs/tail";
 };

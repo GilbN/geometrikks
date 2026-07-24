@@ -151,7 +151,7 @@ export const queryKeys = {
     facets: () => [...queryKeys.geoLogs.all, "facets"] as const,
   },
   logs: {
-    tail: (lines: number) => ["logs", "tail", lines] as const,
+    tail: (lines: number, source: "app" | "login") => ["logs", "tail", lines, source] as const,
     files: ["logs", "files"] as const,
   },
 }
@@ -1159,12 +1159,12 @@ export function useGeoEventFacets({ enabled = true }: { enabled?: boolean } = {}
  * Initial page of recent structured log records for the Logs page.
  * The live stream (logStream) takes over after this loads, so it never refetches.
  */
-export function useLogTail(lines = 500) {
+export function useLogTail(lines = 500, source: "app" | "login" = "app") {
   return useQuery({
-    queryKey: queryKeys.logs.tail(lines),
+    queryKey: queryKeys.logs.tail(lines, source),
     queryFn: async () => {
       const { data } = await apiV1LogsTailTail({
-        query: { lines },
+        query: { lines, source },
         throwOnError: true,
       })
       return data.records

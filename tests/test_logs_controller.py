@@ -40,6 +40,18 @@ class TestTailEndpoint:
         assert client.get("/api/v1/logs/tail", params={"lines": 999999}).status_code == 200
         assert client.get("/api/v1/logs/tail", params={"lines": 0}).status_code == 200
 
+    def test_source_login_returns_login_records(self, client):
+        resp = client.get("/api/v1/logs/tail", params={"source": "login"})
+        assert resp.status_code == 200
+        records = resp.json()["records"]
+        assert len(records) == 1
+        assert records[0]["event"] == "logout"
+        assert records[0]["logger"] == "geometrikks.auth.login"
+
+    def test_source_bogus_returns_400(self, client):
+        resp = client.get("/api/v1/logs/tail", params={"source": "bogus"})
+        assert resp.status_code == 400
+
 
 class TestFilesEndpoint:
     def test_lists_files(self, client):

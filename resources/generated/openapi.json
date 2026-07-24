@@ -8730,6 +8730,22 @@
               "default": 500,
               "type": "integer"
             }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "source",
+            "required": false,
+            "schema": {
+              "default": "app",
+              "enum": [
+                "app",
+                "login"
+              ],
+              "type": "string"
+            }
           }
         ],
         "responses": {

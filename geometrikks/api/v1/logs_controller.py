@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 
 from litestar import Controller, get
 from litestar.exceptions import NotFoundException
@@ -41,9 +41,14 @@ class LogsController(Controller):
     tags = ["Logs"]
 
     @get("/tail", sync_to_thread=True)
-    def tail(self, lines: int = 500) -> LogTailResponse:
+    def tail(self, lines: int = 500, source: Literal["app", "login"] = "app") -> LogTailResponse:
         clamped = max(1, min(lines, MAX_TAIL_LINES))
-        return LogTailResponse(records=create_log_files_service().tail_main(lines=clamped))
+        service = create_log_files_service()
+        if source == "login":
+            records = service.tail_login(lines=clamped)
+        else:
+            records = service.tail_main(lines=clamped)
+        return LogTailResponse(records=records)
 
     @get("/files", sync_to_thread=True)
     def list_files(self) -> LogFilesResponse:

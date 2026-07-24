@@ -22,7 +22,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - New Logs page at Settings -> Logs: live log stream with level/component
   filters and search, color-coded level badges (including the new SUCCESS
   level), traceback and detail dialogs, and downloads for the application
-  log, login log, rotated gzip archives, and ingested nginx access logs.
+  log, login log, rotated gzip archives, and ingested nginx access logs. A
+  tabs toggle above the stream switches between the system log and the
+  login log, each with its own buffer, while filters, search, pause and the
+  detail dialog behave the same on both.
 
 ### Changed
 
