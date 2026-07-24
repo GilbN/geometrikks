@@ -37,6 +37,7 @@ import { LiveRequestPopup } from "./LiveRequestPopup"
 import { LiveVitals } from "./LiveVitals"
 import { LiveStrips } from "./LiveStrips"
 import { LiveWire } from "./LiveWire"
+import { LiveFeedSheet } from "./LiveFeedSheet"
 import { Card, CardContent } from "@/components/ui/card"
 import { AlertTriangle } from "lucide-react"
 import { getDemoTrafficMode } from "@/lib/demo-traffic"
@@ -126,6 +127,7 @@ function GeoMapInner({
   const [popup, setPopup] = useState<PopupInfo | null>(null)
   const liveStore = useLiveTrafficStore()
   const [livePopup, setLivePopup] = useState<LiveRequest | null>(null)
+  const [feedOpen, setFeedOpen] = useState(false)
 
   // Banned-IP overlay: attackers with an active CrowdSec decision that also
   // appear in this server's own traffic.
@@ -358,6 +360,16 @@ function GeoMapInner({
     if (request.coordinates) liveStore.replay(request)
   }, [liveStore])
 
+  // Row tap from the mobile sheet: just the popup and a fly-to, deliberately
+  // not handleLiveSelect - replaying an arc under a sheet about to close is
+  // noise, and the fly-to is the feedback that matters here.
+  const selectFromFeed = useCallback((request: LiveRequest) => {
+    setLivePopup(request)
+    if (request.coordinates) {
+      mapRef.current?.flyTo({ center: request.coordinates, zoom: 6, duration: 1200 })
+    }
+  }, [])
+
   // Show error state
   if (isError) {
     return (
@@ -490,6 +502,18 @@ function GeoMapInner({
         <div className="pointer-events-none absolute bottom-4 left-1/2 z-10 w-[min(760px,calc(100vw-16rem))] -translate-x-1/2">
           <LiveWire onSelect={handleLiveSelect} />
         </div>
+      )}
+
+      {/* Mobile: the vitals pill is the only way into the feed, so it mounts
+          whenever live mode is on regardless of the desktop overlay preference. */}
+      {liveMode && isMobile && (
+        <div className="pointer-events-none absolute left-4 top-4 z-10">
+          <LiveVitals variant="pill" onOpenFeed={() => setFeedOpen(true)} />
+        </div>
+      )}
+
+      {liveMode && isMobile && (
+        <LiveFeedSheet open={feedOpen} onOpenChange={setFeedOpen} onSelect={selectFromFeed} />
       )}
 
       {/* Controls overlay */}
