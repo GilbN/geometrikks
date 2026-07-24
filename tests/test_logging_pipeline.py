@@ -439,6 +439,28 @@ class TestLoginLoggerLevelPinned:
         assert LOGIN_LINE_RE.match(line), line
 
 
+class TestLitestarLoggerFollowsLogLevel:
+    def test_warning_level_silences_litestar_info(self, tmp_path, monkeypatch):
+        """LOG_LEVEL=WARNING must silence litestar's INFO HTTP request/response
+        records; the litestar logger follows the configured level instead of a
+        hardcoded INFO pin (unlike the login logger, which is pinned on purpose)."""
+        import logging
+
+        monkeypatch.setenv("LOG_DIR", str(tmp_path / "logs"))
+        monkeypatch.setenv("LOG_LEVEL", "WARNING")
+        from geometrikks.config.settings import get_settings
+        get_settings.cache_clear()
+        from geometrikks.server.logging import create_logging_config
+        config = create_logging_config(get_settings())
+        config.configure()
+        config.standard_lib_logging_config.configure()
+
+        litestar_logger = logging.getLogger("litestar")
+        assert litestar_logger.getEffectiveLevel() == logging.WARNING
+        assert not litestar_logger.isEnabledFor(logging.INFO)
+        assert litestar_logger.isEnabledFor(logging.WARNING)
+
+
 @pytest.fixture()
 def _restore_umask():
     """chmod-based writability tests can leave a directory unreadable for

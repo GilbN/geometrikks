@@ -371,7 +371,11 @@ def create_logging_config(settings: "Settings") -> StructLoggingConfig:
         filters={"login_only": {"()": LoginOnlyFilter}},
         handlers=handlers,
         loggers={
-            "litestar": {"level": "INFO", "handlers": ["queue_listener"], "propagate": False},
+            "litestar": {
+                "level": settings.log.level or "INFO",
+                "handlers": ["queue_listener"],
+                "propagate": False,
+            },
             LOGIN_LOGGER_NAME: {"level": "INFO"},
         },
         root={"level": settings.log.level or "INFO", "handlers": ["queue_listener"]},
