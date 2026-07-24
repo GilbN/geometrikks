@@ -15,12 +15,17 @@ from typing import TYPE_CHECKING
 
 import maxminddb
 from litestar import Controller, Request, get, post
+from litestar.datastructures import State
 from litestar.exceptions import NotFoundException
 from litestar.status_codes import HTTP_202_ACCEPTED
 from sqlalchemy import text
 
-from geometrikks.config.introspection import SystemSettingsResponse, build_settings_overview
-from geometrikks.config.settings import get_settings
+from geometrikks.config.introspection import (
+    ComputedField,
+    SystemSettingsResponse,
+    build_settings_overview,
+)
+from geometrikks.config.settings import Settings, get_settings
 from geometrikks.server.logging import get_logger
 from geometrikks.server.scheduler_tracking import JobRunTracker, JobStatus
 from geometrikks.lib.utils import GeoIPInfoView, geoip_info
@@ -145,6 +150,30 @@ def _job_view(job: "Job", tracker: JobRunTracker) -> SchedulerJobView:
     )
 
 
+def _computed_settings_overlay(
+    settings: Settings, state: State
+) -> dict[tuple[str, str], ComputedField]:
+    """Runtime-resolved values the raw config does not expose."""
+    overlay: dict[tuple[str, str], ComputedField] = {}
+
+    home = getattr(state, "map_home_location", None)
+    if home is not None and home.source == "external_ip":
+        overlay[("map", "home_latitude")] = ComputedField(home.latitude, "external_ip")
+        overlay[("map", "home_longitude")] = ComputedField(home.longitude, "external_ip")
+
+    overlay[("geoip", "available")] = ComputedField(
+        bool(getattr(state, "geoip_available", False)),
+        "runtime",
+        "Whether a usable GeoLite2 database is loaded",
+    )
+
+    overlay[("crowdsec", "enabled")] = ComputedField(settings.crowdsec.enabled, "runtime")
+    overlay[("crowdsec", "write_enabled")] = ComputedField(
+        settings.crowdsec.write_enabled, "runtime"
+    )
+    return overlay
+
+
 class SystemController(Controller):
     """Settings overview and scheduler administration."""
 
@@ -152,9 +181,15 @@ class SystemController(Controller):
     tags = ["System"]
 
     @get("/settings")
-    async def get_system_settings(self) -> SystemSettingsResponse:
-        """Full settings tree with descriptions; secrets structurally redacted."""
-        return build_settings_overview(get_settings())
+    async def get_system_settings(self, request: Request) -> SystemSettingsResponse:
+        """Full settings tree with descriptions; secrets structurally redacted.
+
+        Overlays runtime-resolved values (auto-detected map home, GeoIP
+        availability, CrowdSec effective status) that the raw config omits.
+        """
+        settings = get_settings()
+        overlay = _computed_settings_overlay(settings, request.app.state)
+        return build_settings_overview(settings, computed=overlay)
 
     @get("/about")
     async def get_about(self, request: Request) -> AboutResponse:
