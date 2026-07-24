@@ -67,7 +67,7 @@ def _gz_namer(default_name: str) -> str:
 class GzipRotatingFileHandler(RotatingFileHandler):
     """Size-based rotation that gzips archives: app.log.1.gz ... app.log.N.gz."""
 
-    _instances: ClassVar["weakref.WeakSet[GzipRotatingFileHandler]"] = weakref.WeakSet()
+    _instances: ClassVar[weakref.WeakSet[GzipRotatingFileHandler]] = weakref.WeakSet()
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
@@ -95,14 +95,18 @@ def rotate_log_files() -> list[str]:
         if handler.baseFilename in seen:
             continue
         seen.add(handler.baseFilename)
-        try:
-            size = os.path.getsize(handler.baseFilename)
-        except OSError:
-            continue
-        if size == 0:
-            continue
         handler.acquire()
         try:
+            # Size check under the handler lock, so a concurrent rotation
+            # (double-submitted request, or the handler's own size-triggered
+            # rollover) cannot slip in between the check and the rollover
+            # and leave us rotating a freshly emptied file.
+            try:
+                size = os.path.getsize(handler.baseFilename)
+            except OSError:
+                continue
+            if size == 0:
+                continue
             handler.doRollover()
         finally:
             handler.release()

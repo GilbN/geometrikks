@@ -41,7 +41,7 @@ class LogRotateResponse:
 
 
 class LogsController(Controller):
-    """Read-only access to the application's own log files."""
+    """Access to the application's own log files: tail, list, download, rotate."""
 
     path = "/api/v1/logs"
     tags = ["Logs"]
