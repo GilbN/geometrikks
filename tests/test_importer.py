@@ -183,6 +183,35 @@ async def test_import_file_counts_matched_records_only(tmp_path, geoip_reader, m
     assert result.records_written == 4
 
 
+async def test_import_file_ignored_ips_counted_as_skipped(tmp_path, geoip_reader, monkeypatch):
+    """Lines from ignore-listed IPs are dropped entirely and counted as skipped."""
+    from geometrikks.services import importer
+
+    log = tmp_path / "own.log"
+    lines = [
+        make_log_line(TEST_IP, day=1),
+        make_log_line("81.2.69.142", day=2),  # other IP in the test mmdb
+    ]
+    log.write_text("".join(l + "\n" for l in lines))
+
+    service, FakeRepo, session_maker = _import_deps(tmp_path)
+    monkeypatch.setattr(importer, "ImportJobRepository", FakeRepo)
+    parser = LogParser(log_path=log, send_logs=True, ignore_ips=[TEST_IP])
+
+    result = await importer.import_file(
+        log, service=service, parser=parser, reader=geoip_reader,
+        session_maker=session_maker,
+    )
+
+    assert result.skipped is False
+    assert result.lines_total == 2
+    assert result.lines_skipped == 1
+    assert result.records_written == 1
+    # the ignored record must never reach the flush batch
+    flushed = [r for call in service.flush_records.await_args_list for r in call.args[0]]
+    assert all(r.ip_address != TEST_IP for r in flushed)
+
+
 async def test_import_file_aborts_on_unrecognized_format(tmp_path, geoip_reader, monkeypatch):
     """A wrong-format file must abort before anything is written (debug-table flood guard)."""
     from geometrikks.services import importer

@@ -132,6 +132,7 @@ async def on_startup(app: "Litestar") -> None:
             send_logs=settings.logparser.send_logs,
             poll_interval=settings.logparser.poll_interval,
             hostname=settings.logparser.host_name,
+            ignore_ips=settings.logparser.ignore_ips,
         )
         for path in settings.logparser.log_paths
     ]
