@@ -6,10 +6,11 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Literal
 
-from litestar import Controller, get
+from litestar import Controller, get, post
 from litestar.exceptions import NotFoundException
 from litestar.response import File
 
+from geometrikks.server.logging import rotate_log_files
 from geometrikks.services.logfiles import LogFileKind, create_log_files_service
 
 MAX_TAIL_LINES = 2000
@@ -32,6 +33,11 @@ class LogFilesResponse:
 @dataclass
 class LogTailResponse:
     records: list[dict[str, Any]]
+
+
+@dataclass
+class LogRotateResponse:
+    rotated: list[str]
 
 
 class LogsController(Controller):
@@ -76,3 +82,7 @@ class LogsController(Controller):
             content_disposition_type="attachment",
             media_type="application/gzip" if path.suffix == ".gz" else "text/plain",
         )
+
+    @post("/rotate", sync_to_thread=True)
+    def rotate(self) -> LogRotateResponse:
+        return LogRotateResponse(rotated=rotate_log_files())

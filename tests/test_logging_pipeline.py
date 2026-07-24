@@ -358,6 +358,36 @@ class TestCreateLoggingConfig:
         assert "debug_login_event_should_not_appear" not in main.read_text(encoding="utf-8")
 
 
+class TestRotateLogFiles:
+    def test_rotates_main_log_and_keeps_logging_working(self, configured_logging):
+        import structlog
+        from geometrikks.server.logging import rotate_log_files
+
+        structlog.stdlib.get_logger("geometrikks.test.rotate").info("before_rotate")
+        main = configured_logging / "geometrikks.log"
+        assert _wait_for(lambda: "before_rotate" in main.read_text(encoding="utf-8"))
+
+        rotated = rotate_log_files()
+        assert "geometrikks.log" in rotated
+        assert (configured_logging / "geometrikks.log.1.gz").exists()
+        assert "before_rotate" not in main.read_text(encoding="utf-8")
+
+        structlog.stdlib.get_logger("geometrikks.test.rotate").info("after_rotate")
+        assert _wait_for(lambda: "after_rotate" in main.read_text(encoding="utf-8"))
+
+    def test_skips_empty_files(self, configured_logging):
+        from geometrikks.server.logging import rotate_log_files
+
+        # login.log exists but is empty until something logs to it.
+        login = configured_logging / "login.log"
+        assert login.exists()
+        assert login.stat().st_size == 0
+
+        rotated = rotate_log_files()
+        assert "login.log" not in rotated
+        assert not (configured_logging / "login.log.1.gz").exists()
+
+
 class TestExceptionTraceback:
     """A caught exception logged with exc_info=True must survive the queue
     handler with its traceback intact (see _capture_exc_info)."""

@@ -118,6 +118,8 @@ import type {
   ApiV1LogsFilesKindNameDownloadResponses,
   ApiV1LogsFilesListFilesData,
   ApiV1LogsFilesListFilesResponses,
+  ApiV1LogsRotateRotateData,
+  ApiV1LogsRotateRotateResponses,
   ApiV1LogsTailTailData,
   ApiV1LogsTailTailErrors,
   ApiV1LogsTailTailResponses,
@@ -1212,6 +1214,28 @@ export const apiV1LogsFilesKindNameDownload = <
       },
     ],
     url: "/api/v1/logs/files/{kind}/{name}",
+    ...options,
+  });
+
+/**
+ * Rotate
+ */
+export const apiV1LogsRotateRotate = <ThrowOnError extends boolean = false>(
+  options?: Options<ApiV1LogsRotateRotateData, ThrowOnError>,
+) =>
+  (options?.client ?? client).post<
+    ApiV1LogsRotateRotateResponses,
+    unknown,
+    ThrowOnError
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+    ],
+    url: "/api/v1/logs/rotate",
     ...options,
   });
 

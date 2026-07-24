@@ -5,7 +5,9 @@
  * downloads card for the raw files behind the stream.
  */
 import { useEffect, useMemo, useRef, useState } from "react"
+import { useMutation, useQueryClient } from "@tanstack/react-query"
 import {
+  Archive,
   ChevronsUpDown,
   Download,
   FolderDown,
@@ -50,8 +52,9 @@ import {
 } from "@/components/ui/table"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { MonoChip, StatusLed, type LedTone } from "@/components/settings/status-led"
-import { useLogFiles, useLogTail } from "@/lib/queries"
+import { useLogFiles, useLogTail, queryKeys } from "@/lib/queries"
 import { logStream, type LogRecord, type LogStreamStatus } from "@/lib/logstream"
+import { apiV1LogsRotateRotate } from "@/generated/api/sdk.gen"
 import type { LogFileView } from "@/generated/api/types.gen"
 
 const MAX_RECORDS = 2000
@@ -131,6 +134,14 @@ export function LogsOverview() {
   const { data: tailRecords } = useLogTail(500)
   const { data: loginTailRecords } = useLogTail(500, "login")
   const { data: files } = useLogFiles()
+  const queryClient = useQueryClient()
+  const rotateLogs = useMutation({
+    mutationFn: async () => {
+      const { data } = await apiV1LogsRotateRotate({ throwOnError: true })
+      return data
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: queryKeys.logs.files }),
+  })
 
   const [activeLog, setActiveLog] = useState<"app" | "login">("app")
 
@@ -509,17 +520,29 @@ export function LogsOverview() {
 
       <Card>
         <CardHeader>
-          <div className="flex items-center gap-3">
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-geo-cyan/10">
-              <FolderDown className="h-4 w-4 text-geo-cyan" />
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-geo-cyan/10">
+                <FolderDown className="h-4 w-4 text-geo-cyan" />
+              </div>
+              <div>
+                <CardTitle className="text-base">Log downloads</CardTitle>
+                <CardDescription>
+                  Raw files behind the stream above: the application log, login log, and ingested
+                  nginx access logs.
+                </CardDescription>
+              </div>
             </div>
-            <div>
-              <CardTitle className="text-base">Log downloads</CardTitle>
-              <CardDescription>
-                Raw files behind the stream above: the application log, login log, and ingested
-                nginx access logs.
-              </CardDescription>
-            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              className="pointer-coarse:h-10"
+              disabled={rotateLogs.isPending}
+              onClick={() => rotateLogs.mutate()}
+            >
+              <Archive className="mr-1.5 h-3.5 w-3.5" />
+              {rotateLogs.isPending ? "Rotating..." : "Rotate logs"}
+            </Button>
           </div>
         </CardHeader>
         <CardContent className="space-y-4">

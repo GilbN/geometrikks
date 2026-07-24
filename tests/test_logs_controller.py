@@ -63,6 +63,13 @@ class TestFilesEndpoint:
         assert ("nginx", "access.log") in files
 
 
+class TestRotateEndpoint:
+    def test_returns_201_with_rotated_list(self, client):
+        resp = client.post("/api/v1/logs/rotate")
+        assert resp.status_code == 201
+        assert isinstance(resp.json()["rotated"], list)
+
+
 class TestDownloadEndpoint:
     def test_downloads_listed_file(self, client):
         resp = client.get("/api/v1/logs/files/app/geometrikks.log")

@@ -578,6 +578,13 @@
       ],
       "uri": "/api/v1/settings"
     },
+    "rotate": {
+      "method": "post",
+      "methods": [
+        "POST"
+      ],
+      "uri": "/api/v1/logs/rotate"
+    },
     "run_scheduler_job": {
       "method": "post",
       "methods": [

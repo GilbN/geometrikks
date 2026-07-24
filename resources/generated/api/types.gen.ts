@@ -487,6 +487,13 @@ export type LogFilesResponse = {
 };
 
 /**
+ * LogRotateResponse
+ */
+export type LogRotateResponse = {
+  rotated: Array<string>;
+};
+
+/**
  * LogTailResponse
  */
 export type LogTailResponse = {
@@ -2771,6 +2778,23 @@ export type ApiV1LogsFilesKindNameDownloadResponses = {
 
 export type ApiV1LogsFilesKindNameDownloadResponse =
   ApiV1LogsFilesKindNameDownloadResponses[keyof ApiV1LogsFilesKindNameDownloadResponses];
+
+export type ApiV1LogsRotateRotateData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: "/api/v1/logs/rotate";
+};
+
+export type ApiV1LogsRotateRotateResponses = {
+  /**
+   * Document created, URL follows
+   */
+  201: LogRotateResponse;
+};
+
+export type ApiV1LogsRotateRotateResponse =
+  ApiV1LogsRotateRotateResponses[keyof ApiV1LogsRotateRotateResponses];
 
 export type ApiV1LogsTailTailData = {
   body?: never;

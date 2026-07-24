@@ -1722,6 +1722,20 @@ export const LogFilesResponseSchema = {
   type: "object",
 } as const;
 
+export const LogRotateResponseSchema = {
+  properties: {
+    rotated: {
+      items: {
+        type: "string",
+      },
+      type: "array",
+    },
+  },
+  required: ["rotated"],
+  title: "LogRotateResponse",
+  type: "object",
+} as const;
+
 export const LogTailResponseSchema = {
   properties: {
     records: {

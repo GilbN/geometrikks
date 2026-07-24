@@ -17,15 +17,15 @@ import logging
 import os
 import shutil
 import sys
+import weakref
 from logging.handlers import QueueHandler, RotatingFileHandler
-from typing import TYPE_CHECKING, Any
+from pathlib import Path
+from typing import TYPE_CHECKING, Any, ClassVar
 
 import structlog
 from litestar.logging.config import LoggingConfig, StructLoggingConfig
 
 if TYPE_CHECKING:
-    from pathlib import Path
-
     from geometrikks.config.settings import Settings
 
 SUCCESS_LEVEL = 25  # between INFO (20) and WARNING (30)
@@ -67,10 +67,49 @@ def _gz_namer(default_name: str) -> str:
 class GzipRotatingFileHandler(RotatingFileHandler):
     """Size-based rotation that gzips archives: app.log.1.gz ... app.log.N.gz."""
 
+    _instances: ClassVar["weakref.WeakSet[GzipRotatingFileHandler]"] = weakref.WeakSet()
+
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
         self.namer = _gz_namer
         self.rotator = _gzip_rotator
+        self.__class__._instances.add(self)
+
+
+def rotate_log_files() -> list[str]:
+    """Force a rollover of every live log file handler.
+
+    Skips closed handlers (reconfiguration can leave stale, closed
+    instances reachable via the weak-reference registry) and dedupes by
+    baseFilename, keeping the first live handler found for each file. A
+    handler whose current file is empty or missing is skipped too, since
+    rotating an empty file would just churn archives.
+
+    Returns the rotated base file names (e.g. ["geometrikks.log", "login.log"]).
+    """
+    rotated: list[str] = []
+    seen: set[str] = set()
+    for handler in list(GzipRotatingFileHandler._instances):
+        if handler.stream is None:  # closed by a prior reconfiguration
+            continue
+        if handler.baseFilename in seen:
+            continue
+        seen.add(handler.baseFilename)
+        try:
+            size = os.path.getsize(handler.baseFilename)
+        except OSError:
+            continue
+        if size == 0:
+            continue
+        handler.acquire()
+        try:
+            handler.doRollover()
+        finally:
+            handler.release()
+        rotated.append(Path(handler.baseFilename).name)
+    if rotated:
+        get_logger(__name__).info("logs_rotated", files=rotated)
+    return rotated
 
 
 def _sanitize_login_field(value: str) -> str:

@@ -64,6 +64,7 @@ export type RouteName =
   | 'openapi.json'
   | 'openapi.yaml'
   | 'read_settings'
+  | 'rotate'
   | 'run_scheduler_job'
   | 'service_worker'
   | 'stats'
@@ -129,6 +130,7 @@ export interface RoutePathParams {
   'openapi.json': Record<string, never>;
   'openapi.yaml': Record<string, never>;
   'read_settings': Record<string, never>;
+  'rotate': Record<string, never>;
   'run_scheduler_job': {
     job_id: string;
   };
@@ -387,6 +389,7 @@ export interface RouteQueryParams {
   'openapi.json': Record<string, never>;
   'openapi.yaml': Record<string, never>;
   'read_settings': Record<string, never>;
+  'rotate': Record<string, never>;
   'run_scheduler_job': Record<string, never>;
   'service_worker': Record<string, never>;
   'stats': Record<string, never>;
@@ -749,6 +752,13 @@ export const routeDefinitions = {
     path: '/api/v1/settings',
     methods: ['GET'] as const,
     method: 'get',
+    pathParams: [] as const,
+    queryParams: [] as const,
+  },
+  'rotate': {
+    path: '/api/v1/logs/rotate',
+    methods: ['POST'] as const,
+    method: 'post',
     pathParams: [] as const,
     queryParams: [] as const,
   },

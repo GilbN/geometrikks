@@ -1809,6 +1809,21 @@
         "title": "LogFilesResponse",
         "type": "object"
       },
+      "LogRotateResponse": {
+        "properties": {
+          "rotated": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "rotated"
+        ],
+        "title": "LogRotateResponse",
+        "type": "object"
+      },
       "LogTailResponse": {
         "properties": {
           "records": {
@@ -8709,6 +8724,29 @@
           }
         },
         "summary": "Download",
+        "tags": [
+          "Logs"
+        ]
+      }
+    },
+    "/api/v1/logs/rotate": {
+      "post": {
+        "deprecated": false,
+        "operationId": "ApiV1LogsRotateRotate",
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LogRotateResponse"
+                }
+              }
+            },
+            "description": "Document created, URL follows",
+            "headers": {}
+          }
+        },
+        "summary": "Rotate",
         "tags": [
           "Logs"
         ]

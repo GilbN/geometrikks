@@ -31,6 +31,8 @@ import type {
   ApiV1GeoEventsFacetsGetGeoLogFacetsResponses,
   ApiV1LogsFilesListFilesData,
   ApiV1LogsFilesListFilesResponses,
+  ApiV1LogsRotateRotateData,
+  ApiV1LogsRotateRotateResponses,
   ApiV1SettingsReadSettingsData,
   ApiV1SettingsReadSettingsResponses,
   ApiV1StatsStatsData,
@@ -76,6 +78,7 @@ export type OperationName =
   | 'logout'
   | 'me'
   | 'read_settings'
+  | 'rotate'
   | 'stats'
   | 'unban'
 
@@ -100,6 +103,7 @@ export interface OperationDataTypes {
   'logout': ApiV1AuthLogoutLogoutData
   'me': ApiV1AuthMeMeData
   'read_settings': ApiV1SettingsReadSettingsData
+  'rotate': ApiV1LogsRotateRotateData
   'stats': ApiV1StatsStatsData
   'unban': ApiV1CrowdsecUnbanUnbanData
 }
@@ -125,6 +129,7 @@ export interface OperationResponseTypes {
   'logout': ApiV1AuthLogoutLogoutResponses
   'me': ApiV1AuthMeMeResponses
   'read_settings': ApiV1SettingsReadSettingsResponses
+  'rotate': ApiV1LogsRotateRotateResponses
   'stats': ApiV1StatsStatsResponses
   'unban': ApiV1CrowdsecUnbanUnbanResponses
 }
@@ -150,6 +155,7 @@ export interface OperationErrorTypes {
   'logout': never
   'me': never
   'read_settings': never
+  'rotate': never
   'stats': never
   'unban': ApiV1CrowdsecUnbanUnbanErrors
 }

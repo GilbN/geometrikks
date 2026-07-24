@@ -18,14 +18,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and ingested nginx access logs). `/ws/logs` WebSocket endpoint streams
   structured log events in real time, batched and coalesced like the other
   live feeds, with an optional `?level=` query param to filter to a minimum
-  log level.
+  log level. New `POST /api/v1/logs/rotate` endpoint forces an immediate
+  rollover of the live log file handlers, gzipping the current file and
+  starting a fresh one, and returns which files were actually rotated.
 - New Logs page at Settings -> Logs: live log stream with level/component
   filters and search, color-coded level badges (including the new SUCCESS
   level), traceback and detail dialogs, and downloads for the application
   log, login log, rotated gzip archives, and ingested nginx access logs. A
   tabs toggle above the stream switches between the system log and the
   login log, each with its own buffer, while filters, search, pause and the
-  detail dialog behave the same on both.
+  detail dialog behave the same on both. A "Rotate logs" button on the
+  downloads card triggers the manual rotation endpoint on demand and
+  refreshes the file list to show the new archive.
 
 ### Changed
 
