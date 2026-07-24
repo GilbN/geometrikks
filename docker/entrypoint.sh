@@ -20,7 +20,10 @@ fi
 
 # Docker auto-creates a missing ./logs bind mount owned root:root, and the
 # geoip named volume is initialized owned by the build-time uid 1000; both
-# must be writable by the runtime uid.
+# must be writable by the runtime uid. /app itself (non-recursive) must be
+# writable too: litestar-vite rewrites /app/.litestar.json at startup via
+# mkstemp + rename, which needs write on the directory.
+chown "$PUID:$PGID" /app
 chown -R "$PUID:$PGID" /app/logs /app/data/geoip
 
 echo "geometrikks: starting as uid=$PUID gid=$PGID"
