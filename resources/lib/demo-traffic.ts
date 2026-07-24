@@ -1,3 +1,6 @@
+import { isThreat, statusClass } from "@/lib/live-traffic/classify"
+import type { LiveRequest } from "@/lib/live-traffic/types"
+
 export type DemoTrafficMode = "off" | "steady" | "burst"
 
 export interface DemoTrafficOrigin {
@@ -26,4 +29,89 @@ export function getDemoTrafficMode(): DemoTrafficMode {
   if (value === "burst") return "burst"
   if (value === "1" || value === "true" || value === "steady") return "steady"
   return "off"
+}
+
+/** A 100-entry status cycle: 78 percent 2xx, 9 percent 3xx, 10 percent 4xx, 3 percent 5xx. */
+const DEMO_STATUS_CYCLE: readonly number[] = Array.from({ length: 100 }, (_, index) => {
+  if (index % 33 === 32) return 502
+  if (index % 10 === 7) return 404
+  if (index % 11 === 5) return 301
+  return 200
+})
+
+const DEMO_PATHS: readonly string[] = [
+  "/map",
+  "/api/v1/geo-locations/top-ips",
+  "/assets/index.js",
+  "/api/v1/stats",
+  "/access-logs",
+]
+
+const DEMO_PROBE_PATHS: readonly string[] = [
+  "/wp-login.php",
+  "/.env",
+  "/admin/config.php",
+  "/vendor/phpunit/phpunit/eval-stdin.php",
+]
+
+const DEMO_AGENTS: readonly string[] = [
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/150.0.0.0",
+  "curl/8.4.0",
+  "python-requests/2.32.3",
+]
+
+/**
+ * Deterministic synthetic requests for dev demo mode. Every field the overlays
+ * read is populated, so colours, sizes, strips, the wire, and the threat lane
+ * can all be exercised without waiting for real scanners.
+ */
+export function makeDemoRequests(cursor: number, count: number, now: number): LiveRequest[] {
+  const requests: LiveRequest[] = []
+
+  for (let offset = 0; offset < count; offset += 1) {
+    const step = cursor + offset
+    const origin = DEMO_TRAFFIC_ORIGINS[step % DEMO_TRAFFIC_ORIGINS.length]
+    const code = DEMO_STATUS_CYCLE[step % DEMO_STATUS_CYCLE.length]
+    const banned = step % 17 === 3
+    const probing = banned || code === 404
+    const url = probing
+      ? DEMO_PROBE_PATHS[step % DEMO_PROBE_PATHS.length]
+      : DEMO_PATHS[step % DEMO_PATHS.length]
+    const status = statusClass(code)
+    const ip = `203.0.113.${step % 254}`
+    const timestamp = new Date(now).toISOString()
+
+    requests.push({
+      id: `demo-${step}`,
+      timestamp,
+      receivedAt: now,
+      ip,
+      coordinates: origin.coordinates,
+      city: origin.city,
+      countryCode: null,
+      statusClass: status,
+      banned,
+      threat: isThreat(status, banned),
+      log: {
+        timestamp,
+        ip_address: ip,
+        remote_user: null,
+        method: probing ? "POST" : "GET",
+        url,
+        http_version: "HTTP/2.0",
+        status_code: code,
+        bytes_sent: probing ? 412 : 500 + (step % 40) * 4200,
+        referrer: null,
+        user_agent: DEMO_AGENTS[step % DEMO_AGENTS.length],
+        request_time: 0.004 + (step % 25) / 100,
+        upstream_response_time: 0.002 + (step % 9) / 100,
+        host: "geometrikks.example.com",
+        country_code: null,
+        country_name: null,
+        city: origin.city,
+      },
+    })
+  }
+
+  return requests
 }
