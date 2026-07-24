@@ -73,6 +73,10 @@ services:
       APP_DEBUG: "true"
       API_RELOAD: "true"
       LOG_LEVEL: DEBUG
+      # ./logs is mounted read-only below for nginx access log ingestion, so
+      # the app's own log files (geometrikks.log, login.log) need a separate
+      # writable directory that does not collide with it.
+      LOG_DIR: /app/applogs
       DB_HOST: timescale_db
       DB_PORT: 5432
       DB_USER: geouser

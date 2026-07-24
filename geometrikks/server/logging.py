@@ -272,6 +272,7 @@ def create_logging_config(settings: "Settings") -> StructLoggingConfig:
         },
         loggers={
             "litestar": {"level": "INFO", "handlers": ["queue_listener"], "propagate": False},
+            LOGIN_LOGGER_NAME: {"level": "INFO"},
         },
         root={"level": settings.log.level or "INFO", "handlers": ["queue_listener"]},
         log_exceptions="always",

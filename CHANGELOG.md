@@ -48,6 +48,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - All subsystems now log lifecycle and state-change events (WS connects,
   scheduler outcomes, CrowdSec stream state, GeoIP refreshes, imports);
   scheduler and task completions use a new SUCCESS log level.
+- `docker-compose.yml` now mounts `./logs:/app/logs` on the app service so
+  application logs persist across container recreation and `login.log` is
+  readable by host-side tools like CrowdSec/fail2ban.
 
 ### Deprecated
 

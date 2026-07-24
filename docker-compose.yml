@@ -5,6 +5,9 @@
 #   $EDITOR .env      # set APP_ADMIN_PASSWORD, MaxMind key, log path
 #   docker compose up -d
 #
+# ./logs on the host holds the application log and login.log, readable by
+# host-side tools like CrowdSec/fail2ban.
+#
 # Developing GeoMetrikks itself? Use docker-compose.dev.yml instead.
 services:
   timescale_db:
@@ -36,6 +39,9 @@ services:
     volumes:
       - geoip_data:/app/data/geoip
       - ${NGINX_LOG_DIR:-/var/log/nginx}:/var/log/nginx:ro
+      # Exposes the application log and login.log on the host for tools like
+      # CrowdSec/fail2ban, and persists them across container recreation.
+      - ./logs:/app/logs
     depends_on:
       timescale_db:
         condition: service_healthy

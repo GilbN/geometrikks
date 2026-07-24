@@ -329,18 +329,46 @@ class TestCreateLoggingConfig:
     def test_handler_levels_are_respected_behind_queue(self, configured_logging):
         import structlog
         from geometrikks.server.logging import LOGIN_LOGGER_NAME
-        structlog.stdlib.get_logger(LOGIN_LOGGER_NAME).debug(
-            "debug_login_event", user="x", ip="1.2.3.4"
+        # Use a non-login logger for the DEBUG event: the login logger is
+        # pinned at INFO (see TestLoginLoggerLevelPinned), so a DEBUG call on
+        # it would be filtered at the logger itself rather than demonstrate
+        # per-handler level filtering behind the shared queue.
+        structlog.stdlib.get_logger("geometrikks.test.levels").debug(
+            "debug_other_event"
         )
         structlog.stdlib.get_logger(LOGIN_LOGGER_NAME).warning(
             "login_failed", user="x", ip="1.2.3.4"
         )
         login = configured_logging / "login.log"
         assert _wait_for(lambda: "login_failed" in login.read_text(encoding="utf-8"))
-        assert "debug_login_event" not in login.read_text(encoding="utf-8")
+        assert "debug_other_event" not in login.read_text(encoding="utf-8")
         # The DEBUG event still reaches the main file (its handler level is DEBUG).
         main = configured_logging / "geometrikks.log"
-        assert _wait_for(lambda: "debug_login_event" in main.read_text(encoding="utf-8"))
+        assert _wait_for(lambda: "debug_other_event" in main.read_text(encoding="utf-8"))
+
+
+class TestLoginLoggerLevelPinned:
+    def test_login_success_reaches_login_file_when_root_level_is_error(self, tmp_path, monkeypatch):
+        """LOG_LEVEL=ERROR must not silence the login feed (CrowdSec/fail2ban)."""
+        monkeypatch.setenv("LOG_DIR", str(tmp_path / "logs"))
+        monkeypatch.setenv("LOG_LEVEL", "ERROR")
+        from geometrikks.config.settings import get_settings
+        get_settings.cache_clear()
+        from geometrikks.server.logging import create_logging_config
+        config = create_logging_config(get_settings())
+        config.configure()
+        config.standard_lib_logging_config.configure()
+        log_dir = tmp_path / "logs"
+
+        import structlog
+        from geometrikks.server.logging import LOGIN_LOGGER_NAME
+        structlog.stdlib.get_logger(LOGIN_LOGGER_NAME).info(
+            "login_success", user="admin", ip="203.0.113.7"
+        )
+        login = log_dir / "login.log"
+        assert _wait_for(lambda: "login_success" in login.read_text(encoding="utf-8"))
+        line = login.read_text(encoding="utf-8").splitlines()[-1]
+        assert LOGIN_LINE_RE.match(line), line
 
 
 class TestAppWiring:
