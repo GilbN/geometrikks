@@ -330,6 +330,12 @@ export function LogsOverview() {
                     className="cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
                     onClick={() => setSelected(r)}
                     onKeyDown={(e) => {
+                      // Only react when the row itself is the event target: a
+                      // native keydown on a nested control (the traceback
+                      // button) still bubbles up here even though its click
+                      // handler calls stopPropagation, since that only stops
+                      // the click event, not this separate keydown binding.
+                      if (e.target !== e.currentTarget) return
                       if (e.key === "Enter" || e.key === " ") {
                         e.preventDefault()
                         setSelected(r)
