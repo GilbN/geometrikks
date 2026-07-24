@@ -380,6 +380,24 @@ class TestExceptionTraceback:
         assert "ValueError" in record["exception"]
         assert "boom for jsonl" in record["exception"]
         assert "Traceback" in record["exception"]
+        assert record["error"] == "ValueError: boom for jsonl"
+
+    def test_explicit_error_kwarg_is_not_clobbered(self, configured_logging):
+        import json as jsonlib
+        import structlog
+        logger = structlog.stdlib.get_logger("geometrikks.test.exc")
+        try:
+            raise ValueError("boom for kwarg")
+        except ValueError:
+            logger.error("caught_error_kwarg", exc_info=True, error="custom message")
+        main = configured_logging / "geometrikks.log"
+        assert _wait_for(lambda: "caught_error_kwarg" in main.read_text(encoding="utf-8"))
+        line = [
+            l for l in main.read_text(encoding="utf-8").splitlines() if "caught_error_kwarg" in l
+        ][0]
+        record = jsonlib.loads(line)
+        assert record["error"] == "custom message"
+        assert "Traceback" in record["exception"]
 
     def test_broadcast_record_carries_exception_traceback(self, configured_logging):
         import structlog
@@ -409,6 +427,7 @@ class TestExceptionTraceback:
                 assert "exception" in event
                 assert "ValueError" in event["exception"]
                 assert "boom for broadcast" in event["exception"]
+                assert event["error"] == "ValueError: boom for broadcast"
             finally:
                 log_broadcaster.unsubscribe(q)
 

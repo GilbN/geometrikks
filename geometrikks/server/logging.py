@@ -212,9 +212,16 @@ def _capture_exc_info(_: Any, __: str, event_dict: dict[str, Any]) -> dict[str, 
     """
     exc_info = event_dict.get("exc_info")
     if exc_info is True:
-        event_dict["exc_info"] = sys.exc_info()
+        exc_info = sys.exc_info()
+        event_dict["exc_info"] = exc_info
     elif isinstance(exc_info, BaseException):
-        event_dict["exc_info"] = (type(exc_info), exc_info, exc_info.__traceback__)
+        exc_info = (type(exc_info), exc_info, exc_info.__traceback__)
+        event_dict["exc_info"] = exc_info
+    # One-line summary next to the full traceback, e.g.
+    # "NotAuthorizedException: 401: no session data found"; setdefault so an
+    # explicit error=... kwarg (scheduler job failures) is never clobbered.
+    if isinstance(exc_info, tuple) and len(exc_info) == 3 and exc_info[1] is not None:
+        event_dict.setdefault("error", f"{type(exc_info[1]).__name__}: {exc_info[1]}")
     return event_dict
 
 
