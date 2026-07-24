@@ -151,7 +151,10 @@ export function LogsOverview() {
       flowTimerRef.current = setTimeout(() => setFlowing(false), FLOW_IDLE_MS)
 
       if (pausedRef.current) {
-        pausedBufferRef.current = [...pausedBufferRef.current, ...records].slice(-MAX_RECORDS)
+        const combined = [...pausedBufferRef.current, ...records]
+        const overflow = Math.max(0, combined.length - MAX_RECORDS)
+        if (overflow > 0) setTotalDropped((d) => d + overflow)
+        pausedBufferRef.current = combined.slice(-MAX_RECORDS)
         setPendingCount(pausedBufferRef.current.length)
         return
       }
@@ -350,7 +353,7 @@ export function LogsOverview() {
                     <TableCell className="w-24 py-1.5">
                       <Badge
                         variant="outline"
-                        className={cn("gap-1", levelBadgeClasses[r.level ?? ""] ?? levelBadgeClasses.debug)}
+                        className={cn("gap-1", levelBadgeClasses[r.level ?? ""] ?? levelBadgeClasses.info)}
                       >
                         {r.level ?? "info"}
                       </Badge>
@@ -470,7 +473,7 @@ export function LogsOverview() {
                 <DialogTitle className="flex items-center gap-2">
                   <Badge
                     variant="outline"
-                    className={cn("gap-1", levelBadgeClasses[selected.level ?? ""] ?? levelBadgeClasses.debug)}
+                    className={cn("gap-1", levelBadgeClasses[selected.level ?? ""] ?? levelBadgeClasses.info)}
                   >
                     {selected.level ?? "info"}
                   </Badge>
