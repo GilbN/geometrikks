@@ -35,6 +35,7 @@ import { MapLegend } from "./MapLegend"
 import { MapPopup, type PopupInfo } from "./MapPopup"
 import { LiveRequestPopup } from "./LiveRequestPopup"
 import { LiveVitals } from "./LiveVitals"
+import { LiveStrips } from "./LiveStrips"
 import { Card, CardContent } from "@/components/ui/card"
 import { AlertTriangle } from "lucide-react"
 import { getDemoTrafficMode } from "@/lib/demo-traffic"
@@ -456,6 +457,12 @@ function GeoMapInner({
       {liveMode && !isMobile && (
         <div className="pointer-events-none absolute left-4 top-4 z-10">
           <LiveVitals variant="desktop" />
+        </div>
+      )}
+
+      {liveMode && !isMobile && (
+        <div className="pointer-events-none absolute bottom-4 left-4 z-10">
+          <LiveStrips onSelect={setLivePopup} />
         </div>
       )}
 
