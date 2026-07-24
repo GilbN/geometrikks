@@ -50,9 +50,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Live mode on a phone now has its own surface: tapping the vitals pill
   opens a sheet listing live requests, split into an "All" and a "Threats"
   lane, and tapping a row flies the map to that request's origin.
+- Recent-request strips and the five-minute timeline on the map: strips
+  show the most recent requests, fading out as they age, while the
+  timeline is a per-second view of the last five minutes, coloured by the
+  worst status seen in each second.
 - Live vitals readout on the map: requests per minute with a sparkline,
   error rate, threat count, unique IPs, and countries seen.
-- Clicking a live packet, request strip, or timeline bar opens the full
+- Clicking a live packet, strip, or timeline bar opens the full
   access-log line for that request, with ban/unban controls.
 
 ### Changed
