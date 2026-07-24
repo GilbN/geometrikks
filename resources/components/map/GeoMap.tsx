@@ -36,6 +36,7 @@ import { MapPopup, type PopupInfo } from "./MapPopup"
 import { Card, CardContent } from "@/components/ui/card"
 import { AlertTriangle } from "lucide-react"
 import { getDemoTrafficMode } from "@/lib/demo-traffic"
+import { LiveTrafficProvider } from "@/lib/live-traffic/context"
 
 export type LayerType = "heatmap" | "markers"
 export type MapProjection = "mercator" | "globe"
@@ -79,7 +80,13 @@ function loadMapProjectionPreference(): MapProjection {
   }
 }
 
-export default function GeoMap() {
+function GeoMapInner({
+  liveMode,
+  onLiveModeChange,
+}: {
+  liveMode: boolean
+  onLiveModeChange: (enabled: boolean) => void
+}) {
   const demoTrafficMode = getDemoTrafficMode()
   const mapRef = useRef<MapRef>(null)
   const { mapStyle } = useMapStyle()
@@ -104,7 +111,6 @@ export default function GeoMap() {
   const [viewState, setViewState] = useState(INITIAL_VIEW_STATE)
   const [activeLayer, setActiveLayer] = useState<LayerType>("markers")
   const [projection, setProjection] = useState<MapProjection>(loadMapProjectionPreference)
-  const [liveMode, setLiveMode] = useState(demoTrafficMode !== "off")
   const [routeEffectsEnabled, setRouteEffectsEnabled] = useState(loadRouteEffectsPreference)
   const [homeMarkerEnabled, setHomeMarkerEnabled] = useState(loadHomeMarkerPreference)
   const [showBanned, setShowBanned] = useState(false)
@@ -432,7 +438,7 @@ export default function GeoMap() {
         onProjectionChange={changeProjection}
         liveMode={liveMode}
         demoTrafficMode={demoTrafficMode}
-        onLiveModeChange={setLiveMode}
+        onLiveModeChange={onLiveModeChange}
         routeEffectsEnabled={routeEffectsEnabled}
         onRouteEffectsChange={setRouteEffectsEnabled}
         routeHomeAvailable={homeDestination !== null}
@@ -461,5 +467,15 @@ export default function GeoMap() {
       {/* Legend - show for both modes */}
       <MapLegend maxValue={geojson?.stats.events ?? 0} layerType={activeLayer} />
     </div>
+  )
+}
+
+export default function GeoMap() {
+  const [liveMode, setLiveMode] = useState(getDemoTrafficMode() !== "off")
+
+  return (
+    <LiveTrafficProvider enabled={liveMode}>
+      <GeoMapInner liveMode={liveMode} onLiveModeChange={setLiveMode} />
+    </LiveTrafficProvider>
   )
 }
