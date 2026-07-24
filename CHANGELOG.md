@@ -34,6 +34,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `LOGPARSER_IGNORE_IPS` setting: IPs/CIDRs the parser drops entirely so
   your own traffic through the reverse proxy is never ingested (applies to
   live tailing and file imports).
+- Map controls: a "Go to home location" button next to "Fit to data bounds"
+  that flies the map to the configured/auto-detected home coordinates. Shown
+  only when a home location is resolved.
+- Home location marker: a home-icon pin on the map at the
+  configured/auto-detected home coordinates; clicking it zooms to the home
+  location. Toggled via "Home marker" in the map controls (on by default,
+  preference stored in the browser).
 
 ### Changed
 

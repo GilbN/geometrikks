@@ -25,6 +25,7 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import {
   Flame,
   Globe2,
+  Home,
   Loader2,
   MapPin,
   Maximize2,
@@ -51,6 +52,8 @@ interface MapControlsProps {
   routeEffectsEnabled: boolean
   onRouteEffectsChange: (enabled: boolean) => void
   routeHomeAvailable: boolean
+  homeMarkerEnabled: boolean
+  onHomeMarkerChange: (enabled: boolean) => void
   /** CrowdSec integration configured; hides the overlay toggle when false. */
   bannedOverlayAvailable: boolean
   bannedOverlayEnabled: boolean
@@ -59,6 +62,8 @@ interface MapControlsProps {
   /** Banned-locations fetch in flight; shows a spinner on the toggle. */
   bannedOverlayLoading?: boolean
   onFitBounds: () => void
+  /** Fly to the resolved map home location; button hidden when routeHomeAvailable is false. */
+  onGoHome?: () => void
   isLoading?: boolean
   featureStats: GeoJSONFeatureStats
   topIPs: TopIPDTO[]
@@ -83,12 +88,15 @@ export function MapControls({
   routeEffectsEnabled,
   onRouteEffectsChange,
   routeHomeAvailable,
+  homeMarkerEnabled,
+  onHomeMarkerChange,
   bannedOverlayAvailable,
   bannedOverlayEnabled,
   onBannedOverlayChange,
   bannedCount,
   bannedOverlayLoading = false,
   onFitBounds,
+  onGoHome,
   isLoading = false,
   featureStats,
   topIPs,
@@ -218,6 +226,24 @@ export function MapControls({
               </Badge>
             )}
           </Button>
+          {routeHomeAvailable && (
+            <Button
+              variant="outline"
+              onClick={() => onHomeMarkerChange(!homeMarkerEnabled)}
+              aria-pressed={homeMarkerEnabled}
+              title="Show a beacon at the server home location"
+              className={cn(
+                "cursor-pointer w-full justify-start gap-2 px-3 pointer-coarse:h-10",
+                homeMarkerEnabled && "bg-geo-cyan/15 text-geo-cyan border-geo-cyan/30",
+              )}
+            >
+              <Home className="h-4 w-4" />
+              <span className="text-sm font-medium">Home marker</span>
+              <Badge variant="secondary" className="ml-auto text-[9px] uppercase">
+                {homeMarkerEnabled ? "on" : "off"}
+              </Badge>
+            </Button>
+          )}
           {bannedOverlayAvailable && (
             <Button
               variant="outline"
@@ -267,18 +293,31 @@ export function MapControls({
         />
       </Card>
 
-      {/* Fit Bounds Button */}
+      {/* Fit Bounds / Go Home Buttons */}
       <Card className="p-1 shrink-0">
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={onFitBounds}
-          disabled={isLoading || events === 0}
-          title="Fit to data bounds"
-          className="cursor-pointer pointer-coarse:size-10"
-        >
-          <Maximize2 className="h-4 w-4" />
-        </Button>
+        <div className="flex gap-1">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onFitBounds}
+            disabled={isLoading || events === 0}
+            title="Fit to data bounds"
+            className="cursor-pointer pointer-coarse:size-10"
+          >
+            <Maximize2 className="h-4 w-4" />
+          </Button>
+          {routeHomeAvailable && onGoHome && (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={onGoHome}
+              title="Go to home location"
+              className="cursor-pointer pointer-coarse:size-10"
+            >
+              <Home className="h-4 w-4" />
+            </Button>
+          )}
+        </div>
       </Card>
 
       {/* Status Indicator */}

@@ -30,6 +30,7 @@ import {
 } from "./layers"
 import { MapControls } from "./MapControls"
 import { LivePulses } from "./LivePulses"
+import { HomeMarker } from "./HomeMarker"
 import { MapLegend } from "./MapLegend"
 import { MapPopup, type PopupInfo } from "./MapPopup"
 import { Card, CardContent } from "@/components/ui/card"
@@ -50,10 +51,19 @@ const INITIAL_VIEW_STATE = {
 
 const ROUTE_EFFECTS_STORAGE_KEY = "geometrikks-route-effects-enabled"
 const MAP_PROJECTION_STORAGE_KEY = "geometrikks-map-projection"
+const HOME_MARKER_STORAGE_KEY = "geometrikks-home-marker-enabled"
 
 function loadRouteEffectsPreference(): boolean {
   try {
     return localStorage.getItem(ROUTE_EFFECTS_STORAGE_KEY) !== "false"
+  } catch {
+    return true
+  }
+}
+
+function loadHomeMarkerPreference(): boolean {
+  try {
+    return localStorage.getItem(HOME_MARKER_STORAGE_KEY) !== "false"
   } catch {
     return true
   }
@@ -96,6 +106,7 @@ export default function GeoMap() {
   const [projection, setProjection] = useState<MapProjection>(loadMapProjectionPreference)
   const [liveMode, setLiveMode] = useState(demoTrafficMode !== "off")
   const [routeEffectsEnabled, setRouteEffectsEnabled] = useState(loadRouteEffectsPreference)
+  const [homeMarkerEnabled, setHomeMarkerEnabled] = useState(loadHomeMarkerPreference)
   const [showBanned, setShowBanned] = useState(false)
   const [popup, setPopup] = useState<PopupInfo | null>(null)
 
@@ -128,6 +139,14 @@ export default function GeoMap() {
       // Storage may be blocked; keep the in-memory preference for this session.
     }
   }, [routeEffectsEnabled])
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(HOME_MARKER_STORAGE_KEY, String(homeMarkerEnabled))
+    } catch {
+      // Storage may be blocked; keep the in-memory preference for this session.
+    }
+  }, [homeMarkerEnabled])
 
   useEffect(() => {
     try {
@@ -216,6 +235,16 @@ export default function GeoMap() {
       duration: 1500,
     })
   }, [])
+
+  // Fly to the configured server home location
+  const goToHome = useCallback(() => {
+    if (!homeDestination) return
+    mapRef.current?.flyTo({
+      center: homeDestination,
+      zoom: 7,
+      duration: 1500,
+    })
+  }, [homeDestination])
 
   const changeProjection = useCallback((nextProjection: MapProjection) => {
     if (nextProjection === projection) return
@@ -379,6 +408,11 @@ export default function GeoMap() {
           demoMode={demoTrafficMode}
         />
 
+        {/* Server home location beacon */}
+        {homeMarkerEnabled && (
+          <HomeMarker coordinates={homeDestination} onClick={goToHome} />
+        )}
+
         {/* Popup */}
         {popup && activeLayer === "markers" && (
           <MapPopup
@@ -402,12 +436,15 @@ export default function GeoMap() {
         routeEffectsEnabled={routeEffectsEnabled}
         onRouteEffectsChange={setRouteEffectsEnabled}
         routeHomeAvailable={homeDestination !== null}
+        homeMarkerEnabled={homeMarkerEnabled}
+        onHomeMarkerChange={setHomeMarkerEnabled}
         bannedOverlayAvailable={crowdsecStatus?.enabled === true}
         bannedOverlayEnabled={showBanned}
         onBannedOverlayChange={setShowBanned}
         bannedCount={bannedLocations?.length ?? 0}
         bannedOverlayLoading={showBanned && isFetchingBanned}
         onFitBounds={fitToBounds}
+        onGoHome={goToHome}
         isLoading={isLoading}
         featureStats={geojson?.stats ?? { events: 0, countries: 0, cities: 0, locations: 0 }}
         topIPs={globalTopIPs?.top_ips ?? []}
