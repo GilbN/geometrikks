@@ -73,11 +73,8 @@ services:
       APP_DEBUG: "true"
       API_RELOAD: "true"
       LOG_LEVEL: DEBUG
-      # ./logs is mounted read-only below for nginx access log ingestion, so
-      # the app's own log files (geometrikks.log, login.log) need a separate
-      # writable directory that does not collide with it. Kept outside /app
-      # (the container runs as root here, so /var/log is writable) so app
-      # log writes cannot land inside the tree the reload watcher scans.
+      # Outside /app so the reload watcher never sees log writes; mounted
+      # from ./logs below, matching the prod compose and native runs.
       LOG_DIR: /var/log/geometrikks
       DB_HOST: timescale_db
       DB_PORT: 5432
@@ -85,7 +82,7 @@ services:
       DB_PASSWORD: geopass
       DB_DATABASE: geometrikks
       GEOIP_DB_PATH: /app/data/geoip/GeoLite2-City.mmdb
-      LOGPARSER_LOG_PATHS: /app/logs/access.log
+      LOGPARSER_LOG_PATHS: /var/log/nginx/access.log
       VITE_DEV_MODE: "true"
       VITE_EXECUTOR: "bun"
       VITE_HOST: "0.0.0.0"
@@ -99,8 +96,10 @@ services:
       - ./resources:/app/resources:cached
       - ./tests:/app/tests:cached
       - ./data:/app/data:cached
-      # Mount log directory
-      - ./logs:/app/logs:ro
+      # Sample nginx access logs for ingestion, same mount point as prod
+      - ./nginx_logs:/var/log/nginx:ro
+      # The app's own log files (geometrikks.log, login.log)
+      - ./logs:/var/log/geometrikks
     networks:
       - geometrikks_net
     env_file:
