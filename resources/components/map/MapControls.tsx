@@ -281,7 +281,10 @@ export function MapControls({
         </div>
       </Card>
 
-      {liveMode && (
+      {/* Vitals, recent requests, and the timeline only mount at md and up;
+          below that the vitals pill is the sole entry point into live data,
+          so this card would offer switches that control nothing. */}
+      {liveMode && !isMobile && (
         <Card className="p-2 gap-1 shrink-0">
           <div className="text-xs font-medium text-muted-foreground">Live overlays</div>
           {([
