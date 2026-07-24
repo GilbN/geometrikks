@@ -7,7 +7,6 @@ from litestar import Litestar
 from litestar.di import Provide
 from litestar.openapi import OpenAPIConfig
 from litestar.config.compression import CompressionConfig
-from litestar.middleware.logging import LoggingMiddlewareConfig
 
 from geometrikks.config.settings import get_settings
 from geometrikks.server import plugins
@@ -32,17 +31,13 @@ def create_app() -> Litestar:
     # Load settings once at app creation
     settings = get_settings()
 
-    from geometrikks.server.auth import build_auth_state, create_session_auth
+    from geometrikks.server.auth import build_auth_state, create_session_auth, warn_auth_disabled
 
     on_app_init = []
     auth_state = None
     if settings.auth_disabled:
         # Documented reverse-proxy mode (Authelia/Tailscale in front).
-        import logging
-        logging.getLogger(__name__).warning(
-            "APP_AUTH_DISABLED=true: API is unauthenticated. Only run this "
-            "behind an authenticating reverse proxy."
-        )
+        warn_auth_disabled()
     else:
         auth_state = build_auth_state(settings)
         on_app_init.append(create_session_auth(settings).on_app_init)
@@ -64,16 +59,6 @@ def create_app() -> Litestar:
         ],
     )
     
-    logging_middleware_config = LoggingMiddlewareConfig(
-        response_log_fields=("status_code",),
-        request_log_fields=(
-                "path",
-                "method",
-                "query",
-                "path_params",
-            ),
-    )
-
     # Create app with configuration
     app = Litestar(
         debug=settings.debug,
@@ -85,11 +70,9 @@ def create_app() -> Litestar:
             "limit_offset": Provide(provide_limit_offset_pagination, sync_to_thread=False),
             "transaction": provide_transaction,
         },
-        logging_config=plugins.create_logging_config(settings),
         openapi_config=openapi_config,
         compression_config=compression_config,
         exception_handlers=CROWDSEC_EXCEPTION_HANDLERS,
-        middleware=[logging_middleware_config.middleware],
         on_app_init=on_app_init,
     )
     app.state.auth_state = auth_state

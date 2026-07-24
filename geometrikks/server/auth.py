@@ -17,10 +17,14 @@ from litestar.middleware.session.server_side import (
 from litestar.security.session_auth import SessionAuth
 from pwdlib import PasswordHash
 
+from geometrikks.server.logging import get_logger
+
 if TYPE_CHECKING:
     from litestar.connection import ASGIConnection
 
     from geometrikks.config.settings import Settings
+
+logger = get_logger(__name__)
 
 # Paths that never require a session:
 # - "^/(?!api(/|$)|ws(/|$))" — everything that is not /api, /ws, or under them
@@ -71,9 +75,21 @@ def build_auth_state(settings: "Settings") -> AuthState:
             "Set APP_ADMIN_PASSWORD, or set APP_AUTH_DISABLED=true if an "
             "authenticating reverse proxy fronts this app."
         )
-    return AuthState(
+    auth_state = AuthState(
         username=settings.admin_user,
         password_hash=_hasher.hash(settings.admin_password.get_secret_value()),
+    )
+    logger.info("auth_state_built", user=settings.admin_user)
+    return auth_state
+
+
+def warn_auth_disabled() -> None:
+    logger.warning(
+        "auth_disabled",
+        detail=(
+            "APP_AUTH_DISABLED=true: API is unauthenticated. Only run this "
+            "behind an authenticating reverse proxy."
+        ),
     )
 
 
@@ -92,7 +108,7 @@ def create_session_auth(settings: "Settings") -> SessionAuth[AdminUser, ServerSi
     invalidates all sessions (users just log in again) — fine for a
     single-admin homelab tool and avoids a signing-secret setting.
     """
-    return SessionAuth[AdminUser, ServerSideSessionBackend](
+    session_auth = SessionAuth[AdminUser, ServerSideSessionBackend](
         retrieve_user_handler=retrieve_user_handler,
         session_backend_config=ServerSideSessionConfig(
             max_age=60 * 60 * 24 * 7,
@@ -100,3 +116,5 @@ def create_session_auth(settings: "Settings") -> SessionAuth[AdminUser, ServerSi
         ),
         exclude=AUTH_EXCLUDE_PATTERNS,
     )
+    logger.debug("session_auth_configured")
+    return session_auth

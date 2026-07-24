@@ -1,7 +1,6 @@
 """Endpoint tests for login/logout/me and the auth middleware boundary."""
 from __future__ import annotations
 
-import logging
 from typing import Any
 
 import pytest
@@ -37,6 +36,7 @@ def make_app(**settings_kwargs) -> Litestar:
     app = Litestar(
         route_handlers=[AuthController, protected, fake_health, live_feed],
         on_app_init=[session_auth.on_app_init],
+        logging_config=None,
     )
     app.state.auth_state = build_auth_state(settings)
     # A working ingestion service so the authenticated branch streams rather
@@ -175,18 +175,11 @@ def test_session_cookie_secure_flag_follows_setting():
 
 
 def test_login_attempts_are_logged_with_client_ip():
-    records: list = []
+    import structlog
 
-    class ListHandler(logging.Handler):
-        def emit(self, record: logging.LogRecord) -> None:
-            records.append(record)
-
-    auth_logger = logging.getLogger("geometrikks.api.v1.auth_controller")
-    handler = ListHandler(level=logging.INFO)
     app = make_app()
-    with TestClient(app=app) as client:
-        auth_logger.addHandler(handler)
-        try:
+    with structlog.testing.capture_logs() as captured:
+        with TestClient(app=app) as client:
             client.post(
                 "/api/v1/auth/login",
                 json={"username": "admin", "password": "wrong"},
@@ -195,12 +188,38 @@ def test_login_attempts_are_logged_with_client_ip():
                 "/api/v1/auth/login",
                 json={"username": "admin", "password": "bestpasswordintheworldnojoke"},
             )
-        finally:
-            auth_logger.removeHandler(handler)
-    failed = [r for r in records if "Login failed" in r.getMessage()]
-    succeeded = [r for r in records if "Login succeeded" in r.getMessage()]
-    assert len(failed) == 1 and failed[0].levelno == logging.WARNING
-    assert len(succeeded) == 1 and succeeded[0].levelno == logging.INFO
-    # Both carry the username and a from-<address> clause (TestClient peer).
-    assert "'admin'" in failed[0].getMessage() and "from" in failed[0].getMessage()
-    assert "'admin'" in succeeded[0].getMessage() and "from" in succeeded[0].getMessage()
+    failed = [e for e in captured if e["event"] == "login_failed"]
+    succeeded = [e for e in captured if e["event"] == "login_success"]
+    assert len(failed) == 1 and failed[0]["log_level"] == "warning"
+    assert len(succeeded) == 1 and succeeded[0]["log_level"] == "info"
+    # Both carry the username and the client IP (TestClient peer).
+    assert failed[0]["user"] == "admin" and failed[0]["ip"]
+    assert succeeded[0]["user"] == "admin" and succeeded[0]["ip"]
+
+
+class TestLoginLogFile:
+    def test_login_events_written_in_contract_format(self, tmp_path, monkeypatch):
+        from tests.test_logging_pipeline import LOGIN_LINE_RE, _wait_for
+
+        monkeypatch.setenv("LOG_DIR", str(tmp_path / "logs"))
+        from geometrikks.config.settings import get_settings
+        get_settings.cache_clear()
+        from geometrikks.server.logging import create_logging_config
+        config = create_logging_config(get_settings())
+        config.configure()
+        config.standard_lib_logging_config.configure()
+
+        with TestClient(app=make_app()) as client:
+            client.post("/api/v1/auth/login", json={"username": "admin", "password": "wrong"})
+            client.post(
+                "/api/v1/auth/login",
+                json={"username": "admin", "password": "bestpasswordintheworldnojoke"},
+            )
+            client.post("/api/v1/auth/logout")
+
+        login_file = tmp_path / "logs" / "login.log"
+        assert _wait_for(lambda: login_file.exists() and "logout" in login_file.read_text(encoding="utf-8"))
+        lines = login_file.read_text(encoding="utf-8").splitlines()
+        assert [l.split(" ")[1] for l in lines] == ["login_failed", "login_success", "logout"]
+        for line in lines:
+            assert LOGIN_LINE_RE.match(line), line

@@ -4,6 +4,8 @@
 docs/superpowers/
 *.db
 .litestar.json
+/logs
+/nginx_logs
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

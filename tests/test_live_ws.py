@@ -114,3 +114,49 @@ def test_ws_closes_when_no_ingestion_service():
         with pytest.raises(WebSocketDisconnect):
             with client.websocket_connect("/ws/live") as ws:
                 ws.receive_json(timeout=2)
+
+
+class TestLogsFeed:
+    def _make_app(self):
+        from geometrikks.api.v1.live_controller import logs_feed
+        return Litestar(route_handlers=[logs_feed])
+
+    def _receive_data_frame(self, ws, publish, timeout: float = 5.0):
+        """Publish repeatedly until a non-heartbeat frame arrives.
+
+        The handler subscribes shortly AFTER the handshake completes, so a
+        single publish can race the subscribe and be missed; heartbeat frames
+        (empty records, dropped=0) are skipped.
+        """
+        import time
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            publish()
+            frame = ws.receive_json(timeout=2)
+            if frame["records"]:
+                return frame
+        raise AssertionError("no data frame received")
+
+    def test_streams_published_events(self):
+        from geometrikks.server.logging import log_broadcaster
+        with TestClient(app=self._make_app()) as client:
+            with client.websocket_connect("/ws/logs") as ws:
+                frame = self._receive_data_frame(
+                    ws,
+                    lambda: log_broadcaster.publish_threadsafe(
+                        {"timestamp": "t", "level": "info", "event": "hello_ws"}
+                    ),
+                )
+                assert frame["type"] == "log_batch"
+                assert any(r.get("event") == "hello_ws" for r in frame["records"])
+
+    def test_level_filter_drops_lower_levels(self):
+        from geometrikks.server.logging import log_broadcaster
+        with TestClient(app=self._make_app()) as client:
+            with client.websocket_connect("/ws/logs?level=warning") as ws:
+                def publish():
+                    log_broadcaster.publish_threadsafe({"level": "debug", "event": "noise"})
+                    log_broadcaster.publish_threadsafe({"level": "error", "event": "boom"})
+                frame = self._receive_data_frame(ws, publish)
+                events = [r["event"] for r in frame["records"]]
+                assert "boom" in events and "noise" not in events

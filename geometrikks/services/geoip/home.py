@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import ipaddress
-import logging
 from dataclasses import dataclass
 from typing import Literal
 
@@ -12,8 +11,9 @@ from geoip2.database import Reader
 from geoip2.errors import GeoIP2Error
 
 from geometrikks.config.settings import GeoIPSettings, MapSettings
+from geometrikks.server.logging import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 HomeLocationSource = Literal["configured", "external_ip"]
 
@@ -52,6 +52,7 @@ async def resolve_home_location(
     failures leave the animation without a destination instead of failing startup.
     """
     if map_settings.home_latitude is not None and map_settings.home_longitude is not None:
+        logger.info("home_location_resolved", source="configured")
         return HomeLocation(
             latitude=map_settings.home_latitude,
             longitude=map_settings.home_longitude,
@@ -74,6 +75,7 @@ async def resolve_home_location(
         longitude = city.location.longitude
         if latitude is None or longitude is None:
             raise ValueError("GeoIP lookup returned no coordinates")
+        logger.info("home_location_resolved", source="external_ip")
         return HomeLocation(latitude=latitude, longitude=longitude, source="external_ip")
     except (GeoIP2Error, httpx.HTTPError, OSError, ValueError) as exc:
         logger.warning(

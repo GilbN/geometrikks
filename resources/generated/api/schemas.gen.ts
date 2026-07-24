@@ -1676,6 +1676,81 @@ export const LocationTopIPsResponseSchema = {
   type: "object",
 } as const;
 
+export const LogFileViewSchema = {
+  properties: {
+    available: {
+      type: "boolean",
+    },
+    kind: {
+      enum: ["app", "login", "nginx"],
+      type: "string",
+    },
+    modified_at: {
+      oneOf: [
+        {
+          format: "date-time",
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    name: {
+      type: "string",
+    },
+    size_bytes: {
+      type: "integer",
+    },
+  },
+  required: ["available", "kind", "modified_at", "name", "size_bytes"],
+  title: "LogFileView",
+  type: "object",
+} as const;
+
+export const LogFilesResponseSchema = {
+  properties: {
+    files: {
+      items: {
+        $ref: "#/components/schemas/LogFileView",
+      },
+      type: "array",
+    },
+  },
+  required: ["files"],
+  title: "LogFilesResponse",
+  type: "object",
+} as const;
+
+export const LogRotateResponseSchema = {
+  properties: {
+    rotated: {
+      items: {
+        type: "string",
+      },
+      type: "array",
+    },
+  },
+  required: ["rotated"],
+  title: "LogRotateResponse",
+  type: "object",
+} as const;
+
+export const LogTailResponseSchema = {
+  properties: {
+    records: {
+      items: {
+        additionalProperties: {},
+        type: "object",
+      },
+      type: "array",
+    },
+  },
+  required: ["records"],
+  title: "LogTailResponse",
+  type: "object",
+} as const;
+
 export const LoginPayloadSchema = {
   properties: {
     password: {

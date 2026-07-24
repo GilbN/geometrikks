@@ -11,13 +11,13 @@ CAGG Refresh Strategy:
 
 from __future__ import annotations
 
-import logging
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Callable
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 
+from geometrikks.server.logging import get_logger
 from geometrikks.server.plugins import get_sqlalchemy_config
 from geometrikks.server.timescale import ALL_CAGGS
 
@@ -27,7 +27,7 @@ if TYPE_CHECKING:
     from geometrikks.config.settings import Settings
     from geometrikks.services.crowdsec.stream import CrowdSecStreamPoller
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 # =============================================================================

@@ -27,7 +27,7 @@ def baseline_settings_env():
         # API
         "API_HOST": "0.0.0.0",
         "API_PORT": "8000",
-        "API_LOG_LEVEL": "INFO",
+        "LOG_LEVEL": "INFO",
         # Database
         "DB_ECHO": "false",
         "DB_POOL_SIZE": "5",

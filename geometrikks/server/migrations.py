@@ -7,7 +7,6 @@ time — everything happens inside the functions.
 from __future__ import annotations
 
 import asyncio
-import logging
 from typing import TYPE_CHECKING
 
 from advanced_alchemy.alembic.commands import AlembicCommands
@@ -16,6 +15,7 @@ from advanced_alchemy.extensions.litestar import base
 from sqlalchemy import text
 
 from geometrikks.config.settings import get_settings
+from geometrikks.server.logging import get_logger
 from geometrikks.server.timescale import teardown_timescaledb
 
 if TYPE_CHECKING:
@@ -23,7 +23,7 @@ if TYPE_CHECKING:
 
     from geometrikks.config.settings import Settings
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 def upgrade_to_head() -> None:

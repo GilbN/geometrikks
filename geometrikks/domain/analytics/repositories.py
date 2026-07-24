@@ -25,12 +25,13 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from enum import Enum
 from typing import Sequence
-import logging
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-logger = logging.getLogger(__name__)
+from geometrikks.server.logging import get_logger
+
+logger = get_logger(__name__)
 
 class StatsGranularity(Enum):
     """Granularity for query routing."""

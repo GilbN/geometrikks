@@ -84,10 +84,11 @@ def test_geoip_missing_file_allowed_by_default():
 def test_api_settings():
     """Test API server configuration."""
     settings = Settings()
-    
+
     assert settings.api.host == "0.0.0.0"
     assert settings.api.port == 8000
-    assert settings.api.log_level in ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
+    # log_level is now a deprecated fallback; unset unless API_LOG_LEVEL is set.
+    assert settings.api.log_level is None
 
 
 def test_map_home_settings(monkeypatch):
@@ -389,3 +390,39 @@ class TestProxySettings:
 
     def test_session_secure_defaults_false(self):
         assert Settings(_env_file=None).session_secure is False
+
+
+class TestLogSettings:
+    def test_defaults(self, monkeypatch):
+        monkeypatch.delenv("LOG_LEVEL", raising=False)
+        from geometrikks.config.settings import Settings
+        s = Settings(_env_file=None)
+        assert s.log.dir == Path("logs")
+        assert s.log.level == "INFO"
+        assert s.log.main_max_bytes == 10 * 1024 * 1024
+        assert s.log.main_backup_count == 5
+        assert s.log.login_max_bytes == 10 * 1024 * 1024
+        assert s.log.login_backup_count == 5
+
+    def test_log_level_env(self, monkeypatch):
+        monkeypatch.setenv("LOG_LEVEL", "DEBUG")
+        from geometrikks.config.settings import Settings
+        assert Settings(_env_file=None).log.level == "DEBUG"
+
+    def test_deprecated_api_log_level_used_when_log_level_unset(self, monkeypatch):
+        monkeypatch.delenv("LOG_LEVEL", raising=False)
+        monkeypatch.setenv("API_LOG_LEVEL", "WARNING")
+        from geometrikks.config.settings import Settings
+        with pytest.warns(DeprecationWarning, match="API_LOG_LEVEL is deprecated"):
+            s = Settings(_env_file=None)
+        assert s.log.level == "WARNING"
+
+    def test_log_level_overrides_deprecated_var(self, monkeypatch):
+        monkeypatch.setenv("LOG_LEVEL", "ERROR")
+        monkeypatch.setenv("API_LOG_LEVEL", "DEBUG")
+        from geometrikks.config.settings import Settings
+        import warnings
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")  # no DeprecationWarning may fire
+            s = Settings(_env_file=None)
+        assert s.log.level == "ERROR"

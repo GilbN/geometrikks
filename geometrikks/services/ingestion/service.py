@@ -11,7 +11,6 @@ Analytics aggregation is handled automatically by TimescaleDB continuous aggrega
 
 """
 from __future__ import annotations
-import logging
 import asyncio
 import time
 from collections.abc import Callable
@@ -30,9 +29,10 @@ from geometrikks.services.logparser.schemas import ParsedLogRecord, ParsedGeoDat
 from geometrikks.services.logparser.constants import ALLOWED_GEOIP_LOCALES, GEOIP_LOCALES_DEFAULT
 from geometrikks.services.logparser.logparser import LogParser
 from geometrikks.lib.utils import wait_for_path
+from geometrikks.server.logging import get_logger
 
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 @dataclass

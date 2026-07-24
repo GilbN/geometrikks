@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import ipaddress
-import logging
 from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import bindparam, text
@@ -11,8 +10,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from geometrikks.domain.geo.repositories import StatsGranularity, get_stats_granularity
 from geometrikks.domain.security.schemas import IpEnrichment, IpLocation
+from geometrikks.server.logging import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 # Latest-geo lookback: bounds chunk scans on the access_logs hypertable while
 # still finding geo data for IPs whose last request predates the 24h window.

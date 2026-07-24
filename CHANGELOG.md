@@ -7,6 +7,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- New `LOG_*` settings: `LOG_LEVEL`, `LOG_DIR`, and size/backup-count
+  limits for the main and login log files.
+- Logs API: `GET /api/v1/logs/tail`, `GET /api/v1/logs/files`, per-file
+  download at `GET /api/v1/logs/files/{kind}/{name}`, and
+  `POST /api/v1/logs/rotate` for on-demand rotation. `/ws/logs` streams
+  structured log events live, with an optional `?level=` minimum-level
+  filter.
+- Logs page at Settings -> Logs: live log stream with level/component
+  filters, search, pause, and traceback/detail dialogs. Tabs switch between
+  the system log, the login log, and a Downloads tab listing the raw files
+  (app log, login log, gzip archives, ingested nginx access logs) with a
+  "Rotate logs" button.
+
+### Changed
+
+- Logging is now structured (structlog): colored console output, a JSONL
+  main log (`logs/geometrikks.log`), and a plain-text login log
+  (`logs/login.log`) in a CrowdSec/fail2ban-friendly format. Both rotate by
+  size and gzip their archives.
+- Logins, failed logins, and logouts now emit `login_success`,
+  `login_failed`, and `logout` events to `logs/login.log`.
+- Scheduler job outcomes are logged centrally: `scheduler_job_completed`
+  (SUCCESS), `scheduler_job_failed` (ERROR), and `scheduler_job_missed`
+  (WARNING), with `job_id` and duration.
+- All app modules log through the structlog pipeline, and subsystems emit
+  lifecycle and state-change events (WS connects, scheduler outcomes,
+  CrowdSec stream state, GeoIP refreshes, imports); completed jobs use a
+  new SUCCESS level.
+- Swapped the `picologging` litestar extra for `structlog`.
+- `docker-compose.yml` mounts `./logs:/app/logs` so logs persist across
+  container recreation and `login.log` is readable by host tools. If the
+  directory is not writable, the app falls back to console-only logging
+  with a startup error instead of crashing.
+
+### Deprecated
+
+- `API_LOG_LEVEL` in favor of `LOG_LEVEL`; still honored as a fallback,
+  with a `DeprecationWarning`.
+
 ## [0.4.3] - 2026-07-22
 
 ### Fixed

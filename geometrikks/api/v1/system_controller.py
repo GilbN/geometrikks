@@ -21,12 +21,15 @@ from sqlalchemy import text
 
 from geometrikks.config.introspection import SystemSettingsResponse, build_settings_overview
 from geometrikks.config.settings import get_settings
+from geometrikks.server.logging import get_logger
 from geometrikks.server.scheduler_tracking import JobRunTracker, JobStatus
 from geometrikks.lib.utils import GeoIPInfoView, geoip_info
 
 if TYPE_CHECKING:
     from apscheduler.job import Job
     from apscheduler.schedulers.asyncio import AsyncIOScheduler
+
+logger = get_logger(__name__)
 
 
 @dataclass
@@ -205,6 +208,7 @@ class SystemController(Controller):
         scheduler: AsyncIOScheduler | None = getattr(request.app.state, "scheduler", None)
         if scheduler is None or scheduler.get_job(job_id) is None:
             raise NotFoundException(detail=f"Unknown scheduler job: {job_id}")
+        logger.info("scheduler_job_triggered_manually", job_id=job_id)
         scheduler.modify_job(job_id, next_run_time=datetime.now(timezone.utc))
         tracker: JobRunTracker = (
             getattr(request.app.state, "scheduler_tracker", None) or JobRunTracker()

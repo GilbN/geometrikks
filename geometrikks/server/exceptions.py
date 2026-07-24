@@ -1,15 +1,14 @@
 """App-level exception handlers translating domain errors to HTTP responses."""
 from __future__ import annotations
 
-import logging
-
 from litestar import MediaType, Request, Response
 from litestar.status_codes import HTTP_500_INTERNAL_SERVER_ERROR, HTTP_502_BAD_GATEWAY
 from litestar.types import ExceptionHandlersMap
 
+from geometrikks.server.logging import get_logger
 from geometrikks.services.crowdsec import CrowdSecAuthError, CrowdSecUnavailableError
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 def handle_crowdsec_unavailable(request: Request, exc: Exception) -> Response:
