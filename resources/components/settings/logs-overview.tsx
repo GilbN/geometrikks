@@ -133,7 +133,8 @@ export function LogsOverview() {
       seededRef.current = true
       setEntries(toEntries([...(tailRecords as LogRecord[])].reverse()))
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // Intentionally seed once: `tailRecords` is a stable staleTime:Infinity
+    // query result and toEntries is a plain closure, not a dependency.
   }, [tailRecords])
 
   useEffect(() => {
@@ -166,7 +167,8 @@ export function LogsOverview() {
       unsubscribeStatus()
       if (flowTimerRef.current) clearTimeout(flowTimerRef.current)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // Intentionally mount-once: pausedRef mirrors `paused` so this
+    // subscription does not need to be recreated when it changes.
   }, [])
 
   function togglePause() {
