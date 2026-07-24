@@ -209,6 +209,40 @@ def test_logparser_empty_list_rejected(monkeypatch):
         Settings()
 
 
+def test_logparser_ignore_ips_default_empty():
+    """Nothing is ignored unless configured."""
+    settings = Settings()
+    assert settings.logparser.ignore_ips == []
+
+
+def test_logparser_ignore_ips_single_value(monkeypatch):
+    """A bare IP string becomes a one-element list."""
+    monkeypatch.setenv("LOGPARSER_IGNORE_IPS", "203.0.113.7")
+    settings = Settings()
+    assert settings.logparser.ignore_ips == ["203.0.113.7"]
+
+
+def test_logparser_ignore_ips_comma_separated(monkeypatch):
+    """Comma-separated IPs/CIDRs are split and trimmed."""
+    monkeypatch.setenv("LOGPARSER_IGNORE_IPS", "203.0.113.7, 198.51.100.0/24")
+    settings = Settings()
+    assert settings.logparser.ignore_ips == ["203.0.113.7", "198.51.100.0/24"]
+
+
+def test_logparser_ignore_ips_json_list(monkeypatch):
+    """A JSON list of IPs/CIDRs is parsed as-is, IPv6 included."""
+    monkeypatch.setenv("LOGPARSER_IGNORE_IPS", '["203.0.113.7", "2001:db8::/32"]')
+    settings = Settings()
+    assert settings.logparser.ignore_ips == ["203.0.113.7", "2001:db8::/32"]
+
+
+def test_logparser_ignore_ips_invalid_entry_rejected(monkeypatch):
+    """Entries that are not an IP or CIDR fail settings validation."""
+    monkeypatch.setenv("LOGPARSER_IGNORE_IPS", "not-an-ip")
+    with pytest.raises(ValidationError, match="not an IP address or CIDR"):
+        Settings()
+
+
 class TestAuthSettings:
     """APP_ADMIN_USER / APP_ADMIN_PASSWORD / APP_AUTH_DISABLED."""
 

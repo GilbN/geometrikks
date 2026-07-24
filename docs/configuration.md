@@ -84,6 +84,7 @@ list most users need is in `.env.example`; everything below is available.
 | `LOGPARSER_COMMIT_INTERVAL` | `5.0` | Maximum time interval in seconds between database commits. This will commit even if batch_size is not reached. |
 | `LOGPARSER_SKIP_VALIDATION` | `false` | Skip validation of log lines. |
 | `LOGPARSER_STORE_DEBUG_LINES` | `false` | Store all raw log lines in AccessLogDebug table. When False, only malformed requests are stored. |
+| `LOGPARSER_IGNORE_IPS` | *(computed)* | IPs/CIDRs the parser drops entirely (no geo event, access log, or debug row). Use for your own traffic hitting the reverse proxy. Env accepts one value, comma-separated values, or a JSON list. Empty (default): nothing is ignored. |
 
 ## Analytics & retention
 
