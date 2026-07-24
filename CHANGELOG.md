@@ -60,6 +60,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `API_LOG_LEVEL` is deprecated in favor of `LOG_LEVEL`. It is still honored
   as a fallback (with a `DeprecationWarning`) when `LOG_LEVEL` is unset.
 
+### Fixed
+
+- Exceptions logged with `exc_info` (including Litestar's own "Uncaught
+  exception" handler) now carry their traceback in `logs/geometrikks.log`,
+  the `/ws/logs` broadcast, and the console: the traceback was previously
+  captured too late, after the record crossed onto the background
+  queue-listener thread, and got silently dropped.
+- Console log levels are now easier to tell apart: DEBUG renders dim/grey
+  and INFO renders blue, instead of both rendering the same green as
+  SUCCESS.
+
 ## [0.4.3] - 2026-07-22
 
 ### Fixed

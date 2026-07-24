@@ -358,6 +358,63 @@ class TestCreateLoggingConfig:
         assert "debug_login_event_should_not_appear" not in main.read_text(encoding="utf-8")
 
 
+class TestExceptionTraceback:
+    """A caught exception logged with exc_info=True must survive the queue
+    handler with its traceback intact (see _capture_exc_info)."""
+
+    def test_jsonl_main_log_carries_exception_traceback(self, configured_logging):
+        import json as jsonlib
+        import structlog
+        logger = structlog.stdlib.get_logger("geometrikks.test.exc")
+        try:
+            raise ValueError("boom for jsonl")
+        except ValueError:
+            logger.error("caught_error_jsonl", exc_info=True)
+        main = configured_logging / "geometrikks.log"
+        assert _wait_for(lambda: "caught_error_jsonl" in main.read_text(encoding="utf-8"))
+        line = [
+            l for l in main.read_text(encoding="utf-8").splitlines() if "caught_error_jsonl" in l
+        ][0]
+        record = jsonlib.loads(line)
+        assert "exception" in record
+        assert "ValueError" in record["exception"]
+        assert "boom for jsonl" in record["exception"]
+        assert "Traceback" in record["exception"]
+
+    def test_broadcast_record_carries_exception_traceback(self, configured_logging):
+        import structlog
+        from geometrikks.server.logging import log_broadcaster
+
+        async def scenario():
+            log_broadcaster.bind_loop(asyncio.get_running_loop())
+            q = log_broadcaster.subscribe()
+            try:
+                logger = structlog.stdlib.get_logger("geometrikks.test.exc.broadcast")
+                try:
+                    raise ValueError("boom for broadcast")
+                except ValueError:
+                    logger.error("caught_error_broadcast", exc_info=True)
+
+                event = None
+                deadline = time.time() + 3.0
+                while time.time() < deadline:
+                    try:
+                        candidate = await asyncio.wait_for(q.get(), timeout=0.5)
+                    except asyncio.TimeoutError:
+                        continue
+                    if candidate.get("event") == "caught_error_broadcast":
+                        event = candidate
+                        break
+                assert event is not None, "expected broadcast event was never published"
+                assert "exception" in event
+                assert "ValueError" in event["exception"]
+                assert "boom for broadcast" in event["exception"]
+            finally:
+                log_broadcaster.unsubscribe(q)
+
+        asyncio.run(scenario())
+
+
 class TestLoginLoggerLevelPinned:
     def test_login_success_reaches_login_file_when_root_level_is_error(self, tmp_path, monkeypatch):
         """LOG_LEVEL=ERROR must not silence the login feed (CrowdSec/fail2ban)."""

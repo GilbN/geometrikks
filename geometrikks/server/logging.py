@@ -186,6 +186,38 @@ class NonBlockingQueueHandler(QueueHandler):
         return record
 
 
+def _capture_exc_info(_: Any, __: str, event_dict: dict[str, Any]) -> dict[str, Any]:
+    """Resolve a lazy ``exc_info`` (``True`` or an exception instance) into a
+    real ``(type, value, traceback)`` tuple, in place, before the record
+    leaves this thread.
+
+    structlog-native calls such as ``logger.exception(...)`` or
+    ``logger.error(..., exc_info=True)`` (this is exactly what Litestar's
+    default exception handler does) only stash ``exc_info=True`` in the
+    event dict; turning that into an actual traceback is deferred to
+    whichever processor runs ``structlog.processors.format_exc_info``. Our
+    pipeline queues every record (``NonBlockingQueueHandler``) and only
+    renders it later, on the ``LoggingQueueListener`` thread. ``exc_info``
+    is thread-local, so by the time a deferred ``format_exc_info`` called
+    ``sys.exc_info()`` there, the original ``except`` block (and thread)
+    were long gone and it silently got ``(None, None, None)`` -- the
+    traceback was lost forever and no "exception" key was ever produced.
+
+    Running this as one of the shared processors (used both as the
+    structlog-native processor chain and as ``foreign_pre_chain`` for
+    stdlib records) captures the live traceback synchronously, in the
+    original call-site thread, before the record is queued. Foreign stdlib
+    records already carry a resolved tuple on ``record.exc_info`` by the
+    time this runs, so this is a no-op for them.
+    """
+    exc_info = event_dict.get("exc_info")
+    if exc_info is True:
+        event_dict["exc_info"] = sys.exc_info()
+    elif isinstance(exc_info, BaseException):
+        event_dict["exc_info"] = (type(exc_info), exc_info, exc_info.__traceback__)
+    return event_dict
+
+
 def _shared_processors() -> list[Any]:
     return [
         structlog.contextvars.merge_contextvars,
@@ -195,13 +227,37 @@ def _shared_processors() -> list[Any]:
         structlog.stdlib.PositionalArgumentsFormatter(),
         structlog.processors.TimeStamper(fmt="iso", utc=True),
         structlog.processors.StackInfoRenderer(),
+        _capture_exc_info,
     ]
+
+
+def _console_exception_formatter() -> Any:
+    """Pretty, colorized traceback for the console, without dumping locals.
+
+    structlog.dev.ConsoleRenderer defaults to rich_traceback (show_locals=True)
+    whenever the rich package is installed, which would print every local
+    variable in every frame -- request bodies, passwords, tokens -- straight
+    to the console/container logs. We want the same frame-by-frame Rich
+    rendering, just never with locals. No plain formatted traceback string
+    is the JSONL/broadcast contract either way (see _capture_exc_info); this
+    only affects what the human-facing console shows.
+    """
+    if structlog.dev.rich is not None:
+        return structlog.dev.RichTracebackFormatter(show_locals=False)
+    return structlog.dev.plain_traceback
 
 
 def _console_renderer() -> structlog.dev.ConsoleRenderer:
     styles = structlog.dev.ConsoleRenderer.get_default_level_styles(colors=True)
     styles["success"] = "\x1b[32m"  # green, matches the UI emerald badge
-    return structlog.dev.ConsoleRenderer(colors=True, level_styles=styles)
+    styles["debug"] = "\x1b[2m"  # dim/grey, was green (indistinguishable from info)
+    styles["info"] = "\x1b[34m"  # blue, was green (indistinguishable from debug)
+    styles["critical"] = "\x1b[1m\x1b[31m"  # bold red, stands out from plain error red
+    return structlog.dev.ConsoleRenderer(
+        colors=True,
+        level_styles=styles,
+        exception_formatter=_console_exception_formatter(),
+    )
 
 
 def _log_dir_write_error(log_dir: "Path") -> str | None:
@@ -246,14 +302,19 @@ def create_logging_config(settings: "Settings") -> StructLoggingConfig:
     shared = _shared_processors()
     fmt = structlog.stdlib.ProcessorFormatter
 
-    def formatter(renderer: Any) -> dict[str, Any]:
+    def formatter(renderer: Any, *, format_exception: bool = True) -> dict[str, Any]:
+        # format_exception=False (console): exc_info reaches the renderer as a
+        # real (type, value, traceback) tuple (captured by _capture_exc_info
+        # above, shared by every formatter's foreign_pre_chain) and
+        # ConsoleRenderer formats it itself, producing a pretty, colorized
+        # traceback instead of a plain string.
+        processors: list[Any] = [fmt.remove_processors_meta]
+        if format_exception:
+            processors.append(structlog.processors.format_exc_info)
+        processors.append(renderer)
         return {
             "()": fmt,
-            "processors": [
-                fmt.remove_processors_meta,
-                structlog.processors.format_exc_info,
-                renderer,
-            ],
+            "processors": processors,
             "foreign_pre_chain": shared,
         }
 
@@ -303,7 +364,7 @@ def create_logging_config(settings: "Settings") -> StructLoggingConfig:
 
     standard_lib = LoggingConfig(
         formatters={
-            "console": formatter(_console_renderer()),
+            "console": formatter(_console_renderer(), format_exception=False),
             "json": formatter(structlog.processors.JSONRenderer()),
             "login": formatter(render_login_line),
         },
