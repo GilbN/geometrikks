@@ -9,75 +9,53 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- `LOG_LEVEL` and `LOG_DIR`/`LOG_MAIN_MAX_BYTES`/`LOG_MAIN_BACKUP_COUNT`/
-  `LOG_LOGIN_MAX_BYTES`/`LOG_LOGIN_BACKUP_COUNT` settings for the upcoming
-  structured-logging pipeline.
-- Log endpoints: `/api/v1/logs/tail` and `/api/v1/logs/files` REST endpoints
-  for log retrieval and file listing, plus per-file download at
-  `/api/v1/logs/files/{kind}/{name}` (app log, login log, gzip archives,
-  and ingested nginx access logs). `/ws/logs` WebSocket endpoint streams
-  structured log events in real time, batched and coalesced like the other
-  live feeds, with an optional `?level=` query param to filter to a minimum
-  log level. New `POST /api/v1/logs/rotate` endpoint forces an immediate
-  rollover of the live log file handlers, gzipping the current file and
-  starting a fresh one, and returns which files were actually rotated.
-- New Logs page at Settings -> Logs: live log stream with level/component
-  filters and search, color-coded level badges (including the new SUCCESS
-  level), traceback and detail dialogs, and downloads for the application
-  log, login log, rotated gzip archives, and ingested nginx access logs. A
-  tabs toggle at the top of the card switches between the system log, the
-  login log, and a Downloads tab; the two log tabs each keep their own
-  buffer while filters, search, pause and the detail dialog behave the same
-  on both, and the Downloads tab holds the file list. A "Rotate logs"
-  button on the Downloads tab triggers the manual rotation endpoint on
-  demand and refreshes the file list to show the new archive.
+- New `LOG_*` settings: `LOG_LEVEL`, `LOG_DIR`, and size/backup-count
+  limits for the main and login log files.
+- Logs API: `GET /api/v1/logs/tail`, `GET /api/v1/logs/files`, per-file
+  download at `GET /api/v1/logs/files/{kind}/{name}`, and
+  `POST /api/v1/logs/rotate` for on-demand rotation. `/ws/logs` streams
+  structured log events live, with an optional `?level=` minimum-level
+  filter.
+- Logs page at Settings -> Logs: live log stream with level/component
+  filters, search, pause, and traceback/detail dialogs. Tabs switch between
+  the system log, the login log, and a Downloads tab listing the raw files
+  (app log, login log, gzip archives, ingested nginx access logs) with a
+  "Rotate logs" button.
 
 ### Changed
 
-- Swapped the `picologging` litestar extra for `structlog` in preparation
-  for structured logging.
 - Logging is now structured (structlog): colored console output, a JSONL
-  main log file (`logs/geometrikks.log`), and a separate plain-text login
-  log (`logs/login.log`) suitable for CrowdSec/fail2ban. Both files rotate
-  by size and are gzip-compressed. New `LOG_*` settings; `API_LOG_LEVEL`
-  is deprecated (still honored) in favor of `LOG_LEVEL`.
-- Login, failed login, and logout attempts now emit `login_success`,
-  `login_failed`, and `logout` events through the login logger, landing
-  in `logs/login.log` in the CrowdSec/fail2ban contract format.
-- Scheduler job outcomes are now logged centrally by `JobRunTracker`:
-  `scheduler_job_completed` at SUCCESS level, `scheduler_job_failed` at
-  ERROR, and `scheduler_job_missed` at WARNING, each with `job_id` and
-  `duration_seconds` where applicable, covering every APScheduler job
-  uniformly.
-- All app modules (server, services, domain repositories/services, and API
-  controllers) now get their loggers via `get_logger` from
-  `geometrikks.server.logging` instead of stdlib `logging.getLogger`, so
-  their output flows through the structlog pipeline.
-- All subsystems now log lifecycle and state-change events (WS connects,
-  scheduler outcomes, CrowdSec stream state, GeoIP refreshes, imports);
-  scheduler and task completions use a new SUCCESS log level.
-- `docker-compose.yml` now mounts `./logs:/app/logs` on the app service so
-  application logs persist across container recreation and `login.log` is
-  readable by host-side tools like CrowdSec/fail2ban. If that directory is
-  not writable by the container (e.g. wrong owner on a freshly created host
-  path), the app now falls back to console-only logging and prints a loud
-  startup error instead of crashing.
+  main log (`logs/geometrikks.log`), and a plain-text login log
+  (`logs/login.log`) in a CrowdSec/fail2ban-friendly format. Both rotate by
+  size and gzip their archives.
+- Logins, failed logins, and logouts now emit `login_success`,
+  `login_failed`, and `logout` events to `logs/login.log`.
+- Scheduler job outcomes are logged centrally: `scheduler_job_completed`
+  (SUCCESS), `scheduler_job_failed` (ERROR), and `scheduler_job_missed`
+  (WARNING), with `job_id` and duration.
+- All app modules log through the structlog pipeline, and subsystems emit
+  lifecycle and state-change events (WS connects, scheduler outcomes,
+  CrowdSec stream state, GeoIP refreshes, imports); completed jobs use a
+  new SUCCESS level.
+- Swapped the `picologging` litestar extra for `structlog`.
+- `docker-compose.yml` mounts `./logs:/app/logs` so logs persist across
+  container recreation and `login.log` is readable by host tools. If the
+  directory is not writable, the app falls back to console-only logging
+  with a startup error instead of crashing.
 
 ### Deprecated
 
-- `API_LOG_LEVEL` is deprecated in favor of `LOG_LEVEL`. It is still honored
-  as a fallback (with a `DeprecationWarning`) when `LOG_LEVEL` is unset.
+- `API_LOG_LEVEL` in favor of `LOG_LEVEL`; still honored as a fallback,
+  with a `DeprecationWarning`.
 
 ### Fixed
 
-- Exceptions logged with `exc_info` (including Litestar's own "Uncaught
-  exception" handler) now carry their traceback in `logs/geometrikks.log`,
-  the `/ws/logs` broadcast, and the console: the traceback was previously
-  captured too late, after the record crossed onto the background
-  queue-listener thread, and got silently dropped.
-- Console log levels are now easier to tell apart: DEBUG renders dim/grey
-  and INFO renders blue, instead of both rendering the same green as
-  SUCCESS.
+- Exceptions logged with `exc_info` (including Litestar's "Uncaught
+  exception" handler) now carry their traceback in the log file, the
+  `/ws/logs` broadcast, and the console; it was previously dropped on the
+  queue-listener thread.
+- DEBUG (dim) and INFO (blue) console output are now distinguishable from
+  SUCCESS (green).
 
 ## [0.4.3] - 2026-07-22
 
