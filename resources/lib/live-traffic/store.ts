@@ -11,6 +11,7 @@ import type { LiveRequest, SecondBucket, StatusClass, Vitals } from "./types"
 export const WINDOW_SECONDS = 300
 export const MAX_REQUESTS = 2000
 export const SPARKLINE_SECONDS = 60
+export const RECENT_DROP_MS = 60_000
 
 type RequestsListener = (requests: LiveRequest[]) => void
 
@@ -20,6 +21,7 @@ export class LiveTrafficStore {
   private byId = new Map<string, LiveRequest>()
   private listeners = new Set<RequestsListener>()
   private droppedTotal = 0
+  private lastDropAt: number | null = null
   private readonly maxRequests: number
   private readonly windowSeconds: number
 
@@ -30,6 +32,7 @@ export class LiveTrafficStore {
 
   ingest(requests: LiveRequest[], dropped: number, now: number): void {
     this.droppedTotal += dropped
+    if (dropped > 0) this.lastDropAt = now
     if (requests.length > 0) {
       // Newest first, so a batch is reversed before it is prepended.
       this.requests = [...[...requests].reverse(), ...this.requests]
@@ -124,6 +127,7 @@ export class LiveTrafficStore {
       uniqueIps: ips.size,
       countries: countries.size,
       dropped: this.droppedTotal,
+      droppedRecently: this.lastDropAt !== null && now - this.lastDropAt <= RECENT_DROP_MS,
       sparkline: buckets.slice(-SPARKLINE_SECONDS).map((bucket) => bucket.total),
     }
   }
@@ -132,6 +136,7 @@ export class LiveTrafficStore {
     this.requests = []
     this.byId.clear()
     this.droppedTotal = 0
+    this.lastDropAt = null
   }
 }
 

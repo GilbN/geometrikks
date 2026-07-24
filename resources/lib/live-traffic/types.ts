@@ -52,6 +52,8 @@ export interface Vitals {
   countries: number
   /** Events the server discarded because the frame was full. */
   dropped: number
+  /** A drop occurred within the last RECENT_DROP_MS. */
+  droppedRecently: boolean
   /** Requests per second for the last 60 seconds, oldest first. */
   sparkline: number[]
 }

@@ -105,7 +105,7 @@ export function LiveVitals({
       {vitals.rpm === 0 && !disconnected && (
         <div className="mt-1 text-[10px] text-muted-foreground">Waiting for traffic</div>
       )}
-      {vitals.dropped > 0 && (
+      {vitals.droppedRecently && (
         <div className="mt-1 text-[10px] text-amber-400">
           Rate limited, {formatNumber(vitals.dropped)} events dropped
         </div>

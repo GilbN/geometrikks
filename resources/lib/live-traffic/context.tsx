@@ -21,6 +21,7 @@ const EMPTY_VITALS: Vitals = {
   uniqueIps: 0,
   countries: 0,
   dropped: 0,
+  droppedRecently: false,
   sparkline: [],
 }
 

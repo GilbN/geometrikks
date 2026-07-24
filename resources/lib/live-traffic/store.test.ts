@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest"
-import { LiveTrafficStore } from "./store"
+import { LiveTrafficStore, RECENT_DROP_MS } from "./store"
 import type { LiveRequest } from "./types"
 
 function request(overrides: Partial<LiveRequest> = {}): LiveRequest {
@@ -168,6 +168,30 @@ describe("LiveTrafficStore", () => {
     expect(store.getVitals(2000).dropped).toBe(7)
   })
 
+  it("marks a drop as recent when read immediately after the batch", () => {
+    const store = new LiveTrafficStore()
+    store.ingest([], 3, 1000)
+
+    expect(store.getVitals(1000).droppedRecently).toBe(true)
+  })
+
+  it("stops marking a drop as recent once RECENT_DROP_MS has passed, while dropped keeps the total", () => {
+    const store = new LiveTrafficStore()
+    store.ingest([], 3, 1000)
+
+    const vitals = store.getVitals(1000 + RECENT_DROP_MS + 1)
+
+    expect(vitals.droppedRecently).toBe(false)
+    expect(vitals.dropped).toBe(3)
+  })
+
+  it("reports droppedRecently false when nothing has ever been dropped", () => {
+    const store = new LiveTrafficStore()
+    store.ingest([request({ receivedAt: 1000 })], 0, 1000)
+
+    expect(store.getVitals(1000).droppedRecently).toBe(false)
+  })
+
   it("replays a request to subscribers without counting it as new traffic", () => {
     const store = new LiveTrafficStore()
     const seen = vi.fn()
@@ -188,7 +212,9 @@ describe("LiveTrafficStore", () => {
     store.clear()
 
     expect(store.getRequests()).toHaveLength(0)
-    expect(store.getVitals(1000).dropped).toBe(0)
+    const vitals = store.getVitals(1000)
+    expect(vitals.dropped).toBe(0)
+    expect(vitals.droppedRecently).toBe(false)
   })
 
   it("prunes stale requests on read when idle for longer than the window", () => {
