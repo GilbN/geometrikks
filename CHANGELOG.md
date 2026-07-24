@@ -68,6 +68,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `API_LOG_LEVEL` in favor of `LOG_LEVEL`; still honored as a fallback,
   with a `DeprecationWarning`.
 
+### Fixed
+
+- Map zoom/compass buttons were unclickable when the map-controls panel was
+  tall enough to reach down beside them.
+
 ## [0.4.3] - 2026-07-22
 
 ### Fixed

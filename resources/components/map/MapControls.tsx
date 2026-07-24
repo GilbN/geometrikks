@@ -425,9 +425,12 @@ export function MapControls({
     )
   }
 
-  // Desktop expanded state - full controls docked top-right
+  // Desktop expanded state - full controls docked top-right.
+  // The wrapper is click-through: its bounding box spans the full panel height,
+  // and the transparent strip below the collapse button would otherwise swallow
+  // clicks meant for the map zoom controls docked bottom-right (issue #53).
   return (
-    <div className="absolute top-4 right-4 z-10 flex gap-2 max-h-[calc(100vh-2rem)] pointer-events-auto">
+    <div className="absolute top-4 right-4 z-10 flex gap-2 max-h-[calc(100vh-2rem)] pointer-events-none">
       {/* Scrollable controls area */}
       <div
         className="flex flex-col gap-2 p-1 overflow-y-auto overscroll-contain pointer-events-auto max-h-full max-w-[min(200px,calc(100vw-4rem))]"
@@ -439,7 +442,7 @@ export function MapControls({
       <Button
         size="icon"
         variant="outline"
-        className="mt-1 bg-background shrink-0 p-1 self-start cursor-pointer"
+        className="mt-1 bg-background shrink-0 p-1 self-start cursor-pointer pointer-events-auto"
         onClick={() => setIsExpanded(false)}
         title="Hide map controls"
       >
