@@ -12,11 +12,19 @@ import { cn } from "@/lib/utils"
 const ORDINARY_LIFETIME_MS = 8000
 const NOTABLE_LIFETIME_MS = 12000
 const MAX_STRIPS = 4
+/** Fraction of a strip's lifetime spent fully opaque before it starts fading. */
+const OPACITY_HOLD_FRACTION = 0.6
 
 function lifetime(request: LiveRequest): number {
   return request.threat || request.statusClass === "5xx"
     ? NOTABLE_LIFETIME_MS
     : ORDINARY_LIFETIME_MS
+}
+
+function opacityForAge(age: number): number {
+  if (age <= OPACITY_HOLD_FRACTION) return 1
+  const fade = (age - OPACITY_HOLD_FRACTION) / (1 - OPACITY_HOLD_FRACTION)
+  return Math.min(1, Math.max(0, 1 - fade))
 }
 
 export function LiveStrips({ onSelect }: { onSelect: (request: LiveRequest) => void }) {
@@ -47,7 +55,7 @@ export function LiveStrips({ onSelect }: { onSelect: (request: LiveRequest) => v
     <div className="pointer-events-none flex w-[min(340px,calc(100vw-8rem))] flex-col gap-1">
       {visible.map((request) => {
         const age = (now - request.receivedAt) / lifetime(request)
-        const opacity = reducedMotion.current ? 1 : Math.max(0.25, 1 - age)
+        const opacity = reducedMotion.current ? 1 : opacityForAge(age)
         return (
           <button
             key={request.id}
