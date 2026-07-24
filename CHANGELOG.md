@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- The docker image now supports `PUID`/`PGID`: the
+  entrypoint re-maps the container user, fixes ownership of `/app/logs` and
+  the GeoIP volume at startup, then drops privileges with gosu - no more
+  `mkdir`/`chown` pre-step before `docker compose up -d`. Containers started
+  with a `user:` override keep today's fully non-root behavior.
 - New `LOG_*` settings: `LOG_LEVEL`, `LOG_DIR`, and size/backup-count
   limits for the main and login log files.
 - Logs API: `GET /api/v1/logs/tail`, `GET /api/v1/logs/files`, per-file
