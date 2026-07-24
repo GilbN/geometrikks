@@ -44,6 +44,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Live map packets are now colored by response status (green/blue/amber/red)
   and sized by response bytes, with a dashed red ring cage over packets from
   banned IPs.
+- Live overlays (vitals, recent requests, timeline) can each be switched on
+  or off from a "Live overlays" card in the map controls, shown while live
+  mode is on. The choice is remembered in the browser.
 
 ### Changed
 
