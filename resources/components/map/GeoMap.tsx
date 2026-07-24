@@ -36,6 +36,7 @@ import { MapPopup, type PopupInfo } from "./MapPopup"
 import { LiveRequestPopup } from "./LiveRequestPopup"
 import { LiveVitals } from "./LiveVitals"
 import { LiveStrips } from "./LiveStrips"
+import { LiveWire } from "./LiveWire"
 import { Card, CardContent } from "@/components/ui/card"
 import { AlertTriangle } from "lucide-react"
 import { getDemoTrafficMode } from "@/lib/demo-traffic"
@@ -338,6 +339,12 @@ function GeoMapInner({
     [activeLayer, liveStore]
   )
 
+  const handleLiveSelect = useCallback((request: LiveRequest) => {
+    setLivePopup(request)
+    // replay() notifies LivePulses without storing anything.
+    if (request.coordinates) liveStore.replay(request)
+  }, [liveStore])
+
   // Show error state
   if (isError) {
     return (
@@ -461,8 +468,14 @@ function GeoMapInner({
       )}
 
       {liveMode && !isMobile && (
-        <div className="pointer-events-none absolute bottom-4 left-4 z-10">
-          <LiveStrips onSelect={setLivePopup} />
+        <div className="pointer-events-none absolute bottom-24 left-4 z-10">
+          <LiveStrips onSelect={handleLiveSelect} />
+        </div>
+      )}
+
+      {liveMode && !isMobile && (
+        <div className="pointer-events-none absolute bottom-4 left-1/2 z-10 w-[min(760px,calc(100vw-16rem))] -translate-x-1/2">
+          <LiveWire onSelect={handleLiveSelect} />
         </div>
       )}
 
