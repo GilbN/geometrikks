@@ -108,7 +108,9 @@ export function useLiveFeedState(): LiveFeedState {
 /** Newest requests, refreshed at most every 250ms. */
 export function useLiveStrips(max = 4): LiveRequest[] {
   const store = useLiveTrafficStore()
-  const [strips, setStrips] = useState<LiveRequest[]>([])
+  // Seed from the buffer so re-enabling the overlay shows the recent
+  // requests immediately instead of waiting for the next batch.
+  const [strips, setStrips] = useState<LiveRequest[]>(() => store.getRequests().slice(0, max))
 
   useEffect(() => {
     let dirty = false

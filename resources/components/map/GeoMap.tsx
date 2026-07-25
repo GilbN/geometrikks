@@ -317,10 +317,10 @@ function GeoMapInner({
       if (liveFeature) {
         const requestId = liveFeature.properties?.requestId as string | undefined
         const request = requestId ? liveStore.getRequest(requestId) : undefined
-        if (request) {
-          setPopup(null)
-          setLivePopup(request)
-        }
+        setPopup(null)
+        // An evicted request has no detail left to show; the click still
+        // dismisses whatever popup was open, like any other map click.
+        setLivePopup(request ?? null)
         return
       }
 
@@ -373,6 +373,9 @@ function GeoMapInner({
   )
 
   const handleLiveSelect = useCallback((request: LiveRequest) => {
+    // Only one popup at a time: selecting a live request dismisses any open
+    // location popup, matching what a direct packet click does.
+    setPopup(null)
     setLivePopup(request)
     if (request.coordinates) {
       // replay() notifies LivePulses without storing anything.
@@ -390,6 +393,7 @@ function GeoMapInner({
   // not handleLiveSelect - replaying an arc under a sheet about to close is
   // noise, and the fly-to is the feedback that matters here.
   const selectFromFeed = useCallback((request: LiveRequest) => {
+    setPopup(null)
     setLivePopup(request)
     if (request.coordinates) {
       mapRef.current?.flyTo({ center: request.coordinates, zoom: 6, duration: 1200 })
@@ -535,7 +539,12 @@ function GeoMapInner({
       </div>
 
       {liveMode && !isMobile && liveOverlays.wire && (
-        <div className="pointer-events-none absolute bottom-4 left-1/2 z-10 w-[min(760px,calc(100vw-16rem))] -translate-x-1/2">
+        // 31rem of reserved flank, measured against the map container (not
+        // the viewport - the app sidebar sits outside it): the legend column
+        // reaches 192px from the left and the controls column, collapse
+        // button included, about 244px from the right. Anything less slides
+        // the wire's opaque panel underneath them on narrow desktops.
+        <div className="pointer-events-none absolute bottom-4 left-1/2 z-10 w-[min(760px,calc(100%-31rem))] -translate-x-1/2">
           <LiveWire onSelect={handleLiveSelect} />
         </div>
       )}

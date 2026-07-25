@@ -195,7 +195,8 @@ export function LiveWire({ onSelect }: { onSelect: (request: LiveRequest) => voi
           touchAction: "none",
           cursor: scrubbing ? "grabbing" : "crosshair",
         }}
-        aria-label="Requests over the last five minutes"
+        role="img"
+        aria-label="Requests over the last five minutes, coloured by worst status"
         onPointerDown={(event) => {
           event.preventDefault()
           event.currentTarget.setPointerCapture(event.pointerId)
