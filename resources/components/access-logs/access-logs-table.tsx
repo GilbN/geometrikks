@@ -3,14 +3,8 @@
  * global time range. Supports column sorting, text search, and IP / method /
  * domain filters. Pairs with GET /api/v1/access-logs/.
  */
-import { useEffect, useMemo, useState } from "react"
-import {
-  ArrowDown,
-  ArrowUp,
-  ChevronsUpDown,
-  Columns3,
-  Search,
-} from "lucide-react"
+import { useMemo, useState } from "react"
+import { ArrowDown, ArrowUp, ChevronsUpDown, Columns3 } from "lucide-react"
 import {
   Table,
   TableBody,
@@ -21,7 +15,6 @@ import {
 } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
   DropdownMenu,
@@ -32,16 +25,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { PaginationFooter } from "@/components/ui/pagination-footer"
-import { FilterCombobox } from "@/components/ui/filter-combobox"
-import { FiltersDrawer, FilterSection } from "@/components/ui/filters-drawer"
-import {
-  useAccessLogs,
-  useAccessLogFacets,
-  useCrowdsecLiveUpdates,
-} from "@/lib/queries"
+import { useAccessLogs, useCrowdsecLiveUpdates } from "@/lib/queries"
 import { IpBanControls } from "@/components/crowdsec/ip-ban-controls"
-import { useDebouncedValue } from "@/hooks/use-debounced-value"
-import { useIsMobile } from "@/hooks/use-mobile"
 import {
   formatBytes,
   formatDuration,
@@ -50,20 +35,9 @@ import {
   type SortOrder,
 } from "@/lib/api"
 import { cn, isMobileViewport } from "@/lib/utils"
-import { isValidIp } from "@/lib/crowdsec"
+import { useAccessLogFilters } from "@/lib/access-log-filters-context"
 
-const PAGE_SIZES = [10, 20, 50, 100, 200, 500, 1000] as const
-
-const HTTP_METHODS = [
-  "GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS", "CONNECT", "TRACE",
-] as const
-const STATUS_CODES = [
-  100, 101, 102, 103, 200, 201, 202, 203, 204, 205, 206, 207, 208, 226,
-  300, 301, 302, 303, 304, 305, 306, 307, 308,
-  400, 401, 402, 403, 404, 405, 406, 407, 408, 409, 410, 411, 412, 413, 414, 415, 416, 417, 418, 421, 422, 423, 424, 425, 426,
-  428, 429, 431, 451,
-  500, 501, 502, 503, 504, 505, 506, 507, 508, 510, 511,
-] as const
+export const ACCESS_LOGS_PAGE_SIZES = [10, 20, 50, 100, 200, 500, 1000] as const
 
 /** Tailwind classes for the status badge, by response class. */
 function statusBadgeClass(code: number): string {
@@ -227,31 +201,27 @@ const COLUMNS: ColumnDef[] = [
   },
 ]
 
+interface AccessLogsTableProps {
+  page: number
+  pageSize: number
+  sortField: AccessLogSortField
+  sortOrder: SortOrder
+  onPageChange: (page: number) => void
+  onPageSizeChange: (size: number) => void
+  onSortChange: (field: AccessLogSortField, order: SortOrder) => void
+}
 
-export function AccessLogsTable() {
-  const isMobile = useIsMobile()
-  const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState(20)
-
-  // Filters (raw input; text inputs are debounced before hitting the query).
-  const [searchInput, setSearchInput] = useState("")
-  const [ipInput, setIpInput] = useState("")
-  const [hostInput, setHostInput] = useState("")
-  const [methods, setMethods] = useState<string[]>([])
-  const [statusCodes, setStatusCodes] = useState<number[]>([])
-  const [cities, setCities] = useState<string[]>([])
-  const [countries, setCountries] = useState<string[]>([])
-  // Facet values are fetched lazily, on first open of either dropdown.
-  const [facetsEnabled, setFacetsEnabled] = useState(false)
-  const { data: facets } = useAccessLogFacets({ enabled: facetsEnabled })
+export function AccessLogsTable({
+  page,
+  pageSize,
+  sortField,
+  sortOrder,
+  onPageChange,
+  onPageSizeChange,
+  onSortChange,
+}: AccessLogsTableProps) {
+  const { filters } = useAccessLogFilters()
   useCrowdsecLiveUpdates()
-  const search = useDebouncedValue(searchInput, 300)
-  const ip = useDebouncedValue(ipInput, 300)
-  const host = useDebouncedValue(hostInput, 300)
-
-  // Sorting.
-  const [sortField, setSortField] = useState<AccessLogSortField>("timestamp")
-  const [sortOrder, setSortOrder] = useState<SortOrder>("desc")
 
   // Column visibility.
   const [visible, setVisible] = useState<Set<string>>(() => {
@@ -262,23 +232,15 @@ export function AccessLogsTable() {
   })
   const shownColumns = useMemo(() => COLUMNS.filter((c) => visible.has(c.key)), [visible])
 
-  // Any filter/sort/page-size change returns to the first page.
-  useEffect(() => {
-    setPage(1)
-  }, [search, ip, host, methods, statusCodes, cities, countries, sortField, sortOrder, pageSize])
-
   const { data, isLoading, isError, isPlaceholderData } = useAccessLogs({
     currentPage: page,
     pageSize,
-    searchString: search || undefined,
-    // Only forward complete IPs — ip_address is INET server-side, so partial
-    // text can't match anything (and would fail bind-param encoding).
-    ipAddressIn: ip && isValidIp(ip) ? [ip] : undefined,
-    methodIn: methods.length ? methods : undefined,
-    statusIn: statusCodes.length ? statusCodes : undefined,
-    host: host || undefined,
-    cityIn: cities.length ? cities : undefined,
-    countryCodeIn: countries.length ? countries : undefined,
+    searchString: filters.search || undefined,
+    ipAddressIn: filters.ips.length ? filters.ips : undefined,
+    methodIn: filters.methods.length ? filters.methods : undefined,
+    cityIn: filters.cities.length ? filters.cities : undefined,
+    countryCodeIn: filters.countryCodes.length ? filters.countryCodes : undefined,
+    statusIn: filters.statusCodes.length ? filters.statusCodes : undefined,
     sortField,
     sortOrder,
   })
@@ -290,10 +252,9 @@ export function AccessLogsTable() {
 
   function toggleSort(field: AccessLogSortField) {
     if (sortField === field) {
-      setSortOrder((o) => (o === "asc" ? "desc" : "asc"))
+      onSortChange(field, sortOrder === "asc" ? "desc" : "asc")
     } else {
-      setSortField(field)
-      setSortOrder("desc")
+      onSortChange(field, "desc")
     }
   }
 
@@ -304,105 +265,6 @@ export function AccessLogsTable() {
       else next.add(key)
       return next
     })
-  }
-
-  const activeFilterCount =
-    (search ? 1 : 0) +
-    (ip ? 1 : 0) +
-    (host ? 1 : 0) +
-    (methods.length ? 1 : 0) +
-    (statusCodes.length ? 1 : 0) +
-    (countries.length ? 1 : 0) +
-    (cities.length ? 1 : 0)
-
-  function renderFilters(inDrawer: boolean) {
-    const wrap = (label: string, node: React.ReactNode) =>
-      inDrawer ? <FilterSection label={label}>{node}</FilterSection> : node
-    return (
-      <>
-        {wrap(
-          "Search",
-          <div className="relative">
-            <Search className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              value={searchInput}
-              onChange={(e) => setSearchInput(e.target.value)}
-              placeholder="Search url / referrer / agent…"
-              className={cn("h-8 pl-7 text-xs", inDrawer ? "w-full" : "w-64")}
-            />
-          </div>,
-        )}
-        {wrap(
-          "IP address",
-          <Input
-            value={ipInput}
-            onChange={(e) => setIpInput(e.target.value)}
-            placeholder="IP address"
-            aria-invalid={ipInput !== "" && !isValidIp(ipInput)}
-            className={cn("h-8 font-mono text-xs", inDrawer ? "w-full" : "w-36")}
-          />,
-        )}
-        {wrap(
-          "Host",
-          <Input
-            value={hostInput}
-            onChange={(e) => setHostInput(e.target.value)}
-            placeholder="Host"
-            className={cn("h-8 font-mono text-xs", inDrawer ? "w-full" : "w-44")}
-          />,
-        )}
-        {wrap(
-          "Status",
-          <FilterCombobox
-            label="Status"
-            options={[...STATUS_CODES]}
-            selected={statusCodes}
-            onChange={setStatusCodes}
-            forceInline={inDrawer}
-          />,
-        )}
-        {wrap(
-          "Method",
-          <FilterCombobox
-            label="Method"
-            options={[...HTTP_METHODS]}
-            selected={methods}
-            onChange={setMethods}
-            forceInline={inDrawer}
-          />,
-        )}
-        {wrap(
-          "Country",
-          <FilterCombobox
-            label="Country"
-            options={facets?.countries.map((c) => c.code) ?? []}
-            selected={countries}
-            onChange={setCountries}
-            labelFor={(code) => {
-              const name = facets?.countries.find((c) => c.code === code)?.name
-              return name ? `${name} (${code})` : code
-            }}
-            loading={!facets}
-            emptyText="No geo data"
-            onOpenChange={(open) => open && setFacetsEnabled(true)}
-            forceInline={inDrawer}
-          />,
-        )}
-        {wrap(
-          "City",
-          <FilterCombobox
-            label="City"
-            options={facets?.cities ?? []}
-            selected={cities}
-            onChange={setCities}
-            loading={!facets}
-            emptyText="No geo data"
-            onOpenChange={(open) => open && setFacetsEnabled(true)}
-            forceInline={inDrawer}
-          />,
-        )}
-      </>
-    )
   }
 
   const columnsMenu = (
@@ -440,20 +302,7 @@ export function AccessLogsTable() {
 
   return (
     <div className="space-y-3">
-      {/* Filter toolbar */}
-      {isMobile ? (
-        <div className="flex items-center gap-2">
-          <div onClick={() => setFacetsEnabled(true)}>
-            <FiltersDrawer activeCount={activeFilterCount}>{renderFilters(true)}</FiltersDrawer>
-          </div>
-          {columnsMenu}
-        </div>
-      ) : (
-        <div className="flex flex-wrap items-center gap-2">
-          {renderFilters(false)}
-          {columnsMenu}
-        </div>
-      )}
+      <div className="flex items-center gap-2">{columnsMenu}</div>
 
       <div className="rounded-md border">
         <Table className="text-xs">
@@ -532,11 +381,11 @@ export function AccessLogsTable() {
           page={page}
           pageCount={pageCount}
           total={total}
-          onPageChange={setPage}
+          onPageChange={onPageChange}
           disabled={isPlaceholderData}
           pageSize={pageSize}
-          pageSizes={PAGE_SIZES}
-          onPageSizeChange={setPageSize}
+          pageSizes={ACCESS_LOGS_PAGE_SIZES}
+          onPageSizeChange={onPageSizeChange}
           className="border-t"
         />
       </div>
