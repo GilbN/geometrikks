@@ -51,13 +51,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   opens a sheet listing live requests, split into an "All" and a "Threats"
   lane, and tapping a row flies the map to that request's origin.
 - The "Recent requests" strips on the map show the most recent requests,
-  fading out as they age. The five-minute timeline alongside them is a
-  per-second view of that window, coloured by the worst status seen in
-  each second.
+  fading out as they age. The five-minute timeline alongside them shows
+  requests over that window, coloured by the worst status in each bar, with
+  a hover card describing the most notable request under the cursor.
 - Live vitals readout on the map: requests per minute with a sparkline,
   error rate, threat count, unique IPs, and countries seen.
-- Clicking a live packet, strip, or timeline bar opens the full
-  access-log line for that request, with ban/unban controls.
+- Clicking a live packet, strip, or timeline bar flies the map to that
+  request's origin and opens its full access-log line, with ban/unban
+  controls.
 
 ### Changed
 
