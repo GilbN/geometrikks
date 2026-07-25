@@ -87,7 +87,7 @@ function LiveRequestDetail({
       </div>
 
       <div style={{ fontSize: "11px", marginBottom: "8px", wordBreak: "break-all" }}>
-        {log?.url ?? "No access log line for this event"}
+        {log?.url ?? "No access log url data for this event"}
       </div>
 
       <Row label="IP" value={request.ip} />
