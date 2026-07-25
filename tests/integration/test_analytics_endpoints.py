@@ -225,3 +225,43 @@ async def test_filtered_time_series_and_top_urls(pg_session_maker, clean_tables)
 
     assert sum(r.total_requests for r in rows) == 3
     assert [u.url for u in urls] == ["/se"]
+
+
+async def test_top_ips_honors_ip_exclude(pg_session_maker, clean_tables):
+    ts = NOW - timedelta(hours=1)
+    async with pg_session_maker() as session:
+        for _ in range(3):
+            await _insert_log(session, ts=ts, url="/a", user_agent="bot/1.0", ip="10.0.0.1")
+        await _insert_log(session, ts=ts, url="/a", user_agent="bot/1.0", ip="10.0.0.2")
+        await session.commit()
+
+    async with pg_session_maker() as session:
+        rows = await LiveStatsRepository(session=session).get_top_ips(
+            NOW - timedelta(hours=2), NOW, limit=10,
+            filters=AnalyticsFilters(ip_exclude=["10.0.0.1"]),
+        )
+
+    assert [(str(r.ip_address), r.hits) for r in rows] == [("10.0.0.2", 1)]
+
+
+async def test_time_series_totals_drop_by_excluded_ip(pg_session_maker, clean_tables):
+    ts = NOW - timedelta(hours=1)
+    async with pg_session_maker() as session:
+        for _ in range(4):
+            await _insert_log(session, ts=ts, url="/a", user_agent="bot/1.0", ip="10.0.0.1")
+        await _insert_log(session, ts=ts, url="/a", user_agent="bot/1.0", ip="10.0.0.2")
+        await session.commit()
+
+    async with pg_session_maker() as session:
+        repo = LiveStatsRepository(session=session)
+        unfiltered = await repo.get_time_series(
+            NOW - timedelta(hours=2), NOW, bucket_interval="1 hour",
+            filters=AnalyticsFilters(),
+        )
+        filtered = await repo.get_time_series(
+            NOW - timedelta(hours=2), NOW, bucket_interval="1 hour",
+            filters=AnalyticsFilters(ip_exclude=["10.0.0.1"]),
+        )
+
+    assert sum(r.total_requests for r in unfiltered) == 5
+    assert sum(r.total_requests for r in filtered) == 1

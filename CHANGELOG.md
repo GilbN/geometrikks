@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Analytics page: an exclude-IP filter. Every chart and top-list on the page
+  can now drop specific client IPs, which is the quick way to take your own
+  traffic out of the picture without changing ingestion settings.
 - The docker image now supports `PUID`/`PGID`: the
   entrypoint re-maps the container user, fixes ownership of `/app/logs` and
   the GeoIP volume at startup, then drops privileges with gosu - no more

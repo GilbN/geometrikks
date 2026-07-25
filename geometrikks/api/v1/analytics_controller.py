@@ -58,9 +58,10 @@ def _build_filters(
     country_code: list[str] | None,
     city: list[str] | None,
     ip_address: list[str] | None,
+    ip_address_not_in: list[str] | None = None,
 ) -> AnalyticsFilters:
     """Validate filter params; bad IPs become a 400 instead of a DB error."""
-    for ip in ip_address or []:
+    for ip in (ip_address or []) + (ip_address_not_in or []):
         try:
             ipaddress.ip_address(ip)
         except ValueError as exc:
@@ -69,6 +70,7 @@ def _build_filters(
         country_codes=country_code or None,
         cities=city or None,
         ip_addresses=ip_address or None,
+        ip_exclude=ip_address_not_in or None,
     )
 
 
@@ -463,6 +465,10 @@ class AnalyticsController(Controller):
             list[str] | None,
             Parameter(description="Filter to these client IPs (repeatable)", required=False),
         ] = None,
+        ip_address_not_in: Annotated[
+            list[str] | None,
+            Parameter(description="Exclude these client IPs (repeatable)", required=False),
+        ] = None,
     ) -> TimeSeriesResponse:
         """Get per-bucket access-log metrics (requests, status, bytes, latency).
 
@@ -473,7 +479,7 @@ class AnalyticsController(Controller):
         CAGG-backed path - acceptable at homelab volume with chunk exclusion
         (same trade-off as /top-urls).
         """
-        filters = _build_filters(country_code, city, ip_address)
+        filters = _build_filters(country_code, city, ip_address, ip_address_not_in)
         resolved = _resolve_chart_granularity(start_date, end_date, granularity)
         if filters.is_active():
             interval = "1 hour" if resolved == StatsGranularity.HOURLY else "1 day"
@@ -588,9 +594,13 @@ class AnalyticsController(Controller):
             list[str] | None,
             Parameter(description="Filter to these client IPs (repeatable)", required=False),
         ] = None,
+        ip_address_not_in: Annotated[
+            list[str] | None,
+            Parameter(description="Exclude these client IPs (repeatable)", required=False),
+        ] = None,
     ) -> TopUrlsResponse:
         """Get the top URLs by hit count for a date range."""
-        filters = _build_filters(country_code, city, ip_address)
+        filters = _build_filters(country_code, city, ip_address, ip_address_not_in)
         rows = await live_stats_repo.get_top_urls(start_date, end_date, limit=limit, filters=filters)
         return TopUrlsResponse(
             start_date=start_date.isoformat(),
@@ -632,9 +642,13 @@ class AnalyticsController(Controller):
             list[str] | None,
             Parameter(description="Filter to these client IPs (repeatable)", required=False),
         ] = None,
+        ip_address_not_in: Annotated[
+            list[str] | None,
+            Parameter(description="Exclude these client IPs (repeatable)", required=False),
+        ] = None,
     ) -> TopUserAgentsResponse:
         """Get the top user agents by hit count for a date range."""
-        filters = _build_filters(country_code, city, ip_address)
+        filters = _build_filters(country_code, city, ip_address, ip_address_not_in)
         rows = await live_stats_repo.get_top_user_agents(start_date, end_date, limit=limit, filters=filters)
         return TopUserAgentsResponse(
             start_date=start_date.isoformat(),
@@ -670,9 +684,13 @@ class AnalyticsController(Controller):
             list[str] | None,
             Parameter(description="Filter to these client IPs (repeatable)", required=False),
         ] = None,
+        ip_address_not_in: Annotated[
+            list[str] | None,
+            Parameter(description="Exclude these client IPs (repeatable)", required=False),
+        ] = None,
     ) -> TopIpsResponse:
         """Get the top client IPs by hit count for a date range."""
-        filters = _build_filters(country_code, city, ip_address)
+        filters = _build_filters(country_code, city, ip_address, ip_address_not_in)
         rows = await live_stats_repo.get_top_ips(start_date, end_date, limit=limit, filters=filters)
         return TopIpsResponse(
             start_date=start_date.isoformat(),
@@ -708,9 +726,13 @@ class AnalyticsController(Controller):
             list[str] | None,
             Parameter(description="Filter to these client IPs (repeatable)", required=False),
         ] = None,
+        ip_address_not_in: Annotated[
+            list[str] | None,
+            Parameter(description="Exclude these client IPs (repeatable)", required=False),
+        ] = None,
     ) -> TopCountriesStatsResponse:
         """Get the top countries by hit count for a date range."""
-        filters = _build_filters(country_code, city, ip_address)
+        filters = _build_filters(country_code, city, ip_address, ip_address_not_in)
         rows = await live_stats_repo.get_top_countries(start_date, end_date, limit=limit, filters=filters)
         return TopCountriesStatsResponse(
             start_date=start_date.isoformat(),
@@ -746,9 +768,13 @@ class AnalyticsController(Controller):
             list[str] | None,
             Parameter(description="Filter to these client IPs (repeatable)", required=False),
         ] = None,
+        ip_address_not_in: Annotated[
+            list[str] | None,
+            Parameter(description="Exclude these client IPs (repeatable)", required=False),
+        ] = None,
     ) -> TopCitiesResponse:
         """Get the top cities by hit count for a date range."""
-        filters = _build_filters(country_code, city, ip_address)
+        filters = _build_filters(country_code, city, ip_address, ip_address_not_in)
         rows = await live_stats_repo.get_top_cities(start_date, end_date, limit=limit, filters=filters)
         return TopCitiesResponse(
             start_date=start_date.isoformat(),
