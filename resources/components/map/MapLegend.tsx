@@ -2,6 +2,9 @@
  * Map legend showing the color scale for heatmap or markers.
  * On mobile it collapses to a small swatch button (hidden by default) that
  * expands the full card on tap, to keep the map area uncluttered.
+ *
+ * Positioning is owned by GeoMap's bottom-left overlay stack, so the legend
+ * and the live request strips can never overlap.
  */
 
 import { useState } from "react"
@@ -39,7 +42,7 @@ export function MapLegend({ maxValue, layerType }: MapLegendProps) {
         onClick={() => setOpen(true)}
         title={`Show ${title.toLowerCase()} legend`}
         aria-label={`Show ${title.toLowerCase()} legend`}
-        className="absolute bottom-6 left-4 z-10 flex items-center gap-2 rounded-md border border-border/50 bg-card/90 px-2.5 py-1.5 shadow-sm backdrop-blur cursor-pointer"
+        className="pointer-events-auto flex items-center gap-2 rounded-md border border-border/50 bg-card/90 px-2.5 py-1.5 shadow-sm backdrop-blur cursor-pointer"
       >
         <span
           className="h-2.5 w-10 rounded-sm"
@@ -53,7 +56,7 @@ export function MapLegend({ maxValue, layerType }: MapLegendProps) {
   }
 
   return (
-    <Card className="absolute gap-3 bottom-6 py-0 left-4 z-10 w-44">
+    <Card className="pointer-events-auto gap-3 py-0 w-44">
       <CardHeader className="pb-0 pt-3 px-3">
         <CardTitle
           className={cn(

@@ -374,8 +374,16 @@ function GeoMapInner({
 
   const handleLiveSelect = useCallback((request: LiveRequest) => {
     setLivePopup(request)
-    // replay() notifies LivePulses without storing anything.
-    if (request.coordinates) liveStore.replay(request)
+    if (request.coordinates) {
+      // replay() notifies LivePulses without storing anything.
+      liveStore.replay(request)
+      // Bring the origin into view; a popup anchored off-viewport is invisible.
+      mapRef.current?.flyTo({
+        center: request.coordinates,
+        zoom: Math.max(mapRef.current.getZoom(), 5),
+        duration: 1200,
+      })
+    }
   }, [liveStore])
 
   // Row tap from the mobile sheet: just the popup and a fly-to, deliberately
@@ -517,11 +525,14 @@ function GeoMapInner({
         </div>
       )}
 
-      {liveMode && !isMobile && liveOverlays.strips && (
-        <div className="pointer-events-none absolute bottom-24 left-4 z-10">
+      {/* Bottom-left stack: strips above the legend, so the two can never
+          overlap however tall either one grows. */}
+      <div className="pointer-events-none absolute bottom-6 left-4 z-10 flex flex-col items-start gap-2">
+        {liveMode && !isMobile && liveOverlays.strips && (
           <LiveStrips onSelect={handleLiveSelect} />
-        </div>
-      )}
+        )}
+        <MapLegend maxValue={geojson?.stats.events ?? 0} layerType={activeLayer} />
+      </div>
 
       {liveMode && !isMobile && liveOverlays.wire && (
         <div className="pointer-events-none absolute bottom-4 left-1/2 z-10 w-[min(760px,calc(100vw-16rem))] -translate-x-1/2">
@@ -577,8 +588,6 @@ function GeoMapInner({
         onCitiesChange={setSelectedCities}
       />
 
-      {/* Legend - show for both modes */}
-      <MapLegend maxValue={geojson?.stats.events ?? 0} layerType={activeLayer} />
     </div>
   )
 }
