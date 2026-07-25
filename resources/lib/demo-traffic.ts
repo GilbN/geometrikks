@@ -5,21 +5,22 @@ export type DemoTrafficMode = "off" | "steady" | "burst"
 
 export interface DemoTrafficOrigin {
   city: string
+  countryCode: string
   coordinates: [longitude: number, latitude: number]
 }
 
 /** Deterministic global origins for visually exercising long and short routes. */
 export const DEMO_TRAFFIC_ORIGINS: readonly DemoTrafficOrigin[] = [
-  { city: "London", coordinates: [-0.1276, 51.5072] },
-  { city: "New York", coordinates: [-74.006, 40.7128] },
-  { city: "São Paulo", coordinates: [-46.6333, -23.5505] },
-  { city: "Cape Town", coordinates: [18.4241, -33.9249] },
-  { city: "Mumbai", coordinates: [72.8777, 19.076] },
-  { city: "Singapore", coordinates: [103.8198, 1.3521] },
-  { city: "Tokyo", coordinates: [139.6917, 35.6895] },
-  { city: "Sydney", coordinates: [151.2093, -33.8688] },
-  { city: "San Francisco", coordinates: [-122.4194, 37.7749] },
-  { city: "Reykjavík", coordinates: [-21.9426, 64.1466] },
+  { city: "London", countryCode: "GB", coordinates: [-0.1276, 51.5072] },
+  { city: "New York", countryCode: "US", coordinates: [-74.006, 40.7128] },
+  { city: "São Paulo", countryCode: "BR", coordinates: [-46.6333, -23.5505] },
+  { city: "Cape Town", countryCode: "ZA", coordinates: [18.4241, -33.9249] },
+  { city: "Mumbai", countryCode: "IN", coordinates: [72.8777, 19.076] },
+  { city: "Singapore", countryCode: "SG", coordinates: [103.8198, 1.3521] },
+  { city: "Tokyo", countryCode: "JP", coordinates: [139.6917, 35.6895] },
+  { city: "Sydney", countryCode: "AU", coordinates: [151.2093, -33.8688] },
+  { city: "San Francisco", countryCode: "US", coordinates: [-122.4194, 37.7749] },
+  { city: "Reykjavík", countryCode: "IS", coordinates: [-21.9426, 64.1466] },
 ] as const
 
 /** Demo traffic can never be enabled in a production bundle. */
@@ -31,7 +32,7 @@ export function getDemoTrafficMode(): DemoTrafficMode {
   return "off"
 }
 
-/** A 100-entry status cycle: 78 percent 2xx, 9 percent 3xx, 10 percent 4xx, 3 percent 5xx. */
+/** A 100-entry status cycle: 79 percent 2xx, 8 percent 3xx, 10 percent 4xx, 3 percent 5xx. */
 const DEMO_STATUS_CYCLE: readonly number[] = Array.from({ length: 100 }, (_, index) => {
   if (index % 33 === 32) return 502
   if (index % 10 === 7) return 404
@@ -88,7 +89,7 @@ export function makeDemoRequests(cursor: number, count: number, now: number): Li
       ip,
       coordinates: origin.coordinates,
       city: origin.city,
-      countryCode: null,
+      countryCode: origin.countryCode,
       statusClass: status,
       banned,
       threat: isThreat(status, banned),
@@ -106,7 +107,7 @@ export function makeDemoRequests(cursor: number, count: number, now: number): Li
         request_time: 0.004 + (step % 25) / 100,
         upstream_response_time: 0.002 + (step % 9) / 100,
         host: "geometrikks.example.com",
-        country_code: null,
+        country_code: origin.countryCode,
         country_name: null,
         city: origin.city,
       },
