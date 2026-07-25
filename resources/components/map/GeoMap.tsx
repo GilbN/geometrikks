@@ -33,8 +33,8 @@ import { LivePulses } from "./LivePulses"
 import { HomeMarker } from "./HomeMarker"
 import { MapPopup, type PopupInfo } from "./MapPopup"
 import { LiveRequestCard, LiveRequestPopup } from "./LiveRequestPopup"
-import { LiveVitals } from "./LiveVitals"
-import { LiveStrips } from "./LiveStrips"
+import { LiveVitalsPill } from "./LiveVitalsPill"
+import { LiveRail } from "./LiveRail"
 import { LiveFeedSheet } from "./LiveFeedSheet"
 import { Card, CardContent } from "@/components/ui/card"
 import { AlertTriangle } from "lucide-react"
@@ -521,23 +521,15 @@ function GeoMapInner({
         <LiveRequestCard request={livePopup} onClose={() => setLivePopup(null)} />
       )}
 
-      {liveMode && !isMobile && liveOverlays.vitals && (
-        <div className="pointer-events-none absolute left-4 top-4 z-10">
-          <LiveVitals variant="desktop" />
-        </div>
-      )}
-
-      {liveMode && !isMobile && liveOverlays.strips && (
-        <div className="pointer-events-none absolute bottom-6 left-4 z-10 flex flex-col items-start">
-          <LiveStrips onSelect={handleLiveSelect} />
-        </div>
+      {liveMode && !isMobile && liveOverlays.rail && (
+        <LiveRail onSelect={handleLiveSelect} />
       )}
 
       {/* Mobile: the vitals pill is the only way into the feed, so it mounts
           whenever live mode is on regardless of the desktop overlay preference. */}
       {liveMode && isMobile && (
         <div className="pointer-events-none absolute left-4 top-4 z-10">
-          <LiveVitals variant="pill" onOpenFeed={() => setFeedOpen(true)} />
+          <LiveVitalsPill onOpenFeed={() => setFeedOpen(true)} />
         </div>
       )}
 

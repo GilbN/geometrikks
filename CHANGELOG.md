@@ -44,17 +44,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Live map packets are now colored by response status (green/blue/amber/red)
   and sized by response bytes, with a dashed red ring cage over packets from
   banned IPs.
-- Live overlays (vitals and recent requests) can each be switched on or off
-  from a "Live overlays" card in the map controls, shown while live mode is
-  on. The choice is remembered in the browser.
-- Live mode on a phone now has its own surface: tapping the vitals pill
-  opens a sheet listing live requests, split into an "All" and a "Threats"
-  lane, and tapping a row flies the map to that request's origin.
-- The "Recent requests" strips on the map show the most recent requests,
-  fading out as they age.
-- Live vitals readout on the map: requests per minute with a sparkline,
-  error rate, threat count, unique IPs, and countries seen.
-- Clicking a live packet or a recent-request strip flies the map to that
+- Live rail: a glass column over the map's left edge holding the whole live
+  picture while live mode is on. Requests per minute with a sparkline and a
+  trend against the first half of the window, a response-mix bar, the busiest
+  origin countries in that window, and the request feed itself split into an
+  "All" and a "Threats" lane. A footer counts distinct banned IPs seen. The
+  rail can be switched off from the "Live overlays" card in the map controls,
+  and the choice is remembered in the browser.
+- Live mode on a phone shows a vitals pill with the current rate, a sparkline,
+  and a red threat count when anything is attacking. Tapping it opens a sheet
+  carrying the same summary and feed as the desktop rail, and tapping a row
+  flies the map to that request's origin.
+- Clicking a live packet or a row in the rail or sheet flies the map to that
   request's origin and opens its full access-log line, with ban/unban
   controls.
 
@@ -98,13 +99,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Map zoom/compass buttons were unclickable when the map-controls panel was
   tall enough to reach down beside them.
-- Live vitals no longer read as disconnected during demo traffic: the
-  desktop readout dropped a spurious "Reconnecting" line, and the mobile
-  pill now keeps showing rpm, error rate, and threat count instead of
-  hiding them behind that label.
+- The live surfaces no longer read as disconnected during demo traffic, which
+  never opens the websocket.
 - A live request with no GeoIP match (LAN traffic, private or unresolvable
-  IPs) now opens a small dismissible detail card when tapped from the
-  strips or the phone sheet, instead of doing nothing.
+  IPs) now opens a small dismissible detail card when tapped from the rail
+  or the phone sheet, instead of doing nothing.
 - Switching Live mode off now closes an open live-request popup and the
   phone feed sheet along with the rest of the overlay state, clicking the
   heatmap layer dismisses an open live popup, and zooming into a cluster no

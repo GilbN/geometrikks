@@ -3,8 +3,8 @@
  *
  * Everything downstream reads the store rather than the socket, and each
  * consumer gets its own clock: the map's rAF loop is called imperatively per
- * batch, the strips re-render at most every 250ms, the vitals at 1Hz.
- * A naive setState here would re-render the map subtree seven times a second.
+ * batch, while the reading surfaces snapshot at 1Hz. A naive setState here
+ * would re-render the map subtree seven times a second.
  */
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react"
 import { useLiveEvents, useLiveFeedStatus } from "@/lib/live-feed-context"
@@ -12,13 +12,14 @@ import { useBannedIps } from "@/lib/queries"
 import { getDemoTrafficMode, makeDemoRequests } from "@/lib/demo-traffic"
 import { pairLiveEvents } from "./pairing"
 import { LiveTrafficStore } from "./store"
+import { EMPTY_SUMMARY, summarize, type LiveSummary } from "./summary"
 import type { LiveRequest, Vitals } from "./types"
 
 /**
  * What is actually feeding the store, as far as the UI should care.
  * Demo mode never opens the socket, so "connected" here means "something is
  * feeding this" rather than "the socket is open" - the distinction the
- * disconnected states downstream (LiveVitals) depend on.
+ * disconnected states downstream (the rail and the pill) depend on.
  */
 export type LiveFeedState = "connected" | "reconnecting"
 
@@ -36,7 +37,6 @@ const EMPTY_VITALS: Vitals = {
 const StoreContext = createContext<LiveTrafficStore | null>(null)
 const FeedStateContext = createContext<LiveFeedState>("reconnecting")
 
-const STRIP_INTERVAL_MS = 250
 const SNAPSHOT_INTERVAL_MS = 1000
 
 export function LiveTrafficProvider({
@@ -105,30 +105,38 @@ export function useLiveFeedState(): LiveFeedState {
   return useContext(FeedStateContext)
 }
 
-/** Newest requests, refreshed at most every 250ms. */
-export function useLiveStrips(max = 4): LiveRequest[] {
+/**
+ * The whole window plus its aggregates, refreshed once a second. Pass
+ * `active: false` for a surface that is closed - a hidden sheet should not
+ * pay for a snapshot it will not render.
+ */
+export function useLiveWindow(active = true): {
+  requests: readonly LiveRequest[]
+  summary: LiveSummary
+} {
   const store = useLiveTrafficStore()
-  // Seed from the buffer so re-enabling the overlay shows the recent
-  // requests immediately instead of waiting for the next batch.
-  const [strips, setStrips] = useState<LiveRequest[]>(() => store.getRequests().slice(0, max))
+  const [requests, setRequests] = useState<readonly LiveRequest[]>(() =>
+    active ? store.getRequests() : [],
+  )
 
   useEffect(() => {
-    let dirty = false
-    const unsubscribe = store.onRequests(() => {
-      dirty = true
-    })
-    const interval = window.setInterval(() => {
-      if (!dirty) return
-      dirty = false
-      setStrips(store.getRequests().slice(0, max))
-    }, STRIP_INTERVAL_MS)
-    return () => {
-      unsubscribe()
-      window.clearInterval(interval)
+    if (!active) {
+      // Drop the snapshot so a reopened surface never flashes stale rows.
+      setRequests([])
+      return
     }
-  }, [max, store])
+    const tick = () => setRequests(store.getRequests())
+    tick()
+    const interval = window.setInterval(tick, SNAPSHOT_INTERVAL_MS)
+    return () => window.clearInterval(interval)
+  }, [active, store])
 
-  return strips
+  const summary = useMemo(
+    () => (requests.length === 0 ? EMPTY_SUMMARY : summarize(requests)),
+    [requests],
+  )
+
+  return { requests, summary }
 }
 
 export function useLiveVitals(): Vitals {
