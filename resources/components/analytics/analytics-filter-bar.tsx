@@ -11,14 +11,12 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { FilterCombobox } from "@/components/ui/filter-combobox"
 import { useAccessLogFacets } from "@/lib/queries"
+import { isValidIp } from "@/lib/crowdsec"
 import {
   EMPTY_FILTERS,
   hasActiveAnalyticsFilters,
   useAnalyticsFilters,
 } from "@/lib/analytics-filters-context"
-
-/** Light shape check, not a full validator - the backend 400s on truly invalid IPs. */
-const IP_INPUT_RE = /^[0-9a-fA-F:.]+$/
 
 export function AnalyticsFilterBar() {
   const { filters, setFilters } = useAnalyticsFilters()
@@ -31,7 +29,9 @@ export function AnalyticsFilterBar() {
     const input = key === "ips" ? ipInput : ipExcludeInput
     const setInput = key === "ips" ? setIpInput : setIpExcludeInput
     const value = input.trim()
-    if (!value || !IP_INPUT_RE.test(value) || filters[key].includes(value)) return
+    // ip_address is INET server-side: only complete IPs can match, and the
+    // backend 400s on anything else.
+    if (!value || !isValidIp(value) || filters[key].includes(value)) return
     setFilters((prev) => ({ ...prev, [key]: [...prev[key], value] }))
     setInput("")
   }
@@ -76,7 +76,7 @@ export function AnalyticsFilterBar() {
           }
         }}
         placeholder="Add IP + Enter"
-        aria-invalid={ipInput !== "" && !IP_INPUT_RE.test(ipInput)}
+        aria-invalid={ipInput !== "" && !isValidIp(ipInput)}
         className="h-8 w-40 font-mono text-xs"
       />
 
@@ -104,7 +104,7 @@ export function AnalyticsFilterBar() {
           }
         }}
         placeholder="Exclude IP + Enter"
-        aria-invalid={ipExcludeInput !== "" && !IP_INPUT_RE.test(ipExcludeInput)}
+        aria-invalid={ipExcludeInput !== "" && !isValidIp(ipExcludeInput)}
         className="h-8 w-40 font-mono text-xs"
       />
 

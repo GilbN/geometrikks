@@ -129,6 +129,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   phone feed sheet along with the rest of the overlay state, clicking the
   heatmap layer dismisses an open live popup, and zooming into a cluster no
   longer leaves one stuck open.
+- Geo Logs: the IP include/exclude inputs now reject invalid text instead of
+  accepting it as a filter chip, which used to reach the API and come back
+  as a 400.
 
 ## [0.4.3] - 2026-07-22
 
