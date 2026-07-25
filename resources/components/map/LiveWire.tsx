@@ -5,7 +5,9 @@
  *
  * One-second buckets are aggregated into display bins wide enough to read
  * and to hover (see wire.ts). Hovering raises a detail card for the bin's
- * most notable request; clicking replays that request's arc on the map.
+ * most notable request; clicking replays that request's arc on the map;
+ * pressing and dragging scrubs through the window, the card following each
+ * moment's timestamp even where nothing happened.
  *
  * Canvas rather than SVG nodes: the whole strip is redrawn every second.
  */
@@ -20,7 +22,12 @@ const HEIGHT = 64
 const BAR_GAP = 1
 const FALLBACK_WIDTH = 760
 
-function draw(canvas: HTMLCanvasElement, bins: WireBin[], hovered: number | null): void {
+function draw(
+  canvas: HTMLCanvasElement,
+  bins: WireBin[],
+  hovered: number | null,
+  scrubbing: boolean,
+): void {
   const context = canvas.getContext("2d")
   if (!context || bins.length === 0) return
 
@@ -55,6 +62,13 @@ function draw(canvas: HTMLCanvasElement, bins: WireBin[], hovered: number | null
       context.fillRect(x, HEIGHT - barHeight, barWidth, 2)
     }
   })
+
+  // Scrub cursor: a full-height line marking the moment being inspected.
+  if (scrubbing && hovered !== null) {
+    const center = ((hovered + 0.5) * width) / bins.length
+    context.fillStyle = "rgba(34, 211, 238, 0.9)"
+    context.fillRect(center - 0.5, 0, 1, HEIGHT)
+  }
 }
 
 export function LiveWire({ onSelect }: { onSelect: (request: LiveRequest) => void }) {
@@ -64,6 +78,12 @@ export function LiveWire({ onSelect }: { onSelect: (request: LiveRequest) => voi
   const [width, setWidth] = useState(0)
   // The bin's start second, not its index - see wire.ts.
   const [hoveredStart, setHoveredStart] = useState<number | null>(null)
+  // Press-and-drag scrubs through the window; pointer capture keeps the
+  // sweep alive when the cursor drifts off the canvas. A release that
+  // travelled further than a click's wobble must not fire the replay.
+  const [scrubbing, setScrubbing] = useState(false)
+  const dragTravelRef = useRef(0)
+  const lastClientXRef = useRef(0)
 
   // Track the rendered width so bin sizing follows the actual canvas, and a
   // window resize re-bins immediately instead of on the next tick.
@@ -81,16 +101,19 @@ export function LiveWire({ onSelect }: { onSelect: (request: LiveRequest) => voi
   const hovered = resolveHoveredBin(bins, hoveredStart)
 
   useEffect(() => {
-    if (canvasRef.current) draw(canvasRef.current, bins, hovered)
-  }, [bins, hovered, width])
+    if (canvasRef.current) draw(canvasRef.current, bins, hovered, scrubbing)
+  }, [bins, hovered, scrubbing, width])
 
   const binStartAt = useCallback(
     (clientX: number): number | null => {
       const canvas = canvasRef.current
       if (!canvas || bins.length === 0) return null
       const rect = canvas.getBoundingClientRect()
-      const index = Math.floor(((clientX - rect.left) / rect.width) * bins.length)
-      return index >= 0 && index < bins.length ? bins[index].startSecond : null
+      // Clamp so a captured scrub past either edge pins to the first or
+      // last bin instead of losing the selection.
+      const raw = Math.floor(((clientX - rect.left) / rect.width) * bins.length)
+      const index = Math.min(bins.length - 1, Math.max(0, raw))
+      return bins[index].startSecond
     },
     [bins],
   )
@@ -109,36 +132,50 @@ export function LiveWire({ onSelect }: { onSelect: (request: LiveRequest) => voi
 
   return (
     <div className="pointer-events-auto relative rounded-md border bg-background/85 px-2 py-1.5 backdrop-blur">
-      {hoveredRequest && (
+      {/* While scrubbing the card follows every moment, timestamp included,
+          even through quiet stretches; on a plain hover it appears only when
+          there is a request to describe. */}
+      {hoveredBin && (hoveredRequest || scrubbing) && (
         <div
           className="pointer-events-none absolute bottom-full z-10 mb-1.5 w-64 -translate-x-1/2 rounded-md border bg-background/95 px-2.5 py-2 text-[11px] shadow-lg backdrop-blur"
           style={{ left: cardLeft }}
         >
-          <div className="flex items-center gap-2">
-            <span
-              className="rounded px-1 font-mono text-[10px] font-bold"
-              style={{
-                background: `${PACKET_COLORS[hoveredRequest.statusClass]}28`,
-                color: PACKET_COLORS[hoveredRequest.statusClass],
-              }}
-            >
-              {hoveredRequest.log?.status_code ?? "?"}
-            </span>
-            <span className="text-muted-foreground">{hoveredRequest.log?.method ?? "-"}</span>
-            <span className="ml-auto text-[10px] text-muted-foreground tabular-nums">
-              {new Date(hoveredRequest.timestamp).toLocaleTimeString()}
-            </span>
-          </div>
-          <div className="mt-1 truncate font-mono">
-            {hoveredRequest.log?.url ?? hoveredRequest.ip}
-          </div>
-          <div className="mt-0.5 flex justify-between text-[10px] text-muted-foreground">
-            <span className="truncate">
-              {hoveredRequest.ip}
-              {hoveredRequest.countryCode ? ` · ${hoveredRequest.countryCode}` : ""}
-            </span>
-            <span className="shrink-0">Click to replay</span>
-          </div>
+          {hoveredRequest ? (
+            <>
+              <div className="flex items-center gap-2">
+                <span
+                  className="rounded px-1 font-mono text-[10px] font-bold"
+                  style={{
+                    background: `${PACKET_COLORS[hoveredRequest.statusClass]}28`,
+                    color: PACKET_COLORS[hoveredRequest.statusClass],
+                  }}
+                >
+                  {hoveredRequest.log?.status_code ?? "?"}
+                </span>
+                <span className="text-muted-foreground">{hoveredRequest.log?.method ?? "-"}</span>
+                <span className="ml-auto text-[10px] text-muted-foreground tabular-nums">
+                  {new Date(hoveredRequest.timestamp).toLocaleTimeString()}
+                </span>
+              </div>
+              <div className="mt-1 truncate font-mono">
+                {hoveredRequest.log?.url ?? hoveredRequest.ip}
+              </div>
+              <div className="mt-0.5 flex justify-between text-[10px] text-muted-foreground">
+                <span className="truncate">
+                  {hoveredRequest.ip}
+                  {hoveredRequest.countryCode ? ` · ${hoveredRequest.countryCode}` : ""}
+                </span>
+                <span className="shrink-0">{scrubbing ? "Release, then click to replay" : "Click to replay"}</span>
+              </div>
+            </>
+          ) : (
+            <div className="flex items-center justify-between text-muted-foreground">
+              <span>No requests</span>
+              <span className="text-[10px] tabular-nums">
+                {new Date(hoveredBin.startSecond * 1000).toLocaleTimeString()}
+              </span>
+            </div>
+          )}
         </div>
       )}
 
@@ -152,11 +189,39 @@ export function LiveWire({ onSelect }: { onSelect: (request: LiveRequest) => voi
       </div>
       <canvas
         ref={canvasRef}
-        style={{ width: "100%", height: HEIGHT }}
+        style={{
+          width: "100%",
+          height: HEIGHT,
+          touchAction: "none",
+          cursor: scrubbing ? "grabbing" : "crosshair",
+        }}
         aria-label="Requests over the last five minutes"
-        onMouseMove={(event) => setHoveredStart(binStartAt(event.clientX))}
-        onMouseLeave={() => setHoveredStart(null)}
+        onPointerDown={(event) => {
+          event.preventDefault()
+          event.currentTarget.setPointerCapture(event.pointerId)
+          dragTravelRef.current = 0
+          lastClientXRef.current = event.clientX
+          setScrubbing(true)
+          setHoveredStart(binStartAt(event.clientX))
+        }}
+        onPointerMove={(event) => {
+          if (scrubbing) {
+            dragTravelRef.current += Math.abs(event.clientX - lastClientXRef.current)
+            lastClientXRef.current = event.clientX
+          }
+          setHoveredStart(binStartAt(event.clientX))
+        }}
+        onPointerUp={(event) => {
+          event.currentTarget.releasePointerCapture(event.pointerId)
+          setScrubbing(false)
+        }}
+        onPointerCancel={() => setScrubbing(false)}
+        onPointerLeave={() => {
+          if (!scrubbing) setHoveredStart(null)
+        }}
         onClick={() => {
+          // A sweep that travelled is a scrub, not a request to replay.
+          if (dragTravelRef.current > 5) return
           if (hoveredRequest) onSelect(hoveredRequest)
         }}
       />
