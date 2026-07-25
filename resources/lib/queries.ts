@@ -636,6 +636,7 @@ export function useTimeSeries(options: UseAnalyticsQueryOptions = {}) {
         countryCodes: filters.countryCodes,
         cities: filters.cities,
         ips: filters.ips,
+        ipsExclude: filters.ipsExclude,
       })
     },
     enabled,
@@ -685,6 +686,7 @@ export function useTopUrls(options: UseTopListOptions = {}) {
         countryCodes: filters.countryCodes,
         cities: filters.cities,
         ips: filters.ips,
+        ipsExclude: filters.ipsExclude,
       })
     },
     enabled,
@@ -713,6 +715,7 @@ export function useTopUserAgents(options: UseTopListOptions = {}) {
         countryCodes: filters.countryCodes,
         cities: filters.cities,
         ips: filters.ips,
+        ipsExclude: filters.ipsExclude,
       })
     },
     enabled,
@@ -741,6 +744,7 @@ export function useTopIpStats(options: UseTopListOptions = {}) {
         countryCodes: filters.countryCodes,
         cities: filters.cities,
         ips: filters.ips,
+        ipsExclude: filters.ipsExclude,
       })
     },
     enabled,
@@ -769,6 +773,7 @@ export function useTopCountryStats(options: UseTopListOptions = {}) {
         countryCodes: filters.countryCodes,
         cities: filters.cities,
         ips: filters.ips,
+        ipsExclude: filters.ipsExclude,
       })
     },
     enabled,
@@ -797,6 +802,7 @@ export function useTopCityStats(options: UseTopListOptions = {}) {
         countryCodes: filters.countryCodes,
         cities: filters.cities,
         ips: filters.ips,
+        ipsExclude: filters.ipsExclude,
       })
     },
     enabled,

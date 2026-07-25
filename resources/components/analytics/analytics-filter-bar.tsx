@@ -5,13 +5,17 @@
  * matching the pattern in access-logs-table.tsx.
  */
 import { useState } from "react"
-import { X } from "lucide-react"
+import { Ban, X } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { FilterCombobox } from "@/components/ui/filter-combobox"
 import { useAccessLogFacets } from "@/lib/queries"
-import { EMPTY_FILTERS, useAnalyticsFilters } from "@/lib/analytics-filters-context"
+import {
+  EMPTY_FILTERS,
+  hasActiveAnalyticsFilters,
+  useAnalyticsFilters,
+} from "@/lib/analytics-filters-context"
 
 /** Light shape check, not a full validator - the backend 400s on truly invalid IPs. */
 const IP_INPUT_RE = /^[0-9a-fA-F:.]+$/
@@ -19,21 +23,21 @@ const IP_INPUT_RE = /^[0-9a-fA-F:.]+$/
 export function AnalyticsFilterBar() {
   const { filters, setFilters } = useAnalyticsFilters()
   const [ipInput, setIpInput] = useState("")
+  const [ipExcludeInput, setIpExcludeInput] = useState("")
   const [facetsEnabled, setFacetsEnabled] = useState(false)
   const { data: facets } = useAccessLogFacets({ enabled: facetsEnabled })
 
-  const hasActiveFilters =
-    filters.countryCodes.length > 0 || filters.cities.length > 0 || filters.ips.length > 0
-
-  function addIp() {
-    const value = ipInput.trim()
-    if (!value || !IP_INPUT_RE.test(value) || filters.ips.includes(value)) return
-    setFilters((prev) => ({ ...prev, ips: [...prev.ips, value] }))
-    setIpInput("")
+  function addIp(key: "ips" | "ipsExclude") {
+    const input = key === "ips" ? ipInput : ipExcludeInput
+    const setInput = key === "ips" ? setIpInput : setIpExcludeInput
+    const value = input.trim()
+    if (!value || !IP_INPUT_RE.test(value) || filters[key].includes(value)) return
+    setFilters((prev) => ({ ...prev, [key]: [...prev[key], value] }))
+    setInput("")
   }
 
-  function removeIp(ip: string) {
-    setFilters((prev) => ({ ...prev, ips: prev.ips.filter((v) => v !== ip) }))
+  function removeIp(key: "ips" | "ipsExclude", ip: string) {
+    setFilters((prev) => ({ ...prev, [key]: prev[key].filter((v) => v !== ip) }))
   }
 
   return (
@@ -68,7 +72,7 @@ export function AnalyticsFilterBar() {
         onKeyDown={(e) => {
           if (e.key === "Enter") {
             e.preventDefault()
-            addIp()
+            addIp("ips")
           }
         }}
         placeholder="Add IP + Enter"
@@ -81,7 +85,7 @@ export function AnalyticsFilterBar() {
           {ip}
           <button
             type="button"
-            onClick={() => removeIp(ip)}
+            onClick={() => removeIp("ips", ip)}
             aria-label={`Remove ${ip}`}
             className="ml-1 rounded-full hover:text-destructive"
           >
@@ -90,8 +94,46 @@ export function AnalyticsFilterBar() {
         </Badge>
       ))}
 
-      {hasActiveFilters && (
-        <Button variant="ghost" size="sm" className="h-8 pointer-coarse:h-10" onClick={() => setFilters(EMPTY_FILTERS)}>
+      <Input
+        value={ipExcludeInput}
+        onChange={(e) => setIpExcludeInput(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.preventDefault()
+            addIp("ipsExclude")
+          }
+        }}
+        placeholder="Exclude IP + Enter"
+        aria-invalid={ipExcludeInput !== "" && !IP_INPUT_RE.test(ipExcludeInput)}
+        className="h-8 w-40 font-mono text-xs"
+      />
+
+      {filters.ipsExclude.map((ip) => (
+        <Badge
+          key={ip}
+          variant="outline"
+          className="border-destructive/50 font-mono text-destructive"
+        >
+          <Ban className="h-3 w-3" />
+          {ip}
+          <button
+            type="button"
+            onClick={() => removeIp("ipsExclude", ip)}
+            aria-label={`Remove exclusion ${ip}`}
+            className="ml-1 rounded-full hover:opacity-70"
+          >
+            <X className="h-3 w-3" />
+          </button>
+        </Badge>
+      ))}
+
+      {hasActiveAnalyticsFilters(filters) && (
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-8 pointer-coarse:h-10"
+          onClick={() => setFilters(() => EMPTY_FILTERS)}
+        >
           Clear filters
         </Button>
       )}

@@ -504,6 +504,7 @@ export interface AnalyticsFilterParams {
   countryCodes?: string[]
   cities?: string[]
   ips?: string[]
+  ipsExclude?: string[]
 }
 
 export async function fetchTimeSeries(params: TimeSeriesParams & AnalyticsFilterParams) {
@@ -515,6 +516,7 @@ export async function fetchTimeSeries(params: TimeSeriesParams & AnalyticsFilter
       country_code: params.countryCodes?.length ? params.countryCodes : undefined,
       city: params.cities?.length ? params.cities : undefined,
       ip_address: params.ips?.length ? params.ips : undefined,
+      ip_address_not_in: params.ipsExclude?.length ? params.ipsExclude : undefined,
     },
     throwOnError: true,
   })
@@ -538,6 +540,7 @@ export async function fetchTopUrls(params: TimeSeriesParams & { limit?: number }
       country_code: params.countryCodes?.length ? params.countryCodes : undefined,
       city: params.cities?.length ? params.cities : undefined,
       ip_address: params.ips?.length ? params.ips : undefined,
+      ip_address_not_in: params.ipsExclude?.length ? params.ipsExclude : undefined,
     },
     throwOnError: true,
   })
@@ -553,6 +556,7 @@ export async function fetchTopUserAgents(params: TimeSeriesParams & { limit?: nu
       country_code: params.countryCodes?.length ? params.countryCodes : undefined,
       city: params.cities?.length ? params.cities : undefined,
       ip_address: params.ips?.length ? params.ips : undefined,
+      ip_address_not_in: params.ipsExclude?.length ? params.ipsExclude : undefined,
     },
     throwOnError: true,
   })
@@ -568,6 +572,7 @@ export async function fetchTopIpStats(params: TimeSeriesParams & { limit?: numbe
       country_code: params.countryCodes?.length ? params.countryCodes : undefined,
       city: params.cities?.length ? params.cities : undefined,
       ip_address: params.ips?.length ? params.ips : undefined,
+      ip_address_not_in: params.ipsExclude?.length ? params.ipsExclude : undefined,
     },
     throwOnError: true,
   })
@@ -583,6 +588,7 @@ export async function fetchTopCountryStats(params: TimeSeriesParams & { limit?: 
       country_code: params.countryCodes?.length ? params.countryCodes : undefined,
       city: params.cities?.length ? params.cities : undefined,
       ip_address: params.ips?.length ? params.ips : undefined,
+      ip_address_not_in: params.ipsExclude?.length ? params.ipsExclude : undefined,
     },
     throwOnError: true,
   })
@@ -598,6 +604,7 @@ export async function fetchTopCityStats(params: TimeSeriesParams & { limit?: num
       country_code: params.countryCodes?.length ? params.countryCodes : undefined,
       city: params.cities?.length ? params.cities : undefined,
       ip_address: params.ips?.length ? params.ips : undefined,
+      ip_address_not_in: params.ipsExclude?.length ? params.ipsExclude : undefined,
     },
     throwOnError: true,
   })
