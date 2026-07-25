@@ -177,3 +177,13 @@ async def test_country_and_city_collection_filters_narrow_results(pg_session_mak
 
     assert total_country == 1 and str(by_country[0].ip_address) == "10.0.0.1"
     assert total_city == 1 and str(by_city[0].ip_address) == "10.0.0.2"
+
+
+async def test_facets_lists_distinct_hosts(pg_session_maker, clean_tables) -> None:
+    await _insert(pg_session_maker, NOW - timedelta(hours=1), "10.0.0.1", host="b.example.com")
+    await _insert(pg_session_maker, NOW - timedelta(hours=1), "10.0.0.2", host="a.example.com")
+    await _insert(pg_session_maker, NOW - timedelta(hours=1), "10.0.0.3", host="b.example.com")
+    async with pg_session_maker() as session:
+        facets = await AccessLogService(session=session).get_facets()
+    # Deduped and alphabetical.
+    assert facets.hosts == ["a.example.com", "b.example.com"]
