@@ -472,9 +472,9 @@ class AnalyticsController(Controller):
     ) -> TimeSeriesResponse:
         """Get per-bucket access-log metrics (requests, status, bytes, latency).
 
-        Perf note: when any of country_code/city/ip_address is set, this
-        scans raw access_logs instead of the CAGGs (which can't be sliced by
-        dimension). Filtered ranges are therefore bounded by
+        Perf note: when any of country_code/city/ip_address/ip_address_not_in
+        is set, this scans raw access_logs instead of the CAGGs (which can't
+        be sliced by dimension). Filtered ranges are therefore bounded by
         raw_retention_days (default 180d) and slower than the unfiltered,
         CAGG-backed path - acceptable at homelab volume with chunk exclusion
         (same trade-off as /top-urls).

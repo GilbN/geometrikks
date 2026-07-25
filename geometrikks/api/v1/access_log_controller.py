@@ -166,7 +166,7 @@ class AccessLogController(Controller):
         self,
         access_log_service: NamedDependency[AccessLogService],
     ) -> AccessLogFacets:
-        """Distinct country/city values present in the data, for filter dropdowns.
+        """Distinct country/city/host values present in the data, for filter dropdowns.
 
         ``return_dto=None`` opts out of the controller-level ``AccessLogDTO``
         (bound to the AccessLog model); Litestar serializes the dataclasses

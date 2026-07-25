@@ -878,7 +878,7 @@ export interface AccessLogFacets {
   hosts: string[]
 }
 
-/** Distinct country/city values present in the data, for the filter dropdowns. */
+/** Distinct country/city/host values present in the data, for the filter dropdowns. */
 export async function fetchAccessLogFacets(): Promise<AccessLogFacets> {
   const { data } = await api.get<AccessLogFacets>("/access-logs/facets")
   return data
