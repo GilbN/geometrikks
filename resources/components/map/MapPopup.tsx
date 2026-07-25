@@ -4,26 +4,11 @@
  */
 
 import { Popup } from "react-map-gl/maplibre"
-import {
-  MapPin,
-  Globe,
-  Clock,
-  Hash,
-  Users,
-  ChevronsUpDown,
-  Loader2,
-  ShieldBan,
-  ShieldOff,
-} from "lucide-react"
+import { MapPin, Globe, Clock, Hash, Users, ChevronsUpDown, Loader2 } from "lucide-react"
 import { formatNumber } from "@/lib/api"
 import type { GeoJSONFeatureProperties } from "@/lib/api"
-import {
-  useLocationTopIPs,
-  useBannedIps,
-  useBanIp,
-  useUnbanIp,
-  useCrowdsecStatus,
-} from "@/lib/queries"
+import { useLocationTopIPs } from "@/lib/queries"
+import { IpBanControls } from "./IpBanControls"
 
 import {
   Tooltip,
@@ -46,63 +31,6 @@ function LastHitToolTip({ lastHit }: { lastHit: string }) {
         <p>Updated every 5 minutes</p>
       </TooltipContent>
     </Tooltip>
-  )
-}
-
-/** Banned badge + ban/unban action for one IP row in the top-IPs list.
- *  Renders nothing unless the CrowdSec integration is involved. */
-function IpBanControls({ ip }: { ip: string }) {
-  const { data: status } = useCrowdsecStatus()
-  const { data: bannedIps } = useBannedIps()
-  const ban = useBanIp()
-  const unban = useUnbanIp()
-  const banned = bannedIps?.has(ip) ?? false
-  const isPending = ban.isPending || unban.isPending
-
-  if (!banned && !status?.write_enabled) return null
-  return (
-    <span style={{ display: "inline-flex", alignItems: "center", gap: "4px" }}>
-      {banned && (
-        <span
-          style={{
-            fontSize: "9px",
-            fontWeight: 600,
-            textTransform: "uppercase",
-            color: "#f87171",
-            background: "rgba(239, 68, 68, 0.15)",
-            padding: "1px 5px",
-            borderRadius: "9999px",
-          }}
-        >
-          banned
-        </span>
-      )}
-      {status?.write_enabled && (
-        <button
-          onClick={() => (banned ? unban.mutate(ip) : ban.mutate({ ip }))}
-          disabled={isPending}
-          title={banned ? `Unban ${ip}` : `Ban ${ip} (default duration)`}
-          aria-label={banned ? `Unban ${ip}` : `Ban ${ip}`}
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            background: "transparent",
-            border: "none",
-            padding: "2px",
-            cursor: isPending ? "wait" : "pointer",
-            color: isPending ? "#22d3ee" : "var(--popup-muted)",
-          }}
-        >
-          {isPending ? (
-            <Loader2 style={{ width: 12, height: 12, animation: "spin 1s linear infinite" }} />
-          ) : banned ? (
-            <ShieldOff style={{ width: 12, height: 12 }} />
-          ) : (
-            <ShieldBan style={{ width: 12, height: 12 }} />
-          )}
-        </button>
-      )}
-    </span>
   )
 }
 
@@ -163,7 +91,11 @@ export function MapPopup({
     >
       <div
         style={{
-          background: "var(--card)",
+          // Positioned so the close button anchors to this card rather than
+          // to whichever ancestor MapLibre happens to have positioned.
+          position: "relative",
+          background: "color-mix(in oklab, var(--background) 85%, transparent)",
+          backdropFilter: "blur(8px)",
           color: "var(--popup-fg)",
           borderRadius: "8px",
           padding: "12px",
@@ -192,13 +124,15 @@ export function MapPopup({
           ×
         </button>
 
-        {/* Header */}
+        {/* Header. paddingRight clears the absolutely positioned close
+            button, which otherwise sits on top of the location name. */}
         <div
           style={{
             display: "flex",
             alignItems: "center",
             gap: "8px",
             paddingBottom: "8px",
+            paddingRight: "24px",
             marginBottom: "8px",
             borderBottom: "1px solid var(--popup-border)",
           }}

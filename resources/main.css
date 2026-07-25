@@ -191,6 +191,49 @@
   html {
     @apply font-sans;
   }
+
+  /*
+   * Scrollbars, everywhere: the page, every panel, and any container added
+   * later. A platform scrollbar is a wide grey channel that reads as part of
+   * the browser rather than part of the app, which is loud next to the glass
+   * surfaces on the map.
+   *
+   * The thumb colour tracks --muted-foreground rather than being a fixed
+   * grey, so it follows the theme. It is written inline rather than hoisted
+   * into a token because var() in a custom property resolves where the
+   * property is declared, and this way it always resolves against the
+   * scrolling element's own theme.
+   *
+   * Chromium ignores ::-webkit-scrollbar on any element that also sets
+   * scrollbar-width, so the standard properties go in a block only engines
+   * without the pseudo-element ever see - Firefox, in practice.
+   */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track,
+  ::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background-color: color-mix(in oklab, var(--muted-foreground) 38%, transparent);
+    border: 2px solid transparent;
+    /* Clipping to the padding box turns the border into breathing room, so a
+       10px-wide scrollbar draws a 6px thumb that still has a grab target. */
+    background-clip: padding-box;
+    border-radius: 999px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background-color: color-mix(in oklab, var(--muted-foreground) 62%, transparent);
+  }
+
+  @supports not selector(::-webkit-scrollbar) {
+    * {
+      scrollbar-width: thin;
+      scrollbar-color: color-mix(in oklab, var(--muted-foreground) 45%, transparent) transparent;
+    }
+  }
 }
 
 /* MapLibre GL Popup Styles - Reset default popup styling */
@@ -205,24 +248,25 @@
 
 /* Style the tip using CSS variable */
 .maplibregl-popup-anchor-bottom > .maplibregl-popup-tip {
-  border-top-color: var(--popup-bg) !important;
+  border-top-color: color-mix(in oklab, var(--background) 85%, transparent) !important;
 }
 
 .maplibregl-popup-anchor-top > .maplibregl-popup-tip {
-  border-bottom-color: var(--popup-bg) !important;
+  border-bottom-color: color-mix(in oklab, var(--background) 85%, transparent) !important;
 }
 
 .maplibregl-popup-anchor-left > .maplibregl-popup-tip {
-  border-right-color: var(--popup-bg) !important;
+  border-right-color: color-mix(in oklab, var(--background) 85%, transparent) !important;
 }
 
 .maplibregl-popup-anchor-right > .maplibregl-popup-tip {
-  border-left-color: var(--popup-bg) !important;
+  border-left-color: color-mix(in oklab, var(--background) 85%, transparent) !important;
 }
 
 /* MapLibre GL Control Styles - Light Mode */
 .maplibregl-ctrl-group {
-  background: var(--background) !important;
+  background: color-mix(in oklab, var(--background) 85%, transparent) !important;
+  backdrop-filter: blur(8px);
   border-radius: var(--radius) !important;
   border: 1px solid #e5e5e5 !important;
 }
@@ -256,7 +300,8 @@
 
 /* MapLibre GL Control Styles - Dark Mode */
 .dark .maplibregl-ctrl-group {
-  background: var(--background) !important;
+  background: color-mix(in oklab, var(--background) 85%, transparent) !important;
+  backdrop-filter: blur(8px);
   border: 1px solid #3a3f4b !important;
 }
 

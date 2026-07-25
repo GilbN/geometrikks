@@ -31,11 +31,18 @@ import {
 import { MapControls } from "./MapControls"
 import { LivePulses } from "./LivePulses"
 import { HomeMarker } from "./HomeMarker"
-import { MapLegend } from "./MapLegend"
 import { MapPopup, type PopupInfo } from "./MapPopup"
+import { LiveRequestCard, LiveRequestPopup } from "./LiveRequestPopup"
+import { LiveVitalsPill } from "./LiveVitalsPill"
+import { LiveRail } from "./LiveRail"
+import { LiveFeedSheet } from "./LiveFeedSheet"
 import { Card, CardContent } from "@/components/ui/card"
 import { AlertTriangle } from "lucide-react"
 import { getDemoTrafficMode } from "@/lib/demo-traffic"
+import { loadLiveOverlays, saveLiveOverlays, type LiveOverlayPreferences } from "@/lib/live-overlays"
+import { LiveTrafficProvider, useLiveTrafficStore } from "@/lib/live-traffic/context"
+import type { LiveRequest } from "@/lib/live-traffic/types"
+import { useIsMobile } from "@/hooks/use-mobile"
 
 export type LayerType = "heatmap" | "markers"
 export type MapProjection = "mercator" | "globe"
@@ -79,10 +86,17 @@ function loadMapProjectionPreference(): MapProjection {
   }
 }
 
-export default function GeoMap() {
+function GeoMapInner({
+  liveMode,
+  onLiveModeChange,
+}: {
+  liveMode: boolean
+  onLiveModeChange: (enabled: boolean) => void
+}) {
   const demoTrafficMode = getDemoTrafficMode()
   const mapRef = useRef<MapRef>(null)
   const { mapStyle } = useMapStyle()
+  const isMobile = useIsMobile()
   const [selectedCountries, setSelectedCountries] = useState<string[]>([])
   const [selectedCities, setSelectedCities] = useState<string[]>([])
   const { data: geojson, isLoading: isLoadingGeoJSON, isError, error } = useGeoJSON({
@@ -104,11 +118,14 @@ export default function GeoMap() {
   const [viewState, setViewState] = useState(INITIAL_VIEW_STATE)
   const [activeLayer, setActiveLayer] = useState<LayerType>("markers")
   const [projection, setProjection] = useState<MapProjection>(loadMapProjectionPreference)
-  const [liveMode, setLiveMode] = useState(demoTrafficMode !== "off")
   const [routeEffectsEnabled, setRouteEffectsEnabled] = useState(loadRouteEffectsPreference)
   const [homeMarkerEnabled, setHomeMarkerEnabled] = useState(loadHomeMarkerPreference)
+  const [liveOverlays, setLiveOverlays] = useState<LiveOverlayPreferences>(loadLiveOverlays)
   const [showBanned, setShowBanned] = useState(false)
   const [popup, setPopup] = useState<PopupInfo | null>(null)
+  const liveStore = useLiveTrafficStore()
+  const [livePopup, setLivePopup] = useState<LiveRequest | null>(null)
+  const [feedOpen, setFeedOpen] = useState(false)
 
   // Banned-IP overlay: attackers with an active CrowdSec decision that also
   // appear in this server's own traffic.
@@ -155,6 +172,20 @@ export default function GeoMap() {
       // Storage may be blocked; keep the in-memory preference for this session.
     }
   }, [projection])
+
+  useEffect(() => {
+    saveLiveOverlays(liveOverlays)
+  }, [liveOverlays])
+
+  // Live off tears down the store; any live-only UI referencing it must go
+  // too, or a popup stays pinned to the map after the request it describes
+  // is gone.
+  useEffect(() => {
+    if (!liveMode) {
+      setLivePopup(null)
+      setFeedOpen(false)
+    }
+  }, [liveMode])
 
   // Filter options come from the last UNFILTERED result (a second query just
   // for options would be wasteful), held in a ref so the option lists don't
@@ -268,10 +299,38 @@ export default function GeoMap() {
     })
   }, [projection, viewState.zoom])
 
-  // Handle map click for markers layer
+  const changeLiveOverlay = useCallback(
+    (key: keyof LiveOverlayPreferences, enabled: boolean) => {
+      setLiveOverlays((previous) => ({ ...previous, [key]: enabled }))
+    },
+    [],
+  )
+
+  // Handle map click: live packets first, then the markers layer
   const onClick = useCallback(
     (event: maplibregl.MapLayerMouseEvent) => {
-      if (activeLayer !== "markers") return
+      const liveFeature = event.features?.find((feature) =>
+        feature.layer.id === "live-origin-core" || feature.layer.id === "live-packet-core",
+      )
+      if (liveFeature) {
+        const requestId = liveFeature.properties?.requestId as string | undefined
+        const request = requestId ? liveStore.getRequest(requestId) : undefined
+        setPopup(null)
+        // An evicted request has no detail left to show; the click still
+        // dismisses whatever popup was open, like any other map click.
+        setLivePopup(request ?? null)
+        return
+      }
+
+      // Any click that does not land on a live packet dismisses whichever
+      // live popup is open, regardless of the active layer - including the
+      // heatmap, which has no marker click handling of its own below.
+      setLivePopup(null)
+
+      if (activeLayer !== "markers") {
+        setPopup(null)
+        return
+      }
 
       const features = event.features
       if (!features?.length) {
@@ -284,6 +343,7 @@ export default function GeoMap() {
 
       // Handle cluster click - zoom in
       if (feature.properties?.cluster) {
+        setPopup(null)
         const clusterId = feature.properties.cluster_id as number
         const source = mapRef.current?.getSource("geo-data") as maplibregl.GeoJSONSource
         if (source) {
@@ -307,8 +367,36 @@ export default function GeoMap() {
         properties: feature.properties as PopupInfo["properties"],
       })
     },
-    [activeLayer]
+    [activeLayer, liveStore]
   )
+
+  const handleLiveSelect = useCallback((request: LiveRequest) => {
+    // Only one popup at a time: selecting a live request dismisses any open
+    // location popup, matching what a direct packet click does.
+    setPopup(null)
+    setLivePopup(request)
+    if (request.coordinates) {
+      // replay() notifies LivePulses without storing anything.
+      liveStore.replay(request)
+      // Bring the origin into view; a popup anchored off-viewport is invisible.
+      mapRef.current?.flyTo({
+        center: request.coordinates,
+        zoom: Math.max(mapRef.current.getZoom(), 5),
+        duration: 1200,
+      })
+    }
+  }, [liveStore])
+
+  // Row tap from the mobile sheet: just the popup and a fly-to, deliberately
+  // not handleLiveSelect - replaying an arc under a sheet about to close is
+  // noise, and the fly-to is the feedback that matters here.
+  const selectFromFeed = useCallback((request: LiveRequest) => {
+    setPopup(null)
+    setLivePopup(request)
+    if (request.coordinates) {
+      mapRef.current?.flyTo({ center: request.coordinates, zoom: 6, duration: 1200 })
+    }
+  }, [])
 
   // Show error state
   if (isError) {
@@ -346,11 +434,10 @@ export default function GeoMap() {
         mapStyle={mapStyle}
         projection={projection}
         renderWorldCopies={projection === "mercator"}
-        interactiveLayerIds={
-          activeLayer === "markers"
-            ? ["clusters", "unclustered-point"]
-            : undefined
-        }
+        interactiveLayerIds={[
+          ...(activeLayer === "markers" ? ["clusters", "unclustered-point"] : []),
+          ...(liveMode && routeEffectsEnabled ? ["live-origin-core", "live-packet-core"] : []),
+        ]}
         cursor={activeLayer === "markers" ? "pointer" : "grab"}
         attributionControl={false}
       >
@@ -405,7 +492,6 @@ export default function GeoMap() {
         <LivePulses
           enabled={liveMode && routeEffectsEnabled}
           destination={homeDestination}
-          demoMode={demoTrafficMode}
         />
 
         {/* Server home location beacon */}
@@ -422,7 +508,34 @@ export default function GeoMap() {
             onClose={() => setPopup(null)}
           />
         )}
+
+        {livePopup && livePopup.coordinates && (
+          <LiveRequestPopup request={livePopup} onClose={() => setLivePopup(null)} />
+        )}
       </Map>
+
+      {/* A request with no GeoIP match has nowhere on the map to anchor a
+          Popup, so its detail renders as a centered card instead - it stays
+          reachable from the strip and the sheet alike. */}
+      {livePopup && !livePopup.coordinates && (
+        <LiveRequestCard request={livePopup} onClose={() => setLivePopup(null)} />
+      )}
+
+      {liveMode && !isMobile && liveOverlays.rail && (
+        <LiveRail onSelect={handleLiveSelect} />
+      )}
+
+      {/* Mobile: the vitals pill is the only way into the feed, so it mounts
+          whenever live mode is on regardless of the desktop overlay preference. */}
+      {liveMode && isMobile && (
+        <div className="pointer-events-none absolute left-4 top-4 z-10">
+          <LiveVitalsPill onOpenFeed={() => setFeedOpen(true)} />
+        </div>
+      )}
+
+      {liveMode && isMobile && (
+        <LiveFeedSheet open={feedOpen} onOpenChange={setFeedOpen} onSelect={selectFromFeed} />
+      )}
 
       {/* Controls overlay */}
       <MapControls
@@ -432,7 +545,9 @@ export default function GeoMap() {
         onProjectionChange={changeProjection}
         liveMode={liveMode}
         demoTrafficMode={demoTrafficMode}
-        onLiveModeChange={setLiveMode}
+        onLiveModeChange={onLiveModeChange}
+        liveOverlays={liveOverlays}
+        onLiveOverlayChange={changeLiveOverlay}
         routeEffectsEnabled={routeEffectsEnabled}
         onRouteEffectsChange={setRouteEffectsEnabled}
         routeHomeAvailable={homeDestination !== null}
@@ -458,8 +573,16 @@ export default function GeoMap() {
         onCitiesChange={setSelectedCities}
       />
 
-      {/* Legend - show for both modes */}
-      <MapLegend maxValue={geojson?.stats.events ?? 0} layerType={activeLayer} />
     </div>
+  )
+}
+
+export default function GeoMap() {
+  const [liveMode, setLiveMode] = useState(getDemoTrafficMode() !== "off")
+
+  return (
+    <LiveTrafficProvider enabled={liveMode}>
+      <GeoMapInner liveMode={liveMode} onLiveModeChange={setLiveMode} />
+    </LiveTrafficProvider>
   )
 }

@@ -41,8 +41,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   configured/auto-detected home coordinates; clicking it zooms to the home
   location. Toggled via "Home marker" in the map controls (on by default,
   preference stored in the browser).
+- Live map packets are now colored by response status (green/blue/amber/red)
+  and sized by response bytes, with a dashed red ring cage over packets from
+  banned IPs.
+- Live rail: a glass column over the map's left edge holding the whole live
+  picture while live mode is on. Requests per minute with a sparkline and a
+  trend against the first half of the window, a response-mix bar, the busiest
+  origin countries in that window, and the request feed itself split into an
+  "All" and a "Threats" lane. A footer counts distinct banned IPs seen. The
+  rail can be switched off from the "Live overlays" card in the map controls,
+  and the choice is remembered in the browser.
+- Live mode on a phone shows a vitals pill with the current rate, a sparkline,
+  and a red threat count when anything is attacking. Tapping it opens a sheet
+  carrying the same summary and feed as the desktop rail, and tapping a row
+  flies the map to that request's origin.
+- Clicking a live packet or a row in the rail or sheet flies the map to that
+  request's origin and opens its full access-log line, with ban/unban
+  controls.
 
 ### Changed
+
+- Map surfaces (controls panel, zoom buttons, and location popups) now share
+  the live overlays' translucent glass styling, so the map stays visible
+  through every panel.
+- Scrollbars throughout the app are slim, rounded, and tinted to the theme
+  instead of the browser's default grey channel, in every scrolling panel and
+  on the page itself.
 
 - Logging is now structured (structlog): colored console output, a JSONL
   main log (`logs/geometrikks.log`), and a plain-text login log
@@ -68,10 +92,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `API_LOG_LEVEL` in favor of `LOG_LEVEL`; still honored as a fallback,
   with a `DeprecationWarning`.
 
+### Removed
+
+- The map legend: the color-graded event count/density scale duplicated what
+  the marker and heatmap colors already say at a glance, so the card is gone
+  and the bottom-left corner stays clear for the map.
+
 ### Fixed
 
 - Map zoom/compass buttons were unclickable when the map-controls panel was
   tall enough to reach down beside them.
+- The location popup's close button sat on top of the place name instead of
+  beside it, because the card it anchors to was never positioned. The live
+  request popup's close button covered its timestamp the same way.
+- The live surfaces no longer read as disconnected during demo traffic, which
+  never opens the websocket.
+- A live request with no GeoIP match (LAN traffic, private or unresolvable
+  IPs) now opens a small dismissible detail card when tapped from the rail
+  or the phone sheet, instead of doing nothing.
+- Switching Live mode off now closes an open live-request popup and the
+  phone feed sheet along with the rest of the overlay state, clicking the
+  heatmap layer dismisses an open live popup, and zooming into a cluster no
+  longer leaves one stuck open.
 
 ## [0.4.3] - 2026-07-22
 
