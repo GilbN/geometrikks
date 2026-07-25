@@ -32,10 +32,17 @@ export function getDemoTrafficMode(): DemoTrafficMode {
   return "off"
 }
 
-/** A 100-entry status cycle: 79 percent 2xx, 8 percent 3xx, 10 percent 4xx, 3 percent 5xx. */
+/**
+ * A 100-entry status cycle: roughly 74 percent 2xx, 8 percent 3xx, 15 percent
+ * 4xx, 3 percent 5xx. The 4xx share is mostly 404, the way real traffic is,
+ * with a few refusals so the threat lane has something in it that is not just
+ * a banned IP.
+ */
 const DEMO_STATUS_CYCLE: readonly number[] = Array.from({ length: 100 }, (_, index) => {
   if (index % 33 === 32) return 502
   if (index % 10 === 7) return 404
+  if (index % 19 === 4) return 403
+  if (index % 23 === 9) return 401
   if (index % 11 === 5) return 301
   return 200
 })
@@ -74,7 +81,7 @@ export function makeDemoRequests(cursor: number, count: number, now: number): Li
     const origin = DEMO_TRAFFIC_ORIGINS[step % DEMO_TRAFFIC_ORIGINS.length]
     const code = DEMO_STATUS_CYCLE[step % DEMO_STATUS_CYCLE.length]
     const banned = step % 17 === 3
-    const probing = banned || code === 404
+    const probing = banned || (code >= 400 && code < 500)
     const url = probing
       ? DEMO_PROBE_PATHS[step % DEMO_PROBE_PATHS.length]
       : DEMO_PATHS[step % DEMO_PATHS.length]
@@ -92,7 +99,7 @@ export function makeDemoRequests(cursor: number, count: number, now: number): Li
       countryCode: origin.countryCode,
       statusClass: status,
       banned,
-      threat: isThreat(status, banned),
+      threat: isThreat(code, banned),
       log: {
         timestamp,
         ip_address: ip,

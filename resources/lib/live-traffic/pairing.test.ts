@@ -128,6 +128,19 @@ describe("pairLiveEvents", () => {
     expect(requests[0].threat).toBe(false)
   })
 
+  it("marks a refused request as a threat but leaves a 404 alone", () => {
+    const requests = pairLiveEvents(
+      [geo("1.1.1.1"), log("1.1.1.1", 403), geo("2.2.2.2"), log("2.2.2.2", 404)],
+      new Set(),
+      1000,
+    )
+
+    expect(requests[0].threat).toBe(true)
+    // Both are 4xx on the map and in the response mix; only one is a threat.
+    expect(requests[1].statusClass).toBe("4xx")
+    expect(requests[1].threat).toBe(false)
+  })
+
   it("returns nothing for an empty heartbeat frame", () => {
     expect(pairLiveEvents([], new Set(), 1000)).toEqual([])
   })

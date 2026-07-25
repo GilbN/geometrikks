@@ -48,7 +48,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   picture while live mode is on. Requests per minute with a sparkline and a
   trend against the first half of the window, a response-mix bar, the busiest
   origin countries in that window, and the request feed itself split into an
-  "All" and a "Threats" lane. A footer counts distinct banned IPs seen. The
+  "All" and a "Threats" lane. The threat lane holds requests the server
+  refused (401, 403, 429, 444) and everything from a banned IP; a 404 is
+  ordinary traffic and stays out of it. A footer counts distinct banned IPs
+  seen. The
   rail can be switched off from the "Live overlays" card in the map controls,
   and the choice is remembered in the browser.
 - Live mode on a phone shows a vitals pill with the current rate, a sparkline,

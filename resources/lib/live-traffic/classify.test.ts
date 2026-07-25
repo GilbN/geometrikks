@@ -29,22 +29,42 @@ describe("statusClass", () => {
 })
 
 describe("isThreat", () => {
-  it("counts 4xx", () => {
-    expect(isThreat("4xx", false)).toBe(true)
+  it("counts the refusals", () => {
+    expect(isThreat(401, false)).toBe(true)
+    expect(isThreat(403, false)).toBe(true)
+    expect(isThreat(429, false)).toBe(true)
+    expect(isThreat(444, false)).toBe(true)
+  })
+
+  it("does not count a 404, which ordinary traffic produces constantly", () => {
+    expect(isThreat(404, false)).toBe(false)
+  })
+
+  it("does not count the other client errors", () => {
+    expect(isThreat(400, false)).toBe(false)
+    expect(isThreat(410, false)).toBe(false)
+    expect(isThreat(422, false)).toBe(false)
   })
 
   it("counts any banned IP whatever it asked for", () => {
-    expect(isThreat("2xx", true)).toBe(true)
-    expect(isThreat("unknown", true)).toBe(true)
+    expect(isThreat(200, true)).toBe(true)
+    expect(isThreat(404, true)).toBe(true)
+    expect(isThreat(null, true)).toBe(true)
   })
 
   it("does not count 5xx, which is the server's own fault", () => {
-    expect(isThreat("5xx", false)).toBe(false)
+    expect(isThreat(500, false)).toBe(false)
+    expect(isThreat(502, false)).toBe(false)
   })
 
   it("does not count ordinary traffic", () => {
-    expect(isThreat("2xx", false)).toBe(false)
-    expect(isThreat("3xx", false)).toBe(false)
+    expect(isThreat(200, false)).toBe(false)
+    expect(isThreat(304, false)).toBe(false)
+  })
+
+  it("does not count a geo event with no log line to judge", () => {
+    expect(isThreat(null, false)).toBe(false)
+    expect(isThreat(undefined, false)).toBe(false)
   })
 })
 

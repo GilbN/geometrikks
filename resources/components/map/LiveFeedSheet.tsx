@@ -40,7 +40,7 @@ export function LiveFeedSheet({
         <DrawerHeader className="pb-2">
           <DrawerTitle>Live traffic</DrawerTitle>
           <DrawerDescription className="sr-only">
-            Requests arriving now, with a separate lane for 4xx responses and banned IPs.
+            Requests arriving now, with a separate lane for refused requests and banned IPs.
           </DrawerDescription>
         </DrawerHeader>
 
