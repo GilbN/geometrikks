@@ -302,11 +302,22 @@ export function MapControls({
                 liveOverlays[key] && "bg-geo-cyan/15 text-geo-cyan border-geo-cyan/30",
               )}
             >
-              <Icon className="h-4 w-4" />
-              <span className="text-sm font-medium">{label}</span>
-              <Badge variant="secondary" className="ml-auto text-[9px] uppercase">
-                {liveOverlays[key] ? "on" : "off"}
-              </Badge>
+              <Icon className="h-4 w-4 shrink-0" />
+              {/* The label truncates rather than pushing the indicator past
+                  the button border on narrow panels. */}
+              <span className="min-w-0 flex-1 truncate text-left text-sm font-medium">{label}</span>
+              {/* State dot, same vocabulary as the sidebar's live-ingestion
+                  dot: lit cyan while the overlay is shown. An on/off text
+                  badge does not fit next to the longest label here. */}
+              <span
+                aria-hidden
+                className={cn(
+                  "h-2 w-2 shrink-0 rounded-full",
+                  liveOverlays[key]
+                    ? "bg-geo-cyan shadow-[0_0_6px_var(--geo-cyan)]"
+                    : "bg-muted-foreground/40",
+                )}
+              />
             </Button>
           ))}
         </Card>

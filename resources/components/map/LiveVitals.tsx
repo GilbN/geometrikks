@@ -7,20 +7,25 @@ import { useLiveFeedState, useLiveVitals } from "@/lib/live-traffic/context"
 import { formatNumber } from "@/lib/api"
 import { cn } from "@/lib/utils"
 
-const SPARKLINE_WIDTH = 132
-const SPARKLINE_HEIGHT = 24
+const SPARKLINE_WIDTH = 176
+const SPARKLINE_HEIGHT = 26
 
 function Sparkline({ values }: { values: number[] }) {
   if (values.length < 2) return null
   const peak = Math.max(1, ...values)
   const step = SPARKLINE_WIDTH / (values.length - 1)
-  const points = values
-    .map((value, index) => `${(index * step).toFixed(1)},${(SPARKLINE_HEIGHT - (value / peak) * SPARKLINE_HEIGHT).toFixed(1)}`)
-    .join(" ")
+  const points = values.map((value, index) => [
+    index * step,
+    SPARKLINE_HEIGHT - 1 - (value / peak) * (SPARKLINE_HEIGHT - 2),
+  ] as const)
+  const line = points.map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join(" ")
+  // Close the shape along the baseline so the line can carry a soft area fill.
+  const area = `${line} ${SPARKLINE_WIDTH},${SPARKLINE_HEIGHT} 0,${SPARKLINE_HEIGHT}`
 
   return (
     <svg width={SPARKLINE_WIDTH} height={SPARKLINE_HEIGHT} className="block" aria-hidden>
-      <polyline points={points} fill="none" stroke="#22d3ee" strokeWidth={1.4} opacity={0.9} />
+      <polygon points={area} fill="var(--geo-cyan)" opacity={0.14} />
+      <polyline points={line} fill="none" stroke="var(--geo-cyan)" strokeWidth={1.4} opacity={0.9} />
     </svg>
   )
 }
@@ -75,17 +80,32 @@ export function LiveVitals({
     )
   }
 
+  // The panel matches the strips and the timeline: a quiet glass card, so the
+  // numbers stay readable over any map style instead of floating on the tiles.
   return (
-    <div className="pointer-events-none select-none text-foreground">
-      <div className="flex items-end gap-2">
+    <div className="pointer-events-none select-none rounded-md border bg-background/85 px-3 py-2.5 text-foreground backdrop-blur">
+      <div className="flex items-center gap-1.5">
+        <span
+          className={cn(
+            "h-1.5 w-1.5 rounded-full",
+            disconnected ? "bg-muted-foreground" : "bg-geo-cyan animate-pulse",
+          )}
+        />
+        <span className="text-[9px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
+          {disconnected ? "Reconnecting" : "Live"}
+        </span>
+      </div>
+      <div className="mt-1.5 flex items-end gap-2">
         <span className="text-3xl font-semibold leading-none tracking-tight tabular-nums">
           {formatNumber(vitals.rpm)}
         </span>
-        <span className="pb-1.5 text-[9px] uppercase tracking-[0.1em] text-muted-foreground">
+        <span className="pb-1 text-[9px] uppercase tracking-[0.1em] text-muted-foreground">
           req/min
         </span>
       </div>
-      <Sparkline values={vitals.sparkline} />
+      <div className="mt-1.5">
+        <Sparkline values={vitals.sparkline} />
+      </div>
       <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-muted-foreground">
         <span>
           <b className="font-semibold text-red-400 tabular-nums">{errorPercent}%</b> errors
@@ -100,7 +120,6 @@ export function LiveVitals({
           <b className="font-semibold text-foreground tabular-nums">{formatNumber(vitals.countries)}</b> countries
         </span>
       </div>
-      {disconnected && <div className="mt-1 text-[10px] text-muted-foreground">Reconnecting</div>}
       {vitals.rpm === 0 && !disconnected && (
         <div className="mt-1 text-[10px] text-muted-foreground">Waiting for traffic</div>
       )}
