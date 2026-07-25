@@ -38,7 +38,7 @@
     "zod": "^4.1.13"
   },
   "devDependencies": {
-    "@hey-api/openapi-ts": "^0.88.0",
+    "@hey-api/openapi-ts": "^0.99.0",
     "@tailwindcss/vite": "^4.1.17",
     "@tanstack/react-query-devtools": "^5.91.1",
     "@tanstack/router-plugin": "^1.168.19",
