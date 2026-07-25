@@ -46,7 +46,7 @@ export interface Vitals {
   rpm: number
   /** 5xx share of the window, 0 to 1. */
   errorRate: number
-  /** 4xx-or-banned requests in the window. */
+  /** Refused-or-banned requests in the window. See isThreat. */
   threatCount: number
   uniqueIps: number
   countries: number

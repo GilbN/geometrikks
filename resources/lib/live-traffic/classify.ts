@@ -31,12 +31,29 @@ export function statusClass(code: number | null | undefined): StatusClass {
 }
 
 /**
- * A threat is someone poking at the server: a 4xx, or anything at all from an
- * IP CrowdSec has banned. A 5xx is the server's own failure and belongs in the
- * error rate, not the threat lane.
+ * The responses that mean the server refused the caller, rather than merely
+ * failing to find what they asked for.
+ *
+ * 404 is deliberately absent. It is the most common 4xx in ordinary traffic,
+ * from stale links, missing favicons and well-known probes every browser
+ * makes, so counting it turns the threat lane into a second copy of the feed.
+ * Scanning does show up as 404s, but as a burst from one address rather than
+ * as any single request, which is a rate signal this per-request lane cannot
+ * see. The ban list is what carries that verdict here.
+ *
+ * 444 is nginx closing the connection with no response, which in a proxy log
+ * is almost always a deliberate block rule.
  */
-export function isThreat(status: StatusClass, banned: boolean): boolean {
-  return banned || status === "4xx"
+const REFUSED_STATUS_CODES = new Set([401, 403, 429, 444])
+
+/**
+ * A threat is someone the server turned away: an unauthorized, forbidden,
+ * rate-limited or dropped request, or anything at all from an IP CrowdSec has
+ * banned. A 5xx is the server's own failure and belongs in the error rate,
+ * not the threat lane.
+ */
+export function isThreat(code: number | null | undefined, banned: boolean): boolean {
+  return banned || (typeof code === "number" && REFUSED_STATUS_CODES.has(code))
 }
 
 export function packetColor(status: StatusClass): string {

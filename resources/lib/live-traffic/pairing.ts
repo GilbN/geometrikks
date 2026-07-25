@@ -33,7 +33,7 @@ function build(
     log,
     statusClass: status,
     banned,
-    threat: isThreat(status, banned),
+    threat: isThreat(log?.status_code, banned),
   }
 }
 
