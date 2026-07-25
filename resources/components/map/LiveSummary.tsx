@@ -3,10 +3,10 @@
  * and where it comes from. Shared by the desktop rail and the phone sheet so
  * both describe the same window the same way.
  */
-import { TrendingDown, TrendingUp } from "lucide-react"
+import { Minus, TrendingDown, TrendingUp } from "lucide-react"
 import { useLiveFeedState, useLiveVitals } from "@/lib/live-traffic/context"
 import { PACKET_COLORS } from "@/lib/live-traffic/classify"
-import { trendPercent, type LiveSummary as Summary } from "@/lib/live-traffic/summary"
+import { smooth, trendPercent, type LiveSummary as Summary } from "@/lib/live-traffic/summary"
 import { formatNumber } from "@/lib/api"
 import { cn } from "@/lib/utils"
 
@@ -21,9 +21,11 @@ export function Sparkline({
   className?: string
 }) {
   if (values.length < 2) return <div className={className} />
-  const peak = Math.max(1, ...values)
-  const step = SPARKLINE_WIDTH / (values.length - 1)
-  const points = values.map((value, index) => [
+  // Per-second counts of bursty traffic draw a comb, not a rhythm.
+  const series = smooth(values)
+  const peak = Math.max(1, ...series)
+  const step = SPARKLINE_WIDTH / (series.length - 1)
+  const points = series.map((value, index) => [
     index * step,
     SPARKLINE_HEIGHT - 1 - (value / peak) * (SPARKLINE_HEIGHT - 2),
   ] as const)
@@ -63,16 +65,36 @@ function Rate({ dense }: { dense: boolean }) {
   const disconnected = feedState !== "connected"
   const trend = trendPercent(vitals.sparkline)
 
-  const trendBadge = trend !== null && trend !== 0 && (
+  // Always rendered, never conditionally mounted: a badge that comes and goes
+  // as traffic wobbles around flat reads as a glitch and shifts the row.
+  const trendBadge = (
     <span
       className={cn(
-        "flex items-center gap-0.5 text-[10px] font-medium tabular-nums",
-        trend > 0 ? "text-geo-cyan" : "text-muted-foreground",
+        "flex w-12 shrink-0 items-center justify-end gap-0.5 text-[10px] font-medium tabular-nums",
+        trend === null || trend === 0
+          ? "text-muted-foreground"
+          : trend > 0
+            ? "text-geo-cyan"
+            : "text-muted-foreground",
       )}
-      title={`${trend > 0 ? "Up" : "Down"} ${Math.abs(trend)}% against the first half of the window`}
+      title={
+        trend === null
+          ? "No earlier traffic in this window to compare against"
+          : `${trend > 0 ? "Up" : trend < 0 ? "Down" : "Level"} ${Math.abs(trend)}% against the first half of the window`
+      }
     >
-      {trend > 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
-      {Math.abs(trend)}%
+      {trend === null ? null : (
+        <>
+          {trend > 0 ? (
+            <TrendingUp className="h-3 w-3" />
+          ) : trend < 0 ? (
+            <TrendingDown className="h-3 w-3" />
+          ) : (
+            <Minus className="h-3 w-3" />
+          )}
+          {Math.abs(trend)}%
+        </>
+      )}
     </span>
   )
 

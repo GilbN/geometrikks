@@ -303,6 +303,9 @@ export function LivePulses({
   const queuedRequests = useRef<Map<string, LiveRequest>>(new Map())
   const raf = useRef<number>(0)
   const prefersReducedMotion = useRef(false)
+  // Whether the source already holds an empty frame, so an idle map can skip
+  // pushing another one.
+  const sourceIsEmpty = useRef(true)
 
   useEffect(() => {
     const media = window.matchMedia("(prefers-reduced-motion: reduce)")
@@ -364,6 +367,7 @@ export function LivePulses({
       queuedRequests.current.clear()
       return
     }
+    sourceIsEmpty.current = true
     const tick = () => {
       const now = performance.now()
       transmissions.current = transmissions.current.filter(
@@ -386,8 +390,14 @@ export function LivePulses({
         if (transmission) transmissions.current.push(transmission)
         queuedRequests.current.delete(lane)
       }
-      const source = map?.getSource(SOURCE_ID) as GeoJSONSource | undefined
-      source?.setData(buildFrame(transmissions.current, destination, now))
+      // An idle map has nothing new to say; skip pushing a frame identical to
+      // the empty one the source already holds.
+      const idle = transmissions.current.length === 0
+      if (!idle || !sourceIsEmpty.current) {
+        const source = map?.getSource(SOURCE_ID) as GeoJSONSource | undefined
+        source?.setData(buildFrame(transmissions.current, destination, now))
+        sourceIsEmpty.current = idle
+      }
       raf.current = requestAnimationFrame(tick)
     }
     raf.current = requestAnimationFrame(tick)

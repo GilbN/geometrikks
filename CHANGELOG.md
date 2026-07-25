@@ -99,6 +99,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Map zoom/compass buttons were unclickable when the map-controls panel was
   tall enough to reach down beside them.
+- The location popup's close button sat on top of the place name instead of
+  beside it, because the card it anchors to was never positioned. The live
+  request popup's close button covered its timestamp the same way.
 - The live surfaces no longer read as disconnected during demo traffic, which
   never opens the websocket.
 - A live request with no GeoIP match (LAN traffic, private or unresolvable

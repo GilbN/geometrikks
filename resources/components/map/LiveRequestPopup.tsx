@@ -65,7 +65,9 @@ function LiveRequestDetail({
         ×
       </button>
 
-      <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px", paddingBottom: "8px", borderBottom: "1px solid var(--popup-border)" }}>
+      {/* paddingRight clears the absolutely positioned close button, which
+          otherwise sits on top of the timestamp at the end of this row. */}
+      <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px", paddingBottom: "8px", paddingRight: "24px", borderBottom: "1px solid var(--popup-border)" }}>
         <span
           style={{
             background: PACKET_COLORS[request.statusClass],

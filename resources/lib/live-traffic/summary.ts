@@ -84,9 +84,21 @@ export function summarize(
 }
 
 /**
- * Second half of the sparkline against the first, as a percentage change.
- * Null when there is no earlier traffic to compare against, since "up from
- * nothing" is not a rate worth printing.
+ * Too few requests in the earlier half to divide by honestly. Below this a
+ * couple of arrivals read as several hundred percent, which is arithmetic
+ * rather than information - and it is exactly what a freshly opened page
+ * sees while the window fills.
+ */
+const MIN_TREND_BASELINE = 5
+
+/**
+ * Second half of the sparkline against the first, as a percentage change,
+ * rounded to the nearest 5. Null when the earlier half is too thin to compare
+ * against.
+ *
+ * The rounding is what keeps the reading still: traffic arriving in bursts
+ * swings the exact figure by a point or two every second, which reads as a
+ * flickering badge rather than as information.
  */
 export function trendPercent(sparkline: readonly number[]): number | null {
   if (sparkline.length < 4) return null
@@ -97,6 +109,31 @@ export function trendPercent(sparkline: readonly number[]): number | null {
     if (index < half) earlier += sparkline[index]
     else later += sparkline[index]
   }
-  if (earlier === 0) return null
-  return Math.round(((later - earlier) / earlier) * 100)
+  if (earlier < MIN_TREND_BASELINE) return null
+  return Math.round(((later - earlier) / earlier) * 20) * 5
+}
+
+/**
+ * Centred moving average, for display only.
+ *
+ * The buckets behind the sparkline count one second each, and traffic does
+ * not arrive one request per second - it arrives in bursts, so the raw series
+ * is a comb of spikes and zeroes that says nothing about the rhythm. Averaging
+ * over a few seconds shows the shape the spikes are made of. Edge samples
+ * average over the window they have.
+ */
+export function smooth(values: readonly number[], window = 5): number[] {
+  if (window <= 1 || values.length === 0) return [...values]
+  const half = Math.floor(window / 2)
+  const smoothed: number[] = []
+
+  for (let index = 0; index < values.length; index += 1) {
+    const from = Math.max(0, index - half)
+    const to = Math.min(values.length - 1, index + half)
+    let sum = 0
+    for (let sample = from; sample <= to; sample += 1) sum += values[sample]
+    smoothed.push(sum / (to - from + 1))
+  }
+
+  return smoothed
 }

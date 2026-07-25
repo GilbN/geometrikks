@@ -92,7 +92,9 @@ export function LiveFeedList({
                 onClick={() => onSelect(request)}
                 className={cn(
                   "absolute left-0 flex w-full flex-col justify-center gap-0.5 px-1 text-left",
-                  "border-b border-border/30 hover:bg-accent/60",
+                  // A neutral wash, not the cyan accent: the accent is bright
+                  // enough in dark mode to swallow the row's own text.
+                  "border-b border-border/30 hover:bg-foreground/[0.07]",
                   request.threat && "bg-red-500/5",
                 )}
                 style={{ top: 0, height: item.size, transform: `translateY(${item.start}px)` }}

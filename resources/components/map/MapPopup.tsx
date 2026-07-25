@@ -91,6 +91,9 @@ export function MapPopup({
     >
       <div
         style={{
+          // Positioned so the close button anchors to this card rather than
+          // to whichever ancestor MapLibre happens to have positioned.
+          position: "relative",
           background: "color-mix(in oklab, var(--background) 85%, transparent)",
           backdropFilter: "blur(8px)",
           color: "var(--popup-fg)",
@@ -121,13 +124,15 @@ export function MapPopup({
           ×
         </button>
 
-        {/* Header */}
+        {/* Header. paddingRight clears the absolutely positioned close
+            button, which otherwise sits on top of the location name. */}
         <div
           style={{
             display: "flex",
             alignItems: "center",
             gap: "8px",
             paddingBottom: "8px",
+            paddingRight: "24px",
             marginBottom: "8px",
             borderBottom: "1px solid var(--popup-border)",
           }}

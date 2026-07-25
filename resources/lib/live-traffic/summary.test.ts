@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { EMPTY_SUMMARY, summarize, trendPercent } from "./summary"
+import { EMPTY_SUMMARY, smooth, summarize, trendPercent } from "./summary"
 import type { LiveRequest } from "./types"
 
 function request(overrides: Partial<LiveRequest> = {}): LiveRequest {
@@ -100,12 +100,18 @@ describe("summarize", () => {
 
 describe("trendPercent", () => {
   it("compares the second half of the window with the first", () => {
-    expect(trendPercent([1, 1, 2, 2])).toBe(100)
-    expect(trendPercent([2, 2, 1, 1])).toBe(-50)
+    expect(trendPercent([5, 5, 10, 10])).toBe(100)
+    expect(trendPercent([10, 10, 5, 5])).toBe(-50)
   })
 
   it("is null when there is no earlier traffic to compare against", () => {
     expect(trendPercent([0, 0, 5, 5])).toBeNull()
+  })
+
+  it("is null while the earlier half is too thin to divide by", () => {
+    // A page opened seconds ago: two requests then a burst is not "+900%".
+    expect(trendPercent([1, 1, 10, 10])).toBeNull()
+    expect(trendPercent([3, 2, 10, 10])).toBe(300)
   })
 
   it("is null for a window too short to halve meaningfully", () => {
@@ -114,5 +120,36 @@ describe("trendPercent", () => {
 
   it("is zero when the halves match", () => {
     expect(trendPercent([3, 3, 3, 3])).toBe(0)
+  })
+
+  it("rounds to the nearest 5 so bursty traffic does not flicker the reading", () => {
+    // 3% up: a real change, but not one worth redrawing the badge for.
+    expect(trendPercent([100, 100, 103, 103])).toBe(5)
+    expect(trendPercent([100, 100, 100, 101])).toBe(0)
+  })
+})
+
+describe("smooth", () => {
+  it("averages each sample over its neighbours", () => {
+    expect(smooth([0, 0, 10, 0, 0], 3)).toEqual([0, 10 / 3, 10 / 3, 10 / 3, 0])
+  })
+
+  it("averages edge samples over the window they have", () => {
+    expect(smooth([6, 0, 0], 3)).toEqual([3, 2, 0])
+  })
+
+  it("flattens a burst comb into a rhythm", () => {
+    const comb = [4, 0, 0, 4, 0, 0, 4, 0, 0]
+    const smoothed = smooth(comb, 5)
+
+    // The spikes and the troughs converge on the underlying rate.
+    expect(Math.max(...smoothed) - Math.min(...smoothed)).toBeLessThan(
+      Math.max(...comb) - Math.min(...comb),
+    )
+  })
+
+  it("leaves the series alone when there is nothing to average over", () => {
+    expect(smooth([1, 2, 3], 1)).toEqual([1, 2, 3])
+    expect(smooth([], 5)).toEqual([])
   })
 })
