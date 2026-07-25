@@ -63,7 +63,7 @@ const DEMO_AGENTS: readonly string[] = [
 
 /**
  * Deterministic synthetic requests for dev demo mode. Every field the overlays
- * read is populated, so colours, sizes, strips, the wire, and the threat lane
+ * read is populated, so colours, sizes, strips, and the threat lane
  * can all be exercised without waiting for real scanners.
  */
 export function makeDemoRequests(cursor: number, count: number, now: number): LiveRequest[] {

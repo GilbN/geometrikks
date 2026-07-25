@@ -1,7 +1,7 @@
 /**
  * Slim embedded map for the geo-logs page: markers + clusters (shared layer
  * specs from map/layers.ts) with the same location popup as the full map,
- * but no controls overlay, live pulses, or legend. Filtered through
+ * but no controls overlay or live pulses. Filtered through
  * GeoLogFiltersContext like the rest of the page.
  */
 import { useCallback, useEffect, useRef, useState } from "react"

@@ -31,12 +31,10 @@ import {
 import { MapControls } from "./MapControls"
 import { LivePulses } from "./LivePulses"
 import { HomeMarker } from "./HomeMarker"
-import { MapLegend } from "./MapLegend"
 import { MapPopup, type PopupInfo } from "./MapPopup"
 import { LiveRequestCard, LiveRequestPopup } from "./LiveRequestPopup"
 import { LiveVitals } from "./LiveVitals"
 import { LiveStrips } from "./LiveStrips"
-import { LiveWire } from "./LiveWire"
 import { LiveFeedSheet } from "./LiveFeedSheet"
 import { Card, CardContent } from "@/components/ui/card"
 import { AlertTriangle } from "lucide-react"
@@ -518,7 +516,7 @@ function GeoMapInner({
 
       {/* A request with no GeoIP match has nowhere on the map to anchor a
           Popup, so its detail renders as a centered card instead - it stays
-          reachable from the strip, the wire, and the sheet alike. */}
+          reachable from the strip and the sheet alike. */}
       {livePopup && !livePopup.coordinates && (
         <LiveRequestCard request={livePopup} onClose={() => setLivePopup(null)} />
       )}
@@ -529,23 +527,9 @@ function GeoMapInner({
         </div>
       )}
 
-      {/* Bottom-left stack: strips above the legend, so the two can never
-          overlap however tall either one grows. */}
-      <div className="pointer-events-none absolute bottom-6 left-4 z-10 flex flex-col items-start gap-2">
-        {liveMode && !isMobile && liveOverlays.strips && (
+      {liveMode && !isMobile && liveOverlays.strips && (
+        <div className="pointer-events-none absolute bottom-6 left-4 z-10 flex flex-col items-start">
           <LiveStrips onSelect={handleLiveSelect} />
-        )}
-        <MapLegend maxValue={geojson?.stats.events ?? 0} layerType={activeLayer} />
-      </div>
-
-      {liveMode && !isMobile && liveOverlays.wire && (
-        // 31rem of reserved flank, measured against the map container (not
-        // the viewport - the app sidebar sits outside it): the legend column
-        // reaches 192px from the left and the controls column, collapse
-        // button included, about 244px from the right. Anything less slides
-        // the wire's opaque panel underneath them on narrow desktops.
-        <div className="pointer-events-none absolute bottom-4 left-1/2 z-10 w-[min(760px,calc(100%-31rem))] -translate-x-1/2">
-          <LiveWire onSelect={handleLiveSelect} />
         </div>
       )}
 

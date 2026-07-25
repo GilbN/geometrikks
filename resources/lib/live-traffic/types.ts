@@ -13,7 +13,7 @@ export type GeoEventData = Extract<LiveEvent, { type: "geo_event" }>["data"]
 export type StatusClass = "2xx" | "3xx" | "4xx" | "5xx" | "unknown"
 
 export interface LiveRequest {
-  /** Stable for the lifetime of the buffer; used by popups and wire replay. */
+  /** Stable for the lifetime of the buffer; used by popups and replay. */
   id: string
   /** Server-side timestamp from the log line. */
   timestamp: string

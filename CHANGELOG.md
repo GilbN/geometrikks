@@ -44,29 +44,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Live map packets are now colored by response status (green/blue/amber/red)
   and sized by response bytes, with a dashed red ring cage over packets from
   banned IPs.
-- Live overlays (vitals, recent requests, timeline) can each be switched on
-  or off from a "Live overlays" card in the map controls, shown while live
-  mode is on. The choice is remembered in the browser.
+- Live overlays (vitals and recent requests) can each be switched on or off
+  from a "Live overlays" card in the map controls, shown while live mode is
+  on. The choice is remembered in the browser.
 - Live mode on a phone now has its own surface: tapping the vitals pill
   opens a sheet listing live requests, split into an "All" and a "Threats"
   lane, and tapping a row flies the map to that request's origin.
 - The "Recent requests" strips on the map show the most recent requests,
-  fading out as they age. The five-minute timeline alongside them shows
-  requests over that window, coloured by the worst status in each bar, with
-  a hover card describing the most notable request under the cursor. Press
-  and drag to scrub through the window; the card follows each moment's
-  timestamp, and a drag never triggers the click's replay.
+  fading out as they age.
 - Live vitals readout on the map: requests per minute with a sparkline,
   error rate, threat count, unique IPs, and countries seen.
-- Clicking a live packet, strip, or timeline bar flies the map to that
+- Clicking a live packet or a recent-request strip flies the map to that
   request's origin and opens its full access-log line, with ban/unban
   controls.
 
 ### Changed
 
-- Map surfaces (controls panel, legend, zoom buttons, and location popups)
-  now share the live overlays' translucent glass styling, so the map stays
-  visible through every panel.
+- Map surfaces (controls panel, zoom buttons, and location popups) now share
+  the live overlays' translucent glass styling, so the map stays visible
+  through every panel.
 
 - Logging is now structured (structlog): colored console output, a JSONL
   main log (`logs/geometrikks.log`), and a plain-text login log
@@ -92,6 +88,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `API_LOG_LEVEL` in favor of `LOG_LEVEL`; still honored as a fallback,
   with a `DeprecationWarning`.
 
+### Removed
+
+- The map legend: the color-graded event count/density scale duplicated what
+  the marker and heatmap colors already say at a glance, so the card is gone
+  and the bottom-left corner stays clear for the map.
+
 ### Fixed
 
 - Map zoom/compass buttons were unclickable when the map-controls panel was
@@ -102,16 +104,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   hiding them behind that label.
 - A live request with no GeoIP match (LAN traffic, private or unresolvable
   IPs) now opens a small dismissible detail card when tapped from the
-  strips, the timeline, or the phone sheet, instead of doing nothing.
+  strips or the phone sheet, instead of doing nothing.
 - Switching Live mode off now closes an open live-request popup and the
   phone feed sheet along with the rest of the overlay state, clicking the
   heatmap layer dismisses an open live popup, and zooming into a cluster no
   longer leaves one stuck open.
-- The five-minute timeline's hover highlight now tracks the second under
-  the cursor rather than a bucket position, so it stays on the request
-  you're pointing at as the window scrolls instead of drifting to a
-  different second; its "most notable request" fallback now picks the
-  newest request in that second instead of the oldest.
 
 ## [0.4.3] - 2026-07-22
 

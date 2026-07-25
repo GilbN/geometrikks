@@ -3,7 +3,7 @@
  *
  * Everything downstream reads the store rather than the socket, and each
  * consumer gets its own clock: the map's rAF loop is called imperatively per
- * batch, the strips re-render at most every 250ms, vitals and the wire at 1Hz.
+ * batch, the strips re-render at most every 250ms, the vitals at 1Hz.
  * A naive setState here would re-render the map subtree seven times a second.
  */
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react"
@@ -12,7 +12,7 @@ import { useBannedIps } from "@/lib/queries"
 import { getDemoTrafficMode, makeDemoRequests } from "@/lib/demo-traffic"
 import { pairLiveEvents } from "./pairing"
 import { LiveTrafficStore } from "./store"
-import type { LiveRequest, SecondBucket, Vitals } from "./types"
+import type { LiveRequest, Vitals } from "./types"
 
 /**
  * What is actually feeding the store, as far as the UI should care.
@@ -143,18 +143,4 @@ export function useLiveVitals(): Vitals {
   }, [store])
 
   return vitals
-}
-
-export function useLiveBuckets(): SecondBucket[] {
-  const store = useLiveTrafficStore()
-  const [buckets, setBuckets] = useState<SecondBucket[]>([])
-
-  useEffect(() => {
-    const tick = () => setBuckets(store.getBuckets(Date.now()))
-    tick()
-    const interval = window.setInterval(tick, SNAPSHOT_INTERVAL_MS)
-    return () => window.clearInterval(interval)
-  }, [store])
-
-  return buckets
 }

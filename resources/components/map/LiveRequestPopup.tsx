@@ -5,8 +5,8 @@
  * A request whose log line had no GeoIP match has no coordinates, so there is
  * nowhere on the map to anchor a MapLibre `Popup`. `LiveRequestCard` renders
  * the same detail as a small dismissible card centered over the map instead,
- * so the request stays reachable regardless of which entry point (strip,
- * wire, or sheet) opened it.
+ * so the request stays reachable regardless of which entry point (strip or
+ * sheet) opened it.
  */
 import { Popup } from "react-map-gl/maplibre"
 import { formatBytes, formatDuration } from "@/lib/api"
@@ -135,7 +135,7 @@ export function LiveRequestPopup({
 /**
  * Same detail, for a request with no coordinates to anchor a map `Popup` to.
  * Centered over the map rather than docked, so it never collides with the
- * corner overlays (vitals, strips, wire, controls) or the zoom buttons.
+ * corner overlays (vitals, strips, controls) or the zoom buttons.
  */
 export function LiveRequestCard({
   request,

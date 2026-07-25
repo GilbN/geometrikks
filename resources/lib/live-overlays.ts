@@ -7,10 +7,9 @@ export const LIVE_OVERLAYS_STORAGE_KEY = "geometrikks-live-overlays"
 export interface LiveOverlayPreferences {
   vitals: boolean
   strips: boolean
-  wire: boolean
 }
 
-const DEFAULTS: LiveOverlayPreferences = { vitals: true, strips: true, wire: true }
+const DEFAULTS: LiveOverlayPreferences = { vitals: true, strips: true }
 
 export function loadLiveOverlays(): LiveOverlayPreferences {
   try {
@@ -20,7 +19,6 @@ export function loadLiveOverlays(): LiveOverlayPreferences {
     return {
       vitals: typeof parsed.vitals === "boolean" ? parsed.vitals : DEFAULTS.vitals,
       strips: typeof parsed.strips === "boolean" ? parsed.strips : DEFAULTS.strips,
-      wire: typeof parsed.wire === "boolean" ? parsed.wire : DEFAULTS.wire,
     }
   } catch {
     // Storage may be blocked or hold junk; the defaults are always safe.

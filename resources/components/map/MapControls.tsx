@@ -24,7 +24,6 @@ import { FilterCombobox } from "@/components/ui/filter-combobox"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import {
   Activity,
-  AudioWaveform,
   Flame,
   Globe2,
   Home,
@@ -281,16 +280,15 @@ export function MapControls({
         </div>
       </Card>
 
-      {/* Vitals, recent requests, and the timeline only mount at md and up;
-          below that the vitals pill is the sole entry point into live data,
-          so this card would offer switches that control nothing. */}
+      {/* Vitals and recent requests only mount at md and up; below that the
+          vitals pill is the sole entry point into live data, so this card
+          would offer switches that control nothing. */}
       {liveMode && !isMobile && (
         <Card className="p-2 gap-1 shrink-0 bg-background/85 backdrop-blur">
           <div className="text-xs font-medium text-muted-foreground">Live overlays</div>
           {([
             { key: "vitals" as const, label: "Vitals", icon: Activity },
             { key: "strips" as const, label: "Recent requests", icon: ListEnd },
-            { key: "wire" as const, label: "Timeline", icon: AudioWaveform },
           ]).map(({ key, label, icon: Icon }) => (
             <Button
               key={key}

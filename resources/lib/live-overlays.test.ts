@@ -28,38 +28,43 @@ describe("live overlay preferences", () => {
   })
 
   it("defaults every overlay to on", () => {
-    expect(loadLiveOverlays()).toEqual({ vitals: true, strips: true, wire: true })
+    expect(loadLiveOverlays()).toEqual({ vitals: true, strips: true })
   })
 
   it("round-trips a saved preference", () => {
-    saveLiveOverlays({ vitals: true, strips: false, wire: true })
-    expect(loadLiveOverlays()).toEqual({ vitals: true, strips: false, wire: true })
+    saveLiveOverlays({ vitals: true, strips: false })
+    expect(loadLiveOverlays()).toEqual({ vitals: true, strips: false })
   })
 
   it("falls back to the defaults on malformed storage", () => {
     store.set(LIVE_OVERLAYS_STORAGE_KEY, "{not json")
-    expect(loadLiveOverlays()).toEqual({ vitals: true, strips: true, wire: true })
+    expect(loadLiveOverlays()).toEqual({ vitals: true, strips: true })
   })
 
   it("fills in missing keys from a partial object", () => {
-    store.set(LIVE_OVERLAYS_STORAGE_KEY, JSON.stringify({ wire: false }))
-    expect(loadLiveOverlays()).toEqual({ vitals: true, strips: true, wire: false })
+    store.set(LIVE_OVERLAYS_STORAGE_KEY, JSON.stringify({ strips: false }))
+    expect(loadLiveOverlays()).toEqual({ vitals: true, strips: false })
   })
 
   it("ignores non-boolean values", () => {
-    store.set(LIVE_OVERLAYS_STORAGE_KEY, JSON.stringify({ wire: "nope" }))
-    expect(loadLiveOverlays().wire).toBe(true)
+    store.set(LIVE_OVERLAYS_STORAGE_KEY, JSON.stringify({ strips: "nope" }))
+    expect(loadLiveOverlays().strips).toBe(true)
+  })
+
+  it("ignores keys for overlays that no longer exist", () => {
+    store.set(LIVE_OVERLAYS_STORAGE_KEY, JSON.stringify({ wire: false }))
+    expect(loadLiveOverlays()).toEqual({ vitals: true, strips: true })
   })
 
   it("falls back to the defaults when storage access is blocked", () => {
     blocked = true
-    expect(loadLiveOverlays()).toEqual({ vitals: true, strips: true, wire: true })
+    expect(loadLiveOverlays()).toEqual({ vitals: true, strips: true })
   })
 
   it("does not throw when saving while storage access is blocked", () => {
     blocked = true
     expect(() =>
-      saveLiveOverlays({ vitals: true, strips: false, wire: true }),
+      saveLiveOverlays({ vitals: true, strips: false }),
     ).not.toThrow()
   })
 })
