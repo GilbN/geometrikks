@@ -1,9 +1,10 @@
 /**
  * Historical access-logs table: server-paginated, newest-first, scoped to the
- * global time range. Owns column sorting, pagination, and column visibility;
- * reads its filter values from AccessLogFiltersContext (search, IP, host,
- * status, method, country and city live in access-logs-filter-bar.tsx).
- * Pairs with GET /api/v1/access-logs/.
+ * global time range. Sorting and pagination state live on the parent route
+ * (URL search params), driven here via props and callbacks; only column
+ * visibility is local state. Filter values come from AccessLogFiltersContext
+ * (search, IP, host, status, method, country and city live in
+ * access-logs-filter-bar.tsx). Pairs with GET /api/v1/access-logs/.
  */
 import { useMemo, useState } from "react"
 import { ArrowDown, ArrowUp, ChevronsUpDown, Columns3 } from "lucide-react"

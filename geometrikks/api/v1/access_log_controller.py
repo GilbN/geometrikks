@@ -78,8 +78,9 @@ def provide_access_log_in_filters(
     generated providers yield ``None`` when the param is absent and fail the
     aggregating ``filters`` dependency's object validation.
 
-    Host matching is exact on both sides: the filter bar picks from the
-    ``/facets`` host list rather than typing free text. ``hostNotIn`` is OR'd
+    Host matching is exact on both sides. The filter bar's include control
+    picks from the ``/facets`` host list; exclude is free text, still matched
+    exactly (a typo excludes nothing). ``hostNotIn`` is OR'd
     with ``host IS NULL`` because ``host`` is nullable and SQL evaluates
     ``NULL NOT IN (...)`` as NULL rather than TRUE - a bare NOT IN would
     silently drop every row whose host never parsed. ``ip_address`` is

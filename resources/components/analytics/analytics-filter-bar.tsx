@@ -2,7 +2,7 @@
  * Country / city / IP filter bar for the analytics page. Filters every chart
  * and top-list on the page via AnalyticsFiltersContext (not geo-time-series,
  * which stays unfiltered). Country/city options are lazy-loaded facets,
- * matching the pattern in access-logs-table.tsx.
+ * matching the pattern in access-logs-filter-bar.tsx.
  */
 import { useState } from "react"
 import { Ban, X } from "lucide-react"
