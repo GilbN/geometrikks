@@ -8,6 +8,28 @@
       ],
       "uri": "/api/v1/crowdsec/ban"
     },
+    "disabled_vite_hmr_http": {
+      "method": "get",
+      "methods": [
+        "GET"
+      ],
+      "uri": "/static/vite-hmr"
+    },
+    "download": {
+      "method": "get",
+      "methods": [
+        "GET"
+      ],
+      "parameterTypes": {
+        "kind": "string",
+        "name": "string"
+      },
+      "parameters": [
+        "kind",
+        "name"
+      ],
+      "uri": "/api/v1/logs/files/{kind}/{name}"
+    },
     "get_about": {
       "method": "get",
       "methods": [
@@ -276,6 +298,7 @@
         "end_date": "DateTime",
         "granularity": "\"hourly\" | \"daily\" | undefined",
         "ip_address": "string[] | undefined",
+        "ip_address_not_in": "string[] | undefined",
         "start_date": "DateTime"
       },
       "uri": "/api/v1/analytics/time-series"
@@ -290,6 +313,7 @@
         "country_code": "string[] | undefined",
         "end_date": "DateTime",
         "ip_address": "string[] | undefined",
+        "ip_address_not_in": "string[] | undefined",
         "limit": "number | undefined",
         "start_date": "DateTime"
       },
@@ -305,6 +329,7 @@
         "country_code": "string[] | undefined",
         "end_date": "DateTime",
         "ip_address": "string[] | undefined",
+        "ip_address_not_in": "string[] | undefined",
         "limit": "number | undefined",
         "start_date": "DateTime"
       },
@@ -332,6 +357,7 @@
         "country_code": "string[] | undefined",
         "end_date": "DateTime",
         "ip_address": "string[] | undefined",
+        "ip_address_not_in": "string[] | undefined",
         "limit": "number | undefined",
         "start_date": "DateTime"
       },
@@ -347,6 +373,7 @@
         "country_code": "string[] | undefined",
         "end_date": "DateTime",
         "ip_address": "string[] | undefined",
+        "ip_address_not_in": "string[] | undefined",
         "limit": "number | undefined",
         "start_date": "DateTime"
       },
@@ -362,6 +389,7 @@
         "country_code": "string[] | undefined",
         "end_date": "DateTime",
         "ip_address": "string[] | undefined",
+        "ip_address_not_in": "string[] | undefined",
         "limit": "number | undefined",
         "start_date": "DateTime"
       },
@@ -412,8 +440,10 @@
         "countryCodeIn": "string[] | undefined",
         "currentPage": "number | undefined",
         "from_timestamp": "DateTime | undefined",
-        "host": "string | undefined",
+        "hostIn": "string[] | undefined",
+        "hostNotIn": "string[] | undefined",
         "ipAddressIn": "string[] | undefined",
+        "ipAddressNotIn": "string[] | undefined",
         "methodIn": "string[] | undefined",
         "orderBy": "string | undefined",
         "pageSize": "number | undefined",
@@ -467,6 +497,13 @@
         "pageSize": "number | undefined"
       },
       "uri": "/api/v1/crowdsec/decisions"
+    },
+    "list_files": {
+      "method": "get",
+      "methods": [
+        "GET"
+      ],
+      "uri": "/api/v1/logs/files"
     },
     "list_geo_events": {
       "method": "get",
@@ -549,6 +586,13 @@
       ],
       "uri": "/api/v1/settings"
     },
+    "rotate": {
+      "method": "post",
+      "methods": [
+        "POST"
+      ],
+      "uri": "/api/v1/logs/rotate"
+    },
     "run_scheduler_job": {
       "method": "post",
       "methods": [
@@ -575,6 +619,17 @@
         "GET"
       ],
       "uri": "/api/v1/stats"
+    },
+    "tail": {
+      "method": "get",
+      "methods": [
+        "GET"
+      ],
+      "queryParameters": {
+        "lines": "number | undefined",
+        "source": "\"app\" | \"login\" | undefined"
+      },
+      "uri": "/api/v1/logs/tail"
     },
     "unban": {
       "method": "post",

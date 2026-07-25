@@ -16,6 +16,8 @@ export type URI = string;
 /** All available route names */
 export type RouteName =
   | 'ban'
+  | 'disabled_vite_hmr_http'
+  | 'download'
   | 'get_about'
   | 'get_access_log_debug_stats'
   | 'get_access_log_facets'
@@ -52,6 +54,7 @@ export type RouteName =
   | 'list_banned_ips'
   | 'list_banned_locations'
   | 'list_decisions'
+  | 'list_files'
   | 'list_geo_events'
   | 'list_geo_locations'
   | 'login'
@@ -61,9 +64,11 @@ export type RouteName =
   | 'openapi.json'
   | 'openapi.yaml'
   | 'read_settings'
+  | 'rotate'
   | 'run_scheduler_job'
   | 'service_worker'
   | 'stats'
+  | 'tail'
   | 'unban'
   | 'vite'
   | 'vite_spa'
@@ -72,6 +77,11 @@ export type RouteName =
 /** Path parameter definitions per route */
 export interface RoutePathParams {
   'ban': Record<string, never>;
+  'disabled_vite_hmr_http': Record<string, never>;
+  'download': {
+    kind: string;
+    name: string;
+  };
   'get_about': Record<string, never>;
   'get_access_log_debug_stats': Record<string, never>;
   'get_access_log_facets': Record<string, never>;
@@ -110,6 +120,7 @@ export interface RoutePathParams {
   'list_banned_ips': Record<string, never>;
   'list_banned_locations': Record<string, never>;
   'list_decisions': Record<string, never>;
+  'list_files': Record<string, never>;
   'list_geo_events': Record<string, never>;
   'list_geo_locations': Record<string, never>;
   'login': Record<string, never>;
@@ -119,11 +130,13 @@ export interface RoutePathParams {
   'openapi.json': Record<string, never>;
   'openapi.yaml': Record<string, never>;
   'read_settings': Record<string, never>;
+  'rotate': Record<string, never>;
   'run_scheduler_job': {
     job_id: string;
   };
   'service_worker': Record<string, never>;
   'stats': Record<string, never>;
+  'tail': Record<string, never>;
   'unban': Record<string, never>;
   'vite': {
     file_path: any;
@@ -137,6 +150,8 @@ export interface RoutePathParams {
 /** Query parameter definitions per route */
 export interface RouteQueryParams {
   'ban': Record<string, never>;
+  'disabled_vite_hmr_http': Record<string, never>;
+  'download': Record<string, never>;
   'get_about': Record<string, never>;
   'get_access_log_debug_stats': {
     from_timestamp?: DateTime;
@@ -254,6 +269,7 @@ export interface RouteQueryParams {
     end_date: DateTime;
     granularity?: "hourly" | "daily";
     ip_address?: string[];
+    ip_address_not_in?: string[];
     start_date: DateTime;
   };
   'get_top_cities': {
@@ -261,6 +277,7 @@ export interface RouteQueryParams {
     country_code?: string[];
     end_date: DateTime;
     ip_address?: string[];
+    ip_address_not_in?: string[];
     limit?: number;
     start_date: DateTime;
   };
@@ -269,6 +286,7 @@ export interface RouteQueryParams {
     country_code?: string[];
     end_date: DateTime;
     ip_address?: string[];
+    ip_address_not_in?: string[];
     limit?: number;
     start_date: DateTime;
   };
@@ -282,6 +300,7 @@ export interface RouteQueryParams {
     country_code?: string[];
     end_date: DateTime;
     ip_address?: string[];
+    ip_address_not_in?: string[];
     limit?: number;
     start_date: DateTime;
   };
@@ -290,6 +309,7 @@ export interface RouteQueryParams {
     country_code?: string[];
     end_date: DateTime;
     ip_address?: string[];
+    ip_address_not_in?: string[];
     limit?: number;
     start_date: DateTime;
   };
@@ -298,6 +318,7 @@ export interface RouteQueryParams {
     country_code?: string[];
     end_date: DateTime;
     ip_address?: string[];
+    ip_address_not_in?: string[];
     limit?: number;
     start_date: DateTime;
   };
@@ -322,8 +343,10 @@ export interface RouteQueryParams {
     countryCodeIn?: string[];
     currentPage?: number;
     from_timestamp?: DateTime;
-    host?: string;
+    hostIn?: string[];
+    hostNotIn?: string[];
     ipAddressIn?: string[];
+    ipAddressNotIn?: string[];
     methodIn?: string[];
     orderBy?: string;
     pageSize?: number;
@@ -349,6 +372,7 @@ export interface RouteQueryParams {
     origins?: string;
     pageSize?: number;
   };
+  'list_files': Record<string, never>;
   'list_geo_events': {
     currentPage?: number;
     from_timestamp?: DateTime;
@@ -373,9 +397,14 @@ export interface RouteQueryParams {
   'openapi.json': Record<string, never>;
   'openapi.yaml': Record<string, never>;
   'read_settings': Record<string, never>;
+  'rotate': Record<string, never>;
   'run_scheduler_job': Record<string, never>;
   'service_worker': Record<string, never>;
   'stats': Record<string, never>;
+  'tail': {
+    lines?: number;
+    source?: "app" | "login";
+  };
   'unban': Record<string, never>;
   'vite': Record<string, never>;
   'vite_spa': Record<string, never>;
@@ -396,6 +425,20 @@ export const routeDefinitions = {
     methods: ['POST'] as const,
     method: 'post',
     pathParams: [] as const,
+    queryParams: [] as const,
+  },
+  'disabled_vite_hmr_http': {
+    path: '/static/vite-hmr',
+    methods: ['GET'] as const,
+    method: 'get',
+    pathParams: [] as const,
+    queryParams: [] as const,
+  },
+  'download': {
+    path: '/api/v1/logs/files/{kind}/{name}',
+    methods: ['GET'] as const,
+    method: 'get',
+    pathParams: ['kind', 'name'] as const,
     queryParams: [] as const,
   },
   'get_about': {
@@ -550,21 +593,21 @@ export const routeDefinitions = {
     methods: ['GET'] as const,
     method: 'get',
     pathParams: [] as const,
-    queryParams: ['city', 'country_code', 'end_date', 'granularity', 'ip_address', 'start_date'] as const,
+    queryParams: ['city', 'country_code', 'end_date', 'granularity', 'ip_address', 'ip_address_not_in', 'start_date'] as const,
   },
   'get_top_cities': {
     path: '/api/v1/analytics/top-cities',
     methods: ['GET'] as const,
     method: 'get',
     pathParams: [] as const,
-    queryParams: ['city', 'country_code', 'end_date', 'ip_address', 'limit', 'start_date'] as const,
+    queryParams: ['city', 'country_code', 'end_date', 'ip_address', 'ip_address_not_in', 'limit', 'start_date'] as const,
   },
   'get_top_countries': {
     path: '/api/v1/analytics/top-countries',
     methods: ['GET'] as const,
     method: 'get',
     pathParams: [] as const,
-    queryParams: ['city', 'country_code', 'end_date', 'ip_address', 'limit', 'start_date'] as const,
+    queryParams: ['city', 'country_code', 'end_date', 'ip_address', 'ip_address_not_in', 'limit', 'start_date'] as const,
   },
   'get_top_countries_api_v1_geo_locations_top_countries': {
     path: '/api/v1/geo-locations/top-countries',
@@ -578,21 +621,21 @@ export const routeDefinitions = {
     methods: ['GET'] as const,
     method: 'get',
     pathParams: [] as const,
-    queryParams: ['city', 'country_code', 'end_date', 'ip_address', 'limit', 'start_date'] as const,
+    queryParams: ['city', 'country_code', 'end_date', 'ip_address', 'ip_address_not_in', 'limit', 'start_date'] as const,
   },
   'get_top_urls': {
     path: '/api/v1/analytics/top-urls',
     methods: ['GET'] as const,
     method: 'get',
     pathParams: [] as const,
-    queryParams: ['city', 'country_code', 'end_date', 'ip_address', 'limit', 'start_date'] as const,
+    queryParams: ['city', 'country_code', 'end_date', 'ip_address', 'ip_address_not_in', 'limit', 'start_date'] as const,
   },
   'get_top_user_agents': {
     path: '/api/v1/analytics/top-user-agents',
     methods: ['GET'] as const,
     method: 'get',
     pathParams: [] as const,
-    queryParams: ['city', 'country_code', 'end_date', 'ip_address', 'limit', 'start_date'] as const,
+    queryParams: ['city', 'country_code', 'end_date', 'ip_address', 'ip_address_not_in', 'limit', 'start_date'] as const,
   },
   'health': {
     path: '/health',
@@ -620,7 +663,7 @@ export const routeDefinitions = {
     methods: ['GET'] as const,
     method: 'get',
     pathParams: [] as const,
-    queryParams: ['cityIn', 'countryCodeIn', 'currentPage', 'from_timestamp', 'host', 'ipAddressIn', 'methodIn', 'orderBy', 'pageSize', 'searchIgnoreCase', 'searchString', 'sortOrder', 'statusIn', 'to_timestamp'] as const,
+    queryParams: ['cityIn', 'countryCodeIn', 'currentPage', 'from_timestamp', 'hostIn', 'hostNotIn', 'ipAddressIn', 'ipAddressNotIn', 'methodIn', 'orderBy', 'pageSize', 'searchIgnoreCase', 'searchString', 'sortOrder', 'statusIn', 'to_timestamp'] as const,
   },
   'list_alerts': {
     path: '/api/v1/crowdsec/alerts',
@@ -649,6 +692,13 @@ export const routeDefinitions = {
     method: 'get',
     pathParams: [] as const,
     queryParams: ['currentPage', 'origins', 'pageSize'] as const,
+  },
+  'list_files': {
+    path: '/api/v1/logs/files',
+    methods: ['GET'] as const,
+    method: 'get',
+    pathParams: [] as const,
+    queryParams: [] as const,
   },
   'list_geo_events': {
     path: '/api/v1/geo-events',
@@ -713,6 +763,13 @@ export const routeDefinitions = {
     pathParams: [] as const,
     queryParams: [] as const,
   },
+  'rotate': {
+    path: '/api/v1/logs/rotate',
+    methods: ['POST'] as const,
+    method: 'post',
+    pathParams: [] as const,
+    queryParams: [] as const,
+  },
   'run_scheduler_job': {
     path: '/api/v1/system/scheduler/jobs/{job_id}/run',
     methods: ['POST'] as const,
@@ -733,6 +790,13 @@ export const routeDefinitions = {
     method: 'get',
     pathParams: [] as const,
     queryParams: [] as const,
+  },
+  'tail': {
+    path: '/api/v1/logs/tail',
+    methods: ['GET'] as const,
+    method: 'get',
+    pathParams: [] as const,
+    queryParams: ['lines', 'source'] as const,
   },
   'unban': {
     path: '/api/v1/crowdsec/unban',

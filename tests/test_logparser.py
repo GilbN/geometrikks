@@ -519,3 +519,55 @@ class TestParseLine:
         assert record.is_malformed is True
         assert record.ip_address is None
         assert parser.skipped_lines == 1
+
+    def test_parse_line_ignored_exact_ip(self, geoip_reader):
+        from geometrikks.services.logparser.logparser import LogParser, make_cached_city_lookup
+        parser = LogParser(
+            log_path=Path("/dev/null"), send_logs=True, ignore_ips=["2.125.160.216"]
+        )
+        lookup = make_cached_city_lookup(geoip_reader)
+        record = parser.parse_line(make_log_line("2.125.160.216"), lookup)
+        assert record is None
+        assert parser.ignored_lines == 1
+        assert parser.skipped_lines == 0
+        assert parser.parsed_lines == 0
+
+    def test_parse_line_ignored_cidr(self, geoip_reader):
+        from geometrikks.services.logparser.logparser import LogParser, make_cached_city_lookup
+        parser = LogParser(
+            log_path=Path("/dev/null"), send_logs=True, ignore_ips=["2.125.160.0/24"]
+        )
+        lookup = make_cached_city_lookup(geoip_reader)
+        record = parser.parse_line(make_log_line("2.125.160.216"), lookup)
+        assert record is None
+        assert parser.ignored_lines == 1
+
+    def test_parse_line_ignored_ipv6_cidr(self, geoip_reader):
+        from geometrikks.services.logparser.logparser import LogParser, make_cached_city_lookup
+        parser = LogParser(
+            log_path=Path("/dev/null"), send_logs=True, ignore_ips=["2001:db8::/32"]
+        )
+        lookup = make_cached_city_lookup(geoip_reader)
+        record = parser.parse_line(make_log_line("2001:db8::1"), lookup)
+        assert record is None
+        assert parser.ignored_lines == 1
+
+    def test_parse_line_non_matching_ip_passes(self, geoip_reader):
+        from geometrikks.services.logparser.logparser import LogParser, make_cached_city_lookup
+        parser = LogParser(
+            log_path=Path("/dev/null"), send_logs=True, ignore_ips=["203.0.113.0/24"]
+        )
+        lookup = make_cached_city_lookup(geoip_reader)
+        record = parser.parse_line(make_log_line("2.125.160.216"), lookup)
+        assert record is not None
+        assert record.ip_address == "2.125.160.216"
+        assert parser.ignored_lines == 0
+        assert parser.parsed_lines == 1
+
+    def test_parse_line_empty_ignore_list_noop(self, geoip_reader):
+        from geometrikks.services.logparser.logparser import LogParser, make_cached_city_lookup
+        parser = LogParser(log_path=Path("/dev/null"), send_logs=True)
+        lookup = make_cached_city_lookup(geoip_reader)
+        record = parser.parse_line(make_log_line("2.125.160.216"), lookup)
+        assert record is not None
+        assert parser.ignored_lines == 0

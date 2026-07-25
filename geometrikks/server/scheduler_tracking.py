@@ -18,9 +18,13 @@ from apscheduler.events import (
     EVENT_JOB_SUBMITTED,
 )
 
+from geometrikks.server.logging import get_logger
+
 if TYPE_CHECKING:
     from apscheduler.events import JobEvent, JobExecutionEvent, JobSubmissionEvent
     from apscheduler.schedulers.base import BaseScheduler
+
+logger = get_logger(__name__)
 
 JobStatus = Literal["success", "error", "missed"]
 
@@ -69,9 +73,21 @@ class JobRunTracker:
         if event.exception is not None:
             info.last_status = "error"
             info.last_error = repr(event.exception)
+            logger.error(
+                "scheduler_job_failed",
+                job_id=event.job_id,
+                error=info.last_error,
+                duration_seconds=info.last_duration_seconds,
+            )
         else:
             info.last_status = "success"
             info.last_error = None
+            logger.success(  # ty: ignore[unresolved-attribute]
+                "scheduler_job_completed",
+                job_id=event.job_id,
+                duration_seconds=info.last_duration_seconds,
+            )
 
     def _on_missed(self, event: "JobEvent") -> None:
         self._info(event.job_id).last_status = "missed"
+        logger.warning("scheduler_job_missed", job_id=event.job_id)

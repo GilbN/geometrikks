@@ -9,7 +9,7 @@
  * and feeds them to GeoLogFiltersContext. The date range stays global via
  * TimeRangeProvider and is deliberately not in the URL.
  */
-import { lazy, Suspense, useCallback, useMemo } from "react"
+import { lazy, Suspense } from "react"
 import { createFileRoute } from "@tanstack/react-router"
 import { z } from "zod"
 import { Card } from "@/components/ui/card"
@@ -24,6 +24,8 @@ import {
   GeoLogFiltersProvider,
   type GeoLogFilterState,
 } from "@/lib/geo-log-filters-context"
+import { useUrlFilters } from "@/hooks/use-url-filters"
+import { arrayParam, dropDefault } from "@/lib/url-filters"
 import type { GeoLogSortOrder } from "@/lib/api"
 
 const GeoLogsMap = lazy(() => import("@/components/geo-logs/geo-logs-map"))
@@ -53,87 +55,45 @@ export const Route = createFileRoute("/geo-logs")({
   component: GeoLogsPage,
 })
 
-/** Empty arrays and default page/size/sort drop out of the URL entirely. */
-function searchFromState(
-  filters: GeoLogFilterState,
-  table: { page: number; pageSize: number; sort: GeoLogSortOrder },
-): GeoLogsSearch {
+// Module-level so their identity is stable across renders.
+function decode(search: GeoLogsSearch): GeoLogFilterState {
   return {
-    country: filters.countryCodes.length ? filters.countryCodes : undefined,
-    city: filters.cities.length ? filters.cities : undefined,
-    ip: filters.ips.length ? filters.ips : undefined,
-    ipx: filters.ipsExclude.length ? filters.ipsExclude : undefined,
-    host: filters.hostnames.length ? filters.hostnames : undefined,
-    page: table.page > 1 ? table.page : undefined,
-    pageSize: table.pageSize !== 50 ? table.pageSize : undefined,
-    sort: table.sort !== "desc" ? table.sort : undefined,
+    countryCodes: search.country ?? [],
+    cities: search.city ?? [],
+    ips: search.ip ?? [],
+    ipsExclude: search.ipx ?? [],
+    hostnames: search.host ?? [],
   }
 }
+
+function encode(filters: GeoLogFilterState): Partial<GeoLogsSearch> {
+  return {
+    country: arrayParam(filters.countryCodes),
+    city: arrayParam(filters.cities),
+    ip: arrayParam(filters.ips),
+    ipx: arrayParam(filters.ipsExclude),
+    host: arrayParam(filters.hostnames),
+  }
+}
+
+// Filter changes always return to page 1.
+const RESET_ON_CHANGE: Partial<GeoLogsSearch> = { page: undefined }
 
 function GeoLogsPage() {
   const search = Route.useSearch()
   const navigate = Route.useNavigate()
 
-  const filters = useMemo<GeoLogFilterState>(
-    () => ({
-      countryCodes: search.country ?? [],
-      cities: search.city ?? [],
-      ips: search.ip ?? [],
-      ipsExclude: search.ipx ?? [],
-      hostnames: search.host ?? [],
-    }),
-    [search.country, search.city, search.ip, search.ipx, search.host],
-  )
+  const { filters, setFilters, patchSearch } = useUrlFilters({
+    search,
+    navigate,
+    decode,
+    encode,
+    resetOnChange: RESET_ON_CHANGE,
+  })
 
   const page = search.page ?? 1
   const pageSize = search.pageSize ?? 50
   const sort: GeoLogSortOrder = search.sort ?? "desc"
-
-  // Filter changes reset to page 1; replace:true keeps every tweak from
-  // piling up in browser history.
-  const setFilters = useCallback(
-    (updater: (prev: GeoLogFilterState) => GeoLogFilterState) => {
-      navigate({
-        search: (prev: GeoLogsSearch) => {
-          const current: GeoLogFilterState = {
-            countryCodes: prev.country ?? [],
-            cities: prev.city ?? [],
-            ips: prev.ip ?? [],
-            ipsExclude: prev.ipx ?? [],
-            hostnames: prev.host ?? [],
-          }
-          return searchFromState(updater(current), {
-            page: 1,
-            pageSize: prev.pageSize ?? 50,
-            sort: prev.sort ?? "desc",
-          })
-        },
-        replace: true,
-      })
-    },
-    [navigate],
-  )
-
-  const setTableState = useCallback(
-    (patch: Partial<{ page: number; pageSize: number; sort: GeoLogSortOrder }>) => {
-      navigate({
-        search: (prev: GeoLogsSearch) => ({
-          ...prev,
-          page: (patch.page ?? 1) > 1 ? patch.page : undefined,
-          pageSize:
-            (patch.pageSize ?? prev.pageSize ?? 50) !== 50
-              ? (patch.pageSize ?? prev.pageSize)
-              : undefined,
-          sort:
-            (patch.sort ?? prev.sort ?? "desc") !== "desc"
-              ? (patch.sort ?? prev.sort)
-              : undefined,
-        }),
-        replace: true,
-      })
-    },
-    [navigate],
-  )
 
   return (
     <GeoLogFiltersProvider filters={filters} setFilters={setFilters}>
@@ -160,9 +120,13 @@ function GeoLogsPage() {
           page={page}
           pageSize={pageSize}
           sortOrder={sort}
-          onPageChange={(next) => setTableState({ page: next })}
-          onPageSizeChange={(next) => setTableState({ pageSize: next, page: 1 })}
-          onSortOrderChange={(next) => setTableState({ sort: next, page: 1 })}
+          onPageChange={(next) => patchSearch({ page: dropDefault(next, 1) })}
+          onPageSizeChange={(next) =>
+            patchSearch({ pageSize: dropDefault(next, 50), page: undefined })
+          }
+          onSortOrderChange={(next) =>
+            patchSearch({ sort: dropDefault(next, "desc"), page: undefined })
+          }
         />
       </div>
     </GeoLogFiltersProvider>

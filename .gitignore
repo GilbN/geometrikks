@@ -4,6 +4,8 @@
 docs/superpowers/
 *.db
 .litestar.json
+/logs
+/nginx_logs
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
@@ -383,3 +385,6 @@ openapi-ts-error-*.log
 
 # TanStack Router generator cache
 .tanstack/
+
+# Superpowers workspaces: brainstorming mockups and SDD review artifacts (local only)
+.superpowers/

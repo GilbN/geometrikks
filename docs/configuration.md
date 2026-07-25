@@ -28,7 +28,7 @@ list most users need is in `.env.example`; everything below is available.
 |---|---|---|
 | `API_HOST` | `0.0.0.0` | API server host |
 | `API_PORT` | `8000` | API server port |
-| `API_LOG_LEVEL` | `INFO` | Logging level |
+| `API_LOG_LEVEL` | — | DEPRECATED: use LOG_LEVEL. Kept as a fallback for existing deployments. |
 
 ## Database
 
@@ -61,6 +61,17 @@ list most users need is in `.env.example`; everything below is available.
 | `MAXMINDDB_LICENSE_KEY` | — | MaxMind license key for GeoLite2 auto-download |
 | `GEOIP_REFRESH_DAYS` | `7` | Re-download the GeoLite2 database when older than this many days |
 
+## Logging
+
+| Variable | Default | Description |
+|---|---|---|
+| `LOG_DIR` | `logs` | Directory for application log files |
+| `LOG_LEVEL` | — | Root log level. Falls back to deprecated API_LOG_LEVEL, then INFO. |
+| `LOG_MAIN_MAX_BYTES` | `10485760` | Rotate the main JSONL log when it exceeds this size (bytes) |
+| `LOG_MAIN_BACKUP_COUNT` | `5` | Number of gzipped main-log archives to keep |
+| `LOG_LOGIN_MAX_BYTES` | `10485760` | Rotate the login log when it exceeds this size (bytes) |
+| `LOG_LOGIN_BACKUP_COUNT` | `5` | Number of gzipped login-log archives to keep |
+
 ## Log parser
 
 | Variable | Default | Description |
@@ -73,6 +84,7 @@ list most users need is in `.env.example`; everything below is available.
 | `LOGPARSER_COMMIT_INTERVAL` | `5.0` | Maximum time interval in seconds between database commits. This will commit even if batch_size is not reached. |
 | `LOGPARSER_SKIP_VALIDATION` | `false` | Skip validation of log lines. |
 | `LOGPARSER_STORE_DEBUG_LINES` | `false` | Store all raw log lines in AccessLogDebug table. When False, only malformed requests are stored. |
+| `LOGPARSER_IGNORE_IPS` | *(computed)* | IPs/CIDRs the parser drops entirely (no geo event, access log, or debug row). Use for your own traffic hitting the reverse proxy. Env accepts one value, comma-separated values, or a JSON list. Empty (default): nothing is ignored. |
 
 ## Analytics & retention
 

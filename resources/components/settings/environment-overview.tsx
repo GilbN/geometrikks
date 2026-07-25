@@ -42,6 +42,11 @@ const sectionIcons: Record<string, React.ComponentType<{ className?: string }>> 
   vite: Zap,
 }
 
+const computedLabel: Record<string, string> = {
+  external_ip: "auto-detected",
+  runtime: "runtime",
+}
+
 function formatValue(value: unknown): string {
   if (value === null || value === undefined) return "not set"
   if (typeof value === "boolean") return value ? "true" : "false"
@@ -73,6 +78,24 @@ function ValueBlock({ field }: { field: SettingFieldView }) {
             not set
           </Badge>
         )}
+      </span>
+    )
+  }
+  const hasValue = field.value !== null && field.value !== undefined
+  const hasComputed = field.computed_value !== null && field.computed_value !== undefined
+  if (!hasValue && hasComputed) {
+    const label = computedLabel[field.computed_source ?? ""] ?? "computed"
+    return (
+      <span className="inline-flex items-baseline gap-1.5">
+        <code className="font-mono text-xs break-all font-medium text-foreground">
+          {formatValue(field.computed_value)}
+        </code>
+        <Badge
+          variant="outline"
+          className="border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400"
+        >
+          {label}
+        </Badge>
       </span>
     )
   }
@@ -110,7 +133,7 @@ function FieldRow({ field }: { field: SettingFieldView }) {
               default: <code className="font-mono">{formatValue(field.default)}</code>
             </span>
           )}
-          <MonoChip>{field.env_var}</MonoChip>
+          {field.env_var && <MonoChip>{field.env_var}</MonoChip>}
         </div>
       </div>
     </div>
@@ -188,7 +211,7 @@ export function EnvironmentOverview() {
           (!overriddenOnly || isOverridden(f)) &&
           (!q ||
             f.key.toLowerCase().includes(q) ||
-            f.env_var.toLowerCase().includes(q) ||
+            (f.env_var ?? "").toLowerCase().includes(q) ||
             section.title.toLowerCase().includes(q) ||
             (f.description ?? "").toLowerCase().includes(q)),
       ),
@@ -225,7 +248,12 @@ export function EnvironmentOverview() {
         </Button>
         <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
           <StatusLed tone="cyan" />
-          {totalOverridden} of {data.sections.reduce((n, s) => n + s.fields.length, 0)} settings
+          {totalOverridden} of{" "}
+          {data.sections.reduce(
+            (n, s) => n + s.fields.filter((f) => f.env_var).length,
+            0,
+          )}{" "}
+          settings
           overridden by env
         </span>
       </div>

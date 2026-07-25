@@ -152,3 +152,52 @@ async def test_about_database_degrades_when_db_unreachable(monkeypatch):
         "timescaledb_version": None,
         "postgis_version": None,
     }
+
+
+async def test_system_settings_surface_computed_values(monkeypatch):
+    monkeypatch.setenv("CROWDSEC_LAPI_URL", "http://localhost:8080")
+    monkeypatch.setenv("CROWDSEC_BOUNCER_API_KEY", "bouncer-key")
+
+    from geometrikks.services.geoip.home import HomeLocation
+
+    async def startup(app: Litestar) -> None:
+        app.state.map_home_location = HomeLocation(
+            latitude=59.91, longitude=10.75, source="external_ip"
+        )
+        app.state.geoip_available = True
+
+    app = Litestar(route_handlers=[SystemController], on_startup=[startup])
+    async with AsyncTestClient(app=app) as client:
+        resp = await client.get("/api/v1/system/settings")
+    assert resp.status_code == 200
+    sections = {s["name"]: s for s in resp.json()["sections"]}
+
+    def field(section: str, key: str) -> dict:
+        return next(f for f in sections[section]["fields"] if f["key"] == key)
+
+    lat = field("map", "home_latitude")
+    assert lat["value"] is None
+    assert lat["computed_value"] == 59.91
+    assert lat["computed_source"] == "external_ip"
+
+    avail = field("geoip", "available")
+    assert avail["computed_value"] is True
+    assert avail["computed_source"] == "runtime"
+    assert avail["env_var"] is None
+
+    enabled = field("crowdsec", "enabled")
+    assert enabled["computed_value"] is True
+    assert enabled["computed_source"] == "runtime"
+
+
+async def test_system_settings_no_computed_home_when_absent():
+    # make_app() seeds no map_home_location and no geoip_available.
+    async with AsyncTestClient(app=make_app()) as client:
+        resp = await client.get("/api/v1/system/settings")
+    sections = {s["name"]: s for s in resp.json()["sections"]}
+    lat = next(f for f in sections["map"]["fields"] if f["key"] == "home_latitude")
+    assert lat["computed_value"] is None
+
+    avail = next(f for f in sections["geoip"]["fields"] if f["key"] == "available")
+    assert avail["computed_value"] is False
+    assert avail["computed_source"] == "runtime"

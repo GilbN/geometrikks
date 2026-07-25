@@ -504,6 +504,7 @@ export interface AnalyticsFilterParams {
   countryCodes?: string[]
   cities?: string[]
   ips?: string[]
+  ipsExclude?: string[]
 }
 
 export async function fetchTimeSeries(params: TimeSeriesParams & AnalyticsFilterParams) {
@@ -515,6 +516,7 @@ export async function fetchTimeSeries(params: TimeSeriesParams & AnalyticsFilter
       country_code: params.countryCodes?.length ? params.countryCodes : undefined,
       city: params.cities?.length ? params.cities : undefined,
       ip_address: params.ips?.length ? params.ips : undefined,
+      ip_address_not_in: params.ipsExclude?.length ? params.ipsExclude : undefined,
     },
     throwOnError: true,
   })
@@ -538,6 +540,7 @@ export async function fetchTopUrls(params: TimeSeriesParams & { limit?: number }
       country_code: params.countryCodes?.length ? params.countryCodes : undefined,
       city: params.cities?.length ? params.cities : undefined,
       ip_address: params.ips?.length ? params.ips : undefined,
+      ip_address_not_in: params.ipsExclude?.length ? params.ipsExclude : undefined,
     },
     throwOnError: true,
   })
@@ -553,6 +556,7 @@ export async function fetchTopUserAgents(params: TimeSeriesParams & { limit?: nu
       country_code: params.countryCodes?.length ? params.countryCodes : undefined,
       city: params.cities?.length ? params.cities : undefined,
       ip_address: params.ips?.length ? params.ips : undefined,
+      ip_address_not_in: params.ipsExclude?.length ? params.ipsExclude : undefined,
     },
     throwOnError: true,
   })
@@ -568,6 +572,7 @@ export async function fetchTopIpStats(params: TimeSeriesParams & { limit?: numbe
       country_code: params.countryCodes?.length ? params.countryCodes : undefined,
       city: params.cities?.length ? params.cities : undefined,
       ip_address: params.ips?.length ? params.ips : undefined,
+      ip_address_not_in: params.ipsExclude?.length ? params.ipsExclude : undefined,
     },
     throwOnError: true,
   })
@@ -583,6 +588,7 @@ export async function fetchTopCountryStats(params: TimeSeriesParams & { limit?: 
       country_code: params.countryCodes?.length ? params.countryCodes : undefined,
       city: params.cities?.length ? params.cities : undefined,
       ip_address: params.ips?.length ? params.ips : undefined,
+      ip_address_not_in: params.ipsExclude?.length ? params.ipsExclude : undefined,
     },
     throwOnError: true,
   })
@@ -598,6 +604,7 @@ export async function fetchTopCityStats(params: TimeSeriesParams & { limit?: num
       country_code: params.countryCodes?.length ? params.countryCodes : undefined,
       city: params.cities?.length ? params.cities : undefined,
       ip_address: params.ips?.length ? params.ips : undefined,
+      ip_address_not_in: params.ipsExclude?.length ? params.ipsExclude : undefined,
     },
     throwOnError: true,
   })
@@ -812,10 +819,14 @@ export interface AccessLogsParams {
   searchString?: string
   /** Exact IP match(es). */
   ipAddressIn?: string[]
+  /** IPs to exclude. */
+  ipAddressNotIn?: string[]
   /** HTTP method(s) to include. */
   methodIn?: string[]
-  /** Case-insensitive substring match on host (domain). */
-  host?: string
+  /** Exact host match(es), chosen from the facets list. */
+  hostIn?: string[]
+  /** Hosts to exclude. */
+  hostNotIn?: string[]
   /** Exact city match(es). */
   cityIn?: string[]
   /** Exact ISO-3166 alpha-2 country code match(es). */
@@ -834,8 +845,10 @@ export async function fetchAccessLogs(params: AccessLogsParams): Promise<AccessL
       pageSize: params.pageSize ?? 50,
       searchString: params.searchString || undefined,
       ipAddressIn: params.ipAddressIn?.length ? params.ipAddressIn : undefined,
+      ipAddressNotIn: params.ipAddressNotIn?.length ? params.ipAddressNotIn : undefined,
       methodIn: params.methodIn?.length ? params.methodIn : undefined,
-      host: params.host || undefined,
+      hostIn: params.hostIn?.length ? params.hostIn : undefined,
+      hostNotIn: params.hostNotIn?.length ? params.hostNotIn : undefined,
       cityIn: params.cityIn?.length ? params.cityIn : undefined,
       countryCodeIn: params.countryCodeIn?.length ? params.countryCodeIn : undefined,
       statusIn: params.statusIn?.length ? params.statusIn : undefined,
@@ -861,9 +874,11 @@ export interface AccessLogFacets {
   countries: CountryFacet[]
   /** Sorted alphabetically. */
   cities: string[]
+  /** Sorted alphabetically. */
+  hosts: string[]
 }
 
-/** Distinct country/city values present in the data, for the filter dropdowns. */
+/** Distinct country/city/host values present in the data, for the filter dropdowns. */
 export async function fetchAccessLogFacets(): Promise<AccessLogFacets> {
   const { data } = await api.get<AccessLogFacets>("/access-logs/facets")
   return data

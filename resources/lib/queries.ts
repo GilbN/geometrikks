@@ -58,6 +58,7 @@ import {
   type AccessLogDebugSortField,
   type AccessLogDebugStats,
 } from "./api"
+import { apiV1LogsFilesListFiles, apiV1LogsTailTail } from "@/generated/api/sdk.gen"
 import { useTimeRange } from "./time-range-context"
 import { useAnalyticsFilters } from "./analytics-filters-context"
 import { useGeoLogFilters } from "./geo-log-filters-context"
@@ -148,6 +149,10 @@ export const queryKeys = {
     geojson: (params: Record<string, unknown>, refreshKey?: number) =>
       [...queryKeys.geoLogs.all, "geojson", params, refreshKey] as const,
     facets: () => [...queryKeys.geoLogs.all, "facets"] as const,
+  },
+  logs: {
+    tail: (lines: number, source: "app" | "login") => ["logs", "tail", lines, source] as const,
+    files: ["logs", "files"] as const,
   },
 }
 
@@ -631,6 +636,7 @@ export function useTimeSeries(options: UseAnalyticsQueryOptions = {}) {
         countryCodes: filters.countryCodes,
         cities: filters.cities,
         ips: filters.ips,
+        ipsExclude: filters.ipsExclude,
       })
     },
     enabled,
@@ -680,6 +686,7 @@ export function useTopUrls(options: UseTopListOptions = {}) {
         countryCodes: filters.countryCodes,
         cities: filters.cities,
         ips: filters.ips,
+        ipsExclude: filters.ipsExclude,
       })
     },
     enabled,
@@ -708,6 +715,7 @@ export function useTopUserAgents(options: UseTopListOptions = {}) {
         countryCodes: filters.countryCodes,
         cities: filters.cities,
         ips: filters.ips,
+        ipsExclude: filters.ipsExclude,
       })
     },
     enabled,
@@ -736,6 +744,7 @@ export function useTopIpStats(options: UseTopListOptions = {}) {
         countryCodes: filters.countryCodes,
         cities: filters.cities,
         ips: filters.ips,
+        ipsExclude: filters.ipsExclude,
       })
     },
     enabled,
@@ -764,6 +773,7 @@ export function useTopCountryStats(options: UseTopListOptions = {}) {
         countryCodes: filters.countryCodes,
         cities: filters.cities,
         ips: filters.ips,
+        ipsExclude: filters.ipsExclude,
       })
     },
     enabled,
@@ -792,6 +802,7 @@ export function useTopCityStats(options: UseTopListOptions = {}) {
         countryCodes: filters.countryCodes,
         cities: filters.cities,
         ips: filters.ips,
+        ipsExclude: filters.ipsExclude,
       })
     },
     enabled,
@@ -810,8 +821,10 @@ export interface UseAccessLogsOptions {
   enabled?: boolean
   searchString?: string
   ipAddressIn?: string[]
+  ipAddressNotIn?: string[]
   methodIn?: string[]
-  host?: string
+  hostIn?: string[]
+  hostNotIn?: string[]
   cityIn?: string[]
   countryCodeIn?: string[]
   statusIn?: number[]
@@ -830,8 +843,10 @@ export function useAccessLogs(options: UseAccessLogsOptions = {}) {
     enabled = true,
     searchString,
     ipAddressIn,
+    ipAddressNotIn,
     methodIn,
-    host,
+    hostIn,
+    hostNotIn,
     cityIn,
     countryCodeIn,
     statusIn,
@@ -842,7 +857,7 @@ export function useAccessLogs(options: UseAccessLogsOptions = {}) {
 
   return useQuery<AccessLogsPage>({
     queryKey: queryKeys.accessLogs.list(
-      { range, customRange, currentPage, pageSize, searchString, ipAddressIn, methodIn, host, cityIn, countryCodeIn, statusIn, sortField, sortOrder },
+      { range, customRange, currentPage, pageSize, searchString, ipAddressIn, ipAddressNotIn, methodIn, hostIn, hostNotIn, cityIn, countryCodeIn, statusIn, sortField, sortOrder },
       lastRefresh,
     ),
     queryFn: () => {
@@ -854,8 +869,10 @@ export function useAccessLogs(options: UseAccessLogsOptions = {}) {
         pageSize,
         searchString,
         ipAddressIn,
+        ipAddressNotIn,
         methodIn,
-        host,
+        hostIn,
+        hostNotIn,
         cityIn,
         countryCodeIn,
         statusIn,
@@ -1143,5 +1160,41 @@ export function useGeoEventFacets({ enabled = true }: { enabled?: boolean } = {}
     queryFn: fetchGeoEventFacets,
     enabled,
     staleTime: 60 * 1000,
+  })
+}
+
+// ============================================================================
+// Logs
+// ============================================================================
+
+/**
+ * Initial page of recent structured log records for the Logs page.
+ * The live stream (logStream) takes over after this loads, so it never refetches.
+ */
+export function useLogTail(lines = 500, source: "app" | "login" = "app") {
+  return useQuery({
+    queryKey: queryKeys.logs.tail(lines, source),
+    queryFn: async () => {
+      const { data } = await apiV1LogsTailTail({
+        query: { lines, source },
+        throwOnError: true,
+      })
+      return data.records
+    },
+    staleTime: Number.POSITIVE_INFINITY, // stream takes over after initial load
+  })
+}
+
+/** Available log files (app/login/nginx) for the Logs page file picker. */
+export function useLogFiles() {
+  return useQuery({
+    queryKey: queryKeys.logs.files,
+    queryFn: async () => {
+      const { data } = await apiV1LogsFilesListFiles({
+        throwOnError: true,
+      })
+      return data.files
+    },
+    refetchInterval: 30_000,
   })
 }

@@ -1,7 +1,11 @@
 """Settings introspection: full overview, descriptions, type-enforced redaction."""
 from __future__ import annotations
 
-from geometrikks.config.introspection import SECRET_PLACEHOLDER, build_settings_overview
+from geometrikks.config.introspection import (
+    SECRET_PLACEHOLDER,
+    ComputedField,
+    build_settings_overview,
+)
 from geometrikks.config.settings import Settings
 
 
@@ -75,3 +79,38 @@ def test_app_section_excludes_sub_models():
     app_keys = {f.key for f in _section(overview, "app").fields}
     assert "database" not in app_keys
     assert "name" in app_keys
+
+
+def test_computed_overlay_attaches_to_existing_field():
+    overview = build_settings_overview(
+        Settings(),
+        computed={("map", "home_latitude"): ComputedField(59.9, "external_ip")},
+    )
+    lat = _field(_section(overview, "map"), "home_latitude")
+    assert lat.value is None  # literal config value is left untouched
+    assert lat.computed_value == 59.9
+    assert lat.computed_source == "external_ip"
+
+
+def test_computed_overlay_synthesizes_derived_row():
+    overview = build_settings_overview(
+        Settings(),
+        computed={
+            ("crowdsec", "enabled"): ComputedField(True, "runtime", "read access"),
+        },
+    )
+    row = _field(_section(overview, "crowdsec"), "enabled")
+    assert row.value is None
+    assert row.env_var is None
+    assert row.is_secret is False
+    assert row.default is None
+    assert row.computed_value is True
+    assert row.computed_source == "runtime"
+    assert row.description == "read access"
+
+
+def test_no_overlay_leaves_fields_uncomputed():
+    overview = build_settings_overview(Settings())
+    lat = _field(_section(overview, "map"), "home_latitude")
+    assert lat.computed_value is None
+    assert lat.computed_source is None

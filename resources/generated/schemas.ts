@@ -29,6 +29,10 @@ import type {
   ApiV1CrowdsecUnbanUnbanResponses,
   ApiV1GeoEventsFacetsGetGeoLogFacetsData,
   ApiV1GeoEventsFacetsGetGeoLogFacetsResponses,
+  ApiV1LogsFilesListFilesData,
+  ApiV1LogsFilesListFilesResponses,
+  ApiV1LogsRotateRotateData,
+  ApiV1LogsRotateRotateResponses,
   ApiV1SettingsReadSettingsData,
   ApiV1SettingsReadSettingsResponses,
   ApiV1StatsStatsData,
@@ -69,10 +73,12 @@ export type OperationName =
   | 'health'
   | 'health_ready'
   | 'list_banned_ips'
+  | 'list_files'
   | 'login'
   | 'logout'
   | 'me'
   | 'read_settings'
+  | 'rotate'
   | 'stats'
   | 'unban'
 
@@ -92,10 +98,12 @@ export interface OperationDataTypes {
   'health': HealthHealthData
   'health_ready': HealthReadyHealthReadyData
   'list_banned_ips': ApiV1CrowdsecBannedIpsListBannedIpsData
+  'list_files': ApiV1LogsFilesListFilesData
   'login': ApiV1AuthLoginLoginData
   'logout': ApiV1AuthLogoutLogoutData
   'me': ApiV1AuthMeMeData
   'read_settings': ApiV1SettingsReadSettingsData
+  'rotate': ApiV1LogsRotateRotateData
   'stats': ApiV1StatsStatsData
   'unban': ApiV1CrowdsecUnbanUnbanData
 }
@@ -116,10 +124,12 @@ export interface OperationResponseTypes {
   'health': HealthHealthResponses
   'health_ready': HealthReadyHealthReadyResponses
   'list_banned_ips': ApiV1CrowdsecBannedIpsListBannedIpsResponses
+  'list_files': ApiV1LogsFilesListFilesResponses
   'login': ApiV1AuthLoginLoginResponses
   'logout': ApiV1AuthLogoutLogoutResponses
   'me': ApiV1AuthMeMeResponses
   'read_settings': ApiV1SettingsReadSettingsResponses
+  'rotate': ApiV1LogsRotateRotateResponses
   'stats': ApiV1StatsStatsResponses
   'unban': ApiV1CrowdsecUnbanUnbanResponses
 }
@@ -140,10 +150,12 @@ export interface OperationErrorTypes {
   'health': never
   'health_ready': never
   'list_banned_ips': never
+  'list_files': never
   'login': ApiV1AuthLoginLoginErrors
   'logout': never
   'me': never
   'read_settings': never
+  'rotate': never
   'stats': never
   'unban': ApiV1CrowdsecUnbanUnbanErrors
 }

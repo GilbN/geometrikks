@@ -72,6 +72,7 @@ export type AccessLogDebugStats = {
 export type AccessLogFacets = {
   cities: Array<string>;
   countries: Array<CountryFacet>;
+  hosts: Array<string>;
 };
 
 /**
@@ -469,6 +470,40 @@ export type LocationTopIpsResponse = {
 };
 
 /**
+ * LogFileView
+ */
+export type LogFileView = {
+  available: boolean;
+  kind: "app" | "login" | "nginx";
+  modified_at: string | null;
+  name: string;
+  size_bytes: number;
+};
+
+/**
+ * LogFilesResponse
+ */
+export type LogFilesResponse = {
+  files: Array<LogFileView>;
+};
+
+/**
+ * LogRotateResponse
+ */
+export type LogRotateResponse = {
+  rotated: Array<string>;
+};
+
+/**
+ * LogTailResponse
+ */
+export type LogTailResponse = {
+  records: Array<{
+    [key: string]: unknown;
+  }>;
+};
+
+/**
  * LoginPayload
  */
 export type LoginPayload = {
@@ -616,9 +651,11 @@ export type SchedulerJobsResponse = {
  * SettingFieldView
  */
 export type SettingFieldView = {
+  computed_source?: string | null;
+  computed_value?: unknown;
   default: unknown;
   description: string | null;
-  env_var: string;
+  env_var: string | null;
   is_secret: boolean;
   key: string;
   value: unknown;
@@ -999,12 +1036,14 @@ export type ApiV1AccessLogsListAccessLogsData = {
     sortOrder?: "asc" | "desc" | null;
     from_timestamp?: string | null;
     to_timestamp?: string | null;
-    host?: string | null;
     methodIn?: Array<string> | null;
     ipAddressIn?: Array<string> | null;
     cityIn?: Array<string> | null;
     countryCodeIn?: Array<string> | null;
     statusIn?: Array<number> | null;
+    ipAddressNotIn?: Array<string> | null;
+    hostIn?: Array<string> | null;
+    hostNotIn?: Array<string> | null;
   };
   url: "/api/v1/access-logs";
 };
@@ -1244,6 +1283,10 @@ export type ApiV1AnalyticsTimeSeriesGetTimeSeriesData = {
      * Filter to these client IPs (repeatable)
      */
     ip_address?: Array<string> | null;
+    /**
+     * Exclude these client IPs (repeatable)
+     */
+    ip_address_not_in?: Array<string> | null;
   };
   url: "/api/v1/analytics/time-series";
 };
@@ -1351,6 +1394,10 @@ export type ApiV1AnalyticsTopCitiesGetTopCitiesData = {
      * Filter to these client IPs (repeatable)
      */
     ip_address?: Array<string> | null;
+    /**
+     * Exclude these client IPs (repeatable)
+     */
+    ip_address_not_in?: Array<string> | null;
   };
   url: "/api/v1/analytics/top-cities";
 };
@@ -1412,6 +1459,10 @@ export type ApiV1AnalyticsTopCountriesGetTopCountriesData = {
      * Filter to these client IPs (repeatable)
      */
     ip_address?: Array<string> | null;
+    /**
+     * Exclude these client IPs (repeatable)
+     */
+    ip_address_not_in?: Array<string> | null;
   };
   url: "/api/v1/analytics/top-countries";
 };
@@ -1473,6 +1524,10 @@ export type ApiV1AnalyticsTopIpsGetTopIpsData = {
      * Filter to these client IPs (repeatable)
      */
     ip_address?: Array<string> | null;
+    /**
+     * Exclude these client IPs (repeatable)
+     */
+    ip_address_not_in?: Array<string> | null;
   };
   url: "/api/v1/analytics/top-ips";
 };
@@ -1534,6 +1589,10 @@ export type ApiV1AnalyticsTopUrlsGetTopUrlsData = {
      * Filter to these client IPs (repeatable)
      */
     ip_address?: Array<string> | null;
+    /**
+     * Exclude these client IPs (repeatable)
+     */
+    ip_address_not_in?: Array<string> | null;
   };
   url: "/api/v1/analytics/top-urls";
 };
@@ -1595,6 +1654,10 @@ export type ApiV1AnalyticsTopUserAgentsGetTopUserAgentsData = {
      * Filter to these client IPs (repeatable)
      */
     ip_address?: Array<string> | null;
+    /**
+     * Exclude these client IPs (repeatable)
+     */
+    ip_address_not_in?: Array<string> | null;
   };
   url: "/api/v1/analytics/top-user-agents";
 };
@@ -2688,6 +2751,118 @@ export type ApiV1GeoLocationsLocationIdTopIpsGetLocationTopIpsResponses = {
 
 export type ApiV1GeoLocationsLocationIdTopIpsGetLocationTopIpsResponse =
   ApiV1GeoLocationsLocationIdTopIpsGetLocationTopIpsResponses[keyof ApiV1GeoLocationsLocationIdTopIpsGetLocationTopIpsResponses];
+
+export type ApiV1LogsFilesListFilesData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: "/api/v1/logs/files";
+};
+
+export type ApiV1LogsFilesListFilesResponses = {
+  /**
+   * Request fulfilled, document follows
+   */
+  200: LogFilesResponse;
+};
+
+export type ApiV1LogsFilesListFilesResponse =
+  ApiV1LogsFilesListFilesResponses[keyof ApiV1LogsFilesListFilesResponses];
+
+export type ApiV1LogsFilesKindNameDownloadData = {
+  body?: never;
+  path: {
+    kind: string;
+    name: string;
+  };
+  query?: never;
+  url: "/api/v1/logs/files/{kind}/{name}";
+};
+
+export type ApiV1LogsFilesKindNameDownloadErrors = {
+  /**
+   * Validation Exception
+   */
+  400: {
+    detail: string;
+    extra?:
+      | null
+      | {
+          [key: string]: unknown;
+        }
+      | Array<unknown>;
+    status_code: number;
+  };
+};
+
+export type ApiV1LogsFilesKindNameDownloadError =
+  ApiV1LogsFilesKindNameDownloadErrors[keyof ApiV1LogsFilesKindNameDownloadErrors];
+
+export type ApiV1LogsFilesKindNameDownloadResponses = {
+  /**
+   * File Download
+   */
+  200: string;
+};
+
+export type ApiV1LogsFilesKindNameDownloadResponse =
+  ApiV1LogsFilesKindNameDownloadResponses[keyof ApiV1LogsFilesKindNameDownloadResponses];
+
+export type ApiV1LogsRotateRotateData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: "/api/v1/logs/rotate";
+};
+
+export type ApiV1LogsRotateRotateResponses = {
+  /**
+   * Document created, URL follows
+   */
+  201: LogRotateResponse;
+};
+
+export type ApiV1LogsRotateRotateResponse =
+  ApiV1LogsRotateRotateResponses[keyof ApiV1LogsRotateRotateResponses];
+
+export type ApiV1LogsTailTailData = {
+  body?: never;
+  path?: never;
+  query?: {
+    lines?: number;
+    source?: "app" | "login";
+  };
+  url: "/api/v1/logs/tail";
+};
+
+export type ApiV1LogsTailTailErrors = {
+  /**
+   * Validation Exception
+   */
+  400: {
+    detail: string;
+    extra?:
+      | null
+      | {
+          [key: string]: unknown;
+        }
+      | Array<unknown>;
+    status_code: number;
+  };
+};
+
+export type ApiV1LogsTailTailError =
+  ApiV1LogsTailTailErrors[keyof ApiV1LogsTailTailErrors];
+
+export type ApiV1LogsTailTailResponses = {
+  /**
+   * Request fulfilled, document follows
+   */
+  200: LogTailResponse;
+};
+
+export type ApiV1LogsTailTailResponse =
+  ApiV1LogsTailTailResponses[keyof ApiV1LogsTailTailResponses];
 
 export type ApiV1SettingsReadSettingsData = {
   body?: never;

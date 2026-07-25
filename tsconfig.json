@@ -29,6 +29,6 @@
       "@/*": ["./resources/*"]
     }
   },
-  "include": ["resources/**/*", "vite.config.ts"],
+  "include": ["resources/**/*", "vite.config.ts", "vitest.config.ts"],
   "exclude": ["resources/generated/**"]
 }

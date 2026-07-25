@@ -277,11 +277,18 @@
               "$ref": "#/components/schemas/CountryFacet"
             },
             "type": "array"
+          },
+          "hosts": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
           }
         },
         "required": [
           "cities",
-          "countries"
+          "countries",
+          "hosts"
         ],
         "title": "AccessLogFacets",
         "type": "object"
@@ -1753,6 +1760,93 @@
         "title": "LocationTopIPsResponse",
         "type": "object"
       },
+      "LogFileView": {
+        "properties": {
+          "available": {
+            "type": "boolean"
+          },
+          "kind": {
+            "enum": [
+              "app",
+              "login",
+              "nginx"
+            ],
+            "type": "string"
+          },
+          "modified_at": {
+            "oneOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "size_bytes": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "available",
+          "kind",
+          "modified_at",
+          "name",
+          "size_bytes"
+        ],
+        "title": "LogFileView",
+        "type": "object"
+      },
+      "LogFilesResponse": {
+        "properties": {
+          "files": {
+            "items": {
+              "$ref": "#/components/schemas/LogFileView"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "files"
+        ],
+        "title": "LogFilesResponse",
+        "type": "object"
+      },
+      "LogRotateResponse": {
+        "properties": {
+          "rotated": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "rotated"
+        ],
+        "title": "LogRotateResponse",
+        "type": "object"
+      },
+      "LogTailResponse": {
+        "properties": {
+          "records": {
+            "items": {
+              "additionalProperties": {},
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "records"
+        ],
+        "title": "LogTailResponse",
+        "type": "object"
+      },
       "LoginPayload": {
         "properties": {
           "password": {
@@ -2236,6 +2330,17 @@
       },
       "SettingFieldView": {
         "properties": {
+          "computed_source": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "computed_value": {},
           "default": {},
           "description": {
             "oneOf": [
@@ -2248,7 +2353,14 @@
             ]
           },
           "env_var": {
-            "type": "string"
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "is_secret": {
             "type": "boolean"
@@ -3518,24 +3630,6 @@
             "allowReserved": false,
             "deprecated": false,
             "in": "query",
-            "name": "host",
-            "required": false,
-            "schema": {
-              "oneOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            }
-          },
-          {
-            "allowEmptyValue": false,
-            "allowReserved": false,
-            "deprecated": false,
-            "in": "query",
             "name": "methodIn",
             "required": false,
             "schema": {
@@ -3627,6 +3721,69 @@
                 {
                   "items": {
                     "type": "integer"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "ipAddressNotIn",
+            "required": false,
+            "schema": {
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "hostIn",
+            "required": false,
+            "schema": {
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "hostNotIn",
+            "required": false,
+            "schema": {
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "string"
                   },
                   "type": "array"
                 },
@@ -4249,6 +4406,29 @@
                 }
               ]
             }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Exclude these client IPs (repeatable)",
+            "in": "query",
+            "name": "ip_address_not_in",
+            "required": false,
+            "schema": {
+              "description": "Exclude these client IPs (repeatable)",
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
           }
         ],
         "responses": {
@@ -4534,6 +4714,29 @@
                 }
               ]
             }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Exclude these client IPs (repeatable)",
+            "in": "query",
+            "name": "ip_address_not_in",
+            "required": false,
+            "schema": {
+              "description": "Exclude these client IPs (repeatable)",
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
           }
         ],
         "responses": {
@@ -4711,6 +4914,29 @@
                 }
               ]
             }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Exclude these client IPs (repeatable)",
+            "in": "query",
+            "name": "ip_address_not_in",
+            "required": false,
+            "schema": {
+              "description": "Exclude these client IPs (repeatable)",
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
           }
         ],
         "responses": {
@@ -4876,6 +5102,29 @@
             "required": false,
             "schema": {
               "description": "Filter to these client IPs (repeatable)",
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Exclude these client IPs (repeatable)",
+            "in": "query",
+            "name": "ip_address_not_in",
+            "required": false,
+            "schema": {
+              "description": "Exclude these client IPs (repeatable)",
               "oneOf": [
                 {
                   "items": {
@@ -5081,6 +5330,29 @@
                 }
               ]
             }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Exclude these client IPs (repeatable)",
+            "in": "query",
+            "name": "ip_address_not_in",
+            "required": false,
+            "schema": {
+              "description": "Exclude these client IPs (repeatable)",
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
           }
         ],
         "responses": {
@@ -5262,6 +5534,29 @@
             "required": false,
             "schema": {
               "description": "Filter to these client IPs (repeatable)",
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Exclude these client IPs (repeatable)",
+            "in": "query",
+            "name": "ip_address_not_in",
+            "required": false,
+            "schema": {
+              "description": "Exclude these client IPs (repeatable)",
               "oneOf": [
                 {
                   "items": {
@@ -8508,6 +8803,251 @@
         "summary": "GetLocationTopIps",
         "tags": [
           "Geo Locations"
+        ]
+      }
+    },
+    "/api/v1/logs/files": {
+      "get": {
+        "deprecated": false,
+        "operationId": "ApiV1LogsFilesListFiles",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LogFilesResponse"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          }
+        },
+        "summary": "ListFiles",
+        "tags": [
+          "Logs"
+        ]
+      }
+    },
+    "/api/v1/logs/files/{kind}/{name}": {
+      "get": {
+        "deprecated": false,
+        "operationId": "ApiV1LogsFilesKindNameDownload",
+        "parameters": [
+          {
+            "deprecated": false,
+            "in": "path",
+            "name": "kind",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "deprecated": false,
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "": {
+                "schema": {
+                  "contentMediaType": "application/octet-stream",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "File Download",
+            "headers": {
+              "content-length": {
+                "deprecated": false,
+                "description": "File size in bytes",
+                "required": false,
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "etag": {
+                "deprecated": false,
+                "description": "Entity tag",
+                "required": false,
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "last-modified": {
+                "deprecated": false,
+                "description": "Last modified data-time in RFC 2822 format",
+                "required": false,
+                "schema": {
+                  "format": "date-time",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "Download",
+        "tags": [
+          "Logs"
+        ]
+      }
+    },
+    "/api/v1/logs/rotate": {
+      "post": {
+        "deprecated": false,
+        "operationId": "ApiV1LogsRotateRotate",
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LogRotateResponse"
+                }
+              }
+            },
+            "description": "Document created, URL follows",
+            "headers": {}
+          }
+        },
+        "summary": "Rotate",
+        "tags": [
+          "Logs"
+        ]
+      }
+    },
+    "/api/v1/logs/tail": {
+      "get": {
+        "deprecated": false,
+        "operationId": "ApiV1LogsTailTail",
+        "parameters": [
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "lines",
+            "required": false,
+            "schema": {
+              "default": 500,
+              "type": "integer"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "source",
+            "required": false,
+            "schema": {
+              "default": "app",
+              "enum": [
+                "app",
+                "login"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LogTailResponse"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "Tail",
+        "tags": [
+          "Logs"
         ]
       }
     },

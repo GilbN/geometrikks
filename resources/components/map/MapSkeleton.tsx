@@ -16,11 +16,6 @@ export function MapSkeleton() {
         <Skeleton className="h-10 w-10 rounded-lg" />
       </div>
 
-      {/* Legend placeholder */}
-      <div className="absolute bottom-6 left-4 z-10">
-        <Skeleton className="h-32 w-48 rounded-lg" />
-      </div>
-
       {/* Loading indicator */}
       <div className="absolute inset-0 flex items-center justify-center">
         <div className="flex flex-col items-center gap-3 p-6 rounded-lg bg-background/80 backdrop-blur-sm">

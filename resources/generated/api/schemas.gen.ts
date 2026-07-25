@@ -265,8 +265,14 @@ export const AccessLogFacetsSchema = {
       },
       type: "array",
     },
+    hosts: {
+      items: {
+        type: "string",
+      },
+      type: "array",
+    },
   },
-  required: ["cities", "countries"],
+  required: ["cities", "countries", "hosts"],
   title: "AccessLogFacets",
   type: "object",
 } as const;
@@ -1676,6 +1682,81 @@ export const LocationTopIPsResponseSchema = {
   type: "object",
 } as const;
 
+export const LogFileViewSchema = {
+  properties: {
+    available: {
+      type: "boolean",
+    },
+    kind: {
+      enum: ["app", "login", "nginx"],
+      type: "string",
+    },
+    modified_at: {
+      oneOf: [
+        {
+          format: "date-time",
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    name: {
+      type: "string",
+    },
+    size_bytes: {
+      type: "integer",
+    },
+  },
+  required: ["available", "kind", "modified_at", "name", "size_bytes"],
+  title: "LogFileView",
+  type: "object",
+} as const;
+
+export const LogFilesResponseSchema = {
+  properties: {
+    files: {
+      items: {
+        $ref: "#/components/schemas/LogFileView",
+      },
+      type: "array",
+    },
+  },
+  required: ["files"],
+  title: "LogFilesResponse",
+  type: "object",
+} as const;
+
+export const LogRotateResponseSchema = {
+  properties: {
+    rotated: {
+      items: {
+        type: "string",
+      },
+      type: "array",
+    },
+  },
+  required: ["rotated"],
+  title: "LogRotateResponse",
+  type: "object",
+} as const;
+
+export const LogTailResponseSchema = {
+  properties: {
+    records: {
+      items: {
+        additionalProperties: {},
+        type: "object",
+      },
+      type: "array",
+    },
+  },
+  required: ["records"],
+  title: "LogTailResponse",
+  type: "object",
+} as const;
+
 export const LoginPayloadSchema = {
   properties: {
     password: {
@@ -2125,6 +2206,17 @@ export const SchedulerJobsResponseSchema = {
 
 export const SettingFieldViewSchema = {
   properties: {
+    computed_source: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    computed_value: {},
     default: {},
     description: {
       oneOf: [
@@ -2137,7 +2229,14 @@ export const SettingFieldViewSchema = {
       ],
     },
     env_var: {
-      type: "string",
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
     },
     is_secret: {
       type: "boolean",

@@ -1,5 +1,6 @@
 import json
 import socket
+import warnings
 from functools import lru_cache
 from importlib.metadata import PackageNotFoundError, version as distribution_version
 from ipaddress import ip_network
@@ -154,9 +155,35 @@ class APISettings(BaseSettings):
 
     host: str = Field(default="0.0.0.0", description="API server host")
     port: int = Field(default=8000, description="API server port")
-    log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = Field(
-        default="INFO",
-        description="Logging level",
+    log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] | None = Field(
+        default=None,
+        description="DEPRECATED: use LOG_LEVEL. Kept as a fallback for existing deployments.",
+    )
+
+
+class LogSettings(BaseSettings):
+    """Application logging configuration (files, rotation, level)."""
+
+    model_config = SettingsConfigDict(env_prefix="LOG_", env_file=".env", extra="ignore")
+
+    dir: Path = Field(default=Path("logs"), description="Directory for application log files")
+    level: Literal["DEBUG", "INFO", "SUCCESS", "WARNING", "ERROR", "CRITICAL"] | None = Field(
+        default=None,
+        description="Root log level. Falls back to deprecated API_LOG_LEVEL, then INFO.",
+    )
+    main_max_bytes: int = Field(
+        default=10 * 1024 * 1024,
+        description="Rotate the main JSONL log when it exceeds this size (bytes)",
+    )
+    main_backup_count: int = Field(
+        default=5, description="Number of gzipped main-log archives to keep"
+    )
+    login_max_bytes: int = Field(
+        default=10 * 1024 * 1024,
+        description="Rotate the login log when it exceeds this size (bytes)",
+    )
+    login_backup_count: int = Field(
+        default=5, description="Number of gzipped login-log archives to keep"
     )
 
 
@@ -198,6 +225,15 @@ class LogParserSettings(BaseSettings):
         default=False,
         description="Store all raw log lines in AccessLogDebug table. When False, only malformed requests are stored.",
     )
+    ignore_ips: Annotated[list[str], NoDecode] = Field(
+        default_factory=list,
+        description=(
+            "IPs/CIDRs the parser drops entirely (no geo event, access log, "
+            "or debug row). Use for your own traffic hitting the reverse "
+            "proxy. Env accepts one value, comma-separated values, or a "
+            "JSON list. Empty (default): nothing is ignored."
+        ),
+    )
 
     @field_validator("log_paths", mode="before")
     @classmethod
@@ -210,6 +246,32 @@ class LogParserSettings(BaseSettings):
             if stripped.startswith("["):
                 return json.loads(stripped)
             return [stripped]
+        return value
+
+    @field_validator("ignore_ips", mode="before")
+    @classmethod
+    def parse_ignore_ips(cls, value: object) -> object:
+        """Accept one value, comma-separated values, or a JSON list."""
+        if isinstance(value, str):
+            stripped = value.strip()
+            if not stripped:
+                return []
+            if stripped.startswith("["):
+                return json.loads(stripped)
+            return [part.strip() for part in stripped.split(",") if part.strip()]
+        return value
+
+    @field_validator("ignore_ips")
+    @classmethod
+    def validate_ignore_ips(cls, value: list[str]) -> list[str]:
+        """Fail at startup on entries that are not an IP or CIDR."""
+        for entry in value:
+            try:
+                ip_network(entry, strict=False)
+            except ValueError as exc:
+                raise ValueError(
+                    f"LOGPARSER_IGNORE_IPS entry {entry!r} is not an IP address or CIDR"
+                ) from exc
         return value
 
 
@@ -524,10 +586,27 @@ class Settings(BaseSettings):
                 ) from exc
         return value
 
+    @model_validator(mode="after")
+    def _resolve_log_level(self) -> "Settings":
+        """LOG_LEVEL wins; deprecated API_LOG_LEVEL is honored with a warning."""
+        if self.log.level is None:
+            if self.api.log_level is not None:
+                warnings.warn(
+                    "API_LOG_LEVEL is deprecated and will be removed in a future "
+                    "release; set LOG_LEVEL instead.",
+                    DeprecationWarning,
+                    stacklevel=2,
+                )
+                self.log.level = self.api.log_level
+            else:
+                self.log.level = "INFO"
+        return self
+
     # Sub-configurations
     api: APISettings = Field(default_factory=APISettings)
     database: DatabaseSettings = Field(default_factory=DatabaseSettings)
     geoip: GeoIPSettings = Field(default_factory=GeoIPSettings)
+    log: LogSettings = Field(default_factory=LogSettings)
     logparser: LogParserSettings = Field(default_factory=LogParserSettings)
     analytics: AnalyticsSettings = Field(default_factory=AnalyticsSettings)
     scheduler: SchedulerSettings = Field(default_factory=SchedulerSettings)

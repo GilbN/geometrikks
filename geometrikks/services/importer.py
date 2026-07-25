@@ -18,7 +18,6 @@ from __future__ import annotations
 
 import gzip
 import hashlib
-import logging
 import time
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass
@@ -28,6 +27,7 @@ from typing import TYPE_CHECKING
 
 from geometrikks.domain.imports.models import ImportJob
 from geometrikks.domain.imports.repositories import ImportJobRepository
+from geometrikks.server.logging import get_logger
 from geometrikks.services.logparser.logparser import make_cached_city_lookup
 from geometrikks.services.logparser.schemas import ParsedLogRecord
 
@@ -38,7 +38,7 @@ if TYPE_CHECKING:
     from geometrikks.services.ingestion.service import LogIngestionService
     from geometrikks.services.logparser.logparser import LogParser
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 PROGRESS_EVERY_LINES = 10_000
 FORMAT_CHECK_LINES = 1_000
@@ -142,6 +142,9 @@ async def import_file(
     for line in iter_lines(path):
         lines_total += 1
         record = parser.parse_line(line, lookup)
+        if record is None:  # IP on the ignore list; drop the line entirely
+            lines_skipped += 1
+            continue
         batch.append(record)
 
         if record.ip_address is None:  # line didn't match the format
@@ -191,6 +194,12 @@ async def import_file(
                 auto_commit=True,
             )
 
+    logger.success(  # ty: ignore[unresolved-attribute]
+        "import_completed",
+        file=str(path),
+        lines=lines_total,
+        records=records_written,
+    )
     return ImportResult(
         file_path=path, skipped=False, lines_total=lines_total,
         lines_skipped=lines_skipped, records_written=records_written,

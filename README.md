@@ -406,15 +406,16 @@ history - rotated or archived nginx logs, plain or gzip-compressed - use the
 `litestar import-logs` CLI command:
 
 ```bash
-docker compose exec app litestar import-logs /var/log/nginx/access.log.1.gz
+docker compose exec -u geometrikks app litestar import-logs /var/log/nginx/access.log.1.gz
 ```
 
 It reuses the live ingestion pipeline (same parsing, GeoIP lookup, and DB
 writes), uses the timestamps in each log line rather than wall-clock time,
 and refreshes the continuous aggregates for the imported range when done.
 Multiple files can be passed in one invocation; paths are **container**
-paths, and the container runs as the non-root `geometrikks` user (uid 1000),
-so host files must be readable by it.
+paths, and the import runs as the non-root `geometrikks` user
+(`PUID`:`PGID`, default 1000:1000), so host files must be readable by it
+(`-u geometrikks` keeps `exec` from running the import as root).
 
 `exec` requires the `app` service to already be running. If the stack is
 stopped, use `run --rm` instead:
@@ -445,6 +446,48 @@ credentials, MaxMind key, log paths, DB password). For the full set of
 environment variables - every default, every setting - see
 [`docs/configuration.md`](docs/configuration.md).
 
+### PUID and PGID
+
+The container starts as root just long enough to re-map its internal user to
+`PUID`:`PGID` (default `1000:1000`), fix ownership of `/app/logs` and the
+GeoIP volume, and then drops privileges - the app process itself never runs
+as root. Set `PUID`/`PGID` in `.env` to the user that should own `./logs` on
+the host (usually your own: `id -u` / `id -g`).
+
+Running in an environment that forbids root entirely (rootless Docker,
+hardened setups)? Set a `user:` on the `app` service in the compose file;
+the entrypoint detects it, skips the re-mapping, and just runs the app as
+that user. You are then back to managing `./logs` ownership yourself.
+
+Want to harden further? The entrypoint only needs the capabilities the
+remap itself uses, and `gosu` is not a setuid binary, so both of these are
+verified working combinations. With PUID/PGID re-mapping:
+
+```yaml
+  app:
+    # ...
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETUID
+      - SETGID
+```
+
+Or with a `user:` override, where the image needs no capabilities at all:
+
+```yaml
+  app:
+    # ...
+    user: "1000:1000"
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+```
+
 ## FAQ
 
 **I'm using Nginx Proxy Manager (or another proxy-manager container) - what
@@ -456,10 +499,10 @@ inside it, using the *container* path (`/var/log/nginx/...`), not the host
 path.
 
 **Permission denied reading my log files?**
-The app container runs as uid 1000, and log mounts are read-only. Make sure
-the log files (and their parent directory) are readable by uid 1000/its
-group on the host - `chmod`/`chown` or an ACL entry, whichever fits your
-setup. Read-only mounts are intentional: GeoMetrikks never needs to write to
+The app container runs as `PUID`:`PGID` (default 1000:1000), and log mounts
+are read-only. Make sure the log files (and their parent directory) are
+readable by that uid/gid on the host - `chmod`/`chown` or an ACL entry,
+whichever fits your setup. Read-only mounts are intentional: GeoMetrikks never needs to write to
 your nginx logs.
 
 **Does this run on arm64?**

@@ -25,6 +25,8 @@ class AccessLogFacets:
     """Sorted by name."""
     cities: list[str]
     """Sorted alphabetically."""
+    hosts: list[str]
+    """Distinct HTTP Host values, sorted alphabetically. NULLs excluded."""
 
 
 class AccessLogDebugEntry(msgspec.Struct, rename="camel"):

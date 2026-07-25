@@ -7,6 +7,134 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-07-25
+
+### Added
+
+- Access Logs: include/exclude filters for client IP and for HTTP host. Host
+  is now picked from the hosts present in your data rather than typed as a
+  substring, and both filters accept several values at once.
+- Access Logs and Analytics filters live in the URL, so a filtered view is a
+  shareable link. Access Logs also carries its page, page size and sort
+  order, matching the Geo Logs page.
+- Analytics page: an exclude-IP filter. Every chart and top-list on the page
+  can now drop specific client IPs, which is the quick way to take your own
+  traffic out of the picture without changing ingestion settings.
+- The docker image now supports `PUID`/`PGID`: the
+  entrypoint re-maps the container user, fixes ownership of `/app/logs` and
+  the GeoIP volume at startup, then drops privileges with gosu - no more
+  `mkdir`/`chown` pre-step before `docker compose up -d`. Containers started
+  with a `user:` override keep today's fully non-root behavior.
+- New `LOG_*` settings: `LOG_LEVEL`, `LOG_DIR`, and size/backup-count
+  limits for the main and login log files.
+- Logs API: `GET /api/v1/logs/tail`, `GET /api/v1/logs/files`, per-file
+  download at `GET /api/v1/logs/files/{kind}/{name}`, and
+  `POST /api/v1/logs/rotate` for on-demand rotation. `/ws/logs` streams
+  structured log events live, with an optional `?level=` minimum-level
+  filter.
+- Logs page at Settings -> Logs: live log stream with level/component
+  filters, search, pause, and traceback/detail dialogs. Tabs switch between
+  the system log, the login log, and a Downloads tab listing the raw files
+  (app log, login log, gzip archives, ingested nginx access logs) with a
+  "Rotate logs" button.
+- `GET /api/v1/system/settings` and the Settings -> Environment overview now
+  surface runtime-resolved values raw config can't show: the auto-detected
+  map home coordinates (badged "auto-detected"), and GeoIP database
+  availability plus CrowdSec's effective `enabled`/`write_enabled` status
+  (both badged "runtime").
+- `LOGPARSER_IGNORE_IPS` setting: IPs/CIDRs the parser drops entirely so
+  your own traffic through the reverse proxy is never ingested (applies to
+  live tailing and file imports).
+- Map controls: a "Go to home location" button next to "Fit to data bounds"
+  that flies the map to the configured/auto-detected home coordinates. Shown
+  only when a home location is resolved.
+- Home location marker: a home-icon pin on the map at the
+  configured/auto-detected home coordinates; clicking it zooms to the home
+  location. Toggled via "Home marker" in the map controls (on by default,
+  preference stored in the browser).
+- Live map packets are now colored by response status (green/blue/amber/red)
+  and sized by response bytes, with a dashed red ring cage over packets from
+  banned IPs.
+- Live rail: a glass column over the map's left edge holding the whole live
+  picture while live mode is on. Requests per minute with a sparkline and a
+  trend against the first half of the window, a response-mix bar, the busiest
+  origin countries in that window, and the request feed itself split into an
+  "All" and a "Threats" lane. The threat lane holds requests the server
+  refused (401, 403, 429, 444) and everything from a banned IP; a 404 is
+  ordinary traffic and stays out of it. A footer counts distinct banned IPs
+  seen. The
+  rail can be switched off from the "Live overlays" card in the map controls,
+  and the choice is remembered in the browser.
+- Live mode on a phone shows a vitals pill with the current rate, a sparkline,
+  and a red threat count when anything is attacking. Tapping it opens a sheet
+  carrying the same summary and feed as the desktop rail, and tapping a row
+  flies the map to that request's origin.
+- Clicking a live packet or a row in the rail or sheet flies the map to that
+  request's origin and opens its full access-log line, with ban/unban
+  controls.
+
+### Changed
+
+- Map surfaces (controls panel, zoom buttons, and location popups) now share
+  the live overlays' translucent glass styling, so the map stays visible
+  through every panel.
+- Scrollbars throughout the app are slim, rounded, and tinted to the theme
+  instead of the browser's default grey channel, in every scrolling panel and
+  on the page itself.
+
+- Logging is now structured (structlog): colored console output, a JSONL
+  main log (`logs/geometrikks.log`), and a plain-text login log
+  (`logs/login.log`) in a CrowdSec/fail2ban-friendly format. Both rotate by
+  size and gzip their archives.
+- Logins, failed logins, and logouts now emit `login_success`,
+  `login_failed`, and `logout` events to `logs/login.log`.
+- Scheduler job outcomes are logged centrally: `scheduler_job_completed`
+  (SUCCESS), `scheduler_job_failed` (ERROR), and `scheduler_job_missed`
+  (WARNING), with `job_id` and duration.
+- All app modules log through the structlog pipeline, and subsystems emit
+  lifecycle and state-change events (WS connects, scheduler outcomes,
+  CrowdSec stream state, GeoIP refreshes, imports); completed jobs use a
+  new SUCCESS level.
+- Swapped the `picologging` litestar extra for `structlog`.
+- `docker-compose.yml` mounts `./logs:/app/logs` so logs persist across
+  container recreation and `login.log` is readable by host tools. If the
+  directory is not writable, the app falls back to console-only logging
+  with a startup error instead of crashing.
+
+### Deprecated
+
+- `API_LOG_LEVEL` in favor of `LOG_LEVEL`; still honored as a fallback,
+  with a `DeprecationWarning`.
+
+### Removed
+
+- The `host` substring query parameter on `GET /api/v1/access-logs/`. Replaced
+  by exact-match `hostIn` and `hostNotIn`, which the new Host filter dropdown
+  uses. Breaking for anyone calling that endpoint directly.
+- The map legend: the color-graded event count/density scale duplicated what
+  the marker and heatmap colors already say at a glance, so the card is gone
+  and the bottom-left corner stays clear for the map.
+
+### Fixed
+
+- Map zoom/compass buttons were unclickable when the map-controls panel was
+  tall enough to reach down beside them.
+- The location popup's close button sat on top of the place name instead of
+  beside it, because the card it anchors to was never positioned. The live
+  request popup's close button covered its timestamp the same way.
+- The live surfaces no longer read as disconnected during demo traffic, which
+  never opens the websocket.
+- A live request with no GeoIP match (LAN traffic, private or unresolvable
+  IPs) now opens a small dismissible detail card when tapped from the rail
+  or the phone sheet, instead of doing nothing.
+- Switching Live mode off now closes an open live-request popup and the
+  phone feed sheet along with the rest of the overlay state, clicking the
+  heatmap layer dismisses an open live popup, and zooming into a cluster no
+  longer leaves one stuck open.
+- Geo Logs: the IP include/exclude inputs now reject invalid text instead of
+  accepting it as a filter chip, which used to reach the API and come back
+  as a 400.
+
 ## [0.4.3] - 2026-07-22
 
 ### Fixed

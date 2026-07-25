@@ -1,6 +1,5 @@
 import os
 import time
-import logging
 import asyncio
 from functools import wraps
 from pathlib import Path
@@ -13,7 +12,9 @@ import aiofiles
 import maxminddb
 from datetime import datetime, timezone
 
-logger = logging.getLogger(__name__)
+from geometrikks.server.logging import get_logger
+
+logger = get_logger(__name__)
 
 P = ParamSpec("P")
 

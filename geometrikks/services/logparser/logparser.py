@@ -1,10 +1,10 @@
 from collections.abc import AsyncGenerator, Callable
 import re
 import os
-import logging
 import asyncio
 from functools import lru_cache
 from datetime import datetime, timezone
+from ipaddress import ip_address as parse_ip_address, ip_network
 from pathlib import Path
 from typing import Any
 
@@ -24,9 +24,10 @@ from .constants import (
 )
 from .schemas import ParsedLogRecord, ParsedGeoData, ParsedAccessLog
 from geometrikks.lib.utils import wait
+from geometrikks.server.logging import get_logger
 
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 def get_ip_type(ip: str) -> str:
@@ -69,6 +70,27 @@ def make_cached_city_lookup(reader: Reader, maxsize: int = 1024) -> Callable[[st
     return lookup
 
 
+def make_cached_ignore_check(ignore_ips: list[str]) -> Callable[[str], bool]:
+    """Build a cached membership check for the ignore list, keyed on IP only.
+
+    Networks are parsed once and captured in a closure; invalid client IPs
+    return False (they fail later checks anyway).
+    """
+    networks = [ip_network(entry, strict=False) for entry in ignore_ips]
+
+    @lru_cache(maxsize=1024)
+    def is_ignored(ip: str) -> bool:
+        if not networks:
+            return False
+        try:
+            addr = parse_ip_address(ip)
+        except ValueError:
+            return False
+        return any(addr in network for network in networks)
+
+    return is_ignored
+
+
 def _convert_to_none(value: str | None) -> str | None:
     """Convert '-' or missing values to None for optional fields."""
     if value is None:
@@ -94,6 +116,7 @@ class LogParser:
         send_logs: bool = False,
         poll_interval: float = 1.0,
         hostname: str = "localhost",
+        ignore_ips: list[str] | None = None,
     ) -> None:
         """I'm here to parse ass and kick logs, and I'm all out of logs...
 
@@ -102,15 +125,19 @@ class LogParser:
             send_logs (bool, optional): If True, parse full access log data. Defaults to False.
             poll_interval (float, optional): How often to check for new log lines. Defaults to 1.0.
             hostname (str, optional): Hostname to tag geo events with. Defaults to "localhost".
+            ignore_ips (list[str] | None, optional): IPs/CIDRs whose lines are dropped entirely. Defaults to None.
         """
         self.log_path: Path = log_path
         self.send_logs: bool = send_logs
         self.poll_interval: int | float = poll_interval
         self.hostname: str = hostname
-        
+        self.ignore_ips: list[str] = ignore_ips or []
+        self._is_ignored: Callable[[str], bool] = make_cached_ignore_check(self.ignore_ips)
+
         # Statistics
         self.parsed_lines: int = 0
         self.skipped_lines: int = 0
+        self.ignored_lines: int = 0
 
         # Stop event for graceful shutdown (set by ingestion service)
         self._stop_event: asyncio.Event | None = None
@@ -118,6 +145,8 @@ class LogParser:
         logger.debug("Log file path: %s", self.log_path)
         logger.debug("Send NGINX logs: %s", self.send_logs)
         logger.debug("Hostname: %s", self.hostname)
+        if self.ignore_ips:
+            logger.info("Ignoring traffic from: %s", ", ".join(self.ignore_ips))
 
     def set_stop_event(self, event: asyncio.Event) -> None:
         """Set the stop event for graceful shutdown."""
@@ -130,6 +159,10 @@ class LogParser:
     def skipped_lines_count(self) -> int:
         """Return the number of skipped lines."""
         return self.skipped_lines
+
+    def ignored_lines_count(self) -> int:
+        """Return the number of ignored (ignore-list) lines."""
+        return self.ignored_lines
 
     def validate_log_line(self, log_line: str) -> re.Match[str] | None:
         """Validate the log line against the IPv4 and IPv6 patterns."""
@@ -165,7 +198,7 @@ class LogParser:
 
     def parse_line(
         self, line: str, lookup: Callable[[str], City | None]
-    ) -> ParsedLogRecord:
+    ) -> ParsedLogRecord | None:
         """Parse one raw log line into a ParsedLogRecord (shared by tail + import).
 
         Pure, synchronous method that validates the line, performs GeoIP lookup,
@@ -178,6 +211,8 @@ class LogParser:
         Returns:
             ParsedLogRecord with parsed data. A record with ip_address=None indicates
             the line didn't match the expected format (counted in skipped_lines).
+            None when the client IP is on the ignore list; the line is dropped
+            and counted in ignored_lines.
         """
         matched = self.validate_log_line(line)
         raw_line = line.strip()
@@ -196,6 +231,12 @@ class LogParser:
             )
 
         ip = matched.group(1)
+
+        if self._is_ignored(ip):
+            logger.debug("Ignoring line from ignored IP %s", ip)
+            self.ignored_lines += 1
+            return None
+
         self.parsed_lines += 1
 
         geo_data: ParsedGeoData | None = self._parse_geo_data(ip, matched, lookup)
@@ -485,7 +526,8 @@ class LogParser:
 
         Yields:
             ParsedLogRecord for each log line (matched or unmatched).
-            None when no new line is available (timeout/idle).
+            None when no new line is available (timeout/idle) or the line's
+            IP is on the ignore list.
         """
         if not skip_validation:
             logger.debug("Validating log file format.")

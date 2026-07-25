@@ -12,18 +12,18 @@ This service handles tasks that require application logic:
 
 from __future__ import annotations
 
-import logging
 from datetime import date
 from typing import TYPE_CHECKING, Any, cast
 
 from sqlalchemy import CursorResult, text
 
+from geometrikks.server.logging import get_logger
 from geometrikks.server.timescale import ALL_CAGGS
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class AggregationService:

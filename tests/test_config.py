@@ -84,10 +84,11 @@ def test_geoip_missing_file_allowed_by_default():
 def test_api_settings():
     """Test API server configuration."""
     settings = Settings()
-    
+
     assert settings.api.host == "0.0.0.0"
     assert settings.api.port == 8000
-    assert settings.api.log_level in ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
+    # log_level is now a deprecated fallback; unset unless API_LOG_LEVEL is set.
+    assert settings.api.log_level is None
 
 
 def test_map_home_settings(monkeypatch):
@@ -205,6 +206,40 @@ def test_logparser_empty_list_rejected(monkeypatch):
     """An empty list of log paths is a configuration error."""
     monkeypatch.setenv("LOGPARSER_LOG_PATHS", "[]")
     with pytest.raises(ValueError):
+        Settings()
+
+
+def test_logparser_ignore_ips_default_empty():
+    """Nothing is ignored unless configured."""
+    settings = Settings()
+    assert settings.logparser.ignore_ips == []
+
+
+def test_logparser_ignore_ips_single_value(monkeypatch):
+    """A bare IP string becomes a one-element list."""
+    monkeypatch.setenv("LOGPARSER_IGNORE_IPS", "203.0.113.7")
+    settings = Settings()
+    assert settings.logparser.ignore_ips == ["203.0.113.7"]
+
+
+def test_logparser_ignore_ips_comma_separated(monkeypatch):
+    """Comma-separated IPs/CIDRs are split and trimmed."""
+    monkeypatch.setenv("LOGPARSER_IGNORE_IPS", "203.0.113.7, 198.51.100.0/24")
+    settings = Settings()
+    assert settings.logparser.ignore_ips == ["203.0.113.7", "198.51.100.0/24"]
+
+
+def test_logparser_ignore_ips_json_list(monkeypatch):
+    """A JSON list of IPs/CIDRs is parsed as-is, IPv6 included."""
+    monkeypatch.setenv("LOGPARSER_IGNORE_IPS", '["203.0.113.7", "2001:db8::/32"]')
+    settings = Settings()
+    assert settings.logparser.ignore_ips == ["203.0.113.7", "2001:db8::/32"]
+
+
+def test_logparser_ignore_ips_invalid_entry_rejected(monkeypatch):
+    """Entries that are not an IP or CIDR fail settings validation."""
+    monkeypatch.setenv("LOGPARSER_IGNORE_IPS", "not-an-ip")
+    with pytest.raises(ValidationError, match="not an IP address or CIDR"):
         Settings()
 
 
@@ -389,3 +424,39 @@ class TestProxySettings:
 
     def test_session_secure_defaults_false(self):
         assert Settings(_env_file=None).session_secure is False
+
+
+class TestLogSettings:
+    def test_defaults(self, monkeypatch):
+        monkeypatch.delenv("LOG_LEVEL", raising=False)
+        from geometrikks.config.settings import Settings
+        s = Settings(_env_file=None)
+        assert s.log.dir == Path("logs")
+        assert s.log.level == "INFO"
+        assert s.log.main_max_bytes == 10 * 1024 * 1024
+        assert s.log.main_backup_count == 5
+        assert s.log.login_max_bytes == 10 * 1024 * 1024
+        assert s.log.login_backup_count == 5
+
+    def test_log_level_env(self, monkeypatch):
+        monkeypatch.setenv("LOG_LEVEL", "DEBUG")
+        from geometrikks.config.settings import Settings
+        assert Settings(_env_file=None).log.level == "DEBUG"
+
+    def test_deprecated_api_log_level_used_when_log_level_unset(self, monkeypatch):
+        monkeypatch.delenv("LOG_LEVEL", raising=False)
+        monkeypatch.setenv("API_LOG_LEVEL", "WARNING")
+        from geometrikks.config.settings import Settings
+        with pytest.warns(DeprecationWarning, match="API_LOG_LEVEL is deprecated"):
+            s = Settings(_env_file=None)
+        assert s.log.level == "WARNING"
+
+    def test_log_level_overrides_deprecated_var(self, monkeypatch):
+        monkeypatch.setenv("LOG_LEVEL", "ERROR")
+        monkeypatch.setenv("API_LOG_LEVEL", "DEBUG")
+        from geometrikks.config.settings import Settings
+        import warnings
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")  # no DeprecationWarning may fire
+            s = Settings(_env_file=None)
+        assert s.log.level == "ERROR"

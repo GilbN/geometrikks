@@ -84,11 +84,18 @@ export class LiveFeedClient {
 
   private open(): void {
     this.setStatus("connecting")
-    this.ws = new WebSocket(this.url())
-    this.ws.onopen = () => {
-      this.setStatus("connected")
+    // Every callback checks `this.ws === ws` so a superseded socket (closed
+    // by disconnect() while its close handshake was still in flight) can
+    // neither deliver frames nor schedule a reconnect. Without the guard, a
+    // quick disconnect/connect cycle (StrictMode remount, page revisit)
+    // leaks a second live socket and every event is delivered twice.
+    const ws = new WebSocket(this.url())
+    this.ws = ws
+    ws.onopen = () => {
+      if (this.ws === ws) this.setStatus("connected")
     }
-    this.ws.onmessage = (msg) => {
+    ws.onmessage = (msg) => {
+      if (this.ws !== ws) return
       // The server only ever sends JSON text frames; ignore anything else
       // (a Blob/ArrayBuffer or malformed payload) rather than throwing and
       // tearing down live updates.
@@ -107,14 +114,15 @@ export class LiveFeedClient {
         this.eventsListeners.forEach((cb) => cb(frame.events, frame.dropped))
       }
     }
-    this.ws.onclose = () => {
+    ws.onclose = () => {
+      if (this.ws !== ws) return
       this.setStatus("disconnected")
       if (this.shouldRun) {
         this.reconnectTimer = setTimeout(() => this.open(), this.backoffMs)
         this.backoffMs = Math.min(this.backoffMs * 2, 30000)
       }
     }
-    this.ws.onerror = () => this.ws?.close()
+    ws.onerror = () => ws.close()
   }
 
   private setStatus(status: LiveFeedStatus): void {

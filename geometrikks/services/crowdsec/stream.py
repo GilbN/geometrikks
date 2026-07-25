@@ -3,13 +3,13 @@ from __future__ import annotations
 from geometrikks.services.crowdsec.schemas import DecisionStreamDelta
 
 import asyncio
-import logging
 from typing import Any
 
+from geometrikks.server.logging import get_logger
 from geometrikks.services.crowdsec.exceptions import CrowdSecError
 from geometrikks.services.crowdsec.service import CrowdSecService
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 DecisionFrame = dict[str, Any]
 
@@ -26,6 +26,7 @@ class CrowdSecStreamPoller:
     def __init__(self, service: CrowdSecService) -> None:
         self._service = service
         self._started = False
+        self._had_failure = False
         self._subscribers: set[asyncio.Queue[DecisionFrame]] = set()
 
     def subscribe(self, maxsize: int = 100) -> asyncio.Queue[DecisionFrame]:
@@ -46,7 +47,11 @@ class CrowdSecStreamPoller:
             delta: DecisionStreamDelta = await self._service.get_decisions_stream(startup=not self._started)
         except CrowdSecError as exc:
             logger.warning("CrowdSec stream poll failed: %s", exc)
+            self._had_failure = True
             return
+        if self._had_failure:
+            logger.success("crowdsec_stream_connected")  # ty: ignore[unresolved-attribute]
+            self._had_failure = False
         first_poll = not self._started
         self._started = True
         if first_poll:

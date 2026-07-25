@@ -12,7 +12,6 @@ Query routing follows the repository convention:
 """
 from __future__ import annotations
 
-import logging
 from datetime import datetime
 
 from advanced_alchemy.repository import SQLAlchemyAsyncRepository
@@ -32,8 +31,9 @@ from geometrikks.domain.geo.schemas import (
     TopGeoCountry,
     TopGeoIp,
 )
+from geometrikks.server.logging import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 _IP_LOCATION_CAGGS = {

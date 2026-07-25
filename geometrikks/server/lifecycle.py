@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import logging
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Callable
 
@@ -12,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from geometrikks.config.settings import get_settings
+from geometrikks.server.logging import get_logger
 from geometrikks.server.migrations import migrate_database
 from geometrikks.server.plugins import get_sqlalchemy_config
 from geometrikks.server.timescale import setup_timescaledb
@@ -28,7 +28,7 @@ from geometrikks.server.scheduler_tracking import JobRunTracker
 if TYPE_CHECKING:
     from litestar import Litestar
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 async def _db_available(timeout: float = 10.0) -> bool:
@@ -58,7 +58,16 @@ async def on_startup(app: "Litestar") -> None:
     # Set before anything else so /about reports uptime even in degraded mode.
     app.state.started_at = datetime.now(timezone.utc)
 
+    from geometrikks.server.logging import log_broadcaster
+    log_broadcaster.bind_loop(asyncio.get_running_loop())
+
     settings = get_settings()
+
+    if settings.api.log_level is not None:
+        logger.warning(
+            "API_LOG_LEVEL is deprecated and will be removed in a future "
+            "release; set LOG_LEVEL instead."
+        )
 
     # GeoIP: download/refresh if credentials are configured; degrade otherwise.
     # Runs before the DB gate — geo enrichment does not need the database, and
@@ -123,6 +132,7 @@ async def on_startup(app: "Litestar") -> None:
             send_logs=settings.logparser.send_logs,
             poll_interval=settings.logparser.poll_interval,
             hostname=settings.logparser.host_name,
+            ignore_ips=settings.logparser.ignore_ips,
         )
         for path in settings.logparser.log_paths
     ]

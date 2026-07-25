@@ -27,6 +27,7 @@ async def stats(ingestion_service: NamedDependency[LogIngestionService | None]) 
             "total_parsed_lines": 0,
             "total_skipped_lines": 0,
             "total_pending_records": 0,
+            "total_ignored_lines": 0,
             "total_processed": 0,
             "is_running": False,
         }
@@ -35,6 +36,7 @@ async def stats(ingestion_service: NamedDependency[LogIngestionService | None]) 
         "total_parsed_lines": ingestion_service.parsed_lines,
         "total_skipped_lines": ingestion_service.skipped_lines,
         "total_pending_records": ingestion_service.pending_records,
+        "total_ignored_lines": ingestion_service.ignored_lines,
         "total_processed": ingestion_service.total_processed,
         "is_running": ingestion_service.is_running,
     }
