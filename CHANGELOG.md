@@ -64,6 +64,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Map surfaces (controls panel, legend, zoom buttons, and location popups)
+  now share the live overlays' translucent glass styling, so the map stays
+  visible through every panel.
+
 - Logging is now structured (structlog): colored console output, a JSONL
   main log (`logs/geometrikks.log`), and a plain-text login log
   (`logs/login.log`) in a CrowdSec/fail2ban-friendly format. Both rotate by

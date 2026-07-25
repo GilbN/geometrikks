@@ -134,7 +134,7 @@ export function MapControls({
   const sections = (
     <>
       {/* Layer Toggle */}
-      <Card className="p-2 shrink-0">
+      <Card className="p-2 shrink-0 bg-background/85 backdrop-blur">
         <div className="flex flex-col gap-1">
           <ToggleGroup
             type="single"
@@ -285,7 +285,7 @@ export function MapControls({
           below that the vitals pill is the sole entry point into live data,
           so this card would offer switches that control nothing. */}
       {liveMode && !isMobile && (
-        <Card className="p-2 gap-1 shrink-0">
+        <Card className="p-2 gap-1 shrink-0 bg-background/85 backdrop-blur">
           <div className="text-xs font-medium text-muted-foreground">Live overlays</div>
           {([
             { key: "vitals" as const, label: "Vitals", icon: Activity },
@@ -324,7 +324,7 @@ export function MapControls({
       )}
 
       {/* Country / city filters */}
-      <Card className="p-2 gap-1.5 shrink-0">
+      <Card className="p-2 gap-1.5 shrink-0 bg-background/85 backdrop-blur">
         <div className="text-xs font-medium text-muted-foreground">Filters</div>
         <FilterCombobox
           label="Country"
@@ -344,7 +344,7 @@ export function MapControls({
       </Card>
 
       {/* Fit Bounds / Go Home Buttons */}
-      <Card className="p-1 shrink-0">
+      <Card className="p-1 shrink-0 bg-background/85 backdrop-blur">
         <div className="flex gap-1">
           <Button
             variant="ghost"
@@ -371,7 +371,7 @@ export function MapControls({
       </Card>
 
       {/* Status Indicator */}
-      <Card className="px-3 py-2 shrink-0">
+      <Card className="px-3 py-2 shrink-0 bg-background/85 backdrop-blur">
         <div className="flex flex-col gap-1 text-xs text-muted-foreground">
           {isLoading ? (
             <div className="flex items-center gap-2">
@@ -401,7 +401,7 @@ export function MapControls({
 
       {/* Top IPs */}
       {topIPs && topIPs.length > 0 && (
-        <Card className="px-3 py-2 gap-1 shrink-0">
+        <Card className="px-3 py-2 gap-1 shrink-0 bg-background/85 backdrop-blur">
           <div className="text-xs font-medium text-muted-foreground mb-2">Top IPs</div>
           <div className="flex flex-col gap-1">
             {topIPs.map((ip) => (
@@ -465,7 +465,7 @@ export function MapControls({
         <Button
           size="icon"
           variant="outline"
-          className="bg-background mt-1 cursor-pointer"
+          className="bg-background/85 backdrop-blur mt-1 cursor-pointer"
           onClick={() => setIsExpanded(true)}
           title="Show map controls"
         >
@@ -492,7 +492,7 @@ export function MapControls({
       <Button
         size="icon"
         variant="outline"
-        className="mt-1 bg-background shrink-0 p-1 self-start cursor-pointer pointer-events-auto"
+        className="mt-1 bg-background/85 backdrop-blur shrink-0 p-1 self-start cursor-pointer pointer-events-auto"
         onClick={() => setIsExpanded(false)}
         title="Hide map controls"
       >

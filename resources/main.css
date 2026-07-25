@@ -205,24 +205,25 @@
 
 /* Style the tip using CSS variable */
 .maplibregl-popup-anchor-bottom > .maplibregl-popup-tip {
-  border-top-color: var(--popup-bg) !important;
+  border-top-color: color-mix(in oklab, var(--background) 85%, transparent) !important;
 }
 
 .maplibregl-popup-anchor-top > .maplibregl-popup-tip {
-  border-bottom-color: var(--popup-bg) !important;
+  border-bottom-color: color-mix(in oklab, var(--background) 85%, transparent) !important;
 }
 
 .maplibregl-popup-anchor-left > .maplibregl-popup-tip {
-  border-right-color: var(--popup-bg) !important;
+  border-right-color: color-mix(in oklab, var(--background) 85%, transparent) !important;
 }
 
 .maplibregl-popup-anchor-right > .maplibregl-popup-tip {
-  border-left-color: var(--popup-bg) !important;
+  border-left-color: color-mix(in oklab, var(--background) 85%, transparent) !important;
 }
 
 /* MapLibre GL Control Styles - Light Mode */
 .maplibregl-ctrl-group {
-  background: var(--background) !important;
+  background: color-mix(in oklab, var(--background) 85%, transparent) !important;
+  backdrop-filter: blur(8px);
   border-radius: var(--radius) !important;
   border: 1px solid #e5e5e5 !important;
 }
@@ -256,7 +257,8 @@
 
 /* MapLibre GL Control Styles - Dark Mode */
 .dark .maplibregl-ctrl-group {
-  background: var(--background) !important;
+  background: color-mix(in oklab, var(--background) 85%, transparent) !important;
+  backdrop-filter: blur(8px);
   border: 1px solid #3a3f4b !important;
 }
 

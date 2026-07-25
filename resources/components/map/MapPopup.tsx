@@ -91,7 +91,8 @@ export function MapPopup({
     >
       <div
         style={{
-          background: "var(--card)",
+          background: "color-mix(in oklab, var(--background) 85%, transparent)",
+          backdropFilter: "blur(8px)",
           color: "var(--popup-fg)",
           borderRadius: "8px",
           padding: "12px",
