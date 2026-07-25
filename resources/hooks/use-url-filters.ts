@@ -7,6 +7,10 @@
  *
  * Deliberately thin: vitest runs in a node environment here with no DOM, so
  * hooks cannot be unit-tested. All real logic lives in the pure module.
+ *
+ * IMPORTANT: Pass decode, encode, and resetOnChange as stable references
+ * (module-level consts, not inline literals). Inline objects change identity
+ * on every render, making setFilters unstable and causing unnecessary re-renders.
  */
 import { useCallback, useMemo } from "react"
 import { applyFilterUpdate, type FilterCodec } from "@/lib/url-filters"
