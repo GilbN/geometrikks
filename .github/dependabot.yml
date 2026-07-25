@@ -5,9 +5,7 @@
 
 version: 2
 updates:
-  # Python dependencies (pyproject.toml + uv.lock).
-  # requirements.txt / dev-requirements.txt are `uv export` artifacts and are
-  # regenerated from the lockfile, so they are deliberately not tracked here.
+  # Python dependencies (pyproject.toml + uv.lock)
   - package-ecosystem: "uv"
     directory: "/"
     schedule:
