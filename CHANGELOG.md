@@ -64,6 +64,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Map surfaces (controls panel, zoom buttons, and location popups) now share
   the live overlays' translucent glass styling, so the map stays visible
   through every panel.
+- Scrollbars throughout the app are slim, rounded, and tinted to the theme
+  instead of the browser's default grey channel, in every scrolling panel and
+  on the page itself.
 
 - Logging is now structured (structlog): colored console output, a JSONL
   main log (`logs/geometrikks.log`), and a plain-text login log

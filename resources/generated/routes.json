@@ -8,6 +8,13 @@
       ],
       "uri": "/api/v1/crowdsec/ban"
     },
+    "disabled_vite_hmr_http": {
+      "method": "get",
+      "methods": [
+        "GET"
+      ],
+      "uri": "/static/vite-hmr"
+    },
     "download": {
       "method": "get",
       "methods": [

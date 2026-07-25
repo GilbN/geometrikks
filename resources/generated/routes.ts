@@ -16,6 +16,7 @@ export type URI = string;
 /** All available route names */
 export type RouteName =
   | 'ban'
+  | 'disabled_vite_hmr_http'
   | 'download'
   | 'get_about'
   | 'get_access_log_debug_stats'
@@ -76,6 +77,7 @@ export type RouteName =
 /** Path parameter definitions per route */
 export interface RoutePathParams {
   'ban': Record<string, never>;
+  'disabled_vite_hmr_http': Record<string, never>;
   'download': {
     kind: string;
     name: string;
@@ -148,6 +150,7 @@ export interface RoutePathParams {
 /** Query parameter definitions per route */
 export interface RouteQueryParams {
   'ban': Record<string, never>;
+  'disabled_vite_hmr_http': Record<string, never>;
   'download': Record<string, never>;
   'get_about': Record<string, never>;
   'get_access_log_debug_stats': {
@@ -413,6 +416,13 @@ export const routeDefinitions = {
     path: '/api/v1/crowdsec/ban',
     methods: ['POST'] as const,
     method: 'post',
+    pathParams: [] as const,
+    queryParams: [] as const,
+  },
+  'disabled_vite_hmr_http': {
+    path: '/static/vite-hmr',
+    methods: ['GET'] as const,
+    method: 'get',
     pathParams: [] as const,
     queryParams: [] as const,
   },

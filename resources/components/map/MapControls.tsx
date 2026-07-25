@@ -405,7 +405,7 @@ export function MapControls({
                 key={ip.ip_address}
                 onClick={() => ip.location && onFlyToLocation?.(ip.location.latitude, ip.location.longitude)}
                 disabled={!ip.location}
-                className="flex items-center justify-between text-[10px] hover:bg-accent/50 rounded px-1 py-0.5 -mx-1 cursor-pointer disabled:cursor-default disabled:opacity-50 text-left"
+                className="flex items-center justify-between text-[10px] hover:bg-foreground/[0.07] rounded px-1 py-0.5 -mx-1 cursor-pointer disabled:cursor-default disabled:opacity-50 text-left"
               >
                 <div className="font-mono truncate"><Badge variant="secondary" className="text-[10px] h-5 min-w-5 py-0 font-mono tabular-nums">{formatNumber(ip.event_count)}</Badge> {ip.ip_address}</div>
                 <span className="text-muted-foreground ml-2 shrink-0">
