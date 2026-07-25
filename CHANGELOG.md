@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Access Logs: include/exclude filters for client IP and for HTTP host. Host
+  is now picked from the hosts present in your data rather than typed as a
+  substring, and both filters accept several values at once.
+- Access Logs and Analytics filters live in the URL, so a filtered view is a
+  shareable link. Access Logs also carries its page, page size and sort
+  order, matching the Geo Logs page.
 - Analytics page: an exclude-IP filter. Every chart and top-list on the page
   can now drop specific client IPs, which is the quick way to take your own
   traffic out of the picture without changing ingestion settings.

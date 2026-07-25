@@ -815,8 +815,10 @@ export interface UseAccessLogsOptions {
   enabled?: boolean
   searchString?: string
   ipAddressIn?: string[]
+  ipAddressNotIn?: string[]
   methodIn?: string[]
-  host?: string
+  hostIn?: string[]
+  hostNotIn?: string[]
   cityIn?: string[]
   countryCodeIn?: string[]
   statusIn?: number[]
@@ -835,8 +837,10 @@ export function useAccessLogs(options: UseAccessLogsOptions = {}) {
     enabled = true,
     searchString,
     ipAddressIn,
+    ipAddressNotIn,
     methodIn,
-    host,
+    hostIn,
+    hostNotIn,
     cityIn,
     countryCodeIn,
     statusIn,
@@ -847,7 +851,7 @@ export function useAccessLogs(options: UseAccessLogsOptions = {}) {
 
   return useQuery<AccessLogsPage>({
     queryKey: queryKeys.accessLogs.list(
-      { range, customRange, currentPage, pageSize, searchString, ipAddressIn, methodIn, host, cityIn, countryCodeIn, statusIn, sortField, sortOrder },
+      { range, customRange, currentPage, pageSize, searchString, ipAddressIn, ipAddressNotIn, methodIn, hostIn, hostNotIn, cityIn, countryCodeIn, statusIn, sortField, sortOrder },
       lastRefresh,
     ),
     queryFn: () => {
@@ -859,8 +863,10 @@ export function useAccessLogs(options: UseAccessLogsOptions = {}) {
         pageSize,
         searchString,
         ipAddressIn,
+        ipAddressNotIn,
         methodIn,
-        host,
+        hostIn,
+        hostNotIn,
         cityIn,
         countryCodeIn,
         statusIn,

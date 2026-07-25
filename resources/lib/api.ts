@@ -812,10 +812,14 @@ export interface AccessLogsParams {
   searchString?: string
   /** Exact IP match(es). */
   ipAddressIn?: string[]
+  /** IPs to exclude. */
+  ipAddressNotIn?: string[]
   /** HTTP method(s) to include. */
   methodIn?: string[]
-  /** Case-insensitive substring match on host (domain). */
-  host?: string
+  /** Exact host match(es), chosen from the facets list. */
+  hostIn?: string[]
+  /** Hosts to exclude. */
+  hostNotIn?: string[]
   /** Exact city match(es). */
   cityIn?: string[]
   /** Exact ISO-3166 alpha-2 country code match(es). */
@@ -834,8 +838,10 @@ export async function fetchAccessLogs(params: AccessLogsParams): Promise<AccessL
       pageSize: params.pageSize ?? 50,
       searchString: params.searchString || undefined,
       ipAddressIn: params.ipAddressIn?.length ? params.ipAddressIn : undefined,
+      ipAddressNotIn: params.ipAddressNotIn?.length ? params.ipAddressNotIn : undefined,
       methodIn: params.methodIn?.length ? params.methodIn : undefined,
-      host: params.host || undefined,
+      hostIn: params.hostIn?.length ? params.hostIn : undefined,
+      hostNotIn: params.hostNotIn?.length ? params.hostNotIn : undefined,
       cityIn: params.cityIn?.length ? params.cityIn : undefined,
       countryCodeIn: params.countryCodeIn?.length ? params.countryCodeIn : undefined,
       statusIn: params.statusIn?.length ? params.statusIn : undefined,
@@ -861,6 +867,8 @@ export interface AccessLogFacets {
   countries: CountryFacet[]
   /** Sorted alphabetically. */
   cities: string[]
+  /** Sorted alphabetically. */
+  hosts: string[]
 }
 
 /** Distinct country/city values present in the data, for the filter dropdowns. */

@@ -277,11 +277,18 @@
               "$ref": "#/components/schemas/CountryFacet"
             },
             "type": "array"
+          },
+          "hosts": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
           }
         },
         "required": [
           "cities",
-          "countries"
+          "countries",
+          "hosts"
         ],
         "title": "AccessLogFacets",
         "type": "object"
@@ -3623,24 +3630,6 @@
             "allowReserved": false,
             "deprecated": false,
             "in": "query",
-            "name": "host",
-            "required": false,
-            "schema": {
-              "oneOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            }
-          },
-          {
-            "allowEmptyValue": false,
-            "allowReserved": false,
-            "deprecated": false,
-            "in": "query",
             "name": "methodIn",
             "required": false,
             "schema": {
@@ -3732,6 +3721,69 @@
                 {
                   "items": {
                     "type": "integer"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "ipAddressNotIn",
+            "required": false,
+            "schema": {
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "hostIn",
+            "required": false,
+            "schema": {
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "hostNotIn",
+            "required": false,
+            "schema": {
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "string"
                   },
                   "type": "array"
                 },
@@ -4354,6 +4406,29 @@
                 }
               ]
             }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Exclude these client IPs (repeatable)",
+            "in": "query",
+            "name": "ip_address_not_in",
+            "required": false,
+            "schema": {
+              "description": "Exclude these client IPs (repeatable)",
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
           }
         ],
         "responses": {
@@ -4639,6 +4714,29 @@
                 }
               ]
             }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Exclude these client IPs (repeatable)",
+            "in": "query",
+            "name": "ip_address_not_in",
+            "required": false,
+            "schema": {
+              "description": "Exclude these client IPs (repeatable)",
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
           }
         ],
         "responses": {
@@ -4816,6 +4914,29 @@
                 }
               ]
             }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Exclude these client IPs (repeatable)",
+            "in": "query",
+            "name": "ip_address_not_in",
+            "required": false,
+            "schema": {
+              "description": "Exclude these client IPs (repeatable)",
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
           }
         ],
         "responses": {
@@ -4981,6 +5102,29 @@
             "required": false,
             "schema": {
               "description": "Filter to these client IPs (repeatable)",
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Exclude these client IPs (repeatable)",
+            "in": "query",
+            "name": "ip_address_not_in",
+            "required": false,
+            "schema": {
+              "description": "Exclude these client IPs (repeatable)",
               "oneOf": [
                 {
                   "items": {
@@ -5186,6 +5330,29 @@
                 }
               ]
             }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Exclude these client IPs (repeatable)",
+            "in": "query",
+            "name": "ip_address_not_in",
+            "required": false,
+            "schema": {
+              "description": "Exclude these client IPs (repeatable)",
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
           }
         ],
         "responses": {
@@ -5367,6 +5534,29 @@
             "required": false,
             "schema": {
               "description": "Filter to these client IPs (repeatable)",
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Exclude these client IPs (repeatable)",
+            "in": "query",
+            "name": "ip_address_not_in",
+            "required": false,
+            "schema": {
+              "description": "Exclude these client IPs (repeatable)",
               "oneOf": [
                 {
                   "items": {

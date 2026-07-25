@@ -6,16 +6,21 @@
  * route's search params.
  */
 import { useEffect, useRef, useState } from "react"
-import { Search } from "lucide-react"
+import { Ban, Search, X } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { FilterCombobox } from "@/components/ui/filter-combobox"
 import { FiltersDrawer, FilterSection } from "@/components/ui/filters-drawer"
 import { useAccessLogFacets } from "@/lib/queries"
 import { useDebouncedValue } from "@/hooks/use-debounced-value"
 import { useIsMobile } from "@/hooks/use-mobile"
+import { isValidIp } from "@/lib/crowdsec"
 import { cn } from "@/lib/utils"
 import {
   countActiveAccessLogFilters,
+  EMPTY_ACCESS_LOG_FILTERS,
+  hasActiveAccessLogFilters,
   useAccessLogFilters,
 } from "@/lib/access-log-filters-context"
 
@@ -64,6 +69,32 @@ export function AccessLogsFilterBar() {
     setSearchInput(filters.search)
   }, [filters.search])
 
+  const [ipInput, setIpInput] = useState("")
+  const [ipExcludeInput, setIpExcludeInput] = useState("")
+  const [hostExcludeInput, setHostExcludeInput] = useState("")
+
+  function addIp(key: "ips" | "ipsExclude") {
+    const input = key === "ips" ? ipInput : ipExcludeInput
+    const setInput = key === "ips" ? setIpInput : setIpExcludeInput
+    const value = input.trim()
+    // ip_address is INET server-side: only complete IPs can match, and the
+    // backend 400s on anything else.
+    if (!value || !isValidIp(value) || filters[key].includes(value)) return
+    setFilters((prev) => ({ ...prev, [key]: [...prev[key], value] }))
+    setInput("")
+  }
+
+  function addHostExclude() {
+    const value = hostExcludeInput.trim()
+    if (!value || filters.hostsExclude.includes(value)) return
+    setFilters((prev) => ({ ...prev, hostsExclude: [...prev.hostsExclude, value] }))
+    setHostExcludeInput("")
+  }
+
+  function removeFrom(key: "ips" | "ipsExclude" | "hostsExclude", value: string) {
+    setFilters((prev) => ({ ...prev, [key]: prev[key].filter((v) => v !== value) }))
+  }
+
   function renderFilters(inDrawer: boolean) {
     const wrap = (label: string, node: React.ReactNode) =>
       inDrawer ? <FilterSection label={label}>{node}</FilterSection> : node
@@ -80,6 +111,66 @@ export function AccessLogsFilterBar() {
               className={cn("h-8 pl-7 text-xs", inDrawer ? "w-full" : "w-64")}
             />
           </div>,
+        )}
+        {wrap(
+          "IP address",
+          <Input
+            value={ipInput}
+            onChange={(e) => setIpInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault()
+                addIp("ips")
+              }
+            }}
+            placeholder="Add IP + Enter"
+            aria-invalid={ipInput !== "" && !isValidIp(ipInput)}
+            className={cn("h-8 font-mono text-xs", inDrawer ? "w-full" : "w-40")}
+          />,
+        )}
+        {wrap(
+          "Exclude IP",
+          <Input
+            value={ipExcludeInput}
+            onChange={(e) => setIpExcludeInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault()
+                addIp("ipsExclude")
+              }
+            }}
+            placeholder="Exclude IP + Enter"
+            aria-invalid={ipExcludeInput !== "" && !isValidIp(ipExcludeInput)}
+            className={cn("h-8 font-mono text-xs", inDrawer ? "w-full" : "w-40")}
+          />,
+        )}
+        {wrap(
+          "Host",
+          <FilterCombobox
+            label="Host"
+            options={facets?.hosts ?? []}
+            selected={filters.hosts}
+            onChange={(values) => setFilters((prev) => ({ ...prev, hosts: values }))}
+            loading={!facets}
+            emptyText="No hosts"
+            onOpenChange={(open) => open && setFacetsEnabled(true)}
+            forceInline={inDrawer}
+          />,
+        )}
+        {wrap(
+          "Exclude host",
+          <Input
+            value={hostExcludeInput}
+            onChange={(e) => setHostExcludeInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault()
+                addHostExclude()
+              }
+            }}
+            placeholder="Exclude host + Enter"
+            className={cn("h-8 font-mono text-xs", inDrawer ? "w-full" : "w-44")}
+          />,
         )}
         {wrap(
           "Status",
@@ -130,6 +221,72 @@ export function AccessLogsFilterBar() {
             onOpenChange={(open) => open && setFacetsEnabled(true)}
             forceInline={inDrawer}
           />,
+        )}
+
+        {filters.ips.map((ip) => (
+          <Badge key={ip} variant="secondary" className="font-mono">
+            {ip}
+            <button
+              type="button"
+              onClick={() => removeFrom("ips", ip)}
+              aria-label={`Remove ${ip}`}
+              className="ml-1 rounded-full hover:text-destructive"
+            >
+              <X className="h-3 w-3" />
+            </button>
+          </Badge>
+        ))}
+
+        {filters.ipsExclude.map((ip) => (
+          <Badge
+            key={ip}
+            variant="outline"
+            className="border-destructive/50 font-mono text-destructive"
+          >
+            <Ban className="h-3 w-3" />
+            {ip}
+            <button
+              type="button"
+              onClick={() => removeFrom("ipsExclude", ip)}
+              aria-label={`Remove exclusion ${ip}`}
+              className="ml-1 rounded-full hover:opacity-70"
+            >
+              <X className="h-3 w-3" />
+            </button>
+          </Badge>
+        ))}
+
+        {filters.hostsExclude.map((host) => (
+          <Badge
+            key={host}
+            variant="outline"
+            className="border-destructive/50 font-mono text-destructive"
+          >
+            <Ban className="h-3 w-3" />
+            {host}
+            <button
+              type="button"
+              onClick={() => removeFrom("hostsExclude", host)}
+              aria-label={`Remove exclusion ${host}`}
+              className="ml-1 rounded-full hover:opacity-70"
+            >
+              <X className="h-3 w-3" />
+            </button>
+          </Badge>
+        ))}
+
+        {hasActiveAccessLogFilters(filters) && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-8 pointer-coarse:h-10"
+            onClick={() => {
+              setSearchInput("")
+              setFilters(() => EMPTY_ACCESS_LOG_FILTERS)
+            }}
+          >
+            Clear filters
+          </Button>
         )}
       </>
     )
