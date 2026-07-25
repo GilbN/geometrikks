@@ -9,11 +9,17 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 import pytest
-from advanced_alchemy.filters import CollectionFilter, OnBeforeAfter, SearchFilter
 from litestar.exceptions import ValidationException
+from sqlalchemy import or_
+from advanced_alchemy.filters import (
+    CollectionFilter,
+    FilterGroup,
+    NotInCollectionFilter,
+    NullFilter,
+    OnBeforeAfter,
+)
 
 from geometrikks.api.v1.access_log_controller import (
-    provide_access_log_host_search,
     provide_access_log_in_filters,
     provide_access_log_time_window,
 )
@@ -42,21 +48,6 @@ class TestTimeWindow:
         assert isinstance(window, OnBeforeAfter)
         assert window.on_or_after == start
         assert window.on_or_before is None
-
-
-class TestHostSearch:
-    def test_empty_host_yields_no_filter(self) -> None:
-        assert provide_access_log_host_search(None) == []
-        assert provide_access_log_host_search("") == []
-
-    def test_builds_case_insensitive_substring_filter(self) -> None:
-        result = provide_access_log_host_search("example.com")
-        assert len(result) == 1
-        search = result[0]
-        assert isinstance(search, SearchFilter)
-        assert search.field_name == "host"
-        assert search.value == "example.com"
-        assert search.ignore_case is True
 
 
 class TestInFilters:
@@ -98,3 +89,63 @@ class TestInFilters:
     def test_absent_city_country_yield_no_filters(self) -> None:
         assert provide_access_log_in_filters(None, None, None, None) == []
         assert provide_access_log_in_filters(None, None, [], []) == []
+
+    def test_ip_address_not_in_yields_not_in_collection_filter(self) -> None:
+        result = provide_access_log_in_filters(
+            None, None, None, None, None, ["10.0.0.5", "10.0.0.6"]
+        )
+        assert len(result) == 1
+        excluded = result[0]
+        assert isinstance(excluded, NotInCollectionFilter)
+        assert excluded.field_name == "ip_address"
+        assert excluded.values == ["10.0.0.5", "10.0.0.6"]
+
+    def test_invalid_excluded_ip_raises_validation_error(self) -> None:
+        # Same INET bind-param hazard as the include list.
+        with pytest.raises(ValidationException, match="Invalid IP address"):
+            provide_access_log_in_filters(None, None, None, None, None, ["nope"])
+
+    def test_host_in_yields_collection_filter(self) -> None:
+        result = provide_access_log_in_filters(
+            None, None, None, None, None, None, ["a.example.com"]
+        )
+        assert len(result) == 1
+        host = result[0]
+        assert isinstance(host, CollectionFilter)
+        assert host.field_name == "host"
+        assert host.values == ["a.example.com"]
+
+    def test_host_not_in_keeps_rows_with_no_host(self) -> None:
+        # host is nullable, and SQL `NULL NOT IN (...)` is NULL, not TRUE. A
+        # bare NotInCollectionFilter would silently drop every row whose host
+        # never parsed, so the exclusion is OR'd with IS NULL.
+        result = provide_access_log_in_filters(
+            None, None, None, None, None, None, None, ["vault.example.com"]
+        )
+        assert len(result) == 1
+        group = result[0]
+        assert isinstance(group, FilterGroup)
+        assert group.logical_operator is or_
+        excluded, is_null = group.filters
+        assert isinstance(excluded, NotInCollectionFilter)
+        assert excluded.field_name == "host"
+        assert excluded.values == ["vault.example.com"]
+        assert isinstance(is_null, NullFilter)
+        assert is_null.field_name == "host"
+
+    def test_include_and_exclude_compose(self) -> None:
+        result = provide_access_log_in_filters(
+            None, ["10.0.0.1"], None, None, None, ["10.0.0.2"], ["a.example.com"], ["b.example.com"]
+        )
+        assert [type(f).__name__ for f in result] == [
+            "CollectionFilter",
+            "NotInCollectionFilter",
+            "CollectionFilter",
+            "FilterGroup",
+        ]
+
+    def test_absent_new_params_yield_no_filters(self) -> None:
+        assert provide_access_log_in_filters(
+            None, None, None, None, None, None, None, None
+        ) == []
+        assert provide_access_log_in_filters(None, None, None, None, None, [], [], []) == []

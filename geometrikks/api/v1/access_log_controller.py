@@ -9,12 +9,15 @@ from litestar import Controller, get
 from litestar.di import NamedDependency, Provide
 from litestar.exceptions import ValidationException
 from litestar.params import QueryParameter, SkipValidation
+from sqlalchemy import or_
 from advanced_alchemy.extensions.litestar.providers import create_service_dependencies
 from advanced_alchemy.filters import (
     CollectionFilter,
+    FilterGroup,
     FilterTypes,
+    NotInCollectionFilter,
+    NullFilter,
     OnBeforeAfter,
-    SearchFilter,
 )
 from advanced_alchemy.service import OffsetPagination
 
@@ -44,17 +47,19 @@ def provide_access_log_time_window(
     ]
 
 
-def provide_access_log_host_search(
-    host: Annotated[str | None, QueryParameter(required=False)] = None,
-) -> list[FilterTypes]:
-    """Case-insensitive substring match on ``host`` (domain filter).
+def _validate_ip_addresses(ips: list[str]) -> None:
+    """Reject non-IP values before they reach an INET bind param.
 
-    A substring match (rather than an exact ``IN`` comparison) keeps the
-    domain box free-text.
+    Raises:
+        ValidationException: If a value is not a valid IP - ``ip_address`` is
+            an INET column, so asyncpg would otherwise fail to encode the bind
+            param and surface a 500.
     """
-    if not host:
-        return []
-    return [SearchFilter(field_name="host", value=host, ignore_case=True)]
+    for raw in ips:
+        try:
+            ipaddress.ip_address(raw)
+        except ValueError as exc:
+            raise ValidationException(detail=f"Invalid IP address: {raw!r}") from exc
 
 
 def provide_access_log_in_filters(
@@ -63,27 +68,32 @@ def provide_access_log_in_filters(
     city_in: Annotated[list[str] | None, QueryParameter(name="cityIn", required=False)] = None,
     country_code_in: Annotated[list[str] | None, QueryParameter(name="countryCodeIn", required=False)] = None,
     status_in: Annotated[list[int] | None, QueryParameter(name="statusIn", required=False)] = None,
+    ip_address_not_in: Annotated[list[str] | None, QueryParameter(name="ipAddressNotIn", required=False)] = None,
+    host_in: Annotated[list[str] | None, QueryParameter(name="hostIn", required=False)] = None,
+    host_not_in: Annotated[list[str] | None, QueryParameter(name="hostNotIn", required=False)] = None,
 ) -> list[FilterTypes]:
-    """Exact ``IN`` matches on method / IP / city / country code / status code.
+    """Include/exclude matches on method / IP / city / country / status / host.
 
     Provided here rather than via the built-in ``in_fields`` config, whose
     generated providers yield ``None`` when the param is absent and fail the
     aggregating ``filters`` dependency's object validation.
 
+    Host matching is exact on both sides: the filter bar picks from the
+    ``/facets`` host list rather than typing free text. ``hostNotIn`` is OR'd
+    with ``host IS NULL`` because ``host`` is nullable and SQL evaluates
+    ``NULL NOT IN (...)`` as NULL rather than TRUE - a bare NOT IN would
+    silently drop every row whose host never parsed. ``ip_address`` is
+    NOT NULL, so ``ipAddressNotIn`` needs no such treatment.
+
     Raises:
-        ValidationException: If an ``ipAddressIn`` value is not a valid IP —
-            ``ip_address`` is an INET column, so asyncpg would otherwise fail
-            to encode the bind param and surface a 500.
+        ValidationException: If an ``ipAddressIn``/``ipAddressNotIn`` value is
+            not a valid IP.
     """
     result: list[FilterTypes] = []
     if method_in:
         result.append(CollectionFilter(field_name="method", values=method_in))
     if ip_address_in:
-        for raw in ip_address_in:
-            try:
-                ipaddress.ip_address(raw)
-            except ValueError as exc:
-                raise ValidationException(detail=f"Invalid IP address: {raw!r}") from exc
+        _validate_ip_addresses(ip_address_in)
         result.append(CollectionFilter(field_name="ip_address", values=ip_address_in))
     if city_in:
         result.append(CollectionFilter(field_name="city", values=city_in))
@@ -91,6 +101,21 @@ def provide_access_log_in_filters(
         result.append(CollectionFilter(field_name="country_code", values=country_code_in))
     if status_in:
         result.append(CollectionFilter(field_name="status_code", values=status_in))
+    if ip_address_not_in:
+        _validate_ip_addresses(ip_address_not_in)
+        result.append(NotInCollectionFilter(field_name="ip_address", values=ip_address_not_in))
+    if host_in:
+        result.append(CollectionFilter(field_name="host", values=host_in))
+    if host_not_in:
+        result.append(
+            FilterGroup(
+                logical_operator=or_,
+                filters=[
+                    NotInCollectionFilter(field_name="host", values=host_not_in),
+                    NullFilter(field_name="host"),
+                ],
+            )
+        )
     return result
 
 
@@ -120,7 +145,6 @@ class AccessLogController(Controller):
         },
     ) | {
         "time_window": Provide(provide_access_log_time_window, sync_to_thread=False),
-        "host_search": Provide(provide_access_log_host_search, sync_to_thread=False),
         "in_filters": Provide(provide_access_log_in_filters, sync_to_thread=False),
     }
 
@@ -130,11 +154,10 @@ class AccessLogController(Controller):
         access_log_service: NamedDependency[AccessLogService],
         filters: NamedDependency[SkipValidation[list[FilterTypes]]],
         time_window: NamedDependency[SkipValidation[list[FilterTypes]]],
-        host_search: NamedDependency[SkipValidation[list[FilterTypes]]],
         in_filters: NamedDependency[SkipValidation[list[FilterTypes]]],
     ) -> OffsetPagination[AccessLog]:
         """List access logs newest-first, with optional search/filter/sort."""
-        all_filters = [*filters, *time_window, *host_search, *in_filters]
+        all_filters = [*filters, *time_window, *in_filters]
         results, total = await access_log_service.get_many_and_count(*all_filters)
         return access_log_service.to_schema(results, total, filters=all_filters)
 

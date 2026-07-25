@@ -5,12 +5,14 @@ from datetime import datetime, timedelta, timezone
 
 from advanced_alchemy.filters import (
     CollectionFilter,
+    FilterGroup,
     LimitOffset,
+    NotInCollectionFilter,
+    NullFilter,
     OnBeforeAfter,
     OrderBy,
-    SearchFilter,
 )
-from sqlalchemy import text
+from sqlalchemy import or_, text
 
 from geometrikks.domain.logs.services import AccessLogService
 
@@ -25,7 +27,7 @@ async def _insert(
     *,
     method: str = "GET",
     url: str = "/x",
-    host: str = "example.com",
+    host: str | None = "example.com",
     status: int = 200,
     country_code: str | None = None,
     country_name: str | None = None,
@@ -93,18 +95,78 @@ async def test_method_and_ip_in_filters(pg_session_maker, clean_tables) -> None:
     assert str(results[0].ip_address) == "10.0.0.2"
 
 
-async def test_host_substring_search(pg_session_maker, clean_tables) -> None:
+async def test_host_exact_include_and_exclude(pg_session_maker, clean_tables) -> None:
     await _insert(pg_session_maker, NOW - timedelta(hours=1), "10.0.0.1", host="api.example.com")
     await _insert(pg_session_maker, NOW - timedelta(hours=1), "10.0.0.2", host="cdn.other.net")
+    await _insert(pg_session_maker, NOW - timedelta(hours=1), "10.0.0.3", host="vault.example.com")
+    async with pg_session_maker() as session:
+        service = AccessLogService(session=session)
+        included, included_total = await service.get_many_and_count(
+            _window(),
+            CollectionFilter("host", ["api.example.com"]),
+            LimitOffset(50, 0),
+        )
+        excluded, excluded_total = await service.get_many_and_count(
+            _window(),
+            NotInCollectionFilter("host", ["api.example.com"]),
+            LimitOffset(50, 0),
+        )
+    assert included_total == 1
+    assert str(included[0].ip_address) == "10.0.0.1"
+    assert excluded_total == 2
+    assert sorted(str(r.ip_address) for r in excluded) == ["10.0.0.2", "10.0.0.3"]
+
+
+async def test_host_exclude_keeps_rows_with_no_host(pg_session_maker, clean_tables) -> None:
+    # The parser writes NULL when a log line carries no host. A bare NOT IN
+    # would evaluate NULL and drop these rows, hiding traffic the user never
+    # asked to exclude.
+    await _insert(pg_session_maker, NOW - timedelta(hours=1), "10.0.0.1", host="vault.example.com")
+    await _insert(pg_session_maker, NOW - timedelta(hours=1), "10.0.0.2", host=None)
     async with pg_session_maker() as session:
         service = AccessLogService(session=session)
         results, total = await service.get_many_and_count(
             _window(),
-            SearchFilter("host", "example", ignore_case=True),
+            FilterGroup(
+                logical_operator=or_,
+                filters=[
+                    NotInCollectionFilter("host", ["vault.example.com"]),
+                    NullFilter("host"),
+                ],
+            ),
             LimitOffset(50, 0),
         )
     assert total == 1
-    assert str(results[0].ip_address) == "10.0.0.1"
+    assert str(results[0].ip_address) == "10.0.0.2"
+
+
+async def test_ip_exclude_removes_matching_rows(pg_session_maker, clean_tables) -> None:
+    await _insert(pg_session_maker, NOW - timedelta(hours=1), "10.0.0.1")
+    await _insert(pg_session_maker, NOW - timedelta(hours=1), "10.0.0.2")
+    async with pg_session_maker() as session:
+        service = AccessLogService(session=session)
+        results, total = await service.get_many_and_count(
+            _window(),
+            NotInCollectionFilter("ip_address", ["10.0.0.1"]),
+            LimitOffset(50, 0),
+        )
+    assert total == 1
+    assert str(results[0].ip_address) == "10.0.0.2"
+
+
+async def test_ip_include_and_exclude_of_same_value_yields_nothing(
+    pg_session_maker, clean_tables
+) -> None:
+    await _insert(pg_session_maker, NOW - timedelta(hours=1), "10.0.0.1")
+    async with pg_session_maker() as session:
+        service = AccessLogService(session=session)
+        _, total = await service.get_many_and_count(
+            _window(),
+            CollectionFilter("ip_address", ["10.0.0.1"]),
+            NotInCollectionFilter("ip_address", ["10.0.0.1"]),
+            LimitOffset(50, 0),
+        )
+    assert total == 0
 
 
 async def test_sort_by_status_ascending(pg_session_maker, clean_tables) -> None:

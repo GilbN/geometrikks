@@ -97,6 +97,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
+- The `host` substring query parameter on `GET /api/v1/access-logs/`. Replaced
+  by exact-match `hostIn` and `hostNotIn`, which the new Host filter dropdown
+  uses. Breaking for anyone calling that endpoint directly.
 - The map legend: the color-graded event count/density scale duplicated what
   the marker and heatmap colors already say at a glance, so the card is gone
   and the bottom-left corner stays clear for the map.
