@@ -269,6 +269,7 @@ export interface RouteQueryParams {
     end_date: DateTime;
     granularity?: "hourly" | "daily";
     ip_address?: string[];
+    ip_address_not_in?: string[];
     start_date: DateTime;
   };
   'get_top_cities': {
@@ -276,6 +277,7 @@ export interface RouteQueryParams {
     country_code?: string[];
     end_date: DateTime;
     ip_address?: string[];
+    ip_address_not_in?: string[];
     limit?: number;
     start_date: DateTime;
   };
@@ -284,6 +286,7 @@ export interface RouteQueryParams {
     country_code?: string[];
     end_date: DateTime;
     ip_address?: string[];
+    ip_address_not_in?: string[];
     limit?: number;
     start_date: DateTime;
   };
@@ -297,6 +300,7 @@ export interface RouteQueryParams {
     country_code?: string[];
     end_date: DateTime;
     ip_address?: string[];
+    ip_address_not_in?: string[];
     limit?: number;
     start_date: DateTime;
   };
@@ -305,6 +309,7 @@ export interface RouteQueryParams {
     country_code?: string[];
     end_date: DateTime;
     ip_address?: string[];
+    ip_address_not_in?: string[];
     limit?: number;
     start_date: DateTime;
   };
@@ -313,6 +318,7 @@ export interface RouteQueryParams {
     country_code?: string[];
     end_date: DateTime;
     ip_address?: string[];
+    ip_address_not_in?: string[];
     limit?: number;
     start_date: DateTime;
   };
@@ -337,8 +343,10 @@ export interface RouteQueryParams {
     countryCodeIn?: string[];
     currentPage?: number;
     from_timestamp?: DateTime;
-    host?: string;
+    hostIn?: string[];
+    hostNotIn?: string[];
     ipAddressIn?: string[];
+    ipAddressNotIn?: string[];
     methodIn?: string[];
     orderBy?: string;
     pageSize?: number;
@@ -585,21 +593,21 @@ export const routeDefinitions = {
     methods: ['GET'] as const,
     method: 'get',
     pathParams: [] as const,
-    queryParams: ['city', 'country_code', 'end_date', 'granularity', 'ip_address', 'start_date'] as const,
+    queryParams: ['city', 'country_code', 'end_date', 'granularity', 'ip_address', 'ip_address_not_in', 'start_date'] as const,
   },
   'get_top_cities': {
     path: '/api/v1/analytics/top-cities',
     methods: ['GET'] as const,
     method: 'get',
     pathParams: [] as const,
-    queryParams: ['city', 'country_code', 'end_date', 'ip_address', 'limit', 'start_date'] as const,
+    queryParams: ['city', 'country_code', 'end_date', 'ip_address', 'ip_address_not_in', 'limit', 'start_date'] as const,
   },
   'get_top_countries': {
     path: '/api/v1/analytics/top-countries',
     methods: ['GET'] as const,
     method: 'get',
     pathParams: [] as const,
-    queryParams: ['city', 'country_code', 'end_date', 'ip_address', 'limit', 'start_date'] as const,
+    queryParams: ['city', 'country_code', 'end_date', 'ip_address', 'ip_address_not_in', 'limit', 'start_date'] as const,
   },
   'get_top_countries_api_v1_geo_locations_top_countries': {
     path: '/api/v1/geo-locations/top-countries',
@@ -613,21 +621,21 @@ export const routeDefinitions = {
     methods: ['GET'] as const,
     method: 'get',
     pathParams: [] as const,
-    queryParams: ['city', 'country_code', 'end_date', 'ip_address', 'limit', 'start_date'] as const,
+    queryParams: ['city', 'country_code', 'end_date', 'ip_address', 'ip_address_not_in', 'limit', 'start_date'] as const,
   },
   'get_top_urls': {
     path: '/api/v1/analytics/top-urls',
     methods: ['GET'] as const,
     method: 'get',
     pathParams: [] as const,
-    queryParams: ['city', 'country_code', 'end_date', 'ip_address', 'limit', 'start_date'] as const,
+    queryParams: ['city', 'country_code', 'end_date', 'ip_address', 'ip_address_not_in', 'limit', 'start_date'] as const,
   },
   'get_top_user_agents': {
     path: '/api/v1/analytics/top-user-agents',
     methods: ['GET'] as const,
     method: 'get',
     pathParams: [] as const,
-    queryParams: ['city', 'country_code', 'end_date', 'ip_address', 'limit', 'start_date'] as const,
+    queryParams: ['city', 'country_code', 'end_date', 'ip_address', 'ip_address_not_in', 'limit', 'start_date'] as const,
   },
   'health': {
     path: '/health',
@@ -655,7 +663,7 @@ export const routeDefinitions = {
     methods: ['GET'] as const,
     method: 'get',
     pathParams: [] as const,
-    queryParams: ['cityIn', 'countryCodeIn', 'currentPage', 'from_timestamp', 'host', 'ipAddressIn', 'methodIn', 'orderBy', 'pageSize', 'searchIgnoreCase', 'searchString', 'sortOrder', 'statusIn', 'to_timestamp'] as const,
+    queryParams: ['cityIn', 'countryCodeIn', 'currentPage', 'from_timestamp', 'hostIn', 'hostNotIn', 'ipAddressIn', 'ipAddressNotIn', 'methodIn', 'orderBy', 'pageSize', 'searchIgnoreCase', 'searchString', 'sortOrder', 'statusIn', 'to_timestamp'] as const,
   },
   'list_alerts': {
     path: '/api/v1/crowdsec/alerts',

@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Access Logs: include/exclude filters for client IP and for HTTP host. Host
+  is now picked from the hosts present in your data rather than typed as a
+  substring, and both filters accept several values at once.
+- Access Logs and Analytics filters live in the URL, so a filtered view is a
+  shareable link. Access Logs also carries its page, page size and sort
+  order, matching the Geo Logs page.
+- Analytics page: an exclude-IP filter. Every chart and top-list on the page
+  can now drop specific client IPs, which is the quick way to take your own
+  traffic out of the picture without changing ingestion settings.
 - The docker image now supports `PUID`/`PGID`: the
   entrypoint re-maps the container user, fixes ownership of `/app/logs` and
   the GeoIP volume at startup, then drops privileges with gosu - no more
@@ -97,6 +106,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
+- The `host` substring query parameter on `GET /api/v1/access-logs/`. Replaced
+  by exact-match `hostIn` and `hostNotIn`, which the new Host filter dropdown
+  uses. Breaking for anyone calling that endpoint directly.
 - The map legend: the color-graded event count/density scale duplicated what
   the marker and heatmap colors already say at a glance, so the card is gone
   and the bottom-left corner stays clear for the map.
@@ -117,6 +129,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   phone feed sheet along with the rest of the overlay state, clicking the
   heatmap layer dismisses an open live popup, and zooming into a cluster no
   longer leaves one stuck open.
+- Geo Logs: the IP include/exclude inputs now reject invalid text instead of
+  accepting it as a filter chip, which used to reach the API and come back
+  as a 400.
 
 ## [0.4.3] - 2026-07-22
 

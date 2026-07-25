@@ -648,15 +648,17 @@ class AnalyticsFilters:
     """Optional dimension filters for analytics queries.
 
     Filtered queries must hit raw access_logs: CAGGs aggregate globally and
-    cannot be sliced by country/city/IP.
+    cannot be sliced by country/city/IP. An exclude-only filter counts as
+    active for exactly that reason.
     """
 
     country_codes: Sequence[str] | None = None
     cities: Sequence[str] | None = None
     ip_addresses: Sequence[str] | None = None
+    ip_exclude: Sequence[str] | None = None
 
     def is_active(self) -> bool:
-        return bool(self.country_codes or self.cities or self.ip_addresses)
+        return bool(self.country_codes or self.cities or self.ip_addresses or self.ip_exclude)
 
     def sql_conditions(self) -> tuple[str, dict]:
         """WHERE-clause fragment (leading ``AND``) plus bound params."""
@@ -671,6 +673,9 @@ class AnalyticsFilters:
         if self.ip_addresses:
             clauses.append("AND ip_address = ANY(CAST(:filter_ips AS inet[]))")
             params["filter_ips"] = list(self.ip_addresses)
+        if self.ip_exclude:
+            clauses.append("AND NOT (ip_address = ANY(CAST(:filter_ips_exclude AS inet[])))")
+            params["filter_ips_exclude"] = list(self.ip_exclude)
         return " ".join(clauses), params
 
 

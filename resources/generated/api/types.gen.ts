@@ -72,6 +72,7 @@ export type AccessLogDebugStats = {
 export type AccessLogFacets = {
   cities: Array<string>;
   countries: Array<CountryFacet>;
+  hosts: Array<string>;
 };
 
 /**
@@ -1035,12 +1036,14 @@ export type ApiV1AccessLogsListAccessLogsData = {
     sortOrder?: "asc" | "desc" | null;
     from_timestamp?: string | null;
     to_timestamp?: string | null;
-    host?: string | null;
     methodIn?: Array<string> | null;
     ipAddressIn?: Array<string> | null;
     cityIn?: Array<string> | null;
     countryCodeIn?: Array<string> | null;
     statusIn?: Array<number> | null;
+    ipAddressNotIn?: Array<string> | null;
+    hostIn?: Array<string> | null;
+    hostNotIn?: Array<string> | null;
   };
   url: "/api/v1/access-logs";
 };
@@ -1280,6 +1283,10 @@ export type ApiV1AnalyticsTimeSeriesGetTimeSeriesData = {
      * Filter to these client IPs (repeatable)
      */
     ip_address?: Array<string> | null;
+    /**
+     * Exclude these client IPs (repeatable)
+     */
+    ip_address_not_in?: Array<string> | null;
   };
   url: "/api/v1/analytics/time-series";
 };
@@ -1387,6 +1394,10 @@ export type ApiV1AnalyticsTopCitiesGetTopCitiesData = {
      * Filter to these client IPs (repeatable)
      */
     ip_address?: Array<string> | null;
+    /**
+     * Exclude these client IPs (repeatable)
+     */
+    ip_address_not_in?: Array<string> | null;
   };
   url: "/api/v1/analytics/top-cities";
 };
@@ -1448,6 +1459,10 @@ export type ApiV1AnalyticsTopCountriesGetTopCountriesData = {
      * Filter to these client IPs (repeatable)
      */
     ip_address?: Array<string> | null;
+    /**
+     * Exclude these client IPs (repeatable)
+     */
+    ip_address_not_in?: Array<string> | null;
   };
   url: "/api/v1/analytics/top-countries";
 };
@@ -1509,6 +1524,10 @@ export type ApiV1AnalyticsTopIpsGetTopIpsData = {
      * Filter to these client IPs (repeatable)
      */
     ip_address?: Array<string> | null;
+    /**
+     * Exclude these client IPs (repeatable)
+     */
+    ip_address_not_in?: Array<string> | null;
   };
   url: "/api/v1/analytics/top-ips";
 };
@@ -1570,6 +1589,10 @@ export type ApiV1AnalyticsTopUrlsGetTopUrlsData = {
      * Filter to these client IPs (repeatable)
      */
     ip_address?: Array<string> | null;
+    /**
+     * Exclude these client IPs (repeatable)
+     */
+    ip_address_not_in?: Array<string> | null;
   };
   url: "/api/v1/analytics/top-urls";
 };
@@ -1631,6 +1654,10 @@ export type ApiV1AnalyticsTopUserAgentsGetTopUserAgentsData = {
      * Filter to these client IPs (repeatable)
      */
     ip_address?: Array<string> | null;
+    /**
+     * Exclude these client IPs (repeatable)
+     */
+    ip_address_not_in?: Array<string> | null;
   };
   url: "/api/v1/analytics/top-user-agents";
 };

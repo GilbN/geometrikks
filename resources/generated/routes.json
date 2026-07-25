@@ -298,6 +298,7 @@
         "end_date": "DateTime",
         "granularity": "\"hourly\" | \"daily\" | undefined",
         "ip_address": "string[] | undefined",
+        "ip_address_not_in": "string[] | undefined",
         "start_date": "DateTime"
       },
       "uri": "/api/v1/analytics/time-series"
@@ -312,6 +313,7 @@
         "country_code": "string[] | undefined",
         "end_date": "DateTime",
         "ip_address": "string[] | undefined",
+        "ip_address_not_in": "string[] | undefined",
         "limit": "number | undefined",
         "start_date": "DateTime"
       },
@@ -327,6 +329,7 @@
         "country_code": "string[] | undefined",
         "end_date": "DateTime",
         "ip_address": "string[] | undefined",
+        "ip_address_not_in": "string[] | undefined",
         "limit": "number | undefined",
         "start_date": "DateTime"
       },
@@ -354,6 +357,7 @@
         "country_code": "string[] | undefined",
         "end_date": "DateTime",
         "ip_address": "string[] | undefined",
+        "ip_address_not_in": "string[] | undefined",
         "limit": "number | undefined",
         "start_date": "DateTime"
       },
@@ -369,6 +373,7 @@
         "country_code": "string[] | undefined",
         "end_date": "DateTime",
         "ip_address": "string[] | undefined",
+        "ip_address_not_in": "string[] | undefined",
         "limit": "number | undefined",
         "start_date": "DateTime"
       },
@@ -384,6 +389,7 @@
         "country_code": "string[] | undefined",
         "end_date": "DateTime",
         "ip_address": "string[] | undefined",
+        "ip_address_not_in": "string[] | undefined",
         "limit": "number | undefined",
         "start_date": "DateTime"
       },
@@ -434,8 +440,10 @@
         "countryCodeIn": "string[] | undefined",
         "currentPage": "number | undefined",
         "from_timestamp": "DateTime | undefined",
-        "host": "string | undefined",
+        "hostIn": "string[] | undefined",
+        "hostNotIn": "string[] | undefined",
         "ipAddressIn": "string[] | undefined",
+        "ipAddressNotIn": "string[] | undefined",
         "methodIn": "string[] | undefined",
         "orderBy": "string | undefined",
         "pageSize": "number | undefined",

@@ -40,7 +40,7 @@ class AccessLogService(SQLAlchemyAsyncRepositoryService[AccessLog]):
     count_with_window_function = False
 
     async def get_facets(self) -> AccessLogFacets:
-        """Distinct country/city values present in the data, for filter dropdowns.
+        """Distinct country/city/host values present in the data, for filter dropdowns.
 
         Rows without geo data (NULL columns) are excluded; ``name`` falls back
         to the code when ``country_name`` is missing. Countries are deduped by
@@ -64,9 +64,18 @@ class AccessLogService(SQLAlchemyAsyncRepositoryService[AccessLog]):
                 .order_by(AccessLog.city)
             )
         ).scalars().all()
+        hosts = (
+            await session.execute(
+                select(AccessLog.host)
+                .where(AccessLog.host.is_not(None))
+                .distinct()
+                .order_by(AccessLog.host)
+            )
+        ).scalars().all()
         return AccessLogFacets(
             countries=[CountryFacet(code=code, name=name or code) for code, name in country_rows],
             cities=list(cities),
+            hosts=list(hosts),
         )
 
 

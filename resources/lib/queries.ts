@@ -636,6 +636,7 @@ export function useTimeSeries(options: UseAnalyticsQueryOptions = {}) {
         countryCodes: filters.countryCodes,
         cities: filters.cities,
         ips: filters.ips,
+        ipsExclude: filters.ipsExclude,
       })
     },
     enabled,
@@ -685,6 +686,7 @@ export function useTopUrls(options: UseTopListOptions = {}) {
         countryCodes: filters.countryCodes,
         cities: filters.cities,
         ips: filters.ips,
+        ipsExclude: filters.ipsExclude,
       })
     },
     enabled,
@@ -713,6 +715,7 @@ export function useTopUserAgents(options: UseTopListOptions = {}) {
         countryCodes: filters.countryCodes,
         cities: filters.cities,
         ips: filters.ips,
+        ipsExclude: filters.ipsExclude,
       })
     },
     enabled,
@@ -741,6 +744,7 @@ export function useTopIpStats(options: UseTopListOptions = {}) {
         countryCodes: filters.countryCodes,
         cities: filters.cities,
         ips: filters.ips,
+        ipsExclude: filters.ipsExclude,
       })
     },
     enabled,
@@ -769,6 +773,7 @@ export function useTopCountryStats(options: UseTopListOptions = {}) {
         countryCodes: filters.countryCodes,
         cities: filters.cities,
         ips: filters.ips,
+        ipsExclude: filters.ipsExclude,
       })
     },
     enabled,
@@ -797,6 +802,7 @@ export function useTopCityStats(options: UseTopListOptions = {}) {
         countryCodes: filters.countryCodes,
         cities: filters.cities,
         ips: filters.ips,
+        ipsExclude: filters.ipsExclude,
       })
     },
     enabled,
@@ -815,8 +821,10 @@ export interface UseAccessLogsOptions {
   enabled?: boolean
   searchString?: string
   ipAddressIn?: string[]
+  ipAddressNotIn?: string[]
   methodIn?: string[]
-  host?: string
+  hostIn?: string[]
+  hostNotIn?: string[]
   cityIn?: string[]
   countryCodeIn?: string[]
   statusIn?: number[]
@@ -835,8 +843,10 @@ export function useAccessLogs(options: UseAccessLogsOptions = {}) {
     enabled = true,
     searchString,
     ipAddressIn,
+    ipAddressNotIn,
     methodIn,
-    host,
+    hostIn,
+    hostNotIn,
     cityIn,
     countryCodeIn,
     statusIn,
@@ -847,7 +857,7 @@ export function useAccessLogs(options: UseAccessLogsOptions = {}) {
 
   return useQuery<AccessLogsPage>({
     queryKey: queryKeys.accessLogs.list(
-      { range, customRange, currentPage, pageSize, searchString, ipAddressIn, methodIn, host, cityIn, countryCodeIn, statusIn, sortField, sortOrder },
+      { range, customRange, currentPage, pageSize, searchString, ipAddressIn, ipAddressNotIn, methodIn, hostIn, hostNotIn, cityIn, countryCodeIn, statusIn, sortField, sortOrder },
       lastRefresh,
     ),
     queryFn: () => {
@@ -859,8 +869,10 @@ export function useAccessLogs(options: UseAccessLogsOptions = {}) {
         pageSize,
         searchString,
         ipAddressIn,
+        ipAddressNotIn,
         methodIn,
-        host,
+        hostIn,
+        hostNotIn,
         cityIn,
         countryCodeIn,
         statusIn,

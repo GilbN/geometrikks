@@ -265,8 +265,14 @@ export const AccessLogFacetsSchema = {
       },
       type: "array",
     },
+    hosts: {
+      items: {
+        type: "string",
+      },
+      type: "array",
+    },
   },
-  required: ["cities", "countries"],
+  required: ["cities", "countries", "hosts"],
   title: "AccessLogFacets",
   type: "object",
 } as const;
