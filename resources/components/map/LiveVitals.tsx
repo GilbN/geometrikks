@@ -3,8 +3,7 @@
  * mobile renders the same numbers as a pill that opens the feed sheet.
  */
 import { ChevronUp } from "lucide-react"
-import { useLiveVitals } from "@/lib/live-traffic/context"
-import { useLiveFeedStatus } from "@/lib/live-feed-context"
+import { useLiveFeedState, useLiveVitals } from "@/lib/live-traffic/context"
 import { formatNumber } from "@/lib/api"
 import { cn } from "@/lib/utils"
 
@@ -34,8 +33,8 @@ export function LiveVitals({
   onOpenFeed?: () => void
 }) {
   const vitals = useLiveVitals()
-  const status = useLiveFeedStatus()
-  const disconnected = status !== "connected"
+  const feedState = useLiveFeedState()
+  const disconnected = feedState !== "connected"
   const errorPercent = (vitals.errorRate * 100).toFixed(1)
 
   if (variant === "pill") {

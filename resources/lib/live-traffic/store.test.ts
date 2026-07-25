@@ -103,6 +103,25 @@ describe("LiveTrafficStore", () => {
     expect(buckets[298].threats).toBe(1)
   })
 
+  it("orders a bucket's requestIds newest first, matching getRequests()", () => {
+    const store = new LiveTrafficStore()
+    // Three batches landing in the same second, each later than the last.
+    // A batch itself arrives oldest-event-first, so within the "third" batch
+    // "third-b" is the newer of the two.
+    store.ingest([request({ id: "first", receivedAt: 300_000 })], 0, 300_000)
+    store.ingest([request({ id: "second", receivedAt: 300_400 })], 0, 300_400)
+    store.ingest(
+      [request({ id: "third-a", receivedAt: 300_600 }), request({ id: "third-b", receivedAt: 300_600 })],
+      0,
+      300_600,
+    )
+
+    const bucket = store.getBuckets(300_600)[299]
+
+    expect(bucket.requestIds).toEqual(store.getRequests().map((r) => r.id))
+    expect(bucket.requestIds).toEqual(["third-b", "third-a", "second", "first"])
+  })
+
   it("colours a bucket by its worst status and counts banned separately", () => {
     const store = new LiveTrafficStore()
     store.ingest(

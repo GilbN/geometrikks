@@ -8,6 +8,7 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { useLiveBuckets, useLiveTrafficStore } from "@/lib/live-traffic/context"
 import { BANNED_RING_COLOR, PACKET_COLORS } from "@/lib/live-traffic/classify"
+import { resolveHoveredIndex } from "@/lib/live-traffic/wire"
 import type { LiveRequest, SecondBucket } from "@/lib/live-traffic/types"
 
 const HEIGHT = 46
@@ -20,7 +21,7 @@ function notableRequest(bucket: SecondBucket, lookup: (id: string) => LiveReques
     requests.find((r) => r.banned) ??
     requests.find((r) => r.statusClass === "4xx") ??
     requests.find((r) => r.statusClass === "5xx") ??
-    requests.at(-1)
+    requests[0]
   )
 }
 
@@ -61,21 +62,25 @@ export function LiveWire({ onSelect }: { onSelect: (request: LiveRequest) => voi
   const buckets = useLiveBuckets()
   const store = useLiveTrafficStore()
   const canvasRef = useRef<HTMLCanvasElement>(null)
-  const [hovered, setHovered] = useState<number | null>(null)
+  // The second under the cursor, not its bucket index - the window shifts
+  // left every tick, so a cached index would silently point at a different
+  // second a moment later.
+  const [hoveredSecond, setHoveredSecond] = useState<number | null>(null)
+  const hovered = resolveHoveredIndex(buckets, hoveredSecond)
 
   useEffect(() => {
     if (canvasRef.current) draw(canvasRef.current, buckets, hovered)
   }, [buckets, hovered])
 
-  const bucketAt = useCallback(
+  const secondAt = useCallback(
     (clientX: number): number | null => {
       const canvas = canvasRef.current
       if (!canvas || buckets.length === 0) return null
       const rect = canvas.getBoundingClientRect()
       const index = Math.floor(((clientX - rect.left) / rect.width) * buckets.length)
-      return index >= 0 && index < buckets.length ? index : null
+      return index >= 0 && index < buckets.length ? buckets[index].second : null
     },
-    [buckets.length],
+    [buckets],
   )
 
   const hoveredBucket = hovered === null ? null : buckets[hovered]
@@ -98,8 +103,8 @@ export function LiveWire({ onSelect }: { onSelect: (request: LiveRequest) => voi
         ref={canvasRef}
         style={{ width: "100%", height: HEIGHT }}
         aria-label="Requests per second over the last five minutes"
-        onMouseMove={(event) => setHovered(bucketAt(event.clientX))}
-        onMouseLeave={() => setHovered(null)}
+        onMouseMove={(event) => setHoveredSecond(secondAt(event.clientX))}
+        onMouseLeave={() => setHoveredSecond(null)}
         onClick={() => {
           if (hoveredRequest) onSelect(hoveredRequest)
         }}

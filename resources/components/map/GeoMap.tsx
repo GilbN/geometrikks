@@ -33,7 +33,7 @@ import { LivePulses } from "./LivePulses"
 import { HomeMarker } from "./HomeMarker"
 import { MapLegend } from "./MapLegend"
 import { MapPopup, type PopupInfo } from "./MapPopup"
-import { LiveRequestPopup } from "./LiveRequestPopup"
+import { LiveRequestCard, LiveRequestPopup } from "./LiveRequestPopup"
 import { LiveVitals } from "./LiveVitals"
 import { LiveStrips } from "./LiveStrips"
 import { LiveWire } from "./LiveWire"
@@ -179,6 +179,16 @@ function GeoMapInner({
     saveLiveOverlays(liveOverlays)
   }, [liveOverlays])
 
+  // Live off tears down the store; any live-only UI referencing it must go
+  // too, or a popup stays pinned to the map after the request it describes
+  // is gone.
+  useEffect(() => {
+    if (!liveMode) {
+      setLivePopup(null)
+      setFeedOpen(false)
+    }
+  }, [liveMode])
+
   // Filter options come from the last UNFILTERED result (a second query just
   // for options would be wasteful), held in a ref so the option lists don't
   // shrink to the filtered subset while a filter is active.
@@ -314,7 +324,15 @@ function GeoMapInner({
         return
       }
 
-      if (activeLayer !== "markers") return
+      // Any click that does not land on a live packet dismisses whichever
+      // live popup is open, regardless of the active layer - including the
+      // heatmap, which has no marker click handling of its own below.
+      setLivePopup(null)
+
+      if (activeLayer !== "markers") {
+        setPopup(null)
+        return
+      }
 
       const features = event.features
       if (!features?.length) {
@@ -327,6 +345,7 @@ function GeoMapInner({
 
       // Handle cluster click - zoom in
       if (feature.properties?.cluster) {
+        setPopup(null)
         const clusterId = feature.properties.cluster_id as number
         const source = mapRef.current?.getSource("geo-data") as maplibregl.GeoJSONSource
         if (source) {
@@ -344,7 +363,6 @@ function GeoMapInner({
       }
 
       // Show popup for unclustered point
-      setLivePopup(null)
       setPopup({
         longitude: geometry.coordinates[0],
         latitude: geometry.coordinates[1],
@@ -485,6 +503,13 @@ function GeoMapInner({
           <LiveRequestPopup request={livePopup} onClose={() => setLivePopup(null)} />
         )}
       </Map>
+
+      {/* A request with no GeoIP match has nowhere on the map to anchor a
+          Popup, so its detail renders as a centered card instead - it stays
+          reachable from the strip, the wire, and the sheet alike. */}
+      {livePopup && !livePopup.coordinates && (
+        <LiveRequestCard request={livePopup} onClose={() => setLivePopup(null)} />
+      )}
 
       {liveMode && !isMobile && liveOverlays.vitals && (
         <div className="pointer-events-none absolute left-4 top-4 z-10">

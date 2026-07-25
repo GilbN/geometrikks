@@ -89,6 +89,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Map zoom/compass buttons were unclickable when the map-controls panel was
   tall enough to reach down beside them.
+- Live vitals no longer read as disconnected during demo traffic: the
+  desktop readout dropped a spurious "Reconnecting" line, and the mobile
+  pill now keeps showing rpm, error rate, and threat count instead of
+  hiding them behind that label.
+- A live request with no GeoIP match (LAN traffic, private or unresolvable
+  IPs) now opens a small dismissible detail card when tapped from the
+  strips, the timeline, or the phone sheet, instead of doing nothing.
+- Switching Live mode off now closes an open live-request popup and the
+  phone feed sheet along with the rest of the overlay state, clicking the
+  heatmap layer dismisses an open live popup, and zooming into a cluster no
+  longer leaves one stuck open.
+- The five-minute timeline's hover highlight now tracks the second under
+  the cursor rather than a bucket position, so it stays on the request
+  you're pointing at as the window scrolls instead of drifting to a
+  different second; its "most notable request" fallback now picks the
+  newest request in that second instead of the oldest.
 
 ## [0.4.3] - 2026-07-22
 
