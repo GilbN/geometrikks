@@ -2,6 +2,7 @@
 /ignore
 /config
 docs/superpowers/
+.worktrees/
 *.db
 .litestar.json
 /logs

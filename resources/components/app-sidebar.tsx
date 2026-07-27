@@ -138,10 +138,10 @@ function GeoLogo({ collapsed }: { collapsed: boolean }) {
           collapsed ? "w-0 opacity-0" : "w-auto opacity-100"
         )}
       >
-        <span className="text-sm font-semibold tracking-tight text-sidebar-foreground whitespace-nowrap">
+        <span className="text-[24px] font-normal tracking-[0.12em] uppercase font-runr text-sidebar-foreground whitespace-nowrap">
           Geo<span className="text-geo-cyan">Metrikks</span>
         </span>
-        <span className="text-[10px] font-medium text-sidebar-foreground/50 tracking-widest uppercase whitespace-nowrap">
+        <span className="text-[11px] font-runr font-normal tracking-[0.25em] uppercase text-sidebar-foreground/50 whitespace-nowrap">
           Analytics
         </span>
       </div>
