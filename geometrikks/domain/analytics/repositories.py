@@ -14,6 +14,8 @@ CAGG Structure:
 - geo_summary_hourly_stats / geo_summary_daily_stats: Geo metrics with HyperLogLog (events, unique IPs/countries/cities)
 - location_hourly_stats / location_daily_stats: Location event counts for map (GeoJSON features)
 - ip_location_daily_stats: Per-IP counts by location for top IPs
+- url_hourly_stats / url_daily_stats: Top URLs by hits, error_hits, total_bytes, total_request_time
+- user_agent_hourly_stats / user_agent_daily_stats: Top user agents by hits
 
 HyperLogLog sketches enable accurate unique counts across any time range.
 For short ranges (≤1 hour), raw table queries provide exact time range results.
@@ -591,6 +593,103 @@ class SummaryStatsRepository:
         result = await self.session.execute(stmt, {"start": start, "end": end})
         return [dict(row._mapping) for row in result.fetchall()]
 
+    async def get_top_urls(
+        self, start: datetime, end: datetime, limit: int = 25, *, filters: AnalyticsFilters | None = None
+    ) -> list[TopUrlRow]:
+        """Top URLs by hits: stitched url CAGG read above 24h, raw otherwise.
+
+        Any active filter forces the raw path: the url CAGGs carry no
+        country/city/IP dimensions (adding them would multiply cardinality).
+        """
+        filters = filters or AnalyticsFilters()
+        granularity = get_stats_granularity(start, end)
+        if granularity == StatsGranularity.RAW or filters.is_active():
+            return await LiveStatsRepository(self.session).get_top_urls(
+                start, end, limit, filters=filters
+            )
+        table = f"url_{granularity.value}_stats"
+        interval = "1 hour" if granularity == StatsGranularity.HOURLY else "1 day"
+        stmt = text(f"""
+            {_stitched_bounds_cte(interval)},
+            combined AS (
+                SELECT s.url, s.hits, s.error_hits, s.total_bytes, s.total_request_time
+                FROM {table} s, bounds
+                WHERE s.bucket >= bounds.a_start AND s.bucket < bounds.a_end
+                UNION ALL
+                SELECT al.url, CAST(1 AS BIGINT), CAST((al.status_code >= 400)::int AS BIGINT),
+                       al.bytes_sent, al.request_time
+                FROM access_logs al, bounds
+                WHERE ((al.timestamp >= bounds.rs AND al.timestamp < bounds.a_start)
+                    OR (al.timestamp >= bounds.a_end AND al.timestamp < bounds.re))
+                  AND al.url IS NOT NULL
+            )
+            SELECT
+                url,
+                CAST(SUM(hits) AS BIGINT) AS hits,
+                CAST(SUM(error_hits) AS BIGINT) AS error_hits,
+                CAST(COALESCE(SUM(total_bytes), 0) AS BIGINT) AS total_bytes,
+                COALESCE(SUM(total_request_time) / NULLIF(SUM(hits), 0), 0) AS avg_request_time
+            FROM combined
+            GROUP BY url
+            ORDER BY hits DESC
+            LIMIT :limit
+        """)
+        result = await self.session.execute(
+            stmt, {"start": start, "end": end, "limit": limit}
+        )
+        return [
+            TopUrlRow(
+                url=row.url,
+                hits=row.hits,
+                error_hits=row.error_hits,
+                total_bytes=row.total_bytes,
+                avg_request_time=float(row.avg_request_time),
+            )
+            for row in result.fetchall()
+        ]
+
+    async def get_top_user_agents(
+        self, start: datetime, end: datetime, limit: int = 25, *, filters: AnalyticsFilters | None = None
+    ) -> list[TopUserAgentRow]:
+        """Top user agents by hits: stitched CAGG read above 24h, raw otherwise.
+
+        Any active filter forces the raw path (no dims on the UA CAGGs).
+        """
+        filters = filters or AnalyticsFilters()
+        granularity = get_stats_granularity(start, end)
+        if granularity == StatsGranularity.RAW or filters.is_active():
+            return await LiveStatsRepository(self.session).get_top_user_agents(
+                start, end, limit, filters=filters
+            )
+        table = f"user_agent_{granularity.value}_stats"
+        interval = "1 hour" if granularity == StatsGranularity.HOURLY else "1 day"
+        stmt = text(f"""
+            {_stitched_bounds_cte(interval)},
+            combined AS (
+                SELECT s.user_agent, s.hits
+                FROM {table} s, bounds
+                WHERE s.bucket >= bounds.a_start AND s.bucket < bounds.a_end
+                UNION ALL
+                SELECT al.user_agent, CAST(1 AS BIGINT)
+                FROM access_logs al, bounds
+                WHERE ((al.timestamp >= bounds.rs AND al.timestamp < bounds.a_start)
+                    OR (al.timestamp >= bounds.a_end AND al.timestamp < bounds.re))
+                  AND al.user_agent IS NOT NULL
+            )
+            SELECT user_agent, CAST(SUM(hits) AS BIGINT) AS hits
+            FROM combined
+            GROUP BY user_agent
+            ORDER BY hits DESC
+            LIMIT :limit
+        """)
+        result = await self.session.execute(
+            stmt, {"start": start, "end": end, "limit": limit}
+        )
+        return [
+            TopUserAgentRow(user_agent=row.user_agent, hits=row.hits)
+            for row in result.fetchall()
+        ]
+
 
 @dataclass
 class TopUrlRow:
@@ -677,6 +776,39 @@ class AnalyticsFilters:
             clauses.append("AND NOT (ip_address = ANY(CAST(:filter_ips_exclude AS inet[])))")
             params["filter_ips_exclude"] = list(self.ip_exclude)
         return " ".join(clauses), params
+
+
+def _stitched_bounds_cte(interval: str) -> str:
+    """WITH-clause opener exposing ``bounds`` for a stitched CAGG read.
+
+    ``bounds`` snaps the [:start, :end) window inward to whole buckets
+    (a_start/a_end); the leftover head/tail slices are read from the raw
+    hypertable by the caller's second UNION leg, so the union is exactly
+    equal to a raw scan of the window. a_start/a_end are clamped so a window
+    spanning no complete bucket degenerates to a pure raw scan.
+    """
+    return f"""
+        WITH bounds AS (
+            SELECT
+                rs, re, a_start,
+                GREATEST(time_bucket(INTERVAL '{interval}', re), a_start) AS a_end
+            FROM (
+                SELECT
+                    CAST(:start AS timestamptz) AS rs,
+                    CAST(:end AS timestamptz) AS re,
+                    LEAST(
+                        CASE
+                            WHEN time_bucket(INTERVAL '{interval}', CAST(:start AS timestamptz))
+                                 = CAST(:start AS timestamptz)
+                            THEN CAST(:start AS timestamptz)
+                            ELSE time_bucket(INTERVAL '{interval}', CAST(:start AS timestamptz))
+                                 + INTERVAL '{interval}'
+                        END,
+                        CAST(:end AS timestamptz)
+                    ) AS a_start
+            ) b
+        )
+    """
 
 
 class LiveStatsRepository:
