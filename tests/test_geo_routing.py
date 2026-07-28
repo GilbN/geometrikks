@@ -86,3 +86,15 @@ async def test_hourly_override_on_long_filtered_range_goes_raw():
     )
     assert "ip_location_hourly_stats" not in session.statements[0]
     assert "FROM geo_events" in session.statements[0]
+
+
+async def test_stitched_sql_binds_bounds_as_params():
+    """Regression: stitch bounds must be plain bind params, never a joined CTE
+    (a CTE join defeats TimescaleDB chunk exclusion on the raw legs)."""
+    session = _RecordingSession()
+    await GeoEventService(session=session).get_summary(
+        WEEK_START, NOW, GeoEventFilters(country_codes=["NO"])
+    )
+    sql = session.statements[0]
+    assert "bounds" not in sql
+    assert ":a_start" in sql and ":a_end" in sql

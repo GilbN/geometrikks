@@ -20,7 +20,12 @@ from advanced_alchemy.service import SQLAlchemyAsyncRepositoryService
 from sqlalchemy import func, select, text
 
 from geometrikks.domain.geo.models import GeoEvent, GeoLocation
-from geometrikks.domain.geo.repositories import StatsGranularity, get_stats_granularity, stitched_ip_location_cte
+from geometrikks.domain.geo.repositories import (
+    StatsGranularity,
+    get_stats_granularity,
+    stitch_params,
+    stitched_ip_location_cte,
+)
 from geometrikks.domain.geo.schemas import (
     GeoCountryFacet,
     GeoEventFacets,
@@ -108,7 +113,10 @@ class GeoEventService(SQLAlchemyAsyncRepositoryService[GeoEvent]):
             """
             order_col = "ip_address"
 
-        params = {"start": start, "end": end, **filter_params}
+        if use_raw:
+            params = {"start": start, "end": end, **filter_params}
+        else:
+            params = {**stitch_params(start, end, granularity), **filter_params}
         stmt = text(
             f"SELECT * FROM ({source}) grouped "
             f"ORDER BY event_count {sort_order.upper()}, location_id, {order_col} "
@@ -179,7 +187,7 @@ class GeoEventService(SQLAlchemyAsyncRepositoryService[GeoEvent]):
                 WHERE TRUE
                 {filter_sql}
             """)
-            params = {"start": start, "end": end, **filter_params}
+            params = {**stitch_params(start, end, granularity), **filter_params}
         else:
             table = f"geo_summary_{granularity.value}_stats"
             interval = "1 hour" if granularity == StatsGranularity.HOURLY else "1 day"
@@ -272,7 +280,7 @@ class GeoEventService(SQLAlchemyAsyncRepositoryService[GeoEvent]):
                 GROUP BY bucket
                 ORDER BY bucket ASC
             """)
-            params = {"start": start, "end": end, **filter_params}
+            params = {**stitch_params(start, end, granularity), **filter_params}
         else:
             table = f"geo_summary_{granularity.value}_stats"
             stmt = text(f"""
@@ -335,8 +343,12 @@ class GeoEventService(SQLAlchemyAsyncRepositoryService[GeoEvent]):
                 ORDER BY event_count DESC
                 LIMIT :limit
             """)
+        if granularity == StatsGranularity.RAW or filters.forces_raw:
+            window_params: dict = {"start": start, "end": end}
+        else:
+            window_params = stitch_params(start, end, granularity)
         result = await self._session.execute(
-            stmt, {"start": start, "end": end, "limit": limit, **filter_params}
+            stmt, {**window_params, "limit": limit, **filter_params}
         )
         return [
             TopGeoIp(
@@ -387,8 +399,12 @@ class GeoEventService(SQLAlchemyAsyncRepositoryService[GeoEvent]):
                 ORDER BY event_count DESC
                 LIMIT :limit
             """)
+        if granularity == StatsGranularity.RAW or filters.forces_raw:
+            window_params: dict = {"start": start, "end": end}
+        else:
+            window_params = stitch_params(start, end, granularity)
         result = await self._session.execute(
-            stmt, {"start": start, "end": end, "limit": limit, **filter_params}
+            stmt, {**window_params, "limit": limit, **filter_params}
         )
         return [
             TopGeoCountry(
@@ -439,8 +455,12 @@ class GeoEventService(SQLAlchemyAsyncRepositoryService[GeoEvent]):
                 ORDER BY event_count DESC
                 LIMIT :limit
             """)
+        if granularity == StatsGranularity.RAW or filters.forces_raw:
+            window_params: dict = {"start": start, "end": end}
+        else:
+            window_params = stitch_params(start, end, granularity)
         result = await self._session.execute(
-            stmt, {"start": start, "end": end, "limit": limit, **filter_params}
+            stmt, {**window_params, "limit": limit, **filter_params}
         )
         return [
             TopGeoCity(

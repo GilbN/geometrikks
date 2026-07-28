@@ -69,55 +69,64 @@ IP_LOCATION_CAGGS = {
 }
 
 
+def stitch_params(
+    start: datetime, end: datetime, granularity: StatsGranularity
+) -> dict:
+    """Bind params for a stitched CAGG read: window edges + inward bucket snap.
+
+    a_start/a_end snap the [start, end) window inward to whole buckets (UTC
+    aligned, matching time_bucket). Clamped so a window spanning no complete
+    bucket degenerates to a pure raw scan (empty CAGG leg, one head slice
+    covering the whole window).
+
+    Computed in Python and bound as plain parameters deliberately: routing
+    the bounds through a SQL CTE joined into each leg turns the timestamp
+    constraints into join predicates, which TimescaleDB cannot use for chunk
+    exclusion - the raw legs then decompress and scan the entire hypertable.
+    """
+    if granularity == StatsGranularity.DAILY:
+        floor_start = start.replace(hour=0, minute=0, second=0, microsecond=0)
+        floor_end = end.replace(hour=0, minute=0, second=0, microsecond=0)
+        step = timedelta(days=1)
+    else:
+        floor_start = start.replace(minute=0, second=0, microsecond=0)
+        floor_end = end.replace(minute=0, second=0, microsecond=0)
+        step = timedelta(hours=1)
+    a_start = start if floor_start == start else floor_start + step
+    a_start = min(a_start, end)
+    a_end = max(floor_end, a_start)
+    return {"start": start, "end": end, "a_start": a_start, "a_end": a_end}
+
+
 def stitched_ip_location_cte(granularity: StatsGranularity) -> str:
     """WITH clause exposing ``combined`` for a per-IP CAGG read.
 
     Reading a CAGG requires whole buckets, so a window that starts mid-bucket
     used to be floored outward - silently pulling in a partial extra bucket and
-    over-counting against the equivalent raw scan. Here ``bounds`` snaps the
-    window *inward* to whole buckets and the leftover head/tail slices are read
-    straight from ``geo_events``, so the union is exact.
+    over-counting against the equivalent raw scan. The window is snapped
+    *inward* to whole buckets (``stitch_params``; callers bind its params) and
+    the leftover head/tail slices are read straight from ``geo_events``, so
+    the union is exact.
 
     ``combined`` yields (location_id, ip_address, event_count, last_seen); it is
-    keyed by IP on both legs, so ``COUNT(DISTINCT ip_address)`` over it stays
+    keyed by IP on all legs, so ``COUNT(DISTINCT ip_address)`` over it stays
     exact rather than summing per-bucket counts. ``last_seen`` is bucket-granular
     for CAGG rows and exact for the raw edge rows.
-
-    ``a_start``/``a_end`` are clamped so a window spanning no complete bucket
-    degenerates to a pure raw scan (empty CAGG leg, one head slice covering the
-    whole window) instead of emitting overlapping head and tail ranges.
     """
-    table, interval = IP_LOCATION_CAGGS[granularity]
+    table, _ = IP_LOCATION_CAGGS[granularity]
     return f"""
-        WITH bounds AS (
-            SELECT
-                rs, re, a_start,
-                GREATEST(time_bucket(INTERVAL '{interval}', re), a_start) AS a_end
-            FROM (
-                SELECT
-                    CAST(:start AS timestamptz) AS rs,
-                    CAST(:end AS timestamptz) AS re,
-                    LEAST(
-                        CASE
-                            WHEN time_bucket(INTERVAL '{interval}', CAST(:start AS timestamptz))
-                                 = CAST(:start AS timestamptz)
-                            THEN CAST(:start AS timestamptz)
-                            ELSE time_bucket(INTERVAL '{interval}', CAST(:start AS timestamptz))
-                                 + INTERVAL '{interval}'
-                        END,
-                        CAST(:end AS timestamptz)
-                    ) AS a_start
-            ) b
-        ),
-        combined AS (
+        WITH combined AS (
             SELECT s.location_id, s.ip_address, s.event_count, s.bucket AS last_seen
-            FROM {table} s, bounds
-            WHERE s.bucket >= bounds.a_start AND s.bucket < bounds.a_end
+            FROM {table} s
+            WHERE s.bucket >= :a_start AND s.bucket < :a_end
             UNION ALL
             SELECT ge.location_id, ge.ip_address, CAST(1 AS BIGINT), ge.timestamp
-            FROM geo_events ge, bounds
-            WHERE (ge.timestamp >= bounds.rs AND ge.timestamp < bounds.a_start)
-               OR (ge.timestamp >= bounds.a_end AND ge.timestamp < bounds.re)
+            FROM geo_events ge
+            WHERE ge.timestamp >= :start AND ge.timestamp < :a_start
+            UNION ALL
+            SELECT ge.location_id, ge.ip_address, CAST(1 AS BIGINT), ge.timestamp
+            FROM geo_events ge
+            WHERE ge.timestamp >= :a_end AND ge.timestamp < :end
         )
     """
 
@@ -359,14 +368,12 @@ class GeoLocationRepository(SQLAlchemyAsyncRepository[GeoLocation]):
                 LIMIT :limit
             """)
 
+        if granularity == StatsGranularity.RAW:
+            params: dict = {"start": from_timestamp, "end": to_timestamp}
+        else:
+            params = stitch_params(from_timestamp, to_timestamp, granularity)
         result = await self.session.execute(
-            stmt,
-            {
-                "location_id": location_id,
-                "start": from_timestamp,
-                "end": to_timestamp,
-                "limit": limit,
-            },
+            stmt, {"location_id": location_id, "limit": limit, **params}
         )
         rows = result.fetchall()
 
@@ -427,9 +434,12 @@ class GeoLocationRepository(SQLAlchemyAsyncRepository[GeoLocation]):
                 LIMIT :fetch_limit
             """)
 
+        if granularity == StatsGranularity.RAW:
+            params: dict = {"start": from_timestamp, "end": to_timestamp}
+        else:
+            params = stitch_params(from_timestamp, to_timestamp, granularity)
         result = await self.session.execute(stmt, {
-            "start": from_timestamp,
-            "end": to_timestamp,
+            **params,
             "fetch_limit": limit * 10,  # Fetch more to account for deduplication
         })
 

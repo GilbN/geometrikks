@@ -609,19 +609,22 @@ class SummaryStatsRepository:
                 start, end, limit, filters=filters
             )
         table = f"url_{granularity.value}_stats"
-        interval = "1 hour" if granularity == StatsGranularity.HOURLY else "1 day"
         stmt = text(f"""
-            {_stitched_bounds_cte(interval)},
-            combined AS (
+            WITH combined AS (
                 SELECT s.url, s.hits, s.error_hits, s.total_bytes, s.total_request_time
-                FROM {table} s, bounds
-                WHERE s.bucket >= bounds.a_start AND s.bucket < bounds.a_end
+                FROM {table} s
+                WHERE s.bucket >= :a_start AND s.bucket < :a_end
                 UNION ALL
                 SELECT al.url, CAST(1 AS BIGINT), CAST((al.status_code >= 400)::int AS BIGINT),
                        al.bytes_sent, al.request_time
-                FROM access_logs al, bounds
-                WHERE ((al.timestamp >= bounds.rs AND al.timestamp < bounds.a_start)
-                    OR (al.timestamp >= bounds.a_end AND al.timestamp < bounds.re))
+                FROM access_logs al
+                WHERE al.timestamp >= :start AND al.timestamp < :a_start
+                  AND al.url IS NOT NULL
+                UNION ALL
+                SELECT al.url, CAST(1 AS BIGINT), CAST((al.status_code >= 400)::int AS BIGINT),
+                       al.bytes_sent, al.request_time
+                FROM access_logs al
+                WHERE al.timestamp >= :a_end AND al.timestamp < :end
                   AND al.url IS NOT NULL
             )
             SELECT
@@ -636,7 +639,7 @@ class SummaryStatsRepository:
             LIMIT :limit
         """)
         result = await self.session.execute(
-            stmt, {"start": start, "end": end, "limit": limit}
+            stmt, {**_stitch_params(start, end, granularity), "limit": limit}
         )
         return [
             TopUrlRow(
@@ -663,18 +666,20 @@ class SummaryStatsRepository:
                 start, end, limit, filters=filters
             )
         table = f"user_agent_{granularity.value}_stats"
-        interval = "1 hour" if granularity == StatsGranularity.HOURLY else "1 day"
         stmt = text(f"""
-            {_stitched_bounds_cte(interval)},
-            combined AS (
+            WITH combined AS (
                 SELECT s.user_agent, s.hits
-                FROM {table} s, bounds
-                WHERE s.bucket >= bounds.a_start AND s.bucket < bounds.a_end
+                FROM {table} s
+                WHERE s.bucket >= :a_start AND s.bucket < :a_end
                 UNION ALL
                 SELECT al.user_agent, CAST(1 AS BIGINT)
-                FROM access_logs al, bounds
-                WHERE ((al.timestamp >= bounds.rs AND al.timestamp < bounds.a_start)
-                    OR (al.timestamp >= bounds.a_end AND al.timestamp < bounds.re))
+                FROM access_logs al
+                WHERE al.timestamp >= :start AND al.timestamp < :a_start
+                  AND al.user_agent IS NOT NULL
+                UNION ALL
+                SELECT al.user_agent, CAST(1 AS BIGINT)
+                FROM access_logs al
+                WHERE al.timestamp >= :a_end AND al.timestamp < :end
                   AND al.user_agent IS NOT NULL
             )
             SELECT user_agent, CAST(SUM(hits) AS BIGINT) AS hits
@@ -684,7 +689,7 @@ class SummaryStatsRepository:
             LIMIT :limit
         """)
         result = await self.session.execute(
-            stmt, {"start": start, "end": end, "limit": limit}
+            stmt, {**_stitch_params(start, end, granularity), "limit": limit}
         )
         return [
             TopUserAgentRow(user_agent=row.user_agent, hits=row.hits)
@@ -695,26 +700,30 @@ class SummaryStatsRepository:
         """WITH clause exposing ``combined`` for a stitched log_ip CAGG read.
 
         ``combined`` yields (ip_address, country_code, city, country_name,
-        hits, error_hits, total_bytes); rows are keyed by IP on both legs, so
+        hits, error_hits, total_bytes); rows are keyed by IP on all legs, so
         COUNT(DISTINCT ip_address) over it stays exact and the unaliased
-        AnalyticsFilters conditions apply to either leg's rows.
+        AnalyticsFilters conditions apply to any leg's rows. Callers bind the
+        params from ``_stitch_params``.
         """
         table = f"log_ip_{granularity.value}_stats"
-        interval = "1 hour" if granularity == StatsGranularity.HOURLY else "1 day"
         return f"""
-            {_stitched_bounds_cte(interval)},
-            combined AS (
+            WITH combined AS (
                 SELECT s.ip_address, s.country_code, s.city, s.country_name,
                        s.hits, s.error_hits, s.total_bytes
-                FROM {table} s, bounds
-                WHERE s.bucket >= bounds.a_start AND s.bucket < bounds.a_end
+                FROM {table} s
+                WHERE s.bucket >= :a_start AND s.bucket < :a_end
                 UNION ALL
                 SELECT al.ip_address, al.country_code, al.city, al.country_name,
                        CAST(1 AS BIGINT), CAST((al.status_code >= 400)::int AS BIGINT),
                        al.bytes_sent
-                FROM access_logs al, bounds
-                WHERE (al.timestamp >= bounds.rs AND al.timestamp < bounds.a_start)
-                   OR (al.timestamp >= bounds.a_end AND al.timestamp < bounds.re)
+                FROM access_logs al
+                WHERE al.timestamp >= :start AND al.timestamp < :a_start
+                UNION ALL
+                SELECT al.ip_address, al.country_code, al.city, al.country_name,
+                       CAST(1 AS BIGINT), CAST((al.status_code >= 400)::int AS BIGINT),
+                       al.bytes_sent
+                FROM access_logs al
+                WHERE al.timestamp >= :a_end AND al.timestamp < :end
             )
         """
 
@@ -749,7 +758,7 @@ class SummaryStatsRepository:
             LIMIT :limit
         """)
         result = await self.session.execute(
-            stmt, {"start": start, "end": end, "limit": limit, **filter_params}
+            stmt, {**_stitch_params(start, end, granularity), "limit": limit, **filter_params}
         )
         return [TopIpRow(**row._mapping) for row in result.fetchall()]
 
@@ -778,7 +787,7 @@ class SummaryStatsRepository:
             LIMIT :limit
         """)
         result = await self.session.execute(
-            stmt, {"start": start, "end": end, "limit": limit, **filter_params}
+            stmt, {**_stitch_params(start, end, granularity), "limit": limit, **filter_params}
         )
         return [TopCountryRow(**row._mapping) for row in result.fetchall()]
 
@@ -807,7 +816,7 @@ class SummaryStatsRepository:
             LIMIT :limit
         """)
         result = await self.session.execute(
-            stmt, {"start": start, "end": end, "limit": limit, **filter_params}
+            stmt, {**_stitch_params(start, end, granularity), "limit": limit, **filter_params}
         )
         return [TopCityRow(**row._mapping) for row in result.fetchall()]
 
@@ -899,37 +908,34 @@ class AnalyticsFilters:
         return " ".join(clauses), params
 
 
-def _stitched_bounds_cte(interval: str) -> str:
-    """WITH-clause opener exposing ``bounds`` for a stitched CAGG read.
+def _stitch_params(
+    start: datetime, end: datetime, granularity: StatsGranularity
+) -> dict:
+    """Bind params for a stitched CAGG read: window edges + inward bucket snap.
 
-    ``bounds`` snaps the [:start, :end) window inward to whole buckets
-    (a_start/a_end); the leftover head/tail slices are read from the raw
-    hypertable by the caller's second UNION leg, so the union is exactly
-    equal to a raw scan of the window. a_start/a_end are clamped so a window
+    a_start/a_end snap the [start, end) window inward to whole buckets (UTC
+    aligned, matching time_bucket); the CAGG leg reads [a_start, a_end) and
+    the raw head/tail legs read [start, a_start) and [a_end, end), so the
+    union is exactly equal to a raw scan of the window. Clamped so a window
     spanning no complete bucket degenerates to a pure raw scan.
+
+    Computed in Python and bound as plain parameters deliberately: routing
+    the bounds through a SQL CTE joined into each leg turns the timestamp
+    constraints into join predicates, which TimescaleDB cannot use for chunk
+    exclusion - the raw legs then decompress and scan the entire hypertable.
     """
-    return f"""
-        WITH bounds AS (
-            SELECT
-                rs, re, a_start,
-                GREATEST(time_bucket(INTERVAL '{interval}', re), a_start) AS a_end
-            FROM (
-                SELECT
-                    CAST(:start AS timestamptz) AS rs,
-                    CAST(:end AS timestamptz) AS re,
-                    LEAST(
-                        CASE
-                            WHEN time_bucket(INTERVAL '{interval}', CAST(:start AS timestamptz))
-                                 = CAST(:start AS timestamptz)
-                            THEN CAST(:start AS timestamptz)
-                            ELSE time_bucket(INTERVAL '{interval}', CAST(:start AS timestamptz))
-                                 + INTERVAL '{interval}'
-                        END,
-                        CAST(:end AS timestamptz)
-                    ) AS a_start
-            ) b
-        )
-    """
+    if granularity == StatsGranularity.DAILY:
+        floor_start = start.replace(hour=0, minute=0, second=0, microsecond=0)
+        floor_end = end.replace(hour=0, minute=0, second=0, microsecond=0)
+        step = timedelta(days=1)
+    else:
+        floor_start = start.replace(minute=0, second=0, microsecond=0)
+        floor_end = end.replace(minute=0, second=0, microsecond=0)
+        step = timedelta(hours=1)
+    a_start = start if floor_start == start else floor_start + step
+    a_start = min(a_start, end)
+    a_end = max(floor_end, a_start)
+    return {"start": start, "end": end, "a_start": a_start, "a_end": a_end}
 
 
 class LiveStatsRepository:

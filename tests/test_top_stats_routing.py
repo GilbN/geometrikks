@@ -101,3 +101,18 @@ async def test_top_cities_week_range_uses_hourly_cagg():
     session = _RecordingSession()
     await SummaryStatsRepository(session=session).get_top_cities(WEEK_START, NOW)
     assert "log_ip_hourly_stats" in session.statements[0]
+
+
+async def test_stitched_sql_binds_bounds_as_params():
+    """Regression: stitch bounds must be plain bind params, never a joined CTE.
+
+    A bounds CTE joined into each leg turns the timestamp constraints into
+    join predicates, which TimescaleDB cannot use for chunk exclusion - the
+    raw legs then decompress and scan the entire hypertable (seconds instead
+    of milliseconds on large databases).
+    """
+    session = _RecordingSession()
+    await SummaryStatsRepository(session=session).get_top_ips(WEEK_START, NOW)
+    sql = session.statements[0]
+    assert "bounds" not in sql
+    assert ":a_start" in sql and ":a_end" in sql

@@ -29,6 +29,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Geo Logs chart on ranges up to 24 hours no longer includes events from just
   before the selected window in its first data point, and its unique-IP counts
   on those short ranges are exact instead of estimated.
+- Aggregate-backed queries that stitch partial-bucket edges from raw data
+  (Geo Logs grouped rows and top lists, and the new analytics top lists) no
+  longer scan the entire raw table to do so: the window bounds are now bound
+  as plain query parameters so TimescaleDB can skip irrelevant time chunks.
+  On a database with 18M rows these queries dropped from seconds to tens of
+  milliseconds.
 
 ## [0.5.0] - 2026-07-25
 
