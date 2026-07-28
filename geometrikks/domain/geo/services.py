@@ -19,7 +19,7 @@ from advanced_alchemy.service import SQLAlchemyAsyncRepositoryService
 from sqlalchemy import func, select, text
 
 from geometrikks.domain.geo.models import GeoEvent, GeoLocation
-from geometrikks.domain.geo.repositories import StatsGranularity, get_stats_granularity
+from geometrikks.domain.geo.repositories import StatsGranularity, get_stats_granularity, stitched_ip_location_cte
 from geometrikks.domain.geo.schemas import (
     GeoCountryFacet,
     GeoEventFacets,
@@ -34,65 +34,6 @@ from geometrikks.domain.geo.schemas import (
 from geometrikks.server.logging import get_logger
 
 logger = get_logger(__name__)
-
-
-_IP_LOCATION_CAGGS = {
-    StatsGranularity.HOURLY: ("ip_location_hourly_stats", "1 hour"),
-    StatsGranularity.DAILY: ("ip_location_daily_stats", "1 day"),
-}
-
-
-def _stitched_ip_location_cte(granularity: StatsGranularity) -> str:
-    """WITH clause exposing ``combined`` for a per-IP CAGG read.
-
-    Reading a CAGG requires whole buckets, so a window that starts mid-bucket
-    used to be floored outward — silently pulling in a partial extra bucket and
-    over-counting against the equivalent raw scan. Here ``bounds`` snaps the
-    window *inward* to whole buckets and the leftover head/tail slices are read
-    straight from ``geo_events``, so the union is exact.
-
-    ``combined`` yields (location_id, ip_address, event_count, last_seen); it is
-    keyed by IP on both legs, so ``COUNT(DISTINCT ip_address)`` over it stays
-    exact rather than summing per-bucket counts. ``last_seen`` is bucket-granular
-    for CAGG rows and exact for the raw edge rows.
-
-    ``a_start``/``a_end`` are clamped so a window spanning no complete bucket
-    degenerates to a pure raw scan (empty CAGG leg, one head slice covering the
-    whole window) instead of emitting overlapping head and tail ranges.
-    """
-    table, interval = _IP_LOCATION_CAGGS[granularity]
-    return f"""
-        WITH bounds AS (
-            SELECT
-                rs, re, a_start,
-                GREATEST(time_bucket(INTERVAL '{interval}', re), a_start) AS a_end
-            FROM (
-                SELECT
-                    CAST(:start AS timestamptz) AS rs,
-                    CAST(:end AS timestamptz) AS re,
-                    LEAST(
-                        CASE
-                            WHEN time_bucket(INTERVAL '{interval}', CAST(:start AS timestamptz))
-                                 = CAST(:start AS timestamptz)
-                            THEN CAST(:start AS timestamptz)
-                            ELSE time_bucket(INTERVAL '{interval}', CAST(:start AS timestamptz))
-                                 + INTERVAL '{interval}'
-                        END,
-                        CAST(:end AS timestamptz)
-                    ) AS a_start
-            ) b
-        ),
-        combined AS (
-            SELECT s.location_id, s.ip_address, s.event_count, s.bucket AS last_seen
-            FROM {table} s, bounds
-            WHERE s.bucket >= bounds.a_start AND s.bucket < bounds.a_end
-            UNION ALL
-            SELECT ge.location_id, ge.ip_address, CAST(1 AS BIGINT), ge.timestamp
-            FROM geo_events ge, bounds
-            WHERE (ge.timestamp >= bounds.rs AND ge.timestamp < bounds.a_start)
-               OR (ge.timestamp >= bounds.a_end AND ge.timestamp < bounds.re)
-        )
-    """
 
 
 class GeoEventService(SQLAlchemyAsyncRepositoryService[GeoEvent]):
@@ -151,7 +92,7 @@ class GeoEventService(SQLAlchemyAsyncRepositoryService[GeoEvent]):
         else:
             filter_sql, filter_params = filters.sql_conditions("c", "gl")
             source = f"""
-                {_stitched_ip_location_cte(granularity)}
+                {stitched_ip_location_cte(granularity)}
                 SELECT
                     {location_cols},
                     host(c.ip_address) AS ip_address,
@@ -324,7 +265,7 @@ class GeoEventService(SQLAlchemyAsyncRepositoryService[GeoEvent]):
         else:
             filter_sql, filter_params = filters.sql_conditions("c", "gl")
             stmt = text(f"""
-                {_stitched_ip_location_cte(granularity)}
+                {stitched_ip_location_cte(granularity)}
                 SELECT
                     host(c.ip_address) AS ip_address,
                     CAST(SUM(c.event_count) AS BIGINT) AS event_count,
@@ -376,7 +317,7 @@ class GeoEventService(SQLAlchemyAsyncRepositoryService[GeoEvent]):
             # The CAGG is keyed by IP, so COUNT(DISTINCT) stays exact here.
             filter_sql, filter_params = filters.sql_conditions("c", "gl")
             stmt = text(f"""
-                {_stitched_ip_location_cte(granularity)}
+                {stitched_ip_location_cte(granularity)}
                 SELECT
                     gl.country_code,
                     MAX(gl.country_name) AS country_name,
@@ -428,7 +369,7 @@ class GeoEventService(SQLAlchemyAsyncRepositoryService[GeoEvent]):
         else:
             filter_sql, filter_params = filters.sql_conditions("c", "gl")
             stmt = text(f"""
-                {_stitched_ip_location_cte(granularity)}
+                {stitched_ip_location_cte(granularity)}
                 SELECT
                     gl.city,
                     MAX(gl.country_code) AS country_code,

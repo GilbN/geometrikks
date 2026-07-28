@@ -548,6 +548,44 @@ class TestMisalignedWindowParity:
         ]
 
 
+class TestLocationTopIpsMisaligned:
+    """get_location_top_ips / get_global_top_ips must route hourly and stitch:
+    the old code read ip_location_daily_stats day-floored for every >24h
+    range, over-counting the partial first day."""
+
+    async def _refresh(self, pg_engine):
+        await refresh_caggs_range(
+            pg_engine, start=NOW - timedelta(days=4), end=NOW + timedelta(hours=1)
+        )
+
+    async def test_location_top_ips_excludes_edge_events(self, pg_engine, pg_session_maker, clean_tables):
+        from geometrikks.domain.geo.repositories import GeoLocationRepository
+
+        locs = await seed_boundary(pg_session_maker)
+        await self._refresh(pg_engine)
+        async with pg_session_maker() as session:
+            rows = await GeoLocationRepository(session=session).get_location_top_ips(
+                locs["no"], B_START, B_END, limit=10
+            )
+        assert [(r.ip_address, r.event_count) for r in rows] == [
+            ("1.1.1.1", 4),
+        ], "9.9.9.9 (head edge, same day bucket) must not appear"
+
+    async def test_global_top_ips_excludes_edge_events(self, pg_engine, pg_session_maker, clean_tables):
+        from geometrikks.domain.geo.repositories import GeoLocationRepository
+
+        locs = await seed_boundary(pg_session_maker)
+        await self._refresh(pg_engine)
+        async with pg_session_maker() as session:
+            rows = await GeoLocationRepository(session=session).get_global_top_ips(
+                B_START, B_END, limit=10
+            )
+        assert [(str(ip), count, loc.id) for ip, count, loc in rows] == [
+            ("1.1.1.1", 4, locs["no"]),
+            ("2.2.2.2", 3, locs["se"]),
+        ], "9.9.9.9 / 8.8.8.8 edge events are outside the window"
+
+
 class TestFacets:
     async def test_distinct_sorted_values(self, pg_session_maker, clean_tables):
         await seed_raw(pg_session_maker)
