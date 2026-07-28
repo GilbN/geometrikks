@@ -50,5 +50,7 @@ jobs:
       - uses: oven-sh/setup-bun@v2
       - name: Install
         run: bun install --frozen-lockfile
+      - name: Run frontend tests
+        run: bun run test
       - name: Build (vite + tsc)
         run: bun run build
