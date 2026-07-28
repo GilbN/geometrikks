@@ -11,6 +11,9 @@ CAGG Structure:
 - geo_summary_hourly_stats / geo_summary_daily_stats: Geo metrics with HyperLogLog
 - location_hourly_stats / location_daily_stats: Location event counts for map
 - ip_location_{hourly,daily}_stats: Per-IP counts by location for top IPs
+- log_ip_{hourly,daily}_stats: Per-IP access-log counts (top IPs/countries/cities, facets)
+- url_{hourly,daily}_stats: Per-URL access-log counts (top URLs)
+- user_agent_{hourly,daily}_stats: Per-user-agent counts (top user agents)
 """
 
 from __future__ import annotations
@@ -267,6 +270,99 @@ async def _create_ip_location_cagg(conn: "AsyncConnection") -> None:
         """))
 
 
+async def _create_log_ip_caggs(conn: "AsyncConnection") -> None:
+    """Create per-IP access-log CAGGs (hourly + daily).
+
+    Used for: analytics /top-ips, /top-countries, /top-cities and the
+    access-log country/city facets. Keyed by IP (with its country/city), so
+    COUNT(DISTINCT ip_address) per country/city stays exact and
+    country/city/IP filters apply directly to CAGG columns.
+    """
+    for suffix, interval in (("hourly", "1 hour"), ("daily", "1 day")):
+        await conn.execute(text(f"""
+            CREATE MATERIALIZED VIEW IF NOT EXISTS log_ip_{suffix}_stats
+            WITH (timescaledb.continuous) AS
+            SELECT
+                time_bucket('{interval}', timestamp) AS bucket,
+                ip_address,
+                country_code,
+                city,
+                MAX(country_name) AS country_name,
+                COUNT(*) AS hits,
+                COUNT(*) FILTER (WHERE status_code >= 400) AS error_hits,
+                COALESCE(SUM(bytes_sent), 0) AS total_bytes
+            FROM access_logs
+            GROUP BY bucket, ip_address, country_code, city
+            WITH NO DATA
+        """))
+        logger.info("CAGG created/verified: log_ip_%s_stats", suffix)
+
+        await conn.execute(text(f"""
+            CREATE INDEX IF NOT EXISTS ix_log_ip_{suffix}_stats_bucket
+            ON log_ip_{suffix}_stats (bucket DESC)
+        """))
+        await conn.execute(text(f"""
+            CREATE INDEX IF NOT EXISTS ix_log_ip_{suffix}_stats_ip_bucket
+            ON log_ip_{suffix}_stats (ip_address, bucket DESC)
+        """))
+
+
+async def _create_url_caggs(conn: "AsyncConnection") -> None:
+    """Create per-URL access-log CAGGs (hourly + daily).
+
+    Used for: analytics /top-urls (unfiltered path). total_request_time is a
+    SUM so the rolled-up average is exact (SUM/SUM), never an AVG of AVGs.
+    """
+    for suffix, interval in (("hourly", "1 hour"), ("daily", "1 day")):
+        await conn.execute(text(f"""
+            CREATE MATERIALIZED VIEW IF NOT EXISTS url_{suffix}_stats
+            WITH (timescaledb.continuous) AS
+            SELECT
+                time_bucket('{interval}', timestamp) AS bucket,
+                url,
+                COUNT(*) AS hits,
+                COUNT(*) FILTER (WHERE status_code >= 400) AS error_hits,
+                COALESCE(SUM(bytes_sent), 0) AS total_bytes,
+                SUM(request_time) AS total_request_time
+            FROM access_logs
+            WHERE url IS NOT NULL
+            GROUP BY bucket, url
+            WITH NO DATA
+        """))
+        logger.info("CAGG created/verified: url_%s_stats", suffix)
+
+        await conn.execute(text(f"""
+            CREATE INDEX IF NOT EXISTS ix_url_{suffix}_stats_bucket
+            ON url_{suffix}_stats (bucket DESC)
+        """))
+
+
+async def _create_user_agent_caggs(conn: "AsyncConnection") -> None:
+    """Create per-user-agent access-log CAGGs (hourly + daily).
+
+    Used for: analytics /top-user-agents (unfiltered path).
+    """
+    for suffix, interval in (("hourly", "1 hour"), ("daily", "1 day")):
+        await conn.execute(text(f"""
+            CREATE MATERIALIZED VIEW IF NOT EXISTS user_agent_{suffix}_stats
+            WITH (timescaledb.continuous) AS
+            SELECT
+                time_bucket('{interval}', timestamp) AS bucket,
+                user_agent,
+                COUNT(*) AS hits
+            FROM access_logs
+            WHERE user_agent IS NOT NULL
+            GROUP BY bucket, user_agent
+            WITH NO DATA
+        """))
+        logger.info("CAGG created/verified: user_agent_%s_stats", suffix)
+
+        await conn.execute(text(f"""
+            CREATE INDEX IF NOT EXISTS ix_user_agent_{suffix}_stats_bucket
+            ON user_agent_{suffix}_stats (bucket DESC)
+        """))
+
+
 # =============================================================================
 # Policy Configuration
 # =============================================================================
@@ -281,12 +377,18 @@ CAGG_REFRESH_CONFIG = [
     ("geo_summary_hourly_stats", "3 hours", "1 hour"),
     ("location_hourly_stats", "3 hours", "1 hour"),
     ("ip_location_hourly_stats", "3 hours", "1 hour"),
+    ("log_ip_hourly_stats", "3 hours", "1 hour"),
+    ("url_hourly_stats", "3 hours", "1 hour"),
+    ("user_agent_hourly_stats", "3 hours", "1 hour"),
     # Daily CAGGs: refresh up to 1 hour ago to keep data fresh
     # (using "1 day" would leave too large a gap for real-time aggregation)
     ("summary_daily_stats", "3 days", "1 hour"),
     ("geo_summary_daily_stats", "3 days", "1 hour"),
     ("location_daily_stats", "3 days", "1 hour"),
     ("ip_location_daily_stats", "3 days", "1 hour"),
+    ("log_ip_daily_stats", "3 days", "1 hour"),
+    ("url_daily_stats", "3 days", "1 hour"),
+    ("user_agent_daily_stats", "3 days", "1 hour"),
 ]
 
 HOURLY_CAGGS = [
@@ -294,6 +396,9 @@ HOURLY_CAGGS = [
     "geo_summary_hourly_stats",
     "location_hourly_stats",
     "ip_location_hourly_stats",
+    "log_ip_hourly_stats",
+    "url_hourly_stats",
+    "user_agent_hourly_stats",
 ]
 
 
@@ -435,6 +540,12 @@ ALL_CAGGS = [
     "location_daily_stats",
     "ip_location_hourly_stats",
     "ip_location_daily_stats",
+    "log_ip_hourly_stats",
+    "log_ip_daily_stats",
+    "url_hourly_stats",
+    "url_daily_stats",
+    "user_agent_hourly_stats",
+    "user_agent_daily_stats",
 ]
 
 
@@ -545,6 +656,9 @@ async def setup_timescaledb(
         await _create_geo_summary_caggs(conn)
         await _create_location_caggs(conn)
         await _create_ip_location_cagg(conn)
+        await _create_log_ip_caggs(conn)
+        await _create_url_caggs(conn)
+        await _create_user_agent_caggs(conn)
 
         # Enable real-time aggregation (merges materialized + live data)
         await _enable_realtime_aggregation(conn)
@@ -641,6 +755,12 @@ CAGG_SOURCE_TABLES: dict[str, str] = {
     "location_daily_stats": "geo_events",
     "ip_location_hourly_stats": "geo_events",
     "ip_location_daily_stats": "geo_events",
+    "log_ip_hourly_stats": "access_logs",
+    "log_ip_daily_stats": "access_logs",
+    "url_hourly_stats": "access_logs",
+    "url_daily_stats": "access_logs",
+    "user_agent_hourly_stats": "access_logs",
+    "user_agent_daily_stats": "access_logs",
 }
 
 
