@@ -65,9 +65,10 @@ async def _insert_log(
     country=None, country_name=None, city=None, host=None,
 ):
     # access_logs is an id-only base: no created_at/updated_at columns.
-    # rt defaults to 0.25: exact in binary floating point, so the CAGG's
-    # SUM/SUM average matches raw AVG() bit-for-bit and parity asserts can
-    # compare the float fields with ==.
+    # rt values (0.25, 0.5) are chosen to be exact in binary floating point
+    # so sums and divisions stay exact, and are varied across buckets so
+    # weighted-average (correct SUM/SUM) vs unweighted-average regressions
+    # are caught (e.g., AVG(request_time) per bucket then AVG those).
     await session.execute(text(
         "INSERT INTO access_logs (timestamp, ip_address, method, url, status_code, "
         "bytes_sent, request_time, user_agent, country_code, country_name, city, host) "
@@ -98,7 +99,7 @@ async def seed_boundary_logs(session_maker) -> None:
         # In window, day 3.
         await _insert_log(
             session, ts=B_START + timedelta(minutes=10), ip="1.1.1.1", url="/a",
-            user_agent="bot/1.0", bytes_sent=200,
+            user_agent="bot/1.0", bytes_sent=200, rt=0.5,
             country="NO", country_name="Norway", city="Oslo",
         )
         # In window, day 2: three /a hits, one is a 500.
@@ -146,6 +147,7 @@ class TestTopUrlsParity:
             ("/a", 4, 1, 800),
             ("/b", 3, 0, 150),
         ], "/edge rows are outside the window"
+        assert routed[0].avg_request_time == 0.3125
         assert routed[0].avg_request_time == raw[0].avg_request_time
 
 
