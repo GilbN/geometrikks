@@ -67,3 +67,22 @@ async def test_unfiltered_summary_keeps_hll_cagg():
     session = _RecordingSession()
     await GeoEventService(session=session).get_summary(WEEK_START, NOW, GeoEventFilters())
     assert "geo_summary_hourly_stats" in session.statements[0]
+
+
+async def test_unfiltered_short_range_time_series_goes_raw():
+    session = _RecordingSession()
+    await GeoEventService(session=session).get_time_series(
+        NOW - timedelta(hours=6), NOW, StatsGranularity.HOURLY, GeoEventFilters()
+    )
+    assert "geo_summary_hourly_stats" not in session.statements[0]
+    assert "FROM geo_events" in session.statements[0]
+
+
+async def test_hourly_override_on_long_filtered_range_goes_raw():
+    session = _RecordingSession()
+    await GeoEventService(session=session).get_time_series(
+        NOW - timedelta(days=90), NOW, StatsGranularity.HOURLY,
+        GeoEventFilters(country_codes=["NO"]),
+    )
+    assert "ip_location_hourly_stats" not in session.statements[0]
+    assert "FROM geo_events" in session.statements[0]

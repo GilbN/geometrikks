@@ -16,6 +16,7 @@ CAGG Structure:
 - ip_location_daily_stats: Per-IP counts by location for top IPs
 - url_hourly_stats / url_daily_stats: Top URLs by hits, error_hits, total_bytes, total_request_time
 - user_agent_hourly_stats / user_agent_daily_stats: Top user agents by hits
+- log_ip_{hourly,daily}_stats: Per-IP access-log counts (top IPs/countries/cities, facets)
 
 HyperLogLog sketches enable accurate unique counts across any time range.
 For short ranges (≤1 hour), raw table queries provide exact time range results.

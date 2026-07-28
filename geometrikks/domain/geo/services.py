@@ -215,9 +215,13 @@ class GeoEventService(SQLAlchemyAsyncRepositoryService[GeoEvent]):
         ``granularity`` must be HOURLY or DAILY (the controller clamps RAW to
         HOURLY, matching the analytics charts) and only picks the bucket size;
         routing is decided separately from the actual ``start``/``end`` span.
-        Hostname filters (or <= 24h ranges) scan raw geo_events; country/city/
-        IP filters on longer ranges use the stitched per-IP CAGGs with exact
-        uniques; unfiltered ranges use the HLL geo_summary CAGGs.
+        Hostname filters and <= 24h windows scan raw geo_events. An hourly-
+        bucket override on a > 30d window (``granularity`` HOURLY while the
+        window itself is DAILY-routed) also scans raw when any filter is
+        active, since hourly CAGG retention doesn't cover ranges that long
+        and the stitched per-IP CAGGs only carry the daily rollup there.
+        Other country/city/IP-filtered ranges use the stitched per-IP CAGGs;
+        unfiltered ranges > 24h use the HLL geo_summary CAGGs.
         """
         if granularity not in (StatsGranularity.HOURLY, StatsGranularity.DAILY):
             raise ValueError("granularity must be HOURLY or DAILY")
@@ -227,7 +231,15 @@ class GeoEventService(SQLAlchemyAsyncRepositoryService[GeoEvent]):
         # when the caller asks for hourly buckets on it.
         data_granularity = get_stats_granularity(start, end)
 
-        if filters.forces_raw or data_granularity == StatsGranularity.RAW:
+        if (
+            filters.forces_raw
+            or data_granularity == StatsGranularity.RAW
+            or (
+                filters.is_active()
+                and granularity == StatsGranularity.HOURLY
+                and data_granularity == StatsGranularity.DAILY
+            )
+        ):
             filter_sql, filter_params = filters.sql_conditions("ge", "gl")
             stmt = text(f"""
                 SELECT

@@ -26,6 +26,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Map top-IP lists (global and per-location) no longer include events from
   outside the selected range on ranges over 24 hours: the window was
   previously floored to whole days, over-counting the partial first day.
+- Geo Logs chart on ranges up to 24 hours no longer includes events from just
+  before the selected window in its first data point, and its unique-IP counts
+  on those short ranges are exact instead of estimated.
 
 ## [0.5.0] - 2026-07-25
 
