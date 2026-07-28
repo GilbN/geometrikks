@@ -3,8 +3,9 @@
 Query routing follows the repository convention:
 - RAW geo_events for ranges ≤ 24h, and whenever a hostname filter is set
   (no CAGG carries a hostname dimension).
-- ip_location_{hourly,daily}_stats for grouped/top-IP queries on longer ranges
-  (keyed by location + IP, so country/city/IP filters still apply there).
+- ip_location_{hourly,daily}_stats for grouped/top-IP queries and for
+  country/city/IP-filtered summary/time-series queries on longer ranges
+  (keyed by location + IP, so those filters still apply there).
   Whole buckets come from the CAGG and the partial head/tail from raw
   geo_events, so these stay exact against a raw scan of the same window.
 - geo_summary_{hourly,daily}_stats (HLL uniques) for unfiltered summary and
@@ -143,12 +144,12 @@ class GeoEventService(SQLAlchemyAsyncRepositoryService[GeoEvent]):
     ) -> GeoLogPeriod:
         """Aggregate totals/uniques for the period.
 
-        Filtered or ≤ 24h: exact COUNT/COUNT DISTINCT from raw geo_events
-        (CAGGs carry no dimensions to filter on). Unfiltered longer ranges:
-        geo_summary CAGGs with HLL rollups.
+        Hostname filters (or <= 24h ranges) scan raw geo_events; country/city/IP
+        filters use the stitched per-IP CAGGs with exact uniques; unfiltered
+        longer ranges use the HLL geo_summary CAGGs.
         """
         granularity = get_stats_granularity(start, end)
-        if granularity == StatsGranularity.RAW or filters.is_active():
+        if granularity == StatsGranularity.RAW or filters.forces_raw:
             filter_sql, filter_params = filters.sql_conditions("ge", "gl")
             stmt = text(f"""
                 SELECT
@@ -159,6 +160,23 @@ class GeoEventService(SQLAlchemyAsyncRepositoryService[GeoEvent]):
                 FROM geo_events ge
                 JOIN geo_locations gl ON ge.location_id = gl.id
                 WHERE ge.timestamp >= :start AND ge.timestamp < :end
+                {filter_sql}
+            """)
+            params = {"start": start, "end": end, **filter_params}
+        elif filters.is_active():
+            # Country/city/IP filters: stitched per-IP CAGG read joined to
+            # geo_locations. Keyed by IP, so every unique count is exact.
+            filter_sql, filter_params = filters.sql_conditions("c", "gl")
+            stmt = text(f"""
+                {stitched_ip_location_cte(granularity)}
+                SELECT
+                    CAST(COALESCE(SUM(c.event_count), 0) AS BIGINT) AS total_events,
+                    CAST(COUNT(DISTINCT c.ip_address) AS BIGINT) AS unique_ips,
+                    CAST(COUNT(DISTINCT gl.country_code) AS BIGINT) AS unique_countries,
+                    CAST(COUNT(DISTINCT gl.city) AS BIGINT) AS unique_cities
+                FROM combined c
+                JOIN geo_locations gl ON c.location_id = gl.id
+                WHERE TRUE
                 {filter_sql}
             """)
             params = {"start": start, "end": end, **filter_params}
@@ -195,14 +213,21 @@ class GeoEventService(SQLAlchemyAsyncRepositoryService[GeoEvent]):
         """Bucketed event totals + unique IPs for the chart.
 
         ``granularity`` must be HOURLY or DAILY (the controller clamps RAW to
-        HOURLY, matching the analytics charts). Unfiltered: geo_summary CAGGs;
-        filtered: raw time_bucket scan.
+        HOURLY, matching the analytics charts) and only picks the bucket size;
+        routing is decided separately from the actual ``start``/``end`` span.
+        Hostname filters (or <= 24h ranges) scan raw geo_events; country/city/
+        IP filters on longer ranges use the stitched per-IP CAGGs with exact
+        uniques; unfiltered ranges use the HLL geo_summary CAGGs.
         """
         if granularity not in (StatsGranularity.HOURLY, StatsGranularity.DAILY):
             raise ValueError("granularity must be HOURLY or DAILY")
         interval = "1 hour" if granularity == StatsGranularity.HOURLY else "1 day"
+        # Routing (raw vs CAGG) tracks the actual span, independent of the
+        # requested bucket size above: a <= 24h span must stay on raw even
+        # when the caller asks for hourly buckets on it.
+        data_granularity = get_stats_granularity(start, end)
 
-        if filters.is_active():
+        if filters.forces_raw or data_granularity == StatsGranularity.RAW:
             filter_sql, filter_params = filters.sql_conditions("ge", "gl")
             stmt = text(f"""
                 SELECT
@@ -212,6 +237,25 @@ class GeoEventService(SQLAlchemyAsyncRepositoryService[GeoEvent]):
                 FROM geo_events ge
                 JOIN geo_locations gl ON ge.location_id = gl.id
                 WHERE ge.timestamp >= :start AND ge.timestamp < :end
+                {filter_sql}
+                GROUP BY bucket
+                ORDER BY bucket ASC
+            """)
+            params = {"start": start, "end": end, **filter_params}
+        elif filters.is_active():
+            # Country/city/IP filters: stitched per-IP CAGG rows re-bucketed.
+            # CAGG-leg rows carry last_seen = bucket; raw edge rows carry the
+            # exact timestamp, so partial head/tail buckets fold correctly.
+            filter_sql, filter_params = filters.sql_conditions("c", "gl")
+            stmt = text(f"""
+                {stitched_ip_location_cte(granularity)}
+                SELECT
+                    time_bucket('{interval}', c.last_seen) AS bucket,
+                    CAST(SUM(c.event_count) AS BIGINT) AS total_events,
+                    CAST(COUNT(DISTINCT c.ip_address) AS BIGINT) AS unique_ips
+                FROM combined c
+                JOIN geo_locations gl ON c.location_id = gl.id
+                WHERE TRUE
                 {filter_sql}
                 GROUP BY bucket
                 ORDER BY bucket ASC

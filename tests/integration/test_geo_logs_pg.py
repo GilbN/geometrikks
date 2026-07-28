@@ -255,9 +255,13 @@ class TestSummary:
         assert period.total_events == 9
         assert period.unique_ips == 2
 
-    async def test_filtered_long_range_uses_raw(self, pg_engine, pg_session_maker, clean_tables):
-        """Any filter forces the raw path on long ranges (CAGGs have no dims)."""
+    async def test_filtered_long_range_uses_cagg_path(self, pg_engine, pg_session_maker, clean_tables):
+        """Country/city/IP filters now ride the stitched ip_location CAGGs;
+        results stay identical to the raw scan they replaced."""
         await seed_multiday(pg_session_maker)
+        await refresh_caggs_range(
+            pg_engine, start=NOW - timedelta(days=4), end=NOW + timedelta(hours=1)
+        )
         async with pg_session_maker() as session:
             period = await GeoEventService(session=session).get_summary(
                 NOW - timedelta(days=3, hours=2), NOW, GeoEventFilters(ip_exclude=["1.1.1.1"])
@@ -596,3 +600,44 @@ class TestFacets:
         ]
         assert facets.cities == ["Oslo", "Umea"]
         assert facets.hostnames == ["web1", "web2"]
+
+
+class TestFilteredSummaryAndSeriesCaggPath:
+    """Country/city/IP filters on >24h ranges must use the stitched
+    ip_location CAGG path and match the raw scan exactly; hostname still raw."""
+
+    async def _refresh(self, pg_engine):
+        await refresh_caggs_range(
+            pg_engine, start=NOW - timedelta(days=4), end=NOW + timedelta(hours=1)
+        )
+
+    async def test_country_filtered_summary_matches_raw(self, pg_engine, pg_session_maker, clean_tables):
+        await seed_boundary(pg_session_maker)
+        await self._refresh(pg_engine)
+        async with pg_session_maker() as session:
+            period = await GeoEventService(session=session).get_summary(
+                B_START, B_END, GeoEventFilters(country_codes=["NO"])
+            )
+        assert (
+            period.total_events, period.unique_ips,
+            period.unique_countries, period.unique_cities,
+        ) == (4, 1, 1, 1), "9.9.9.9 head-edge NO event must not be counted"
+
+    async def test_ip_filtered_time_series_matches_raw(self, pg_engine, pg_session_maker, clean_tables):
+        await seed_boundary(pg_session_maker)
+        await self._refresh(pg_engine)
+        async with pg_session_maker() as session:
+            points = await GeoEventService(session=session).get_time_series(
+                B_START, B_END, StatsGranularity.HOURLY,
+                GeoEventFilters(ip_include=["1.1.1.1"]),
+            )
+        assert [(p.total_events, p.unique_ips) for p in points] == [(1, 1), (3, 1)]
+        assert points[0].timestamp < points[1].timestamp
+
+    async def test_hostname_filter_still_raw_and_exact(self, pg_engine, pg_session_maker, clean_tables):
+        await seed_boundary(pg_session_maker)
+        async with pg_session_maker() as session:
+            period = await GeoEventService(session=session).get_summary(
+                B_START, B_END, GeoEventFilters(hostnames=["web1"])
+            )
+        assert period.total_events == 4  # raw path needs no CAGG refresh
