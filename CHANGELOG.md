@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Analytics top lists (URLs, user agents, IPs, countries, cities) are now
+  served from continuous aggregates on ranges over 24 hours instead of
+  scanning raw access logs, making long-range views much faster. The IP,
+  country and city lists stay on the fast path even with country/city/IP
+  filters; filtered URL and user-agent lists still scan raw logs.
+- Geo Logs summary and chart stay on the fast aggregate path when filtered
+  by country, city or IP on ranges over 24 hours. Hostname filters still
+  scan raw events.
+- Access Logs country and city filter dropdowns load from aggregates
+  instead of scanning the full log history, and now list values from all
+  recorded history rather than only the raw retention window.
+
+### Fixed
+
+- Map top-IP lists (global and per-location) no longer include events from
+  outside the selected range on ranges over 24 hours: the window was
+  previously floored to whole days, over-counting the partial first day.
+
 ## [0.5.0] - 2026-07-25
 
 ### Added
