@@ -163,3 +163,63 @@ class TestTopUserAgentsParity:
             ("bot/1.0", 4),
             ("curl/8.0", 3),
         ]
+
+
+class TestTopIpsCountriesCitiesParity:
+    async def test_top_ips_matches_raw_scan(self, pg_engine, pg_session_maker, clean_tables):
+        await seed_boundary_logs(pg_session_maker)
+        await _refresh_all(pg_engine)
+        async with pg_session_maker() as session:
+            routed = await SummaryStatsRepository(session=session).get_top_ips(B_START, B_END)
+            raw = await LiveStatsRepository(session=session).get_top_ips(B_START, B_END)
+        assert routed == raw
+        assert [(r.ip_address, r.hits, r.error_hits, r.total_bytes, r.country_code, r.city) for r in routed] == [
+            ("1.1.1.1", 4, 1, 800, "NO", "Oslo"),
+            ("2.2.2.2", 3, 0, 150, "SE", "Umea"),
+            ("7.7.7.7", 1, 0, 100, None, None),
+        ], "edge IPs 9.9.9.9 / 8.8.8.8 are outside the window; NULL-geo IP counts"
+
+    async def test_top_countries_matches_raw_scan(self, pg_engine, pg_session_maker, clean_tables):
+        await seed_boundary_logs(pg_session_maker)
+        await _refresh_all(pg_engine)
+        async with pg_session_maker() as session:
+            routed = await SummaryStatsRepository(session=session).get_top_countries(B_START, B_END)
+            raw = await LiveStatsRepository(session=session).get_top_countries(B_START, B_END)
+        assert routed == raw
+        assert [(r.country_code, r.country_name, r.hits, r.unique_ips) for r in routed] == [
+            ("NO", "Norway", 4, 1),
+            ("SE", "Sweden", 3, 1),
+        ]
+
+    async def test_top_cities_matches_raw_scan(self, pg_engine, pg_session_maker, clean_tables):
+        await seed_boundary_logs(pg_session_maker)
+        await _refresh_all(pg_engine)
+        async with pg_session_maker() as session:
+            routed = await SummaryStatsRepository(session=session).get_top_cities(B_START, B_END)
+            raw = await LiveStatsRepository(session=session).get_top_cities(B_START, B_END)
+        assert routed == raw
+        assert [(r.city, r.country_code, r.hits, r.unique_ips) for r in routed] == [
+            ("Oslo", "NO", 4, 1),
+            ("Umea", "SE", 3, 1),
+        ]
+
+    async def test_filtered_top_ips_stays_on_cagg_and_matches_raw(self, pg_engine, pg_session_maker, clean_tables):
+        """Country filter on a >24h range: CAGG path, identical to raw."""
+        await seed_boundary_logs(pg_session_maker)
+        await _refresh_all(pg_engine)
+        flt = AnalyticsFilters(country_codes=["NO"])
+        async with pg_session_maker() as session:
+            routed = await SummaryStatsRepository(session=session).get_top_ips(B_START, B_END, filters=flt)
+            raw = await LiveStatsRepository(session=session).get_top_ips(B_START, B_END, filters=flt)
+        assert routed == raw
+        assert [(r.ip_address, r.hits) for r in routed] == [("1.1.1.1", 4)]
+
+    async def test_ip_exclude_filter_matches_raw(self, pg_engine, pg_session_maker, clean_tables):
+        await seed_boundary_logs(pg_session_maker)
+        await _refresh_all(pg_engine)
+        flt = AnalyticsFilters(ip_exclude=["1.1.1.1"])
+        async with pg_session_maker() as session:
+            routed = await SummaryStatsRepository(session=session).get_top_countries(B_START, B_END, filters=flt)
+            raw = await LiveStatsRepository(session=session).get_top_countries(B_START, B_END, filters=flt)
+        assert routed == raw
+        assert [(r.country_code, r.hits) for r in routed] == [("SE", 3)]

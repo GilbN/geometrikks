@@ -74,3 +74,30 @@ async def test_top_user_agents_filter_forces_raw():
     )
     assert "user_agent_hourly_stats" not in session.statements[0]
     assert "FROM access_logs" in session.statements[0]
+
+
+async def test_top_ips_short_range_goes_raw():
+    session = _RecordingSession()
+    await SummaryStatsRepository(session=session).get_top_ips(SHORT_START, NOW)
+    assert "log_ip_hourly_stats" not in session.statements[0]
+    assert "FROM access_logs" in session.statements[0]
+
+
+async def test_top_ips_week_range_uses_hourly_cagg_even_filtered():
+    session = _RecordingSession()
+    await SummaryStatsRepository(session=session).get_top_ips(
+        WEEK_START, NOW, filters=AnalyticsFilters(country_codes=["NO"])
+    )
+    assert "log_ip_hourly_stats" in session.statements[0]
+
+
+async def test_top_countries_long_range_uses_daily_cagg():
+    session = _RecordingSession()
+    await SummaryStatsRepository(session=session).get_top_countries(LONG_START, NOW)
+    assert "log_ip_daily_stats" in session.statements[0]
+
+
+async def test_top_cities_week_range_uses_hourly_cagg():
+    session = _RecordingSession()
+    await SummaryStatsRepository(session=session).get_top_cities(WEEK_START, NOW)
+    assert "log_ip_hourly_stats" in session.statements[0]

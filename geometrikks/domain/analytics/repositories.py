@@ -690,6 +690,126 @@ class SummaryStatsRepository:
             for row in result.fetchall()
         ]
 
+    def _log_ip_combined_cte(self, granularity: StatsGranularity) -> str:
+        """WITH clause exposing ``combined`` for a stitched log_ip CAGG read.
+
+        ``combined`` yields (ip_address, country_code, city, country_name,
+        hits, error_hits, total_bytes); rows are keyed by IP on both legs, so
+        COUNT(DISTINCT ip_address) over it stays exact and the unaliased
+        AnalyticsFilters conditions apply to either leg's rows.
+        """
+        table = f"log_ip_{granularity.value}_stats"
+        interval = "1 hour" if granularity == StatsGranularity.HOURLY else "1 day"
+        return f"""
+            {_stitched_bounds_cte(interval)},
+            combined AS (
+                SELECT s.ip_address, s.country_code, s.city, s.country_name,
+                       s.hits, s.error_hits, s.total_bytes
+                FROM {table} s, bounds
+                WHERE s.bucket >= bounds.a_start AND s.bucket < bounds.a_end
+                UNION ALL
+                SELECT al.ip_address, al.country_code, al.city, al.country_name,
+                       CAST(1 AS BIGINT), CAST((al.status_code >= 400)::int AS BIGINT),
+                       al.bytes_sent
+                FROM access_logs al, bounds
+                WHERE (al.timestamp >= bounds.rs AND al.timestamp < bounds.a_start)
+                   OR (al.timestamp >= bounds.a_end AND al.timestamp < bounds.re)
+            )
+        """
+
+    async def get_top_ips(
+        self, start: datetime, end: datetime, limit: int = 25, *, filters: AnalyticsFilters | None = None
+    ) -> list[TopIpRow]:
+        """Top client IPs: stitched log_ip CAGG read above 24h, raw otherwise.
+
+        Country/city/IP filters apply on the CAGG path (its columns carry the
+        dimensions), so filtered long ranges stay fast.
+        """
+        filters = filters or AnalyticsFilters()
+        granularity = get_stats_granularity(start, end)
+        if granularity == StatsGranularity.RAW:
+            return await LiveStatsRepository(self.session).get_top_ips(
+                start, end, limit, filters=filters
+            )
+        filter_sql, filter_params = filters.sql_conditions()
+        stmt = text(f"""
+            {self._log_ip_combined_cte(granularity)}
+            SELECT
+                host(ip_address) AS ip_address,
+                CAST(SUM(hits) AS BIGINT) AS hits,
+                CAST(SUM(error_hits) AS BIGINT) AS error_hits,
+                CAST(COALESCE(SUM(total_bytes), 0) AS BIGINT) AS total_bytes,
+                MAX(country_code) AS country_code,
+                MAX(city) AS city
+            FROM combined
+            WHERE TRUE {filter_sql}
+            GROUP BY ip_address
+            ORDER BY hits DESC
+            LIMIT :limit
+        """)
+        result = await self.session.execute(
+            stmt, {"start": start, "end": end, "limit": limit, **filter_params}
+        )
+        return [TopIpRow(**row._mapping) for row in result.fetchall()]
+
+    async def get_top_countries(
+        self, start: datetime, end: datetime, limit: int = 25, *, filters: AnalyticsFilters | None = None
+    ) -> list[TopCountryRow]:
+        """Top countries with exact unique-IP counts (combined is IP-keyed)."""
+        filters = filters or AnalyticsFilters()
+        granularity = get_stats_granularity(start, end)
+        if granularity == StatsGranularity.RAW:
+            return await LiveStatsRepository(self.session).get_top_countries(
+                start, end, limit, filters=filters
+            )
+        filter_sql, filter_params = filters.sql_conditions()
+        stmt = text(f"""
+            {self._log_ip_combined_cte(granularity)}
+            SELECT
+                country_code,
+                MAX(country_name) AS country_name,
+                CAST(SUM(hits) AS BIGINT) AS hits,
+                CAST(COUNT(DISTINCT ip_address) AS BIGINT) AS unique_ips
+            FROM combined
+            WHERE country_code IS NOT NULL {filter_sql}
+            GROUP BY country_code
+            ORDER BY hits DESC
+            LIMIT :limit
+        """)
+        result = await self.session.execute(
+            stmt, {"start": start, "end": end, "limit": limit, **filter_params}
+        )
+        return [TopCountryRow(**row._mapping) for row in result.fetchall()]
+
+    async def get_top_cities(
+        self, start: datetime, end: datetime, limit: int = 25, *, filters: AnalyticsFilters | None = None
+    ) -> list[TopCityRow]:
+        """Top cities with exact unique-IP counts (NULL cities excluded)."""
+        filters = filters or AnalyticsFilters()
+        granularity = get_stats_granularity(start, end)
+        if granularity == StatsGranularity.RAW:
+            return await LiveStatsRepository(self.session).get_top_cities(
+                start, end, limit, filters=filters
+            )
+        filter_sql, filter_params = filters.sql_conditions()
+        stmt = text(f"""
+            {self._log_ip_combined_cte(granularity)}
+            SELECT
+                city,
+                MAX(country_code) AS country_code,
+                CAST(SUM(hits) AS BIGINT) AS hits,
+                CAST(COUNT(DISTINCT ip_address) AS BIGINT) AS unique_ips
+            FROM combined
+            WHERE city IS NOT NULL {filter_sql}
+            GROUP BY city
+            ORDER BY hits DESC
+            LIMIT :limit
+        """)
+        result = await self.session.execute(
+            stmt, {"start": start, "end": end, "limit": limit, **filter_params}
+        )
+        return [TopCityRow(**row._mapping) for row in result.fetchall()]
+
 
 @dataclass
 class TopUrlRow:
