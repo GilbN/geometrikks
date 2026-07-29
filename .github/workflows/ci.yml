@@ -25,7 +25,7 @@ jobs:
           --health-cmd "pg_isready -U geouser -d geometrikks"
           --health-interval 5s --health-timeout 5s --health-retries 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: astral-sh/setup-uv@v5
         with:
           enable-cache: true
@@ -66,7 +66,7 @@ jobs:
       SMOKE_ADMIN_PASSWORD: ci-smoke-password
       SMOKE_ARTIFACT_NAME: container-smoke-${{ github.run_attempt }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: oven-sh/setup-bun@v2
       - name: Install
         run: bun install --frozen-lockfile
@@ -75,6 +75,9 @@ jobs:
       - name: Test PR smoke summary helper
         run: node --test .github/scripts/pr-smoke-summary.test.cjs
       - uses: docker/setup-buildx-action@v3
+      # The step names from here through "Upload smoke artifacts" are
+      # referenced verbatim by .github/scripts/pr-smoke-summary.cjs; renaming
+      # one silently shows it as "not run" in the sticky PR comment.
       - name: Build production image
         uses: docker/build-push-action@v6
         with:
@@ -85,6 +88,9 @@ jobs:
             APP_IMAGE_TAG=ci-${{ github.sha }}
           cache-from: type=gha,scope=container-smoke
           cache-to: type=gha,mode=max,scope=container-smoke
+      # npx/npm here is deliberate in this otherwise-bun repo: the Playwright
+      # test runner only supports the Node runtime, and bun re-executes
+      # node-shebang bins under bun.
       - name: Install Playwright browser
         run: npx playwright install --with-deps chromium
       - name: Prepare smoke-test fixtures

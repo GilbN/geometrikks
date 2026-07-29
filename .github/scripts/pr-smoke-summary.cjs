@@ -14,6 +14,9 @@ function statusLabel(conclusion) {
   return STATUS_LABELS[conclusion] ?? "⏭️ not run";
 }
 
+// The step names below must match the display names of the frontend job's
+// steps in .github/workflows/ci.yml. Renaming a step there silently turns
+// its row into "not run" here.
 function buildComment({ workflowRun, jobs }) {
   const frontend = jobs.find((job) => job.name === "frontend");
   const steps = new Map(
@@ -38,6 +41,10 @@ function buildComment({ workflowRun, jobs }) {
 
 async function main({ github, context, core }) {
   const workflowRun = context.payload.workflow_run;
+  // Known limitation: workflow_run.pull_requests is empty for PRs opened
+  // from forks, so those get no sticky comment (the run link in the Checks
+  // tab still works). If forks ever matter, resolve the PR via
+  // repos.listPullRequestsAssociatedWithCommit on workflowRun.head_sha.
   const pullRequest = workflowRun.pull_requests?.[0];
 
   if (workflowRun.event !== "pull_request" || !pullRequest) {

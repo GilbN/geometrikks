@@ -1,20 +1,9 @@
 const assert = require("node:assert/strict");
 const test = require("node:test");
 
-let summary = {};
-try {
-  summary = require("./pr-smoke-summary.cjs");
-} catch {
-  // The first TDD run intentionally exercises the missing implementation.
-}
+const summary = require("./pr-smoke-summary.cjs");
 
 test("buildComment reports failures and steps that did not run", () => {
-  assert.equal(
-    typeof summary.buildComment,
-    "function",
-    "buildComment must be implemented",
-  );
-
   const body = summary.buildComment({
     workflowRun: {
       conclusion: "failure",
@@ -54,8 +43,6 @@ test("buildComment reports failures and steps that did not run", () => {
 });
 
 test("main updates the existing smoke comment instead of adding a duplicate", async () => {
-  assert.equal(typeof summary.main, "function", "main must be implemented");
-
   const comments = [
     {
       id: 7,
@@ -241,11 +228,6 @@ test("main skips runs whose payload has no PR association", async () => {
   const github = {
     paginate: async (method, parameters) => (await method(parameters)).data,
     rest: {
-      repos: {
-        listPullRequestsAssociatedWithCommit: async () => ({
-          data: [{ number: 45, state: "open", head: { sha: "head-sha" } }],
-        }),
-      },
       pulls: {
         get: async () => ({ data: { head: { sha: "head-sha" } } }),
       },
