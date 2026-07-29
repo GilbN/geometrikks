@@ -30,15 +30,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Geo Logs chart on ranges up to 24 hours no longer includes events from just
   before the selected window in its first data point, and its unique-IP counts
   on those short ranges are exact instead of estimated.
-- Aggregate-backed queries that stitch partial-bucket edges from raw data
-  (Geo Logs grouped rows and top lists, and the new analytics top lists) no
-  longer scan the entire raw table to do so: the window bounds are now bound
-  as plain query parameters so TimescaleDB can skip irrelevant time chunks.
-  On a database with 18M rows these queries dropped from seconds to tens of
-  milliseconds.
+- Geo Logs grouped rows and top lists on ranges over 24 hours no longer
+  scan the entire raw event history while stitching partial-bucket window
+  edges: TimescaleDB can now skip time chunks outside the selected range.
+  On a database with 18M rows these queries dropped from seconds to tens
+  of milliseconds.
 - Top lists across Analytics, Geo Logs and the map order rows with equal
   counts deterministically (alphabetical within a tie), so tied entries no
-  longer shuffle between refreshes or differ between query paths.
+  longer shuffle between refreshes.
 - Startup no longer re-backfills hourly aggregate history on every restart.
   The gap check now respects hourly aggregate retention, so buckets that
   retention already dropped on purpose are no longer treated as missing and
