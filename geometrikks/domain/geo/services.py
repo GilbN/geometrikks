@@ -323,7 +323,7 @@ class GeoEventService(SQLAlchemyAsyncRepositoryService[GeoEvent]):
                 WHERE ge.timestamp >= :start AND ge.timestamp < :end
                 {filter_sql}
                 GROUP BY ge.ip_address
-                ORDER BY event_count DESC
+                ORDER BY event_count DESC, ip_address
                 LIMIT :limit
             """)
         else:
@@ -340,7 +340,7 @@ class GeoEventService(SQLAlchemyAsyncRepositoryService[GeoEvent]):
                 WHERE TRUE
                 {filter_sql}
                 GROUP BY c.ip_address
-                ORDER BY event_count DESC
+                ORDER BY event_count DESC, ip_address
                 LIMIT :limit
             """)
         if granularity == StatsGranularity.RAW or filters.forces_raw:
@@ -378,7 +378,7 @@ class GeoEventService(SQLAlchemyAsyncRepositoryService[GeoEvent]):
                 WHERE ge.timestamp >= :start AND ge.timestamp < :end
                 {filter_sql}
                 GROUP BY gl.country_code
-                ORDER BY event_count DESC
+                ORDER BY event_count DESC, country_code
                 LIMIT :limit
             """)
         else:
@@ -396,7 +396,7 @@ class GeoEventService(SQLAlchemyAsyncRepositoryService[GeoEvent]):
                 WHERE TRUE
                 {filter_sql}
                 GROUP BY gl.country_code
-                ORDER BY event_count DESC
+                ORDER BY event_count DESC, country_code
                 LIMIT :limit
             """)
         if granularity == StatsGranularity.RAW or filters.forces_raw:
@@ -435,7 +435,7 @@ class GeoEventService(SQLAlchemyAsyncRepositoryService[GeoEvent]):
                   AND gl.city IS NOT NULL
                 {filter_sql}
                 GROUP BY gl.city
-                ORDER BY event_count DESC
+                ORDER BY event_count DESC, city
                 LIMIT :limit
             """)
         else:
@@ -452,7 +452,7 @@ class GeoEventService(SQLAlchemyAsyncRepositoryService[GeoEvent]):
                 WHERE gl.city IS NOT NULL
                 {filter_sql}
                 GROUP BY gl.city
-                ORDER BY event_count DESC
+                ORDER BY event_count DESC, city
                 LIMIT :limit
             """)
         if granularity == StatsGranularity.RAW or filters.forces_raw:
@@ -476,7 +476,10 @@ class GeoEventService(SQLAlchemyAsyncRepositoryService[GeoEvent]):
         """Distinct country/city/hostname values, for filter dropdowns.
 
         Countries are deduped by code (a non-null name wins) and sorted by
-        the displayed name, mirroring AccessLogService.get_facets.
+        the displayed name, mirroring AccessLogService.get_facets. Hostnames
+        come from hostname_daily_stats (real-time aggregated) rather than a
+        DISTINCT over raw geo_events, whose cost scales with total volume;
+        values persist beyond raw retention like the access-log facets.
         """
         session = self._session
         country_name = func.max(GeoLocation.country_name)
@@ -496,9 +499,9 @@ class GeoEventService(SQLAlchemyAsyncRepositoryService[GeoEvent]):
             )
         ).scalars().all()
         hostnames = (
-            await session.execute(
-                select(GeoEvent.hostname).distinct().order_by(GeoEvent.hostname)
-            )
+            await session.execute(text(
+                "SELECT DISTINCT hostname FROM hostname_daily_stats ORDER BY hostname"
+            ))
         ).scalars().all()
         return GeoEventFacets(
             countries=[GeoCountryFacet(code=code, name=name or code) for code, name in country_rows],

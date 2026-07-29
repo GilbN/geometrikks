@@ -256,7 +256,7 @@ class GeoLocationRepository(SQLAlchemyAsyncRepository[GeoLocation]):
                 JOIN geo_events ge ON ge.location_id = gl.id
                 WHERE ge.timestamp >= :from_ts AND ge.timestamp < :to_ts{filters_sql}
                 GROUP BY gl.id
-                ORDER BY event_count DESC
+                ORDER BY event_count DESC, gl.id
             """)
         else:
             # Query appropriate CAGG
@@ -274,7 +274,7 @@ class GeoLocationRepository(SQLAlchemyAsyncRepository[GeoLocation]):
                 WHERE ls.bucket >= time_bucket('{bucket_interval}', CAST(:from_ts AS timestamptz))
                   AND ls.bucket < :to_ts{filters_sql}
                 GROUP BY gl.id
-                ORDER BY event_count DESC
+                ORDER BY event_count DESC, gl.id
             """)
 
         result = await self.session.execute(stmt, params)
@@ -350,7 +350,7 @@ class GeoLocationRepository(SQLAlchemyAsyncRepository[GeoLocation]):
                 WHERE location_id = :location_id
                   AND timestamp >= :start AND timestamp < :end
                 GROUP BY ip_address
-                ORDER BY event_count DESC
+                ORDER BY event_count DESC, ip_address
                 LIMIT :limit
             """)
         else:
@@ -364,7 +364,7 @@ class GeoLocationRepository(SQLAlchemyAsyncRepository[GeoLocation]):
                 FROM combined
                 WHERE location_id = :location_id
                 GROUP BY ip_address
-                ORDER BY event_count DESC
+                ORDER BY event_count DESC, ip_address
                 LIMIT :limit
             """)
 
@@ -418,7 +418,7 @@ class GeoLocationRepository(SQLAlchemyAsyncRepository[GeoLocation]):
                 FROM geo_events
                 WHERE timestamp >= :start AND timestamp < :end
                 GROUP BY location_id, ip_address
-                ORDER BY total_count DESC
+                ORDER BY total_count DESC, location_id, ip_address
                 LIMIT :fetch_limit
             """)
         else:
@@ -430,7 +430,7 @@ class GeoLocationRepository(SQLAlchemyAsyncRepository[GeoLocation]):
                     ip_address
                 FROM combined
                 GROUP BY location_id, ip_address
-                ORDER BY total_count DESC
+                ORDER BY total_count DESC, location_id, ip_address
                 LIMIT :fetch_limit
             """)
 
@@ -499,7 +499,7 @@ class GeoLocationRepository(SQLAlchemyAsyncRepository[GeoLocation]):
                 WHERE ge.timestamp >= :from_ts AND ge.timestamp < :to_ts
                   AND gl.country_code IS NOT NULL
                 GROUP BY gl.country_code, gl.country_name
-                ORDER BY event_count DESC
+                ORDER BY event_count DESC, gl.country_code
                 LIMIT :limit
             """)
         else:
@@ -518,7 +518,7 @@ class GeoLocationRepository(SQLAlchemyAsyncRepository[GeoLocation]):
                   AND ls.bucket < :to_ts
                   AND gl.country_code IS NOT NULL
                 GROUP BY gl.country_code, gl.country_name
-                ORDER BY event_count DESC
+                ORDER BY event_count DESC, gl.country_code
                 LIMIT :limit
             """)
 

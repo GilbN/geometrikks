@@ -42,12 +42,11 @@ class AccessLogService(SQLAlchemyAsyncRepositoryService[AccessLog]):
     async def get_facets(self) -> AccessLogFacets:
         """Distinct country/city/host values present in the data, for filter dropdowns.
 
-        Countries and cities come from log_ip_daily_stats (real-time
-        aggregated), not the raw hypertable: the facet query cost then scales
-        with distinct values per day instead of total log volume. Values
-        persist beyond raw retention (the daily CAGG keeps history), which is
-        the desired behavior for filter dropdowns. Hosts stay on the raw
-        table: host is indexed and carried by no CAGG.
+        Countries and cities come from log_ip_daily_stats and hosts from
+        host_daily_stats (both real-time aggregated), not the raw hypertable:
+        the facet query cost then scales with distinct values per day instead
+        of total log volume. Values persist beyond raw retention (daily CAGGs
+        keep history), which is the desired behavior for filter dropdowns.
 
         Rows without geo data (NULL columns) are excluded; ``name`` falls back
         to the code when ``country_name`` is missing. Countries are deduped by
@@ -70,12 +69,9 @@ class AccessLogService(SQLAlchemyAsyncRepositoryService[AccessLog]):
             ))
         ).scalars().all()
         hosts = (
-            await session.execute(
-                select(AccessLog.host)
-                .where(AccessLog.host.is_not(None))
-                .distinct()
-                .order_by(AccessLog.host)
-            )
+            await session.execute(text(
+                "SELECT DISTINCT host FROM host_daily_stats ORDER BY host"
+            ))
         ).scalars().all()
         return AccessLogFacets(
             countries=[CountryFacet(code=code, name=name or code) for code, name in country_rows],

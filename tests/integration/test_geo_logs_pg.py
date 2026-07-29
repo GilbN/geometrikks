@@ -591,8 +591,16 @@ class TestLocationTopIpsMisaligned:
 
 
 class TestFacets:
-    async def test_distinct_sorted_values(self, pg_session_maker, clean_tables):
+    async def test_distinct_sorted_values(self, pg_engine, pg_session_maker, clean_tables):
         await seed_raw(pg_session_maker)
+        # Hostnames now read hostname_daily_stats: refresh the window so stale
+        # materialized buckets from earlier tests are wiped.
+        await refresh_caggs_range(
+            pg_engine,
+            start=NOW - timedelta(days=1),
+            end=NOW + timedelta(hours=1),
+            caggs=["hostname_daily_stats"],
+        )
         async with pg_session_maker() as session:
             facets = await GeoEventService(session=session).get_facets()
         assert [(c.code, c.name) for c in facets.countries] == [
@@ -641,3 +649,27 @@ class TestFilteredSummaryAndSeriesCaggPath:
                 B_START, B_END, GeoEventFilters(hostnames=["web1"])
             )
         assert period.total_events == 4  # raw path needs no CAGG refresh
+
+
+class TestTieOrdering:
+    """Equal-count geo top-IP rows must order deterministically on the
+    stitched CAGG path (ip ASC tie-break)."""
+
+    async def test_tied_geo_top_ips_deterministic(self, pg_engine, pg_session_maker, clean_tables):
+        async with pg_session_maker() as session:
+            locs = await _seed_locations(session)
+            ts = NOW - timedelta(days=2)
+            await _insert_events(session, ts=ts, ip="6.6.6.6", hostname="web1", location_id=locs["no"], n=2)
+            await _insert_events(session, ts=ts, ip="5.5.5.5", hostname="web1", location_id=locs["no"], n=2)
+            await session.commit()
+        await refresh_caggs_range(
+            pg_engine, start=NOW - timedelta(days=4), end=NOW + timedelta(hours=1)
+        )
+        start = NOW - timedelta(days=3, hours=2)
+        async with pg_session_maker() as session:
+            rows = await GeoEventService(session=session).get_top_ips(
+                start, NOW, GeoEventFilters(), limit=10
+            )
+        assert [(r.ip_address, r.event_count) for r in rows] == [
+            ("5.5.5.5", 2), ("6.6.6.6", 2)
+        ]

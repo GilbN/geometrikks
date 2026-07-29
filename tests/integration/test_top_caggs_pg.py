@@ -27,6 +27,8 @@ NEW_CAGGS = (
     "url_daily_stats",
     "user_agent_hourly_stats",
     "user_agent_daily_stats",
+    "host_daily_stats",
+    "hostname_daily_stats",
 )
 
 
@@ -223,3 +225,30 @@ class TestTopIpsCountriesCitiesParity:
             raw = await LiveStatsRepository(session=session).get_top_countries(B_START, B_END, filters=flt)
         assert routed == raw
         assert [(r.country_code, r.hits) for r in routed] == [("SE", 3)]
+
+
+class TestTieOrdering:
+    """Rows with equal hit counts must order deterministically and identically
+    on both paths. Observed on real data: without a tie-break key, tied rows
+    shuffled between the CAGG-stitched and raw plans."""
+
+    async def test_tied_urls_and_ips_order_identically(self, pg_engine, pg_session_maker, clean_tables):
+        ts = NOW - timedelta(days=2)
+        async with pg_session_maker() as session:
+            for url, ip in (("/tie-b", "5.5.5.5"), ("/tie-a", "6.6.6.6")):
+                for _ in range(2):
+                    await _insert_log(
+                        session, ts=ts, url=url, user_agent="tie/1.0", ip=ip,
+                        country="NO", country_name="Norway", city="Oslo",
+                    )
+            await session.commit()
+        await _refresh_all(pg_engine)
+        async with pg_session_maker() as session:
+            routed_u = await SummaryStatsRepository(session=session).get_top_urls(B_START, B_END)
+            raw_u = await LiveStatsRepository(session=session).get_top_urls(B_START, B_END)
+            routed_i = await SummaryStatsRepository(session=session).get_top_ips(B_START, B_END)
+            raw_i = await LiveStatsRepository(session=session).get_top_ips(B_START, B_END)
+        assert [r.url for r in routed_u] == ["/tie-a", "/tie-b"], "equal hits break ties by url ASC"
+        assert routed_u == raw_u
+        assert [r.ip_address for r in routed_i] == ["5.5.5.5", "6.6.6.6"], "equal hits break ties by ip ASC"
+        assert routed_i == raw_i

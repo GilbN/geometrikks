@@ -14,6 +14,7 @@ CAGG Structure:
 - log_ip_{hourly,daily}_stats: Per-IP access-log counts (top IPs/countries/cities, facets)
 - url_{hourly,daily}_stats: Per-URL access-log counts (top URLs)
 - user_agent_{hourly,daily}_stats: Per-user-agent counts (top user agents)
+- host_daily_stats / hostname_daily_stats: Daily host rollups for facet dropdowns
 """
 
 from __future__ import annotations
@@ -363,6 +364,50 @@ async def _create_user_agent_caggs(conn: "AsyncConnection") -> None:
         """))
 
 
+async def _create_host_facet_caggs(conn: "AsyncConnection") -> None:
+    """Create tiny daily host/hostname CAGGs for the facet dropdowns.
+
+    A DISTINCT over the raw hypertables scans every chunk (compressed chunks
+    carry no usable btree for a loose index scan), which costs ~600ms at 18M
+    rows for a handful of values. These daily rollups keep the facet reads at
+    a few ms. Daily only: no query needs hourly host data.
+    """
+    await conn.execute(text("""
+        CREATE MATERIALIZED VIEW IF NOT EXISTS host_daily_stats
+        WITH (timescaledb.continuous) AS
+        SELECT
+            time_bucket('1 day', timestamp) AS bucket,
+            host,
+            COUNT(*) AS hits
+        FROM access_logs
+        WHERE host IS NOT NULL
+        GROUP BY bucket, host
+        WITH NO DATA
+    """))
+    logger.info("CAGG created/verified: host_daily_stats")
+    await conn.execute(text("""
+        CREATE INDEX IF NOT EXISTS ix_host_daily_stats_bucket
+        ON host_daily_stats (bucket DESC)
+    """))
+
+    await conn.execute(text("""
+        CREATE MATERIALIZED VIEW IF NOT EXISTS hostname_daily_stats
+        WITH (timescaledb.continuous) AS
+        SELECT
+            time_bucket('1 day', timestamp) AS bucket,
+            hostname,
+            COUNT(*) AS event_count
+        FROM geo_events
+        GROUP BY bucket, hostname
+        WITH NO DATA
+    """))
+    logger.info("CAGG created/verified: hostname_daily_stats")
+    await conn.execute(text("""
+        CREATE INDEX IF NOT EXISTS ix_hostname_daily_stats_bucket
+        ON hostname_daily_stats (bucket DESC)
+    """))
+
+
 # =============================================================================
 # Policy Configuration
 # =============================================================================
@@ -389,6 +434,8 @@ CAGG_REFRESH_CONFIG = [
     ("log_ip_daily_stats", "3 days", "1 hour"),
     ("url_daily_stats", "3 days", "1 hour"),
     ("user_agent_daily_stats", "3 days", "1 hour"),
+    ("host_daily_stats", "3 days", "1 hour"),
+    ("hostname_daily_stats", "3 days", "1 hour"),
 ]
 
 HOURLY_CAGGS = [
@@ -546,6 +593,8 @@ ALL_CAGGS = [
     "url_daily_stats",
     "user_agent_hourly_stats",
     "user_agent_daily_stats",
+    "host_daily_stats",
+    "hostname_daily_stats",
 ]
 
 
@@ -659,6 +708,7 @@ async def setup_timescaledb(
         await _create_log_ip_caggs(conn)
         await _create_url_caggs(conn)
         await _create_user_agent_caggs(conn)
+        await _create_host_facet_caggs(conn)
 
         # Enable real-time aggregation (merges materialized + live data)
         await _enable_realtime_aggregation(conn)
@@ -761,6 +811,8 @@ CAGG_SOURCE_TABLES: dict[str, str] = {
     "url_daily_stats": "access_logs",
     "user_agent_hourly_stats": "access_logs",
     "user_agent_daily_stats": "access_logs",
+    "host_daily_stats": "access_logs",
+    "hostname_daily_stats": "geo_events",
 }
 
 

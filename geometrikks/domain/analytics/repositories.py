@@ -635,7 +635,7 @@ class SummaryStatsRepository:
                 COALESCE(SUM(total_request_time) / NULLIF(SUM(hits), 0), 0) AS avg_request_time
             FROM combined
             GROUP BY url
-            ORDER BY hits DESC
+            ORDER BY hits DESC, url
             LIMIT :limit
         """)
         result = await self.session.execute(
@@ -685,7 +685,7 @@ class SummaryStatsRepository:
             SELECT user_agent, CAST(SUM(hits) AS BIGINT) AS hits
             FROM combined
             GROUP BY user_agent
-            ORDER BY hits DESC
+            ORDER BY hits DESC, user_agent
             LIMIT :limit
         """)
         result = await self.session.execute(
@@ -754,7 +754,7 @@ class SummaryStatsRepository:
             FROM combined
             WHERE TRUE {filter_sql}
             GROUP BY ip_address
-            ORDER BY hits DESC
+            ORDER BY hits DESC, ip_address
             LIMIT :limit
         """)
         result = await self.session.execute(
@@ -783,7 +783,7 @@ class SummaryStatsRepository:
             FROM combined
             WHERE country_code IS NOT NULL {filter_sql}
             GROUP BY country_code
-            ORDER BY hits DESC
+            ORDER BY hits DESC, country_code
             LIMIT :limit
         """)
         result = await self.session.execute(
@@ -812,7 +812,7 @@ class SummaryStatsRepository:
             FROM combined
             WHERE city IS NOT NULL {filter_sql}
             GROUP BY city
-            ORDER BY hits DESC
+            ORDER BY hits DESC, city
             LIMIT :limit
         """)
         result = await self.session.execute(
@@ -1127,7 +1127,7 @@ class LiveStatsRepository:
             WHERE timestamp >= :start AND timestamp < :end AND url IS NOT NULL
             {filter_sql}
             GROUP BY url
-            ORDER BY hits DESC
+            ORDER BY hits DESC, url
             LIMIT :limit
         """)
         result = await self.session.execute(
@@ -1155,7 +1155,7 @@ class LiveStatsRepository:
             WHERE timestamp >= :start AND timestamp < :end AND user_agent IS NOT NULL
             {filter_sql}
             GROUP BY user_agent
-            ORDER BY hits DESC
+            ORDER BY hits DESC, user_agent
             LIMIT :limit
         """)
         result = await self.session.execute(
@@ -1180,7 +1180,7 @@ class LiveStatsRepository:
             WHERE timestamp >= :start AND timestamp < :end
             {filter_sql}
             GROUP BY ip_address
-            ORDER BY hits DESC
+            ORDER BY hits DESC, ip_address
             LIMIT :limit
         """)
         result = await self.session.execute(
@@ -1203,7 +1203,7 @@ class LiveStatsRepository:
             WHERE timestamp >= :start AND timestamp < :end AND country_code IS NOT NULL
             {filter_sql}
             GROUP BY country_code
-            ORDER BY hits DESC
+            ORDER BY hits DESC, country_code
             LIMIT :limit
         """)
         result = await self.session.execute(
@@ -1226,7 +1226,7 @@ class LiveStatsRepository:
             WHERE timestamp >= :start AND timestamp < :end AND city IS NOT NULL
             {filter_sql}
             GROUP BY city
-            ORDER BY hits DESC
+            ORDER BY hits DESC, city
             LIMIT :limit
         """)
         result = await self.session.execute(

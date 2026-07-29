@@ -17,9 +17,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Geo Logs summary and chart stay on the fast aggregate path when filtered
   by country, city or IP on ranges over 24 hours. Hostname filters still
   scan raw events.
-- Access Logs country and city filter dropdowns load from aggregates
-  instead of scanning the full log history, and now list values from all
-  recorded history rather than only the raw retention window.
+- Access Logs country, city and host filter dropdowns, and the Geo Logs
+  hostname dropdown, load from aggregates instead of scanning the full log
+  history, and now list values from all recorded history rather than only
+  the raw retention window.
 
 ### Fixed
 
@@ -35,6 +36,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   as plain query parameters so TimescaleDB can skip irrelevant time chunks.
   On a database with 18M rows these queries dropped from seconds to tens of
   milliseconds.
+- Top lists across Analytics, Geo Logs and the map order rows with equal
+  counts deterministically (alphabetical within a tie), so tied entries no
+  longer shuffle between refreshes or differ between query paths.
 
 ## [0.5.0] - 2026-07-25
 
