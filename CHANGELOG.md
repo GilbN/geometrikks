@@ -47,6 +47,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   expose the clipboard API to HTTPS and loopback origins, so copying now
   falls back to a hidden-textarea copy, and reports "Copy failed" instead of
   silently doing nothing when even that is refused.
+- Logging in no longer intermittently bounces straight back to the login
+  page. Session handling now applies only to `/api` and `/ws`: previously
+  every static-asset response also rewrote the session it had loaded, so an
+  asset request still in flight during login (the PWA precaches many at once)
+  could overwrite the fresh session with stale logged-out data and the next
+  API call would 401.
 
 ## [0.5.0] - 2026-07-25
 

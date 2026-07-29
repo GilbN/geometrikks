@@ -174,6 +174,32 @@ def test_session_cookie_secure_flag_follows_setting():
         assert "secure" not in res.headers["set-cookie"].lower()
 
 
+def test_non_api_responses_never_touch_the_session():
+    """The session middleware must not run outside /api and /ws.
+
+    When it runs on the SPA shell and static assets, every such response
+    writes the session it loaded at request start back to the store. A slow
+    asset response that started before login then overwrites the fresh
+    authenticated session with stale pre-login data, and the next API call
+    401s: login bounces straight back to the login page.
+    """
+    with TestClient(app=make_app()) as client:
+        res = client.get("/health")
+        assert res.status_code == 200
+        assert "set-cookie" not in res.headers
+
+
+def test_session_survives_non_api_requests_after_login():
+    with TestClient(app=make_app()) as client:
+        res = client.post(
+            "/api/v1/auth/login",
+            json={"username": "admin", "password": "bestpasswordintheworldnojoke"},
+        )
+        assert res.status_code == 200
+        client.get("/health")
+        assert client.get("/api/v1/auth/me").status_code == 200
+
+
 def test_login_attempts_are_logged_with_client_ip():
     import structlog
 
