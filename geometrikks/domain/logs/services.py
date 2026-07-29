@@ -7,7 +7,7 @@ from advanced_alchemy.filters import FilterTypes, LimitOffset
 from advanced_alchemy.repository import SQLAlchemyAsyncRepository
 from advanced_alchemy.service import SQLAlchemyAsyncRepositoryService
 from litestar.exceptions import ValidationException
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
 
 from geometrikks.domain.logs.models import AccessLog, AccessLogDebug
 from geometrikks.domain.logs.schemas import (
@@ -42,35 +42,36 @@ class AccessLogService(SQLAlchemyAsyncRepositoryService[AccessLog]):
     async def get_facets(self) -> AccessLogFacets:
         """Distinct country/city/host values present in the data, for filter dropdowns.
 
+        Countries and cities come from log_ip_daily_stats and hosts from
+        host_daily_stats (both real-time aggregated), not the raw hypertable:
+        the facet query cost then scales with distinct values per day instead
+        of total log volume. Values persist beyond raw retention (daily CAGGs
+        keep history), which is the desired behavior for filter dropdowns.
+
         Rows without geo data (NULL columns) are excluded; ``name`` falls back
         to the code when ``country_name`` is missing. Countries are deduped by
         code (a non-null name wins over NULL) and sorted by the displayed name.
         """
         session = self.repository.session
-        country_name = func.max(AccessLog.country_name)
         country_rows = (
-            await session.execute(
-                select(AccessLog.country_code, country_name)
-                .where(AccessLog.country_code.is_not(None))
-                .group_by(AccessLog.country_code)
-                .order_by(func.coalesce(country_name, AccessLog.country_code))
-            )
+            await session.execute(text(
+                "SELECT country_code, MAX(country_name) AS name "
+                "FROM log_ip_daily_stats "
+                "WHERE country_code IS NOT NULL "
+                "GROUP BY country_code "
+                "ORDER BY COALESCE(MAX(country_name), country_code)"
+            ))
         ).all()
         cities = (
-            await session.execute(
-                select(AccessLog.city)
-                .where(AccessLog.city.is_not(None))
-                .distinct()
-                .order_by(AccessLog.city)
-            )
+            await session.execute(text(
+                "SELECT DISTINCT city FROM log_ip_daily_stats "
+                "WHERE city IS NOT NULL ORDER BY city"
+            ))
         ).scalars().all()
         hosts = (
-            await session.execute(
-                select(AccessLog.host)
-                .where(AccessLog.host.is_not(None))
-                .distinct()
-                .order_by(AccessLog.host)
-            )
+            await session.execute(text(
+                "SELECT DISTINCT host FROM host_daily_stats ORDER BY host"
+            ))
         ).scalars().all()
         return AccessLogFacets(
             countries=[CountryFacet(code=code, name=name or code) for code, name in country_rows],
