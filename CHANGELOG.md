@@ -42,6 +42,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   The gap check now respects hourly aggregate retention, so buckets that
   retention already dropped on purpose are no longer treated as missing and
   rebuilt, only to be dropped again by the next retention run.
+- Debug Logs: the "Copy" button in the line-detail dialog did nothing when
+  GeoMetrikks was reached over plain HTTP on a LAN address. Browsers only
+  expose the clipboard API to HTTPS and loopback origins, so copying now
+  falls back to a hidden-textarea copy, and reports "Copy failed" instead of
+  silently doing nothing when even that is refused.
 
 ## [0.5.0] - 2026-07-25
 
