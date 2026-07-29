@@ -2,7 +2,7 @@
  * Detail view for one debug line: the full raw line (copyable), the parse
  * error, and the access-log context when the line parsed into one.
  */
-import { useRef, useState, type ReactNode } from "react"
+import { useEffect, useRef, useState, type ReactNode } from "react"
 import { AlertTriangle, Check, Copy } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -36,6 +36,13 @@ export function DebugLogDetailDialog({
 }) {
   const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">("idle")
   const contentRef = useRef<HTMLDivElement>(null)
+  const resetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    return () => {
+      if (resetTimerRef.current) clearTimeout(resetTimerRef.current)
+    }
+  }, [])
 
   async function copyRawLine() {
     if (!entry) return
@@ -43,7 +50,9 @@ export function DebugLogDetailDialog({
     // steals the selection before the copy runs.
     const copied = await copyText(entry.rawLine, { container: contentRef.current })
     setCopyState(copied ? "copied" : "failed")
-    setTimeout(() => setCopyState("idle"), copied ? 1500 : 4000)
+    // Drop any pending reset, or an earlier click's timer clears this state early.
+    if (resetTimerRef.current) clearTimeout(resetTimerRef.current)
+    resetTimerRef.current = setTimeout(() => setCopyState("idle"), copied ? 1500 : 4000)
   }
 
   return (
@@ -78,11 +87,6 @@ export function DebugLogDetailDialog({
                   size="sm"
                   className="h-7 px-2 pointer-coarse:h-10"
                   onClick={copyRawLine}
-                  title={
-                    copyState === "failed"
-                      ? "This browser blocks clipboard access over plain HTTP. Select the line below and copy it manually."
-                      : undefined
-                  }
                 >
                   {copyState === "copied" ? (
                     <Check className="h-3.5 w-3.5" />
@@ -100,6 +104,12 @@ export function DebugLogDetailDialog({
                   </span>
                 </Button>
               </div>
+              {copyState === "failed" && (
+                <p role="status" className="text-xs text-amber-600 dark:text-amber-400">
+                  Clipboard access was blocked, usually because this page is served over plain
+                  HTTP. Select the line below to copy it manually.
+                </p>
+              )}
               <pre className="max-h-48 overflow-y-auto whitespace-pre-wrap break-all rounded-md border bg-muted/50 p-3 font-mono text-xs">
                 {entry.rawLine}
               </pre>
