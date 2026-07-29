@@ -736,7 +736,11 @@ async def setup_timescaledb(
 
     # Repair deployments whose data predates CAGG refresh coverage
     # (issue #14: long-range charts truncated while top lists are not).
-    await backfill_cagg_gaps(engine, raw_retention_days=analytics.raw_retention_days)
+    await backfill_cagg_gaps(
+        engine,
+        raw_retention_days=analytics.raw_retention_days,
+        hourly_retention_days=analytics.hourly_retention_days,
+    )
 
     logger.info("TimescaleDB setup complete")
 
@@ -816,7 +820,9 @@ CAGG_SOURCE_TABLES: dict[str, str] = {
 }
 
 
-async def backfill_cagg_gaps(engine: "AsyncEngine", *, raw_retention_days: int) -> None:
+async def backfill_cagg_gaps(
+    engine: "AsyncEngine", *, raw_retention_days: int, hourly_retention_days: int
+) -> None:
     """Materialize CAGG history that predates refresh-policy coverage.
 
     CAGGs are created WITH NO DATA and refresh policies only cover a
@@ -826,11 +832,20 @@ async def backfill_cagg_gaps(engine: "AsyncEngine", *, raw_retention_days: int) 
     while raw-table queries still see it (issue #14 symptom). Detect the
     gap (earliest raw row older than earliest materialized bucket) and
     refresh the missing range. Idempotent and cheap when there is no gap.
+
+    Hourly CAGGs keep only ``hourly_retention_days`` of buckets, so their
+    probe horizon is clamped to that window: when raw retention is longer,
+    buckets beyond hourly retention are deliberately dropped, and treating
+    them as a gap would re-backfill (and re-drop) the same ~120 days of
+    hourly buckets on every startup.
     """
-    horizon = datetime.now(timezone.utc) - timedelta(days=raw_retention_days)
+    now = datetime.now(timezone.utc)
+    raw_horizon = now - timedelta(days=raw_retention_days)
+    hourly_horizon = now - timedelta(days=hourly_retention_days)
     to_backfill: list[tuple[str, datetime]] = []
 
     for cagg, source in CAGG_SOURCE_TABLES.items():
+        horizon = max(raw_horizon, hourly_horizon) if cagg in HOURLY_CAGGS else raw_horizon
         # Isolate each CAGG on its own connection: a probe failure (e.g. a
         # future CAGG whose time column is not "bucket") must not abort app
         # startup, and a failed statement poisons its whole connection's

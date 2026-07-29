@@ -39,6 +39,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Top lists across Analytics, Geo Logs and the map order rows with equal
   counts deterministically (alphabetical within a tie), so tied entries no
   longer shuffle between refreshes or differ between query paths.
+- Startup no longer re-backfills hourly aggregate history on every restart.
+  The gap check now respects hourly aggregate retention, so buckets that
+  retention already dropped on purpose are no longer treated as missing and
+  rebuilt, only to be dropped again by the next retention run.
 
 ## [0.5.0] - 2026-07-25
 
