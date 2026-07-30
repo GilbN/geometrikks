@@ -3072,7 +3072,7 @@
   "info": {
     "description": "Real-time GeoIP lookups and traffic analytics API",
     "title": "GeoMetrikks API",
-    "version": "0.4.3"
+    "version": "0.5.0"
   },
   "openapi": "3.1.0",
   "paths": {
@@ -4599,7 +4599,7 @@
     "/api/v1/analytics/top-cities": {
       "get": {
         "deprecated": false,
-        "description": "Top cities by hits from raw access logs (time-bounded).",
+        "description": "Top cities by hits (CAGG-served above 24h, filters included).",
         "operationId": "ApiV1AnalyticsTopCitiesGetTopCities",
         "parameters": [
           {
@@ -4799,7 +4799,7 @@
     "/api/v1/analytics/top-countries": {
       "get": {
         "deprecated": false,
-        "description": "Top countries by hits from raw access logs (time-bounded).",
+        "description": "Top countries by hits (CAGG-served above 24h, filters included).",
         "operationId": "ApiV1AnalyticsTopCountriesGetTopCountries",
         "parameters": [
           {
@@ -4999,7 +4999,7 @@
     "/api/v1/analytics/top-ips": {
       "get": {
         "deprecated": false,
-        "description": "Top client IPs by hits from raw access logs (time-bounded).",
+        "description": "Top client IPs by hits (CAGG-served above 24h, filters included).",
         "operationId": "ApiV1AnalyticsTopIpsGetTopIps",
         "parameters": [
           {
@@ -5199,7 +5199,7 @@
     "/api/v1/analytics/top-urls": {
       "get": {
         "deprecated": false,
-        "description": "Top URLs by hits from raw access logs (time-bounded).",
+        "description": "Top URLs by hits (CAGG-served above 24h; filters force a raw scan).",
         "operationId": "ApiV1AnalyticsTopUrlsGetTopUrls",
         "parameters": [
           {
@@ -5415,7 +5415,7 @@
     "/api/v1/analytics/top-user-agents": {
       "get": {
         "deprecated": false,
-        "description": "Top user agents by hits from raw access logs.",
+        "description": "Top user agents by hits (CAGG-served above 24h; filters force a raw scan).",
         "operationId": "ApiV1AnalyticsTopUserAgentsGetTopUserAgents",
         "parameters": [
           {

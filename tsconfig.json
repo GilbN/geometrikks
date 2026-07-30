@@ -29,6 +29,12 @@
       "@/*": ["./resources/*"]
     }
   },
-  "include": ["resources/**/*", "vite.config.ts", "vitest.config.ts"],
+  "include": [
+    "resources/**/*",
+    "vite.config.ts",
+    "vitest.config.ts",
+    "playwright.config.ts",
+    "tests/browser/**/*"
+  ],
   "exclude": ["resources/generated/**"]
 }

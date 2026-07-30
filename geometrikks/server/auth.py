@@ -34,8 +34,12 @@ logger = get_logger(__name__)
 #   request. The (/|$) boundary keeps bare "/ws" and "/api" authenticated too,
 #   not just their slash-suffixed children.
 # - the login endpoint itself.
+# Everything that is not /api or /ws: the SPA shell, static assets, /health,
+# /schema. Shared by the auth middleware and the session middleware below.
+NON_API_PATTERN = "^/(?!api(/|$)|ws(/|$))"
+
 AUTH_EXCLUDE_PATTERNS: list[str] = [
-    "^/(?!api(/|$)|ws(/|$))",
+    NON_API_PATTERN,
     "^/api/v1/auth/login$",
 ]
 
@@ -113,6 +117,15 @@ def create_session_auth(settings: "Settings") -> SessionAuth[AdminUser, ServerSi
         session_backend_config=ServerSideSessionConfig(
             max_age=60 * 60 * 24 * 7,
             secure=settings.session_secure,
+            # Sessions exist only for /api and /ws. Without this exclusion the
+            # session middleware runs on the SPA shell and every static asset,
+            # and each response writes the session it loaded at request start
+            # back to the store. A slow asset response that started before
+            # login (the PWA precache fires dozens concurrently) then
+            # overwrites the fresh authenticated session with stale pre-login
+            # data, and the next API call 401s: the user bounces from a
+            # successful login straight back to /login.
+            exclude=NON_API_PATTERN,
         ),
         exclude=AUTH_EXCLUDE_PATTERNS,
     )

@@ -11,6 +11,7 @@
     "update": "npm update",
     "generate-types": "openapi-ts",
     "test": "vitest run",
+    "test:smoke": "playwright test --config=playwright.config.ts",
     "typecheck": "tsc -b --noEmit"
   },
   "dependencies": {
@@ -39,6 +40,7 @@
   },
   "devDependencies": {
     "@hey-api/openapi-ts": "^0.88.0",
+    "@playwright/test": "^1.62.0",
     "@tailwindcss/vite": "^4.1.17",
     "@tanstack/react-query-devtools": "^5.91.1",
     "@tanstack/router-plugin": "^1.168.19",
