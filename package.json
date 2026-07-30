@@ -42,7 +42,7 @@
     "@tailwindcss/vite": "^4.1.17",
     "@tanstack/react-query-devtools": "^5.91.1",
     "@tanstack/router-plugin": "^1.168.19",
-    "@types/node": "^25.0.3",
+    "@types/node": "^26.1.1",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "@vite-pwa/assets-generator": "^1.0.2",
