@@ -12,6 +12,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Debug Logs and Geo Logs tables now show the Banned badge and ban/unban
   controls next to IP addresses, matching Access Logs and Alert History.
   The debug-line detail dialog shows them on its IP row as well.
+- The Geo Events by Location and IP table can now be sorted by any column
+  except Hostnames, matching Access Logs: click a header to sort, click again
+  to flip direction. IPs sort in numeric address order, empty values always
+  sink to the bottom, and the sort is part of the shareable URL. On ranges
+  over 24 hours, sorting by Last seen orders to day precision.
+- The Geo Events by Location and IP table gained a Last seen column showing
+  each (location, IP) pair's most recent event (day-granular on ranges over
+  24 hours).
 
 ### Changed
 

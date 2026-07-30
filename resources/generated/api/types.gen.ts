@@ -2165,7 +2165,11 @@ export type ApiV1GeoEventsLogsGetGeoLogsData = {
     currentPage?: number;
     pageSize?: number;
     /**
-     * Sort by event count
+     * Sort column (snake_case, e.g. event_count, city, ip_address, last_seen); validated against the service allowlist
+     */
+    orderBy?: string;
+    /**
+     * Sort direction
      */
     sortOrder?: "asc" | "desc";
   };
@@ -2802,7 +2806,7 @@ export type ApiV1LogsFilesKindNameDownloadResponses = {
   /**
    * File Download
    */
-  200: string;
+  200: Blob | File;
 };
 
 export type ApiV1LogsFilesKindNameDownloadResponse =

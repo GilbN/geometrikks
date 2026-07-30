@@ -17,6 +17,7 @@ from datetime import datetime
 
 from advanced_alchemy.repository import SQLAlchemyAsyncRepository
 from advanced_alchemy.service import SQLAlchemyAsyncRepositoryService
+from litestar.exceptions import ValidationException
 from sqlalchemy import func, select, text
 
 from geometrikks.domain.geo.models import GeoEvent, GeoLocation
@@ -41,6 +42,27 @@ from geometrikks.server.logging import get_logger
 
 logger = get_logger(__name__)
 
+# Sortable columns for the grouped geo-logs list, keyed by API ``orderBy``
+# value. Every value is a column of the grouped subquery, so one outer ORDER BY
+# serves both the raw and the stitched-CAGG paths. ``ip_address`` maps to
+# ``ip_sort``, the INET grouping key, because the displayed ``ip_address`` is
+# host() text and would sort lexicographically ("9." after "100."). ``hostnames``
+# is deliberately absent: it is an aggregated array on the raw path and NULL on
+# the CAGG path. ``last_seen`` is bucket-granular on the CAGG path, so on
+# ranges > 24h it only orders to day precision (raw edge rows stay exact).
+GEO_LOG_SORT_COLUMNS = {
+    "city": "city",
+    "postal_code": "postal_code",
+    "state": "state",
+    "country_code": "country_code",
+    "country_name": "country_name",
+    "ip_address": "ip_sort",
+    "latitude": "latitude",
+    "longitude": "longitude",
+    "event_count": "event_count",
+    "last_seen": "last_seen",
+}
+
 
 class GeoEventService(SQLAlchemyAsyncRepositoryService[GeoEvent]):
     """Repository service for GeoEvent: list/pagination plus geo-logs aggregates."""
@@ -62,6 +84,7 @@ class GeoEventService(SQLAlchemyAsyncRepositoryService[GeoEvent]):
         *,
         limit: int,
         offset: int,
+        order_by: str = "event_count",
         sort_order: str = "desc",
     ) -> tuple[list[GeoLogEntry], int]:
         """Rows grouped by (location, IP) with counts, plus the total group count.
@@ -69,9 +92,19 @@ class GeoEventService(SQLAlchemyAsyncRepositoryService[GeoEvent]):
         Raw path (≤ 24h or hostname filter): exact counts, last event time and
         distinct hostnames. CAGG path: per-IP CAGG sums stitched with the raw
         edge buckets — exact counts, bucket-granular last_seen, no hostnames.
+
+        NULLs sink on both sort directions, and (location_id, ip_sort) always
+        tie-breaks so pagination stays deterministic within equal sort keys.
+
+        Raises:
+            ValidationException: On an order_by field outside the allowlist.
+            ValueError: On a sort_order other than asc/desc.
         """
         if sort_order not in ("asc", "desc"):
             raise ValueError("sort_order must be 'asc' or 'desc'")
+        sort_col = GEO_LOG_SORT_COLUMNS.get(order_by)
+        if sort_col is None:
+            raise ValidationException(detail=f"Cannot sort by {order_by!r}")
         granularity = get_stats_granularity(start, end)
         use_raw = granularity == StatsGranularity.RAW or filters.forces_raw
 
@@ -85,6 +118,7 @@ class GeoEventService(SQLAlchemyAsyncRepositoryService[GeoEvent]):
                 SELECT
                     {location_cols},
                     host(ge.ip_address) AS ip_address,
+                    ge.ip_address AS ip_sort,
                     CAST(COUNT(*) AS BIGINT) AS event_count,
                     MAX(ge.timestamp) AS last_seen,
                     array_agg(DISTINCT ge.hostname) AS hostnames
@@ -94,7 +128,6 @@ class GeoEventService(SQLAlchemyAsyncRepositoryService[GeoEvent]):
                 {filter_sql}
                 GROUP BY gl.id, ge.ip_address
             """
-            order_col = "ip_address"
         else:
             filter_sql, filter_params = filters.sql_conditions("c", "gl")
             source = f"""
@@ -102,6 +135,7 @@ class GeoEventService(SQLAlchemyAsyncRepositoryService[GeoEvent]):
                 SELECT
                     {location_cols},
                     host(c.ip_address) AS ip_address,
+                    c.ip_address AS ip_sort,
                     CAST(SUM(c.event_count) AS BIGINT) AS event_count,
                     MAX(c.last_seen) AS last_seen,
                     NULL AS hostnames
@@ -111,7 +145,6 @@ class GeoEventService(SQLAlchemyAsyncRepositoryService[GeoEvent]):
                 {filter_sql}
                 GROUP BY gl.id, c.ip_address
             """
-            order_col = "ip_address"
 
         if use_raw:
             params = {"start": start, "end": end, **filter_params}
@@ -119,7 +152,7 @@ class GeoEventService(SQLAlchemyAsyncRepositoryService[GeoEvent]):
             params = {**stitch_params(start, end, granularity), **filter_params}
         stmt = text(
             f"SELECT * FROM ({source}) grouped "
-            f"ORDER BY event_count {sort_order.upper()}, location_id, {order_col} "
+            f"ORDER BY {sort_col} {sort_order.upper()} NULLS LAST, location_id, ip_sort "
             "LIMIT :limit OFFSET :offset"
         )
         result = await self._session.execute(stmt, {**params, "limit": limit, "offset": offset})

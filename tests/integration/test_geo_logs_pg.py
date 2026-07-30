@@ -8,6 +8,8 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
+import pytest
+from litestar.exceptions import ValidationException
 from sqlalchemy import text
 
 from geometrikks.domain.geo.repositories import StatsGranularity, get_stats_granularity
@@ -200,6 +202,90 @@ class TestGroupedLogs:
             (locs["se"], "2.2.2.2", 3),
         ]
         assert all(r.hostnames == [] for r in rows)
+
+    async def test_order_by_city_sinks_nulls_both_directions(self, pg_session_maker, clean_tables):
+        locs = await seed_raw(pg_session_maker)
+        async with pg_session_maker() as session:
+            svc = GeoEventService(session=session)
+            asc, _ = await svc.get_grouped_logs(
+                RAW_START, NOW, GeoEventFilters(),
+                limit=50, offset=0, order_by="city", sort_order="asc",
+            )
+            desc, _ = await svc.get_grouped_logs(
+                RAW_START, NOW, GeoEventFilters(),
+                limit=50, offset=0, order_by="city", sort_order="desc",
+            )
+        # NULL-city row (us) sinks on both directions.
+        assert [r.city for r in asc] == ["Oslo", "Oslo", "Umea", None]
+        assert [r.city for r in desc] == ["Umea", "Oslo", "Oslo", None]
+        # Equal cities tie-break on (location_id, ip): Oslo rows keep IP order.
+        assert [(r.location_id, r.ip_address) for r in asc[:2]] == [
+            (locs["no"], "1.1.1.1"), (locs["no"], "2.2.2.2")
+        ]
+
+    async def test_order_by_ip_uses_inet_ordering(self, pg_session_maker, clean_tables):
+        """9.x sorts before 100.x: INET order, not host() text order."""
+        t = NOW - timedelta(hours=1)
+        async with pg_session_maker() as session:
+            locs = await _seed_locations(session)
+            await _insert_events(session, ts=t, ip="9.9.9.9", hostname="web1", location_id=locs["no"])
+            await _insert_events(session, ts=t, ip="100.1.1.1", hostname="web1", location_id=locs["no"])
+            await _insert_events(session, ts=t, ip="20.1.1.1", hostname="web1", location_id=locs["no"])
+            await session.commit()
+        async with pg_session_maker() as session:
+            rows, _ = await GeoEventService(session=session).get_grouped_logs(
+                RAW_START, NOW, GeoEventFilters(),
+                limit=50, offset=0, order_by="ip_address", sort_order="asc",
+            )
+        assert [r.ip_address for r in rows] == ["9.9.9.9", "20.1.1.1", "100.1.1.1"]
+
+    async def test_order_by_last_seen(self, pg_session_maker, clean_tables):
+        locs = await seed_raw(pg_session_maker)
+        async with pg_session_maker() as session:
+            rows, _ = await GeoEventService(session=session).get_grouped_logs(
+                RAW_START, NOW, GeoEventFilters(),
+                limit=50, offset=0, order_by="last_seen", sort_order="asc",
+            )
+        # t1 groups first, then t2 groups; (location_id, ip) breaks the ties.
+        assert [(r.location_id, r.ip_address) for r in rows] == [
+            (locs["no"], "1.1.1.1"),
+            (locs["us"], "3.3.3.3"),
+            (locs["no"], "2.2.2.2"),
+            (locs["se"], "1.1.1.1"),
+        ]
+
+    async def test_order_by_outside_allowlist_rejected(self, pg_session_maker, clean_tables):
+        async with pg_session_maker() as session:
+            svc = GeoEventService(session=session)
+            for bad in ("hostnames", "event_count; DROP TABLE geo_events"):
+                with pytest.raises(ValidationException):
+                    await svc.get_grouped_logs(
+                        RAW_START, NOW, GeoEventFilters(),
+                        limit=50, offset=0, order_by=bad,
+                    )
+
+    async def test_order_by_on_cagg_path(self, pg_engine, pg_session_maker, clean_tables):
+        """Sort columns behave identically on the stitched-CAGG path (> 24h)."""
+        locs = await seed_multiday(pg_session_maker)
+        await refresh_caggs_range(
+            pg_engine, start=NOW - timedelta(days=4), end=NOW + timedelta(hours=1)
+        )
+        start = NOW - timedelta(days=3, hours=2)
+        async with pg_session_maker() as session:
+            svc = GeoEventService(session=session)
+            by_city, _ = await svc.get_grouped_logs(
+                start, NOW, GeoEventFilters(),
+                limit=50, offset=0, order_by="city", sort_order="asc",
+            )
+            by_ip, _ = await svc.get_grouped_logs(
+                start, NOW, GeoEventFilters(),
+                limit=50, offset=0, order_by="ip_address", sort_order="desc",
+            )
+        assert [(r.location_id, r.ip_address, r.event_count) for r in by_city] == [
+            (locs["no"], "1.1.1.1", 6),  # Oslo
+            (locs["se"], "2.2.2.2", 3),  # Umea
+        ]
+        assert [r.ip_address for r in by_ip] == ["2.2.2.2", "1.1.1.1"]
 
     async def test_hostname_filter_forces_raw_on_long_range(self, pg_engine, pg_session_maker, clean_tables):
         locs = await seed_multiday(pg_session_maker)

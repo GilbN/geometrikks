@@ -206,12 +206,21 @@ class GeoEventController(Controller):
         to_timestamp: Annotated[datetime, END_PARAM],
         current_page: Annotated[int, QueryParameter(name="currentPage", ge=1, required=False)] = 1,
         page_size: Annotated[int, QueryParameter(name="pageSize", ge=1, le=500, required=False)] = 50,
+        order_by: Annotated[
+            str,
+            QueryParameter(
+                name="orderBy",
+                description="Sort column (snake_case, e.g. event_count, city, "
+                "ip_address, last_seen); validated against the service allowlist",
+                required=False,
+            ),
+        ] = "event_count",
         sort_order: Annotated[
             Literal["asc", "desc"],
-            QueryParameter(name="sortOrder", description="Sort by event count", required=False),
+            QueryParameter(name="sortOrder", description="Sort direction", required=False),
         ] = "desc",
     ) -> OffsetPagination[GeoLogEntry]:
-        """One row per (location, IP) pair sorted by event count.
+        """One row per (location, IP) pair, sorted by event count by default.
 
         Ranges > 24h are served from the daily per-IP CAGG (day-floored
         buckets, no hostnames); a hostname filter forces the raw path.
@@ -222,7 +231,7 @@ class GeoEventController(Controller):
         offset = page_size * (current_page - 1)
         rows, total = await geo_event_service.get_grouped_logs(
             from_timestamp, to_timestamp, geo_filters,
-            limit=limit, offset=offset, sort_order=sort_order,
+            limit=limit, offset=offset, order_by=order_by, sort_order=sort_order,
         )
         return OffsetPagination[GeoLogEntry](items=rows, total=total, limit=limit, offset=offset)
 

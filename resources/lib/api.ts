@@ -658,11 +658,37 @@ export interface GeoLogsWindowParams {
 
 export type GeoLogSortOrder = "asc" | "desc"
 
+export type GeoLogSortField =
+  | "city"
+  | "postalCode"
+  | "state"
+  | "countryCode"
+  | "countryName"
+  | "ipAddress"
+  | "latitude"
+  | "longitude"
+  | "eventCount"
+  | "lastSeen"
+
+/** camelCase sort key -> backend snake_case column name for `orderBy`. */
+const GEO_LOG_SORT_FIELD_TO_COLUMN: Record<GeoLogSortField, string> = {
+  city: "city",
+  postalCode: "postal_code",
+  state: "state",
+  countryCode: "country_code",
+  countryName: "country_name",
+  ipAddress: "ip_address",
+  latitude: "latitude",
+  longitude: "longitude",
+  eventCount: "event_count",
+  lastSeen: "last_seen",
+}
+
 export async function fetchGeoLogs(
   params: GeoLogsWindowParams & GeoLogFilterParams & {
     currentPage?: number
     pageSize?: number
-    /** Sorts by event count. */
+    sortField?: GeoLogSortField
     sortOrder?: GeoLogSortOrder
   },
 ) {
@@ -672,6 +698,7 @@ export async function fetchGeoLogs(
       to_timestamp: params.toTimestamp,
       currentPage: params.currentPage ?? 1,
       pageSize: params.pageSize ?? 50,
+      orderBy: params.sortField ? GEO_LOG_SORT_FIELD_TO_COLUMN[params.sortField] : undefined,
       sortOrder: params.sortOrder ?? "desc",
       ...geoLogFilterQuery(params),
     },
