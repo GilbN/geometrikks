@@ -44,6 +44,7 @@
     "@tailwindcss/vite": "^4.3.3",
     "@tanstack/react-query-devtools": "^5.101.4",
     "@tanstack/router-plugin": "^1.168.23",
+    "@types/geojson": "^7946.0.16",
     "@types/node": "^25.9.5",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",

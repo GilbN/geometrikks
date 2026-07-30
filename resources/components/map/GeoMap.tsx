@@ -11,6 +11,8 @@ import Map, {
   type ViewStateChangeEvent,
 } from "react-map-gl/maplibre"
 import "maplibre-gl/dist/maplibre-gl.css"
+import type { FeatureCollection, Point } from "geojson"
+import type { GeoJSONSource, MapLayerMouseEvent } from "maplibre-gl"
 
 import {
   useGeoJSON,
@@ -132,7 +134,7 @@ function GeoMapInner({
   const { data: crowdsecStatus } = useCrowdsecStatus()
   const { data: bannedLocations, isFetching: isFetchingBanned } =
     useBannedLocations(showBanned)
-  const bannedGeoJSON = useMemo<GeoJSON.FeatureCollection>(
+  const bannedGeoJSON = useMemo<FeatureCollection>(
     () => ({
       type: "FeatureCollection",
       features: (bannedLocations ?? []).map((loc) => ({
@@ -308,7 +310,7 @@ function GeoMapInner({
 
   // Handle map click: live packets first, then the markers layer
   const onClick = useCallback(
-    (event: maplibregl.MapLayerMouseEvent) => {
+    (event: MapLayerMouseEvent) => {
       const liveFeature = event.features?.find((feature) =>
         feature.layer.id === "live-origin-core" || feature.layer.id === "live-packet-core",
       )
@@ -339,13 +341,13 @@ function GeoMapInner({
       }
 
       const feature = features[0]
-      const geometry = feature.geometry as GeoJSON.Point
+      const geometry = feature.geometry as Point
 
       // Handle cluster click - zoom in
       if (feature.properties?.cluster) {
         setPopup(null)
         const clusterId = feature.properties.cluster_id as number
-        const source = mapRef.current?.getSource("geo-data") as maplibregl.GeoJSONSource
+        const source = mapRef.current?.getSource("geo-data") as GeoJSONSource
         if (source) {
           source.getClusterExpansionZoom(clusterId).then((zoom) => {
             mapRef.current?.easeTo({
@@ -457,7 +459,7 @@ function GeoMapInner({
             key={activeLayer === "markers" ? "clustered" : "plain"}
             id="geo-data"
             type="geojson"
-            data={geojson as unknown as GeoJSON.FeatureCollection}
+            data={geojson as unknown as FeatureCollection}
             cluster={activeLayer === "markers"}
             clusterMaxZoom={14}
             clusterRadius={50}

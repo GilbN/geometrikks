@@ -8,6 +8,7 @@
 import { useCallback, useEffect, useRef } from "react"
 import { Layer, Source, useMap } from "react-map-gl/maplibre"
 import type { GeoJSONSource } from "maplibre-gl"
+import type { Feature, FeatureCollection } from "geojson"
 import { packetColor, packetRadius, worseStatus } from "@/lib/live-traffic/classify"
 import type { LiveRequest, StatusClass } from "@/lib/live-traffic/types"
 import { useLiveTrafficStore } from "@/lib/live-traffic/context"
@@ -159,7 +160,7 @@ function smootherStep(value: number): number {
   return progress * progress * progress * (progress * (progress * 6 - 15) + 10)
 }
 
-function emptyFeatureCollection(): GeoJSON.FeatureCollection {
+function emptyFeatureCollection(): FeatureCollection {
   return { type: "FeatureCollection", features: [] }
 }
 
@@ -192,8 +193,8 @@ function buildFrame(
   transmissions: Transmission[],
   destination: Coordinate,
   now: number,
-): GeoJSON.FeatureCollection {
-  const features: GeoJSON.Feature[] = []
+): FeatureCollection {
+  const features: Feature[] = []
   let strongestArrival = 0
   const visibleTransmissions = new Set<Transmission>()
   const visibleLanes = new Set<string>()
