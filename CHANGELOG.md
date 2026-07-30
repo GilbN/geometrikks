@@ -7,7 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Debug Logs and Geo Logs tables now show the Banned badge and ban/unban
+  controls next to IP addresses, matching Access Logs and Alert History.
+  The debug-line detail dialog shows them on its IP row as well.
+
 ### Changed
+
+- Map popup ban buttons (location top-IPs and live-request popups) now open
+  the same duration dropdown as the log tables instead of immediately banning
+  with the default duration; unbanning asks for confirmation via the menu.
 
 - Analytics top lists (URLs, user agents, IPs, countries, cities) are now
   served from continuous aggregates on ranges over 24 hours instead of

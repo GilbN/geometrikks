@@ -43,7 +43,8 @@ import { PaginationFooter } from "@/components/ui/pagination-footer"
 import { FilterCombobox } from "@/components/ui/filter-combobox"
 import { FiltersDrawer, FilterSection } from "@/components/ui/filters-drawer"
 import { DebugLogDetailDialog } from "@/components/debug-logs/debug-log-detail-dialog"
-import { useAccessLogDebug, useAccessLogFacets } from "@/lib/queries"
+import { IpBanControls } from "@/components/crowdsec/ip-ban-controls"
+import { useAccessLogDebug, useAccessLogFacets, useCrowdsecLiveUpdates } from "@/lib/queries"
 import { useDebouncedValue } from "@/hooks/use-debounced-value"
 import { isValidIp } from "@/lib/crowdsec"
 import { useIsMobile } from "@/hooks/use-mobile"
@@ -244,6 +245,9 @@ export function DebugLogsTable() {
 
   // Detail dialog.
   const [selected, setSelected] = useState<AccessLogDebugEntry | null>(null)
+
+  // Keep banned badges in sync with external cscli/console decisions.
+  useCrowdsecLiveUpdates()
 
   // Any filter/sort/page-size change returns to the first page.
   useEffect(() => {
@@ -475,7 +479,16 @@ export function DebugLogsTable() {
                     onClick={() => setSelected(row)}
                   >
                     {shownColumns.map((c) => (
-                      <TableCell key={c.key}>{c.render(row)}</TableCell>
+                      <TableCell key={c.key}>
+                        {c.render(row)}
+                        {c.key === "ipAddress" && row.ipAddress && (
+                          // Rows open the detail dialog on click; keep the
+                          // ban/unban dropdown from also triggering it.
+                          <span onClick={(e) => e.stopPropagation()}>
+                            <IpBanControls ip={row.ipAddress} />
+                          </span>
+                        )}
+                      </TableCell>
                     ))}
                   </TableRow>
                 ))}

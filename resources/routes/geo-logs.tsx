@@ -26,6 +26,7 @@ import {
 } from "@/lib/geo-log-filters-context"
 import { useUrlFilters } from "@/hooks/use-url-filters"
 import { arrayParam, dropDefault } from "@/lib/url-filters"
+import { useCrowdsecLiveUpdates } from "@/lib/queries"
 import type { GeoLogSortOrder } from "@/lib/api"
 
 const GeoLogsMap = lazy(() => import("@/components/geo-logs/geo-logs-map"))
@@ -82,6 +83,9 @@ const RESET_ON_CHANGE: Partial<GeoLogsSearch> = { page: undefined }
 function GeoLogsPage() {
   const search = Route.useSearch()
   const navigate = Route.useNavigate()
+  // Keep banned badges (Top IPs card + geo-logs table) in sync with external
+  // cscli/console decisions; one subscription for the whole page.
+  useCrowdsecLiveUpdates()
 
   const { filters, setFilters, patchSearch } = useUrlFilters({
     search,

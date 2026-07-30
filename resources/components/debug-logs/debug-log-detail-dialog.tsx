@@ -14,6 +14,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { copyText } from "@/lib/clipboard"
+import { IpBanControls } from "@/components/crowdsec/ip-ban-controls"
 import type { AccessLogDebugEntry } from "@/lib/api"
 
 function DetailRow({ label, value }: { label: string; value: ReactNode }) {
@@ -125,7 +126,17 @@ export function DebugLogDetailDialog({
                     label="Time"
                     value={entry.timestamp ? new Date(entry.timestamp).toLocaleString() : null}
                   />
-                  <DetailRow label="IP" value={entry.ipAddress} />
+                  <DetailRow
+                    label="IP"
+                    value={
+                      entry.ipAddress && (
+                        <>
+                          {entry.ipAddress}
+                          <IpBanControls ip={entry.ipAddress} />
+                        </>
+                      )
+                    }
+                  />
                   <DetailRow label="Method" value={entry.method} />
                   <DetailRow label="URL" value={entry.url} />
                   <DetailRow label="Host" value={entry.host} />
