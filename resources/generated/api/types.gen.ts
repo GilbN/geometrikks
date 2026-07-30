@@ -2802,7 +2802,7 @@ export type ApiV1LogsFilesKindNameDownloadResponses = {
   /**
    * File Download
    */
-  200: string;
+  200: Blob | File;
 };
 
 export type ApiV1LogsFilesKindNameDownloadResponse =
