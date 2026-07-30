@@ -4,7 +4,8 @@ CAGG Routing:
 - RAW (geo_events): For time ranges <= 24 hours (exact granularity needed)
 - location_hourly_stats: For time ranges > 24 hours and <= 30 days
 - location_daily_stats: For time ranges > 30 days
-- ip_location_daily_stats: For top IPs queries (time ranges > 24 hours)
+- ip_location_{hourly,daily}_stats: For top IPs queries, stitched with raw edges
+  for exact partial-bucket coverage.
 
 Note: We use hourly CAGGs for up to 30 days because they properly support
 real-time aggregation. Daily CAGGs have watermark limitations that can cause
@@ -60,6 +61,74 @@ def get_stats_granularity(from_timestamp: datetime, to_timestamp: datetime) -> S
         return StatsGranularity.HOURLY
     else:
         return StatsGranularity.DAILY
+
+
+IP_LOCATION_CAGGS = {
+    StatsGranularity.HOURLY: ("ip_location_hourly_stats", "1 hour"),
+    StatsGranularity.DAILY: ("ip_location_daily_stats", "1 day"),
+}
+
+
+def stitch_params(
+    start: datetime, end: datetime, granularity: StatsGranularity
+) -> dict:
+    """Bind params for a stitched CAGG read: window edges + inward bucket snap.
+
+    a_start/a_end snap the [start, end) window inward to whole buckets (UTC
+    aligned, matching time_bucket). Clamped so a window spanning no complete
+    bucket degenerates to a pure raw scan (empty CAGG leg, one head slice
+    covering the whole window).
+
+    Computed in Python and bound as plain parameters deliberately: routing
+    the bounds through a SQL CTE joined into each leg turns the timestamp
+    constraints into join predicates, which TimescaleDB cannot use for chunk
+    exclusion - the raw legs then decompress and scan the entire hypertable.
+    """
+    if granularity == StatsGranularity.DAILY:
+        floor_start = start.replace(hour=0, minute=0, second=0, microsecond=0)
+        floor_end = end.replace(hour=0, minute=0, second=0, microsecond=0)
+        step = timedelta(days=1)
+    else:
+        floor_start = start.replace(minute=0, second=0, microsecond=0)
+        floor_end = end.replace(minute=0, second=0, microsecond=0)
+        step = timedelta(hours=1)
+    a_start = start if floor_start == start else floor_start + step
+    a_start = min(a_start, end)
+    a_end = max(floor_end, a_start)
+    return {"start": start, "end": end, "a_start": a_start, "a_end": a_end}
+
+
+def stitched_ip_location_cte(granularity: StatsGranularity) -> str:
+    """WITH clause exposing ``combined`` for a per-IP CAGG read.
+
+    Reading a CAGG requires whole buckets, so a window that starts mid-bucket
+    used to be floored outward - silently pulling in a partial extra bucket and
+    over-counting against the equivalent raw scan. The window is snapped
+    *inward* to whole buckets (``stitch_params``; callers bind its params) and
+    the leftover head/tail slices are read straight from ``geo_events``, so
+    the union is exact.
+
+    ``combined`` yields (location_id, ip_address, event_count, last_seen); it is
+    keyed by IP on all legs, so ``COUNT(DISTINCT ip_address)`` over it stays
+    exact rather than summing per-bucket counts. ``last_seen`` is bucket-granular
+    for CAGG rows and exact for the raw edge rows.
+    """
+    table, _ = IP_LOCATION_CAGGS[granularity]
+    return f"""
+        WITH combined AS (
+            SELECT s.location_id, s.ip_address, s.event_count, s.bucket AS last_seen
+            FROM {table} s
+            WHERE s.bucket >= :a_start AND s.bucket < :a_end
+            UNION ALL
+            SELECT ge.location_id, ge.ip_address, CAST(1 AS BIGINT), ge.timestamp
+            FROM geo_events ge
+            WHERE ge.timestamp >= :start AND ge.timestamp < :a_start
+            UNION ALL
+            SELECT ge.location_id, ge.ip_address, CAST(1 AS BIGINT), ge.timestamp
+            FROM geo_events ge
+            WHERE ge.timestamp >= :a_end AND ge.timestamp < :end
+        )
+    """
 
 
 @dataclass
@@ -187,7 +256,7 @@ class GeoLocationRepository(SQLAlchemyAsyncRepository[GeoLocation]):
                 JOIN geo_events ge ON ge.location_id = gl.id
                 WHERE ge.timestamp >= :from_ts AND ge.timestamp < :to_ts{filters_sql}
                 GROUP BY gl.id
-                ORDER BY event_count DESC
+                ORDER BY event_count DESC, gl.id
             """)
         else:
             # Query appropriate CAGG
@@ -205,7 +274,7 @@ class GeoLocationRepository(SQLAlchemyAsyncRepository[GeoLocation]):
                 WHERE ls.bucket >= time_bucket('{bucket_interval}', CAST(:from_ts AS timestamptz))
                   AND ls.bucket < :to_ts{filters_sql}
                 GROUP BY gl.id
-                ORDER BY event_count DESC
+                ORDER BY event_count DESC, gl.id
             """)
 
         result = await self.session.execute(stmt, params)
@@ -244,8 +313,9 @@ class GeoLocationRepository(SQLAlchemyAsyncRepository[GeoLocation]):
         """Get top N IPs for a specific location by event count.
 
         Routes to optimal source based on time range:
-        - ≤ 1 hour: RAW geo_events table
-        - > 1 hour: ip_location_daily_stats CAGG
+        - <= 24 hours: RAW geo_events table
+        - > 24 hours, <= 30 days: ip_location_hourly_stats (stitched-exact)
+        - > 30 days: ip_location_daily_stats (stitched-exact)
 
         Args:
             location_id: The location ID to get top IPs for.
@@ -272,42 +342,38 @@ class GeoLocationRepository(SQLAlchemyAsyncRepository[GeoLocation]):
         )
 
         if granularity == StatsGranularity.RAW:
-            # Query raw geo_events table for exact time range granularity
             stmt = text("""
                 SELECT
                     ip_address,
                     CAST(COUNT(*) AS INTEGER) AS event_count
                 FROM geo_events
                 WHERE location_id = :location_id
-                  AND timestamp >= :from_ts AND timestamp < :to_ts
+                  AND timestamp >= :start AND timestamp < :end
                 GROUP BY ip_address
-                ORDER BY event_count DESC
+                ORDER BY event_count DESC, ip_address
                 LIMIT :limit
             """)
         else:
-            # Query daily CAGG - TimescaleDB real-time aggregation handles recent data
-            # Floor to day boundary for CAGG query
-            stmt = text("""
+            # Stitched read: whole buckets from the hourly/daily per-IP CAGG,
+            # partial head/tail from raw geo_events, so the window is exact.
+            stmt = text(f"""
+                {stitched_ip_location_cte(granularity)}
                 SELECT
                     ip_address,
                     CAST(SUM(event_count) AS INTEGER) AS event_count
-                FROM ip_location_daily_stats
+                FROM combined
                 WHERE location_id = :location_id
-                  AND bucket >= time_bucket('1 day', CAST(:from_ts AS timestamptz))
-                  AND bucket < :to_ts
                 GROUP BY ip_address
-                ORDER BY event_count DESC
+                ORDER BY event_count DESC, ip_address
                 LIMIT :limit
             """)
 
+        if granularity == StatsGranularity.RAW:
+            params: dict = {"start": from_timestamp, "end": to_timestamp}
+        else:
+            params = stitch_params(from_timestamp, to_timestamp, granularity)
         result = await self.session.execute(
-            stmt,
-            {
-                "location_id": location_id,
-                "from_ts": from_timestamp,
-                "to_ts": to_timestamp,
-                "limit": limit,
-            },
+            stmt, {"location_id": location_id, "limit": limit, **params}
         )
         rows = result.fetchall()
 
@@ -319,8 +385,9 @@ class GeoLocationRepository(SQLAlchemyAsyncRepository[GeoLocation]):
         """Get global top N IPs by event count with their primary location.
 
         Routes to optimal source based on time range:
-        - ≤ 1 hour: RAW geo_events table
-        - > 1 hour: ip_location_daily_stats CAGG
+        - <= 24 hours: RAW geo_events table
+        - > 24 hours, <= 30 days: ip_location_hourly_stats (stitched-exact)
+        - > 30 days: ip_location_daily_stats (stitched-exact)
 
         For IPs that appear in multiple locations, returns the location
         where they have the highest event count.
@@ -343,37 +410,36 @@ class GeoLocationRepository(SQLAlchemyAsyncRepository[GeoLocation]):
         )
 
         if granularity == StatsGranularity.RAW:
-            # Query raw geo_events table for exact time range granularity
             stmt = text("""
                 SELECT
                     CAST(COUNT(*) AS INTEGER) AS total_count,
                     location_id,
                     ip_address
                 FROM geo_events
-                WHERE timestamp >= :from_ts AND timestamp < :to_ts
+                WHERE timestamp >= :start AND timestamp < :end
                 GROUP BY location_id, ip_address
-                ORDER BY total_count DESC
+                ORDER BY total_count DESC, location_id, ip_address
                 LIMIT :fetch_limit
             """)
         else:
-            # Query daily CAGG - TimescaleDB real-time aggregation handles recent data
-            # Floor to day boundary for CAGG query
-            stmt = text("""
+            stmt = text(f"""
+                {stitched_ip_location_cte(granularity)}
                 SELECT
                     CAST(SUM(event_count) AS INTEGER) AS total_count,
                     location_id,
                     ip_address
-                FROM ip_location_daily_stats
-                WHERE bucket >= time_bucket('1 day', CAST(:from_ts AS timestamptz))
-                  AND bucket < :to_ts
+                FROM combined
                 GROUP BY location_id, ip_address
-                ORDER BY total_count DESC
+                ORDER BY total_count DESC, location_id, ip_address
                 LIMIT :fetch_limit
             """)
 
+        if granularity == StatsGranularity.RAW:
+            params: dict = {"start": from_timestamp, "end": to_timestamp}
+        else:
+            params = stitch_params(from_timestamp, to_timestamp, granularity)
         result = await self.session.execute(stmt, {
-            "from_ts": from_timestamp,
-            "to_ts": to_timestamp,
+            **params,
             "fetch_limit": limit * 10,  # Fetch more to account for deduplication
         })
 
@@ -433,7 +499,7 @@ class GeoLocationRepository(SQLAlchemyAsyncRepository[GeoLocation]):
                 WHERE ge.timestamp >= :from_ts AND ge.timestamp < :to_ts
                   AND gl.country_code IS NOT NULL
                 GROUP BY gl.country_code, gl.country_name
-                ORDER BY event_count DESC
+                ORDER BY event_count DESC, gl.country_code
                 LIMIT :limit
             """)
         else:
@@ -452,7 +518,7 @@ class GeoLocationRepository(SQLAlchemyAsyncRepository[GeoLocation]):
                   AND ls.bucket < :to_ts
                   AND gl.country_code IS NOT NULL
                 GROUP BY gl.country_code, gl.country_name
-                ORDER BY event_count DESC
+                ORDER BY event_count DESC, gl.country_code
                 LIMIT :limit
             """)
 

@@ -156,10 +156,10 @@ def _resolve_chart_granularity(
 class GeoEventController(Controller):
     """Geo-event endpoints: raw event listing and geo-logs page aggregates.
 
-    Perf note: hostname filters (and any filter on summary/time-series) force
-    raw geo_events scans instead of the CAGGs, so those queries are bounded by
-    raw_retention_days (default 180d) — same trade-off as the filtered
-    analytics queries.
+    Perf note: only hostname filters force raw geo_events scans for
+    summary/time-series now (no CAGG carries a hostname dimension); those
+    queries are bounded by raw_retention_days (default 180d). Country/city/IP
+    filters ride the stitched per-IP CAGGs instead.
     """
 
     path = "/api/v1/geo-events"
@@ -240,8 +240,9 @@ class GeoEventController(Controller):
     ) -> GeoLogSummaryResponse:
         """Totals and unique counts for the period, optionally vs the previous one.
 
-        Unfiltered ranges > 24h use HLL-backed CAGGs (approximate uniques);
-        filtered ranges scan raw geo_events for exact counts.
+        Hostname-filtered ranges scan raw geo_events; country/city/IP filters
+        use per-IP CAGGs (exact uniques); unfiltered ranges > 24h use HLL
+        CAGGs (approximate uniques).
         """
         from_timestamp = _ensure_utc(from_timestamp)
         to_timestamp = _ensure_utc(to_timestamp)
@@ -291,7 +292,12 @@ class GeoEventController(Controller):
             ),
         ] = None,
     ) -> GeoLogTimeSeriesResponse:
-        """Bucketed totals + unique IPs; filtered ranges scan raw geo_events."""
+        """Bucketed totals + unique IPs.
+
+        Hostname-filtered ranges scan raw geo_events; country/city/IP filters
+        use per-IP CAGGs (exact uniques); unfiltered ranges > 24h use HLL
+        CAGGs (approximate uniques).
+        """
         from_timestamp = _ensure_utc(from_timestamp)
         to_timestamp = _ensure_utc(to_timestamp)
         resolved = _resolve_chart_granularity(from_timestamp, to_timestamp, granularity)

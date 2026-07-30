@@ -7,6 +7,53 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Analytics top lists (URLs, user agents, IPs, countries, cities) are now
+  served from continuous aggregates on ranges over 24 hours instead of
+  scanning raw access logs, making long-range views much faster. The IP,
+  country and city lists stay on the fast path even with country/city/IP
+  filters; filtered URL and user-agent lists still scan raw logs.
+- Geo Logs summary and chart stay on the fast aggregate path when filtered
+  by country, city or IP on ranges over 24 hours. Hostname filters still
+  scan raw events.
+- Access Logs country, city and host filter dropdowns, and the Geo Logs
+  hostname dropdown, load from aggregates instead of scanning the full log
+  history, and now list values from all recorded history rather than only
+  the raw retention window.
+
+### Fixed
+
+- Map top-IP lists (global and per-location) no longer include events from
+  outside the selected range on ranges over 24 hours: the window was
+  previously floored to whole days, over-counting the partial first day.
+- Geo Logs chart on ranges up to 24 hours no longer includes events from just
+  before the selected window in its first data point, and its unique-IP counts
+  on those short ranges are exact instead of estimated.
+- Geo Logs grouped rows and top lists on ranges over 24 hours no longer
+  scan the entire raw event history while stitching partial-bucket window
+  edges: TimescaleDB can now skip time chunks outside the selected range.
+  On a database with 18M rows these queries dropped from seconds to tens
+  of milliseconds.
+- Top lists across Analytics, Geo Logs and the map order rows with equal
+  counts deterministically (alphabetical within a tie), so tied entries no
+  longer shuffle between refreshes.
+- Startup no longer re-backfills hourly aggregate history on every restart.
+  The gap check now respects hourly aggregate retention, so buckets that
+  retention already dropped on purpose are no longer treated as missing and
+  rebuilt, only to be dropped again by the next retention run.
+- Debug Logs: the "Copy" button in the line-detail dialog did nothing when
+  GeoMetrikks was reached over plain HTTP on a LAN address. Browsers only
+  expose the clipboard API to HTTPS and loopback origins, so copying now
+  falls back to a hidden-textarea copy, and reports "Copy failed" instead of
+  silently doing nothing when even that is refused.
+- Logging in no longer intermittently bounces straight back to the login
+  page. Session handling now applies only to `/api` and `/ws`: previously
+  every static-asset response also rewrote the session it had loaded, so an
+  asset request still in flight during login (the PWA precaches many at once)
+  could overwrite the fresh session with stale logged-out data and the next
+  API call would 401.
+
 ## [0.5.0] - 2026-07-25
 
 ### Added

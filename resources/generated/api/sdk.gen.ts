@@ -399,7 +399,7 @@ export const apiV1AnalyticsTimeSeriesCumulativeGetCumulativeTimeSeries = <
 /**
  * GetTopCities
  *
- * Top cities by hits from raw access logs (time-bounded).
+ * Top cities by hits (CAGG-served above 24h, filters included).
  */
 export const apiV1AnalyticsTopCitiesGetTopCities = <
   ThrowOnError extends boolean = false,
@@ -425,7 +425,7 @@ export const apiV1AnalyticsTopCitiesGetTopCities = <
 /**
  * GetTopCountries
  *
- * Top countries by hits from raw access logs (time-bounded).
+ * Top countries by hits (CAGG-served above 24h, filters included).
  */
 export const apiV1AnalyticsTopCountriesGetTopCountries = <
   ThrowOnError extends boolean = false,
@@ -451,7 +451,7 @@ export const apiV1AnalyticsTopCountriesGetTopCountries = <
 /**
  * GetTopIps
  *
- * Top client IPs by hits from raw access logs (time-bounded).
+ * Top client IPs by hits (CAGG-served above 24h, filters included).
  */
 export const apiV1AnalyticsTopIpsGetTopIps = <
   ThrowOnError extends boolean = false,
@@ -477,7 +477,7 @@ export const apiV1AnalyticsTopIpsGetTopIps = <
 /**
  * GetTopUrls
  *
- * Top URLs by hits from raw access logs (time-bounded).
+ * Top URLs by hits (CAGG-served above 24h; filters force a raw scan).
  */
 export const apiV1AnalyticsTopUrlsGetTopUrls = <
   ThrowOnError extends boolean = false,
@@ -503,7 +503,7 @@ export const apiV1AnalyticsTopUrlsGetTopUrls = <
 /**
  * GetTopUserAgents
  *
- * Top user agents by hits from raw access logs.
+ * Top user agents by hits (CAGG-served above 24h; filters force a raw scan).
  */
 export const apiV1AnalyticsTopUserAgentsGetTopUserAgents = <
   ThrowOnError extends boolean = false,

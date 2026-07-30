@@ -14,6 +14,9 @@ CAGG Structure:
 - geo_summary_hourly_stats / geo_summary_daily_stats: Geo metrics with HyperLogLog (events, unique IPs/countries/cities)
 - location_hourly_stats / location_daily_stats: Location event counts for map (GeoJSON features)
 - ip_location_daily_stats: Per-IP counts by location for top IPs
+- url_hourly_stats / url_daily_stats: Top URLs by hits, error_hits, total_bytes, total_request_time
+- user_agent_hourly_stats / user_agent_daily_stats: Top user agents by hits
+- log_ip_{hourly,daily}_stats: Per-IP access-log counts (top IPs/countries/cities, facets)
 
 HyperLogLog sketches enable accurate unique counts across any time range.
 For short ranges (≤1 hour), raw table queries provide exact time range results.
@@ -591,6 +594,232 @@ class SummaryStatsRepository:
         result = await self.session.execute(stmt, {"start": start, "end": end})
         return [dict(row._mapping) for row in result.fetchall()]
 
+    async def get_top_urls(
+        self, start: datetime, end: datetime, limit: int = 25, *, filters: AnalyticsFilters | None = None
+    ) -> list[TopUrlRow]:
+        """Top URLs by hits: stitched url CAGG read above 24h, raw otherwise.
+
+        Any active filter forces the raw path: the url CAGGs carry no
+        country/city/IP dimensions (adding them would multiply cardinality).
+        """
+        filters = filters or AnalyticsFilters()
+        granularity = get_stats_granularity(start, end)
+        if granularity == StatsGranularity.RAW or filters.is_active():
+            return await LiveStatsRepository(self.session).get_top_urls(
+                start, end, limit, filters=filters
+            )
+        table = f"url_{granularity.value}_stats"
+        stmt = text(f"""
+            WITH combined AS (
+                SELECT s.url, s.hits, s.error_hits, s.total_bytes, s.total_request_time
+                FROM {table} s
+                WHERE s.bucket >= :a_start AND s.bucket < :a_end
+                UNION ALL
+                SELECT al.url, CAST(1 AS BIGINT), CAST((al.status_code >= 400)::int AS BIGINT),
+                       al.bytes_sent, al.request_time
+                FROM access_logs al
+                WHERE al.timestamp >= :start AND al.timestamp < :a_start
+                  AND al.url IS NOT NULL
+                UNION ALL
+                SELECT al.url, CAST(1 AS BIGINT), CAST((al.status_code >= 400)::int AS BIGINT),
+                       al.bytes_sent, al.request_time
+                FROM access_logs al
+                WHERE al.timestamp >= :a_end AND al.timestamp < :end
+                  AND al.url IS NOT NULL
+            )
+            SELECT
+                url,
+                CAST(SUM(hits) AS BIGINT) AS hits,
+                CAST(SUM(error_hits) AS BIGINT) AS error_hits,
+                CAST(COALESCE(SUM(total_bytes), 0) AS BIGINT) AS total_bytes,
+                COALESCE(SUM(total_request_time) / NULLIF(SUM(hits), 0), 0) AS avg_request_time
+            FROM combined
+            GROUP BY url
+            ORDER BY hits DESC, url
+            LIMIT :limit
+        """)
+        result = await self.session.execute(
+            stmt, {**_stitch_params(start, end, granularity), "limit": limit}
+        )
+        return [
+            TopUrlRow(
+                url=row.url,
+                hits=row.hits,
+                error_hits=row.error_hits,
+                total_bytes=row.total_bytes,
+                avg_request_time=float(row.avg_request_time),
+            )
+            for row in result.fetchall()
+        ]
+
+    async def get_top_user_agents(
+        self, start: datetime, end: datetime, limit: int = 25, *, filters: AnalyticsFilters | None = None
+    ) -> list[TopUserAgentRow]:
+        """Top user agents by hits: stitched CAGG read above 24h, raw otherwise.
+
+        Any active filter forces the raw path (no dims on the UA CAGGs).
+        """
+        filters = filters or AnalyticsFilters()
+        granularity = get_stats_granularity(start, end)
+        if granularity == StatsGranularity.RAW or filters.is_active():
+            return await LiveStatsRepository(self.session).get_top_user_agents(
+                start, end, limit, filters=filters
+            )
+        table = f"user_agent_{granularity.value}_stats"
+        stmt = text(f"""
+            WITH combined AS (
+                SELECT s.user_agent, s.hits
+                FROM {table} s
+                WHERE s.bucket >= :a_start AND s.bucket < :a_end
+                UNION ALL
+                SELECT al.user_agent, CAST(1 AS BIGINT)
+                FROM access_logs al
+                WHERE al.timestamp >= :start AND al.timestamp < :a_start
+                  AND al.user_agent IS NOT NULL
+                UNION ALL
+                SELECT al.user_agent, CAST(1 AS BIGINT)
+                FROM access_logs al
+                WHERE al.timestamp >= :a_end AND al.timestamp < :end
+                  AND al.user_agent IS NOT NULL
+            )
+            SELECT user_agent, CAST(SUM(hits) AS BIGINT) AS hits
+            FROM combined
+            GROUP BY user_agent
+            ORDER BY hits DESC, user_agent
+            LIMIT :limit
+        """)
+        result = await self.session.execute(
+            stmt, {**_stitch_params(start, end, granularity), "limit": limit}
+        )
+        return [
+            TopUserAgentRow(user_agent=row.user_agent, hits=row.hits)
+            for row in result.fetchall()
+        ]
+
+    def _log_ip_combined_cte(self, granularity: StatsGranularity) -> str:
+        """WITH clause exposing ``combined`` for a stitched log_ip CAGG read.
+
+        ``combined`` yields (ip_address, country_code, city, country_name,
+        hits, error_hits, total_bytes); rows are keyed by IP on all legs, so
+        COUNT(DISTINCT ip_address) over it stays exact and the unaliased
+        AnalyticsFilters conditions apply to any leg's rows. Callers bind the
+        params from ``_stitch_params``.
+        """
+        table = f"log_ip_{granularity.value}_stats"
+        return f"""
+            WITH combined AS (
+                SELECT s.ip_address, s.country_code, s.city, s.country_name,
+                       s.hits, s.error_hits, s.total_bytes
+                FROM {table} s
+                WHERE s.bucket >= :a_start AND s.bucket < :a_end
+                UNION ALL
+                SELECT al.ip_address, al.country_code, al.city, al.country_name,
+                       CAST(1 AS BIGINT), CAST((al.status_code >= 400)::int AS BIGINT),
+                       al.bytes_sent
+                FROM access_logs al
+                WHERE al.timestamp >= :start AND al.timestamp < :a_start
+                UNION ALL
+                SELECT al.ip_address, al.country_code, al.city, al.country_name,
+                       CAST(1 AS BIGINT), CAST((al.status_code >= 400)::int AS BIGINT),
+                       al.bytes_sent
+                FROM access_logs al
+                WHERE al.timestamp >= :a_end AND al.timestamp < :end
+            )
+        """
+
+    async def get_top_ips(
+        self, start: datetime, end: datetime, limit: int = 25, *, filters: AnalyticsFilters | None = None
+    ) -> list[TopIpRow]:
+        """Top client IPs: stitched log_ip CAGG read above 24h, raw otherwise.
+
+        Country/city/IP filters apply on the CAGG path (its columns carry the
+        dimensions), so filtered long ranges stay fast.
+        """
+        filters = filters or AnalyticsFilters()
+        granularity = get_stats_granularity(start, end)
+        if granularity == StatsGranularity.RAW:
+            return await LiveStatsRepository(self.session).get_top_ips(
+                start, end, limit, filters=filters
+            )
+        filter_sql, filter_params = filters.sql_conditions()
+        stmt = text(f"""
+            {self._log_ip_combined_cte(granularity)}
+            SELECT
+                host(ip_address) AS ip_address,
+                CAST(SUM(hits) AS BIGINT) AS hits,
+                CAST(SUM(error_hits) AS BIGINT) AS error_hits,
+                CAST(COALESCE(SUM(total_bytes), 0) AS BIGINT) AS total_bytes,
+                MAX(country_code) AS country_code,
+                MAX(city) AS city
+            FROM combined
+            WHERE TRUE {filter_sql}
+            GROUP BY ip_address
+            ORDER BY hits DESC, ip_address
+            LIMIT :limit
+        """)
+        result = await self.session.execute(
+            stmt, {**_stitch_params(start, end, granularity), "limit": limit, **filter_params}
+        )
+        return [TopIpRow(**row._mapping) for row in result.fetchall()]
+
+    async def get_top_countries(
+        self, start: datetime, end: datetime, limit: int = 25, *, filters: AnalyticsFilters | None = None
+    ) -> list[TopCountryRow]:
+        """Top countries with exact unique-IP counts (combined is IP-keyed)."""
+        filters = filters or AnalyticsFilters()
+        granularity = get_stats_granularity(start, end)
+        if granularity == StatsGranularity.RAW:
+            return await LiveStatsRepository(self.session).get_top_countries(
+                start, end, limit, filters=filters
+            )
+        filter_sql, filter_params = filters.sql_conditions()
+        stmt = text(f"""
+            {self._log_ip_combined_cte(granularity)}
+            SELECT
+                country_code,
+                MAX(country_name) AS country_name,
+                CAST(SUM(hits) AS BIGINT) AS hits,
+                CAST(COUNT(DISTINCT ip_address) AS BIGINT) AS unique_ips
+            FROM combined
+            WHERE country_code IS NOT NULL {filter_sql}
+            GROUP BY country_code
+            ORDER BY hits DESC, country_code
+            LIMIT :limit
+        """)
+        result = await self.session.execute(
+            stmt, {**_stitch_params(start, end, granularity), "limit": limit, **filter_params}
+        )
+        return [TopCountryRow(**row._mapping) for row in result.fetchall()]
+
+    async def get_top_cities(
+        self, start: datetime, end: datetime, limit: int = 25, *, filters: AnalyticsFilters | None = None
+    ) -> list[TopCityRow]:
+        """Top cities with exact unique-IP counts (NULL cities excluded)."""
+        filters = filters or AnalyticsFilters()
+        granularity = get_stats_granularity(start, end)
+        if granularity == StatsGranularity.RAW:
+            return await LiveStatsRepository(self.session).get_top_cities(
+                start, end, limit, filters=filters
+            )
+        filter_sql, filter_params = filters.sql_conditions()
+        stmt = text(f"""
+            {self._log_ip_combined_cte(granularity)}
+            SELECT
+                city,
+                MAX(country_code) AS country_code,
+                CAST(SUM(hits) AS BIGINT) AS hits,
+                CAST(COUNT(DISTINCT ip_address) AS BIGINT) AS unique_ips
+            FROM combined
+            WHERE city IS NOT NULL {filter_sql}
+            GROUP BY city
+            ORDER BY hits DESC, city
+            LIMIT :limit
+        """)
+        result = await self.session.execute(
+            stmt, {**_stitch_params(start, end, granularity), "limit": limit, **filter_params}
+        )
+        return [TopCityRow(**row._mapping) for row in result.fetchall()]
+
 
 @dataclass
 class TopUrlRow:
@@ -677,6 +906,36 @@ class AnalyticsFilters:
             clauses.append("AND NOT (ip_address = ANY(CAST(:filter_ips_exclude AS inet[])))")
             params["filter_ips_exclude"] = list(self.ip_exclude)
         return " ".join(clauses), params
+
+
+def _stitch_params(
+    start: datetime, end: datetime, granularity: StatsGranularity
+) -> dict:
+    """Bind params for a stitched CAGG read: window edges + inward bucket snap.
+
+    a_start/a_end snap the [start, end) window inward to whole buckets (UTC
+    aligned, matching time_bucket); the CAGG leg reads [a_start, a_end) and
+    the raw head/tail legs read [start, a_start) and [a_end, end), so the
+    union is exactly equal to a raw scan of the window. Clamped so a window
+    spanning no complete bucket degenerates to a pure raw scan.
+
+    Computed in Python and bound as plain parameters deliberately: routing
+    the bounds through a SQL CTE joined into each leg turns the timestamp
+    constraints into join predicates, which TimescaleDB cannot use for chunk
+    exclusion - the raw legs then decompress and scan the entire hypertable.
+    """
+    if granularity == StatsGranularity.DAILY:
+        floor_start = start.replace(hour=0, minute=0, second=0, microsecond=0)
+        floor_end = end.replace(hour=0, minute=0, second=0, microsecond=0)
+        step = timedelta(days=1)
+    else:
+        floor_start = start.replace(minute=0, second=0, microsecond=0)
+        floor_end = end.replace(minute=0, second=0, microsecond=0)
+        step = timedelta(hours=1)
+    a_start = start if floor_start == start else floor_start + step
+    a_start = min(a_start, end)
+    a_end = max(floor_end, a_start)
+    return {"start": start, "end": end, "a_start": a_start, "a_end": a_end}
 
 
 class LiveStatsRepository:
@@ -868,7 +1127,7 @@ class LiveStatsRepository:
             WHERE timestamp >= :start AND timestamp < :end AND url IS NOT NULL
             {filter_sql}
             GROUP BY url
-            ORDER BY hits DESC
+            ORDER BY hits DESC, url
             LIMIT :limit
         """)
         result = await self.session.execute(
@@ -896,7 +1155,7 @@ class LiveStatsRepository:
             WHERE timestamp >= :start AND timestamp < :end AND user_agent IS NOT NULL
             {filter_sql}
             GROUP BY user_agent
-            ORDER BY hits DESC
+            ORDER BY hits DESC, user_agent
             LIMIT :limit
         """)
         result = await self.session.execute(
@@ -921,7 +1180,7 @@ class LiveStatsRepository:
             WHERE timestamp >= :start AND timestamp < :end
             {filter_sql}
             GROUP BY ip_address
-            ORDER BY hits DESC
+            ORDER BY hits DESC, ip_address
             LIMIT :limit
         """)
         result = await self.session.execute(
@@ -944,7 +1203,7 @@ class LiveStatsRepository:
             WHERE timestamp >= :start AND timestamp < :end AND country_code IS NOT NULL
             {filter_sql}
             GROUP BY country_code
-            ORDER BY hits DESC
+            ORDER BY hits DESC, country_code
             LIMIT :limit
         """)
         result = await self.session.execute(
@@ -967,7 +1226,7 @@ class LiveStatsRepository:
             WHERE timestamp >= :start AND timestamp < :end AND city IS NOT NULL
             {filter_sql}
             GROUP BY city
-            ORDER BY hits DESC
+            ORDER BY hits DESC, city
             LIMIT :limit
         """)
         result = await self.session.execute(
