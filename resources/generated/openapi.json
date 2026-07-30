@@ -6853,13 +6853,27 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "Sort by event count",
+            "description": "Sort column (snake_case, e.g. event_count, city, ip_address, last_seen); validated against the service allowlist",
+            "in": "query",
+            "name": "orderBy",
+            "required": false,
+            "schema": {
+              "default": "event_count",
+              "description": "Sort column (snake_case, e.g. event_count, city, ip_address, last_seen); validated against the service allowlist",
+              "type": "string"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Sort direction",
             "in": "query",
             "name": "sortOrder",
             "required": false,
             "schema": {
               "default": "desc",
-              "description": "Sort by event count",
+              "description": "Sort direction",
               "enum": [
                 "asc",
                 "desc"

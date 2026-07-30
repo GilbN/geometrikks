@@ -42,6 +42,7 @@ import {
   unbanIp,
   parseTimeRange,
   resolveChartGranularity,
+  type GeoLogSortField,
   type GeoLogSortOrder,
   type SummaryParams,
   type GlobalTopIPsResponse,
@@ -988,7 +989,7 @@ export function useAccessLogDebugStats() {
 export interface UseGeoLogsOptions {
   currentPage?: number
   pageSize?: number
-  /** Sorts by event count. */
+  sortField?: GeoLogSortField
   sortOrder?: GeoLogSortOrder
   enabled?: boolean
 }
@@ -998,13 +999,13 @@ export interface UseGeoLogsOptions {
  * Server-side pagination; keeps the previous page visible while the next loads.
  */
 export function useGeoLogs(options: UseGeoLogsOptions = {}) {
-  const { currentPage = 1, pageSize = 50, sortOrder = "desc", enabled = true } = options
+  const { currentPage = 1, pageSize = 50, sortField = "eventCount", sortOrder = "desc", enabled = true } = options
   const { range, customRange, pollInterval, lastRefresh } = useTimeRange()
   const { filters } = useGeoLogFilters()
 
   return useQuery({
     queryKey: queryKeys.geoLogs.list(
-      { range, customRange, currentPage, pageSize, sortOrder, filters },
+      { range, customRange, currentPage, pageSize, sortField, sortOrder, filters },
       lastRefresh,
     ),
     queryFn: () => {
@@ -1014,6 +1015,7 @@ export function useGeoLogs(options: UseGeoLogsOptions = {}) {
         toTimestamp: endDate,
         currentPage,
         pageSize,
+        sortField,
         sortOrder,
         ...filters,
       })

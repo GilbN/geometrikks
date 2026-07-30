@@ -27,7 +27,7 @@ import {
 import { useUrlFilters } from "@/hooks/use-url-filters"
 import { arrayParam, dropDefault } from "@/lib/url-filters"
 import { useCrowdsecLiveUpdates } from "@/lib/queries"
-import type { GeoLogSortOrder } from "@/lib/api"
+import type { GeoLogSortField, GeoLogSortOrder } from "@/lib/api"
 
 const GeoLogsMap = lazy(() => import("@/components/geo-logs/geo-logs-map"))
 
@@ -43,6 +43,21 @@ const geoLogsSearchSchema = z.object({
   pageSize: z
     .number()
     .refine((v) => GEO_LOGS_PAGE_SIZES.includes(v as (typeof GEO_LOGS_PAGE_SIZES)[number]))
+    .optional()
+    .catch(undefined),
+  sortBy: z
+    .enum([
+      "city",
+      "postalCode",
+      "state",
+      "countryCode",
+      "countryName",
+      "ipAddress",
+      "latitude",
+      "longitude",
+      "eventCount",
+      "lastSeen",
+    ])
     .optional()
     .catch(undefined),
   sort: z.enum(["asc", "desc"]).optional().catch(undefined),
@@ -97,6 +112,7 @@ function GeoLogsPage() {
 
   const page = search.page ?? 1
   const pageSize = search.pageSize ?? 50
+  const sortBy: GeoLogSortField = search.sortBy ?? "eventCount"
   const sort: GeoLogSortOrder = search.sort ?? "desc"
 
   return (
@@ -123,13 +139,18 @@ function GeoLogsPage() {
         <GeoLogsTable
           page={page}
           pageSize={pageSize}
+          sortField={sortBy}
           sortOrder={sort}
           onPageChange={(next) => patchSearch({ page: dropDefault(next, 1) })}
           onPageSizeChange={(next) =>
             patchSearch({ pageSize: dropDefault(next, 50), page: undefined })
           }
-          onSortOrderChange={(next) =>
-            patchSearch({ sort: dropDefault(next, "desc"), page: undefined })
+          onSortChange={(nextField, nextOrder) =>
+            patchSearch({
+              sortBy: dropDefault(nextField, "eventCount"),
+              sort: dropDefault(nextOrder, "desc"),
+              page: undefined,
+            })
           }
         />
       </div>

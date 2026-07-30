@@ -171,6 +171,7 @@
         "hostnameIn": "string[] | undefined",
         "ipAddressIn": "string[] | undefined",
         "ipAddressNotIn": "string[] | undefined",
+        "orderBy": "string | undefined",
         "pageSize": "number | undefined",
         "sortOrder": "\"asc\" | \"desc\" | undefined",
         "to_timestamp": "DateTime"

@@ -1,13 +1,15 @@
 /**
  * Grouped geo-events table: one row per (location, IP) pair with an event
- * count, server-paginated and sorted by count. Page/size/sort state lives in
- * the route's URL search params and arrives here as props; the filter set
- * comes from GeoLogFiltersContext like everything else on the page.
+ * count, server-paginated and server-sorted by any visible column except
+ * hostnames. Page/size/sort state lives in the route's URL search params and
+ * arrives here as props; the filter set comes from GeoLogFiltersContext like
+ * everything else on the page.
  */
 import { useMemo, useState } from "react"
 import {
   ArrowDown,
   ArrowUp,
+  ChevronsUpDown,
   Columns3,
 } from "lucide-react"
 import {
@@ -30,7 +32,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { PaginationFooter } from "@/components/ui/pagination-footer"
 import type { GeoLogEntry } from "@/generated/api/types.gen"
-import { formatNumber, type GeoLogSortOrder } from "@/lib/api"
+import { formatNumber, type GeoLogSortField, type GeoLogSortOrder } from "@/lib/api"
 import { IpBanControls } from "@/components/crowdsec/ip-ban-controls"
 import { useGeoLogs } from "@/lib/queries"
 import { cn, isMobileViewport } from "@/lib/utils"
@@ -40,6 +42,8 @@ export const GEO_LOGS_PAGE_SIZES = [10, 20, 50, 100, 200, 500] as const
 interface ColumnDef {
   key: string
   label: string
+  /** Present when the column is server-sortable; absent for hostnames. */
+  sortField?: GeoLogSortField
   defaultVisible: boolean
   align?: "right"
   /** Start hidden on mobile viewports (still selectable via the Columns menu). */
@@ -51,12 +55,14 @@ const COLUMNS: ColumnDef[] = [
   {
     key: "city",
     label: "City",
+    sortField: "city",
     defaultVisible: true,
     render: (r) => <span className="whitespace-nowrap">{r.city ?? "-"}</span>,
   },
   {
     key: "postalCode",
     label: "Postal Code",
+    sortField: "postalCode",
     defaultVisible: true,
     mobileHidden: true,
     render: (r) => <span className="tabular-nums">{r.postalCode ?? "-"}</span>,
@@ -64,6 +70,7 @@ const COLUMNS: ColumnDef[] = [
   {
     key: "state",
     label: "State",
+    sortField: "state",
     defaultVisible: true,
     mobileHidden: true,
     render: (r) => <span className="whitespace-nowrap">{r.state ?? "-"}</span>,
@@ -71,6 +78,7 @@ const COLUMNS: ColumnDef[] = [
   {
     key: "countryCode",
     label: "Country Code",
+    sortField: "countryCode",
     defaultVisible: true,
     mobileHidden: true,
     render: (r) => <span>{r.countryCode}</span>,
@@ -78,18 +86,21 @@ const COLUMNS: ColumnDef[] = [
   {
     key: "countryName",
     label: "Country",
+    sortField: "countryName",
     defaultVisible: true,
     render: (r) => <span className="whitespace-nowrap">{r.countryName}</span>,
   },
   {
     key: "ipAddress",
     label: "IP",
+    sortField: "ipAddress",
     defaultVisible: true,
     render: (r) => <span className="font-mono">{r.ipAddress}</span>,
   },
   {
     key: "latitude",
     label: "Lat",
+    sortField: "latitude",
     defaultVisible: true,
     align: "right",
     mobileHidden: true,
@@ -98,6 +109,7 @@ const COLUMNS: ColumnDef[] = [
   {
     key: "longitude",
     label: "Long",
+    sortField: "longitude",
     defaultVisible: true,
     align: "right",
     mobileHidden: true,
@@ -106,9 +118,23 @@ const COLUMNS: ColumnDef[] = [
   {
     key: "eventCount",
     label: "Count",
+    sortField: "eventCount",
     defaultVisible: true,
     align: "right",
     render: (r) => <span className="font-medium tabular-nums">{formatNumber(r.eventCount)}</span>,
+  },
+  {
+    key: "lastSeen",
+    label: "Last seen",
+    sortField: "lastSeen",
+    defaultVisible: true,
+    mobileHidden: true,
+    // Day-floored on ranges over 24h (daily CAGG buckets), exact otherwise.
+    render: (r) => (
+      <span className="whitespace-nowrap text-muted-foreground">
+        {r.lastSeen ? new Date(r.lastSeen).toLocaleString() : "-"}
+      </span>
+    ),
   },
   {
     key: "hostnames",
@@ -128,17 +154,19 @@ const COLUMNS: ColumnDef[] = [
 export function GeoLogsTable({
   page,
   pageSize,
+  sortField,
   sortOrder,
   onPageChange,
   onPageSizeChange,
-  onSortOrderChange,
+  onSortChange,
 }: {
   page: number
   pageSize: number
+  sortField: GeoLogSortField
   sortOrder: GeoLogSortOrder
   onPageChange: (page: number) => void
   onPageSizeChange: (pageSize: number) => void
-  onSortOrderChange: (sortOrder: GeoLogSortOrder) => void
+  onSortChange: (sortField: GeoLogSortField, sortOrder: GeoLogSortOrder) => void
 }) {
   const [visible, setVisible] = useState<Set<string>>(() => {
     const mobile = isMobileViewport()
@@ -151,6 +179,7 @@ export function GeoLogsTable({
   const { data, isLoading, isError, isPlaceholderData } = useGeoLogs({
     currentPage: page,
     pageSize,
+    sortField,
     sortOrder,
   })
 
@@ -158,6 +187,14 @@ export function GeoLogsTable({
   const total = data?.total ?? 0
   const pageCount = Math.max(1, Math.ceil(total / pageSize))
   const colCount = shownColumns.length
+
+  function toggleSort(field: GeoLogSortField) {
+    if (sortField === field) {
+      onSortChange(field, sortOrder === "asc" ? "desc" : "asc")
+    } else {
+      onSortChange(field, "desc")
+    }
+  }
 
   function toggleColumn(key: string) {
     setVisible((prev) => {
@@ -208,26 +245,37 @@ export function GeoLogsTable({
         <Table className="text-xs">
           <TableHeader>
             <TableRow>
-              {shownColumns.map((c) => (
-                <TableHead key={c.key} className={cn(c.align === "right" && "text-right")}>
-                  {c.key === "eventCount" ? (
-                    <button
-                      type="button"
-                      onClick={() => onSortOrderChange(sortOrder === "desc" ? "asc" : "desc")}
-                      className="inline-flex flex-row-reverse items-center gap-1 text-foreground hover:text-foreground"
-                    >
-                      {c.label}
-                      {sortOrder === "asc" ? (
-                        <ArrowUp className="h-3 w-3" />
-                      ) : (
-                        <ArrowDown className="h-3 w-3" />
-                      )}
-                    </button>
-                  ) : (
-                    c.label
-                  )}
-                </TableHead>
-              ))}
+              {shownColumns.map((c) => {
+                const active = c.sortField && sortField === c.sortField
+                return (
+                  <TableHead key={c.key} className={cn(c.align === "right" && "text-right")}>
+                    {c.sortField ? (
+                      <button
+                        type="button"
+                        onClick={() => toggleSort(c.sortField!)}
+                        className={cn(
+                          "inline-flex items-center gap-1 hover:text-foreground",
+                          c.align === "right" && "flex-row-reverse",
+                          active ? "text-foreground" : "text-muted-foreground",
+                        )}
+                      >
+                        {c.label}
+                        {active ? (
+                          sortOrder === "asc" ? (
+                            <ArrowUp className="h-3 w-3" />
+                          ) : (
+                            <ArrowDown className="h-3 w-3" />
+                          )
+                        ) : (
+                          <ChevronsUpDown className="h-3 w-3 opacity-40" />
+                        )}
+                      </button>
+                    ) : (
+                      c.label
+                    )}
+                  </TableHead>
+                )
+              })}
             </TableRow>
           </TableHeader>
           <TableBody>

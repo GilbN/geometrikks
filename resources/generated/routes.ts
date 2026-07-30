@@ -221,6 +221,7 @@ export interface RouteQueryParams {
     hostnameIn?: string[];
     ipAddressIn?: string[];
     ipAddressNotIn?: string[];
+    orderBy?: string;
     pageSize?: number;
     sortOrder?: "asc" | "desc";
     to_timestamp: DateTime;
@@ -516,7 +517,7 @@ export const routeDefinitions = {
     methods: ['GET'] as const,
     method: 'get',
     pathParams: [] as const,
-    queryParams: ['cityIn', 'countryCodeIn', 'currentPage', 'from_timestamp', 'hostnameIn', 'ipAddressIn', 'ipAddressNotIn', 'pageSize', 'sortOrder', 'to_timestamp'] as const,
+    queryParams: ['cityIn', 'countryCodeIn', 'currentPage', 'from_timestamp', 'hostnameIn', 'ipAddressIn', 'ipAddressNotIn', 'orderBy', 'pageSize', 'sortOrder', 'to_timestamp'] as const,
   },
   'get_geo_time_series': {
     path: '/api/v1/analytics/geo-time-series',
