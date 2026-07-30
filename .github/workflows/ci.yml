@@ -25,8 +25,8 @@ jobs:
           --health-cmd "pg_isready -U geouser -d geometrikks"
           --health-interval 5s --health-timeout 5s --health-retries 10
     steps:
-      - uses: actions/checkout@v6
-      - uses: astral-sh/setup-uv@v5
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
       - name: Sync dependencies
@@ -66,7 +66,7 @@ jobs:
       SMOKE_ADMIN_PASSWORD: ci-smoke-password
       SMOKE_ARTIFACT_NAME: container-smoke-${{ github.run_attempt }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2
       - name: Install
         run: bun install --frozen-lockfile

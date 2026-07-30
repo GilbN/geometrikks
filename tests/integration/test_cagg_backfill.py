@@ -17,7 +17,11 @@ OLD = NOW - timedelta(days=10)
 # Inside the simulated policy refresh window: without a row here, the
 # refresh has nothing to materialize and never advances the CAGG watermark,
 # so the "bug reproduced" precondition below would not actually hold.
-RECENT = NOW - timedelta(days=1)
+# Two days, not one: only fully covered buckets are refreshed, and in the
+# first hour of the UTC day the window end (NOW - 1h) lands at 23:00 the
+# previous day, cutting off the 1-day-ago daily bucket. The 2-days-ago
+# bucket fits the [NOW-3d, NOW-1h] window at any hour.
+RECENT = NOW - timedelta(days=2)
 
 
 async def _refresh(engine, cagg: str, start, end) -> None:
