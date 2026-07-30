@@ -31,6 +31,7 @@ import {
 import { PaginationFooter } from "@/components/ui/pagination-footer"
 import type { GeoLogEntry } from "@/generated/api/types.gen"
 import { formatNumber, type GeoLogSortOrder } from "@/lib/api"
+import { IpBanControls } from "@/components/crowdsec/ip-ban-controls"
 import { useGeoLogs } from "@/lib/queries"
 import { cn, isMobileViewport } from "@/lib/utils"
 
@@ -248,6 +249,7 @@ export function GeoLogsTable({
                         className={cn(c.align === "right" && "text-right")}
                       >
                         {c.render(row)}
+                        {c.key === "ipAddress" && <IpBanControls ip={row.ipAddress} />}
                       </TableCell>
                     ))}
                   </TableRow>
