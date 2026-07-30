@@ -44,7 +44,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 # ------------------------------------------------------------------------------
 # Stage 3: Production runtime
 # ------------------------------------------------------------------------------
-FROM python:3.13-slim-bookworm AS production
+FROM python:3.14-slim-bookworm AS production
 
 ARG APP_IMAGE_TAG=local
 
