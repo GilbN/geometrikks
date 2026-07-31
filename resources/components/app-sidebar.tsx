@@ -152,9 +152,11 @@ function GeoLogo({ collapsed }: { collapsed: boolean }) {
 function NavItem({
   item,
   isActive,
+  warning,
 }: {
   item: (typeof navigationItems)[0]
   isActive: boolean
+  warning?: string
 }) {
   const Icon = item.icon
 
@@ -165,9 +167,12 @@ function NavItem({
         isActive={isActive}
         tooltip={{
           children: (
-            <span className="flex items-center gap-2">
-              <span>{item.title}</span>
-              <span className="text-muted-foreground text-xs">{item.description}</span>
+            <span className="flex flex-col gap-0.5">
+              <span className="flex items-center gap-2">
+                <span>{item.title}</span>
+                <span className="text-muted-foreground text-xs">{item.description}</span>
+              </span>
+              {warning && <span className="text-amber-500 text-xs">{warning}</span>}
             </span>
           ),
         }}
@@ -193,6 +198,12 @@ function NavItem({
             />
             {isActive && (
               <div className="absolute inset-0 blur-sm bg-geo-cyan/30 rounded-full" />
+            )}
+            {warning && (
+              <span
+                className="absolute -top-0.5 -right-0.5 h-1.5 w-1.5 rounded-full bg-amber-400"
+                aria-hidden="true"
+              />
             )}
           </div>
           <span
@@ -491,6 +502,15 @@ export function AppSidebar() {
     (item) => !("requiresCrowdsec" in item) || crowdsecStatus?.enabled === true,
   )
 
+  // Shares the ["health"] cache with LiveIndicator's 10s poll.
+  const { data: health } = useQuery({
+    queryKey: ["health"],
+    queryFn: fetchHealth,
+    refetchInterval: 30000,
+  })
+  const crowdsecDown =
+    health?.crowdsec?.enabled === true && health.crowdsec.lapi_reachable === false
+
   // The mobile sidebar is a full-height sheet; leaving it open after a nav
   // tap would cover the page the user just navigated to.
   useEffect(() => {
@@ -530,6 +550,11 @@ export function AppSidebar() {
                     item.url === "/"
                       ? currentPath === "/"
                       : currentPath.startsWith(item.url)
+                  }
+                  warning={
+                    item.url === "/security" && crowdsecDown
+                      ? "CrowdSec LAPI unreachable"
+                      : undefined
                   }
                 />
               ))}
