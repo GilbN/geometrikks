@@ -15,6 +15,8 @@ from litestar.di import NamedDependency, Provide
 from litestar.status_codes import HTTP_200_OK, HTTP_503_SERVICE_UNAVAILABLE
 from sqlalchemy import text
 
+from geometrikks.config.settings import get_settings
+from geometrikks.lib.utils import geoip_info
 from geometrikks.services.ingestion import LogIngestionService
 from geometrikks.api.dependencies import provide_ingestion_service as pis
 
@@ -48,16 +50,6 @@ async def health(
     def _iso(dt: datetime | None) -> str | None:
         return dt.isoformat() if dt else None
 
-    def _geoip_modified_at() -> str | None:
-        """Modified time of the GeoLite2 file; None when absent/unreadable."""
-        try:
-            from geometrikks.config.settings import get_settings
-
-            mtime = get_settings().geoip.db_path.stat().st_mtime
-            return datetime.fromtimestamp(mtime, tz=timezone.utc).isoformat()
-        except Exception:
-            return None
-
     is_running = ingestion_service.is_running if ingestion_service else False
     # Tailed files that disappeared mid-flight: the tailer keeps waiting for
     # them (log rotation resilience), so `running` stays true, but nothing is
@@ -84,9 +76,11 @@ async def health(
             ),
         },
         "database": {"reachable": db_reachable},
+        # build_date comes from the mmdb metadata (geoip_info), the actual
+        # GeoLite2 build, not the file's mtime.
         "geoip": {
             "available": getattr(request.app.state, "geoip_available", True),
-            "db_modified_at": _geoip_modified_at(),
+            "db_build_date": _iso(geoip_info(get_settings().geoip.db_path).build_date),
         },
         # CrowdSec is an optional integration: a down LAPI never flips
         # `status`. lapi_reachable is the stream poller's cached verdict;

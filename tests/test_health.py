@@ -91,7 +91,7 @@ def test_health_exposes_uptime_and_activity_fields(monkeypatch):
     # make_app has no started_at in state and no ingestion service
     assert body["started_at"] is None
     assert body["ingestion"]["last_record_at"] is None
-    assert "db_modified_at" in body["geoip"]
+    assert "db_build_date" in body["geoip"]
 
 
 def test_health_started_at_from_app_state(monkeypatch):

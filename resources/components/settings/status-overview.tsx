@@ -237,8 +237,8 @@ export function StatusOverview() {
           <CardContent className="space-y-2">
             <StateLine state={geoipState(health)} />
             <div className="space-y-1 text-xs text-muted-foreground">
-              {health?.geoip.db_modified_at && (
-                <p>Database updated {relativeTime(health.geoip.db_modified_at, now)}</p>
+              {health?.geoip.db_build_date && (
+                <p>Database built {relativeTime(health.geoip.db_build_date, now)}</p>
               )}
               {geoipRefreshJob?.next_run_time && (
                 <p>Next refresh {relativeTime(geoipRefreshJob.next_run_time, now)}</p>
