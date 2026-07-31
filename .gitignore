@@ -6,6 +6,8 @@ docs/superpowers/
 .litestar.json
 /logs
 /nginx_logs
+/smoke-artifacts/
+*.local.md
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

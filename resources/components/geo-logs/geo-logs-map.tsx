@@ -13,6 +13,8 @@ import Map, {
   type ViewStateChangeEvent,
 } from "react-map-gl/maplibre"
 import "maplibre-gl/dist/maplibre-gl.css"
+import type { FeatureCollection, Point } from "geojson"
+import type { GeoJSONSource, MapLayerMouseEvent } from "maplibre-gl"
 
 import { AlertTriangle } from "lucide-react"
 import { Card } from "@/components/ui/card"
@@ -84,17 +86,17 @@ export default function GeoLogsMap() {
     fitOnce()
   }, [fitOnce])
 
-  const onClick = useCallback((event: maplibregl.MapLayerMouseEvent) => {
+  const onClick = useCallback((event: MapLayerMouseEvent) => {
     const feature = event.features?.[0]
     if (!feature) {
       setPopup(null)
       return
     }
-    const geometry = feature.geometry as GeoJSON.Point
+    const geometry = feature.geometry as Point
 
     if (feature.properties?.cluster) {
       const clusterId = feature.properties.cluster_id as number
-      const source = mapRef.current?.getSource("geo-data") as maplibregl.GeoJSONSource
+      const source = mapRef.current?.getSource("geo-data") as GeoJSONSource
       source?.getClusterExpansionZoom(clusterId).then((zoom) => {
         mapRef.current?.easeTo({
           center: geometry.coordinates as [number, number],
@@ -140,7 +142,7 @@ export default function GeoLogsMap() {
               <Source
                 id="geo-data"
                 type="geojson"
-                data={geojson as unknown as GeoJSON.FeatureCollection}
+                data={geojson as unknown as FeatureCollection}
                 cluster
                 clusterMaxZoom={14}
                 clusterRadius={50}

@@ -12,15 +12,13 @@ import {
 } from "@/components/ui/table"
 import { Skeleton } from "@/components/ui/skeleton"
 import { formatNumber } from "@/lib/api"
-import { useCrowdsecLiveUpdates, useGeoLogTopIps } from "@/lib/queries"
+import { useGeoLogTopIps } from "@/lib/queries"
 import { IpBanControls } from "@/components/crowdsec/ip-ban-controls"
 import { TablePaginationFooter, usePagedRows } from "@/components/analytics/table-pagination"
 
 export function GeoTopIpsTable() {
   const { data, isLoading } = useGeoLogTopIps({ limit: 10 })
   const { pageItems, ...pagination } = usePagedRows(data?.items)
-  // Keep banned badges in sync with external cscli/console decisions.
-  useCrowdsecLiveUpdates()
 
   return (
     <Card>

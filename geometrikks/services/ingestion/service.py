@@ -14,6 +14,7 @@ from __future__ import annotations
 import asyncio
 import time
 from collections.abc import Callable
+from datetime import datetime, timezone
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -146,6 +147,9 @@ class LogIngestionService:
         self.total_geo_records: int = 0
         self.total_log_records: int = 0
         self.total_debug_records: int = 0
+        # Wall-clock of the most recent consumed record (live tail or import);
+        # /health surfaces it as the "is data actually flowing" signal.
+        self.last_record_at: datetime | None = None
 
     @property
     def pending_records(self) -> int:
@@ -254,11 +258,19 @@ class LogIngestionService:
         last_commit: float = time.monotonic()
         try:
             while True:
-                if (
-                    self._stop_event.is_set()
-                    and self._queue.empty()
-                    and all(task.done() for task in self._tail_tasks)
+                # Exit once every producer is done and the queue is drained.
+                # This covers graceful stop() and the case where all tail
+                # tasks died on their own (e.g. every log file missing);
+                # without the latter, is_running would stay True forever and
+                # /health would keep reporting a healthy ingestion.
+                if self._queue.empty() and all(
+                    task.done() for task in self._tail_tasks
                 ):
+                    if not self._stop_event.is_set():
+                        logger.error(
+                            "All log tail tasks have exited; stopping ingestion "
+                            "(no log files are being tailed)"
+                        )
                     break
 
                 # Cap the wait so the loop re-checks the stop condition promptly;
@@ -272,6 +284,7 @@ class LogIngestionService:
 
                 if record is not None:
                     self._batch.append(record)
+                    self.last_record_at = datetime.now(timezone.utc)
 
                 now = time.monotonic()
                 if len(self._batch) >= self.batch_size or (
@@ -488,6 +501,8 @@ class LogIngestionService:
         tailing: fresh session, location cache, rollback-and-evict recovery.
         """
         self._batch.extend(records)
+        if records:
+            self.last_record_at = datetime.now(timezone.utc)
         await self._flush_batch()
 
     def subscribe(self, maxsize: int = 1000) -> asyncio.Queue[ParsedLogRecord]:
@@ -552,3 +567,8 @@ class LogIngestionService:
     def ignored_lines(self) -> int:
         """Total ignore-list dropped lines across all tailed files."""
         return sum(parser.ignored_lines for parser in self.parsers)
+
+    @property
+    def missing_files(self) -> list[str]:
+        """Tailed log files that have disappeared mid-flight (see /health)."""
+        return [str(parser.log_path) for parser in self.parsers if parser.file_missing]

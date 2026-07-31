@@ -135,6 +135,88 @@ async def _database_versions() -> DatabaseVersionsView:
         )
 
 
+@dataclass
+class HypertableStatsView:
+    name: str
+    approx_rows: int | None
+    total_bytes: int | None
+    # Compression stats; nulls until the compression policy has compressed
+    # at least one chunk.
+    before_compression_bytes: int | None
+    after_compression_bytes: int | None
+
+
+@dataclass
+class DatabaseInfoResponse:
+    reachable: bool
+    size_bytes: int | None
+    postgres_version: str | None
+    timescaledb_version: str | None
+    retention_days: int
+    debug_retention_days: int
+    hypertables: list[HypertableStatsView]
+
+
+HYPERTABLE_NAMES = ("geo_events", "access_logs", "access_log_debug")
+
+
+async def _database_stats() -> tuple[int | None, list[HypertableStatsView]]:
+    """Database size and per-hypertable stats; (None, []) when unreachable.
+
+    Uses TimescaleDB catalog-backed functions (approximate_row_count,
+    hypertable_size, hypertable_compression_stats), so this stays fast at
+    tens of millions of rows.
+    """
+    from geometrikks.server.plugins import get_sqlalchemy_config
+
+    try:
+        engine = get_sqlalchemy_config().get_engine()
+        async with engine.connect() as conn:
+            size = (
+                await conn.execute(text("SELECT pg_database_size(current_database())"))
+            ).scalar_one()
+            tables: list[HypertableStatsView] = []
+            for name in HYPERTABLE_NAMES:
+                try:
+                    approx = (
+                        await conn.execute(
+                            text("SELECT approximate_row_count(CAST(:t AS regclass))"),
+                            {"t": name},
+                        )
+                    ).scalar()
+                    total = (
+                        await conn.execute(
+                            text("SELECT hypertable_size(CAST(:t AS regclass))"),
+                            {"t": name},
+                        )
+                    ).scalar()
+                    compression = (
+                        await conn.execute(
+                            text(
+                                "SELECT before_compression_total_bytes, "
+                                "after_compression_total_bytes "
+                                "FROM hypertable_compression_stats(CAST(:t AS regclass))"
+                            ),
+                            {"t": name},
+                        )
+                    ).first()
+                    tables.append(
+                        HypertableStatsView(
+                            name=name,
+                            approx_rows=approx,
+                            total_bytes=total,
+                            before_compression_bytes=compression[0] if compression else None,
+                            after_compression_bytes=compression[1] if compression else None,
+                        )
+                    )
+                except Exception:
+                    logger.warning("Hypertable stats unavailable for %s", name)
+            return size, tables
+    except Exception:
+        # The Status page must render in DB-degraded mode
+        return None, []
+
+
 def _job_view(job: "Job", tracker: JobRunTracker) -> SchedulerJobView:
     info = tracker.get(job.id)
     return SchedulerJobView(
@@ -212,6 +294,25 @@ class SystemController(Controller):
             database=await _database_versions(),
             geoip=geoip_info(s.geoip.db_path),
             links=AboutLinksView(repository=REPO_URL, issues=f"{REPO_URL}/issues"),
+        )
+
+    @get("/database")
+    async def get_database_info(self) -> DatabaseInfoResponse:
+        """Size, versions, retention and hypertable stats for the Status page.
+
+        Renders nulls instead of failing in DB-degraded mode.
+        """
+        s = get_settings()
+        versions = await _database_versions()
+        size_bytes, hypertables = await _database_stats()
+        return DatabaseInfoResponse(
+            reachable=size_bytes is not None,
+            size_bytes=size_bytes,
+            postgres_version=versions.postgres_version,
+            timescaledb_version=versions.timescaledb_version,
+            retention_days=s.analytics.raw_retention_days,
+            debug_retention_days=s.analytics.debug_retention_days,
+            hypertables=hypertables,
         )
 
     @get("/scheduler/jobs")

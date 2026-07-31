@@ -139,6 +139,10 @@ class LogParser:
         self.skipped_lines: int = 0
         self.ignored_lines: int = 0
 
+        # True while the tailed file is missing mid-flight (deleted/moved);
+        # surfaced through LogIngestionService.missing_files into /health.
+        self.file_missing: bool = False
+
         # Stop event for graceful shutdown (set by ingestion service)
         self._stop_event: asyncio.Event | None = None
 
@@ -151,6 +155,23 @@ class LogParser:
     def set_stop_event(self, event: asyncio.Event) -> None:
         """Set the stop event for graceful shutdown."""
         self._stop_event = event
+
+    def _mark_file_missing(self, err: OSError) -> None:
+        """Record (and log exactly once) that the tailed file disappeared."""
+        if not self.file_missing:
+            logger.error(
+                "Log file no longer exists or cannot be read: %s - "
+                "waiting for it to reappear (%s)",
+                self.log_path,
+                err,
+            )
+            self.file_missing = True
+
+    def _mark_file_present(self) -> None:
+        """Clear the missing flag, logging the recovery once."""
+        if self.file_missing:
+            logger.info("Log file reappeared, resuming tail: %s", self.log_path)
+            self.file_missing = False
 
     def parsed_lines_count(self) -> int:
         """Return the number of parsed lines."""
@@ -269,8 +290,11 @@ class LogParser:
         try:
             new_stat = await aiofiles.os.stat(self.log_path)
         except OSError as e:
-            logger.warning("Could not stat log file: %s", e)
+            # Deleted/moved mid-tail: log once, keep polling. When the file
+            # reappears the inode-change branch below reopens it.
+            self._mark_file_missing(e)
             return False
+        self._mark_file_present()
 
         # Inode changed
         if new_stat.st_ino != prev_stat.st_ino:
@@ -543,9 +567,18 @@ class LogParser:
 
         seek_to_end = start_at_end
         while not (self._stop_event and self._stop_event.is_set()):
-            async with aiofiles.open(self.log_path, "r", encoding="utf-8") as file:
+            # Stat before (re)opening: after a rotation break the new file may
+            # not exist yet, and crashing here would kill the tail task.
+            try:
                 stat_result = await aiofiles.os.stat(self.log_path)
+            except OSError as e:
+                self._mark_file_missing(e)
+                yield None
+                await asyncio.sleep(self.poll_interval)
+                continue
+            self._mark_file_present()
 
+            async with aiofiles.open(self.log_path, "r", encoding="utf-8") as file:
                 if seek_to_end:
                     await file.seek(stat_result.st_size)
                 # After a rotation we always read the new file from the start
@@ -569,7 +602,12 @@ class LogParser:
                             break  # close this file; outer loop reopens
                         continue
 
-                    # Update stat for next rotation check
-                    stat_result = await aiofiles.os.stat(self.log_path)
+                    # Update stat for next rotation check. The file can vanish
+                    # between the read and this stat; keep the previous stat
+                    # and let the idle-path rotation check flag the miss.
+                    try:
+                        stat_result = await aiofiles.os.stat(self.log_path)
+                    except OSError:
+                        pass
 
                     yield self.parse_line(line, lookup)

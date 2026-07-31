@@ -535,6 +535,66 @@
         "title": "CumulativeTimeSeriesResponse",
         "type": "object"
       },
+      "DatabaseInfoResponse": {
+        "properties": {
+          "debug_retention_days": {
+            "type": "integer"
+          },
+          "hypertables": {
+            "items": {
+              "$ref": "#/components/schemas/HypertableStatsView"
+            },
+            "type": "array"
+          },
+          "postgres_version": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reachable": {
+            "type": "boolean"
+          },
+          "retention_days": {
+            "type": "integer"
+          },
+          "size_bytes": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "timescaledb_version": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "debug_retention_days",
+          "hypertables",
+          "postgres_version",
+          "reachable",
+          "retention_days",
+          "size_bytes",
+          "timescaledb_version"
+        ],
+        "title": "DatabaseInfoResponse",
+        "type": "object"
+      },
       "DatabaseVersionsView": {
         "properties": {
           "postgis_version": {
@@ -1320,6 +1380,62 @@
         },
         "required": [],
         "title": "GlobalTopIPsResponse",
+        "type": "object"
+      },
+      "HypertableStatsView": {
+        "properties": {
+          "after_compression_bytes": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "approx_rows": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "before_compression_bytes": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "total_bytes": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "after_compression_bytes",
+          "approx_rows",
+          "before_compression_bytes",
+          "name",
+          "total_bytes"
+        ],
+        "title": "HypertableStatsView",
         "type": "object"
       },
       "IpLocation": {
@@ -3072,7 +3188,7 @@
   "info": {
     "description": "Real-time GeoIP lookups and traffic analytics API",
     "title": "GeoMetrikks API",
-    "version": "0.4.3"
+    "version": "0.6.0"
   },
   "openapi": "3.1.0",
   "paths": {
@@ -4599,7 +4715,7 @@
     "/api/v1/analytics/top-cities": {
       "get": {
         "deprecated": false,
-        "description": "Top cities by hits from raw access logs (time-bounded).",
+        "description": "Top cities by hits (CAGG-served above 24h, filters included).",
         "operationId": "ApiV1AnalyticsTopCitiesGetTopCities",
         "parameters": [
           {
@@ -4799,7 +4915,7 @@
     "/api/v1/analytics/top-countries": {
       "get": {
         "deprecated": false,
-        "description": "Top countries by hits from raw access logs (time-bounded).",
+        "description": "Top countries by hits (CAGG-served above 24h, filters included).",
         "operationId": "ApiV1AnalyticsTopCountriesGetTopCountries",
         "parameters": [
           {
@@ -4999,7 +5115,7 @@
     "/api/v1/analytics/top-ips": {
       "get": {
         "deprecated": false,
-        "description": "Top client IPs by hits from raw access logs (time-bounded).",
+        "description": "Top client IPs by hits (CAGG-served above 24h, filters included).",
         "operationId": "ApiV1AnalyticsTopIpsGetTopIps",
         "parameters": [
           {
@@ -5199,7 +5315,7 @@
     "/api/v1/analytics/top-urls": {
       "get": {
         "deprecated": false,
-        "description": "Top URLs by hits from raw access logs (time-bounded).",
+        "description": "Top URLs by hits (CAGG-served above 24h; filters force a raw scan).",
         "operationId": "ApiV1AnalyticsTopUrlsGetTopUrls",
         "parameters": [
           {
@@ -5415,7 +5531,7 @@
     "/api/v1/analytics/top-user-agents": {
       "get": {
         "deprecated": false,
-        "description": "Top user agents by hits from raw access logs.",
+        "description": "Top user agents by hits (CAGG-served above 24h; filters force a raw scan).",
         "operationId": "ApiV1AnalyticsTopUserAgentsGetTopUserAgents",
         "parameters": [
           {
@@ -6853,13 +6969,27 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "Sort by event count",
+            "description": "Sort column (snake_case, e.g. event_count, city, ip_address, last_seen); validated against the service allowlist",
+            "in": "query",
+            "name": "orderBy",
+            "required": false,
+            "schema": {
+              "default": "event_count",
+              "description": "Sort column (snake_case, e.g. event_count, city, ip_address, last_seen); validated against the service allowlist",
+              "type": "string"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Sort direction",
             "in": "query",
             "name": "sortOrder",
             "required": false,
             "schema": {
               "default": "desc",
-              "description": "Sort by event count",
+              "description": "Sort direction",
               "enum": [
                 "asc",
                 "desc"
@@ -9116,6 +9246,29 @@
           }
         },
         "summary": "GetAbout",
+        "tags": [
+          "System"
+        ]
+      }
+    },
+    "/api/v1/system/database": {
+      "get": {
+        "deprecated": false,
+        "operationId": "ApiV1SystemDatabaseGetDatabaseInfo",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DatabaseInfoResponse"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          }
+        },
+        "summary": "GetDatabaseInfo",
         "tags": [
           "System"
         ]

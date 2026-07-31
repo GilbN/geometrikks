@@ -7,6 +7,113 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Settings gained a Status tab (now the first tab) showing per-component
+  health: overall status with app uptime, ingestion state with
+  parse/skip/pending counters, a last-event-ingested freshness signal and
+  the tailed nginx access logs (flagging missing files), database
+  reachability, GeoIP database availability with database age and next
+  scheduled refresh, CrowdSec LAPI reachability with the active decision
+  count, a scheduler job snapshot, live feed connectivity, and a recent
+  errors panel from the application log. The sidebar health indicator now
+  links to it, so a "Degraded" state is explainable in one click.
+  (/health gained nullable started_at, ingestion.last_record_at and
+  geoip.db_modified_at fields to support this.)
+- The Status page Database card shows database size, PostgreSQL and
+  TimescaleDB versions, retention windows, per-hypertable approximate row
+  counts and sizes, and the overall compression ratio, served by a new
+  `GET /api/v1/system/database` endpoint backed by fast TimescaleDB catalog
+  queries.
+- Debug Logs and Geo Logs tables now show the Banned badge and ban/unban
+  controls next to IP addresses, matching Access Logs and Alert History.
+  The debug-line detail dialog shows them on its IP row as well.
+- The Geo Events by Location and IP table can now be sorted by any column
+  except Hostnames, matching Access Logs: click a header to sort, click again
+  to flip direction. IPs sort in numeric address order, empty values always
+  sink to the bottom, and the sort is part of the shareable URL. On ranges
+  over 24 hours, sorting by Last seen orders to day precision.
+- The Geo Events by Location and IP table gained a Last seen column showing
+  each (location, IP) pair's most recent event (day-granular on ranges over
+  24 hours).
+- The Security page now shows a warning banner while the CrowdSec LAPI is
+  unreachable and keeps the last known decisions and alerts visible instead
+  of hanging on loading skeletons. Reachability changes are pushed live over
+  the CrowdSec WebSocket feed, reported in /health, and flagged with a
+  warning dot on the Security sidebar item.
+- Ban and unban actions now show an error toast when they fail (for example
+  while the LAPI is down) instead of failing silently.
+
+### Changed
+
+- Map popup ban buttons (location top-IPs and live-request popups) now open
+  the same duration dropdown as the log tables instead of immediately banning
+  with the default duration; unbanning asks for confirmation via the menu.
+
+- Analytics top lists (URLs, user agents, IPs, countries, cities) are now
+  served from continuous aggregates on ranges over 24 hours instead of
+  scanning raw access logs, making long-range views much faster. The IP,
+  country and city lists stay on the fast path even with country/city/IP
+  filters; filtered URL and user-agent lists still scan raw logs.
+- Geo Logs summary and chart stay on the fast aggregate path when filtered
+  by country, city or IP on ranges over 24 hours. Hostname filters still
+  scan raw events.
+- Access Logs country, city and host filter dropdowns, and the Geo Logs
+  hostname dropdown, load from aggregates instead of scanning the full log
+  history, and now list values from all recorded history rather than only
+  the raw retention window.
+
+### Fixed
+
+- Deleting a tailed log file while the app is running no longer logs a
+  "Could not stat log file" warning every second forever while /health keeps
+  reporting healthy. The disappearance is now logged once as an error, /health
+  reports the missing paths (ingestion.missing_files) with status degraded,
+  the sidebar indicator and the Status page show the condition, and tailing
+  still resumes automatically when the file reappears (log rotation included).
+  A file vanishing at the exact moment a line was read also no longer kills
+  the tail task.
+- /health no longer reports ingestion as running (and overall status as
+  healthy) when every tailed log file is missing: once all tail tasks have
+  given up waiting for their files, the ingestion service now shuts down and
+  health reports ingestion.running false with status degraded.
+- Map top-IP lists (global and per-location) no longer include events from
+  outside the selected range on ranges over 24 hours: the window was
+  previously floored to whole days, over-counting the partial first day.
+- Geo Logs chart on ranges up to 24 hours no longer includes events from just
+  before the selected window in its first data point, and its unique-IP counts
+  on those short ranges are exact instead of estimated.
+- Geo Logs grouped rows and top lists on ranges over 24 hours no longer
+  scan the entire raw event history while stitching partial-bucket window
+  edges: TimescaleDB can now skip time chunks outside the selected range.
+  On a database with 18M rows these queries dropped from seconds to tens
+  of milliseconds.
+- Top lists across Analytics, Geo Logs and the map order rows with equal
+  counts deterministically (alphabetical within a tie), so tied entries no
+  longer shuffle between refreshes.
+- Startup no longer re-backfills hourly aggregate history on every restart.
+  The gap check now respects hourly aggregate retention, so buckets that
+  retention already dropped on purpose are no longer treated as missing and
+  rebuilt, only to be dropped again by the next retention run.
+- Debug Logs: the "Copy" button in the line-detail dialog did nothing when
+  GeoMetrikks was reached over plain HTTP on a LAN address. Browsers only
+  expose the clipboard API to HTTPS and loopback origins, so copying now
+  falls back to a hidden-textarea copy, and reports "Copy failed" instead of
+  silently doing nothing when even that is refused.
+- Logging in no longer intermittently bounces straight back to the login
+  page. Session handling now applies only to `/api` and `/ws`: previously
+  every static-asset response also rewrote the session it had loaded, so an
+  asset request still in flight during login (the PWA precaches many at once)
+  could overwrite the fresh session with stale logged-out data and the next
+  API call would 401.
+- A failing CrowdSec stats request no longer hides the entire Security stat
+  card row behind permanent loading skeletons, and the decisions table no
+  longer claims "No active decisions" when the decision list could not be
+  fetched.
+- /api/v1/crowdsec/status no longer performs a live LAPI probe on every
+  request (which could block for the full request timeout); it reads the
+  stream poller's cached reachability instead.
+
 ## [0.5.0] - 2026-07-25
 
 ### Added

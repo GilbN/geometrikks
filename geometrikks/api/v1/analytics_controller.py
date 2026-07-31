@@ -560,10 +560,10 @@ class AnalyticsController(Controller):
             ],
         )
 
-    @get("/top-urls", description="Top URLs by hits from raw access logs (time-bounded).")
+    @get("/top-urls", description="Top URLs by hits (CAGG-served above 24h; filters force a raw scan).")
     async def get_top_urls(
         self,
-        live_stats_repo: NamedDependency[LiveStatsRepository],
+        summary_stats_repo: NamedDependency[SummaryStatsRepository],
         start_date: Annotated[
             datetime,
             Parameter(
@@ -599,19 +599,23 @@ class AnalyticsController(Controller):
             Parameter(description="Exclude these client IPs (repeatable)", required=False),
         ] = None,
     ) -> TopUrlsResponse:
-        """Get the top URLs by hit count for a date range."""
+        """Get the top URLs by hit count for a date range.
+
+        Perf note: filtered queries scan raw access_logs and are bounded by
+        raw_retention_days (same trade-off as filtered /time-series).
+        """
         filters = _build_filters(country_code, city, ip_address, ip_address_not_in)
-        rows = await live_stats_repo.get_top_urls(start_date, end_date, limit=limit, filters=filters)
+        rows = await summary_stats_repo.get_top_urls(start_date, end_date, limit=limit, filters=filters)
         return TopUrlsResponse(
             start_date=start_date.isoformat(),
             end_date=end_date.isoformat(),
             items=[TopUrlDTO(**vars(r)) for r in rows],
         )
 
-    @get("/top-user-agents", description="Top user agents by hits from raw access logs.")
+    @get("/top-user-agents", description="Top user agents by hits (CAGG-served above 24h; filters force a raw scan).")
     async def get_top_user_agents(
         self,
-        live_stats_repo: NamedDependency[LiveStatsRepository],
+        summary_stats_repo: NamedDependency[SummaryStatsRepository],
         start_date: Annotated[
             datetime,
             Parameter(
@@ -647,19 +651,23 @@ class AnalyticsController(Controller):
             Parameter(description="Exclude these client IPs (repeatable)", required=False),
         ] = None,
     ) -> TopUserAgentsResponse:
-        """Get the top user agents by hit count for a date range."""
+        """Get the top user agents by hit count for a date range.
+
+        Perf note: filtered queries scan raw access_logs and are bounded by
+        raw_retention_days (same trade-off as filtered /time-series).
+        """
         filters = _build_filters(country_code, city, ip_address, ip_address_not_in)
-        rows = await live_stats_repo.get_top_user_agents(start_date, end_date, limit=limit, filters=filters)
+        rows = await summary_stats_repo.get_top_user_agents(start_date, end_date, limit=limit, filters=filters)
         return TopUserAgentsResponse(
             start_date=start_date.isoformat(),
             end_date=end_date.isoformat(),
             items=[TopUserAgentDTO(**vars(r)) for r in rows],
         )
 
-    @get("/top-ips", description="Top client IPs by hits from raw access logs (time-bounded).")
+    @get("/top-ips", description="Top client IPs by hits (CAGG-served above 24h, filters included).")
     async def get_top_ips(
         self,
-        live_stats_repo: NamedDependency[LiveStatsRepository],
+        summary_stats_repo: NamedDependency[SummaryStatsRepository],
         start_date: Annotated[
             datetime,
             Parameter(description="Start date (ISO 8601)"),
@@ -691,17 +699,17 @@ class AnalyticsController(Controller):
     ) -> TopIpsResponse:
         """Get the top client IPs by hit count for a date range."""
         filters = _build_filters(country_code, city, ip_address, ip_address_not_in)
-        rows = await live_stats_repo.get_top_ips(start_date, end_date, limit=limit, filters=filters)
+        rows = await summary_stats_repo.get_top_ips(start_date, end_date, limit=limit, filters=filters)
         return TopIpsResponse(
             start_date=start_date.isoformat(),
             end_date=end_date.isoformat(),
             items=[TopIpDTO(**vars(r)) for r in rows],
         )
 
-    @get("/top-countries", description="Top countries by hits from raw access logs (time-bounded).")
+    @get("/top-countries", description="Top countries by hits (CAGG-served above 24h, filters included).")
     async def get_top_countries(
         self,
-        live_stats_repo: NamedDependency[LiveStatsRepository],
+        summary_stats_repo: NamedDependency[SummaryStatsRepository],
         start_date: Annotated[
             datetime,
             Parameter(description="Start date (ISO 8601)"),
@@ -733,17 +741,17 @@ class AnalyticsController(Controller):
     ) -> TopCountriesStatsResponse:
         """Get the top countries by hit count for a date range."""
         filters = _build_filters(country_code, city, ip_address, ip_address_not_in)
-        rows = await live_stats_repo.get_top_countries(start_date, end_date, limit=limit, filters=filters)
+        rows = await summary_stats_repo.get_top_countries(start_date, end_date, limit=limit, filters=filters)
         return TopCountriesStatsResponse(
             start_date=start_date.isoformat(),
             end_date=end_date.isoformat(),
             items=[TopCountryStatsDTO(**vars(r)) for r in rows],
         )
 
-    @get("/top-cities", description="Top cities by hits from raw access logs (time-bounded).")
+    @get("/top-cities", description="Top cities by hits (CAGG-served above 24h, filters included).")
     async def get_top_cities(
         self,
-        live_stats_repo: NamedDependency[LiveStatsRepository],
+        summary_stats_repo: NamedDependency[SummaryStatsRepository],
         start_date: Annotated[
             datetime,
             Parameter(description="Start date (ISO 8601)"),
@@ -775,7 +783,7 @@ class AnalyticsController(Controller):
     ) -> TopCitiesResponse:
         """Get the top cities by hit count for a date range."""
         filters = _build_filters(country_code, city, ip_address, ip_address_not_in)
-        rows = await live_stats_repo.get_top_cities(start_date, end_date, limit=limit, filters=filters)
+        rows = await summary_stats_repo.get_top_cities(start_date, end_date, limit=limit, filters=filters)
         return TopCitiesResponse(
             start_date=start_date.isoformat(),
             end_date=end_date.isoformat(),

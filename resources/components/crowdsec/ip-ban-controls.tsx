@@ -15,13 +15,14 @@ import {
   DropdownMenuLabel,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { toast } from "sonner"
 import {
   useBanIp,
   useBannedIps,
   useCrowdsecStatus,
   useUnbanIp,
 } from "@/lib/queries"
-import { BAN_DURATIONS } from "@/lib/crowdsec"
+import { BAN_DURATIONS, crowdsecErrorMessage } from "@/lib/crowdsec"
 
 /** Ban/unban dropdown on the IP cell; hidden unless machine credentials
  *  enable write access on the CrowdSec integration. */
@@ -46,7 +47,16 @@ export function IpBanAction({ ip, banned }: { ip: string; banned: boolean }) {
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start">
         {banned ? (
-          <DropdownMenuItem onClick={() => unban.mutate(ip)}>
+          <DropdownMenuItem
+            onClick={() =>
+              unban.mutate(ip, {
+                onError: (err) =>
+                  toast.error(
+                    crowdsecErrorMessage(err, `Unban failed for ${ip}; the LAPI may be unreachable.`),
+                  ),
+              })
+            }
+          >
             Unban {ip}
           </DropdownMenuItem>
         ) : (
@@ -55,7 +65,17 @@ export function IpBanAction({ ip, banned }: { ip: string; banned: boolean }) {
             {BAN_DURATIONS.map((d) => (
               <DropdownMenuItem
                 key={d.value}
-                onClick={() => ban.mutate({ ip, duration: d.value })}
+                onClick={() =>
+                  ban.mutate(
+                    { ip, duration: d.value },
+                    {
+                      onError: (err) =>
+                        toast.error(
+                          crowdsecErrorMessage(err, `Ban failed for ${ip}; the LAPI may be unreachable.`),
+                        ),
+                    },
+                  )
+                }
               >
                 {d.label}
               </DropdownMenuItem>

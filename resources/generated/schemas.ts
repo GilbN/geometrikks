@@ -6,8 +6,47 @@ export * from "./api/types.gen"
 
 // Import specific operation types for mapping
 import type {
+  ApiV1AccessLogDebugListAccessLogDebugData,
+  ApiV1AccessLogDebugListAccessLogDebugErrors,
+  ApiV1AccessLogDebugListAccessLogDebugResponses,
+  ApiV1AccessLogDebugStatsGetAccessLogDebugStatsData,
+  ApiV1AccessLogDebugStatsGetAccessLogDebugStatsErrors,
+  ApiV1AccessLogDebugStatsGetAccessLogDebugStatsResponses,
   ApiV1AccessLogsFacetsGetAccessLogFacetsData,
   ApiV1AccessLogsFacetsGetAccessLogFacetsResponses,
+  ApiV1AccessLogsListAccessLogsData,
+  ApiV1AccessLogsListAccessLogsErrors,
+  ApiV1AccessLogsListAccessLogsResponses,
+  ApiV1AnalyticsGeoTimeSeriesGetGeoTimeSeriesData,
+  ApiV1AnalyticsGeoTimeSeriesGetGeoTimeSeriesErrors,
+  ApiV1AnalyticsGeoTimeSeriesGetGeoTimeSeriesResponses,
+  ApiV1AnalyticsLiveSummaryGetLiveSummaryData,
+  ApiV1AnalyticsLiveSummaryGetLiveSummaryErrors,
+  ApiV1AnalyticsLiveSummaryGetLiveSummaryResponses,
+  ApiV1AnalyticsSummaryGetSummaryData,
+  ApiV1AnalyticsSummaryGetSummaryErrors,
+  ApiV1AnalyticsSummaryGetSummaryResponses,
+  ApiV1AnalyticsTimeSeriesCumulativeGetCumulativeTimeSeriesData,
+  ApiV1AnalyticsTimeSeriesCumulativeGetCumulativeTimeSeriesErrors,
+  ApiV1AnalyticsTimeSeriesCumulativeGetCumulativeTimeSeriesResponses,
+  ApiV1AnalyticsTimeSeriesGetTimeSeriesData,
+  ApiV1AnalyticsTimeSeriesGetTimeSeriesErrors,
+  ApiV1AnalyticsTimeSeriesGetTimeSeriesResponses,
+  ApiV1AnalyticsTopCitiesGetTopCitiesData,
+  ApiV1AnalyticsTopCitiesGetTopCitiesErrors,
+  ApiV1AnalyticsTopCitiesGetTopCitiesResponses,
+  ApiV1AnalyticsTopCountriesGetTopCountriesData,
+  ApiV1AnalyticsTopCountriesGetTopCountriesErrors,
+  ApiV1AnalyticsTopCountriesGetTopCountriesResponses,
+  ApiV1AnalyticsTopIpsGetTopIpsData,
+  ApiV1AnalyticsTopIpsGetTopIpsErrors,
+  ApiV1AnalyticsTopIpsGetTopIpsResponses,
+  ApiV1AnalyticsTopUrlsGetTopUrlsData,
+  ApiV1AnalyticsTopUrlsGetTopUrlsErrors,
+  ApiV1AnalyticsTopUrlsGetTopUrlsResponses,
+  ApiV1AnalyticsTopUserAgentsGetTopUserAgentsData,
+  ApiV1AnalyticsTopUserAgentsGetTopUserAgentsErrors,
+  ApiV1AnalyticsTopUserAgentsGetTopUserAgentsResponses,
   ApiV1AuthLoginLoginData,
   ApiV1AuthLoginLoginErrors,
   ApiV1AuthLoginLoginResponses,
@@ -15,11 +54,23 @@ import type {
   ApiV1AuthLogoutLogoutResponses,
   ApiV1AuthMeMeData,
   ApiV1AuthMeMeResponses,
+  ApiV1CrowdsecAlertsListAlertsData,
+  ApiV1CrowdsecAlertsListAlertsErrors,
+  ApiV1CrowdsecAlertsListAlertsResponses,
   ApiV1CrowdsecBanBanData,
   ApiV1CrowdsecBanBanErrors,
   ApiV1CrowdsecBanBanResponses,
   ApiV1CrowdsecBannedIpsListBannedIpsData,
   ApiV1CrowdsecBannedIpsListBannedIpsResponses,
+  ApiV1CrowdsecBannedLocationsListBannedLocationsData,
+  ApiV1CrowdsecBannedLocationsListBannedLocationsErrors,
+  ApiV1CrowdsecBannedLocationsListBannedLocationsResponses,
+  ApiV1CrowdsecDecisionsListDecisionsData,
+  ApiV1CrowdsecDecisionsListDecisionsErrors,
+  ApiV1CrowdsecDecisionsListDecisionsResponses,
+  ApiV1CrowdsecDecisionsLookupLookupDecisionsData,
+  ApiV1CrowdsecDecisionsLookupLookupDecisionsErrors,
+  ApiV1CrowdsecDecisionsLookupLookupDecisionsResponses,
   ApiV1CrowdsecStatsGetStatsData,
   ApiV1CrowdsecStatsGetStatsResponses,
   ApiV1CrowdsecStatusGetStatusData,
@@ -29,18 +80,65 @@ import type {
   ApiV1CrowdsecUnbanUnbanResponses,
   ApiV1GeoEventsFacetsGetGeoLogFacetsData,
   ApiV1GeoEventsFacetsGetGeoLogFacetsResponses,
+  ApiV1GeoEventsListGeoEventsData,
+  ApiV1GeoEventsListGeoEventsErrors,
+  ApiV1GeoEventsListGeoEventsResponses,
+  ApiV1GeoEventsLogsGetGeoLogsData,
+  ApiV1GeoEventsLogsGetGeoLogsErrors,
+  ApiV1GeoEventsLogsGetGeoLogsResponses,
+  ApiV1GeoEventsSummaryGetGeoLogSummaryData,
+  ApiV1GeoEventsSummaryGetGeoLogSummaryErrors,
+  ApiV1GeoEventsSummaryGetGeoLogSummaryResponses,
+  ApiV1GeoEventsTimeSeriesGetGeoLogTimeSeriesData,
+  ApiV1GeoEventsTimeSeriesGetGeoLogTimeSeriesErrors,
+  ApiV1GeoEventsTimeSeriesGetGeoLogTimeSeriesResponses,
+  ApiV1GeoEventsTopCitiesGetGeoLogTopCitiesData,
+  ApiV1GeoEventsTopCitiesGetGeoLogTopCitiesErrors,
+  ApiV1GeoEventsTopCitiesGetGeoLogTopCitiesResponses,
+  ApiV1GeoEventsTopCountriesGetGeoLogTopCountriesData,
+  ApiV1GeoEventsTopCountriesGetGeoLogTopCountriesErrors,
+  ApiV1GeoEventsTopCountriesGetGeoLogTopCountriesResponses,
+  ApiV1GeoEventsTopIpsGetGeoLogTopIpsData,
+  ApiV1GeoEventsTopIpsGetGeoLogTopIpsErrors,
+  ApiV1GeoEventsTopIpsGetGeoLogTopIpsResponses,
+  ApiV1GeoLocationsGeojsonGetGeojsonData,
+  ApiV1GeoLocationsGeojsonGetGeojsonErrors,
+  ApiV1GeoLocationsGeojsonGetGeojsonResponses,
+  ApiV1GeoLocationsListGeoLocationsData,
+  ApiV1GeoLocationsListGeoLocationsErrors,
+  ApiV1GeoLocationsListGeoLocationsResponses,
+  ApiV1GeoLocationsLocationIdTopIpsGetLocationTopIpsData,
+  ApiV1GeoLocationsLocationIdTopIpsGetLocationTopIpsErrors,
+  ApiV1GeoLocationsLocationIdTopIpsGetLocationTopIpsResponses,
+  ApiV1GeoLocationsTopCountriesGetTopCountriesData,
+  ApiV1GeoLocationsTopCountriesGetTopCountriesErrors,
+  ApiV1GeoLocationsTopCountriesGetTopCountriesResponses,
+  ApiV1GeoLocationsTopIpsGetGlobalTopIpsData,
+  ApiV1GeoLocationsTopIpsGetGlobalTopIpsErrors,
+  ApiV1GeoLocationsTopIpsGetGlobalTopIpsResponses,
+  ApiV1LogsFilesKindNameDownloadData,
+  ApiV1LogsFilesKindNameDownloadErrors,
+  ApiV1LogsFilesKindNameDownloadResponses,
   ApiV1LogsFilesListFilesData,
   ApiV1LogsFilesListFilesResponses,
   ApiV1LogsRotateRotateData,
   ApiV1LogsRotateRotateResponses,
+  ApiV1LogsTailTailData,
+  ApiV1LogsTailTailErrors,
+  ApiV1LogsTailTailResponses,
   ApiV1SettingsReadSettingsData,
   ApiV1SettingsReadSettingsResponses,
   ApiV1StatsStatsData,
   ApiV1StatsStatsResponses,
   ApiV1SystemAboutGetAboutData,
   ApiV1SystemAboutGetAboutResponses,
+  ApiV1SystemDatabaseGetDatabaseInfoData,
+  ApiV1SystemDatabaseGetDatabaseInfoResponses,
   ApiV1SystemSchedulerJobsGetSchedulerJobsData,
   ApiV1SystemSchedulerJobsGetSchedulerJobsResponses,
+  ApiV1SystemSchedulerJobsJobIdRunRunSchedulerJobData,
+  ApiV1SystemSchedulerJobsJobIdRunRunSchedulerJobErrors,
+  ApiV1SystemSchedulerJobsJobIdRunRunSchedulerJobResponses,
   ApiV1SystemSettingsGetSystemSettingsData,
   ApiV1SystemSettingsGetSystemSettingsResponses,
   HealthHealthData,
@@ -63,23 +161,56 @@ import type {
  */
 export type OperationName =
   | 'ban'
+  | 'download'
   | 'get_about'
+  | 'get_access_log_debug_stats'
   | 'get_access_log_facets'
+  | 'get_cumulative_time_series'
+  | 'get_database_info'
   | 'get_geo_log_facets'
+  | 'get_geo_log_summary'
+  | 'get_geo_log_time_series'
+  | 'get_geo_log_top_cities'
+  | 'get_geo_log_top_countries'
+  | 'get_geo_log_top_ips'
+  | 'get_geo_logs'
+  | 'get_geo_time_series'
+  | 'get_geojson'
+  | 'get_global_top_ips'
+  | 'get_live_summary'
+  | 'get_location_top_ips'
   | 'get_scheduler_jobs'
   | 'get_stats'
   | 'get_status'
+  | 'get_summary'
   | 'get_system_settings'
+  | 'get_time_series'
+  | 'get_top_cities'
+  | 'get_top_countries'
+  | 'get_top_countries_api_v1_geo_locations_top_countries'
+  | 'get_top_ips'
+  | 'get_top_urls'
+  | 'get_top_user_agents'
   | 'health'
   | 'health_ready'
+  | 'list_access_log_debug'
+  | 'list_access_logs'
+  | 'list_alerts'
   | 'list_banned_ips'
+  | 'list_banned_locations'
+  | 'list_decisions'
   | 'list_files'
+  | 'list_geo_events'
+  | 'list_geo_locations'
   | 'login'
   | 'logout'
+  | 'lookup_decisions'
   | 'me'
   | 'read_settings'
   | 'rotate'
+  | 'run_scheduler_job'
   | 'stats'
+  | 'tail'
   | 'unban'
 
 /**
@@ -88,23 +219,56 @@ export type OperationName =
  */
 export interface OperationDataTypes {
   'ban': ApiV1CrowdsecBanBanData
+  'download': ApiV1LogsFilesKindNameDownloadData
   'get_about': ApiV1SystemAboutGetAboutData
+  'get_access_log_debug_stats': ApiV1AccessLogDebugStatsGetAccessLogDebugStatsData
   'get_access_log_facets': ApiV1AccessLogsFacetsGetAccessLogFacetsData
+  'get_cumulative_time_series': ApiV1AnalyticsTimeSeriesCumulativeGetCumulativeTimeSeriesData
+  'get_database_info': ApiV1SystemDatabaseGetDatabaseInfoData
   'get_geo_log_facets': ApiV1GeoEventsFacetsGetGeoLogFacetsData
+  'get_geo_log_summary': ApiV1GeoEventsSummaryGetGeoLogSummaryData
+  'get_geo_log_time_series': ApiV1GeoEventsTimeSeriesGetGeoLogTimeSeriesData
+  'get_geo_log_top_cities': ApiV1GeoEventsTopCitiesGetGeoLogTopCitiesData
+  'get_geo_log_top_countries': ApiV1GeoEventsTopCountriesGetGeoLogTopCountriesData
+  'get_geo_log_top_ips': ApiV1GeoEventsTopIpsGetGeoLogTopIpsData
+  'get_geo_logs': ApiV1GeoEventsLogsGetGeoLogsData
+  'get_geo_time_series': ApiV1AnalyticsGeoTimeSeriesGetGeoTimeSeriesData
+  'get_geojson': ApiV1GeoLocationsGeojsonGetGeojsonData
+  'get_global_top_ips': ApiV1GeoLocationsTopIpsGetGlobalTopIpsData
+  'get_live_summary': ApiV1AnalyticsLiveSummaryGetLiveSummaryData
+  'get_location_top_ips': ApiV1GeoLocationsLocationIdTopIpsGetLocationTopIpsData
   'get_scheduler_jobs': ApiV1SystemSchedulerJobsGetSchedulerJobsData
   'get_stats': ApiV1CrowdsecStatsGetStatsData
   'get_status': ApiV1CrowdsecStatusGetStatusData
+  'get_summary': ApiV1AnalyticsSummaryGetSummaryData
   'get_system_settings': ApiV1SystemSettingsGetSystemSettingsData
+  'get_time_series': ApiV1AnalyticsTimeSeriesGetTimeSeriesData
+  'get_top_cities': ApiV1AnalyticsTopCitiesGetTopCitiesData
+  'get_top_countries': ApiV1AnalyticsTopCountriesGetTopCountriesData
+  'get_top_countries_api_v1_geo_locations_top_countries': ApiV1GeoLocationsTopCountriesGetTopCountriesData
+  'get_top_ips': ApiV1AnalyticsTopIpsGetTopIpsData
+  'get_top_urls': ApiV1AnalyticsTopUrlsGetTopUrlsData
+  'get_top_user_agents': ApiV1AnalyticsTopUserAgentsGetTopUserAgentsData
   'health': HealthHealthData
   'health_ready': HealthReadyHealthReadyData
+  'list_access_log_debug': ApiV1AccessLogDebugListAccessLogDebugData
+  'list_access_logs': ApiV1AccessLogsListAccessLogsData
+  'list_alerts': ApiV1CrowdsecAlertsListAlertsData
   'list_banned_ips': ApiV1CrowdsecBannedIpsListBannedIpsData
+  'list_banned_locations': ApiV1CrowdsecBannedLocationsListBannedLocationsData
+  'list_decisions': ApiV1CrowdsecDecisionsListDecisionsData
   'list_files': ApiV1LogsFilesListFilesData
+  'list_geo_events': ApiV1GeoEventsListGeoEventsData
+  'list_geo_locations': ApiV1GeoLocationsListGeoLocationsData
   'login': ApiV1AuthLoginLoginData
   'logout': ApiV1AuthLogoutLogoutData
+  'lookup_decisions': ApiV1CrowdsecDecisionsLookupLookupDecisionsData
   'me': ApiV1AuthMeMeData
   'read_settings': ApiV1SettingsReadSettingsData
   'rotate': ApiV1LogsRotateRotateData
+  'run_scheduler_job': ApiV1SystemSchedulerJobsJobIdRunRunSchedulerJobData
   'stats': ApiV1StatsStatsData
+  'tail': ApiV1LogsTailTailData
   'unban': ApiV1CrowdsecUnbanUnbanData
 }
 
@@ -114,23 +278,56 @@ export interface OperationDataTypes {
  */
 export interface OperationResponseTypes {
   'ban': ApiV1CrowdsecBanBanResponses
+  'download': ApiV1LogsFilesKindNameDownloadResponses
   'get_about': ApiV1SystemAboutGetAboutResponses
+  'get_access_log_debug_stats': ApiV1AccessLogDebugStatsGetAccessLogDebugStatsResponses
   'get_access_log_facets': ApiV1AccessLogsFacetsGetAccessLogFacetsResponses
+  'get_cumulative_time_series': ApiV1AnalyticsTimeSeriesCumulativeGetCumulativeTimeSeriesResponses
+  'get_database_info': ApiV1SystemDatabaseGetDatabaseInfoResponses
   'get_geo_log_facets': ApiV1GeoEventsFacetsGetGeoLogFacetsResponses
+  'get_geo_log_summary': ApiV1GeoEventsSummaryGetGeoLogSummaryResponses
+  'get_geo_log_time_series': ApiV1GeoEventsTimeSeriesGetGeoLogTimeSeriesResponses
+  'get_geo_log_top_cities': ApiV1GeoEventsTopCitiesGetGeoLogTopCitiesResponses
+  'get_geo_log_top_countries': ApiV1GeoEventsTopCountriesGetGeoLogTopCountriesResponses
+  'get_geo_log_top_ips': ApiV1GeoEventsTopIpsGetGeoLogTopIpsResponses
+  'get_geo_logs': ApiV1GeoEventsLogsGetGeoLogsResponses
+  'get_geo_time_series': ApiV1AnalyticsGeoTimeSeriesGetGeoTimeSeriesResponses
+  'get_geojson': ApiV1GeoLocationsGeojsonGetGeojsonResponses
+  'get_global_top_ips': ApiV1GeoLocationsTopIpsGetGlobalTopIpsResponses
+  'get_live_summary': ApiV1AnalyticsLiveSummaryGetLiveSummaryResponses
+  'get_location_top_ips': ApiV1GeoLocationsLocationIdTopIpsGetLocationTopIpsResponses
   'get_scheduler_jobs': ApiV1SystemSchedulerJobsGetSchedulerJobsResponses
   'get_stats': ApiV1CrowdsecStatsGetStatsResponses
   'get_status': ApiV1CrowdsecStatusGetStatusResponses
+  'get_summary': ApiV1AnalyticsSummaryGetSummaryResponses
   'get_system_settings': ApiV1SystemSettingsGetSystemSettingsResponses
+  'get_time_series': ApiV1AnalyticsTimeSeriesGetTimeSeriesResponses
+  'get_top_cities': ApiV1AnalyticsTopCitiesGetTopCitiesResponses
+  'get_top_countries': ApiV1AnalyticsTopCountriesGetTopCountriesResponses
+  'get_top_countries_api_v1_geo_locations_top_countries': ApiV1GeoLocationsTopCountriesGetTopCountriesResponses
+  'get_top_ips': ApiV1AnalyticsTopIpsGetTopIpsResponses
+  'get_top_urls': ApiV1AnalyticsTopUrlsGetTopUrlsResponses
+  'get_top_user_agents': ApiV1AnalyticsTopUserAgentsGetTopUserAgentsResponses
   'health': HealthHealthResponses
   'health_ready': HealthReadyHealthReadyResponses
+  'list_access_log_debug': ApiV1AccessLogDebugListAccessLogDebugResponses
+  'list_access_logs': ApiV1AccessLogsListAccessLogsResponses
+  'list_alerts': ApiV1CrowdsecAlertsListAlertsResponses
   'list_banned_ips': ApiV1CrowdsecBannedIpsListBannedIpsResponses
+  'list_banned_locations': ApiV1CrowdsecBannedLocationsListBannedLocationsResponses
+  'list_decisions': ApiV1CrowdsecDecisionsListDecisionsResponses
   'list_files': ApiV1LogsFilesListFilesResponses
+  'list_geo_events': ApiV1GeoEventsListGeoEventsResponses
+  'list_geo_locations': ApiV1GeoLocationsListGeoLocationsResponses
   'login': ApiV1AuthLoginLoginResponses
   'logout': ApiV1AuthLogoutLogoutResponses
+  'lookup_decisions': ApiV1CrowdsecDecisionsLookupLookupDecisionsResponses
   'me': ApiV1AuthMeMeResponses
   'read_settings': ApiV1SettingsReadSettingsResponses
   'rotate': ApiV1LogsRotateRotateResponses
+  'run_scheduler_job': ApiV1SystemSchedulerJobsJobIdRunRunSchedulerJobResponses
   'stats': ApiV1StatsStatsResponses
+  'tail': ApiV1LogsTailTailResponses
   'unban': ApiV1CrowdsecUnbanUnbanResponses
 }
 
@@ -140,23 +337,56 @@ export interface OperationResponseTypes {
  */
 export interface OperationErrorTypes {
   'ban': ApiV1CrowdsecBanBanErrors
+  'download': ApiV1LogsFilesKindNameDownloadErrors
   'get_about': never
+  'get_access_log_debug_stats': ApiV1AccessLogDebugStatsGetAccessLogDebugStatsErrors
   'get_access_log_facets': never
+  'get_cumulative_time_series': ApiV1AnalyticsTimeSeriesCumulativeGetCumulativeTimeSeriesErrors
+  'get_database_info': never
   'get_geo_log_facets': never
+  'get_geo_log_summary': ApiV1GeoEventsSummaryGetGeoLogSummaryErrors
+  'get_geo_log_time_series': ApiV1GeoEventsTimeSeriesGetGeoLogTimeSeriesErrors
+  'get_geo_log_top_cities': ApiV1GeoEventsTopCitiesGetGeoLogTopCitiesErrors
+  'get_geo_log_top_countries': ApiV1GeoEventsTopCountriesGetGeoLogTopCountriesErrors
+  'get_geo_log_top_ips': ApiV1GeoEventsTopIpsGetGeoLogTopIpsErrors
+  'get_geo_logs': ApiV1GeoEventsLogsGetGeoLogsErrors
+  'get_geo_time_series': ApiV1AnalyticsGeoTimeSeriesGetGeoTimeSeriesErrors
+  'get_geojson': ApiV1GeoLocationsGeojsonGetGeojsonErrors
+  'get_global_top_ips': ApiV1GeoLocationsTopIpsGetGlobalTopIpsErrors
+  'get_live_summary': ApiV1AnalyticsLiveSummaryGetLiveSummaryErrors
+  'get_location_top_ips': ApiV1GeoLocationsLocationIdTopIpsGetLocationTopIpsErrors
   'get_scheduler_jobs': never
   'get_stats': never
   'get_status': never
+  'get_summary': ApiV1AnalyticsSummaryGetSummaryErrors
   'get_system_settings': never
+  'get_time_series': ApiV1AnalyticsTimeSeriesGetTimeSeriesErrors
+  'get_top_cities': ApiV1AnalyticsTopCitiesGetTopCitiesErrors
+  'get_top_countries': ApiV1AnalyticsTopCountriesGetTopCountriesErrors
+  'get_top_countries_api_v1_geo_locations_top_countries': ApiV1GeoLocationsTopCountriesGetTopCountriesErrors
+  'get_top_ips': ApiV1AnalyticsTopIpsGetTopIpsErrors
+  'get_top_urls': ApiV1AnalyticsTopUrlsGetTopUrlsErrors
+  'get_top_user_agents': ApiV1AnalyticsTopUserAgentsGetTopUserAgentsErrors
   'health': never
   'health_ready': never
+  'list_access_log_debug': ApiV1AccessLogDebugListAccessLogDebugErrors
+  'list_access_logs': ApiV1AccessLogsListAccessLogsErrors
+  'list_alerts': ApiV1CrowdsecAlertsListAlertsErrors
   'list_banned_ips': never
+  'list_banned_locations': ApiV1CrowdsecBannedLocationsListBannedLocationsErrors
+  'list_decisions': ApiV1CrowdsecDecisionsListDecisionsErrors
   'list_files': never
+  'list_geo_events': ApiV1GeoEventsListGeoEventsErrors
+  'list_geo_locations': ApiV1GeoLocationsListGeoLocationsErrors
   'login': ApiV1AuthLoginLoginErrors
   'logout': never
+  'lookup_decisions': ApiV1CrowdsecDecisionsLookupLookupDecisionsErrors
   'me': never
   'read_settings': never
   'rotate': never
+  'run_scheduler_job': ApiV1SystemSchedulerJobsJobIdRunRunSchedulerJobErrors
   'stats': never
+  'tail': ApiV1LogsTailTailErrors
   'unban': ApiV1CrowdsecUnbanUnbanErrors
 }
 

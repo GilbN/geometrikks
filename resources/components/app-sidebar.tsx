@@ -152,9 +152,11 @@ function GeoLogo({ collapsed }: { collapsed: boolean }) {
 function NavItem({
   item,
   isActive,
+  warning,
 }: {
   item: (typeof navigationItems)[0]
   isActive: boolean
+  warning?: string
 }) {
   const Icon = item.icon
 
@@ -165,9 +167,12 @@ function NavItem({
         isActive={isActive}
         tooltip={{
           children: (
-            <span className="flex items-center gap-2">
-              <span>{item.title}</span>
-              <span className="text-muted-foreground text-xs">{item.description}</span>
+            <span className="flex flex-col gap-0.5">
+              <span className="flex items-center gap-2">
+                <span>{item.title}</span>
+                <span className="text-muted-foreground text-xs">{item.description}</span>
+              </span>
+              {warning && <span className="text-amber-500 text-xs">{warning}</span>}
             </span>
           ),
         }}
@@ -193,6 +198,12 @@ function NavItem({
             />
             {isActive && (
               <div className="absolute inset-0 blur-sm bg-geo-cyan/30 rounded-full" />
+            )}
+            {warning && (
+              <span
+                className="absolute -top-0.5 -right-0.5 h-1.5 w-1.5 rounded-full bg-amber-400"
+                aria-hidden="true"
+              />
             )}
           </div>
           <span
@@ -223,11 +234,12 @@ function LiveIndicator({ collapsed }: { collapsed: boolean }) {
   const isRunning = health?.ingestion?.running ?? false
   const isDegraded = health?.status === "degraded"
 
-  // Determine indicator color and status
+  // Determine indicator color and status. Degraded wins over running: the
+  // backend can report running=true while a tailed log file is missing.
   const getIndicatorStyle = () => {
     if (isError) return { color: "bg-gray-400", label: "Offline", tooltip: "Cannot connect to backend" }
+    if (isDegraded) return { color: "bg-amber-400", label: "Degraded", tooltip: "Service degraded - see Settings > Status" }
     if (isRunning) return { color: "bg-emerald-400", label: "Live ingestion", tooltip: "Live ingestion active" }
-    if (isDegraded) return { color: "bg-amber-400", label: "Degraded", tooltip: "Ingestion service not running" }
     return { color: "bg-gray-400", label: "Inactive", tooltip: "Service status unknown" }
   }
 
@@ -237,7 +249,9 @@ function LiveIndicator({ collapsed }: { collapsed: boolean }) {
     return (
       <Tooltip>
         <TooltipTrigger asChild>
-          <div
+          <Link
+            to="/settings/status"
+            aria-label="Service status"
             className="flex items-center justify-center py-2 mx-2"
             onPointerLeave={resetTooltipSuppression}
           >
@@ -247,7 +261,7 @@ function LiveIndicator({ collapsed }: { collapsed: boolean }) {
               )}
               <span className={cn("relative inline-flex w-2 h-2 rounded-full", color)} />
             </div>
-          </div>
+          </Link>
         </TooltipTrigger>
         {!tooltipsSuppressed && (
           <TooltipContent side="right">
@@ -259,7 +273,11 @@ function LiveIndicator({ collapsed }: { collapsed: boolean }) {
   }
 
   return (
-    <div className="flex items-center gap-2 px-3 py-2 mx-2 rounded-md bg-sidebar-accent/50 border border-sidebar-border">
+    <Link
+      to="/settings/status"
+      aria-label="Service status"
+      className="flex items-center gap-2 px-3 py-2 mx-2 rounded-md bg-sidebar-accent/50 border border-sidebar-border transition-colors hover:bg-sidebar-accent"
+    >
       <div className="relative flex items-center justify-center w-2 h-2">
         {isRunning && (
           <span className={cn("absolute inline-flex h-full w-full animate-ping rounded-full opacity-75", color)} />
@@ -276,7 +294,7 @@ function LiveIndicator({ collapsed }: { collapsed: boolean }) {
       ) : (
         <AlertCircle className="w-3 h-3 text-amber-400 ml-auto" />
       )}
-    </div>
+    </Link>
   )
 }
 
@@ -491,6 +509,16 @@ export function AppSidebar() {
     (item) => !("requiresCrowdsec" in item) || crowdsecStatus?.enabled === true,
   )
 
+  // Shares the ["health"] cache with LiveIndicator's 10s poll.
+  const { data: health } = useQuery({
+    queryKey: ["health"],
+    queryFn: fetchHealth,
+    refetchInterval: 30000,
+    retry: 1,
+  })
+  const crowdsecDown =
+    health?.crowdsec?.enabled === true && health.crowdsec.lapi_reachable === false
+
   // The mobile sidebar is a full-height sheet; leaving it open after a nav
   // tap would cover the page the user just navigated to.
   useEffect(() => {
@@ -530,6 +558,11 @@ export function AppSidebar() {
                     item.url === "/"
                       ? currentPath === "/"
                       : currentPath.startsWith(item.url)
+                  }
+                  warning={
+                    item.url === "/security" && crowdsecDown
+                      ? "CrowdSec LAPI unreachable"
+                      : undefined
                   }
                 />
               ))}

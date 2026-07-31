@@ -3,6 +3,7 @@ from __future__ import annotations
 from geometrikks.services.crowdsec.schemas import DecisionStreamDelta
 
 import asyncio
+from datetime import datetime, timezone
 from typing import Any
 
 from geometrikks.server.logging import get_logger
@@ -26,7 +27,8 @@ class CrowdSecStreamPoller:
     def __init__(self, service: CrowdSecService) -> None:
         self._service = service
         self._started = False
-        self._had_failure = False
+        self._lapi_reachable: bool | None = None
+        self._last_success: datetime | None = None
         self._subscribers: set[asyncio.Queue[DecisionFrame]] = set()
 
     def subscribe(self, maxsize: int = 100) -> asyncio.Queue[DecisionFrame]:
@@ -38,6 +40,41 @@ class CrowdSecStreamPoller:
     def unsubscribe(self, queue: asyncio.Queue[DecisionFrame]) -> None:
         self._subscribers.discard(queue)
 
+    @property
+    def lapi_reachable(self) -> bool | None:
+        """Cached LAPI verdict from the last poll; None until the first poll.
+
+        The single source of truth for reachability: /crowdsec/status and
+        /health read this instead of probing the LAPI themselves.
+        """
+        return self._lapi_reachable
+
+    @property
+    def last_success(self) -> datetime | None:
+        return self._last_success
+
+    def _broadcast(self, frame: DecisionFrame) -> None:
+        for queue in self._subscribers:
+            try:
+                queue.put_nowait(frame)
+            except asyncio.QueueFull:
+                # A stalled browser must not backpressure the poller; it will
+                # resync from /banned-ips on its next refetch.
+                logger.debug("Dropping frame for slow subscriber")
+
+    def _set_reachable(self, reachable: bool) -> None:
+        """Record a poll outcome; broadcast a status frame on any transition.
+
+        None -> X counts: a page that connected before the first poll must
+        still learn the state.
+        """
+        changed = self._lapi_reachable != reachable
+        self._lapi_reachable = reachable
+        if reachable:
+            self._last_success = datetime.now(timezone.utc)
+        if changed:
+            self._broadcast({"type": "crowdsec_status", "lapi_reachable": reachable})
+
     async def poll(self) -> None:
         """One stream poll; scheduler-driven. Never raises: the LAPI being
 
@@ -47,11 +84,11 @@ class CrowdSecStreamPoller:
             delta: DecisionStreamDelta = await self._service.get_decisions_stream(startup=not self._started)
         except CrowdSecError as exc:
             logger.warning("CrowdSec stream poll failed: %s", exc)
-            self._had_failure = True
+            self._set_reachable(False)
             return
-        if self._had_failure:
+        if self._lapi_reachable is False:
             logger.success("crowdsec_stream_connected")  # ty: ignore[unresolved-attribute]
-            self._had_failure = False
+        self._set_reachable(True)
         first_poll = not self._started
         self._started = True
         if first_poll:
@@ -71,11 +108,4 @@ class CrowdSecStreamPoller:
         logger.info(
             "CrowdSec decision stream: %d added, %d expired/removed", len(added), len(deleted)
         )
-        frame: DecisionFrame = {"type": "crowdsec_decisions", "added": added, "deleted": deleted}
-        for queue in self._subscribers:
-            try:
-                queue.put_nowait(frame)
-            except asyncio.QueueFull:
-                # A stalled browser must not backpressure the poller; it will
-                # resync from /banned-ips on its next refetch.
-                logger.debug("Dropping decision frame for slow subscriber")
+        self._broadcast({"type": "crowdsec_decisions", "added": added, "deleted": deleted})

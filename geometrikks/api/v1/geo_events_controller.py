@@ -156,10 +156,10 @@ def _resolve_chart_granularity(
 class GeoEventController(Controller):
     """Geo-event endpoints: raw event listing and geo-logs page aggregates.
 
-    Perf note: hostname filters (and any filter on summary/time-series) force
-    raw geo_events scans instead of the CAGGs, so those queries are bounded by
-    raw_retention_days (default 180d) — same trade-off as the filtered
-    analytics queries.
+    Perf note: only hostname filters force raw geo_events scans for
+    summary/time-series now (no CAGG carries a hostname dimension); those
+    queries are bounded by raw_retention_days (default 180d). Country/city/IP
+    filters ride the stitched per-IP CAGGs instead.
     """
 
     path = "/api/v1/geo-events"
@@ -206,12 +206,21 @@ class GeoEventController(Controller):
         to_timestamp: Annotated[datetime, END_PARAM],
         current_page: Annotated[int, QueryParameter(name="currentPage", ge=1, required=False)] = 1,
         page_size: Annotated[int, QueryParameter(name="pageSize", ge=1, le=500, required=False)] = 50,
+        order_by: Annotated[
+            str,
+            QueryParameter(
+                name="orderBy",
+                description="Sort column (snake_case, e.g. event_count, city, "
+                "ip_address, last_seen); validated against the service allowlist",
+                required=False,
+            ),
+        ] = "event_count",
         sort_order: Annotated[
             Literal["asc", "desc"],
-            QueryParameter(name="sortOrder", description="Sort by event count", required=False),
+            QueryParameter(name="sortOrder", description="Sort direction", required=False),
         ] = "desc",
     ) -> OffsetPagination[GeoLogEntry]:
-        """One row per (location, IP) pair sorted by event count.
+        """One row per (location, IP) pair, sorted by event count by default.
 
         Ranges > 24h are served from the daily per-IP CAGG (day-floored
         buckets, no hostnames); a hostname filter forces the raw path.
@@ -222,7 +231,7 @@ class GeoEventController(Controller):
         offset = page_size * (current_page - 1)
         rows, total = await geo_event_service.get_grouped_logs(
             from_timestamp, to_timestamp, geo_filters,
-            limit=limit, offset=offset, sort_order=sort_order,
+            limit=limit, offset=offset, order_by=order_by, sort_order=sort_order,
         )
         return OffsetPagination[GeoLogEntry](items=rows, total=total, limit=limit, offset=offset)
 
@@ -240,8 +249,9 @@ class GeoEventController(Controller):
     ) -> GeoLogSummaryResponse:
         """Totals and unique counts for the period, optionally vs the previous one.
 
-        Unfiltered ranges > 24h use HLL-backed CAGGs (approximate uniques);
-        filtered ranges scan raw geo_events for exact counts.
+        Hostname-filtered ranges scan raw geo_events; country/city/IP filters
+        use per-IP CAGGs (exact uniques); unfiltered ranges > 24h use HLL
+        CAGGs (approximate uniques).
         """
         from_timestamp = _ensure_utc(from_timestamp)
         to_timestamp = _ensure_utc(to_timestamp)
@@ -291,7 +301,12 @@ class GeoEventController(Controller):
             ),
         ] = None,
     ) -> GeoLogTimeSeriesResponse:
-        """Bucketed totals + unique IPs; filtered ranges scan raw geo_events."""
+        """Bucketed totals + unique IPs.
+
+        Hostname-filtered ranges scan raw geo_events; country/city/IP filters
+        use per-IP CAGGs (exact uniques); unfiltered ranges > 24h use HLL
+        CAGGs (approximate uniques).
+        """
         from_timestamp = _ensure_utc(from_timestamp)
         to_timestamp = _ensure_utc(to_timestamp)
         resolved = _resolve_chart_granularity(from_timestamp, to_timestamp, granularity)

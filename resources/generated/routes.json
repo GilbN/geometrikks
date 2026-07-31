@@ -66,6 +66,13 @@
       },
       "uri": "/api/v1/analytics/time-series/cumulative"
     },
+    "get_database_info": {
+      "method": "get",
+      "methods": [
+        "GET"
+      ],
+      "uri": "/api/v1/system/database"
+    },
     "get_geo_log_facets": {
       "method": "get",
       "methods": [
@@ -171,6 +178,7 @@
         "hostnameIn": "string[] | undefined",
         "ipAddressIn": "string[] | undefined",
         "ipAddressNotIn": "string[] | undefined",
+        "orderBy": "string | undefined",
         "pageSize": "number | undefined",
         "sortOrder": "\"asc\" | \"desc\" | undefined",
         "to_timestamp": "DateTime"

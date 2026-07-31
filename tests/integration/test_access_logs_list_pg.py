@@ -15,6 +15,7 @@ from advanced_alchemy.filters import (
 from sqlalchemy import or_, text
 
 from geometrikks.domain.logs.services import AccessLogService
+from geometrikks.server.timescale import refresh_caggs_range
 
 # Wall-clock-relative so seeds stay inside the raw-retention window (see conftest).
 NOW = datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0)
@@ -181,7 +182,7 @@ async def test_sort_by_status_ascending(pg_session_maker, clean_tables) -> None:
     assert [r.status_code for r in results] == [200, 404, 500]
 
 
-async def test_get_facets_distinct_sorted_and_null_free(pg_session_maker, clean_tables) -> None:
+async def test_get_facets_distinct_sorted_and_null_free(pg_session_maker, pg_engine, clean_tables) -> None:
     ts = NOW - timedelta(hours=1)
     # Two Oslo/NO rows -> must dedupe; one SE row; one row without geo data.
     await _insert(pg_session_maker, ts, "10.0.0.1",
@@ -192,6 +193,16 @@ async def test_get_facets_distinct_sorted_and_null_free(pg_session_maker, clean_
                   country_code="SE", country_name="Sweden", city="Stockholm")
     await _insert(pg_session_maker, ts, "10.0.0.4")
 
+    # Facets now read log_ip_daily_stats: refresh the window so stale
+    # materialized buckets from earlier tests are wiped (clean_tables only
+    # DELETEs raw rows) and the fresh seeds are materialized.
+    await refresh_caggs_range(
+        pg_engine,
+        start=NOW - timedelta(days=1),
+        end=NOW + timedelta(hours=1),
+        caggs=["log_ip_daily_stats"],
+    )
+
     async with pg_session_maker() as session:
         facets = await AccessLogService(session=session).get_facets()
 
@@ -199,11 +210,21 @@ async def test_get_facets_distinct_sorted_and_null_free(pg_session_maker, clean_
     assert facets.cities == ["Oslo", "Stockholm"]
 
 
-async def test_get_facets_dedupes_by_code_preferring_non_null_name(pg_session_maker, clean_tables) -> None:
+async def test_get_facets_dedupes_by_code_preferring_non_null_name(pg_session_maker, pg_engine, clean_tables) -> None:
     ts = NOW - timedelta(hours=1)
     # Same code with and without a name -> one entry, named variant wins.
     await _insert(pg_session_maker, ts, "10.0.0.1", country_code="NO")
     await _insert(pg_session_maker, ts, "10.0.0.2", country_code="NO", country_name="Norway")
+
+    # Facets now read log_ip_daily_stats: refresh the window so stale
+    # materialized buckets from earlier tests are wiped (clean_tables only
+    # DELETEs raw rows) and the fresh seeds are materialized.
+    await refresh_caggs_range(
+        pg_engine,
+        start=NOW - timedelta(days=1),
+        end=NOW + timedelta(hours=1),
+        caggs=["log_ip_daily_stats"],
+    )
 
     async with pg_session_maker() as session:
         facets = await AccessLogService(session=session).get_facets()
@@ -211,8 +232,18 @@ async def test_get_facets_dedupes_by_code_preferring_non_null_name(pg_session_ma
     assert [(c.code, c.name) for c in facets.countries] == [("NO", "Norway")]
 
 
-async def test_get_facets_falls_back_to_code_when_name_missing(pg_session_maker, clean_tables) -> None:
+async def test_get_facets_falls_back_to_code_when_name_missing(pg_session_maker, pg_engine, clean_tables) -> None:
     await _insert(pg_session_maker, NOW - timedelta(hours=1), "10.0.0.5", country_code="DE")
+
+    # Facets now read log_ip_daily_stats: refresh the window so stale
+    # materialized buckets from earlier tests are wiped (clean_tables only
+    # DELETEs raw rows) and the fresh seeds are materialized.
+    await refresh_caggs_range(
+        pg_engine,
+        start=NOW - timedelta(days=1),
+        end=NOW + timedelta(hours=1),
+        caggs=["log_ip_daily_stats"],
+    )
 
     async with pg_session_maker() as session:
         facets = await AccessLogService(session=session).get_facets()
@@ -241,10 +272,18 @@ async def test_country_and_city_collection_filters_narrow_results(pg_session_mak
     assert total_city == 1 and str(by_city[0].ip_address) == "10.0.0.2"
 
 
-async def test_facets_lists_distinct_hosts(pg_session_maker, clean_tables) -> None:
+async def test_facets_lists_distinct_hosts(pg_engine, pg_session_maker, clean_tables) -> None:
     await _insert(pg_session_maker, NOW - timedelta(hours=1), "10.0.0.1", host="b.example.com")
     await _insert(pg_session_maker, NOW - timedelta(hours=1), "10.0.0.2", host="a.example.com")
     await _insert(pg_session_maker, NOW - timedelta(hours=1), "10.0.0.3", host="b.example.com")
+    # Hosts now read host_daily_stats: refresh the window so stale materialized
+    # buckets from earlier tests are wiped (clean_tables only DELETEs raw rows).
+    await refresh_caggs_range(
+        pg_engine,
+        start=NOW - timedelta(days=1),
+        end=NOW + timedelta(hours=1),
+        caggs=["host_daily_stats"],
+    )
     async with pg_session_maker() as session:
         facets = await AccessLogService(session=session).get_facets()
     # Deduped and alphabetical.

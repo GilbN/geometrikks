@@ -25,8 +25,8 @@ jobs:
           --health-cmd "pg_isready -U geouser -d geometrikks"
           --health-interval 5s --health-timeout 5s --health-retries 10
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v5
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
       - name: Sync dependencies
@@ -45,10 +45,175 @@ jobs:
 
   frontend:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      timescaledb:
+        image: timescale/timescaledb-ha:pg18
+        env:
+          POSTGRES_USER: geouser
+          POSTGRES_PASSWORD: geopass
+          POSTGRES_DB: geometrikks
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U geouser -d geometrikks"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      SMOKE_IMAGE: geometrikks:ci
+      SMOKE_BASE_URL: http://127.0.0.1:8000
+      SMOKE_ADMIN_USER: admin
+      # Deliberately disposable and non-secret: Playwright traces are uploaded.
+      SMOKE_ADMIN_PASSWORD: ci-smoke-password
+      SMOKE_ARTIFACT_NAME: container-smoke-${{ github.run_attempt }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2
       - name: Install
         run: bun install --frozen-lockfile
-      - name: Build (vite + tsc)
-        run: bun run build
+      - name: Run frontend tests
+        run: bun run test
+      - name: Test PR smoke summary helper
+        run: node --test .github/scripts/pr-smoke-summary.test.cjs
+      - uses: docker/setup-buildx-action@v3
+      # The step names from here through "Upload smoke artifacts" are
+      # referenced verbatim by .github/scripts/pr-smoke-summary.cjs; renaming
+      # one silently shows it as "not run" in the sticky PR comment.
+      - name: Build production image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          load: true
+          tags: ${{ env.SMOKE_IMAGE }}
+          build-args: |
+            APP_IMAGE_TAG=ci-${{ github.sha }}
+          cache-from: type=gha,scope=container-smoke
+          cache-to: type=gha,mode=max,scope=container-smoke
+      # npx/npm here is deliberate in this otherwise-bun repo: the Playwright
+      # test runner only supports the Node runtime, and bun re-executes
+      # node-shebang bins under bun.
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+      - name: Prepare smoke-test fixtures
+        shell: bash
+        run: |
+          set -euo pipefail
+          fixture_dir="${RUNNER_TEMP}/geometrikks-smoke/geoip"
+          mkdir -p "${fixture_dir}" smoke-artifacts
+          cp tests/GeoLite2-City-Test.mmdb "${fixture_dir}/GeoLite2-City.mmdb"
+          echo "SMOKE_GEOIP_DIR=${fixture_dir}" >> "${GITHUB_ENV}"
+      - name: Start production image
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --detach \
+            --name geometrikks-smoke \
+            --publish 127.0.0.1:8000:8000 \
+            --add-host host.docker.internal:host-gateway \
+            --health-interval 2s \
+            --volume "${SMOKE_GEOIP_DIR}:/app/data/geoip" \
+            --env DB_HOST=host.docker.internal \
+            --env DB_PORT=5432 \
+            --env DB_USER=geouser \
+            --env DB_PASSWORD=geopass \
+            --env DB_NAME=geometrikks \
+            --env APP_ADMIN_USER="${SMOKE_ADMIN_USER}" \
+            --env APP_ADMIN_PASSWORD="${SMOKE_ADMIN_PASSWORD}" \
+            --env MAP_AUTO_DETECT_HOME=false \
+            "${SMOKE_IMAGE}"
+      - name: Run HTTP smoke checks
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          ready=false
+          for _ in {1..60}; do
+            if curl --fail --silent --show-error \
+              "${SMOKE_BASE_URL}/health/ready" \
+              > smoke-artifacts/readiness.json; then
+              ready=true
+              break
+            fi
+            sleep 1
+          done
+          if [[ "${ready}" != "true" ]]; then
+            echo "Application did not become ready within 60 seconds."
+            exit 1
+          fi
+
+          docker_health=""
+          for _ in {1..20}; do
+            docker_health="$(docker inspect --format '{{.State.Health.Status}}' geometrikks-smoke)"
+            if [[ "${docker_health}" == "healthy" ]]; then
+              break
+            fi
+            if [[ "${docker_health}" == "unhealthy" ]]; then
+              echo "Docker health check reported unhealthy."
+              exit 1
+            fi
+            sleep 1
+          done
+          if [[ "${docker_health}" != "healthy" ]]; then
+            echo "Docker health check did not become healthy."
+            exit 1
+          fi
+
+          curl --fail --silent --show-error "${SMOKE_BASE_URL}/health" \
+            | tee smoke-artifacts/health.json \
+            | python3 -c 'import json, sys; body = json.load(sys.stdin); assert body["status"] == "healthy", body; assert body["database"]["reachable"] is True, body; assert body["geoip"]["available"] is True, body; assert body["ingestion"]["running"] is True, body'
+
+          curl --fail --silent --show-error "${SMOKE_BASE_URL}/" \
+            > smoke-artifacts/index.html
+          grep --quiet '<title>GeoMetrikks</title>' smoke-artifacts/index.html
+
+          unauthenticated_status="$(
+            curl --silent --show-error --output /dev/null --write-out '%{http_code}' \
+              "${SMOKE_BASE_URL}/api/v1/auth/me"
+          )"
+          if [[ "${unauthenticated_status}" != "401" ]]; then
+            echo "Expected unauthenticated API status 401, got ${unauthenticated_status}."
+            exit 1
+          fi
+      - name: Run browser smoke test
+        run: npm run test:smoke
+      - name: Write smoke-test summary
+        if: always()
+        shell: bash
+        env:
+          SMOKE_JOB_STATUS: ${{ job.status }}
+        run: |
+          {
+            echo "## Production image smoke test"
+            echo
+            echo "| Check | Result |"
+            echo "| --- | --- |"
+            echo "| Overall result | ${SMOKE_JOB_STATUS} |"
+            if [[ "${SMOKE_JOB_STATUS}" == "success" ]]; then
+              echo "| Docker health | healthy |"
+              echo "| Database readiness | ready |"
+              echo "| GeoIP fixture and ingestion | healthy |"
+              echo "| Authentication and dashboard | passed |"
+              echo "| Browser console/network errors | none |"
+            fi
+            echo
+            echo "Diagnostics and screenshots: artifact \`${SMOKE_ARTIFACT_NAME}\`."
+          } >> "${GITHUB_STEP_SUMMARY}"
+      - name: Collect smoke-test diagnostics
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p smoke-artifacts
+          docker inspect --format '{{json .State}}' geometrikks-smoke \
+            > smoke-artifacts/container-state.json 2>&1 || true
+          docker logs geometrikks-smoke \
+            > smoke-artifacts/container.log 2>&1 || true
+      - name: Upload smoke artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.SMOKE_ARTIFACT_NAME }}
+          path: smoke-artifacts
+          if-no-files-found: warn
+          retention-days: 14
+      - name: Stop production image
+        if: always()
+        run: docker rm --force geometrikks-smoke 2>/dev/null || true
