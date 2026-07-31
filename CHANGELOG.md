@@ -20,6 +20,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The Geo Events by Location and IP table gained a Last seen column showing
   each (location, IP) pair's most recent event (day-granular on ranges over
   24 hours).
+- The Security page now shows a warning banner while the CrowdSec LAPI is
+  unreachable and keeps the last known decisions and alerts visible instead
+  of hanging on loading skeletons. Reachability changes are pushed live over
+  the CrowdSec WebSocket feed, reported in /health, and flagged with a
+  warning dot on the Security sidebar item.
+- Ban and unban actions now show an error toast when they fail (for example
+  while the LAPI is down) instead of failing silently.
 
 ### Changed
 
@@ -71,6 +78,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   asset request still in flight during login (the PWA precaches many at once)
   could overwrite the fresh session with stale logged-out data and the next
   API call would 401.
+- A failing CrowdSec stats request no longer hides the entire Security stat
+  card row behind permanent loading skeletons, and the decisions table no
+  longer claims "No active decisions" when the decision list could not be
+  fetched.
+- /api/v1/crowdsec/status no longer performs a live LAPI probe on every
+  request (which could block for the full request timeout); it reads the
+  stream poller's cached reachability instead.
 
 ## [0.5.0] - 2026-07-25
 
