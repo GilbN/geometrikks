@@ -44,7 +44,7 @@ export function DecisionsTable() {
   const [pageSize, setPageSize] = useState<number>(10)
   const origins = ORIGIN_SCOPES.find((s) => s.key === scope)?.origins
 
-  const { data, isLoading, isPlaceholderData } = useCrowdsecDecisions({
+  const { data, isLoading, isError, isPlaceholderData } = useCrowdsecDecisions({
     origins,
     currentPage: page,
     pageSize,
@@ -168,7 +168,17 @@ export function DecisionsTable() {
                       )}
                     </TableRow>
                   ))}
-              {!isLoading && total === 0 && (
+              {!isLoading && isError && !data && (
+                <TableRow>
+                  <TableCell
+                    colSpan={colCount}
+                    className="h-24 text-center text-destructive"
+                  >
+                    Failed to load decisions; the CrowdSec LAPI may be unreachable.
+                  </TableCell>
+                </TableRow>
+              )}
+              {!isLoading && !isError && total === 0 && (
                 <TableRow>
                   <TableCell
                     colSpan={colCount}

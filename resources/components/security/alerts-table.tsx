@@ -27,7 +27,7 @@ type SinceKey = (typeof SINCE_OPTIONS)[number]["key"]
 
 export function AlertsTable() {
   const [since, setSince] = useState<SinceKey>("24h")
-  const { data: alerts, isLoading } = useCrowdsecAlerts({ since, limit: 50 })
+  const { data: alerts, isLoading, isError } = useCrowdsecAlerts({ since, limit: 50 })
 
   return (
     <Card className="py-4">
@@ -99,7 +99,14 @@ export function AlertsTable() {
                       </TableCell>
                     </TableRow>
                   ))}
-              {!isLoading && alerts?.length === 0 && (
+              {!isLoading && isError && !alerts && (
+                <TableRow>
+                  <TableCell colSpan={8} className="h-24 text-center text-destructive">
+                    Failed to load alerts; the CrowdSec LAPI may be unreachable.
+                  </TableCell>
+                </TableRow>
+              )}
+              {!isLoading && !isError && alerts?.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={8} className="h-24 text-center text-muted-foreground">
                     No alerts in this window.
