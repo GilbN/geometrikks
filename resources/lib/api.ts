@@ -102,6 +102,7 @@ export interface HealthResponse {
   ingestion: HealthIngestionStatus
   database: { reachable: boolean }
   geoip: { available: boolean }
+  crowdsec: { enabled: boolean; lapi_reachable: boolean | null }
   timestamp: string
 }
 
