@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-07-31
+
 ### Added
 
 - Settings gained a Status tab (now the first tab) showing per-component
@@ -553,9 +555,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Settings endpoint no longer exposes the full settings tree (database credentials leaked via `model_dump()`); response is now an explicit whitelist.
 - Timestamps in `CALL refresh_continuous_aggregate` are bound as asyncpg parameters instead of interpolated into SQL.
 
-[Unreleased]: https://github.com/GilbN/geometrikks/compare/v0.4.3...HEAD
-[0.1.0]: https://github.com/GilbN/geometrikks/compare/v0.1.0-alpha.1...v0.1.0
+[Unreleased]: https://github.com/GilbN/geometrikks/compare/v0.6.0...HEAD
 [0.1.0-alpha.1]: https://github.com/GilbN/geometrikks/releases/tag/v0.1.0-alpha.1
+[0.1.0]: https://github.com/GilbN/geometrikks/compare/v0.1.0-alpha.1...v0.1.0
 [0.2.0]: https://github.com/GilbN/geometrikks/releases/tag/v0.2.0
 [0.2.1]: https://github.com/GilbN/geometrikks/releases/tag/v0.2.1
 [0.3.0]: https://github.com/GilbN/geometrikks/releases/tag/v0.3.0
@@ -563,3 +565,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [0.4.1]: https://github.com/GilbN/geometrikks/releases/tag/v0.4.1
 [0.4.2]: https://github.com/GilbN/geometrikks/releases/tag/v0.4.2
 [0.4.3]: https://github.com/GilbN/geometrikks/releases/tag/v0.4.3
+[0.5.0]: https://github.com/GilbN/geometrikks/releases/tag/v0.5.0
+[0.6.0]: https://github.com/GilbN/geometrikks/releases/tag/v0.6.0
