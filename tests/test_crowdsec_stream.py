@@ -57,7 +57,10 @@ async def test_first_poll_is_startup_and_silent():
 
     await poller.poll()
     assert respond.calls[0]["params"] == {"startup": "true"}
-    assert queue.empty()  # startup snapshot is state, not news
+    # The reachability transition (None -> True) broadcasts, the startup
+    # decision snapshot does not: it is state, not news.
+    assert queue.get_nowait() == {"type": "crowdsec_status", "lapi_reachable": True}
+    assert queue.empty()
     await service.aclose()
 
 
@@ -82,6 +85,7 @@ async def test_later_polls_broadcast_ip_deltas():
     await poller.poll()
     assert respond.calls[1]["params"] == {}
 
+    assert queue.get_nowait()["type"] == "crowdsec_status"  # first-poll transition
     frame = queue.get_nowait()
     assert frame["type"] == "crowdsec_decisions"
     # Range-scope decisions are not badgeable; only Ip values broadcast
@@ -100,6 +104,7 @@ async def test_empty_delta_broadcasts_nothing():
     queue = poller.subscribe()
     await poller.poll()
     await poller.poll()
+    assert queue.get_nowait()["type"] == "crowdsec_status"  # first-poll transition
     assert queue.empty()
     await service.aclose()
 
@@ -112,6 +117,54 @@ async def test_poll_survives_lapi_errors():
     poller = make_poller(service)
     queue = poller.subscribe()
     await poller.poll()  # must not raise
+    assert queue.get_nowait() == {"type": "crowdsec_status", "lapi_reachable": False}
+    assert queue.empty()
+    await service.aclose()
+
+
+def flaky_responder(failures: int, payload: dict):
+    """Raise ConnectError for the first `failures` calls, then return payload."""
+    calls = {"n": 0}
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        calls["n"] += 1
+        if calls["n"] <= failures:
+            raise httpx.ConnectError("boom")
+        return httpx.Response(200, json=payload)
+
+    return respond
+
+
+async def test_poller_tracks_reachability_state():
+    respond = flaky_responder(1, {"new": None, "deleted": None})
+    service = make_service(respond)
+    poller = make_poller(service)
+    assert poller.lapi_reachable is None
+    assert poller.last_success is None
+
+    await poller.poll()  # fails
+    assert poller.lapi_reachable is False
+    assert poller.last_success is None
+
+    await poller.poll()  # succeeds
+    assert poller.lapi_reachable is True
+    assert poller.last_success is not None
+    await service.aclose()
+
+
+async def test_status_frame_only_on_transitions():
+    # fail, fail, succeed -> exactly two status frames: False then True
+    respond = flaky_responder(2, {"new": None, "deleted": None})
+    service = make_service(respond)
+    poller = make_poller(service)
+    queue = poller.subscribe()
+
+    await poller.poll()
+    await poller.poll()
+    await poller.poll()
+
+    assert queue.get_nowait() == {"type": "crowdsec_status", "lapi_reachable": False}
+    assert queue.get_nowait() == {"type": "crowdsec_status", "lapi_reachable": True}
     assert queue.empty()
     await service.aclose()
 
