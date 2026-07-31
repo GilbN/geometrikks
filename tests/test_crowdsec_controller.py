@@ -535,3 +535,38 @@ async def test_banned_locations_defaults_to_no_window():
 async def test_banned_locations_404_when_disabled():
     async with AsyncTestClient(app=make_app(None)) as client:
         assert (await client.get("/api/v1/crowdsec/banned-locations")).status_code == 404
+
+
+# -- poller state fallback --------------------------------------------------
+
+
+class StubPoller:
+    def __init__(self, lapi_reachable: bool | None) -> None:
+        self.lapi_reachable = lapi_reachable
+
+
+class PingBomb(FakeCrowdSec):
+    async def ping(self) -> bool:
+        raise AssertionError("ping must not be called when poller state exists")
+
+
+async def test_status_uses_poller_state_without_ping(monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("CROWDSEC_LAPI_URL", "http://crowdsec:8080")
+    monkeypatch.setenv("CROWDSEC_BOUNCER_API_KEY", "key")
+    app = make_app(PingBomb([]))
+    app.state.crowdsec_stream_poller = StubPoller(lapi_reachable=False)
+    async with AsyncTestClient(app=app) as client:
+        resp = await client.get("/api/v1/crowdsec/status")
+    assert resp.json()["lapi_reachable"] is False
+
+
+async def test_status_falls_back_to_ping_before_first_poll(monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("CROWDSEC_LAPI_URL", "http://crowdsec:8080")
+    monkeypatch.setenv("CROWDSEC_BOUNCER_API_KEY", "key")
+    app = make_app(FakeCrowdSec([], reachable=True))
+    app.state.crowdsec_stream_poller = StubPoller(lapi_reachable=None)
+    async with AsyncTestClient(app=app) as client:
+        resp = await client.get("/api/v1/crowdsec/status")
+    assert resp.json()["lapi_reachable"] is True

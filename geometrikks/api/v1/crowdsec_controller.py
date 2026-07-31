@@ -191,17 +191,24 @@ class CrowdSecController(Controller):
 
     @get("/status")
     async def get_status(
-        self, crowdsec: NamedDependency[CrowdSecService | None]
+        self, crowdsec: NamedDependency[CrowdSecService | None], request: Request
     ) -> CrowdSecStatusResponse:
         """Integration state; the frontend gates the security page on this."""
         if crowdsec is None:
             return CrowdSecStatusResponse(
                 enabled=False, write_enabled=False, lapi_reachable=False
             )
+        # The stream poller probes the LAPI every poll interval; its cached
+        # verdict avoids a live ping per status request (which can block for
+        # the full request timeout against a black-holed host). Live ping
+        # remains the fallback when the poller is absent (DB-degraded mode)
+        # or has not completed a poll yet.
+        poller = getattr(request.app.state, "crowdsec_stream_poller", None)
+        cached: bool | None = poller.lapi_reachable if poller is not None else None
         return CrowdSecStatusResponse(
             enabled=True,
             write_enabled=get_settings().crowdsec.write_enabled,
-            lapi_reachable=await crowdsec.ping(),
+            lapi_reachable=cached if cached is not None else await crowdsec.ping(),
         )
 
     @get("/decisions")
