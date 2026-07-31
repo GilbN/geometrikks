@@ -110,15 +110,15 @@ async def crowdsec_feed(socket: WebSocket) -> None:
     queue = poller.subscribe()
     logger.info("ws_client_connected", endpoint="/ws/crowdsec")
 
-    # A freshly loaded page must not wait for the next reachability
-    # transition to learn the current state.
-    if poller.lapi_reachable is not None:
-        await socket.send_json(
-            {"type": "crowdsec_status", "lapi_reachable": poller.lapi_reachable}
-        )
-
     watcher = asyncio.create_task(_watch_disconnect(socket))
     try:
+        # A freshly loaded page must not wait for the next reachability
+        # transition to learn the current state.
+        if poller.lapi_reachable is not None:
+            await socket.send_json(
+                {"type": "crowdsec_status", "lapi_reachable": poller.lapi_reachable}
+            )
+
         loop = asyncio.get_running_loop()
         last_send = loop.time()
         while not watcher.done():

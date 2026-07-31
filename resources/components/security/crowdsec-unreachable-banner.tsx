@@ -10,7 +10,7 @@ export function CrowdsecUnreachableBanner() {
   const { data: status } = useCrowdsecStatus()
   if (!status?.enabled || status.lapi_reachable) return null
   return (
-    <div className="flex items-center gap-2 rounded-md border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive">
+    <div role="alert" className="flex items-center gap-2 rounded-md border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive">
       <AlertTriangle className="h-4 w-4 shrink-0" />
       <span>
         CrowdSec LAPI is unreachable. Showing last known data; bans and

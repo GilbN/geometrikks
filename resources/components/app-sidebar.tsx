@@ -507,6 +507,7 @@ export function AppSidebar() {
     queryKey: ["health"],
     queryFn: fetchHealth,
     refetchInterval: 30000,
+    retry: 1,
   })
   const crowdsecDown =
     health?.crowdsec?.enabled === true && health.crowdsec.lapi_reachable === false
