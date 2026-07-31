@@ -1,6 +1,8 @@
 """/health is liveness (always 200); /health/ready is readiness (503 without DB)."""
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 from litestar import Litestar
 from litestar.testing import TestClient
 
@@ -45,3 +47,28 @@ def test_ready_200_when_db_reachable(monkeypatch):
         res = client.get("/health/ready")
         assert res.status_code == 200
         assert res.json() == {"ready": True}
+
+
+def test_health_crowdsec_disabled_by_default(monkeypatch):
+    async def db_up(timeout: float = 2.0) -> bool:
+        return True
+    monkeypatch.setattr(health_module, "_database_reachable", db_up)
+
+    with TestClient(app=make_app()) as client:
+        body = client.get("/health").json()
+    assert body["crowdsec"] == {"enabled": False, "lapi_reachable": None}
+
+
+def test_health_crowdsec_enabled_and_down(monkeypatch):
+    async def db_up(timeout: float = 2.0) -> bool:
+        return True
+    monkeypatch.setattr(health_module, "_database_reachable", db_up)
+
+    app = make_app()
+    app.state.crowdsec_service = object()
+    app.state.crowdsec_stream_poller = SimpleNamespace(lapi_reachable=False)
+    with TestClient(app=app) as client:
+        body = client.get("/health").json()
+    assert body["crowdsec"] == {"enabled": True, "lapi_reachable": False}
+    # CrowdSec being down must not degrade the app status by itself
+    assert body["status"] == "degraded"  # degraded because no ingestion in make_app

@@ -48,6 +48,8 @@ async def health(
     is_running = ingestion_service.is_running if ingestion_service else False
     db_reachable = await _database_reachable()
 
+    poller = getattr(request.app.state, "crowdsec_stream_poller", None)
+
     return {
         # geoip does not flip status on its own: without a GeoLite2 database
         # file, ingestion refuses to start and ingestion.running reflects that.
@@ -59,6 +61,13 @@ async def health(
         },
         "database": {"reachable": db_reachable},
         "geoip": {"available": getattr(request.app.state, "geoip_available", True)},
+        # CrowdSec is an optional integration: a down LAPI never flips
+        # `status`. lapi_reachable is the stream poller's cached verdict;
+        # null when disabled, DB-degraded, or before the first poll.
+        "crowdsec": {
+            "enabled": getattr(request.app.state, "crowdsec_service", None) is not None,
+            "lapi_reachable": poller.lapi_reachable if poller is not None else None,
+        },
         "timestamp": datetime.now(timezone.utc).isoformat(),
     }
 

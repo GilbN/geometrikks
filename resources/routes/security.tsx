@@ -3,6 +3,7 @@ import { ShieldBan } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { AlertsTable } from "@/components/security/alerts-table"
+import { CrowdsecUnreachableBanner } from "@/components/security/crowdsec-unreachable-banner"
 import { DecisionsTable } from "@/components/security/decisions-table"
 import { SecurityStatCards } from "@/components/security/security-stat-cards"
 import { useCrowdsecLiveUpdates, useCrowdsecStatus } from "@/lib/queries"
@@ -12,7 +13,7 @@ export const Route = createFileRoute("/security")({
 })
 
 function SecurityPage() {
-  const { data: status, isLoading } = useCrowdsecStatus()
+  const { data: status, isLoading, isError } = useCrowdsecStatus()
   useCrowdsecLiveUpdates()
 
   if (isLoading) {
@@ -24,7 +25,20 @@ function SecurityPage() {
     )
   }
 
-  if (!status?.enabled) {
+  // A failed status request means the GeoMetrikks backend itself is
+  // unreachable or erroring, which is not "integration not configured".
+  if (isError || !status) {
+    return (
+      <div className="p-4">
+        <div role="alert" className="rounded-md border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive">
+          Failed to load CrowdSec status from the GeoMetrikks backend. It will
+          retry automatically.
+        </div>
+      </div>
+    )
+  }
+
+  if (!status.enabled) {
     return (
       <div className="p-4">
         <Card>
@@ -45,6 +59,7 @@ function SecurityPage() {
 
   return (
     <div className="p-4 space-y-4">
+      <CrowdsecUnreachableBanner />
       <SecurityStatCards />
       <DecisionsTable />
       {status.write_enabled && <AlertsTable />}

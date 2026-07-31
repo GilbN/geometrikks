@@ -53,12 +53,18 @@ import {
   type AccessLogFacets,
   type AccessLogSortField,
   type SortOrder,
+  type CrowdSecStatusResponse,
   fetchAccessLogDebug,
   fetchAccessLogDebugStats,
   type AccessLogDebugPage,
   type AccessLogDebugSortField,
   type AccessLogDebugStats,
 } from "./api"
+import {
+  applyBannedIpsDelta,
+  applyStatusFrame,
+  parseCrowdsecFrame,
+} from "./crowdsec-live"
 import { apiV1LogsFilesListFiles, apiV1LogsTailTail } from "@/generated/api/sdk.gen"
 import { useTimeRange } from "./time-range-context"
 import { useAnalyticsFilters } from "./analytics-filters-context"
@@ -197,12 +203,15 @@ export function useAbout() {
 // CrowdSec
 // ============================================================================
 
-/** Whether the CrowdSec integration is configured; gates all CrowdSec UI. */
+/** Whether the CrowdSec integration is configured; gates all CrowdSec UI.
+ *  The 30s poll is a safety net for blocked WebSockets; live reachability
+ *  changes arrive over /ws/crowdsec and are patched into this cache. */
 export function useCrowdsecStatus() {
   return useQuery({
     queryKey: queryKeys.crowdsec.status,
     queryFn: fetchCrowdsecStatus,
     staleTime: 60_000,
+    refetchInterval: 30_000,
   })
 }
 
@@ -305,17 +314,11 @@ export function useUnbanIp() {
   })
 }
 
-/** Ban/unban delta pushed on /ws/crowdsec by the decision-stream poller. */
-interface CrowdsecDecisionsFrame {
-  type: "crowdsec_decisions"
-  added: { ip: string; origin: string; scenario: string; duration: string }[]
-  deleted: { ip: string; origin: string }[]
-}
-
-/** Live badge updates: subscribes to /ws/crowdsec while the integration is
- *  enabled and patches the cached banned-IP list on each delta, so badges
- *  react within the stream-poll interval instead of the 60s refetch.
- *  Reconnects with capped exponential backoff, same policy as /ws/live. */
+/** Live badge + reachability updates: subscribes to /ws/crowdsec while the
+ *  integration is enabled, patches the cached banned-IP list on each delta,
+ *  and patches cached /crowdsec/status on reachability frames (invalidating
+ *  all CrowdSec queries on recovery). Reconnects with capped exponential
+ *  backoff, same policy as /ws/live. */
 export function useCrowdsecLiveUpdates() {
   const { data: status } = useCrowdsecStatus()
   const queryClient = useQueryClient()
@@ -332,29 +335,30 @@ export function useCrowdsecLiveUpdates() {
       const proto = window.location.protocol === "https:" ? "wss" : "ws"
       ws = new WebSocket(`${proto}://${window.location.host}/ws/crowdsec`)
       ws.onmessage = (msg) => {
-        // The server only ever sends JSON text frames; ignore anything else
-        // (a Blob/ArrayBuffer or malformed payload) rather than throwing.
-        if (typeof msg.data !== "string") return
-        let frame: CrowdsecDecisionsFrame
-        try {
-          frame = JSON.parse(msg.data) as CrowdsecDecisionsFrame
-        } catch {
-          return
-        }
-        if (frame.type !== "crowdsec_decisions") return
+        const frame = parseCrowdsecFrame(msg.data)
+        if (!frame) return
         // Reset backoff only on a valid frame, not onopen: the server accepts
         // and immediately closes 1013 while the poller is down, so an onopen
         // reset would pin the reconnect loop at the 1s floor.
         retryMs = 1000
+        if (frame.type === "crowdsec_status") {
+          const previous = queryClient.getQueryData<CrowdSecStatusResponse>(
+            queryKeys.crowdsec.status,
+          )
+          queryClient.setQueryData<CrowdSecStatusResponse>(
+            queryKeys.crowdsec.status,
+            (status) => applyStatusFrame(status, frame),
+          )
+          // Recovery: refetch decisions/alerts/stats immediately so the page
+          // leaves its stale state without waiting for the 60s intervals.
+          if (frame.lapi_reachable && previous?.lapi_reachable === false) {
+            queryClient.invalidateQueries({ queryKey: ["crowdsec"] })
+          }
+          return
+        }
         queryClient.setQueryData<string[]>(
           queryKeys.crowdsec.bannedIps,
-          (ips) => {
-            if (!ips) return ips
-            const next = new Set(ips)
-            for (const d of frame.added) next.add(d.ip)
-            for (const d of frame.deleted) next.delete(d.ip)
-            return [...next]
-          },
+          (ips) => applyBannedIpsDelta(ips, frame),
         )
       }
       ws.onclose = () => {
