@@ -510,6 +510,67 @@ export const CumulativeTimeSeriesResponseSchema = {
   type: "object",
 } as const;
 
+export const DatabaseInfoResponseSchema = {
+  properties: {
+    debug_retention_days: {
+      type: "integer",
+    },
+    hypertables: {
+      items: {
+        $ref: "#/components/schemas/HypertableStatsView",
+      },
+      type: "array",
+    },
+    postgres_version: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    reachable: {
+      type: "boolean",
+    },
+    retention_days: {
+      type: "integer",
+    },
+    size_bytes: {
+      oneOf: [
+        {
+          type: "integer",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    timescaledb_version: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+  },
+  required: [
+    "debug_retention_days",
+    "hypertables",
+    "postgres_version",
+    "reachable",
+    "retention_days",
+    "size_bytes",
+    "timescaledb_version",
+  ],
+  title: "DatabaseInfoResponse",
+  type: "object",
+} as const;
+
 export const DatabaseVersionsViewSchema = {
   properties: {
     postgis_version: {
@@ -1254,6 +1315,63 @@ export const GlobalTopIPsResponseSchema = {
   },
   required: [],
   title: "GlobalTopIPsResponse",
+  type: "object",
+} as const;
+
+export const HypertableStatsViewSchema = {
+  properties: {
+    after_compression_bytes: {
+      oneOf: [
+        {
+          type: "integer",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    approx_rows: {
+      oneOf: [
+        {
+          type: "integer",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    before_compression_bytes: {
+      oneOf: [
+        {
+          type: "integer",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    name: {
+      type: "string",
+    },
+    total_bytes: {
+      oneOf: [
+        {
+          type: "integer",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+  },
+  required: [
+    "after_compression_bytes",
+    "approx_rows",
+    "before_compression_bytes",
+    "name",
+    "total_bytes",
+  ],
+  title: "HypertableStatsView",
   type: "object",
 } as const;
 

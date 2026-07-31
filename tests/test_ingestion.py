@@ -242,6 +242,86 @@ async def test_missing_file_does_not_block_other_tails(tmp_path: Path) -> None:
 
 
 @pytest.mark.asyncio
+async def test_all_tails_dead_stops_service_and_clears_is_running(tmp_path: Path) -> None:
+    """When every tail task exits (all log files missing), the consumer must
+    shut down and is_running must flip to False so /health reports degraded.
+
+    DISABLE_WAIT=true (conftest) makes wait_for_path return immediately."""
+    missing = tmp_path / "missing.log"
+    service, _repos, _sessions = make_service([make_parser(missing)])
+
+    await service.start(skip_validation=True)
+    try:
+        await wait_until(lambda: not service.is_running)
+        assert not service.is_task_running
+    finally:
+        await service.stop(timeout=5.0)
+
+
+@pytest.mark.asyncio
+async def test_last_record_at_tracks_ingestion_activity(tmp_path: Path) -> None:
+    """last_record_at is None until a record is consumed, then a recent UTC
+    timestamp (surfaced in /health as the last-event-ingested signal)."""
+    from datetime import datetime, timezone
+
+    log_file = tmp_path / "a.log"
+    log_file.write_text("", encoding="utf-8")
+    service, _repos, _sessions = make_service([make_parser(log_file)])
+
+    assert service.last_record_at is None
+    await service.start(skip_validation=True)
+    await asyncio.sleep(0.1)
+    try:
+        before = datetime.now(timezone.utc)
+        append_line(log_file, make_log_line(TEST_DB_IPS[0]))
+        await wait_until(lambda: service.total_processed >= 1)
+        assert service.last_record_at is not None
+        assert service.last_record_at >= before
+        assert service.last_record_at.tzinfo is not None
+    finally:
+        await service.stop(timeout=5.0)
+
+
+@pytest.mark.asyncio
+async def test_mid_flight_file_deletion_flags_missing_and_recovers(tmp_path: Path, caplog) -> None:
+    """Deleting a tailed file mid-flight must not spam warnings or kill the
+    tailer: the parser flags file_missing (surfaced as service.missing_files
+    for /health), logs the disappearance once, keeps waiting, and resumes
+    when the file reappears (new inode -> rotation reopen path)."""
+    log_file = tmp_path / "a.log"
+    log_file.write_text("", encoding="utf-8")
+    parser = make_parser(log_file)
+    service, _repos, _sessions = make_service([parser])
+
+    await service.start(skip_validation=True)
+    await asyncio.sleep(0.1)  # let the tailer open the file
+    try:
+        append_line(log_file, make_log_line(TEST_DB_IPS[0]))
+        await wait_until(lambda: service.total_processed >= 1)
+
+        log_file.unlink()
+        await wait_until(lambda: parser.file_missing)
+        assert service.missing_files == [str(log_file)]
+        assert service.is_running  # waiting for the file, not dead
+
+        # Many poll intervals later the disappearance is still logged once.
+        await asyncio.sleep(0.3)
+        missing_logs = [
+            r for r in caplog.records if "no longer exists" in r.getMessage()
+        ]
+        assert len(missing_logs) == 1
+
+        # Reappearing file (new inode) resumes tailing and clears the flag.
+        log_file.write_text("", encoding="utf-8")
+        await wait_until(lambda: not parser.file_missing)
+        assert service.missing_files == []
+        append_line(log_file, make_log_line(TEST_DB_IPS[1]))
+        await wait_until(lambda: service.total_processed >= 2)
+    finally:
+        await service.stop(timeout=5.0)
+
+
+@pytest.mark.asyncio
 async def test_each_flush_uses_a_fresh_session(tmp_path: Path) -> None:
     """Two flush cycles → two distinct sessions, each committed and closed."""
     log_file = tmp_path / "a.log"

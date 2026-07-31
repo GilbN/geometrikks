@@ -23,6 +23,7 @@ import { Route as SettingsAboutRouteImport } from './routes/settings/about'
 import { Route as SettingsEnvironmentRouteImport } from './routes/settings/environment'
 import { Route as SettingsLogsRouteImport } from './routes/settings/logs'
 import { Route as SettingsSchedulerRouteImport } from './routes/settings/scheduler'
+import { Route as SettingsStatusRouteImport } from './routes/settings/status'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -94,6 +95,11 @@ const SettingsSchedulerRoute = SettingsSchedulerRouteImport.update({
   path: '/scheduler',
   getParentRoute: () => SettingsRoute,
 } as any)
+const SettingsStatusRoute = SettingsStatusRouteImport.update({
+  id: '/status',
+  path: '/status',
+  getParentRoute: () => SettingsRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -109,6 +115,7 @@ export interface FileRoutesByFullPath {
   '/settings/environment': typeof SettingsEnvironmentRoute
   '/settings/logs': typeof SettingsLogsRoute
   '/settings/scheduler': typeof SettingsSchedulerRoute
+  '/settings/status': typeof SettingsStatusRoute
   '/settings/': typeof SettingsIndexRoute
 }
 export interface FileRoutesByTo {
@@ -124,6 +131,7 @@ export interface FileRoutesByTo {
   '/settings/environment': typeof SettingsEnvironmentRoute
   '/settings/logs': typeof SettingsLogsRoute
   '/settings/scheduler': typeof SettingsSchedulerRoute
+  '/settings/status': typeof SettingsStatusRoute
   '/settings': typeof SettingsIndexRoute
 }
 export interface FileRoutesById {
@@ -141,6 +149,7 @@ export interface FileRoutesById {
   '/settings/environment': typeof SettingsEnvironmentRoute
   '/settings/logs': typeof SettingsLogsRoute
   '/settings/scheduler': typeof SettingsSchedulerRoute
+  '/settings/status': typeof SettingsStatusRoute
   '/settings/': typeof SettingsIndexRoute
 }
 export interface FileRouteTypes {
@@ -159,6 +168,7 @@ export interface FileRouteTypes {
     | '/settings/environment'
     | '/settings/logs'
     | '/settings/scheduler'
+    | '/settings/status'
     | '/settings/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -174,6 +184,7 @@ export interface FileRouteTypes {
     | '/settings/environment'
     | '/settings/logs'
     | '/settings/scheduler'
+    | '/settings/status'
     | '/settings'
   id:
     | '__root__'
@@ -190,6 +201,7 @@ export interface FileRouteTypes {
     | '/settings/environment'
     | '/settings/logs'
     | '/settings/scheduler'
+    | '/settings/status'
     | '/settings/'
   fileRoutesById: FileRoutesById
 }
@@ -305,6 +317,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsSchedulerRouteImport
       parentRoute: typeof SettingsRoute
     }
+    '/settings/status': {
+      id: '/settings/status'
+      path: '/status'
+      fullPath: '/settings/status'
+      preLoaderRoute: typeof SettingsStatusRouteImport
+      parentRoute: typeof SettingsRoute
+    }
   }
 }
 
@@ -313,6 +332,7 @@ interface SettingsRouteChildren {
   SettingsEnvironmentRoute: typeof SettingsEnvironmentRoute
   SettingsLogsRoute: typeof SettingsLogsRoute
   SettingsSchedulerRoute: typeof SettingsSchedulerRoute
+  SettingsStatusRoute: typeof SettingsStatusRoute
   SettingsIndexRoute: typeof SettingsIndexRoute
 }
 
@@ -321,6 +341,7 @@ const SettingsRouteChildren: SettingsRouteChildren = {
   SettingsEnvironmentRoute: SettingsEnvironmentRoute,
   SettingsLogsRoute: SettingsLogsRoute,
   SettingsSchedulerRoute: SettingsSchedulerRoute,
+  SettingsStatusRoute: SettingsStatusRoute,
   SettingsIndexRoute: SettingsIndexRoute,
 }
 

@@ -135,6 +135,8 @@ import type {
   ApiV1StatsStatsResponses,
   ApiV1SystemAboutGetAboutData,
   ApiV1SystemAboutGetAboutResponses,
+  ApiV1SystemDatabaseGetDatabaseInfoData,
+  ApiV1SystemDatabaseGetDatabaseInfoResponses,
   ApiV1SystemSchedulerJobsGetSchedulerJobsData,
   ApiV1SystemSchedulerJobsGetSchedulerJobsResponses,
   ApiV1SystemSchedulerJobsJobIdRunRunSchedulerJobData,
@@ -1483,6 +1485,34 @@ export const apiV1SystemAboutGetAbout = <ThrowOnError extends boolean = false>(
       },
     ],
     url: "/api/v1/system/about",
+    ...options,
+  });
+
+/**
+ * GetDatabaseInfo
+ */
+export const apiV1SystemDatabaseGetDatabaseInfo = <
+  ThrowOnError extends boolean = false,
+>(
+  options?: Options<ApiV1SystemDatabaseGetDatabaseInfoData, ThrowOnError>,
+): RequestResult<
+  ApiV1SystemDatabaseGetDatabaseInfoResponses,
+  unknown,
+  ThrowOnError
+> =>
+  (options?.client ?? client).get<
+    ApiV1SystemDatabaseGetDatabaseInfoResponses,
+    unknown,
+    ThrowOnError
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+    ],
+    url: "/api/v1/system/database",
     ...options,
   });
 

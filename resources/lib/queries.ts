@@ -32,6 +32,8 @@ import {
   fetchSystemSettings,
   fetchSchedulerJobs,
   fetchAbout,
+  fetchHealth,
+  fetchStats,
   fetchCrowdsecStatus,
   fetchCrowdsecBannedIps,
   fetchCrowdsecStats,
@@ -65,7 +67,12 @@ import {
   applyStatusFrame,
   parseCrowdsecFrame,
 } from "./crowdsec-live"
-import { apiV1LogsFilesListFiles, apiV1LogsTailTail } from "@/generated/api/sdk.gen"
+import {
+  apiV1LogsFilesListFiles,
+  apiV1LogsTailTail,
+  apiV1SystemDatabaseGetDatabaseInfo,
+} from "@/generated/api/sdk.gen"
+import type { LogRecord } from "./logstream"
 import { useTimeRange } from "./time-range-context"
 import { useAnalyticsFilters } from "./analytics-filters-context"
 import { useGeoLogFilters } from "./geo-log-filters-context"
@@ -80,6 +87,8 @@ export const queryKeys = {
     settings: ["system", "settings"] as const,
     schedulerJobs: ["system", "scheduler-jobs"] as const,
     about: ["system", "about"] as const,
+    stats: ["system", "stats"] as const,
+    database: ["system", "database"] as const,
   },
   crowdsec: {
     status: ["crowdsec", "status"] as const,
@@ -196,6 +205,38 @@ export function useAbout() {
     queryKey: queryKeys.system.about,
     queryFn: fetchAbout,
     staleTime: Number.POSITIVE_INFINITY,
+  })
+}
+
+/** Shares the ["health"] cache with the sidebar LiveIndicator's 10s poll. */
+export function useHealth() {
+  return useQuery({
+    queryKey: ["health"],
+    queryFn: fetchHealth,
+    refetchInterval: 10_000,
+    retry: 1,
+  })
+}
+
+/** Ingestion counters for the Status page; polls while mounted. */
+export function useStats() {
+  return useQuery({
+    queryKey: queryKeys.system.stats,
+    queryFn: fetchStats,
+    refetchInterval: 10_000,
+  })
+}
+
+/** Database size/version/hypertable stats for the Status page. Catalog
+ *  queries only, but still polled slowly. */
+export function useDatabaseInfo() {
+  return useQuery({
+    queryKey: queryKeys.system.database,
+    queryFn: async () => {
+      const { data } = await apiV1SystemDatabaseGetDatabaseInfo({ throwOnError: true })
+      return data
+    },
+    refetchInterval: 60_000,
   })
 }
 
@@ -1188,6 +1229,22 @@ export function useLogTail(lines = 500, source: "app" | "login" = "app") {
       return data.records
     },
     staleTime: Number.POSITIVE_INFINITY, // stream takes over after initial load
+  })
+}
+
+/** Recent app-log records for the Status page error panel. Raw records;
+ *  error filtering lives in status-logic so it stays unit-testable. */
+export function useRecentErrors() {
+  return useQuery({
+    queryKey: ["logs", "recent-errors"],
+    queryFn: async () => {
+      const { data } = await apiV1LogsTailTail({
+        query: { lines: 300, source: "app" },
+        throwOnError: true,
+      })
+      return data.records as LogRecord[]
+    },
+    refetchInterval: 15_000,
   })
 }
 
