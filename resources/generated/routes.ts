@@ -22,6 +22,7 @@ export type RouteName =
   | 'get_access_log_debug_stats'
   | 'get_access_log_facets'
   | 'get_cumulative_time_series'
+  | 'get_database_info'
   | 'get_geo_log_facets'
   | 'get_geo_log_summary'
   | 'get_geo_log_time_series'
@@ -86,6 +87,7 @@ export interface RoutePathParams {
   'get_access_log_debug_stats': Record<string, never>;
   'get_access_log_facets': Record<string, never>;
   'get_cumulative_time_series': Record<string, never>;
+  'get_database_info': Record<string, never>;
   'get_geo_log_facets': Record<string, never>;
   'get_geo_log_summary': Record<string, never>;
   'get_geo_log_time_series': Record<string, never>;
@@ -162,6 +164,7 @@ export interface RouteQueryParams {
     end_date: DateTime;
     start_date: DateTime;
   };
+  'get_database_info': Record<string, never>;
   'get_geo_log_facets': Record<string, never>;
   'get_geo_log_summary': {
     cityIn?: string[];
@@ -469,6 +472,13 @@ export const routeDefinitions = {
     method: 'get',
     pathParams: [] as const,
     queryParams: ['end_date', 'start_date'] as const,
+  },
+  'get_database_info': {
+    path: '/api/v1/system/database',
+    methods: ['GET'] as const,
+    method: 'get',
+    pathParams: [] as const,
+    queryParams: [] as const,
   },
   'get_geo_log_facets': {
     path: '/api/v1/geo-events/facets',

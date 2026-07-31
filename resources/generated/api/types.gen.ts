@@ -158,6 +158,19 @@ export type CumulativeTimeSeriesResponse = {
 };
 
 /**
+ * DatabaseInfoResponse
+ */
+export type DatabaseInfoResponse = {
+  debug_retention_days: number;
+  hypertables: Array<HypertableStatsView>;
+  postgres_version: string | null;
+  reachable: boolean;
+  retention_days: number;
+  size_bytes: number | null;
+  timescaledb_version: string | null;
+};
+
+/**
  * DatabaseVersionsView
  */
 export type DatabaseVersionsView = {
@@ -371,6 +384,17 @@ export type GeoLogTimeSeriesResponse = {
  */
 export type GlobalTopIpsResponse = {
   top_ips?: Array<TopIpdto>;
+};
+
+/**
+ * HypertableStatsView
+ */
+export type HypertableStatsView = {
+  after_compression_bytes: number | null;
+  approx_rows: number | null;
+  before_compression_bytes: number | null;
+  name: string;
+  total_bytes: number | null;
 };
 
 /**
@@ -2920,6 +2944,23 @@ export type ApiV1SystemAboutGetAboutResponses = {
 
 export type ApiV1SystemAboutGetAboutResponse =
   ApiV1SystemAboutGetAboutResponses[keyof ApiV1SystemAboutGetAboutResponses];
+
+export type ApiV1SystemDatabaseGetDatabaseInfoData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: "/api/v1/system/database";
+};
+
+export type ApiV1SystemDatabaseGetDatabaseInfoResponses = {
+  /**
+   * Request fulfilled, document follows
+   */
+  200: DatabaseInfoResponse;
+};
+
+export type ApiV1SystemDatabaseGetDatabaseInfoResponse =
+  ApiV1SystemDatabaseGetDatabaseInfoResponses[keyof ApiV1SystemDatabaseGetDatabaseInfoResponses];
 
 export type ApiV1SystemSchedulerJobsGetSchedulerJobsData = {
   body?: never;

@@ -201,3 +201,22 @@ async def test_system_settings_no_computed_home_when_absent():
     avail = next(f for f in sections["geoip"]["fields"] if f["key"] == "available")
     assert avail["computed_value"] is False
     assert avail["computed_source"] == "runtime"
+
+
+async def test_database_info_degraded_without_db(monkeypatch):
+    """/system/database renders nulls (not 500) when the DB is unreachable."""
+    def no_db():
+        raise RuntimeError("database unavailable")
+
+    monkeypatch.setattr("geometrikks.server.plugins.get_sqlalchemy_config", no_db)
+    async with AsyncTestClient(app=make_app(with_scheduler=False)) as client:
+        resp = await client.get("/api/v1/system/database")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["reachable"] is False
+    assert body["size_bytes"] is None
+    assert body["postgres_version"] is None
+    assert body["timescaledb_version"] is None
+    assert isinstance(body["retention_days"], int)
+    assert isinstance(body["debug_retention_days"], int)
+    assert body["hypertables"] == []
