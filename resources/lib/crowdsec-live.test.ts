@@ -25,6 +25,8 @@ describe("parseCrowdsecFrame", () => {
     expect(parseCrowdsecFrame(new ArrayBuffer(4))).toBeNull()
     expect(parseCrowdsecFrame("not json")).toBeNull()
     expect(parseCrowdsecFrame(JSON.stringify({ type: "batch", events: [] }))).toBeNull()
+    expect(parseCrowdsecFrame("null")).toBeNull()
+    expect(parseCrowdsecFrame("42")).toBeNull()
   })
 })
 

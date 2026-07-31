@@ -23,12 +23,14 @@ export type CrowdsecFrame = CrowdsecDecisionsFrame | CrowdsecStatusFrame
 /** Parse one raw WS message; null for non-JSON payloads or unknown types. */
 export function parseCrowdsecFrame(data: unknown): CrowdsecFrame | null {
   if (typeof data !== "string") return null
-  let frame: { type?: string }
+  let parsed: unknown
   try {
-    frame = JSON.parse(data) as { type?: string }
+    parsed = JSON.parse(data)
   } catch {
     return null
   }
+  if (typeof parsed !== "object" || parsed === null) return null
+  const frame = parsed as { type?: string }
   if (frame.type === "crowdsec_decisions" || frame.type === "crowdsec_status") {
     return frame as CrowdsecFrame
   }
