@@ -96,6 +96,8 @@ async def crowdsec_feed(socket: WebSocket) -> None:
 
     One JSON frame per delta:
       {"type": "crowdsec_decisions", "added": [...], "deleted": [...]}
+    LAPI reachability transitions (and one snapshot on connect):
+      {"type": "crowdsec_status", "lapi_reachable": bool}
     Auth: same session-authenticated handshake as /ws/live.
     """
     poller = getattr(socket.app.state, "crowdsec_stream_poller", None)
@@ -107,6 +109,14 @@ async def crowdsec_feed(socket: WebSocket) -> None:
 
     queue = poller.subscribe()
     logger.info("ws_client_connected", endpoint="/ws/crowdsec")
+
+    # A freshly loaded page must not wait for the next reachability
+    # transition to learn the current state.
+    if poller.lapi_reachable is not None:
+        await socket.send_json(
+            {"type": "crowdsec_status", "lapi_reachable": poller.lapi_reachable}
+        )
+
     watcher = asyncio.create_task(_watch_disconnect(socket))
     try:
         loop = asyncio.get_running_loop()

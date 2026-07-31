@@ -205,6 +205,8 @@ async def test_scheduler_registers_stream_poll_job(monkeypatch, tmp_path):
 class FakePoller:
     """subscribe/unsubscribe stub the WS handler can drive."""
 
+    lapi_reachable = None  # class attr: existing tests get no initial frame
+
     def __init__(self) -> None:
         import asyncio
 
@@ -267,3 +269,14 @@ def test_ws_closes_without_poller():
         with pytest.raises(WebSocketDisconnect):
             with client.websocket_connect("/ws/crowdsec") as ws:
                 ws.receive_json(timeout=2)
+
+
+def test_ws_sends_initial_status_frame():
+    from litestar.testing import TestClient
+
+    poller = FakePoller()
+    poller.lapi_reachable = False
+    with TestClient(app=make_ws_app(poller)) as client:
+        with client.websocket_connect("/ws/crowdsec") as ws:
+            frame = ws.receive_json(timeout=5)
+    assert frame == {"type": "crowdsec_status", "lapi_reachable": False}
