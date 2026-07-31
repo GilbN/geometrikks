@@ -9,6 +9,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Settings gained a Status tab (now the first tab) showing per-component
+  health: overall status with app uptime, ingestion state with
+  parse/skip/pending counters, a last-event-ingested freshness signal and
+  the tailed nginx access logs (flagging missing files), database
+  reachability, GeoIP database availability with database age and next
+  scheduled refresh, CrowdSec LAPI reachability with the active decision
+  count, a scheduler job snapshot, live feed connectivity, and a recent
+  errors panel from the application log. The sidebar health indicator now
+  links to it, so a "Degraded" state is explainable in one click.
+  (/health gained nullable started_at, ingestion.last_record_at and
+  geoip.db_modified_at fields to support this.)
+- The Status page Database card shows database size, PostgreSQL and
+  TimescaleDB versions, retention windows, per-hypertable approximate row
+  counts and sizes, and the overall compression ratio, served by a new
+  `GET /api/v1/system/database` endpoint backed by fast TimescaleDB catalog
+  queries.
 - Debug Logs and Geo Logs tables now show the Banned badge and ban/unban
   controls next to IP addresses, matching Access Logs and Alert History.
   The debug-line detail dialog shows them on its IP row as well.
@@ -49,6 +65,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Deleting a tailed log file while the app is running no longer logs a
+  "Could not stat log file" warning every second forever while /health keeps
+  reporting healthy. The disappearance is now logged once as an error, /health
+  reports the missing paths (ingestion.missing_files) with status degraded,
+  the sidebar indicator and the Status page show the condition, and tailing
+  still resumes automatically when the file reappears (log rotation included).
+  A file vanishing at the exact moment a line was read also no longer kills
+  the tail task.
+- /health no longer reports ingestion as running (and overall status as
+  healthy) when every tailed log file is missing: once all tail tasks have
+  given up waiting for their files, the ingestion service now shuts down and
+  health reports ingestion.running false with status degraded.
 - Map top-IP lists (global and per-location) no longer include events from
   outside the selected range on ranges over 24 hours: the window was
   previously floored to whole days, over-counting the partial first day.

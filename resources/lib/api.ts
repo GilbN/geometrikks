@@ -95,13 +95,19 @@ export interface HealthIngestionStatus {
   running: boolean
   parsed_lines: number
   pending_records: number
+  /** Tailed log files that disappeared mid-flight; ingestion waits for them. */
+  missing_files: string[]
+  /** Wall-clock of the most recent ingested record; null before the first. */
+  last_record_at: string | null
 }
 
 export interface HealthResponse {
   status: "healthy" | "degraded"
+  /** App start time; null in test harnesses without lifecycle startup. */
+  started_at: string | null
   ingestion: HealthIngestionStatus
   database: { reachable: boolean }
-  geoip: { available: boolean }
+  geoip: { available: boolean; db_modified_at: string | null }
   crowdsec: { enabled: boolean; lapi_reachable: boolean | null }
   timestamp: string
 }
@@ -195,6 +201,22 @@ export type {
  */
 export async function fetchHealth(): Promise<HealthResponse> {
   const { data } = await axios.get<HealthResponse>("/health")
+  return data
+}
+
+/** Ingestion counters from /api/v1/stats (untyped dict on the backend, so
+ *  the shape is pinned here; keep in sync with geometrikks/api/v1/stats.py). */
+export interface StatsResponse {
+  total_parsed_lines: number
+  total_skipped_lines: number
+  total_pending_records: number
+  total_ignored_lines: number
+  total_processed: number
+  is_running: boolean
+}
+
+export async function fetchStats(): Promise<StatsResponse> {
+  const { data } = await api.get<StatsResponse>("/stats")
   return data
 }
 

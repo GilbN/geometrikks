@@ -234,11 +234,12 @@ function LiveIndicator({ collapsed }: { collapsed: boolean }) {
   const isRunning = health?.ingestion?.running ?? false
   const isDegraded = health?.status === "degraded"
 
-  // Determine indicator color and status
+  // Determine indicator color and status. Degraded wins over running: the
+  // backend can report running=true while a tailed log file is missing.
   const getIndicatorStyle = () => {
     if (isError) return { color: "bg-gray-400", label: "Offline", tooltip: "Cannot connect to backend" }
+    if (isDegraded) return { color: "bg-amber-400", label: "Degraded", tooltip: "Service degraded - see Settings > Status" }
     if (isRunning) return { color: "bg-emerald-400", label: "Live ingestion", tooltip: "Live ingestion active" }
-    if (isDegraded) return { color: "bg-amber-400", label: "Degraded", tooltip: "Ingestion service not running" }
     return { color: "bg-gray-400", label: "Inactive", tooltip: "Service status unknown" }
   }
 
@@ -248,7 +249,9 @@ function LiveIndicator({ collapsed }: { collapsed: boolean }) {
     return (
       <Tooltip>
         <TooltipTrigger asChild>
-          <div
+          <Link
+            to="/settings/status"
+            aria-label="Service status"
             className="flex items-center justify-center py-2 mx-2"
             onPointerLeave={resetTooltipSuppression}
           >
@@ -258,7 +261,7 @@ function LiveIndicator({ collapsed }: { collapsed: boolean }) {
               )}
               <span className={cn("relative inline-flex w-2 h-2 rounded-full", color)} />
             </div>
-          </div>
+          </Link>
         </TooltipTrigger>
         {!tooltipsSuppressed && (
           <TooltipContent side="right">
@@ -270,7 +273,11 @@ function LiveIndicator({ collapsed }: { collapsed: boolean }) {
   }
 
   return (
-    <div className="flex items-center gap-2 px-3 py-2 mx-2 rounded-md bg-sidebar-accent/50 border border-sidebar-border">
+    <Link
+      to="/settings/status"
+      aria-label="Service status"
+      className="flex items-center gap-2 px-3 py-2 mx-2 rounded-md bg-sidebar-accent/50 border border-sidebar-border transition-colors hover:bg-sidebar-accent"
+    >
       <div className="relative flex items-center justify-center w-2 h-2">
         {isRunning && (
           <span className={cn("absolute inline-flex h-full w-full animate-ping rounded-full opacity-75", color)} />
@@ -287,7 +294,7 @@ function LiveIndicator({ collapsed }: { collapsed: boolean }) {
       ) : (
         <AlertCircle className="w-3 h-3 text-amber-400 ml-auto" />
       )}
-    </div>
+    </Link>
   )
 }
 
