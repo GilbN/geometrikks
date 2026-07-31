@@ -7,6 +7,7 @@
  * state is available before the banned-IP query resolves.
  */
 import { Loader2, ShieldBan, ShieldOff } from "lucide-react"
+import { toast } from "sonner"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -15,7 +16,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { useBanIp, useBannedIps, useCrowdsecStatus, useUnbanIp } from "@/lib/queries"
-import { BAN_DURATIONS } from "@/lib/crowdsec"
+import { BAN_DURATIONS, crowdsecErrorMessage } from "@/lib/crowdsec"
 
 export function IpBanControls({
   ip,
@@ -117,7 +118,16 @@ export function IpBanControls({
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start">
             {banned ? (
-              <DropdownMenuItem onClick={() => unban.mutate(ip)}>
+              <DropdownMenuItem
+                onClick={() =>
+                  unban.mutate(ip, {
+                    onError: (err) =>
+                      toast.error(
+                        crowdsecErrorMessage(err, `Unban failed for ${ip}; the LAPI may be unreachable.`),
+                      ),
+                  })
+                }
+              >
                 Unban {ip}
               </DropdownMenuItem>
             ) : (
@@ -126,7 +136,17 @@ export function IpBanControls({
                 {BAN_DURATIONS.map((d) => (
                   <DropdownMenuItem
                     key={d.value}
-                    onClick={() => ban.mutate({ ip, duration: d.value })}
+                    onClick={() =>
+                      ban.mutate(
+                        { ip, duration: d.value },
+                        {
+                          onError: (err) =>
+                            toast.error(
+                              crowdsecErrorMessage(err, `Ban failed for ${ip}; the LAPI may be unreachable.`),
+                            ),
+                        },
+                      )
+                    }
                   >
                     {d.label}
                   </DropdownMenuItem>
