@@ -34,6 +34,14 @@ import {
   schedulerJobState,
 } from "@/components/settings/status-logic"
 
+function SectionIcon({ icon: Icon }: { icon: React.ComponentType<{ className?: string }> }) {
+  return (
+    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-geo-cyan/10">
+      <Icon className="h-4 w-4 text-geo-cyan" />
+    </div>
+  )
+}
+
 function StateLine({ state }: { state: CardState }) {
   return (
     <div className="space-y-1">
@@ -118,10 +126,13 @@ export function StatusOverview() {
       <div className="grid gap-4 md:grid-cols-2">
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Activity className="h-4 w-4" /> Ingestion
-            </CardTitle>
-            <CardDescription>Nginx log tailing and parsing pipeline</CardDescription>
+            <div className="flex items-center gap-3">
+              <SectionIcon icon={Activity} />
+              <div>
+                <CardTitle className="text-base">Ingestion</CardTitle>
+                <CardDescription>Nginx log tailing and parsing pipeline</CardDescription>
+              </div>
+            </div>
           </CardHeader>
           <CardContent className="space-y-3">
             <StateLine state={ingestionState(health, healthError)} />
@@ -183,10 +194,13 @@ export function StatusOverview() {
 
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Database className="h-4 w-4" /> Database
-            </CardTitle>
-            <CardDescription>TimescaleDB connection</CardDescription>
+            <div className="flex items-center gap-3">
+              <SectionIcon icon={Database} />
+              <div>
+                <CardTitle className="text-base">Database</CardTitle>
+                <CardDescription>TimescaleDB connection</CardDescription>
+              </div>
+            </div>
           </CardHeader>
           <CardContent className="space-y-3">
             <StateLine state={databaseState(health)} />
@@ -229,10 +243,13 @@ export function StatusOverview() {
 
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Globe className="h-4 w-4" /> GeoIP
-            </CardTitle>
-            <CardDescription>MaxMind GeoLite2 database</CardDescription>
+            <div className="flex items-center gap-3">
+              <SectionIcon icon={Globe} />
+              <div>
+                <CardTitle className="text-base">GeoIP</CardTitle>
+                <CardDescription>MaxMind GeoLite2 database</CardDescription>
+              </div>
+            </div>
           </CardHeader>
           <CardContent className="space-y-2">
             <StateLine state={geoipState(health)} />
@@ -249,10 +266,13 @@ export function StatusOverview() {
 
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <ShieldCheck className="h-4 w-4" /> CrowdSec
-            </CardTitle>
-            <CardDescription>LAPI integration for viewing and managing bans</CardDescription>
+            <div className="flex items-center gap-3">
+              <SectionIcon icon={ShieldCheck} />
+              <div>
+                <CardTitle className="text-base">CrowdSec</CardTitle>
+                <CardDescription>LAPI integration for viewing and managing bans</CardDescription>
+              </div>
+            </div>
           </CardHeader>
           <CardContent className="space-y-2">
             <StateLine state={crowdsecState(crowdsec, crowdsecError)} />
@@ -276,15 +296,18 @@ export function StatusOverview() {
 
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <CalendarClock className="h-4 w-4" /> Scheduler
-            </CardTitle>
-            <CardDescription>
-              Background jobs ·{" "}
-              <Link to="/settings/scheduler" className="underline underline-offset-2">
-                details
-              </Link>
-            </CardDescription>
+            <div className="flex items-center gap-3">
+              <SectionIcon icon={CalendarClock} />
+              <div>
+                <CardTitle className="text-base">Scheduler</CardTitle>
+                <CardDescription>
+                  Background jobs ·{" "}
+                  <Link to="/settings/scheduler" className="underline underline-offset-2">
+                    details
+                  </Link>
+                </CardDescription>
+              </div>
+            </div>
           </CardHeader>
           <CardContent className="space-y-2">
             {jobsError && <p className="text-xs text-muted-foreground">Job list unavailable.</p>}
@@ -309,12 +332,15 @@ export function StatusOverview() {
 
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Radio className="h-4 w-4" /> Live feed
-            </CardTitle>
-            <CardDescription>
-              WebSocket stream for the map and live views, probed while this page is open
-            </CardDescription>
+            <div className="flex items-center gap-3">
+              <SectionIcon icon={Radio} />
+              <div>
+                <CardTitle className="text-base">Live feed</CardTitle>
+                <CardDescription>
+                  WebSocket stream for the map and live views, probed while this page is open
+                </CardDescription>
+              </div>
+            </div>
           </CardHeader>
           <CardContent>
             <StateLine state={liveFeedState(feedStatus)} />
@@ -324,15 +350,18 @@ export function StatusOverview() {
 
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2 text-base">
-            <TriangleAlert className="h-4 w-4" /> Recent errors
-          </CardTitle>
-          <CardDescription>
-            Latest error-level events from the application log ·{" "}
-            <Link to="/settings/logs" className="underline underline-offset-2">
-              open Logs
-            </Link>
-          </CardDescription>
+          <div className="flex items-center gap-3">
+            <SectionIcon icon={TriangleAlert} />
+            <div>
+              <CardTitle className="text-base">Recent errors</CardTitle>
+              <CardDescription>
+                Latest error-level events from the application log ·{" "}
+                <Link to="/settings/logs" className="underline underline-offset-2">
+                  open Logs
+                </Link>
+              </CardDescription>
+            </div>
+          </div>
         </CardHeader>
         <CardContent className="space-y-2">
           {logsError && <p className="text-xs text-muted-foreground">Log tail unavailable.</p>}
