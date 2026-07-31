@@ -3,7 +3,6 @@
  * client-side before the request; the server re-validates against INET.
  */
 import { useState } from "react"
-import { isAxiosError } from "axios"
 import { Loader2, ShieldBan } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
@@ -25,7 +24,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { useBanIp } from "@/lib/queries"
-import { BAN_DURATIONS, isValidIp } from "@/lib/crowdsec"
+import { BAN_DURATIONS, crowdsecErrorMessage, isValidIp } from "@/lib/crowdsec"
 
 export function BanIpDialog() {
   const [open, setOpen] = useState(false)
@@ -58,10 +57,7 @@ export function BanIpDialog() {
           reset()
         },
         onError: (err) => {
-          const detail = isAxiosError(err)
-            ? (err.response?.data as { detail?: string } | undefined)?.detail
-            : null
-          setError(detail ?? "Ban failed; the LAPI may be unreachable.")
+          setError(crowdsecErrorMessage(err, "Ban failed; the LAPI may be unreachable."))
         },
       },
     )

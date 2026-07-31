@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query"
 import { fetchHealth } from "@/lib/api"
 import { ThemeProvider } from "@/components/theme-provider"
 import { TooltipProvider } from "@/components/ui/tooltip"
+import { Toaster } from "@/components/ui/sonner"
 import {
   SidebarProvider,
   SidebarInset,
@@ -158,6 +159,7 @@ function RootLayout() {
           </LiveFeedProvider>
         </TimeRangeProvider>
       </TooltipProvider>
+      <Toaster />
     </ThemeProvider>
   )
 }

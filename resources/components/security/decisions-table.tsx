@@ -5,6 +5,7 @@
  * /crowdsec/decisions; origin scope toggles between local and crowd bans.
  */
 import { useState } from "react"
+import { toast } from "sonner"
 import { Loader2, ShieldOff } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -21,6 +22,7 @@ import {
 } from "@/components/ui/table"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useCrowdsecDecisions, useCrowdsecStatus, useUnbanIp } from "@/lib/queries"
+import { crowdsecErrorMessage } from "@/lib/crowdsec"
 import { cn } from "@/lib/utils"
 import { BanIpDialog } from "./ban-ip-dialog"
 
@@ -146,7 +148,14 @@ export function DecisionsTable() {
                               className="text-muted-foreground"
                               title={`Unban ${d.ip}`}
                               disabled={unban.isPending}
-                              onClick={() => unban.mutate(d.ip)}
+                              onClick={() =>
+                                unban.mutate(d.ip, {
+                                  onError: (err) =>
+                                    toast.error(
+                                      crowdsecErrorMessage(err, `Unban failed for ${d.ip}; the LAPI may be unreachable.`),
+                                    ),
+                                })
+                              }
                             >
                               {unban.isPending && unban.variables === d.ip ? (
                                 <Loader2 className="animate-spin" />

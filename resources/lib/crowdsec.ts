@@ -3,6 +3,7 @@
  * IP validation, used by the access-logs row actions, the map popup, and
  * the Security page's ban form.
  */
+import { isAxiosError } from "axios"
 
 /** Go duration strings the LAPI accepts; "Forever" is modeled as 10 years. */
 export const BAN_DURATIONS = [
@@ -33,4 +34,14 @@ function isValidIpv6(value: string): boolean {
 
 export function isValidIp(value: string): boolean {
   return IPV4_RE.test(value) || isValidIpv6(value)
+}
+
+/** Human-readable message for a failed CrowdSec API call: the backend's
+ * `detail` (e.g. "CrowdSec LAPI is unreachable") when present, else the
+ * caller's fallback. */
+export function crowdsecErrorMessage(err: unknown, fallback: string): string {
+  const detail = isAxiosError(err)
+    ? (err.response?.data as { detail?: string } | undefined)?.detail
+    : null
+  return detail ?? fallback
 }
