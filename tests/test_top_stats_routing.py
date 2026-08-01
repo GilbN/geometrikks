@@ -13,6 +13,10 @@ from geometrikks.domain.analytics.repositories import (
     SummaryStatsRepository,
 )
 
+import pytest
+
+pytestmark = pytest.mark.anyio
+
 NOW = datetime(2026, 7, 16, 12, 0, tzinfo=timezone.utc)
 SHORT_START = NOW - timedelta(hours=6)     # RAW routing
 WEEK_START = NOW - timedelta(days=7)       # HOURLY routing

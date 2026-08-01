@@ -13,6 +13,8 @@ from geometrikks.api.v1.system_controller import SystemController
 from geometrikks.server.scheduler_tracking import JobRunTracker
 from tests.support import ambient_settings_dependency
 
+pytestmark = pytest.mark.anyio
+
 FUTURE = datetime(2030, 1, 1, tzinfo=timezone.utc)
 
 

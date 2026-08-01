@@ -14,6 +14,10 @@ from geometrikks.domain.security.schemas import IpEnrichment
 from geometrikks.services.crowdsec import CrowdSecService, Decision
 from tests.support import ambient_settings_dependency
 
+import pytest
+
+pytestmark = pytest.mark.anyio
+
 
 def make_decision(**overrides: Any) -> Decision:
     values: dict[str, Any] = {

@@ -21,6 +21,8 @@ from geometrikks.api.v1.geo_events_controller import (
 )
 from geometrikks.domain.geo.schemas import GeoEventFilters, GeoLogPeriod
 
+pytestmark = pytest.mark.anyio
+
 
 class TestTimeWindow:
     def test_no_window_when_both_bounds_none(self) -> None:

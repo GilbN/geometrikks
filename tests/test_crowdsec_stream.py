@@ -5,6 +5,10 @@ import httpx
 
 from tests.test_crowdsec_service import DECISION_JSON, make_service
 
+import pytest
+
+pytestmark = pytest.mark.anyio
+
 
 def stream_responder(payloads: list[dict]):
     """Return each payload in turn for successive /v1/decisions/stream calls."""

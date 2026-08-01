@@ -12,6 +12,10 @@ from sqlalchemy import text
 
 from geometrikks.domain.analytics.repositories import SummaryStatsRepository
 
+import pytest
+
+pytestmark = pytest.mark.anyio
+
 NOW = datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0)
 OLD = NOW - timedelta(days=10)
 # Inside the simulated policy refresh window: without a row here, the

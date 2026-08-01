@@ -4,6 +4,10 @@ from __future__ import annotations
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
+import pytest
+
+pytestmark = pytest.mark.anyio
+
 
 def _patch_startup_collaborators(monkeypatch, lc, *, db_available: bool, ensure: AsyncMock):
     async def fake_db_available(timeout: float = 10.0) -> bool:

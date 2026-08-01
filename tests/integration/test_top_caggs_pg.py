@@ -60,6 +60,10 @@ from geometrikks.domain.analytics.repositories import (
     SummaryStatsRepository,
 )
 
+import pytest
+
+pytestmark = pytest.mark.anyio
+
 
 async def _insert_log(
     session, *, ts, url="/page", user_agent="ua/1.0", status=200,

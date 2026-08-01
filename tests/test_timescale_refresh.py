@@ -8,6 +8,8 @@ import pytest
 
 from geometrikks.server.timescale import refresh_caggs_range
 
+pytestmark = pytest.mark.anyio
+
 START = datetime(2026, 1, 1, tzinfo=timezone.utc)
 END = datetime(2026, 2, 1, tzinfo=timezone.utc)
 

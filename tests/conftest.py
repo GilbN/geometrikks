@@ -8,6 +8,12 @@ import pytest
 os.environ["GEOMETRIKKS_ENV_FILE"] = ""
 
 
+@pytest.fixture
+def anyio_backend() -> str:
+    """Async tests run on asyncio; Litestar's runtime is AnyIO-based."""
+    return "asyncio"
+
+
 @pytest.fixture(scope="session", autouse=True)
 def disable_wait_env():
     """Ensure retry loops are disabled during test runs.

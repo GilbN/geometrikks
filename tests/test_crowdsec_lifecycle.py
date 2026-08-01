@@ -7,6 +7,10 @@ from unittest.mock import AsyncMock
 from geometrikks.services.crowdsec import CrowdSecService
 from tests.test_lifecycle_geoip import _patch_startup_collaborators
 
+import pytest
+
+pytestmark = pytest.mark.anyio
+
 
 def make_app() -> SimpleNamespace:
     return SimpleNamespace(state=SimpleNamespace())

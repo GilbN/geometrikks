@@ -7,6 +7,10 @@ from sqlalchemy import text
 
 from geometrikks.server.timescale import refresh_caggs_range
 
+import pytest
+
+pytestmark = pytest.mark.anyio
+
 # Derived from the wall clock, not hard-coded: the scratch DB has live
 # retention/refresh policies, so a fixed date would age out of their windows
 # (see test_repositories_pg.py). Hour-aligned for deterministic bucketing.

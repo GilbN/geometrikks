@@ -31,7 +31,6 @@ build-backend = "hatchling.build"
 [dependency-groups]
 dev = [
     "pytest>=9.1.1",
-    "pytest-asyncio>=1.4.0",
     "pytest-cov>=7.1.0",
     "ty>=0.0.63",
     "faker>=40.36.0",
@@ -39,7 +38,6 @@ dev = [
 ]
 
 [tool.pytest.ini_options]
-asyncio_mode = "auto"
 testpaths = ["tests"]
 markers = [
     "integration: needs a live TimescaleDB (docker compose up -d timescale_db); auto-skipped when unreachable",
@@ -57,8 +55,6 @@ filterwarnings = [
     # Drop once a fixed AA release ships; this is the external gate for
     # Litestar 3.0.
     "ignore:\\[paths='/', handler='(list_access_log_debug|list_access_logs|list_geo_events)', dependencies='filters'\\] Inferred dependency field '(limit_offset_filter|order_by_filter|search_filter)'.*:litestar.exceptions.LitestarDeprecationWarning",
-    # Reduce noise from third-party libs; keep real test warnings visible
-    "ignore:There is no current event loop:DeprecationWarning",
     # False positive: our auth exclude pattern deliberately matches everything
     # outside /api/ (SPA shell, assets, /health). The boundary is verified by
     # tests/test_auth_endpoints.py (401 on /api/*, 200 on excluded paths).

@@ -14,6 +14,8 @@ from geometrikks.services.crowdsec import (
     Decision,
 )
 
+pytestmark = pytest.mark.anyio
+
 DECISION_JSON = {
     "id": 42,
     "origin": "cscli",

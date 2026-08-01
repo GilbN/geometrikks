@@ -158,6 +158,8 @@ def test_upgrade_to_head_uses_dedicated_url_config(monkeypatch) -> None:
 
 from types import SimpleNamespace
 
+pytestmark = pytest.mark.anyio
+
 
 async def test_on_startup_migrates_before_timescale(monkeypatch) -> None:
     """Migrations own the schema; setup_timescaledb depends on the tables
