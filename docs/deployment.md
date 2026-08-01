@@ -34,8 +34,16 @@ tini (PID 1) -> entrypoint.sh (PUID/PGID remap, drops root via gosu)
 `STOPSIGNAL SIGTERM`. On stop, lifespan managers exit in reverse startup
 order: ingestion drains and stops first, the scheduler shuts down, the
 CrowdSec LAPI client closes last, then workers exit. A normal shutdown
-completes in a few seconds; give `docker stop` a timeout of at least 10s so
-an ingestion batch flush is never cut short.
+completes in a few seconds.
+
+Timeout budget: ingestion waits up to 5s for its tail tasks before
+cancelling them, and the image sets Granian's worker kill timeout to 15s,
+so give Docker at least 20s (`docker stop -t 20`, or compose
+`stop_grace_period: 20s`) to keep Docker's own SIGKILL out of the picture.
+Known edge: if the configured log file does not exist, the tailer's
+blocking validation loop ignores the stop signal; teardown then falls back
+to cancellation after the 5s ingestion window and the worker can be
+force-killed at the kill-timeout boundary instead of finishing cleanly.
 
 ### Logging
 
@@ -67,9 +75,17 @@ migration locking), not a tuning knob.
 - Default (`DB_MIGRATE_ON_STARTUP=true`): the container runs alembic
   migrations at startup. Correct for the single-container homelab flow.
 - Separate-step deployments: set `DB_MIGRATE_ON_STARTUP=false` and run
-  `litestar database upgrade` as a dedicated deploy step (the image sets
-  `LITESTAR_APP`, so `docker run --rm <image> litestar database upgrade`
-  works as a migrator command). The app then expects the schema at head.
+  `litestar database upgrade` as a dedicated deploy step. The image sets
+  `LITESTAR_APP`, but composing the app still needs the normal deployment
+  environment (database settings, `APP_ADMIN_PASSWORD`), and the command
+  prompts for confirmation unless told not to:
+
+  ```bash
+  docker run --rm --env-file .env <image> \
+    litestar database upgrade --no-prompt
+  ```
+
+  The app then expects the schema at head.
 - TimescaleDB objects (hypertables, continuous aggregates, policies) are
   always configured at startup. That step is idempotent but requires the
   schema to be at head, and it failing is the deliberate signal that the

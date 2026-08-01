@@ -119,4 +119,9 @@ ENTRYPOINT ["/usr/bin/tini", "--", "/usr/local/bin/entrypoint.sh"]
 # --workers 1: explicit single worker. Sessions, WebSocket fan-out, the
 #   scheduler, ingestion, and startup migrations are all process-local;
 #   see docs/deployment.md before raising this.
-CMD ["litestar", "--app", "geometrikks.server.core:create_app", "run", "--host", "0.0.0.0", "--port", "8000", "--workers", "1", "--no-subprocess"]
+# --workers-kill-timeout 15: litestar-granian's default is 5s, which races
+#   ingestion's own 5s stop window exactly; 15s lets a slow teardown
+#   (ingestion drain + scheduler + CrowdSec client) finish before the
+#   worker is force-killed. Pair with `docker stop -t 20` or a compose
+#   stop_grace_period of at least 20s.
+CMD ["litestar", "--app", "geometrikks.server.core:create_app", "run", "--host", "0.0.0.0", "--port", "8000", "--workers", "1", "--no-subprocess", "--workers-kill-timeout", "15"]
