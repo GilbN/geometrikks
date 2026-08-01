@@ -7,7 +7,7 @@ access_logs, so their is_active() gate is load-bearing.
 from __future__ import annotations
 
 import pytest
-from litestar.exceptions import ValidationException
+from geometrikks.domain.exceptions import DomainValidationError
 
 from geometrikks.api.v1.analytics_controller import _build_filters
 from geometrikks.domain.analytics.repositories import AnalyticsFilters
@@ -58,5 +58,5 @@ class TestBuildFilters:
         assert _build_filters(None, None, None, []).ip_exclude is None
 
     def test_invalid_excluded_ip_raises(self) -> None:
-        with pytest.raises(ValidationException, match="Invalid IP address"):
+        with pytest.raises(DomainValidationError, match="Invalid IP address"):
             _build_filters(None, None, None, ["not-an-ip"])

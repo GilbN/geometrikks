@@ -11,9 +11,10 @@ from litestar.params import QueryParameter
 from advanced_alchemy.extensions.litestar import filters
 
 from geometrikks.config.settings import Settings
+from geometrikks.server import runtime
 from geometrikks.services.crowdsec import CrowdSecService
+from geometrikks.services.crowdsec.stream import CrowdSecStreamPoller
 from geometrikks.services.ingestion import LogIngestionService
-from geometrikks.domain.geo.repositories import GeoLocationRepository
 from geometrikks.domain.analytics.repositories import LiveStatsRepository, SummaryStatsRepository
 from geometrikks.domain.security.repositories import SecurityEnrichmentRepository
 
@@ -37,7 +38,7 @@ def provide_ingestion_service(request: Request) -> LogIngestionService | None:
 
     Returns None if the service is not available (degraded mode).
     """
-    return getattr(request.app.state, "ingestion_service", None)
+    return runtime.get_ingestion_service(request.app)
 
 
 def provide_crowdsec_service(request: Request) -> CrowdSecService | None:
@@ -45,7 +46,15 @@ def provide_crowdsec_service(request: Request) -> CrowdSecService | None:
 
     Returns None when the integration is not enabled (no LAPI URL/bouncer key).
     """
-    return getattr(request.app.state, "crowdsec_service", None)
+    return runtime.get_crowdsec_service(request.app)
+
+
+def provide_crowdsec_poller(request: Request) -> CrowdSecStreamPoller | None:
+    """Provide the CrowdSec decision-stream poller from app state.
+
+    Returns None when CrowdSec is disabled or the app is DB-degraded.
+    """
+    return runtime.get_crowdsec_poller(request.app)
 
 
 async def provide_security_enrichment_repo(
@@ -55,20 +64,15 @@ async def provide_security_enrichment_repo(
     return SecurityEnrichmentRepository(session=db_session)
 
 
-async def provide_geo_location_repo(
-    db_session: NamedDependency[AsyncSession],
-) -> GeoLocationRepository:
-    """Provide GeoLocationRepository."""
-    return GeoLocationRepository(session=db_session)
-
-
 def provide_limit_offset_pagination(
     current_page: Annotated[int, QueryParameter(name="currentPage", ge=1, required=False)] = 1,
     page_size: Annotated[int, QueryParameter(name="pageSize", ge=1, required=False)] = 10,
 ) -> filters.LimitOffset:
     """Add offset/limit pagination.
 
-    Return type consumed by `Repository.apply_limit_offset_pagination()`.
+    Controller-scoped provider for endpoints that paginate in-memory results
+    (CrowdSec decisions); ORM-backed lists use the Advanced Alchemy filter
+    dependencies from create_service_dependencies() instead.
 
     Parameters
     ----------

@@ -11,13 +11,10 @@ from litestar.config.compression import CompressionConfig
 
 from geometrikks.config.settings import Settings, get_settings
 from geometrikks.server import plugins
-from geometrikks.server.exceptions import CROWDSEC_EXCEPTION_HANDLERS
+from geometrikks.server.exceptions import EXCEPTION_HANDLERS
 from geometrikks.server.lifecycle import on_startup, on_shutdown
 from geometrikks.server.routes import get_route_handlers
-from geometrikks.api.dependencies import (
-    create_settings_provider,
-    provide_limit_offset_pagination,
-)
+from geometrikks.api.dependencies import create_settings_provider
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -87,7 +84,6 @@ def create_app(
     )
     
     dependency_map: dict[str, Provide] = {
-        "limit_offset": Provide(provide_limit_offset_pagination, sync_to_thread=False),
         "settings": create_settings_provider(settings),
     }
     if dependencies:
@@ -103,7 +99,7 @@ def create_app(
         dependencies=dependency_map,
         openapi_config=openapi_config,
         compression_config=compression_config,
-        exception_handlers=CROWDSEC_EXCEPTION_HANDLERS,
+        exception_handlers=EXCEPTION_HANDLERS,
         on_app_init=on_app_init,
     )
     app.state.auth_state = auth_state

@@ -9,7 +9,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 
 import pytest
-from litestar.exceptions import ValidationException
+from geometrikks.domain.exceptions import DomainValidationError
 from sqlalchemy import text
 
 from geometrikks.domain.geo.repositories import StatsGranularity, get_stats_granularity
@@ -260,7 +260,7 @@ class TestGroupedLogs:
         async with pg_session_maker() as session:
             svc = GeoEventService(session=session)
             for bad in ("hostnames", "event_count; DROP TABLE geo_events"):
-                with pytest.raises(ValidationException):
+                with pytest.raises(DomainValidationError):
                     await svc.get_grouped_logs(
                         RAW_START, NOW, GeoEventFilters(),
                         limit=50, offset=0, order_by=bad,

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Annotated, Any, Literal
+from typing import Annotated, Literal
 
 from litestar import Controller, get, post
 from litestar.di import NamedDependency
@@ -14,7 +14,11 @@ from litestar.response import File
 
 from geometrikks.config.settings import Settings
 from geometrikks.server.logging import rotate_log_files
-from geometrikks.services.logfiles import LogFileKind, create_log_files_service
+from geometrikks.services.logfiles import (
+    LogFileKind,
+    LogTailRecord,
+    create_log_files_service,
+)
 
 MAX_TAIL_LINES = 2000
 
@@ -35,7 +39,9 @@ class LogFilesResponse:
 
 @dataclass
 class LogTailResponse:
-    records: list[dict[str, Any]]
+    # LogTailRecord is a TypedDict: app-log records keep their extra
+    # structlog context keys on the wire; the schema documents the stable ones.
+    records: list[LogTailRecord]
 
 
 @dataclass

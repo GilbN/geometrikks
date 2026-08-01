@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 
 import pytest
 from advanced_alchemy.filters import OnBeforeAfter
-from litestar.exceptions import ValidationException
+from geometrikks.domain.exceptions import DomainValidationError
 
 from geometrikks.api.v1.access_log_debug_controller import (
     provide_debug_time_window,
@@ -44,5 +44,5 @@ class TestValidatedIps:
 
     def test_invalid_ip_raises_validation_error(self) -> None:
         # ip_address is INET on the joined table; free text must 400.
-        with pytest.raises(ValidationException, match="Invalid IP address"):
+        with pytest.raises(DomainValidationError, match="Invalid IP address"):
             validated_ips(["not-an-ip"])

@@ -13,6 +13,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from geometrikks.config.settings import get_settings
 from geometrikks.server.logging import get_logger
 from geometrikks.server.migrations import migrate_database
+from geometrikks.server import runtime
 from geometrikks.server.plugins import get_app_db_config
 from geometrikks.server.timescale import setup_timescaledb
 
@@ -156,7 +157,7 @@ async def on_startup(app: "Litestar") -> None:
     scheduler: AsyncIOScheduler = await create_scheduler(
         session_maker,
         settings,
-        crowdsec_poller=getattr(app.state, "crowdsec_stream_poller", None),
+        crowdsec_poller=runtime.get_crowdsec_poller(app),
     )
     scheduler_tracker = JobRunTracker()
     scheduler_tracker.attach(scheduler)
@@ -177,19 +178,17 @@ async def on_startup(app: "Litestar") -> None:
 async def on_shutdown(app: "Litestar") -> None:
     """Gracefully stop background services and clean up resources."""
     # Stop ingestion service first
-    ingestion_service: LogIngestionService | None = getattr(
-        app.state, "ingestion_service", None
-    )
+    ingestion_service = runtime.get_ingestion_service(app)
     if ingestion_service:
         await ingestion_service.stop(timeout=5.0)
 
     # Stop scheduler
-    scheduler: AsyncIOScheduler | None = getattr(app.state, "scheduler", None)
+    scheduler = runtime.get_scheduler(app)
     if scheduler and scheduler.running:
         scheduler.shutdown(wait=True)
         logger.info("Stopped APScheduler")
 
     # Close the CrowdSec LAPI client
-    crowdsec_service: CrowdSecService | None = getattr(app.state, "crowdsec_service", None)
+    crowdsec_service = runtime.get_crowdsec_service(app)
     if crowdsec_service:
         await crowdsec_service.aclose()

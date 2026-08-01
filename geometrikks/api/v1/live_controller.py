@@ -22,6 +22,7 @@ from typing import Any
 from litestar import WebSocket, websocket
 from litestar.exceptions import WebSocketDisconnect
 
+from geometrikks.server import runtime
 from geometrikks.server.logging import get_logger, log_broadcaster, register_success_level
 from geometrikks.services.logparser.schemas import ParsedLogRecord
 
@@ -100,7 +101,7 @@ async def crowdsec_feed(socket: WebSocket) -> None:
       {"type": "crowdsec_status", "lapi_reachable": bool}
     Auth: same session-authenticated handshake as /ws/live.
     """
-    poller = getattr(socket.app.state, "crowdsec_stream_poller", None)
+    poller = runtime.get_crowdsec_poller(socket.app)
     await socket.accept()
     if poller is None:
         logger.warning("ws_rejected_service_unavailable", endpoint="/ws/crowdsec")
@@ -147,7 +148,7 @@ async def crowdsec_feed(socket: WebSocket) -> None:
 @websocket("/ws/live", tags=["Live Feed"])
 async def live_feed(socket: WebSocket) -> None:
     """Stream committed ingestion events, batched and coalesced."""
-    ingestion = getattr(socket.app.state, "ingestion_service", None)
+    ingestion = runtime.get_ingestion_service(socket.app)
     await socket.accept()
     if ingestion is None:
         logger.warning("ws_rejected_service_unavailable", endpoint="/ws/live")

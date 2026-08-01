@@ -120,6 +120,14 @@ export type CountryFacet = {
 };
 
 /**
+ * CrowdSecHealth
+ */
+export type CrowdSecHealth = {
+  enabled: boolean;
+  lapi_reachable: boolean | null;
+};
+
+/**
  * CrowdSecStatsResponse
  */
 export type CrowdSecStatsResponse = {
@@ -155,6 +163,13 @@ export type CumulativeTimeSeriesResponse = {
   end_date: string;
   granularity: string;
   start_date: string;
+};
+
+/**
+ * DatabaseHealth
+ */
+export type DatabaseHealth = {
+  reachable: boolean;
 };
 
 /**
@@ -244,6 +259,14 @@ export type GeoEventsTimeSeriesResponse = {
   end_date: string;
   granularity: string;
   start_date: string;
+};
+
+/**
+ * GeoIPHealth
+ */
+export type GeoIpHealth = {
+  available: boolean;
+  db_build_date: string | null;
 };
 
 /**
@@ -387,6 +410,19 @@ export type GlobalTopIpsResponse = {
 };
 
 /**
+ * HealthResponse
+ */
+export type HealthResponse = {
+  crowdsec: CrowdSecHealth;
+  database: DatabaseHealth;
+  geoip: GeoIpHealth;
+  ingestion: IngestionHealth;
+  started_at: string | null;
+  status: "healthy" | "degraded";
+  timestamp: string;
+};
+
+/**
  * HypertableStatsView
  */
 export type HypertableStatsView = {
@@ -395,6 +431,29 @@ export type HypertableStatsView = {
   before_compression_bytes: number | null;
   name: string;
   total_bytes: number | null;
+};
+
+/**
+ * IngestionHealth
+ */
+export type IngestionHealth = {
+  last_record_at: string | null;
+  missing_files: Array<string>;
+  parsed_lines: number;
+  pending_records: number;
+  running: boolean;
+};
+
+/**
+ * IngestionStatsResponse
+ */
+export type IngestionStatsResponse = {
+  is_running: boolean;
+  total_ignored_lines: number;
+  total_parsed_lines: number;
+  total_pending_records: number;
+  total_processed: number;
+  total_skipped_lines: number;
 };
 
 /**
@@ -519,12 +578,23 @@ export type LogRotateResponse = {
 };
 
 /**
+ * LogTailRecord
+ */
+export type LogTailRecord = {
+  event?: string;
+  exception?: string;
+  ip?: string;
+  level?: string;
+  logger?: string;
+  timestamp?: string;
+  user?: string;
+};
+
+/**
  * LogTailResponse
  */
 export type LogTailResponse = {
-  records: Array<{
-    [key: string]: unknown;
-  }>;
+  records: Array<LogTailRecord>;
 };
 
 /**
@@ -607,6 +677,13 @@ export type PeriodSummary = {
   total_requests: number;
   unique_countries: number;
   unique_ips: number;
+};
+
+/**
+ * ReadinessResponse
+ */
+export type ReadinessResponse = {
+  ready: boolean;
 };
 
 /**
@@ -1137,11 +1214,11 @@ export type ApiV1AnalyticsGeoTimeSeriesGetGeoTimeSeriesData = {
   path?: never;
   query: {
     /**
-     * Start date (ISO 8601, e.g., 2024-01-01T00:00:00Z)
+     * Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)
      */
     start_date: string;
     /**
-     * End date (ISO 8601, e.g., 2024-12-31T23:59:59Z)
+     * End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)
      */
     end_date: string;
     /**
@@ -1186,11 +1263,11 @@ export type ApiV1AnalyticsLiveSummaryGetLiveSummaryData = {
   path?: never;
   query: {
     /**
-     * Start date (ISO 8601, e.g., 2024-01-01T00:00:00Z)
+     * Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)
      */
     start_date: string;
     /**
-     * End date (ISO 8601, e.g., 2024-12-31T23:59:59Z)
+     * End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)
      */
     end_date: string;
     /**
@@ -1235,11 +1312,11 @@ export type ApiV1AnalyticsSummaryGetSummaryData = {
   path?: never;
   query: {
     /**
-     * Start date (ISO 8601, e.g., 2024-01-01T00:00:00Z)
+     * Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)
      */
     start_date: string;
     /**
-     * End date (ISO 8601, e.g., 2024-12-31T23:59:59Z)
+     * End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)
      */
     end_date: string;
     /**
@@ -1284,11 +1361,11 @@ export type ApiV1AnalyticsTimeSeriesGetTimeSeriesData = {
   path?: never;
   query: {
     /**
-     * Start date (ISO 8601, e.g., 2024-01-01T00:00:00Z)
+     * Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)
      */
     start_date: string;
     /**
-     * End date (ISO 8601, e.g., 2024-12-31T23:59:59Z)
+     * End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)
      */
     end_date: string;
     /**
@@ -1349,11 +1426,11 @@ export type ApiV1AnalyticsTimeSeriesCumulativeGetCumulativeTimeSeriesData = {
   path?: never;
   query: {
     /**
-     * Start date (ISO 8601, e.g., 2024-01-01T00:00:00Z)
+     * Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)
      */
     start_date: string;
     /**
-     * End date (ISO 8601, e.g., 2024-12-31T23:59:59Z)
+     * End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)
      */
     end_date: string;
   };
@@ -1395,11 +1472,11 @@ export type ApiV1AnalyticsTopCitiesGetTopCitiesData = {
   path?: never;
   query: {
     /**
-     * Start date (ISO 8601)
+     * Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)
      */
     start_date: string;
     /**
-     * End date (ISO 8601)
+     * End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)
      */
     end_date: string;
     /**
@@ -1460,11 +1537,11 @@ export type ApiV1AnalyticsTopCountriesGetTopCountriesData = {
   path?: never;
   query: {
     /**
-     * Start date (ISO 8601)
+     * Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)
      */
     start_date: string;
     /**
-     * End date (ISO 8601)
+     * End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)
      */
     end_date: string;
     /**
@@ -1525,11 +1602,11 @@ export type ApiV1AnalyticsTopIpsGetTopIpsData = {
   path?: never;
   query: {
     /**
-     * Start date (ISO 8601)
+     * Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)
      */
     start_date: string;
     /**
-     * End date (ISO 8601)
+     * End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)
      */
     end_date: string;
     /**
@@ -1590,11 +1667,11 @@ export type ApiV1AnalyticsTopUrlsGetTopUrlsData = {
   path?: never;
   query: {
     /**
-     * Start date (ISO 8601, e.g., 2024-01-01T00:00:00Z)
+     * Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)
      */
     start_date: string;
     /**
-     * End date (ISO 8601, e.g., 2024-12-31T23:59:59Z)
+     * End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)
      */
     end_date: string;
     /**
@@ -1655,11 +1732,11 @@ export type ApiV1AnalyticsTopUserAgentsGetTopUserAgentsData = {
   path?: never;
   query: {
     /**
-     * Start date (ISO 8601, e.g., 2024-01-01T00:00:00Z)
+     * Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)
      */
     start_date: string;
     /**
-     * End date (ISO 8601, e.g., 2024-12-31T23:59:59Z)
+     * End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)
      */
     end_date: string;
     /**
@@ -2102,8 +2179,17 @@ export type ApiV1GeoEventsListGeoEventsData = {
     sortOrder?: "asc" | "desc" | null;
     from_timestamp?: string | null;
     to_timestamp?: string | null;
+    /**
+     * Filter to these IPs (repeatable)
+     */
     ipAddressIn?: Array<string> | null;
+    /**
+     * Exclude these IPs (repeatable)
+     */
     ipAddressNotIn?: Array<string> | null;
+    /**
+     * Filter to these recording hostnames (repeatable)
+     */
     hostnameIn?: Array<string> | null;
   };
   url: "/api/v1/geo-events";
@@ -2175,8 +2261,17 @@ export type ApiV1GeoEventsLogsGetGeoLogsData = {
   query: {
     countryCodeIn?: Array<string> | null;
     cityIn?: Array<string> | null;
+    /**
+     * Filter to these IPs (repeatable)
+     */
     ipAddressIn?: Array<string> | null;
+    /**
+     * Exclude these IPs (repeatable)
+     */
     ipAddressNotIn?: Array<string> | null;
+    /**
+     * Filter to these recording hostnames (repeatable)
+     */
     hostnameIn?: Array<string> | null;
     /**
      * Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)
@@ -2249,8 +2344,17 @@ export type ApiV1GeoEventsSummaryGetGeoLogSummaryData = {
   query: {
     countryCodeIn?: Array<string> | null;
     cityIn?: Array<string> | null;
+    /**
+     * Filter to these IPs (repeatable)
+     */
     ipAddressIn?: Array<string> | null;
+    /**
+     * Exclude these IPs (repeatable)
+     */
     ipAddressNotIn?: Array<string> | null;
+    /**
+     * Filter to these recording hostnames (repeatable)
+     */
     hostnameIn?: Array<string> | null;
     /**
      * Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)
@@ -2303,8 +2407,17 @@ export type ApiV1GeoEventsTimeSeriesGetGeoLogTimeSeriesData = {
   query: {
     countryCodeIn?: Array<string> | null;
     cityIn?: Array<string> | null;
+    /**
+     * Filter to these IPs (repeatable)
+     */
     ipAddressIn?: Array<string> | null;
+    /**
+     * Exclude these IPs (repeatable)
+     */
     ipAddressNotIn?: Array<string> | null;
+    /**
+     * Filter to these recording hostnames (repeatable)
+     */
     hostnameIn?: Array<string> | null;
     /**
      * Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)
@@ -2357,8 +2470,17 @@ export type ApiV1GeoEventsTopCitiesGetGeoLogTopCitiesData = {
   query: {
     countryCodeIn?: Array<string> | null;
     cityIn?: Array<string> | null;
+    /**
+     * Filter to these IPs (repeatable)
+     */
     ipAddressIn?: Array<string> | null;
+    /**
+     * Exclude these IPs (repeatable)
+     */
     ipAddressNotIn?: Array<string> | null;
+    /**
+     * Filter to these recording hostnames (repeatable)
+     */
     hostnameIn?: Array<string> | null;
     /**
      * Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)
@@ -2411,8 +2533,17 @@ export type ApiV1GeoEventsTopCountriesGetGeoLogTopCountriesData = {
   query: {
     countryCodeIn?: Array<string> | null;
     cityIn?: Array<string> | null;
+    /**
+     * Filter to these IPs (repeatable)
+     */
     ipAddressIn?: Array<string> | null;
+    /**
+     * Exclude these IPs (repeatable)
+     */
     ipAddressNotIn?: Array<string> | null;
+    /**
+     * Filter to these recording hostnames (repeatable)
+     */
     hostnameIn?: Array<string> | null;
     /**
      * Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)
@@ -2465,8 +2596,17 @@ export type ApiV1GeoEventsTopIpsGetGeoLogTopIpsData = {
   query: {
     countryCodeIn?: Array<string> | null;
     cityIn?: Array<string> | null;
+    /**
+     * Filter to these IPs (repeatable)
+     */
     ipAddressIn?: Array<string> | null;
+    /**
+     * Exclude these IPs (repeatable)
+     */
     ipAddressNotIn?: Array<string> | null;
+    /**
+     * Filter to these recording hostnames (repeatable)
+     */
     hostnameIn?: Array<string> | null;
     /**
      * Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)
@@ -2926,9 +3066,7 @@ export type ApiV1StatsStatsResponses = {
   /**
    * Request fulfilled, document follows
    */
-  200: {
-    [key: string]: unknown;
-  };
+  200: IngestionStatsResponse;
 };
 
 export type ApiV1StatsStatsResponse =
@@ -3051,9 +3189,7 @@ export type HealthHealthResponses = {
   /**
    * Request fulfilled, document follows
    */
-  200: {
-    [key: string]: unknown;
-  };
+  200: HealthResponse;
 };
 
 export type HealthHealthResponse =
@@ -3066,13 +3202,21 @@ export type HealthReadyHealthReadyData = {
   url: "/health/ready";
 };
 
+export type HealthReadyHealthReadyErrors = {
+  /**
+   * Database unreachable; the app is not ready for traffic.
+   */
+  503: ReadinessResponse;
+};
+
+export type HealthReadyHealthReadyError =
+  HealthReadyHealthReadyErrors[keyof HealthReadyHealthReadyErrors];
+
 export type HealthReadyHealthReadyResponses = {
   /**
    * Request fulfilled, document follows
    */
-  200: {
-    [key: string]: unknown;
-  };
+  200: ReadinessResponse;
 };
 
 export type HealthReadyHealthReadyResponse =

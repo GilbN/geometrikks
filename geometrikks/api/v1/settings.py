@@ -14,6 +14,7 @@ from litestar.di import NamedDependency
 from litestar.params import SkipValidation
 
 from geometrikks.config.settings import Settings
+from geometrikks.server import runtime
 from geometrikks.services.geoip.home import HomeLocation, HomeLocationSource
 
 
@@ -64,7 +65,7 @@ async def read_settings(
 ) -> SafeSettingsResponse:
     """Whitelisted runtime settings (no credentials, ever)."""
     s = settings
-    home: HomeLocation | None = getattr(request.app.state, "map_home_location", None)
+    home: HomeLocation | None = runtime.get_map_home_location(request.app)
     if home is None and s.map.home_latitude is not None and s.map.home_longitude is not None:
         home = HomeLocation(
             latitude=s.map.home_latitude,
