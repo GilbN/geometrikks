@@ -9,7 +9,7 @@ from litestar.testing import TestClient
 
 from geometrikks.config.settings import Settings
 from geometrikks.api.v1.auth_controller import AuthController
-from geometrikks.api.v1.live_controller import live_feed
+from geometrikks.api.v1.live_controller import crowdsec_feed, live_feed, logs_feed
 from geometrikks.server.auth import build_auth_state, create_session_auth
 
 from tests.test_live_ws import FakeIngestion
@@ -34,7 +34,9 @@ def make_app(**settings_kwargs) -> Litestar:
     )
     session_auth = create_session_auth(settings)
     app = Litestar(
-        route_handlers=[AuthController, protected, fake_health, live_feed],
+        route_handlers=[
+            AuthController, protected, fake_health, live_feed, crowdsec_feed, logs_feed
+        ],
         on_app_init=[session_auth.on_app_init],
         logging_config=None,
     )
@@ -83,14 +85,15 @@ def test_login_logout_flow():
         assert client.get("/api/v1/protected").status_code == 401
 
 
-def test_ws_live_rejected_without_session():
+@pytest.mark.parametrize("path", ["/ws/live", "/ws/crowdsec", "/ws/logs"])
+def test_ws_feeds_rejected_without_session(path):
     from litestar.exceptions import WebSocketDisconnect
 
     with TestClient(app=make_app()) as client:
         # The middleware's NotAuthorizedException closes the handshake
         # (4000 + 401 = 4401), surfaced by the test client as a disconnect.
         with pytest.raises(WebSocketDisconnect):
-            with client.websocket_connect("/ws/live") as ws:
+            with client.websocket_connect(path) as ws:
                 ws.receive_json(timeout=2)
 
 
