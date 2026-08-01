@@ -31,7 +31,7 @@ from geometrikks.domain.geo.schemas import (
     TopGeoIpsResponse,
 )
 from geometrikks.domain.geo.services import GeoEventService
-from geometrikks.api.parameters import (
+from geometrikks.lib.parameters import (
     EndTimestamp,
     HostnameIn,
     IpAddressIn,

@@ -7,7 +7,7 @@ import pytest
 from litestar import Litestar
 from litestar.testing import TestClient
 
-from geometrikks.api.v1.logs_controller import LogsController
+from geometrikks.domain.system.controllers.logs import LogsController
 from tests.support import ambient_settings_dependency
 
 

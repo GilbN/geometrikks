@@ -227,7 +227,7 @@ class FakePoller:
 def make_ws_app(poller):
     from litestar import Litestar
 
-    from geometrikks.api.v1.live_controller import crowdsec_feed
+    from geometrikks.domain.realtime.controllers import crowdsec_feed
 
     app = Litestar(route_handlers=[crowdsec_feed])
     app.state.crowdsec_stream_poller = poller
@@ -253,7 +253,7 @@ def test_ws_sends_empty_delta_heartbeat_when_idle(monkeypatch):
     keepalive. The frontend applies it as a no-op."""
     from litestar.testing import TestClient
 
-    from geometrikks.api.v1 import live_controller
+    from geometrikks.domain.realtime import controllers as live_controller
 
     monkeypatch.setattr(live_controller, "HEARTBEAT_INTERVAL", 0.3, raising=False)
     poller = FakePoller()

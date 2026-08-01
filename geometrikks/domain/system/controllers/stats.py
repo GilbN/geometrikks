@@ -7,7 +7,7 @@ from litestar import get
 from litestar.di import NamedDependency, Provide
 
 from geometrikks.services.ingestion import LogIngestionService
-from geometrikks.api.dependencies import provide_ingestion_service as pis
+from geometrikks.domain.system.dependencies import provide_ingestion_service as pis
 
 
 @dataclass

@@ -14,7 +14,7 @@ from geometrikks.server import plugins
 from geometrikks.server.exceptions import EXCEPTION_HANDLERS
 from geometrikks.server.lifecycle import on_startup, on_shutdown
 from geometrikks.server.routes import get_route_handlers
-from geometrikks.api.dependencies import create_settings_provider
+from geometrikks.server.dependencies import create_settings_provider
 
 if TYPE_CHECKING:
     from collections.abc import Mapping

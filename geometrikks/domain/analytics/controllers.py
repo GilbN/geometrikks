@@ -38,11 +38,11 @@ from geometrikks.domain.analytics.dtos import (
 )
 from geometrikks.domain.analytics.repositories import StatsGranularity, get_stats_granularity
 
-from geometrikks.api.dependencies import (
+from geometrikks.domain.analytics.dependencies import (
     provide_live_stats_repo,
     provide_summary_stats_repo
 )
-from geometrikks.api.parameters import (
+from geometrikks.lib.parameters import (
     CityFilter,
     CountryCodeFilter,
     EndTimestamp,

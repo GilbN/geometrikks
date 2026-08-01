@@ -6,8 +6,8 @@ from types import SimpleNamespace
 from litestar import Litestar
 from litestar.testing import TestClient
 
-from geometrikks.api import health as health_module
-from geometrikks.api.health import health, health_ready
+from geometrikks.domain.system.controllers import health as health_module
+from geometrikks.domain.system.controllers.health import health, health_ready
 from geometrikks.services.ingestion import LogIngestionService
 from geometrikks.services.logparser.logparser import LogParser
 from tests.support import ambient_settings_dependency

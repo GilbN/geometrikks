@@ -12,7 +12,7 @@ import pytest
 from advanced_alchemy.filters import OnBeforeAfter
 from geometrikks.domain.exceptions import DomainValidationError
 
-from geometrikks.api.v1.access_log_debug_controller import (
+from geometrikks.domain.logs.controllers.access_log_debug import (
     provide_debug_time_window,
     validated_ips,
 )

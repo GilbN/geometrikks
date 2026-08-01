@@ -8,8 +8,8 @@ from litestar import Litestar, get
 from litestar.testing import TestClient
 
 from geometrikks.config.settings import Settings
-from geometrikks.api.v1.auth_controller import AuthController
-from geometrikks.api.v1.live_controller import crowdsec_feed, live_feed, logs_feed
+from geometrikks.domain.auth.controllers import AuthController
+from geometrikks.domain.realtime.controllers import crowdsec_feed, live_feed, logs_feed
 from geometrikks.server.auth import build_auth_state, create_session_auth
 
 from tests.test_live_ws import FakeIngestion

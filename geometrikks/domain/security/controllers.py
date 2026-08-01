@@ -21,7 +21,7 @@ from litestar.exceptions import NotFoundException, PermissionDeniedException
 from litestar.params import QueryParameter, SkipValidation
 from litestar.status_codes import HTTP_200_OK, HTTP_204_NO_CONTENT
 
-from geometrikks.api.dependencies import (
+from geometrikks.domain.security.dependencies import (
     provide_crowdsec_poller,
     provide_crowdsec_service,
     provide_limit_offset_pagination,

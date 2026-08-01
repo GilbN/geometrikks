@@ -25,7 +25,7 @@ from geometrikks.config.settings import Settings
 from geometrikks.lib.utils import geoip_info
 from geometrikks.server import runtime
 from geometrikks.services.ingestion import LogIngestionService
-from geometrikks.api.dependencies import provide_ingestion_service as pis
+from geometrikks.domain.system.dependencies import provide_ingestion_service as pis
 
 
 @dataclass

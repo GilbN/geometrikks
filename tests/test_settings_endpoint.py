@@ -4,7 +4,7 @@ from __future__ import annotations
 from litestar import Litestar
 from litestar.testing import TestClient
 
-from geometrikks.api.v1.settings import read_settings
+from geometrikks.domain.system.controllers.settings import read_settings
 from geometrikks.services.geoip.home import HomeLocation
 from tests.support import ambient_settings_dependency
 

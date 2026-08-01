@@ -9,7 +9,7 @@ from __future__ import annotations
 import pytest
 from geometrikks.domain.exceptions import DomainValidationError
 
-from geometrikks.api.v1.analytics_controller import _build_filters
+from geometrikks.domain.analytics.controllers import _build_filters
 from geometrikks.domain.analytics.repositories import AnalyticsFilters
 
 

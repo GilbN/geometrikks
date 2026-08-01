@@ -9,7 +9,7 @@ from apscheduler.triggers.interval import IntervalTrigger
 from litestar import Litestar
 from litestar.testing import AsyncTestClient
 
-from geometrikks.api.v1.system_controller import SystemController
+from geometrikks.domain.system.controllers.system import SystemController
 from geometrikks.server.scheduler_tracking import JobRunTracker
 from tests.support import ambient_settings_dependency
 

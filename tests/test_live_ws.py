@@ -34,7 +34,7 @@ def make_record(with_geo: bool = True, with_log: bool = True) -> ParsedLogRecord
 
 class TestRecordToEvents:
     def test_full_record_yields_both_events(self):
-        from geometrikks.api.v1.live_controller import record_to_events
+        from geometrikks.domain.realtime.controllers import record_to_events
         events = record_to_events(make_record())
         types = [e["type"] for e in events]
         assert types == ["geo_event", "access_log"]
@@ -53,12 +53,12 @@ class TestRecordToEvents:
         assert log["host"] == "example.com" and log["country_code"] == "GB"
 
     def test_geo_only_record(self):
-        from geometrikks.api.v1.live_controller import record_to_events
+        from geometrikks.domain.realtime.controllers import record_to_events
         events = record_to_events(make_record(with_log=False))
         assert [e["type"] for e in events] == ["geo_event"]
 
     def test_malformed_record_yields_nothing(self):
-        from geometrikks.api.v1.live_controller import record_to_events
+        from geometrikks.domain.realtime.controllers import record_to_events
         assert record_to_events(make_record(with_geo=False, with_log=False)) == []
 
 
@@ -77,7 +77,7 @@ class FakeIngestion:
 
 
 def make_app(ingestion) -> Litestar:
-    from geometrikks.api.v1.live_controller import live_feed
+    from geometrikks.domain.realtime.controllers import live_feed
     app = Litestar(route_handlers=[live_feed])
     app.state.ingestion_service = ingestion
     return app
@@ -98,7 +98,7 @@ def test_ws_streams_batch_frames():
 def test_ws_sends_empty_batch_heartbeat_when_idle(monkeypatch):
     """Reverse proxies cut idle sockets (nginx proxy_read_timeout); with no
     events flowing the handler must emit an empty batch frame as a keepalive."""
-    from geometrikks.api.v1 import live_controller
+    from geometrikks.domain.realtime import controllers as live_controller
 
     monkeypatch.setattr(live_controller, "HEARTBEAT_INTERVAL", 0.3, raising=False)
     ingestion = FakeIngestion()
@@ -172,7 +172,7 @@ class FakeSocket:
 @pytest.mark.anyio
 async def test_ws_cancellation_still_unsubscribes():
     """Server-side cancellation (shutdown) must run the cleanup path."""
-    from geometrikks.api.v1.live_controller import live_feed
+    from geometrikks.domain.realtime.controllers import live_feed
 
     ingestion = FakeIngestion()
     socket = FakeSocket(SimpleNamespace(ingestion_service=ingestion))
@@ -186,7 +186,7 @@ async def test_ws_cancellation_still_unsubscribes():
 
 class TestLogsFeed:
     def _make_app(self):
-        from geometrikks.api.v1.live_controller import logs_feed
+        from geometrikks.domain.realtime.controllers import logs_feed
         return Litestar(route_handlers=[logs_feed])
 
     def _receive_data_frame(self, ws, publish, timeout: float = 5.0):
@@ -230,7 +230,7 @@ class TestLogsFeed:
                 assert "boom" in events and "noise" not in events
 
     def test_sends_empty_log_batch_heartbeat_when_idle(self, monkeypatch):
-        from geometrikks.api.v1 import live_controller
+        from geometrikks.domain.realtime import controllers as live_controller
 
         monkeypatch.setattr(live_controller, "HEARTBEAT_INTERVAL", 0.3, raising=False)
         with TestClient(app=self._make_app()) as client:
@@ -239,7 +239,7 @@ class TestLogsFeed:
         assert frame == {"type": "log_batch", "records": [], "dropped": 0}
 
     def test_counts_dropped_records_beyond_frame_cap(self, monkeypatch):
-        from geometrikks.api.v1 import live_controller
+        from geometrikks.domain.realtime import controllers as live_controller
         from geometrikks.server.logging import log_broadcaster
 
         monkeypatch.setattr(live_controller, "MAX_RECORDS_PER_FRAME", 3, raising=False)

@@ -205,8 +205,8 @@ export async function fetchHealth(): Promise<HealthResponse> {
   return data
 }
 
-/** Ingestion counters from /api/v1/stats (untyped dict on the backend, so
- *  the shape is pinned here; keep in sync with geometrikks/api/v1/stats.py). */
+/** Ingestion counters from /api/v1/stats; mirrors the backend's typed
+ *  IngestionStatsResponse (geometrikks/domain/system/controllers/stats.py). */
 export interface StatsResponse {
   total_parsed_lines: number
   total_skipped_lines: number
