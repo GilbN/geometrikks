@@ -15,6 +15,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Breaking:** all REST API JSON fields and query parameters are now
+  camelCase (`totalRequests`, `startedAt`, `fromTimestamp`, `startDate`,
+  `comparePrevious`, ...); previously the dataclass-backed endpoints
+  (analytics, system, settings, stats, health, CrowdSec, geo top-IPs/GeoJSON,
+  log files) used snake_case. Digit-adjacent fields are `status2xx`-style and
+  `requestCount24h`. Path segments (`{location_id}`, `{job_id}`), WebSocket
+  frame payloads, `orderBy` column values, and the error envelope are
+  unchanged. External API consumers must rename fields; the bundled frontend
+  is already migrated. The full policy is documented in
+  `docs/api-conventions.md`.
+- Errors on API paths that previously returned an empty 404 body (unknown
+  routes, CrowdSec-disabled lookups) now return the standard
+  `{status_code, detail}` JSON envelope; non-API 404s are unchanged.
+- All REST endpoints are mounted through a single versioned `/api/v1` router;
+  URLs, operation IDs, and generated client method names are unchanged.
 - `create_app()` accepts an explicit settings object and app-level dependency
   overrides, and request handlers now receive settings through dependency
   injection instead of resolving the process-cached factory inline. The
