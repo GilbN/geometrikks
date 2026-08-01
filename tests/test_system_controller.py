@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
+import pytest
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 from litestar import Litestar
@@ -12,6 +13,28 @@ from geometrikks.api.v1.system_controller import SystemController
 from geometrikks.server.scheduler_tracking import JobRunTracker
 
 FUTURE = datetime(2030, 1, 1, tzinfo=timezone.utc)
+
+
+@pytest.fixture(autouse=True)
+async def _dispose_cached_db_engine():
+    """Dispose the process-cached engine on the loop that used it.
+
+    The /about tests may open a real pooled asyncpg connection through the
+    lru_cached SQLAlchemy config. Each test runs on its own event loop, so a
+    pooled connection left behind outlives its loop; when asyncpg later
+    finalizes it, the close-timeout path leaks an unawaited
+    Connection._cancel coroutine (RuntimeWarning). Disposing before the loop
+    closes keeps every connection loop-local.
+    """
+    yield
+    from geometrikks.server import plugins
+
+    config_factory = plugins.get_sqlalchemy_config
+    cache_info = getattr(config_factory, "cache_info", None)
+    if cache_info is None or cache_info().currsize == 0:
+        return
+    await config_factory().get_engine().dispose()
+    config_factory.cache_clear()
 
 
 async def noop() -> None:
