@@ -422,6 +422,27 @@ export const CountryFacetSchema = {
   type: "object",
 } as const;
 
+export const CrowdSecHealthSchema = {
+  properties: {
+    enabled: {
+      type: "boolean",
+    },
+    lapi_reachable: {
+      oneOf: [
+        {
+          type: "boolean",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+  },
+  required: ["enabled", "lapi_reachable"],
+  title: "CrowdSecHealth",
+  type: "object",
+} as const;
+
 export const CrowdSecStatsResponseSchema = {
   properties: {
     by_origin: {
@@ -507,6 +528,17 @@ export const CumulativeTimeSeriesResponseSchema = {
   },
   required: ["end_date", "granularity", "start_date"],
   title: "CumulativeTimeSeriesResponse",
+  type: "object",
+} as const;
+
+export const DatabaseHealthSchema = {
+  properties: {
+    reachable: {
+      type: "boolean",
+    },
+  },
+  required: ["reachable"],
+  title: "DatabaseHealth",
   type: "object",
 } as const;
 
@@ -833,6 +865,27 @@ export const GeoEventsTimeSeriesResponseSchema = {
   },
   required: ["data", "end_date", "granularity", "start_date"],
   title: "GeoEventsTimeSeriesResponse",
+  type: "object",
+} as const;
+
+export const GeoIPHealthSchema = {
+  properties: {
+    available: {
+      type: "boolean",
+    },
+    db_build_date: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+  },
+  required: ["available", "db_build_date"],
+  title: "GeoIPHealth",
   type: "object",
 } as const;
 
@@ -1318,6 +1371,51 @@ export const GlobalTopIPsResponseSchema = {
   type: "object",
 } as const;
 
+export const HealthResponseSchema = {
+  properties: {
+    crowdsec: {
+      $ref: "#/components/schemas/CrowdSecHealth",
+    },
+    database: {
+      $ref: "#/components/schemas/DatabaseHealth",
+    },
+    geoip: {
+      $ref: "#/components/schemas/GeoIPHealth",
+    },
+    ingestion: {
+      $ref: "#/components/schemas/IngestionHealth",
+    },
+    started_at: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    status: {
+      enum: ["healthy", "degraded"],
+      type: "string",
+    },
+    timestamp: {
+      type: "string",
+    },
+  },
+  required: [
+    "crowdsec",
+    "database",
+    "geoip",
+    "ingestion",
+    "started_at",
+    "status",
+    "timestamp",
+  ],
+  title: "HealthResponse",
+  type: "object",
+} as const;
+
 export const HypertableStatsViewSchema = {
   properties: {
     after_compression_bytes: {
@@ -1372,6 +1470,78 @@ export const HypertableStatsViewSchema = {
     "total_bytes",
   ],
   title: "HypertableStatsView",
+  type: "object",
+} as const;
+
+export const IngestionHealthSchema = {
+  properties: {
+    last_record_at: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    missing_files: {
+      items: {
+        type: "string",
+      },
+      type: "array",
+    },
+    parsed_lines: {
+      type: "integer",
+    },
+    pending_records: {
+      type: "integer",
+    },
+    running: {
+      type: "boolean",
+    },
+  },
+  required: [
+    "last_record_at",
+    "missing_files",
+    "parsed_lines",
+    "pending_records",
+    "running",
+  ],
+  title: "IngestionHealth",
+  type: "object",
+} as const;
+
+export const IngestionStatsResponseSchema = {
+  properties: {
+    is_running: {
+      type: "boolean",
+    },
+    total_ignored_lines: {
+      type: "integer",
+    },
+    total_parsed_lines: {
+      type: "integer",
+    },
+    total_pending_records: {
+      type: "integer",
+    },
+    total_processed: {
+      type: "integer",
+    },
+    total_skipped_lines: {
+      type: "integer",
+    },
+  },
+  required: [
+    "is_running",
+    "total_ignored_lines",
+    "total_parsed_lines",
+    "total_pending_records",
+    "total_processed",
+    "total_skipped_lines",
+  ],
+  title: "IngestionStatsResponse",
   type: "object",
 } as const;
 
@@ -1860,12 +2030,40 @@ export const LogRotateResponseSchema = {
   type: "object",
 } as const;
 
+export const LogTailRecordSchema = {
+  properties: {
+    event: {
+      type: "string",
+    },
+    exception: {
+      type: "string",
+    },
+    ip: {
+      type: "string",
+    },
+    level: {
+      type: "string",
+    },
+    logger: {
+      type: "string",
+    },
+    timestamp: {
+      type: "string",
+    },
+    user: {
+      type: "string",
+    },
+  },
+  required: [],
+  title: "LogTailRecord",
+  type: "object",
+} as const;
+
 export const LogTailResponseSchema = {
   properties: {
     records: {
       items: {
-        additionalProperties: {},
-        type: "object",
+        $ref: "#/components/schemas/LogTailRecord",
       },
       type: "array",
     },
@@ -2120,6 +2318,17 @@ export const PeriodSummarySchema = {
     "unique_ips",
   ],
   title: "PeriodSummary",
+  type: "object",
+} as const;
+
+export const ReadinessResponseSchema = {
+  properties: {
+    ready: {
+      type: "boolean",
+    },
+  },
+  required: ["ready"],
+  title: "ReadinessResponse",
   type: "object",
 } as const;
 

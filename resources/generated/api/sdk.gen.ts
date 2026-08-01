@@ -147,6 +147,7 @@ import type {
   HealthHealthData,
   HealthHealthResponses,
   HealthReadyHealthReadyData,
+  HealthReadyHealthReadyErrors,
   HealthReadyHealthReadyResponses,
 } from "./types.gen";
 
@@ -1628,10 +1629,14 @@ export const healthHealth = <ThrowOnError extends boolean = false>(
  */
 export const healthReadyHealthReady = <ThrowOnError extends boolean = false>(
   options?: Options<HealthReadyHealthReadyData, ThrowOnError>,
-): RequestResult<HealthReadyHealthReadyResponses, unknown, ThrowOnError> =>
+): RequestResult<
+  HealthReadyHealthReadyResponses,
+  HealthReadyHealthReadyErrors,
+  ThrowOnError
+> =>
   (options?.client ?? client).get<
     HealthReadyHealthReadyResponses,
-    unknown,
+    HealthReadyHealthReadyErrors,
     ThrowOnError
   >({
     security: [

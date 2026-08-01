@@ -28,6 +28,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   counting, heartbeats, unsubscribe cleanup, cancellation, the session-auth
   handshake boundary, and the inbound-frame policy.
 
+- The `/health`, `/health/ready`, `/api/v1/stats`, and `/api/v1/logs/tail`
+  responses now have typed OpenAPI schemas (readiness documents its 503
+  response); payload shapes on the wire are unchanged.
+- The geo-locations API is served through a dedicated service layer with
+  Advanced Alchemy pagination; the `currentPage`/`pageSize` parameters and
+  default page size are unchanged.
+- Invalid filter, sort, and ban-duration values are now translated to 400
+  responses centrally from domain exceptions instead of per-controller HTTP
+  raises; the `{status_code, detail}` error envelope is unchanged.
 - All API query and path parameters now use Litestar's explicit
   `QueryParameter`/`FromPath` declarations (Litestar 3.0 readiness). Wire
   names and validation are unchanged; the OpenAPI schema gains descriptions
