@@ -7,6 +7,18 @@ import pytest
 # imported anywhere; conftest module import precedes test collection.
 os.environ["GEOMETRIKKS_ENV_FILE"] = ""
 
+# The app's entire configuration namespace is scrubbed from the inherited
+# environment for the same reason: a developer shell exporting perfectly
+# valid values (SCHEDULER_ENABLED=false, CROWDSEC_MACHINE_ID=..., MAP_HOME_*)
+# must not change test results. Values tests do rely on are re-set in
+# baseline_settings_env below; tests needing others use monkeypatch.setenv.
+_SETTINGS_ENV_PREFIXES = (
+    "APP_", "API_", "DB_", "GEOIP_", "LOG_", "LOGPARSER_", "ANALYTICS_",
+    "SCHEDULER_", "MAP_", "CROWDSEC_", "VITE_", "MAXMINDDB_",
+)
+for _key in [k for k in os.environ if k.startswith(_SETTINGS_ENV_PREFIXES)]:
+    del os.environ[_key]
+
 
 @pytest.fixture
 def anyio_backend() -> str:
@@ -56,11 +68,6 @@ def baseline_settings_env():
         # Log parser
         "LOGPARSER_LOG_PATHS": "/var/log/nginx/access.log",
     })
-    # Representative developer values that default-asserting tests are
-    # sensitive to; scrub them so an exported shell environment cannot leak
-    # into the suite. Tests that need them set them via monkeypatch.
-    for var in ("MAP_HOME_LATITUDE", "MAP_HOME_LONGITUDE", "LOGPARSER_IGNORE_IPS"):
-        os.environ.pop(var, None)
 
 
 @pytest.fixture(autouse=True)
