@@ -134,7 +134,6 @@ list most users need is in `.env.example`; everything below is available.
 | `VITE_USE_SERVER_LIFESPAN` | `true` | Auto start and stop vite processes when running in development mode. |
 | `VITE_HOST` | `0.0.0.0` | The host the vite process will listen on. Defaults to 0.0.0.0. |
 | `VITE_PORT` | `5173` | The port to start vite on. Default is 5173. |
-| `VITE_HOT_RELOAD` | `true` | Start vite with HMR enabled. |
 | `VITE_ENABLE_REACT_HELPERS` | `true` | Enable React support in HMR. |
 | `VITE_HTTP2` | `true` | Enable HTTP/2 for the Vite development server. |
 | `VITE_EXECUTOR` | `bun` | JS runtime executor for litestar-vite (defaults to bun). |
