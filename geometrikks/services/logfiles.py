@@ -14,7 +14,7 @@ from collections import deque
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Literal, TypedDict, cast
 
 from geometrikks.server.logging import LOGIN_LOG_NAME, LOGIN_LOGGER_NAME, MAIN_LOG_NAME
 
@@ -26,6 +26,24 @@ _LOGIN_LINE_RE = re.compile(
 )
 
 LogFileKind = Literal["app", "login", "nginx"]
+
+
+class LogTailRecord(TypedDict, total=False):
+    """Stable fields of a tailed log record.
+
+    App-log records are structlog JSONL events, so they carry arbitrary
+    additional context keys at runtime; a TypedDict is a plain dict, so
+    those keys pass through the API untouched while the schema documents
+    the fields every record can be expected to have.
+    """
+
+    timestamp: str
+    level: str
+    event: str
+    logger: str
+    exception: str
+    user: str
+    ip: str
 
 
 @dataclass
@@ -91,38 +109,38 @@ class LogFilesService:
                 return path
         return None
 
-    def tail_main(self, lines: int) -> list[dict[str, Any]]:
+    def tail_main(self, lines: int) -> list[LogTailRecord]:
         """Last N parsed JSONL records of the main log; malformed lines skipped."""
         main = self._log_dir / MAIN_LOG_NAME
         if not main.is_file():
             return []
         with main.open("r", encoding="utf-8", errors="replace") as fh:
             raw = deque(fh, maxlen=lines)
-        records: list[dict[str, Any]] = []
+        records: list[LogTailRecord] = []
         for line in raw:
             try:
                 parsed = json.loads(line)
             except json.JSONDecodeError:
                 continue
             if isinstance(parsed, dict):
-                records.append(parsed)
+                records.append(cast("LogTailRecord", parsed))
         return records
 
-    def tail_login(self, lines: int) -> list[dict[str, Any]]:
+    def tail_login(self, lines: int) -> list[LogTailRecord]:
         """Last N parsed records of the plain-text login log; malformed lines skipped."""
         login = self._log_dir / LOGIN_LOG_NAME
         if not login.is_file():
             return []
         with login.open("r", encoding="utf-8", errors="replace") as fh:
             raw = deque(fh, maxlen=lines)
-        records: list[dict[str, Any]] = []
+        records: list[LogTailRecord] = []
         for line in raw:
             match = _LOGIN_LINE_RE.match(line.rstrip("\r\n"))
             if match is None:
                 continue
             event = match.group("event")
             ip = match.group("ip")
-            record: dict[str, Any] = {
+            record: LogTailRecord = {
                 "timestamp": match.group("timestamp"),
                 "level": "warning" if event == "login_failed" else "info",
                 "event": event,
