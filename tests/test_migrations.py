@@ -1,8 +1,17 @@
 """Alembic migration-chain sanity — no database required."""
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, MagicMock
 
+import pytest
 from alembic.config import Config
 from alembic.script import ScriptDirectory
+
+from geometrikks.config.settings import DatabaseSettings, Settings
+from tests.support import enter_lifespan
+from tests.test_lifecycle_geoip import _patch_startup_collaborators
+
+pytestmark = pytest.mark.anyio
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
@@ -26,13 +35,6 @@ def test_revisions_parse_and_chain() -> None:
     assert revisions, "no revisions found — baseline revision missing"
     # walk_revisions yields head → base; the last one is the root.
     assert revisions[-1].down_revision is None
-
-
-from unittest.mock import AsyncMock, MagicMock
-
-import pytest
-
-from geometrikks.config.settings import DatabaseSettings, Settings
 
 
 class _FakeConn:
@@ -171,16 +173,10 @@ def test_upgrade_to_head_honors_explicit_url(monkeypatch) -> None:
     assert config.connection_string == "postgresql+asyncpg://x:y@explicit.invalid:5432/appdb"
 
 
-from types import SimpleNamespace
-
-pytestmark = pytest.mark.anyio
-
-
 async def test_lifespan_migrates_before_timescale(monkeypatch) -> None:
     """Migrations own the schema; setup_timescaledb depends on the tables
     existing, so it must run strictly after migrate_database."""
     from geometrikks.server import lifecycle as lc
-    from tests.support import enter_lifespan
 
     order: list[str] = []
 
@@ -230,9 +226,6 @@ async def test_lifespan_skips_migrations_when_disabled(monkeypatch) -> None:
     'litestar database upgrade' step; TimescaleDB setup still runs and is
     the deliberate startup failure if that step was skipped."""
     from geometrikks.server import lifecycle as lc
-    from tests.support import enter_lifespan
-    from tests.test_lifecycle_geoip import _patch_startup_collaborators
-    from unittest.mock import AsyncMock
 
     monkeypatch.setenv("DB_MIGRATE_ON_STARTUP", "false")
     _patch_startup_collaborators(
