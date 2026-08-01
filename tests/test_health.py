@@ -79,7 +79,7 @@ def test_health_degraded_when_tailed_file_missing(monkeypatch):
         body = client.get("/health").json()
     assert body["status"] == "degraded"
     assert body["ingestion"]["running"] is True
-    assert body["ingestion"]["missing_files"] == ["nginx_logs/access.log"]
+    assert body["ingestion"]["missingFiles"] == ["nginx_logs/access.log"]
 
 
 def test_health_exposes_uptime_and_activity_fields(monkeypatch):
@@ -93,9 +93,9 @@ def test_health_exposes_uptime_and_activity_fields(monkeypatch):
     with TestClient(app=make_app()) as client:
         body = client.get("/health").json()
     # make_app has no started_at in state and no ingestion service
-    assert body["started_at"] is None
-    assert body["ingestion"]["last_record_at"] is None
-    assert "db_build_date" in body["geoip"]
+    assert body["startedAt"] is None
+    assert body["ingestion"]["lastRecordAt"] is None
+    assert "dbBuildDate" in body["geoip"]
 
 
 def test_health_started_at_from_app_state(monkeypatch):
@@ -109,7 +109,7 @@ def test_health_started_at_from_app_state(monkeypatch):
     app.state.started_at = datetime(2026, 7, 31, 8, 0, 0, tzinfo=timezone.utc)
     with TestClient(app=app) as client:
         body = client.get("/health").json()
-    assert body["started_at"] == "2026-07-31T08:00:00+00:00"
+    assert body["startedAt"] == "2026-07-31T08:00:00+00:00"
 
 
 def test_health_no_missing_files_stays_healthy(monkeypatch):
@@ -122,7 +122,7 @@ def test_health_no_missing_files_stays_healthy(monkeypatch):
     with TestClient(app=app) as client:
         body = client.get("/health").json()
     assert body["status"] == "healthy"
-    assert body["ingestion"]["missing_files"] == []
+    assert body["ingestion"]["missingFiles"] == []
 
 
 def test_health_crowdsec_disabled_by_default(monkeypatch):
@@ -132,7 +132,7 @@ def test_health_crowdsec_disabled_by_default(monkeypatch):
 
     with TestClient(app=make_app()) as client:
         body = client.get("/health").json()
-    assert body["crowdsec"] == {"enabled": False, "lapi_reachable": None}
+    assert body["crowdsec"] == {"enabled": False, "lapiReachable": None}
 
 
 def test_health_crowdsec_enabled_and_down(monkeypatch):
@@ -145,6 +145,6 @@ def test_health_crowdsec_enabled_and_down(monkeypatch):
     app.state.crowdsec_stream_poller = SimpleNamespace(lapi_reachable=False)
     with TestClient(app=app) as client:
         body = client.get("/health").json()
-    assert body["crowdsec"] == {"enabled": True, "lapi_reachable": False}
+    assert body["crowdsec"] == {"enabled": True, "lapiReachable": False}
     # CrowdSec being down must not degrade the app status by itself
     assert body["status"] == "degraded"  # degraded because no ingestion in make_app

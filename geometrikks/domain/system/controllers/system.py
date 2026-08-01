@@ -7,7 +7,8 @@ is the only user, so no extra guards are needed here.
 from __future__ import annotations
 
 import platform
-from dataclasses import dataclass
+
+import msgspec
 from datetime import datetime, timezone
 from importlib.metadata import PackageNotFoundError, version as dist_version
 from typing import TYPE_CHECKING
@@ -36,8 +37,7 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 
-@dataclass
-class SchedulerJobView:
+class SchedulerJobView(msgspec.Struct, rename="camel"):
     id: str
     name: str
     trigger: str
@@ -49,8 +49,7 @@ class SchedulerJobView:
     last_error: str | None
 
 
-@dataclass
-class SchedulerJobsResponse:
+class SchedulerJobsResponse(msgspec.Struct, rename="camel"):
     scheduler_enabled: bool
     scheduler_running: bool
     jobs: list[SchedulerJobView]
@@ -59,8 +58,7 @@ class SchedulerJobsResponse:
 REPO_URL = "https://github.com/GilbN/geometrikks"
 
 
-@dataclass
-class AboutAppView:
+class AboutAppView(msgspec.Struct, rename="camel"):
     name: str
     version: str
     environment: str
@@ -69,28 +67,24 @@ class AboutAppView:
     started_at: datetime | None
 
 
-@dataclass
-class RuntimeVersionsView:
+class RuntimeVersionsView(msgspec.Struct, rename="camel"):
     python_version: str
     litestar_version: str | None
     apscheduler_version: str | None
 
 
-@dataclass
-class DatabaseVersionsView:
+class DatabaseVersionsView(msgspec.Struct, rename="camel"):
     postgres_version: str | None
     timescaledb_version: str | None
     postgis_version: str | None
 
 
-@dataclass
-class AboutLinksView:
+class AboutLinksView(msgspec.Struct, rename="camel"):
     repository: str
     issues: str
 
 
-@dataclass
-class AboutResponse:
+class AboutResponse(msgspec.Struct, rename="camel"):
     app: AboutAppView
     runtime: RuntimeVersionsView
     database: DatabaseVersionsView
@@ -134,8 +128,7 @@ async def _database_versions(app: Litestar) -> DatabaseVersionsView:
         )
 
 
-@dataclass
-class HypertableStatsView:
+class HypertableStatsView(msgspec.Struct, rename="camel"):
     name: str
     approx_rows: int | None
     total_bytes: int | None
@@ -145,8 +138,7 @@ class HypertableStatsView:
     after_compression_bytes: int | None
 
 
-@dataclass
-class DatabaseInfoResponse:
+class DatabaseInfoResponse(msgspec.Struct, rename="camel"):
     reachable: bool
     size_bytes: int | None
     postgres_version: str | None

@@ -1,12 +1,17 @@
-"""DTOs for analytics data transfer."""
+"""Response schemas for the analytics endpoints.
+
+msgspec Structs with camelCase renaming (see geo/schemas.py for the idiom).
+Python attributes stay snake_case; the digit-adjacent status fields pin their
+wire names explicitly because the camel strategy would render status_2xx as
+"status2Xx".
+"""
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+import msgspec
 
 
-@dataclass
-class TimeSeriesDataPoint:
+class TimeSeriesDataPoint(msgspec.Struct, rename="camel"):
     """A single data point in a time-series response.
 
     Used for charting requests, bandwidth, performance over time.
@@ -16,10 +21,10 @@ class TimeSeriesDataPoint:
     total_requests: int
     total_geo_events: int
     total_bytes_sent: int
-    status_2xx: int
-    status_3xx: int
-    status_4xx: int
-    status_5xx: int
+    status_2xx: int = msgspec.field(name="status2xx")
+    status_3xx: int = msgspec.field(name="status3xx")
+    status_4xx: int = msgspec.field(name="status4xx")
+    status_5xx: int = msgspec.field(name="status5xx")
     error_rate: float
     avg_request_time: float
     p50_request_time: float
@@ -27,8 +32,7 @@ class TimeSeriesDataPoint:
     p99_request_time: float
 
 
-@dataclass
-class PerformanceDataPoint:
+class PerformanceDataPoint(msgspec.Struct, rename="camel"):
     """Performance metrics for a single time point.
 
     Used for response time charts.
@@ -39,8 +43,7 @@ class PerformanceDataPoint:
     max_request_time: float
 
 
-@dataclass
-class BandwidthDataPoint:
+class BandwidthDataPoint(msgspec.Struct, rename="camel"):
     """Bandwidth metrics for a single time point."""
 
     timestamp: str  # ISO format string
@@ -48,8 +51,7 @@ class BandwidthDataPoint:
     avg_bytes_per_request: float
 
 
-@dataclass
-class GeoEventsDataPoint:
+class GeoEventsDataPoint(msgspec.Struct, rename="camel"):
     """Geo events metrics for a single time point."""
 
     timestamp: str  # ISO format string
@@ -59,8 +61,7 @@ class GeoEventsDataPoint:
     unique_cities: int
 
 
-@dataclass
-class TimeSeriesResponse:
+class TimeSeriesResponse(msgspec.Struct, rename="camel"):
     """Response containing time-series data for charts.
 
     ``data`` is deliberately default-less so it is required in OpenAPI and
@@ -73,28 +74,25 @@ class TimeSeriesResponse:
     data: list[TimeSeriesDataPoint]
 
 
-@dataclass
-class PerformanceTimeSeriesResponse:
+class PerformanceTimeSeriesResponse(msgspec.Struct, rename="camel"):
     """Response containing performance time-series data."""
 
     granularity: str
     start_date: str
     end_date: str
-    data: list[PerformanceDataPoint] = field(default_factory=list)
+    data: list[PerformanceDataPoint] = msgspec.field(default_factory=list)
 
 
-@dataclass
-class BandwidthTimeSeriesResponse:
+class BandwidthTimeSeriesResponse(msgspec.Struct, rename="camel"):
     """Response containing bandwidth time-series data."""
 
     granularity: str
     start_date: str
     end_date: str
-    data: list[BandwidthDataPoint] = field(default_factory=list)
+    data: list[BandwidthDataPoint] = msgspec.field(default_factory=list)
 
 
-@dataclass
-class GeoEventsTimeSeriesResponse:
+class GeoEventsTimeSeriesResponse(msgspec.Struct, rename="camel"):
     """Response containing geo events time-series data.
 
     ``data`` is deliberately default-less (see TimeSeriesResponse).
@@ -106,8 +104,7 @@ class GeoEventsTimeSeriesResponse:
     data: list[GeoEventsDataPoint]
 
 
-@dataclass
-class PeriodSummary:
+class PeriodSummary(msgspec.Struct, rename="camel"):
     """Summary statistics for a single period."""
 
     total_requests: int
@@ -116,18 +113,17 @@ class PeriodSummary:
     unique_countries: int
     total_bytes_sent: int
     avg_bytes_per_request: float
-    status_2xx: int
-    status_3xx: int
-    status_4xx: int
-    status_5xx: int
+    status_2xx: int = msgspec.field(name="status2xx")
+    status_3xx: int = msgspec.field(name="status3xx")
+    status_4xx: int = msgspec.field(name="status4xx")
+    status_5xx: int = msgspec.field(name="status5xx")
     avg_request_time: float
     max_request_time: float
     malformed_requests: int
     error_rate: float
 
 
-@dataclass
-class PercentChange:
+class PercentChange(msgspec.Struct, rename="camel"):
     """Percent change between two periods."""
 
     log_records: float | None = None
@@ -139,8 +135,7 @@ class PercentChange:
     malformed_rate: float | None = None
 
 
-@dataclass
-class SummaryResponse:
+class SummaryResponse(msgspec.Struct, rename="camel"):
     """Response containing summary statistics with optional comparison.
 
     Used for dashboard header cards showing key metrics.
@@ -153,30 +148,27 @@ class SummaryResponse:
     percent_changes: PercentChange | None = None
 
 
-@dataclass
-class StatusDistributionPoint:
+class StatusDistributionPoint(msgspec.Struct, rename="camel"):
     """Status code distribution for a time point."""
 
     timestamp: str
-    status_2xx: int
-    status_3xx: int
-    status_4xx: int
-    status_5xx: int
+    status_2xx: int = msgspec.field(name="status2xx")
+    status_3xx: int = msgspec.field(name="status3xx")
+    status_4xx: int = msgspec.field(name="status4xx")
+    status_5xx: int = msgspec.field(name="status5xx")
     total: int
 
 
-@dataclass
-class StatusDistributionResponse:
+class StatusDistributionResponse(msgspec.Struct, rename="camel"):
     """Response containing status code distribution over time."""
 
     granularity: str
     start_date: str
     end_date: str
-    data: list[StatusDistributionPoint] = field(default_factory=list)
+    data: list[StatusDistributionPoint] = msgspec.field(default_factory=list)
 
 
-@dataclass
-class CumulativeDataPoint:
+class CumulativeDataPoint(msgspec.Struct, rename="camel"):
     """Cumulative metrics for a single time point.
 
     Running totals that reset at the start of the selected time range.
@@ -188,18 +180,16 @@ class CumulativeDataPoint:
     cumulative_bytes: int
 
 
-@dataclass
-class CumulativeTimeSeriesResponse:
+class CumulativeTimeSeriesResponse(msgspec.Struct, rename="camel"):
     """Response containing cumulative time-series data for area charts."""
 
     granularity: str  # "hourly" or "daily"
     start_date: str
     end_date: str
-    data: list[CumulativeDataPoint] = field(default_factory=list)
+    data: list[CumulativeDataPoint] = msgspec.field(default_factory=list)
 
 
-@dataclass
-class TopUrlDTO:
+class TopUrlDTO(msgspec.Struct, rename="camel"):
     """A single URL with its aggregate hit metrics."""
 
     url: str
@@ -209,8 +199,7 @@ class TopUrlDTO:
     avg_request_time: float
 
 
-@dataclass
-class TopUrlsResponse:
+class TopUrlsResponse(msgspec.Struct, rename="camel"):
     """Response containing top URLs by hit count.
 
     ``items`` is deliberately default-less: a dataclass default makes it
@@ -222,16 +211,14 @@ class TopUrlsResponse:
     items: list[TopUrlDTO]
 
 
-@dataclass
-class TopUserAgentDTO:
+class TopUserAgentDTO(msgspec.Struct, rename="camel"):
     """A single user agent with its hit count."""
 
     user_agent: str
     hits: int
 
 
-@dataclass
-class TopUserAgentsResponse:
+class TopUserAgentsResponse(msgspec.Struct, rename="camel"):
     """Response containing top user agents by hit count.
 
     ``items`` is deliberately default-less (see TopUrlsResponse).
@@ -242,8 +229,7 @@ class TopUserAgentsResponse:
     items: list[TopUserAgentDTO]
 
 
-@dataclass
-class TopIpDTO:
+class TopIpDTO(msgspec.Struct, rename="camel"):
     """A single IP address with its aggregate hit metrics."""
 
     ip_address: str
@@ -254,8 +240,7 @@ class TopIpDTO:
     city: str | None
 
 
-@dataclass
-class TopIpsResponse:
+class TopIpsResponse(msgspec.Struct, rename="camel"):
     """Response containing top IPs by hit count.
 
     ``items`` is deliberately default-less (see TopUrlsResponse).
@@ -266,8 +251,7 @@ class TopIpsResponse:
     items: list[TopIpDTO]
 
 
-@dataclass
-class TopCountryStatsDTO:
+class TopCountryStatsDTO(msgspec.Struct, rename="camel"):
     """A single country with its aggregate metrics."""
 
     country_code: str
@@ -276,8 +260,7 @@ class TopCountryStatsDTO:
     unique_ips: int
 
 
-@dataclass
-class TopCountriesStatsResponse:
+class TopCountriesStatsResponse(msgspec.Struct, rename="camel"):
     """Response containing top countries by hit count.
 
     ``items`` is deliberately default-less (see TopUrlsResponse).
@@ -288,8 +271,7 @@ class TopCountriesStatsResponse:
     items: list[TopCountryStatsDTO]
 
 
-@dataclass
-class TopCityStatsDTO:
+class TopCityStatsDTO(msgspec.Struct, rename="camel"):
     """A single city with its aggregate metrics."""
 
     city: str
@@ -298,8 +280,7 @@ class TopCityStatsDTO:
     unique_ips: int
 
 
-@dataclass
-class TopCitiesResponse:
+class TopCitiesResponse(msgspec.Struct, rename="camel"):
     """Response containing top cities by hit count.
 
     ``items`` is deliberately default-less (see TopUrlsResponse).

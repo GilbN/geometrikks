@@ -1,9 +1,8 @@
 """Shared query-parameter declarations reused across API controllers.
 
-These are ``Annotated`` aliases: unless a declaration carries an explicit
-``name=``, the wire-level query-parameter name still comes from the handler
-argument name, so reusing an alias across handlers never changes the wire
-contract.
+These are ``Annotated`` aliases. Every alias carries an explicit camelCase
+``name=`` (the public API casing policy); handler argument names stay
+snake_case Python.
 """
 
 from __future__ import annotations
@@ -14,17 +13,38 @@ from typing import Annotated
 from litestar.openapi.spec import Example
 from litestar.params import QueryParameter
 
-StartTimestamp = Annotated[
+FromTimestamp = Annotated[
     datetime,
     QueryParameter(
+        name="fromTimestamp",
         description="Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)",
         examples=[Example(value="2024-01-01T00:00:00Z")],
     ),
 ]
 
-EndTimestamp = Annotated[
+ToTimestamp = Annotated[
     datetime,
     QueryParameter(
+        name="toTimestamp",
+        description="End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)",
+        examples=[Example(value="2024-12-31T23:59:59Z")],
+    ),
+]
+
+# The analytics endpoints keep their own wire names for the same window.
+StartDate = Annotated[
+    datetime,
+    QueryParameter(
+        name="startDate",
+        description="Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)",
+        examples=[Example(value="2024-01-01T00:00:00Z")],
+    ),
+]
+
+EndDate = Annotated[
+    datetime,
+    QueryParameter(
+        name="endDate",
         description="End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)",
         examples=[Example(value="2024-12-31T23:59:59Z")],
     ),
@@ -32,7 +52,7 @@ EndTimestamp = Annotated[
 
 CountryCodeFilter = Annotated[
     list[str] | None,
-    QueryParameter(description="Filter to these ISO country codes (repeatable)", required=False),
+    QueryParameter(name="countryCode", description="Filter to these ISO country codes (repeatable)", required=False),
 ]
 
 CityFilter = Annotated[
@@ -42,12 +62,12 @@ CityFilter = Annotated[
 
 IpAddressFilter = Annotated[
     list[str] | None,
-    QueryParameter(description="Filter to these client IPs (repeatable)", required=False),
+    QueryParameter(name="ipAddress", description="Filter to these client IPs (repeatable)", required=False),
 ]
 
 IpAddressExcludeFilter = Annotated[
     list[str] | None,
-    QueryParameter(description="Exclude these client IPs (repeatable)", required=False),
+    QueryParameter(name="ipAddressNotIn", description="Exclude these client IPs (repeatable)", required=False),
 ]
 
 # camelCase-named variants used by the geo endpoints.

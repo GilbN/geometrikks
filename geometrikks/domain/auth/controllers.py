@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+import msgspec
+
 from litestar import Controller, Request, get, post
 from litestar.exceptions import NotAuthorizedException
 from litestar.status_codes import HTTP_200_OK, HTTP_204_NO_CONTENT
@@ -23,8 +25,7 @@ class LoginPayload:
     password: str
 
 
-@dataclass
-class MeResponse:
+class MeResponse(msgspec.Struct, rename="camel"):
     username: str
 
 

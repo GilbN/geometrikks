@@ -75,15 +75,15 @@ async def test_lists_jobs_with_run_info():
         resp = await client.get("/api/v1/system/scheduler/jobs")
     assert resp.status_code == 200
     body = resp.json()
-    assert body["scheduler_enabled"] is True
+    assert body["schedulerEnabled"] is True
     assert len(body["jobs"]) == 1
     job = body["jobs"][0]
     assert job["id"] == "job-a"
     assert job["name"] == "Job A"
-    assert job["next_run_time"] is not None
+    assert job["nextRunTime"] is not None
     assert job["running"] is False
-    assert job["last_run_time"] is None
-    assert job["last_status"] is None
+    assert job["lastRunTime"] is None
+    assert job["lastStatus"] is None
 
 
 async def test_no_scheduler_reports_disabled():
@@ -91,8 +91,8 @@ async def test_no_scheduler_reports_disabled():
         resp = await client.get("/api/v1/system/scheduler/jobs")
     assert resp.status_code == 200
     assert resp.json() == {
-        "scheduler_enabled": False,
-        "scheduler_running": False,
+        "schedulerEnabled": False,
+        "schedulerRunning": False,
         "jobs": [],
     }
 
@@ -135,23 +135,23 @@ async def test_about_reports_app_runtime_and_geoip_metadata(monkeypatch):
 
     assert body["app"]["name"]
     assert body["app"]["version"]
-    assert body["runtime"]["python_version"]
-    assert body["runtime"]["litestar_version"]
-    assert body["runtime"]["apscheduler_version"]
+    assert body["runtime"]["pythonVersion"]
+    assert body["runtime"]["litestarVersion"]
+    assert body["runtime"]["apschedulerVersion"]
 
     # Reported whether or not a database is reachable, never a 500. A local
     # dev database yields real versions; CI without one yields nulls.
     assert set(body["database"]) == {
-        "postgres_version",
-        "timescaledb_version",
-        "postgis_version",
+        "postgresVersion",
+        "timescaledbVersion",
+        "postgisVersion",
     }
     assert all(v is None or isinstance(v, str) for v in body["database"].values())
 
     # The test mmdb has real metadata
     assert body["geoip"]["available"] is True
-    assert body["geoip"]["build_date"] is not None
-    assert body["geoip"]["age_days"] is not None
+    assert body["geoip"]["buildDate"] is not None
+    assert body["geoip"]["ageDays"] is not None
 
     assert body["links"]["repository"] == "https://github.com/GilbN/geometrikks"
     assert body["links"]["issues"].endswith("/issues")
@@ -164,7 +164,7 @@ async def test_about_geoip_degrades_when_db_missing(monkeypatch):
     assert resp.status_code == 200
     geoip = resp.json()["geoip"]
     assert geoip["available"] is False
-    assert geoip["build_date"] is None
+    assert geoip["buildDate"] is None
 
 
 async def test_about_database_degrades_when_db_unreachable(monkeypatch):
@@ -179,9 +179,9 @@ async def test_about_database_degrades_when_db_unreachable(monkeypatch):
         resp = await client.get("/api/v1/system/about")
     assert resp.status_code == 200
     assert resp.json()["database"] == {
-        "postgres_version": None,
-        "timescaledb_version": None,
-        "postgis_version": None,
+        "postgresVersion": None,
+        "timescaledbVersion": None,
+        "postgisVersion": None,
     }
 
 
@@ -212,17 +212,17 @@ async def test_system_settings_surface_computed_values(monkeypatch):
 
     lat = field("map", "home_latitude")
     assert lat["value"] is None
-    assert lat["computed_value"] == 59.91
-    assert lat["computed_source"] == "external_ip"
+    assert lat["computedValue"] == 59.91
+    assert lat["computedSource"] == "external_ip"
 
     avail = field("geoip", "available")
-    assert avail["computed_value"] is True
-    assert avail["computed_source"] == "runtime"
-    assert avail["env_var"] is None
+    assert avail["computedValue"] is True
+    assert avail["computedSource"] == "runtime"
+    assert avail["envVar"] is None
 
     enabled = field("crowdsec", "enabled")
-    assert enabled["computed_value"] is True
-    assert enabled["computed_source"] == "runtime"
+    assert enabled["computedValue"] is True
+    assert enabled["computedSource"] == "runtime"
 
 
 async def test_system_settings_no_computed_home_when_absent():
@@ -231,11 +231,11 @@ async def test_system_settings_no_computed_home_when_absent():
         resp = await client.get("/api/v1/system/settings")
     sections = {s["name"]: s for s in resp.json()["sections"]}
     lat = next(f for f in sections["map"]["fields"] if f["key"] == "home_latitude")
-    assert lat["computed_value"] is None
+    assert lat["computedValue"] is None
 
     avail = next(f for f in sections["geoip"]["fields"] if f["key"] == "available")
-    assert avail["computed_value"] is False
-    assert avail["computed_source"] == "runtime"
+    assert avail["computedValue"] is False
+    assert avail["computedSource"] == "runtime"
 
 
 async def test_database_info_degraded_without_db(monkeypatch):
@@ -249,9 +249,9 @@ async def test_database_info_degraded_without_db(monkeypatch):
     assert resp.status_code == 200
     body = resp.json()
     assert body["reachable"] is False
-    assert body["size_bytes"] is None
-    assert body["postgres_version"] is None
-    assert body["timescaledb_version"] is None
-    assert isinstance(body["retention_days"], int)
-    assert isinstance(body["debug_retention_days"], int)
+    assert body["sizeBytes"] is None
+    assert body["postgresVersion"] is None
+    assert body["timescaledbVersion"] is None
+    assert isinstance(body["retentionDays"], int)
+    assert isinstance(body["debugRetentionDays"], int)
     assert body["hypertables"] == []

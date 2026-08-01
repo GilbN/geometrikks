@@ -45,10 +45,10 @@ from geometrikks.domain.analytics.dependencies import (
 from geometrikks.lib.parameters import (
     CityFilter,
     CountryCodeFilter,
-    EndTimestamp,
+    EndDate,
     IpAddressExcludeFilter,
     IpAddressFilter,
-    StartTimestamp,
+    StartDate,
 )
 from geometrikks.lib.validation import validate_ip_addresses
 
@@ -108,11 +108,12 @@ class AnalyticsController(Controller):
     async def get_summary(
         self,
         summary_stats_repo: NamedDependency[SummaryStatsRepository],
-        start_date: StartTimestamp,
-        end_date: EndTimestamp,
+        start_date: StartDate,
+        end_date: EndDate,
         compare_previous: Annotated[
             bool,
             QueryParameter(
+                name="comparePrevious",
                 description="Include comparison with previous period of same length",
             ),
         ] = False,
@@ -232,11 +233,12 @@ class AnalyticsController(Controller):
     async def get_live_summary(
         self,
         live_stats_repo: NamedDependency[LiveStatsRepository],
-        start_date: StartTimestamp,
-        end_date: EndTimestamp,
+        start_date: StartDate,
+        end_date: EndDate,
         compare_previous: Annotated[
             bool,
             QueryParameter(
+                name="comparePrevious",
                 description="Include comparison with previous period of same length",
             ),
         ] = False,
@@ -356,8 +358,8 @@ class AnalyticsController(Controller):
     async def get_cumulative_time_series(
         self,
         summary_stats_repo: NamedDependency[SummaryStatsRepository],
-        start_date: StartTimestamp,
-        end_date: EndTimestamp,
+        start_date: StartDate,
+        end_date: EndDate,
     ) -> CumulativeTimeSeriesResponse:
         """Get cumulative time series data for area charts.
 
@@ -397,8 +399,8 @@ class AnalyticsController(Controller):
         self,
         summary_stats_repo: NamedDependency[SummaryStatsRepository],
         live_stats_repo: NamedDependency[LiveStatsRepository],
-        start_date: StartTimestamp,
-        end_date: EndTimestamp,
+        start_date: StartDate,
+        end_date: EndDate,
         granularity: Annotated[
             Literal["hourly", "daily"] | None,
             QueryParameter(
@@ -460,8 +462,8 @@ class AnalyticsController(Controller):
     async def get_geo_time_series(
         self,
         summary_stats_repo: NamedDependency[SummaryStatsRepository],
-        start_date: StartTimestamp,
-        end_date: EndTimestamp,
+        start_date: StartDate,
+        end_date: EndDate,
         granularity: Annotated[
             Literal["hourly", "daily"] | None,
             QueryParameter(
@@ -494,8 +496,8 @@ class AnalyticsController(Controller):
     async def get_top_urls(
         self,
         summary_stats_repo: NamedDependency[SummaryStatsRepository],
-        start_date: StartTimestamp,
-        end_date: EndTimestamp,
+        start_date: StartDate,
+        end_date: EndDate,
         limit: Annotated[
             int,
             QueryParameter(description="Maximum number of URLs to return", ge=1, le=100),
@@ -522,8 +524,8 @@ class AnalyticsController(Controller):
     async def get_top_user_agents(
         self,
         summary_stats_repo: NamedDependency[SummaryStatsRepository],
-        start_date: StartTimestamp,
-        end_date: EndTimestamp,
+        start_date: StartDate,
+        end_date: EndDate,
         limit: Annotated[
             int,
             QueryParameter(description="Maximum number of user agents to return", ge=1, le=100),
@@ -550,8 +552,8 @@ class AnalyticsController(Controller):
     async def get_top_ips(
         self,
         summary_stats_repo: NamedDependency[SummaryStatsRepository],
-        start_date: StartTimestamp,
-        end_date: EndTimestamp,
+        start_date: StartDate,
+        end_date: EndDate,
         limit: Annotated[
             int,
             QueryParameter(description="Maximum number of IPs", ge=1, le=100),
@@ -574,8 +576,8 @@ class AnalyticsController(Controller):
     async def get_top_countries(
         self,
         summary_stats_repo: NamedDependency[SummaryStatsRepository],
-        start_date: StartTimestamp,
-        end_date: EndTimestamp,
+        start_date: StartDate,
+        end_date: EndDate,
         limit: Annotated[
             int,
             QueryParameter(description="Maximum number of countries", ge=1, le=100),
@@ -598,8 +600,8 @@ class AnalyticsController(Controller):
     async def get_top_cities(
         self,
         summary_stats_repo: NamedDependency[SummaryStatsRepository],
-        start_date: StartTimestamp,
-        end_date: EndTimestamp,
+        start_date: StartDate,
+        end_date: EndDate,
         limit: Annotated[
             int,
             QueryParameter(description="Maximum number of cities", ge=1, le=100),

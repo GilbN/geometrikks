@@ -10,7 +10,7 @@ format this payload has always used on the wire.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
+import msgspec
 from datetime import datetime, timezone
 from typing import Literal
 
@@ -28,8 +28,7 @@ from geometrikks.services.ingestion import LogIngestionService
 from geometrikks.domain.system.dependencies import provide_ingestion_service as pis
 
 
-@dataclass
-class IngestionHealth:
+class IngestionHealth(msgspec.Struct, rename="camel"):
     running: bool
     parsed_lines: int
     pending_records: int
@@ -37,25 +36,21 @@ class IngestionHealth:
     last_record_at: str | None
 
 
-@dataclass
-class DatabaseHealth:
+class DatabaseHealth(msgspec.Struct, rename="camel"):
     reachable: bool
 
 
-@dataclass
-class GeoIPHealth:
+class GeoIPHealth(msgspec.Struct, rename="camel"):
     available: bool
     db_build_date: str | None
 
 
-@dataclass
-class CrowdSecHealth:
+class CrowdSecHealth(msgspec.Struct, rename="camel"):
     enabled: bool
     lapi_reachable: bool | None
 
 
-@dataclass
-class HealthResponse:
+class HealthResponse(msgspec.Struct, rename="camel"):
     status: Literal["healthy", "degraded"]
     started_at: str | None
     ingestion: IngestionHealth
@@ -65,8 +60,7 @@ class HealthResponse:
     timestamp: str
 
 
-@dataclass
-class ReadinessResponse:
+class ReadinessResponse(msgspec.Struct, rename="camel"):
     ready: bool
 
 
