@@ -315,7 +315,7 @@ export async function fetchCrowdsecStats(): Promise<CrowdSecStatsResponse> {
   return data
 }
 
-/** Recent LAPI alert history; requires write_enabled (machine credentials). */
+/** Recent LAPI alert history; requires writeEnabled (machine credentials). */
 export async function fetchCrowdsecAlerts(params?: {
   limit?: number
   since?: string
@@ -330,7 +330,7 @@ export async function fetchCrowdsecAlerts(params?: {
 }
 
 /** Ban one IP. `duration` is a Go duration string (4h, 24h, 168h); server
- *  defaults apply to omitted duration/reason. Requires write_enabled. The
+ *  defaults apply to omitted duration/reason. Requires writeEnabled. The
  *  reason ends up in the alert message and the audit log. */
 export async function banIp(
   ip: string,
@@ -407,8 +407,8 @@ export async function fetchGeoJSON(params: GeoJSONParams): Promise<GeoJSONFeatur
       ipAddressNotIn: params.ipsExclude?.length ? params.ipsExclude : undefined,
       hostnameIn: params.hostnames?.length ? params.hostnames : undefined,
     },
-    // Litestar expects repeated keys (?country_code=NO&country_code=SE),
-    // not axios' default bracket form (country_code[]=NO).
+    // Litestar expects repeated keys (?countryCode=NO&countryCode=SE),
+    // not axios' default bracket form (countryCode[]=NO).
     paramsSerializer: { indexes: null },
   })
   return data
@@ -521,7 +521,7 @@ export async function fetchTopCountries(params: TopIPsParams): Promise<TopCountr
 /**
  * Country/city/IP filters shared by the analytics page's six filterable
  * endpoints (not geo-time-series, which stays unfiltered). The generated
- * fetch client serializes arrays as repeated keys (?country_code=NO&country_code=SE)
+ * fetch client serializes arrays as repeated keys (?countryCode=NO&countryCode=SE)
  * by default, matching what Litestar expects.
  */
 export interface AnalyticsFilterParams {

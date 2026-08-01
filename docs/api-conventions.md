@@ -42,7 +42,10 @@ attributes stay snake_case.
 - WebSocket frame payloads are a separate contract and are not covered by
   this policy (revisited with the realtime refactor).
 - Data values are exempt: `SettingFieldView.key` deliberately carries Python
-  settings field names like `home_latitude`.
+  settings field names like `home_latitude`, and `/api/v1/logs/tail` records
+  pass raw structlog context keys through as recorded (`request_id`,
+  `status_code`, ...); renaming historical log data would misrepresent it.
+  OpenAPI documents only the stable record fields.
 
 ## Error envelope: Litestar native
 

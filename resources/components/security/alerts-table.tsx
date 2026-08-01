@@ -1,6 +1,6 @@
 /**
  * Alert history: which scenarios fired, against whom, and what they decided.
- * Machine credentials required (the card only renders when write_enabled).
+ * Machine credentials required (the card only renders when writeEnabled).
  */
 import { useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
