@@ -23,6 +23,7 @@ from litestar.status_codes import HTTP_200_OK, HTTP_204_NO_CONTENT
 
 from geometrikks.api.dependencies import (
     provide_crowdsec_service,
+    provide_limit_offset_pagination,
     provide_security_enrichment_repo,
 )
 from geometrikks.config.settings import Settings
@@ -176,6 +177,9 @@ class CrowdSecController(Controller):
     dependencies = {
         "crowdsec": Provide(provide_crowdsec_service, sync_to_thread=False),
         "enrichment_repo": Provide(provide_security_enrichment_repo),
+        # Controller-scoped: /decisions paginates an in-memory LAPI result,
+        # not an ORM query, so it keeps the hand-written provider.
+        "limit_offset": Provide(provide_limit_offset_pagination, sync_to_thread=False),
     }
 
     @get("/status")

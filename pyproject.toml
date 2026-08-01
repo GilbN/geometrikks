@@ -50,11 +50,11 @@ filterwarnings = [
     "error::RuntimeWarning",
     # Upstream: advanced-alchemy 1.11 generated filter providers lose the
     # NamedDependency markers in their __annotations__ (audit item A5). The
-    # exemption is pinned to the exact seven known handler/field combinations
+    # exemption is pinned to the exact eight known handler/field combinations
     # so a new inferred dependency in our own code still fails the suite.
     # Drop once a fixed AA release ships; this is the external gate for
     # Litestar 3.0.
-    "ignore:\\[paths='/', handler='(list_access_log_debug|list_access_logs|list_geo_events)', dependencies='filters'\\] Inferred dependency field '(limit_offset_filter|order_by_filter|search_filter)'.*:litestar.exceptions.LitestarDeprecationWarning",
+    "ignore:\\[paths='/', handler='(list_access_log_debug|list_access_logs|list_geo_events|list_geo_locations)', dependencies='filters'\\] Inferred dependency field '(limit_offset_filter|order_by_filter|search_filter)'.*:litestar.exceptions.LitestarDeprecationWarning",
     # False positive: our auth exclude pattern deliberately matches everything
     # outside /api/ (SPA shell, assets, /health). The boundary is verified by
     # tests/test_auth_endpoints.py (401 on /api/*, 200 on excluded paths).

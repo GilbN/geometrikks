@@ -23,7 +23,10 @@ from geometrikks.domain.exceptions import DomainValidationError
 
 from geometrikks.domain.geo.models import GeoEvent, GeoLocation
 from geometrikks.domain.geo.repositories import (
+    GeoLocationRepository,
+    LocationWithEventCount,
     StatsGranularity,
+    TopIP,
     get_stats_granularity,
     stitch_params,
     stitched_ip_location_cte,
@@ -541,4 +544,67 @@ class GeoEventService(SQLAlchemyAsyncRepositoryService[GeoEvent]):
             countries=[GeoCountryFacet(code=code, name=name or code) for code, name in country_rows],
             cities=list(cities),
             hostnames=list(hostnames),
+        )
+
+
+class GeoLocationService(SQLAlchemyAsyncRepositoryService[GeoLocation]):
+    """Repository service for GeoLocation: pagination plus map/top-N reads.
+
+    The read methods delegate to the repository's routed queries (raw
+    geo_events vs. location CAGGs depending on range); the service is the
+    boundary controllers talk to, keeping handlers free of repository access.
+    """
+
+    repository_type = GeoLocationRepository
+    repository: GeoLocationRepository
+
+    async def get_all_with_event_counts(
+        self,
+        from_timestamp: datetime,
+        to_timestamp: datetime,
+        *,
+        country_codes: list[str] | None = None,
+        cities: list[str] | None = None,
+        ip_addresses: list[str] | None = None,
+        ip_addresses_exclude: list[str] | None = None,
+        hostnames: list[str] | None = None,
+    ) -> list[LocationWithEventCount]:
+        """Locations with event counts for the GeoJSON map layer."""
+        return await self.repository.get_all_with_event_counts(
+            from_timestamp,
+            to_timestamp,
+            country_codes=country_codes,
+            cities=cities,
+            ip_addresses=ip_addresses,
+            ip_addresses_exclude=ip_addresses_exclude,
+            hostnames=hostnames,
+        )
+
+    async def get_global_top_ips(
+        self, from_timestamp: datetime, to_timestamp: datetime, *, limit: int = 5
+    ) -> list[tuple[str, int, GeoLocation]]:
+        """Global top IPs by event count with their primary location."""
+        return await self.repository.get_global_top_ips(
+            from_timestamp, to_timestamp, limit=limit
+        )
+
+    async def get_location_top_ips(
+        self,
+        location_id: int,
+        from_timestamp: datetime,
+        to_timestamp: datetime,
+        *,
+        limit: int = 5,
+    ) -> list[TopIP]:
+        """Top IPs by event count for one location."""
+        return await self.repository.get_location_top_ips(
+            location_id, from_timestamp, to_timestamp, limit=limit
+        )
+
+    async def get_top_countries(
+        self, from_timestamp: datetime, to_timestamp: datetime, *, limit: int = 10
+    ) -> list[tuple[str, str | None, int]]:
+        """Top countries by event count."""
+        return await self.repository.get_top_countries(
+            from_timestamp, to_timestamp, limit=limit
         )

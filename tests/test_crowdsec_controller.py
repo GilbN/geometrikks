@@ -7,7 +7,6 @@ from litestar import Litestar
 from litestar.di import Provide
 from litestar.testing import AsyncTestClient
 
-from geometrikks.api.dependencies import provide_limit_offset_pagination
 from geometrikks.api.v1.crowdsec_controller import CrowdSecController
 from geometrikks.server.exceptions import EXCEPTION_HANDLERS
 from geometrikks.domain.security.repositories import SecurityEnrichmentRepository
@@ -75,10 +74,8 @@ def make_app(
 
     app = Litestar(
         route_handlers=[_TestController],
-        dependencies={
-            "limit_offset": Provide(provide_limit_offset_pagination, sync_to_thread=False),
-            **ambient_settings_dependency(),
-        },
+        # limit_offset comes controller-scoped from CrowdSecController itself.
+        dependencies=ambient_settings_dependency(),
         # Production wiring: create_app() registers the same central map.
         exception_handlers=EXCEPTION_HANDLERS,
     )

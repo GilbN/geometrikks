@@ -13,7 +13,6 @@ from advanced_alchemy.extensions.litestar import filters
 from geometrikks.config.settings import Settings
 from geometrikks.services.crowdsec import CrowdSecService
 from geometrikks.services.ingestion import LogIngestionService
-from geometrikks.domain.geo.repositories import GeoLocationRepository
 from geometrikks.domain.analytics.repositories import LiveStatsRepository, SummaryStatsRepository
 from geometrikks.domain.security.repositories import SecurityEnrichmentRepository
 
@@ -55,20 +54,15 @@ async def provide_security_enrichment_repo(
     return SecurityEnrichmentRepository(session=db_session)
 
 
-async def provide_geo_location_repo(
-    db_session: NamedDependency[AsyncSession],
-) -> GeoLocationRepository:
-    """Provide GeoLocationRepository."""
-    return GeoLocationRepository(session=db_session)
-
-
 def provide_limit_offset_pagination(
     current_page: Annotated[int, QueryParameter(name="currentPage", ge=1, required=False)] = 1,
     page_size: Annotated[int, QueryParameter(name="pageSize", ge=1, required=False)] = 10,
 ) -> filters.LimitOffset:
     """Add offset/limit pagination.
 
-    Return type consumed by `Repository.apply_limit_offset_pagination()`.
+    Controller-scoped provider for endpoints that paginate in-memory results
+    (CrowdSec decisions); ORM-backed lists use the Advanced Alchemy filter
+    dependencies from create_service_dependencies() instead.
 
     Parameters
     ----------
