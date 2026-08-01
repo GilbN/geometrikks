@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-
 import msgspec
 
 from litestar import Controller, Request, get, post
@@ -19,8 +17,7 @@ logger = get_logger(__name__)
 login_logger = get_logger(LOGIN_LOGGER_NAME)
 
 
-@dataclass
-class LoginPayload:
+class LoginPayload(msgspec.Struct, rename="camel"):
     username: str
     password: str
 

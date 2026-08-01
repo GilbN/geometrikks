@@ -8,12 +8,19 @@ coordinated client regeneration and a changelog migration note.
 ## Versioning
 
 Every REST endpoint lives under `/api/v1`, mounted as a single Litestar
-`Router` in `geometrikks/server/routes.py`. Controllers own only their domain
-segment (`/analytics`, `/crowdsec`, ...). Outside the router:
+`Router` in `geometrikks/server/routes.py`, which stays the one explicit
+registration point. Controllers live in their vertical domain packages
+(`geometrikks/domain/<domain>/controllers*`) and own only their domain
+segment (`/analytics`, `/crowdsec`, ...); the router supplies the version
+prefix. Everything under `/api/v1` requires the session cookie except
+`/api/v1/auth/login` (with `APP_AUTH_DISABLED=true` the auth endpoints are
+not registered at all). Outside the router:
 
 - `/health` and `/health/ready`: unauthenticated probe endpoints.
-- `/ws/live`, `/ws/logs`, `/ws/crowdsec`: WebSocket feeds.
-- `/schema`, `/sw.js`, and the SPA shell.
+- `/ws/live`, `/ws/logs`, `/ws/crowdsec`: WebSocket feeds
+  (`geometrikks/domain/realtime/`), session-authenticated during the
+  handshake.
+- `/schema` (deliberately unauthenticated), `/sw.js`, and the SPA shell.
 
 ## Field casing: camelCase
 
@@ -22,9 +29,10 @@ attributes stay snake_case.
 
 - SQLAlchemy-model responses use Advanced Alchemy DTOs with
   `rename_strategy="camel"`.
-- Bespoke response models are msgspec Structs declared with
-  `rename="camel"` (see `geometrikks/domain/geo/schemas.py` for the idiom).
-  Digit-adjacent names pin their wire form explicitly with
+- Bespoke request and response models are msgspec Structs declared with
+  `rename="camel"` (see `geometrikks/domain/geo/schemas.py` for the idiom);
+  they live in each domain package's `schemas.py`/`dtos.py` or next to their
+  controller. Digit-adjacent names pin their wire form explicitly with
   `msgspec.field(name=...)`: `status2xx`, `requestCount24h`.
 - Query parameters carry explicit camelCase `name=` declarations
   (`fromTimestamp`, `startDate`, `ipAddressNotIn`, ...); shared aliases live
