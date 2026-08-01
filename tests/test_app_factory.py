@@ -18,10 +18,15 @@ def _reset_structlog_config():
 
     The plugin enables cache_logger_on_first_use; leaving that active would
     let later-bound loggers bypass structlog.testing.capture_logs() in other
-    test modules.
+    test modules. Re-running ensure_default_configuration() restores the
+    import-time SuccessBoundLogger defaults that logger.success() callers
+    rely on.
     """
+    from geometrikks.server.logging import ensure_default_configuration
+
     yield
     structlog.reset_defaults()
+    ensure_default_configuration()
 
 
 def _hermetic_settings(**overrides) -> Settings:
