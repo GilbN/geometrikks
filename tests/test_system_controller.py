@@ -11,6 +11,7 @@ from litestar.testing import AsyncTestClient
 
 from geometrikks.domain.system.controllers.system import SystemController
 from geometrikks.server.scheduler_tracking import JobRunTracker
+from geometrikks.server.routes import create_api_v1_router
 from tests.support import ambient_settings_dependency
 
 pytestmark = pytest.mark.anyio
@@ -63,7 +64,7 @@ def make_app(*, with_scheduler: bool = True) -> Litestar:
         app.state.scheduler_tracker = tracker
 
     return Litestar(
-        route_handlers=[SystemController],
+        route_handlers=[create_api_v1_router([SystemController])],
         on_startup=[startup],
         dependencies=ambient_settings_dependency(),
     )
@@ -197,7 +198,7 @@ async def test_system_settings_surface_computed_values(monkeypatch):
         app.state.geoip_available = True
 
     app = Litestar(
-        route_handlers=[SystemController],
+        route_handlers=[create_api_v1_router([SystemController])],
         on_startup=[startup],
         dependencies=ambient_settings_dependency(),
     )

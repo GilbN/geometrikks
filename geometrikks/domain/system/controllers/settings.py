@@ -59,7 +59,7 @@ class SafeSettingsResponse:
     map: MapSettingsView
 
 
-@get("/api/v1/settings", tags=["Settings"])
+@get("/settings", tags=["Settings"])
 async def read_settings(
     request: Request, settings: NamedDependency[SkipValidation[Settings]]
 ) -> SafeSettingsResponse:

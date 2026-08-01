@@ -31,7 +31,7 @@ class MeResponse:
 class AuthController(Controller):
     """Session login/logout. /login is excluded from the auth middleware."""
 
-    path = "/api/v1/auth"
+    path = "/auth"
     tags = ["Auth"]
 
     @post("/login", status_code=HTTP_200_OK, exclude_from_auth=True)

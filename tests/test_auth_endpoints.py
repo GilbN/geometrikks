@@ -11,6 +11,7 @@ from geometrikks.config.settings import Settings
 from geometrikks.domain.auth.controllers import AuthController
 from geometrikks.domain.realtime.controllers import crowdsec_feed, live_feed, logs_feed
 from geometrikks.server.auth import build_auth_state, create_session_auth
+from geometrikks.server.routes import create_api_v1_router
 
 from tests.test_live_ws import FakeIngestion
 
@@ -35,7 +36,8 @@ def make_app(**settings_kwargs) -> Litestar:
     session_auth = create_session_auth(settings)
     app = Litestar(
         route_handlers=[
-            AuthController, protected, fake_health, live_feed, crowdsec_feed, logs_feed
+            create_api_v1_router([AuthController]),
+            protected, fake_health, live_feed, crowdsec_feed, logs_feed,
         ],
         on_app_init=[session_auth.on_app_init],
         logging_config=None,

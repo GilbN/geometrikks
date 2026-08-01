@@ -174,7 +174,7 @@ def _actor(request: Request) -> str:
 class CrowdSecController(Controller):
     """CrowdSec decision views and ban statistics."""
 
-    path = "/api/v1/crowdsec"
+    path = "/crowdsec"
     tags = ["CrowdSec"]
     dependencies = {
         "crowdsec": Provide(provide_crowdsec_service, sync_to_thread=False),

@@ -12,6 +12,7 @@ from geometrikks.server.exceptions import EXCEPTION_HANDLERS
 from geometrikks.domain.security.repositories import SecurityEnrichmentRepository
 from geometrikks.domain.security.schemas import IpEnrichment
 from geometrikks.services.crowdsec import CrowdSecService, Decision
+from geometrikks.server.routes import create_api_v1_router
 from tests.support import ambient_settings_dependency
 
 import pytest
@@ -73,7 +74,7 @@ def make_app(
         }
 
     app = Litestar(
-        route_handlers=[_TestController],
+        route_handlers=[create_api_v1_router([_TestController])],
         # limit_offset comes controller-scoped from CrowdSecController itself.
         dependencies=ambient_settings_dependency(),
         # Production wiring: create_app() registers the same central map.

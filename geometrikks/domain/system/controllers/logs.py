@@ -52,7 +52,7 @@ class LogRotateResponse:
 class LogsController(Controller):
     """Access to the application's own log files: tail, list, download, rotate."""
 
-    path = "/api/v1/logs"
+    path = "/logs"
     tags = ["Logs"]
 
     @get("/tail", sync_to_thread=True)

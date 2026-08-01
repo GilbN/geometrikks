@@ -8,6 +8,7 @@ from litestar import Litestar
 from litestar.testing import TestClient
 
 from geometrikks.domain.system.controllers.logs import LogsController
+from geometrikks.server.routes import create_api_v1_router
 from tests.support import ambient_settings_dependency
 
 
@@ -28,7 +29,8 @@ def client(tmp_path, monkeypatch):
     get_settings.cache_clear()
     with TestClient(
         app=Litestar(
-            route_handlers=[LogsController], dependencies=ambient_settings_dependency()
+            route_handlers=[create_api_v1_router([LogsController])],
+            dependencies=ambient_settings_dependency(),
         )
     ) as c:
         yield c

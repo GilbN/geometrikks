@@ -258,7 +258,7 @@ def _computed_settings_overlay(
 class SystemController(Controller):
     """Settings overview and scheduler administration."""
 
-    path = "/api/v1/system"
+    path = "/system"
     tags = ["System"]
 
     @get("/settings")

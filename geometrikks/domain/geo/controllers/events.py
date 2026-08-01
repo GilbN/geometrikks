@@ -140,7 +140,7 @@ class GeoEventController(Controller):
     filters ride the stitched per-IP CAGGs instead.
     """
 
-    path = "/api/v1/geo-events"
+    path = "/geo-events"
     return_dto = GeoEventDTO
     tags = ["Geo Events"]
 

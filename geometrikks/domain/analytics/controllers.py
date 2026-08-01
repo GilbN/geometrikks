@@ -96,7 +96,7 @@ def _resolve_chart_granularity(
 class AnalyticsController(Controller):
     """Analytics endpoints for dashboard data and time-series charts."""
 
-    path = "/api/v1/analytics"
+    path = "/analytics"
     tags = ["Analytics"]
 
     dependencies = {

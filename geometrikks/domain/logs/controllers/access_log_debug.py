@@ -51,7 +51,7 @@ class AccessLogDebugController(Controller):
     access-log context, filtering, search, sorting, and pagination.
     """
 
-    path = "/api/v1/access-log-debug"
+    path = "/access-log-debug"
     tags = ["Access Log Debug"]
 
     dependencies = create_service_dependencies(

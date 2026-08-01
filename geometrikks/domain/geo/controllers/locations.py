@@ -44,7 +44,7 @@ logger = get_logger(__name__)
 class GeoLocationController(Controller):
     """Geo-location endpoints for managing location data."""
 
-    path = "/api/v1/geo-locations"
+    path = "/geo-locations"
     tags = ["Geo Locations"]
     return_dto = GeoLocationDTO
 

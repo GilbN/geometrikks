@@ -1,7 +1,7 @@
 """Central route registration."""
 from pathlib import Path
 
-from litestar import get
+from litestar import Router, get
 from litestar.datastructures import ResponseHeader
 from litestar.di import NamedDependency
 from litestar.exceptions import NotFoundException
@@ -44,6 +44,19 @@ def service_worker(settings: NamedDependency[SkipValidation[Settings]]) -> File:
     return File(path=sw_path, media_type="text/javascript")
 
 
+API_V1_PREFIX = "/api/v1"
+
+
+def create_api_v1_router(handlers: list[ControllerRouterHandler]) -> Router:
+    """Mount handlers under the versioned API prefix.
+
+    Controllers own only their domain segment (``/crowdsec``, ``/analytics``,
+    ...); this router supplies the ``/api/v1`` scope. Tests that mount a
+    single controller use this too, so it keeps its production URL.
+    """
+    return Router(path=API_V1_PREFIX, route_handlers=handlers)
+
+
 def get_route_handlers(*, include_auth: bool = True) -> list[ControllerRouterHandler]:
     """Get all route handlers for the application.
 
@@ -53,7 +66,7 @@ def get_route_handlers(*, include_auth: bool = True) -> list[ControllerRouterHan
             handlers would crash on ``app.state.auth_state`` / ``request.user``.
     """
 
-    handlers: list[ControllerRouterHandler] = [
+    api_handlers: list[ControllerRouterHandler] = [
         GeoEventController,
         GeoLocationController,
         AccessLogController,
@@ -62,16 +75,20 @@ def get_route_handlers(*, include_auth: bool = True) -> list[ControllerRouterHan
         CrowdSecController,
         LogsController,
         SystemController,
+        read_settings,
+        stats,
+    ]
+    if include_auth:
+        api_handlers.append(AuthController)
+
+    return [
+        create_api_v1_router(api_handlers),
+        # The WebSocket feeds and probe endpoints live outside /api/v1: /ws/*
+        # by contract, /health and /health/ready for unauthenticated probes.
         live_feed,
         crowdsec_feed,
         logs_feed,
-        read_settings,
-        stats,
         health,
         health_ready,
         service_worker,
     ]
-
-    if include_auth:
-        handlers.append(AuthController)
-    return handlers

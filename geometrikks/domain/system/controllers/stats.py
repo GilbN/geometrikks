@@ -21,7 +21,7 @@ class IngestionStatsResponse:
 
 
 @get(
-    "/api/v1/stats",
+    "/stats",
     tags=["Analytics"],
     dependencies={"ingestion_service": Provide(pis, sync_to_thread=False)},
 )

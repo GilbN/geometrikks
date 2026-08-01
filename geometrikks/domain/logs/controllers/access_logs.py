@@ -110,7 +110,7 @@ class AccessLogController(Controller):
     Handles read operations for access logs with filtering, search, sorting,
     and pagination.
     """
-    path = "/api/v1/access-logs"
+    path = "/access-logs"
     return_dto = AccessLogDTO
     tags = ["Access Logs"]
 

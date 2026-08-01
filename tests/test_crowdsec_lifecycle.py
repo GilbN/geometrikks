@@ -92,10 +92,14 @@ async def test_shutdown_closes_service():
 
 
 def test_controller_registered_in_routes():
-    from geometrikks.domain.security.controllers import CrowdSecController
+    from litestar import Router
+
     from geometrikks.server.routes import get_route_handlers
 
-    assert CrowdSecController in get_route_handlers()
+    handlers = get_route_handlers()
+    api_router = next(h for h in handlers if isinstance(h, Router))
+    assert api_router.path == "/api/v1"
+    assert any(route.path.startswith("/api/v1/crowdsec") for route in api_router.routes)
 
 
 async def test_startup_creates_stream_poller_when_enabled(monkeypatch):
