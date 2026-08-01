@@ -519,7 +519,6 @@ dependencies = [
 [package.dev-dependencies]
 dev = [
     { name = "faker" },
-    { name = "litestar-mcp" },
     { name = "polyfactory" },
     { name = "pytest" },
     { name = "pytest-asyncio" },
@@ -540,7 +539,7 @@ requires-dist = [
     { name = "httpx", specifier = ">=0.28" },
     { name = "httpx-oauth", specifier = ">=0.17.0" },
     { name = "ipy", specifier = ">=1.1" },
-    { name = "litestar", extras = ["standard", "brotli", "jwt", "structlog", "pydantic"], specifier = ">=2.24.0" },
+    { name = "litestar", extras = ["standard", "brotli", "jwt", "structlog", "pydantic"], specifier = ">=2.24.0,<3" },
     { name = "litestar-geoalchemy", specifier = ">=0.3.0" },
     { name = "litestar-granian", specifier = ">=0.15.0" },
     { name = "litestar-vite", specifier = ">=0.28.0" },
@@ -551,7 +550,6 @@ requires-dist = [
 [package.metadata.requires-dev]
 dev = [
     { name = "faker", specifier = ">=40.36.0" },
-    { name = "litestar-mcp", specifier = ">=0.11.1" },
     { name = "polyfactory", specifier = ">=3.3.0" },
     { name = "pytest", specifier = ">=9.1.1" },
     { name = "pytest-asyncio", specifier = ">=1.4.0" },
@@ -810,21 +808,6 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/3f/b9/7e296aa1adada25cce8e5f89a996b0e38d852d93b1b656a2058226c542a2/litestar_htmx-0.5.0.tar.gz", hash = "sha256:e02d1a3a92172c874835fa3e6749d65ae9fc626d0df46719490a16293e2146fb", size = 119755, upload-time = "2025-06-11T21:19:45.573Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/f2/24/8d99982f0aa9c1cd82073c6232b54a0dbe6797c7d63c0583a6c68ee3ddf2/litestar_htmx-0.5.0-py3-none-any.whl", hash = "sha256:92833aa47e0d0e868d2a7dbfab75261f124f4b83d4f9ad12b57b9a68f86c50e6", size = 9970, upload-time = "2025-06-11T21:19:44.465Z" },
-]
-
-[[package]]
-name = "litestar-mcp"
-version = "0.11.1"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "anyio" },
-    { name = "httpx" },
-    { name = "litestar", extra = ["jwt"] },
-    { name = "typing-extensions" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/3c/42/3a760edb64716581effd65a4709aa3493d36654dbc288acdff78305511f0/litestar_mcp-0.11.1.tar.gz", hash = "sha256:bbaf90f5a97fa019fea0a37f12ca4c9a8a5876e93415a06f7f0ccae34590961f", size = 522806, upload-time = "2026-07-06T14:54:42.841Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/f5/38/84dbab49511b211d3d1ea43be694b6f887938c634f415f4a4ac22292745c/litestar_mcp-0.11.1-py3-none-any.whl", hash = "sha256:f5c13ed3ca19d21bb115ffdc7d8a38625c7332deb086b3e1e8ce2f6f2488a14c", size = 104544, upload-time = "2026-07-06T14:54:41.466Z" },
 ]
 
 [[package]]
