@@ -27,6 +27,7 @@ from geometrikks.api.dependencies import (
     provide_security_enrichment_repo,
 )
 from geometrikks.config.settings import Settings
+from geometrikks.server import runtime
 from geometrikks.domain.exceptions import DomainValidationError
 from geometrikks.lib.validation import validate_ip_address
 from geometrikks.domain.security.repositories import SecurityEnrichmentRepository
@@ -199,7 +200,7 @@ class CrowdSecController(Controller):
         # the full request timeout against a black-holed host). Live ping
         # remains the fallback when the poller is absent (DB-degraded mode)
         # or has not completed a poll yet.
-        poller = getattr(request.app.state, "crowdsec_stream_poller", None)
+        poller = runtime.get_crowdsec_poller(request.app)
         cached: bool | None = poller.lapi_reachable if poller is not None else None
         return CrowdSecStatusResponse(
             enabled=True,

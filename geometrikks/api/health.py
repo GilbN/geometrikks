@@ -18,6 +18,7 @@ from sqlalchemy import text
 
 from geometrikks.config.settings import Settings
 from geometrikks.lib.utils import geoip_info
+from geometrikks.server import runtime
 from geometrikks.services.ingestion import LogIngestionService
 from geometrikks.api.dependencies import provide_ingestion_service as pis
 
@@ -60,7 +61,7 @@ async def health(
     missing_files = ingestion_service.missing_files if ingestion_service else []
     db_reachable = await _database_reachable(request.app)
 
-    poller = getattr(request.app.state, "crowdsec_stream_poller", None)
+    poller = runtime.get_crowdsec_poller(request.app)
 
     return {
         # geoip does not flip status on its own: without a GeoLite2 database
@@ -68,7 +69,7 @@ async def health(
         "status": "healthy"
         if (is_running and db_reachable and not missing_files)
         else "degraded",
-        "started_at": _iso(getattr(request.app.state, "started_at", None)),
+        "started_at": _iso(runtime.get_started_at(request.app)),
         "ingestion": {
             "running": is_running,
             "parsed_lines": ingestion_service.parsed_lines if ingestion_service else 0,
@@ -82,14 +83,15 @@ async def health(
         # build_date comes from the mmdb metadata (geoip_info), the actual
         # GeoLite2 build, not the file's mtime.
         "geoip": {
-            "available": getattr(request.app.state, "geoip_available", True),
+            # default=True: don't report degraded while startup is still running.
+            "available": runtime.is_geoip_available(request.app, default=True),
             "db_build_date": _iso(geoip_info(settings.geoip.db_path).build_date),
         },
         # CrowdSec is an optional integration: a down LAPI never flips
         # `status`. lapi_reachable is the stream poller's cached verdict;
         # null when disabled, DB-degraded, or before the first poll.
         "crowdsec": {
-            "enabled": getattr(request.app.state, "crowdsec_service", None) is not None,
+            "enabled": runtime.get_crowdsec_service(request.app) is not None,
             "lapi_reachable": poller.lapi_reachable if poller is not None else None,
         },
         "timestamp": datetime.now(timezone.utc).isoformat(),

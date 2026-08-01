@@ -10,12 +10,9 @@ import platform
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from importlib.metadata import PackageNotFoundError, version as dist_version
-from pathlib import Path
 from typing import TYPE_CHECKING
 
-import maxminddb
 from litestar import Controller, Litestar, Request, get, post
-from litestar.datastructures import State
 from litestar.di import NamedDependency
 from litestar.exceptions import NotFoundException
 from litestar.params import FromPath, SkipValidation
@@ -28,13 +25,13 @@ from geometrikks.config.introspection import (
     build_settings_overview,
 )
 from geometrikks.config.settings import Settings
+from geometrikks.server import runtime
 from geometrikks.server.logging import get_logger
 from geometrikks.server.scheduler_tracking import JobRunTracker, JobStatus
 from geometrikks.lib.utils import GeoIPInfoView, geoip_info
 
 if TYPE_CHECKING:
     from apscheduler.job import Job
-    from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 logger = get_logger(__name__)
 
@@ -235,18 +232,18 @@ def _job_view(job: "Job", tracker: JobRunTracker) -> SchedulerJobView:
 
 
 def _computed_settings_overlay(
-    settings: Settings, state: State
+    settings: Settings, app: Litestar
 ) -> dict[tuple[str, str], ComputedField]:
     """Runtime-resolved values the raw config does not expose."""
     overlay: dict[tuple[str, str], ComputedField] = {}
 
-    home = getattr(state, "map_home_location", None)
+    home = runtime.get_map_home_location(app)
     if home is not None and home.source == "external_ip":
         overlay[("map", "home_latitude")] = ComputedField(home.latitude, "external_ip")
         overlay[("map", "home_longitude")] = ComputedField(home.longitude, "external_ip")
 
     overlay[("geoip", "available")] = ComputedField(
-        bool(getattr(state, "geoip_available", False)),
+        runtime.is_geoip_available(app),
         "runtime",
         "Whether a usable GeoLite2 database is loaded",
     )
@@ -273,7 +270,7 @@ class SystemController(Controller):
         Overlays runtime-resolved values (auto-detected map home, GeoIP
         availability, CrowdSec effective status) that the raw config omits.
         """
-        overlay = _computed_settings_overlay(settings, request.app.state)
+        overlay = _computed_settings_overlay(settings, request.app)
         return build_settings_overview(settings, computed=overlay)
 
     @get("/about")
@@ -289,7 +286,7 @@ class SystemController(Controller):
                 environment=s.environment,
                 container=s.runtime == "container",
                 image_tag=s.image_tag if s.runtime == "container" else None,
-                started_at=getattr(request.app.state, "started_at", None),
+                started_at=runtime.get_started_at(request.app),
             ),
             runtime=RuntimeVersionsView(
                 python_version=platform.python_version(),
@@ -327,14 +324,12 @@ class SystemController(Controller):
         self, request: Request, settings: NamedDependency[SkipValidation[Settings]]
     ) -> SchedulerJobsResponse:
         """All scheduled jobs with next-run and tracked last-run state."""
-        scheduler: AsyncIOScheduler | None = getattr(request.app.state, "scheduler", None)
+        scheduler = runtime.get_scheduler(request.app)
         if scheduler is None:
             return SchedulerJobsResponse(
                 scheduler_enabled=False, scheduler_running=False, jobs=[]
             )
-        tracker: JobRunTracker = (
-            getattr(request.app.state, "scheduler_tracker", None) or JobRunTracker()
-        )
+        tracker = runtime.get_scheduler_tracker(request.app)
         return SchedulerJobsResponse(
             scheduler_enabled=settings.scheduler.enabled,
             scheduler_running=scheduler.running,
@@ -350,12 +345,9 @@ class SystemController(Controller):
         observes the execution. An interval trigger's cadence restarts from
         the manual run.
         """
-        scheduler: AsyncIOScheduler | None = getattr(request.app.state, "scheduler", None)
+        scheduler = runtime.get_scheduler(request.app)
         if scheduler is None or scheduler.get_job(job_id) is None:
             raise NotFoundException(detail=f"Unknown scheduler job: {job_id}")
         logger.info("scheduler_job_triggered_manually", job_id=job_id)
         scheduler.modify_job(job_id, next_run_time=datetime.now(timezone.utc))
-        tracker: JobRunTracker = (
-            getattr(request.app.state, "scheduler_tracker", None) or JobRunTracker()
-        )
-        return _job_view(scheduler.get_job(job_id), tracker)
+        return _job_view(scheduler.get_job(job_id), runtime.get_scheduler_tracker(request.app))
