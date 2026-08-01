@@ -12,6 +12,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `GEOMETRIKKS_ENV_FILE` environment variable to override the `.env` file
   path; an empty value disables dotenv loading entirely (the test suite uses
   this so results never depend on a local `.env`).
+- `DB_MIGRATE_ON_STARTUP` setting (default `true`). Set to `false` to run
+  schema migrations as a separate deployment step with
+  `litestar database upgrade` instead of at every app startup; the app then
+  fails startup deliberately if the schema was left unusable.
 
 ### Changed
 

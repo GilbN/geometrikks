@@ -181,8 +181,17 @@ async def database_lifespan(app: "Litestar") -> "AsyncGenerator[None]":
     engine = get_app_db_config(app).get_engine()
 
     # Schema is owned by alembic (migrations/versions). A failed upgrade
-    # raises and fails startup deliberately.
-    await migrate_database(engine, settings)
+    # raises and fails startup deliberately. Multi-process deployments run
+    # migrations as a separate step instead (litestar database upgrade) and
+    # disable this; TimescaleDB setup below still requires the schema to be
+    # at head and fails startup if the external step was skipped.
+    if settings.database.migrate_on_startup:
+        await migrate_database(engine, settings)
+    else:
+        logger.info(
+            "Startup migrations disabled (DB_MIGRATE_ON_STARTUP=false); "
+            "expecting an external 'litestar database upgrade' step."
+        )
 
     # TimescaleDB objects (hypertables, CAGGs, policies) deliberately stay
     # out of alembic: the DDL is idempotent, timescale-version-sensitive,

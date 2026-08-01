@@ -223,3 +223,25 @@ async def test_lifespan_migrates_before_timescale(monkeypatch) -> None:
         pass
 
     assert order == ["migrate", "timescale", "ingestion"]
+
+
+async def test_lifespan_skips_migrations_when_disabled(monkeypatch) -> None:
+    """DB_MIGRATE_ON_STARTUP=false defers schema ownership to an external
+    'litestar database upgrade' step; TimescaleDB setup still runs and is
+    the deliberate startup failure if that step was skipped."""
+    from geometrikks.server import lifecycle as lc
+    from tests.support import enter_lifespan
+    from tests.test_lifecycle_geoip import _patch_startup_collaborators
+    from unittest.mock import AsyncMock
+
+    monkeypatch.setenv("DB_MIGRATE_ON_STARTUP", "false")
+    _patch_startup_collaborators(
+        monkeypatch, lc, db_available=True, ensure=AsyncMock(return_value=True)
+    )
+
+    app = SimpleNamespace(state=SimpleNamespace())
+    async with enter_lifespan(app):
+        pass
+
+    lc.migrate_database.assert_not_awaited()
+    lc.setup_timescaledb.assert_awaited_once()

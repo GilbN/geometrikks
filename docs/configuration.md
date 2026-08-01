@@ -53,6 +53,7 @@ from real environment variables. It is read once at import time.
 | `DB_PORT` | `5432` | Database port |
 | `DB_DATABASE` | `geometrikks` | Database name |
 | `DB_DROP_ON_STARTUP` | `false` | Drop all tables on startup (development only) |
+| `DB_MIGRATE_ON_STARTUP` | `true` | Run alembic migrations automatically at app startup. Disable when migrations run as a separate deployment step (`litestar database upgrade`); the app then expects the schema to already be at head and fails startup if it is not usable |
 
 ## GeoIP
 
