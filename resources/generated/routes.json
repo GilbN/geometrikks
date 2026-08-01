@@ -1,5 +1,5 @@
 {
-  "litestar_version": "Version(major=2, minor=24, patch=0, release_level='final', serial=0)",
+  "litestar_version": "2.24.0",
   "routes": {
     "ban": {
       "method": "post",

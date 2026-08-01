@@ -541,7 +541,7 @@ requires-dist = [
     { name = "litestar", extras = ["standard", "brotli", "jwt", "structlog", "pydantic"], specifier = ">=2.24.0,<3" },
     { name = "litestar-geoalchemy", specifier = ">=0.3.0" },
     { name = "litestar-granian", specifier = ">=0.15.0" },
-    { name = "litestar-vite", specifier = ">=0.28.0" },
+    { name = "litestar-vite", specifier = ">=0.29.0" },
     { name = "pydantic-settings", specifier = ">=2.14.2" },
     { name = "python-dotenv", specifier = ">=1.2.2" },
 ]
@@ -810,7 +810,7 @@ wheels = [
 
 [[package]]
 name = "litestar-vite"
-version = "0.28.0"
+version = "0.29.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "httpx" },
@@ -818,9 +818,9 @@ dependencies = [
     { name = "typing-extensions" },
     { name = "websockets" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/e8/af/05e277640d3c4b9bb73fe3ddc1d05a60d85118dda1e0b4c74eff24688c0d/litestar_vite-0.28.0.tar.gz", hash = "sha256:7f607c0edf724186cfed2bc603784ceb3efd583eccede14854c60b33542e3519", size = 570853, upload-time = "2026-07-25T17:41:03.138Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/1e/74/97167bae98ad84e43507cdb8ea2557f52902412adc99c3e9a88efba30d08/litestar_vite-0.29.0.tar.gz", hash = "sha256:0e95f63d8ba7556a90113743c1cf0aed0afaee011386b2bd15d60d96bb1fa100", size = 588448, upload-time = "2026-07-27T18:33:36.373Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/31/3f/d2d58658f6053492d1d313c0f23d4a7b73838b328356d8c15c420d447c6f/litestar_vite-0.28.0-py3-none-any.whl", hash = "sha256:aa8ab6cc69d40e5225c6f177feac924db49ea412861eb1274a9be0e35605f196", size = 282496, upload-time = "2026-07-25T17:41:01.599Z" },
+    { url = "https://files.pythonhosted.org/packages/f3/23/fc7a1c5a8f123e12a6e8eeccd70dc860527926d3e9a68113eec2eaaf0cf5/litestar_vite-0.29.0-py3-none-any.whl", hash = "sha256:ec530518ccee5089946e5a11d7746668a9c78b95590edf8feffbfa6dc64bfb24", size = 286198, upload-time = "2026-07-27T18:33:34.864Z" },
 ]
 
 [[package]]
