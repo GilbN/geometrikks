@@ -10,28 +10,42 @@ proxies don't cut the socket.
 
 Auth: /ws/ paths are NOT excluded in AUTH_EXCLUDE_PATTERNS, so the session
 middleware authenticates the handshake exactly like an API request.
+
+Subscription lifecycle, batching, heartbeats, and the transport loop live in
+stream.py; this module owns each feed's event conversion, filters, snapshot
+frames, and cadences.
 """
 
 from __future__ import annotations
 
 import asyncio
-import contextlib
 import logging
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from litestar import WebSocket, websocket
-from litestar.exceptions import WebSocketDisconnect
 
+from geometrikks.domain.realtime.stream import (
+    batched_frames,
+    close_service_unavailable,
+    passthrough_frames,
+    stream_json_frames,
+    subscription,
+)
 from geometrikks.server import runtime
 from geometrikks.server.logging import get_logger, log_broadcaster, register_success_level
 from geometrikks.services.logparser.schemas import ParsedLogRecord
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncGenerator
+
+    from geometrikks.domain.realtime.stream import Frame
 
 logger = get_logger(__name__)
 
 FLUSH_INTERVAL = 0.15          # seconds -> ~6.7 frames/s, under the ~10/s cap
 MAX_EVENTS_PER_FRAME = 100
 # Reverse proxies cut idle upstream sockets (nginx proxy_read_timeout defaults
-# to 60s; SWAG ships 240s). Both handlers are send-only and silent when no
+# to 60s; SWAG ships 240s). All handlers are send-only and silent when no
 # events flow, so emit an empty frame of the endpoint's own type as a
 # keepalive — existing clients treat it as a no-op and reset their backoff.
 HEARTBEAT_INTERVAL = 30.0
@@ -79,18 +93,6 @@ def record_to_events(record: ParsedLogRecord) -> list[dict[str, Any]]:
     return events
 
 
-async def _watch_disconnect(socket: WebSocket) -> None:
-    """Consume incoming messages so a client disconnect is noticed.
-
-    The handler is send-only; without a reader, a client that disconnects
-    while no events are flowing is never observed and its queue stays
-    subscribed forever (dead connections accumulate on quiet log files).
-    litestar raises WebSocketDisconnect from receive on close.
-    """
-    while True:
-        await socket.receive_data(mode="text")
-
-
 @websocket("/ws/crowdsec", tags=["Live Feed"])
 async def crowdsec_feed(socket: WebSocket) -> None:
     """Stream CrowdSec ban/unban deltas from the decision-stream poller.
@@ -104,45 +106,27 @@ async def crowdsec_feed(socket: WebSocket) -> None:
     poller = runtime.get_crowdsec_poller(socket.app)
     await socket.accept()
     if poller is None:
-        logger.warning("ws_rejected_service_unavailable", endpoint="/ws/crowdsec")
-        await socket.close(code=1013, reason="crowdsec stream not running")  # 1013 = try again later
+        await close_service_unavailable(
+            socket, endpoint="/ws/crowdsec", reason="crowdsec stream not running"
+        )
         return
 
-    queue = poller.subscribe()
-    logger.info("ws_client_connected", endpoint="/ws/crowdsec")
+    async def stream() -> AsyncGenerator[Frame]:
+        async with subscription(poller, endpoint="/ws/crowdsec") as queue:
+            # A freshly loaded page must not wait for the next reachability
+            # transition to learn the current state.
+            if poller.lapi_reachable is not None:
+                yield {"type": "crowdsec_status", "lapi_reachable": poller.lapi_reachable}
+            async for frame in passthrough_frames(
+                queue,
+                heartbeat_interval=HEARTBEAT_INTERVAL,
+                make_heartbeat=lambda: {
+                    "type": "crowdsec_decisions", "added": [], "deleted": []
+                },
+            ):
+                yield frame
 
-    watcher = asyncio.create_task(_watch_disconnect(socket))
-    try:
-        # A freshly loaded page must not wait for the next reachability
-        # transition to learn the current state.
-        if poller.lapi_reachable is not None:
-            await socket.send_json(
-                {"type": "crowdsec_status", "lapi_reachable": poller.lapi_reachable}
-            )
-
-        loop = asyncio.get_running_loop()
-        last_send = loop.time()
-        while not watcher.done():
-            try:
-                frame = await asyncio.wait_for(queue.get(), timeout=0.5)
-            except asyncio.TimeoutError:
-                if not watcher.done() and loop.time() - last_send >= HEARTBEAT_INTERVAL:
-                    await socket.send_json(
-                        {"type": "crowdsec_decisions", "added": [], "deleted": []}
-                    )
-                    last_send = loop.time()
-                continue
-            if not watcher.done():
-                await socket.send_json(frame)
-                last_send = loop.time()
-    except WebSocketDisconnect:
-        pass  # client went away between the watcher check and the send
-    finally:
-        watcher.cancel()
-        with contextlib.suppress(asyncio.CancelledError, WebSocketDisconnect):
-            await watcher
-        poller.unsubscribe(queue)
-        logger.info("ws_client_disconnected", endpoint="/ws/crowdsec")
+    await stream_json_frames(socket, stream())
 
 
 @websocket("/ws/live", tags=["Live Feed"])
@@ -151,49 +135,26 @@ async def live_feed(socket: WebSocket) -> None:
     ingestion = runtime.get_ingestion_service(socket.app)
     await socket.accept()
     if ingestion is None:
-        logger.warning("ws_rejected_service_unavailable", endpoint="/ws/live")
-        await socket.close(code=1013, reason="ingestion not running")  # 1013 = try again later
+        await close_service_unavailable(
+            socket, endpoint="/ws/live", reason="ingestion not running"
+        )
         return
 
-    queue = ingestion.subscribe()
-    logger.info("ws_client_connected", endpoint="/ws/live")
-    watcher = asyncio.create_task(_watch_disconnect(socket))
-    try:
-        loop = asyncio.get_running_loop()
-        last_send = loop.time()
-        pending: list[dict[str, Any]] = []
-        dropped = 0
-        while not watcher.done():
-            # Drain until the flush deadline.
-            deadline = loop.time() + FLUSH_INTERVAL
-            while True:
-                remaining = deadline - loop.time()
-                if remaining <= 0:
-                    break
-                try:
-                    record = await asyncio.wait_for(queue.get(), timeout=remaining)
-                except asyncio.TimeoutError:
-                    break
-                for event in record_to_events(record):
-                    if len(pending) >= MAX_EVENTS_PER_FRAME:
-                        dropped += 1
-                    else:
-                        pending.append(event)
+    async def stream() -> AsyncGenerator[Frame]:
+        async with subscription(ingestion, endpoint="/ws/live") as queue:
+            async for frame in batched_frames(
+                queue,
+                flush_interval=FLUSH_INTERVAL,
+                max_items=MAX_EVENTS_PER_FRAME,
+                heartbeat_interval=HEARTBEAT_INTERVAL,
+                expand=record_to_events,
+                make_frame=lambda events, dropped: {
+                    "type": "batch", "events": events, "dropped": dropped
+                },
+            ):
+                yield frame
 
-            if watcher.done():
-                break
-            if pending or dropped or loop.time() - last_send >= HEARTBEAT_INTERVAL:
-                await socket.send_json({"type": "batch", "events": pending, "dropped": dropped})
-                pending, dropped = [], 0
-                last_send = loop.time()
-    except WebSocketDisconnect:
-        pass  # client went away between the watcher check and the send
-    finally:
-        watcher.cancel()
-        with contextlib.suppress(asyncio.CancelledError, WebSocketDisconnect):
-            await watcher  # retrieve its exception so no "never retrieved" warning
-        ingestion.unsubscribe(queue)
-        logger.info("ws_client_disconnected", endpoint="/ws/live")
+    await stream_json_frames(socket, stream())
 
 
 LOG_FLUSH_INTERVAL = 0.25
@@ -222,43 +183,22 @@ async def logs_feed(socket: WebSocket) -> None:
     register_success_level()
     level_names = logging.getLevelNamesMapping()
 
-    queue = log_broadcaster.subscribe()
-    logger.info("ws_client_connected", endpoint="/ws/logs")
-    watcher = asyncio.create_task(_watch_disconnect(socket))
-    try:
-        loop = asyncio.get_running_loop()
-        last_send = loop.time()
-        pending: list[dict[str, Any]] = []
-        dropped = 0
-        while not watcher.done():
-            deadline = loop.time() + LOG_FLUSH_INTERVAL
-            while True:
-                remaining = deadline - loop.time()
-                if remaining <= 0:
-                    break
-                try:
-                    record = await asyncio.wait_for(queue.get(), timeout=remaining)
-                except asyncio.TimeoutError:
-                    break
-                levelno = level_names.get(str(record.get("level", "")).upper(), 0)
-                if levelno < min_levelno:
-                    continue
-                if len(pending) >= MAX_RECORDS_PER_FRAME:
-                    dropped += 1
-                else:
-                    pending.append(record)
+    def at_or_above_level(record: dict[str, Any]) -> tuple[dict[str, Any], ...]:
+        levelno = level_names.get(str(record.get("level", "")).upper(), 0)
+        return (record,) if levelno >= min_levelno else ()
 
-            if watcher.done():
-                break
-            if pending or dropped or loop.time() - last_send >= HEARTBEAT_INTERVAL:
-                await socket.send_json({"type": "log_batch", "records": pending, "dropped": dropped})
-                pending, dropped = [], 0
-                last_send = loop.time()
-    except WebSocketDisconnect:
-        pass  # client went away between the watcher check and the send
-    finally:
-        watcher.cancel()
-        with contextlib.suppress(asyncio.CancelledError, WebSocketDisconnect):
-            await watcher
-        log_broadcaster.unsubscribe(queue)
-        logger.info("ws_client_disconnected", endpoint="/ws/logs")
+    async def stream() -> AsyncGenerator[Frame]:
+        async with subscription(log_broadcaster, endpoint="/ws/logs") as queue:
+            async for frame in batched_frames(
+                queue,
+                flush_interval=LOG_FLUSH_INTERVAL,
+                max_items=MAX_RECORDS_PER_FRAME,
+                heartbeat_interval=HEARTBEAT_INTERVAL,
+                expand=at_or_above_level,
+                make_frame=lambda records, dropped: {
+                    "type": "log_batch", "records": records, "dropped": dropped
+                },
+            ):
+                yield frame
+
+    await stream_json_frames(socket, stream())

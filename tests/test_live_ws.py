@@ -153,6 +153,8 @@ def test_ws_ignores_unexpected_inbound_frames():
 class FakeSocket:
     """Bare-bones WebSocket standing in for a connected, quiet client."""
 
+    connection_state = "connect"
+
     def __init__(self, state: SimpleNamespace) -> None:
         self.app = SimpleNamespace(state=state)
         self.sent: list[dict] = []
