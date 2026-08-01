@@ -171,6 +171,27 @@ class FakeSocket:
     async def close(self, code: int = 1000, reason: str = "") -> None: ...
 
 
+class DisconnectingSendSocket(FakeSocket):
+    """The client vanishes exactly between the disconnect check and the send."""
+
+    async def send_json(self, data: dict) -> None:
+        raise WebSocketDisconnect(detail="client gone")
+
+
+@pytest.mark.anyio
+async def test_ws_disconnect_during_send_is_suppressed_and_unsubscribes():
+    """A WebSocketDisconnect raised from send_json travels through AnyIO's
+    task group as an ExceptionGroup; the handler must suppress it (not let
+    the group escape) and unsubscribe before returning."""
+    from geometrikks.domain.realtime.controllers import live_feed
+
+    ingestion = FakeIngestion()
+    ingestion.queue.put_nowait(make_record())
+    socket = DisconnectingSendSocket(SimpleNamespace(ingestion_service=ingestion))
+    await live_feed.fn(socket)  # must not raise
+    assert ingestion.unsubscribed is True
+
+
 @pytest.mark.anyio
 async def test_ws_cancellation_still_unsubscribes():
     """Server-side cancellation (shutdown) must run the cleanup path."""

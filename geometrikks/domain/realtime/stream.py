@@ -179,5 +179,14 @@ async def stream_json_frames(socket: WebSocket, stream: AsyncGenerator[Frame]) -
             listen_for_disconnect=True,
             warn_on_data_discard=False,
         )
-    except WebSocketDisconnect:
-        pass  # client went away between the disconnect check and the send
+    except* WebSocketDisconnect:
+        # Client went away between the disconnect check and the send. The
+        # AnyIO task group inside send_websocket_stream wraps exceptions from
+        # its child tasks in an ExceptionGroup, so a plain `except` would let
+        # the grouped disconnect escape; except* handles bare and grouped.
+        pass
+    finally:
+        # A disconnect raised from the send leaves the generator suspended at
+        # its yield; close it explicitly so subscription cleanup runs before
+        # the handler returns instead of at garbage collection.
+        await stream.aclose()
