@@ -7,7 +7,6 @@ from typing import Annotated, Literal
 from litestar import Controller, get
 from litestar.di import NamedDependency, Provide
 from litestar.params import QueryParameter, SkipValidation
-from litestar.openapi.spec import Example
 from advanced_alchemy.extensions.litestar.providers import create_service_dependencies
 from advanced_alchemy.filters import (
     CollectionFilter,
@@ -32,17 +31,16 @@ from geometrikks.domain.geo.schemas import (
     TopGeoIpsResponse,
 )
 from geometrikks.domain.geo.services import GeoEventService
+from geometrikks.api.parameters import (
+    EndTimestamp,
+    HostnameIn,
+    IpAddressIn,
+    IpAddressNotIn,
+    StartTimestamp,
+)
 from geometrikks.lib.time import ensure_utc
 from geometrikks.lib.validation import validate_ip_addresses
 
-START_PARAM = QueryParameter(
-    description="Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)",
-    examples=[Example(value="2024-01-01T00:00:00Z")],
-)
-END_PARAM = QueryParameter(
-    description="End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)",
-    examples=[Example(value="2024-12-31T23:59:59Z")],
-)
 
 
 def _calculate_percent_change(current: float, previous: float) -> float | None:
@@ -73,9 +71,9 @@ def provide_geo_event_time_window(
 
 
 def provide_geo_event_in_filters(
-    ip_address_in: Annotated[list[str] | None, QueryParameter(name="ipAddressIn", required=False)] = None,
-    ip_address_not_in: Annotated[list[str] | None, QueryParameter(name="ipAddressNotIn", required=False)] = None,
-    hostname_in: Annotated[list[str] | None, QueryParameter(name="hostnameIn", required=False)] = None,
+    ip_address_in: IpAddressIn = None,
+    ip_address_not_in: IpAddressNotIn = None,
+    hostname_in: HostnameIn = None,
 ) -> list[FilterTypes]:
     """IP include/exclude and hostname ``IN`` filters for the raw event list.
 
@@ -98,9 +96,9 @@ def provide_geo_event_in_filters(
 def provide_geo_event_filters(
     country_code_in: Annotated[list[str] | None, QueryParameter(name="countryCodeIn", required=False)] = None,
     city_in: Annotated[list[str] | None, QueryParameter(name="cityIn", required=False)] = None,
-    ip_address_in: Annotated[list[str] | None, QueryParameter(name="ipAddressIn", required=False)] = None,
-    ip_address_not_in: Annotated[list[str] | None, QueryParameter(name="ipAddressNotIn", required=False)] = None,
-    hostname_in: Annotated[list[str] | None, QueryParameter(name="hostnameIn", required=False)] = None,
+    ip_address_in: IpAddressIn = None,
+    ip_address_not_in: IpAddressNotIn = None,
+    hostname_in: HostnameIn = None,
 ) -> GeoEventFilters:
     """Dimension filters consumed by the aggregate endpoints."""
     if ip_address_in:
@@ -182,8 +180,8 @@ class GeoEventController(Controller):
         self,
         geo_event_service: NamedDependency[GeoEventService],
         geo_filters: NamedDependency[SkipValidation[GeoEventFilters]],
-        from_timestamp: Annotated[datetime, START_PARAM],
-        to_timestamp: Annotated[datetime, END_PARAM],
+        from_timestamp: StartTimestamp,
+        to_timestamp: EndTimestamp,
         current_page: Annotated[int, QueryParameter(name="currentPage", ge=1, required=False)] = 1,
         page_size: Annotated[int, QueryParameter(name="pageSize", ge=1, le=500, required=False)] = 50,
         order_by: Annotated[
@@ -220,8 +218,8 @@ class GeoEventController(Controller):
         self,
         geo_event_service: NamedDependency[GeoEventService],
         geo_filters: NamedDependency[SkipValidation[GeoEventFilters]],
-        from_timestamp: Annotated[datetime, START_PARAM],
-        to_timestamp: Annotated[datetime, END_PARAM],
+        from_timestamp: StartTimestamp,
+        to_timestamp: EndTimestamp,
         compare_previous: Annotated[
             bool,
             QueryParameter(description="Include comparison with previous period of same length"),
@@ -270,8 +268,8 @@ class GeoEventController(Controller):
         self,
         geo_event_service: NamedDependency[GeoEventService],
         geo_filters: NamedDependency[SkipValidation[GeoEventFilters]],
-        from_timestamp: Annotated[datetime, START_PARAM],
-        to_timestamp: Annotated[datetime, END_PARAM],
+        from_timestamp: StartTimestamp,
+        to_timestamp: EndTimestamp,
         granularity: Annotated[
             Literal["hourly", "daily"] | None,
             QueryParameter(
@@ -305,8 +303,8 @@ class GeoEventController(Controller):
         self,
         geo_event_service: NamedDependency[GeoEventService],
         geo_filters: NamedDependency[SkipValidation[GeoEventFilters]],
-        from_timestamp: Annotated[datetime, START_PARAM],
-        to_timestamp: Annotated[datetime, END_PARAM],
+        from_timestamp: StartTimestamp,
+        to_timestamp: EndTimestamp,
         limit: Annotated[int, QueryParameter(description="Maximum number of IPs", ge=1, le=50)] = 10,
     ) -> TopGeoIpsResponse:
         """Top IPs across all locations for the period."""
@@ -320,8 +318,8 @@ class GeoEventController(Controller):
         self,
         geo_event_service: NamedDependency[GeoEventService],
         geo_filters: NamedDependency[SkipValidation[GeoEventFilters]],
-        from_timestamp: Annotated[datetime, START_PARAM],
-        to_timestamp: Annotated[datetime, END_PARAM],
+        from_timestamp: StartTimestamp,
+        to_timestamp: EndTimestamp,
         limit: Annotated[int, QueryParameter(description="Maximum number of countries", ge=1, le=50)] = 10,
     ) -> TopGeoCountriesResponse:
         """Top countries with exact unique-IP counts for the period."""
@@ -335,8 +333,8 @@ class GeoEventController(Controller):
         self,
         geo_event_service: NamedDependency[GeoEventService],
         geo_filters: NamedDependency[SkipValidation[GeoEventFilters]],
-        from_timestamp: Annotated[datetime, START_PARAM],
-        to_timestamp: Annotated[datetime, END_PARAM],
+        from_timestamp: StartTimestamp,
+        to_timestamp: EndTimestamp,
         limit: Annotated[int, QueryParameter(description="Maximum number of cities", ge=1, le=50)] = 10,
     ) -> TopGeoCitiesResponse:
         """Top cities (NULL cities excluded) for the period."""

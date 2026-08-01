@@ -8,7 +8,6 @@ from litestar.pagination import OffsetPagination
 from litestar import Controller, get
 from litestar.di import NamedDependency, Provide
 from litestar.params import PathParameter, QueryParameter
-from litestar.openapi.spec import Example
 
 from geometrikks.domain.geo.models import GeoLocation
 from geometrikks.domain.geo.repositories import GeoLocationRepository
@@ -28,6 +27,15 @@ from geometrikks.domain.geo.dtos import (
 )
 
 from geometrikks.api.dependencies import provide_geo_location_repo
+from geometrikks.api.parameters import (
+    CityFilter,
+    CountryCodeFilter,
+    EndTimestamp,
+    HostnameIn,
+    IpAddressIn,
+    IpAddressNotIn,
+    StartTimestamp,
+)
 from geometrikks.lib.time import ensure_utc
 from geometrikks.lib.validation import validate_ip_addresses
 from geometrikks.server.logging import get_logger
@@ -64,40 +72,13 @@ class GeoLocationController(Controller):
     async def get_geojson(
         self,
         geo_location_repo: NamedDependency[GeoLocationRepository],
-        from_timestamp: Annotated[
-            datetime,
-            QueryParameter(
-                description="Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)",
-                examples=[Example(value="2024-01-01T00:00:00Z")],
-            ),
-        ],
-        to_timestamp: Annotated[
-            datetime,
-            QueryParameter(
-                description="End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)",
-                examples=[Example(value="2024-12-31T23:59:59Z")],
-            ),
-        ],
-        country_code: Annotated[
-            list[str] | None,
-            QueryParameter(description="Filter to these ISO country codes (repeatable)", required=False),
-        ] = None,
-        city: Annotated[
-            list[str] | None,
-            QueryParameter(description="Filter to these city names (repeatable)", required=False),
-        ] = None,
-        ip_address_in: Annotated[
-            list[str] | None,
-            QueryParameter(name="ipAddressIn", description="Filter to these IPs (repeatable)", required=False),
-        ] = None,
-        ip_address_not_in: Annotated[
-            list[str] | None,
-            QueryParameter(name="ipAddressNotIn", description="Exclude these IPs (repeatable)", required=False),
-        ] = None,
-        hostname_in: Annotated[
-            list[str] | None,
-            QueryParameter(name="hostnameIn", description="Filter to these recording hostnames (repeatable)", required=False),
-        ] = None,
+        from_timestamp: StartTimestamp,
+        to_timestamp: EndTimestamp,
+        country_code: CountryCodeFilter = None,
+        city: CityFilter = None,
+        ip_address_in: IpAddressIn = None,
+        ip_address_not_in: IpAddressNotIn = None,
+        hostname_in: HostnameIn = None,
     ) -> GeoJSONFeatureCollection:
         """Get all locations with event counts as GeoJSON FeatureCollection.
 
@@ -164,20 +145,8 @@ class GeoLocationController(Controller):
     async def get_global_top_ips(
         self,
         geo_location_repo: NamedDependency[GeoLocationRepository],
-        from_timestamp: Annotated[
-            datetime,
-            QueryParameter(
-                description="Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)",
-                examples=[Example(value="2024-01-01T00:00:00Z")],
-            ),
-        ],
-        to_timestamp: Annotated[
-            datetime,
-            QueryParameter(
-                description="End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)",
-                examples=[Example(value="2024-12-31T23:59:59Z")],
-            ),
-        ],
+        from_timestamp: StartTimestamp,
+        to_timestamp: EndTimestamp,
         limit: Annotated[
             int,
             QueryParameter(description="Maximum number of IPs to return", ge=1, le=20),
@@ -216,20 +185,8 @@ class GeoLocationController(Controller):
         self,
         geo_location_repo: NamedDependency[GeoLocationRepository],
         location_id: Annotated[int, PathParameter()],
-        from_timestamp: Annotated[
-            datetime,
-            QueryParameter(
-                description="Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)",
-                examples=[Example(value="2024-01-01T00:00:00Z")],
-            ),
-        ],
-        to_timestamp: Annotated[
-            datetime,
-            QueryParameter(
-                description="End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)",
-                examples=[Example(value="2024-12-31T23:59:59Z")],
-            ),
-        ],
+        from_timestamp: StartTimestamp,
+        to_timestamp: EndTimestamp,
         limit: Annotated[
             int,
             QueryParameter(description="Maximum number of IPs to return", ge=1, le=20),
@@ -255,20 +212,8 @@ class GeoLocationController(Controller):
     async def get_top_countries(
         self,
         geo_location_repo: NamedDependency[GeoLocationRepository],
-        from_timestamp: Annotated[
-            datetime,
-            QueryParameter(
-                description="Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)",
-                examples=[Example(value="2024-01-01T00:00:00Z")],
-            ),
-        ],
-        to_timestamp: Annotated[
-            datetime,
-            QueryParameter(
-                description="End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)",
-                examples=[Example(value="2024-12-31T23:59:59Z")],
-            ),
-        ],
+        from_timestamp: StartTimestamp,
+        to_timestamp: EndTimestamp,
         limit: Annotated[
             int,
             QueryParameter(description="Maximum number of countries to return", ge=1, le=50),
