@@ -3,6 +3,7 @@ import os
 import re
 import time
 from pathlib import Path
+from typing import cast
 
 import aiofiles.os
 import pytest
@@ -173,7 +174,7 @@ def test_cached_city_lookup_calls_reader_once_per_ip() -> None:
             calls["n"] += 1
             raise RuntimeError("lookup failed")
 
-    lookup = make_cached_city_lookup(CountingReader())  # type: ignore[arg-type]
+    lookup = make_cached_city_lookup(cast("Reader", CountingReader()))
     assert lookup("1.2.3.4") is None
     assert lookup("1.2.3.4") is None
     assert calls["n"] == 1
@@ -341,7 +342,7 @@ def test_create_access_log_sqlalchemy_geoip_failure(log_parser: LogParser, monke
 
     mock_reader = MockReader()
     ip = match.group(1)
-    lookup = make_cached_city_lookup(mock_reader)  # type: ignore[arg-type]
+    lookup = make_cached_city_lookup(cast("Reader", mock_reader))
     result = log_parser._parse_access_log(match, ip, lookup)
     assert result is None
 
@@ -360,6 +361,7 @@ async def test_iter_log_events_async_unmatched(tmp_path: Path, log_parser: LogPa
         geoip_reader, skip_validation=True, start_at_end=False
     )
     record = await gen.__anext__()
+    assert record is not None
     assert record.ip_address is None
     assert record.geo_data is None
     assert record.access_log is None
@@ -386,6 +388,7 @@ async def test_iter_log_events_async_matched(tmp_path: Path, log_parser: LogPars
         geoip_reader, skip_validation=True, start_at_end=False
     )
     record = await gen.__anext__()
+    assert record is not None
     assert record.ip_address is not None
     assert record.geo_data is not None
     assert record.access_log is not None
@@ -423,6 +426,7 @@ async def test_iter_log_events_async_rotation_restart(tmp_path: Path, log_parser
     )
     # First __anext__() triggers rotation and restart; subsequent yield should still produce records
     record = await gen.__anext__()
+    assert record is not None
     assert record.ip_address is not None
     assert record.access_log is not None
 
@@ -459,6 +463,7 @@ async def test_iter_parsed_records_tags_source(tmp_path: Path, log_parser: LogPa
     gen = log_parser.iter_parsed_records(geoip_reader, skip_validation=True, start_at_end=False)
     record = await gen.__anext__()
     await gen.aclose()
+    assert record is not None
     assert record.source == str(log_file)
 
 
@@ -500,6 +505,7 @@ class TestParseLine:
         lookup = make_cached_city_lookup(geoip_reader)
         line = make_log_line("2.125.160.216")
         record = parser.parse_line(line, lookup)
+        assert record is not None
         assert record.ip_address == "2.125.160.216"
         assert record.geo_data is not None
         assert record.access_log is not None
@@ -510,6 +516,7 @@ class TestParseLine:
         parser = LogParser(log_path=Path("/dev/null"), send_logs=True)
         lookup = make_cached_city_lookup(geoip_reader)
         record = parser.parse_line("total garbage\n", lookup)
+        assert record is not None
         assert record.is_malformed is True
         assert record.ip_address is None
         assert parser.skipped_lines == 1

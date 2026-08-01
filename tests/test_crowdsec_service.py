@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+from typing import Any
 
 import httpx
 import pytest
@@ -28,7 +29,7 @@ DECISION_JSON = {
 
 
 def make_settings(**overrides) -> CrowdSecSettings:
-    values = {
+    values: dict[str, Any] = {
         "lapi_url": "http://crowdsec:8080",
         "bouncer_api_key": "bouncer-key",
         **overrides,

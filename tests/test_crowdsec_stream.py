@@ -10,16 +10,22 @@ import pytest
 pytestmark = pytest.mark.anyio
 
 
-def stream_responder(payloads: list[dict]):
+class _StreamResponder:
     """Return each payload in turn for successive /v1/decisions/stream calls."""
-    calls: list[dict] = []
 
-    def respond(request: httpx.Request) -> httpx.Response:
-        calls.append({"params": dict(request.url.params), "headers": request.headers})
-        return httpx.Response(200, json=payloads[min(len(calls) - 1, len(payloads) - 1)])
+    def __init__(self, payloads: list[dict]) -> None:
+        self._payloads = payloads
+        self.calls: list[dict] = []
 
-    respond.calls = calls
-    return respond
+    def __call__(self, request: httpx.Request) -> httpx.Response:
+        self.calls.append({"params": dict(request.url.params), "headers": request.headers})
+        return httpx.Response(
+            200, json=self._payloads[min(len(self.calls) - 1, len(self._payloads) - 1)]
+        )
+
+
+def stream_responder(payloads: list[dict]) -> _StreamResponder:
+    return _StreamResponder(payloads)
 
 
 async def test_stream_parses_new_and_deleted():

@@ -1,7 +1,9 @@
 """/health is liveness (always 200); /health/ready is readiness (503 without DB)."""
 from __future__ import annotations
 
+from pathlib import Path
 from types import SimpleNamespace
+from typing import Any, cast
 
 from litestar import Litestar
 from litestar.testing import TestClient
@@ -57,10 +59,10 @@ def test_ready_200_when_db_reachable(monkeypatch):
 
 def _running_service(file_missing: bool) -> "LogIngestionService":
     """A real (never-started) service so Litestar DI type validation passes."""
-    parser = LogParser(log_path="nginx_logs/access.log")
+    parser = LogParser(log_path=Path("nginx_logs/access.log"))
     parser.file_missing = file_missing
     service = LogIngestionService(
-        parsers=[parser], session_maker=None, geoip_path="unused"
+        parsers=[parser], session_maker=cast("Any", None), geoip_path="unused"
     )
     service.is_running = True
     return service

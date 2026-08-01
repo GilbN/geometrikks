@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -92,7 +93,7 @@ async def test_scheduler_job_binds_timestamps(monkeypatch):
 
     monkeypatch.setattr(sched, "_execute_call_outside_transaction", fake_exec)
 
-    await sched.refresh_continuous_aggregate_job(None, "summary_hourly_stats", START, END)
+    await sched.refresh_continuous_aggregate_job(cast("Any", None), "summary_hourly_stats", START, END)
     sql, args = calls[0]
     assert "$1" in sql and args == (START, END)
 
@@ -100,7 +101,7 @@ async def test_scheduler_job_binds_timestamps(monkeypatch):
 async def test_scheduler_job_rejects_unknown_cagg(monkeypatch):
     from geometrikks.server import scheduler as sched
     with pytest.raises(ValueError, match="Unknown CAGG"):
-        await sched.refresh_continuous_aggregate_job(None, "not_a_cagg")
+        await sched.refresh_continuous_aggregate_job(cast("Any", None), "not_a_cagg")
 
 
 async def test_cagg_summary_returned_when_only_geo_events_exist():

@@ -5,6 +5,7 @@ import asyncio
 import time
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
 
 import pytest
 from geohash2 import encode
@@ -40,7 +41,7 @@ class FakeSession:
 
     def __init__(self, repos: "FakeRepos") -> None:
         self.repos = repos
-        self.pending: list[object] = []
+        self.pending: list[Any] = []
         self.commits = 0
         self.rollbacks = 0
         self.flushes = 0
@@ -140,7 +141,7 @@ def make_service(parsers: list[LogParser], **overrides) -> tuple[LogIngestionSer
         sessions.append(session)
         return session
 
-    kwargs = dict(
+    kwargs: dict[str, Any] = dict(
         parsers=parsers,
         session_maker=session_maker,
         geoip_path=GEOIP_DB_PATH,

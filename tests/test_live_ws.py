@@ -4,6 +4,7 @@ from __future__ import annotations
 import asyncio
 from datetime import datetime, timezone
 from types import SimpleNamespace
+from typing import TYPE_CHECKING, cast
 
 import pytest
 from litestar import Litestar
@@ -11,6 +12,10 @@ from litestar.exceptions import WebSocketDisconnect
 from litestar.testing import TestClient
 
 from geometrikks.services.logparser.schemas import ParsedAccessLog, ParsedGeoData, ParsedLogRecord
+
+if TYPE_CHECKING:
+    from collections.abc import Coroutine
+    from typing import Any
 
 TS = datetime(2026, 7, 1, 12, 0, tzinfo=timezone.utc)
 
@@ -199,7 +204,7 @@ async def test_ws_cancellation_still_unsubscribes():
 
     ingestion = FakeIngestion()
     socket = FakeSocket(SimpleNamespace(ingestion_service=ingestion))
-    task = asyncio.create_task(live_feed.fn(socket))
+    task = asyncio.create_task(cast("Coroutine[Any, Any, None]", live_feed.fn(socket)))
     await asyncio.sleep(0.05)  # let the handler subscribe and enter its loop
     task.cancel()
     with pytest.raises(asyncio.CancelledError):

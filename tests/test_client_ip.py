@@ -2,8 +2,12 @@
 from __future__ import annotations
 
 from ipaddress import ip_network
+from typing import TYPE_CHECKING, cast
 
 from geometrikks.lib.client_ip import resolve_client_ip
+
+if TYPE_CHECKING:
+    from litestar.connection import ASGIConnection
 
 TRUSTED = [ip_network("172.18.0.0/16"), ip_network("10.0.0.5/32")]
 
@@ -22,7 +26,7 @@ class _Headers:
         return self._data.get(key.lower(), default if default is not None else [])
 
 
-class FakeConnection:
+class _FakeConnection:
     """Duck-typed stand-in for litestar's ASGIConnection."""
 
     def __init__(self, peer: str | None, headers: dict[str, str | list[str]] | None = None) -> None:
@@ -32,6 +36,11 @@ class FakeConnection:
         self.client = _Client() if peer is not None else None
         raw = headers or {}
         self.headers = _Headers({k.lower(): v if isinstance(v, list) else [v] for k, v in raw.items()})
+
+
+def FakeConnection(peer: str | None, headers: dict[str, str | list[str]] | None = None) -> ASGIConnection:
+    """Build the duck-typed connection, cast so call sites type-check."""
+    return cast("ASGIConnection", _FakeConnection(peer, headers))
 
 
 def test_no_trusted_networks_returns_peer_and_ignores_header():

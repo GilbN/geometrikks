@@ -32,7 +32,7 @@ jobs:
       - name: Sync dependencies
         run: uv sync --frozen
       - name: Type check
-        run: uv run ty check geometrikks
+        run: uv run ty check geometrikks tests
       - name: Run tests (unit + integration)
         env:
           IT_DB_HOST: localhost

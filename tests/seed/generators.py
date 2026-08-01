@@ -290,6 +290,7 @@ class DataSeeder:
             # Get the raw asyncpg connection (nested under SQLAlchemy adapters)
             connection = await session.connection()
             raw_conn = await connection.get_raw_connection()
+            assert raw_conn.dbapi_connection is not None
             asyncpg_conn = raw_conn.dbapi_connection.driver_connection
 
             for cagg in ["hourly_stats_cagg", "geo_events_hourly_cagg", "daily_stats_cagg"]:

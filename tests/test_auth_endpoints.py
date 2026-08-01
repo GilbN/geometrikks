@@ -238,6 +238,7 @@ class TestLoginLogFile:
         from geometrikks.server.logging import create_logging_config
         config = create_logging_config(get_settings())
         config.configure()
+        assert config.standard_lib_logging_config is not None
         config.standard_lib_logging_config.configure()
 
         with TestClient(app=make_app()) as client:

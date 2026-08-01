@@ -261,6 +261,7 @@ class TestAuthSettings:
         settings = Settings()
         assert settings.auth_disabled is True
         assert settings.admin_user == "gil"
+        assert settings.admin_password is not None
         assert settings.admin_password.get_secret_value() == "bestpasswordintheworldnojoke"
 
 
@@ -284,6 +285,7 @@ class TestGeoIPDownloadSettings:
         from geometrikks.config.settings import GeoIPSettings
         s = GeoIPSettings(validate_db_path=False)
         assert s.account_id == "123456"
+        assert s.license_key is not None
         assert s.license_key.get_secret_value() == "abcdef"
         assert s.refresh_days == 3
 
@@ -381,6 +383,8 @@ class TestCrowdSecSettings:
         s = CrowdSecSettings(_env_file=None)
         assert "bouncer-secret" not in repr(s)
         assert "machine-secret" not in repr(s)
+        assert s.bouncer_api_key is not None
+        assert s.machine_password is not None
         assert s.bouncer_api_key.get_secret_value() == "bouncer-secret"
         assert s.machine_password.get_secret_value() == "machine-secret"
 

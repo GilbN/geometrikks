@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from types import SimpleNamespace
+from typing import cast
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -38,7 +39,7 @@ async def test_teardown_runs_in_reverse_startup_order(monkeypatch):
     order: list[str] = []
     service = _patch_crowdsec_service(monkeypatch, lc)
     service.aclose = AsyncMock(side_effect=lambda: order.append("crowdsec"))
-    scheduler = lc.create_scheduler.return_value
+    scheduler = cast("AsyncMock", lc.create_scheduler).return_value
     scheduler.running = True
     scheduler.shutdown = MagicMock(side_effect=lambda wait=True: order.append("scheduler"))
     ingestion.stop = AsyncMock(side_effect=lambda timeout=None: order.append("ingestion"))
@@ -69,8 +70,8 @@ async def test_startup_failure_unwinds_started_managers(monkeypatch):
 
     service.aclose.assert_awaited_once()
     # The failure happened before the scheduler and ingestion managers entered.
-    lc.create_scheduler.assert_not_awaited()
-    lc.LogIngestionService.assert_not_called()
+    cast("AsyncMock", lc.create_scheduler).assert_not_awaited()
+    cast("MagicMock", lc.LogIngestionService).assert_not_called()
 
 
 async def test_crowdsec_wiring_failure_still_closes_client(monkeypatch):
@@ -103,7 +104,7 @@ async def test_scheduler_start_failure_still_shuts_down(monkeypatch):
     _patch_startup_collaborators(
         monkeypatch, lc, db_available=True, ensure=AsyncMock(return_value=True)
     )
-    scheduler = lc.create_scheduler.return_value
+    scheduler = cast("AsyncMock", lc.create_scheduler).return_value
     scheduler.start = MagicMock(side_effect=RuntimeError("job store down"))
     scheduler.running = True
 
@@ -113,7 +114,7 @@ async def test_scheduler_start_failure_still_shuts_down(monkeypatch):
             pass
 
     scheduler.shutdown.assert_called_once_with(wait=True)
-    lc.LogIngestionService.assert_not_called()
+    cast("MagicMock", lc.LogIngestionService).assert_not_called()
 
 
 async def test_ingestion_start_failure_still_stops_service(monkeypatch):
@@ -148,5 +149,5 @@ async def test_db_degraded_mode_skips_scheduler_and_ingestion(monkeypatch):
         assert not hasattr(app.state, "scheduler")
         assert not hasattr(app.state, "ingestion_service")
 
-    lc.create_scheduler.assert_not_awaited()
-    lc.LogIngestionService.assert_not_called()
+    cast("AsyncMock", lc.create_scheduler).assert_not_awaited()
+    cast("MagicMock", lc.LogIngestionService).assert_not_called()
