@@ -1,13 +1,28 @@
-"""Application lifecycle hooks for startup and shutdown."""
+"""Application lifecycle as focused lifespan context managers.
+
+Each concern owns both its startup and its cleanup in one async context
+manager. ``create_app()`` passes :data:`LIFESPAN` to Litestar, which enters
+the managers in order on an ``AsyncExitStack`` and exits them in reverse:
+
+- teardown order is the exact reverse of startup (ingestion stops first,
+  the scheduler second, the CrowdSec client closes after both), and
+- a failure during startup unwinds only the managers that already started,
+  so partial startup no longer leaks running services.
+
+Degraded modes are decided once: :func:`database_lifespan` records
+``app.state.db_available`` and the scheduler and ingestion managers no-op
+when it is False. Missing GeoLite2 puts the app in geo-degraded mode
+(API/UI up, ingestion inert) without failing startup.
+"""
 
 from __future__ import annotations
 
 import asyncio
+from contextlib import asynccontextmanager
 from datetime import datetime, timezone
-from typing import TYPE_CHECKING, Callable
+from typing import TYPE_CHECKING
 
 from sqlalchemy import text
-from sqlalchemy.ext.asyncio import AsyncSession
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from geometrikks.config.settings import get_settings
@@ -27,9 +42,21 @@ from geometrikks.server.scheduler import create_scheduler
 from geometrikks.server.scheduler_tracking import JobRunTracker
 
 if TYPE_CHECKING:
+    from collections.abc import AsyncGenerator
+
+    from geometrikks.config.settings import Settings
     from litestar import Litestar
 
 logger = get_logger(__name__)
+
+
+def _resolve_settings(app: "Litestar") -> "Settings":
+    """The settings the app was composed with.
+
+    create_app() stores its composed settings on state; the fallback keeps
+    hand-built test apps that attach these managers directly working.
+    """
+    return getattr(app.state, "settings", None) or get_settings()
 
 
 async def _db_available(app: "Litestar", timeout: float = 10.0) -> bool:
@@ -46,35 +73,35 @@ async def _db_available(app: "Litestar", timeout: float = 10.0) -> bool:
         return False
 
 
-async def on_startup(app: "Litestar") -> None:
-    """Run alembic migrations and start ingestion when DB is reachable.
+@asynccontextmanager
+async def core_state_lifespan(app: "Litestar") -> "AsyncGenerator[None]":
+    """Process start time and the log broadcaster's event loop binding.
 
-    - If DB is unavailable, start the API in a degraded mode (no migrations,
-      no ingestion) instead of failing app startup.
-    - If the DB is reachable but the migration fails, that failure propagates
-      and fails startup deliberately: a reachable DB with a broken schema is
-      an error to surface, not an outage to degrade around.
-    - Sets up TimescaleDB hypertables and continuous aggregates after migrations.
+    Runs first so /about reports uptime even when later managers degrade.
     """
-    # Set before anything else so /about reports uptime even in degraded mode.
     app.state.started_at = datetime.now(timezone.utc)
 
     from geometrikks.server.logging import log_broadcaster
     log_broadcaster.bind_loop(asyncio.get_running_loop())
 
-    # create_app() stores its composed settings on state; the fallback keeps
-    # hand-built test apps that attach this hook directly working.
-    settings = getattr(app.state, "settings", None) or get_settings()
-
+    settings = _resolve_settings(app)
     if settings.api.log_level is not None:
         logger.warning(
             "API_LOG_LEVEL is deprecated and will be removed in a future "
             "release; set LOG_LEVEL instead."
         )
+    yield
 
-    # GeoIP: download/refresh if credentials are configured; degrade otherwise.
-    # Runs before the DB gate — geo enrichment does not need the database, and
-    # /health must report geoip state accurately even in DB-degraded mode.
+
+@asynccontextmanager
+async def geoip_lifespan(app: "Litestar") -> "AsyncGenerator[None]":
+    """GeoLite2 download/refresh and home-location detection.
+
+    Runs before the DB gate: geo enrichment does not need the database, and
+    /health must report geoip state accurately even in DB-degraded mode.
+    Missing credentials or database degrade the feature, never startup.
+    """
+    settings = _resolve_settings(app)
     geoip_available: bool = await ensure_geoip_database(settings.geoip)
     app.state.geoip_available = geoip_available
     app.state.map_home_location = await resolve_home_location(
@@ -88,22 +115,61 @@ async def on_startup(app: "Litestar") -> None:
             "not start until a GeoLite2 database file is present (restart "
             "after configuring MAXMINDDB_USER_ID/MAXMINDDB_LICENSE_KEY)."
         )
+    yield
 
-    # CrowdSec: LAPI client needs no database, so it is wired before the DB
-    # gate; missing config degrades the feature instead of failing startup.
-    if settings.crowdsec.enabled:
-        app.state.crowdsec_service = CrowdSecService(settings.crowdsec)
-        app.state.crowdsec_stream_poller = CrowdSecStreamPoller(app.state.crowdsec_service)
-        logger.info(
-            "CrowdSec integration enabled (write=%s)", settings.crowdsec.write_enabled
-        )
-    else:
-        app.state.crowdsec_service = None
-        app.state.crowdsec_stream_poller = None
+
+@asynccontextmanager
+async def crowdsec_lifespan(app: "Litestar") -> "AsyncGenerator[None]":
+    """CrowdSec LAPI client and decision-stream poller wiring.
+
+    The LAPI client needs no database, so this runs before the DB gate;
+    missing config degrades the feature instead of failing startup. The
+    database manager may later null the poller in DB-degraded mode (the poll
+    job runs on the scheduler, which never starts without a database).
+
+    Teardown closes the LAPI client; it exits after the scheduler and
+    ingestion managers, so nothing that could still use the client outlives it.
+    """
+    settings = _resolve_settings(app)
+    service: CrowdSecService | None = None
+    # The finally covers the setup phase too: if wiring fails after the LAPI
+    # client exists (e.g. poller construction), the client is still closed.
+    try:
+        if settings.crowdsec.enabled:
+            service = CrowdSecService(settings.crowdsec)
+            app.state.crowdsec_service = service
+            app.state.crowdsec_stream_poller = CrowdSecStreamPoller(service)
+            logger.info(
+                "CrowdSec integration enabled (write=%s)", settings.crowdsec.write_enabled
+            )
+        else:
+            app.state.crowdsec_service = None
+            app.state.crowdsec_stream_poller = None
+        yield
+    finally:
+        crowdsec_service = runtime.get_crowdsec_service(app) or service
+        if crowdsec_service:
+            await crowdsec_service.aclose()
+
+
+@asynccontextmanager
+async def database_lifespan(app: "Litestar") -> "AsyncGenerator[None]":
+    """Database gate: availability probe, migrations, TimescaleDB objects.
+
+    - If the DB is unavailable, record ``db_available = False`` and serve in
+      degraded mode (no migrations; scheduler and ingestion never start).
+    - If the DB is reachable but migration fails, that failure propagates
+      and fails startup deliberately: a reachable DB with a broken schema is
+      an error to surface, not an outage to degrade around.
+
+    Engine disposal belongs to the SQLAlchemy plugin, so there is no teardown.
+    """
+    settings = _resolve_settings(app)
 
     if not await _db_available(app):
         logger.warning("Starting without database: skipping migrations and ingestion.")
-        if app.state.crowdsec_stream_poller is not None:
+        app.state.db_available = False
+        if runtime.get_crowdsec_poller(app) is not None:
             # The poll job runs on the scheduler, which never starts without a
             # database; a live poller would leave /ws/crowdsec clients hanging
             # instead of closing 1013 so they fall back to periodic refetch.
@@ -112,23 +178,80 @@ async def on_startup(app: "Litestar") -> None:
                 "CrowdSec live updates disabled: the scheduler does not run "
                 "in DB-degraded mode."
             )
+        yield
         return
 
-    db_config = get_app_db_config(app)
-    engine = db_config.get_engine()
+    app.state.db_available = True
+    engine = get_app_db_config(app).get_engine()
 
     # Schema is owned by alembic (migrations/versions). A failed upgrade
-    # raises and fails startup deliberately: a reachable DB with a broken
-    # schema is an error to surface, not an outage to degrade around.
-    await migrate_database(engine, settings)
+    # raises and fails startup deliberately. Multi-process deployments run
+    # migrations as a separate step instead (litestar database upgrade) and
+    # disable this; TimescaleDB setup below still requires the schema to be
+    # at head and fails startup if the external step was skipped.
+    if settings.database.migrate_on_startup:
+        await migrate_database(engine, settings)
+    else:
+        logger.info(
+            "Startup migrations disabled (DB_MIGRATE_ON_STARTUP=false); "
+            "expecting an external 'litestar database upgrade' step."
+        )
 
     # TimescaleDB objects (hypertables, CAGGs, policies) deliberately stay
     # out of alembic: the DDL is idempotent, timescale-version-sensitive,
     # and alembic autogenerate can neither model nor diff them.
     await setup_timescaledb(engine, settings.analytics)
+    yield
 
-    # Session factory: ingestion opens a short-lived session per batch flush
-    session_maker: Callable[[], AsyncSession] = db_config.create_session_maker()
+
+@asynccontextmanager
+async def scheduler_lifespan(app: "Litestar") -> "AsyncGenerator[None]":
+    """APScheduler with job-run tracking; no-op in DB-degraded mode."""
+    if not getattr(app.state, "db_available", False):
+        yield
+        return
+
+    settings = _resolve_settings(app)
+    session_maker = get_app_db_config(app).create_session_maker()
+
+    # Tracker must attach before start so no event is missed.
+    scheduler: AsyncIOScheduler = await create_scheduler(
+        session_maker,
+        settings,
+        crowdsec_poller=runtime.get_crowdsec_poller(app),
+    )
+    # The finally covers start() itself: if it activates the scheduler and
+    # then raises, the running scheduler is still shut down.
+    try:
+        scheduler_tracker = JobRunTracker()
+        scheduler_tracker.attach(scheduler)
+        scheduler.start()
+        logger.info("Started APScheduler")
+
+        app.state.scheduler = scheduler
+        app.state.scheduler_tracker = scheduler_tracker
+        yield
+    finally:
+        running = runtime.get_scheduler(app) or scheduler
+        if running and running.running:
+            running.shutdown(wait=True)
+            logger.info("Stopped APScheduler")
+
+
+@asynccontextmanager
+async def ingestion_lifespan(app: "Litestar") -> "AsyncGenerator[None]":
+    """Log tailing -> parse -> GeoIP -> DB pipeline; no-op in DB-degraded mode.
+
+    Enters last and therefore exits first: ingestion stops before the
+    scheduler and the CrowdSec client so nothing keeps writing during teardown.
+    """
+    if not getattr(app.state, "db_available", False):
+        yield
+        return
+
+    settings = _resolve_settings(app)
+    # Ingestion opens a short-lived session per batch flush.
+    session_maker = get_app_db_config(app).create_session_maker()
 
     parsers = [
         LogParser(
@@ -151,44 +274,27 @@ async def on_startup(app: "Litestar") -> None:
         commit_interval=settings.logparser.commit_interval,
         store_debug_lines=settings.logparser.store_debug_lines,
     )
-
-    # Create and start scheduler; tracker must attach before start so no
-    # event is missed.
-    scheduler: AsyncIOScheduler = await create_scheduler(
-        session_maker,
-        settings,
-        crowdsec_poller=runtime.get_crowdsec_poller(app),
-    )
-    scheduler_tracker = JobRunTracker()
-    scheduler_tracker.attach(scheduler)
-    scheduler.start()
-    logger.info("Started APScheduler")
-
-    # Store in app state for shutdown and API access
     app.state.ingestion_service = ingestion_service
-    app.state.scheduler = scheduler
-    app.state.scheduler_tracker = scheduler_tracker
 
-    # Start ingestion service
-    await ingestion_service.start(
-        skip_validation=settings.logparser.skip_validation,
-    )
+    # The finally covers start() itself: if it activates tailers and then
+    # raises, the partially started service is still stopped.
+    try:
+        await ingestion_service.start(
+            skip_validation=settings.logparser.skip_validation,
+        )
+        yield
+    finally:
+        service = runtime.get_ingestion_service(app) or ingestion_service
+        if service:
+            await service.stop(timeout=5.0)
 
 
-async def on_shutdown(app: "Litestar") -> None:
-    """Gracefully stop background services and clean up resources."""
-    # Stop ingestion service first
-    ingestion_service = runtime.get_ingestion_service(app)
-    if ingestion_service:
-        await ingestion_service.stop(timeout=5.0)
-
-    # Stop scheduler
-    scheduler = runtime.get_scheduler(app)
-    if scheduler and scheduler.running:
-        scheduler.shutdown(wait=True)
-        logger.info("Stopped APScheduler")
-
-    # Close the CrowdSec LAPI client
-    crowdsec_service = runtime.get_crowdsec_service(app)
-    if crowdsec_service:
-        await crowdsec_service.aclose()
+# Entered in order by Litestar's lifespan AsyncExitStack; exited in reverse.
+LIFESPAN = [
+    core_state_lifespan,
+    geoip_lifespan,
+    crowdsec_lifespan,
+    database_lifespan,
+    scheduler_lifespan,
+    ingestion_lifespan,
+]

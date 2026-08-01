@@ -1,8 +1,17 @@
 """Alembic migration-chain sanity — no database required."""
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, MagicMock
 
+import pytest
 from alembic.config import Config
 from alembic.script import ScriptDirectory
+
+from geometrikks.config.settings import DatabaseSettings, Settings
+from tests.support import enter_lifespan
+from tests.test_lifecycle_geoip import _patch_startup_collaborators
+
+pytestmark = pytest.mark.anyio
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
@@ -26,13 +35,6 @@ def test_revisions_parse_and_chain() -> None:
     assert revisions, "no revisions found — baseline revision missing"
     # walk_revisions yields head → base; the last one is the root.
     assert revisions[-1].down_revision is None
-
-
-from unittest.mock import MagicMock
-
-import pytest
-
-from geometrikks.config.settings import DatabaseSettings, Settings
 
 
 class _FakeConn:
@@ -171,12 +173,7 @@ def test_upgrade_to_head_honors_explicit_url(monkeypatch) -> None:
     assert config.connection_string == "postgresql+asyncpg://x:y@explicit.invalid:5432/appdb"
 
 
-from types import SimpleNamespace
-
-pytestmark = pytest.mark.anyio
-
-
-async def test_on_startup_migrates_before_timescale(monkeypatch) -> None:
+async def test_lifespan_migrates_before_timescale(monkeypatch) -> None:
     """Migrations own the schema; setup_timescaledb depends on the tables
     existing, so it must run strictly after migrate_database."""
     from geometrikks.server import lifecycle as lc
@@ -203,6 +200,7 @@ async def test_on_startup_migrates_before_timescale(monkeypatch) -> None:
         order.append("ingestion")
 
     ingestion.start = fake_start
+    ingestion.stop = AsyncMock()
 
     sqlalchemy_config = MagicMock()
     sqlalchemy_config.get_engine.return_value = MagicMock()
@@ -217,6 +215,26 @@ async def test_on_startup_migrates_before_timescale(monkeypatch) -> None:
     monkeypatch.setattr(lc, "LogIngestionService", MagicMock(return_value=ingestion))
 
     app = SimpleNamespace(state=SimpleNamespace())
-    await lc.on_startup(app)
+    async with enter_lifespan(app):
+        pass
 
     assert order == ["migrate", "timescale", "ingestion"]
+
+
+async def test_lifespan_skips_migrations_when_disabled(monkeypatch) -> None:
+    """DB_MIGRATE_ON_STARTUP=false defers schema ownership to an external
+    'litestar database upgrade' step; TimescaleDB setup still runs and is
+    the deliberate startup failure if that step was skipped."""
+    from geometrikks.server import lifecycle as lc
+
+    monkeypatch.setenv("DB_MIGRATE_ON_STARTUP", "false")
+    _patch_startup_collaborators(
+        monkeypatch, lc, db_available=True, ensure=AsyncMock(return_value=True)
+    )
+
+    app = SimpleNamespace(state=SimpleNamespace())
+    async with enter_lifespan(app):
+        pass
+
+    lc.migrate_database.assert_not_awaited()
+    lc.setup_timescaledb.assert_awaited_once()

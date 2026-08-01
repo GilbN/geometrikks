@@ -8,7 +8,7 @@ def test_server_imports_without_geoip_db() -> None:
     """Importing the app factory must succeed even when the GeoIP mmdb is missing.
 
     Settings construction (which validates the mmdb path) must happen inside
-    create_app()/on_startup, never at import time. Runs in a subprocess so this
+    create_app()/lifespan startup, never at import time. Runs in a subprocess so this
     test is immune to modules already imported by the test session."""
     env = os.environ | {
         "GEOIP_DB_PATH": "/nonexistent/GeoLite2-City.mmdb",

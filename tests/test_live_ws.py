@@ -153,6 +153,8 @@ def test_ws_ignores_unexpected_inbound_frames():
 class FakeSocket:
     """Bare-bones WebSocket standing in for a connected, quiet client."""
 
+    connection_state = "connect"
+
     def __init__(self, state: SimpleNamespace) -> None:
         self.app = SimpleNamespace(state=state)
         self.sent: list[dict] = []
@@ -167,6 +169,27 @@ class FakeSocket:
         self.sent.append(data)
 
     async def close(self, code: int = 1000, reason: str = "") -> None: ...
+
+
+class DisconnectingSendSocket(FakeSocket):
+    """The client vanishes exactly between the disconnect check and the send."""
+
+    async def send_json(self, data: dict) -> None:
+        raise WebSocketDisconnect(detail="client gone")
+
+
+@pytest.mark.anyio
+async def test_ws_disconnect_during_send_is_suppressed_and_unsubscribes():
+    """A WebSocketDisconnect raised from send_json travels through AnyIO's
+    task group as an ExceptionGroup; the handler must suppress it (not let
+    the group escape) and unsubscribe before returning."""
+    from geometrikks.domain.realtime.controllers import live_feed
+
+    ingestion = FakeIngestion()
+    ingestion.queue.put_nowait(make_record())
+    socket = DisconnectingSendSocket(SimpleNamespace(ingestion_service=ingestion))
+    await live_feed.fn(socket)  # must not raise
+    assert ingestion.unsubscribed is True
 
 
 @pytest.mark.anyio

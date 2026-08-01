@@ -12,6 +12,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `GEOMETRIKKS_ENV_FILE` environment variable to override the `.env` file
   path; an empty value disables dotenv loading entirely (the test suite uses
   this so results never depend on a local `.env`).
+- `DB_MIGRATE_ON_STARTUP` setting (default `true`). Set to `false` to run
+  schema migrations as a separate deployment step with
+  `litestar database upgrade` instead of at every app startup; the app then
+  fails startup deliberately if the schema was left unusable.
 
 ### Changed
 
@@ -30,6 +34,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `{status_code, detail}` JSON envelope; non-API 404s are unchanged.
 - All REST endpoints are mounted through a single versioned `/api/v1` router;
   URLs, operation IDs, and generated client method names are unchanged.
+- Application startup and shutdown are now composed of focused lifespan
+  phases (core state, GeoIP, CrowdSec, database, scheduler, ingestion), each
+  owning its own cleanup. A failure during startup now stops the services
+  that had already started instead of leaking them; teardown order and the
+  DB-degraded and geo-degraded behaviors are unchanged.
 - `create_app()` accepts an explicit settings object and app-level dependency
   overrides, and request handlers now receive settings through dependency
   injection instead of resolving the process-cached factory inline. The

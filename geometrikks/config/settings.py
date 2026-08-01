@@ -62,6 +62,15 @@ class DatabaseSettings(BaseSettings):
     port: int = Field(default=5432, description="Database port")
     database: str = Field(default="geometrikks", description="Database name")
     drop_on_startup: bool = Field(default=False, description="Drop all tables on startup (development only)")
+    migrate_on_startup: bool = Field(
+        default=True,
+        description=(
+            "Run alembic migrations automatically at app startup. Disable when "
+            "migrations run as a separate deployment step (`litestar database "
+            "upgrade`); the app then expects the schema to already be at head "
+            "and fails startup if it is not usable"
+        ),
+    )
     
     @property
     def url(self) -> str:
