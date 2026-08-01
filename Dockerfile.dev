@@ -43,7 +43,7 @@ RUN mkdir -p /app/data/geoip
 # This allows hot-reload to work
 
 STOPSIGNAL SIGTERM
-EXPOSE 8000 5173
+EXPOSE 8000
 
 # Default command runs backend with reload
 # Frontend can be run separately or via docker-compose
