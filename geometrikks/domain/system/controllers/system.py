@@ -19,6 +19,7 @@ from litestar.exceptions import NotFoundException
 from litestar.params import FromPath, SkipValidation
 from litestar.status_codes import HTTP_202_ACCEPTED
 from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncEngine
 
 from geometrikks.config.introspection import (
     ComputedField,
@@ -99,12 +100,9 @@ def _dist_version(name: str) -> str | None:
         return None
 
 
-async def _database_versions(app: Litestar) -> DatabaseVersionsView:
+async def _database_versions(engine: AsyncEngine) -> DatabaseVersionsView:
     """Server and extension versions; nulls when the DB is unreachable."""
-    from geometrikks.server.plugins import get_app_db_config
-
     try:
-        engine = get_app_db_config(app).get_engine()
         async with engine.connect() as conn:
             pg = (await conn.execute(text("SHOW server_version"))).scalar_one()
             rows = (
@@ -151,17 +149,14 @@ class DatabaseInfoResponse(msgspec.Struct, rename="camel"):
 HYPERTABLE_NAMES = ("geo_events", "access_logs", "access_log_debug")
 
 
-async def _database_stats(app: Litestar) -> tuple[int | None, list[HypertableStatsView]]:
+async def _database_stats(engine: AsyncEngine) -> tuple[int | None, list[HypertableStatsView]]:
     """Database size and per-hypertable stats; (None, []) when unreachable.
 
     Uses TimescaleDB catalog-backed functions (approximate_row_count,
     hypertable_size, hypertable_compression_stats), so this stays fast at
     tens of millions of rows.
     """
-    from geometrikks.server.plugins import get_app_db_config
-
     try:
-        engine = get_app_db_config(app).get_engine()
         async with engine.connect() as conn:
             size = (
                 await conn.execute(text("SELECT pg_database_size(current_database())"))
@@ -267,7 +262,10 @@ class SystemController(Controller):
 
     @get("/about")
     async def get_about(
-        self, request: Request, settings: NamedDependency[SkipValidation[Settings]]
+        self,
+        request: Request,
+        settings: NamedDependency[SkipValidation[Settings]],
+        db_engine: NamedDependency[SkipValidation[AsyncEngine]],
     ) -> AboutResponse:
         """App, runtime, database, and GeoIP metadata for the About page."""
         s = settings
@@ -285,22 +283,26 @@ class SystemController(Controller):
                 litestar_version=_dist_version("litestar"),
                 apscheduler_version=_dist_version("apscheduler"),
             ),
-            database=await _database_versions(request.app),
+            database=await _database_versions(db_engine),
             geoip=geoip_info(s.geoip.db_path),
             links=AboutLinksView(repository=REPO_URL, issues=f"{REPO_URL}/issues"),
         )
 
     @get("/database")
     async def get_database_info(
-        self, request: Request, settings: NamedDependency[SkipValidation[Settings]]
+        self,
+        settings: NamedDependency[SkipValidation[Settings]],
+        db_engine: NamedDependency[SkipValidation[AsyncEngine]],
     ) -> DatabaseInfoResponse:
         """Size, versions, retention and hypertable stats for the Status page.
 
-        Renders nulls instead of failing in DB-degraded mode.
+        Renders nulls instead of failing in DB-degraded mode: the plugin's
+        db_engine provider hands out the engine without connecting, so
+        failures surface at query time inside the try/except blocks.
         """
         s = settings
-        versions = await _database_versions(request.app)
-        size_bytes, hypertables = await _database_stats(request.app)
+        versions = await _database_versions(db_engine)
+        size_bytes, hypertables = await _database_stats(db_engine)
         return DatabaseInfoResponse(
             reachable=size_bytes is not None,
             size_bytes=size_bytes,
