@@ -28,7 +28,7 @@ def test_revisions_parse_and_chain() -> None:
     assert revisions[-1].down_revision is None
 
 
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -176,10 +176,11 @@ from types import SimpleNamespace
 pytestmark = pytest.mark.anyio
 
 
-async def test_on_startup_migrates_before_timescale(monkeypatch) -> None:
+async def test_lifespan_migrates_before_timescale(monkeypatch) -> None:
     """Migrations own the schema; setup_timescaledb depends on the tables
     existing, so it must run strictly after migrate_database."""
     from geometrikks.server import lifecycle as lc
+    from tests.support import enter_lifespan
 
     order: list[str] = []
 
@@ -203,6 +204,7 @@ async def test_on_startup_migrates_before_timescale(monkeypatch) -> None:
         order.append("ingestion")
 
     ingestion.start = fake_start
+    ingestion.stop = AsyncMock()
 
     sqlalchemy_config = MagicMock()
     sqlalchemy_config.get_engine.return_value = MagicMock()
@@ -217,6 +219,7 @@ async def test_on_startup_migrates_before_timescale(monkeypatch) -> None:
     monkeypatch.setattr(lc, "LogIngestionService", MagicMock(return_value=ingestion))
 
     app = SimpleNamespace(state=SimpleNamespace())
-    await lc.on_startup(app)
+    async with enter_lifespan(app):
+        pass
 
     assert order == ["migrate", "timescale", "ingestion"]

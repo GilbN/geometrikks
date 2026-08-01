@@ -53,7 +53,7 @@ def get_scheduler_tracker(app: Litestar) -> JobRunTracker:
 
 
 def get_started_at(app: Litestar) -> datetime | None:
-    """Process start time; None before on_startup has run."""
+    """Process start time; None before lifespan startup has run."""
     return getattr(app.state, "started_at", None)
 
 
@@ -65,7 +65,7 @@ def get_map_home_location(app: Litestar) -> HomeLocation | None:
 def is_geoip_available(app: Litestar, *, default: bool = False) -> bool:
     """Whether a usable GeoLite2 database is loaded.
 
-    ``default`` is returned before on_startup has recorded the real value:
+    ``default`` is returned before lifespan startup has recorded the real value:
     the health endpoint passes True (don't report degraded during boot),
     settings introspection passes False (don't claim a database exists).
     """

@@ -6,6 +6,8 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from tests.support import enter_lifespan
+
 pytestmark = pytest.mark.anyio
 
 
@@ -19,6 +21,7 @@ def _patch_startup_collaborators(monkeypatch, lc, *, db_available: bool, ensure:
 
     ingestion = MagicMock()
     ingestion.start = AsyncMock()
+    ingestion.stop = AsyncMock()
 
     monkeypatch.setattr(lc, "_db_available", fake_db_available)
     monkeypatch.setattr(lc, "get_app_db_config", lambda app: sqlalchemy_config)
@@ -42,7 +45,8 @@ async def test_startup_records_geoip_availability(monkeypatch):
     )
 
     app = SimpleNamespace(state=SimpleNamespace())
-    await lc.on_startup(app)
+    async with enter_lifespan(app):
+        pass
 
     ensure.assert_awaited_once()
     resolve_home.assert_awaited_once()
@@ -63,7 +67,8 @@ async def test_startup_sets_geoip_flag_even_without_database(monkeypatch):
     )
 
     app = SimpleNamespace(state=SimpleNamespace())
-    await lc.on_startup(app)
+    async with enter_lifespan(app):
+        pass
 
     ensure.assert_awaited_once()
     resolve_home.assert_awaited_once()
