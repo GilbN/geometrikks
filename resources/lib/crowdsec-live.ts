@@ -55,5 +55,5 @@ export function applyStatusFrame(
   frame: CrowdsecStatusFrame,
 ): CrowdSecStatusResponse | undefined {
   if (!status) return status
-  return { ...status, lapi_reachable: frame.lapi_reachable }
+  return { ...status, lapiReachable: frame.lapi_reachable }
 }

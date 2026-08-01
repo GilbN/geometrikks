@@ -53,14 +53,14 @@ export function DecisionsTable() {
 
   const total = data?.total ?? 0
   const pageCount = Math.max(1, Math.ceil(total / pageSize))
-  const colCount = status?.write_enabled ? 8 : 7
+  const colCount = status?.writeEnabled ? 8 : 7
 
   return (
     <Card className="py-4">
       <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 pb-2">
         <CardTitle className="text-base">Active decisions</CardTitle>
         <div className="flex flex-wrap items-center gap-2">
-          {status?.write_enabled && <BanIpDialog />}
+          {status?.writeEnabled && <BanIpDialog />}
           <Tabs
             value={scope}
             onValueChange={(value) => {
@@ -90,7 +90,7 @@ export function DecisionsTable() {
                 <TableHead>Scenario</TableHead>
                 <TableHead>Expires in</TableHead>
                 <TableHead className="text-right">Seen 24h</TableHead>
-                {status?.write_enabled && <TableHead className="w-10" />}
+                {status?.writeEnabled && <TableHead className="w-10" />}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -117,7 +117,7 @@ export function DecisionsTable() {
                           </Badge>
                         )}
                       </TableCell>
-                      <TableCell>{d.country_name ?? d.country_code ?? "-"}</TableCell>
+                      <TableCell>{d.countryName ?? d.countryCode ?? "-"}</TableCell>
                       <TableCell>{d.city ?? "-"}</TableCell>
                       <TableCell>
                         <Badge variant="secondary">{d.origin}</Badge>
@@ -134,12 +134,12 @@ export function DecisionsTable() {
                       <TableCell
                         className={cn(
                           "text-right tabular-nums",
-                          (d.request_count_24h ?? 0) > 0 && "font-semibold text-amber-500",
+                          (d.requestCount24h ?? 0) > 0 && "font-semibold text-amber-500",
                         )}
                       >
-                        {d.request_count_24h ?? "-"}
+                        {d.requestCount24h ?? "-"}
                       </TableCell>
-                      {status?.write_enabled && (
+                      {status?.writeEnabled && (
                         <TableCell>
                           {d.scope === "Ip" && (
                             <Button

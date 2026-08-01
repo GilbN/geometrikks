@@ -31,7 +31,7 @@ export function IpBanAction({ ip, banned }: { ip: string; banned: boolean }) {
   const ban = useBanIp()
   const unban = useUnbanIp()
   const isPending = ban.isPending || unban.isPending
-  if (!status?.write_enabled) return null
+  if (!status?.writeEnabled) return null
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>

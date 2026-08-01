@@ -53,25 +53,25 @@ export function MapPopup({
   const {
     id: locationId,
     city,
-    country_name,
-    country_code,
+    countryName,
+    countryCode,
     state,
-    event_count,
-    last_hit,
+    eventCount,
+    lastHit,
     geohash,
   } = properties
 
   // Fetch top IPs on-demand when popup opens
   const { data: topIPsData, isLoading: isLoadingTopIPs } = useLocationTopIPs(locationId)
-  const top_ips = topIPsData?.top_ips ?? []
+  const top_ips = topIPsData?.topIps ?? []
 
   // Format last hit date
-  const formattedLastHit = last_hit
-    ? new Date(last_hit).toLocaleString()
+  const formattedLastHit = lastHit
+    ? new Date(lastHit).toLocaleString()
     : "Unknown"
 
   // Build location string
-  const locationParts = [city, state, country_name].filter(Boolean)
+  const locationParts = [city, state, countryName].filter(Boolean)
   const locationString = locationParts.join(", ") || "Unknown Location"
 
   return (
@@ -156,18 +156,18 @@ export function MapPopup({
               fontWeight: 500,
             }}
           >
-            {formatNumber(event_count)}
+            {formatNumber(eventCount)}
           </span>
         </div>
 
         {/* Country */}
-        {country_code && (
+        {countryCode && (
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "12px", marginBottom: "6px" }}>
             <span style={{ color: "var(--popup-muted)", display: "flex", alignItems: "center", gap: "4px" }}>
               <Globe style={{ width: 12, height: 12 }} />
               Country
             </span>
-            <span style={{ fontWeight: 500 }}>{country_code}</span>
+            <span style={{ fontWeight: 500 }}>{countryCode}</span>
           </div>
         )}
 
@@ -235,17 +235,17 @@ export function MapPopup({
                       fontFamily: "monospace",
                     }}
                   >
-                    1. {top_ips[0].ip_address}
+                    1. {top_ips[0].ipAddress}
                   </code>
                   <span style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
-                    <IpBanControls ip={top_ips[0].ip_address} />
+                    <IpBanControls ip={top_ips[0].ipAddress} />
                     <span
                       style={{
                         fontSize: "10px",
                         color: "var(--popup-muted)",
                       }}
                     >
-                      {formatNumber(top_ips[0].event_count)}
+                      {formatNumber(top_ips[0].eventCount)}
                     </span>
                   </span>
                 </div>
@@ -256,7 +256,7 @@ export function MapPopup({
                       <div style={{ display: "flex", flexDirection: "column", gap: "4px", marginTop: "4px" }}>
                         {top_ips.slice(1).map((ip, index) => (
                           <div
-                            key={ip.ip_address}
+                            key={ip.ipAddress}
                             style={{
                               display: "flex",
                               justifyContent: "space-between",
@@ -273,17 +273,17 @@ export function MapPopup({
                                 fontFamily: "monospace",
                               }}
                             >
-                              {index + 2}. {ip.ip_address}
+                              {index + 2}. {ip.ipAddress}
                             </code>
                             <span style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
-                              <IpBanControls ip={ip.ip_address} />
+                              <IpBanControls ip={ip.ipAddress} />
                               <span
                                 style={{
                                   fontSize: "10px",
                                   color: "var(--popup-muted)",
                                 }}
                               >
-                                {formatNumber(ip.event_count)}
+                                {formatNumber(ip.eventCount)}
                               </span>
                             </span>
                           </div>

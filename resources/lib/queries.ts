@@ -323,7 +323,7 @@ export function useCrowdsecAlerts(params: { since?: string; limit?: number }) {
   return useQuery({
     queryKey: queryKeys.crowdsec.alerts(params),
     queryFn: () => fetchCrowdsecAlerts(params),
-    enabled: status?.write_enabled === true,
+    enabled: status?.writeEnabled === true,
     placeholderData: (previous) => previous,
     refetchInterval: 60_000,
   })
@@ -392,7 +392,7 @@ export function useCrowdsecLiveUpdates() {
           )
           // Recovery: refetch decisions/alerts/stats immediately so the page
           // leaves its stale state without waiting for the 60s intervals.
-          if (frame.lapi_reachable && previous?.lapi_reachable === false) {
+          if (frame.lapi_reachable && previous?.lapiReachable === false) {
             queryClient.invalidateQueries({ queryKey: ["crowdsec"] })
           }
           return

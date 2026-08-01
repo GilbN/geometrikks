@@ -72,7 +72,7 @@ export function AlertsTable() {
                 : alerts?.map((alert) => (
                     <TableRow key={alert.id}>
                       <TableCell className="whitespace-nowrap text-muted-foreground">
-                        {new Date(alert.created_at).toLocaleString()}
+                        {new Date(alert.createdAt).toLocaleString()}
                       </TableCell>
                       <TableCell
                         className="max-w-[240px] truncate font-mono text-xs"
@@ -85,17 +85,17 @@ export function AlertsTable() {
                         {alert.scope === "Ip" && <IpBanControls ip={alert.value} />}
                       </TableCell>
                       <TableCell>{alert.country ?? "-"}</TableCell>
-                      <TableCell className="max-w-[160px] truncate" title={alert.as_name ?? undefined}>
-                        {alert.as_name ?? "-"}
+                      <TableCell className="max-w-[160px] truncate" title={alert.asName ?? undefined}>
+                        {alert.asName ?? "-"}
                       </TableCell>
                       <TableCell className="text-muted-foreground">
-                        {alert.machine_id ?? "-"}
+                        {alert.machineId ?? "-"}
                       </TableCell>
                       <TableCell className="text-right tabular-nums">
-                        {alert.events_count}
+                        {alert.eventsCount}
                       </TableCell>
                       <TableCell className="text-right tabular-nums">
-                        {alert.decision_count}
+                        {alert.decisionCount}
                       </TableCell>
                     </TableRow>
                   ))}

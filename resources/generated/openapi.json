@@ -9,7 +9,7 @@
           "environment": {
             "type": "string"
           },
-          "image_tag": {
+          "imageTag": {
             "oneOf": [
               {
                 "type": "string"
@@ -22,7 +22,7 @@
           "name": {
             "type": "string"
           },
-          "started_at": {
+          "startedAt": {
             "oneOf": [
               {
                 "format": "date-time",
@@ -40,9 +40,9 @@
         "required": [
           "container",
           "environment",
-          "image_tag",
+          "imageTag",
           "name",
-          "started_at",
+          "startedAt",
           "version"
         ],
         "title": "AboutAppView",
@@ -295,7 +295,7 @@
       },
       "AlertView": {
         "properties": {
-          "as_name": {
+          "asName": {
             "oneOf": [
               {
                 "type": "string"
@@ -315,13 +315,13 @@
               }
             ]
           },
-          "created_at": {
+          "createdAt": {
             "type": "string"
           },
-          "decision_count": {
+          "decisionCount": {
             "type": "integer"
           },
-          "events_count": {
+          "eventsCount": {
             "type": "integer"
           },
           "id": {
@@ -334,7 +334,7 @@
               }
             ]
           },
-          "machine_id": {
+          "machineId": {
             "oneOf": [
               {
                 "type": "string"
@@ -358,13 +358,13 @@
           }
         },
         "required": [
-          "as_name",
+          "asName",
           "country",
-          "created_at",
-          "decision_count",
-          "events_count",
+          "createdAt",
+          "decisionCount",
+          "eventsCount",
           "id",
-          "machine_id",
+          "machineId",
           "message",
           "scenario",
           "scope",
@@ -375,24 +375,24 @@
       },
       "AnalyticsSettingsView": {
         "properties": {
-          "compression_after_days": {
+          "compressionAfterDays": {
             "type": "integer"
           },
-          "debug_retention_days": {
+          "debugRetentionDays": {
             "type": "integer"
           },
-          "hourly_retention_days": {
+          "hourlyRetentionDays": {
             "type": "integer"
           },
-          "raw_retention_days": {
+          "rawRetentionDays": {
             "type": "integer"
           }
         },
         "required": [
-          "compression_after_days",
-          "debug_retention_days",
-          "hourly_retention_days",
-          "raw_retention_days"
+          "compressionAfterDays",
+          "debugRetentionDays",
+          "hourlyRetentionDays",
+          "rawRetentionDays"
         ],
         "title": "AnalyticsSettingsView",
         "type": "object"
@@ -444,7 +444,7 @@
           "enabled": {
             "type": "boolean"
           },
-          "lapi_reachable": {
+          "lapiReachable": {
             "oneOf": [
               {
                 "type": "boolean"
@@ -457,20 +457,20 @@
         },
         "required": [
           "enabled",
-          "lapi_reachable"
+          "lapiReachable"
         ],
         "title": "CrowdSecHealth",
         "type": "object"
       },
       "CrowdSecStatsResponse": {
         "properties": {
-          "by_origin": {
+          "byOrigin": {
             "items": {
               "$ref": "#/components/schemas/OriginCount"
             },
             "type": "array"
           },
-          "top_scenarios": {
+          "topScenarios": {
             "items": {
               "$ref": "#/components/schemas/ScenarioCount"
             },
@@ -481,8 +481,8 @@
           }
         },
         "required": [
-          "by_origin",
-          "top_scenarios",
+          "byOrigin",
+          "topScenarios",
           "total"
         ],
         "title": "CrowdSecStatsResponse",
@@ -493,30 +493,30 @@
           "enabled": {
             "type": "boolean"
           },
-          "lapi_reachable": {
+          "lapiReachable": {
             "type": "boolean"
           },
-          "write_enabled": {
+          "writeEnabled": {
             "type": "boolean"
           }
         },
         "required": [
           "enabled",
-          "lapi_reachable",
-          "write_enabled"
+          "lapiReachable",
+          "writeEnabled"
         ],
         "title": "CrowdSecStatusResponse",
         "type": "object"
       },
       "CumulativeDataPoint": {
         "properties": {
-          "cumulative_access_logs": {
+          "cumulativeAccessLogs": {
             "type": "integer"
           },
-          "cumulative_bytes": {
+          "cumulativeBytes": {
             "type": "integer"
           },
-          "cumulative_geo_events": {
+          "cumulativeGeoEvents": {
             "type": "integer"
           },
           "timestamp": {
@@ -524,9 +524,9 @@
           }
         },
         "required": [
-          "cumulative_access_logs",
-          "cumulative_bytes",
-          "cumulative_geo_events",
+          "cumulativeAccessLogs",
+          "cumulativeBytes",
+          "cumulativeGeoEvents",
           "timestamp"
         ],
         "title": "CumulativeDataPoint",
@@ -540,20 +540,20 @@
             },
             "type": "array"
           },
-          "end_date": {
+          "endDate": {
             "type": "string"
           },
           "granularity": {
             "type": "string"
           },
-          "start_date": {
+          "startDate": {
             "type": "string"
           }
         },
         "required": [
-          "end_date",
+          "endDate",
           "granularity",
-          "start_date"
+          "startDate"
         ],
         "title": "CumulativeTimeSeriesResponse",
         "type": "object"
@@ -572,7 +572,7 @@
       },
       "DatabaseInfoResponse": {
         "properties": {
-          "debug_retention_days": {
+          "debugRetentionDays": {
             "type": "integer"
           },
           "hypertables": {
@@ -581,7 +581,7 @@
             },
             "type": "array"
           },
-          "postgres_version": {
+          "postgresVersion": {
             "oneOf": [
               {
                 "type": "string"
@@ -594,10 +594,10 @@
           "reachable": {
             "type": "boolean"
           },
-          "retention_days": {
+          "retentionDays": {
             "type": "integer"
           },
-          "size_bytes": {
+          "sizeBytes": {
             "oneOf": [
               {
                 "type": "integer"
@@ -607,7 +607,7 @@
               }
             ]
           },
-          "timescaledb_version": {
+          "timescaledbVersion": {
             "oneOf": [
               {
                 "type": "string"
@@ -619,20 +619,20 @@
           }
         },
         "required": [
-          "debug_retention_days",
+          "debugRetentionDays",
           "hypertables",
-          "postgres_version",
+          "postgresVersion",
           "reachable",
-          "retention_days",
-          "size_bytes",
-          "timescaledb_version"
+          "retentionDays",
+          "sizeBytes",
+          "timescaledbVersion"
         ],
         "title": "DatabaseInfoResponse",
         "type": "object"
       },
       "DatabaseVersionsView": {
         "properties": {
-          "postgis_version": {
+          "postgisVersion": {
             "oneOf": [
               {
                 "type": "string"
@@ -642,7 +642,7 @@
               }
             ]
           },
-          "postgres_version": {
+          "postgresVersion": {
             "oneOf": [
               {
                 "type": "string"
@@ -652,7 +652,7 @@
               }
             ]
           },
-          "timescaledb_version": {
+          "timescaledbVersion": {
             "oneOf": [
               {
                 "type": "string"
@@ -664,9 +664,9 @@
           }
         },
         "required": [
-          "postgis_version",
-          "postgres_version",
-          "timescaledb_version"
+          "postgisVersion",
+          "postgresVersion",
+          "timescaledbVersion"
         ],
         "title": "DatabaseVersionsView",
         "type": "object"
@@ -683,7 +683,7 @@
               }
             ]
           },
-          "country_code": {
+          "countryCode": {
             "oneOf": [
               {
                 "type": "string"
@@ -693,7 +693,7 @@
               }
             ]
           },
-          "country_name": {
+          "countryName": {
             "oneOf": [
               {
                 "type": "string"
@@ -722,7 +722,7 @@
           "origin": {
             "type": "string"
           },
-          "request_count_24h": {
+          "requestCount24h": {
             "oneOf": [
               {
                 "type": "integer"
@@ -744,13 +744,13 @@
         },
         "required": [
           "city",
-          "country_code",
-          "country_name",
+          "countryCode",
+          "countryName",
           "duration",
           "id",
           "ip",
           "origin",
-          "request_count_24h",
+          "requestCount24h",
           "scenario",
           "scope",
           "type"
@@ -770,7 +770,7 @@
               }
             ]
           },
-          "country_code": {
+          "countryCode": {
             "oneOf": [
               {
                 "type": "string"
@@ -780,7 +780,7 @@
               }
             ]
           },
-          "country_name": {
+          "countryName": {
             "oneOf": [
               {
                 "type": "string"
@@ -858,25 +858,25 @@
           "timestamp": {
             "type": "string"
           },
-          "total_geo_events": {
+          "totalGeoEvents": {
             "type": "integer"
           },
-          "unique_cities": {
+          "uniqueCities": {
             "type": "integer"
           },
-          "unique_countries": {
+          "uniqueCountries": {
             "type": "integer"
           },
-          "unique_ips": {
+          "uniqueIps": {
             "type": "integer"
           }
         },
         "required": [
           "timestamp",
-          "total_geo_events",
-          "unique_cities",
-          "unique_countries",
-          "unique_ips"
+          "totalGeoEvents",
+          "uniqueCities",
+          "uniqueCountries",
+          "uniqueIps"
         ],
         "title": "GeoEventsDataPoint",
         "type": "object"
@@ -889,21 +889,21 @@
             },
             "type": "array"
           },
-          "end_date": {
+          "endDate": {
             "type": "string"
           },
           "granularity": {
             "type": "string"
           },
-          "start_date": {
+          "startDate": {
             "type": "string"
           }
         },
         "required": [
           "data",
-          "end_date",
+          "endDate",
           "granularity",
-          "start_date"
+          "startDate"
         ],
         "title": "GeoEventsTimeSeriesResponse",
         "type": "object"
@@ -913,7 +913,7 @@
           "available": {
             "type": "boolean"
           },
-          "db_build_date": {
+          "dbBuildDate": {
             "oneOf": [
               {
                 "type": "string"
@@ -926,14 +926,14 @@
         },
         "required": [
           "available",
-          "db_build_date"
+          "dbBuildDate"
         ],
         "title": "GeoIPHealth",
         "type": "object"
       },
       "GeoIPInfoView": {
         "properties": {
-          "age_days": {
+          "ageDays": {
             "oneOf": [
               {
                 "type": "integer"
@@ -946,7 +946,7 @@
           "available": {
             "type": "boolean"
           },
-          "build_date": {
+          "buildDate": {
             "oneOf": [
               {
                 "format": "date-time",
@@ -957,15 +957,15 @@
               }
             ]
           },
-          "db_path": {
+          "dbPath": {
             "type": "string"
           }
         },
         "required": [
-          "age_days",
+          "ageDays",
           "available",
-          "build_date",
-          "db_path"
+          "buildDate",
+          "dbPath"
         ],
         "title": "GeoIPInfoView",
         "type": "object"
@@ -1025,13 +1025,13 @@
               }
             ]
           },
-          "country_code": {
+          "countryCode": {
             "type": "string"
           },
-          "country_name": {
+          "countryName": {
             "type": "string"
           },
-          "event_count": {
+          "eventCount": {
             "type": "integer"
           },
           "geohash": {
@@ -1040,7 +1040,7 @@
           "id": {
             "type": "integer"
           },
-          "last_hit": {
+          "lastHit": {
             "oneOf": [
               {
                 "format": "date-time",
@@ -1051,7 +1051,7 @@
               }
             ]
           },
-          "postal_code": {
+          "postalCode": {
             "oneOf": [
               {
                 "type": "string"
@@ -1071,7 +1071,7 @@
               }
             ]
           },
-          "state_code": {
+          "stateCode": {
             "oneOf": [
               {
                 "type": "string"
@@ -1091,7 +1091,7 @@
               }
             ]
           },
-          "top_ips": {
+          "topIps": {
             "items": {
               "$ref": "#/components/schemas/TopIPDTO"
             },
@@ -1100,15 +1100,15 @@
         },
         "required": [
           "city",
-          "country_code",
-          "country_name",
-          "event_count",
+          "countryCode",
+          "countryName",
+          "eventCount",
           "geohash",
           "id",
-          "last_hit",
-          "postal_code",
+          "lastHit",
+          "postalCode",
           "state",
-          "state_code",
+          "stateCode",
           "timezone"
         ],
         "title": "GeoJSONFeatureProperties",
@@ -1429,7 +1429,7 @@
       },
       "GlobalTopIPsResponse": {
         "properties": {
-          "top_ips": {
+          "topIps": {
             "items": {
               "$ref": "#/components/schemas/TopIPDTO"
             },
@@ -1454,7 +1454,7 @@
           "ingestion": {
             "$ref": "#/components/schemas/IngestionHealth"
           },
-          "started_at": {
+          "startedAt": {
             "oneOf": [
               {
                 "type": "string"
@@ -1480,7 +1480,7 @@
           "database",
           "geoip",
           "ingestion",
-          "started_at",
+          "startedAt",
           "status",
           "timestamp"
         ],
@@ -1489,7 +1489,7 @@
       },
       "HypertableStatsView": {
         "properties": {
-          "after_compression_bytes": {
+          "afterCompressionBytes": {
             "oneOf": [
               {
                 "type": "integer"
@@ -1499,7 +1499,7 @@
               }
             ]
           },
-          "approx_rows": {
+          "approxRows": {
             "oneOf": [
               {
                 "type": "integer"
@@ -1509,7 +1509,7 @@
               }
             ]
           },
-          "before_compression_bytes": {
+          "beforeCompressionBytes": {
             "oneOf": [
               {
                 "type": "integer"
@@ -1522,7 +1522,7 @@
           "name": {
             "type": "string"
           },
-          "total_bytes": {
+          "totalBytes": {
             "oneOf": [
               {
                 "type": "integer"
@@ -1534,18 +1534,18 @@
           }
         },
         "required": [
-          "after_compression_bytes",
-          "approx_rows",
-          "before_compression_bytes",
+          "afterCompressionBytes",
+          "approxRows",
+          "beforeCompressionBytes",
           "name",
-          "total_bytes"
+          "totalBytes"
         ],
         "title": "HypertableStatsView",
         "type": "object"
       },
       "IngestionHealth": {
         "properties": {
-          "last_record_at": {
+          "lastRecordAt": {
             "oneOf": [
               {
                 "type": "string"
@@ -1555,16 +1555,16 @@
               }
             ]
           },
-          "missing_files": {
+          "missingFiles": {
             "items": {
               "type": "string"
             },
             "type": "array"
           },
-          "parsed_lines": {
+          "parsedLines": {
             "type": "integer"
           },
-          "pending_records": {
+          "pendingRecords": {
             "type": "integer"
           },
           "running": {
@@ -1572,10 +1572,10 @@
           }
         },
         "required": [
-          "last_record_at",
-          "missing_files",
-          "parsed_lines",
-          "pending_records",
+          "lastRecordAt",
+          "missingFiles",
+          "parsedLines",
+          "pendingRecords",
           "running"
         ],
         "title": "IngestionHealth",
@@ -1583,32 +1583,32 @@
       },
       "IngestionStatsResponse": {
         "properties": {
-          "is_running": {
+          "isRunning": {
             "type": "boolean"
           },
-          "total_ignored_lines": {
+          "totalIgnoredLines": {
             "type": "integer"
           },
-          "total_parsed_lines": {
+          "totalParsedLines": {
             "type": "integer"
           },
-          "total_pending_records": {
+          "totalPendingRecords": {
             "type": "integer"
           },
-          "total_processed": {
+          "totalProcessed": {
             "type": "integer"
           },
-          "total_skipped_lines": {
+          "totalSkippedLines": {
             "type": "integer"
           }
         },
         "required": [
-          "is_running",
-          "total_ignored_lines",
-          "total_parsed_lines",
-          "total_pending_records",
-          "total_processed",
-          "total_skipped_lines"
+          "isRunning",
+          "totalIgnoredLines",
+          "totalParsedLines",
+          "totalPendingRecords",
+          "totalProcessed",
+          "totalSkippedLines"
         ],
         "title": "IngestionStatsResponse",
         "type": "object"
@@ -1625,7 +1625,7 @@
               }
             ]
           },
-          "country_code": {
+          "countryCode": {
             "oneOf": [
               {
                 "type": "string"
@@ -1647,7 +1647,7 @@
         },
         "required": [
           "city",
-          "country_code",
+          "countryCode",
           "ip",
           "latitude",
           "longitude"
@@ -2035,10 +2035,10 @@
       },
       "LocationTopIPsResponse": {
         "properties": {
-          "location_id": {
+          "locationId": {
             "type": "integer"
           },
-          "top_ips": {
+          "topIps": {
             "items": {
               "$ref": "#/components/schemas/TopIPDTO"
             },
@@ -2046,7 +2046,7 @@
           }
         },
         "required": [
-          "location_id"
+          "locationId"
         ],
         "title": "LocationTopIPsResponse",
         "type": "object"
@@ -2064,7 +2064,7 @@
             ],
             "type": "string"
           },
-          "modified_at": {
+          "modifiedAt": {
             "oneOf": [
               {
                 "format": "date-time",
@@ -2078,16 +2078,16 @@
           "name": {
             "type": "string"
           },
-          "size_bytes": {
+          "sizeBytes": {
             "type": "integer"
           }
         },
         "required": [
           "available",
           "kind",
-          "modified_at",
+          "modifiedAt",
           "name",
-          "size_bytes"
+          "sizeBytes"
         ],
         "title": "LogFileView",
         "type": "object"
@@ -2183,30 +2183,30 @@
       },
       "LogparserSettingsView": {
         "properties": {
-          "log_paths": {
+          "logPaths": {
             "items": {
               "type": "string"
             },
             "type": "array"
           },
-          "send_logs": {
+          "sendLogs": {
             "type": "boolean"
           },
-          "store_debug_lines": {
+          "storeDebugLines": {
             "type": "boolean"
           }
         },
         "required": [
-          "log_paths",
-          "send_logs",
-          "store_debug_lines"
+          "logPaths",
+          "sendLogs",
+          "storeDebugLines"
         ],
         "title": "LogparserSettingsView",
         "type": "object"
       },
       "MapSettingsView": {
         "properties": {
-          "home_latitude": {
+          "homeLatitude": {
             "oneOf": [
               {
                 "type": "number"
@@ -2216,7 +2216,7 @@
               }
             ]
           },
-          "home_longitude": {
+          "homeLongitude": {
             "oneOf": [
               {
                 "type": "number"
@@ -2226,7 +2226,7 @@
               }
             ]
           },
-          "home_source": {
+          "homeSource": {
             "enum": [
               "configured",
               "external_ip",
@@ -2239,9 +2239,9 @@
           }
         },
         "required": [
-          "home_latitude",
-          "home_longitude",
-          "home_source"
+          "homeLatitude",
+          "homeLongitude",
+          "homeSource"
         ],
         "title": "MapSettingsView",
         "type": "object"
@@ -2292,7 +2292,7 @@
       },
       "PercentChange": {
         "properties": {
-          "avg_request_time": {
+          "avgRequestTime": {
             "oneOf": [
               {
                 "type": "number"
@@ -2302,7 +2302,7 @@
               }
             ]
           },
-          "bytes_sent": {
+          "bytesSent": {
             "oneOf": [
               {
                 "type": "number"
@@ -2312,7 +2312,7 @@
               }
             ]
           },
-          "error_rate": {
+          "errorRate": {
             "oneOf": [
               {
                 "type": "number"
@@ -2322,7 +2322,7 @@
               }
             ]
           },
-          "geo_records": {
+          "geoRecords": {
             "oneOf": [
               {
                 "type": "number"
@@ -2332,7 +2332,7 @@
               }
             ]
           },
-          "log_records": {
+          "logRecords": {
             "oneOf": [
               {
                 "type": "number"
@@ -2342,7 +2342,7 @@
               }
             ]
           },
-          "malformed_rate": {
+          "malformedRate": {
             "oneOf": [
               {
                 "type": "number"
@@ -2352,7 +2352,7 @@
               }
             ]
           },
-          "unique_ips": {
+          "uniqueIps": {
             "oneOf": [
               {
                 "type": "number"
@@ -2369,64 +2369,64 @@
       },
       "PeriodSummary": {
         "properties": {
-          "avg_bytes_per_request": {
+          "avgBytesPerRequest": {
             "type": "number"
           },
-          "avg_request_time": {
+          "avgRequestTime": {
             "type": "number"
           },
-          "error_rate": {
+          "errorRate": {
             "type": "number"
           },
-          "malformed_requests": {
+          "malformedRequests": {
             "type": "integer"
           },
-          "max_request_time": {
+          "maxRequestTime": {
             "type": "number"
           },
-          "status_2xx": {
+          "status2xx": {
             "type": "integer"
           },
-          "status_3xx": {
+          "status3xx": {
             "type": "integer"
           },
-          "status_4xx": {
+          "status4xx": {
             "type": "integer"
           },
-          "status_5xx": {
+          "status5xx": {
             "type": "integer"
           },
-          "total_bytes_sent": {
+          "totalBytesSent": {
             "type": "integer"
           },
-          "total_geo_events": {
+          "totalGeoEvents": {
             "type": "integer"
           },
-          "total_requests": {
+          "totalRequests": {
             "type": "integer"
           },
-          "unique_countries": {
+          "uniqueCountries": {
             "type": "integer"
           },
-          "unique_ips": {
+          "uniqueIps": {
             "type": "integer"
           }
         },
         "required": [
-          "avg_bytes_per_request",
-          "avg_request_time",
-          "error_rate",
-          "malformed_requests",
-          "max_request_time",
-          "status_2xx",
-          "status_3xx",
-          "status_4xx",
-          "status_5xx",
-          "total_bytes_sent",
-          "total_geo_events",
-          "total_requests",
-          "unique_countries",
-          "unique_ips"
+          "avgBytesPerRequest",
+          "avgRequestTime",
+          "errorRate",
+          "malformedRequests",
+          "maxRequestTime",
+          "status2xx",
+          "status3xx",
+          "status4xx",
+          "status5xx",
+          "totalBytesSent",
+          "totalGeoEvents",
+          "totalRequests",
+          "uniqueCountries",
+          "uniqueIps"
         ],
         "title": "PeriodSummary",
         "type": "object"
@@ -2448,7 +2448,7 @@
           "container": {
             "type": "boolean"
           },
-          "image_tag": {
+          "imageTag": {
             "oneOf": [
               {
                 "type": "string"
@@ -2461,14 +2461,14 @@
         },
         "required": [
           "container",
-          "image_tag"
+          "imageTag"
         ],
         "title": "RuntimeSettingsView",
         "type": "object"
       },
       "RuntimeVersionsView": {
         "properties": {
-          "apscheduler_version": {
+          "apschedulerVersion": {
             "oneOf": [
               {
                 "type": "string"
@@ -2478,7 +2478,7 @@
               }
             ]
           },
-          "litestar_version": {
+          "litestarVersion": {
             "oneOf": [
               {
                 "type": "string"
@@ -2488,14 +2488,14 @@
               }
             ]
           },
-          "python_version": {
+          "pythonVersion": {
             "type": "string"
           }
         },
         "required": [
-          "apscheduler_version",
-          "litestar_version",
-          "python_version"
+          "apschedulerVersion",
+          "litestarVersion",
+          "pythonVersion"
         ],
         "title": "RuntimeVersionsView",
         "type": "object"
@@ -2557,7 +2557,7 @@
           "id": {
             "type": "string"
           },
-          "last_duration_seconds": {
+          "lastDurationSeconds": {
             "oneOf": [
               {
                 "type": "number"
@@ -2567,7 +2567,7 @@
               }
             ]
           },
-          "last_error": {
+          "lastError": {
             "oneOf": [
               {
                 "type": "string"
@@ -2577,7 +2577,7 @@
               }
             ]
           },
-          "last_run_time": {
+          "lastRunTime": {
             "oneOf": [
               {
                 "format": "date-time",
@@ -2588,7 +2588,7 @@
               }
             ]
           },
-          "last_status": {
+          "lastStatus": {
             "enum": [
               "success",
               "error",
@@ -2603,7 +2603,7 @@
           "name": {
             "type": "string"
           },
-          "next_run_time": {
+          "nextRunTime": {
             "oneOf": [
               {
                 "format": "date-time",
@@ -2623,12 +2623,12 @@
         },
         "required": [
           "id",
-          "last_duration_seconds",
-          "last_error",
-          "last_run_time",
-          "last_status",
+          "lastDurationSeconds",
+          "lastError",
+          "lastRunTime",
+          "lastStatus",
           "name",
-          "next_run_time",
+          "nextRunTime",
           "running",
           "trigger"
         ],
@@ -2643,24 +2643,24 @@
             },
             "type": "array"
           },
-          "scheduler_enabled": {
+          "schedulerEnabled": {
             "type": "boolean"
           },
-          "scheduler_running": {
+          "schedulerRunning": {
             "type": "boolean"
           }
         },
         "required": [
           "jobs",
-          "scheduler_enabled",
-          "scheduler_running"
+          "schedulerEnabled",
+          "schedulerRunning"
         ],
         "title": "SchedulerJobsResponse",
         "type": "object"
       },
       "SettingFieldView": {
         "properties": {
-          "computed_source": {
+          "computedSource": {
             "oneOf": [
               {
                 "type": "string"
@@ -2670,7 +2670,7 @@
               }
             ]
           },
-          "computed_value": {},
+          "computedValue": {},
           "default": {},
           "description": {
             "oneOf": [
@@ -2682,7 +2682,7 @@
               }
             ]
           },
-          "env_var": {
+          "envVar": {
             "oneOf": [
               {
                 "type": "string"
@@ -2692,7 +2692,7 @@
               }
             ]
           },
-          "is_secret": {
+          "isSecret": {
             "type": "boolean"
           },
           "key": {
@@ -2703,8 +2703,8 @@
         "required": [
           "default",
           "description",
-          "env_var",
-          "is_secret",
+          "envVar",
+          "isSecret",
           "key",
           "value"
         ],
@@ -2747,13 +2747,13 @@
       },
       "SummaryResponse": {
         "properties": {
-          "current_period": {
+          "currentPeriod": {
             "$ref": "#/components/schemas/PeriodSummary"
           },
-          "end_date": {
+          "endDate": {
             "type": "string"
           },
-          "percent_changes": {
+          "percentChanges": {
             "oneOf": [
               {
                 "$ref": "#/components/schemas/PercentChange"
@@ -2763,7 +2763,7 @@
               }
             ]
           },
-          "previous_period": {
+          "previousPeriod": {
             "oneOf": [
               {
                 "$ref": "#/components/schemas/PeriodSummary"
@@ -2773,14 +2773,14 @@
               }
             ]
           },
-          "start_date": {
+          "startDate": {
             "type": "string"
           }
         },
         "required": [
-          "current_period",
-          "end_date",
-          "start_date"
+          "currentPeriod",
+          "endDate",
+          "startDate"
         ],
         "title": "SummaryResponse",
         "type": "object"
@@ -2802,60 +2802,60 @@
       },
       "TimeSeriesDataPoint": {
         "properties": {
-          "avg_request_time": {
+          "avgRequestTime": {
             "type": "number"
           },
-          "error_rate": {
+          "errorRate": {
             "type": "number"
           },
-          "p50_request_time": {
+          "p50RequestTime": {
             "type": "number"
           },
-          "p95_request_time": {
+          "p95RequestTime": {
             "type": "number"
           },
-          "p99_request_time": {
+          "p99RequestTime": {
             "type": "number"
           },
-          "status_2xx": {
+          "status2xx": {
             "type": "integer"
           },
-          "status_3xx": {
+          "status3xx": {
             "type": "integer"
           },
-          "status_4xx": {
+          "status4xx": {
             "type": "integer"
           },
-          "status_5xx": {
+          "status5xx": {
             "type": "integer"
           },
           "timestamp": {
             "type": "string"
           },
-          "total_bytes_sent": {
+          "totalBytesSent": {
             "type": "integer"
           },
-          "total_geo_events": {
+          "totalGeoEvents": {
             "type": "integer"
           },
-          "total_requests": {
+          "totalRequests": {
             "type": "integer"
           }
         },
         "required": [
-          "avg_request_time",
-          "error_rate",
-          "p50_request_time",
-          "p95_request_time",
-          "p99_request_time",
-          "status_2xx",
-          "status_3xx",
-          "status_4xx",
-          "status_5xx",
+          "avgRequestTime",
+          "errorRate",
+          "p50RequestTime",
+          "p95RequestTime",
+          "p99RequestTime",
+          "status2xx",
+          "status3xx",
+          "status4xx",
+          "status5xx",
           "timestamp",
-          "total_bytes_sent",
-          "total_geo_events",
-          "total_requests"
+          "totalBytesSent",
+          "totalGeoEvents",
+          "totalRequests"
         ],
         "title": "TimeSeriesDataPoint",
         "type": "object"
@@ -2868,28 +2868,28 @@
             },
             "type": "array"
           },
-          "end_date": {
+          "endDate": {
             "type": "string"
           },
           "granularity": {
             "type": "string"
           },
-          "start_date": {
+          "startDate": {
             "type": "string"
           }
         },
         "required": [
           "data",
-          "end_date",
+          "endDate",
           "granularity",
-          "start_date"
+          "startDate"
         ],
         "title": "TimeSeriesResponse",
         "type": "object"
       },
       "TopCitiesResponse": {
         "properties": {
-          "end_date": {
+          "endDate": {
             "type": "string"
           },
           "items": {
@@ -2898,14 +2898,14 @@
             },
             "type": "array"
           },
-          "start_date": {
+          "startDate": {
             "type": "string"
           }
         },
         "required": [
-          "end_date",
+          "endDate",
           "items",
-          "start_date"
+          "startDate"
         ],
         "title": "TopCitiesResponse",
         "type": "object"
@@ -2915,7 +2915,7 @@
           "city": {
             "type": "string"
           },
-          "country_code": {
+          "countryCode": {
             "oneOf": [
               {
                 "type": "string"
@@ -2928,22 +2928,22 @@
           "hits": {
             "type": "integer"
           },
-          "unique_ips": {
+          "uniqueIps": {
             "type": "integer"
           }
         },
         "required": [
           "city",
-          "country_code",
+          "countryCode",
           "hits",
-          "unique_ips"
+          "uniqueIps"
         ],
         "title": "TopCityStatsDTO",
         "type": "object"
       },
       "TopCountriesResponse": {
         "properties": {
-          "top_countries": {
+          "topCountries": {
             "items": {
               "$ref": "#/components/schemas/TopCountryDTO"
             },
@@ -2956,7 +2956,7 @@
       },
       "TopCountriesStatsResponse": {
         "properties": {
-          "end_date": {
+          "endDate": {
             "type": "string"
           },
           "items": {
@@ -2965,24 +2965,24 @@
             },
             "type": "array"
           },
-          "start_date": {
+          "startDate": {
             "type": "string"
           }
         },
         "required": [
-          "end_date",
+          "endDate",
           "items",
-          "start_date"
+          "startDate"
         ],
         "title": "TopCountriesStatsResponse",
         "type": "object"
       },
       "TopCountryDTO": {
         "properties": {
-          "country_code": {
+          "countryCode": {
             "type": "string"
           },
-          "country_name": {
+          "countryName": {
             "oneOf": [
               {
                 "type": "string"
@@ -2992,24 +2992,24 @@
               }
             ]
           },
-          "event_count": {
+          "eventCount": {
             "type": "integer"
           }
         },
         "required": [
-          "country_code",
-          "country_name",
-          "event_count"
+          "countryCode",
+          "countryName",
+          "eventCount"
         ],
         "title": "TopCountryDTO",
         "type": "object"
       },
       "TopCountryStatsDTO": {
         "properties": {
-          "country_code": {
+          "countryCode": {
             "type": "string"
           },
-          "country_name": {
+          "countryName": {
             "oneOf": [
               {
                 "type": "string"
@@ -3022,15 +3022,15 @@
           "hits": {
             "type": "integer"
           },
-          "unique_ips": {
+          "uniqueIps": {
             "type": "integer"
           }
         },
         "required": [
-          "country_code",
-          "country_name",
+          "countryCode",
+          "countryName",
           "hits",
-          "unique_ips"
+          "uniqueIps"
         ],
         "title": "TopCountryStatsDTO",
         "type": "object"
@@ -3182,10 +3182,10 @@
       },
       "TopIPDTO": {
         "properties": {
-          "event_count": {
+          "eventCount": {
             "type": "integer"
           },
-          "ip_address": {
+          "ipAddress": {
             "type": "string"
           },
           "location": {
@@ -3200,8 +3200,8 @@
           }
         },
         "required": [
-          "event_count",
-          "ip_address"
+          "eventCount",
+          "ipAddress"
         ],
         "title": "TopIPDTO",
         "type": "object"
@@ -3218,7 +3218,7 @@
               }
             ]
           },
-          "country_code": {
+          "countryCode": {
             "oneOf": [
               {
                 "type": "string"
@@ -3228,33 +3228,33 @@
               }
             ]
           },
-          "error_hits": {
+          "errorHits": {
             "type": "integer"
           },
           "hits": {
             "type": "integer"
           },
-          "ip_address": {
+          "ipAddress": {
             "type": "string"
           },
-          "total_bytes": {
+          "totalBytes": {
             "type": "integer"
           }
         },
         "required": [
           "city",
-          "country_code",
-          "error_hits",
+          "countryCode",
+          "errorHits",
           "hits",
-          "ip_address",
-          "total_bytes"
+          "ipAddress",
+          "totalBytes"
         ],
         "title": "TopIpDTO",
         "type": "object"
       },
       "TopIpsResponse": {
         "properties": {
-          "end_date": {
+          "endDate": {
             "type": "string"
           },
           "items": {
@@ -3263,30 +3263,30 @@
             },
             "type": "array"
           },
-          "start_date": {
+          "startDate": {
             "type": "string"
           }
         },
         "required": [
-          "end_date",
+          "endDate",
           "items",
-          "start_date"
+          "startDate"
         ],
         "title": "TopIpsResponse",
         "type": "object"
       },
       "TopUrlDTO": {
         "properties": {
-          "avg_request_time": {
+          "avgRequestTime": {
             "type": "number"
           },
-          "error_hits": {
+          "errorHits": {
             "type": "integer"
           },
           "hits": {
             "type": "integer"
           },
-          "total_bytes": {
+          "totalBytes": {
             "type": "integer"
           },
           "url": {
@@ -3294,10 +3294,10 @@
           }
         },
         "required": [
-          "avg_request_time",
-          "error_hits",
+          "avgRequestTime",
+          "errorHits",
           "hits",
-          "total_bytes",
+          "totalBytes",
           "url"
         ],
         "title": "TopUrlDTO",
@@ -3305,7 +3305,7 @@
       },
       "TopUrlsResponse": {
         "properties": {
-          "end_date": {
+          "endDate": {
             "type": "string"
           },
           "items": {
@@ -3314,14 +3314,14 @@
             },
             "type": "array"
           },
-          "start_date": {
+          "startDate": {
             "type": "string"
           }
         },
         "required": [
-          "end_date",
+          "endDate",
           "items",
-          "start_date"
+          "startDate"
         ],
         "title": "TopUrlsResponse",
         "type": "object"
@@ -3331,20 +3331,20 @@
           "hits": {
             "type": "integer"
           },
-          "user_agent": {
+          "userAgent": {
             "type": "string"
           }
         },
         "required": [
           "hits",
-          "user_agent"
+          "userAgent"
         ],
         "title": "TopUserAgentDTO",
         "type": "object"
       },
       "TopUserAgentsResponse": {
         "properties": {
-          "end_date": {
+          "endDate": {
             "type": "string"
           },
           "items": {
@@ -3353,14 +3353,14 @@
             },
             "type": "array"
           },
-          "start_date": {
+          "startDate": {
             "type": "string"
           }
         },
         "required": [
-          "end_date",
+          "endDate",
           "items",
-          "start_date"
+          "startDate"
         ],
         "title": "TopUserAgentsResponse",
         "type": "object"
@@ -3482,7 +3482,7 @@
             "allowReserved": false,
             "deprecated": false,
             "in": "query",
-            "name": "from_timestamp",
+            "name": "fromTimestamp",
             "required": false,
             "schema": {
               "oneOf": [
@@ -3501,7 +3501,7 @@
             "allowReserved": false,
             "deprecated": false,
             "in": "query",
-            "name": "to_timestamp",
+            "name": "toTimestamp",
             "required": false,
             "schema": {
               "oneOf": [
@@ -3713,7 +3713,7 @@
             "allowReserved": false,
             "deprecated": false,
             "in": "query",
-            "name": "from_timestamp",
+            "name": "fromTimestamp",
             "required": false,
             "schema": {
               "oneOf": [
@@ -3732,7 +3732,7 @@
             "allowReserved": false,
             "deprecated": false,
             "in": "query",
-            "name": "to_timestamp",
+            "name": "toTimestamp",
             "required": false,
             "schema": {
               "oneOf": [
@@ -3922,7 +3922,7 @@
             "allowReserved": false,
             "deprecated": false,
             "in": "query",
-            "name": "from_timestamp",
+            "name": "fromTimestamp",
             "required": false,
             "schema": {
               "oneOf": [
@@ -3941,7 +3941,7 @@
             "allowReserved": false,
             "deprecated": false,
             "in": "query",
-            "name": "to_timestamp",
+            "name": "toTimestamp",
             "required": false,
             "schema": {
               "oneOf": [
@@ -4241,7 +4241,7 @@
               }
             },
             "in": "query",
-            "name": "start_date",
+            "name": "startDate",
             "required": true,
             "schema": {
               "description": "Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)",
@@ -4263,7 +4263,7 @@
               }
             },
             "in": "query",
-            "name": "end_date",
+            "name": "endDate",
             "required": true,
             "schema": {
               "description": "End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)",
@@ -4370,7 +4370,7 @@
               }
             },
             "in": "query",
-            "name": "start_date",
+            "name": "startDate",
             "required": true,
             "schema": {
               "description": "Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)",
@@ -4392,7 +4392,7 @@
               }
             },
             "in": "query",
-            "name": "end_date",
+            "name": "endDate",
             "required": true,
             "schema": {
               "description": "End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)",
@@ -4409,7 +4409,7 @@
             "deprecated": false,
             "description": "Include comparison with previous period of same length",
             "in": "query",
-            "name": "compare_previous",
+            "name": "comparePrevious",
             "required": false,
             "schema": {
               "default": false,
@@ -4492,7 +4492,7 @@
               }
             },
             "in": "query",
-            "name": "start_date",
+            "name": "startDate",
             "required": true,
             "schema": {
               "description": "Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)",
@@ -4514,7 +4514,7 @@
               }
             },
             "in": "query",
-            "name": "end_date",
+            "name": "endDate",
             "required": true,
             "schema": {
               "description": "End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)",
@@ -4531,7 +4531,7 @@
             "deprecated": false,
             "description": "Include comparison with previous period of same length",
             "in": "query",
-            "name": "compare_previous",
+            "name": "comparePrevious",
             "required": false,
             "schema": {
               "default": false,
@@ -4614,7 +4614,7 @@
               }
             },
             "in": "query",
-            "name": "start_date",
+            "name": "startDate",
             "required": true,
             "schema": {
               "description": "Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)",
@@ -4636,7 +4636,7 @@
               }
             },
             "in": "query",
-            "name": "end_date",
+            "name": "endDate",
             "required": true,
             "schema": {
               "description": "End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)",
@@ -4674,7 +4674,7 @@
             "deprecated": false,
             "description": "Filter to these ISO country codes (repeatable)",
             "in": "query",
-            "name": "country_code",
+            "name": "countryCode",
             "required": false,
             "schema": {
               "description": "Filter to these ISO country codes (repeatable)",
@@ -4720,7 +4720,7 @@
             "deprecated": false,
             "description": "Filter to these client IPs (repeatable)",
             "in": "query",
-            "name": "ip_address",
+            "name": "ipAddress",
             "required": false,
             "schema": {
               "description": "Filter to these client IPs (repeatable)",
@@ -4743,7 +4743,7 @@
             "deprecated": false,
             "description": "Exclude these client IPs (repeatable)",
             "in": "query",
-            "name": "ip_address_not_in",
+            "name": "ipAddressNotIn",
             "required": false,
             "schema": {
               "description": "Exclude these client IPs (repeatable)",
@@ -4835,7 +4835,7 @@
               }
             },
             "in": "query",
-            "name": "start_date",
+            "name": "startDate",
             "required": true,
             "schema": {
               "description": "Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)",
@@ -4857,7 +4857,7 @@
               }
             },
             "in": "query",
-            "name": "end_date",
+            "name": "endDate",
             "required": true,
             "schema": {
               "description": "End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)",
@@ -4943,7 +4943,7 @@
               }
             },
             "in": "query",
-            "name": "start_date",
+            "name": "startDate",
             "required": true,
             "schema": {
               "description": "Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)",
@@ -4965,7 +4965,7 @@
               }
             },
             "in": "query",
-            "name": "end_date",
+            "name": "endDate",
             "required": true,
             "schema": {
               "description": "End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)",
@@ -4998,7 +4998,7 @@
             "deprecated": false,
             "description": "Filter to these ISO country codes (repeatable)",
             "in": "query",
-            "name": "country_code",
+            "name": "countryCode",
             "required": false,
             "schema": {
               "description": "Filter to these ISO country codes (repeatable)",
@@ -5044,7 +5044,7 @@
             "deprecated": false,
             "description": "Filter to these client IPs (repeatable)",
             "in": "query",
-            "name": "ip_address",
+            "name": "ipAddress",
             "required": false,
             "schema": {
               "description": "Filter to these client IPs (repeatable)",
@@ -5067,7 +5067,7 @@
             "deprecated": false,
             "description": "Exclude these client IPs (repeatable)",
             "in": "query",
-            "name": "ip_address_not_in",
+            "name": "ipAddressNotIn",
             "required": false,
             "schema": {
               "description": "Exclude these client IPs (repeatable)",
@@ -5159,7 +5159,7 @@
               }
             },
             "in": "query",
-            "name": "start_date",
+            "name": "startDate",
             "required": true,
             "schema": {
               "description": "Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)",
@@ -5181,7 +5181,7 @@
               }
             },
             "in": "query",
-            "name": "end_date",
+            "name": "endDate",
             "required": true,
             "schema": {
               "description": "End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)",
@@ -5214,7 +5214,7 @@
             "deprecated": false,
             "description": "Filter to these ISO country codes (repeatable)",
             "in": "query",
-            "name": "country_code",
+            "name": "countryCode",
             "required": false,
             "schema": {
               "description": "Filter to these ISO country codes (repeatable)",
@@ -5260,7 +5260,7 @@
             "deprecated": false,
             "description": "Filter to these client IPs (repeatable)",
             "in": "query",
-            "name": "ip_address",
+            "name": "ipAddress",
             "required": false,
             "schema": {
               "description": "Filter to these client IPs (repeatable)",
@@ -5283,7 +5283,7 @@
             "deprecated": false,
             "description": "Exclude these client IPs (repeatable)",
             "in": "query",
-            "name": "ip_address_not_in",
+            "name": "ipAddressNotIn",
             "required": false,
             "schema": {
               "description": "Exclude these client IPs (repeatable)",
@@ -5375,7 +5375,7 @@
               }
             },
             "in": "query",
-            "name": "start_date",
+            "name": "startDate",
             "required": true,
             "schema": {
               "description": "Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)",
@@ -5397,7 +5397,7 @@
               }
             },
             "in": "query",
-            "name": "end_date",
+            "name": "endDate",
             "required": true,
             "schema": {
               "description": "End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)",
@@ -5430,7 +5430,7 @@
             "deprecated": false,
             "description": "Filter to these ISO country codes (repeatable)",
             "in": "query",
-            "name": "country_code",
+            "name": "countryCode",
             "required": false,
             "schema": {
               "description": "Filter to these ISO country codes (repeatable)",
@@ -5476,7 +5476,7 @@
             "deprecated": false,
             "description": "Filter to these client IPs (repeatable)",
             "in": "query",
-            "name": "ip_address",
+            "name": "ipAddress",
             "required": false,
             "schema": {
               "description": "Filter to these client IPs (repeatable)",
@@ -5499,7 +5499,7 @@
             "deprecated": false,
             "description": "Exclude these client IPs (repeatable)",
             "in": "query",
-            "name": "ip_address_not_in",
+            "name": "ipAddressNotIn",
             "required": false,
             "schema": {
               "description": "Exclude these client IPs (repeatable)",
@@ -5591,7 +5591,7 @@
               }
             },
             "in": "query",
-            "name": "start_date",
+            "name": "startDate",
             "required": true,
             "schema": {
               "description": "Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)",
@@ -5613,7 +5613,7 @@
               }
             },
             "in": "query",
-            "name": "end_date",
+            "name": "endDate",
             "required": true,
             "schema": {
               "description": "End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)",
@@ -5646,7 +5646,7 @@
             "deprecated": false,
             "description": "Filter to these ISO country codes (repeatable)",
             "in": "query",
-            "name": "country_code",
+            "name": "countryCode",
             "required": false,
             "schema": {
               "description": "Filter to these ISO country codes (repeatable)",
@@ -5692,7 +5692,7 @@
             "deprecated": false,
             "description": "Filter to these client IPs (repeatable)",
             "in": "query",
-            "name": "ip_address",
+            "name": "ipAddress",
             "required": false,
             "schema": {
               "description": "Filter to these client IPs (repeatable)",
@@ -5715,7 +5715,7 @@
             "deprecated": false,
             "description": "Exclude these client IPs (repeatable)",
             "in": "query",
-            "name": "ip_address_not_in",
+            "name": "ipAddressNotIn",
             "required": false,
             "schema": {
               "description": "Exclude these client IPs (repeatable)",
@@ -5807,7 +5807,7 @@
               }
             },
             "in": "query",
-            "name": "start_date",
+            "name": "startDate",
             "required": true,
             "schema": {
               "description": "Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)",
@@ -5829,7 +5829,7 @@
               }
             },
             "in": "query",
-            "name": "end_date",
+            "name": "endDate",
             "required": true,
             "schema": {
               "description": "End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)",
@@ -5862,7 +5862,7 @@
             "deprecated": false,
             "description": "Filter to these ISO country codes (repeatable)",
             "in": "query",
-            "name": "country_code",
+            "name": "countryCode",
             "required": false,
             "schema": {
               "description": "Filter to these ISO country codes (repeatable)",
@@ -5908,7 +5908,7 @@
             "deprecated": false,
             "description": "Filter to these client IPs (repeatable)",
             "in": "query",
-            "name": "ip_address",
+            "name": "ipAddress",
             "required": false,
             "schema": {
               "description": "Filter to these client IPs (repeatable)",
@@ -5931,7 +5931,7 @@
             "deprecated": false,
             "description": "Exclude these client IPs (repeatable)",
             "in": "query",
-            "name": "ip_address_not_in",
+            "name": "ipAddressNotIn",
             "required": false,
             "schema": {
               "description": "Exclude these client IPs (repeatable)",
@@ -6352,7 +6352,7 @@
             "allowReserved": false,
             "deprecated": false,
             "in": "query",
-            "name": "from_timestamp",
+            "name": "fromTimestamp",
             "required": false,
             "schema": {
               "oneOf": [
@@ -6371,7 +6371,7 @@
             "allowReserved": false,
             "deprecated": false,
             "in": "query",
-            "name": "to_timestamp",
+            "name": "toTimestamp",
             "required": false,
             "schema": {
               "oneOf": [
@@ -6847,7 +6847,7 @@
             "allowReserved": false,
             "deprecated": false,
             "in": "query",
-            "name": "from_timestamp",
+            "name": "fromTimestamp",
             "required": false,
             "schema": {
               "oneOf": [
@@ -6866,7 +6866,7 @@
             "allowReserved": false,
             "deprecated": false,
             "in": "query",
-            "name": "to_timestamp",
+            "name": "toTimestamp",
             "required": false,
             "schema": {
               "oneOf": [
@@ -7179,7 +7179,7 @@
               }
             },
             "in": "query",
-            "name": "from_timestamp",
+            "name": "fromTimestamp",
             "required": true,
             "schema": {
               "description": "Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)",
@@ -7201,7 +7201,7 @@
               }
             },
             "in": "query",
-            "name": "to_timestamp",
+            "name": "toTimestamp",
             "required": true,
             "schema": {
               "description": "End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)",
@@ -7477,7 +7477,7 @@
               }
             },
             "in": "query",
-            "name": "from_timestamp",
+            "name": "fromTimestamp",
             "required": true,
             "schema": {
               "description": "Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)",
@@ -7499,7 +7499,7 @@
               }
             },
             "in": "query",
-            "name": "to_timestamp",
+            "name": "toTimestamp",
             "required": true,
             "schema": {
               "description": "End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)",
@@ -7516,7 +7516,7 @@
             "deprecated": false,
             "description": "Include comparison with previous period of same length",
             "in": "query",
-            "name": "compare_previous",
+            "name": "comparePrevious",
             "required": false,
             "schema": {
               "default": false,
@@ -7710,7 +7710,7 @@
               }
             },
             "in": "query",
-            "name": "from_timestamp",
+            "name": "fromTimestamp",
             "required": true,
             "schema": {
               "description": "Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)",
@@ -7732,7 +7732,7 @@
               }
             },
             "in": "query",
-            "name": "to_timestamp",
+            "name": "toTimestamp",
             "required": true,
             "schema": {
               "description": "End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)",
@@ -7950,7 +7950,7 @@
               }
             },
             "in": "query",
-            "name": "from_timestamp",
+            "name": "fromTimestamp",
             "required": true,
             "schema": {
               "description": "Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)",
@@ -7972,7 +7972,7 @@
               }
             },
             "in": "query",
-            "name": "to_timestamp",
+            "name": "toTimestamp",
             "required": true,
             "schema": {
               "description": "End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)",
@@ -8185,7 +8185,7 @@
               }
             },
             "in": "query",
-            "name": "from_timestamp",
+            "name": "fromTimestamp",
             "required": true,
             "schema": {
               "description": "Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)",
@@ -8207,7 +8207,7 @@
               }
             },
             "in": "query",
-            "name": "to_timestamp",
+            "name": "toTimestamp",
             "required": true,
             "schema": {
               "description": "End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)",
@@ -8420,7 +8420,7 @@
               }
             },
             "in": "query",
-            "name": "from_timestamp",
+            "name": "fromTimestamp",
             "required": true,
             "schema": {
               "description": "Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)",
@@ -8442,7 +8442,7 @@
               }
             },
             "in": "query",
-            "name": "to_timestamp",
+            "name": "toTimestamp",
             "required": true,
             "schema": {
               "description": "End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)",
@@ -8653,7 +8653,7 @@
               }
             },
             "in": "query",
-            "name": "from_timestamp",
+            "name": "fromTimestamp",
             "required": true,
             "schema": {
               "description": "Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)",
@@ -8675,7 +8675,7 @@
               }
             },
             "in": "query",
-            "name": "to_timestamp",
+            "name": "toTimestamp",
             "required": true,
             "schema": {
               "description": "End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)",
@@ -8692,7 +8692,7 @@
             "deprecated": false,
             "description": "Filter to these ISO country codes (repeatable)",
             "in": "query",
-            "name": "country_code",
+            "name": "countryCode",
             "required": false,
             "schema": {
               "description": "Filter to these ISO country codes (repeatable)",
@@ -8876,7 +8876,7 @@
               }
             },
             "in": "query",
-            "name": "from_timestamp",
+            "name": "fromTimestamp",
             "required": true,
             "schema": {
               "description": "Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)",
@@ -8898,7 +8898,7 @@
               }
             },
             "in": "query",
-            "name": "to_timestamp",
+            "name": "toTimestamp",
             "required": true,
             "schema": {
               "description": "End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)",
@@ -9000,7 +9000,7 @@
               }
             },
             "in": "query",
-            "name": "from_timestamp",
+            "name": "fromTimestamp",
             "required": true,
             "schema": {
               "description": "Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)",
@@ -9022,7 +9022,7 @@
               }
             },
             "in": "query",
-            "name": "to_timestamp",
+            "name": "toTimestamp",
             "required": true,
             "schema": {
               "description": "End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)",
@@ -9133,7 +9133,7 @@
               }
             },
             "in": "query",
-            "name": "from_timestamp",
+            "name": "fromTimestamp",
             "required": true,
             "schema": {
               "description": "Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)",
@@ -9155,7 +9155,7 @@
               }
             },
             "in": "query",
-            "name": "to_timestamp",
+            "name": "toTimestamp",
             "required": true,
             "schema": {
               "description": "End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)",

@@ -93,23 +93,23 @@ export async function fetchMe(): Promise<MeResponse> {
 
 export interface HealthIngestionStatus {
   running: boolean
-  parsed_lines: number
-  pending_records: number
+  parsedLines: number
+  pendingRecords: number
   /** Tailed log files that disappeared mid-flight; ingestion waits for them. */
-  missing_files: string[]
+  missingFiles: string[]
   /** Wall-clock of the most recent ingested record; null before the first. */
-  last_record_at: string | null
+  lastRecordAt: string | null
 }
 
 export interface HealthResponse {
   status: "healthy" | "degraded"
   /** App start time; null in test harnesses without lifecycle startup. */
-  started_at: string | null
+  startedAt: string | null
   ingestion: HealthIngestionStatus
   database: { reachable: boolean }
-  /** db_build_date is the GeoLite2 build from the mmdb metadata. */
-  geoip: { available: boolean; db_build_date: string | null }
-  crowdsec: { enabled: boolean; lapi_reachable: boolean | null }
+  /** dbBuildDate is the GeoLite2 build from the mmdb metadata. */
+  geoip: { available: boolean; dbBuildDate: string | null }
+  crowdsec: { enabled: boolean; lapiReachable: boolean | null }
   timestamp: string
 }
 
@@ -120,38 +120,38 @@ export type RuntimeSettings = SafeSettingsResponse
 // ============================================================================
 
 export interface PeriodSummary {
-  total_requests: number
-  total_geo_events: number
-  unique_ips: number
-  unique_countries: number
-  total_bytes_sent: number
-  avg_bytes_per_request: number
-  status_2xx: number
-  status_3xx: number
-  status_4xx: number
-  status_5xx: number
-  avg_request_time: number
-  max_request_time: number
-  malformed_requests: number
-  error_rate: number
+  totalRequests: number
+  totalGeoEvents: number
+  uniqueIps: number
+  uniqueCountries: number
+  totalBytesSent: number
+  avgBytesPerRequest: number
+  status2xx: number
+  status3xx: number
+  status4xx: number
+  status5xx: number
+  avgRequestTime: number
+  maxRequestTime: number
+  malformedRequests: number
+  errorRate: number
 }
 
 export interface PercentChange {
-  log_records: number | null
-  geo_records: number | null
-  unique_ips: number | null
-  bytes_sent: number | null
-  avg_request_time: number | null
-  error_rate: number | null
-  malformed_rate: number | null
+  logRecords: number | null
+  geoRecords: number | null
+  uniqueIps: number | null
+  bytesSent: number | null
+  avgRequestTime: number | null
+  errorRate: number | null
+  malformedRate: number | null
 }
 
 export interface SummaryResponse {
-  start_date: string
-  end_date: string
-  current_period: PeriodSummary
-  previous_period: PeriodSummary | null
-  percent_changes: PercentChange | null
+  startDate: string
+  endDate: string
+  currentPeriod: PeriodSummary
+  previousPeriod: PeriodSummary | null
+  percentChanges: PercentChange | null
 }
 
 // Time-series shapes come from the generated client (the old manual
@@ -172,13 +172,13 @@ export interface EmbeddedLocationDTO {
   latitude: number
   longitude: number
   city: string | null
-  country_code: string | null
-  country_name: string | null
+  countryCode: string | null
+  countryName: string | null
 }
 
 export interface TopIPDTO {
-  ip_address: string
-  event_count: number
+  ipAddress: string
+  eventCount: number
   location: EmbeddedLocationDTO | null
 }
 
@@ -208,12 +208,12 @@ export async function fetchHealth(): Promise<HealthResponse> {
 /** Ingestion counters from /api/v1/stats; mirrors the backend's typed
  *  IngestionStatsResponse (geometrikks/domain/system/controllers/stats.py). */
 export interface StatsResponse {
-  total_parsed_lines: number
-  total_skipped_lines: number
-  total_pending_records: number
-  total_ignored_lines: number
-  total_processed: number
-  is_running: boolean
+  totalParsedLines: number
+  totalSkippedLines: number
+  totalPendingRecords: number
+  totalIgnoredLines: number
+  totalProcessed: number
+  isRunning: boolean
 }
 
 export async function fetchStats(): Promise<StatsResponse> {
@@ -302,8 +302,8 @@ export async function fetchCrowdsecBannedLocations(params?: {
 }): Promise<IpLocation[]> {
   const { data } = await api.get<IpLocation[]>("/crowdsec/banned-locations", {
     params: {
-      from_timestamp: params?.fromTimestamp,
-      to_timestamp: params?.toTimestamp,
+      fromTimestamp: params?.fromTimestamp,
+      toTimestamp: params?.toTimestamp,
     },
   })
   return data
@@ -355,9 +355,9 @@ export interface SummaryParams {
 export async function fetchSummary(params: SummaryParams): Promise<SummaryResponse> {
   const { data } = await api.get<SummaryResponse>("/analytics/summary", {
     params: {
-      start_date: params.startDate,
-      end_date: params.endDate,
-      compare_previous: params.comparePrevious ?? true,
+      startDate: params.startDate,
+      endDate: params.endDate,
+      comparePrevious: params.comparePrevious ?? true,
     },
   })
   return data
@@ -366,9 +366,9 @@ export async function fetchSummary(params: SummaryParams): Promise<SummaryRespon
 export async function fetchLiveSummary(params: SummaryParams): Promise<SummaryResponse> {
   const { data } = await api.get<SummaryResponse>("/analytics/live-summary", {
     params: {
-      start_date: params.startDate,
-      end_date: params.endDate,
-      compare_previous: params.comparePrevious ?? true,
+      startDate: params.startDate,
+      endDate: params.endDate,
+      comparePrevious: params.comparePrevious ?? true,
     },
   })
   return data
@@ -399,9 +399,9 @@ export interface GeoJSONParams {
 export async function fetchGeoJSON(params: GeoJSONParams): Promise<GeoJSONFeatureCollection> {
   const { data } = await api.get<GeoJSONFeatureCollection>("/geo-locations/geojson", {
     params: {
-      from_timestamp: params.fromTimestamp,
-      to_timestamp: params.toTimestamp,
-      country_code: params.countryCodes?.length ? params.countryCodes : undefined,
+      fromTimestamp: params.fromTimestamp,
+      toTimestamp: params.toTimestamp,
+      countryCode: params.countryCodes?.length ? params.countryCodes : undefined,
       city: params.cities?.length ? params.cities : undefined,
       ipAddressIn: params.ips?.length ? params.ips : undefined,
       ipAddressNotIn: params.ipsExclude?.length ? params.ipsExclude : undefined,
@@ -419,7 +419,7 @@ export async function fetchGeoJSON(params: GeoJSONParams): Promise<GeoJSONFeatur
 // ============================================================================
 
 export interface GlobalTopIPsResponse {
-  top_ips: TopIPDTO[]
+  topIps: TopIPDTO[]
 }
 
 // ============================================================================
@@ -427,13 +427,13 @@ export interface GlobalTopIPsResponse {
 // ============================================================================
 
 export interface TopCountryDTO {
-  country_code: string
-  country_name: string | null
-  event_count: number
+  countryCode: string
+  countryName: string | null
+  eventCount: number
 }
 
 export interface TopCountriesResponse {
-  top_countries: TopCountryDTO[]
+  topCountries: TopCountryDTO[]
 }
 
 // ============================================================================
@@ -442,21 +442,21 @@ export interface TopCountriesResponse {
 
 export interface CumulativeDataPoint {
   timestamp: string
-  cumulative_geo_events: number
-  cumulative_access_logs: number
-  cumulative_bytes: number
+  cumulativeGeoEvents: number
+  cumulativeAccessLogs: number
+  cumulativeBytes: number
 }
 
 export interface CumulativeTimeSeriesResponse {
   granularity: "hourly" | "daily"
-  start_date: string
-  end_date: string
+  startDate: string
+  endDate: string
   data: CumulativeDataPoint[]
 }
 
 export interface LocationTopIPsResponse {
-  location_id: number
-  top_ips: TopIPDTO[]
+  locationId: number
+  topIps: TopIPDTO[]
 }
 
 export interface TopIPsParams {
@@ -475,8 +475,8 @@ export interface LocationTopIPsParams extends TopIPsParams {
 export async function fetchGlobalTopIPs(params: TopIPsParams): Promise<GlobalTopIPsResponse> {
   const { data } = await api.get<GlobalTopIPsResponse>("/geo-locations/top-ips", {
     params: {
-      from_timestamp: params.fromTimestamp,
-      to_timestamp: params.toTimestamp,
+      fromTimestamp: params.fromTimestamp,
+      toTimestamp: params.toTimestamp,
       limit: params.limit ?? 5,
     },
   })
@@ -491,8 +491,8 @@ export async function fetchLocationTopIPs(params: LocationTopIPsParams): Promise
     `/geo-locations/${params.locationId}/top-ips`,
     {
       params: {
-        from_timestamp: params.fromTimestamp,
-        to_timestamp: params.toTimestamp,
+        fromTimestamp: params.fromTimestamp,
+        toTimestamp: params.toTimestamp,
         limit: params.limit ?? 5,
       },
     }
@@ -506,8 +506,8 @@ export async function fetchLocationTopIPs(params: LocationTopIPsParams): Promise
 export async function fetchTopCountries(params: TopIPsParams): Promise<TopCountriesResponse> {
   const { data } = await api.get<TopCountriesResponse>("/geo-locations/top-countries", {
     params: {
-      from_timestamp: params.fromTimestamp,
-      to_timestamp: params.toTimestamp,
+      fromTimestamp: params.fromTimestamp,
+      toTimestamp: params.toTimestamp,
       limit: params.limit ?? 10,
     },
   })
@@ -534,13 +534,13 @@ export interface AnalyticsFilterParams {
 export async function fetchTimeSeries(params: TimeSeriesParams & AnalyticsFilterParams) {
   const { data } = await apiV1AnalyticsTimeSeriesGetTimeSeries({
     query: {
-      start_date: params.startDate,
-      end_date: params.endDate,
+      startDate: params.startDate,
+      endDate: params.endDate,
       granularity: params.granularity,
-      country_code: params.countryCodes?.length ? params.countryCodes : undefined,
+      countryCode: params.countryCodes?.length ? params.countryCodes : undefined,
       city: params.cities?.length ? params.cities : undefined,
-      ip_address: params.ips?.length ? params.ips : undefined,
-      ip_address_not_in: params.ipsExclude?.length ? params.ipsExclude : undefined,
+      ipAddress: params.ips?.length ? params.ips : undefined,
+      ipAddressNotIn: params.ipsExclude?.length ? params.ipsExclude : undefined,
     },
     throwOnError: true,
   })
@@ -549,7 +549,7 @@ export async function fetchTimeSeries(params: TimeSeriesParams & AnalyticsFilter
 
 export async function fetchGeoTimeSeries(params: TimeSeriesParams) {
   const { data } = await apiV1AnalyticsGeoTimeSeriesGetGeoTimeSeries({
-    query: { start_date: params.startDate, end_date: params.endDate, granularity: params.granularity },
+    query: { startDate: params.startDate, endDate: params.endDate, granularity: params.granularity },
     throwOnError: true,
   })
   return data
@@ -558,13 +558,13 @@ export async function fetchGeoTimeSeries(params: TimeSeriesParams) {
 export async function fetchTopUrls(params: TimeSeriesParams & { limit?: number } & AnalyticsFilterParams) {
   const { data } = await apiV1AnalyticsTopUrlsGetTopUrls({
     query: {
-      start_date: params.startDate,
-      end_date: params.endDate,
+      startDate: params.startDate,
+      endDate: params.endDate,
       limit: params.limit ?? 25,
-      country_code: params.countryCodes?.length ? params.countryCodes : undefined,
+      countryCode: params.countryCodes?.length ? params.countryCodes : undefined,
       city: params.cities?.length ? params.cities : undefined,
-      ip_address: params.ips?.length ? params.ips : undefined,
-      ip_address_not_in: params.ipsExclude?.length ? params.ipsExclude : undefined,
+      ipAddress: params.ips?.length ? params.ips : undefined,
+      ipAddressNotIn: params.ipsExclude?.length ? params.ipsExclude : undefined,
     },
     throwOnError: true,
   })
@@ -574,13 +574,13 @@ export async function fetchTopUrls(params: TimeSeriesParams & { limit?: number }
 export async function fetchTopUserAgents(params: TimeSeriesParams & { limit?: number } & AnalyticsFilterParams) {
   const { data } = await apiV1AnalyticsTopUserAgentsGetTopUserAgents({
     query: {
-      start_date: params.startDate,
-      end_date: params.endDate,
+      startDate: params.startDate,
+      endDate: params.endDate,
       limit: params.limit ?? 25,
-      country_code: params.countryCodes?.length ? params.countryCodes : undefined,
+      countryCode: params.countryCodes?.length ? params.countryCodes : undefined,
       city: params.cities?.length ? params.cities : undefined,
-      ip_address: params.ips?.length ? params.ips : undefined,
-      ip_address_not_in: params.ipsExclude?.length ? params.ipsExclude : undefined,
+      ipAddress: params.ips?.length ? params.ips : undefined,
+      ipAddressNotIn: params.ipsExclude?.length ? params.ipsExclude : undefined,
     },
     throwOnError: true,
   })
@@ -590,13 +590,13 @@ export async function fetchTopUserAgents(params: TimeSeriesParams & { limit?: nu
 export async function fetchTopIpStats(params: TimeSeriesParams & { limit?: number } & AnalyticsFilterParams) {
   const { data } = await apiV1AnalyticsTopIpsGetTopIps({
     query: {
-      start_date: params.startDate,
-      end_date: params.endDate,
+      startDate: params.startDate,
+      endDate: params.endDate,
       limit: params.limit ?? 25,
-      country_code: params.countryCodes?.length ? params.countryCodes : undefined,
+      countryCode: params.countryCodes?.length ? params.countryCodes : undefined,
       city: params.cities?.length ? params.cities : undefined,
-      ip_address: params.ips?.length ? params.ips : undefined,
-      ip_address_not_in: params.ipsExclude?.length ? params.ipsExclude : undefined,
+      ipAddress: params.ips?.length ? params.ips : undefined,
+      ipAddressNotIn: params.ipsExclude?.length ? params.ipsExclude : undefined,
     },
     throwOnError: true,
   })
@@ -606,13 +606,13 @@ export async function fetchTopIpStats(params: TimeSeriesParams & { limit?: numbe
 export async function fetchTopCountryStats(params: TimeSeriesParams & { limit?: number } & AnalyticsFilterParams) {
   const { data } = await apiV1AnalyticsTopCountriesGetTopCountries({
     query: {
-      start_date: params.startDate,
-      end_date: params.endDate,
+      startDate: params.startDate,
+      endDate: params.endDate,
       limit: params.limit ?? 25,
-      country_code: params.countryCodes?.length ? params.countryCodes : undefined,
+      countryCode: params.countryCodes?.length ? params.countryCodes : undefined,
       city: params.cities?.length ? params.cities : undefined,
-      ip_address: params.ips?.length ? params.ips : undefined,
-      ip_address_not_in: params.ipsExclude?.length ? params.ipsExclude : undefined,
+      ipAddress: params.ips?.length ? params.ips : undefined,
+      ipAddressNotIn: params.ipsExclude?.length ? params.ipsExclude : undefined,
     },
     throwOnError: true,
   })
@@ -622,13 +622,13 @@ export async function fetchTopCountryStats(params: TimeSeriesParams & { limit?: 
 export async function fetchTopCityStats(params: TimeSeriesParams & { limit?: number } & AnalyticsFilterParams) {
   const { data } = await apiV1AnalyticsTopCitiesGetTopCities({
     query: {
-      start_date: params.startDate,
-      end_date: params.endDate,
+      startDate: params.startDate,
+      endDate: params.endDate,
       limit: params.limit ?? 25,
-      country_code: params.countryCodes?.length ? params.countryCodes : undefined,
+      countryCode: params.countryCodes?.length ? params.countryCodes : undefined,
       city: params.cities?.length ? params.cities : undefined,
-      ip_address: params.ips?.length ? params.ips : undefined,
-      ip_address_not_in: params.ipsExclude?.length ? params.ipsExclude : undefined,
+      ipAddress: params.ips?.length ? params.ips : undefined,
+      ipAddressNotIn: params.ipsExclude?.length ? params.ipsExclude : undefined,
     },
     throwOnError: true,
   })
@@ -641,8 +641,8 @@ export async function fetchTopCityStats(params: TimeSeriesParams & { limit?: num
 export async function fetchCumulativeTimeSeries(params: TimeSeriesParams): Promise<CumulativeTimeSeriesResponse> {
   const { data } = await api.get<CumulativeTimeSeriesResponse>("/analytics/time-series/cumulative", {
     params: {
-      start_date: params.startDate,
-      end_date: params.endDate,
+      startDate: params.startDate,
+      endDate: params.endDate,
     },
   })
   return data
@@ -718,8 +718,8 @@ export async function fetchGeoLogs(
 ) {
   const { data } = await apiV1GeoEventsLogsGetGeoLogs({
     query: {
-      from_timestamp: params.fromTimestamp,
-      to_timestamp: params.toTimestamp,
+      fromTimestamp: params.fromTimestamp,
+      toTimestamp: params.toTimestamp,
       currentPage: params.currentPage ?? 1,
       pageSize: params.pageSize ?? 50,
       orderBy: params.sortField ? GEO_LOG_SORT_FIELD_TO_COLUMN[params.sortField] : undefined,
@@ -736,9 +736,9 @@ export async function fetchGeoLogSummary(
 ) {
   const { data } = await apiV1GeoEventsSummaryGetGeoLogSummary({
     query: {
-      from_timestamp: params.fromTimestamp,
-      to_timestamp: params.toTimestamp,
-      compare_previous: params.comparePrevious ?? true,
+      fromTimestamp: params.fromTimestamp,
+      toTimestamp: params.toTimestamp,
+      comparePrevious: params.comparePrevious ?? true,
       ...geoLogFilterQuery(params),
     },
     throwOnError: true,
@@ -751,8 +751,8 @@ export async function fetchGeoLogTimeSeries(
 ) {
   const { data } = await apiV1GeoEventsTimeSeriesGetGeoLogTimeSeries({
     query: {
-      from_timestamp: params.fromTimestamp,
-      to_timestamp: params.toTimestamp,
+      fromTimestamp: params.fromTimestamp,
+      toTimestamp: params.toTimestamp,
       granularity: params.granularity,
       ...geoLogFilterQuery(params),
     },
@@ -766,8 +766,8 @@ export async function fetchGeoLogTopIps(
 ) {
   const { data } = await apiV1GeoEventsTopIpsGetGeoLogTopIps({
     query: {
-      from_timestamp: params.fromTimestamp,
-      to_timestamp: params.toTimestamp,
+      fromTimestamp: params.fromTimestamp,
+      toTimestamp: params.toTimestamp,
       limit: params.limit ?? 10,
       ...geoLogFilterQuery(params),
     },
@@ -781,8 +781,8 @@ export async function fetchGeoLogTopCountries(
 ) {
   const { data } = await apiV1GeoEventsTopCountriesGetGeoLogTopCountries({
     query: {
-      from_timestamp: params.fromTimestamp,
-      to_timestamp: params.toTimestamp,
+      fromTimestamp: params.fromTimestamp,
+      toTimestamp: params.toTimestamp,
       limit: params.limit ?? 10,
       ...geoLogFilterQuery(params),
     },
@@ -796,8 +796,8 @@ export async function fetchGeoLogTopCities(
 ) {
   const { data } = await apiV1GeoEventsTopCitiesGetGeoLogTopCities({
     query: {
-      from_timestamp: params.fromTimestamp,
-      to_timestamp: params.toTimestamp,
+      fromTimestamp: params.fromTimestamp,
+      toTimestamp: params.toTimestamp,
       limit: params.limit ?? 10,
       ...geoLogFilterQuery(params),
     },
@@ -890,8 +890,8 @@ export interface AccessLogsParams {
 export async function fetchAccessLogs(params: AccessLogsParams): Promise<AccessLogsPage> {
   const { data } = await api.get<AccessLogsPage>("/access-logs/", {
     params: {
-      from_timestamp: params.fromTimestamp,
-      to_timestamp: params.toTimestamp,
+      fromTimestamp: params.fromTimestamp,
+      toTimestamp: params.toTimestamp,
       currentPage: params.currentPage ?? 1,
       pageSize: params.pageSize ?? 50,
       searchString: params.searchString || undefined,
@@ -1008,8 +1008,8 @@ export async function fetchAccessLogDebug(
 ): Promise<AccessLogDebugPage> {
   const { data } = await api.get<AccessLogDebugPage>("/access-log-debug/", {
     params: {
-      from_timestamp: params.fromTimestamp,
-      to_timestamp: params.toTimestamp,
+      fromTimestamp: params.fromTimestamp,
+      toTimestamp: params.toTimestamp,
       currentPage: params.currentPage ?? 1,
       pageSize: params.pageSize ?? 50,
       searchString: params.searchString || undefined,
@@ -1043,8 +1043,8 @@ export async function fetchAccessLogDebugStats(params: {
 }): Promise<AccessLogDebugStats> {
   const { data } = await api.get<AccessLogDebugStats>("/access-log-debug/stats", {
     params: {
-      from_timestamp: params.fromTimestamp,
-      to_timestamp: params.toTimestamp,
+      fromTimestamp: params.fromTimestamp,
+      toTimestamp: params.toTimestamp,
     },
   })
   return data

@@ -86,8 +86,8 @@ export function AboutPage() {
     )
   }
 
-  const geoip = geoipFreshness(data.geoip.available, data.geoip.age_days)
-  const dbReachable = data.database.postgres_version !== null
+  const geoip = geoipFreshness(data.geoip.available, data.geoip.ageDays)
+  const dbReachable = data.database.postgresVersion !== null
 
   return (
     <div className="grid gap-4 md:grid-cols-2">
@@ -108,7 +108,7 @@ export function AboutPage() {
                 </Badge>
                 {data.app.container ? (
                   <Badge variant="secondary">
-                    container{data.app.image_tag ? `: ${data.app.image_tag}` : ""}
+                    container{data.app.imageTag ? `: ${data.app.imageTag}` : ""}
                   </Badge>
                 ) : (
                   <Badge variant="outline" className="text-muted-foreground">
@@ -121,7 +121,7 @@ export function AboutPage() {
           <div className="flex items-center gap-2 text-sm">
             <StatusLed tone="emerald" pulse />
             <span className="text-muted-foreground">up</span>
-            <span className="font-medium">{formatUptime(data.app.started_at)}</span>
+            <span className="font-medium">{formatUptime(data.app.startedAt)}</span>
           </div>
         </CardContent>
       </Card>
@@ -134,12 +134,12 @@ export function AboutPage() {
           </div>
         </CardHeader>
         <CardContent>
-          <Row label="Python" value={<MonoChip>{data.runtime.python_version}</MonoChip>} />
+          <Row label="Python" value={<MonoChip>{data.runtime.pythonVersion}</MonoChip>} />
           <Row
             label="Litestar"
             value={
-              data.runtime.litestar_version ? (
-                <MonoChip>{data.runtime.litestar_version}</MonoChip>
+              data.runtime.litestarVersion ? (
+                <MonoChip>{data.runtime.litestarVersion}</MonoChip>
               ) : (
                 "unknown"
               )
@@ -148,8 +148,8 @@ export function AboutPage() {
           <Row
             label="APScheduler"
             value={
-              data.runtime.apscheduler_version ? (
-                <MonoChip>{data.runtime.apscheduler_version}</MonoChip>
+              data.runtime.apschedulerVersion ? (
+                <MonoChip>{data.runtime.apschedulerVersion}</MonoChip>
               ) : (
                 "unknown"
               )
@@ -175,8 +175,8 @@ export function AboutPage() {
           <Row
             label="PostgreSQL"
             value={
-              data.database.postgres_version ? (
-                <MonoChip>{data.database.postgres_version}</MonoChip>
+              data.database.postgresVersion ? (
+                <MonoChip>{data.database.postgresVersion}</MonoChip>
               ) : (
                 <span className="text-muted-foreground">unavailable</span>
               )
@@ -185,8 +185,8 @@ export function AboutPage() {
           <Row
             label="TimescaleDB"
             value={
-              data.database.timescaledb_version ? (
-                <MonoChip>{data.database.timescaledb_version}</MonoChip>
+              data.database.timescaledbVersion ? (
+                <MonoChip>{data.database.timescaledbVersion}</MonoChip>
               ) : (
                 <span className="text-muted-foreground">unavailable</span>
               )
@@ -195,8 +195,8 @@ export function AboutPage() {
           <Row
             label="PostGIS"
             value={
-              data.database.postgis_version ? (
-                <MonoChip>{data.database.postgis_version}</MonoChip>
+              data.database.postgisVersion ? (
+                <MonoChip>{data.database.postgisVersion}</MonoChip>
               ) : (
                 <span className="text-muted-foreground">unavailable</span>
               )
@@ -224,22 +224,22 @@ export function AboutPage() {
               <Row
                 label="Build date"
                 value={
-                  data.geoip.build_date
-                    ? new Date(data.geoip.build_date).toLocaleDateString()
+                  data.geoip.buildDate
+                    ? new Date(data.geoip.buildDate).toLocaleDateString()
                     : "unknown"
                 }
               />
               <Row
                 label="Age"
                 value={
-                  data.geoip.age_days !== null && data.geoip.age_days !== undefined
-                    ? `${data.geoip.age_days} days`
+                  data.geoip.ageDays !== null && data.geoip.ageDays !== undefined
+                    ? `${data.geoip.ageDays} days`
                     : "unknown"
                 }
               />
             </div>
             <div>
-              <Row label="Path" value={<MonoChip>{data.geoip.db_path}</MonoChip>} />
+              <Row label="Path" value={<MonoChip>{data.geoip.dbPath}</MonoChip>} />
             </div>
           </div>
         </CardContent>

@@ -474,7 +474,7 @@ function RuntimeMetadata({ collapsed }: { collapsed: boolean }) {
 
   if (collapsed || !settings) return null
 
-  const imageTag = settings.runtime.image_tag
+  const imageTag = settings.runtime.imageTag
   const runtimeLabel = imageTag
     ? `Container image ${imageTag}`
     : "Running in a container"
@@ -517,7 +517,7 @@ export function AppSidebar() {
     retry: 1,
   })
   const crowdsecDown =
-    health?.crowdsec?.enabled === true && health.crowdsec.lapi_reachable === false
+    health?.crowdsec?.enabled === true && health.crowdsec.lapiReachable === false
 
   // The mobile sidebar is a full-height sheet; leaving it open after a nav
   // tap would cover the page the user just navigated to.
