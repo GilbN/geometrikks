@@ -22,18 +22,19 @@ from litestar.params import QueryParameter, SkipValidation
 from litestar.status_codes import HTTP_200_OK, HTTP_204_NO_CONTENT
 
 from geometrikks.api.dependencies import (
+    provide_crowdsec_poller,
     provide_crowdsec_service,
     provide_limit_offset_pagination,
     provide_security_enrichment_repo,
 )
 from geometrikks.config.settings import Settings
-from geometrikks.server import runtime
 from geometrikks.domain.exceptions import DomainValidationError
 from geometrikks.lib.validation import validate_ip_address
 from geometrikks.domain.security.repositories import SecurityEnrichmentRepository
 from geometrikks.domain.security.schemas import IpEnrichment, IpLocation
 from geometrikks.server.logging import get_logger
 from geometrikks.services.crowdsec import CrowdSecService, Decision
+from geometrikks.services.crowdsec.stream import CrowdSecStreamPoller
 
 # The CAPI community blocklist can hold tens of thousands of decisions; the
 # decisions table shows local origins by default and CAPI/lists opt in via
@@ -177,6 +178,7 @@ class CrowdSecController(Controller):
     tags = ["CrowdSec"]
     dependencies = {
         "crowdsec": Provide(provide_crowdsec_service, sync_to_thread=False),
+        "crowdsec_poller": Provide(provide_crowdsec_poller, sync_to_thread=False),
         "enrichment_repo": Provide(provide_security_enrichment_repo),
         # Controller-scoped: /decisions paginates an in-memory LAPI result,
         # not an ORM query, so it keeps the hand-written provider.
@@ -187,7 +189,7 @@ class CrowdSecController(Controller):
     async def get_status(
         self,
         crowdsec: NamedDependency[CrowdSecService | None],
-        request: Request,
+        crowdsec_poller: NamedDependency[SkipValidation[CrowdSecStreamPoller | None]],
         settings: NamedDependency[SkipValidation[Settings]],
     ) -> CrowdSecStatusResponse:
         """Integration state; the frontend gates the security page on this."""
@@ -200,8 +202,9 @@ class CrowdSecController(Controller):
         # the full request timeout against a black-holed host). Live ping
         # remains the fallback when the poller is absent (DB-degraded mode)
         # or has not completed a poll yet.
-        poller = runtime.get_crowdsec_poller(request.app)
-        cached: bool | None = poller.lapi_reachable if poller is not None else None
+        cached: bool | None = (
+            crowdsec_poller.lapi_reachable if crowdsec_poller is not None else None
+        )
         return CrowdSecStatusResponse(
             enabled=True,
             write_enabled=settings.crowdsec.write_enabled,
