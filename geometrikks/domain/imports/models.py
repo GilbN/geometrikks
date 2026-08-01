@@ -1,11 +1,10 @@
 """Import job bookkeeping for batch log imports (duplicate protection)."""
 from datetime import datetime
-from typing import Optional
 
 from sqlalchemy import BigInteger, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 from advanced_alchemy.types import DateTimeUTC
-from advanced_alchemy.extensions.litestar import base
+from advanced_alchemy import base
 
 
 class ImportJob(base.BigIntAuditBase):
@@ -24,5 +23,5 @@ class ImportJob(base.BigIntAuditBase):
     lines_total: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
     lines_skipped: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
     records_written: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
-    time_start: Mapped[Optional[datetime]] = mapped_column(DateTimeUTC(timezone=True), nullable=True)
-    time_end: Mapped[Optional[datetime]] = mapped_column(DateTimeUTC(timezone=True), nullable=True)
+    time_start: Mapped[datetime | None] = mapped_column(DateTimeUTC(timezone=True), nullable=True)
+    time_end: Mapped[datetime | None] = mapped_column(DateTimeUTC(timezone=True), nullable=True)
