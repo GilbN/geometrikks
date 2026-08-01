@@ -17,7 +17,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `create_app()` accepts an explicit settings object and app-level dependency
   overrides, and request handlers now receive settings through dependency
-  injection instead of resolving the process-cached factory inline.
+  injection instead of resolving the process-cached factory inline. The
+  SQLAlchemy engine, startup migrations, scheduled aggregate jobs, and
+  trusted-proxy client-IP resolution all bind to the composed settings; the
+  `settings` dependency name is reserved (overriding it would split
+  configuration between request handlers and the rest of the app).
 - The backend test suite runs async tests on AnyIO (pytest-asyncio removed),
   is fully isolated from `.env` and ambient environment values, and gained
   WebSocket feed coverage for degraded-mode 1013 closures, overflow/drop

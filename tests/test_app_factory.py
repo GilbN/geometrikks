@@ -52,17 +52,36 @@ async def test_request_handlers_receive_explicit_settings(monkeypatch):
     assert resp.json()["name"] == "Explicit Name"
 
 
-async def test_dependency_overrides_replace_defaults():
-    replaced = _hermetic_settings(name="Overridden")
+def test_settings_dependency_is_reserved():
+    """A request-level settings override would diverge from the settings the
+    plugins, auth, and lifecycle were composed with; settings= is the one way
+    in."""
+    def provide_other() -> Settings:
+        return _hermetic_settings()
 
-    def provide_replaced() -> Settings:
-        return replaced
+    with pytest.raises(ValueError, match="settings"):
+        create_app(
+            settings=_hermetic_settings(),
+            dependencies={"settings": Provide(provide_other, sync_to_thread=False)},
+        )
+
+
+def test_extra_dependencies_are_registered():
+    def provide_marker() -> str:
+        return "marker"
 
     app = create_app(
-        settings=_hermetic_settings(name="Composed"),
-        dependencies={"settings": Provide(provide_replaced, sync_to_thread=False)},
+        settings=_hermetic_settings(),
+        dependencies={"marker_service": Provide(provide_marker, sync_to_thread=False)},
     )
-    async with AsyncTestClient(app=app) as client:
-        resp = await client.get("/api/v1/settings")
-    assert resp.status_code == 200
-    assert resp.json()["name"] == "Overridden"
+    assert "marker_service" in app.dependencies
+
+
+def test_database_stack_binds_to_explicit_settings(monkeypatch):
+    """The SQLAlchemy engine must come from the explicit settings object,
+    never from ambient environment configuration."""
+    monkeypatch.setenv("DB_HOST", "ambient.invalid")
+    app = create_app(settings=_hermetic_settings())
+    url = str(app.state.db_config.get_engine().url)
+    assert "127.0.0.1" in url
+    assert "ambient.invalid" not in url

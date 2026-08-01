@@ -39,16 +39,20 @@ def resolve_client_ip(
     Args:
         connection: The request or WebSocket connection.
         trusted_networks: Networks whose X-Forwarded-For is trusted. When
-            None, built from ``get_settings().trusted_proxies``.
+            None, built from the app's composed settings (falling back to
+            the ambient cached settings for apps built outside create_app).
 
     Returns:
         The resolved client address, or None when the peer is unknown.
     """
     if trusted_networks is None:
-        from geometrikks.config.settings import get_settings
+        settings = getattr(connection.app.state, "settings", None)
+        if settings is None:
+            from geometrikks.config.settings import get_settings
 
+            settings = get_settings()
         trusted_networks = [
-            ip_network(entry, strict=False) for entry in get_settings().trusted_proxies
+            ip_network(entry, strict=False) for entry in settings.trusted_proxies
         ]
 
     peer = connection.client.host if connection.client else None

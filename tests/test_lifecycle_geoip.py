@@ -10,7 +10,7 @@ pytestmark = pytest.mark.anyio
 
 
 def _patch_startup_collaborators(monkeypatch, lc, *, db_available: bool, ensure: AsyncMock):
-    async def fake_db_available(timeout: float = 10.0) -> bool:
+    async def fake_db_available(app, timeout: float = 10.0) -> bool:
         return db_available
 
     sqlalchemy_config = MagicMock()
@@ -21,7 +21,7 @@ def _patch_startup_collaborators(monkeypatch, lc, *, db_available: bool, ensure:
     ingestion.start = AsyncMock()
 
     monkeypatch.setattr(lc, "_db_available", fake_db_available)
-    monkeypatch.setattr(lc, "get_sqlalchemy_config", lambda: sqlalchemy_config)
+    monkeypatch.setattr(lc, "get_app_db_config", lambda app: sqlalchemy_config)
     monkeypatch.setattr(lc, "migrate_database", AsyncMock())
     monkeypatch.setattr(lc, "setup_timescaledb", AsyncMock())
     monkeypatch.setattr(lc, "ensure_geoip_database", ensure)

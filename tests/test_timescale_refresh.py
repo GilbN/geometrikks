@@ -87,7 +87,7 @@ async def test_scheduler_job_binds_timestamps(monkeypatch):
 
     calls: list = []
 
-    async def fake_exec(sql, *args):
+    async def fake_exec(session_factory, sql, *args):
         calls.append((sql, args))
 
     monkeypatch.setattr(sched, "_execute_call_outside_transaction", fake_exec)

@@ -45,6 +45,18 @@ def create_app(
     """
     if settings is None:
         settings = get_settings()
+    if dependencies and "settings" in dependencies:
+        # A request-level override would diverge from the settings the
+        # plugins, auth, and lifecycle were composed with (split-brain
+        # configuration). The settings= argument is the one way in.
+        raise ValueError(
+            "The 'settings' dependency is reserved; pass create_app(settings=...) instead."
+        )
+
+    # One engine per app: the same config feeds the SQLAlchemy plugin and,
+    # via app.state, every non-request code path (lifecycle, health probes,
+    # system inspection).
+    db_config = plugins.create_sqlalchemy_config(settings)
 
     from geometrikks.server.auth import build_auth_state, create_session_auth, warn_auth_disabled
 
@@ -87,7 +99,7 @@ def create_app(
         route_handlers=get_route_handlers(include_auth=not settings.auth_disabled),
         on_startup=[on_startup],
         on_shutdown=[on_shutdown],
-        plugins=plugins.create_plugins(settings),
+        plugins=plugins.create_plugins(settings, db_config=db_config),
         dependencies=dependency_map,
         openapi_config=openapi_config,
         compression_config=compression_config,
@@ -96,7 +108,9 @@ def create_app(
     )
     app.state.auth_state = auth_state
     # Lifecycle hooks and other non-request code read the composed settings
-    # from state instead of re-resolving the process-cached factory.
+    # and database config from state instead of re-resolving the
+    # process-cached factories.
     app.state.settings = settings
+    app.state.db_config = db_config
 
     return app

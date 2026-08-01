@@ -10,7 +10,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any
 
-from litestar import Request, Response, get
+from litestar import Litestar, Request, Response, get
 from litestar.di import NamedDependency, Provide
 from litestar.params import SkipValidation
 from litestar.status_codes import HTTP_200_OK, HTTP_503_SERVICE_UNAVAILABLE
@@ -22,15 +22,15 @@ from geometrikks.services.ingestion import LogIngestionService
 from geometrikks.api.dependencies import provide_ingestion_service as pis
 
 
-async def _database_reachable(timeout: float = 2.0) -> bool:
-    """SELECT 1 with a short timeout; False on any failure."""
+async def _database_reachable(app: Litestar, timeout: float = 2.0) -> bool:
+    """SELECT 1 against the app's database with a short timeout; False on any failure."""
     import asyncio
 
-    from geometrikks.server.plugins import get_sqlalchemy_config
+    from geometrikks.server.plugins import get_app_db_config
 
     try:
         async def _probe() -> None:
-            async with get_sqlalchemy_config().get_engine().connect() as conn:
+            async with get_app_db_config(app).get_engine().connect() as conn:
                 await conn.execute(text("SELECT 1"))
 
         await asyncio.wait_for(_probe(), timeout=timeout)
@@ -58,7 +58,7 @@ async def health(
     # them (log rotation resilience), so `running` stays true, but nothing is
     # being ingested from those files and status must not read as healthy.
     missing_files = ingestion_service.missing_files if ingestion_service else []
-    db_reachable = await _database_reachable()
+    db_reachable = await _database_reachable(request.app)
 
     poller = getattr(request.app.state, "crowdsec_stream_poller", None)
 
@@ -97,8 +97,8 @@ async def health(
 
 
 @get("/health/ready", tags=["Health"])
-async def health_ready() -> Response[dict[str, Any]]:
+async def health_ready(request: Request) -> Response[dict[str, Any]]:
     """Readiness: 200 only when the database answers."""
-    if await _database_reachable():
+    if await _database_reachable(request.app):
         return Response({"ready": True}, status_code=HTTP_200_OK)
     return Response({"ready": False}, status_code=HTTP_503_SERVICE_UNAVAILABLE)
