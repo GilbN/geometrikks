@@ -3,6 +3,10 @@ from __future__ import annotations
 
 from geometrikks.domain.security.repositories import SecurityEnrichmentRepository
 
+import pytest
+
+pytestmark = pytest.mark.anyio
+
 
 async def test_enrich_empty_input_skips_query():
     repo = SecurityEnrichmentRepository(session=None)  # would crash if queried

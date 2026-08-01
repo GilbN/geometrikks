@@ -14,6 +14,10 @@ from geometrikks.domain.geo.repositories import GeoLocationRepository
 from geometrikks.server.timescale import refresh_caggs_range
 from tests.seed.factories import AccessLogFactory, GeoLocationFactory, seed_factories
 
+import pytest
+
+pytestmark = pytest.mark.anyio
+
 # Derived from the wall clock, not hard-coded: the scratch DB has live
 # retention policies (raw data > 180 days is droppable), so a fixed date
 # would eventually age out of the window and let a policy job drop seeded

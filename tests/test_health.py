@@ -10,15 +10,19 @@ from geometrikks.api import health as health_module
 from geometrikks.api.health import health, health_ready
 from geometrikks.services.ingestion import LogIngestionService
 from geometrikks.services.logparser.logparser import LogParser
+from tests.support import ambient_settings_dependency
 
 
 def make_app() -> Litestar:
     # No ingestion service in app.state -> degraded mode
-    return Litestar(route_handlers=[health, health_ready])
+    return Litestar(
+        route_handlers=[health, health_ready],
+        dependencies=ambient_settings_dependency(),
+    )
 
 
 def test_health_returns_200_even_when_degraded(monkeypatch):
-    async def db_down(timeout: float = 2.0) -> bool:
+    async def db_down(app, timeout: float = 2.0) -> bool:
         return False
     monkeypatch.setattr(health_module, "_database_reachable", db_down)
 
@@ -32,7 +36,7 @@ def test_health_returns_200_even_when_degraded(monkeypatch):
 
 
 def test_ready_503_when_db_unreachable(monkeypatch):
-    async def db_down(timeout: float = 2.0) -> bool:
+    async def db_down(app, timeout: float = 2.0) -> bool:
         return False
     monkeypatch.setattr(health_module, "_database_reachable", db_down)
 
@@ -41,7 +45,7 @@ def test_ready_503_when_db_unreachable(monkeypatch):
 
 
 def test_ready_200_when_db_reachable(monkeypatch):
-    async def db_up(timeout: float = 2.0) -> bool:
+    async def db_up(app, timeout: float = 2.0) -> bool:
         return True
     monkeypatch.setattr(health_module, "_database_reachable", db_up)
 
@@ -65,7 +69,7 @@ def _running_service(file_missing: bool) -> "LogIngestionService":
 def test_health_degraded_when_tailed_file_missing(monkeypatch):
     """Ingestion running but a tailed log file has disappeared -> degraded,
     and the missing paths are surfaced in the payload."""
-    async def db_up(timeout: float = 2.0) -> bool:
+    async def db_up(app, timeout: float = 2.0) -> bool:
         return True
     monkeypatch.setattr(health_module, "_database_reachable", db_up)
 
@@ -82,7 +86,7 @@ def test_health_exposes_uptime_and_activity_fields(monkeypatch):
     """started_at, ingestion.last_record_at and geoip.db_modified_at are
     present and null-safe: no app state and no GeoIP file must not break the
     probe."""
-    async def db_up(timeout: float = 2.0) -> bool:
+    async def db_up(app, timeout: float = 2.0) -> bool:
         return True
     monkeypatch.setattr(health_module, "_database_reachable", db_up)
 
@@ -95,7 +99,7 @@ def test_health_exposes_uptime_and_activity_fields(monkeypatch):
 
 
 def test_health_started_at_from_app_state(monkeypatch):
-    async def db_up(timeout: float = 2.0) -> bool:
+    async def db_up(app, timeout: float = 2.0) -> bool:
         return True
     monkeypatch.setattr(health_module, "_database_reachable", db_up)
 
@@ -109,7 +113,7 @@ def test_health_started_at_from_app_state(monkeypatch):
 
 
 def test_health_no_missing_files_stays_healthy(monkeypatch):
-    async def db_up(timeout: float = 2.0) -> bool:
+    async def db_up(app, timeout: float = 2.0) -> bool:
         return True
     monkeypatch.setattr(health_module, "_database_reachable", db_up)
 
@@ -122,7 +126,7 @@ def test_health_no_missing_files_stays_healthy(monkeypatch):
 
 
 def test_health_crowdsec_disabled_by_default(monkeypatch):
-    async def db_up(timeout: float = 2.0) -> bool:
+    async def db_up(app, timeout: float = 2.0) -> bool:
         return True
     monkeypatch.setattr(health_module, "_database_reachable", db_up)
 
@@ -132,7 +136,7 @@ def test_health_crowdsec_disabled_by_default(monkeypatch):
 
 
 def test_health_crowdsec_enabled_and_down(monkeypatch):
-    async def db_up(timeout: float = 2.0) -> bool:
+    async def db_up(app, timeout: float = 2.0) -> bool:
         return True
     monkeypatch.setattr(health_module, "_database_reachable", db_up)
 

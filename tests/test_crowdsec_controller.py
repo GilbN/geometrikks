@@ -12,6 +12,11 @@ from geometrikks.api.v1.crowdsec_controller import CrowdSecController
 from geometrikks.domain.security.repositories import SecurityEnrichmentRepository
 from geometrikks.domain.security.schemas import IpEnrichment
 from geometrikks.services.crowdsec import CrowdSecService, Decision
+from tests.support import ambient_settings_dependency
+
+import pytest
+
+pytestmark = pytest.mark.anyio
 
 
 def make_decision(**overrides: Any) -> Decision:
@@ -71,6 +76,7 @@ def make_app(
         route_handlers=[_TestController],
         dependencies={
             "limit_offset": Provide(provide_limit_offset_pagination, sync_to_thread=False),
+            **ambient_settings_dependency(),
         },
     )
     app.state.crowdsec_service = service

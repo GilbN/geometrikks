@@ -8,6 +8,7 @@ from litestar import Litestar
 from litestar.testing import TestClient
 
 from geometrikks.api.v1.logs_controller import LogsController
+from tests.support import ambient_settings_dependency
 
 
 @pytest.fixture()
@@ -25,7 +26,11 @@ def client(tmp_path, monkeypatch):
     monkeypatch.setenv("LOGPARSER_LOG_PATHS", str(nginx))
     from geometrikks.config.settings import get_settings
     get_settings.cache_clear()
-    with TestClient(app=Litestar(route_handlers=[LogsController])) as c:
+    with TestClient(
+        app=Litestar(
+            route_handlers=[LogsController], dependencies=ambient_settings_dependency()
+        )
+    ) as c:
         yield c
 
 

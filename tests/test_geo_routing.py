@@ -9,6 +9,10 @@ from geometrikks.domain.geo.repositories import StatsGranularity
 from geometrikks.domain.geo.schemas import GeoEventFilters
 from geometrikks.domain.geo.services import GeoEventService
 
+import pytest
+
+pytestmark = pytest.mark.anyio
+
 NOW = datetime(2026, 7, 16, 12, 0, tzinfo=timezone.utc)
 WEEK_START = NOW - timedelta(days=7)
 

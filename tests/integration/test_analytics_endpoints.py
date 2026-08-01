@@ -11,6 +11,10 @@ from sqlalchemy import text
 
 from geometrikks.domain.analytics.repositories import AnalyticsFilters, LiveStatsRepository
 
+import pytest
+
+pytestmark = pytest.mark.anyio
+
 # Wall-clock derived, hour-aligned (see test_repositories_pg.py for why).
 NOW = datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0)
 

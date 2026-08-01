@@ -81,7 +81,9 @@ def migration_mocks(monkeypatch):
     from geometrikks.server import migrations as mod
 
     order: list[str] = []
-    monkeypatch.setattr(mod, "upgrade_to_head", lambda: order.append("upgrade"))
+    monkeypatch.setattr(
+        mod, "upgrade_to_head", lambda database_url=None: order.append("upgrade")
+    )
 
     async def fake_teardown(conn) -> None:
         order.append("teardown")
@@ -130,7 +132,7 @@ async def test_no_drop_flag_goes_straight_to_upgrade(migration_mocks) -> None:
 async def test_upgrade_failure_propagates(monkeypatch) -> None:
     from geometrikks.server import migrations as mod
 
-    def boom() -> None:
+    def boom(database_url=None) -> None:
         raise RuntimeError("broken migration")
 
     monkeypatch.setattr(mod, "upgrade_to_head", boom)
@@ -156,7 +158,22 @@ def test_upgrade_to_head_uses_dedicated_url_config(monkeypatch) -> None:
     commands.return_value.upgrade.assert_called_once_with(revision="head")
 
 
+def test_upgrade_to_head_honors_explicit_url(monkeypatch) -> None:
+    """migrate_database passes the app-bound URL; ambient settings must not win."""
+    from geometrikks.server import migrations as mod
+
+    commands = MagicMock()
+    monkeypatch.setattr(mod, "AlembicCommands", commands)
+
+    mod.upgrade_to_head("postgresql+asyncpg://x:y@explicit.invalid:5432/appdb")
+
+    (config,), _ = commands.call_args
+    assert config.connection_string == "postgresql+asyncpg://x:y@explicit.invalid:5432/appdb"
+
+
 from types import SimpleNamespace
+
+pytestmark = pytest.mark.anyio
 
 
 async def test_on_startup_migrates_before_timescale(monkeypatch) -> None:
@@ -166,7 +183,7 @@ async def test_on_startup_migrates_before_timescale(monkeypatch) -> None:
 
     order: list[str] = []
 
-    async def fake_db_available(timeout: float = 10.0) -> bool:
+    async def fake_db_available(app, timeout: float = 10.0) -> bool:
         return True
 
     async def fake_migrate(engine, settings) -> None:
@@ -192,7 +209,7 @@ async def test_on_startup_migrates_before_timescale(monkeypatch) -> None:
     sqlalchemy_config.create_session_maker.return_value = MagicMock()
 
     monkeypatch.setattr(lc, "_db_available", fake_db_available)
-    monkeypatch.setattr(lc, "get_sqlalchemy_config", lambda: sqlalchemy_config)
+    monkeypatch.setattr(lc, "get_app_db_config", lambda app: sqlalchemy_config)
     monkeypatch.setattr(lc, "migrate_database", fake_migrate)
     monkeypatch.setattr(lc, "setup_timescaledb", fake_timescale)
     monkeypatch.setattr(lc, "create_scheduler", fake_create_scheduler)

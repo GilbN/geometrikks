@@ -5,6 +5,8 @@ import pytest
 
 from geometrikks.config.settings import Settings
 
+pytestmark = pytest.mark.anyio
+
 
 def _settings(**kwargs) -> Settings:
     return Settings(**kwargs)

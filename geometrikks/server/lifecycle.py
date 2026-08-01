@@ -13,7 +13,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from geometrikks.config.settings import get_settings
 from geometrikks.server.logging import get_logger
 from geometrikks.server.migrations import migrate_database
-from geometrikks.server.plugins import get_sqlalchemy_config
+from geometrikks.server.plugins import get_app_db_config
 from geometrikks.server.timescale import setup_timescaledb
 
 from geometrikks.services.crowdsec import CrowdSecService
@@ -31,11 +31,11 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 
-async def _db_available(timeout: float = 10.0) -> bool:
-    """Return True if the database accepts connections; False otherwise."""
+async def _db_available(app: "Litestar", timeout: float = 10.0) -> bool:
+    """Return True if the app's database accepts connections; False otherwise."""
     try:
         async def _probe():
-            async with get_sqlalchemy_config().get_engine().connect() as conn:
+            async with get_app_db_config(app).get_engine().connect() as conn:
                 await conn.execute(text("SELECT 1"))
 
         await asyncio.wait_for(_probe(), timeout=timeout)
@@ -61,7 +61,9 @@ async def on_startup(app: "Litestar") -> None:
     from geometrikks.server.logging import log_broadcaster
     log_broadcaster.bind_loop(asyncio.get_running_loop())
 
-    settings = get_settings()
+    # create_app() stores its composed settings on state; the fallback keeps
+    # hand-built test apps that attach this hook directly working.
+    settings = getattr(app.state, "settings", None) or get_settings()
 
     if settings.api.log_level is not None:
         logger.warning(
@@ -98,7 +100,7 @@ async def on_startup(app: "Litestar") -> None:
         app.state.crowdsec_service = None
         app.state.crowdsec_stream_poller = None
 
-    if not await _db_available():
+    if not await _db_available(app):
         logger.warning("Starting without database: skipping migrations and ingestion.")
         if app.state.crowdsec_stream_poller is not None:
             # The poll job runs on the scheduler, which never starts without a
@@ -111,7 +113,8 @@ async def on_startup(app: "Litestar") -> None:
             )
         return
 
-    engine = get_sqlalchemy_config().get_engine()
+    db_config = get_app_db_config(app)
+    engine = db_config.get_engine()
 
     # Schema is owned by alembic (migrations/versions). A failed upgrade
     # raises and fails startup deliberately: a reachable DB with a broken
@@ -124,7 +127,7 @@ async def on_startup(app: "Litestar") -> None:
     await setup_timescaledb(engine, settings.analytics)
 
     # Session factory: ingestion opens a short-lived session per batch flush
-    session_maker: Callable[[], AsyncSession] = get_sqlalchemy_config().create_session_maker()
+    session_maker: Callable[[], AsyncSession] = db_config.create_session_maker()
 
     parsers = [
         LogParser(

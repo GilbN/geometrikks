@@ -16,9 +16,9 @@ from typing import TYPE_CHECKING, Callable
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.interval import IntervalTrigger
+from sqlalchemy.ext.asyncio import AsyncEngine
 
 from geometrikks.server.logging import get_logger
-from geometrikks.server.plugins import get_sqlalchemy_config
 from geometrikks.server.timescale import ALL_CAGGS
 
 if TYPE_CHECKING:
@@ -56,13 +56,23 @@ async def refresh_location_last_hits_job(
             logger.info("Refreshed last_hit for %d locations", updated)
 
 
-async def _execute_call_outside_transaction(sql: str, *args: object) -> None:
+async def _execute_call_outside_transaction(
+    session_factory: "Callable[[], AsyncSession]", sql: str, *args: object
+) -> None:
     """Execute a CALL statement outside of any transaction.
 
     PostgreSQL CALL statements (like refresh_continuous_aggregate) cannot
     run inside a transaction block. Positional args are bound by asyncpg.
+    The engine comes from the job's session factory so scheduled work runs
+    against the same database the app was composed with.
     """
-    engine = get_sqlalchemy_config().get_engine()
+    session = session_factory()
+    try:
+        engine = session.bind
+    finally:
+        await session.close()
+    if not isinstance(engine, AsyncEngine):
+        raise RuntimeError("Session factory has no bound engine for CALL statement")
     async with engine.connect() as conn:
         raw_conn = await conn.get_raw_connection()
         driver_conn = raw_conn.driver_connection
@@ -83,7 +93,7 @@ async def refresh_continuous_aggregate_job(
     against the ALL_CAGGS allowlist (identifiers cannot be parameters).
 
     Args:
-        session_factory: Unused, kept for scheduler job signature consistency.
+        session_factory: SQLAlchemy async session factory; supplies the engine.
         cagg_name: Name of the continuous aggregate to refresh.
         start: Start of refresh window (None = beginning of time).
         end: End of refresh window (None = now).
@@ -92,6 +102,7 @@ async def refresh_continuous_aggregate_job(
         raise ValueError(f"Unknown CAGG name: {cagg_name}")
 
     await _execute_call_outside_transaction(
+        session_factory,
         f"CALL refresh_continuous_aggregate('{cagg_name}', $1::timestamptz, $2::timestamptz)",
         start,
         end,
@@ -115,7 +126,8 @@ async def refresh_all_caggs_job(
     for cagg_name in ALL_CAGGS:
         try:
             await _execute_call_outside_transaction(
-                f"CALL refresh_continuous_aggregate('{cagg_name}', NULL, NULL)"
+                session_factory,
+                f"CALL refresh_continuous_aggregate('{cagg_name}', NULL, NULL)",
             )
             logger.info("Refreshed %s", cagg_name)
         except Exception as e:

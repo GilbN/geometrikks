@@ -11,6 +11,7 @@ import platform
 import shutil
 from functools import lru_cache
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from litestar.middleware.logging import LoggingMiddlewareConfig
 from litestar.plugins.structlog import StructlogConfig, StructlogPlugin
@@ -34,11 +35,12 @@ from litestar_vite.config import RuntimeConfig, TypeGenConfig, PathConfig
 from geometrikks.config.settings import get_settings, Settings
 from geometrikks.server.logging import create_logging_config
 
+if TYPE_CHECKING:
+    from litestar import Litestar
 
-@lru_cache(maxsize=1)
-def get_sqlalchemy_config() -> SQLAlchemyAsyncConfig:
-    """Build (once per process) the async engine and SQLAlchemy config."""
-    settings = get_settings()
+
+def create_sqlalchemy_config(settings: Settings) -> SQLAlchemyAsyncConfig:
+    """Build an async engine and SQLAlchemy config from explicit settings."""
     engine = create_async_engine(
         url=settings.database.url,
         echo=settings.database.echo,
@@ -60,6 +62,28 @@ def get_sqlalchemy_config() -> SQLAlchemyAsyncConfig:
         create_all=False,
         metadata=base.DefaultBase.metadata,
     )
+
+
+@lru_cache(maxsize=1)
+def get_sqlalchemy_config() -> SQLAlchemyAsyncConfig:
+    """Process-cached engine/config from ambient settings.
+
+    For contexts with no composed app (the import-logs CLI, hand-built test
+    apps). App code paths should resolve the app-bound config through
+    get_app_db_config() so create_app(settings=...) governs the database.
+    """
+    return create_sqlalchemy_config(get_settings())
+
+
+def get_app_db_config(app: Litestar) -> SQLAlchemyAsyncConfig:
+    """The SQLAlchemy config the app was composed with.
+
+    create_app() stores its config on app.state; the fallback keeps
+    hand-built test apps (which never went through create_app) working
+    against the process-cached config.
+    """
+    config = getattr(app.state, "db_config", None)
+    return config if config is not None else get_sqlalchemy_config()
 
 
 def create_vite_config(settings: Settings) -> ViteConfig:
@@ -110,15 +134,23 @@ def create_structlog_plugin(settings: Settings) -> StructlogPlugin:
     )
 
 
-def create_plugins() -> list[
+def create_plugins(
+    settings: Settings | None = None,
+    db_config: SQLAlchemyAsyncConfig | None = None,
+) -> list[
     SQLAlchemyInitPlugin | GeoAlchemyPlugin | GranianPlugin | VitePlugin | CLIPlugin | StructlogPlugin
 ]:
     """Instantiate all app plugins; called once from create_app()."""
     from geometrikks.cli import ImportLogsCLIPlugin
 
-    settings = get_settings()
+    if db_config is None:
+        # Explicit settings must also govern the SQLAlchemy plugin; only a
+        # fully ambient call may use the process-cached config.
+        db_config = get_sqlalchemy_config() if settings is None else create_sqlalchemy_config(settings)
+    if settings is None:
+        settings = get_settings()
     return [
-        SQLAlchemyInitPlugin(config=get_sqlalchemy_config()),
+        SQLAlchemyInitPlugin(config=db_config),
         GeoAlchemyPlugin(),  # GeoAlchemy plugin for PostGIS support
         GranianPlugin(),
         VitePlugin(config=create_vite_config(settings)),

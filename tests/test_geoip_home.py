@@ -7,6 +7,10 @@ import httpx
 from geometrikks.config.settings import GeoIPSettings, MapSettings
 from geometrikks.services.geoip.home import resolve_home_location
 
+import pytest
+
+pytestmark = pytest.mark.anyio
+
 
 async def test_configured_home_skips_public_ip_lookup():
     home = await resolve_home_location(

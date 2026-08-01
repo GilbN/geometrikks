@@ -17,6 +17,8 @@ from geometrikks.services.logparser.logparser import (
 )
 from geometrikks.services.logparser.schemas import ParsedAccessLog
 
+pytestmark = pytest.mark.anyio
+
 
 def make_log_line(ip: str) -> str:
     """A line in the project's custom nginx log format (mirrors tests/valid_ipv4_log.txt)."""
@@ -249,7 +251,6 @@ def test_binary_probe_flagged_malformed(log_parser: LogParser, load_nonstandard_
     assert is_malformed is True
     assert error == "No HTTP method in request"
 
-@pytest.mark.asyncio
 async def test_is_rotated_truncation_99pct(tmp_path: Path, log_parser: LogParser, monkeypatch) -> None:
     """Rotation detected when size shrinks by >=99%."""
     # Create file and obtain real previous stat
@@ -272,7 +273,6 @@ async def test_is_rotated_truncation_99pct(tmp_path: Path, log_parser: LogParser
     assert is_rotated is True
 
 
-@pytest.mark.asyncio
 async def test_is_rotated_inode_change(tmp_path: Path, log_parser: LogParser, monkeypatch) -> None:
     """Rotation detected when inode changes."""
     log_file = tmp_path / "access.log"
@@ -291,7 +291,6 @@ async def test_is_rotated_inode_change(tmp_path: Path, log_parser: LogParser, mo
     assert await log_parser._is_rotated_async(prev) is True
 
 
-@pytest.mark.asyncio
 async def test_is_rotated_disabled(tmp_path: Path, log_parser: LogParser, monkeypatch) -> None:
     """Rotation check can be disabled via env."""
     monkeypatch.setenv("DISABLE_ROTATION_CHECK", "true")
@@ -347,7 +346,6 @@ def test_create_access_log_sqlalchemy_geoip_failure(log_parser: LogParser, monke
     assert result is None
 
 
-@pytest.mark.asyncio
 async def test_iter_log_events_async_unmatched(tmp_path: Path, log_parser: LogParser, geoip_reader: Reader) -> None:
     """Async generator yields record with matched=None for invalid line; increments skipped."""
     log_file = tmp_path / "access.log"
@@ -369,7 +367,6 @@ async def test_iter_log_events_async_unmatched(tmp_path: Path, log_parser: LogPa
     assert log_parser.skipped_lines_count() >= 1
 
 
-@pytest.mark.asyncio
 async def test_iter_log_events_async_matched(tmp_path: Path, log_parser: LogParser, geoip_reader: Reader) -> None:
     """Async generator yields parsed record for a valid line; access_log when send_logs=True."""
     log_file = tmp_path / "access.log"
@@ -396,7 +393,6 @@ async def test_iter_log_events_async_matched(tmp_path: Path, log_parser: LogPars
     assert log_parser.parsed_lines_count() >= 1
 
 
-@pytest.mark.asyncio
 async def test_iter_log_events_async_rotation_restart(tmp_path: Path, log_parser: LogParser, geoip_reader: Reader, monkeypatch) -> None:
     """When rotation is detected, async generator delegates to a new stream (restart)."""
     log_file = tmp_path / "access.log"
@@ -452,7 +448,6 @@ def test_parse_geo_data(log_parser: LogParser, geoip_reader: Reader) -> None:
     assert parsed.geohash is not None
 
 
-@pytest.mark.asyncio
 async def test_iter_parsed_records_tags_source(tmp_path: Path, log_parser: LogParser, geoip_reader: Reader) -> None:
     """Every yielded record carries the source file path it was read from."""
     log_file = tmp_path / "access.log"
@@ -467,7 +462,6 @@ async def test_iter_parsed_records_tags_source(tmp_path: Path, log_parser: LogPa
     assert record.source == str(log_file)
 
 
-@pytest.mark.asyncio
 async def test_rotation_reopens_from_start_twice(tmp_path: Path, log_parser: LogParser, geoip_reader: Reader) -> None:
     """Two consecutive real rotations (inode change) keep records flowing, reading each new file from the start."""
     valid_lines = Path(VALID_LOG_PATH).read_text(encoding="utf-8").splitlines()

@@ -11,6 +11,8 @@ from geoip2.database import Reader
 
 from geometrikks.services.logparser.logparser import LogParser
 
+pytestmark = pytest.mark.anyio
+
 GEOIP_DB_PATH = "tests/GeoLite2-City-Test.mmdb"
 TEST_IP = "2.125.160.216"
 

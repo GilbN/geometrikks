@@ -14,9 +14,12 @@ from collections import deque
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 from geometrikks.server.logging import LOGIN_LOG_NAME, LOGIN_LOGGER_NAME, MAIN_LOG_NAME
+
+if TYPE_CHECKING:
+    from geometrikks.config.settings import Settings
 
 _LOGIN_LINE_RE = re.compile(
     r'^(?P<timestamp>\S+) (?P<event>[A-Za-z0-9_]+) user="(?P<user>[^"]*)" ip=(?P<ip>\S+)$'
@@ -132,10 +135,11 @@ class LogFilesService:
         return records
 
 
-def create_log_files_service() -> LogFilesService:
-    from geometrikks.config.settings import get_settings
+def create_log_files_service(settings: Settings | None = None) -> LogFilesService:
+    if settings is None:
+        from geometrikks.config.settings import get_settings
 
-    settings = get_settings()
+        settings = get_settings()
     return LogFilesService(
         log_dir=settings.log.dir,
         nginx_paths=list(settings.logparser.log_paths),

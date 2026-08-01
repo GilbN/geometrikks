@@ -14,10 +14,11 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 import maxminddb
-from litestar import Controller, Request, get, post
+from litestar import Controller, Litestar, Request, get, post
 from litestar.datastructures import State
+from litestar.di import NamedDependency
 from litestar.exceptions import NotFoundException
-from litestar.params import FromPath
+from litestar.params import FromPath, SkipValidation
 from litestar.status_codes import HTTP_202_ACCEPTED
 from sqlalchemy import text
 
@@ -26,7 +27,7 @@ from geometrikks.config.introspection import (
     SystemSettingsResponse,
     build_settings_overview,
 )
-from geometrikks.config.settings import Settings, get_settings
+from geometrikks.config.settings import Settings
 from geometrikks.server.logging import get_logger
 from geometrikks.server.scheduler_tracking import JobRunTracker, JobStatus
 from geometrikks.lib.utils import GeoIPInfoView, geoip_info
@@ -107,12 +108,12 @@ def _dist_version(name: str) -> str | None:
         return None
 
 
-async def _database_versions() -> DatabaseVersionsView:
+async def _database_versions(app: Litestar) -> DatabaseVersionsView:
     """Server and extension versions; nulls when the DB is unreachable."""
-    from geometrikks.server.plugins import get_sqlalchemy_config
+    from geometrikks.server.plugins import get_app_db_config
 
     try:
-        engine = get_sqlalchemy_config().get_engine()
+        engine = get_app_db_config(app).get_engine()
         async with engine.connect() as conn:
             pg = (await conn.execute(text("SHOW server_version"))).scalar_one()
             rows = (
@@ -161,17 +162,17 @@ class DatabaseInfoResponse:
 HYPERTABLE_NAMES = ("geo_events", "access_logs", "access_log_debug")
 
 
-async def _database_stats() -> tuple[int | None, list[HypertableStatsView]]:
+async def _database_stats(app: Litestar) -> tuple[int | None, list[HypertableStatsView]]:
     """Database size and per-hypertable stats; (None, []) when unreachable.
 
     Uses TimescaleDB catalog-backed functions (approximate_row_count,
     hypertable_size, hypertable_compression_stats), so this stays fast at
     tens of millions of rows.
     """
-    from geometrikks.server.plugins import get_sqlalchemy_config
+    from geometrikks.server.plugins import get_app_db_config
 
     try:
-        engine = get_sqlalchemy_config().get_engine()
+        engine = get_app_db_config(app).get_engine()
         async with engine.connect() as conn:
             size = (
                 await conn.execute(text("SELECT pg_database_size(current_database())"))
@@ -264,20 +265,23 @@ class SystemController(Controller):
     tags = ["System"]
 
     @get("/settings")
-    async def get_system_settings(self, request: Request) -> SystemSettingsResponse:
+    async def get_system_settings(
+        self, request: Request, settings: NamedDependency[SkipValidation[Settings]]
+    ) -> SystemSettingsResponse:
         """Full settings tree with descriptions; secrets structurally redacted.
 
         Overlays runtime-resolved values (auto-detected map home, GeoIP
         availability, CrowdSec effective status) that the raw config omits.
         """
-        settings = get_settings()
         overlay = _computed_settings_overlay(settings, request.app.state)
         return build_settings_overview(settings, computed=overlay)
 
     @get("/about")
-    async def get_about(self, request: Request) -> AboutResponse:
+    async def get_about(
+        self, request: Request, settings: NamedDependency[SkipValidation[Settings]]
+    ) -> AboutResponse:
         """App, runtime, database, and GeoIP metadata for the About page."""
-        s = get_settings()
+        s = settings
         return AboutResponse(
             app=AboutAppView(
                 name=s.name,
@@ -292,20 +296,22 @@ class SystemController(Controller):
                 litestar_version=_dist_version("litestar"),
                 apscheduler_version=_dist_version("apscheduler"),
             ),
-            database=await _database_versions(),
+            database=await _database_versions(request.app),
             geoip=geoip_info(s.geoip.db_path),
             links=AboutLinksView(repository=REPO_URL, issues=f"{REPO_URL}/issues"),
         )
 
     @get("/database")
-    async def get_database_info(self) -> DatabaseInfoResponse:
+    async def get_database_info(
+        self, request: Request, settings: NamedDependency[SkipValidation[Settings]]
+    ) -> DatabaseInfoResponse:
         """Size, versions, retention and hypertable stats for the Status page.
 
         Renders nulls instead of failing in DB-degraded mode.
         """
-        s = get_settings()
-        versions = await _database_versions()
-        size_bytes, hypertables = await _database_stats()
+        s = settings
+        versions = await _database_versions(request.app)
+        size_bytes, hypertables = await _database_stats(request.app)
         return DatabaseInfoResponse(
             reachable=size_bytes is not None,
             size_bytes=size_bytes,
@@ -317,7 +323,9 @@ class SystemController(Controller):
         )
 
     @get("/scheduler/jobs")
-    async def get_scheduler_jobs(self, request: Request) -> SchedulerJobsResponse:
+    async def get_scheduler_jobs(
+        self, request: Request, settings: NamedDependency[SkipValidation[Settings]]
+    ) -> SchedulerJobsResponse:
         """All scheduled jobs with next-run and tracked last-run state."""
         scheduler: AsyncIOScheduler | None = getattr(request.app.state, "scheduler", None)
         if scheduler is None:
@@ -328,7 +336,7 @@ class SystemController(Controller):
             getattr(request.app.state, "scheduler_tracker", None) or JobRunTracker()
         )
         return SchedulerJobsResponse(
-            scheduler_enabled=get_settings().scheduler.enabled,
+            scheduler_enabled=settings.scheduler.enabled,
             scheduler_running=scheduler.running,
             jobs=[_job_view(job, tracker) for job in scheduler.get_jobs()],
         )

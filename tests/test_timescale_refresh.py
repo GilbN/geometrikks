@@ -8,6 +8,8 @@ import pytest
 
 from geometrikks.server.timescale import refresh_caggs_range
 
+pytestmark = pytest.mark.anyio
+
 START = datetime(2026, 1, 1, tzinfo=timezone.utc)
 END = datetime(2026, 2, 1, tzinfo=timezone.utc)
 
@@ -85,7 +87,7 @@ async def test_scheduler_job_binds_timestamps(monkeypatch):
 
     calls: list = []
 
-    async def fake_exec(sql, *args):
+    async def fake_exec(session_factory, sql, *args):
         calls.append((sql, args))
 
     monkeypatch.setattr(sched, "_execute_call_outside_transaction", fake_exec)

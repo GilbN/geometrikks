@@ -10,8 +10,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from litestar import Request, get
+from litestar.di import NamedDependency
+from litestar.params import SkipValidation
 
-from geometrikks.config.settings import get_settings
+from geometrikks.config.settings import Settings
 from geometrikks.services.geoip.home import HomeLocation, HomeLocationSource
 
 
@@ -57,9 +59,11 @@ class SafeSettingsResponse:
 
 
 @get("/api/v1/settings", tags=["Settings"])
-async def read_settings(request: Request) -> SafeSettingsResponse:
+async def read_settings(
+    request: Request, settings: NamedDependency[SkipValidation[Settings]]
+) -> SafeSettingsResponse:
     """Whitelisted runtime settings (no credentials, ever)."""
-    s = get_settings()
+    s = settings
     home: HomeLocation | None = getattr(request.app.state, "map_home_location", None)
     if home is None and s.map.home_latitude is not None and s.map.home_longitude is not None:
         home = HomeLocation(

@@ -26,16 +26,17 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 
-def upgrade_to_head() -> None:
+def upgrade_to_head(database_url: str | None = None) -> None:
     """Run ``alembic upgrade head`` synchronously; call via asyncio.to_thread().
 
-    Builds a dedicated migration config from the settings URL instead of
-    reusing get_sqlalchemy_config(): alembic's env.py starts its own event
-    loop (asyncio.run), and sharing the app engine would let connections
-    bound to that throwaway loop land back in the app's pool.
+    Builds a dedicated migration config from the given URL (falling back to
+    ambient settings) instead of reusing the app engine: alembic's env.py
+    starts its own event loop (asyncio.run), and sharing the app engine
+    would let connections bound to that throwaway loop land back in the
+    app's pool.
     """
     config = SQLAlchemyAsyncConfig(
-        connection_string=get_settings().database.url,
+        connection_string=database_url or get_settings().database.url,
         alembic_config=AlembicAsyncConfig(
             script_config="alembic.ini",
             script_location="migrations",
@@ -68,4 +69,4 @@ async def migrate_database(engine: AsyncEngine, settings: Settings) -> None:
                 "development).",
                 settings.environment,
             )
-    await asyncio.to_thread(upgrade_to_head)
+    await asyncio.to_thread(upgrade_to_head, settings.database.url)

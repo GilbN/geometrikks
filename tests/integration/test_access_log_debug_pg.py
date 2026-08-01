@@ -15,6 +15,8 @@ from sqlalchemy import text
 
 from geometrikks.domain.logs.services import AccessLogDebugService
 
+pytestmark = pytest.mark.anyio
+
 # Wall-clock-relative so seeds stay inside the retention window.
 NOW = datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0)
 

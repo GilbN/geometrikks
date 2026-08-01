@@ -17,6 +17,10 @@ from sqlalchemy import or_, text
 from geometrikks.domain.logs.services import AccessLogService
 from geometrikks.server.timescale import refresh_caggs_range
 
+import pytest
+
+pytestmark = pytest.mark.anyio
+
 # Wall-clock-relative so seeds stay inside the raw-retention window (see conftest).
 NOW = datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0)
 

@@ -17,6 +17,8 @@ from geometrikks.domain.geo.schemas import GeoEventFilters
 from geometrikks.domain.geo.services import GeoEventService
 from geometrikks.server.timescale import refresh_caggs_range
 
+pytestmark = pytest.mark.anyio
+
 # Wall-clock derived, hour-aligned (see test_repositories_pg.py for why).
 NOW = datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0)
 
