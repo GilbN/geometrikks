@@ -6,8 +6,9 @@ from datetime import datetime
 from advanced_alchemy.filters import FilterTypes, LimitOffset
 from advanced_alchemy.repository import SQLAlchemyAsyncRepository
 from advanced_alchemy.service import SQLAlchemyAsyncRepositoryService
-from litestar.exceptions import ValidationException
 from sqlalchemy import func, select, text
+
+from geometrikks.domain.exceptions import DomainValidationError
 
 from geometrikks.domain.logs.models import AccessLog, AccessLogDebug
 from geometrikks.domain.logs.schemas import (
@@ -128,14 +129,14 @@ class AccessLogDebugService(SQLAlchemyAsyncRepositoryService[AccessLogDebug]):
         search over ``raw_line``/``parse_error``, LimitOffset) apply as before.
 
         Raises:
-            ValidationException: On an order_by field outside the allowlist
+            DomainValidationError: On an order_by field outside the allowlist
                 or a sort_order other than asc/desc.
         """
         sort_col = DEBUG_SORT_COLUMNS.get(order_by)
         if sort_col is None:
-            raise ValidationException(detail=f"Cannot sort by {order_by!r}")
+            raise DomainValidationError(f"Cannot sort by {order_by!r}")
         if sort_order not in ("asc", "desc"):
-            raise ValidationException(detail=f"Invalid sort order {sort_order!r}")
+            raise DomainValidationError(f"Invalid sort order {sort_order!r}")
 
         stmt = select(
             AccessLogDebug.id,

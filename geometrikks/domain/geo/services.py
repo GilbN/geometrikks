@@ -17,8 +17,9 @@ from datetime import datetime
 
 from advanced_alchemy.repository import SQLAlchemyAsyncRepository
 from advanced_alchemy.service import SQLAlchemyAsyncRepositoryService
-from litestar.exceptions import ValidationException
 from sqlalchemy import func, select, text
+
+from geometrikks.domain.exceptions import DomainValidationError
 
 from geometrikks.domain.geo.models import GeoEvent, GeoLocation
 from geometrikks.domain.geo.repositories import (
@@ -97,14 +98,14 @@ class GeoEventService(SQLAlchemyAsyncRepositoryService[GeoEvent]):
         tie-breaks so pagination stays deterministic within equal sort keys.
 
         Raises:
-            ValidationException: On an order_by field outside the allowlist.
-            ValueError: On a sort_order other than asc/desc.
+            DomainValidationError: On an order_by field outside the allowlist
+                or a sort_order other than asc/desc.
         """
         if sort_order not in ("asc", "desc"):
-            raise ValueError("sort_order must be 'asc' or 'desc'")
+            raise DomainValidationError(f"Invalid sort order {sort_order!r}")
         sort_col = GEO_LOG_SORT_COLUMNS.get(order_by)
         if sort_col is None:
-            raise ValidationException(detail=f"Cannot sort by {order_by!r}")
+            raise DomainValidationError(f"Cannot sort by {order_by!r}")
         granularity = get_stats_granularity(start, end)
         use_raw = granularity == StatsGranularity.RAW or filters.forces_raw
 

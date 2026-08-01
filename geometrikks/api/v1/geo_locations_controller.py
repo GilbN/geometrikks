@@ -1,6 +1,6 @@
 """GeoLocation API endpoints."""
 from __future__ import annotations
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Annotated
 
 from advanced_alchemy.extensions.litestar import filters
@@ -28,7 +28,8 @@ from geometrikks.domain.geo.dtos import (
 )
 
 from geometrikks.api.dependencies import provide_geo_location_repo
-from geometrikks.api.v1.geo_events_controller import validate_ip_addresses
+from geometrikks.lib.time import ensure_utc
+from geometrikks.lib.validation import validate_ip_addresses
 from geometrikks.server.logging import get_logger
 
 logger = get_logger(__name__)
@@ -110,11 +111,8 @@ class GeoLocationController(Controller):
         Returns:
             GeoJSONFeatureCollection containing locations and their event counts.
         """
-        # Ensure timezone awareness if datetimes are provided
-        if from_timestamp is not None and from_timestamp.tzinfo is None:
-            from_timestamp = from_timestamp.replace(tzinfo=timezone.utc)
-        if to_timestamp is not None and to_timestamp.tzinfo is None:
-            to_timestamp = to_timestamp.replace(tzinfo=timezone.utc)
+        from_timestamp = ensure_utc(from_timestamp)
+        to_timestamp = ensure_utc(to_timestamp)
         if ip_address_in:
             validate_ip_addresses(ip_address_in)
         if ip_address_not_in:
@@ -190,10 +188,8 @@ class GeoLocationController(Controller):
         Returns the top N IPs globally with the highest event counts,
         along with the location where each IP has the most events.
         """
-        if from_timestamp is not None and from_timestamp.tzinfo is None:
-            from_timestamp = from_timestamp.replace(tzinfo=timezone.utc)
-        if to_timestamp is not None and to_timestamp.tzinfo is None:
-            to_timestamp = to_timestamp.replace(tzinfo=timezone.utc)
+        from_timestamp = ensure_utc(from_timestamp)
+        to_timestamp = ensure_utc(to_timestamp)
 
         global_top_ips_data = await geo_location_repo.get_global_top_ips(
             from_timestamp, to_timestamp, limit=limit
@@ -243,10 +239,8 @@ class GeoLocationController(Controller):
 
         Returns the top N IPs with the highest event counts for the given location.
         """
-        if from_timestamp is not None and from_timestamp.tzinfo is None:
-            from_timestamp = from_timestamp.replace(tzinfo=timezone.utc)
-        if to_timestamp is not None and to_timestamp.tzinfo is None:
-            to_timestamp = to_timestamp.replace(tzinfo=timezone.utc)
+        from_timestamp = ensure_utc(from_timestamp)
+        to_timestamp = ensure_utc(to_timestamp)
 
         top_ips_data = await geo_location_repo.get_location_top_ips(
             location_id, from_timestamp, to_timestamp, limit=limit
@@ -284,10 +278,8 @@ class GeoLocationController(Controller):
 
         Returns the top N countries with the highest event counts.
         """
-        if from_timestamp is not None and from_timestamp.tzinfo is None:
-            from_timestamp = from_timestamp.replace(tzinfo=timezone.utc)
-        if to_timestamp is not None and to_timestamp.tzinfo is None:
-            to_timestamp = to_timestamp.replace(tzinfo=timezone.utc)
+        from_timestamp = ensure_utc(from_timestamp)
+        to_timestamp = ensure_utc(to_timestamp)
 
         top_countries_data = await geo_location_repo.get_top_countries(
             from_timestamp, to_timestamp, limit=limit

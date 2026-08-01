@@ -7,7 +7,6 @@ key) the data endpoints return 404 and the frontend hides the page.
 
 from __future__ import annotations
 
-import ipaddress
 import re
 from datetime import datetime
 from collections import Counter
@@ -18,11 +17,7 @@ from advanced_alchemy.extensions.litestar import filters
 from advanced_alchemy.service import OffsetPagination
 from litestar import Controller, Request, get, post
 from litestar.di import NamedDependency, Provide
-from litestar.exceptions import (
-    NotFoundException,
-    PermissionDeniedException,
-    ValidationException,
-)
+from litestar.exceptions import NotFoundException, PermissionDeniedException
 from litestar.params import QueryParameter, SkipValidation
 from litestar.status_codes import HTTP_200_OK, HTTP_204_NO_CONTENT
 
@@ -31,6 +26,8 @@ from geometrikks.api.dependencies import (
     provide_security_enrichment_repo,
 )
 from geometrikks.config.settings import Settings
+from geometrikks.domain.exceptions import DomainValidationError
+from geometrikks.lib.validation import validate_ip_address
 from geometrikks.domain.security.repositories import SecurityEnrichmentRepository
 from geometrikks.domain.security.schemas import IpEnrichment, IpLocation
 from geometrikks.server.logging import get_logger
@@ -157,18 +154,10 @@ def _require_write(crowdsec: CrowdSecService | None, settings: Settings) -> Crow
     return service
 
 
-def _validate_ip(value: str) -> str:
-    try:
-        ipaddress.ip_address(value)
-    except ValueError as exc:
-        raise ValidationException(detail=f"Invalid IP address: {value!r}") from exc
-    return value
-
-
 def _validate_duration(value: str) -> str:
     if not value or not GO_DURATION_RE.fullmatch(value):
-        raise ValidationException(
-            detail=f"Invalid ban duration: {value!r} (expected a Go duration like 4h, 30m, 168h)"
+        raise DomainValidationError(
+            f"Invalid ban duration: {value!r} (expected a Go duration like 4h, 30m, 168h)"
         )
     return value
 
@@ -252,7 +241,7 @@ class CrowdSecController(Controller):
         No enrichment: the caller already has the row's geo context.
         """
         service = _require_service(crowdsec)
-        _validate_ip(ip)
+        validate_ip_address(ip)
         decisions = await service.get_decisions_for_ip(ip)
         return [_to_view(d, None) for d in decisions]
 
@@ -315,7 +304,7 @@ class CrowdSecController(Controller):
         """
         service = _require_write(crowdsec, settings)
         if ip is not None:
-            _validate_ip(ip)
+            validate_ip_address(ip)
         if since is not None:
             _validate_duration(since)
         alerts = await service.get_alerts(limit=limit, ip=ip, scenario=scenario, since=since)
@@ -363,7 +352,7 @@ class CrowdSecController(Controller):
         Enforcement still depends on a bouncer attached to the LAPI.
         """
         service = _require_write(crowdsec, settings)
-        _validate_ip(data.ip)
+        validate_ip_address(data.ip)
         duration = data.duration and _validate_duration(data.duration)
         await service.ban_ip(data.ip, duration=duration, reason=data.reason)
         logger.info(
@@ -384,7 +373,7 @@ class CrowdSecController(Controller):
     ) -> UnbanResponse:
         """Delete all active decisions for one IP."""
         service = _require_write(crowdsec, settings)
-        _validate_ip(data.ip)
+        validate_ip_address(data.ip)
         deleted = await service.unban_ip(data.ip)
         logger.info(
             "CrowdSec unban by %s: ip=%s deleted=%d", _actor(request), data.ip, deleted

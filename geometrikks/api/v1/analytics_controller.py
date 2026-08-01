@@ -2,13 +2,11 @@
 
 from __future__ import annotations
 
-import ipaddress
 from datetime import datetime, timedelta
 from typing import Annotated, Literal
 
 from litestar import Controller, get
 from litestar.di import NamedDependency, Provide
-from litestar.exceptions import ValidationException
 from litestar.params import QueryParameter
 from litestar.openapi.spec import Example
 
@@ -45,6 +43,7 @@ from geometrikks.api.dependencies import (
     provide_live_stats_repo,
     provide_summary_stats_repo
 )
+from geometrikks.lib.validation import validate_ip_addresses
 
 
 def _calculate_percent_change(current: float, previous: float) -> float | None:
@@ -61,11 +60,7 @@ def _build_filters(
     ip_address_not_in: list[str] | None = None,
 ) -> AnalyticsFilters:
     """Validate filter params; bad IPs become a 400 instead of a DB error."""
-    for ip in (ip_address or []) + (ip_address_not_in or []):
-        try:
-            ipaddress.ip_address(ip)
-        except ValueError as exc:
-            raise ValidationException(f"Invalid IP address: {ip!r}") from exc
+    validate_ip_addresses((ip_address or []) + (ip_address_not_in or []))
     return AnalyticsFilters(
         country_codes=country_code or None,
         cities=city or None,

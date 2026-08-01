@@ -9,6 +9,7 @@ from litestar.testing import AsyncTestClient
 
 from geometrikks.api.dependencies import provide_limit_offset_pagination
 from geometrikks.api.v1.crowdsec_controller import CrowdSecController
+from geometrikks.server.exceptions import EXCEPTION_HANDLERS
 from geometrikks.domain.security.repositories import SecurityEnrichmentRepository
 from geometrikks.domain.security.schemas import IpEnrichment
 from geometrikks.services.crowdsec import CrowdSecService, Decision
@@ -78,6 +79,8 @@ def make_app(
             "limit_offset": Provide(provide_limit_offset_pagination, sync_to_thread=False),
             **ambient_settings_dependency(),
         },
+        # Production wiring: create_app() registers the same central map.
+        exception_handlers=EXCEPTION_HANDLERS,
     )
     app.state.crowdsec_service = service
     return app

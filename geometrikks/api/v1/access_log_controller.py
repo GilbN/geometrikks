@@ -1,13 +1,11 @@
 """AccessLog API endpoints."""
 from __future__ import annotations
 
-import ipaddress
 from datetime import datetime
 from typing import Annotated
 
 from litestar import Controller, get
 from litestar.di import NamedDependency, Provide
-from litestar.exceptions import ValidationException
 from litestar.params import QueryParameter, SkipValidation
 from sqlalchemy import or_
 from advanced_alchemy.extensions.litestar.providers import create_service_dependencies
@@ -25,6 +23,7 @@ from geometrikks.domain.logs.models import AccessLog
 from geometrikks.domain.logs.schemas import AccessLogFacets
 from geometrikks.domain.logs.services import AccessLogService
 from geometrikks.domain.logs.dtos import AccessLogDTO
+from geometrikks.lib.validation import validate_ip_addresses
 
 
 def provide_access_log_time_window(
@@ -45,21 +44,6 @@ def provide_access_log_time_window(
             on_or_before=to_timestamp,
         )
     ]
-
-
-def _validate_ip_addresses(ips: list[str]) -> None:
-    """Reject non-IP values before they reach an INET bind param.
-
-    Raises:
-        ValidationException: If a value is not a valid IP - ``ip_address`` is
-            an INET column, so asyncpg would otherwise fail to encode the bind
-            param and surface a 500.
-    """
-    for raw in ips:
-        try:
-            ipaddress.ip_address(raw)
-        except ValueError as exc:
-            raise ValidationException(detail=f"Invalid IP address: {raw!r}") from exc
 
 
 def provide_access_log_in_filters(
@@ -87,14 +71,14 @@ def provide_access_log_in_filters(
     NOT NULL, so ``ipAddressNotIn`` needs no such treatment.
 
     Raises:
-        ValidationException: If an ``ipAddressIn``/``ipAddressNotIn`` value is
-            not a valid IP.
+        DomainValidationError: If an ``ipAddressIn``/``ipAddressNotIn`` value
+            is not a valid IP.
     """
     result: list[FilterTypes] = []
     if method_in:
         result.append(CollectionFilter(field_name="method", values=method_in))
     if ip_address_in:
-        _validate_ip_addresses(ip_address_in)
+        validate_ip_addresses(ip_address_in)
         result.append(CollectionFilter(field_name="ip_address", values=ip_address_in))
     if city_in:
         result.append(CollectionFilter(field_name="city", values=city_in))
@@ -103,7 +87,7 @@ def provide_access_log_in_filters(
     if status_in:
         result.append(CollectionFilter(field_name="status_code", values=status_in))
     if ip_address_not_in:
-        _validate_ip_addresses(ip_address_not_in)
+        validate_ip_addresses(ip_address_not_in)
         result.append(NotInCollectionFilter(field_name="ip_address", values=ip_address_not_in))
     if host_in:
         result.append(CollectionFilter(field_name="host", values=host_in))

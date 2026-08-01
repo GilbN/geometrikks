@@ -1,13 +1,11 @@
 """GeoEvent API endpoints (raw events + geo-logs page aggregates)."""
 from __future__ import annotations
 
-import ipaddress
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Annotated, Literal
 
 from litestar import Controller, get
 from litestar.di import NamedDependency, Provide
-from litestar.exceptions import ValidationException
 from litestar.params import QueryParameter, SkipValidation
 from litestar.openapi.spec import Example
 from advanced_alchemy.extensions.litestar.providers import create_service_dependencies
@@ -34,6 +32,8 @@ from geometrikks.domain.geo.schemas import (
     TopGeoIpsResponse,
 )
 from geometrikks.domain.geo.services import GeoEventService
+from geometrikks.lib.time import ensure_utc
+from geometrikks.lib.validation import validate_ip_addresses
 
 START_PARAM = QueryParameter(
     description="Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)",
@@ -43,26 +43,6 @@ END_PARAM = QueryParameter(
     description="End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)",
     examples=[Example(value="2024-12-31T23:59:59Z")],
 )
-
-
-def validate_ip_addresses(ips: list[str]) -> None:
-    """Reject non-IP values before they reach an INET bind param.
-
-    Raises:
-        ValidationException: If a value is not a valid IP — ``ip_address`` is
-            an INET column, so asyncpg would otherwise fail to encode the bind
-            param and surface a 500.
-    """
-    for raw in ips:
-        try:
-            ipaddress.ip_address(raw)
-        except ValueError as exc:
-            raise ValidationException(detail=f"Invalid IP address: {raw!r}") from exc
-
-
-def _ensure_utc(dt: datetime) -> datetime:
-    """Treat naive API timestamps as UTC and normalize aware ones to UTC."""
-    return dt.replace(tzinfo=timezone.utc) if dt.tzinfo is None else dt.astimezone(timezone.utc)
 
 
 def _calculate_percent_change(current: float, previous: float) -> float | None:
@@ -86,8 +66,8 @@ def provide_geo_event_time_window(
     return [
         OnBeforeAfter(
             field_name="timestamp",
-            on_or_after=_ensure_utc(from_timestamp) if from_timestamp is not None else None,
-            on_or_before=_ensure_utc(to_timestamp) if to_timestamp is not None else None,
+            on_or_after=ensure_utc(from_timestamp) if from_timestamp is not None else None,
+            on_or_before=ensure_utc(to_timestamp) if to_timestamp is not None else None,
         )
     ]
 
@@ -225,8 +205,8 @@ class GeoEventController(Controller):
         Ranges > 24h are served from the daily per-IP CAGG (day-floored
         buckets, no hostnames); a hostname filter forces the raw path.
         """
-        from_timestamp = _ensure_utc(from_timestamp)
-        to_timestamp = _ensure_utc(to_timestamp)
+        from_timestamp = ensure_utc(from_timestamp)
+        to_timestamp = ensure_utc(to_timestamp)
         limit = page_size
         offset = page_size * (current_page - 1)
         rows, total = await geo_event_service.get_grouped_logs(
@@ -253,8 +233,8 @@ class GeoEventController(Controller):
         use per-IP CAGGs (exact uniques); unfiltered ranges > 24h use HLL
         CAGGs (approximate uniques).
         """
-        from_timestamp = _ensure_utc(from_timestamp)
-        to_timestamp = _ensure_utc(to_timestamp)
+        from_timestamp = ensure_utc(from_timestamp)
+        to_timestamp = ensure_utc(to_timestamp)
         current = await geo_event_service.get_summary(from_timestamp, to_timestamp, geo_filters)
 
         previous = None
@@ -307,8 +287,8 @@ class GeoEventController(Controller):
         use per-IP CAGGs (exact uniques); unfiltered ranges > 24h use HLL
         CAGGs (approximate uniques).
         """
-        from_timestamp = _ensure_utc(from_timestamp)
-        to_timestamp = _ensure_utc(to_timestamp)
+        from_timestamp = ensure_utc(from_timestamp)
+        to_timestamp = ensure_utc(to_timestamp)
         resolved = _resolve_chart_granularity(from_timestamp, to_timestamp, granularity)
         points = await geo_event_service.get_time_series(
             from_timestamp, to_timestamp, resolved, geo_filters
@@ -331,7 +311,7 @@ class GeoEventController(Controller):
     ) -> TopGeoIpsResponse:
         """Top IPs across all locations for the period."""
         rows = await geo_event_service.get_top_ips(
-            _ensure_utc(from_timestamp), _ensure_utc(to_timestamp), geo_filters, limit=limit
+            ensure_utc(from_timestamp), ensure_utc(to_timestamp), geo_filters, limit=limit
         )
         return TopGeoIpsResponse(items=rows)
 
@@ -346,7 +326,7 @@ class GeoEventController(Controller):
     ) -> TopGeoCountriesResponse:
         """Top countries with exact unique-IP counts for the period."""
         rows = await geo_event_service.get_top_countries(
-            _ensure_utc(from_timestamp), _ensure_utc(to_timestamp), geo_filters, limit=limit
+            ensure_utc(from_timestamp), ensure_utc(to_timestamp), geo_filters, limit=limit
         )
         return TopGeoCountriesResponse(items=rows)
 
@@ -361,7 +341,7 @@ class GeoEventController(Controller):
     ) -> TopGeoCitiesResponse:
         """Top cities (NULL cities excluded) for the period."""
         rows = await geo_event_service.get_top_cities(
-            _ensure_utc(from_timestamp), _ensure_utc(to_timestamp), geo_filters, limit=limit
+            ensure_utc(from_timestamp), ensure_utc(to_timestamp), geo_filters, limit=limit
         )
         return TopGeoCitiesResponse(items=rows)
 

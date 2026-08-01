@@ -87,6 +87,18 @@ def test_database_stack_binds_to_explicit_settings(monkeypatch):
     assert "ambient.invalid" not in url
 
 
+async def test_domain_validation_error_translates_to_400():
+    """Central handler: DomainValidationError raised inside a dependency
+    provider (IP filter validation) must surface as a 400, not a 500."""
+    app = create_app(settings=_hermetic_settings())
+    async with AsyncTestClient(app=app) as client:
+        resp = await client.get("/api/v1/geo-events/", params={"ipAddressIn": "not-an-ip"})
+    assert resp.status_code == 400
+    body = resp.json()
+    assert body["status_code"] == 400
+    assert "Invalid IP address" in body["detail"]
+
+
 def test_create_plugins_derives_db_config_from_explicit_settings(monkeypatch):
     """create_plugins(settings=...) without a db_config must not fall back to
     the ambient process-cached engine (split-brain configuration)."""
