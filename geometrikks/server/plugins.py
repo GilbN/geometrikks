@@ -143,10 +143,12 @@ def create_plugins(
     """Instantiate all app plugins; called once from create_app()."""
     from geometrikks.cli import ImportLogsCLIPlugin
 
+    if db_config is None:
+        # Explicit settings must also govern the SQLAlchemy plugin; only a
+        # fully ambient call may use the process-cached config.
+        db_config = get_sqlalchemy_config() if settings is None else create_sqlalchemy_config(settings)
     if settings is None:
         settings = get_settings()
-    if db_config is None:
-        db_config = get_sqlalchemy_config()
     return [
         SQLAlchemyInitPlugin(config=db_config),
         GeoAlchemyPlugin(),  # GeoAlchemy plugin for PostGIS support

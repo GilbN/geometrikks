@@ -85,3 +85,18 @@ def test_database_stack_binds_to_explicit_settings(monkeypatch):
     url = str(app.state.db_config.get_engine().url)
     assert "127.0.0.1" in url
     assert "ambient.invalid" not in url
+
+
+def test_create_plugins_derives_db_config_from_explicit_settings(monkeypatch):
+    """create_plugins(settings=...) without a db_config must not fall back to
+    the ambient process-cached engine (split-brain configuration)."""
+    from advanced_alchemy.extensions.litestar import SQLAlchemyInitPlugin
+
+    from geometrikks.server import plugins as plugins_mod
+
+    monkeypatch.setenv("DB_HOST", "ambient.invalid")
+    plugin_list = plugins_mod.create_plugins(settings=_hermetic_settings())
+    init_plugin = next(p for p in plugin_list if isinstance(p, SQLAlchemyInitPlugin))
+    url = str(init_plugin.config[0].get_engine().url)
+    assert "127.0.0.1" in url
+    assert "ambient.invalid" not in url
