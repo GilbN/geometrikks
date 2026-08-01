@@ -13,7 +13,7 @@ import pytest
 from advanced_alchemy.filters import CollectionFilter, NotInCollectionFilter, OnBeforeAfter
 from geometrikks.domain.exceptions import DomainValidationError
 
-from geometrikks.api.v1.geo_events_controller import (
+from geometrikks.domain.geo.controllers.events import (
     GeoEventController,
     provide_geo_event_filters,
     provide_geo_event_in_filters,

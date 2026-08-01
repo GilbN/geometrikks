@@ -7,7 +7,7 @@ from datetime import datetime, timedelta, timezone
 import pytest
 from geometrikks.domain.exceptions import DomainValidationError
 
-from geometrikks.api.v1.analytics_controller import _build_filters, _resolve_chart_granularity
+from geometrikks.domain.analytics.controllers import _build_filters, _resolve_chart_granularity
 from geometrikks.domain.analytics.repositories import StatsGranularity
 
 NOW = datetime(2026, 7, 16, 12, 0, tzinfo=timezone.utc)

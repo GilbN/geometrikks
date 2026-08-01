@@ -19,7 +19,7 @@ from advanced_alchemy.filters import (
     OnBeforeAfter,
 )
 
-from geometrikks.api.v1.access_log_controller import (
+from geometrikks.domain.logs.controllers.access_logs import (
     provide_access_log_in_filters,
     provide_access_log_time_window,
 )

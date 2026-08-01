@@ -7,7 +7,7 @@ from litestar import Litestar
 from litestar.di import Provide
 from litestar.testing import AsyncTestClient
 
-from geometrikks.api.v1.crowdsec_controller import CrowdSecController
+from geometrikks.domain.security.controllers import CrowdSecController
 from geometrikks.server.exceptions import EXCEPTION_HANDLERS
 from geometrikks.domain.security.repositories import SecurityEnrichmentRepository
 from geometrikks.domain.security.schemas import IpEnrichment
@@ -325,7 +325,7 @@ async def test_ban_is_audit_logged(monkeypatch):
         def emit(self, record: logging.LogRecord) -> None:
             records.append(record)
 
-    audit_logger = logging.getLogger("geometrikks.api.v1.crowdsec_controller")
+    audit_logger = logging.getLogger("geometrikks.domain.security.controllers")
     handler = ListHandler(level=logging.INFO)
     app = make_app(WritableFakeCrowdSec())
     async with AsyncTestClient(app=app) as client:

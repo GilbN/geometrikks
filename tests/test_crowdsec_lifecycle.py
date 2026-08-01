@@ -92,7 +92,7 @@ async def test_shutdown_closes_service():
 
 
 def test_controller_registered_in_routes():
-    from geometrikks.api.v1.crowdsec_controller import CrowdSecController
+    from geometrikks.domain.security.controllers import CrowdSecController
     from geometrikks.server.routes import get_route_handlers
 
     assert CrowdSecController in get_route_handlers()
