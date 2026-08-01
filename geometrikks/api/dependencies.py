@@ -6,15 +6,30 @@ from typing import Annotated
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from litestar import Request
-from litestar.di import NamedDependency
+from litestar.di import NamedDependency, Provide
 from litestar.params import QueryParameter
 from advanced_alchemy.extensions.litestar import filters
 
+from geometrikks.config.settings import Settings
 from geometrikks.services.crowdsec import CrowdSecService
 from geometrikks.services.ingestion import LogIngestionService
 from geometrikks.domain.geo.repositories import GeoLocationRepository
 from geometrikks.domain.analytics.repositories import LiveStatsRepository, SummaryStatsRepository
 from geometrikks.domain.security.repositories import SecurityEnrichmentRepository
+
+
+def create_settings_provider(settings: Settings) -> Provide:
+    """Build the app-level ``settings`` dependency around an explicit object.
+
+    ``create_app()`` registers this so request handlers receive the exact
+    settings the app was composed with; tests can pass their own ``Settings``
+    to ``create_app(settings=...)`` instead of mutating process state.
+    """
+
+    def provide_settings() -> Settings:
+        return settings
+
+    return Provide(provide_settings, sync_to_thread=False)
 
 
 def provide_ingestion_service(request: Request) -> LogIngestionService | None:

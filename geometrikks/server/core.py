@@ -2,31 +2,49 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
 
 from litestar import Litestar
 from litestar.di import Provide
 from litestar.openapi import OpenAPIConfig
 from litestar.config.compression import CompressionConfig
 
-from geometrikks.config.settings import get_settings
+from geometrikks.config.settings import Settings, get_settings
 from geometrikks.server import plugins
 from geometrikks.server.exceptions import CROWDSEC_EXCEPTION_HANDLERS
 from geometrikks.server.lifecycle import on_startup, on_shutdown
 from geometrikks.server.routes import get_route_handlers
-from geometrikks.api.dependencies import provide_limit_offset_pagination
+from geometrikks.api.dependencies import (
+    create_settings_provider,
+    provide_limit_offset_pagination,
+)
+
+if TYPE_CHECKING:
+    from collections.abc import Mapping
 
 
-def create_app() -> Litestar:
+def create_app(
+    settings: Settings | None = None,
+    dependencies: Mapping[str, Provide] | None = None,
+) -> Litestar:
     """Create and configure the Litestar application.
-    
+
     This factory function loads configuration and initializes the app
     with proper settings for CORS, OpenAPI, dependency injection, etc.
-    
+
+    Args:
+        settings: Explicit settings for the app. Defaults to the cached
+            process settings; tests pass their own instance for hermetic
+            composition.
+        dependencies: Extra or replacement app-level dependency providers,
+            merged over the defaults. Intended for tests that substitute
+            services without patching modules.
+
     Returns:
         Litestar: Configured application instance
     """
-    # Load settings once at app creation
-    settings = get_settings()
+    if settings is None:
+        settings = get_settings()
 
     from geometrikks.server.auth import build_auth_state, create_session_auth, warn_auth_disabled
 
@@ -56,21 +74,29 @@ def create_app() -> Litestar:
         ],
     )
     
+    dependency_map: dict[str, Provide] = {
+        "limit_offset": Provide(provide_limit_offset_pagination, sync_to_thread=False),
+        "settings": create_settings_provider(settings),
+    }
+    if dependencies:
+        dependency_map.update(dependencies)
+
     # Create app with configuration
     app = Litestar(
         debug=settings.debug,
         route_handlers=get_route_handlers(include_auth=not settings.auth_disabled),
         on_startup=[on_startup],
         on_shutdown=[on_shutdown],
-        plugins=plugins.create_plugins(),
-        dependencies={
-            "limit_offset": Provide(provide_limit_offset_pagination, sync_to_thread=False),
-        },
+        plugins=plugins.create_plugins(settings),
+        dependencies=dependency_map,
         openapi_config=openapi_config,
         compression_config=compression_config,
         exception_handlers=CROWDSEC_EXCEPTION_HANDLERS,
         on_app_init=on_app_init,
     )
     app.state.auth_state = auth_state
+    # Lifecycle hooks and other non-request code read the composed settings
+    # from state instead of re-resolving the process-cached factory.
+    app.state.settings = settings
 
     return app

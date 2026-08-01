@@ -61,7 +61,9 @@ async def on_startup(app: "Litestar") -> None:
     from geometrikks.server.logging import log_broadcaster
     log_broadcaster.bind_loop(asyncio.get_running_loop())
 
-    settings = get_settings()
+    # create_app() stores its composed settings on state; the fallback keeps
+    # hand-built test apps that attach this hook directly working.
+    settings = getattr(app.state, "settings", None) or get_settings()
 
     if settings.api.log_level is not None:
         logger.warning(

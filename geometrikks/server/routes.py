@@ -3,7 +3,9 @@ from pathlib import Path
 
 from litestar import get
 from litestar.datastructures import ResponseHeader
+from litestar.di import NamedDependency
 from litestar.exceptions import NotFoundException
+from litestar.params import SkipValidation
 from litestar.response import File
 from litestar.types import ControllerRouterHandler
 
@@ -20,7 +22,7 @@ from geometrikks.api.v1.live_controller import crowdsec_feed, live_feed, logs_fe
 from geometrikks.api.v1.settings import read_settings
 from geometrikks.api.v1.stats import stats
 from geometrikks.api.health import health, health_ready
-from geometrikks.config.settings import get_settings
+from geometrikks.config.settings import Settings
 
 
 @get(
@@ -31,10 +33,10 @@ from geometrikks.config.settings import get_settings
     # stall; never serve it with a long-lived cache header.
     response_headers=[ResponseHeader(name="Cache-Control", value="no-cache")],
 )
-def service_worker() -> File:
+def service_worker(settings: NamedDependency[SkipValidation[Settings]]) -> File:
     # No worker in dev mode: it would cache the dev shell and break the next
     # production run on the same origin.
-    if get_settings().vite.dev_mode:
+    if settings.vite.dev_mode:
         raise NotFoundException(detail="Service worker is not served in dev mode")
     sw_path = Path("public/sw.js")
     if not sw_path.is_file():

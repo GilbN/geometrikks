@@ -23,14 +23,14 @@ from litestar.exceptions import (
     PermissionDeniedException,
     ValidationException,
 )
-from litestar.params import QueryParameter
+from litestar.params import QueryParameter, SkipValidation
 from litestar.status_codes import HTTP_200_OK, HTTP_204_NO_CONTENT
 
 from geometrikks.api.dependencies import (
     provide_crowdsec_service,
     provide_security_enrichment_repo,
 )
-from geometrikks.config.settings import get_settings
+from geometrikks.config.settings import Settings
 from geometrikks.domain.security.repositories import SecurityEnrichmentRepository
 from geometrikks.domain.security.schemas import IpEnrichment, IpLocation
 from geometrikks.server.logging import get_logger
@@ -148,9 +148,9 @@ def _require_service(crowdsec: CrowdSecService | None) -> CrowdSecService:
     return crowdsec
 
 
-def _require_write(crowdsec: CrowdSecService | None) -> CrowdSecService:
+def _require_write(crowdsec: CrowdSecService | None, settings: Settings) -> CrowdSecService:
     service = _require_service(crowdsec)
-    if not get_settings().crowdsec.write_enabled:
+    if not settings.crowdsec.write_enabled:
         raise PermissionDeniedException(
             detail="Ban/unban requires CROWDSEC_MACHINE_ID and CROWDSEC_MACHINE_PASSWORD"
         )
@@ -191,7 +191,10 @@ class CrowdSecController(Controller):
 
     @get("/status")
     async def get_status(
-        self, crowdsec: NamedDependency[CrowdSecService | None], request: Request
+        self,
+        crowdsec: NamedDependency[CrowdSecService | None],
+        request: Request,
+        settings: NamedDependency[SkipValidation[Settings]],
     ) -> CrowdSecStatusResponse:
         """Integration state; the frontend gates the security page on this."""
         if crowdsec is None:
@@ -207,7 +210,7 @@ class CrowdSecController(Controller):
         cached: bool | None = poller.lapi_reachable if poller is not None else None
         return CrowdSecStatusResponse(
             enabled=True,
-            write_enabled=get_settings().crowdsec.write_enabled,
+            write_enabled=settings.crowdsec.write_enabled,
             lapi_reachable=cached if cached is not None else await crowdsec.ping(),
         )
 
@@ -295,6 +298,7 @@ class CrowdSecController(Controller):
         self,
         crowdsec: NamedDependency[CrowdSecService | None],
         enrichment_repo: NamedDependency[SecurityEnrichmentRepository],
+        settings: NamedDependency[SkipValidation[Settings]],
         limit: Annotated[int, QueryParameter(ge=1, le=500, required=False)] = 50,
         ip: Annotated[str | None, QueryParameter(required=False)] = None,
         scenario: Annotated[str | None, QueryParameter(required=False)] = None,
@@ -309,7 +313,7 @@ class CrowdSecController(Controller):
         bans carry a bare IP. Ip-scope sources missing LAPI geo are filled
         from GeoMetrikks' own stored traffic instead.
         """
-        service = _require_write(crowdsec)
+        service = _require_write(crowdsec, settings)
         if ip is not None:
             _validate_ip(ip)
         if since is not None:
@@ -352,12 +356,13 @@ class CrowdSecController(Controller):
         crowdsec: NamedDependency[CrowdSecService | None],
         data: BanRequest,
         request: Request,
+        settings: NamedDependency[SkipValidation[Settings]],
     ) -> None:
         """Create a manual ban decision for one IP.
 
         Enforcement still depends on a bouncer attached to the LAPI.
         """
-        service = _require_write(crowdsec)
+        service = _require_write(crowdsec, settings)
         _validate_ip(data.ip)
         duration = data.duration and _validate_duration(data.duration)
         await service.ban_ip(data.ip, duration=duration, reason=data.reason)
@@ -365,7 +370,7 @@ class CrowdSecController(Controller):
             "CrowdSec ban by %s: ip=%s duration=%s reason=%s",
             _actor(request),
             data.ip,
-            duration or get_settings().crowdsec.default_ban_duration,
+            duration or settings.crowdsec.default_ban_duration,
             data.reason,
         )
 
@@ -375,9 +380,10 @@ class CrowdSecController(Controller):
         crowdsec: NamedDependency[CrowdSecService | None],
         data: UnbanRequest,
         request: Request,
+        settings: NamedDependency[SkipValidation[Settings]],
     ) -> UnbanResponse:
         """Delete all active decisions for one IP."""
-        service = _require_write(crowdsec)
+        service = _require_write(crowdsec, settings)
         _validate_ip(data.ip)
         deleted = await service.unban_ip(data.ip)
         logger.info(

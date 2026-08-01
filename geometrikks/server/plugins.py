@@ -110,13 +110,14 @@ def create_structlog_plugin(settings: Settings) -> StructlogPlugin:
     )
 
 
-def create_plugins() -> list[
+def create_plugins(settings: Settings | None = None) -> list[
     SQLAlchemyInitPlugin | GeoAlchemyPlugin | GranianPlugin | VitePlugin | CLIPlugin | StructlogPlugin
 ]:
     """Instantiate all app plugins; called once from create_app()."""
     from geometrikks.cli import ImportLogsCLIPlugin
 
-    settings = get_settings()
+    if settings is None:
+        settings = get_settings()
     return [
         SQLAlchemyInitPlugin(config=get_sqlalchemy_config()),
         GeoAlchemyPlugin(),  # GeoAlchemy plugin for PostGIS support

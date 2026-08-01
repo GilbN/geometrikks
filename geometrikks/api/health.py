@@ -12,10 +12,11 @@ from typing import Any
 
 from litestar import Request, Response, get
 from litestar.di import NamedDependency, Provide
+from litestar.params import SkipValidation
 from litestar.status_codes import HTTP_200_OK, HTTP_503_SERVICE_UNAVAILABLE
 from sqlalchemy import text
 
-from geometrikks.config.settings import get_settings
+from geometrikks.config.settings import Settings
 from geometrikks.lib.utils import geoip_info
 from geometrikks.services.ingestion import LogIngestionService
 from geometrikks.api.dependencies import provide_ingestion_service as pis
@@ -44,7 +45,9 @@ async def _database_reachable(timeout: float = 2.0) -> bool:
     dependencies={"ingestion_service": Provide(pis, sync_to_thread=False)},
 )
 async def health(
-    request: Request, ingestion_service: NamedDependency[LogIngestionService | None]
+    request: Request,
+    ingestion_service: NamedDependency[LogIngestionService | None],
+    settings: NamedDependency[SkipValidation[Settings]],
 ) -> dict[str, Any]:
     """Liveness + component detail. Always 200 while the app is up."""
     def _iso(dt: datetime | None) -> str | None:
@@ -80,7 +83,7 @@ async def health(
         # GeoLite2 build, not the file's mtime.
         "geoip": {
             "available": getattr(request.app.state, "geoip_available", True),
-            "db_build_date": _iso(geoip_info(get_settings().geoip.db_path).build_date),
+            "db_build_date": _iso(geoip_info(settings.geoip.db_path).build_date),
         },
         # CrowdSec is an optional integration: a down LAPI never flips
         # `status`. lapi_reachable is the stream poller's cached verdict;

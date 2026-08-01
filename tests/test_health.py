@@ -10,11 +10,15 @@ from geometrikks.api import health as health_module
 from geometrikks.api.health import health, health_ready
 from geometrikks.services.ingestion import LogIngestionService
 from geometrikks.services.logparser.logparser import LogParser
+from tests.support import ambient_settings_dependency
 
 
 def make_app() -> Litestar:
     # No ingestion service in app.state -> degraded mode
-    return Litestar(route_handlers=[health, health_ready])
+    return Litestar(
+        route_handlers=[health, health_ready],
+        dependencies=ambient_settings_dependency(),
+    )
 
 
 def test_health_returns_200_even_when_degraded(monkeypatch):

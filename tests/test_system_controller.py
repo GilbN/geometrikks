@@ -11,6 +11,7 @@ from litestar.testing import AsyncTestClient
 
 from geometrikks.api.v1.system_controller import SystemController
 from geometrikks.server.scheduler_tracking import JobRunTracker
+from tests.support import ambient_settings_dependency
 
 FUTURE = datetime(2030, 1, 1, tzinfo=timezone.utc)
 
@@ -59,7 +60,11 @@ def make_app(*, with_scheduler: bool = True) -> Litestar:
         app.state.scheduler = scheduler
         app.state.scheduler_tracker = tracker
 
-    return Litestar(route_handlers=[SystemController], on_startup=[startup])
+    return Litestar(
+        route_handlers=[SystemController],
+        on_startup=[startup],
+        dependencies=ambient_settings_dependency(),
+    )
 
 
 async def test_lists_jobs_with_run_info():
@@ -189,7 +194,11 @@ async def test_system_settings_surface_computed_values(monkeypatch):
         )
         app.state.geoip_available = True
 
-    app = Litestar(route_handlers=[SystemController], on_startup=[startup])
+    app = Litestar(
+        route_handlers=[SystemController],
+        on_startup=[startup],
+        dependencies=ambient_settings_dependency(),
+    )
     async with AsyncTestClient(app=app) as client:
         resp = await client.get("/api/v1/system/settings")
     assert resp.status_code == 200

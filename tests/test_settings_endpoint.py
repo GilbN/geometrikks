@@ -6,10 +6,13 @@ from litestar.testing import TestClient
 
 from geometrikks.api.v1.settings import read_settings
 from geometrikks.services.geoip.home import HomeLocation
+from tests.support import ambient_settings_dependency
 
 
 def make_app() -> Litestar:
-    app = Litestar(route_handlers=[read_settings])
+    app = Litestar(
+        route_handlers=[read_settings], dependencies=ambient_settings_dependency()
+    )
     app.state.map_home_location = HomeLocation(40.7128, -74.006, "external_ip")
     return app
 
