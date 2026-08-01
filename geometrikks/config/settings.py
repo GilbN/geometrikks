@@ -1,4 +1,5 @@
 import json
+import os
 import socket
 import warnings
 from functools import lru_cache
@@ -11,6 +12,18 @@ from urllib.parse import quote
 from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 from geometrikks.services.logparser.constants import ALLOWED_GEOIP_LOCALES
+
+
+def _env_file() -> str | None:
+    """Resolve the dotenv path used by every settings section.
+
+    GEOMETRIKKS_ENV_FILE overrides the default ``.env``; an empty value
+    disables dotenv loading entirely. The test suite sets it empty before
+    this module is imported so results never depend on a developer's local
+    ``.env``. Evaluated at class-creation time, like the rest of
+    ``model_config``.
+    """
+    return os.environ.get("GEOMETRIKKS_ENV_FILE", ".env") or None
 
 
 def get_installed_version() -> str:
@@ -33,7 +46,7 @@ class DatabaseSettings(BaseSettings):
     GeoAlchemy2 spatial features and high-volume log ingestion.
     """
 
-    model_config = SettingsConfigDict(env_prefix="DB_", env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(env_prefix="DB_", env_file=_env_file(), extra="ignore")
 
     echo: bool = Field(default=False, description="Enable SQLAlchemy query logging")
     echo_pool: bool = Field(default=False, description="Enable SQLAlchemy pool logging")
@@ -81,7 +94,7 @@ class GeoIPSettings(BaseSettings):
     # populate_by_name: account_id/license_key use MAXMINDDB_* validation
     # aliases for the env vars but must stay constructible by field name.
     model_config = SettingsConfigDict(
-        env_prefix="GEOIP_", env_file=".env", extra="ignore", populate_by_name=True
+        env_prefix="GEOIP_", env_file=_env_file(), extra="ignore", populate_by_name=True
     )
 
     db_path: Path = Field(
@@ -151,7 +164,7 @@ class GeoIPSettings(BaseSettings):
 class APISettings(BaseSettings):
     """API server configuration settings."""
 
-    model_config = SettingsConfigDict(env_prefix="API_", env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(env_prefix="API_", env_file=_env_file(), extra="ignore")
 
     host: str = Field(default="0.0.0.0", description="API server host")
     port: int = Field(default=8000, description="API server port")
@@ -164,7 +177,7 @@ class APISettings(BaseSettings):
 class LogSettings(BaseSettings):
     """Application logging configuration (files, rotation, level)."""
 
-    model_config = SettingsConfigDict(env_prefix="LOG_", env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(env_prefix="LOG_", env_file=_env_file(), extra="ignore")
 
     dir: Path = Field(default=Path("logs"), description="Directory for application log files")
     level: Literal["DEBUG", "INFO", "SUCCESS", "WARNING", "ERROR", "CRITICAL"] | None = Field(
@@ -190,7 +203,7 @@ class LogSettings(BaseSettings):
 class LogParserSettings(BaseSettings):
     """Log parser configuration settings."""
 
-    model_config = SettingsConfigDict(env_prefix="LOGPARSER_", env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(env_prefix="LOGPARSER_", env_file=_env_file(), extra="ignore")
 
     log_paths: Annotated[list[Path], NoDecode] = Field(
         default_factory=lambda: [Path("/var/log/nginx/access.log")],
@@ -282,7 +295,7 @@ class AnalyticsSettings(BaseSettings):
     These settings define the default retention periods.
     """
 
-    model_config = SettingsConfigDict(env_prefix="ANALYTICS_", env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(env_prefix="ANALYTICS_", env_file=_env_file(), extra="ignore")
 
     # Retention periods for TimescaleDB policies
     raw_retention_days: int = Field(
@@ -316,7 +329,7 @@ class AnalyticsSettings(BaseSettings):
 class SchedulerSettings(BaseSettings):
     """APScheduler configuration for periodic background tasks."""
 
-    model_config = SettingsConfigDict(env_prefix="SCHEDULER_", env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(env_prefix="SCHEDULER_", env_file=_env_file(), extra="ignore")
 
     enabled: bool = Field(
         default=True,
@@ -331,7 +344,7 @@ class SchedulerSettings(BaseSettings):
 class MapSettings(BaseSettings):
     """Map presentation settings shared with the web client."""
 
-    model_config = SettingsConfigDict(env_prefix="MAP_", env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(env_prefix="MAP_", env_file=_env_file(), extra="ignore")
 
     home_latitude: float | None = Field(
         default=None,
@@ -388,7 +401,7 @@ class CrowdSecSettings(BaseSettings):
     credentials additionally enable ban/unban actions.
     """
 
-    model_config = SettingsConfigDict(env_prefix="CROWDSEC_", env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(env_prefix="CROWDSEC_", env_file=_env_file(), extra="ignore")
 
     lapi_url: str | None = Field(
         default=None,
@@ -445,7 +458,7 @@ class CrowdSecSettings(BaseSettings):
 class ViteSettings(BaseSettings):
     """Vite server configuration settings."""
 
-    model_config = SettingsConfigDict(env_prefix="VITE_", env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(env_prefix="VITE_", env_file=_env_file(), extra="ignore")
 
     dev_mode: bool = Field(
         default=False,
@@ -497,7 +510,7 @@ class Settings(BaseSettings):
 
     model_config = SettingsConfigDict(
         env_prefix="APP_",
-        env_file=".env",
+        env_file=_env_file(),
         env_file_encoding="utf-8",
         case_sensitive=False,
         extra="ignore",

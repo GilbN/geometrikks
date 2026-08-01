@@ -1,6 +1,12 @@
 import os
 import pytest
 
+# Tests must never read a developer's .env. Every settings section resolves
+# its dotenv path through GEOMETRIKKS_ENV_FILE at class-creation time (empty
+# disables it), so this must run before geometrikks.config.settings is
+# imported anywhere; conftest module import precedes test collection.
+os.environ["GEOMETRIKKS_ENV_FILE"] = ""
+
 
 @pytest.fixture(scope="session", autouse=True)
 def disable_wait_env():
@@ -44,6 +50,11 @@ def baseline_settings_env():
         # Log parser
         "LOGPARSER_LOG_PATHS": "/var/log/nginx/access.log",
     })
+    # Representative developer values that default-asserting tests are
+    # sensitive to; scrub them so an exported shell environment cannot leak
+    # into the suite. Tests that need them set them via monkeypatch.
+    for var in ("MAP_HOME_LATITUDE", "MAP_HOME_LONGITUDE", "LOGPARSER_IGNORE_IPS"):
+        os.environ.pop(var, None)
 
 
 @pytest.fixture(autouse=True)
