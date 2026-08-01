@@ -34,6 +34,11 @@ def handle_not_found(request: Request, exc: NotFoundException) -> Response:
     is present, so this one owns all 404 rendering. Non-API paths keep the
     plugin's empty-body behavior for static-asset misses; API paths get the
     same native envelope as every other error.
+
+    The match is deliberately the whole /api/ namespace, not just /api/v1/:
+    it mirrors the auth boundary (NON_API_PATTERN in server/auth.py), which
+    reserves everything under /api/ for the REST API. A request to an unknown
+    or unversioned /api/ path comes from an API consumer and gets JSON.
     """
     if request.scope["path"].startswith("/api/"):
         return Response(

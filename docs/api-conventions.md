@@ -62,7 +62,9 @@ Errors use Litestar's native HTTP-exception envelope, unchanged:
 - Domain exceptions (`DomainValidationError`, CrowdSec errors) are translated
   centrally in `geometrikks/server/exceptions.py` into the same envelope.
 - API-path 404s render this envelope too; non-API 404s (static-asset misses)
-  keep litestar-vite's empty-body behavior.
+  keep litestar-vite's empty-body behavior. The 404 handler treats the whole
+  `/api/` namespace as API surface, matching the auth boundary: an unknown or
+  unversioned `/api/` path is an API consumer's mistake and gets JSON.
 
 ## Operation IDs
 
