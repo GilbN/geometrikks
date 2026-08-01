@@ -62,7 +62,7 @@ function SecurityPage() {
       <CrowdsecUnreachableBanner />
       <SecurityStatCards />
       <DecisionsTable />
-      {status.write_enabled && <AlertsTable />}
+      {status.writeEnabled && <AlertsTable />}
     </div>
   )
 }

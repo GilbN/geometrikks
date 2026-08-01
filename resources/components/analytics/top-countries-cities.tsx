@@ -45,10 +45,10 @@ export function TopCountriesCities() {
                   </TableHeader>
                   <TableBody>
                     {countryItems.map((row) => (
-                      <TableRow key={row.country_code}>
-                        <TableCell>{row.country_name ?? row.country_code}</TableCell>
+                      <TableRow key={row.countryCode}>
+                        <TableCell>{row.countryName ?? row.countryCode}</TableCell>
                         <TableCell className="text-right tabular-nums">{formatNumber(row.hits)}</TableCell>
-                        <TableCell className="text-right tabular-nums">{formatNumber(row.unique_ips)}</TableCell>
+                        <TableCell className="text-right tabular-nums">{formatNumber(row.uniqueIps)}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -72,10 +72,10 @@ export function TopCountriesCities() {
                   </TableHeader>
                   <TableBody>
                     {cityItems.map((row, index) => (
-                      <TableRow key={`${row.city}-${row.country_code}-${index}`}>
+                      <TableRow key={`${row.city}-${row.countryCode}-${index}`}>
                         <TableCell>{row.city}</TableCell>
                         <TableCell className="text-right tabular-nums">{formatNumber(row.hits)}</TableCell>
-                        <TableCell className="text-right tabular-nums">{formatNumber(row.unique_ips)}</TableCell>
+                        <TableCell className="text-right tabular-nums">{formatNumber(row.uniqueIps)}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>

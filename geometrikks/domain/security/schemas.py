@@ -3,6 +3,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+import msgspec
+
 
 @dataclass
 class IpEnrichment:
@@ -14,8 +16,7 @@ class IpEnrichment:
     request_count_24h: int
 
 
-@dataclass
-class IpLocation:
+class IpLocation(msgspec.Struct, rename="camel"):
     """Latest known coordinates for one IP, for the map's banned overlay."""
 
     ip: str

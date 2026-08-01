@@ -14,10 +14,10 @@ import { useTimeSeries } from "@/lib/queries"
 import { formatBucketTick } from "./chart-utils"
 
 const chartConfig = {
-  avg_request_time: { label: "avg", color: "var(--chart-1)" },
-  p50_request_time: { label: "p50", color: "var(--chart-2)" },
-  p95_request_time: { label: "p95", color: "var(--chart-3)" },
-  p99_request_time: { label: "p99", color: "var(--chart-4)" },
+  avgRequestTime: { label: "avg", color: "var(--chart-1)" },
+  p50RequestTime: { label: "p50", color: "var(--chart-2)" },
+  p95RequestTime: { label: "p95", color: "var(--chart-3)" },
+  p99RequestTime: { label: "p99", color: "var(--chart-4)" },
 } satisfies ChartConfig
 
 const SERIES = Object.keys(chartConfig) as (keyof typeof chartConfig)[]

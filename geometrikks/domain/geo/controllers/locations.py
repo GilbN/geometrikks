@@ -29,11 +29,11 @@ from geometrikks.domain.geo.dtos import (
 from geometrikks.lib.parameters import (
     CityFilter,
     CountryCodeFilter,
-    EndTimestamp,
+    ToTimestamp,
     HostnameIn,
     IpAddressIn,
     IpAddressNotIn,
-    StartTimestamp,
+    FromTimestamp,
 )
 from geometrikks.lib.time import ensure_utc
 from geometrikks.lib.validation import validate_ip_addresses
@@ -44,7 +44,7 @@ logger = get_logger(__name__)
 class GeoLocationController(Controller):
     """Geo-location endpoints for managing location data."""
 
-    path = "/api/v1/geo-locations"
+    path = "/geo-locations"
     tags = ["Geo Locations"]
     return_dto = GeoLocationDTO
 
@@ -74,8 +74,8 @@ class GeoLocationController(Controller):
     async def get_geojson(
         self,
         geo_location_service: NamedDependency[GeoLocationService],
-        from_timestamp: StartTimestamp,
-        to_timestamp: EndTimestamp,
+        from_timestamp: FromTimestamp,
+        to_timestamp: ToTimestamp,
         country_code: CountryCodeFilter = None,
         city: CityFilter = None,
         ip_address_in: IpAddressIn = None,
@@ -147,8 +147,8 @@ class GeoLocationController(Controller):
     async def get_global_top_ips(
         self,
         geo_location_service: NamedDependency[GeoLocationService],
-        from_timestamp: StartTimestamp,
-        to_timestamp: EndTimestamp,
+        from_timestamp: FromTimestamp,
+        to_timestamp: ToTimestamp,
         limit: Annotated[
             int,
             QueryParameter(description="Maximum number of IPs to return", ge=1, le=20),
@@ -187,8 +187,8 @@ class GeoLocationController(Controller):
         self,
         geo_location_service: NamedDependency[GeoLocationService],
         location_id: Annotated[int, PathParameter()],
-        from_timestamp: StartTimestamp,
-        to_timestamp: EndTimestamp,
+        from_timestamp: FromTimestamp,
+        to_timestamp: ToTimestamp,
         limit: Annotated[
             int,
             QueryParameter(description="Maximum number of IPs to return", ge=1, le=20),
@@ -214,8 +214,8 @@ class GeoLocationController(Controller):
     async def get_top_countries(
         self,
         geo_location_service: NamedDependency[GeoLocationService],
-        from_timestamp: StartTimestamp,
-        to_timestamp: EndTimestamp,
+        from_timestamp: FromTimestamp,
+        to_timestamp: ToTimestamp,
         limit: Annotated[
             int,
             QueryParameter(description="Maximum number of countries to return", ge=1, le=50),

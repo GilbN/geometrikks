@@ -27,12 +27,12 @@ export function SecurityStatCards() {
   }
 
   const localCount = stats
-    ? stats.by_origin
+    ? stats.byOrigin
         .filter((o) => LOCAL_ORIGINS.has(o.origin))
         .reduce((sum, o) => sum + o.count, 0)
     : null
   const crowdCount = stats && localCount !== null ? stats.total - localCount : null
-  const topScenario = stats?.top_scenarios[0]
+  const topScenario = stats?.topScenarios[0]
 
   return (
     <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -66,11 +66,11 @@ export function SecurityStatCards() {
       />
       <StatCard
         title="LAPI"
-        value={status.lapi_reachable ? "Connected" : "Unreachable"}
-        valueClassName={status.lapi_reachable ? "text-emerald-500" : "text-red-500"}
-        subtitle={status.write_enabled ? "ban/unban enabled" : "read-only (no machine credentials)"}
+        value={status.lapiReachable ? "Connected" : "Unreachable"}
+        valueClassName={status.lapiReachable ? "text-emerald-500" : "text-red-500"}
+        subtitle={status.writeEnabled ? "ban/unban enabled" : "read-only (no machine credentials)"}
         icon={ShieldCheck}
-        iconClassName={status.lapi_reachable ? "text-emerald-500" : "text-red-500"}
+        iconClassName={status.lapiReachable ? "text-emerald-500" : "text-red-500"}
       />
     </div>
   )

@@ -32,11 +32,11 @@ from geometrikks.domain.geo.schemas import (
 )
 from geometrikks.domain.geo.services import GeoEventService
 from geometrikks.lib.parameters import (
-    EndTimestamp,
+    ToTimestamp,
     HostnameIn,
     IpAddressIn,
     IpAddressNotIn,
-    StartTimestamp,
+    FromTimestamp,
 )
 from geometrikks.lib.time import ensure_utc
 from geometrikks.lib.validation import validate_ip_addresses
@@ -51,8 +51,8 @@ def _calculate_percent_change(current: float, previous: float) -> float | None:
 
 
 def provide_geo_event_time_window(
-    from_timestamp: Annotated[datetime | None, QueryParameter(required=False)] = None,
-    to_timestamp: Annotated[datetime | None, QueryParameter(required=False)] = None,
+    from_timestamp: Annotated[datetime | None, QueryParameter(name="fromTimestamp", required=False)] = None,
+    to_timestamp: Annotated[datetime | None, QueryParameter(name="toTimestamp", required=False)] = None,
 ) -> list[FilterTypes]:
     """Optional inclusive [from, to] window on the ``timestamp`` column.
 
@@ -140,7 +140,7 @@ class GeoEventController(Controller):
     filters ride the stitched per-IP CAGGs instead.
     """
 
-    path = "/api/v1/geo-events"
+    path = "/geo-events"
     return_dto = GeoEventDTO
     tags = ["Geo Events"]
 
@@ -180,8 +180,8 @@ class GeoEventController(Controller):
         self,
         geo_event_service: NamedDependency[GeoEventService],
         geo_filters: NamedDependency[SkipValidation[GeoEventFilters]],
-        from_timestamp: StartTimestamp,
-        to_timestamp: EndTimestamp,
+        from_timestamp: FromTimestamp,
+        to_timestamp: ToTimestamp,
         current_page: Annotated[int, QueryParameter(name="currentPage", ge=1, required=False)] = 1,
         page_size: Annotated[int, QueryParameter(name="pageSize", ge=1, le=500, required=False)] = 50,
         order_by: Annotated[
@@ -218,11 +218,11 @@ class GeoEventController(Controller):
         self,
         geo_event_service: NamedDependency[GeoEventService],
         geo_filters: NamedDependency[SkipValidation[GeoEventFilters]],
-        from_timestamp: StartTimestamp,
-        to_timestamp: EndTimestamp,
+        from_timestamp: FromTimestamp,
+        to_timestamp: ToTimestamp,
         compare_previous: Annotated[
             bool,
-            QueryParameter(description="Include comparison with previous period of same length"),
+            QueryParameter(name="comparePrevious", description="Include comparison with previous period of same length"),
         ] = False,
     ) -> GeoLogSummaryResponse:
         """Totals and unique counts for the period, optionally vs the previous one.
@@ -268,8 +268,8 @@ class GeoEventController(Controller):
         self,
         geo_event_service: NamedDependency[GeoEventService],
         geo_filters: NamedDependency[SkipValidation[GeoEventFilters]],
-        from_timestamp: StartTimestamp,
-        to_timestamp: EndTimestamp,
+        from_timestamp: FromTimestamp,
+        to_timestamp: ToTimestamp,
         granularity: Annotated[
             Literal["hourly", "daily"] | None,
             QueryParameter(
@@ -303,8 +303,8 @@ class GeoEventController(Controller):
         self,
         geo_event_service: NamedDependency[GeoEventService],
         geo_filters: NamedDependency[SkipValidation[GeoEventFilters]],
-        from_timestamp: StartTimestamp,
-        to_timestamp: EndTimestamp,
+        from_timestamp: FromTimestamp,
+        to_timestamp: ToTimestamp,
         limit: Annotated[int, QueryParameter(description="Maximum number of IPs", ge=1, le=50)] = 10,
     ) -> TopGeoIpsResponse:
         """Top IPs across all locations for the period."""
@@ -318,8 +318,8 @@ class GeoEventController(Controller):
         self,
         geo_event_service: NamedDependency[GeoEventService],
         geo_filters: NamedDependency[SkipValidation[GeoEventFilters]],
-        from_timestamp: StartTimestamp,
-        to_timestamp: EndTimestamp,
+        from_timestamp: FromTimestamp,
+        to_timestamp: ToTimestamp,
         limit: Annotated[int, QueryParameter(description="Maximum number of countries", ge=1, le=50)] = 10,
     ) -> TopGeoCountriesResponse:
         """Top countries with exact unique-IP counts for the period."""
@@ -333,8 +333,8 @@ class GeoEventController(Controller):
         self,
         geo_event_service: NamedDependency[GeoEventService],
         geo_filters: NamedDependency[SkipValidation[GeoEventFilters]],
-        from_timestamp: StartTimestamp,
-        to_timestamp: EndTimestamp,
+        from_timestamp: FromTimestamp,
+        to_timestamp: ToTimestamp,
         limit: Annotated[int, QueryParameter(description="Maximum number of cities", ge=1, le=50)] = 10,
     ) -> TopGeoCitiesResponse:
         """Top cities (NULL cities excluded) for the period."""

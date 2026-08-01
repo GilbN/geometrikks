@@ -1,7 +1,7 @@
 """Stats API endpoint for log parser statistics."""
 from __future__ import annotations
 
-from dataclasses import dataclass
+import msgspec
 
 from litestar import get
 from litestar.di import NamedDependency, Provide
@@ -10,8 +10,7 @@ from geometrikks.services.ingestion import LogIngestionService
 from geometrikks.domain.system.dependencies import provide_ingestion_service as pis
 
 
-@dataclass
-class IngestionStatsResponse:
+class IngestionStatsResponse(msgspec.Struct, rename="camel"):
     total_parsed_lines: int
     total_skipped_lines: int
     total_pending_records: int
@@ -21,7 +20,7 @@ class IngestionStatsResponse:
 
 
 @get(
-    "/api/v1/stats",
+    "/stats",
     tags=["Analytics"],
     dependencies={"ingestion_service": Provide(pis, sync_to_thread=False)},
 )

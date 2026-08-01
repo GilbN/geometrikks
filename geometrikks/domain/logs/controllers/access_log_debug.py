@@ -17,8 +17,8 @@ from geometrikks.lib.validation import validate_ip_addresses
 
 
 def provide_debug_time_window(
-    from_timestamp: Annotated[datetime | None, QueryParameter(required=False)] = None,
-    to_timestamp: Annotated[datetime | None, QueryParameter(required=False)] = None,
+    from_timestamp: Annotated[datetime | None, QueryParameter(name="fromTimestamp", required=False)] = None,
+    to_timestamp: Annotated[datetime | None, QueryParameter(name="toTimestamp", required=False)] = None,
 ) -> list[FilterTypes]:
     """Optional inclusive [from, to] window on ``created_at`` (ingest time).
 
@@ -51,7 +51,7 @@ class AccessLogDebugController(Controller):
     access-log context, filtering, search, sorting, and pagination.
     """
 
-    path = "/api/v1/access-log-debug"
+    path = "/access-log-debug"
     tags = ["Access Log Debug"]
 
     dependencies = create_service_dependencies(
@@ -116,8 +116,8 @@ class AccessLogDebugController(Controller):
     async def get_access_log_debug_stats(
         self,
         access_log_debug_service: NamedDependency[AccessLogDebugService],
-        from_timestamp: Annotated[datetime | None, QueryParameter(required=False)] = None,
-        to_timestamp: Annotated[datetime | None, QueryParameter(required=False)] = None,
+        from_timestamp: Annotated[datetime | None, QueryParameter(name="fromTimestamp", required=False)] = None,
+        to_timestamp: Annotated[datetime | None, QueryParameter(name="toTimestamp", required=False)] = None,
     ) -> AccessLogDebugStats:
         """Totals, malformed count, and top parse error within the range."""
         return await access_log_debug_service.get_stats(

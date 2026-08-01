@@ -41,9 +41,9 @@ export function TopUrlsTable() {
                   <TableRow key={row.url}>
                     <TableCell className="font-mono text-xs max-w-[420px] truncate">{row.url}</TableCell>
                     <TableCell className="text-right tabular-nums">{formatNumber(row.hits)}</TableCell>
-                    <TableCell className="text-right tabular-nums">{formatNumber(row.error_hits)}</TableCell>
-                    <TableCell className="text-right tabular-nums">{formatBytes(row.total_bytes)}</TableCell>
-                    <TableCell className="text-right tabular-nums">{formatDuration(row.avg_request_time * 1000)}</TableCell>
+                    <TableCell className="text-right tabular-nums">{formatNumber(row.errorHits)}</TableCell>
+                    <TableCell className="text-right tabular-nums">{formatBytes(row.totalBytes)}</TableCell>
+                    <TableCell className="text-right tabular-nums">{formatDuration(row.avgRequestTime * 1000)}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>

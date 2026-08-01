@@ -59,8 +59,8 @@ function useTicker(active: boolean): void {
 }
 
 function DurationCell({ job }: { job: SchedulerJobView }) {
-  if (job.running && job.last_run_time) {
-    const elapsed = (Date.now() - new Date(job.last_run_time).getTime()) / 1000
+  if (job.running && job.lastRunTime) {
+    const elapsed = (Date.now() - new Date(job.lastRunTime).getTime()) / 1000
     return (
       <span className="inline-flex items-center gap-1.5 text-sm text-geo-cyan tabular-nums">
         <Timer className="h-3.5 w-3.5" />
@@ -68,13 +68,13 @@ function DurationCell({ job }: { job: SchedulerJobView }) {
       </span>
     )
   }
-  if (job.last_duration_seconds === null || job.last_duration_seconds === undefined) {
+  if (job.lastDurationSeconds === null || job.lastDurationSeconds === undefined) {
     return <span className="text-sm text-muted-foreground">-</span>
   }
   return (
     <span className="inline-flex items-center gap-1.5 text-sm tabular-nums">
       <Timer className="h-3.5 w-3.5 text-muted-foreground" />
-      {formatDuration(job.last_duration_seconds)}
+      {formatDuration(job.lastDurationSeconds)}
     </span>
   )
 }
@@ -88,7 +88,7 @@ function StatusCell({ job }: { job: SchedulerJobView }) {
       </span>
     )
   }
-  if (!job.next_run_time) {
+  if (!job.nextRunTime) {
     return (
       <span className="inline-flex items-center gap-2 text-sm text-amber-600 dark:text-amber-400">
         <StatusLed tone="amber" />
@@ -111,22 +111,22 @@ const statusBadgeClasses: Record<string, string> = {
 }
 
 function LastRunCell({ job }: { job: SchedulerJobView }) {
-  if (!job.last_run_time) {
+  if (!job.lastRunTime) {
     return <span className="text-sm text-muted-foreground">not since startup</span>
   }
-  const badge = job.last_status ? (
-    <Badge variant="outline" className={cn("gap-1", statusBadgeClasses[job.last_status])}>
-      {job.last_status}
+  const badge = job.lastStatus ? (
+    <Badge variant="outline" className={cn("gap-1", statusBadgeClasses[job.lastStatus])}>
+      {job.lastStatus}
     </Badge>
   ) : null
   return (
     <div className="space-y-1">
-      <div className="text-sm">{relativeTime(job.last_run_time)}</div>
-      {job.last_status === "error" ? (
+      <div className="text-sm">{relativeTime(job.lastRunTime)}</div>
+      {job.lastStatus === "error" ? (
         <Tooltip>
           <TooltipTrigger asChild>{badge ?? <span />}</TooltipTrigger>
           <TooltipContent className="max-w-sm break-all">
-            {job.last_error ?? "unknown error"}
+            {job.lastError ?? "unknown error"}
           </TooltipContent>
         </Tooltip>
       ) : (
@@ -150,7 +150,7 @@ export function SchedulerOverview() {
     return <Skeleton className="h-64 w-full" />
   }
 
-  if (!data.scheduler_enabled) {
+  if (!data.schedulerEnabled) {
     return (
       <Card>
         <CardHeader>
@@ -189,7 +189,7 @@ export function SchedulerOverview() {
             <CardTitle className="text-base">
               <span className="inline-flex items-center gap-2">
                 <StatusLed
-                  tone={data.scheduler_running ? "emerald" : "red"}
+                  tone={data.schedulerRunning ? "emerald" : "red"}
                   pulse={runningCount > 0}
                 />
                 Scheduled tasks
@@ -197,7 +197,7 @@ export function SchedulerOverview() {
             </CardTitle>
             <CardDescription>
               {data.jobs.length} background jobs, scheduler{" "}
-              {data.scheduler_running ? "running" : "stopped"}. Last-run info resets on app
+              {data.schedulerRunning ? "running" : "stopped"}. Last-run info resets on app
               restart.
             </CardDescription>
           </div>
@@ -234,10 +234,10 @@ export function SchedulerOverview() {
                   <DurationCell job={job} />
                 </TableCell>
                 <TableCell className="align-top text-sm">
-                  {job.next_run_time ? (
+                  {job.nextRunTime ? (
                     <span className="inline-flex items-center gap-1.5">
                       <CalendarClock className="h-3.5 w-3.5 text-muted-foreground" />
-                      {relativeTime(job.next_run_time)}
+                      {relativeTime(job.nextRunTime)}
                     </span>
                   ) : (
                     <span className="text-muted-foreground">paused</span>

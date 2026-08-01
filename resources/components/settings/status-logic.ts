@@ -36,7 +36,7 @@ export function ingestionState(health: HealthResponse | undefined, isError: bool
       detail: "No log files are being tailed. Check the Logs tab for ingestion errors.",
     }
   }
-  if ((health.ingestion.missing_files ?? []).length > 0) {
+  if ((health.ingestion.missingFiles ?? []).length > 0) {
     return {
       tone: "amber",
       label: "Running, log file missing",
@@ -71,7 +71,7 @@ export function crowdsecState(
   if (isError) return { tone: "muted", label: "Unavailable" }
   if (!status) return { tone: "muted", label: "Unknown" }
   if (!status.enabled) return { tone: "muted", label: "Disabled" }
-  return status.lapi_reachable
+  return status.lapiReachable
     ? { tone: "emerald", label: "LAPI reachable" }
     : {
         tone: "red",
@@ -107,9 +107,9 @@ export function compressionSummary(
   let before = 0
   let after = 0
   for (const t of hypertables ?? []) {
-    if (t.before_compression_bytes !== null && t.after_compression_bytes !== null) {
-      before += t.before_compression_bytes
-      after += t.after_compression_bytes
+    if (t.beforeCompressionBytes !== null && t.afterCompressionBytes !== null) {
+      before += t.beforeCompressionBytes
+      after += t.afterCompressionBytes
     }
   }
   if (before === 0 || after === 0) return null
@@ -173,11 +173,11 @@ export function lastEventState(
 
 export function schedulerJobState(job: SchedulerJobView): CardState {
   if (job.running) return { tone: "cyan", label: "Running" }
-  if (job.last_status === "error") {
-    return { tone: "red", label: "Last run failed", detail: job.last_error ?? undefined }
+  if (job.lastStatus === "error") {
+    return { tone: "red", label: "Last run failed", detail: job.lastError ?? undefined }
   }
-  if (job.last_status === "missed") return { tone: "amber", label: "Missed last run" }
-  if (job.last_status === "success") return { tone: "emerald", label: "OK" }
+  if (job.lastStatus === "missed") return { tone: "amber", label: "Missed last run" }
+  if (job.lastStatus === "success") return { tone: "emerald", label: "OK" }
   return { tone: "muted", label: "Not run yet" }
 }
 

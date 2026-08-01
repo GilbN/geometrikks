@@ -35,8 +35,8 @@ export function TopUserAgentsTable() {
               </TableHeader>
               <TableBody>
                 {pageItems.map((row) => (
-                  <TableRow key={row.user_agent}>
-                    <TableCell className="font-mono text-xs max-w-[640px] truncate">{row.user_agent}</TableCell>
+                  <TableRow key={row.userAgent}>
+                    <TableCell className="font-mono text-xs max-w-[640px] truncate">{row.userAgent}</TableCell>
                     <TableCell className="text-right tabular-nums">{formatNumber(row.hits)}</TableCell>
                   </TableRow>
                 ))}

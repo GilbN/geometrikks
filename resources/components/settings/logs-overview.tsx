@@ -376,9 +376,9 @@ export function LogsOverview() {
                         <div className="min-w-0">
                           <div className="truncate font-mono text-xs">{f.name}</div>
                           <div className="text-xs text-muted-foreground">
-                            {formatSize(f.size_bytes)}
+                            {formatSize(f.sizeBytes)}
                             {" · "}
-                            {f.modified_at ? new Date(f.modified_at).toLocaleString() : "unknown"}
+                            {f.modifiedAt ? new Date(f.modifiedAt).toLocaleString() : "unknown"}
                             {!f.available ? " · not readable" : ""}
                           </div>
                         </div>

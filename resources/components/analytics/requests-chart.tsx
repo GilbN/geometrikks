@@ -12,7 +12,7 @@ import { useTimeSeries } from "@/lib/queries"
 import { formatBucketTick } from "./chart-utils"
 
 const chartConfig = {
-  total_requests: { label: "Requests", color: "var(--chart-1)" },
+  totalRequests: { label: "Requests", color: "var(--chart-1)" },
 } satisfies ChartConfig
 
 export function RequestsChart() {
@@ -44,11 +44,11 @@ export function RequestsChart() {
               />
               <ChartTooltip content={<ChartTooltipContent />} />
               <Area
-                dataKey="total_requests"
+                dataKey="totalRequests"
                 type="monotone"
-                fill="var(--color-total_requests)"
+                fill="var(--color-totalRequests)"
                 fillOpacity={0.2}
-                stroke="var(--color-total_requests)"
+                stroke="var(--color-totalRequests)"
                 strokeWidth={2}
               />
             </AreaChart>

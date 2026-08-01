@@ -28,17 +28,17 @@ import {
 function makeHealth(overrides: Partial<HealthResponse> = {}): HealthResponse {
   return {
     status: "healthy",
-    started_at: "2026-07-31T07:00:00+00:00",
+    startedAt: "2026-07-31T07:00:00+00:00",
     ingestion: {
       running: true,
-      parsed_lines: 10,
-      pending_records: 0,
-      missing_files: [],
-      last_record_at: "2026-07-31T09:59:00+00:00",
+      parsedLines: 10,
+      pendingRecords: 0,
+      missingFiles: [],
+      lastRecordAt: "2026-07-31T09:59:00+00:00",
     },
     database: { reachable: true },
-    geoip: { available: true, db_build_date: "2026-07-28T00:00:00+00:00" },
-    crowdsec: { enabled: true, lapi_reachable: true },
+    geoip: { available: true, dbBuildDate: "2026-07-28T00:00:00+00:00" },
+    crowdsec: { enabled: true, lapiReachable: true },
     timestamp: "2026-07-31T10:00:00+00:00",
     ...overrides,
   }
@@ -71,10 +71,10 @@ describe("ingestionState", () => {
       makeHealth({
         ingestion: {
           running: false,
-          parsed_lines: 0,
-          pending_records: 0,
-          missing_files: [],
-          last_record_at: null,
+          parsedLines: 0,
+          pendingRecords: 0,
+          missingFiles: [],
+          lastRecordAt: null,
         },
       }),
       false,
@@ -88,10 +88,10 @@ describe("ingestionState", () => {
       makeHealth({
         ingestion: {
           running: true,
-          parsed_lines: 10,
-          pending_records: 0,
-          missing_files: ["nginx_logs/access.log"],
-          last_record_at: null,
+          parsedLines: 10,
+          pendingRecords: 0,
+          missingFiles: ["nginx_logs/access.log"],
+          lastRecordAt: null,
         },
       }),
       false,
@@ -115,7 +115,7 @@ describe("databaseState / geoipState", () => {
     expect(databaseState(makeHealth())).toMatchObject({ tone: "emerald", label: "Reachable" })
   })
   it("geoip missing is amber", () => {
-    expect(geoipState(makeHealth({ geoip: { available: false, db_build_date: null } }))).toMatchObject({
+    expect(geoipState(makeHealth({ geoip: { available: false, dbBuildDate: null } }))).toMatchObject({
       tone: "amber",
       label: "Missing",
     })
@@ -124,7 +124,7 @@ describe("databaseState / geoipState", () => {
 })
 
 describe("crowdsecState", () => {
-  const enabled: CrowdSecStatusResponse = { enabled: true, write_enabled: true, lapi_reachable: true }
+  const enabled: CrowdSecStatusResponse = { enabled: true, writeEnabled: true, lapiReachable: true }
   it("disabled integration is muted Disabled", () => {
     expect(crowdsecState({ ...enabled, enabled: false }, false)).toMatchObject({
       tone: "muted",
@@ -133,7 +133,7 @@ describe("crowdsecState", () => {
   })
   it("reachable LAPI is emerald, unreachable is red", () => {
     expect(crowdsecState(enabled, false)).toMatchObject({ tone: "emerald", label: "LAPI reachable" })
-    expect(crowdsecState({ ...enabled, lapi_reachable: false }, false)).toMatchObject({
+    expect(crowdsecState({ ...enabled, lapiReachable: false }, false)).toMatchObject({
       tone: "red",
       label: "LAPI unreachable",
     })
@@ -145,8 +145,8 @@ describe("crowdsecState", () => {
 
 describe("nginxLogFiles", () => {
   const files: LogFileView[] = [
-    { name: "geometrikks.log", kind: "app", size_bytes: 10, modified_at: null, available: true },
-    { name: "access.log", kind: "nginx", size_bytes: 20, modified_at: null, available: false },
+    { name: "geometrikks.log", kind: "app", sizeBytes: 10, modifiedAt: null, available: true },
+    { name: "access.log", kind: "nginx", sizeBytes: 20, modifiedAt: null, available: false },
   ]
   it("keeps only nginx entries and tolerates undefined", () => {
     expect(nginxLogFiles(files).map((f) => f.name)).toEqual(["access.log"])
@@ -176,10 +176,10 @@ describe("formatApproxRows", () => {
 describe("compressionSummary", () => {
   const table = (before: number | null, after: number | null): HypertableStatsView => ({
     name: "t",
-    approx_rows: 1,
-    total_bytes: 1,
-    before_compression_bytes: before,
-    after_compression_bytes: after,
+    approxRows: 1,
+    totalBytes: 1,
+    beforeCompressionBytes: before,
+    afterCompressionBytes: after,
   })
   it("aggregates ratio across tables with compression stats", () => {
     const result = compressionSummary([
@@ -240,19 +240,19 @@ describe("schedulerJobState", () => {
     id: "j",
     name: "Job",
     trigger: "interval",
-    next_run_time: null,
-    last_run_time: null,
-    last_status: null,
-    last_error: null,
-    last_duration_seconds: null,
+    nextRunTime: null,
+    lastRunTime: null,
+    lastStatus: null,
+    lastError: null,
+    lastDurationSeconds: null,
     running: false,
     ...over,
   })
   it("maps states to tones", () => {
     expect(schedulerJobState(job({ running: true })).tone).toBe("cyan")
-    expect(schedulerJobState(job({ last_status: "error" })).tone).toBe("red")
-    expect(schedulerJobState(job({ last_status: "missed" })).tone).toBe("amber")
-    expect(schedulerJobState(job({ last_status: "success" })).tone).toBe("emerald")
+    expect(schedulerJobState(job({ lastStatus: "error" })).tone).toBe("red")
+    expect(schedulerJobState(job({ lastStatus: "missed" })).tone).toBe("amber")
+    expect(schedulerJobState(job({ lastStatus: "success" })).tone).toBe("emerald")
     expect(schedulerJobState(job({})).tone).toBe("muted")
   })
 })

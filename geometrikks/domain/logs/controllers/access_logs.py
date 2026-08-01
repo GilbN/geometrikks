@@ -27,8 +27,8 @@ from geometrikks.lib.validation import validate_ip_addresses
 
 
 def provide_access_log_time_window(
-    from_timestamp: Annotated[datetime | None, QueryParameter(required=False)] = None,
-    to_timestamp: Annotated[datetime | None, QueryParameter(required=False)] = None,
+    from_timestamp: Annotated[datetime | None, QueryParameter(name="fromTimestamp", required=False)] = None,
+    to_timestamp: Annotated[datetime | None, QueryParameter(name="toTimestamp", required=False)] = None,
 ) -> list[FilterTypes]:
     """Optional inclusive [from, to] window on the ``timestamp`` column.
 
@@ -110,7 +110,7 @@ class AccessLogController(Controller):
     Handles read operations for access logs with filtering, search, sorting,
     and pagination.
     """
-    path = "/api/v1/access-logs"
+    path = "/access-logs"
     return_dto = AccessLogDTO
     tags = ["Access Logs"]
 

@@ -12,7 +12,7 @@ import { useTimeSeries } from "@/lib/queries"
 import { formatBucketTick } from "./chart-utils"
 
 const chartConfig = {
-  total_bytes_sent: { label: "Bytes sent", color: "var(--chart-2)" },
+  totalBytesSent: { label: "Bytes sent", color: "var(--chart-2)" },
 } satisfies ChartConfig
 
 export function BytesChart() {
@@ -50,11 +50,11 @@ export function BytesChart() {
                 }
               />
               <Area
-                dataKey="total_bytes_sent"
+                dataKey="totalBytesSent"
                 type="monotone"
-                fill="var(--color-total_bytes_sent)"
+                fill="var(--color-totalBytesSent)"
                 fillOpacity={0.2}
-                stroke="var(--color-total_bytes_sent)"
+                stroke="var(--color-totalBytesSent)"
                 strokeWidth={2}
               />
             </AreaChart>

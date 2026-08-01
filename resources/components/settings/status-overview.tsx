@@ -86,7 +86,7 @@ export function StatusOverview() {
   const now = Date.now()
   const overall = overallState(health, healthError)
   const nginx = nginxLogFiles(files)
-  const uptime = formatUptime(health?.started_at, now)
+  const uptime = formatUptime(health?.startedAt, now)
   const geoipRefreshJob = jobs?.find((j) => j.id === "geoip-refresh")
   const recentErrors = filterErrorRecords(logRecords, 5)
 
@@ -140,11 +140,11 @@ export function StatusOverview() {
               <p className="text-xs text-muted-foreground">Statistics unavailable.</p>
             ) : (
               <div className="grid grid-cols-2 gap-x-6 gap-y-1">
-                <Counter label="Parsed lines" value={stats?.total_parsed_lines} />
-                <Counter label="Processed" value={stats?.total_processed} />
-                <Counter label="Skipped lines" value={stats?.total_skipped_lines} />
-                <Counter label="Ignored lines" value={stats?.total_ignored_lines} />
-                <Counter label="Pending records" value={stats?.total_pending_records} />
+                <Counter label="Parsed lines" value={stats?.totalParsedLines} />
+                <Counter label="Processed" value={stats?.totalProcessed} />
+                <Counter label="Skipped lines" value={stats?.totalSkippedLines} />
+                <Counter label="Ignored lines" value={stats?.totalIgnoredLines} />
+                <Counter label="Pending records" value={stats?.totalPendingRecords} />
               </div>
             )}
             {health && (
@@ -152,7 +152,7 @@ export function StatusOverview() {
                 <span className="text-muted-foreground">Last event</span>
                 {(() => {
                   const state = lastEventState(
-                    health.ingestion.last_record_at,
+                    health.ingestion.lastRecordAt,
                     health.ingestion.running,
                     now,
                   )
@@ -180,8 +180,8 @@ export function StatusOverview() {
                   <MonoChip>{f.name}</MonoChip>
                   {f.available ? (
                     <span className="ml-auto text-muted-foreground tabular-nums">
-                      {formatSize(f.size_bytes)}
-                      {f.modified_at && ` · ${new Date(f.modified_at).toLocaleString()}`}
+                      {formatSize(f.sizeBytes)}
+                      {f.modifiedAt && ` · ${new Date(f.modifiedAt).toLocaleString()}`}
                     </span>
                   ) : (
                     <span className="ml-auto text-red-500">missing</span>
@@ -208,17 +208,17 @@ export function StatusOverview() {
               <>
                 <div className="space-y-1 text-xs text-muted-foreground">
                   <p>
-                    {dbInfo.size_bytes !== null && (
+                    {dbInfo.sizeBytes !== null && (
                       <span className="font-medium text-foreground">
-                        {formatSize(dbInfo.size_bytes)}
+                        {formatSize(dbInfo.sizeBytes)}
                       </span>
                     )}{" "}
-                    total · PostgreSQL {dbInfo.postgres_version?.split(" ")[0]} · TimescaleDB{" "}
-                    {dbInfo.timescaledb_version}
+                    total · PostgreSQL {dbInfo.postgresVersion?.split(" ")[0]} · TimescaleDB{" "}
+                    {dbInfo.timescaledbVersion}
                   </p>
                   <p>
-                    Raw events kept {dbInfo.retention_days} days, debug lines{" "}
-                    {dbInfo.debug_retention_days} days
+                    Raw events kept {dbInfo.retentionDays} days, debug lines{" "}
+                    {dbInfo.debugRetentionDays} days
                   </p>
                   {compressionSummary(dbInfo.hypertables) && (
                     <p>Compression {compressionSummary(dbInfo.hypertables)}</p>
@@ -230,8 +230,8 @@ export function StatusOverview() {
                     <div key={t.name} className="flex items-center gap-2 text-xs">
                       <MonoChip>{t.name}</MonoChip>
                       <span className="ml-auto text-muted-foreground tabular-nums">
-                        ~{formatApproxRows(t.approx_rows)} rows
-                        {t.total_bytes !== null && ` · ${formatSize(t.total_bytes)}`}
+                        ~{formatApproxRows(t.approxRows)} rows
+                        {t.totalBytes !== null && ` · ${formatSize(t.totalBytes)}`}
                       </span>
                     </div>
                   ))}
@@ -254,11 +254,11 @@ export function StatusOverview() {
           <CardContent className="space-y-2">
             <StateLine state={geoipState(health)} />
             <div className="space-y-1 text-xs text-muted-foreground">
-              {health?.geoip.db_build_date && (
-                <p>Database built {relativeTime(health.geoip.db_build_date, now)}</p>
+              {health?.geoip.dbBuildDate && (
+                <p>Database built {relativeTime(health.geoip.dbBuildDate, now)}</p>
               )}
-              {geoipRefreshJob?.next_run_time && (
-                <p>Next refresh {relativeTime(geoipRefreshJob.next_run_time, now)}</p>
+              {geoipRefreshJob?.nextRunTime && (
+                <p>Next refresh {relativeTime(geoipRefreshJob.nextRunTime, now)}</p>
               )}
             </div>
           </CardContent>
@@ -279,7 +279,7 @@ export function StatusOverview() {
             <div className="flex items-center gap-2">
               {crowdsec?.enabled && (
                 <Badge variant="outline">
-                  {crowdsec.write_enabled ? "write enabled" : "read only"}
+                  {crowdsec.writeEnabled ? "write enabled" : "read only"}
                 </Badge>
               )}
               {crowdsecStats && (
@@ -320,8 +320,8 @@ export function StatusOverview() {
                   <span className="ml-auto text-muted-foreground">
                     {job.running
                       ? "running"
-                      : job.next_run_time
-                        ? `next ${relativeTime(job.next_run_time, now)}`
+                      : job.nextRunTime
+                        ? `next ${relativeTime(job.nextRunTime, now)}`
                         : state.label}
                   </span>
                 </div>

@@ -8,9 +8,10 @@ key) the data endpoints return 404 and the frontend hides the page.
 from __future__ import annotations
 
 import re
+
+import msgspec
 from datetime import datetime
 from collections import Counter
-from dataclasses import dataclass
 from typing import Annotated
 
 from advanced_alchemy.extensions.litestar import filters
@@ -49,15 +50,13 @@ GO_DURATION_RE = re.compile(r"^(\d+h)?(\d+m)?(\d+s)?$")
 logger = get_logger(__name__)
 
 
-@dataclass
-class CrowdSecStatusResponse:
+class CrowdSecStatusResponse(msgspec.Struct, rename="camel"):
     enabled: bool
     write_enabled: bool
     lapi_reachable: bool
 
 
-@dataclass
-class DecisionView:
+class DecisionView(msgspec.Struct, rename="camel"):
     id: int | None
     ip: str  # Decision value; a CIDR/country/AS number for non-Ip scopes
     type: str
@@ -69,30 +68,26 @@ class DecisionView:
     country_code: str | None
     country_name: str | None
     city: str | None
-    request_count_24h: int | None
+    request_count_24h: int | None = msgspec.field(name="requestCount24h")
 
 
-@dataclass
-class OriginCount:
+class OriginCount(msgspec.Struct, rename="camel"):
     origin: str
     count: int
 
 
-@dataclass
-class ScenarioCount:
+class ScenarioCount(msgspec.Struct, rename="camel"):
     scenario: str
     count: int
 
 
-@dataclass
-class CrowdSecStatsResponse:
+class CrowdSecStatsResponse(msgspec.Struct, rename="camel"):
     total: int
     by_origin: list[OriginCount]
     top_scenarios: list[ScenarioCount]
 
 
-@dataclass
-class AlertView:
+class AlertView(msgspec.Struct, rename="camel"):
     id: int | None
     scenario: str
     message: str
@@ -106,20 +101,17 @@ class AlertView:
     decision_count: int
 
 
-@dataclass
-class BanRequest:
+class BanRequest(msgspec.Struct, rename="camel"):
     ip: str
     duration: str | None = None
     reason: str = "manual ban from GeoMetrikks"
 
 
-@dataclass
-class UnbanRequest:
+class UnbanRequest(msgspec.Struct, rename="camel"):
     ip: str
 
 
-@dataclass
-class UnbanResponse:
+class UnbanResponse(msgspec.Struct, rename="camel"):
     deleted: int
 
 
@@ -174,7 +166,7 @@ def _actor(request: Request) -> str:
 class CrowdSecController(Controller):
     """CrowdSec decision views and ban statistics."""
 
-    path = "/api/v1/crowdsec"
+    path = "/crowdsec"
     tags = ["CrowdSec"]
     dependencies = {
         "crowdsec": Provide(provide_crowdsec_service, sync_to_thread=False),
@@ -273,8 +265,8 @@ class CrowdSecController(Controller):
         self,
         crowdsec: NamedDependency[CrowdSecService | None],
         enrichment_repo: NamedDependency[SecurityEnrichmentRepository],
-        from_timestamp: Annotated[datetime | None, QueryParameter(required=False)] = None,
-        to_timestamp: Annotated[datetime | None, QueryParameter(required=False)] = None,
+        from_timestamp: Annotated[datetime | None, QueryParameter(name="fromTimestamp", required=False)] = None,
+        to_timestamp: Annotated[datetime | None, QueryParameter(name="toTimestamp", required=False)] = None,
     ) -> list[IpLocation]:
         """Coordinates of banned IPs that appear in this server's own traffic.
 

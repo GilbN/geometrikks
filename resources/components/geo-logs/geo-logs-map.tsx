@@ -148,7 +148,7 @@ export default function GeoLogsMap() {
                 clusterRadius={50}
                 clusterProperties={{
                   // Sum event_count for all points in the cluster
-                  sum_event_count: ["+", ["get", "event_count"]],
+                  sum_event_count: ["+", ["get", "eventCount"]],
                 }}
               >
                 <Layer {...clusterLayer} />

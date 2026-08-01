@@ -61,7 +61,7 @@ function isOverridden(field: SettingFieldView): boolean {
 }
 
 function ValueBlock({ field }: { field: SettingFieldView }) {
-  if (field.is_secret) {
+  if (field.isSecret) {
     const isSet = field.value !== null && field.value !== undefined
     return (
       <span className="inline-flex items-center gap-1.5">
@@ -82,13 +82,13 @@ function ValueBlock({ field }: { field: SettingFieldView }) {
     )
   }
   const hasValue = field.value !== null && field.value !== undefined
-  const hasComputed = field.computed_value !== null && field.computed_value !== undefined
+  const hasComputed = field.computedValue !== null && field.computedValue !== undefined
   if (!hasValue && hasComputed) {
-    const label = computedLabel[field.computed_source ?? ""] ?? "computed"
+    const label = computedLabel[field.computedSource ?? ""] ?? "computed"
     return (
       <span className="inline-flex items-baseline gap-1.5">
         <code className="font-mono text-xs break-all font-medium text-foreground">
-          {formatValue(field.computed_value)}
+          {formatValue(field.computedValue)}
         </code>
         <Badge
           variant="outline"
@@ -128,12 +128,12 @@ function FieldRow({ field }: { field: SettingFieldView }) {
       <div className="flex shrink-0 flex-col items-start gap-1 sm:items-end sm:text-right">
         <ValueBlock field={field} />
         <div className="flex items-center gap-2">
-          {overridden && !field.is_secret && (
+          {overridden && !field.isSecret && (
             <span className="text-[11px] text-muted-foreground">
               default: <code className="font-mono">{formatValue(field.default)}</code>
             </span>
           )}
-          {field.env_var && <MonoChip>{field.env_var}</MonoChip>}
+          {field.envVar && <MonoChip>{field.envVar}</MonoChip>}
         </div>
       </div>
     </div>
@@ -211,7 +211,7 @@ export function EnvironmentOverview() {
           (!overriddenOnly || isOverridden(f)) &&
           (!q ||
             f.key.toLowerCase().includes(q) ||
-            (f.env_var ?? "").toLowerCase().includes(q) ||
+            (f.envVar ?? "").toLowerCase().includes(q) ||
             section.title.toLowerCase().includes(q) ||
             (f.description ?? "").toLowerCase().includes(q)),
       ),
@@ -250,7 +250,7 @@ export function EnvironmentOverview() {
           <StatusLed tone="cyan" />
           {totalOverridden} of{" "}
           {data.sections.reduce(
-            (n, s) => n + s.fields.filter((f) => f.env_var).length,
+            (n, s) => n + s.fields.filter((f) => f.envVar).length,
             0,
           )}{" "}
           settings

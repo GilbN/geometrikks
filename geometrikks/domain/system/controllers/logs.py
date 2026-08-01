@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+import msgspec
 from datetime import datetime
 from typing import Annotated, Literal
 
@@ -23,8 +23,7 @@ from geometrikks.services.logfiles import (
 MAX_TAIL_LINES = 2000
 
 
-@dataclass
-class LogFileView:
+class LogFileView(msgspec.Struct, rename="camel"):
     name: str
     kind: LogFileKind
     size_bytes: int
@@ -32,27 +31,24 @@ class LogFileView:
     available: bool
 
 
-@dataclass
-class LogFilesResponse:
+class LogFilesResponse(msgspec.Struct, rename="camel"):
     files: list[LogFileView]
 
 
-@dataclass
-class LogTailResponse:
+class LogTailResponse(msgspec.Struct, rename="camel"):
     # LogTailRecord is a TypedDict: app-log records keep their extra
     # structlog context keys on the wire; the schema documents the stable ones.
     records: list[LogTailRecord]
 
 
-@dataclass
-class LogRotateResponse:
+class LogRotateResponse(msgspec.Struct, rename="camel"):
     rotated: list[str]
 
 
 class LogsController(Controller):
     """Access to the application's own log files: tail, list, download, rotate."""
 
-    path = "/api/v1/logs"
+    path = "/logs"
     tags = ["Logs"]
 
     @get("/tail", sync_to_thread=True)

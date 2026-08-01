@@ -4,7 +4,9 @@ import asyncio
 from functools import wraps
 from pathlib import Path
 from typing import ParamSpec, Callable
-from dataclasses import dataclass
+
+
+import msgspec
 
 import aiofiles.os
 import aiofiles
@@ -18,8 +20,7 @@ logger = get_logger(__name__)
 
 P = ParamSpec("P")
 
-@dataclass
-class GeoIPInfoView:
+class GeoIPInfoView(msgspec.Struct, rename="camel"):
     available: bool
     db_path: str
     build_date: datetime | None

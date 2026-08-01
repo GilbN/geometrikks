@@ -140,175 +140,175 @@ export interface RouteQueryParams {
   'download': Record<string, never>;
   'get_about': Record<string, never>;
   'get_access_log_debug_stats': {
-    from_timestamp?: DateTime;
-    to_timestamp?: DateTime;
+    fromTimestamp?: DateTime;
+    toTimestamp?: DateTime;
   };
   'get_access_log_facets': Record<string, never>;
   'get_cumulative_time_series': {
-    end_date: DateTime;
-    start_date: DateTime;
+    endDate: DateTime;
+    startDate: DateTime;
   };
   'get_database_info': Record<string, never>;
   'get_geo_log_facets': Record<string, never>;
   'get_geo_log_summary': {
     cityIn?: string[];
-    compare_previous?: boolean;
+    comparePrevious?: boolean;
     countryCodeIn?: string[];
-    from_timestamp: DateTime;
+    fromTimestamp: DateTime;
     hostnameIn?: string[];
     ipAddressIn?: string[];
     ipAddressNotIn?: string[];
-    to_timestamp: DateTime;
+    toTimestamp: DateTime;
   };
   'get_geo_log_time_series': {
     cityIn?: string[];
     countryCodeIn?: string[];
-    from_timestamp: DateTime;
+    fromTimestamp: DateTime;
     granularity?: "hourly" | "daily";
     hostnameIn?: string[];
     ipAddressIn?: string[];
     ipAddressNotIn?: string[];
-    to_timestamp: DateTime;
+    toTimestamp: DateTime;
   };
   'get_geo_log_top_cities': {
     cityIn?: string[];
     countryCodeIn?: string[];
-    from_timestamp: DateTime;
+    fromTimestamp: DateTime;
     hostnameIn?: string[];
     ipAddressIn?: string[];
     ipAddressNotIn?: string[];
     limit?: number;
-    to_timestamp: DateTime;
+    toTimestamp: DateTime;
   };
   'get_geo_log_top_countries': {
     cityIn?: string[];
     countryCodeIn?: string[];
-    from_timestamp: DateTime;
+    fromTimestamp: DateTime;
     hostnameIn?: string[];
     ipAddressIn?: string[];
     ipAddressNotIn?: string[];
     limit?: number;
-    to_timestamp: DateTime;
+    toTimestamp: DateTime;
   };
   'get_geo_log_top_ips': {
     cityIn?: string[];
     countryCodeIn?: string[];
-    from_timestamp: DateTime;
+    fromTimestamp: DateTime;
     hostnameIn?: string[];
     ipAddressIn?: string[];
     ipAddressNotIn?: string[];
     limit?: number;
-    to_timestamp: DateTime;
+    toTimestamp: DateTime;
   };
   'get_geo_logs': {
     cityIn?: string[];
     countryCodeIn?: string[];
     currentPage?: number;
-    from_timestamp: DateTime;
+    fromTimestamp: DateTime;
     hostnameIn?: string[];
     ipAddressIn?: string[];
     ipAddressNotIn?: string[];
     orderBy?: string;
     pageSize?: number;
     sortOrder?: "asc" | "desc";
-    to_timestamp: DateTime;
+    toTimestamp: DateTime;
   };
   'get_geo_time_series': {
-    end_date: DateTime;
+    endDate: DateTime;
     granularity?: "hourly" | "daily";
-    start_date: DateTime;
+    startDate: DateTime;
   };
   'get_geojson': {
     city?: string[];
-    country_code?: string[];
-    from_timestamp: DateTime;
+    countryCode?: string[];
+    fromTimestamp: DateTime;
     hostnameIn?: string[];
     ipAddressIn?: string[];
     ipAddressNotIn?: string[];
-    to_timestamp: DateTime;
+    toTimestamp: DateTime;
   };
   'get_global_top_ips': {
-    from_timestamp: DateTime;
+    fromTimestamp: DateTime;
     limit?: number;
-    to_timestamp: DateTime;
+    toTimestamp: DateTime;
   };
   'get_live_summary': {
-    compare_previous?: boolean;
-    end_date: DateTime;
-    start_date: DateTime;
+    comparePrevious?: boolean;
+    endDate: DateTime;
+    startDate: DateTime;
   };
   'get_location_top_ips': {
-    from_timestamp: DateTime;
+    fromTimestamp: DateTime;
     limit?: number;
-    to_timestamp: DateTime;
+    toTimestamp: DateTime;
   };
   'get_scheduler_jobs': Record<string, never>;
   'get_stats': Record<string, never>;
   'get_status': Record<string, never>;
   'get_summary': {
-    compare_previous?: boolean;
-    end_date: DateTime;
-    start_date: DateTime;
+    comparePrevious?: boolean;
+    endDate: DateTime;
+    startDate: DateTime;
   };
   'get_system_settings': Record<string, never>;
   'get_time_series': {
     city?: string[];
-    country_code?: string[];
-    end_date: DateTime;
+    countryCode?: string[];
+    endDate: DateTime;
     granularity?: "hourly" | "daily";
-    ip_address?: string[];
-    ip_address_not_in?: string[];
-    start_date: DateTime;
+    ipAddress?: string[];
+    ipAddressNotIn?: string[];
+    startDate: DateTime;
   };
   'get_top_cities': {
     city?: string[];
-    country_code?: string[];
-    end_date: DateTime;
-    ip_address?: string[];
-    ip_address_not_in?: string[];
+    countryCode?: string[];
+    endDate: DateTime;
+    ipAddress?: string[];
+    ipAddressNotIn?: string[];
     limit?: number;
-    start_date: DateTime;
+    startDate: DateTime;
   };
   'get_top_countries': {
     city?: string[];
-    country_code?: string[];
-    end_date: DateTime;
-    ip_address?: string[];
-    ip_address_not_in?: string[];
+    countryCode?: string[];
+    endDate: DateTime;
+    ipAddress?: string[];
+    ipAddressNotIn?: string[];
     limit?: number;
-    start_date: DateTime;
+    startDate: DateTime;
   };
   'get_top_countries_api_v1_geo_locations_top_countries': {
-    from_timestamp: DateTime;
+    fromTimestamp: DateTime;
     limit?: number;
-    to_timestamp: DateTime;
+    toTimestamp: DateTime;
   };
   'get_top_ips': {
     city?: string[];
-    country_code?: string[];
-    end_date: DateTime;
-    ip_address?: string[];
-    ip_address_not_in?: string[];
+    countryCode?: string[];
+    endDate: DateTime;
+    ipAddress?: string[];
+    ipAddressNotIn?: string[];
     limit?: number;
-    start_date: DateTime;
+    startDate: DateTime;
   };
   'get_top_urls': {
     city?: string[];
-    country_code?: string[];
-    end_date: DateTime;
-    ip_address?: string[];
-    ip_address_not_in?: string[];
+    countryCode?: string[];
+    endDate: DateTime;
+    ipAddress?: string[];
+    ipAddressNotIn?: string[];
     limit?: number;
-    start_date: DateTime;
+    startDate: DateTime;
   };
   'get_top_user_agents': {
     city?: string[];
-    country_code?: string[];
-    end_date: DateTime;
-    ip_address?: string[];
-    ip_address_not_in?: string[];
+    countryCode?: string[];
+    endDate: DateTime;
+    ipAddress?: string[];
+    ipAddressNotIn?: string[];
     limit?: number;
-    start_date: DateTime;
+    startDate: DateTime;
   };
   'health': Record<string, never>;
   'health_ready': Record<string, never>;
@@ -316,7 +316,7 @@ export interface RouteQueryParams {
     cityIn?: string[];
     countryCodeIn?: string[];
     currentPage?: number;
-    from_timestamp?: DateTime;
+    fromTimestamp?: DateTime;
     ipAddressIn?: string[];
     malformed?: boolean;
     orderBy?: string;
@@ -324,13 +324,13 @@ export interface RouteQueryParams {
     searchIgnoreCase?: boolean;
     searchString?: string;
     sortOrder?: "asc" | "desc";
-    to_timestamp?: DateTime;
+    toTimestamp?: DateTime;
   };
   'list_access_logs': {
     cityIn?: string[];
     countryCodeIn?: string[];
     currentPage?: number;
-    from_timestamp?: DateTime;
+    fromTimestamp?: DateTime;
     hostIn?: string[];
     hostNotIn?: string[];
     ipAddressIn?: string[];
@@ -342,7 +342,7 @@ export interface RouteQueryParams {
     searchString?: string;
     sortOrder?: "asc" | "desc";
     statusIn?: number[];
-    to_timestamp?: DateTime;
+    toTimestamp?: DateTime;
   };
   'list_alerts': {
     ip?: string;
@@ -352,8 +352,8 @@ export interface RouteQueryParams {
   };
   'list_banned_ips': Record<string, never>;
   'list_banned_locations': {
-    from_timestamp?: DateTime;
-    to_timestamp?: DateTime;
+    fromTimestamp?: DateTime;
+    toTimestamp?: DateTime;
   };
   'list_decisions': {
     currentPage?: number;
@@ -363,14 +363,14 @@ export interface RouteQueryParams {
   'list_files': Record<string, never>;
   'list_geo_events': {
     currentPage?: number;
-    from_timestamp?: DateTime;
+    fromTimestamp?: DateTime;
     hostnameIn?: string[];
     ipAddressIn?: string[];
     ipAddressNotIn?: string[];
     orderBy?: string;
     pageSize?: number;
     sortOrder?: "asc" | "desc";
-    to_timestamp?: DateTime;
+    toTimestamp?: DateTime;
   };
   'list_geo_locations': {
     currentPage?: number;
@@ -431,7 +431,7 @@ export const routeDefinitions = {
     methods: ['GET'] as const,
     method: 'get',
     pathParams: [] as const,
-    queryParams: ['from_timestamp', 'to_timestamp'] as const,
+    queryParams: ['fromTimestamp', 'toTimestamp'] as const,
   },
   'get_access_log_facets': {
     path: '/api/v1/access-logs/facets',
@@ -445,7 +445,7 @@ export const routeDefinitions = {
     methods: ['GET'] as const,
     method: 'get',
     pathParams: [] as const,
-    queryParams: ['end_date', 'start_date'] as const,
+    queryParams: ['endDate', 'startDate'] as const,
   },
   'get_database_info': {
     path: '/api/v1/system/database',
@@ -466,77 +466,77 @@ export const routeDefinitions = {
     methods: ['GET'] as const,
     method: 'get',
     pathParams: [] as const,
-    queryParams: ['cityIn', 'compare_previous', 'countryCodeIn', 'from_timestamp', 'hostnameIn', 'ipAddressIn', 'ipAddressNotIn', 'to_timestamp'] as const,
+    queryParams: ['cityIn', 'comparePrevious', 'countryCodeIn', 'fromTimestamp', 'hostnameIn', 'ipAddressIn', 'ipAddressNotIn', 'toTimestamp'] as const,
   },
   'get_geo_log_time_series': {
     path: '/api/v1/geo-events/time-series',
     methods: ['GET'] as const,
     method: 'get',
     pathParams: [] as const,
-    queryParams: ['cityIn', 'countryCodeIn', 'from_timestamp', 'granularity', 'hostnameIn', 'ipAddressIn', 'ipAddressNotIn', 'to_timestamp'] as const,
+    queryParams: ['cityIn', 'countryCodeIn', 'fromTimestamp', 'granularity', 'hostnameIn', 'ipAddressIn', 'ipAddressNotIn', 'toTimestamp'] as const,
   },
   'get_geo_log_top_cities': {
     path: '/api/v1/geo-events/top-cities',
     methods: ['GET'] as const,
     method: 'get',
     pathParams: [] as const,
-    queryParams: ['cityIn', 'countryCodeIn', 'from_timestamp', 'hostnameIn', 'ipAddressIn', 'ipAddressNotIn', 'limit', 'to_timestamp'] as const,
+    queryParams: ['cityIn', 'countryCodeIn', 'fromTimestamp', 'hostnameIn', 'ipAddressIn', 'ipAddressNotIn', 'limit', 'toTimestamp'] as const,
   },
   'get_geo_log_top_countries': {
     path: '/api/v1/geo-events/top-countries',
     methods: ['GET'] as const,
     method: 'get',
     pathParams: [] as const,
-    queryParams: ['cityIn', 'countryCodeIn', 'from_timestamp', 'hostnameIn', 'ipAddressIn', 'ipAddressNotIn', 'limit', 'to_timestamp'] as const,
+    queryParams: ['cityIn', 'countryCodeIn', 'fromTimestamp', 'hostnameIn', 'ipAddressIn', 'ipAddressNotIn', 'limit', 'toTimestamp'] as const,
   },
   'get_geo_log_top_ips': {
     path: '/api/v1/geo-events/top-ips',
     methods: ['GET'] as const,
     method: 'get',
     pathParams: [] as const,
-    queryParams: ['cityIn', 'countryCodeIn', 'from_timestamp', 'hostnameIn', 'ipAddressIn', 'ipAddressNotIn', 'limit', 'to_timestamp'] as const,
+    queryParams: ['cityIn', 'countryCodeIn', 'fromTimestamp', 'hostnameIn', 'ipAddressIn', 'ipAddressNotIn', 'limit', 'toTimestamp'] as const,
   },
   'get_geo_logs': {
     path: '/api/v1/geo-events/logs',
     methods: ['GET'] as const,
     method: 'get',
     pathParams: [] as const,
-    queryParams: ['cityIn', 'countryCodeIn', 'currentPage', 'from_timestamp', 'hostnameIn', 'ipAddressIn', 'ipAddressNotIn', 'orderBy', 'pageSize', 'sortOrder', 'to_timestamp'] as const,
+    queryParams: ['cityIn', 'countryCodeIn', 'currentPage', 'fromTimestamp', 'hostnameIn', 'ipAddressIn', 'ipAddressNotIn', 'orderBy', 'pageSize', 'sortOrder', 'toTimestamp'] as const,
   },
   'get_geo_time_series': {
     path: '/api/v1/analytics/geo-time-series',
     methods: ['GET'] as const,
     method: 'get',
     pathParams: [] as const,
-    queryParams: ['end_date', 'granularity', 'start_date'] as const,
+    queryParams: ['endDate', 'granularity', 'startDate'] as const,
   },
   'get_geojson': {
     path: '/api/v1/geo-locations/geojson',
     methods: ['GET'] as const,
     method: 'get',
     pathParams: [] as const,
-    queryParams: ['city', 'country_code', 'from_timestamp', 'hostnameIn', 'ipAddressIn', 'ipAddressNotIn', 'to_timestamp'] as const,
+    queryParams: ['city', 'countryCode', 'fromTimestamp', 'hostnameIn', 'ipAddressIn', 'ipAddressNotIn', 'toTimestamp'] as const,
   },
   'get_global_top_ips': {
     path: '/api/v1/geo-locations/top-ips',
     methods: ['GET'] as const,
     method: 'get',
     pathParams: [] as const,
-    queryParams: ['from_timestamp', 'limit', 'to_timestamp'] as const,
+    queryParams: ['fromTimestamp', 'limit', 'toTimestamp'] as const,
   },
   'get_live_summary': {
     path: '/api/v1/analytics/live-summary',
     methods: ['GET'] as const,
     method: 'get',
     pathParams: [] as const,
-    queryParams: ['compare_previous', 'end_date', 'start_date'] as const,
+    queryParams: ['comparePrevious', 'endDate', 'startDate'] as const,
   },
   'get_location_top_ips': {
     path: '/api/v1/geo-locations/{location_id}/top-ips',
     methods: ['GET'] as const,
     method: 'get',
     pathParams: ['location_id'] as const,
-    queryParams: ['from_timestamp', 'limit', 'to_timestamp'] as const,
+    queryParams: ['fromTimestamp', 'limit', 'toTimestamp'] as const,
   },
   'get_scheduler_jobs': {
     path: '/api/v1/system/scheduler/jobs',
@@ -564,7 +564,7 @@ export const routeDefinitions = {
     methods: ['GET'] as const,
     method: 'get',
     pathParams: [] as const,
-    queryParams: ['compare_previous', 'end_date', 'start_date'] as const,
+    queryParams: ['comparePrevious', 'endDate', 'startDate'] as const,
   },
   'get_system_settings': {
     path: '/api/v1/system/settings',
@@ -578,49 +578,49 @@ export const routeDefinitions = {
     methods: ['GET'] as const,
     method: 'get',
     pathParams: [] as const,
-    queryParams: ['city', 'country_code', 'end_date', 'granularity', 'ip_address', 'ip_address_not_in', 'start_date'] as const,
+    queryParams: ['city', 'countryCode', 'endDate', 'granularity', 'ipAddress', 'ipAddressNotIn', 'startDate'] as const,
   },
   'get_top_cities': {
     path: '/api/v1/analytics/top-cities',
     methods: ['GET'] as const,
     method: 'get',
     pathParams: [] as const,
-    queryParams: ['city', 'country_code', 'end_date', 'ip_address', 'ip_address_not_in', 'limit', 'start_date'] as const,
+    queryParams: ['city', 'countryCode', 'endDate', 'ipAddress', 'ipAddressNotIn', 'limit', 'startDate'] as const,
   },
   'get_top_countries': {
     path: '/api/v1/analytics/top-countries',
     methods: ['GET'] as const,
     method: 'get',
     pathParams: [] as const,
-    queryParams: ['city', 'country_code', 'end_date', 'ip_address', 'ip_address_not_in', 'limit', 'start_date'] as const,
+    queryParams: ['city', 'countryCode', 'endDate', 'ipAddress', 'ipAddressNotIn', 'limit', 'startDate'] as const,
   },
   'get_top_countries_api_v1_geo_locations_top_countries': {
     path: '/api/v1/geo-locations/top-countries',
     methods: ['GET'] as const,
     method: 'get',
     pathParams: [] as const,
-    queryParams: ['from_timestamp', 'limit', 'to_timestamp'] as const,
+    queryParams: ['fromTimestamp', 'limit', 'toTimestamp'] as const,
   },
   'get_top_ips': {
     path: '/api/v1/analytics/top-ips',
     methods: ['GET'] as const,
     method: 'get',
     pathParams: [] as const,
-    queryParams: ['city', 'country_code', 'end_date', 'ip_address', 'ip_address_not_in', 'limit', 'start_date'] as const,
+    queryParams: ['city', 'countryCode', 'endDate', 'ipAddress', 'ipAddressNotIn', 'limit', 'startDate'] as const,
   },
   'get_top_urls': {
     path: '/api/v1/analytics/top-urls',
     methods: ['GET'] as const,
     method: 'get',
     pathParams: [] as const,
-    queryParams: ['city', 'country_code', 'end_date', 'ip_address', 'ip_address_not_in', 'limit', 'start_date'] as const,
+    queryParams: ['city', 'countryCode', 'endDate', 'ipAddress', 'ipAddressNotIn', 'limit', 'startDate'] as const,
   },
   'get_top_user_agents': {
     path: '/api/v1/analytics/top-user-agents',
     methods: ['GET'] as const,
     method: 'get',
     pathParams: [] as const,
-    queryParams: ['city', 'country_code', 'end_date', 'ip_address', 'ip_address_not_in', 'limit', 'start_date'] as const,
+    queryParams: ['city', 'countryCode', 'endDate', 'ipAddress', 'ipAddressNotIn', 'limit', 'startDate'] as const,
   },
   'health': {
     path: '/health',
@@ -641,14 +641,14 @@ export const routeDefinitions = {
     methods: ['GET'] as const,
     method: 'get',
     pathParams: [] as const,
-    queryParams: ['cityIn', 'countryCodeIn', 'currentPage', 'from_timestamp', 'ipAddressIn', 'malformed', 'orderBy', 'pageSize', 'searchIgnoreCase', 'searchString', 'sortOrder', 'to_timestamp'] as const,
+    queryParams: ['cityIn', 'countryCodeIn', 'currentPage', 'fromTimestamp', 'ipAddressIn', 'malformed', 'orderBy', 'pageSize', 'searchIgnoreCase', 'searchString', 'sortOrder', 'toTimestamp'] as const,
   },
   'list_access_logs': {
     path: '/api/v1/access-logs',
     methods: ['GET'] as const,
     method: 'get',
     pathParams: [] as const,
-    queryParams: ['cityIn', 'countryCodeIn', 'currentPage', 'from_timestamp', 'hostIn', 'hostNotIn', 'ipAddressIn', 'ipAddressNotIn', 'methodIn', 'orderBy', 'pageSize', 'searchIgnoreCase', 'searchString', 'sortOrder', 'statusIn', 'to_timestamp'] as const,
+    queryParams: ['cityIn', 'countryCodeIn', 'currentPage', 'fromTimestamp', 'hostIn', 'hostNotIn', 'ipAddressIn', 'ipAddressNotIn', 'methodIn', 'orderBy', 'pageSize', 'searchIgnoreCase', 'searchString', 'sortOrder', 'statusIn', 'toTimestamp'] as const,
   },
   'list_alerts': {
     path: '/api/v1/crowdsec/alerts',
@@ -669,7 +669,7 @@ export const routeDefinitions = {
     methods: ['GET'] as const,
     method: 'get',
     pathParams: [] as const,
-    queryParams: ['from_timestamp', 'to_timestamp'] as const,
+    queryParams: ['fromTimestamp', 'toTimestamp'] as const,
   },
   'list_decisions': {
     path: '/api/v1/crowdsec/decisions',
@@ -690,7 +690,7 @@ export const routeDefinitions = {
     methods: ['GET'] as const,
     method: 'get',
     pathParams: [] as const,
-    queryParams: ['currentPage', 'from_timestamp', 'hostnameIn', 'ipAddressIn', 'ipAddressNotIn', 'orderBy', 'pageSize', 'sortOrder', 'to_timestamp'] as const,
+    queryParams: ['currentPage', 'fromTimestamp', 'hostnameIn', 'ipAddressIn', 'ipAddressNotIn', 'orderBy', 'pageSize', 'sortOrder', 'toTimestamp'] as const,
   },
   'list_geo_locations': {
     path: '/api/v1/geo-locations',
