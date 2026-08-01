@@ -25,7 +25,7 @@ from advanced_alchemy.extensions.litestar import (
     base,
 )
 
-from litestar.plugins import CLIPluginProtocol
+from litestar.plugins import CLIPlugin
 from litestar_geoalchemy import GeoAlchemyPlugin
 from litestar_granian import GranianPlugin
 from litestar_vite import ViteConfig, VitePlugin
@@ -109,7 +109,7 @@ def create_structlog_plugin(settings: Settings) -> StructlogPlugin:
 
 
 def create_plugins() -> list[
-    SQLAlchemyInitPlugin | GeoAlchemyPlugin | GranianPlugin | VitePlugin | CLIPluginProtocol | StructlogPlugin
+    SQLAlchemyInitPlugin | GeoAlchemyPlugin | GranianPlugin | VitePlugin | CLIPlugin | StructlogPlugin
 ]:
     """Instantiate all app plugins; called once from create_app()."""
     from geometrikks.cli import ImportLogsCLIPlugin
