@@ -172,7 +172,7 @@ class GeoLocationRepository(SQLAlchemyAsyncRepository[GeoLocation]):
         Returns:
             List of GeoLocation instances matching the country code.
         """
-        return await self.list(country_code=country_code)
+        return await self.get_many(country_code=country_code)
 
     async def get_all_with_event_counts(
         self,

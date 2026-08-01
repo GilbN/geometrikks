@@ -2857,7 +2857,13 @@ export type ApiV1LogsTailTailData = {
   body?: never;
   path?: never;
   query?: {
+    /**
+     * Number of records to return (capped)
+     */
     lines?: number;
+    /**
+     * Which log to tail
+     */
     source?: "app" | "login";
   };
   url: "/api/v1/logs/tail";

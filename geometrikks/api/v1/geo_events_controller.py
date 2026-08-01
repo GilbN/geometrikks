@@ -8,7 +8,7 @@ from typing import Annotated, Literal
 from litestar import Controller, get
 from litestar.di import NamedDependency, Provide
 from litestar.exceptions import ValidationException
-from litestar.params import Parameter, QueryParameter, SkipValidation
+from litestar.params import QueryParameter, SkipValidation
 from litestar.openapi.spec import Example
 from advanced_alchemy.extensions.litestar.providers import create_service_dependencies
 from advanced_alchemy.filters import (
@@ -35,11 +35,11 @@ from geometrikks.domain.geo.schemas import (
 )
 from geometrikks.domain.geo.services import GeoEventService
 
-START_PARAM = Parameter(
+START_PARAM = QueryParameter(
     description="Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)",
     examples=[Example(value="2024-01-01T00:00:00Z")],
 )
-END_PARAM = Parameter(
+END_PARAM = QueryParameter(
     description="End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)",
     examples=[Example(value="2024-12-31T23:59:59Z")],
 )
@@ -244,7 +244,7 @@ class GeoEventController(Controller):
         to_timestamp: Annotated[datetime, END_PARAM],
         compare_previous: Annotated[
             bool,
-            Parameter(description="Include comparison with previous period of same length"),
+            QueryParameter(description="Include comparison with previous period of same length"),
         ] = False,
     ) -> GeoLogSummaryResponse:
         """Totals and unique counts for the period, optionally vs the previous one.
@@ -294,7 +294,7 @@ class GeoEventController(Controller):
         to_timestamp: Annotated[datetime, END_PARAM],
         granularity: Annotated[
             Literal["hourly", "daily"] | None,
-            Parameter(
+            QueryParameter(
                 description="Bucket size override. Omit to auto-select "
                 "(hourly <= 30 days, daily above). RAW is never available.",
                 required=False,
@@ -327,7 +327,7 @@ class GeoEventController(Controller):
         geo_filters: NamedDependency[SkipValidation[GeoEventFilters]],
         from_timestamp: Annotated[datetime, START_PARAM],
         to_timestamp: Annotated[datetime, END_PARAM],
-        limit: Annotated[int, Parameter(description="Maximum number of IPs", ge=1, le=50)] = 10,
+        limit: Annotated[int, QueryParameter(description="Maximum number of IPs", ge=1, le=50)] = 10,
     ) -> TopGeoIpsResponse:
         """Top IPs across all locations for the period."""
         rows = await geo_event_service.get_top_ips(
@@ -342,7 +342,7 @@ class GeoEventController(Controller):
         geo_filters: NamedDependency[SkipValidation[GeoEventFilters]],
         from_timestamp: Annotated[datetime, START_PARAM],
         to_timestamp: Annotated[datetime, END_PARAM],
-        limit: Annotated[int, Parameter(description="Maximum number of countries", ge=1, le=50)] = 10,
+        limit: Annotated[int, QueryParameter(description="Maximum number of countries", ge=1, le=50)] = 10,
     ) -> TopGeoCountriesResponse:
         """Top countries with exact unique-IP counts for the period."""
         rows = await geo_event_service.get_top_countries(
@@ -357,7 +357,7 @@ class GeoEventController(Controller):
         geo_filters: NamedDependency[SkipValidation[GeoEventFilters]],
         from_timestamp: Annotated[datetime, START_PARAM],
         to_timestamp: Annotated[datetime, END_PARAM],
-        limit: Annotated[int, Parameter(description="Maximum number of cities", ge=1, le=50)] = 10,
+        limit: Annotated[int, QueryParameter(description="Maximum number of cities", ge=1, le=50)] = 10,
     ) -> TopGeoCitiesResponse:
         """Top cities (NULL cities excluded) for the period."""
         rows = await geo_event_service.get_top_cities(

@@ -4,10 +4,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
 from litestar import Controller, get, post
 from litestar.exceptions import NotFoundException
+from litestar.params import FromPath, QueryParameter
 from litestar.response import File
 
 from geometrikks.server.logging import rotate_log_files
@@ -47,7 +48,13 @@ class LogsController(Controller):
     tags = ["Logs"]
 
     @get("/tail", sync_to_thread=True)
-    def tail(self, lines: int = 500, source: Literal["app", "login"] = "app") -> LogTailResponse:
+    def tail(
+        self,
+        lines: Annotated[int, QueryParameter(description="Number of records to return (capped)")] = 500,
+        source: Annotated[
+            Literal["app", "login"], QueryParameter(description="Which log to tail")
+        ] = "app",
+    ) -> LogTailResponse:
         clamped = max(1, min(lines, MAX_TAIL_LINES))
         service = create_log_files_service()
         if source == "login":
@@ -72,7 +79,7 @@ class LogsController(Controller):
         )
 
     @get("/files/{kind:str}/{name:str}", sync_to_thread=True)
-    def download(self, kind: str, name: str) -> File:
+    def download(self, kind: FromPath[str], name: FromPath[str]) -> File:
         path = create_log_files_service().resolve(kind, name)
         if path is None:
             raise NotFoundException(detail="No such log file")
