@@ -13,10 +13,7 @@ from geometrikks.server import plugins
 from geometrikks.server.exceptions import CROWDSEC_EXCEPTION_HANDLERS
 from geometrikks.server.lifecycle import on_startup, on_shutdown
 from geometrikks.server.routes import get_route_handlers
-from geometrikks.api.dependencies import (
-    provide_transaction,
-    provide_limit_offset_pagination
-)
+from geometrikks.api.dependencies import provide_limit_offset_pagination
 
 
 def create_app() -> Litestar:
@@ -68,7 +65,6 @@ def create_app() -> Litestar:
         plugins=plugins.create_plugins(),
         dependencies={
             "limit_offset": Provide(provide_limit_offset_pagination, sync_to_thread=False),
-            "transaction": provide_transaction,
         },
         openapi_config=openapi_config,
         compression_config=compression_config,

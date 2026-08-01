@@ -9,7 +9,7 @@ from typing import Annotated, Literal
 from litestar import Controller, get
 from litestar.di import NamedDependency, Provide
 from litestar.exceptions import ValidationException
-from litestar.params import Parameter
+from litestar.params import QueryParameter
 from litestar.openapi.spec import Example
 
 from geometrikks.domain.analytics.repositories import (
@@ -108,21 +108,21 @@ class AnalyticsController(Controller):
         summary_stats_repo: NamedDependency[SummaryStatsRepository],
         start_date: Annotated[
             datetime,
-            Parameter(
+            QueryParameter(
                 description="Start date (ISO 8601, e.g., 2024-01-01T00:00:00Z)",
                 examples=[Example(value="2024-01-01T00:00:00Z")],
             ),
         ],
         end_date: Annotated[
             datetime,
-            Parameter(
+            QueryParameter(
                 description="End date (ISO 8601, e.g., 2024-12-31T23:59:59Z)",
                 examples=[Example(value="2024-12-31T23:59:59Z")],
             ),
         ],
         compare_previous: Annotated[
             bool,
-            Parameter(
+            QueryParameter(
                 description="Include comparison with previous period of same length",
             ),
         ] = False,
@@ -244,21 +244,21 @@ class AnalyticsController(Controller):
         live_stats_repo: NamedDependency[LiveStatsRepository],
         start_date: Annotated[
             datetime,
-            Parameter(
+            QueryParameter(
                 description="Start date (ISO 8601, e.g., 2024-01-01T00:00:00Z)",
                 examples=[Example(value="2024-01-01T00:00:00Z")],
             ),
         ],
         end_date: Annotated[
             datetime,
-            Parameter(
+            QueryParameter(
                 description="End date (ISO 8601, e.g., 2024-12-31T23:59:59Z)",
                 examples=[Example(value="2024-12-31T23:59:59Z")],
             ),
         ],
         compare_previous: Annotated[
             bool,
-            Parameter(
+            QueryParameter(
                 description="Include comparison with previous period of same length",
             ),
         ] = False,
@@ -380,14 +380,14 @@ class AnalyticsController(Controller):
         summary_stats_repo: NamedDependency[SummaryStatsRepository],
         start_date: Annotated[
             datetime,
-            Parameter(
+            QueryParameter(
                 description="Start date (ISO 8601, e.g., 2024-01-01T00:00:00Z)",
                 examples=[Example(value="2024-01-01T00:00:00Z")],
             ),
         ],
         end_date: Annotated[
             datetime,
-            Parameter(
+            QueryParameter(
                 description="End date (ISO 8601, e.g., 2024-12-31T23:59:59Z)",
                 examples=[Example(value="2024-12-31T23:59:59Z")],
             ),
@@ -433,21 +433,21 @@ class AnalyticsController(Controller):
         live_stats_repo: NamedDependency[LiveStatsRepository],
         start_date: Annotated[
             datetime,
-            Parameter(
+            QueryParameter(
                 description="Start date (ISO 8601, e.g., 2024-01-01T00:00:00Z)",
                 examples=[Example(value="2024-01-01T00:00:00Z")],
             ),
         ],
         end_date: Annotated[
             datetime,
-            Parameter(
+            QueryParameter(
                 description="End date (ISO 8601, e.g., 2024-12-31T23:59:59Z)",
                 examples=[Example(value="2024-12-31T23:59:59Z")],
             ),
         ],
         granularity: Annotated[
             Literal["hourly", "daily"] | None,
-            Parameter(
+            QueryParameter(
                 description="Bucket size override. Omit to auto-select "
                 "(hourly <= 30 days, daily above). RAW is never available.",
                 required=False,
@@ -455,19 +455,19 @@ class AnalyticsController(Controller):
         ] = None,
         country_code: Annotated[
             list[str] | None,
-            Parameter(description="Filter to these ISO country codes (repeatable)", required=False),
+            QueryParameter(description="Filter to these ISO country codes (repeatable)", required=False),
         ] = None,
         city: Annotated[
             list[str] | None,
-            Parameter(description="Filter to these city names (repeatable)", required=False),
+            QueryParameter(description="Filter to these city names (repeatable)", required=False),
         ] = None,
         ip_address: Annotated[
             list[str] | None,
-            Parameter(description="Filter to these client IPs (repeatable)", required=False),
+            QueryParameter(description="Filter to these client IPs (repeatable)", required=False),
         ] = None,
         ip_address_not_in: Annotated[
             list[str] | None,
-            Parameter(description="Exclude these client IPs (repeatable)", required=False),
+            QueryParameter(description="Exclude these client IPs (repeatable)", required=False),
         ] = None,
     ) -> TimeSeriesResponse:
         """Get per-bucket access-log metrics (requests, status, bytes, latency).
@@ -520,21 +520,21 @@ class AnalyticsController(Controller):
         summary_stats_repo: NamedDependency[SummaryStatsRepository],
         start_date: Annotated[
             datetime,
-            Parameter(
+            QueryParameter(
                 description="Start date (ISO 8601, e.g., 2024-01-01T00:00:00Z)",
                 examples=[Example(value="2024-01-01T00:00:00Z")],
             ),
         ],
         end_date: Annotated[
             datetime,
-            Parameter(
+            QueryParameter(
                 description="End date (ISO 8601, e.g., 2024-12-31T23:59:59Z)",
                 examples=[Example(value="2024-12-31T23:59:59Z")],
             ),
         ],
         granularity: Annotated[
             Literal["hourly", "daily"] | None,
-            Parameter(
+            QueryParameter(
                 description="Bucket size override. Omit to auto-select "
                 "(hourly <= 30 days, daily above). RAW is never available.",
                 required=False,
@@ -566,37 +566,37 @@ class AnalyticsController(Controller):
         summary_stats_repo: NamedDependency[SummaryStatsRepository],
         start_date: Annotated[
             datetime,
-            Parameter(
+            QueryParameter(
                 description="Start date (ISO 8601, e.g., 2024-01-01T00:00:00Z)",
                 examples=[Example(value="2024-01-01T00:00:00Z")],
             ),
         ],
         end_date: Annotated[
             datetime,
-            Parameter(
+            QueryParameter(
                 description="End date (ISO 8601, e.g., 2024-12-31T23:59:59Z)",
                 examples=[Example(value="2024-12-31T23:59:59Z")],
             ),
         ],
         limit: Annotated[
             int,
-            Parameter(description="Maximum number of URLs to return", ge=1, le=100),
+            QueryParameter(description="Maximum number of URLs to return", ge=1, le=100),
         ] = 25,
         country_code: Annotated[
             list[str] | None,
-            Parameter(description="Filter to these ISO country codes (repeatable)", required=False),
+            QueryParameter(description="Filter to these ISO country codes (repeatable)", required=False),
         ] = None,
         city: Annotated[
             list[str] | None,
-            Parameter(description="Filter to these city names (repeatable)", required=False),
+            QueryParameter(description="Filter to these city names (repeatable)", required=False),
         ] = None,
         ip_address: Annotated[
             list[str] | None,
-            Parameter(description="Filter to these client IPs (repeatable)", required=False),
+            QueryParameter(description="Filter to these client IPs (repeatable)", required=False),
         ] = None,
         ip_address_not_in: Annotated[
             list[str] | None,
-            Parameter(description="Exclude these client IPs (repeatable)", required=False),
+            QueryParameter(description="Exclude these client IPs (repeatable)", required=False),
         ] = None,
     ) -> TopUrlsResponse:
         """Get the top URLs by hit count for a date range.
@@ -618,37 +618,37 @@ class AnalyticsController(Controller):
         summary_stats_repo: NamedDependency[SummaryStatsRepository],
         start_date: Annotated[
             datetime,
-            Parameter(
+            QueryParameter(
                 description="Start date (ISO 8601, e.g., 2024-01-01T00:00:00Z)",
                 examples=[Example(value="2024-01-01T00:00:00Z")],
             ),
         ],
         end_date: Annotated[
             datetime,
-            Parameter(
+            QueryParameter(
                 description="End date (ISO 8601, e.g., 2024-12-31T23:59:59Z)",
                 examples=[Example(value="2024-12-31T23:59:59Z")],
             ),
         ],
         limit: Annotated[
             int,
-            Parameter(description="Maximum number of user agents to return", ge=1, le=100),
+            QueryParameter(description="Maximum number of user agents to return", ge=1, le=100),
         ] = 25,
         country_code: Annotated[
             list[str] | None,
-            Parameter(description="Filter to these ISO country codes (repeatable)", required=False),
+            QueryParameter(description="Filter to these ISO country codes (repeatable)", required=False),
         ] = None,
         city: Annotated[
             list[str] | None,
-            Parameter(description="Filter to these city names (repeatable)", required=False),
+            QueryParameter(description="Filter to these city names (repeatable)", required=False),
         ] = None,
         ip_address: Annotated[
             list[str] | None,
-            Parameter(description="Filter to these client IPs (repeatable)", required=False),
+            QueryParameter(description="Filter to these client IPs (repeatable)", required=False),
         ] = None,
         ip_address_not_in: Annotated[
             list[str] | None,
-            Parameter(description="Exclude these client IPs (repeatable)", required=False),
+            QueryParameter(description="Exclude these client IPs (repeatable)", required=False),
         ] = None,
     ) -> TopUserAgentsResponse:
         """Get the top user agents by hit count for a date range.
@@ -670,31 +670,31 @@ class AnalyticsController(Controller):
         summary_stats_repo: NamedDependency[SummaryStatsRepository],
         start_date: Annotated[
             datetime,
-            Parameter(description="Start date (ISO 8601)"),
+            QueryParameter(description="Start date (ISO 8601)"),
         ],
         end_date: Annotated[
             datetime,
-            Parameter(description="End date (ISO 8601)"),
+            QueryParameter(description="End date (ISO 8601)"),
         ],
         limit: Annotated[
             int,
-            Parameter(description="Maximum number of IPs", ge=1, le=100),
+            QueryParameter(description="Maximum number of IPs", ge=1, le=100),
         ] = 25,
         country_code: Annotated[
             list[str] | None,
-            Parameter(description="Filter to these ISO country codes (repeatable)", required=False),
+            QueryParameter(description="Filter to these ISO country codes (repeatable)", required=False),
         ] = None,
         city: Annotated[
             list[str] | None,
-            Parameter(description="Filter to these city names (repeatable)", required=False),
+            QueryParameter(description="Filter to these city names (repeatable)", required=False),
         ] = None,
         ip_address: Annotated[
             list[str] | None,
-            Parameter(description="Filter to these client IPs (repeatable)", required=False),
+            QueryParameter(description="Filter to these client IPs (repeatable)", required=False),
         ] = None,
         ip_address_not_in: Annotated[
             list[str] | None,
-            Parameter(description="Exclude these client IPs (repeatable)", required=False),
+            QueryParameter(description="Exclude these client IPs (repeatable)", required=False),
         ] = None,
     ) -> TopIpsResponse:
         """Get the top client IPs by hit count for a date range."""
@@ -712,31 +712,31 @@ class AnalyticsController(Controller):
         summary_stats_repo: NamedDependency[SummaryStatsRepository],
         start_date: Annotated[
             datetime,
-            Parameter(description="Start date (ISO 8601)"),
+            QueryParameter(description="Start date (ISO 8601)"),
         ],
         end_date: Annotated[
             datetime,
-            Parameter(description="End date (ISO 8601)"),
+            QueryParameter(description="End date (ISO 8601)"),
         ],
         limit: Annotated[
             int,
-            Parameter(description="Maximum number of countries", ge=1, le=100),
+            QueryParameter(description="Maximum number of countries", ge=1, le=100),
         ] = 25,
         country_code: Annotated[
             list[str] | None,
-            Parameter(description="Filter to these ISO country codes (repeatable)", required=False),
+            QueryParameter(description="Filter to these ISO country codes (repeatable)", required=False),
         ] = None,
         city: Annotated[
             list[str] | None,
-            Parameter(description="Filter to these city names (repeatable)", required=False),
+            QueryParameter(description="Filter to these city names (repeatable)", required=False),
         ] = None,
         ip_address: Annotated[
             list[str] | None,
-            Parameter(description="Filter to these client IPs (repeatable)", required=False),
+            QueryParameter(description="Filter to these client IPs (repeatable)", required=False),
         ] = None,
         ip_address_not_in: Annotated[
             list[str] | None,
-            Parameter(description="Exclude these client IPs (repeatable)", required=False),
+            QueryParameter(description="Exclude these client IPs (repeatable)", required=False),
         ] = None,
     ) -> TopCountriesStatsResponse:
         """Get the top countries by hit count for a date range."""
@@ -754,31 +754,31 @@ class AnalyticsController(Controller):
         summary_stats_repo: NamedDependency[SummaryStatsRepository],
         start_date: Annotated[
             datetime,
-            Parameter(description="Start date (ISO 8601)"),
+            QueryParameter(description="Start date (ISO 8601)"),
         ],
         end_date: Annotated[
             datetime,
-            Parameter(description="End date (ISO 8601)"),
+            QueryParameter(description="End date (ISO 8601)"),
         ],
         limit: Annotated[
             int,
-            Parameter(description="Maximum number of cities", ge=1, le=100),
+            QueryParameter(description="Maximum number of cities", ge=1, le=100),
         ] = 25,
         country_code: Annotated[
             list[str] | None,
-            Parameter(description="Filter to these ISO country codes (repeatable)", required=False),
+            QueryParameter(description="Filter to these ISO country codes (repeatable)", required=False),
         ] = None,
         city: Annotated[
             list[str] | None,
-            Parameter(description="Filter to these city names (repeatable)", required=False),
+            QueryParameter(description="Filter to these city names (repeatable)", required=False),
         ] = None,
         ip_address: Annotated[
             list[str] | None,
-            Parameter(description="Filter to these client IPs (repeatable)", required=False),
+            QueryParameter(description="Filter to these client IPs (repeatable)", required=False),
         ] = None,
         ip_address_not_in: Annotated[
             list[str] | None,
-            Parameter(description="Exclude these client IPs (repeatable)", required=False),
+            QueryParameter(description="Exclude these client IPs (repeatable)", required=False),
         ] = None,
     ) -> TopCitiesResponse:
         """Get the top cities by hit count for a date range."""

@@ -17,6 +17,7 @@ import maxminddb
 from litestar import Controller, Request, get, post
 from litestar.datastructures import State
 from litestar.exceptions import NotFoundException
+from litestar.params import FromPath
 from litestar.status_codes import HTTP_202_ACCEPTED
 from sqlalchemy import text
 
@@ -333,7 +334,7 @@ class SystemController(Controller):
         )
 
     @post("/scheduler/jobs/{job_id:str}/run", status_code=HTTP_202_ACCEPTED)
-    async def run_scheduler_job(self, request: Request, job_id: str) -> SchedulerJobView:
+    async def run_scheduler_job(self, request: Request, job_id: FromPath[str]) -> SchedulerJobView:
         """Trigger a job ASAP by moving its next_run_time to now.
 
         The scheduler executes it through its normal machinery, so

@@ -9099,11 +9099,13 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
+            "description": "Number of records to return (capped)",
             "in": "query",
             "name": "lines",
             "required": false,
             "schema": {
               "default": 500,
+              "description": "Number of records to return (capped)",
               "type": "integer"
             }
           },
@@ -9111,11 +9113,13 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
+            "description": "Which log to tail",
             "in": "query",
             "name": "source",
             "required": false,
             "schema": {
               "default": "app",
+              "description": "Which log to tail",
               "enum": [
                 "app",
                 "login"

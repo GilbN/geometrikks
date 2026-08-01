@@ -25,7 +25,7 @@ from advanced_alchemy.extensions.litestar import (
     base,
 )
 
-from litestar.plugins import CLIPluginProtocol
+from litestar.plugins import CLIPlugin
 from litestar_geoalchemy import GeoAlchemyPlugin
 from litestar_granian import GranianPlugin
 from litestar_vite import ViteConfig, VitePlugin
@@ -50,7 +50,7 @@ def get_sqlalchemy_config() -> SQLAlchemyAsyncConfig:
         json_serializer=encode_json,
         json_deserializer=decode_json,
         echo_pool=settings.database.echo_pool,
-        pool_pre_ping=True,
+        pool_pre_ping=settings.database.pool_pre_ping,
         pool_use_lifo=True,  # use lifo to reduce the number of idle connections
         poolclass=NullPool if settings.database.pool_disabled else None,
     )
@@ -71,6 +71,8 @@ def create_vite_config(settings: Settings) -> ViteConfig:
             host=settings.vite.host,
             port=settings.vite.port,
             executor=settings.vite.executor,
+            start_dev_server=settings.vite.use_server_lifespan,
+            is_react=settings.vite.enable_react_helpers,
             # litestar-vite 0.25 executor bug on Windows: it compares run_command[0]
             # against shutil.which("bun") case-sensitively ("bun" vs "bun.EXE"), fails,
             # and prepends the binary — running `bun.EXE bun run dev` (bun's legacy
@@ -109,7 +111,7 @@ def create_structlog_plugin(settings: Settings) -> StructlogPlugin:
 
 
 def create_plugins() -> list[
-    SQLAlchemyInitPlugin | GeoAlchemyPlugin | GranianPlugin | VitePlugin | CLIPluginProtocol | StructlogPlugin
+    SQLAlchemyInitPlugin | GeoAlchemyPlugin | GranianPlugin | VitePlugin | CLIPlugin | StructlogPlugin
 ]:
     """Instantiate all app plugins; called once from create_app()."""
     from geometrikks.cli import ImportLogsCLIPlugin

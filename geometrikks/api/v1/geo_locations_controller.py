@@ -7,7 +7,7 @@ from advanced_alchemy.extensions.litestar import filters
 from litestar.pagination import OffsetPagination
 from litestar import Controller, get
 from litestar.di import NamedDependency, Provide
-from litestar.params import Parameter, PathParameter
+from litestar.params import PathParameter, QueryParameter
 from litestar.openapi.spec import Example
 
 from geometrikks.domain.geo.models import GeoLocation
@@ -51,7 +51,7 @@ class GeoLocationController(Controller):
         limit_offset: NamedDependency[filters.LimitOffset],
     ) -> OffsetPagination[GeoLocation]:
         """List all geo-locations with pagination."""
-        results, total = await geo_location_repo.list_and_count(limit_offset)
+        results, total = await geo_location_repo.get_many_and_count(limit_offset)
         return OffsetPagination[GeoLocation](
             items=results,
             total=total,
@@ -65,37 +65,37 @@ class GeoLocationController(Controller):
         geo_location_repo: NamedDependency[GeoLocationRepository],
         from_timestamp: Annotated[
             datetime,
-            Parameter(
+            QueryParameter(
                 description="Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)",
                 examples=[Example(value="2024-01-01T00:00:00Z")],
             ),
         ],
         to_timestamp: Annotated[
             datetime,
-            Parameter(
+            QueryParameter(
                 description="End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)",
                 examples=[Example(value="2024-12-31T23:59:59Z")],
             ),
         ],
         country_code: Annotated[
             list[str] | None,
-            Parameter(description="Filter to these ISO country codes (repeatable)", required=False),
+            QueryParameter(description="Filter to these ISO country codes (repeatable)", required=False),
         ] = None,
         city: Annotated[
             list[str] | None,
-            Parameter(description="Filter to these city names (repeatable)", required=False),
+            QueryParameter(description="Filter to these city names (repeatable)", required=False),
         ] = None,
         ip_address_in: Annotated[
             list[str] | None,
-            Parameter(query="ipAddressIn", description="Filter to these IPs (repeatable)", required=False),
+            QueryParameter(name="ipAddressIn", description="Filter to these IPs (repeatable)", required=False),
         ] = None,
         ip_address_not_in: Annotated[
             list[str] | None,
-            Parameter(query="ipAddressNotIn", description="Exclude these IPs (repeatable)", required=False),
+            QueryParameter(name="ipAddressNotIn", description="Exclude these IPs (repeatable)", required=False),
         ] = None,
         hostname_in: Annotated[
             list[str] | None,
-            Parameter(query="hostnameIn", description="Filter to these recording hostnames (repeatable)", required=False),
+            QueryParameter(name="hostnameIn", description="Filter to these recording hostnames (repeatable)", required=False),
         ] = None,
     ) -> GeoJSONFeatureCollection:
         """Get all locations with event counts as GeoJSON FeatureCollection.
@@ -168,21 +168,21 @@ class GeoLocationController(Controller):
         geo_location_repo: NamedDependency[GeoLocationRepository],
         from_timestamp: Annotated[
             datetime,
-            Parameter(
+            QueryParameter(
                 description="Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)",
                 examples=[Example(value="2024-01-01T00:00:00Z")],
             ),
         ],
         to_timestamp: Annotated[
             datetime,
-            Parameter(
+            QueryParameter(
                 description="End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)",
                 examples=[Example(value="2024-12-31T23:59:59Z")],
             ),
         ],
         limit: Annotated[
             int,
-            Parameter(description="Maximum number of IPs to return", ge=1, le=20),
+            QueryParameter(description="Maximum number of IPs to return", ge=1, le=20),
         ] = 5,
     ) -> GlobalTopIPsResponse:
         """Get global top IPs by event count with their primary locations.
@@ -222,21 +222,21 @@ class GeoLocationController(Controller):
         location_id: Annotated[int, PathParameter()],
         from_timestamp: Annotated[
             datetime,
-            Parameter(
+            QueryParameter(
                 description="Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)",
                 examples=[Example(value="2024-01-01T00:00:00Z")],
             ),
         ],
         to_timestamp: Annotated[
             datetime,
-            Parameter(
+            QueryParameter(
                 description="End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)",
                 examples=[Example(value="2024-12-31T23:59:59Z")],
             ),
         ],
         limit: Annotated[
             int,
-            Parameter(description="Maximum number of IPs to return", ge=1, le=20),
+            QueryParameter(description="Maximum number of IPs to return", ge=1, le=20),
         ] = 5,
     ) -> LocationTopIPsResponse:
         """Get top IPs for a specific location.
@@ -263,21 +263,21 @@ class GeoLocationController(Controller):
         geo_location_repo: NamedDependency[GeoLocationRepository],
         from_timestamp: Annotated[
             datetime,
-            Parameter(
+            QueryParameter(
                 description="Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)",
                 examples=[Example(value="2024-01-01T00:00:00Z")],
             ),
         ],
         to_timestamp: Annotated[
             datetime,
-            Parameter(
+            QueryParameter(
                 description="End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)",
                 examples=[Example(value="2024-12-31T23:59:59Z")],
             ),
         ],
         limit: Annotated[
             int,
-            Parameter(description="Maximum number of countries to return", ge=1, le=50),
+            QueryParameter(description="Maximum number of countries to return", ge=1, le=50),
         ] = 10,
     ) -> TopCountriesResponse:
         """Get top countries by event count.

@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- All API query and path parameters now use Litestar's explicit
+  `QueryParameter`/`FromPath` declarations (Litestar 3.0 readiness). Wire
+  names and validation are unchanged; the OpenAPI schema gains descriptions
+  for the two `/logs/tail` query parameters.
+- The `DB_POOL_PRE_PING` setting is now honored; it was previously declared
+  but hardcoded to enabled.
+- The `VITE_USE_SERVER_LIFESPAN` and `VITE_ENABLE_REACT_HELPERS` settings are
+  now passed through to the Vite integration; they previously had no effect.
+- Litestar is now constrained to the 2.x series (`<3`) so the upcoming
+  Litestar 3.0 release cannot be picked up accidentally before the planned
+  migration.
+- The test suite now fails on new Litestar deprecation warnings and runtime
+  warnings, with the seven known upstream advanced-alchemy filter-provider
+  warnings pinned as the only deprecation exemption.
+
+### Removed
+
+- The `VITE_HOT_RELOAD` setting, which mapped to nothing in the Vite
+  integration (HMR is always on in dev mode).
+- Dead internal dependency providers (`transaction`, access-log repository)
+  and the unused `litestar-mcp` dev dependency.
+
 ## [0.6.0] - 2026-07-31
 
 ### Added

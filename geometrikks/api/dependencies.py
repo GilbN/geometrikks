@@ -1,23 +1,18 @@
 """Shared dependency providers for API layer."""
 from __future__ import annotations
 
-from collections.abc import AsyncGenerator
 from typing import Annotated
 
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.exc import IntegrityError
 
 from litestar import Request
 from litestar.di import NamedDependency
 from litestar.params import QueryParameter
 from advanced_alchemy.extensions.litestar import filters
-from litestar.exceptions import ClientException
-from litestar.status_codes import HTTP_409_CONFLICT
 
 from geometrikks.services.crowdsec import CrowdSecService
 from geometrikks.services.ingestion import LogIngestionService
 from geometrikks.domain.geo.repositories import GeoLocationRepository
-from geometrikks.domain.logs.repositories import AccessLogRepository
 from geometrikks.domain.analytics.repositories import LiveStatsRepository, SummaryStatsRepository
 from geometrikks.domain.security.repositories import SecurityEnrichmentRepository
 
@@ -45,32 +40,11 @@ async def provide_security_enrichment_repo(
     return SecurityEnrichmentRepository(session=db_session)
 
 
-async def provide_transaction(
-    db_session: NamedDependency[AsyncSession],
-) -> AsyncGenerator[AsyncSession, None]:
-    """Provide a database transaction context."""
-    try:
-        async with db_session.begin():
-            yield db_session
-    except IntegrityError as exc:
-        raise ClientException(
-            status_code=HTTP_409_CONFLICT,
-            detail=str(exc),
-        ) from exc
-
-
 async def provide_geo_location_repo(
     db_session: NamedDependency[AsyncSession],
 ) -> GeoLocationRepository:
     """Provide GeoLocationRepository."""
     return GeoLocationRepository(session=db_session)
-
-
-async def provide_access_log_repo(
-    db_session: NamedDependency[AsyncSession],
-) -> AccessLogRepository:
-    """Provide AccessLogRepository."""
-    return AccessLogRepository(session=db_session)
 
 
 def provide_limit_offset_pagination(

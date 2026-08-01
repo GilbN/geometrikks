@@ -463,10 +463,6 @@ class ViteSettings(BaseSettings):
         default=5173,
         description="The port to start vite on. Default is 5173."
     )
-    hot_reload: bool = Field(
-        default=True,
-        description="Start vite with HMR enabled."
-    )
     enable_react_helpers: bool = Field(
         default=True,
         description="Enable React support in HMR."
