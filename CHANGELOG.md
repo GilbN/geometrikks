@@ -16,6 +16,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   schema migrations as a separate deployment step with
   `litestar database upgrade` instead of at every app startup; the app then
   fails startup deliberately if the schema was left unusable.
+- `docs/deployment.md` documenting the container runtime model, the
+  single-worker constraint, migration ownership, shutdown behavior, and
+  health endpoints.
+
+### Fixed
+
+- `docker stop` now shuts the server down gracefully: ingestion drains its
+  current batch and the scheduler stops before the process exits. The
+  container previously killed the server without running any teardown
+  because the CLI wrapper did not forward SIGTERM to Granian; the server
+  now runs in Granian's direct process mode under a tini init.
 
 ### Changed
 
@@ -52,6 +63,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   counting, heartbeats, unsubscribe cleanup, cancellation, the session-auth
   handshake boundary, and the inbound-frame policy.
 
+- Development now runs on a single origin: `litestar run` serves the app,
+  all Vite assets, and hot-module reload through `http://localhost:8000`
+  (the Vite sidecar uses an internal ephemeral port). The standalone Vite
+  dev server on :5173, its `/api` and `/ws` proxies, and the published 5173
+  port in the dev compose are gone.
+- The production image installs the application as a built wheel instead of
+  copying the source tree, runs a single explicit Granian worker, and uses
+  tini as PID 1. litestar-vite upgraded to 0.29 on both the Python and npm
+  sides.
 - The `/health`, `/health/ready`, `/api/v1/stats`, and `/api/v1/logs/tail`
   responses now have typed OpenAPI schemas (readiness documents its 503
   response); payload shapes on the wire are unchanged.
