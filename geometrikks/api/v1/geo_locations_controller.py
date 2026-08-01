@@ -26,7 +26,7 @@ from geometrikks.domain.geo.dtos import (
     TopCountriesResponse,
 )
 
-from geometrikks.api.parameters import (
+from geometrikks.lib.parameters import (
     CityFilter,
     CountryCodeFilter,
     EndTimestamp,
