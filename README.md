@@ -446,6 +446,10 @@ credentials, MaxMind key, log paths, DB password). For the full set of
 environment variables - every default, every setting - see
 [`docs/configuration.md`](docs/configuration.md).
 
+Set `GEOMETRIKKS_ENV_FILE` to load a different `.env` path, or to an empty
+value to disable dotenv loading and configure through real environment
+variables only.
+
 ### PUID and PGID
 
 The container starts as root just long enough to re-map its internal user to

@@ -98,6 +98,11 @@ def build() -> str:
         "All settings are environment variables (or `.env` entries). The short",
         "list most users need is in `.env.example`; everything below is available.",
         "",
+        "`GEOMETRIKKS_ENV_FILE` overrides the path of the `.env` file itself",
+        "(default: `.env` in the working directory); setting it to an empty",
+        "value disables dotenv loading entirely, so configuration comes only",
+        "from real environment variables. It is read once at import time.",
+        "",
     ]
     parts.extend(render_section(*section) for section in SECTIONS)
     return "\n".join(parts) + "\n"
