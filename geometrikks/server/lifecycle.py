@@ -131,19 +131,23 @@ async def crowdsec_lifespan(app: "Litestar") -> "AsyncGenerator[None]":
     ingestion managers, so nothing that could still use the client outlives it.
     """
     settings = _resolve_settings(app)
-    if settings.crowdsec.enabled:
-        app.state.crowdsec_service = CrowdSecService(settings.crowdsec)
-        app.state.crowdsec_stream_poller = CrowdSecStreamPoller(app.state.crowdsec_service)
-        logger.info(
-            "CrowdSec integration enabled (write=%s)", settings.crowdsec.write_enabled
-        )
-    else:
-        app.state.crowdsec_service = None
-        app.state.crowdsec_stream_poller = None
+    service: CrowdSecService | None = None
+    # The finally covers the setup phase too: if wiring fails after the LAPI
+    # client exists (e.g. poller construction), the client is still closed.
     try:
+        if settings.crowdsec.enabled:
+            service = CrowdSecService(settings.crowdsec)
+            app.state.crowdsec_service = service
+            app.state.crowdsec_stream_poller = CrowdSecStreamPoller(service)
+            logger.info(
+                "CrowdSec integration enabled (write=%s)", settings.crowdsec.write_enabled
+            )
+        else:
+            app.state.crowdsec_service = None
+            app.state.crowdsec_stream_poller = None
         yield
     finally:
-        crowdsec_service = runtime.get_crowdsec_service(app)
+        crowdsec_service = runtime.get_crowdsec_service(app) or service
         if crowdsec_service:
             await crowdsec_service.aclose()
 
@@ -216,17 +220,19 @@ async def scheduler_lifespan(app: "Litestar") -> "AsyncGenerator[None]":
         settings,
         crowdsec_poller=runtime.get_crowdsec_poller(app),
     )
-    scheduler_tracker = JobRunTracker()
-    scheduler_tracker.attach(scheduler)
-    scheduler.start()
-    logger.info("Started APScheduler")
-
-    app.state.scheduler = scheduler
-    app.state.scheduler_tracker = scheduler_tracker
+    # The finally covers start() itself: if it activates the scheduler and
+    # then raises, the running scheduler is still shut down.
     try:
+        scheduler_tracker = JobRunTracker()
+        scheduler_tracker.attach(scheduler)
+        scheduler.start()
+        logger.info("Started APScheduler")
+
+        app.state.scheduler = scheduler
+        app.state.scheduler_tracker = scheduler_tracker
         yield
     finally:
-        running = runtime.get_scheduler(app)
+        running = runtime.get_scheduler(app) or scheduler
         if running and running.running:
             running.shutdown(wait=True)
             logger.info("Stopped APScheduler")
@@ -270,13 +276,15 @@ async def ingestion_lifespan(app: "Litestar") -> "AsyncGenerator[None]":
     )
     app.state.ingestion_service = ingestion_service
 
-    await ingestion_service.start(
-        skip_validation=settings.logparser.skip_validation,
-    )
+    # The finally covers start() itself: if it activates tailers and then
+    # raises, the partially started service is still stopped.
     try:
+        await ingestion_service.start(
+            skip_validation=settings.logparser.skip_validation,
+        )
         yield
     finally:
-        service = runtime.get_ingestion_service(app)
+        service = runtime.get_ingestion_service(app) or ingestion_service
         if service:
             await service.stop(timeout=5.0)
 

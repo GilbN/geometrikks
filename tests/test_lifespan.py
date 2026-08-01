@@ -73,6 +73,67 @@ async def test_startup_failure_unwinds_started_managers(monkeypatch):
     lc.LogIngestionService.assert_not_called()
 
 
+async def test_crowdsec_wiring_failure_still_closes_client(monkeypatch):
+    """If setup fails after the LAPI client exists (poller construction),
+    the manager's own cleanup must close the client."""
+    from geometrikks.server import lifecycle as lc
+
+    _enable_crowdsec(monkeypatch)
+    _patch_startup_collaborators(
+        monkeypatch, lc, db_available=True, ensure=AsyncMock(return_value=True)
+    )
+    service = _patch_crowdsec_service(monkeypatch, lc)
+    monkeypatch.setattr(
+        lc, "CrowdSecStreamPoller", MagicMock(side_effect=RuntimeError("poller boom"))
+    )
+
+    app = SimpleNamespace(state=SimpleNamespace())
+    with pytest.raises(RuntimeError, match="poller boom"):
+        async with enter_lifespan(app):
+            pass
+
+    service.aclose.assert_awaited_once()
+
+
+async def test_scheduler_start_failure_still_shuts_down(monkeypatch):
+    """If start() activates the scheduler and then raises, the running
+    scheduler must still be shut down; ingestion never starts."""
+    from geometrikks.server import lifecycle as lc
+
+    _patch_startup_collaborators(
+        monkeypatch, lc, db_available=True, ensure=AsyncMock(return_value=True)
+    )
+    scheduler = lc.create_scheduler.return_value
+    scheduler.start = MagicMock(side_effect=RuntimeError("job store down"))
+    scheduler.running = True
+
+    app = SimpleNamespace(state=SimpleNamespace())
+    with pytest.raises(RuntimeError, match="job store down"):
+        async with enter_lifespan(app):
+            pass
+
+    scheduler.shutdown.assert_called_once_with(wait=True)
+    lc.LogIngestionService.assert_not_called()
+
+
+async def test_ingestion_start_failure_still_stops_service(monkeypatch):
+    """If start() activates tailers and then raises, the partially started
+    service must still be stopped."""
+    from geometrikks.server import lifecycle as lc
+
+    ingestion, _ = _patch_startup_collaborators(
+        monkeypatch, lc, db_available=True, ensure=AsyncMock(return_value=True)
+    )
+    ingestion.start = AsyncMock(side_effect=RuntimeError("tailer exploded"))
+
+    app = SimpleNamespace(state=SimpleNamespace())
+    with pytest.raises(RuntimeError, match="tailer exploded"):
+        async with enter_lifespan(app):
+            pass
+
+    ingestion.stop.assert_awaited_once()
+
+
 async def test_db_degraded_mode_skips_scheduler_and_ingestion(monkeypatch):
     """DB-degraded mode serves the API but never starts DB-bound services."""
     from geometrikks.server import lifecycle as lc
