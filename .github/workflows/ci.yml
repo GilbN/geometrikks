@@ -43,6 +43,42 @@ jobs:
       - name: Config docs freshness
         run: uv run python scripts/generate_config_docs.py --check
 
+  contracts:
+    # The committed generated client (resources/generated/) must be exactly
+    # what the backend produces, and the frontend must type-check against it.
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      # Typegen composes the real app; auth settings demand a password even
+      # though no server ever starts. Deliberately non-secret.
+      APP_ADMIN_PASSWORD: typegen-only
+      # No GeoLite2 database in CI; settings construction must not fail.
+      GEOIP_VALIDATE_DB_PATH: "false"
+      # Dev mode would register dev-only vite routes and pollute routes.json.
+      VITE_DEV_MODE: "false"
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+      - uses: oven-sh/setup-bun@v2
+      - name: Sync dependencies
+        run: uv sync --frozen
+      - name: Install frontend dependencies
+        run: bun install --frozen-lockfile
+      - name: Regenerate TypeScript contracts
+        run: uv run litestar --app geometrikks.server.core:create_app assets generate-types
+      - name: Fail on generated-contract drift
+        run: |
+          if [[ -n "$(git status --porcelain resources/generated)" ]]; then
+            echo "resources/generated/ is stale; run 'litestar assets generate-types' and commit the result."
+            git status --porcelain resources/generated
+            git diff -- resources/generated | head -200
+            exit 1
+          fi
+      - name: Frontend type check
+        run: bun run typecheck
+
   frontend:
     runs-on: ubuntu-latest
     timeout-minutes: 30
