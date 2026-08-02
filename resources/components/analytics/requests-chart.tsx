@@ -21,7 +21,7 @@ export function RequestsChart() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-sm font-medium">Requests</CardTitle>
+        <CardTitle className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Requests</CardTitle>
       </CardHeader>
       <CardContent>
         {isLoading || !data ? (

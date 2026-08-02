@@ -21,7 +21,7 @@ export function BytesChart() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-sm font-medium">Bandwidth</CardTitle>
+        <CardTitle className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Bandwidth</CardTitle>
       </CardHeader>
       <CardContent>
         {isLoading || !data ? (

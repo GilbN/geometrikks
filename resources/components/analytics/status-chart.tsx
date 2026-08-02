@@ -28,7 +28,7 @@ export function StatusChart() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-sm font-medium">Status classes</CardTitle>
+        <CardTitle className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Status classes</CardTitle>
       </CardHeader>
       <CardContent>
         {isLoading || !data ? (

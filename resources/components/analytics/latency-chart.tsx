@@ -28,7 +28,7 @@ export function LatencyChart() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-sm font-medium">Latency (avg / p50 / p95 / p99)</CardTitle>
+        <CardTitle className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Latency (avg / p50 / p95 / p99)</CardTitle>
       </CardHeader>
       <CardContent>
         {isLoading || !data ? (

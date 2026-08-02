@@ -10,6 +10,8 @@
  */
 import { createFileRoute } from "@tanstack/react-router"
 import { z } from "zod"
+import { PageHeader } from "@/components/page-header"
+import { SectionHeader } from "@/components/section-header"
 import { RequestsChart } from "@/components/analytics/requests-chart"
 import { StatusChart } from "@/components/analytics/status-chart"
 import { BytesChart } from "@/components/analytics/bytes-chart"
@@ -71,13 +73,19 @@ function AnalyticsPage() {
   return (
     <AnalyticsFiltersProvider filters={filters} setFilters={setFilters}>
       <div className="p-4 space-y-4">
+        <PageHeader
+          title="Analytics"
+          subtitle="Charts and top lists over the access-log data."
+        />
         <AnalyticsFilterBar />
+        <SectionHeader>Traffic</SectionHeader>
         <div className="grid gap-4 md:grid-cols-2">
           <RequestsChart />
           <StatusChart />
           <BytesChart />
           <LatencyChart />
         </div>
+        <SectionHeader>Top Lists</SectionHeader>
         <div className="grid gap-4 lg:grid-cols-2">
           <TopIpsTable />
           <TopCountriesCities />
