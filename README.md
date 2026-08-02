@@ -1,4 +1,6 @@
-# GeoMetrikks
+<p align="center">
+  <img src="resources/static/brand/readme-banner.png" alt="GeoMetrikks" width="720">
+</p>
 
 ![Map](/data/screenshots/live.png)
 
