@@ -22,6 +22,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Fixed horizontal page scrolling on mobile Settings routes and replaced the
+  overflowing tab row with a compact section selector.
 - `docker stop` now shuts the server down gracefully: ingestion drains its
   current batch and the scheduler stops before the process exits. The
   container previously killed the server without running any teardown
