@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- New brand identity: wayfinder (vegvisir) mark, runr wordmark with rune ligature, regenerated favicon and PWA icons, and a branded login screen.
+- Accent variant system: the app accent (teal default, green, copper) is switchable in code via a `data-accent` attribute.
+
+### Changed
+
+- Rebuilt the color themes: new "Aurora night" dark theme and a first-class "Fjord mist" light theme; map popups and controls now follow the theme tokens.
+
 ## [0.7.0] - 2026-08-02
 
 ### Added
