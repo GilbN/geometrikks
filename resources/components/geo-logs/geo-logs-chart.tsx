@@ -26,7 +26,7 @@ export function GeoLogsChart() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-sm font-medium">Geo Events Over Time</CardTitle>
+        <CardTitle className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Geo Events Over Time</CardTitle>
       </CardHeader>
       <CardContent>
         {isLoading || !data ? (

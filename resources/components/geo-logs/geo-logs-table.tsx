@@ -31,6 +31,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { PaginationFooter } from "@/components/ui/pagination-footer"
+import { Card } from "@/components/ui/card"
+import { ErrorBanner } from "@/components/error-banner"
 import type { GeoLogEntry } from "@/generated/api/types.gen"
 import { formatNumber, type GeoLogSortField, type GeoLogSortOrder } from "@/lib/api"
 import { IpBanControls } from "@/components/crowdsec/ip-ban-controls"
@@ -206,11 +208,7 @@ export function GeoLogsTable({
   }
 
   if (isError) {
-    return (
-      <div className="rounded-md border p-6 text-sm text-destructive">
-        Failed to load geo logs.
-      </div>
-    )
+    return <ErrorBanner title="Failed to load geo logs." />
   }
 
   return (
@@ -241,7 +239,7 @@ export function GeoLogsTable({
         </DropdownMenu>
       </div>
 
-      <div className="rounded-md border">
+      <Card className="gap-0 overflow-hidden py-0">
         <Table>
           <TableHeader>
             <TableRow>
@@ -322,7 +320,7 @@ export function GeoLogsTable({
           onPageSizeChange={onPageSizeChange}
           className="border-t"
         />
-      </div>
+      </Card>
     </div>
   )
 }

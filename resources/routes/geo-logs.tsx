@@ -14,6 +14,7 @@ import { createFileRoute } from "@tanstack/react-router"
 import { z } from "zod"
 import { Card } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
+import { PageHeader } from "@/components/page-header"
 import { GeoLogsFilterBar } from "@/components/geo-logs/geo-logs-filter-bar"
 import { GeoLogsStats } from "@/components/geo-logs/geo-logs-stats"
 import { GeoLogsChart } from "@/components/geo-logs/geo-logs-chart"
@@ -118,6 +119,10 @@ function GeoLogsPage() {
   return (
     <GeoLogFiltersProvider filters={filters} setFilters={setFilters}>
       <div className="p-4 space-y-4">
+        <PageHeader
+          title="Geo Logs"
+          subtitle="Geolocated request events: where your traffic comes from."
+        />
         <GeoLogsFilterBar />
         <GeoLogsStats />
         <div className="grid gap-4 lg:grid-cols-2">

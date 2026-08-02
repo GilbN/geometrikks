@@ -23,7 +23,7 @@ export function GeoTopIpsTable() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-sm font-medium">Top IPs</CardTitle>
+        <CardTitle className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Top IPs</CardTitle>
       </CardHeader>
       <CardContent>
         {isLoading || !data ? (

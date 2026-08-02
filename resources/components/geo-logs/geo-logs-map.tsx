@@ -16,8 +16,8 @@ import "maplibre-gl/dist/maplibre-gl.css"
 import type { FeatureCollection, Point } from "geojson"
 import type { GeoJSONSource, MapLayerMouseEvent } from "maplibre-gl"
 
-import { AlertTriangle } from "lucide-react"
 import { Card } from "@/components/ui/card"
+import { ErrorBanner } from "@/components/error-banner"
 import { MapSkeleton } from "@/components/map/MapSkeleton"
 import { useMapStyle } from "@/components/map/hooks/useMapStyle"
 import { MapPopup, type PopupInfo } from "@/components/map/MapPopup"
@@ -121,8 +121,8 @@ export default function GeoLogsMap() {
       <div className="relative flex-1">
         {isLoading && <MapSkeleton />}
         {isError && (
-          <div className="flex h-full items-center justify-center gap-2 text-sm text-destructive">
-            <AlertTriangle className="h-4 w-4" /> Failed to load map data.
+          <div className="flex h-full items-center justify-center p-4">
+            <ErrorBanner className="w-full max-w-md" title="Failed to load map data." />
           </div>
         )}
         {!isLoading && !isError && (
