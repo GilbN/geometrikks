@@ -38,6 +38,8 @@ import {
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { fetchHealth, fetchMe, logout } from "@/lib/api"
+import { BrandMark } from "@/components/brand/brand-mark"
+import { Wordmark } from "@/components/brand/wordmark"
 import { useLiveFeedStatus } from "@/lib/live-feed-context"
 import { useCrowdsecStatus, useRuntimeSettings } from "@/lib/queries"
 import { SiDocker } from "react-icons/si"
@@ -106,44 +108,17 @@ function GeoLogo({ collapsed }: { collapsed: boolean }) {
         collapsed ? "justify-center px-0 gap-0" : "justify-start px-2 gap-3"
       )}
     >
-      {/* Geometric marker icon */}
-      <div className="relative flex-shrink-0">
-        <div className="relative w-8 h-8 flex items-center justify-center">
-          {/* Outer glow */}
-          <div className="absolute inset-0 rounded-lg bg-geo-cyan/20 blur-sm" />
-          {/* Main shape */}
-          <div className="relative w-8 h-8 rounded-lg bg-gradient-to-br from-geo-cyan to-geo-cyan-dim flex items-center justify-center shadow-lg shadow-geo-glow">
-            {/* Inner geometric pattern */}
-            <svg
-              viewBox="0 0 24 24"
-              className="w-4 h-4 text-sidebar-primary-foreground"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              {/* Hexagonal grid / geo marker hybrid */}
-              <path d="M12 2L2 7l10 5 10-5-10-5z" />
-              <path d="M2 17l10 5 10-5" />
-              <path d="M2 12l10 5 10-5" />
-            </svg>
-          </div>
-        </div>
-      </div>
-      {/* Brand text */}
+      <BrandMark
+        size={30}
+        className="text-sidebar-foreground"
+      />
       <div
         className={cn(
           "flex flex-col overflow-hidden transition-all duration-200",
           collapsed ? "w-0 opacity-0" : "w-auto opacity-100"
         )}
       >
-        <span className="text-[24px] font-normal tracking-[0.12em] uppercase font-runr text-sidebar-foreground whitespace-nowrap">
-          Geo<span className="text-geo-cyan">Metrikks</span>
-        </span>
-        <span className="text-[11px] font-runr font-normal tracking-[0.25em] uppercase text-sidebar-foreground/50 whitespace-nowrap">
-          Analytics
-        </span>
+        <Wordmark sub className="text-[21px] text-sidebar-foreground" />
       </div>
     </div>
   )
