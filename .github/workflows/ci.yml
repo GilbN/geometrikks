@@ -32,7 +32,7 @@ jobs:
       - name: Sync dependencies
         run: uv sync --frozen
       - name: Type check
-        run: uv run ty check geometrikks
+        run: uv run ty check geometrikks tests
       - name: Run tests (unit + integration)
         env:
           IT_DB_HOST: localhost
@@ -42,6 +42,42 @@ jobs:
         run: uv run pytest -v
       - name: Config docs freshness
         run: uv run python scripts/generate_config_docs.py --check
+
+  contracts:
+    # The committed generated client (resources/generated/) must be exactly
+    # what the backend produces, and the frontend must type-check against it.
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      # Typegen composes the real app; auth settings demand a password even
+      # though no server ever starts. Deliberately non-secret.
+      APP_ADMIN_PASSWORD: typegen-only
+      # No GeoLite2 database in CI; settings construction must not fail.
+      GEOIP_VALIDATE_DB_PATH: "false"
+      # Dev mode would register dev-only vite routes and pollute routes.json.
+      VITE_DEV_MODE: "false"
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+      - uses: oven-sh/setup-bun@v2
+      - name: Sync dependencies
+        run: uv sync --frozen
+      - name: Install frontend dependencies
+        run: bun install --frozen-lockfile
+      - name: Regenerate TypeScript contracts
+        run: uv run litestar --app geometrikks.server.core:create_app assets generate-types
+      - name: Fail on generated-contract drift
+        run: |
+          if [[ -n "$(git status --porcelain resources/generated)" ]]; then
+            echo "resources/generated/ is stale; run 'litestar assets generate-types' and commit the result."
+            git status --porcelain resources/generated
+            git diff -- resources/generated | head -200
+            exit 1
+          fi
+      - name: Frontend type check
+        run: bun run typecheck
 
   frontend:
     runs-on: ubuntu-latest
@@ -101,6 +137,14 @@ jobs:
           mkdir -p "${fixture_dir}" smoke-artifacts
           cp tests/GeoLite2-City-Test.mmdb "${fixture_dir}/GeoLite2-City.mmdb"
           echo "SMOKE_GEOIP_DIR=${fixture_dir}" >> "${GITHUB_ENV}"
+          # A parseable access log so ingestion actually tails a file; without
+          # one the tailer's validation loop blocks shutdown (the documented
+          # missing-log-file edge) and the graceful-stop check below would not
+          # exercise the normal teardown path.
+          nginx_dir="${RUNNER_TEMP}/geometrikks-smoke/nginx"
+          mkdir -p "${nginx_dir}"
+          cp tests/valid_ipv4_log.txt "${nginx_dir}/access.log"
+          echo "SMOKE_NGINX_DIR=${nginx_dir}" >> "${GITHUB_ENV}"
       - name: Start production image
         shell: bash
         run: |
@@ -111,6 +155,7 @@ jobs:
             --add-host host.docker.internal:host-gateway \
             --health-interval 2s \
             --volume "${SMOKE_GEOIP_DIR}:/app/data/geoip" \
+            --volume "${SMOKE_NGINX_DIR}:/var/log/nginx:ro" \
             --env DB_HOST=host.docker.internal \
             --env DB_PORT=5432 \
             --env DB_USER=geouser \
@@ -175,6 +220,31 @@ jobs:
           fi
       - name: Run browser smoke test
         run: npm run test:smoke
+      - name: Verify graceful shutdown
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # docker stop delivers SIGTERM to PID 1; the Granian direct-mode
+          # master must drain ingestion and stop the scheduler before
+          # exiting 0. This pins the Phase 6 shutdown fix: subprocess mode
+          # (no SIGTERM forwarding) would fail the exit-code check here.
+          docker stop --timeout 20 geometrikks-smoke
+          exit_code="$(docker inspect --format '{{.State.ExitCode}}' geometrikks-smoke)"
+          if [[ "${exit_code}" != "0" ]]; then
+            echo "Container exited with ${exit_code} after docker stop; expected 0."
+            docker logs --tail 50 geometrikks-smoke
+            exit 1
+          fi
+
+          docker logs geometrikks-smoke > smoke-artifacts/shutdown.log 2>&1
+          for marker in "Stopped log ingestion service" "Stopped APScheduler" "Granian shutdown completed"; do
+            if ! grep --quiet "${marker}" smoke-artifacts/shutdown.log; then
+              echo "Missing graceful-shutdown marker: ${marker}"
+              tail -50 smoke-artifacts/shutdown.log
+              exit 1
+            fi
+          done
       - name: Write smoke-test summary
         if: always()
         shell: bash

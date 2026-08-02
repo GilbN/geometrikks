@@ -7,6 +7,7 @@ CAGG reads mention the *_stats view name).
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
+from typing import TYPE_CHECKING, cast
 
 from geometrikks.domain.analytics.repositories import (
     AnalyticsFilters,
@@ -14,6 +15,9 @@ from geometrikks.domain.analytics.repositories import (
 )
 
 import pytest
+
+if TYPE_CHECKING:
+    from sqlalchemy.ext.asyncio import AsyncSession
 
 pytestmark = pytest.mark.anyio
 
@@ -37,28 +41,32 @@ class _RecordingSession:
         return _Result()
 
 
+def _repo(session: _RecordingSession) -> SummaryStatsRepository:
+    return SummaryStatsRepository(session=cast("AsyncSession", session))
+
+
 async def test_top_urls_short_range_goes_raw():
     session = _RecordingSession()
-    await SummaryStatsRepository(session=session).get_top_urls(SHORT_START, NOW)
+    await _repo(session).get_top_urls(SHORT_START, NOW)
     assert "url_hourly_stats" not in session.statements[0]
     assert "FROM access_logs" in session.statements[0]
 
 
 async def test_top_urls_week_range_uses_hourly_cagg():
     session = _RecordingSession()
-    await SummaryStatsRepository(session=session).get_top_urls(WEEK_START, NOW)
+    await _repo(session).get_top_urls(WEEK_START, NOW)
     assert "url_hourly_stats" in session.statements[0]
 
 
 async def test_top_urls_long_range_uses_daily_cagg():
     session = _RecordingSession()
-    await SummaryStatsRepository(session=session).get_top_urls(LONG_START, NOW)
+    await _repo(session).get_top_urls(LONG_START, NOW)
     assert "url_daily_stats" in session.statements[0]
 
 
 async def test_top_urls_any_filter_forces_raw():
     session = _RecordingSession()
-    await SummaryStatsRepository(session=session).get_top_urls(
+    await _repo(session).get_top_urls(
         WEEK_START, NOW, filters=AnalyticsFilters(country_codes=["NO"])
     )
     assert "url_hourly_stats" not in session.statements[0]
@@ -67,13 +75,13 @@ async def test_top_urls_any_filter_forces_raw():
 
 async def test_top_user_agents_week_range_uses_hourly_cagg():
     session = _RecordingSession()
-    await SummaryStatsRepository(session=session).get_top_user_agents(WEEK_START, NOW)
+    await _repo(session).get_top_user_agents(WEEK_START, NOW)
     assert "user_agent_hourly_stats" in session.statements[0]
 
 
 async def test_top_user_agents_filter_forces_raw():
     session = _RecordingSession()
-    await SummaryStatsRepository(session=session).get_top_user_agents(
+    await _repo(session).get_top_user_agents(
         WEEK_START, NOW, filters=AnalyticsFilters(ip_exclude=["1.1.1.1"])
     )
     assert "user_agent_hourly_stats" not in session.statements[0]
@@ -82,14 +90,14 @@ async def test_top_user_agents_filter_forces_raw():
 
 async def test_top_ips_short_range_goes_raw():
     session = _RecordingSession()
-    await SummaryStatsRepository(session=session).get_top_ips(SHORT_START, NOW)
+    await _repo(session).get_top_ips(SHORT_START, NOW)
     assert "log_ip_hourly_stats" not in session.statements[0]
     assert "FROM access_logs" in session.statements[0]
 
 
 async def test_top_ips_week_range_uses_hourly_cagg_even_filtered():
     session = _RecordingSession()
-    await SummaryStatsRepository(session=session).get_top_ips(
+    await _repo(session).get_top_ips(
         WEEK_START, NOW, filters=AnalyticsFilters(country_codes=["NO"])
     )
     assert "log_ip_hourly_stats" in session.statements[0]
@@ -97,13 +105,13 @@ async def test_top_ips_week_range_uses_hourly_cagg_even_filtered():
 
 async def test_top_countries_long_range_uses_daily_cagg():
     session = _RecordingSession()
-    await SummaryStatsRepository(session=session).get_top_countries(LONG_START, NOW)
+    await _repo(session).get_top_countries(LONG_START, NOW)
     assert "log_ip_daily_stats" in session.statements[0]
 
 
 async def test_top_cities_week_range_uses_hourly_cagg():
     session = _RecordingSession()
-    await SummaryStatsRepository(session=session).get_top_cities(WEEK_START, NOW)
+    await _repo(session).get_top_cities(WEEK_START, NOW)
     assert "log_ip_hourly_stats" in session.statements[0]
 
 
@@ -116,7 +124,7 @@ async def test_stitched_sql_binds_bounds_as_params():
     of milliseconds on large databases).
     """
     session = _RecordingSession()
-    await SummaryStatsRepository(session=session).get_top_ips(WEEK_START, NOW)
+    await _repo(session).get_top_ips(WEEK_START, NOW)
     sql = session.statements[0]
     assert "bounds" not in sql
     assert ":a_start" in sql and ":a_end" in sql

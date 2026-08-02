@@ -158,6 +158,7 @@ async def test_time_series_total_bytes_is_int(pg_session_maker, clean_tables):
 
     assert rows, "expected at least one bucket (real-time aggregation)"
     assert all(type(r.total_bytes) is int for r in rows)
+    assert summary is not None
     assert type(summary.total_bytes) is int
 
 

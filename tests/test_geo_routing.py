@@ -4,12 +4,16 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
+from typing import TYPE_CHECKING, cast
 
 from geometrikks.domain.geo.repositories import StatsGranularity
 from geometrikks.domain.geo.schemas import GeoEventFilters
 from geometrikks.domain.geo.services import GeoEventService
 
 import pytest
+
+if TYPE_CHECKING:
+    from sqlalchemy.ext.asyncio import AsyncSession
 
 pytestmark = pytest.mark.anyio
 
@@ -42,9 +46,13 @@ class _RecordingSession:
         return _Result()
 
 
+def _service(session: _RecordingSession) -> GeoEventService:
+    return GeoEventService(session=cast("AsyncSession", session))
+
+
 async def test_country_filtered_summary_uses_ip_location_cagg():
     session = _RecordingSession()
-    await GeoEventService(session=session).get_summary(
+    await _service(session).get_summary(
         WEEK_START, NOW, GeoEventFilters(country_codes=["NO"])
     )
     assert "ip_location_hourly_stats" in session.statements[0]
@@ -52,7 +60,7 @@ async def test_country_filtered_summary_uses_ip_location_cagg():
 
 async def test_hostname_filtered_summary_stays_raw():
     session = _RecordingSession()
-    await GeoEventService(session=session).get_summary(
+    await _service(session).get_summary(
         WEEK_START, NOW, GeoEventFilters(hostnames=["web1"])
     )
     assert "ip_location_hourly_stats" not in session.statements[0]
@@ -61,7 +69,7 @@ async def test_hostname_filtered_summary_stays_raw():
 
 async def test_ip_filtered_time_series_uses_ip_location_cagg():
     session = _RecordingSession()
-    await GeoEventService(session=session).get_time_series(
+    await _service(session).get_time_series(
         WEEK_START, NOW, StatsGranularity.HOURLY, GeoEventFilters(ip_include=["1.1.1.1"])
     )
     assert "ip_location_hourly_stats" in session.statements[0]
@@ -69,13 +77,13 @@ async def test_ip_filtered_time_series_uses_ip_location_cagg():
 
 async def test_unfiltered_summary_keeps_hll_cagg():
     session = _RecordingSession()
-    await GeoEventService(session=session).get_summary(WEEK_START, NOW, GeoEventFilters())
+    await _service(session).get_summary(WEEK_START, NOW, GeoEventFilters())
     assert "geo_summary_hourly_stats" in session.statements[0]
 
 
 async def test_unfiltered_short_range_time_series_goes_raw():
     session = _RecordingSession()
-    await GeoEventService(session=session).get_time_series(
+    await _service(session).get_time_series(
         NOW - timedelta(hours=6), NOW, StatsGranularity.HOURLY, GeoEventFilters()
     )
     assert "geo_summary_hourly_stats" not in session.statements[0]
@@ -84,7 +92,7 @@ async def test_unfiltered_short_range_time_series_goes_raw():
 
 async def test_hourly_override_on_long_filtered_range_goes_raw():
     session = _RecordingSession()
-    await GeoEventService(session=session).get_time_series(
+    await _service(session).get_time_series(
         NOW - timedelta(days=90), NOW, StatsGranularity.HOURLY,
         GeoEventFilters(country_codes=["NO"]),
     )
@@ -96,7 +104,7 @@ async def test_stitched_sql_binds_bounds_as_params():
     """Regression: stitch bounds must be plain bind params, never a joined CTE
     (a CTE join defeats TimescaleDB chunk exclusion on the raw legs)."""
     session = _RecordingSession()
-    await GeoEventService(session=session).get_summary(
+    await _service(session).get_summary(
         WEEK_START, NOW, GeoEventFilters(country_codes=["NO"])
     )
     sql = session.statements[0]

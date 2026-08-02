@@ -45,6 +45,7 @@ class TestTimeWindow:
 
         window = provide_geo_event_time_window(start, end)[0]
 
+        assert isinstance(window, OnBeforeAfter)
         assert window.on_or_after == datetime(2026, 7, 1, tzinfo=timezone.utc)
         assert window.on_or_before == datetime(2026, 7, 2, tzinfo=timezone.utc)
 

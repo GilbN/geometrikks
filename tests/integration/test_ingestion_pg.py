@@ -11,6 +11,7 @@ import asyncio
 import os
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import cast
 
 from types import SimpleNamespace
 
@@ -260,7 +261,7 @@ async def test_create_debug_entry_copies_context_from_access_log() -> None:
 
     class _Session:
         def add(self, obj: object) -> None:
-            added.append(obj)  # type: ignore[arg-type]
+            added.append(cast("AccessLogDebug", obj))
 
         async def flush(self) -> None:
             return None
@@ -310,7 +311,7 @@ async def test_create_debug_entry_leaves_context_null_when_unlinked() -> None:
 
     class _Session:
         def add(self, obj: object) -> None:
-            added.append(obj)  # type: ignore[arg-type]
+            added.append(cast("AccessLogDebug", obj))
 
         async def flush(self) -> None:
             return None

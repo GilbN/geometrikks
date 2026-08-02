@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from types import SimpleNamespace
+from typing import TYPE_CHECKING, cast
 from unittest.mock import AsyncMock, MagicMock
 
 from geometrikks.services.crowdsec import CrowdSecService
@@ -9,6 +10,9 @@ from tests.support import enter_lifespan
 from tests.test_lifecycle_geoip import _patch_startup_collaborators
 
 import pytest
+
+if TYPE_CHECKING:
+    from litestar import Litestar
 
 pytestmark = pytest.mark.anyio
 
@@ -91,7 +95,7 @@ async def test_crowdsec_lifespan_closes_service_on_exit(monkeypatch):
     monkeypatch.setattr(lc, "CrowdSecStreamPoller", MagicMock())
 
     app = make_app()
-    async with lc.crowdsec_lifespan(app):
+    async with lc.crowdsec_lifespan(cast("Litestar", app)):
         service.aclose.assert_not_awaited()
     service.aclose.assert_awaited_once()
 
@@ -121,8 +125,10 @@ async def test_startup_creates_stream_poller_when_enabled(monkeypatch):
     async with enter_lifespan(app):
         assert isinstance(app.state.crowdsec_stream_poller, CrowdSecStreamPoller)
         # The scheduler factory received the poller so the poll job gets registered
-        lc.create_scheduler.assert_awaited_once()
+        create_scheduler_mock = cast("AsyncMock", lc.create_scheduler)
+        create_scheduler_mock.assert_awaited_once()
+        assert create_scheduler_mock.await_args is not None
         assert (
-            lc.create_scheduler.await_args.kwargs["crowdsec_poller"]
+            create_scheduler_mock.await_args.kwargs["crowdsec_poller"]
             is app.state.crowdsec_stream_poller
         )

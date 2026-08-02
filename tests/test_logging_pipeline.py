@@ -5,9 +5,11 @@ import asyncio
 import gzip
 import json
 import logging
+import queue
 import re
 import time
 from pathlib import Path
+from typing import Any, cast
 
 import pytest
 
@@ -24,7 +26,7 @@ class TestSuccessLevel:
         register_success_level()
         logger = logging.getLogger("test.success")
         with caplog.at_level(SUCCESS_LEVEL, logger="test.success"):
-            logger.success("it worked")
+            cast("Any", logger).success("it worked")
         assert caplog.records[0].levelno == SUCCESS_LEVEL
         assert caplog.records[0].getMessage() == "it worked"
 
@@ -45,7 +47,7 @@ class TestSuccessLevel:
             structlog.reset_defaults()
             ensure_default_configuration()
             with caplog.at_level(logging.INFO, logger="test.unconfigured"):
-                get_logger("test.unconfigured").success("no app booted")
+                cast("Any", get_logger("test.unconfigured")).success("no app booted")
             assert any(r.levelname == "SUCCESS" for r in caplog.records)
         finally:
             structlog.reset_defaults()
@@ -289,6 +291,7 @@ def configured_logging(tmp_path, monkeypatch):
     from geometrikks.server.logging import create_logging_config
     config = create_logging_config(get_settings())
     config.configure()
+    assert config.standard_lib_logging_config is not None
     config.standard_lib_logging_config.configure()
     return tmp_path / "logs"
 
@@ -308,7 +311,9 @@ class TestCreateLoggingConfig:
         root = logging.getLogger()
         queue_handlers = [h for h in root.handlers if isinstance(h, lh.QueueHandler)]
         assert queue_handlers, "root must log through the queue handler"
-        listener_targets = {type(h).__name__ for h in queue_handlers[0].listener.handlers}
+        listener = queue_handlers[0].listener
+        assert listener is not None
+        listener_targets = {type(h).__name__ for h in listener.handlers}
         assert {"StreamHandler", "GzipRotatingFileHandler", "BroadcastHandler"} <= listener_targets
         assert (configured_logging / "geometrikks.log").exists()
         assert (configured_logging / "login.log").exists()
@@ -318,7 +323,7 @@ class TestCreateLoggingConfig:
         from geometrikks.server.logging import LOG_QUEUE_MAXSIZE
         root = logging.getLogger()
         handler = next(h for h in root.handlers if isinstance(h, lh.QueueHandler))
-        assert handler.queue.maxsize == LOG_QUEUE_MAXSIZE
+        assert cast("queue.Queue[Any]", handler.queue).maxsize == LOG_QUEUE_MAXSIZE
 
     def test_full_queue_drops_instead_of_blocking_or_raising(self):
         import queue as queue_mod
@@ -328,7 +333,7 @@ class TestCreateLoggingConfig:
         record = logging.LogRecord("t", logging.INFO, __file__, 1, "one", None, None)
         handler.emit(record)
         handler.emit(record)  # queue full: must return immediately, no error
-        assert handler.queue.qsize() == 1
+        assert cast("queue.Queue[Any]", handler.queue).qsize() == 1
 
     def test_jsonl_main_log_line(self, configured_logging):
         import json as jsonlib
@@ -347,7 +352,7 @@ class TestCreateLoggingConfig:
     def test_success_level_renders_in_json(self, configured_logging):
         import json as jsonlib
         import structlog
-        structlog.stdlib.get_logger("geometrikks.test").success("it_worked")
+        cast("Any", structlog.stdlib.get_logger("geometrikks.test")).success("it_worked")
         main = configured_logging / "geometrikks.log"
         assert _wait_for(lambda: "it_worked" in main.read_text(encoding="utf-8"))
         line = [l for l in main.read_text(encoding="utf-8").splitlines() if "it_worked" in l][0]
@@ -522,6 +527,7 @@ class TestLoginLoggerLevelPinned:
         from geometrikks.server.logging import create_logging_config
         config = create_logging_config(get_settings())
         config.configure()
+        assert config.standard_lib_logging_config is not None
         config.standard_lib_logging_config.configure()
         log_dir = tmp_path / "logs"
 
@@ -550,6 +556,7 @@ class TestLitestarLoggerFollowsLogLevel:
         from geometrikks.server.logging import create_logging_config
         config = create_logging_config(get_settings())
         config.configure()
+        assert config.standard_lib_logging_config is not None
         config.standard_lib_logging_config.configure()
 
         litestar_logger = logging.getLogger("litestar")
@@ -586,6 +593,7 @@ class TestLogDirWritabilityFallback:
         from geometrikks.server.logging import create_logging_config
         config = create_logging_config(get_settings())
         config.configure()
+        assert config.standard_lib_logging_config is not None
         config.standard_lib_logging_config.configure()
 
         # Loud error printed at configure time, mentioning the path and a fix.
@@ -599,7 +607,9 @@ class TestLogDirWritabilityFallback:
         root = logging.getLogger()
         queue_handlers = [h for h in root.handlers if isinstance(h, lh.QueueHandler)]
         assert queue_handlers, "root must still log through the queue handler"
-        listener_types = {type(h).__name__ for h in queue_handlers[0].listener.handlers}
+        listener = queue_handlers[0].listener
+        assert listener is not None
+        listener_types = {type(h).__name__ for h in listener.handlers}
         assert "GzipRotatingFileHandler" not in listener_types
         assert "StreamHandler" in listener_types
 
@@ -619,12 +629,15 @@ class TestLogDirWritabilityFallback:
         from geometrikks.server.logging import create_logging_config
         config = create_logging_config(get_settings())
         config.configure()
+        assert config.standard_lib_logging_config is not None
         config.standard_lib_logging_config.configure()
 
         import logging.handlers as lh
         root = logging.getLogger()
         queue_handlers = [h for h in root.handlers if isinstance(h, lh.QueueHandler)]
-        listener_types = {type(h).__name__ for h in queue_handlers[0].listener.handlers}
+        listener = queue_handlers[0].listener
+        assert listener is not None
+        listener_types = {type(h).__name__ for h in listener.handlers}
         assert "GzipRotatingFileHandler" in listener_types
         assert (tmp_path / "logs" / "geometrikks.log").exists()
         assert (tmp_path / "logs" / "login.log").exists()

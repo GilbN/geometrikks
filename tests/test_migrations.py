@@ -1,11 +1,15 @@
 """Alembic migration-chain sanity — no database required."""
 from pathlib import Path
 from types import SimpleNamespace
+from typing import TYPE_CHECKING, Literal, cast
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from alembic.config import Config
 from alembic.script import ScriptDirectory
+
+if TYPE_CHECKING:
+    from sqlalchemy.ext.asyncio import AsyncEngine
 
 from geometrikks.config.settings import DatabaseSettings, Settings
 from tests.support import enter_lifespan
@@ -70,7 +74,7 @@ class _FakeEngine:
         return _Ctx()
 
 
-def _settings(environment: str, drop: bool) -> Settings:
+def _settings(environment: Literal["development", "staging", "production"], drop: bool) -> Settings:
     return Settings(
         environment=environment,
         database=DatabaseSettings(drop_on_startup=drop),
@@ -98,7 +102,7 @@ async def test_drop_gate_runs_in_development(migration_mocks) -> None:
     from geometrikks.server.migrations import migrate_database
 
     engine = _FakeEngine()
-    await migrate_database(engine, _settings("development", drop=True))
+    await migrate_database(cast("AsyncEngine", engine), _settings("development", drop=True))
 
     assert engine.begin_count == 1
     assert migration_mocks == ["teardown", "upgrade"]
@@ -114,7 +118,7 @@ async def test_drop_gate_refused_outside_development(
 
     engine = _FakeEngine()
     with caplog.at_level("ERROR", logger="geometrikks.server.migrations"):
-        await migrate_database(engine, _settings(environment, drop=True))
+        await migrate_database(cast("AsyncEngine", engine), _settings(environment, drop=True))
 
     assert engine.begin_count == 0, "drop must not run outside development"
     assert migration_mocks == ["upgrade"], "upgrade still runs after the refusal"
@@ -125,7 +129,7 @@ async def test_no_drop_flag_goes_straight_to_upgrade(migration_mocks) -> None:
     from geometrikks.server.migrations import migrate_database
 
     engine = _FakeEngine()
-    await migrate_database(engine, _settings("development", drop=False))
+    await migrate_database(cast("AsyncEngine", engine), _settings("development", drop=False))
 
     assert engine.begin_count == 0
     assert migration_mocks == ["upgrade"]
@@ -139,7 +143,7 @@ async def test_upgrade_failure_propagates(monkeypatch) -> None:
 
     monkeypatch.setattr(mod, "upgrade_to_head", boom)
     with pytest.raises(RuntimeError, match="broken migration"):
-        await mod.migrate_database(_FakeEngine(), _settings("production", drop=False))
+        await mod.migrate_database(cast("AsyncEngine", _FakeEngine()), _settings("production", drop=False))
 
 
 def test_upgrade_to_head_uses_dedicated_url_config(monkeypatch) -> None:
@@ -236,5 +240,5 @@ async def test_lifespan_skips_migrations_when_disabled(monkeypatch) -> None:
     async with enter_lifespan(app):
         pass
 
-    lc.migrate_database.assert_not_awaited()
-    lc.setup_timescaledb.assert_awaited_once()
+    cast("AsyncMock", lc.migrate_database).assert_not_awaited()
+    cast("AsyncMock", lc.setup_timescaledb).assert_awaited_once()

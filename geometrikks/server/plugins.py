@@ -19,11 +19,11 @@ from litestar.serialization import decode_json, encode_json
 from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy.pool import NullPool
 
+from advanced_alchemy import base
 from advanced_alchemy.extensions.litestar import (
     AsyncSessionConfig,
     SQLAlchemyAsyncConfig,
     SQLAlchemyInitPlugin,
-    base,
 )
 
 from litestar.plugins import CLIPlugin

@@ -12,25 +12,12 @@ export default defineConfig({
     outDir: "public",
     emptyOutDir: true,
   },
-  server: {
-    host: "0.0.0.0",
-    port: Number(process.env.VITE_PORT || "5173"),
-    cors: true,
-    hmr: {
-      host: "localhost",
-    },
-    proxy: {
-      "/api": {
-        target: "http://localhost:8000",
-        changeOrigin: true,
-      },
-      "/ws": {
-        target: "http://localhost:8000",
-        ws: true,
-        changeOrigin: true,
-      },
-    },
-  },
+  // No server block: Litestar is the single dev origin. litestar-vite runs
+  // Vite as a sidecar on an ephemeral localhost port (written to the
+  // .litestar.json bridge, which litestar-vite-plugin reads) and proxies
+  // /static/* assets and the /static/vite-hmr websocket through :8000, so
+  // manual /api and /ws proxies, CORS, and HMR host overrides are not needed.
+  // Standalone `bun run dev` against :5173 is not a supported workflow.
   plugins: [
     tailwindcss(),
     tanstackRouter({

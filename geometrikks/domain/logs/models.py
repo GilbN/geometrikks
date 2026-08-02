@@ -1,5 +1,4 @@
 from datetime import datetime, timezone
-from typing import Optional
 
 from sqlalchemy import (
     BigInteger,
@@ -14,7 +13,7 @@ from sqlalchemy import (
 from sqlalchemy.dialects import postgresql
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from advanced_alchemy.types import DateTimeUTC
-from advanced_alchemy.extensions.litestar import base
+from advanced_alchemy import base
 from litestar.dto import dto_field
 
 
@@ -42,9 +41,9 @@ class AccessLog(base.BigIntBase):
     # Some malformed TLS-handshake lines won't have method/url/http_version
     # For example, when China is fucking around, a log line can look like this:
     # 101.91.110.24 - - [23/Nov/2025:02:02:55 +0100]"\x16\x03\x01\x01-\x01\x00\x01)\x03\x03kf\xB1\x19\xED\xF9i\xE1\xBE\xEB\xDAv\xD61Z\xD5\xB0jxp\x01\x12\x87\x86\x0B\x99o\xC59\xA0\xA9\xEA {`V\x1D\xE3\xFF\xAF\xF9\x16\xCF;\xA6\xB3}\xBB" 400 150"-" _ "-""0.362" "-""Shanghai" "CN"
-    method: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)
-    url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    http_version: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)
+    method: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    http_version: Mapped[str | None] = mapped_column(String(10), nullable=True)
     
     # Response details
     # SmallInteger: 2 bytes (0-65535) vs Integer 4 bytes - sufficient for HTTP status codes
@@ -53,20 +52,20 @@ class AccessLog(base.BigIntBase):
     
     # Referrer and User-Agent
     # Referrer may be absent entirely
-    referrer: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    user_agent: Mapped[Optional[str]] = mapped_column(Text)
+    referrer: Mapped[str | None] = mapped_column(Text, nullable=True)
+    user_agent: Mapped[str | None] = mapped_column(Text)
     
     # Performance metrics
     request_time: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
-    upstream_response_time: Mapped[Optional[float]] = mapped_column(Float, nullable=True, default=None)
+    upstream_response_time: Mapped[float | None] = mapped_column(Float, nullable=True, default=None)
     
     # Host information (may be missing on malformed lines)
-    host: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    host: Mapped[str | None] = mapped_column(String(255), nullable=True)
     
     # Geographic information
-    country_code: Mapped[Optional[str]] = mapped_column(String(2))
-    country_name: Mapped[Optional[str]] = mapped_column(String(100))
-    city: Mapped[Optional[str]] = mapped_column(String(100))
+    country_code: Mapped[str | None] = mapped_column(String(2))
+    country_name: Mapped[str | None] = mapped_column(String(100))
+    city: Mapped[str | None] = mapped_column(String(100))
     
     # Indexes for common queries
     # Note: TimescaleDB automatically creates time-based indexes on hypertables
@@ -95,7 +94,7 @@ class AccessLogDebug(base.BigIntBase):
     __tablename__ = "access_log_debug"
 
     # Soft reference to access_logs (no FK constraint - TimescaleDB limitation)
-    access_log_id: Mapped[Optional[int]] = mapped_column(
+    access_log_id: Mapped[int | None] = mapped_column(
         BigInteger,
         nullable=True,
         index=True,
@@ -111,7 +110,7 @@ class AccessLogDebug(base.BigIntBase):
     raw_line: Mapped[str] = mapped_column(Text, nullable=False, info=dto_field("read-only"))
 
     is_malformed: Mapped[bool] = mapped_column(default=False, index=True)
-    parse_error: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    parse_error: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
     # Denormalized access-log context, copied from the linked access_logs row
     # at ingestion time. The debug list filters, sorts and displays entirely
@@ -120,18 +119,18 @@ class AccessLogDebug(base.BigIntBase):
     # a lookup by id/ip/geo decompresses whole chunks. The old LEFT JOIN cost
     # 64s at LIMIT 20 on 17M rows. NULL when the raw line never parsed into an
     # access_logs row.
-    log_timestamp: Mapped[Optional[datetime]] = mapped_column(
+    log_timestamp: Mapped[datetime | None] = mapped_column(
         DateTimeUTC(timezone=True), nullable=True
     )
-    ip_address: Mapped[Optional[str]] = mapped_column(postgresql.INET, nullable=True)
-    method: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)
-    url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    host: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
-    status_code: Mapped[Optional[int]] = mapped_column(SmallInteger, nullable=True)
-    country_code: Mapped[Optional[str]] = mapped_column(String(2), nullable=True)
-    country_name: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
-    city: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
-    user_agent: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    ip_address: Mapped[str | None] = mapped_column(postgresql.INET, nullable=True)
+    method: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    host: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    status_code: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
+    country_code: Mapped[str | None] = mapped_column(String(2), nullable=True)
+    country_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    city: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    user_agent: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # Only the IN-list filters get indexes. The table is small and under
     # retention; the sort columns do not need their own indexes at this size.

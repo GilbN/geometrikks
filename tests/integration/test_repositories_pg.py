@@ -156,6 +156,7 @@ async def test_geojson_country_filter(pg_session_maker, clean_tables):
         all_rows = await repo.get_all_with_event_counts(NOW - timedelta(hours=23), NOW)
         one_code = all_rows[0].location.country_code
         one_city = all_rows[0].location.city
+        assert one_city is not None
         filtered = await repo.get_all_with_event_counts(
             NOW - timedelta(hours=23), NOW, country_codes=[one_code]
         )
