@@ -9,11 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Shared page chrome components: standard page header, section dividers, and error banner.
 - New brand identity: wayfinder (vegvisir) mark, runr wordmark with rune ligature, regenerated favicon and PWA icons, and a branded login screen.
 - Accent variant system: the app accent (teal default, green, copper) is switchable in code via a `data-accent` attribute.
 
 ### Changed
 
+- Redesigned stat cards with the design-system typography and theme-aware trend colors; normalized panel borders and shadows across all cards; overview page rebuilt on the shared chrome.
 - Rebuilt the color themes: new "Aurora night" dark theme and a first-class "Fjord mist" light theme; map popups and controls now follow the theme tokens.
 
 ## [0.7.0] - 2026-08-02
