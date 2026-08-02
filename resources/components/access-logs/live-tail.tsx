@@ -12,20 +12,13 @@ import { Button } from "@/components/ui/button"
 import { useMediaQuery } from "@/hooks/use-media-query"
 import { useLiveEvents } from "@/lib/live-feed-context"
 import { formatBytes, formatDuration } from "@/lib/api"
+import { statusBadgeClass } from "@/lib/status-badge"
 import { cn } from "@/lib/utils"
 import type { LiveEvent } from "@/lib/websocket"
 
 const MAX_ROWS = 500
 
 type AccessLogEvent = Extract<LiveEvent, { type: "access_log" }>["data"]
-
-/** Tailwind classes for the status badge, by response class. */
-function statusBadgeClass(code: number): string {
-  if (code >= 500) return "bg-red-500/15 text-red-600 dark:text-red-400"
-  if (code >= 400) return "bg-amber-500/15 text-amber-600 dark:text-amber-400"
-  if (code >= 300) return "bg-sky-500/15 text-sky-600 dark:text-sky-400"
-  return "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
-}
 
 /** Column layout shared by the header and every row (aligned via fixed widths). */
 const COLS = "flex items-center gap-2 px-3 min-w-max"
@@ -109,7 +102,7 @@ export function LiveTail({ enabled }: { enabled: boolean }) {
       </div>
       <div className="overflow-x-auto">
         {/* Column header — aligns with the row layout below. */}
-        <div className={cn(COLS, "border-b py-1.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground")}>
+        <div className={cn(COLS, "border-b py-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground")}>
           <span className="w-20 shrink-0">Time</span>
           <span className="w-10 shrink-0">Status</span>
           <span className="w-14 shrink-0">Method</span>

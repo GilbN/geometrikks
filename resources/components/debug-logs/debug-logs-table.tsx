@@ -416,7 +416,7 @@ export function DebugLogsTable() {
         </div>
       )}
 
-      <Card className="gap-0 overflow-hidden py-0">
+      <Card className="gap-0 py-0">
         <Table>
           <TableHeader>
             <TableRow>

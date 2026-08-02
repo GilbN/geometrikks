@@ -25,12 +25,18 @@ export function BrandMark({
   variant = "full",
   className,
   title = "GeoMetrikks",
+  decorative = false,
 }: {
   size?: number
   variant?: "full" | "small"
   className?: string
   title?: string
+  decorative?: boolean
 }) {
+  const a11yProps = decorative
+    ? { "aria-hidden": true as const }
+    : { role: "img" as const, "aria-label": title }
+
   if (variant === "small") {
     return (
       <svg
@@ -38,8 +44,7 @@ export function BrandMark({
         height={size}
         viewBox="0 0 100 100"
         className={cn("shrink-0", className)}
-        role="img"
-        aria-label={title}
+        {...a11yProps}
       >
         <g stroke="currentColor" strokeWidth="8" fill="none" strokeLinecap="square">
           {CARDINALS.map((r) => (
@@ -67,8 +72,7 @@ export function BrandMark({
       height={size}
       viewBox="0 0 100 100"
       className={cn("shrink-0", className)}
-      role="img"
-      aria-label={title}
+      {...a11yProps}
     >
       <circle
         cx="50"

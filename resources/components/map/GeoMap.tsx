@@ -406,7 +406,7 @@ function GeoMapInner({
         <ErrorBanner
           className="w-full max-w-md"
           title="Failed to load map data"
-          detail={`${error?.message ?? "Unknown error occurred"}. Make sure the backend server is running.`}
+          detail={`${(error?.message ?? "Unknown error occurred").replace(/\.$/, "")}. Make sure the backend server is running.`}
         />
       </div>
     )

@@ -301,7 +301,7 @@ export function AccessLogsTable({
     <div className="space-y-3">
       <div className="flex items-center gap-2">{columnsMenu}</div>
 
-      <Card className="gap-0 overflow-hidden py-0">
+      <Card className="gap-0 py-0">
         <Table>
           <TableHeader>
             <TableRow>

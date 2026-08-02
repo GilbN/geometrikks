@@ -72,7 +72,7 @@ export function AboutPage() {
       <Card className="md:col-span-2">
         <CardContent className="flex flex-wrap items-center justify-between gap-4 py-5">
           <div className="flex items-center gap-4">
-            <BrandMark size={48} className="text-foreground" />
+            <BrandMark size={48} className="text-foreground" decorative />
             <div>
               <div className="flex items-center gap-2.5">
                 <Wordmark className="text-[17px] text-foreground" />

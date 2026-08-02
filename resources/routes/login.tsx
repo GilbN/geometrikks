@@ -46,7 +46,7 @@ function LoginPage() {
       />
       <div className="relative flex w-full max-w-sm flex-col items-center gap-6">
         <div className="flex flex-col items-center gap-4">
-          <BrandMark size={72} className="text-foreground" />
+          <BrandMark size={72} className="text-foreground" decorative />
           <Wordmark sub className="items-center text-[26px] text-foreground" />
         </div>
         <Card className="w-full">

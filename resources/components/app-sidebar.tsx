@@ -111,6 +111,7 @@ function GeoLogo({ collapsed }: { collapsed: boolean }) {
       <BrandMark
         size={30}
         className="text-sidebar-foreground"
+        decorative
       />
       <div
         className={cn(

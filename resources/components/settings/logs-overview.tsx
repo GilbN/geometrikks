@@ -505,7 +505,6 @@ export function LogsOverview() {
           </div>
 
           <Table
-            className="text-sm"
             containerClassName="max-h-[65vh] overflow-y-auto rounded-md border"
           >
             <TableHeader>
