@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Card } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
   DropdownMenu,
@@ -28,6 +29,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { PaginationFooter } from "@/components/ui/pagination-footer"
+import { ErrorBanner } from "@/components/error-banner"
 import { useAccessLogs, useCrowdsecLiveUpdates } from "@/lib/queries"
 import { IpBanControls } from "@/components/crowdsec/ip-ban-controls"
 import {
@@ -39,16 +41,9 @@ import {
 } from "@/lib/api"
 import { cn, isMobileViewport } from "@/lib/utils"
 import { useAccessLogFilters } from "@/lib/access-log-filters-context"
+import { statusBadgeClass } from "@/lib/status-badge"
 
 export const ACCESS_LOGS_PAGE_SIZES = [10, 20, 50, 100, 200, 500, 1000] as const
-
-/** Tailwind classes for the status badge, by response class. */
-function statusBadgeClass(code: number): string {
-  if (code >= 500) return "bg-red-500/15 text-red-600 dark:text-red-400"
-  if (code >= 400) return "bg-amber-500/15 text-amber-600 dark:text-amber-400"
-  if (code >= 300) return "bg-sky-500/15 text-sky-600 dark:text-sky-400"
-  return "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
-}
 
 interface ColumnDef {
   key: string
@@ -299,18 +294,14 @@ export function AccessLogsTable({
   )
 
   if (isError) {
-    return (
-      <div className="rounded-md border p-6 text-sm text-destructive">
-        Failed to load access logs.
-      </div>
-    )
+    return <ErrorBanner title="Failed to load access logs." />
   }
 
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-2">{columnsMenu}</div>
 
-      <div className="rounded-md border">
+      <Card className="gap-0 overflow-hidden py-0">
         <Table>
           <TableHeader>
             <TableRow>
@@ -394,7 +385,7 @@ export function AccessLogsTable({
           onPageSizeChange={onPageSizeChange}
           className="border-t"
         />
-      </div>
+      </Card>
     </div>
   )
 }

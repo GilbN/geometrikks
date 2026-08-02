@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
@@ -44,24 +45,18 @@ import { FilterCombobox } from "@/components/ui/filter-combobox"
 import { FiltersDrawer, FilterSection } from "@/components/ui/filters-drawer"
 import { DebugLogDetailDialog } from "@/components/debug-logs/debug-log-detail-dialog"
 import { IpBanControls } from "@/components/crowdsec/ip-ban-controls"
+import { ErrorBanner } from "@/components/error-banner"
 import { useAccessLogDebug, useAccessLogFacets, useCrowdsecLiveUpdates } from "@/lib/queries"
 import { useDebouncedValue } from "@/hooks/use-debounced-value"
 import { isValidIp } from "@/lib/crowdsec"
 import { useIsMobile } from "@/hooks/use-mobile"
 import type { AccessLogDebugEntry, AccessLogDebugSortField, SortOrder } from "@/lib/api"
 import { cn, isMobileViewport } from "@/lib/utils"
+import { statusBadgeClass } from "@/lib/status-badge"
 
 const PAGE_SIZES = [10, 20, 50, 100, 200, 500, 1000] as const
 
 type MalformedFilter = "all" | "malformed" | "wellformed"
-
-/** Tailwind classes for the status badge, by response class. */
-function statusBadgeClass(code: number): string {
-  if (code >= 500) return "bg-red-500/15 text-red-600 dark:text-red-400"
-  if (code >= 400) return "bg-amber-500/15 text-amber-600 dark:text-amber-400"
-  if (code >= 300) return "bg-sky-500/15 text-sky-600 dark:text-sky-400"
-  return "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
-}
 
 interface ColumnDef {
   key: string
@@ -401,11 +396,7 @@ export function DebugLogsTable() {
   )
 
   if (isError) {
-    return (
-      <div className="rounded-md border p-6 text-sm text-destructive">
-        Failed to load debug logs.
-      </div>
-    )
+    return <ErrorBanner title="Failed to load debug logs." />
   }
 
   return (
@@ -425,7 +416,7 @@ export function DebugLogsTable() {
         </div>
       )}
 
-      <div className="rounded-md border">
+      <Card className="gap-0 overflow-hidden py-0">
         <Table>
           <TableHeader>
             <TableRow>
@@ -512,7 +503,7 @@ export function DebugLogsTable() {
           onPageSizeChange={setPageSize}
           className="border-t"
         />
-      </div>
+      </Card>
 
       <DebugLogDetailDialog
         entry={selected}
