@@ -472,4 +472,12 @@ def create_logging_config(settings: "Settings") -> StructLoggingConfig:
         wrapper_class=SuccessBoundLogger,
         standard_lib_logging_config=standard_lib,
         log_exceptions="always",
+        # Litestar defaults this to True, which freezes each module-level
+        # logger onto whatever processors list is current at its first use.
+        # Every create_app() builds a fresh list, so cached loggers silently
+        # bypass later reconfiguration and structlog.testing.capture_logs
+        # (which mutates only the current list). The lookup this skips is a
+        # dict read per log call; actual rendering and IO happen on the
+        # queue-listener thread either way.
+        cache_logger_on_first_use=False,
     )
