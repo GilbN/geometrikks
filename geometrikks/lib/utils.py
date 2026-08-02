@@ -49,7 +49,7 @@ async def sleep_unless_stopped(
         return False
     try:
         await asyncio.wait_for(stop_event.wait(), timeout=seconds)
-    except TimeoutError:
+    except asyncio.TimeoutError:
         return False
     return True
 
