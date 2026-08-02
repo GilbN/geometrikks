@@ -64,8 +64,8 @@ export function IpBanControls({
             fontSize: "9px",
             fontWeight: 600,
             textTransform: "uppercase",
-            color: "#f87171",
-            background: "rgba(239, 68, 68, 0.15)",
+            color: "var(--destructive)",
+            background: "color-mix(in oklab, var(--destructive) 15%, transparent)",
             padding: isFooter ? "1px 6px" : "1px 5px",
             borderRadius: "9999px",
           }}
@@ -102,7 +102,7 @@ export function IpBanControls({
                       border: "none",
                       padding: "2px",
                       cursor: isPending ? "wait" : "pointer",
-                      color: isPending ? "#22d3ee" : "var(--popup-muted)",
+                      color: isPending ? "var(--primary)" : "var(--popup-muted)",
                     }
               }
             >

@@ -137,7 +137,7 @@ export function MapPopup({
             borderBottom: "1px solid var(--popup-border)",
           }}
         >
-          <MapPin style={{ width: 16, height: 16, color: "#22d3ee", flexShrink: 0 }} />
+          <MapPin style={{ width: 16, height: 16, color: "var(--primary)", flexShrink: 0 }} />
           <span style={{ fontSize: "14px", fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
             {locationString}
           </span>

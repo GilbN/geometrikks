@@ -38,8 +38,7 @@ import { LiveRequestCard, LiveRequestPopup } from "./LiveRequestPopup"
 import { LiveVitalsPill } from "./LiveVitalsPill"
 import { LiveRail } from "./LiveRail"
 import { LiveFeedSheet } from "./LiveFeedSheet"
-import { Card, CardContent } from "@/components/ui/card"
-import { AlertTriangle } from "lucide-react"
+import { ErrorBanner } from "@/components/error-banner"
 import { getDemoTrafficMode } from "@/lib/demo-traffic"
 import { loadLiveOverlays, saveLiveOverlays, type LiveOverlayPreferences } from "@/lib/live-overlays"
 import { LiveTrafficProvider, useLiveTrafficStore } from "@/lib/live-traffic/context"
@@ -403,25 +402,12 @@ function GeoMapInner({
   // Show error state
   if (isError) {
     return (
-      <div className="h-full w-full flex items-center justify-center bg-background">
-        <Card className="max-w-md border-destructive/50 bg-destructive/10">
-          <CardContent className="pt-6">
-            <div className="flex items-start gap-3">
-              <AlertTriangle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
-              <div>
-                <p className="text-sm font-medium text-destructive">
-                  Failed to load map data
-                </p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  {error?.message ?? "Unknown error occurred"}
-                </p>
-                <p className="text-xs text-muted-foreground mt-2">
-                  Make sure the backend server is running.
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+      <div className="h-full w-full flex items-center justify-center bg-background p-4">
+        <ErrorBanner
+          className="w-full max-w-md"
+          title="Failed to load map data"
+          detail={`${error?.message ?? "Unknown error occurred"}. Make sure the backend server is running.`}
+        />
       </div>
     )
   }
