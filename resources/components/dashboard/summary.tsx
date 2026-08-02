@@ -1,5 +1,4 @@
 import { TooltipProvider } from "@/components/ui/tooltip"
-import { Card, CardContent } from "@/components/ui/card"
 
 import {
   Activity,
@@ -19,26 +18,16 @@ import {
 import { useSummary } from "@/lib/queries"
 import {
   formatNumber,
-  formatPercent,
   formatBytes,
   formatDuration,
   TIME_RANGE_PRESETS,
 } from "@/lib/api"
 import { useTimeRange } from "@/lib/time-range-context"
-import { cn } from "@/lib/utils"
 import { StatCard, StatCardSkeleton } from "@/components/dashboard/statcard"
 import { DateTimeRange } from "@/components/dashboard/date-time-range"
-
-function SectionHeader({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="flex items-center gap-3">
-      <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-        {children}
-      </h2>
-      <div className="flex-1 h-px bg-border/50" />
-    </div>
-  )
-}
+import { PageHeader } from "@/components/page-header"
+import { SectionHeader } from "@/components/section-header"
+import { ErrorBanner } from "@/components/error-banner"
 
 export function Summary() {
   const { range } = useTimeRange()
@@ -57,35 +46,23 @@ export function Summary() {
   return (
     <TooltipProvider>
       <div className="p-4 md:p-6 space-y-6">
-        {/* Header */}
-        <div className="space-y-1">
-          <div className="flex flex-wrap items-center gap-3">
-            <h1 className="text-2xl font-semibold tracking-tight">Summary</h1>
-
-            {summary && (
+        <PageHeader
+          title="Summary"
+          subtitle="Overview of live analytics data for your application."
+          meta={
+            summary && (
               <DateTimeRange start={summary.startDate} end={summary.endDate} />
-            )}
-          </div>
-          <p className="text-sm text-muted-foreground">
-            Overview of live analytics data for your application.
-          </p>
-        </div>
+            )
+          }
+        />
 
-        {/* Error State */}
         {isError && (
-          <Card className="border-destructive/50 bg-destructive/10">
-            <CardContent className="pt-6">
-              <p className="text-sm text-destructive">
-                Failed to load analytics data: {error?.message ?? "Unknown error"}
-              </p>
-              <p className="text-xs text-muted-foreground mt-1">
-                Make sure the backend server is running on port 8000.
-              </p>
-            </CardContent>
-          </Card>
+          <ErrorBanner
+            title={`Failed to load analytics data: ${error?.message ?? "Unknown error"}`}
+            detail="Make sure the backend server is running on port 8000."
+          />
         )}
 
-        {/* Loading State */}
         {isLoading && (
           <div className="space-y-6">
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -110,7 +87,6 @@ export function Summary() {
           </div>
         )}
 
-        {/* Data Display */}
         {!isLoading && summary && (
           <div className="space-y-6">
             {/* Section 1: Primary KPIs */}
@@ -193,23 +169,17 @@ export function Summary() {
                 title="Unique IPs"
                 value={formatNumber(summary.currentPeriod.uniqueIps)}
                 subtitle={
-                  summary.percentChanges?.uniqueIps !== null ? (
-                    <span
-                      className={cn(
-                        (summary.percentChanges?.uniqueIps ?? 0) >= 0
-                          ? "text-emerald-500"
-                          : "text-red-500"
-                      )}
-                    >
-                      {formatPercent(summary.percentChanges?.uniqueIps)} vs last {rangeLabel}
-                    </span>
-                  ) : (
-                    "Active visitors"
-                  )
+                  summary.percentChanges?.uniqueIps != null
+                    ? `vs last ${rangeLabel}`
+                    : "Active visitors"
                 }
                 icon={Users}
-                iconClassName="text-geo-cyan/70"
-                valueClassName="text-geo-cyan"
+                iconClassName="text-primary/70"
+                valueClassName="text-primary"
+                trend={{
+                  value: summary.percentChanges?.uniqueIps ?? null,
+                  positive: (summary.percentChanges?.uniqueIps ?? 0) >= 0,
+                }}
               />
             </div>
 
@@ -220,22 +190,16 @@ export function Summary() {
                 title="Avg Request Time"
                 value={formatDuration(summary.currentPeriod.avgRequestTime)}
                 subtitle={
-                  summary.percentChanges?.avgRequestTime !== null ? (
-                    <span
-                      className={cn(
-                        (summary.percentChanges?.avgRequestTime ?? 0) <= 0
-                          ? "text-emerald-500"
-                          : "text-red-500"
-                      )}
-                    >
-                      {formatPercent(summary.percentChanges?.avgRequestTime)} vs last {rangeLabel}
-                    </span>
-                  ) : (
-                    "Response time"
-                  )
+                  summary.percentChanges?.avgRequestTime != null
+                    ? `vs last ${rangeLabel}`
+                    : "Response time"
                 }
                 icon={Clock}
-                iconClassName="text-geo-cyan/70"
+                iconClassName="text-primary/70"
+                trend={{
+                  value: summary.percentChanges?.avgRequestTime ?? null,
+                  positive: (summary.percentChanges?.avgRequestTime ?? 0) <= 0,
+                }}
               />
               <StatCard
                 title="Max Request Time"
@@ -249,22 +213,16 @@ export function Summary() {
                 title="Total Bandwidth"
                 value={formatBytes(summary.currentPeriod.totalBytesSent)}
                 subtitle={
-                  summary.percentChanges?.bytesSent !== null ? (
-                    <span
-                      className={cn(
-                        (summary.percentChanges?.bytesSent ?? 0) >= 0
-                          ? "text-emerald-500"
-                          : "text-red-500"
-                      )}
-                    >
-                      {formatPercent(summary.percentChanges?.bytesSent)} vs last {rangeLabel}
-                    </span>
-                  ) : (
-                    "Data transferred"
-                  )
+                  summary.percentChanges?.bytesSent != null
+                    ? `vs last ${rangeLabel}`
+                    : "Data transferred"
                 }
                 icon={HardDrive}
-                iconClassName="text-geo-cyan/70"
+                iconClassName="text-primary/70"
+                trend={{
+                  value: summary.percentChanges?.bytesSent ?? null,
+                  positive: (summary.percentChanges?.bytesSent ?? 0) >= 0,
+                }}
               />
               <StatCard
                 title="Avg Request Size"
