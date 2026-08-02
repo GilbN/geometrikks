@@ -2,33 +2,47 @@ import { describe, expect, it } from "vitest"
 import { deltaDirection, deltaTone } from "./stat-delta"
 
 describe("deltaTone", () => {
-  it("returns null (no badge) for missing values", () => {
+  it("returns null when there is no value", () => {
     expect(deltaTone(null)).toBeNull()
     expect(deltaTone(undefined)).toBeNull()
   })
 
-  it("is muted for zero change regardless of goodness", () => {
-    expect(deltaTone(0)).toBe("muted")
-    expect(deltaTone(0, false)).toBe("muted")
+  it("returns null for non-finite values", () => {
+    expect(deltaTone(Number.NaN)).toBeNull()
+    expect(deltaTone(Infinity)).toBeNull()
+    expect(deltaTone(-Infinity)).toBeNull()
   })
 
-  it("follows the explicit goodness flag", () => {
-    expect(deltaTone(12.5, true)).toBe("accent")
-    expect(deltaTone(12.5, false)).toBe("destructive")
+  it("is muted for values that display as 0.0%", () => {
+    expect(deltaTone(0)).toBe("muted")
+    expect(deltaTone(0.04)).toBe("muted")
+    expect(deltaTone(-0.04)).toBe("muted")
+  })
+
+  it("colors goodness, not direction", () => {
+    expect(deltaTone(12, true)).toBe("accent")
+    expect(deltaTone(12, false)).toBe("destructive")
     expect(deltaTone(-8, true)).toBe("accent")
     expect(deltaTone(-8, false)).toBe("destructive")
   })
 
-  it("defaults goodness to 'up is good' when no flag is given", () => {
-    expect(deltaTone(3)).toBe("accent")
-    expect(deltaTone(-3)).toBe("destructive")
+  it("falls back to the numeric sign when positive is omitted", () => {
+    expect(deltaTone(5)).toBe("accent")
+    expect(deltaTone(-5)).toBe("destructive")
   })
 })
 
 describe("deltaDirection", () => {
-  it("maps sign to direction", () => {
-    expect(deltaDirection(5)).toBe("up")
-    expect(deltaDirection(-5)).toBe("down")
+  it("is flat for values that display as 0.0%", () => {
     expect(deltaDirection(0)).toBe("flat")
+    expect(deltaDirection(0.04)).toBe("flat")
+    expect(deltaDirection(-0.04)).toBe("flat")
+  })
+
+  it("follows the numeric sign at the display threshold", () => {
+    expect(deltaDirection(0.05)).toBe("up")
+    expect(deltaDirection(-0.05)).toBe("down")
+    expect(deltaDirection(3.2)).toBe("up")
+    expect(deltaDirection(-3.2)).toBe("down")
   })
 })

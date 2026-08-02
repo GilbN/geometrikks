@@ -50,7 +50,8 @@ export function StatCard({
   valueClassName?: string
   iconClassName?: string
 }) {
-  const tone = deltaTone(trend?.value, trend?.positive)
+  const deltaValue = trend?.value
+  const tone = deltaTone(deltaValue, trend?.positive)
 
   return (
     <Card className="relative overflow-hidden py-4">
@@ -71,8 +72,8 @@ export function StatCard({
         </div>
         <div className="flex items-center gap-2 mt-1">
           <span className="text-xs text-muted-foreground">{subtitle}</span>
-          {tone !== null && (
-            <DeltaBadge value={trend!.value as number} tone={tone} />
+          {tone !== null && deltaValue != null && (
+            <DeltaBadge value={deltaValue} tone={tone} />
           )}
         </div>
       </CardContent>
@@ -87,7 +88,8 @@ function DeltaBadge({
   value: number
   tone: "accent" | "destructive" | "muted"
 }) {
-  const DirectionIcon = DIRECTION_ICON[deltaDirection(value)]
+  const direction = deltaDirection(value)
+  const DirectionIcon = DIRECTION_ICON[direction]
   return (
     <span
       className={cn(
@@ -96,7 +98,7 @@ function DeltaBadge({
       )}
     >
       <DirectionIcon className="h-3 w-3" />
-      {formatPercent(value)}
+      {direction === "flat" ? "0.0%" : formatPercent(value)}
     </span>
   )
 }
