@@ -23,6 +23,8 @@
     "@tanstack/react-table": "^8.21.3",
     "@tanstack/react-virtual": "^3.14.9",
     "axios": "^1.19.0",
+    "baseline-browser-mapping": "^2.11.11",
+    "caniuse-lite": "^1.0.30001806",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "lucide-react": "^0.562.0",
