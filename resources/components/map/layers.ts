@@ -12,11 +12,11 @@ export const heatmapLayer: LayerSpecification = {
   source: "geo-data",
   maxzoom: 15,
   paint: {
-    // Increase weight based on event_count property - more aggressive curve
+    // Increase weight based on eventCount property - more aggressive curve
     "heatmap-weight": [
       "interpolate",
       ["exponential", 1.5],
-      ["get", "event_count"],
+      ["get", "eventCount"],
       0, 0,
       1, 0.1,
       10, 0.4,
@@ -146,7 +146,7 @@ export const clusterCountLayer: LayerSpecification = {
   },
 }
 
-// Unclustered point layer - color based on event_count (green -> yellow -> red)
+// Unclustered point layer - color based on eventCount (green -> yellow -> red)
 // More transparent fill with strong colored stroke
 export const unclusteredPointLayer: LayerSpecification = {
   id: "unclustered-point",
@@ -154,11 +154,11 @@ export const unclusteredPointLayer: LayerSpecification = {
   source: "geo-data",
   filter: ["!", ["has", "point_count"]],
   paint: {
-    // Size based on event_count
+    // Size based on eventCount
     "circle-radius": [
       "interpolate",
       ["linear"],
-      ["get", "event_count"],
+      ["get", "eventCount"],
       1, 6,
       10, 8,
       100, 12,
@@ -168,7 +168,7 @@ export const unclusteredPointLayer: LayerSpecification = {
     "circle-color": [
       "interpolate",
       ["linear"],
-      ["get", "event_count"],
+      ["get", "eventCount"],
       1, "rgba(34, 197, 94, 0.35)",      // Green (low)
       10, "rgba(132, 204, 22, 0.35)",    // Lime
       50, "rgba(234, 179, 8, 0.4)",      // Yellow
@@ -181,7 +181,7 @@ export const unclusteredPointLayer: LayerSpecification = {
     "circle-stroke-color": [
       "interpolate",
       ["linear"],
-      ["get", "event_count"],
+      ["get", "eventCount"],
       1, "rgba(34, 197, 94, 0.9)",       // Green (low)
       10, "rgba(132, 204, 22, 0.9)",     // Lime
       50, "rgba(234, 179, 8, 0.9)",      // Yellow
@@ -192,7 +192,7 @@ export const unclusteredPointLayer: LayerSpecification = {
   },
 }
 
-// Unclustered point label - shows event_count with K/M abbreviation
+// Unclustered point label - shows eventCount with K/M abbreviation
 export const unclusteredPointLabelLayer: LayerSpecification = {
   id: "unclustered-point-label",
   type: "symbol",
@@ -201,11 +201,11 @@ export const unclusteredPointLabelLayer: LayerSpecification = {
   layout: {
     "text-field": [
       "case",
-      [">=", ["get", "event_count"], 1000000],
-      ["concat", ["to-string", ["floor", ["/", ["get", "event_count"], 1000000]]], "M+"],
-      [">=", ["get", "event_count"], 1000],
-      ["concat", ["to-string", ["floor", ["/", ["get", "event_count"], 1000]]], "K+"],
-      ["to-string", ["get", "event_count"]]
+      [">=", ["get", "eventCount"], 1000000],
+      ["concat", ["to-string", ["floor", ["/", ["get", "eventCount"], 1000000]]], "M+"],
+      [">=", ["get", "eventCount"], 1000],
+      ["concat", ["to-string", ["floor", ["/", ["get", "eventCount"], 1000]]], "K+"],
+      ["to-string", ["get", "eventCount"]]
     ],
     "text-font": ["Open Sans Bold", "Arial Unicode MS Bold"],
     "text-size": 10,

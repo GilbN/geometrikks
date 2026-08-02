@@ -38,7 +38,7 @@ export function IpBanControls({
   const banned = bannedIps?.has(ip) ?? initialBanned
   const isPending = ban.isPending || unban.isPending
 
-  if (!banned && !status?.write_enabled) return null
+  if (!banned && !status?.writeEnabled) return null
 
   const isFooter = variant === "footer"
   const Wrapper = isFooter ? "div" : "span"
@@ -73,7 +73,7 @@ export function IpBanControls({
           banned
         </span>
       )}
-      {status?.write_enabled && (
+      {status?.writeEnabled && (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button

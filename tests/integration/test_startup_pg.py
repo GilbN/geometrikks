@@ -3,6 +3,10 @@ from __future__ import annotations
 
 from sqlalchemy import text
 
+import pytest
+
+pytestmark = pytest.mark.anyio
+
 EXPECTED_TABLES = {"geo_locations", "geo_events", "access_logs", "access_log_debug"}
 EXPECTED_HYPERTABLES = {"geo_events", "access_logs", "access_log_debug"}
 EXPECTED_CAGGS = {

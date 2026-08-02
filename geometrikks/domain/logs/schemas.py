@@ -1,14 +1,12 @@
 """Plain schemas for access-log query results - pure data, no ORM dependencies."""
 from __future__ import annotations
 
-from dataclasses import dataclass
 from datetime import datetime
 
 import msgspec
 
 
-@dataclass
-class CountryFacet:
+class CountryFacet(msgspec.Struct, rename="camel"):
     """One country present in the access-log data."""
 
     code: str
@@ -17,8 +15,7 @@ class CountryFacet:
     """Display name, e.g. ``Norway`` (falls back to the code)."""
 
 
-@dataclass
-class AccessLogFacets:
+class AccessLogFacets(msgspec.Struct, rename="camel"):
     """Distinct filterable values present in the access-log data."""
 
     countries: list[CountryFacet]

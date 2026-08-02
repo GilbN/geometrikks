@@ -11,7 +11,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 import click
-from litestar.plugins import CLIPluginProtocol
+from litestar.plugins import CLIPlugin
 
 
 @click.command(name="import-logs")
@@ -135,7 +135,7 @@ async def _run_import(paths: list[Path], *, force: bool, batch_size: int) -> Non
         )
 
 
-class ImportLogsCLIPlugin(CLIPluginProtocol):
+class ImportLogsCLIPlugin(CLIPlugin):
     """Registers import-logs on the litestar CLI group."""
 
     def on_cli_init(self, cli: click.Group) -> None:

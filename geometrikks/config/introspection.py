@@ -9,6 +9,8 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass
+
+import msgspec
 from typing import Any, get_args
 
 from pydantic import SecretStr
@@ -43,8 +45,7 @@ _SECTION_TITLES = {
 }
 
 
-@dataclass
-class SettingFieldView:
+class SettingFieldView(msgspec.Struct, rename="camel"):
     key: str
     value: Any
     default: Any
@@ -55,16 +56,14 @@ class SettingFieldView:
     computed_source: str | None = None
 
 
-@dataclass
-class SettingsSectionView:
+class SettingsSectionView(msgspec.Struct, rename="camel"):
     name: str
     title: str
     description: str | None
     fields: list[SettingFieldView]
 
 
-@dataclass
-class SystemSettingsResponse:
+class SystemSettingsResponse(msgspec.Struct, rename="camel"):
     sections: list[SettingsSectionView]
 
 

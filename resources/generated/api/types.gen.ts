@@ -10,9 +10,9 @@ export type ClientOptions = {
 export type AboutAppView = {
   container: boolean;
   environment: string;
-  image_tag: string | null;
+  imageTag: string | null;
   name: string;
-  started_at: string | null;
+  startedAt: string | null;
   version: string;
 };
 
@@ -79,13 +79,13 @@ export type AccessLogFacets = {
  * AlertView
  */
 export type AlertView = {
-  as_name: string | null;
+  asName: string | null;
   country: string | null;
-  created_at: string;
-  decision_count: number;
-  events_count: number;
+  createdAt: string;
+  decisionCount: number;
+  eventsCount: number;
   id: number | null;
-  machine_id: string | null;
+  machineId: string | null;
   message: string;
   scenario: string;
   scope: string;
@@ -96,10 +96,10 @@ export type AlertView = {
  * AnalyticsSettingsView
  */
 export type AnalyticsSettingsView = {
-  compression_after_days: number;
-  debug_retention_days: number;
-  hourly_retention_days: number;
-  raw_retention_days: number;
+  compressionAfterDays: number;
+  debugRetentionDays: number;
+  hourlyRetentionDays: number;
+  rawRetentionDays: number;
 };
 
 /**
@@ -120,11 +120,19 @@ export type CountryFacet = {
 };
 
 /**
+ * CrowdSecHealth
+ */
+export type CrowdSecHealth = {
+  enabled: boolean;
+  lapiReachable: boolean | null;
+};
+
+/**
  * CrowdSecStatsResponse
  */
 export type CrowdSecStatsResponse = {
-  by_origin: Array<OriginCount>;
-  top_scenarios: Array<ScenarioCount>;
+  byOrigin: Array<OriginCount>;
+  topScenarios: Array<ScenarioCount>;
   total: number;
 };
 
@@ -133,17 +141,17 @@ export type CrowdSecStatsResponse = {
  */
 export type CrowdSecStatusResponse = {
   enabled: boolean;
-  lapi_reachable: boolean;
-  write_enabled: boolean;
+  lapiReachable: boolean;
+  writeEnabled: boolean;
 };
 
 /**
  * CumulativeDataPoint
  */
 export type CumulativeDataPoint = {
-  cumulative_access_logs: number;
-  cumulative_bytes: number;
-  cumulative_geo_events: number;
+  cumulativeAccessLogs: number;
+  cumulativeBytes: number;
+  cumulativeGeoEvents: number;
   timestamp: string;
 };
 
@@ -152,31 +160,38 @@ export type CumulativeDataPoint = {
  */
 export type CumulativeTimeSeriesResponse = {
   data?: Array<CumulativeDataPoint>;
-  end_date: string;
+  endDate: string;
   granularity: string;
-  start_date: string;
+  startDate: string;
+};
+
+/**
+ * DatabaseHealth
+ */
+export type DatabaseHealth = {
+  reachable: boolean;
 };
 
 /**
  * DatabaseInfoResponse
  */
 export type DatabaseInfoResponse = {
-  debug_retention_days: number;
+  debugRetentionDays: number;
   hypertables: Array<HypertableStatsView>;
-  postgres_version: string | null;
+  postgresVersion: string | null;
   reachable: boolean;
-  retention_days: number;
-  size_bytes: number | null;
-  timescaledb_version: string | null;
+  retentionDays: number;
+  sizeBytes: number | null;
+  timescaledbVersion: string | null;
 };
 
 /**
  * DatabaseVersionsView
  */
 export type DatabaseVersionsView = {
-  postgis_version: string | null;
-  postgres_version: string | null;
-  timescaledb_version: string | null;
+  postgisVersion: string | null;
+  postgresVersion: string | null;
+  timescaledbVersion: string | null;
 };
 
 /**
@@ -184,13 +199,13 @@ export type DatabaseVersionsView = {
  */
 export type DecisionView = {
   city: string | null;
-  country_code: string | null;
-  country_name: string | null;
+  countryCode: string | null;
+  countryName: string | null;
   duration: string;
   id: number | null;
   ip: string;
   origin: string;
-  request_count_24h: number | null;
+  requestCount24h: number | null;
   scenario: string;
   scope: string;
   type: string;
@@ -201,8 +216,8 @@ export type DecisionView = {
  */
 export type EmbeddedLocationDto = {
   city?: string | null;
-  country_code?: string | null;
-  country_name?: string | null;
+  countryCode?: string | null;
+  countryName?: string | null;
   id: number;
   latitude: number;
   longitude: number;
@@ -230,10 +245,10 @@ export type GeoEventFacets = {
  */
 export type GeoEventsDataPoint = {
   timestamp: string;
-  total_geo_events: number;
-  unique_cities: number;
-  unique_countries: number;
-  unique_ips: number;
+  totalGeoEvents: number;
+  uniqueCities: number;
+  uniqueCountries: number;
+  uniqueIps: number;
 };
 
 /**
@@ -241,19 +256,27 @@ export type GeoEventsDataPoint = {
  */
 export type GeoEventsTimeSeriesResponse = {
   data: Array<GeoEventsDataPoint>;
-  end_date: string;
+  endDate: string;
   granularity: string;
-  start_date: string;
+  startDate: string;
+};
+
+/**
+ * GeoIPHealth
+ */
+export type GeoIpHealth = {
+  available: boolean;
+  dbBuildDate: string | null;
 };
 
 /**
  * GeoIPInfoView
  */
 export type GeoIpInfoView = {
-  age_days: number | null;
+  ageDays: number | null;
   available: boolean;
-  build_date: string | null;
-  db_path: string;
+  buildDate: string | null;
+  dbPath: string;
 };
 
 /**
@@ -279,17 +302,17 @@ export type GeoJsonFeatureCollection = {
  */
 export type GeoJsonFeatureProperties = {
   city: string | null;
-  country_code: string;
-  country_name: string;
-  event_count: number;
+  countryCode: string;
+  countryName: string;
+  eventCount: number;
   geohash: string;
   id: number;
-  last_hit: string | null;
-  postal_code: string | null;
+  lastHit: string | null;
+  postalCode: string | null;
   state: string | null;
-  state_code: string | null;
+  stateCode: string | null;
   timezone: string | null;
-  top_ips?: Array<TopIpdto>;
+  topIps?: Array<TopIpdto>;
 };
 
 /**
@@ -383,18 +406,54 @@ export type GeoLogTimeSeriesResponse = {
  * GlobalTopIPsResponse
  */
 export type GlobalTopIpsResponse = {
-  top_ips?: Array<TopIpdto>;
+  topIps?: Array<TopIpdto>;
+};
+
+/**
+ * HealthResponse
+ */
+export type HealthResponse = {
+  crowdsec: CrowdSecHealth;
+  database: DatabaseHealth;
+  geoip: GeoIpHealth;
+  ingestion: IngestionHealth;
+  startedAt: string | null;
+  status: "healthy" | "degraded";
+  timestamp: string;
 };
 
 /**
  * HypertableStatsView
  */
 export type HypertableStatsView = {
-  after_compression_bytes: number | null;
-  approx_rows: number | null;
-  before_compression_bytes: number | null;
+  afterCompressionBytes: number | null;
+  approxRows: number | null;
+  beforeCompressionBytes: number | null;
   name: string;
-  total_bytes: number | null;
+  totalBytes: number | null;
+};
+
+/**
+ * IngestionHealth
+ */
+export type IngestionHealth = {
+  lastRecordAt: string | null;
+  missingFiles: Array<string>;
+  parsedLines: number;
+  pendingRecords: number;
+  running: boolean;
+};
+
+/**
+ * IngestionStatsResponse
+ */
+export type IngestionStatsResponse = {
+  isRunning: boolean;
+  totalIgnoredLines: number;
+  totalParsedLines: number;
+  totalPendingRecords: number;
+  totalProcessed: number;
+  totalSkippedLines: number;
 };
 
 /**
@@ -402,7 +461,7 @@ export type HypertableStatsView = {
  */
 export type IpLocation = {
   city: string | null;
-  country_code: string | null;
+  countryCode: string | null;
   ip: string;
   latitude: number;
   longitude: number;
@@ -489,8 +548,8 @@ export type ListGeoLocationsGeoLocationResponseBody = {
  * LocationTopIPsResponse
  */
 export type LocationTopIpsResponse = {
-  location_id: number;
-  top_ips?: Array<TopIpdto>;
+  locationId: number;
+  topIps?: Array<TopIpdto>;
 };
 
 /**
@@ -499,9 +558,9 @@ export type LocationTopIpsResponse = {
 export type LogFileView = {
   available: boolean;
   kind: "app" | "login" | "nginx";
-  modified_at: string | null;
+  modifiedAt: string | null;
   name: string;
-  size_bytes: number;
+  sizeBytes: number;
 };
 
 /**
@@ -519,12 +578,23 @@ export type LogRotateResponse = {
 };
 
 /**
+ * LogTailRecord
+ */
+export type LogTailRecord = {
+  event?: string;
+  exception?: string;
+  ip?: string;
+  level?: string;
+  logger?: string;
+  timestamp?: string;
+  user?: string;
+};
+
+/**
  * LogTailResponse
  */
 export type LogTailResponse = {
-  records: Array<{
-    [key: string]: unknown;
-  }>;
+  records: Array<LogTailRecord>;
 };
 
 /**
@@ -539,18 +609,18 @@ export type LoginPayload = {
  * LogparserSettingsView
  */
 export type LogparserSettingsView = {
-  log_paths: Array<string>;
-  send_logs: boolean;
-  store_debug_lines: boolean;
+  logPaths: Array<string>;
+  sendLogs: boolean;
+  storeDebugLines: boolean;
 };
 
 /**
  * MapSettingsView
  */
 export type MapSettingsView = {
-  home_latitude: number | null;
-  home_longitude: number | null;
-  home_source: "configured" | "external_ip" | null;
+  homeLatitude: number | null;
+  homeLongitude: number | null;
+  homeSource: "configured" | "external_ip" | null;
 };
 
 /**
@@ -580,33 +650,40 @@ export type ParseErrorCount = {
  * PercentChange
  */
 export type PercentChange = {
-  avg_request_time?: number | null;
-  bytes_sent?: number | null;
-  error_rate?: number | null;
-  geo_records?: number | null;
-  log_records?: number | null;
-  malformed_rate?: number | null;
-  unique_ips?: number | null;
+  avgRequestTime?: number | null;
+  bytesSent?: number | null;
+  errorRate?: number | null;
+  geoRecords?: number | null;
+  logRecords?: number | null;
+  malformedRate?: number | null;
+  uniqueIps?: number | null;
 };
 
 /**
  * PeriodSummary
  */
 export type PeriodSummary = {
-  avg_bytes_per_request: number;
-  avg_request_time: number;
-  error_rate: number;
-  malformed_requests: number;
-  max_request_time: number;
-  status_2xx: number;
-  status_3xx: number;
-  status_4xx: number;
-  status_5xx: number;
-  total_bytes_sent: number;
-  total_geo_events: number;
-  total_requests: number;
-  unique_countries: number;
-  unique_ips: number;
+  avgBytesPerRequest: number;
+  avgRequestTime: number;
+  errorRate: number;
+  malformedRequests: number;
+  maxRequestTime: number;
+  status2xx: number;
+  status3xx: number;
+  status4xx: number;
+  status5xx: number;
+  totalBytesSent: number;
+  totalGeoEvents: number;
+  totalRequests: number;
+  uniqueCountries: number;
+  uniqueIps: number;
+};
+
+/**
+ * ReadinessResponse
+ */
+export type ReadinessResponse = {
+  ready: boolean;
 };
 
 /**
@@ -614,16 +691,16 @@ export type PeriodSummary = {
  */
 export type RuntimeSettingsView = {
   container: boolean;
-  image_tag: string | null;
+  imageTag: string | null;
 };
 
 /**
  * RuntimeVersionsView
  */
 export type RuntimeVersionsView = {
-  apscheduler_version: string | null;
-  litestar_version: string | null;
-  python_version: string;
+  apschedulerVersion: string | null;
+  litestarVersion: string | null;
+  pythonVersion: string;
 };
 
 /**
@@ -652,12 +729,12 @@ export type ScenarioCount = {
  */
 export type SchedulerJobView = {
   id: string;
-  last_duration_seconds: number | null;
-  last_error: string | null;
-  last_run_time: string | null;
-  last_status: "success" | "error" | "missed" | null;
+  lastDurationSeconds: number | null;
+  lastError: string | null;
+  lastRunTime: string | null;
+  lastStatus: "success" | "error" | "missed" | null;
   name: string;
-  next_run_time: string | null;
+  nextRunTime: string | null;
   running: boolean;
   trigger: string;
 };
@@ -667,20 +744,20 @@ export type SchedulerJobView = {
  */
 export type SchedulerJobsResponse = {
   jobs: Array<SchedulerJobView>;
-  scheduler_enabled: boolean;
-  scheduler_running: boolean;
+  schedulerEnabled: boolean;
+  schedulerRunning: boolean;
 };
 
 /**
  * SettingFieldView
  */
 export type SettingFieldView = {
-  computed_source?: string | null;
-  computed_value?: unknown;
+  computedSource?: string | null;
+  computedValue?: unknown;
   default: unknown;
   description: string | null;
-  env_var: string | null;
-  is_secret: boolean;
+  envVar: string | null;
+  isSecret: boolean;
   key: string;
   value: unknown;
 };
@@ -699,11 +776,11 @@ export type SettingsSectionView = {
  * SummaryResponse
  */
 export type SummaryResponse = {
-  current_period: PeriodSummary;
-  end_date: string;
-  percent_changes?: PercentChange | null;
-  previous_period?: PeriodSummary | null;
-  start_date: string;
+  currentPeriod: PeriodSummary;
+  endDate: string;
+  percentChanges?: PercentChange | null;
+  previousPeriod?: PeriodSummary | null;
+  startDate: string;
 };
 
 /**
@@ -717,19 +794,19 @@ export type SystemSettingsResponse = {
  * TimeSeriesDataPoint
  */
 export type TimeSeriesDataPoint = {
-  avg_request_time: number;
-  error_rate: number;
-  p50_request_time: number;
-  p95_request_time: number;
-  p99_request_time: number;
-  status_2xx: number;
-  status_3xx: number;
-  status_4xx: number;
-  status_5xx: number;
+  avgRequestTime: number;
+  errorRate: number;
+  p50RequestTime: number;
+  p95RequestTime: number;
+  p99RequestTime: number;
+  status2xx: number;
+  status3xx: number;
+  status4xx: number;
+  status5xx: number;
   timestamp: string;
-  total_bytes_sent: number;
-  total_geo_events: number;
-  total_requests: number;
+  totalBytesSent: number;
+  totalGeoEvents: number;
+  totalRequests: number;
 };
 
 /**
@@ -737,18 +814,18 @@ export type TimeSeriesDataPoint = {
  */
 export type TimeSeriesResponse = {
   data: Array<TimeSeriesDataPoint>;
-  end_date: string;
+  endDate: string;
   granularity: string;
-  start_date: string;
+  startDate: string;
 };
 
 /**
  * TopCitiesResponse
  */
 export type TopCitiesResponse = {
-  end_date: string;
+  endDate: string;
   items: Array<TopCityStatsDto>;
-  start_date: string;
+  startDate: string;
 };
 
 /**
@@ -756,44 +833,44 @@ export type TopCitiesResponse = {
  */
 export type TopCityStatsDto = {
   city: string;
-  country_code: string | null;
+  countryCode: string | null;
   hits: number;
-  unique_ips: number;
+  uniqueIps: number;
 };
 
 /**
  * TopCountriesResponse
  */
 export type TopCountriesResponse = {
-  top_countries?: Array<TopCountryDto>;
+  topCountries?: Array<TopCountryDto>;
 };
 
 /**
  * TopCountriesStatsResponse
  */
 export type TopCountriesStatsResponse = {
-  end_date: string;
+  endDate: string;
   items: Array<TopCountryStatsDto>;
-  start_date: string;
+  startDate: string;
 };
 
 /**
  * TopCountryDTO
  */
 export type TopCountryDto = {
-  country_code: string;
-  country_name: string | null;
-  event_count: number;
+  countryCode: string;
+  countryName: string | null;
+  eventCount: number;
 };
 
 /**
  * TopCountryStatsDTO
  */
 export type TopCountryStatsDto = {
-  country_code: string;
-  country_name: string | null;
+  countryCode: string;
+  countryName: string | null;
   hits: number;
-  unique_ips: number;
+  uniqueIps: number;
 };
 
 /**
@@ -851,8 +928,8 @@ export type TopGeoIpsResponse = {
  * TopIPDTO
  */
 export type TopIpdto = {
-  event_count: number;
-  ip_address: string;
+  eventCount: number;
+  ipAddress: string;
   location?: EmbeddedLocationDto | null;
 };
 
@@ -861,30 +938,30 @@ export type TopIpdto = {
  */
 export type TopIpDto = {
   city: string | null;
-  country_code: string | null;
-  error_hits: number;
+  countryCode: string | null;
+  errorHits: number;
   hits: number;
-  ip_address: string;
-  total_bytes: number;
+  ipAddress: string;
+  totalBytes: number;
 };
 
 /**
  * TopIpsResponse
  */
 export type TopIpsResponse = {
-  end_date: string;
+  endDate: string;
   items: Array<TopIpDto>;
-  start_date: string;
+  startDate: string;
 };
 
 /**
  * TopUrlDTO
  */
 export type TopUrlDto = {
-  avg_request_time: number;
-  error_hits: number;
+  avgRequestTime: number;
+  errorHits: number;
   hits: number;
-  total_bytes: number;
+  totalBytes: number;
   url: string;
 };
 
@@ -892,9 +969,9 @@ export type TopUrlDto = {
  * TopUrlsResponse
  */
 export type TopUrlsResponse = {
-  end_date: string;
+  endDate: string;
   items: Array<TopUrlDto>;
-  start_date: string;
+  startDate: string;
 };
 
 /**
@@ -902,16 +979,16 @@ export type TopUrlsResponse = {
  */
 export type TopUserAgentDto = {
   hits: number;
-  user_agent: string;
+  userAgent: string;
 };
 
 /**
  * TopUserAgentsResponse
  */
 export type TopUserAgentsResponse = {
-  end_date: string;
+  endDate: string;
   items: Array<TopUserAgentDto>;
-  start_date: string;
+  startDate: string;
 };
 
 /**
@@ -942,8 +1019,8 @@ export type ApiV1AccessLogDebugListAccessLogDebugData = {
     searchIgnoreCase?: boolean | null;
     currentPage?: number;
     pageSize?: number;
-    from_timestamp?: string | null;
-    to_timestamp?: string | null;
+    fromTimestamp?: string | null;
+    toTimestamp?: string | null;
     ipAddressIn?: Array<string> | null;
     countryCodeIn?: Array<string> | null;
     cityIn?: Array<string> | null;
@@ -1001,8 +1078,8 @@ export type ApiV1AccessLogDebugStatsGetAccessLogDebugStatsData = {
   body?: never;
   path?: never;
   query?: {
-    from_timestamp?: string | null;
-    to_timestamp?: string | null;
+    fromTimestamp?: string | null;
+    toTimestamp?: string | null;
   };
   url: "/api/v1/access-log-debug/stats";
 };
@@ -1058,8 +1135,8 @@ export type ApiV1AccessLogsListAccessLogsData = {
      * Field to search
      */
     sortOrder?: "asc" | "desc" | null;
-    from_timestamp?: string | null;
-    to_timestamp?: string | null;
+    fromTimestamp?: string | null;
+    toTimestamp?: string | null;
     methodIn?: Array<string> | null;
     ipAddressIn?: Array<string> | null;
     cityIn?: Array<string> | null;
@@ -1137,13 +1214,13 @@ export type ApiV1AnalyticsGeoTimeSeriesGetGeoTimeSeriesData = {
   path?: never;
   query: {
     /**
-     * Start date (ISO 8601, e.g., 2024-01-01T00:00:00Z)
+     * Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)
      */
-    start_date: string;
+    startDate: string;
     /**
-     * End date (ISO 8601, e.g., 2024-12-31T23:59:59Z)
+     * End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)
      */
-    end_date: string;
+    endDate: string;
     /**
      * Bucket size override. Omit to auto-select (hourly <= 30 days, daily above). RAW is never available.
      */
@@ -1186,17 +1263,17 @@ export type ApiV1AnalyticsLiveSummaryGetLiveSummaryData = {
   path?: never;
   query: {
     /**
-     * Start date (ISO 8601, e.g., 2024-01-01T00:00:00Z)
+     * Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)
      */
-    start_date: string;
+    startDate: string;
     /**
-     * End date (ISO 8601, e.g., 2024-12-31T23:59:59Z)
+     * End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)
      */
-    end_date: string;
+    endDate: string;
     /**
      * Include comparison with previous period of same length
      */
-    compare_previous?: boolean;
+    comparePrevious?: boolean;
   };
   url: "/api/v1/analytics/live-summary";
 };
@@ -1235,17 +1312,17 @@ export type ApiV1AnalyticsSummaryGetSummaryData = {
   path?: never;
   query: {
     /**
-     * Start date (ISO 8601, e.g., 2024-01-01T00:00:00Z)
+     * Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)
      */
-    start_date: string;
+    startDate: string;
     /**
-     * End date (ISO 8601, e.g., 2024-12-31T23:59:59Z)
+     * End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)
      */
-    end_date: string;
+    endDate: string;
     /**
      * Include comparison with previous period of same length
      */
-    compare_previous?: boolean;
+    comparePrevious?: boolean;
   };
   url: "/api/v1/analytics/summary";
 };
@@ -1284,13 +1361,13 @@ export type ApiV1AnalyticsTimeSeriesGetTimeSeriesData = {
   path?: never;
   query: {
     /**
-     * Start date (ISO 8601, e.g., 2024-01-01T00:00:00Z)
+     * Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)
      */
-    start_date: string;
+    startDate: string;
     /**
-     * End date (ISO 8601, e.g., 2024-12-31T23:59:59Z)
+     * End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)
      */
-    end_date: string;
+    endDate: string;
     /**
      * Bucket size override. Omit to auto-select (hourly <= 30 days, daily above). RAW is never available.
      */
@@ -1298,7 +1375,7 @@ export type ApiV1AnalyticsTimeSeriesGetTimeSeriesData = {
     /**
      * Filter to these ISO country codes (repeatable)
      */
-    country_code?: Array<string> | null;
+    countryCode?: Array<string> | null;
     /**
      * Filter to these city names (repeatable)
      */
@@ -1306,11 +1383,11 @@ export type ApiV1AnalyticsTimeSeriesGetTimeSeriesData = {
     /**
      * Filter to these client IPs (repeatable)
      */
-    ip_address?: Array<string> | null;
+    ipAddress?: Array<string> | null;
     /**
      * Exclude these client IPs (repeatable)
      */
-    ip_address_not_in?: Array<string> | null;
+    ipAddressNotIn?: Array<string> | null;
   };
   url: "/api/v1/analytics/time-series";
 };
@@ -1349,13 +1426,13 @@ export type ApiV1AnalyticsTimeSeriesCumulativeGetCumulativeTimeSeriesData = {
   path?: never;
   query: {
     /**
-     * Start date (ISO 8601, e.g., 2024-01-01T00:00:00Z)
+     * Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)
      */
-    start_date: string;
+    startDate: string;
     /**
-     * End date (ISO 8601, e.g., 2024-12-31T23:59:59Z)
+     * End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)
      */
-    end_date: string;
+    endDate: string;
   };
   url: "/api/v1/analytics/time-series/cumulative";
 };
@@ -1395,13 +1472,13 @@ export type ApiV1AnalyticsTopCitiesGetTopCitiesData = {
   path?: never;
   query: {
     /**
-     * Start date (ISO 8601)
+     * Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)
      */
-    start_date: string;
+    startDate: string;
     /**
-     * End date (ISO 8601)
+     * End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)
      */
-    end_date: string;
+    endDate: string;
     /**
      * Maximum number of cities
      */
@@ -1409,7 +1486,7 @@ export type ApiV1AnalyticsTopCitiesGetTopCitiesData = {
     /**
      * Filter to these ISO country codes (repeatable)
      */
-    country_code?: Array<string> | null;
+    countryCode?: Array<string> | null;
     /**
      * Filter to these city names (repeatable)
      */
@@ -1417,11 +1494,11 @@ export type ApiV1AnalyticsTopCitiesGetTopCitiesData = {
     /**
      * Filter to these client IPs (repeatable)
      */
-    ip_address?: Array<string> | null;
+    ipAddress?: Array<string> | null;
     /**
      * Exclude these client IPs (repeatable)
      */
-    ip_address_not_in?: Array<string> | null;
+    ipAddressNotIn?: Array<string> | null;
   };
   url: "/api/v1/analytics/top-cities";
 };
@@ -1460,13 +1537,13 @@ export type ApiV1AnalyticsTopCountriesGetTopCountriesData = {
   path?: never;
   query: {
     /**
-     * Start date (ISO 8601)
+     * Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)
      */
-    start_date: string;
+    startDate: string;
     /**
-     * End date (ISO 8601)
+     * End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)
      */
-    end_date: string;
+    endDate: string;
     /**
      * Maximum number of countries
      */
@@ -1474,7 +1551,7 @@ export type ApiV1AnalyticsTopCountriesGetTopCountriesData = {
     /**
      * Filter to these ISO country codes (repeatable)
      */
-    country_code?: Array<string> | null;
+    countryCode?: Array<string> | null;
     /**
      * Filter to these city names (repeatable)
      */
@@ -1482,11 +1559,11 @@ export type ApiV1AnalyticsTopCountriesGetTopCountriesData = {
     /**
      * Filter to these client IPs (repeatable)
      */
-    ip_address?: Array<string> | null;
+    ipAddress?: Array<string> | null;
     /**
      * Exclude these client IPs (repeatable)
      */
-    ip_address_not_in?: Array<string> | null;
+    ipAddressNotIn?: Array<string> | null;
   };
   url: "/api/v1/analytics/top-countries";
 };
@@ -1525,13 +1602,13 @@ export type ApiV1AnalyticsTopIpsGetTopIpsData = {
   path?: never;
   query: {
     /**
-     * Start date (ISO 8601)
+     * Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)
      */
-    start_date: string;
+    startDate: string;
     /**
-     * End date (ISO 8601)
+     * End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)
      */
-    end_date: string;
+    endDate: string;
     /**
      * Maximum number of IPs
      */
@@ -1539,7 +1616,7 @@ export type ApiV1AnalyticsTopIpsGetTopIpsData = {
     /**
      * Filter to these ISO country codes (repeatable)
      */
-    country_code?: Array<string> | null;
+    countryCode?: Array<string> | null;
     /**
      * Filter to these city names (repeatable)
      */
@@ -1547,11 +1624,11 @@ export type ApiV1AnalyticsTopIpsGetTopIpsData = {
     /**
      * Filter to these client IPs (repeatable)
      */
-    ip_address?: Array<string> | null;
+    ipAddress?: Array<string> | null;
     /**
      * Exclude these client IPs (repeatable)
      */
-    ip_address_not_in?: Array<string> | null;
+    ipAddressNotIn?: Array<string> | null;
   };
   url: "/api/v1/analytics/top-ips";
 };
@@ -1590,13 +1667,13 @@ export type ApiV1AnalyticsTopUrlsGetTopUrlsData = {
   path?: never;
   query: {
     /**
-     * Start date (ISO 8601, e.g., 2024-01-01T00:00:00Z)
+     * Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)
      */
-    start_date: string;
+    startDate: string;
     /**
-     * End date (ISO 8601, e.g., 2024-12-31T23:59:59Z)
+     * End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)
      */
-    end_date: string;
+    endDate: string;
     /**
      * Maximum number of URLs to return
      */
@@ -1604,7 +1681,7 @@ export type ApiV1AnalyticsTopUrlsGetTopUrlsData = {
     /**
      * Filter to these ISO country codes (repeatable)
      */
-    country_code?: Array<string> | null;
+    countryCode?: Array<string> | null;
     /**
      * Filter to these city names (repeatable)
      */
@@ -1612,11 +1689,11 @@ export type ApiV1AnalyticsTopUrlsGetTopUrlsData = {
     /**
      * Filter to these client IPs (repeatable)
      */
-    ip_address?: Array<string> | null;
+    ipAddress?: Array<string> | null;
     /**
      * Exclude these client IPs (repeatable)
      */
-    ip_address_not_in?: Array<string> | null;
+    ipAddressNotIn?: Array<string> | null;
   };
   url: "/api/v1/analytics/top-urls";
 };
@@ -1655,13 +1732,13 @@ export type ApiV1AnalyticsTopUserAgentsGetTopUserAgentsData = {
   path?: never;
   query: {
     /**
-     * Start date (ISO 8601, e.g., 2024-01-01T00:00:00Z)
+     * Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)
      */
-    start_date: string;
+    startDate: string;
     /**
-     * End date (ISO 8601, e.g., 2024-12-31T23:59:59Z)
+     * End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)
      */
-    end_date: string;
+    endDate: string;
     /**
      * Maximum number of user agents to return
      */
@@ -1669,7 +1746,7 @@ export type ApiV1AnalyticsTopUserAgentsGetTopUserAgentsData = {
     /**
      * Filter to these ISO country codes (repeatable)
      */
-    country_code?: Array<string> | null;
+    countryCode?: Array<string> | null;
     /**
      * Filter to these city names (repeatable)
      */
@@ -1677,11 +1754,11 @@ export type ApiV1AnalyticsTopUserAgentsGetTopUserAgentsData = {
     /**
      * Filter to these client IPs (repeatable)
      */
-    ip_address?: Array<string> | null;
+    ipAddress?: Array<string> | null;
     /**
      * Exclude these client IPs (repeatable)
      */
-    ip_address_not_in?: Array<string> | null;
+    ipAddressNotIn?: Array<string> | null;
   };
   url: "/api/v1/analytics/top-user-agents";
 };
@@ -1886,8 +1963,8 @@ export type ApiV1CrowdsecBannedLocationsListBannedLocationsData = {
   body?: never;
   path?: never;
   query?: {
-    from_timestamp?: string | null;
-    to_timestamp?: string | null;
+    fromTimestamp?: string | null;
+    toTimestamp?: string | null;
   };
   url: "/api/v1/crowdsec/banned-locations";
 };
@@ -2100,10 +2177,19 @@ export type ApiV1GeoEventsListGeoEventsData = {
      * Field to search
      */
     sortOrder?: "asc" | "desc" | null;
-    from_timestamp?: string | null;
-    to_timestamp?: string | null;
+    fromTimestamp?: string | null;
+    toTimestamp?: string | null;
+    /**
+     * Filter to these IPs (repeatable)
+     */
     ipAddressIn?: Array<string> | null;
+    /**
+     * Exclude these IPs (repeatable)
+     */
     ipAddressNotIn?: Array<string> | null;
+    /**
+     * Filter to these recording hostnames (repeatable)
+     */
     hostnameIn?: Array<string> | null;
   };
   url: "/api/v1/geo-events";
@@ -2175,17 +2261,26 @@ export type ApiV1GeoEventsLogsGetGeoLogsData = {
   query: {
     countryCodeIn?: Array<string> | null;
     cityIn?: Array<string> | null;
+    /**
+     * Filter to these IPs (repeatable)
+     */
     ipAddressIn?: Array<string> | null;
+    /**
+     * Exclude these IPs (repeatable)
+     */
     ipAddressNotIn?: Array<string> | null;
+    /**
+     * Filter to these recording hostnames (repeatable)
+     */
     hostnameIn?: Array<string> | null;
     /**
      * Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)
      */
-    from_timestamp: string;
+    fromTimestamp: string;
     /**
      * End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)
      */
-    to_timestamp: string;
+    toTimestamp: string;
     currentPage?: number;
     pageSize?: number;
     /**
@@ -2249,21 +2344,30 @@ export type ApiV1GeoEventsSummaryGetGeoLogSummaryData = {
   query: {
     countryCodeIn?: Array<string> | null;
     cityIn?: Array<string> | null;
+    /**
+     * Filter to these IPs (repeatable)
+     */
     ipAddressIn?: Array<string> | null;
+    /**
+     * Exclude these IPs (repeatable)
+     */
     ipAddressNotIn?: Array<string> | null;
+    /**
+     * Filter to these recording hostnames (repeatable)
+     */
     hostnameIn?: Array<string> | null;
     /**
      * Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)
      */
-    from_timestamp: string;
+    fromTimestamp: string;
     /**
      * End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)
      */
-    to_timestamp: string;
+    toTimestamp: string;
     /**
      * Include comparison with previous period of same length
      */
-    compare_previous?: boolean;
+    comparePrevious?: boolean;
   };
   url: "/api/v1/geo-events/summary";
 };
@@ -2303,17 +2407,26 @@ export type ApiV1GeoEventsTimeSeriesGetGeoLogTimeSeriesData = {
   query: {
     countryCodeIn?: Array<string> | null;
     cityIn?: Array<string> | null;
+    /**
+     * Filter to these IPs (repeatable)
+     */
     ipAddressIn?: Array<string> | null;
+    /**
+     * Exclude these IPs (repeatable)
+     */
     ipAddressNotIn?: Array<string> | null;
+    /**
+     * Filter to these recording hostnames (repeatable)
+     */
     hostnameIn?: Array<string> | null;
     /**
      * Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)
      */
-    from_timestamp: string;
+    fromTimestamp: string;
     /**
      * End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)
      */
-    to_timestamp: string;
+    toTimestamp: string;
     /**
      * Bucket size override. Omit to auto-select (hourly <= 30 days, daily above). RAW is never available.
      */
@@ -2357,17 +2470,26 @@ export type ApiV1GeoEventsTopCitiesGetGeoLogTopCitiesData = {
   query: {
     countryCodeIn?: Array<string> | null;
     cityIn?: Array<string> | null;
+    /**
+     * Filter to these IPs (repeatable)
+     */
     ipAddressIn?: Array<string> | null;
+    /**
+     * Exclude these IPs (repeatable)
+     */
     ipAddressNotIn?: Array<string> | null;
+    /**
+     * Filter to these recording hostnames (repeatable)
+     */
     hostnameIn?: Array<string> | null;
     /**
      * Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)
      */
-    from_timestamp: string;
+    fromTimestamp: string;
     /**
      * End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)
      */
-    to_timestamp: string;
+    toTimestamp: string;
     /**
      * Maximum number of cities
      */
@@ -2411,17 +2533,26 @@ export type ApiV1GeoEventsTopCountriesGetGeoLogTopCountriesData = {
   query: {
     countryCodeIn?: Array<string> | null;
     cityIn?: Array<string> | null;
+    /**
+     * Filter to these IPs (repeatable)
+     */
     ipAddressIn?: Array<string> | null;
+    /**
+     * Exclude these IPs (repeatable)
+     */
     ipAddressNotIn?: Array<string> | null;
+    /**
+     * Filter to these recording hostnames (repeatable)
+     */
     hostnameIn?: Array<string> | null;
     /**
      * Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)
      */
-    from_timestamp: string;
+    fromTimestamp: string;
     /**
      * End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)
      */
-    to_timestamp: string;
+    toTimestamp: string;
     /**
      * Maximum number of countries
      */
@@ -2465,17 +2596,26 @@ export type ApiV1GeoEventsTopIpsGetGeoLogTopIpsData = {
   query: {
     countryCodeIn?: Array<string> | null;
     cityIn?: Array<string> | null;
+    /**
+     * Filter to these IPs (repeatable)
+     */
     ipAddressIn?: Array<string> | null;
+    /**
+     * Exclude these IPs (repeatable)
+     */
     ipAddressNotIn?: Array<string> | null;
+    /**
+     * Filter to these recording hostnames (repeatable)
+     */
     hostnameIn?: Array<string> | null;
     /**
      * Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)
      */
-    from_timestamp: string;
+    fromTimestamp: string;
     /**
      * End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)
      */
-    to_timestamp: string;
+    toTimestamp: string;
     /**
      * Maximum number of IPs
      */
@@ -2573,15 +2713,15 @@ export type ApiV1GeoLocationsGeojsonGetGeojsonData = {
     /**
      * Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)
      */
-    from_timestamp: string;
+    fromTimestamp: string;
     /**
      * End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)
      */
-    to_timestamp: string;
+    toTimestamp: string;
     /**
      * Filter to these ISO country codes (repeatable)
      */
-    country_code?: Array<string> | null;
+    countryCode?: Array<string> | null;
     /**
      * Filter to these city names (repeatable)
      */
@@ -2638,11 +2778,11 @@ export type ApiV1GeoLocationsTopCountriesGetTopCountriesData = {
     /**
      * Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)
      */
-    from_timestamp: string;
+    fromTimestamp: string;
     /**
      * End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)
      */
-    to_timestamp: string;
+    toTimestamp: string;
     /**
      * Maximum number of countries to return
      */
@@ -2687,11 +2827,11 @@ export type ApiV1GeoLocationsTopIpsGetGlobalTopIpsData = {
     /**
      * Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)
      */
-    from_timestamp: string;
+    fromTimestamp: string;
     /**
      * End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)
      */
-    to_timestamp: string;
+    toTimestamp: string;
     /**
      * Maximum number of IPs to return
      */
@@ -2738,11 +2878,11 @@ export type ApiV1GeoLocationsLocationIdTopIpsGetLocationTopIpsData = {
     /**
      * Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)
      */
-    from_timestamp: string;
+    fromTimestamp: string;
     /**
      * End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)
      */
-    to_timestamp: string;
+    toTimestamp: string;
     /**
      * Maximum number of IPs to return
      */
@@ -2857,7 +2997,13 @@ export type ApiV1LogsTailTailData = {
   body?: never;
   path?: never;
   query?: {
+    /**
+     * Number of records to return (capped)
+     */
     lines?: number;
+    /**
+     * Which log to tail
+     */
     source?: "app" | "login";
   };
   url: "/api/v1/logs/tail";
@@ -2920,9 +3066,7 @@ export type ApiV1StatsStatsResponses = {
   /**
    * Request fulfilled, document follows
    */
-  200: {
-    [key: string]: unknown;
-  };
+  200: IngestionStatsResponse;
 };
 
 export type ApiV1StatsStatsResponse =
@@ -3045,9 +3189,7 @@ export type HealthHealthResponses = {
   /**
    * Request fulfilled, document follows
    */
-  200: {
-    [key: string]: unknown;
-  };
+  200: HealthResponse;
 };
 
 export type HealthHealthResponse =
@@ -3060,13 +3202,21 @@ export type HealthReadyHealthReadyData = {
   url: "/health/ready";
 };
 
+export type HealthReadyHealthReadyErrors = {
+  /**
+   * Database unreachable; the app is not ready for traffic.
+   */
+  503: ReadinessResponse;
+};
+
+export type HealthReadyHealthReadyError =
+  HealthReadyHealthReadyErrors[keyof HealthReadyHealthReadyErrors];
+
 export type HealthReadyHealthReadyResponses = {
   /**
    * Request fulfilled, document follows
    */
-  200: {
-    [key: string]: unknown;
-  };
+  200: ReadinessResponse;
 };
 
 export type HealthReadyHealthReadyResponse =

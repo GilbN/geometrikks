@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import os
 import socket
+from collections.abc import AsyncIterator, Iterator
 
 import pytest
 from sqlalchemy import text
@@ -51,7 +52,7 @@ def pytest_collection_modifyitems(config, items):
 
 
 @pytest.fixture(scope="session")
-def it_database_url() -> str:
+def it_database_url() -> Iterator[str]:
     """Create the scratch DB (dropping any stale one), yield its URL, drop it."""
 
     async def _admin_exec(sql: str) -> None:
@@ -79,7 +80,7 @@ def monkeypatch_session():
 
 
 @pytest.fixture(scope="session")
-def migrated_database_url(it_database_url: str, monkeypatch_session) -> str:
+def migrated_database_url(it_database_url: str, monkeypatch_session) -> Iterator[str]:
     """Scratch DB migrated to head with timescale objects set up."""
     from geometrikks.config.settings import get_settings
     from geometrikks.server.migrations import upgrade_to_head
@@ -112,7 +113,7 @@ def migrated_database_url(it_database_url: str, monkeypatch_session) -> str:
 
 
 @pytest.fixture()
-async def pg_engine(migrated_database_url: str) -> AsyncEngine:
+async def pg_engine(migrated_database_url: str) -> AsyncIterator[AsyncEngine]:
     engine = create_async_engine(migrated_database_url)
     yield engine
     await engine.dispose()

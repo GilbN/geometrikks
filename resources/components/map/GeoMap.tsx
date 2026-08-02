@@ -108,8 +108,8 @@ function GeoMapInner({
   const { data: globalTopIPs, isLoading: isLoadingTopIPs } = useGlobalTopIPs()
   const { data: runtimeSettings } = useRuntimeSettings()
   const homeDestination = useMemo<[number, number] | null>(() => {
-    const latitude = runtimeSettings?.map.home_latitude
-    const longitude = runtimeSettings?.map.home_longitude
+    const latitude = runtimeSettings?.map.homeLatitude
+    const longitude = runtimeSettings?.map.homeLongitude
     return typeof latitude === "number" && typeof longitude === "number"
       ? [longitude, latitude]
       : null
@@ -143,7 +143,7 @@ function GeoMapInner({
         properties: {
           ip: loc.ip,
           city: loc.city,
-          country_code: loc.country_code,
+          countryCode: loc.countryCode,
         },
       })),
     }),
@@ -206,12 +206,12 @@ function GeoMapInner({
       const countryLabels: Record<string, string> = {}
       const cities = new Set<string>()
       for (const f of geojson.features) {
-        const code = f.properties.country_code
+        const code = f.properties.countryCode
         if (code) {
           // Display "<name> (<code>)" but keep the code as the option value,
           // since the value feeds useGeoJSON({ countryCodes }).
-          countryLabels[code] = f.properties.country_name
-            ? `${f.properties.country_name} (${code})`
+          countryLabels[code] = f.properties.countryName
+            ? `${f.properties.countryName} (${code})`
             : code
         }
         if (f.properties.city) cities.add(f.properties.city)
@@ -465,7 +465,7 @@ function GeoMapInner({
             clusterRadius={50}
             clusterProperties={{
               // Sum event_count for all points in the cluster
-              sum_event_count: ["+", ["get", "event_count"]],
+              sum_event_count: ["+", ["get", "eventCount"]],
             }}
           >
             {/* Heatmap layer */}
@@ -564,7 +564,7 @@ function GeoMapInner({
         onGoHome={goToHome}
         isLoading={isLoading}
         featureStats={geojson?.stats ?? { events: 0, countries: 0, cities: 0, locations: 0 }}
-        topIPs={globalTopIPs?.top_ips ?? []}
+        topIPs={globalTopIPs?.topIps ?? []}
         onFlyToLocation={flyToLocation}
         countryOptions={filterOptions.countries}
         countryLabels={filterOptions.countryLabels}

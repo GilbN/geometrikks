@@ -11,15 +11,17 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from advanced_alchemy.filters import CollectionFilter, NotInCollectionFilter, OnBeforeAfter
-from litestar.exceptions import ValidationException
+from geometrikks.domain.exceptions import DomainValidationError
 
-from geometrikks.api.v1.geo_events_controller import (
+from geometrikks.domain.geo.controllers.events import (
     GeoEventController,
     provide_geo_event_filters,
     provide_geo_event_in_filters,
     provide_geo_event_time_window,
 )
 from geometrikks.domain.geo.schemas import GeoEventFilters, GeoLogPeriod
+
+pytestmark = pytest.mark.anyio
 
 
 class TestTimeWindow:
@@ -43,6 +45,7 @@ class TestTimeWindow:
 
         window = provide_geo_event_time_window(start, end)[0]
 
+        assert isinstance(window, OnBeforeAfter)
         assert window.on_or_after == datetime(2026, 7, 1, tzinfo=timezone.utc)
         assert window.on_or_before == datetime(2026, 7, 2, tzinfo=timezone.utc)
 
@@ -71,11 +74,11 @@ class TestInFilters:
 
     def test_invalid_include_ip_raises(self) -> None:
         # ip_address is INET — free text must 400, not fail bind-param encoding.
-        with pytest.raises(ValidationException, match="Invalid IP address"):
+        with pytest.raises(DomainValidationError, match="Invalid IP address"):
             provide_geo_event_in_filters(["not-an-ip"], None, None)
 
     def test_invalid_exclude_ip_raises(self) -> None:
-        with pytest.raises(ValidationException, match="Invalid IP address"):
+        with pytest.raises(DomainValidationError, match="Invalid IP address"):
             provide_geo_event_in_filters(None, ["not-an-ip"], None)
 
 
@@ -98,9 +101,9 @@ class TestAggregateFilters:
         assert filters.is_active()
 
     def test_invalid_ips_raise_in_both_lists(self) -> None:
-        with pytest.raises(ValidationException, match="Invalid IP address"):
+        with pytest.raises(DomainValidationError, match="Invalid IP address"):
             provide_geo_event_filters(None, None, ["bad"], None, None)
-        with pytest.raises(ValidationException, match="Invalid IP address"):
+        with pytest.raises(DomainValidationError, match="Invalid IP address"):
             provide_geo_event_filters(None, None, None, ["bad"], None)
 
     def test_only_hostnames_force_raw(self) -> None:

@@ -3,15 +3,33 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
+import pytest
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 from litestar import Litestar
+from litestar.di import Provide
 from litestar.testing import AsyncTestClient
 
-from geometrikks.api.v1.system_controller import SystemController
+from geometrikks.domain.system.controllers.system import SystemController
 from geometrikks.server.scheduler_tracking import JobRunTracker
+from geometrikks.server.routes import create_api_v1_router
+from tests.support import ambient_settings_dependency
+
+pytestmark = pytest.mark.anyio
 
 FUTURE = datetime(2030, 1, 1, tzinfo=timezone.utc)
+
+
+class UnreachableEngine:
+    """db_engine stand-in whose connections always fail (DB-degraded mode).
+
+    The real provider hands out the engine without connecting, so an
+    unreachable database surfaces at query time; this stub fails at the
+    same point.
+    """
+
+    def connect(self):
+        raise RuntimeError("database unavailable")
 
 
 async def noop() -> None:
@@ -36,7 +54,14 @@ def make_app(*, with_scheduler: bool = True) -> Litestar:
         app.state.scheduler = scheduler
         app.state.scheduler_tracker = tracker
 
-    return Litestar(route_handlers=[SystemController], on_startup=[startup])
+    return Litestar(
+        route_handlers=[create_api_v1_router([SystemController])],
+        on_startup=[startup],
+        dependencies={
+            **ambient_settings_dependency(),
+            "db_engine": Provide(UnreachableEngine, sync_to_thread=False),
+        },
+    )
 
 
 async def test_lists_jobs_with_run_info():
@@ -44,15 +69,15 @@ async def test_lists_jobs_with_run_info():
         resp = await client.get("/api/v1/system/scheduler/jobs")
     assert resp.status_code == 200
     body = resp.json()
-    assert body["scheduler_enabled"] is True
+    assert body["schedulerEnabled"] is True
     assert len(body["jobs"]) == 1
     job = body["jobs"][0]
     assert job["id"] == "job-a"
     assert job["name"] == "Job A"
-    assert job["next_run_time"] is not None
+    assert job["nextRunTime"] is not None
     assert job["running"] is False
-    assert job["last_run_time"] is None
-    assert job["last_status"] is None
+    assert job["lastRunTime"] is None
+    assert job["lastStatus"] is None
 
 
 async def test_no_scheduler_reports_disabled():
@@ -60,8 +85,8 @@ async def test_no_scheduler_reports_disabled():
         resp = await client.get("/api/v1/system/scheduler/jobs")
     assert resp.status_code == 200
     assert resp.json() == {
-        "scheduler_enabled": False,
-        "scheduler_running": False,
+        "schedulerEnabled": False,
+        "schedulerRunning": False,
         "jobs": [],
     }
 
@@ -104,23 +129,23 @@ async def test_about_reports_app_runtime_and_geoip_metadata(monkeypatch):
 
     assert body["app"]["name"]
     assert body["app"]["version"]
-    assert body["runtime"]["python_version"]
-    assert body["runtime"]["litestar_version"]
-    assert body["runtime"]["apscheduler_version"]
+    assert body["runtime"]["pythonVersion"]
+    assert body["runtime"]["litestarVersion"]
+    assert body["runtime"]["apschedulerVersion"]
 
     # Reported whether or not a database is reachable, never a 500. A local
     # dev database yields real versions; CI without one yields nulls.
     assert set(body["database"]) == {
-        "postgres_version",
-        "timescaledb_version",
-        "postgis_version",
+        "postgresVersion",
+        "timescaledbVersion",
+        "postgisVersion",
     }
     assert all(v is None or isinstance(v, str) for v in body["database"].values())
 
     # The test mmdb has real metadata
     assert body["geoip"]["available"] is True
-    assert body["geoip"]["build_date"] is not None
-    assert body["geoip"]["age_days"] is not None
+    assert body["geoip"]["buildDate"] is not None
+    assert body["geoip"]["ageDays"] is not None
 
     assert body["links"]["repository"] == "https://github.com/GilbN/geometrikks"
     assert body["links"]["issues"].endswith("/issues")
@@ -133,24 +158,21 @@ async def test_about_geoip_degrades_when_db_missing(monkeypatch):
     assert resp.status_code == 200
     geoip = resp.json()["geoip"]
     assert geoip["available"] is False
-    assert geoip["build_date"] is None
+    assert geoip["buildDate"] is None
 
 
-async def test_about_database_degrades_when_db_unreachable(monkeypatch):
-    """An unreachable database must null the versions, never fail the page."""
-    import geometrikks.server.plugins as plugins
+async def test_about_database_degrades_when_db_unreachable():
+    """An unreachable database must null the versions, never fail the page.
 
-    def boom():
-        raise RuntimeError("no database")
-
-    monkeypatch.setattr(plugins, "get_sqlalchemy_config", boom)
+    make_app() provides the UnreachableEngine db_engine stub, failing at
+    connect time exactly like a real engine with the database down."""
     async with AsyncTestClient(app=make_app()) as client:
         resp = await client.get("/api/v1/system/about")
     assert resp.status_code == 200
     assert resp.json()["database"] == {
-        "postgres_version": None,
-        "timescaledb_version": None,
-        "postgis_version": None,
+        "postgresVersion": None,
+        "timescaledbVersion": None,
+        "postgisVersion": None,
     }
 
 
@@ -166,7 +188,14 @@ async def test_system_settings_surface_computed_values(monkeypatch):
         )
         app.state.geoip_available = True
 
-    app = Litestar(route_handlers=[SystemController], on_startup=[startup])
+    app = Litestar(
+        route_handlers=[create_api_v1_router([SystemController])],
+        on_startup=[startup],
+        dependencies={
+            **ambient_settings_dependency(),
+            "db_engine": Provide(UnreachableEngine, sync_to_thread=False),
+        },
+    )
     async with AsyncTestClient(app=app) as client:
         resp = await client.get("/api/v1/system/settings")
     assert resp.status_code == 200
@@ -177,17 +206,17 @@ async def test_system_settings_surface_computed_values(monkeypatch):
 
     lat = field("map", "home_latitude")
     assert lat["value"] is None
-    assert lat["computed_value"] == 59.91
-    assert lat["computed_source"] == "external_ip"
+    assert lat["computedValue"] == 59.91
+    assert lat["computedSource"] == "external_ip"
 
     avail = field("geoip", "available")
-    assert avail["computed_value"] is True
-    assert avail["computed_source"] == "runtime"
-    assert avail["env_var"] is None
+    assert avail["computedValue"] is True
+    assert avail["computedSource"] == "runtime"
+    assert avail["envVar"] is None
 
     enabled = field("crowdsec", "enabled")
-    assert enabled["computed_value"] is True
-    assert enabled["computed_source"] == "runtime"
+    assert enabled["computedValue"] is True
+    assert enabled["computedSource"] == "runtime"
 
 
 async def test_system_settings_no_computed_home_when_absent():
@@ -196,27 +225,23 @@ async def test_system_settings_no_computed_home_when_absent():
         resp = await client.get("/api/v1/system/settings")
     sections = {s["name"]: s for s in resp.json()["sections"]}
     lat = next(f for f in sections["map"]["fields"] if f["key"] == "home_latitude")
-    assert lat["computed_value"] is None
+    assert lat["computedValue"] is None
 
     avail = next(f for f in sections["geoip"]["fields"] if f["key"] == "available")
-    assert avail["computed_value"] is False
-    assert avail["computed_source"] == "runtime"
+    assert avail["computedValue"] is False
+    assert avail["computedSource"] == "runtime"
 
 
-async def test_database_info_degraded_without_db(monkeypatch):
+async def test_database_info_degraded_without_db():
     """/system/database renders nulls (not 500) when the DB is unreachable."""
-    def no_db():
-        raise RuntimeError("database unavailable")
-
-    monkeypatch.setattr("geometrikks.server.plugins.get_sqlalchemy_config", no_db)
     async with AsyncTestClient(app=make_app(with_scheduler=False)) as client:
         resp = await client.get("/api/v1/system/database")
     assert resp.status_code == 200
     body = resp.json()
     assert body["reachable"] is False
-    assert body["size_bytes"] is None
-    assert body["postgres_version"] is None
-    assert body["timescaledb_version"] is None
-    assert isinstance(body["retention_days"], int)
-    assert isinstance(body["debug_retention_days"], int)
+    assert body["sizeBytes"] is None
+    assert body["postgresVersion"] is None
+    assert body["timescaledbVersion"] is None
+    assert isinstance(body["retentionDays"], int)
+    assert isinstance(body["debugRetentionDays"], int)
     assert body["hypertables"] == []

@@ -1,5 +1,4 @@
 from datetime import datetime, timezone
-from typing import Optional
 
 from sqlalchemy import (
     Float,
@@ -12,7 +11,7 @@ from sqlalchemy import (
 from sqlalchemy.dialects import postgresql
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from advanced_alchemy.types import DateTimeUTC
-from advanced_alchemy.extensions.litestar import base
+from advanced_alchemy import base
 from geoalchemy2 import Geography
 from litestar.dto import dto_field
 
@@ -41,16 +40,16 @@ class GeoLocation(base.BigIntAuditBase):
     country_code: Mapped[str] = mapped_column(String(2), nullable=False, index=True)
     country_name: Mapped[str] = mapped_column(String(100), nullable=False)
 
-    state: Mapped[Optional[str]] = mapped_column(String(100))
-    state_code: Mapped[Optional[str]] = mapped_column(String(10))
+    state: Mapped[str | None] = mapped_column(String(100))
+    state_code: Mapped[str | None] = mapped_column(String(10))
 
-    city: Mapped[Optional[str]] = mapped_column(String(100))
-    postal_code: Mapped[Optional[str]] = mapped_column(String(20))
+    city: Mapped[str | None] = mapped_column(String(100))
+    postal_code: Mapped[str | None] = mapped_column(String(20))
 
-    timezone: Mapped[Optional[str]] = mapped_column(String(50))
+    timezone: Mapped[str | None] = mapped_column(String(50))
 
     # Track when this location was last accessed
-    last_hit: Mapped[Optional[datetime]] = mapped_column(
+    last_hit: Mapped[datetime | None] = mapped_column(
         DateTimeUTC(timezone=True),
         nullable=True,
         index=True,

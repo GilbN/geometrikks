@@ -144,6 +144,7 @@ import type {
   HealthHealthData,
   HealthHealthResponses,
   HealthReadyHealthReadyData,
+  HealthReadyHealthReadyErrors,
   HealthReadyHealthReadyResponses
 } from "./api/types.gen"
 
@@ -368,7 +369,7 @@ export interface OperationErrorTypes {
   'get_top_urls': ApiV1AnalyticsTopUrlsGetTopUrlsErrors
   'get_top_user_agents': ApiV1AnalyticsTopUserAgentsGetTopUserAgentsErrors
   'health': never
-  'health_ready': never
+  'health_ready': HealthReadyHealthReadyErrors
   'list_access_log_debug': ApiV1AccessLogDebugListAccessLogDebugErrors
   'list_access_logs': ApiV1AccessLogsListAccessLogsErrors
   'list_alerts': ApiV1CrowdsecAlertsListAlertsErrors

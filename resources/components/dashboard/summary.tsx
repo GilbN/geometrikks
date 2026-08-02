@@ -63,7 +63,7 @@ export function Summary() {
             <h1 className="text-2xl font-semibold tracking-tight">Summary</h1>
 
             {summary && (
-              <DateTimeRange start={summary.start_date} end={summary.end_date} />
+              <DateTimeRange start={summary.startDate} end={summary.endDate} />
             )}
           </div>
           <p className="text-sm text-muted-foreground">
@@ -118,38 +118,38 @@ export function Summary() {
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
               <StatCard
                 title="Access Log Records"
-                value={formatNumber(summary.current_period.total_requests)}
+                value={formatNumber(summary.currentPeriod.totalRequests)}
                 subtitle={`Last ${rangeLabel}`}
                 icon={Activity}
                 trend={{
-                  value: summary.percent_changes?.log_records ?? null,
-                  positive: (summary.percent_changes?.log_records ?? 0) >= 0,
+                  value: summary.percentChanges?.logRecords ?? null,
+                  positive: (summary.percentChanges?.logRecords ?? 0) >= 0,
                 }}
               />
               <StatCard
                 title="Geo Event Records"
-                value={formatNumber(summary.current_period.total_geo_events)}
+                value={formatNumber(summary.currentPeriod.totalGeoEvents)}
                 subtitle={`Last ${rangeLabel}`}
                 icon={FileText}
                 trend={{
-                  value: summary.percent_changes?.geo_records ?? null,
-                  positive: (summary.percent_changes?.geo_records ?? 0) >= 0,
+                  value: summary.percentChanges?.geoRecords ?? null,
+                  positive: (summary.percentChanges?.geoRecords ?? 0) >= 0,
                 }}
               />
               <StatCard
                 title="Unique Countries"
-                value={formatNumber(summary.current_period.unique_countries)}
+                value={formatNumber(summary.currentPeriod.uniqueCountries)}
                 subtitle="Active locations"
                 icon={Globe2}
               />
               <StatCard
                 title="Malformed Requests"
-                value={formatNumber(summary.current_period.malformed_requests)}
+                value={formatNumber(summary.currentPeriod.malformedRequests)}
                 subtitle={`Last ${rangeLabel}`}
                 icon={AlertTriangle}
                 trend={{
-                  value: summary.percent_changes?.malformed_rate ?? null,
-                  positive: (summary.percent_changes?.malformed_rate ?? 0) < 0,
+                  value: summary.percentChanges?.malformedRate ?? null,
+                  positive: (summary.percentChanges?.malformedRate ?? 0) < 0,
                 }}
               />
             </div>
@@ -159,49 +159,49 @@ export function Summary() {
             <div className="grid gap-4 grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
               <StatCard
                 title="Success (2xx)"
-                value={`${calcPercent(summary.current_period.status_2xx, summary.current_period.total_requests)}%`}
-                subtitle={`${formatNumber(summary.current_period.status_2xx)} requests`}
+                value={`${calcPercent(summary.currentPeriod.status2xx, summary.currentPeriod.totalRequests)}%`}
+                subtitle={`${formatNumber(summary.currentPeriod.status2xx)} requests`}
                 icon={CheckCircle2}
                 iconClassName="text-emerald-500/70"
                 valueClassName="text-emerald-500"
               />
               <StatCard
                 title="Redirects (3xx)"
-                value={formatNumber(summary.current_period.status_3xx)}
-                subtitle={`${calcPercent(summary.current_period.status_3xx, summary.current_period.total_requests)}% of requests`}
+                value={formatNumber(summary.currentPeriod.status3xx)}
+                subtitle={`${calcPercent(summary.currentPeriod.status3xx, summary.currentPeriod.totalRequests)}% of requests`}
                 icon={CornerUpRight}
                 iconClassName="text-blue-500/70"
                 valueClassName="text-blue-500"
               />
               <StatCard
                 title="Client Errors (4xx)"
-                value={formatNumber(summary.current_period.status_4xx)}
-                subtitle={`${calcPercent(summary.current_period.status_4xx, summary.current_period.total_requests)}% of requests`}
+                value={formatNumber(summary.currentPeriod.status4xx)}
+                subtitle={`${calcPercent(summary.currentPeriod.status4xx, summary.currentPeriod.totalRequests)}% of requests`}
                 icon={AlertCircle}
                 iconClassName="text-amber-500/70"
                 valueClassName="text-amber-500"
               />
               <StatCard
                 title="Server Errors (5xx)"
-                value={formatNumber(summary.current_period.status_5xx)}
-                subtitle={`${calcPercent(summary.current_period.status_5xx, summary.current_period.total_requests)}% of requests`}
+                value={formatNumber(summary.currentPeriod.status5xx)}
+                subtitle={`${calcPercent(summary.currentPeriod.status5xx, summary.currentPeriod.totalRequests)}% of requests`}
                 icon={XCircle}
                 iconClassName="text-red-500/70"
                 valueClassName="text-red-500"
               />
               <StatCard
                 title="Unique IPs"
-                value={formatNumber(summary.current_period.unique_ips)}
+                value={formatNumber(summary.currentPeriod.uniqueIps)}
                 subtitle={
-                  summary.percent_changes?.unique_ips !== null ? (
+                  summary.percentChanges?.uniqueIps !== null ? (
                     <span
                       className={cn(
-                        (summary.percent_changes?.unique_ips ?? 0) >= 0
+                        (summary.percentChanges?.uniqueIps ?? 0) >= 0
                           ? "text-emerald-500"
                           : "text-red-500"
                       )}
                     >
-                      {formatPercent(summary.percent_changes?.unique_ips)} vs last {rangeLabel}
+                      {formatPercent(summary.percentChanges?.uniqueIps)} vs last {rangeLabel}
                     </span>
                   ) : (
                     "Active visitors"
@@ -218,17 +218,17 @@ export function Summary() {
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
               <StatCard
                 title="Avg Request Time"
-                value={formatDuration(summary.current_period.avg_request_time)}
+                value={formatDuration(summary.currentPeriod.avgRequestTime)}
                 subtitle={
-                  summary.percent_changes?.avg_request_time !== null ? (
+                  summary.percentChanges?.avgRequestTime !== null ? (
                     <span
                       className={cn(
-                        (summary.percent_changes?.avg_request_time ?? 0) <= 0
+                        (summary.percentChanges?.avgRequestTime ?? 0) <= 0
                           ? "text-emerald-500"
                           : "text-red-500"
                       )}
                     >
-                      {formatPercent(summary.percent_changes?.avg_request_time)} vs last {rangeLabel}
+                      {formatPercent(summary.percentChanges?.avgRequestTime)} vs last {rangeLabel}
                     </span>
                   ) : (
                     "Response time"
@@ -239,7 +239,7 @@ export function Summary() {
               />
               <StatCard
                 title="Max Request Time"
-                value={formatDuration(summary.current_period.max_request_time)}
+                value={formatDuration(summary.currentPeriod.maxRequestTime)}
                 subtitle="Peak latency"
                 icon={Zap}
                 iconClassName="text-amber-500/70"
@@ -247,17 +247,17 @@ export function Summary() {
               />
               <StatCard
                 title="Total Bandwidth"
-                value={formatBytes(summary.current_period.total_bytes_sent)}
+                value={formatBytes(summary.currentPeriod.totalBytesSent)}
                 subtitle={
-                  summary.percent_changes?.bytes_sent !== null ? (
+                  summary.percentChanges?.bytesSent !== null ? (
                     <span
                       className={cn(
-                        (summary.percent_changes?.bytes_sent ?? 0) >= 0
+                        (summary.percentChanges?.bytesSent ?? 0) >= 0
                           ? "text-emerald-500"
                           : "text-red-500"
                       )}
                     >
-                      {formatPercent(summary.percent_changes?.bytes_sent)} vs last {rangeLabel}
+                      {formatPercent(summary.percentChanges?.bytesSent)} vs last {rangeLabel}
                     </span>
                   ) : (
                     "Data transferred"
@@ -268,7 +268,7 @@ export function Summary() {
               />
               <StatCard
                 title="Avg Request Size"
-                value={formatBytes(summary.current_period.avg_bytes_per_request)}
+                value={formatBytes(summary.currentPeriod.avgBytesPerRequest)}
                 subtitle="Per request"
                 icon={ArrowRightLeft}
               />

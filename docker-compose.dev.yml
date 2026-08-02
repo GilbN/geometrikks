@@ -85,11 +85,11 @@ services:
       LOGPARSER_LOG_PATHS: /var/log/nginx/access.log
       VITE_DEV_MODE: "true"
       VITE_EXECUTOR: "bun"
-      VITE_HOST: "0.0.0.0"
-      VITE_PORT: 5173
     ports:
+      # Single dev origin: the Vite sidecar runs on an ephemeral localhost
+      # port inside the container; assets and the HMR websocket are proxied
+      # through :8000 by litestar-vite, so no Vite port is published.
       - "8000:8000"
-      - "5173:5173"
     volumes:
       # Mount source code for hot-reload
       - ./geometrikks:/app/geometrikks:cached

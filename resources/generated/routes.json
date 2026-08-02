@@ -1,5 +1,5 @@
 {
-  "litestar_version": "Version(major=2, minor=24, patch=0, release_level='final', serial=0)",
+  "litestar_version": "2.24.0",
   "routes": {
     "ban": {
       "method": "post",
@@ -7,13 +7,6 @@
         "POST"
       ],
       "uri": "/api/v1/crowdsec/ban"
-    },
-    "disabled_vite_hmr_http": {
-      "method": "get",
-      "methods": [
-        "GET"
-      ],
-      "uri": "/static/vite-hmr"
     },
     "download": {
       "method": "get",
@@ -43,8 +36,8 @@
         "GET"
       ],
       "queryParameters": {
-        "from_timestamp": "DateTime | undefined",
-        "to_timestamp": "DateTime | undefined"
+        "fromTimestamp": "DateTime | undefined",
+        "toTimestamp": "DateTime | undefined"
       },
       "uri": "/api/v1/access-log-debug/stats"
     },
@@ -61,8 +54,8 @@
         "GET"
       ],
       "queryParameters": {
-        "end_date": "DateTime",
-        "start_date": "DateTime"
+        "endDate": "DateTime",
+        "startDate": "DateTime"
       },
       "uri": "/api/v1/analytics/time-series/cumulative"
     },
@@ -87,13 +80,13 @@
       ],
       "queryParameters": {
         "cityIn": "string[] | undefined",
-        "compare_previous": "boolean | undefined",
+        "comparePrevious": "boolean | undefined",
         "countryCodeIn": "string[] | undefined",
-        "from_timestamp": "DateTime",
+        "fromTimestamp": "DateTime",
         "hostnameIn": "string[] | undefined",
         "ipAddressIn": "string[] | undefined",
         "ipAddressNotIn": "string[] | undefined",
-        "to_timestamp": "DateTime"
+        "toTimestamp": "DateTime"
       },
       "uri": "/api/v1/geo-events/summary"
     },
@@ -105,12 +98,12 @@
       "queryParameters": {
         "cityIn": "string[] | undefined",
         "countryCodeIn": "string[] | undefined",
-        "from_timestamp": "DateTime",
+        "fromTimestamp": "DateTime",
         "granularity": "\"hourly\" | \"daily\" | undefined",
         "hostnameIn": "string[] | undefined",
         "ipAddressIn": "string[] | undefined",
         "ipAddressNotIn": "string[] | undefined",
-        "to_timestamp": "DateTime"
+        "toTimestamp": "DateTime"
       },
       "uri": "/api/v1/geo-events/time-series"
     },
@@ -122,12 +115,12 @@
       "queryParameters": {
         "cityIn": "string[] | undefined",
         "countryCodeIn": "string[] | undefined",
-        "from_timestamp": "DateTime",
+        "fromTimestamp": "DateTime",
         "hostnameIn": "string[] | undefined",
         "ipAddressIn": "string[] | undefined",
         "ipAddressNotIn": "string[] | undefined",
         "limit": "number | undefined",
-        "to_timestamp": "DateTime"
+        "toTimestamp": "DateTime"
       },
       "uri": "/api/v1/geo-events/top-cities"
     },
@@ -139,12 +132,12 @@
       "queryParameters": {
         "cityIn": "string[] | undefined",
         "countryCodeIn": "string[] | undefined",
-        "from_timestamp": "DateTime",
+        "fromTimestamp": "DateTime",
         "hostnameIn": "string[] | undefined",
         "ipAddressIn": "string[] | undefined",
         "ipAddressNotIn": "string[] | undefined",
         "limit": "number | undefined",
-        "to_timestamp": "DateTime"
+        "toTimestamp": "DateTime"
       },
       "uri": "/api/v1/geo-events/top-countries"
     },
@@ -156,12 +149,12 @@
       "queryParameters": {
         "cityIn": "string[] | undefined",
         "countryCodeIn": "string[] | undefined",
-        "from_timestamp": "DateTime",
+        "fromTimestamp": "DateTime",
         "hostnameIn": "string[] | undefined",
         "ipAddressIn": "string[] | undefined",
         "ipAddressNotIn": "string[] | undefined",
         "limit": "number | undefined",
-        "to_timestamp": "DateTime"
+        "toTimestamp": "DateTime"
       },
       "uri": "/api/v1/geo-events/top-ips"
     },
@@ -174,14 +167,14 @@
         "cityIn": "string[] | undefined",
         "countryCodeIn": "string[] | undefined",
         "currentPage": "number | undefined",
-        "from_timestamp": "DateTime",
+        "fromTimestamp": "DateTime",
         "hostnameIn": "string[] | undefined",
         "ipAddressIn": "string[] | undefined",
         "ipAddressNotIn": "string[] | undefined",
         "orderBy": "string | undefined",
         "pageSize": "number | undefined",
         "sortOrder": "\"asc\" | \"desc\" | undefined",
-        "to_timestamp": "DateTime"
+        "toTimestamp": "DateTime"
       },
       "uri": "/api/v1/geo-events/logs"
     },
@@ -191,9 +184,9 @@
         "GET"
       ],
       "queryParameters": {
-        "end_date": "DateTime",
+        "endDate": "DateTime",
         "granularity": "\"hourly\" | \"daily\" | undefined",
-        "start_date": "DateTime"
+        "startDate": "DateTime"
       },
       "uri": "/api/v1/analytics/geo-time-series"
     },
@@ -204,12 +197,12 @@
       ],
       "queryParameters": {
         "city": "string[] | undefined",
-        "country_code": "string[] | undefined",
-        "from_timestamp": "DateTime",
+        "countryCode": "string[] | undefined",
+        "fromTimestamp": "DateTime",
         "hostnameIn": "string[] | undefined",
         "ipAddressIn": "string[] | undefined",
         "ipAddressNotIn": "string[] | undefined",
-        "to_timestamp": "DateTime"
+        "toTimestamp": "DateTime"
       },
       "uri": "/api/v1/geo-locations/geojson"
     },
@@ -219,9 +212,9 @@
         "GET"
       ],
       "queryParameters": {
-        "from_timestamp": "DateTime",
+        "fromTimestamp": "DateTime",
         "limit": "number | undefined",
-        "to_timestamp": "DateTime"
+        "toTimestamp": "DateTime"
       },
       "uri": "/api/v1/geo-locations/top-ips"
     },
@@ -231,9 +224,9 @@
         "GET"
       ],
       "queryParameters": {
-        "compare_previous": "boolean | undefined",
-        "end_date": "DateTime",
-        "start_date": "DateTime"
+        "comparePrevious": "boolean | undefined",
+        "endDate": "DateTime",
+        "startDate": "DateTime"
       },
       "uri": "/api/v1/analytics/live-summary"
     },
@@ -249,9 +242,9 @@
         "location_id"
       ],
       "queryParameters": {
-        "from_timestamp": "DateTime",
+        "fromTimestamp": "DateTime",
         "limit": "number | undefined",
-        "to_timestamp": "DateTime"
+        "toTimestamp": "DateTime"
       },
       "uri": "/api/v1/geo-locations/{location_id}/top-ips"
     },
@@ -282,9 +275,9 @@
         "GET"
       ],
       "queryParameters": {
-        "compare_previous": "boolean | undefined",
-        "end_date": "DateTime",
-        "start_date": "DateTime"
+        "comparePrevious": "boolean | undefined",
+        "endDate": "DateTime",
+        "startDate": "DateTime"
       },
       "uri": "/api/v1/analytics/summary"
     },
@@ -302,12 +295,12 @@
       ],
       "queryParameters": {
         "city": "string[] | undefined",
-        "country_code": "string[] | undefined",
-        "end_date": "DateTime",
+        "countryCode": "string[] | undefined",
+        "endDate": "DateTime",
         "granularity": "\"hourly\" | \"daily\" | undefined",
-        "ip_address": "string[] | undefined",
-        "ip_address_not_in": "string[] | undefined",
-        "start_date": "DateTime"
+        "ipAddress": "string[] | undefined",
+        "ipAddressNotIn": "string[] | undefined",
+        "startDate": "DateTime"
       },
       "uri": "/api/v1/analytics/time-series"
     },
@@ -318,12 +311,12 @@
       ],
       "queryParameters": {
         "city": "string[] | undefined",
-        "country_code": "string[] | undefined",
-        "end_date": "DateTime",
-        "ip_address": "string[] | undefined",
-        "ip_address_not_in": "string[] | undefined",
+        "countryCode": "string[] | undefined",
+        "endDate": "DateTime",
+        "ipAddress": "string[] | undefined",
+        "ipAddressNotIn": "string[] | undefined",
         "limit": "number | undefined",
-        "start_date": "DateTime"
+        "startDate": "DateTime"
       },
       "uri": "/api/v1/analytics/top-cities"
     },
@@ -334,12 +327,12 @@
       ],
       "queryParameters": {
         "city": "string[] | undefined",
-        "country_code": "string[] | undefined",
-        "end_date": "DateTime",
-        "ip_address": "string[] | undefined",
-        "ip_address_not_in": "string[] | undefined",
+        "countryCode": "string[] | undefined",
+        "endDate": "DateTime",
+        "ipAddress": "string[] | undefined",
+        "ipAddressNotIn": "string[] | undefined",
         "limit": "number | undefined",
-        "start_date": "DateTime"
+        "startDate": "DateTime"
       },
       "uri": "/api/v1/analytics/top-countries"
     },
@@ -349,9 +342,9 @@
         "GET"
       ],
       "queryParameters": {
-        "from_timestamp": "DateTime",
+        "fromTimestamp": "DateTime",
         "limit": "number | undefined",
-        "to_timestamp": "DateTime"
+        "toTimestamp": "DateTime"
       },
       "uri": "/api/v1/geo-locations/top-countries"
     },
@@ -362,12 +355,12 @@
       ],
       "queryParameters": {
         "city": "string[] | undefined",
-        "country_code": "string[] | undefined",
-        "end_date": "DateTime",
-        "ip_address": "string[] | undefined",
-        "ip_address_not_in": "string[] | undefined",
+        "countryCode": "string[] | undefined",
+        "endDate": "DateTime",
+        "ipAddress": "string[] | undefined",
+        "ipAddressNotIn": "string[] | undefined",
         "limit": "number | undefined",
-        "start_date": "DateTime"
+        "startDate": "DateTime"
       },
       "uri": "/api/v1/analytics/top-ips"
     },
@@ -378,12 +371,12 @@
       ],
       "queryParameters": {
         "city": "string[] | undefined",
-        "country_code": "string[] | undefined",
-        "end_date": "DateTime",
-        "ip_address": "string[] | undefined",
-        "ip_address_not_in": "string[] | undefined",
+        "countryCode": "string[] | undefined",
+        "endDate": "DateTime",
+        "ipAddress": "string[] | undefined",
+        "ipAddressNotIn": "string[] | undefined",
         "limit": "number | undefined",
-        "start_date": "DateTime"
+        "startDate": "DateTime"
       },
       "uri": "/api/v1/analytics/top-urls"
     },
@@ -394,12 +387,12 @@
       ],
       "queryParameters": {
         "city": "string[] | undefined",
-        "country_code": "string[] | undefined",
-        "end_date": "DateTime",
-        "ip_address": "string[] | undefined",
-        "ip_address_not_in": "string[] | undefined",
+        "countryCode": "string[] | undefined",
+        "endDate": "DateTime",
+        "ipAddress": "string[] | undefined",
+        "ipAddressNotIn": "string[] | undefined",
         "limit": "number | undefined",
-        "start_date": "DateTime"
+        "startDate": "DateTime"
       },
       "uri": "/api/v1/analytics/top-user-agents"
     },
@@ -426,7 +419,7 @@
         "cityIn": "string[] | undefined",
         "countryCodeIn": "string[] | undefined",
         "currentPage": "number | undefined",
-        "from_timestamp": "DateTime | undefined",
+        "fromTimestamp": "DateTime | undefined",
         "ipAddressIn": "string[] | undefined",
         "malformed": "boolean | undefined",
         "orderBy": "string | undefined",
@@ -434,7 +427,7 @@
         "searchIgnoreCase": "boolean | undefined",
         "searchString": "string | undefined",
         "sortOrder": "\"asc\" | \"desc\" | undefined",
-        "to_timestamp": "DateTime | undefined"
+        "toTimestamp": "DateTime | undefined"
       },
       "uri": "/api/v1/access-log-debug"
     },
@@ -447,7 +440,7 @@
         "cityIn": "string[] | undefined",
         "countryCodeIn": "string[] | undefined",
         "currentPage": "number | undefined",
-        "from_timestamp": "DateTime | undefined",
+        "fromTimestamp": "DateTime | undefined",
         "hostIn": "string[] | undefined",
         "hostNotIn": "string[] | undefined",
         "ipAddressIn": "string[] | undefined",
@@ -459,7 +452,7 @@
         "searchString": "string | undefined",
         "sortOrder": "\"asc\" | \"desc\" | undefined",
         "statusIn": "number[] | undefined",
-        "to_timestamp": "DateTime | undefined"
+        "toTimestamp": "DateTime | undefined"
       },
       "uri": "/api/v1/access-logs"
     },
@@ -489,8 +482,8 @@
         "GET"
       ],
       "queryParameters": {
-        "from_timestamp": "DateTime | undefined",
-        "to_timestamp": "DateTime | undefined"
+        "fromTimestamp": "DateTime | undefined",
+        "toTimestamp": "DateTime | undefined"
       },
       "uri": "/api/v1/crowdsec/banned-locations"
     },
@@ -520,14 +513,14 @@
       ],
       "queryParameters": {
         "currentPage": "number | undefined",
-        "from_timestamp": "DateTime | undefined",
+        "fromTimestamp": "DateTime | undefined",
         "hostnameIn": "string[] | undefined",
         "ipAddressIn": "string[] | undefined",
         "ipAddressNotIn": "string[] | undefined",
         "orderBy": "string | undefined",
         "pageSize": "number | undefined",
         "sortOrder": "\"asc\" | \"desc\" | undefined",
-        "to_timestamp": "DateTime | undefined"
+        "toTimestamp": "DateTime | undefined"
       },
       "uri": "/api/v1/geo-events"
     },
@@ -645,39 +638,6 @@
         "POST"
       ],
       "uri": "/api/v1/crowdsec/unban"
-    },
-    "vite": {
-      "method": "get",
-      "methods": [
-        "GET"
-      ],
-      "parameterTypes": {
-        "file_path": "any"
-      },
-      "parameters": [
-        "file_path"
-      ],
-      "uri": "/static/{file_path}"
-    },
-    "vite_spa": {
-      "method": "get",
-      "methods": [
-        "GET"
-      ],
-      "uri": "/"
-    },
-    "vite_spa_path:path": {
-      "method": "get",
-      "methods": [
-        "GET"
-      ],
-      "parameterTypes": {
-        "path": "URI"
-      },
-      "parameters": [
-        "path"
-      ],
-      "uri": "/{path}"
     }
   }
 }

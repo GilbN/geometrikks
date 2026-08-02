@@ -16,10 +16,10 @@ import { formatBucketTick } from "./chart-utils"
 // Slot order matches the stack order: adjacent-pair CVD separation of the
 // palette is only guaranteed for slots used in sequence.
 const chartConfig = {
-  status_2xx: { label: "2xx", color: "var(--chart-1)" },
-  status_3xx: { label: "3xx", color: "var(--chart-2)" },
-  status_4xx: { label: "4xx", color: "var(--chart-3)" },
-  status_5xx: { label: "5xx", color: "var(--chart-4)" },
+  status2xx: { label: "2xx", color: "var(--chart-1)" },
+  status3xx: { label: "3xx", color: "var(--chart-2)" },
+  status4xx: { label: "4xx", color: "var(--chart-3)" },
+  status5xx: { label: "5xx", color: "var(--chart-4)" },
 } satisfies ChartConfig
 
 export function StatusChart() {
@@ -52,10 +52,10 @@ export function StatusChart() {
               <ChartTooltip content={<ChartTooltipContent />} />
               <ChartLegend content={<ChartLegendContent />} />
               {/* stroke = card surface: the 2px spacer between stacked segments */}
-              <Bar dataKey="status_2xx" stackId="s" fill="var(--color-status_2xx)" stroke="var(--card)" strokeWidth={1} />
-              <Bar dataKey="status_3xx" stackId="s" fill="var(--color-status_3xx)" stroke="var(--card)" strokeWidth={1} />
-              <Bar dataKey="status_4xx" stackId="s" fill="var(--color-status_4xx)" stroke="var(--card)" strokeWidth={1} />
-              <Bar dataKey="status_5xx" stackId="s" fill="var(--color-status_5xx)" stroke="var(--card)" strokeWidth={1} radius={[2, 2, 0, 0]} />
+              <Bar dataKey="status2xx" stackId="s" fill="var(--color-status2xx)" stroke="var(--card)" strokeWidth={1} />
+              <Bar dataKey="status3xx" stackId="s" fill="var(--color-status3xx)" stroke="var(--card)" strokeWidth={1} />
+              <Bar dataKey="status4xx" stackId="s" fill="var(--color-status4xx)" stroke="var(--card)" strokeWidth={1} />
+              <Bar dataKey="status5xx" stackId="s" fill="var(--color-status5xx)" stroke="var(--card)" strokeWidth={1} radius={[2, 2, 0, 0]} />
             </BarChart>
           </ChartContainer>
         )}

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+import msgspec
 
 from litestar import Controller, Request, get, post
 from litestar.exceptions import NotAuthorizedException
@@ -17,21 +17,19 @@ logger = get_logger(__name__)
 login_logger = get_logger(LOGIN_LOGGER_NAME)
 
 
-@dataclass
-class LoginPayload:
+class LoginPayload(msgspec.Struct, rename="camel"):
     username: str
     password: str
 
 
-@dataclass
-class MeResponse:
+class MeResponse(msgspec.Struct, rename="camel"):
     username: str
 
 
 class AuthController(Controller):
     """Session login/logout. /login is excluded from the auth middleware."""
 
-    path = "/api/v1/auth"
+    path = "/auth"
     tags = ["Auth"]
 
     @post("/login", status_code=HTTP_200_OK, exclude_from_auth=True)

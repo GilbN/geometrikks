@@ -14,6 +14,10 @@ from geometrikks.domain.geo.repositories import GeoLocationRepository
 from geometrikks.server.timescale import refresh_caggs_range
 from tests.seed.factories import AccessLogFactory, GeoLocationFactory, seed_factories
 
+import pytest
+
+pytestmark = pytest.mark.anyio
+
 # Derived from the wall clock, not hard-coded: the scratch DB has live
 # retention policies (raw data > 180 days is droppable), so a fixed date
 # would eventually age out of the window and let a policy job drop seeded
@@ -152,6 +156,7 @@ async def test_geojson_country_filter(pg_session_maker, clean_tables):
         all_rows = await repo.get_all_with_event_counts(NOW - timedelta(hours=23), NOW)
         one_code = all_rows[0].location.country_code
         one_city = all_rows[0].location.city
+        assert one_city is not None
         filtered = await repo.get_all_with_event_counts(
             NOW - timedelta(hours=23), NOW, country_codes=[one_code]
         )

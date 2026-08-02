@@ -1,17 +1,16 @@
 """GeoLocation API endpoints."""
 from __future__ import annotations
-from datetime import datetime, timezone
 from typing import Annotated
 
-from advanced_alchemy.extensions.litestar import filters
-from litestar.pagination import OffsetPagination
+from advanced_alchemy.extensions.litestar.providers import create_service_dependencies
+from advanced_alchemy.filters import FilterTypes
+from advanced_alchemy.service import OffsetPagination
 from litestar import Controller, get
-from litestar.di import NamedDependency, Provide
-from litestar.params import Parameter, PathParameter
-from litestar.openapi.spec import Example
+from litestar.di import NamedDependency
+from litestar.params import PathParameter, QueryParameter, SkipValidation
 
 from geometrikks.domain.geo.models import GeoLocation
-from geometrikks.domain.geo.repositories import GeoLocationRepository
+from geometrikks.domain.geo.services import GeoLocationService
 from geometrikks.domain.geo.dtos import (
     GeoLocationDTO,
     EmbeddedLocationDTO,
@@ -27,8 +26,17 @@ from geometrikks.domain.geo.dtos import (
     TopCountriesResponse,
 )
 
-from geometrikks.api.dependencies import provide_geo_location_repo
-from geometrikks.api.v1.geo_events_controller import validate_ip_addresses
+from geometrikks.lib.parameters import (
+    CityFilter,
+    CountryCodeFilter,
+    ToTimestamp,
+    HostnameIn,
+    IpAddressIn,
+    IpAddressNotIn,
+    FromTimestamp,
+)
+from geometrikks.lib.time import ensure_utc
+from geometrikks.lib.validation import validate_ip_addresses
 from geometrikks.server.logging import get_logger
 
 logger = get_logger(__name__)
@@ -36,67 +44,43 @@ logger = get_logger(__name__)
 class GeoLocationController(Controller):
     """Geo-location endpoints for managing location data."""
 
-    path = "/api/v1/geo-locations"
+    path = "/geo-locations"
     tags = ["Geo Locations"]
     return_dto = GeoLocationDTO
 
-    dependencies = {
-        "geo_location_repo": Provide(provide_geo_location_repo),
-    }
+    dependencies = create_service_dependencies(
+        GeoLocationService,
+        key="geo_location_service",
+        # No config here: constructing it needs Settings(), which must not run
+        # at import time. The service provider falls back to the request-scoped
+        # ``db_session`` dependency registered by SQLAlchemyInitPlugin.
+        filters={
+            "pagination_type": "limit_offset",   # -> ?currentPage & ?pageSize
+            "pagination_size": 10,               # matches the old global provider
+        },
+    )
 
     @get("/")
     async def list_geo_locations(
         self,
-        geo_location_repo: NamedDependency[GeoLocationRepository],
-        limit_offset: NamedDependency[filters.LimitOffset],
+        geo_location_service: NamedDependency[GeoLocationService],
+        filters: NamedDependency[SkipValidation[list[FilterTypes]]],
     ) -> OffsetPagination[GeoLocation]:
         """List all geo-locations with pagination."""
-        results, total = await geo_location_repo.list_and_count(limit_offset)
-        return OffsetPagination[GeoLocation](
-            items=results,
-            total=total,
-            limit=limit_offset.limit,
-            offset=limit_offset.offset,
-        )
+        results, total = await geo_location_service.get_many_and_count(*filters)
+        return geo_location_service.to_schema(results, total, filters=filters)
 
     @get("/geojson", return_dto=None, description="Get all locations with event counts as GeoJSON FeatureCollection.")
     async def get_geojson(
         self,
-        geo_location_repo: NamedDependency[GeoLocationRepository],
-        from_timestamp: Annotated[
-            datetime,
-            Parameter(
-                description="Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)",
-                examples=[Example(value="2024-01-01T00:00:00Z")],
-            ),
-        ],
-        to_timestamp: Annotated[
-            datetime,
-            Parameter(
-                description="End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)",
-                examples=[Example(value="2024-12-31T23:59:59Z")],
-            ),
-        ],
-        country_code: Annotated[
-            list[str] | None,
-            Parameter(description="Filter to these ISO country codes (repeatable)", required=False),
-        ] = None,
-        city: Annotated[
-            list[str] | None,
-            Parameter(description="Filter to these city names (repeatable)", required=False),
-        ] = None,
-        ip_address_in: Annotated[
-            list[str] | None,
-            Parameter(query="ipAddressIn", description="Filter to these IPs (repeatable)", required=False),
-        ] = None,
-        ip_address_not_in: Annotated[
-            list[str] | None,
-            Parameter(query="ipAddressNotIn", description="Exclude these IPs (repeatable)", required=False),
-        ] = None,
-        hostname_in: Annotated[
-            list[str] | None,
-            Parameter(query="hostnameIn", description="Filter to these recording hostnames (repeatable)", required=False),
-        ] = None,
+        geo_location_service: NamedDependency[GeoLocationService],
+        from_timestamp: FromTimestamp,
+        to_timestamp: ToTimestamp,
+        country_code: CountryCodeFilter = None,
+        city: CityFilter = None,
+        ip_address_in: IpAddressIn = None,
+        ip_address_not_in: IpAddressNotIn = None,
+        hostname_in: HostnameIn = None,
     ) -> GeoJSONFeatureCollection:
         """Get all locations with event counts as GeoJSON FeatureCollection.
 
@@ -110,17 +94,14 @@ class GeoLocationController(Controller):
         Returns:
             GeoJSONFeatureCollection containing locations and their event counts.
         """
-        # Ensure timezone awareness if datetimes are provided
-        if from_timestamp is not None and from_timestamp.tzinfo is None:
-            from_timestamp = from_timestamp.replace(tzinfo=timezone.utc)
-        if to_timestamp is not None and to_timestamp.tzinfo is None:
-            to_timestamp = to_timestamp.replace(tzinfo=timezone.utc)
+        from_timestamp = ensure_utc(from_timestamp)
+        to_timestamp = ensure_utc(to_timestamp)
         if ip_address_in:
             validate_ip_addresses(ip_address_in)
         if ip_address_not_in:
             validate_ip_addresses(ip_address_not_in)
 
-        locations_with_counts = await geo_location_repo.get_all_with_event_counts(
+        locations_with_counts = await geo_location_service.get_all_with_event_counts(
             from_timestamp, to_timestamp, country_codes=country_code, cities=city,
             ip_addresses=ip_address_in, ip_addresses_exclude=ip_address_not_in,
             hostnames=hostname_in,
@@ -165,24 +146,12 @@ class GeoLocationController(Controller):
     @get("/top-ips", return_dto=None, description="Get global top IPs by event count with their primary locations.")
     async def get_global_top_ips(
         self,
-        geo_location_repo: NamedDependency[GeoLocationRepository],
-        from_timestamp: Annotated[
-            datetime,
-            Parameter(
-                description="Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)",
-                examples=[Example(value="2024-01-01T00:00:00Z")],
-            ),
-        ],
-        to_timestamp: Annotated[
-            datetime,
-            Parameter(
-                description="End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)",
-                examples=[Example(value="2024-12-31T23:59:59Z")],
-            ),
-        ],
+        geo_location_service: NamedDependency[GeoLocationService],
+        from_timestamp: FromTimestamp,
+        to_timestamp: ToTimestamp,
         limit: Annotated[
             int,
-            Parameter(description="Maximum number of IPs to return", ge=1, le=20),
+            QueryParameter(description="Maximum number of IPs to return", ge=1, le=20),
         ] = 5,
     ) -> GlobalTopIPsResponse:
         """Get global top IPs by event count with their primary locations.
@@ -190,12 +159,10 @@ class GeoLocationController(Controller):
         Returns the top N IPs globally with the highest event counts,
         along with the location where each IP has the most events.
         """
-        if from_timestamp is not None and from_timestamp.tzinfo is None:
-            from_timestamp = from_timestamp.replace(tzinfo=timezone.utc)
-        if to_timestamp is not None and to_timestamp.tzinfo is None:
-            to_timestamp = to_timestamp.replace(tzinfo=timezone.utc)
+        from_timestamp = ensure_utc(from_timestamp)
+        to_timestamp = ensure_utc(to_timestamp)
 
-        global_top_ips_data = await geo_location_repo.get_global_top_ips(
+        global_top_ips_data = await geo_location_service.get_global_top_ips(
             from_timestamp, to_timestamp, limit=limit
         )
         top_ips = [
@@ -218,37 +185,23 @@ class GeoLocationController(Controller):
     @get("/{location_id:int}/top-ips", return_dto=None, description="Get top IPs for a specific location.")
     async def get_location_top_ips(
         self,
-        geo_location_repo: NamedDependency[GeoLocationRepository],
+        geo_location_service: NamedDependency[GeoLocationService],
         location_id: Annotated[int, PathParameter()],
-        from_timestamp: Annotated[
-            datetime,
-            Parameter(
-                description="Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)",
-                examples=[Example(value="2024-01-01T00:00:00Z")],
-            ),
-        ],
-        to_timestamp: Annotated[
-            datetime,
-            Parameter(
-                description="End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)",
-                examples=[Example(value="2024-12-31T23:59:59Z")],
-            ),
-        ],
+        from_timestamp: FromTimestamp,
+        to_timestamp: ToTimestamp,
         limit: Annotated[
             int,
-            Parameter(description="Maximum number of IPs to return", ge=1, le=20),
+            QueryParameter(description="Maximum number of IPs to return", ge=1, le=20),
         ] = 5,
     ) -> LocationTopIPsResponse:
         """Get top IPs for a specific location.
 
         Returns the top N IPs with the highest event counts for the given location.
         """
-        if from_timestamp is not None and from_timestamp.tzinfo is None:
-            from_timestamp = from_timestamp.replace(tzinfo=timezone.utc)
-        if to_timestamp is not None and to_timestamp.tzinfo is None:
-            to_timestamp = to_timestamp.replace(tzinfo=timezone.utc)
+        from_timestamp = ensure_utc(from_timestamp)
+        to_timestamp = ensure_utc(to_timestamp)
 
-        top_ips_data = await geo_location_repo.get_location_top_ips(
+        top_ips_data = await geo_location_service.get_location_top_ips(
             location_id, from_timestamp, to_timestamp, limit=limit
         )
         top_ips = [
@@ -260,36 +213,22 @@ class GeoLocationController(Controller):
     @get("/top-countries", return_dto=None, description="Get top countries by event count.")
     async def get_top_countries(
         self,
-        geo_location_repo: NamedDependency[GeoLocationRepository],
-        from_timestamp: Annotated[
-            datetime,
-            Parameter(
-                description="Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)",
-                examples=[Example(value="2024-01-01T00:00:00Z")],
-            ),
-        ],
-        to_timestamp: Annotated[
-            datetime,
-            Parameter(
-                description="End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)",
-                examples=[Example(value="2024-12-31T23:59:59Z")],
-            ),
-        ],
+        geo_location_service: NamedDependency[GeoLocationService],
+        from_timestamp: FromTimestamp,
+        to_timestamp: ToTimestamp,
         limit: Annotated[
             int,
-            Parameter(description="Maximum number of countries to return", ge=1, le=50),
+            QueryParameter(description="Maximum number of countries to return", ge=1, le=50),
         ] = 10,
     ) -> TopCountriesResponse:
         """Get top countries by event count.
 
         Returns the top N countries with the highest event counts.
         """
-        if from_timestamp is not None and from_timestamp.tzinfo is None:
-            from_timestamp = from_timestamp.replace(tzinfo=timezone.utc)
-        if to_timestamp is not None and to_timestamp.tzinfo is None:
-            to_timestamp = to_timestamp.replace(tzinfo=timezone.utc)
+        from_timestamp = ensure_utc(from_timestamp)
+        to_timestamp = ensure_utc(to_timestamp)
 
-        top_countries_data = await geo_location_repo.get_top_countries(
+        top_countries_data = await geo_location_service.get_top_countries(
             from_timestamp, to_timestamp, limit=limit
         )
         top_countries = [

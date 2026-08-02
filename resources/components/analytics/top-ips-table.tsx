@@ -42,16 +42,16 @@ export function TopIpsTable() {
               </TableHeader>
               <TableBody>
                 {pageItems.map((row) => (
-                  <TableRow key={row.ip_address}>
+                  <TableRow key={row.ipAddress}>
                     <TableCell className="font-mono text-xs">
-                      {row.ip_address}
-                      <IpBanControls ip={row.ip_address} />
+                      {row.ipAddress}
+                      <IpBanControls ip={row.ipAddress} />
                     </TableCell>
-                    <TableCell>{row.country_code ?? "-"}</TableCell>
+                    <TableCell>{row.countryCode ?? "-"}</TableCell>
                     <TableCell>{row.city ?? "-"}</TableCell>
                     <TableCell className="text-right tabular-nums">{formatNumber(row.hits)}</TableCell>
-                    <TableCell className="text-right tabular-nums">{formatNumber(row.error_hits)}</TableCell>
-                    <TableCell className="text-right tabular-nums">{formatBytes(row.total_bytes)}</TableCell>
+                    <TableCell className="text-right tabular-nums">{formatNumber(row.errorHits)}</TableCell>
+                    <TableCell className="text-right tabular-nums">{formatBytes(row.totalBytes)}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>

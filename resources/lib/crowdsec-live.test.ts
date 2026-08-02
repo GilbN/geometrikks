@@ -41,12 +41,12 @@ describe("applyBannedIpsDelta", () => {
 })
 
 describe("applyStatusFrame", () => {
-  it("patches lapi_reachable and preserves the other fields", () => {
-    const status = { enabled: true, write_enabled: true, lapi_reachable: true }
+  it("patches lapiReachable and preserves the other fields", () => {
+    const status = { enabled: true, writeEnabled: true, lapiReachable: true }
     expect(applyStatusFrame(status, statusFrame)).toEqual({
       enabled: true,
-      write_enabled: true,
-      lapi_reachable: false,
+      writeEnabled: true,
+      lapiReachable: false,
     })
   })
 

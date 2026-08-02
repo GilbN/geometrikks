@@ -5,6 +5,11 @@
 All settings are environment variables (or `.env` entries). The short
 list most users need is in `.env.example`; everything below is available.
 
+`GEOMETRIKKS_ENV_FILE` overrides the path of the `.env` file itself
+(default: `.env` in the working directory); setting it to an empty
+value disables dotenv loading entirely, so configuration comes only
+from real environment variables. It is read once at import time.
+
 ## Application
 
 | Variable | Default | Description |
@@ -48,6 +53,7 @@ list most users need is in `.env.example`; everything below is available.
 | `DB_PORT` | `5432` | Database port |
 | `DB_DATABASE` | `geometrikks` | Database name |
 | `DB_DROP_ON_STARTUP` | `false` | Drop all tables on startup (development only) |
+| `DB_MIGRATE_ON_STARTUP` | `true` | Run alembic migrations automatically at app startup. Disable when migrations run as a separate deployment step (`litestar database upgrade`); the app then expects the schema to already be at head and fails startup if it is not usable |
 
 ## GeoIP
 
@@ -134,7 +140,6 @@ list most users need is in `.env.example`; everything below is available.
 | `VITE_USE_SERVER_LIFESPAN` | `true` | Auto start and stop vite processes when running in development mode. |
 | `VITE_HOST` | `0.0.0.0` | The host the vite process will listen on. Defaults to 0.0.0.0. |
 | `VITE_PORT` | `5173` | The port to start vite on. Default is 5173. |
-| `VITE_HOT_RELOAD` | `true` | Start vite with HMR enabled. |
 | `VITE_ENABLE_REACT_HELPERS` | `true` | Enable React support in HMR. |
 | `VITE_HTTP2` | `true` | Enable HTTP/2 for the Vite development server. |
 | `VITE_EXECUTOR` | `bun` | JS runtime executor for litestar-vite (defaults to bun). |

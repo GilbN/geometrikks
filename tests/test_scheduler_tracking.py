@@ -2,10 +2,14 @@
 from __future__ import annotations
 
 from types import SimpleNamespace
+from typing import TYPE_CHECKING, cast
 
 import pytest
 
 from geometrikks.server.scheduler_tracking import JobRunInfo, JobRunTracker
+
+if TYPE_CHECKING:
+    from apscheduler.events import JobEvent, JobExecutionEvent, JobSubmissionEvent
 
 
 @pytest.fixture()
@@ -25,6 +29,7 @@ def configured_logging(tmp_path, monkeypatch):
     from geometrikks.server.logging import create_logging_config
     config = create_logging_config(get_settings())
     config.configure()
+    assert config.standard_lib_logging_config is not None
     config.standard_lib_logging_config.configure()
 
 
@@ -38,11 +43,11 @@ def test_unknown_job_returns_defaults():
 
 def test_submit_then_success(configured_logging):
     tracker = JobRunTracker()
-    tracker._on_submitted(SimpleNamespace(job_id="a"))
+    tracker._on_submitted(cast("JobSubmissionEvent", SimpleNamespace(job_id="a")))
     assert tracker.get("a").running is True
     assert tracker.get("a").last_start is not None
 
-    tracker._on_executed(SimpleNamespace(job_id="a", exception=None))
+    tracker._on_executed(cast("JobExecutionEvent", SimpleNamespace(job_id="a", exception=None)))
     info = tracker.get("a")
     assert info.running is False
     assert info.last_status == "success"
@@ -53,17 +58,20 @@ def test_submit_then_success(configured_logging):
 
 def test_submit_then_error():
     tracker = JobRunTracker()
-    tracker._on_submitted(SimpleNamespace(job_id="a"))
-    tracker._on_executed(SimpleNamespace(job_id="a", exception=RuntimeError("boom")))
+    tracker._on_submitted(cast("JobSubmissionEvent", SimpleNamespace(job_id="a")))
+    tracker._on_executed(
+        cast("JobExecutionEvent", SimpleNamespace(job_id="a", exception=RuntimeError("boom")))
+    )
     info = tracker.get("a")
     assert info.running is False
     assert info.last_status == "error"
+    assert info.last_error is not None
     assert "boom" in info.last_error
 
 
 def test_missed_event():
     tracker = JobRunTracker()
-    tracker._on_missed(SimpleNamespace(job_id="a"))
+    tracker._on_missed(cast("JobEvent", SimpleNamespace(job_id="a")))
     info = tracker.get("a")
     assert info.last_status == "missed"
     assert info.running is False
@@ -89,8 +97,8 @@ class TestJobOutcomeLogging:
             exception = None
 
         with caplog.at_level(SUCCESS_LEVEL, logger="geometrikks.server.scheduler_tracking"):
-            tracker._on_submitted(FakeSubmit())
-            tracker._on_executed(FakeExec())
+            tracker._on_submitted(cast("JobSubmissionEvent", FakeSubmit()))
+            tracker._on_executed(cast("JobExecutionEvent", FakeExec()))
         assert any(r.levelno == SUCCESS_LEVEL for r in caplog.records)
 
     def test_error_logged(self, caplog):
@@ -104,5 +112,5 @@ class TestJobOutcomeLogging:
             exception = RuntimeError("boom")
 
         with caplog.at_level(stdlib_logging.ERROR, logger="geometrikks.server.scheduler_tracking"):
-            tracker._on_executed(FakeExec())
+            tracker._on_executed(cast("JobExecutionEvent", FakeExec()))
         assert any(r.levelno == stdlib_logging.ERROR for r in caplog.records)

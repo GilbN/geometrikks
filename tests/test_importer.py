@@ -11,6 +11,8 @@ from geoip2.database import Reader
 
 from geometrikks.services.logparser.logparser import LogParser
 
+pytestmark = pytest.mark.anyio
+
 GEOIP_DB_PATH = "tests/GeoLite2-City-Test.mmdb"
 TEST_IP = "2.125.160.216"
 
@@ -92,6 +94,8 @@ async def test_import_file_parses_batches_and_reports(tmp_path, geoip_reader, mo
     # 3 records, batch_size 2 -> two flushes
     assert service.flush_records.await_count == 2
     # time bounds from log-line timestamps, not wall clock
+    assert result.time_start is not None
+    assert result.time_end is not None
     assert result.time_start.day == 1 and result.time_start.month == 8
     assert result.time_end.day == 5
     assert result.time_start.tzinfo is not None

@@ -1,11 +1,11 @@
 [project]
 name = "geometrikks"
-version = "0.6.0"
+version = "0.7.0"
 description = "Geo metrics ingress service built with Litestar."
 readme = "README.md"
 requires-python = ">=3.13,<3.14"
 dependencies = [
-    "litestar[standard,brotli,jwt,structlog,pydantic]>=2.24.0",
+    "litestar[standard,brotli,jwt,structlog,pydantic]>=2.24.0,<3",
     "geoip2>=5.3.0",
     "geohash2>=1.1",
     "ipy>=1.1",
@@ -18,7 +18,7 @@ dependencies = [
     "geoalchemy2>=0.20.0",
     "litestar-geoalchemy>=0.3.0",
     "apscheduler>=3.11.3,<4.0",
-    "litestar-vite>=0.28.0",
+    "litestar-vite>=0.29.0",
     "litestar-granian>=0.15.0",
     "advanced-alchemy[argon2,passlib,pwdlib,cli]>=1.11.0",
     "alembic>=1.18.5",
@@ -31,23 +31,35 @@ build-backend = "hatchling.build"
 [dependency-groups]
 dev = [
     "pytest>=9.1.1",
-    "pytest-asyncio>=1.4.0",
     "pytest-cov>=7.1.0",
     "ty>=0.0.63",
     "faker>=40.36.0",
     "polyfactory>=3.3.0",
-    "litestar-mcp>=0.11.1",
 ]
 
 [tool.pytest.ini_options]
-asyncio_mode = "auto"
 testpaths = ["tests"]
 markers = [
     "integration: needs a live TimescaleDB (docker compose up -d timescale_db); auto-skipped when unreachable",
 ]
 filterwarnings = [
-    # Reduce noise from third-party libs; keep real test warnings visible
-    "ignore:There is no current event loop:DeprecationWarning",
+    # 0.7.0 warning-cleanliness gate: any new Litestar deprecation or runtime
+    # warning fails the suite. Narrow, documented exemptions follow below and
+    # later entries take precedence over earlier ones.
+    "error::litestar.exceptions.LitestarDeprecationWarning",
+    "error::RuntimeWarning",
+    # Upstream: advanced-alchemy 1.11 generated filter providers lose the
+    # NamedDependency markers in their __annotations__ (audit item A5). The
+    # exemption is pinned to the exact eight known handler/field combinations
+    # so a new inferred dependency in our own code still fails the suite.
+    # Drop once a fixed AA release ships; this is the external gate for
+    # Litestar 3.0.
+    "ignore:\\[paths='/', handler='(list_access_log_debug|list_access_logs|list_geo_events|list_geo_locations)', dependencies='filters'\\] Inferred dependency field '(limit_offset_filter|order_by_filter|search_filter)'.*:litestar.exceptions.LitestarDeprecationWarning",
+    # Upstream: advanced-alchemy 1.11 itself calls its own deprecated
+    # set_async_context() from its session listeners (_listeners.py), so any
+    # request that touches an AA session emits this. Not our code; pinned to
+    # the exact function and module. Drop when upstream stops calling it.
+    "ignore:Call to deprecated function 'set_async_context'.*:DeprecationWarning:advanced_alchemy._listeners",
     # False positive: our auth exclude pattern deliberately matches everything
     # outside /api/ (SPA shell, assets, /health). The boundary is verified by
     # tests/test_auth_endpoints.py (401 on /api/*, 200 on excluded paths).

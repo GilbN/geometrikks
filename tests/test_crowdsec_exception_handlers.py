@@ -7,6 +7,10 @@ from litestar.testing import AsyncTestClient
 from geometrikks.server.exceptions import CROWDSEC_EXCEPTION_HANDLERS
 from geometrikks.services.crowdsec import CrowdSecAuthError, CrowdSecUnavailableError
 
+import pytest
+
+pytestmark = pytest.mark.anyio
+
 
 @get("/boom-unavailable")
 async def raise_unavailable() -> None:

@@ -7,46 +7,44 @@ exposed; add new fields consciously.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+import msgspec
 
 from litestar import Request, get
+from litestar.di import NamedDependency
+from litestar.params import SkipValidation
 
-from geometrikks.config.settings import get_settings
+from geometrikks.config.settings import Settings
+from geometrikks.server import runtime
 from geometrikks.services.geoip.home import HomeLocation, HomeLocationSource
 
 
-@dataclass
-class LogparserSettingsView:
+class LogparserSettingsView(msgspec.Struct, rename="camel"):
     log_paths: list[str]
     send_logs: bool
     store_debug_lines: bool
 
 
-@dataclass
-class AnalyticsSettingsView:
+class AnalyticsSettingsView(msgspec.Struct, rename="camel"):
     raw_retention_days: int
     debug_retention_days: int
     hourly_retention_days: int
     compression_after_days: int
 
 
-@dataclass
-class MapSettingsView:
+class MapSettingsView(msgspec.Struct, rename="camel"):
     home_latitude: float | None
     home_longitude: float | None
     home_source: HomeLocationSource | None
 
 
-@dataclass
-class RuntimeSettingsView:
+class RuntimeSettingsView(msgspec.Struct, rename="camel"):
     """Non-sensitive information about the executing application image."""
 
     container: bool
     image_tag: str | None
 
 
-@dataclass
-class SafeSettingsResponse:
+class SafeSettingsResponse(msgspec.Struct, rename="camel"):
     name: str
     version: str
     environment: str
@@ -56,11 +54,13 @@ class SafeSettingsResponse:
     map: MapSettingsView
 
 
-@get("/api/v1/settings", tags=["Settings"])
-async def read_settings(request: Request) -> SafeSettingsResponse:
+@get("/settings", tags=["Settings"])
+async def read_settings(
+    request: Request, settings: NamedDependency[SkipValidation[Settings]]
+) -> SafeSettingsResponse:
     """Whitelisted runtime settings (no credentials, ever)."""
-    s = get_settings()
-    home: HomeLocation | None = getattr(request.app.state, "map_home_location", None)
+    s = settings
+    home: HomeLocation | None = runtime.get_map_home_location(request.app)
     if home is None and s.map.home_latitude is not None and s.map.home_longitude is not None:
         home = HomeLocation(
             latitude=s.map.home_latitude,

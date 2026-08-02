@@ -11,6 +11,8 @@ import pytest
 
 from geometrikks.config.settings import GeoIPSettings
 
+pytestmark = pytest.mark.anyio
+
 
 @pytest.fixture(autouse=True)
 def no_local_maxmind_credentials(monkeypatch):

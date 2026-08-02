@@ -7,11 +7,17 @@ from litestar import Litestar
 from litestar.di import Provide
 from litestar.testing import AsyncTestClient
 
-from geometrikks.api.dependencies import provide_limit_offset_pagination
-from geometrikks.api.v1.crowdsec_controller import CrowdSecController
+from geometrikks.domain.security.controllers import CrowdSecController
+from geometrikks.server.exceptions import EXCEPTION_HANDLERS
 from geometrikks.domain.security.repositories import SecurityEnrichmentRepository
 from geometrikks.domain.security.schemas import IpEnrichment
 from geometrikks.services.crowdsec import CrowdSecService, Decision
+from geometrikks.server.routes import create_api_v1_router
+from tests.support import ambient_settings_dependency
+
+import pytest
+
+pytestmark = pytest.mark.anyio
 
 
 def make_decision(**overrides: Any) -> Decision:
@@ -68,10 +74,11 @@ def make_app(
         }
 
     app = Litestar(
-        route_handlers=[_TestController],
-        dependencies={
-            "limit_offset": Provide(provide_limit_offset_pagination, sync_to_thread=False),
-        },
+        route_handlers=[create_api_v1_router([_TestController])],
+        # limit_offset comes controller-scoped from CrowdSecController itself.
+        dependencies=ambient_settings_dependency(),
+        # Production wiring: create_app() registers the same central map.
+        exception_handlers=EXCEPTION_HANDLERS,
     )
     app.state.crowdsec_service = service
     return app
@@ -88,8 +95,8 @@ async def test_status_disabled():
     assert resp.status_code == 200
     assert resp.json() == {
         "enabled": False,
-        "write_enabled": False,
-        "lapi_reachable": False,
+        "writeEnabled": False,
+        "lapiReachable": False,
     }
 
 
@@ -102,8 +109,8 @@ async def test_status_enabled_read_only(monkeypatch, tmp_path):
         resp = await client.get("/api/v1/crowdsec/status")
     assert resp.json() == {
         "enabled": True,
-        "write_enabled": False,
-        "lapi_reachable": True,
+        "writeEnabled": False,
+        "lapiReachable": True,
     }
 
 
@@ -114,7 +121,7 @@ async def test_status_write_enabled(monkeypatch):
     monkeypatch.setenv("CROWDSEC_MACHINE_PASSWORD", "pass")
     async with AsyncTestClient(app=make_app(FakeCrowdSec([]))) as client:
         resp = await client.get("/api/v1/crowdsec/status")
-    assert resp.json()["write_enabled"] is True
+    assert resp.json()["writeEnabled"] is True
 
 
 async def test_status_reports_unreachable_lapi():
@@ -122,7 +129,7 @@ async def test_status_reports_unreachable_lapi():
         app=make_app(FakeCrowdSec([], reachable=False))
     ) as client:
         resp = await client.get("/api/v1/crowdsec/status")
-    assert resp.json()["lapi_reachable"] is False
+    assert resp.json()["lapiReachable"] is False
 
 
 async def test_decisions_404_when_disabled():
@@ -148,13 +155,13 @@ async def test_decisions_enriches_ip_scope_only():
     assert body["total"] == 2
     first, second = body["items"]
     assert first["ip"] == "1.2.3.4"
-    assert first["country_code"] == "NO"
+    assert first["countryCode"] == "NO"
     assert first["city"] == "Oslo"
-    assert first["request_count_24h"] == 7
+    assert first["requestCount24h"] == 7
     assert second["ip"] == "10.0.0.0/24"
     assert second["scope"] == "Range"
-    assert second["country_code"] is None
-    assert second["request_count_24h"] is None
+    assert second["countryCode"] is None
+    assert second["requestCount24h"] is None
     # Only Ip-scope values ever reach the enrichment query
     assert enrichment.calls == [["1.2.3.4"]]
 
@@ -215,9 +222,9 @@ async def test_stats_counts_by_origin_and_scenario():
     assert resp.status_code == 200
     body = resp.json()
     assert body["total"] == 3
-    assert {"origin": "crowdsec", "count": 2} in body["by_origin"]
-    assert {"origin": "cscli", "count": 1} in body["by_origin"]
-    assert body["top_scenarios"][0] == {
+    assert {"origin": "crowdsec", "count": 2} in body["byOrigin"]
+    assert {"origin": "cscli", "count": 1} in body["byOrigin"]
+    assert body["topScenarios"][0] == {
         "scenario": "crowdsecurity/ssh-bf",
         "count": 2,
     }
@@ -319,7 +326,7 @@ async def test_ban_is_audit_logged(monkeypatch):
         def emit(self, record: logging.LogRecord) -> None:
             records.append(record)
 
-    audit_logger = logging.getLogger("geometrikks.api.v1.crowdsec_controller")
+    audit_logger = logging.getLogger("geometrikks.domain.security.controllers")
     handler = ListHandler(level=logging.INFO)
     app = make_app(WritableFakeCrowdSec())
     async with AsyncTestClient(app=app) as client:
@@ -426,10 +433,10 @@ async def test_alerts_returns_flattened_views(monkeypatch):
     assert alert["scenario"] == "crowdsecurity/ssh-bf"
     assert alert["value"] == "1.2.3.4"
     assert alert["country"] == "NO"
-    assert alert["as_name"] == "Telenor"
-    assert alert["machine_id"] == "gateway"
-    assert alert["events_count"] == 6
-    assert alert["decision_count"] == 1
+    assert alert["asName"] == "Telenor"
+    assert alert["machineId"] == "gateway"
+    assert alert["eventsCount"] == 6
+    assert alert["decisionCount"] == 1
     assert service.alert_calls == [{"limit": 25, "ip": None, "scenario": None, "since": "24h"}]
 
 
@@ -483,7 +490,7 @@ async def test_banned_locations_join_banned_ips_with_geo():
     assert resp.status_code == 200
     (loc,) = resp.json()
     assert loc == {"ip": "1.2.3.4", "latitude": 59.91, "longitude": 10.79,
-                   "city": "Oslo", "country_code": "NO"}
+                   "city": "Oslo", "countryCode": "NO"}
     # All origins queried; only Ip-scope values reach the geo join
     assert service.calls == [{}]
     assert enrichment.location_calls == [["1.2.3.4", "9.9.9.9"]]
@@ -511,8 +518,8 @@ async def test_banned_locations_forwards_time_window():
         resp = await client.get(
             "/api/v1/crowdsec/banned-locations",
             params={
-                "from_timestamp": "2026-07-01T00:00:00Z",
-                "to_timestamp": "2026-07-02T00:00:00Z",
+                "fromTimestamp": "2026-07-01T00:00:00Z",
+                "toTimestamp": "2026-07-02T00:00:00Z",
             },
         )
     assert resp.status_code == 200
@@ -558,7 +565,7 @@ async def test_status_uses_poller_state_without_ping(monkeypatch, tmp_path):
     app.state.crowdsec_stream_poller = StubPoller(lapi_reachable=False)
     async with AsyncTestClient(app=app) as client:
         resp = await client.get("/api/v1/crowdsec/status")
-    assert resp.json()["lapi_reachable"] is False
+    assert resp.json()["lapiReachable"] is False
 
 
 async def test_status_falls_back_to_ping_before_first_poll(monkeypatch, tmp_path):
@@ -569,4 +576,4 @@ async def test_status_falls_back_to_ping_before_first_poll(monkeypatch, tmp_path
     app.state.crowdsec_stream_poller = StubPoller(lapi_reachable=None)
     async with AsyncTestClient(app=app) as client:
         resp = await client.get("/api/v1/crowdsec/status")
-    assert resp.json()["lapi_reachable"] is True
+    assert resp.json()["lapiReachable"] is True

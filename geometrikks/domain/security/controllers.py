@@ -7,34 +7,35 @@ key) the data endpoints return 404 and the frontend hides the page.
 
 from __future__ import annotations
 
-import ipaddress
 import re
+
+import msgspec
 from datetime import datetime
 from collections import Counter
-from dataclasses import dataclass
 from typing import Annotated
 
 from advanced_alchemy.extensions.litestar import filters
 from advanced_alchemy.service import OffsetPagination
 from litestar import Controller, Request, get, post
 from litestar.di import NamedDependency, Provide
-from litestar.exceptions import (
-    NotFoundException,
-    PermissionDeniedException,
-    ValidationException,
-)
-from litestar.params import QueryParameter
+from litestar.exceptions import NotFoundException, PermissionDeniedException
+from litestar.params import QueryParameter, SkipValidation
 from litestar.status_codes import HTTP_200_OK, HTTP_204_NO_CONTENT
 
-from geometrikks.api.dependencies import (
+from geometrikks.domain.security.dependencies import (
+    provide_crowdsec_poller,
     provide_crowdsec_service,
+    provide_limit_offset_pagination,
     provide_security_enrichment_repo,
 )
-from geometrikks.config.settings import get_settings
+from geometrikks.config.settings import Settings
+from geometrikks.domain.exceptions import DomainValidationError
+from geometrikks.lib.validation import validate_ip_address
 from geometrikks.domain.security.repositories import SecurityEnrichmentRepository
 from geometrikks.domain.security.schemas import IpEnrichment, IpLocation
 from geometrikks.server.logging import get_logger
 from geometrikks.services.crowdsec import CrowdSecService, Decision
+from geometrikks.services.crowdsec.stream import CrowdSecStreamPoller
 
 # The CAPI community blocklist can hold tens of thousands of decisions; the
 # decisions table shows local origins by default and CAPI/lists opt in via
@@ -49,15 +50,13 @@ GO_DURATION_RE = re.compile(r"^(\d+h)?(\d+m)?(\d+s)?$")
 logger = get_logger(__name__)
 
 
-@dataclass
-class CrowdSecStatusResponse:
+class CrowdSecStatusResponse(msgspec.Struct, rename="camel"):
     enabled: bool
     write_enabled: bool
     lapi_reachable: bool
 
 
-@dataclass
-class DecisionView:
+class DecisionView(msgspec.Struct, rename="camel"):
     id: int | None
     ip: str  # Decision value; a CIDR/country/AS number for non-Ip scopes
     type: str
@@ -69,30 +68,26 @@ class DecisionView:
     country_code: str | None
     country_name: str | None
     city: str | None
-    request_count_24h: int | None
+    request_count_24h: int | None = msgspec.field(name="requestCount24h")
 
 
-@dataclass
-class OriginCount:
+class OriginCount(msgspec.Struct, rename="camel"):
     origin: str
     count: int
 
 
-@dataclass
-class ScenarioCount:
+class ScenarioCount(msgspec.Struct, rename="camel"):
     scenario: str
     count: int
 
 
-@dataclass
-class CrowdSecStatsResponse:
+class CrowdSecStatsResponse(msgspec.Struct, rename="camel"):
     total: int
     by_origin: list[OriginCount]
     top_scenarios: list[ScenarioCount]
 
 
-@dataclass
-class AlertView:
+class AlertView(msgspec.Struct, rename="camel"):
     id: int | None
     scenario: str
     message: str
@@ -106,20 +101,17 @@ class AlertView:
     decision_count: int
 
 
-@dataclass
-class BanRequest:
+class BanRequest(msgspec.Struct, rename="camel"):
     ip: str
     duration: str | None = None
     reason: str = "manual ban from GeoMetrikks"
 
 
-@dataclass
-class UnbanRequest:
+class UnbanRequest(msgspec.Struct, rename="camel"):
     ip: str
 
 
-@dataclass
-class UnbanResponse:
+class UnbanResponse(msgspec.Struct, rename="camel"):
     deleted: int
 
 
@@ -148,27 +140,19 @@ def _require_service(crowdsec: CrowdSecService | None) -> CrowdSecService:
     return crowdsec
 
 
-def _require_write(crowdsec: CrowdSecService | None) -> CrowdSecService:
+def _require_write(crowdsec: CrowdSecService | None, settings: Settings) -> CrowdSecService:
     service = _require_service(crowdsec)
-    if not get_settings().crowdsec.write_enabled:
+    if not settings.crowdsec.write_enabled:
         raise PermissionDeniedException(
             detail="Ban/unban requires CROWDSEC_MACHINE_ID and CROWDSEC_MACHINE_PASSWORD"
         )
     return service
 
 
-def _validate_ip(value: str) -> str:
-    try:
-        ipaddress.ip_address(value)
-    except ValueError as exc:
-        raise ValidationException(detail=f"Invalid IP address: {value!r}") from exc
-    return value
-
-
 def _validate_duration(value: str) -> str:
     if not value or not GO_DURATION_RE.fullmatch(value):
-        raise ValidationException(
-            detail=f"Invalid ban duration: {value!r} (expected a Go duration like 4h, 30m, 168h)"
+        raise DomainValidationError(
+            f"Invalid ban duration: {value!r} (expected a Go duration like 4h, 30m, 168h)"
         )
     return value
 
@@ -182,16 +166,23 @@ def _actor(request: Request) -> str:
 class CrowdSecController(Controller):
     """CrowdSec decision views and ban statistics."""
 
-    path = "/api/v1/crowdsec"
+    path = "/crowdsec"
     tags = ["CrowdSec"]
     dependencies = {
         "crowdsec": Provide(provide_crowdsec_service, sync_to_thread=False),
+        "crowdsec_poller": Provide(provide_crowdsec_poller, sync_to_thread=False),
         "enrichment_repo": Provide(provide_security_enrichment_repo),
+        # Controller-scoped: /decisions paginates an in-memory LAPI result,
+        # not an ORM query, so it keeps the hand-written provider.
+        "limit_offset": Provide(provide_limit_offset_pagination, sync_to_thread=False),
     }
 
     @get("/status")
     async def get_status(
-        self, crowdsec: NamedDependency[CrowdSecService | None], request: Request
+        self,
+        crowdsec: NamedDependency[CrowdSecService | None],
+        crowdsec_poller: NamedDependency[SkipValidation[CrowdSecStreamPoller | None]],
+        settings: NamedDependency[SkipValidation[Settings]],
     ) -> CrowdSecStatusResponse:
         """Integration state; the frontend gates the security page on this."""
         if crowdsec is None:
@@ -203,11 +194,12 @@ class CrowdSecController(Controller):
         # the full request timeout against a black-holed host). Live ping
         # remains the fallback when the poller is absent (DB-degraded mode)
         # or has not completed a poll yet.
-        poller = getattr(request.app.state, "crowdsec_stream_poller", None)
-        cached: bool | None = poller.lapi_reachable if poller is not None else None
+        cached: bool | None = (
+            crowdsec_poller.lapi_reachable if crowdsec_poller is not None else None
+        )
         return CrowdSecStatusResponse(
             enabled=True,
-            write_enabled=get_settings().crowdsec.write_enabled,
+            write_enabled=settings.crowdsec.write_enabled,
             lapi_reachable=cached if cached is not None else await crowdsec.ping(),
         )
 
@@ -249,7 +241,7 @@ class CrowdSecController(Controller):
         No enrichment: the caller already has the row's geo context.
         """
         service = _require_service(crowdsec)
-        _validate_ip(ip)
+        validate_ip_address(ip)
         decisions = await service.get_decisions_for_ip(ip)
         return [_to_view(d, None) for d in decisions]
 
@@ -273,8 +265,8 @@ class CrowdSecController(Controller):
         self,
         crowdsec: NamedDependency[CrowdSecService | None],
         enrichment_repo: NamedDependency[SecurityEnrichmentRepository],
-        from_timestamp: Annotated[datetime | None, QueryParameter(required=False)] = None,
-        to_timestamp: Annotated[datetime | None, QueryParameter(required=False)] = None,
+        from_timestamp: Annotated[datetime | None, QueryParameter(name="fromTimestamp", required=False)] = None,
+        to_timestamp: Annotated[datetime | None, QueryParameter(name="toTimestamp", required=False)] = None,
     ) -> list[IpLocation]:
         """Coordinates of banned IPs that appear in this server's own traffic.
 
@@ -295,6 +287,7 @@ class CrowdSecController(Controller):
         self,
         crowdsec: NamedDependency[CrowdSecService | None],
         enrichment_repo: NamedDependency[SecurityEnrichmentRepository],
+        settings: NamedDependency[SkipValidation[Settings]],
         limit: Annotated[int, QueryParameter(ge=1, le=500, required=False)] = 50,
         ip: Annotated[str | None, QueryParameter(required=False)] = None,
         scenario: Annotated[str | None, QueryParameter(required=False)] = None,
@@ -309,9 +302,9 @@ class CrowdSecController(Controller):
         bans carry a bare IP. Ip-scope sources missing LAPI geo are filled
         from GeoMetrikks' own stored traffic instead.
         """
-        service = _require_write(crowdsec)
+        service = _require_write(crowdsec, settings)
         if ip is not None:
-            _validate_ip(ip)
+            validate_ip_address(ip)
         if since is not None:
             _validate_duration(since)
         alerts = await service.get_alerts(limit=limit, ip=ip, scenario=scenario, since=since)
@@ -352,20 +345,21 @@ class CrowdSecController(Controller):
         crowdsec: NamedDependency[CrowdSecService | None],
         data: BanRequest,
         request: Request,
+        settings: NamedDependency[SkipValidation[Settings]],
     ) -> None:
         """Create a manual ban decision for one IP.
 
         Enforcement still depends on a bouncer attached to the LAPI.
         """
-        service = _require_write(crowdsec)
-        _validate_ip(data.ip)
+        service = _require_write(crowdsec, settings)
+        validate_ip_address(data.ip)
         duration = data.duration and _validate_duration(data.duration)
         await service.ban_ip(data.ip, duration=duration, reason=data.reason)
         logger.info(
             "CrowdSec ban by %s: ip=%s duration=%s reason=%s",
             _actor(request),
             data.ip,
-            duration or get_settings().crowdsec.default_ban_duration,
+            duration or settings.crowdsec.default_ban_duration,
             data.reason,
         )
 
@@ -375,10 +369,11 @@ class CrowdSecController(Controller):
         crowdsec: NamedDependency[CrowdSecService | None],
         data: UnbanRequest,
         request: Request,
+        settings: NamedDependency[SkipValidation[Settings]],
     ) -> UnbanResponse:
         """Delete all active decisions for one IP."""
-        service = _require_write(crowdsec)
-        _validate_ip(data.ip)
+        service = _require_write(crowdsec, settings)
+        validate_ip_address(data.ip)
         deleted = await service.unban_ip(data.ip)
         logger.info(
             "CrowdSec unban by %s: ip=%s deleted=%d", _actor(request), data.ip, deleted

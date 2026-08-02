@@ -7,6 +7,112 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-08-02
+
+### Added
+
+- `GEOMETRIKKS_ENV_FILE` environment variable to override the `.env` file
+  path; an empty value disables dotenv loading entirely (the test suite uses
+  this so results never depend on a local `.env`).
+- `DB_MIGRATE_ON_STARTUP` setting (default `true`). Set to `false` to run
+  schema migrations as a separate deployment step with
+  `litestar database upgrade` instead of at every app startup; the app then
+  fails startup deliberately if the schema was left unusable.
+- `docs/deployment.md` documenting the container runtime model, the
+  single-worker constraint, migration ownership, shutdown behavior, and
+  health endpoints.
+
+### Fixed
+
+- Fixed horizontal page scrolling on mobile Settings routes and replaced the
+  overflowing tab row with a compact section selector.
+- `docker stop` now shuts the server down gracefully: ingestion drains its
+  current batch and the scheduler stops before the process exits. The
+  container previously killed the server without running any teardown
+  because the CLI wrapper did not forward SIGTERM to Granian; the server
+  now runs in Granian's direct process mode under a tini init.
+- Shutdown is no longer delayed when a log file is missing or has not yet
+  received a parseable line. The tailer's waits now end as soon as a stop is
+  requested, instead of occupying a worker thread for up to 60 seconds and
+  leaving the container to be force-killed part-way through teardown. This
+  was reachable on a fresh install, where nginx has created the access log
+  but not yet written to it.
+
+### Changed
+
+- **Breaking:** all REST API JSON fields and query parameters are now
+  camelCase (`totalRequests`, `startedAt`, `fromTimestamp`, `startDate`,
+  `comparePrevious`, ...); previously the dataclass-backed endpoints
+  (analytics, system, settings, stats, health, CrowdSec, geo top-IPs/GeoJSON,
+  log files) used snake_case. Digit-adjacent fields are `status2xx`-style and
+  `requestCount24h`. Path segments (`{location_id}`, `{job_id}`), WebSocket
+  frame payloads, `orderBy` column values, and the error envelope are
+  unchanged. External API consumers must rename fields; the bundled frontend
+  is already migrated. The full policy is documented in
+  `docs/api-conventions.md`.
+- Errors on API paths that previously returned an empty 404 body (unknown
+  routes, CrowdSec-disabled lookups) now return the standard
+  `{status_code, detail}` JSON envelope; non-API 404s are unchanged.
+- All REST endpoints are mounted through a single versioned `/api/v1` router;
+  URLs, operation IDs, and generated client method names are unchanged.
+- Application startup and shutdown are now composed of focused lifespan
+  phases (core state, GeoIP, CrowdSec, database, scheduler, ingestion), each
+  owning its own cleanup. A failure during startup now stops the services
+  that had already started instead of leaking them; teardown order and the
+  DB-degraded and geo-degraded behaviors are unchanged.
+- `create_app()` accepts an explicit settings object and app-level dependency
+  overrides, and request handlers now receive settings through dependency
+  injection instead of resolving the process-cached factory inline. The
+  SQLAlchemy engine, startup migrations, scheduled aggregate jobs, and
+  trusted-proxy client-IP resolution all bind to the composed settings; the
+  `settings` dependency name is reserved (overriding it would split
+  configuration between request handlers and the rest of the app).
+- The backend test suite runs async tests on AnyIO (pytest-asyncio removed),
+  is fully isolated from `.env` and ambient environment values, and gained
+  WebSocket feed coverage for degraded-mode 1013 closures, overflow/drop
+  counting, heartbeats, unsubscribe cleanup, cancellation, the session-auth
+  handshake boundary, and the inbound-frame policy.
+
+- Development now runs on a single origin: `litestar run` serves the app,
+  all Vite assets, and hot-module reload through `http://localhost:8000`
+  (the Vite sidecar uses an internal ephemeral port). The standalone Vite
+  dev server on :5173, its `/api` and `/ws` proxies, and the published 5173
+  port in the dev compose are gone.
+- The production image installs the application as a built wheel instead of
+  copying the source tree, runs a single explicit Granian worker, and uses
+  tini as PID 1. litestar-vite upgraded to 0.29 on both the Python and npm
+  sides.
+- The `/health`, `/health/ready`, `/api/v1/stats`, and `/api/v1/logs/tail`
+  responses now have typed OpenAPI schemas (readiness documents its 503
+  response); payload shapes on the wire are unchanged.
+- The geo-locations API is served through a dedicated service layer with
+  Advanced Alchemy pagination; the `currentPage`/`pageSize` parameters and
+  default page size are unchanged.
+- Invalid filter, sort, and ban-duration values are now translated to 400
+  responses centrally from domain exceptions instead of per-controller HTTP
+  raises; the `{status_code, detail}` error envelope is unchanged.
+- All API query and path parameters now use Litestar's explicit
+  `QueryParameter`/`FromPath` declarations (Litestar 3.0 readiness). Wire
+  names and validation are unchanged; the OpenAPI schema gains descriptions
+  for the two `/logs/tail` query parameters.
+- The `DB_POOL_PRE_PING` setting is now honored; it was previously declared
+  but hardcoded to enabled.
+- The `VITE_USE_SERVER_LIFESPAN` and `VITE_ENABLE_REACT_HELPERS` settings are
+  now passed through to the Vite integration; they previously had no effect.
+- Litestar is now constrained to the 2.x series (`<3`) so the upcoming
+  Litestar 3.0 release cannot be picked up accidentally before the planned
+  migration.
+- The test suite now fails on new Litestar deprecation warnings and runtime
+  warnings, with the seven known upstream advanced-alchemy filter-provider
+  warnings pinned as the only deprecation exemption.
+
+### Removed
+
+- The `VITE_HOT_RELOAD` setting, which mapped to nothing in the Vite
+  integration (HMR is always on in dev mode).
+- Dead internal dependency providers (`transaction`, access-log repository)
+  and the unused `litestar-mcp` dev dependency.
+
 ## [0.6.0] - 2026-07-31
 
 ### Added
@@ -555,7 +661,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Settings endpoint no longer exposes the full settings tree (database credentials leaked via `model_dump()`); response is now an explicit whitelist.
 - Timestamps in `CALL refresh_continuous_aggregate` are bound as asyncpg parameters instead of interpolated into SQL.
 
-[Unreleased]: https://github.com/GilbN/geometrikks/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/GilbN/geometrikks/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/GilbN/geometrikks/releases/tag/v0.7.0
 [0.1.0-alpha.1]: https://github.com/GilbN/geometrikks/releases/tag/v0.1.0-alpha.1
 [0.1.0]: https://github.com/GilbN/geometrikks/compare/v0.1.0-alpha.1...v0.1.0
 [0.2.0]: https://github.com/GilbN/geometrikks/releases/tag/v0.2.0

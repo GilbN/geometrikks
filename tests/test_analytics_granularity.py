@@ -5,9 +5,9 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 
 import pytest
-from litestar.exceptions import ValidationException
+from geometrikks.domain.exceptions import DomainValidationError
 
-from geometrikks.api.v1.analytics_controller import _build_filters, _resolve_chart_granularity
+from geometrikks.domain.analytics.controllers import _build_filters, _resolve_chart_granularity
 from geometrikks.domain.analytics.repositories import StatsGranularity
 
 NOW = datetime(2026, 7, 16, 12, 0, tzinfo=timezone.utc)
@@ -42,7 +42,7 @@ def test_build_filters_accepts_valid_ipv6():
 
 
 def test_build_filters_rejects_invalid_ip():
-    with pytest.raises(ValidationException):
+    with pytest.raises(DomainValidationError):
         _build_filters(None, None, ["not-an-ip"])
 
 

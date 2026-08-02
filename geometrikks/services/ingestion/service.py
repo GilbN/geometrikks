@@ -207,7 +207,11 @@ class LogIngestionService:
     async def _tail_file(self, parser: LogParser, reader: Reader, skip_validation: bool) -> None:
         """Tail a single log file, pushing parsed records onto the shared queue."""
         logger.debug("Waiting for log file: %s", parser.log_path)
-        if not await wait_for_path(parser.log_path, timeout_seconds=60.0):
+        if not await wait_for_path(
+            parser.log_path, timeout_seconds=60.0, stop_event=self._stop_event
+        ):
+            if self._stop_event and self._stop_event.is_set():
+                return  # shutting down, not a missing-file problem
             logger.error("Skipping ingestion for missing log file: %s", parser.log_path)
             return
         assert self._queue is not None

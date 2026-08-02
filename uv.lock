@@ -494,7 +494,7 @@ wheels = [
 
 [[package]]
 name = "geometrikks"
-version = "0.6.0"
+version = "0.7.0"
 source = { editable = "." }
 dependencies = [
     { name = "advanced-alchemy", extra = ["argon2", "cli", "passlib", "pwdlib"] },
@@ -519,10 +519,8 @@ dependencies = [
 [package.dev-dependencies]
 dev = [
     { name = "faker" },
-    { name = "litestar-mcp" },
     { name = "polyfactory" },
     { name = "pytest" },
-    { name = "pytest-asyncio" },
     { name = "pytest-cov" },
     { name = "ty" },
 ]
@@ -540,10 +538,10 @@ requires-dist = [
     { name = "httpx", specifier = ">=0.28" },
     { name = "httpx-oauth", specifier = ">=0.17.0" },
     { name = "ipy", specifier = ">=1.1" },
-    { name = "litestar", extras = ["standard", "brotli", "jwt", "structlog", "pydantic"], specifier = ">=2.24.0" },
+    { name = "litestar", extras = ["standard", "brotli", "jwt", "structlog", "pydantic"], specifier = ">=2.24.0,<3" },
     { name = "litestar-geoalchemy", specifier = ">=0.3.0" },
     { name = "litestar-granian", specifier = ">=0.15.0" },
-    { name = "litestar-vite", specifier = ">=0.28.0" },
+    { name = "litestar-vite", specifier = ">=0.29.0" },
     { name = "pydantic-settings", specifier = ">=2.14.2" },
     { name = "python-dotenv", specifier = ">=1.2.2" },
 ]
@@ -551,10 +549,8 @@ requires-dist = [
 [package.metadata.requires-dev]
 dev = [
     { name = "faker", specifier = ">=40.36.0" },
-    { name = "litestar-mcp", specifier = ">=0.11.1" },
     { name = "polyfactory", specifier = ">=3.3.0" },
     { name = "pytest", specifier = ">=9.1.1" },
-    { name = "pytest-asyncio", specifier = ">=1.4.0" },
     { name = "pytest-cov", specifier = ">=7.1.0" },
     { name = "ty", specifier = ">=0.0.63" },
 ]
@@ -813,23 +809,8 @@ wheels = [
 ]
 
 [[package]]
-name = "litestar-mcp"
-version = "0.11.1"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "anyio" },
-    { name = "httpx" },
-    { name = "litestar", extra = ["jwt"] },
-    { name = "typing-extensions" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/3c/42/3a760edb64716581effd65a4709aa3493d36654dbc288acdff78305511f0/litestar_mcp-0.11.1.tar.gz", hash = "sha256:bbaf90f5a97fa019fea0a37f12ca4c9a8a5876e93415a06f7f0ccae34590961f", size = 522806, upload-time = "2026-07-06T14:54:42.841Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/f5/38/84dbab49511b211d3d1ea43be694b6f887938c634f415f4a4ac22292745c/litestar_mcp-0.11.1-py3-none-any.whl", hash = "sha256:f5c13ed3ca19d21bb115ffdc7d8a38625c7332deb086b3e1e8ce2f6f2488a14c", size = 104544, upload-time = "2026-07-06T14:54:41.466Z" },
-]
-
-[[package]]
 name = "litestar-vite"
-version = "0.28.0"
+version = "0.29.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "httpx" },
@@ -837,9 +818,9 @@ dependencies = [
     { name = "typing-extensions" },
     { name = "websockets" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/e8/af/05e277640d3c4b9bb73fe3ddc1d05a60d85118dda1e0b4c74eff24688c0d/litestar_vite-0.28.0.tar.gz", hash = "sha256:7f607c0edf724186cfed2bc603784ceb3efd583eccede14854c60b33542e3519", size = 570853, upload-time = "2026-07-25T17:41:03.138Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/1e/74/97167bae98ad84e43507cdb8ea2557f52902412adc99c3e9a88efba30d08/litestar_vite-0.29.0.tar.gz", hash = "sha256:0e95f63d8ba7556a90113743c1cf0aed0afaee011386b2bd15d60d96bb1fa100", size = 588448, upload-time = "2026-07-27T18:33:36.373Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/31/3f/d2d58658f6053492d1d313c0f23d4a7b73838b328356d8c15c420d447c6f/litestar_vite-0.28.0-py3-none-any.whl", hash = "sha256:aa8ab6cc69d40e5225c6f177feac924db49ea412861eb1274a9be0e35605f196", size = 282496, upload-time = "2026-07-25T17:41:01.599Z" },
+    { url = "https://files.pythonhosted.org/packages/f3/23/fc7a1c5a8f123e12a6e8eeccd70dc860527926d3e9a68113eec2eaaf0cf5/litestar_vite-0.29.0-py3-none-any.whl", hash = "sha256:ec530518ccee5089946e5a11d7746668a9c78b95590edf8feffbfa6dc64bfb24", size = 286198, upload-time = "2026-07-27T18:33:34.864Z" },
 ]
 
 [[package]]
@@ -1227,18 +1208,6 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/e4/47/b9efed96c114afcfa3c9d3fe98a76a1d14c74a9e266d397cf6eb64be5e01/pytest-9.1.1.tar.gz", hash = "sha256:1088fbde8f2b49d95a549a195707afa7a76a3ce9bcadc26b6d71f0ffda5fe313", size = 1636369, upload-time = "2026-06-19T10:58:32.857Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/24/25/1de2678b631f5a49215c6c96fff41ba892b0a34df68d6d80292b1b48aa7f/pytest-9.1.1-py3-none-any.whl", hash = "sha256:37a86b45efb9a47a61a36449063e8e18d0cab3161329fc099eb21783169c4f0c", size = 386536, upload-time = "2026-06-19T10:58:31.347Z" },
-]
-
-[[package]]
-name = "pytest-asyncio"
-version = "1.4.0"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "pytest" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/43/7c/d36d04db312ecf4298932ef77e6e4a9e8ad017906e24e34f0b0c361a2473/pytest_asyncio-1.4.0.tar.gz", hash = "sha256:c6c0d2259945122819f171a32ecea2c349ead889ee28176caaf492143424be42", size = 58514, upload-time = "2026-05-26T09:56:04.083Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/03/e2/08a497ef684b88559c9cc5f4ad53a37e7b99e727094a86d6ea32536d5d3c/pytest_asyncio-1.4.0-py3-none-any.whl", hash = "sha256:933ca923a23075a87fb7070c0ec272a6848489824d887c85c812670932835aa1", size = 16930, upload-time = "2026-05-26T09:56:02.576Z" },
 ]
 
 [[package]]

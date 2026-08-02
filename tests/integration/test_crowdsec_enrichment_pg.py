@@ -7,6 +7,10 @@ from sqlalchemy import text
 
 from geometrikks.domain.security.repositories import SecurityEnrichmentRepository
 
+import pytest
+
+pytestmark = pytest.mark.anyio
+
 NOW = datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0)
 
 

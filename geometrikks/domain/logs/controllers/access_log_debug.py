@@ -1,13 +1,11 @@
 """AccessLogDebug API endpoints."""
 from __future__ import annotations
 
-import ipaddress
 from datetime import datetime
 from typing import Annotated, Literal
 
 from litestar import Controller, get
 from litestar.di import NamedDependency, Provide
-from litestar.exceptions import ValidationException
 from litestar.params import QueryParameter, SkipValidation
 from advanced_alchemy.extensions.litestar.providers import create_service_dependencies
 from advanced_alchemy.filters import FilterTypes, LimitOffset, OnBeforeAfter
@@ -15,11 +13,12 @@ from advanced_alchemy.service import OffsetPagination
 
 from geometrikks.domain.logs.schemas import AccessLogDebugEntry, AccessLogDebugStats
 from geometrikks.domain.logs.services import AccessLogDebugService
+from geometrikks.lib.validation import validate_ip_addresses
 
 
 def provide_debug_time_window(
-    from_timestamp: Annotated[datetime | None, QueryParameter(required=False)] = None,
-    to_timestamp: Annotated[datetime | None, QueryParameter(required=False)] = None,
+    from_timestamp: Annotated[datetime | None, QueryParameter(name="fromTimestamp", required=False)] = None,
+    to_timestamp: Annotated[datetime | None, QueryParameter(name="toTimestamp", required=False)] = None,
 ) -> list[FilterTypes]:
     """Optional inclusive [from, to] window on ``created_at`` (ingest time).
 
@@ -38,18 +37,10 @@ def provide_debug_time_window(
 
 
 def validated_ips(values: list[str] | None) -> list[str] | None:
-    """Pass through complete IPs; reject free text with a 400.
-
-    ``access_log_debug.ip_address`` is INET, so asyncpg would otherwise fail
-    to encode the bind param and surface a 500.
-    """
+    """Pass through complete IPs; reject free text with a 400."""
     if not values:
         return None
-    for raw in values:
-        try:
-            ipaddress.ip_address(raw)
-        except ValueError as exc:
-            raise ValidationException(detail=f"Invalid IP address: {raw!r}") from exc
+    validate_ip_addresses(values)
     return values
 
 
@@ -60,7 +51,7 @@ class AccessLogDebugController(Controller):
     access-log context, filtering, search, sorting, and pagination.
     """
 
-    path = "/api/v1/access-log-debug"
+    path = "/access-log-debug"
     tags = ["Access Log Debug"]
 
     dependencies = create_service_dependencies(
@@ -125,8 +116,8 @@ class AccessLogDebugController(Controller):
     async def get_access_log_debug_stats(
         self,
         access_log_debug_service: NamedDependency[AccessLogDebugService],
-        from_timestamp: Annotated[datetime | None, QueryParameter(required=False)] = None,
-        to_timestamp: Annotated[datetime | None, QueryParameter(required=False)] = None,
+        from_timestamp: Annotated[datetime | None, QueryParameter(name="fromTimestamp", required=False)] = None,
+        to_timestamp: Annotated[datetime | None, QueryParameter(name="toTimestamp", required=False)] = None,
     ) -> AccessLogDebugStats:
         """Totals, malformed count, and top parse error within the range."""
         return await access_log_debug_service.get_stats(

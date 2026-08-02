@@ -3,6 +3,7 @@ import os
 import re
 import time
 from pathlib import Path
+from typing import cast
 
 import aiofiles.os
 import pytest
@@ -16,6 +17,8 @@ from geometrikks.services.logparser.logparser import (
     make_cached_city_lookup,
 )
 from geometrikks.services.logparser.schemas import ParsedAccessLog
+
+pytestmark = pytest.mark.anyio
 
 
 def make_log_line(ip: str) -> str:
@@ -171,7 +174,7 @@ def test_cached_city_lookup_calls_reader_once_per_ip() -> None:
             calls["n"] += 1
             raise RuntimeError("lookup failed")
 
-    lookup = make_cached_city_lookup(CountingReader())  # type: ignore[arg-type]
+    lookup = make_cached_city_lookup(cast("Reader", CountingReader()))
     assert lookup("1.2.3.4") is None
     assert lookup("1.2.3.4") is None
     assert calls["n"] == 1
@@ -208,29 +211,94 @@ def test_validate_log_line_unmatched(log_parser: LogParser, load_unparseable_log
     for line in load_unparseable_logs:
         assert log_parser.validate_log_line(line) is None
 
-def test_validate_log_format_true(tmp_path: Path, log_parser: LogParser, monkeypatch) -> None:
+def test_validate_log_format_true(tmp_path: Path, log_parser: LogParser) -> None:
     """validate_log_format returns True when last lines contain valid format."""
     # Create a temp log file and copy some valid lines
     log_file = tmp_path / "access.log"
     valid_lines = Path("tests/valid_ipv4_log.txt").read_text(encoding="utf-8")
     log_file.write_text(valid_lines, encoding="utf-8")
 
-    # Speed up wait decorator: monkeypatch time.sleep to no-op
-    monkeypatch.setattr(time, "sleep", lambda _seconds: None)
-
     # validate_log_format now takes log_path as parameter
     assert log_parser.validate_log_format(log_file) is True
 
-def test_validate_log_format_false(tmp_path: Path, log_parser: LogParser, monkeypatch) -> None:
+def test_validate_log_format_false(tmp_path: Path, log_parser: LogParser) -> None:
     """validate_log_format returns False when trailing lines are unparseable."""
     log_file = tmp_path / "access.log"
     unparseable = Path(UNPARSEABLE_LOG_PATH).read_text(encoding="utf-8")
     log_file.write_text(unparseable, encoding="utf-8")
 
     log_parser.send_logs = True
-    monkeypatch.setattr(time, "sleep", lambda _seconds: None)
 
     assert log_parser.validate_log_format(log_file) is False
+
+
+async def test_await_valid_log_format_returns_when_stop_requested(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """A stop ends the retry loop instead of blocking for the whole timeout.
+
+    The empty file never validates, so with retries enabled the old blocking
+    loop would have occupied a worker thread for the full timeout regardless
+    of the stop event.
+    """
+    monkeypatch.setenv("DISABLE_WAIT", "false")
+    log_file = tmp_path / "access.log"
+    log_file.write_text("", encoding="utf-8")
+    parser = LogParser(log_path=log_file, send_logs=True, hostname="localhost")
+    stop_event = asyncio.Event()
+    parser.set_stop_event(stop_event)
+    stop_event.set()
+
+    started = time.monotonic()
+    assert await parser.await_valid_log_format(timeout_seconds=60.0) is False
+    assert time.monotonic() - started < 1.0
+
+
+async def test_await_valid_log_format_wakes_on_stop_between_attempts(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """A stop arriving mid-wait ends the loop without sitting out the interval."""
+    monkeypatch.setenv("DISABLE_WAIT", "false")
+    log_file = tmp_path / "access.log"
+    log_file.write_text("", encoding="utf-8")
+    parser = LogParser(log_path=log_file, send_logs=True, hostname="localhost")
+    stop_event = asyncio.Event()
+    parser.set_stop_event(stop_event)
+
+    async def stop_soon() -> None:
+        await asyncio.sleep(0.05)
+        stop_event.set()
+
+    started = time.monotonic()
+    result, _ = await asyncio.gather(
+        parser.await_valid_log_format(timeout_seconds=60.0, check_interval=30.0),
+        stop_soon(),
+    )
+    assert result is False
+    assert time.monotonic() - started < 5.0
+
+
+async def test_await_valid_log_format_retries_until_the_file_is_parseable(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """An empty file that gains a valid line mid-wait still validates."""
+    monkeypatch.setenv("DISABLE_WAIT", "false")
+    log_file = tmp_path / "access.log"
+    log_file.write_text("", encoding="utf-8")
+    parser = LogParser(log_path=log_file, send_logs=True, hostname="localhost")
+    parser.set_stop_event(asyncio.Event())
+
+    async def append_valid_line() -> None:
+        await asyncio.sleep(0.05)
+        log_file.write_text(
+            Path(VALID_LOG_PATH).read_text(encoding="utf-8"), encoding="utf-8"
+        )
+
+    result, _ = await asyncio.gather(
+        parser.await_valid_log_format(timeout_seconds=10.0, check_interval=0.02),
+        append_valid_line(),
+    )
+    assert result is True
 
 def test_nonstandard_lines_match_loosened_pattern(load_nonstandard_logs: list[str], ipv4_log_pattern: re.Pattern[str]) -> None:
     """The loosened request group ([^"]*) accepts nonstandard/garbage requests so they
@@ -249,7 +317,6 @@ def test_binary_probe_flagged_malformed(log_parser: LogParser, load_nonstandard_
     assert is_malformed is True
     assert error == "No HTTP method in request"
 
-@pytest.mark.asyncio
 async def test_is_rotated_truncation_99pct(tmp_path: Path, log_parser: LogParser, monkeypatch) -> None:
     """Rotation detected when size shrinks by >=99%."""
     # Create file and obtain real previous stat
@@ -272,7 +339,6 @@ async def test_is_rotated_truncation_99pct(tmp_path: Path, log_parser: LogParser
     assert is_rotated is True
 
 
-@pytest.mark.asyncio
 async def test_is_rotated_inode_change(tmp_path: Path, log_parser: LogParser, monkeypatch) -> None:
     """Rotation detected when inode changes."""
     log_file = tmp_path / "access.log"
@@ -291,7 +357,6 @@ async def test_is_rotated_inode_change(tmp_path: Path, log_parser: LogParser, mo
     assert await log_parser._is_rotated_async(prev) is True
 
 
-@pytest.mark.asyncio
 async def test_is_rotated_disabled(tmp_path: Path, log_parser: LogParser, monkeypatch) -> None:
     """Rotation check can be disabled via env."""
     monkeypatch.setenv("DISABLE_ROTATION_CHECK", "true")
@@ -342,12 +407,11 @@ def test_create_access_log_sqlalchemy_geoip_failure(log_parser: LogParser, monke
 
     mock_reader = MockReader()
     ip = match.group(1)
-    lookup = make_cached_city_lookup(mock_reader)  # type: ignore[arg-type]
+    lookup = make_cached_city_lookup(cast("Reader", mock_reader))
     result = log_parser._parse_access_log(match, ip, lookup)
     assert result is None
 
 
-@pytest.mark.asyncio
 async def test_iter_log_events_async_unmatched(tmp_path: Path, log_parser: LogParser, geoip_reader: Reader) -> None:
     """Async generator yields record with matched=None for invalid line; increments skipped."""
     log_file = tmp_path / "access.log"
@@ -362,6 +426,7 @@ async def test_iter_log_events_async_unmatched(tmp_path: Path, log_parser: LogPa
         geoip_reader, skip_validation=True, start_at_end=False
     )
     record = await gen.__anext__()
+    assert record is not None
     assert record.ip_address is None
     assert record.geo_data is None
     assert record.access_log is None
@@ -369,7 +434,6 @@ async def test_iter_log_events_async_unmatched(tmp_path: Path, log_parser: LogPa
     assert log_parser.skipped_lines_count() >= 1
 
 
-@pytest.mark.asyncio
 async def test_iter_log_events_async_matched(tmp_path: Path, log_parser: LogParser, geoip_reader: Reader) -> None:
     """Async generator yields parsed record for a valid line; access_log when send_logs=True."""
     log_file = tmp_path / "access.log"
@@ -389,6 +453,7 @@ async def test_iter_log_events_async_matched(tmp_path: Path, log_parser: LogPars
         geoip_reader, skip_validation=True, start_at_end=False
     )
     record = await gen.__anext__()
+    assert record is not None
     assert record.ip_address is not None
     assert record.geo_data is not None
     assert record.access_log is not None
@@ -396,7 +461,6 @@ async def test_iter_log_events_async_matched(tmp_path: Path, log_parser: LogPars
     assert log_parser.parsed_lines_count() >= 1
 
 
-@pytest.mark.asyncio
 async def test_iter_log_events_async_rotation_restart(tmp_path: Path, log_parser: LogParser, geoip_reader: Reader, monkeypatch) -> None:
     """When rotation is detected, async generator delegates to a new stream (restart)."""
     log_file = tmp_path / "access.log"
@@ -427,6 +491,7 @@ async def test_iter_log_events_async_rotation_restart(tmp_path: Path, log_parser
     )
     # First __anext__() triggers rotation and restart; subsequent yield should still produce records
     record = await gen.__anext__()
+    assert record is not None
     assert record.ip_address is not None
     assert record.access_log is not None
 
@@ -452,7 +517,6 @@ def test_parse_geo_data(log_parser: LogParser, geoip_reader: Reader) -> None:
     assert parsed.geohash is not None
 
 
-@pytest.mark.asyncio
 async def test_iter_parsed_records_tags_source(tmp_path: Path, log_parser: LogParser, geoip_reader: Reader) -> None:
     """Every yielded record carries the source file path it was read from."""
     log_file = tmp_path / "access.log"
@@ -464,10 +528,10 @@ async def test_iter_parsed_records_tags_source(tmp_path: Path, log_parser: LogPa
     gen = log_parser.iter_parsed_records(geoip_reader, skip_validation=True, start_at_end=False)
     record = await gen.__anext__()
     await gen.aclose()
+    assert record is not None
     assert record.source == str(log_file)
 
 
-@pytest.mark.asyncio
 async def test_rotation_reopens_from_start_twice(tmp_path: Path, log_parser: LogParser, geoip_reader: Reader) -> None:
     """Two consecutive real rotations (inode change) keep records flowing, reading each new file from the start."""
     valid_lines = Path(VALID_LOG_PATH).read_text(encoding="utf-8").splitlines()
@@ -506,6 +570,7 @@ class TestParseLine:
         lookup = make_cached_city_lookup(geoip_reader)
         line = make_log_line("2.125.160.216")
         record = parser.parse_line(line, lookup)
+        assert record is not None
         assert record.ip_address == "2.125.160.216"
         assert record.geo_data is not None
         assert record.access_log is not None
@@ -516,6 +581,7 @@ class TestParseLine:
         parser = LogParser(log_path=Path("/dev/null"), send_logs=True)
         lookup = make_cached_city_lookup(geoip_reader)
         record = parser.parse_line("total garbage\n", lookup)
+        assert record is not None
         assert record.is_malformed is True
         assert record.ip_address is None
         assert parser.skipped_lines == 1

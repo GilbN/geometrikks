@@ -1,26 +1,28 @@
 """Central route registration."""
 from pathlib import Path
 
-from litestar import get
+from litestar import Router, get
 from litestar.datastructures import ResponseHeader
+from litestar.di import NamedDependency
 from litestar.exceptions import NotFoundException
+from litestar.params import SkipValidation
 from litestar.response import File
 from litestar.types import ControllerRouterHandler
 
-from geometrikks.api.v1.geo_events_controller import GeoEventController
-from geometrikks.api.v1.geo_locations_controller import GeoLocationController
-from geometrikks.api.v1.access_log_controller import AccessLogController
-from geometrikks.api.v1.access_log_debug_controller import AccessLogDebugController
-from geometrikks.api.v1.analytics_controller import AnalyticsController
-from geometrikks.api.v1.auth_controller import AuthController
-from geometrikks.api.v1.crowdsec_controller import CrowdSecController
-from geometrikks.api.v1.logs_controller import LogsController
-from geometrikks.api.v1.system_controller import SystemController
-from geometrikks.api.v1.live_controller import crowdsec_feed, live_feed, logs_feed
-from geometrikks.api.v1.settings import read_settings
-from geometrikks.api.v1.stats import stats
-from geometrikks.api.health import health, health_ready
-from geometrikks.config.settings import get_settings
+from geometrikks.domain.geo.controllers.events import GeoEventController
+from geometrikks.domain.geo.controllers.locations import GeoLocationController
+from geometrikks.domain.logs.controllers.access_logs import AccessLogController
+from geometrikks.domain.logs.controllers.access_log_debug import AccessLogDebugController
+from geometrikks.domain.analytics.controllers import AnalyticsController
+from geometrikks.domain.auth.controllers import AuthController
+from geometrikks.domain.security.controllers import CrowdSecController
+from geometrikks.domain.system.controllers.logs import LogsController
+from geometrikks.domain.system.controllers.system import SystemController
+from geometrikks.domain.realtime.controllers import crowdsec_feed, live_feed, logs_feed
+from geometrikks.domain.system.controllers.settings import read_settings
+from geometrikks.domain.system.controllers.stats import stats
+from geometrikks.domain.system.controllers.health import health, health_ready
+from geometrikks.config.settings import Settings
 
 
 @get(
@@ -31,15 +33,28 @@ from geometrikks.config.settings import get_settings
     # stall; never serve it with a long-lived cache header.
     response_headers=[ResponseHeader(name="Cache-Control", value="no-cache")],
 )
-def service_worker() -> File:
+def service_worker(settings: NamedDependency[SkipValidation[Settings]]) -> File:
     # No worker in dev mode: it would cache the dev shell and break the next
     # production run on the same origin.
-    if get_settings().vite.dev_mode:
+    if settings.vite.dev_mode:
         raise NotFoundException(detail="Service worker is not served in dev mode")
     sw_path = Path("public/sw.js")
     if not sw_path.is_file():
         raise NotFoundException(detail="Service worker not built")
     return File(path=sw_path, media_type="text/javascript")
+
+
+API_V1_PREFIX = "/api/v1"
+
+
+def create_api_v1_router(handlers: list[ControllerRouterHandler]) -> Router:
+    """Mount handlers under the versioned API prefix.
+
+    Controllers own only their domain segment (``/crowdsec``, ``/analytics``,
+    ...); this router supplies the ``/api/v1`` scope. Tests that mount a
+    single controller use this too, so it keeps its production URL.
+    """
+    return Router(path=API_V1_PREFIX, route_handlers=handlers)
 
 
 def get_route_handlers(*, include_auth: bool = True) -> list[ControllerRouterHandler]:
@@ -51,7 +66,7 @@ def get_route_handlers(*, include_auth: bool = True) -> list[ControllerRouterHan
             handlers would crash on ``app.state.auth_state`` / ``request.user``.
     """
 
-    handlers: list[ControllerRouterHandler] = [
+    api_handlers: list[ControllerRouterHandler] = [
         GeoEventController,
         GeoLocationController,
         AccessLogController,
@@ -60,16 +75,20 @@ def get_route_handlers(*, include_auth: bool = True) -> list[ControllerRouterHan
         CrowdSecController,
         LogsController,
         SystemController,
+        read_settings,
+        stats,
+    ]
+    if include_auth:
+        api_handlers.append(AuthController)
+
+    return [
+        create_api_v1_router(api_handlers),
+        # The WebSocket feeds and probe endpoints live outside /api/v1: /ws/*
+        # by contract, /health and /health/ready for unauthenticated probes.
         live_feed,
         crowdsec_feed,
         logs_feed,
-        read_settings,
-        stats,
         health,
         health_ready,
         service_worker,
     ]
-
-    if include_auth:
-        handlers.append(AuthController)
-    return handlers

@@ -1,8 +1,9 @@
 """DTOs for geo-location and geo-event data transfer."""
 
 from __future__ import annotations
-from dataclasses import dataclass, field
 from datetime import datetime
+
+import msgspec
 
 from advanced_alchemy.extensions.litestar import SQLAlchemyDTO, SQLAlchemyDTOConfig
 from geometrikks.domain.geo.models import GeoEvent, GeoLocation
@@ -23,8 +24,7 @@ class GeoLocationDTO(SQLAlchemyDTO[GeoLocation]):
     )
 
 
-@dataclass
-class EmbeddedLocationDTO:
+class EmbeddedLocationDTO(msgspec.Struct, rename="camel"):
     """Lightweight location data for embedding in other DTOs."""
 
     id: int
@@ -35,8 +35,7 @@ class EmbeddedLocationDTO:
     country_name: str | None = None
 
 
-@dataclass
-class TopIPDTO:
+class TopIPDTO(msgspec.Struct, rename="camel"):
     """Top IP address with event count and optional location."""
 
     ip_address: str
@@ -44,8 +43,7 @@ class TopIPDTO:
     location: EmbeddedLocationDTO | None = None  # Optional - used for global top IPs
 
 
-@dataclass
-class GeoJSONPointGeometry:
+class GeoJSONPointGeometry(msgspec.Struct, rename="camel"):
     """GeoJSON Point geometry.
 
     Fields are deliberately default-less: dataclass defaults make them
@@ -57,8 +55,7 @@ class GeoJSONPointGeometry:
     coordinates: tuple[float, float]
 
 
-@dataclass
-class GeoJSONFeatureProperties:
+class GeoJSONFeatureProperties(msgspec.Struct, rename="camel"):
     """Properties for a GeoJSON feature representing a location with event count."""
 
     id: int
@@ -72,19 +69,17 @@ class GeoJSONFeatureProperties:
     postal_code: str | None
     timezone: str | None
     event_count: int
-    top_ips: list[TopIPDTO] = field(default_factory=list)
+    top_ips: list[TopIPDTO] = msgspec.field(default_factory=list)
 
 
-@dataclass
-class GeoJSONFeature:
+class GeoJSONFeature(msgspec.Struct, rename="camel"):
     """GeoJSON Feature representing a location."""
 
     type: str
     geometry: GeoJSONPointGeometry
     properties: GeoJSONFeatureProperties
 
-@dataclass
-class GeoJSONFeatureStats:
+class GeoJSONFeatureStats(msgspec.Struct, rename="camel"):
     """Statistics for GeoJSONFeatureCollection."""
 
     events: int
@@ -92,8 +87,7 @@ class GeoJSONFeatureStats:
     cities: int
     locations: int
 
-@dataclass
-class GeoJSONFeatureCollection:
+class GeoJSONFeatureCollection(msgspec.Struct, rename="camel"):
     """GeoJSON FeatureCollection for locations with event counts."""
 
     type: str
@@ -101,23 +95,20 @@ class GeoJSONFeatureCollection:
     stats: GeoJSONFeatureStats
 
 
-@dataclass
-class LocationTopIPsResponse:
+class LocationTopIPsResponse(msgspec.Struct, rename="camel"):
     """Response for location top IPs endpoint."""
 
     location_id: int
-    top_ips: list[TopIPDTO] = field(default_factory=list)
+    top_ips: list[TopIPDTO] = msgspec.field(default_factory=list)
 
 
-@dataclass
-class GlobalTopIPsResponse:
+class GlobalTopIPsResponse(msgspec.Struct, rename="camel"):
     """Response for global top IPs endpoint."""
 
-    top_ips: list[TopIPDTO] = field(default_factory=list)
+    top_ips: list[TopIPDTO] = msgspec.field(default_factory=list)
 
 
-@dataclass
-class TopCountryDTO:
+class TopCountryDTO(msgspec.Struct, rename="camel"):
     """Top country with event count."""
 
     country_code: str
@@ -125,9 +116,8 @@ class TopCountryDTO:
     event_count: int
 
 
-@dataclass
-class TopCountriesResponse:
+class TopCountriesResponse(msgspec.Struct, rename="camel"):
     """Response for top countries endpoint."""
 
-    top_countries: list[TopCountryDTO] = field(default_factory=list)
+    top_countries: list[TopCountryDTO] = msgspec.field(default_factory=list)
 

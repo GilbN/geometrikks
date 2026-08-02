@@ -9,7 +9,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 import pytest
-from litestar.exceptions import ValidationException
+from geometrikks.domain.exceptions import DomainValidationError
 from sqlalchemy import or_
 from advanced_alchemy.filters import (
     CollectionFilter,
@@ -19,7 +19,7 @@ from advanced_alchemy.filters import (
     OnBeforeAfter,
 )
 
-from geometrikks.api.v1.access_log_controller import (
+from geometrikks.domain.logs.controllers.access_logs import (
     provide_access_log_in_filters,
     provide_access_log_time_window,
 )
@@ -72,7 +72,7 @@ class TestInFilters:
 
     def test_invalid_ip_raises_validation_error(self) -> None:
         # ip_address is INET — free text must 400, not fail bind-param encoding.
-        with pytest.raises(ValidationException, match="Invalid IP address"):
+        with pytest.raises(DomainValidationError, match="Invalid IP address"):
             provide_access_log_in_filters(None, ["u"])
 
     def test_builds_city_and_country_filters(self) -> None:
@@ -102,7 +102,7 @@ class TestInFilters:
 
     def test_invalid_excluded_ip_raises_validation_error(self) -> None:
         # Same INET bind-param hazard as the include list.
-        with pytest.raises(ValidationException, match="Invalid IP address"):
+        with pytest.raises(DomainValidationError, match="Invalid IP address"):
             provide_access_log_in_filters(None, None, None, None, None, ["nope"])
 
     def test_host_in_yields_collection_filter(self) -> None:

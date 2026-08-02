@@ -1,8 +1,21 @@
 """Alembic migration-chain sanity — no database required."""
 from pathlib import Path
+from types import SimpleNamespace
+from typing import TYPE_CHECKING, Literal, cast
+from unittest.mock import AsyncMock, MagicMock
 
+import pytest
 from alembic.config import Config
 from alembic.script import ScriptDirectory
+
+if TYPE_CHECKING:
+    from sqlalchemy.ext.asyncio import AsyncEngine
+
+from geometrikks.config.settings import DatabaseSettings, Settings
+from tests.support import enter_lifespan
+from tests.test_lifecycle_geoip import _patch_startup_collaborators
+
+pytestmark = pytest.mark.anyio
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
@@ -26,13 +39,6 @@ def test_revisions_parse_and_chain() -> None:
     assert revisions, "no revisions found — baseline revision missing"
     # walk_revisions yields head → base; the last one is the root.
     assert revisions[-1].down_revision is None
-
-
-from unittest.mock import MagicMock
-
-import pytest
-
-from geometrikks.config.settings import DatabaseSettings, Settings
 
 
 class _FakeConn:
@@ -68,7 +74,7 @@ class _FakeEngine:
         return _Ctx()
 
 
-def _settings(environment: str, drop: bool) -> Settings:
+def _settings(environment: Literal["development", "staging", "production"], drop: bool) -> Settings:
     return Settings(
         environment=environment,
         database=DatabaseSettings(drop_on_startup=drop),
@@ -81,7 +87,9 @@ def migration_mocks(monkeypatch):
     from geometrikks.server import migrations as mod
 
     order: list[str] = []
-    monkeypatch.setattr(mod, "upgrade_to_head", lambda: order.append("upgrade"))
+    monkeypatch.setattr(
+        mod, "upgrade_to_head", lambda database_url=None: order.append("upgrade")
+    )
 
     async def fake_teardown(conn) -> None:
         order.append("teardown")
@@ -94,7 +102,7 @@ async def test_drop_gate_runs_in_development(migration_mocks) -> None:
     from geometrikks.server.migrations import migrate_database
 
     engine = _FakeEngine()
-    await migrate_database(engine, _settings("development", drop=True))
+    await migrate_database(cast("AsyncEngine", engine), _settings("development", drop=True))
 
     assert engine.begin_count == 1
     assert migration_mocks == ["teardown", "upgrade"]
@@ -110,7 +118,7 @@ async def test_drop_gate_refused_outside_development(
 
     engine = _FakeEngine()
     with caplog.at_level("ERROR", logger="geometrikks.server.migrations"):
-        await migrate_database(engine, _settings(environment, drop=True))
+        await migrate_database(cast("AsyncEngine", engine), _settings(environment, drop=True))
 
     assert engine.begin_count == 0, "drop must not run outside development"
     assert migration_mocks == ["upgrade"], "upgrade still runs after the refusal"
@@ -121,7 +129,7 @@ async def test_no_drop_flag_goes_straight_to_upgrade(migration_mocks) -> None:
     from geometrikks.server.migrations import migrate_database
 
     engine = _FakeEngine()
-    await migrate_database(engine, _settings("development", drop=False))
+    await migrate_database(cast("AsyncEngine", engine), _settings("development", drop=False))
 
     assert engine.begin_count == 0
     assert migration_mocks == ["upgrade"]
@@ -130,12 +138,12 @@ async def test_no_drop_flag_goes_straight_to_upgrade(migration_mocks) -> None:
 async def test_upgrade_failure_propagates(monkeypatch) -> None:
     from geometrikks.server import migrations as mod
 
-    def boom() -> None:
+    def boom(database_url=None) -> None:
         raise RuntimeError("broken migration")
 
     monkeypatch.setattr(mod, "upgrade_to_head", boom)
     with pytest.raises(RuntimeError, match="broken migration"):
-        await mod.migrate_database(_FakeEngine(), _settings("production", drop=False))
+        await mod.migrate_database(cast("AsyncEngine", _FakeEngine()), _settings("production", drop=False))
 
 
 def test_upgrade_to_head_uses_dedicated_url_config(monkeypatch) -> None:
@@ -156,17 +164,27 @@ def test_upgrade_to_head_uses_dedicated_url_config(monkeypatch) -> None:
     commands.return_value.upgrade.assert_called_once_with(revision="head")
 
 
-from types import SimpleNamespace
+def test_upgrade_to_head_honors_explicit_url(monkeypatch) -> None:
+    """migrate_database passes the app-bound URL; ambient settings must not win."""
+    from geometrikks.server import migrations as mod
+
+    commands = MagicMock()
+    monkeypatch.setattr(mod, "AlembicCommands", commands)
+
+    mod.upgrade_to_head("postgresql+asyncpg://x:y@explicit.invalid:5432/appdb")
+
+    (config,), _ = commands.call_args
+    assert config.connection_string == "postgresql+asyncpg://x:y@explicit.invalid:5432/appdb"
 
 
-async def test_on_startup_migrates_before_timescale(monkeypatch) -> None:
+async def test_lifespan_migrates_before_timescale(monkeypatch) -> None:
     """Migrations own the schema; setup_timescaledb depends on the tables
     existing, so it must run strictly after migrate_database."""
     from geometrikks.server import lifecycle as lc
 
     order: list[str] = []
 
-    async def fake_db_available(timeout: float = 10.0) -> bool:
+    async def fake_db_available(app, timeout: float = 10.0) -> bool:
         return True
 
     async def fake_migrate(engine, settings) -> None:
@@ -186,13 +204,14 @@ async def test_on_startup_migrates_before_timescale(monkeypatch) -> None:
         order.append("ingestion")
 
     ingestion.start = fake_start
+    ingestion.stop = AsyncMock()
 
     sqlalchemy_config = MagicMock()
     sqlalchemy_config.get_engine.return_value = MagicMock()
     sqlalchemy_config.create_session_maker.return_value = MagicMock()
 
     monkeypatch.setattr(lc, "_db_available", fake_db_available)
-    monkeypatch.setattr(lc, "get_sqlalchemy_config", lambda: sqlalchemy_config)
+    monkeypatch.setattr(lc, "get_app_db_config", lambda app: sqlalchemy_config)
     monkeypatch.setattr(lc, "migrate_database", fake_migrate)
     monkeypatch.setattr(lc, "setup_timescaledb", fake_timescale)
     monkeypatch.setattr(lc, "create_scheduler", fake_create_scheduler)
@@ -200,6 +219,26 @@ async def test_on_startup_migrates_before_timescale(monkeypatch) -> None:
     monkeypatch.setattr(lc, "LogIngestionService", MagicMock(return_value=ingestion))
 
     app = SimpleNamespace(state=SimpleNamespace())
-    await lc.on_startup(app)
+    async with enter_lifespan(app):
+        pass
 
     assert order == ["migrate", "timescale", "ingestion"]
+
+
+async def test_lifespan_skips_migrations_when_disabled(monkeypatch) -> None:
+    """DB_MIGRATE_ON_STARTUP=false defers schema ownership to an external
+    'litestar database upgrade' step; TimescaleDB setup still runs and is
+    the deliberate startup failure if that step was skipped."""
+    from geometrikks.server import lifecycle as lc
+
+    monkeypatch.setenv("DB_MIGRATE_ON_STARTUP", "false")
+    _patch_startup_collaborators(
+        monkeypatch, lc, db_available=True, ensure=AsyncMock(return_value=True)
+    )
+
+    app = SimpleNamespace(state=SimpleNamespace())
+    async with enter_lifespan(app):
+        pass
+
+    cast("AsyncMock", lc.migrate_database).assert_not_awaited()
+    cast("AsyncMock", lc.setup_timescaledb).assert_awaited_once()

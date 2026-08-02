@@ -10,10 +10,12 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 from advanced_alchemy.filters import LimitOffset, OnBeforeAfter, SearchFilter
-from litestar.exceptions import ValidationException
+from geometrikks.domain.exceptions import DomainValidationError
 from sqlalchemy import text
 
 from geometrikks.domain.logs.services import AccessLogDebugService
+
+pytestmark = pytest.mark.anyio
 
 # Wall-clock-relative so seeds stay inside the retention window.
 NOW = datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0)
@@ -244,7 +246,7 @@ async def test_pagination_limits_rows_but_counts_all(pg_session_maker, clean_tab
 async def test_unknown_order_by_raises_400(pg_session_maker, clean_tables) -> None:
     async with pg_session_maker() as session:
         service = AccessLogDebugService(session=session)
-        with pytest.raises(ValidationException, match="Cannot sort by"):
+        with pytest.raises(DomainValidationError, match="Cannot sort by"):
             await service.list_entries(_window(), LimitOffset(50, 0), order_by="raw_line; DROP TABLE")
 
 

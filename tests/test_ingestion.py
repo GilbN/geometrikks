@@ -5,6 +5,7 @@ import asyncio
 import time
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
 
 import pytest
 from geohash2 import encode
@@ -15,6 +16,8 @@ from geometrikks.domain.logs.models import AccessLog, AccessLogDebug
 from geometrikks.services.logparser.logparser import LogParser
 from geometrikks.services.logparser.schemas import ParsedLogRecord, ParsedGeoData, ParsedAccessLog
 from geometrikks.services.ingestion.service import IngestionRepos, LogIngestionService
+
+pytestmark = pytest.mark.anyio
 
 GEOIP_DB_PATH = "tests/GeoLite2-City-Test.mmdb"
 
@@ -38,7 +41,7 @@ class FakeSession:
 
     def __init__(self, repos: "FakeRepos") -> None:
         self.repos = repos
-        self.pending: list[object] = []
+        self.pending: list[Any] = []
         self.commits = 0
         self.rollbacks = 0
         self.flushes = 0
@@ -138,7 +141,7 @@ def make_service(parsers: list[LogParser], **overrides) -> tuple[LogIngestionSer
         sessions.append(session)
         return session
 
-    kwargs = dict(
+    kwargs: dict[str, Any] = dict(
         parsers=parsers,
         session_maker=session_maker,
         geoip_path=GEOIP_DB_PATH,
@@ -169,7 +172,6 @@ def append_line(path: Path, line: str) -> None:
         fh.write(line + "\n")
 
 
-@pytest.mark.asyncio
 async def test_multi_file_tailing_ingests_from_all_sources(tmp_path: Path) -> None:
     """One tail task per file; records from every file reach the repositories.
 
@@ -198,7 +200,6 @@ async def test_multi_file_tailing_ingests_from_all_sources(tmp_path: Path) -> No
     assert any(s.commits for s in sessions)
 
 
-@pytest.mark.asyncio
 async def test_stop_drains_queue_before_exit(tmp_path: Path) -> None:
     """Records already parsed are persisted on stop, not dropped."""
     log_file = tmp_path / "a.log"
@@ -218,7 +219,6 @@ async def test_stop_drains_queue_before_exit(tmp_path: Path) -> None:
     assert any(s.commits for s in sessions)  # final flush on stop
 
 
-@pytest.mark.asyncio
 async def test_missing_file_does_not_block_other_tails(tmp_path: Path) -> None:
     """A nonexistent log path is skipped (with an error log); other files still ingest.
 
@@ -241,7 +241,30 @@ async def test_missing_file_does_not_block_other_tails(tmp_path: Path) -> None:
     assert service.total_geo_records == 1
 
 
-@pytest.mark.asyncio
+async def test_stop_ends_the_wait_for_a_missing_log_file(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """Shutdown does not wait out the missing-file timeout.
+
+    With retries enabled the tail task sits in wait_for_path; before the stop
+    event was threaded through, stop() waited its full timeout and then
+    resorted to cancelling the task.
+    """
+    monkeypatch.setenv("DISABLE_WAIT", "false")
+    missing = tmp_path / "missing.log"
+    service, _repos, _sessions = make_service([make_parser(missing)])
+
+    await service.start(skip_validation=True)
+    await asyncio.sleep(0.05)
+
+    started = time.monotonic()
+    await service.stop(timeout=5.0)
+    elapsed = time.monotonic() - started
+
+    assert elapsed < 2.0, f"stop() took {elapsed:.1f}s waiting for a missing file"
+    assert all(task.done() and not task.cancelled() for task in service._tail_tasks)
+
+
 async def test_all_tails_dead_stops_service_and_clears_is_running(tmp_path: Path) -> None:
     """When every tail task exits (all log files missing), the consumer must
     shut down and is_running must flip to False so /health reports degraded.
@@ -258,7 +281,6 @@ async def test_all_tails_dead_stops_service_and_clears_is_running(tmp_path: Path
         await service.stop(timeout=5.0)
 
 
-@pytest.mark.asyncio
 async def test_last_record_at_tracks_ingestion_activity(tmp_path: Path) -> None:
     """last_record_at is None until a record is consumed, then a recent UTC
     timestamp (surfaced in /health as the last-event-ingested signal)."""
@@ -282,7 +304,6 @@ async def test_last_record_at_tracks_ingestion_activity(tmp_path: Path) -> None:
         await service.stop(timeout=5.0)
 
 
-@pytest.mark.asyncio
 async def test_mid_flight_file_deletion_flags_missing_and_recovers(tmp_path: Path, caplog) -> None:
     """Deleting a tailed file mid-flight must not spam warnings or kill the
     tailer: the parser flags file_missing (surfaced as service.missing_files
@@ -321,7 +342,6 @@ async def test_mid_flight_file_deletion_flags_missing_and_recovers(tmp_path: Pat
         await service.stop(timeout=5.0)
 
 
-@pytest.mark.asyncio
 async def test_each_flush_uses_a_fresh_session(tmp_path: Path) -> None:
     """Two flush cycles → two distinct sessions, each committed and closed."""
     log_file = tmp_path / "a.log"
@@ -347,7 +367,6 @@ async def test_each_flush_uses_a_fresh_session(tmp_path: Path) -> None:
     assert sessions[0] is not sessions[1]
 
 
-@pytest.mark.asyncio
 async def test_no_session_opened_while_idle(tmp_path: Path) -> None:
     """Idle service (no records) never opens a database session."""
     log_file = tmp_path / "a.log"
@@ -361,7 +380,6 @@ async def test_no_session_opened_while_idle(tmp_path: Path) -> None:
     assert sessions == []
 
 
-@pytest.mark.asyncio
 async def test_start_twice_spawns_no_duplicate_tasks(tmp_path: Path) -> None:
     """Two back-to-back start() calls (no await in between) must not spawn a
     second set of tail tasks + consumer; the second call is a no-op."""
@@ -387,7 +405,6 @@ async def test_start_twice_spawns_no_duplicate_tasks(tmp_path: Path) -> None:
     await service.stop(timeout=5.0)
 
 
-@pytest.mark.asyncio
 async def test_poison_record_evicts_uncommitted_location_from_cache(tmp_path: Path) -> None:
     """A failed batch commit evicts locations cached during that flush, so the
     next occurrence of the same geohash re-creates the row instead of
@@ -425,7 +442,6 @@ async def test_poison_record_evicts_uncommitted_location_from_cache(tmp_path: Pa
     assert len(repos.geo_location.added) == 1
 
 
-@pytest.mark.asyncio
 async def test_rollback_evicts_all_uncommitted_geohashes_in_batch(tmp_path: Path) -> None:
     """Within one flush of a multi-record batch, a later record's failure must
     evict ALL uncommitted locations cached during that flush - not just its own.
@@ -477,7 +493,6 @@ async def test_rollback_evicts_all_uncommitted_geohashes_in_batch(tmp_path: Path
     assert len(repos.geo_location.added) == 1
 
 
-@pytest.mark.asyncio
 async def test_committed_locations_survive_in_cache_as_ids(tmp_path: Path) -> None:
     """After a successful commit the cache holds plain ids, and a repeat of the
     same geohash creates no second GeoLocation row."""
@@ -508,7 +523,6 @@ async def test_committed_locations_survive_in_cache_as_ids(tmp_path: Path) -> No
     assert len(repos.geo_location.added) == 1  # second event reused the cached id
 
 
-@pytest.mark.asyncio
 async def test_flush_records_writes_through_batch_machinery() -> None:
     """flush_records must reuse _flush_batch (cache + rollback semantics)."""
     service, _repos, sessions = make_service([])
