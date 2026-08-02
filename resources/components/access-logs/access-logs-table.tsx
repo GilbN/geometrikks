@@ -311,7 +311,7 @@ export function AccessLogsTable({
       <div className="flex items-center gap-2">{columnsMenu}</div>
 
       <div className="rounded-md border">
-        <Table className="text-xs">
+        <Table>
           <TableHeader>
             <TableRow>
               {shownColumns.map((c) => {

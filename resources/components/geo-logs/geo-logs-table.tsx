@@ -242,7 +242,7 @@ export function GeoLogsTable({
       </div>
 
       <div className="rounded-md border">
-        <Table className="text-xs">
+        <Table>
           <TableHeader>
             <TableRow>
               {shownColumns.map((c) => {
