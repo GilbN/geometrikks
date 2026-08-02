@@ -6,7 +6,6 @@
 version: 2
 updates:
   # Python dependencies (pyproject.toml + uv.lock)
-    target-branch: "develop"
   - package-ecosystem: "uv"
     directory: "/"
     schedule:
@@ -20,6 +19,7 @@ updates:
         update-types:
           - "minor"
           - "patch"
+    target-branch: "develop"
 
   # Frontend dependencies (package.json + bun.lock)
   - package-ecosystem: "bun"
