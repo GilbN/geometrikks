@@ -1,5 +1,6 @@
 import { createFileRoute, Link, Outlet, useRouterState } from "@tanstack/react-router"
 
+import { PageHeader } from "@/components/page-header"
 import {
   Select,
   SelectContent,
@@ -34,6 +35,10 @@ function SettingsLayout() {
 
   return (
     <div className="p-4 space-y-4">
+      <PageHeader
+        title="Settings"
+        subtitle="Runtime status, environment, and instance information."
+      />
       <Select value={activeTab.to} onValueChange={handleTabChange}>
         <SelectTrigger aria-label="Settings section" className="h-10 w-full sm:hidden">
           <SelectValue />

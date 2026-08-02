@@ -36,6 +36,7 @@ export function Wordmark({
     <span className={cn("flex flex-col", className)}>
       <span
         className="font-runr font-normal uppercase tracking-[0.13em] whitespace-nowrap leading-none inline-flex items-center"
+        role="img"
         aria-label="GeoMetrikks"
       >
         <span aria-hidden>GEOMETRI</span>
