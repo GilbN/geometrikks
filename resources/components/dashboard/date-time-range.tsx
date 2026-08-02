@@ -48,7 +48,7 @@ export function DateTimeRange({ start, end }: { start: string; end: string }) {
 
   return (
     <div className="inline-flex items-center gap-2 rounded-md bg-muted/50 px-2.5 py-1 text-xs font-semibold text-muted-foreground shadow-inner">
-      <Clock className="h-4 w-4 text-geo-cyan" />
+      <Clock className="h-4 w-4 text-primary" />
       <Tooltip>
         <TooltipTrigger asChild>
           <span suppressHydrationWarning className="cursor-default font-mono">

@@ -40,8 +40,8 @@ export function Sparkline({
       className={className}
       aria-hidden
     >
-      <polygon points={area} fill="var(--geo-cyan)" opacity={0.14} />
-      <polyline points={line} fill="none" stroke="var(--geo-cyan)" strokeWidth={1.4} opacity={0.9} />
+      <polygon points={area} fill="var(--primary)" opacity={0.14} />
+      <polyline points={line} fill="none" stroke="var(--primary)" strokeWidth={1.4} opacity={0.9} />
     </svg>
   )
 }
@@ -74,7 +74,7 @@ function Rate({ dense }: { dense: boolean }) {
         trend === null || trend === 0
           ? "text-muted-foreground"
           : trend > 0
-            ? "text-geo-cyan"
+            ? "text-primary"
             : "text-muted-foreground",
       )}
       title={
@@ -118,7 +118,7 @@ function Rate({ dense }: { dense: boolean }) {
         <span
           className={cn(
             "h-1.5 w-1.5 rounded-full",
-            disconnected ? "bg-muted-foreground" : "bg-geo-cyan animate-pulse",
+            disconnected ? "bg-muted-foreground" : "bg-primary animate-pulse",
           )}
         />
         <span className="text-[9px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
@@ -232,7 +232,7 @@ function TopOrigins({ summary, dense }: { summary: Summary; dense: boolean }) {
               </span>
               <span className="h-1 flex-1 overflow-hidden rounded-full bg-muted">
                 <span
-                  className="block h-full rounded-full bg-geo-cyan/70"
+                  className="block h-full rounded-full bg-primary/70"
                   style={{ width: `${share * 100}%` }}
                 />
               </span>

@@ -147,8 +147,8 @@ export function MapControls({
               aria-label="Heatmap view"
               variant="outline"
               className={cn(
-                "cursor-pointer w-full justify-start gap-2 px-3 pointer-coarse:h-10 data-[state=on]:bg-geo-cyan/15 data-[state=on]:text-geo-cyan data-[state=on]:border-geo-cyan/30",
-                activeLayer === "heatmap" && "bg-geo-cyan/15 text-geo-cyan border-geo-cyan/30"
+                "cursor-pointer w-full justify-start gap-2 px-3 pointer-coarse:h-10 data-[state=on]:bg-primary/15 data-[state=on]:text-primary data-[state=on]:border-primary/30",
+                activeLayer === "heatmap" && "bg-primary/15 text-primary border-primary/30"
               )}
             >
               <Flame className="h-4 w-4" />
@@ -159,8 +159,8 @@ export function MapControls({
               aria-label="Marker view"
               variant="outline"
               className={cn(
-                "cursor-pointer w-full justify-start gap-2 px-3 pointer-coarse:h-10 data-[state=on]:bg-geo-cyan/15 data-[state=on]:text-geo-cyan data-[state=on]:border-geo-cyan/30",
-                activeLayer === "markers" && "bg-geo-cyan/15 text-geo-cyan border-geo-cyan/30"
+                "cursor-pointer w-full justify-start gap-2 px-3 pointer-coarse:h-10 data-[state=on]:bg-primary/15 data-[state=on]:text-primary data-[state=on]:border-primary/30",
+                activeLayer === "markers" && "bg-primary/15 text-primary border-primary/30"
               )}
             >
               <MapPin className="h-4 w-4" />
@@ -179,7 +179,7 @@ export function MapControls({
             className={cn(
               "cursor-pointer w-full justify-start gap-2 px-3 pointer-coarse:h-10",
               projection === "globe"
-                && "bg-geo-cyan/15 text-geo-cyan border-geo-cyan/30",
+                && "bg-primary/15 text-primary border-primary/30",
             )}
           >
             <Globe2 className="h-4 w-4" />
@@ -195,7 +195,7 @@ export function MapControls({
             aria-pressed={liveMode}
             className={cn(
               "cursor-pointer w-full justify-start gap-2 px-3 pointer-coarse:h-10",
-              liveMode && "bg-geo-cyan/15 text-geo-cyan border-geo-cyan/30"
+              liveMode && "bg-primary/15 text-primary border-primary/30"
             )}
           >
             <Radio className={cn("h-4 w-4", liveMode && "animate-pulse")} />
@@ -219,7 +219,7 @@ export function MapControls({
             className={cn(
               "cursor-pointer w-full justify-start gap-2 px-3 pointer-coarse:h-10",
               routeEffectsEnabled && routeHomeAvailable
-                && "bg-geo-cyan/15 text-geo-cyan border-geo-cyan/30",
+                && "bg-primary/15 text-primary border-primary/30",
             )}
           >
             <Sparkles className="h-4 w-4" />
@@ -240,7 +240,7 @@ export function MapControls({
               title="Show a beacon at the server home location"
               className={cn(
                 "cursor-pointer w-full justify-start gap-2 px-3 pointer-coarse:h-10",
-                homeMarkerEnabled && "bg-geo-cyan/15 text-geo-cyan border-geo-cyan/30",
+                homeMarkerEnabled && "bg-primary/15 text-primary border-primary/30",
               )}
             >
               <Home className="h-4 w-4" />
@@ -295,7 +295,7 @@ export function MapControls({
               aria-pressed={liveOverlays[key]}
               className={cn(
                 "cursor-pointer w-full justify-start gap-2 px-3 pointer-coarse:h-10",
-                liveOverlays[key] && "bg-geo-cyan/15 text-geo-cyan border-geo-cyan/30",
+                liveOverlays[key] && "bg-primary/15 text-primary border-primary/30",
               )}
             >
               <Icon className="h-4 w-4 shrink-0" />
@@ -310,7 +310,7 @@ export function MapControls({
                 className={cn(
                   "h-2 w-2 shrink-0 rounded-full",
                   liveOverlays[key]
-                    ? "bg-geo-cyan shadow-[0_0_6px_var(--geo-cyan)]"
+                    ? "bg-primary shadow-[0_0_6px_var(--primary)]"
                     : "bg-muted-foreground/40",
                 )}
               />

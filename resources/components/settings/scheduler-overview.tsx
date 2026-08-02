@@ -62,7 +62,7 @@ function DurationCell({ job }: { job: SchedulerJobView }) {
   if (job.running && job.lastRunTime) {
     const elapsed = (Date.now() - new Date(job.lastRunTime).getTime()) / 1000
     return (
-      <span className="inline-flex items-center gap-1.5 text-sm text-geo-cyan tabular-nums">
+      <span className="inline-flex items-center gap-1.5 text-sm text-primary tabular-nums">
         <Timer className="h-3.5 w-3.5" />
         {formatDuration(Math.max(0, elapsed))}
       </span>
@@ -82,8 +82,8 @@ function DurationCell({ job }: { job: SchedulerJobView }) {
 function StatusCell({ job }: { job: SchedulerJobView }) {
   if (job.running) {
     return (
-      <span className="inline-flex items-center gap-2 text-sm text-geo-cyan">
-        <StatusLed tone="cyan" pulse />
+      <span className="inline-flex items-center gap-2 text-sm text-primary">
+        <StatusLed tone="accent" pulse />
         running
       </span>
     )
@@ -155,8 +155,8 @@ export function SchedulerOverview() {
       <Card>
         <CardHeader>
           <div className="flex items-center gap-3">
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-geo-cyan/10">
-              <Clock className="h-4 w-4 text-geo-cyan" />
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+              <Clock className="h-4 w-4 text-primary" />
             </div>
             <div>
               <CardTitle className="text-base">
@@ -182,8 +182,8 @@ export function SchedulerOverview() {
     <Card>
       <CardHeader>
         <div className="flex items-center gap-3">
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-geo-cyan/10">
-            <Clock className="h-4 w-4 text-geo-cyan" />
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+            <Clock className="h-4 w-4 text-primary" />
           </div>
           <div>
             <CardTitle className="text-base">

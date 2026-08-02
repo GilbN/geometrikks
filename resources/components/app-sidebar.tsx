@@ -157,7 +157,7 @@ function NavItem({
             "bg-sidebar-accent/80",
             "before:absolute before:left-0 before:top-1/2 before:-translate-y-1/2",
             "before:w-[3px] before:h-5 before:rounded-r-full",
-            "before:bg-geo-cyan before:shadow-[0_0_8px_var(--geo-cyan)]",
+            "before:bg-primary before:shadow-[0_0_8px_var(--primary)]",
           ]
         )}
       >
@@ -167,12 +167,12 @@ function NavItem({
               className={cn(
                 "w-4 h-4 transition-colors duration-200",
                 isActive
-                  ? "text-geo-cyan"
+                  ? "text-primary"
                   : "text-sidebar-foreground/60 group-hover/nav-item:text-sidebar-foreground"
               )}
             />
             {isActive && (
-              <div className="absolute inset-0 blur-sm bg-geo-cyan/30 rounded-full" />
+              <div className="absolute inset-0 blur-sm bg-primary/30 rounded-full" />
             )}
             {warning && (
               <span

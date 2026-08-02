@@ -172,7 +172,7 @@ export function lastEventState(
 }
 
 export function schedulerJobState(job: SchedulerJobView): CardState {
-  if (job.running) return { tone: "cyan", label: "Running" }
+  if (job.running) return { tone: "accent", label: "Running" }
   if (job.lastStatus === "error") {
     return { tone: "red", label: "Last run failed", detail: job.lastError ?? undefined }
   }

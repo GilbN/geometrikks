@@ -249,7 +249,7 @@ describe("schedulerJobState", () => {
     ...over,
   })
   it("maps states to tones", () => {
-    expect(schedulerJobState(job({ running: true })).tone).toBe("cyan")
+    expect(schedulerJobState(job({ running: true })).tone).toBe("accent")
     expect(schedulerJobState(job({ lastStatus: "error" })).tone).toBe("red")
     expect(schedulerJobState(job({ lastStatus: "missed" })).tone).toBe("amber")
     expect(schedulerJobState(job({ lastStatus: "success" })).tone).toBe("emerald")

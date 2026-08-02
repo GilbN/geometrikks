@@ -15,25 +15,6 @@
 
 @custom-variant dark (&:is(.dark *));
 
-/* GeoMetrikks custom utilities */
-@utility text-gradient-geo {
-  background: linear-gradient(135deg, oklch(0.75 0.18 195) 0%, oklch(0.65 0.22 180) 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-
-@utility bg-grid-pattern {
-  background-image:
-    linear-gradient(oklch(1 0 0 / 3%) 1px, transparent 1px),
-    linear-gradient(90deg, oklch(1 0 0 / 3%) 1px, transparent 1px);
-  background-size: 20px 20px;
-}
-
-@utility bg-contour-pattern {
-  background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M30 5 Q45 15 45 30 Q45 45 30 55 Q15 45 15 30 Q15 15 30 5' fill='none' stroke='%2306b6d4' stroke-opacity='0.04' stroke-width='1'/%3E%3C/svg%3E");
-}
-
 @theme inline {
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
@@ -73,9 +54,6 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
-  --color-geo-cyan: var(--geo-cyan);
-  --color-geo-cyan-dim: var(--geo-cyan-dim);
-  --color-geo-glow: var(--geo-glow);
   --font-sans: 'Inter Variable', sans-serif;
   --font-runr: 'runr', sans-serif;
 }
@@ -133,11 +111,9 @@
   --sidebar-border: oklch(0.9 0.01 230);
   --sidebar-ring: var(--ring);
 
-  /* Geo accent aliases (legacy names; migrate usages to semantic tokens in
-     later phases, then delete). */
-  --geo-cyan: var(--primary);
-  --geo-cyan-dim: oklch(calc(var(--brand-l) - 0.1) calc(var(--brand-c) * 0.87) var(--brand-h));
-  --geo-glow: oklch(var(--brand-l) var(--brand-c) var(--brand-h) / 15%);
+  /* Accent derivatives: a darker step for gradients and a soft halo. */
+  --primary-dim: oklch(calc(var(--brand-l) - 0.1) calc(var(--brand-c) * 0.87) var(--brand-h));
+  --primary-glow: oklch(var(--brand-l) var(--brand-c) var(--brand-h) / 15%);
 
   /* Popups derive from semantic tokens; var() resolves against the scrolling
      element's own theme, so one definition serves both themes. */
@@ -192,9 +168,8 @@
   --sidebar-border: oklch(1 0 0 / 6%);
   --sidebar-ring: var(--ring);
 
-  --geo-cyan: var(--primary);
-  --geo-cyan-dim: oklch(calc(var(--brand-l) - 0.18) calc(var(--brand-c) * 0.8) var(--brand-h));
-  --geo-glow: oklch(var(--brand-l) var(--brand-c) var(--brand-h) / 20%);
+  --primary-dim: oklch(calc(var(--brand-l) - 0.18) calc(var(--brand-c) * 0.8) var(--brand-h));
+  --primary-glow: oklch(var(--brand-l) var(--brand-c) var(--brand-h) / 20%);
 
   --shadow-card: 0 0 #0000;
 }

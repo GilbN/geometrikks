@@ -33,13 +33,13 @@ export function LiveVitalsPill({ onOpenFeed }: { onOpenFeed: () => void }) {
         // token the accent flashes brighter than anything else on the map.
         "bg-background/85 text-xs backdrop-blur transition-colors active:bg-foreground/10",
         // A threat is the one thing worth changing the pill's own colour for.
-        underAttack ? "border-red-500/45" : disconnected ? "border-border" : "border-geo-cyan/35",
+        underAttack ? "border-red-500/45" : disconnected ? "border-border" : "border-primary/35",
       )}
     >
       <span
         className={cn(
           "h-1.5 w-1.5 shrink-0 rounded-full",
-          disconnected ? "bg-muted-foreground" : "bg-geo-cyan animate-pulse",
+          disconnected ? "bg-muted-foreground" : "bg-primary animate-pulse",
         )}
       />
 

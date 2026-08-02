@@ -41,7 +41,7 @@ function LoginPage() {
         className="pointer-events-none absolute inset-0"
         style={{
           background:
-            "radial-gradient(640px 420px at 18% -8%, var(--geo-glow), transparent 70%), radial-gradient(720px 520px at 108% 108%, var(--geo-glow), transparent 70%)",
+            "radial-gradient(640px 420px at 18% -8%, var(--primary-glow), transparent 70%), radial-gradient(720px 520px at 108% 108%, var(--primary-glow), transparent 70%)",
         }}
       />
       <div className="relative flex w-full max-w-sm flex-col items-center gap-6">
