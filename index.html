@@ -8,8 +8,8 @@
     <link rel="apple-touch-icon" href="/static/apple-touch-icon-180x180.png" />
     <!-- The web app manifest link is injected by main.tsx in production
          builds only; the dev HTML transform would mangle a hardcoded href. -->
-    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#ffffff" />
-    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#0d1220" />
+    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#f0f6f9" />
+    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#010810" />
     <meta name="color-scheme" content="dark light" />
     <title>GeoMetrikks</title>
     <script>
@@ -27,9 +27,9 @@
       })();
     </script>
     <style>
-      /* CSS to prevent flash bang - dark theme colors from tailwind.css */
-      html.dark, html.dark body { background-color: oklch(0.12 0.02 250); color: oklch(0.95 0.01 220); }
-      html:not(.dark), html:not(.dark) body { background-color: #fff; color: oklch(0.13 0.028 261.692); }
+      /* CSS to prevent flash bang - theme surface colors from main.css */
+      html.dark, html.dark body { background-color: oklch(0.13 0.025 245); color: oklch(0.95 0.01 220); }
+      html:not(.dark), html:not(.dark) body { background-color: oklch(0.97 0.008 220); color: oklch(0.22 0.03 250); }
     </style>
     <link rel="stylesheet" href="/resources/main.css">
   </head>
