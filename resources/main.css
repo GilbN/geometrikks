@@ -148,6 +148,9 @@
   --popup-badge-bg: color-mix(in oklab, var(--primary) 15%, transparent);
   --popup-badge-text: var(--primary);
   --popup-code-bg: var(--muted);
+
+  /* The one panel shadow: soft in light, none in dark (borders carry depth). */
+  --shadow-card: 0 1px 2px oklch(0.3 0.03 250 / 6%);
 }
 
 .dark {
@@ -192,6 +195,8 @@
   --geo-cyan: var(--primary);
   --geo-cyan-dim: oklch(calc(var(--brand-l) - 0.18) calc(var(--brand-c) * 0.8) var(--brand-h));
   --geo-glow: oklch(var(--brand-l) var(--brand-c) var(--brand-h) / 20%);
+
+  --shadow-card: 0 0 #0000;
 }
 
 /* Accent variants: code-switchable via data-accent on <html> (no UI yet).
