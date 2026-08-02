@@ -100,15 +100,14 @@ async def test_crowdsec_lifespan_closes_service_on_exit(monkeypatch):
     service.aclose.assert_awaited_once()
 
 
-def test_controller_registered_in_routes():
-    from litestar import Router
+def test_controller_registered_in_routes(monkeypatch):
+    # Assert via app.routes, not Router.routes: Litestar 3 moves route access
+    # to the application object.
+    monkeypatch.setenv("APP_AUTH_DISABLED", "true")
+    from geometrikks.server.core import create_app
 
-    from geometrikks.server.routes import get_route_handlers
-
-    handlers = get_route_handlers()
-    api_router = next(h for h in handlers if isinstance(h, Router))
-    assert api_router.path == "/api/v1"
-    assert any(route.path.startswith("/api/v1/crowdsec") for route in api_router.routes)
+    app = create_app()
+    assert any(route.path.startswith("/api/v1/crowdsec") for route in app.routes)
 
 
 async def test_startup_creates_stream_poller_when_enabled(monkeypatch):
