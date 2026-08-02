@@ -59,8 +59,8 @@ function AppBreadcrumb() {
   const isSettingsChild = pathname.startsWith("/settings/")
 
   return (
-    <Breadcrumb>
-      <BreadcrumbList>
+    <Breadcrumb className="min-w-0 flex-1">
+      <BreadcrumbList className="min-w-0 flex-nowrap overflow-hidden">
         <BreadcrumbItem className="hidden md:block">
           <BreadcrumbLink href="/">GeoMetrikks</BreadcrumbLink>
         </BreadcrumbItem>
@@ -73,8 +73,8 @@ function AppBreadcrumb() {
             <BreadcrumbSeparator className="hidden md:block" />
           </>
         )}
-        <BreadcrumbItem>
-          <BreadcrumbPage>{currentLabel}</BreadcrumbPage>
+        <BreadcrumbItem className="min-w-0">
+          <BreadcrumbPage className="block truncate">{currentLabel}</BreadcrumbPage>
         </BreadcrumbItem>
       </BreadcrumbList>
     </Breadcrumb>
@@ -137,18 +137,18 @@ function RootLayout() {
               <OfflineBanner />
               <GeoDegradedBanner />
               {/* Top header bar */}
-              <header className="flex h-14 shrink-0 items-center justify-between gap-2 border-b border-border/50 px-4 pt-[env(safe-area-inset-top,0px)] pl-[max(1rem,env(safe-area-inset-left,0px))] pr-[max(1rem,env(safe-area-inset-right,0px))] box-content">
-                <div className="flex items-center gap-2">
+              <header className="flex h-14 shrink-0 items-center justify-between gap-1 border-b border-border/50 px-2 pt-[env(safe-area-inset-top,0px)] pl-[max(0.5rem,env(safe-area-inset-left,0px))] pr-[max(0.5rem,env(safe-area-inset-right,0px))] box-content sm:gap-2 sm:px-4 sm:pl-[max(1rem,env(safe-area-inset-left,0px))] sm:pr-[max(1rem,env(safe-area-inset-right,0px))]">
+                <div className="flex min-w-0 flex-1 items-center gap-2">
                   <SidebarTrigger className="-ml-1" />
-                  <Separator orientation="vertical" className="h-4 mr-2" />
+                  <Separator orientation="vertical" className="mr-2 hidden h-4 sm:block" />
                   <AppBreadcrumb />
                 </div>
-                <div className="flex items-center gap-3">
+                <div className="flex shrink-0 items-center gap-1 sm:gap-3">
                   <TimeRangeToolbar />
                   {/* Portal target for page-specific header actions (e.g. the
                       mobile map-controls drawer trigger in MapControls). */}
                   <span id="header-actions-slot" className="contents" />
-                  <Separator orientation="vertical" className="h-6" />
+                  <Separator orientation="vertical" className="hidden h-6 sm:block" />
                   <ModeToggle />
                 </div>
               </header>
