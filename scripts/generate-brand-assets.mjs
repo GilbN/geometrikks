@@ -2,12 +2,10 @@
 // Usage: node scripts/generate-brand-assets.mjs
 // Requires dev deps installed (playwright chromium). Not part of the build.
 import { chromium } from "playwright"
-import { readFile, writeFile } from "node:fs/promises"
-import { execFile } from "node:child_process"
-import { promisify } from "node:util"
+import { readFile, writeFile, unlink } from "node:fs/promises"
+import pngToIco from "png-to-ico"
 import path from "node:path"
 
-const run = promisify(execFile)
 const STATIC = path.resolve("resources/static")
 const BRAND = path.join(STATIC, "brand")
 
@@ -50,12 +48,9 @@ for (const size of ICO_SIZES) {
   await render("mark-small.svg", name, size, 0)
   icoParts.push(path.join(STATIC, name))
 }
-const { stdout } = await run("npx", ["--yes", "png-to-ico", ...icoParts], {
-  encoding: "buffer",
-  maxBuffer: 1024 * 1024,
-})
-await writeFile(path.join(STATIC, "favicon.ico"), stdout)
-await run("rm", icoParts)
+const buf = await pngToIco(icoParts)
+await writeFile(path.join(STATIC, "favicon.ico"), buf)
+await Promise.all(icoParts.map((p) => unlink(p)))
 console.log("wrote favicon.ico")
 
 await browser.close()
