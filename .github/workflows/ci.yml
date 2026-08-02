@@ -229,7 +229,7 @@ jobs:
           # master must drain ingestion and stop the scheduler before
           # exiting 0. This pins the Phase 6 shutdown fix: subprocess mode
           # (no SIGTERM forwarding) would fail the exit-code check here.
-          docker stop --time 20 geometrikks-smoke
+          docker stop --timeout 20 geometrikks-smoke
           exit_code="$(docker inspect --format '{{.State.ExitCode}}' geometrikks-smoke)"
           if [[ "${exit_code}" != "0" ]]; then
             echo "Container exited with ${exit_code} after docker stop; expected 0."
