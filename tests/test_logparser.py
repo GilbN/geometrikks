@@ -211,29 +211,94 @@ def test_validate_log_line_unmatched(log_parser: LogParser, load_unparseable_log
     for line in load_unparseable_logs:
         assert log_parser.validate_log_line(line) is None
 
-def test_validate_log_format_true(tmp_path: Path, log_parser: LogParser, monkeypatch) -> None:
+def test_validate_log_format_true(tmp_path: Path, log_parser: LogParser) -> None:
     """validate_log_format returns True when last lines contain valid format."""
     # Create a temp log file and copy some valid lines
     log_file = tmp_path / "access.log"
     valid_lines = Path("tests/valid_ipv4_log.txt").read_text(encoding="utf-8")
     log_file.write_text(valid_lines, encoding="utf-8")
 
-    # Speed up wait decorator: monkeypatch time.sleep to no-op
-    monkeypatch.setattr(time, "sleep", lambda _seconds: None)
-
     # validate_log_format now takes log_path as parameter
     assert log_parser.validate_log_format(log_file) is True
 
-def test_validate_log_format_false(tmp_path: Path, log_parser: LogParser, monkeypatch) -> None:
+def test_validate_log_format_false(tmp_path: Path, log_parser: LogParser) -> None:
     """validate_log_format returns False when trailing lines are unparseable."""
     log_file = tmp_path / "access.log"
     unparseable = Path(UNPARSEABLE_LOG_PATH).read_text(encoding="utf-8")
     log_file.write_text(unparseable, encoding="utf-8")
 
     log_parser.send_logs = True
-    monkeypatch.setattr(time, "sleep", lambda _seconds: None)
 
     assert log_parser.validate_log_format(log_file) is False
+
+
+async def test_await_valid_log_format_returns_when_stop_requested(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """A stop ends the retry loop instead of blocking for the whole timeout.
+
+    The empty file never validates, so with retries enabled the old blocking
+    loop would have occupied a worker thread for the full timeout regardless
+    of the stop event.
+    """
+    monkeypatch.setenv("DISABLE_WAIT", "false")
+    log_file = tmp_path / "access.log"
+    log_file.write_text("", encoding="utf-8")
+    parser = LogParser(log_path=log_file, send_logs=True, hostname="localhost")
+    stop_event = asyncio.Event()
+    parser.set_stop_event(stop_event)
+    stop_event.set()
+
+    started = time.monotonic()
+    assert await parser.await_valid_log_format(timeout_seconds=60.0) is False
+    assert time.monotonic() - started < 1.0
+
+
+async def test_await_valid_log_format_wakes_on_stop_between_attempts(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """A stop arriving mid-wait ends the loop without sitting out the interval."""
+    monkeypatch.setenv("DISABLE_WAIT", "false")
+    log_file = tmp_path / "access.log"
+    log_file.write_text("", encoding="utf-8")
+    parser = LogParser(log_path=log_file, send_logs=True, hostname="localhost")
+    stop_event = asyncio.Event()
+    parser.set_stop_event(stop_event)
+
+    async def stop_soon() -> None:
+        await asyncio.sleep(0.05)
+        stop_event.set()
+
+    started = time.monotonic()
+    result, _ = await asyncio.gather(
+        parser.await_valid_log_format(timeout_seconds=60.0, check_interval=30.0),
+        stop_soon(),
+    )
+    assert result is False
+    assert time.monotonic() - started < 5.0
+
+
+async def test_await_valid_log_format_retries_until_the_file_is_parseable(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """An empty file that gains a valid line mid-wait still validates."""
+    monkeypatch.setenv("DISABLE_WAIT", "false")
+    log_file = tmp_path / "access.log"
+    log_file.write_text("", encoding="utf-8")
+    parser = LogParser(log_path=log_file, send_logs=True, hostname="localhost")
+    parser.set_stop_event(asyncio.Event())
+
+    async def append_valid_line() -> None:
+        await asyncio.sleep(0.05)
+        log_file.write_text(
+            Path(VALID_LOG_PATH).read_text(encoding="utf-8"), encoding="utf-8"
+        )
+
+    result, _ = await asyncio.gather(
+        parser.await_valid_log_format(timeout_seconds=10.0, check_interval=0.02),
+        append_valid_line(),
+    )
+    assert result is True
 
 def test_nonstandard_lines_match_loosened_pattern(load_nonstandard_logs: list[str], ipv4_log_pattern: re.Pattern[str]) -> None:
     """The loosened request group ([^"]*) accepts nonstandard/garbage requests so they

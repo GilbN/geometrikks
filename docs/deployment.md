@@ -40,10 +40,9 @@ Timeout budget: ingestion waits up to 5s for its tail tasks before
 cancelling them, and the image sets Granian's worker kill timeout to 15s,
 so give Docker at least 20s (`docker stop -t 20`, or compose
 `stop_grace_period: 20s`) to keep Docker's own SIGKILL out of the picture.
-Known edge: if the configured log file does not exist, the tailer's
-blocking validation loop ignores the stop signal; teardown then falls back
-to cancellation after the 5s ingestion window and the worker can be
-force-killed at the kill-timeout boundary instead of finishing cleanly.
+A tail task still waiting for its log file to appear, or waiting for that
+file to receive its first parseable line, ends that wait as soon as the
+stop is signalled rather than sitting out its own 60s timeout.
 
 ### Logging
 

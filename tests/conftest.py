@@ -30,8 +30,10 @@ def anyio_backend() -> str:
 def disable_wait_env():
     """Ensure retry loops are disabled during test runs.
 
-    Sets DISABLE_WAIT=true for the entire pytest session so any @wait-decorated
-    functions run once and return immediately, preventing slow/hanging tests.
+    Sets DISABLE_WAIT=true for the entire pytest session so retry loops
+    (log-file existence, log-format validation) run once and return
+    immediately, preventing slow/hanging tests. Tests that exercise the
+    retry behaviour itself opt back in with monkeypatch.
     """
     os.environ["DISABLE_WAIT"] = "true"
 
