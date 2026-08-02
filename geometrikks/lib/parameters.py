@@ -57,7 +57,7 @@ CountryCodeFilter = Annotated[
 
 CityFilter = Annotated[
     list[str] | None,
-    QueryParameter(description="Filter to these city names (repeatable)", required=False),
+    QueryParameter(name="city", description="Filter to these city names (repeatable)", required=False),
 ]
 
 IpAddressFilter = Annotated[
