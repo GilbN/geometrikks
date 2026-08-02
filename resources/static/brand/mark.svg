@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <!-- GeoMetrikks wayfinder mark (Vegvisir-D), standalone dark-tile version.
+       Canonical geometry; the in-app component version lives in
+       resources/components/brand/brand-mark.tsx with theme-driven colors. -->
+  <rect width="100" height="100" rx="22" fill="oklch(0.145 0.026 245)"/>
+  <g transform="translate(50 50) scale(0.78) translate(-50 -50)">
+    <circle cx="50" cy="50" r="44" fill="none" stroke="oklch(0.9 0.01 220)" stroke-opacity="0.35" stroke-width="1.2" stroke-dasharray="0.5 5" stroke-linecap="round"/>
+    <g stroke="oklch(0.9 0.01 220)" stroke-width="3" fill="none" stroke-linecap="square">
+      <g transform="rotate(90 50 50)"><line x1="50" y1="41" x2="50" y2="10"/><line x1="50" y1="16" x2="44" y2="10"/><line x1="50" y1="16" x2="56" y2="10"/><line x1="45.5" y1="23" x2="54.5" y2="23"/></g>
+      <g transform="rotate(180 50 50)"><line x1="50" y1="41" x2="50" y2="10"/><line x1="50" y1="16" x2="44" y2="10"/><line x1="50" y1="16" x2="56" y2="10"/><line x1="45.5" y1="23" x2="54.5" y2="23"/></g>
+      <g transform="rotate(270 50 50)"><line x1="50" y1="41" x2="50" y2="10"/><line x1="50" y1="16" x2="44" y2="10"/><line x1="50" y1="16" x2="56" y2="10"/><line x1="45.5" y1="23" x2="54.5" y2="23"/></g>
+      <g transform="rotate(45 50 50)"><line x1="50" y1="41" x2="50" y2="22"/></g>
+      <g transform="rotate(135 50 50)"><line x1="50" y1="41" x2="50" y2="22"/></g>
+      <g transform="rotate(225 50 50)"><line x1="50" y1="41" x2="50" y2="22"/></g>
+      <g transform="rotate(315 50 50)"><line x1="50" y1="41" x2="50" y2="22"/></g>
+      <circle cx="50" cy="50" r="5.5"/>
+    </g>
+    <g stroke="oklch(0.78 0.15 178)" stroke-width="3" fill="none" stroke-linecap="square">
+      <line x1="50" y1="41" x2="50" y2="10"/><line x1="50" y1="16" x2="44" y2="10"/><line x1="50" y1="16" x2="56" y2="10"/><line x1="45.5" y1="23" x2="54.5" y2="23"/>
+    </g>
+    <circle cx="50" cy="6" r="3" fill="oklch(0.78 0.15 178)"/>
+    <circle cx="50" cy="50" r="1.9" fill="oklch(0.78 0.15 178)"/>
+  </g>
+</svg>
