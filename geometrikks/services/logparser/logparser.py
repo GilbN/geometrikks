@@ -1,6 +1,7 @@
 from collections.abc import AsyncGenerator, Callable
 import re
 import os
+import time
 import asyncio
 from functools import lru_cache
 from datetime import datetime, timezone
@@ -23,7 +24,7 @@ from .constants import (
     ipv6_geo_pattern
 )
 from .schemas import ParsedLogRecord, ParsedGeoData, ParsedAccessLog
-from geometrikks.lib.utils import wait
+from geometrikks.lib.utils import retries_disabled, sleep_unless_stopped
 from geometrikks.server.logging import get_logger
 
 
@@ -192,9 +193,12 @@ class LogParser:
         # If we are not sending logs but only geo data, only validate the IP address and the timestamp
         return ipv4_geo_pattern().match(log_line) or ipv6_geo_pattern().match(log_line)
 
-    @wait(timeout_seconds=60)
     def validate_log_format(self, log_path: Path) -> bool:  # regex tester
-        """Try for 60 seconds and validate that the log format is correct by checking the last 3 lines."""
+        """Validate the log format once by checking the last 3 lines.
+
+        Blocking (opens and reads the file); callers on the event loop go
+        through ``await_valid_log_format`` instead of calling this directly.
+        """
         LAST_LINE_COUNT = 3
         position = LAST_LINE_COUNT + 1
         log_lines_capture: list[str] = []
@@ -216,6 +220,50 @@ class LogParser:
                 return True
         logger.debug("Testing log format")
         return False
+
+    async def await_valid_log_format(
+        self,
+        timeout_seconds: float = 60.0,
+        check_interval: float = 1.0,
+    ) -> bool:
+        """Retry the format check until it passes, times out, or a stop is requested.
+
+        Each attempt offloads the blocking file read to a worker thread, but
+        the waiting between attempts happens here on the event loop. A thread
+        handed to ``asyncio.to_thread`` cannot be cancelled, so retrying
+        inside the thread (the previous behaviour) kept the process busy for
+        the full timeout after shutdown had been requested: the awaiting task
+        raised ``CancelledError`` immediately while the thread kept sleeping,
+        and the interpreter could not finish exiting until it returned. This
+        is reachable whenever the configured log file exists but is empty or
+        in an unrecognised format, which is the normal state of a fresh
+        install before nginx writes its first line.
+
+        Args:
+            timeout_seconds: Maximum seconds to keep retrying.
+            check_interval: Seconds between attempts.
+
+        Returns:
+            True if the format validated, False on timeout or stop request.
+        """
+        if retries_disabled():
+            return await asyncio.to_thread(self.validate_log_format, self.log_path)
+
+        deadline = time.monotonic() + timeout_seconds
+        while True:
+            if self._stop_event and self._stop_event.is_set():
+                return False
+            if await asyncio.to_thread(self.validate_log_format, self.log_path):
+                return True
+            if time.monotonic() >= deadline:
+                logger.error(
+                    "Timeout of %.0f seconds reached validating the log format of %s",
+                    timeout_seconds,
+                    self.log_path,
+                )
+                return False
+            if await sleep_unless_stopped(check_interval, self._stop_event):
+                return False
 
     def parse_line(
         self, line: str, lookup: Callable[[str], City | None]
@@ -555,8 +603,11 @@ class LogParser:
         """
         if not skip_validation:
             logger.debug("Validating log file format.")
-            # Run sync validation in thread to avoid blocking
-            valid = await asyncio.to_thread(self.validate_log_format, self.log_path)
+            valid = await self.await_valid_log_format()
+            if self._stop_event and self._stop_event.is_set():
+                # Stopped while waiting for a parseable line; say nothing about
+                # the format, the tail loop below would exit immediately anyway.
+                return
             if not valid:
                 self.send_logs = False
                 logger.warning(

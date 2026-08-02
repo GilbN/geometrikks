@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Shutdown is no longer delayed when a log file is missing or has not yet
+  received a parseable line. The tailer's waits now end as soon as a stop is
+  requested, instead of occupying a worker thread for up to 60 seconds and
+  leaving the container to be force-killed part-way through teardown. This
+  was reachable on a fresh install, where nginx has created the access log
+  but not yet written to it.
+
 ## [0.7.0] - 2026-08-02
 
 ### Added

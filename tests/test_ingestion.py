@@ -241,6 +241,30 @@ async def test_missing_file_does_not_block_other_tails(tmp_path: Path) -> None:
     assert service.total_geo_records == 1
 
 
+async def test_stop_ends_the_wait_for_a_missing_log_file(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """Shutdown does not wait out the missing-file timeout.
+
+    With retries enabled the tail task sits in wait_for_path; before the stop
+    event was threaded through, stop() waited its full timeout and then
+    resorted to cancelling the task.
+    """
+    monkeypatch.setenv("DISABLE_WAIT", "false")
+    missing = tmp_path / "missing.log"
+    service, _repos, _sessions = make_service([make_parser(missing)])
+
+    await service.start(skip_validation=True)
+    await asyncio.sleep(0.05)
+
+    started = time.monotonic()
+    await service.stop(timeout=5.0)
+    elapsed = time.monotonic() - started
+
+    assert elapsed < 2.0, f"stop() took {elapsed:.1f}s waiting for a missing file"
+    assert all(task.done() and not task.cancelled() for task in service._tail_tasks)
+
+
 async def test_all_tails_dead_stops_service_and_clears_is_running(tmp_path: Path) -> None:
     """When every tail task exits (all log files missing), the consumer must
     shut down and is_running must flip to False so /health reports degraded.

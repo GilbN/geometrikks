@@ -1,6 +1,7 @@
-from .utils import wait, wait_for_path
+from .utils import retries_disabled, sleep_unless_stopped, wait_for_path
 
 __all__ = [
-    "wait",
+    "retries_disabled",
+    "sleep_unless_stopped",
     "wait_for_path",
 ]
