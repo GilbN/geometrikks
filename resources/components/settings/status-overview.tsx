@@ -117,23 +117,44 @@ export function StatusOverview() {
 
   return (
     <div className="space-y-4">
-      <Card>
-        <CardHeader className="pb-3">
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-3">
-              <StatusLed tone={overall.tone} pulse={overall.tone !== "muted"} />
-              <CardTitle>{overall.label}</CardTitle>
+      {/* Overall state and Authentication share the banner row: the subsystem
+          grid below holds an even number of cards, so putting Authentication
+          there instead would leave a hole in its last row. */}
+      <div className="grid gap-4 md:grid-cols-2">
+        <Card>
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-3">
+                <StatusLed tone={overall.tone} pulse={overall.tone !== "muted"} />
+                <CardTitle>{overall.label}</CardTitle>
+              </div>
+              {health && (
+                <span className="text-xs text-muted-foreground">
+                  {uptime && `${uptime} · `}
+                  Updated {new Date(health.timestamp).toLocaleTimeString()}
+                </span>
+              )}
             </div>
-            {health && (
-              <span className="text-xs text-muted-foreground">
-                {uptime && `${uptime} · `}
-                Updated {new Date(health.timestamp).toLocaleTimeString()}
-              </span>
-            )}
-          </div>
-          {overall.detail && <CardDescription>{overall.detail}</CardDescription>}
-        </CardHeader>
-      </Card>
+            {overall.detail && <CardDescription>{overall.detail}</CardDescription>}
+          </CardHeader>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-3">
+            <div className="flex items-center gap-3">
+              <SectionIcon icon={ShieldUser} />
+              <div>
+                <CardTitle className="text-base">Authentication</CardTitle>
+                <CardDescription>Who may reach this deployment</CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            <StateLine state={authState(me, meError)} />
+            {me?.mode === "session" && <MonoChip>{me.username}</MonoChip>}
+          </CardContent>
+        </Card>
+      </div>
 
       <div className="grid gap-4 md:grid-cols-2">
         <Card>
@@ -303,24 +324,6 @@ export function StatusOverview() {
                 </Link>
               )}
             </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-3">
-            <div className="flex items-center gap-3">
-              <SectionIcon icon={ShieldUser} />
-              <div>
-                <CardTitle className="text-base">Authentication</CardTitle>
-                <CardDescription>Who may reach this deployment</CardDescription>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            <StateLine state={authState(me, meError)} />
-            {me?.mode === "session" && (
-              <MonoChip>{me.username}</MonoChip>
-            )}
           </CardContent>
         </Card>
 
