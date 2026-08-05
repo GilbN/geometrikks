@@ -1,6 +1,7 @@
 import { useState } from "react"
-import { createFileRoute, useNavigate } from "@tanstack/react-router"
-import { login } from "@/lib/api"
+import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router"
+import { fetchMe, login } from "@/lib/api"
+import { planLoginRoute, toMeResult, type MeResult } from "@/lib/auth-redirect"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -8,6 +9,25 @@ import { Label } from "@/components/ui/label"
 import { Globe } from "lucide-react"
 
 export const Route = createFileRoute("/login")({
+  beforeLoad: async () => {
+    let result: MeResult
+    let caught: unknown
+    try {
+      result = { ok: true, me: await fetchMe() }
+    } catch (error) {
+      caught = error
+      result = toMeResult(error)
+    }
+    const plan = planLoginRoute(result)
+    // Thrown OUTSIDE the try above on purpose: TanStack Router signals
+    // navigation by throwing a redirect object, and a try wrapped around
+    // this would swallow it and render the form in disabled mode instead.
+    if (plan.action === "redirect") throw redirect({ to: plan.to })
+    // Rethrow the original error, not a new one: the error boundary should
+    // see the real status, message and stack.
+    if (plan.action === "rethrow") throw caught
+    // "render": auth is on and nobody is logged in yet.
+  },
   component: LoginPage,
 })
 
