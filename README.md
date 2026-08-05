@@ -178,8 +178,11 @@ front of the app, you can disable the built-in auth entirely:
 APP_AUTH_DISABLED=true  # only safe behind an authenticating reverse proxy
 ```
 
-This is a reverse-proxy-only mode: with it set, `/api/v1/auth/*` is not
-registered (404s) and the WebSocket accepts anonymous connections, so only
+This is a reverse-proxy-only mode: with it set, `/api/v1/auth/*` stays
+registered but stops doing anything. `GET /auth/me` reports
+`{"mode": "disabled"}`, `POST /auth/login` returns that same payload without
+establishing a session, `POST /auth/logout` is a 204 no-op, and the WebSocket
+accepts anonymous connections, so only
 enable it when something else is already gating access to the app.
 
 ## Running behind a reverse proxy

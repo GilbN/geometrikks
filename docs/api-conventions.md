@@ -13,8 +13,10 @@ registration point. Controllers live in their vertical domain packages
 (`geometrikks/domain/<domain>/controllers*`) and own only their domain
 segment (`/analytics`, `/crowdsec`, ...); the router supplies the version
 prefix. Everything under `/api/v1` requires the session cookie except
-`/api/v1/auth/login` (with `APP_AUTH_DISABLED=true` the auth endpoints are
-not registered at all). Outside the router:
+`/api/v1/auth/login` (with `APP_AUTH_DISABLED=true` nothing requires a
+session, and the auth endpoints stay registered as mode-appropriate no-ops:
+`/auth/me` and a valid `/auth/login` return `{"mode": "disabled"}`, and
+`/auth/logout` returns 204). Outside the router:
 
 - `/health` and `/health/ready`: unauthenticated probe endpoints.
 - `/ws/live`, `/ws/logs`, `/ws/crowdsec`: WebSocket feeds
