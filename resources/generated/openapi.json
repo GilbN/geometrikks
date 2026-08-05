@@ -397,6 +397,19 @@
         "title": "AnalyticsSettingsView",
         "type": "object"
       },
+      "AuthDisabled": {
+        "properties": {
+          "mode": {
+            "const": "disabled",
+            "type": "string"
+          }
+        },
+        "required": [
+          "mode"
+        ],
+        "title": "AuthDisabled",
+        "type": "object"
+      },
       "BanRequest": {
         "properties": {
           "duration": {
@@ -2246,18 +2259,6 @@
         "title": "MapSettingsView",
         "type": "object"
       },
-      "MeResponse": {
-        "properties": {
-          "username": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "username"
-        ],
-        "title": "MeResponse",
-        "type": "object"
-      },
       "OriginCount": {
         "properties": {
           "count": {
@@ -2656,6 +2657,23 @@
           "schedulerRunning"
         ],
         "title": "SchedulerJobsResponse",
+        "type": "object"
+      },
+      "SessionUser": {
+        "properties": {
+          "mode": {
+            "const": "session",
+            "type": "string"
+          },
+          "username": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "mode",
+          "username"
+        ],
+        "title": "SessionUser",
         "type": "object"
       },
       "SettingFieldView": {
@@ -6025,7 +6043,14 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/MeResponse"
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/SessionUser"
+                    },
+                    {
+                      "$ref": "#/components/schemas/AuthDisabled"
+                    }
+                  ]
                 }
               }
             },
@@ -6102,7 +6127,14 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/MeResponse"
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/SessionUser"
+                    },
+                    {
+                      "$ref": "#/components/schemas/AuthDisabled"
+                    }
+                  ]
                 }
               }
             },

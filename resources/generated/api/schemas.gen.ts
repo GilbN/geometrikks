@@ -383,6 +383,18 @@ export const AnalyticsSettingsViewSchema = {
   type: "object",
 } as const;
 
+export const AuthDisabledSchema = {
+  properties: {
+    mode: {
+      const: "disabled",
+      type: "string",
+    },
+  },
+  required: ["mode"],
+  title: "AuthDisabled",
+  type: "object",
+} as const;
+
 export const BanRequestSchema = {
   properties: {
     duration: {
@@ -2139,17 +2151,6 @@ export const MapSettingsViewSchema = {
   type: "object",
 } as const;
 
-export const MeResponseSchema = {
-  properties: {
-    username: {
-      type: "string",
-    },
-  },
-  required: ["username"],
-  title: "MeResponse",
-  type: "object",
-} as const;
-
 export const OriginCountSchema = {
   properties: {
     count: {
@@ -2528,6 +2529,21 @@ export const SchedulerJobsResponseSchema = {
   },
   required: ["jobs", "schedulerEnabled", "schedulerRunning"],
   title: "SchedulerJobsResponse",
+  type: "object",
+} as const;
+
+export const SessionUserSchema = {
+  properties: {
+    mode: {
+      const: "session",
+      type: "string",
+    },
+    username: {
+      type: "string",
+    },
+  },
+  required: ["mode", "username"],
+  title: "SessionUser",
   type: "object",
 } as const;
 

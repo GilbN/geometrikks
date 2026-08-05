@@ -69,9 +69,12 @@ api.interceptors.response.use(
 // Types & Functions - Auth API
 // ============================================================================
 
-export interface MeResponse {
-  username: string
-}
+/** Discriminated union: username exists only on the session branch. With
+ *  APP_AUTH_DISABLED=true the endpoints stay registered and report "disabled"
+ *  rather than 404ing. */
+export type MeResponse =
+  | { mode: "session"; username: string }
+  | { mode: "disabled" }
 
 export async function login(username: string, password: string): Promise<MeResponse> {
   const { data } = await api.post<MeResponse>("/auth/login", { username, password })
