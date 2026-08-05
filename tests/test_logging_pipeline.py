@@ -652,3 +652,172 @@ class TestAppWiring:
         from geometrikks.server.core import create_app
         create_app()
         assert (tmp_path / "applogs" / "geometrikks.log").exists()
+
+
+class TestExceptionLoggingHandler:
+    """404 and 401 are routine. They get one warning line, not a traceback."""
+
+    class FakeLogger:
+        def __init__(self):
+            self.warnings: list[tuple[str, dict]] = []
+            self.exceptions: list[tuple[str, dict]] = []
+
+        def warning(self, event, **kw):
+            self.warnings.append((event, kw))
+
+        def exception(self, event, **kw):
+            self.exceptions.append((event, kw))
+
+    def _run(self, exc: Exception, *, debug: bool):
+        from geometrikks.server.logging import _exception_logging_handler_factory
+        handler = _exception_logging_handler_factory(debug=debug)
+        logger = self.FakeLogger()
+        scope = {"type": "http", "path": "/api/v1/nope"}
+        try:
+            raise exc
+        except Exception:
+            handler(logger, scope, ["Traceback (most recent call last):\n", "boom\n"])
+        return logger
+
+    def test_not_found_logs_one_warning_without_traceback(self):
+        from litestar.exceptions import NotFoundException
+        logger = self._run(NotFoundException(), debug=False)
+        assert logger.exceptions == []
+        assert len(logger.warnings) == 1
+        event, kw = logger.warnings[0]
+        assert event == "client_error"
+        assert kw["status_code"] == 404
+        assert kw["path"] == "/api/v1/nope"
+        assert kw["connection_type"] == "http"
+
+    def test_unauthorized_logs_one_warning_without_traceback(self):
+        from litestar.exceptions import NotAuthorizedException
+        logger = self._run(NotAuthorizedException(), debug=False)
+        assert logger.exceptions == []
+        assert [e for e, _ in logger.warnings] == ["client_error"]
+        assert logger.warnings[0][1]["status_code"] == 401
+
+    def test_server_error_still_logs_a_traceback(self):
+        logger = self._run(ValueError("boom"), debug=False)
+        assert logger.warnings == []
+        assert [e for e, _ in logger.exceptions] == ["Uncaught exception"]
+
+    def test_other_client_errors_still_log_a_traceback(self):
+        # 400 usually means a caller is using the API wrong, and the stack
+        # says where validation actually failed.
+        from litestar.exceptions import ValidationException
+        logger = self._run(ValidationException(), debug=False)
+        assert logger.warnings == []
+        assert [e for e, _ in logger.exceptions] == ["Uncaught exception"]
+
+    def test_debug_mode_keeps_the_traceback_for_client_errors(self):
+        from litestar.exceptions import NotFoundException
+        logger = self._run(NotFoundException(), debug=True)
+        assert logger.warnings == []
+        assert [e for e, _ in logger.exceptions] == ["Uncaught exception"]
+
+
+class TestExceptionLoggingWiring:
+    def test_config_installs_our_handler(self, configured_logging):
+        from geometrikks.config.settings import get_settings
+        from geometrikks.server.logging import create_logging_config
+        config = create_logging_config(get_settings())
+        assert config.log_exceptions == "always"
+        assert config.exception_logging_handler is not None
+        assert config.exception_logging_handler.__name__ == "_log_exception"
+
+    @staticmethod
+    def _app_with_pipeline():
+        """A real app carrying the real logging config, plus routes that
+        produce each status we care about."""
+        from litestar import Litestar, get
+        from litestar.exceptions import NotAuthorizedException
+        from geometrikks.config.settings import get_settings
+        from geometrikks.server.logging import create_logging_config
+
+        @get("/api/v1/denied")
+        async def denied() -> None:
+            raise NotAuthorizedException(detail="nope")
+
+        @get("/api/v1/boom")
+        async def boom() -> None:
+            raise ValueError("a real bug")
+
+        return Litestar(
+            route_handlers=[denied, boom],
+            logging_config=create_logging_config(get_settings()),
+        )
+
+    @staticmethod
+    def _records(log_dir, event):
+        import json as jsonlib
+        text = (log_dir / "geometrikks.log").read_text(encoding="utf-8")
+        return [
+            jsonlib.loads(line)
+            for line in text.splitlines()
+            if f'"event": "{event}"' in line or f'"{event}"' in line
+        ]
+
+    def test_unmatched_api_path_logs_client_error_not_a_traceback(self, configured_logging):
+        """End to end through a real app: a 404 leaves one warning line."""
+        from litestar.testing import TestClient
+
+        with TestClient(app=self._app_with_pipeline()) as client:
+            assert client.get("/api/v1/nope").status_code == 404
+
+        main = configured_logging / "geometrikks.log"
+        assert _wait_for(lambda: "client_error" in main.read_text(encoding="utf-8"))
+        text = main.read_text(encoding="utf-8")
+        assert "Uncaught exception" not in text
+        record = self._records(configured_logging, "client_error")[0]
+        assert record["status_code"] == 404
+        assert record["path"] == "/api/v1/nope"
+        assert "exception" not in record
+
+    def test_anonymous_request_logs_client_error_not_a_traceback(self, configured_logging):
+        from litestar.testing import TestClient
+
+        with TestClient(app=self._app_with_pipeline()) as client:
+            assert client.get("/api/v1/denied").status_code == 401
+
+        main = configured_logging / "geometrikks.log"
+        assert _wait_for(lambda: "client_error" in main.read_text(encoding="utf-8"))
+        assert "Uncaught exception" not in main.read_text(encoding="utf-8")
+        record = self._records(configured_logging, "client_error")[0]
+        assert record["status_code"] == 401
+        assert record["path"] == "/api/v1/denied"
+        assert "exception" not in record
+
+    def test_server_error_still_logs_a_traceback(self, configured_logging):
+        from litestar.testing import TestClient
+
+        with TestClient(app=self._app_with_pipeline(), raise_server_exceptions=False) as client:
+            assert client.get("/api/v1/boom").status_code == 500
+
+        main = configured_logging / "geometrikks.log"
+        assert _wait_for(lambda: "Uncaught exception" in main.read_text(encoding="utf-8"))
+        record = self._records(configured_logging, "Uncaught exception")[0]
+        assert "Traceback" in record["exception"]
+        assert "a real bug" in record["exception"]
+
+    def test_debug_mode_keeps_tracebacks_for_client_errors(self, tmp_path, monkeypatch):
+        from litestar.testing import TestClient
+        monkeypatch.setenv("LOG_DIR", str(tmp_path / "debuglogs"))
+        monkeypatch.setenv("LOG_LEVEL", "DEBUG")
+        monkeypatch.setenv("APP_DEBUG", "true")
+        from geometrikks.config.settings import get_settings
+        get_settings.cache_clear()
+        from geometrikks.server.logging import create_logging_config
+        config = create_logging_config(get_settings())
+        config.configure()
+        assert config.standard_lib_logging_config is not None
+        config.standard_lib_logging_config.configure()
+
+        from litestar import Litestar
+        app = Litestar(route_handlers=[], logging_config=config, debug=True)
+        with TestClient(app=app) as client:
+            assert client.get("/api/v1/nope").status_code == 404
+
+        main = tmp_path / "debuglogs" / "geometrikks.log"
+        assert _wait_for(lambda: "Uncaught exception" in main.read_text(encoding="utf-8"))
+        assert "client_error" not in main.read_text(encoding="utf-8")
