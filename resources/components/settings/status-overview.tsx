@@ -1,11 +1,21 @@
 import { Link } from "@tanstack/react-router"
-import { Activity, CalendarClock, Database, Globe, Radio, ShieldCheck, TriangleAlert } from "lucide-react"
+import {
+  Activity,
+  CalendarClock,
+  Database,
+  Globe,
+  Radio,
+  ShieldCheck,
+  ShieldUser,
+  TriangleAlert,
+} from "lucide-react"
 import {
   useCrowdsecStats,
   useCrowdsecStatus,
   useDatabaseInfo,
   useHealth,
   useLogFiles,
+  useMe,
   useRecentErrors,
   useSchedulerJobs,
   useStats,
@@ -16,6 +26,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Skeleton } from "@/components/ui/skeleton"
 import { MonoChip, StatusLed } from "@/components/settings/status-led"
 import {
+  authState,
   type CardState,
   compressionSummary,
   crowdsecState,
@@ -71,6 +82,7 @@ export function StatusOverview() {
   const { data: health, isError: healthError, isLoading: healthLoading } = useHealth()
   const { data: stats, isError: statsError } = useStats()
   const { data: crowdsec, isError: crowdsecError } = useCrowdsecStatus()
+  const { data: me, isError: meError } = useMe()
   const { data: crowdsecStats } = useCrowdsecStats()
   const { data: files, isError: filesError } = useLogFiles()
   const { data: schedulerData, isError: jobsError } = useSchedulerJobs()
@@ -291,6 +303,24 @@ export function StatusOverview() {
                 </Link>
               )}
             </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-3">
+            <div className="flex items-center gap-3">
+              <SectionIcon icon={ShieldUser} />
+              <div>
+                <CardTitle className="text-base">Authentication</CardTitle>
+                <CardDescription>Who may reach this deployment</CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            <StateLine state={authState(me, meError)} />
+            {me?.mode === "session" && (
+              <MonoChip>{me.username}</MonoChip>
+            )}
           </CardContent>
         </Card>
 

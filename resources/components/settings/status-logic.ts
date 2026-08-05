@@ -1,6 +1,6 @@
 /** Pure presentation logic for the Settings > Status page. Kept free of React
  *  so state derivation is unit-testable without rendering. */
-import type { HealthResponse } from "@/lib/api"
+import type { HealthResponse, MeResponse } from "@/lib/api"
 import type {
   CrowdSecStatusResponse,
   HypertableStatsView,
@@ -203,5 +203,21 @@ export function liveFeedState(status: LiveFeedStatus): CardState {
     label: "Not connected",
     detail:
       "The live WebSocket is not connecting. If this persists, check WebSocket support on your reverse proxy.",
+  }
+}
+
+export function authState(me: MeResponse | undefined, isError: boolean): CardState {
+  if (isError) return { tone: "muted", label: "Unavailable" }
+  if (!me) return { tone: "muted", label: "Unknown" }
+  // Neutral: the built-in auth being on is the expected baseline.
+  if (me.mode === "session") return { tone: "muted", label: "Session login" }
+  // Amber, not muted: this is a deliberate setting, but an operator scanning
+  // the status page should notice that the app is unauthenticated. Says only
+  // what is observable; the app cannot tell whether a proxy is in front.
+  return {
+    tone: "amber",
+    label: "Disabled",
+    detail:
+      "Built-in authentication is turned off (APP_AUTH_DISABLED=true). Anyone who can reach this app has full access.",
   }
 }
