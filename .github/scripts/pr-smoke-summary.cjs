@@ -34,6 +34,7 @@ function buildComment({ workflowRun, jobs }) {
 | Build production image | ${statusLabel(steps.get("Build production image"))} |
 | HTTP smoke checks | ${statusLabel(steps.get("Run HTTP smoke checks"))} |
 | Browser smoke test | ${statusLabel(steps.get("Run browser smoke test"))} |
+| Auth-disabled smoke | ${statusLabel(steps.get("Run auth-disabled smoke checks"))} |
 | Artifact upload | ${statusLabel(steps.get("Upload smoke artifacts"))} |
 
 [View workflow run and download \`${artifactName}\`](${workflowRun.html_url})`;

@@ -18,6 +18,7 @@ test("buildComment reports failures and steps that did not run", () => {
           { name: "Build production image", conclusion: "success" },
           { name: "Run HTTP smoke checks", conclusion: "failure" },
           { name: "Run browser smoke test", conclusion: "skipped" },
+          { name: "Run auth-disabled smoke checks", conclusion: "success" },
           { name: "Upload smoke artifacts", conclusion: "success" },
         ],
       },
@@ -36,6 +37,7 @@ test("buildComment reports failures and steps that did not run", () => {
 | Build production image | ✅ success |
 | HTTP smoke checks | ❌ failure |
 | Browser smoke test | ⏭️ skipped |
+| Auth-disabled smoke | ✅ success |
 | Artifact upload | ✅ success |
 
 [View workflow run and download \`container-smoke-2\`](https://github.com/GilbN/geometrikks/actions/runs/123)`,
@@ -63,6 +65,7 @@ test("main updates the existing smoke comment instead of adding a duplicate", as
         { name: "Build production image", conclusion: "success" },
         { name: "Run HTTP smoke checks", conclusion: "success" },
         { name: "Run browser smoke test", conclusion: "success" },
+        { name: "Run auth-disabled smoke checks", conclusion: "success" },
         { name: "Upload smoke artifacts", conclusion: "success" },
       ],
     },
