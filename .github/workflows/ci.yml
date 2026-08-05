@@ -250,6 +250,13 @@ jobs:
           }
           trap cleanup EXIT
 
+          # This reuses DB_NAME=geometrikks and the same mounted nginx log as
+          # the first, still-running container, so two ingestion pipelines
+          # briefly write to the same database. Deliberate: reusing the exact
+          # config the first container already proved it boots with is worth
+          # more than avoiding the noise, and every assertion below is about
+          # HTTP responses and the exception log, neither of which the
+          # double-ingestion affects.
           docker run --detach \
             --name "${container}" \
             --publish 127.0.0.1:8001:8000 \

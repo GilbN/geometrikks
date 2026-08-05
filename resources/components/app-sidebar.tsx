@@ -362,6 +362,9 @@ function LogoutButton() {
     try {
       await logout()
     } finally {
+      // Hard navigation is deliberate, not a leftover: it discards the
+      // TanStack Query cache holding the previous session's data, which a
+      // client-side redirect to the /logout route would not.
       window.location.href = "/login"
     }
   }

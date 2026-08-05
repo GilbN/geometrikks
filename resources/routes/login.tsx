@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Skeleton } from "@/components/ui/skeleton"
 import { Globe } from "lucide-react"
 
 export const Route = createFileRoute("/login")({
@@ -29,7 +30,39 @@ export const Route = createFileRoute("/login")({
     // "render": auth is on and nobody is logged in yet.
   },
   component: LoginPage,
+  pendingComponent: LoginPagePending,
 })
+
+// beforeLoad awaits fetchMe() before anything paints. Reuses LoginPage's own
+// wrapper and card so the anonymous cold-load wait shows a skeleton of the
+// form instead of a blank page.
+function LoginPagePending() {
+  return (
+    <div className="min-h-screen bg-background flex items-center justify-center p-4">
+      <Card className="w-full max-w-sm">
+        <CardHeader className="text-center">
+          <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
+            <Globe className="h-6 w-6 text-primary" />
+          </div>
+          <CardTitle className="text-xl">GeoMetrikks</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Skeleton className="h-4 w-16" />
+              <Skeleton className="h-9 w-full" />
+            </div>
+            <div className="space-y-2">
+              <Skeleton className="h-4 w-16" />
+              <Skeleton className="h-9 w-full" />
+            </div>
+            <Skeleton className="h-9 w-full" />
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  )
+}
 
 function LoginPage() {
   const navigate = useNavigate()

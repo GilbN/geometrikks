@@ -16,7 +16,6 @@ from geometrikks.server.auth import AdminUser, AuthState
 from geometrikks.server.logging import LOGIN_LOGGER_NAME, get_logger
 
 
-logger = get_logger(__name__)
 login_logger = get_logger(LOGIN_LOGGER_NAME)
 
 

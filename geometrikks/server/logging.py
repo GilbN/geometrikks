@@ -380,7 +380,7 @@ def _exception_logging_handler_factory(*, debug: bool) -> "ExceptionLoggingHandl
     record there is (the request-logging middleware never runs for one).
     """
 
-    def _log_exception(logger: Any, scope: "Scope", tb: list[str]) -> None:
+    def _log_exception(logger: Any, scope: "Scope", _tb: list[str]) -> None:
         exc = sys.exc_info()[1]
         status_code = getattr(exc, "status_code", None)
         if not debug and status_code in QUIET_STATUS_CODES:

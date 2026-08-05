@@ -755,7 +755,7 @@ class TestExceptionLoggingWiring:
         return [
             jsonlib.loads(line)
             for line in text.splitlines()
-            if f'"event": "{event}"' in line or f'"{event}"' in line
+            if f'"event": "{event}"' in line
         ]
 
     def test_unmatched_api_path_logs_client_error_not_a_traceback(self, configured_logging):
