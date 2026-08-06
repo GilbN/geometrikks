@@ -3407,6 +3407,14 @@
         "title": "UnbanResponse",
         "type": "object"
       }
+    },
+    "securitySchemes": {
+      "sessionCookie": {
+        "description": "Session cookie authentication.",
+        "in": "cookie",
+        "name": "session",
+        "type": "apiKey"
+      }
     }
   },
   "info": {
@@ -9780,6 +9788,11 @@
       }
     }
   },
+  "security": [
+    {
+      "sessionCookie": []
+    }
+  ],
   "servers": [
     {
       "url": "/"
