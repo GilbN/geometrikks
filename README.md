@@ -143,11 +143,6 @@ MAXMINDDB_USER_ID=<your-account-id>
 MAXMINDDB_LICENSE_KEY=<your-license-key>
 ```
 
-These are deliberately **not** prefixed `GEOIP_*` like the rest of the GeoIP
-settings - they map onto MaxMind's own account-ID/license-key naming via
-`validation_alias` in the settings model, matching the credentials shown on
-your MaxMind account page.
-
 On startup GeoMetrikks downloads the database automatically and refreshes it
 weekly (`GEOIP_REFRESH_DAYS`, default 7) - no manual `.mmdb` handling needed.
 Without credentials and without an existing database file, the app still
