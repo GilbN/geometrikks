@@ -166,16 +166,16 @@ under `/api/` requires a session; the SPA shell, `/health`, `/health/ready`,
 and `/schema` stay open. **Sessions are held in memory**, so restarting the
 app container logs everyone out - just log in again.
 
-If an authenticating reverse proxy (Authelia, Tailscale, ...) already sits in
-front of the app, you can disable the built-in auth entirely:
+If something else already controls who reaches the app (an authenticating
+proxy such as Authelia or Tailscale, or a network only you can get to), you
+can turn the built-in auth off:
 
 ```bash
-APP_AUTH_DISABLED=true  # only safe behind an authenticating reverse proxy
+APP_AUTH_DISABLED=true
 ```
 
-This is a reverse-proxy-only mode: the built-in auth stops gating anything
-and the WebSocket accepts anonymous connections, so only enable it when
-something else is already gating access to the app.
+There is then no login and no session: anyone who can reach the app has full
+access to it and to the WebSocket feeds.
 
 ## Running behind a reverse proxy
 
