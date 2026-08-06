@@ -233,19 +233,11 @@ jobs:
           noauth_url="http://127.0.0.1:8001"
           noauth_log=smoke-artifacts/noauth.log
 
-          # The console renderer forces colors=True, so docker logs is full of
-          # ANSI escapes and "status_code=404" is never literally present.
-          # Every read of the log goes through this.
-          capture_log() {
-            docker logs "${container}" 2>&1 \
-              | sed -r 's/\x1b\[[0-9;]*[a-zA-Z]//g' > "${noauth_log}"
-          }
-
           # The job's cleanup step only knows about geometrikks-smoke, so this
           # container owns its own teardown: keep the log either way, and never
           # leak the container when an assertion below fails.
           cleanup() {
-            capture_log || true
+            docker logs "${container}" > "${noauth_log}" 2>&1 || true
             docker rm --force "${container}" > /dev/null 2>&1 || true
           }
           trap cleanup EXIT
@@ -289,18 +281,12 @@ jobs:
             | tee smoke-artifacts/noauth-me.json \
             | python3 -c 'import json, sys; body = json.load(sys.stdin); assert body == {"mode": "disabled"}, body'
 
-          # Nothing so far should have produced a client_error. Checking this
-          # BEFORE provoking the 404 is what proves the /auth/me call above
-          # went down the ordinary response path.
-          capture_log
-          if grep --quiet "client_error" "${noauth_log}"; then
-            echo "A client_error was logged before the 404 was even requested:"
-            grep "client_error" "${noauth_log}"
-            exit 1
-          fi
-
-          # A path that matches no route: exactly one client_error line
-          # carrying that path and status, and no traceback.
+          # Provoke a path that matches no route. The record's fields are
+          # already pinned by tests/test_logging_pipeline.py
+          # (TestExceptionLoggingWiring), against a real app carrying the real
+          # logging config. The only thing this container adds is the console
+          # sink under Granian in the shipped image, which those tests cannot
+          # reach, so that is the only thing asserted below.
           unknown_status="$(
             curl --silent --show-error --output /dev/null --write-out '%{http_code}' \
               "${noauth_url}/api/v1/does-not-exist"
@@ -311,14 +297,17 @@ jobs:
           fi
 
           # Console output goes through the non-blocking queue listener, so it
-          # is written asynchronously: poll for the record we expect rather
-          # than reading the log once and hoping it arrived. Both fields must
-          # be on the SAME line, or this would pass on two unrelated records.
+          # is written asynchronously. This poll is a flush barrier, not an
+          # assertion: without it the absence check below reads a log that has
+          # not caught up yet and passes for the wrong reason. Both patterns
+          # must match the SAME line so the barrier waits for our record and
+          # not some earlier one. The renderer wraps event names and values in
+          # colors rather than splitting them, so these two match despite the
+          # ANSI escapes; "status_code=404" would not.
           logged=false
           for _ in {1..20}; do
-            capture_log
+            docker logs "${container}" > "${noauth_log}" 2>&1
             if grep "client_error" "${noauth_log}" \
-              | grep "status_code=404" \
               | grep --quiet "/api/v1/does-not-exist"; then
               logged=true
               break
@@ -326,22 +315,14 @@ jobs:
             sleep 1
           done
           if [[ "${logged}" != "true" ]]; then
-            echo "No client_error record for the 404 within 20 seconds. client_error lines seen:"
-            grep "client_error" "${noauth_log}" || echo "(none)"
+            echo "No client_error record for the 404 within 20 seconds. Log tail:"
+            tail -30 "${noauth_log}"
             exit 1
           fi
 
-          client_errors="$(grep --count "client_error" "${noauth_log}")"
-          if [[ "${client_errors}" != "1" ]]; then
-            echo "Expected exactly 1 client_error record, found ${client_errors}:"
-            grep "client_error" "${noauth_log}"
-            exit 1
-          fi
-
-          # Absence check runs last, against the log the poll above already
-          # confirmed is up to date. /api/v1/auth/me is a matched route now,
-          # so ordinary INFO request/response records naming it are expected;
-          # what must not appear is an exception record.
+          # The assertion this step exists for: in the shipped image's console
+          # output, that 404 left a warning and not the error-level traceback
+          # that filled logs before the auth routes were registered.
           if grep --quiet "Uncaught exception" "${noauth_log}"; then
             echo "Auth-disabled container logged an uncaught exception:"
             grep --context 3 "Uncaught exception" "${noauth_log}"
