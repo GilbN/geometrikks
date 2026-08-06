@@ -321,7 +321,7 @@ Notes for exposing GeoMetrikks to the internet:
 - The login endpoint has no built-in rate limiting. Run fail2ban or
   CrowdSec against your proxy's access logs to stop brute force at the
   edge.
-- `APP_AUTH_DISABLED=true` must only be used when an authenticating proxy
+- `APP_AUTH_DISABLED=true` should only be used when an authenticating proxy
   (Authelia, Tailscale, ...) sits in front of the app.
 
 ## CrowdSec integration (optional)
