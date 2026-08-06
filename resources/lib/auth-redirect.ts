@@ -8,22 +8,23 @@ import type { MeResponse } from "@/lib/api"
 export type MeResult =
   | { ok: true; me: MeResponse }
   /** status is null for a network failure, where there is no response. */
-  | { ok: false; status: number | null }
+  | { ok: false; status: number | null; error: unknown }
 
 export type AuthRoutePlan =
   | { action: "redirect"; to: "/" | "/login" }
   | { action: "endSessionThenRedirect"; to: "/login" }
   | { action: "render" }
-  | { action: "rethrow" }
+  /** Carries the original throw so the error boundary sees its real message
+   *  and stack, and so the route has nothing left to remember. */
+  | { action: "rethrow"; error: unknown }
 
-/** Classify whatever fetchMe() threw. Only the status is extracted; the route
- *  keeps the original error object and rethrows that, so an unexpected
- *  failure reaches the error boundary with its message and stack intact. */
+/** Classify whatever fetchMe() threw, keeping the error itself alongside the
+ *  status it was classified by. */
 export function toMeResult(error: unknown): MeResult {
   // isAxiosError, not a structural cast: any object with a response.status
   // would otherwise be read as an HTTP failure.
-  if (!axios.isAxiosError(error)) return { ok: false, status: null }
-  return { ok: false, status: error.response?.status ?? null }
+  if (!axios.isAxiosError(error)) return { ok: false, status: null, error }
+  return { ok: false, status: error.response?.status ?? null, error }
 }
 
 export function planLoginRoute(result: MeResult): AuthRoutePlan {
@@ -34,7 +35,9 @@ export function planLoginRoute(result: MeResult): AuthRoutePlan {
   // 401 is the ordinary "auth is on and nobody is logged in yet" case.
   // Anything else means the API is broken, and a form that will fail on
   // submit with "Invalid username or password" would be a lie.
-  return result.status === 401 ? { action: "render" } : { action: "rethrow" }
+  return result.status === 401
+    ? { action: "render" }
+    : { action: "rethrow", error: result.error }
 }
 
 export function planLogoutRoute(result: MeResult): AuthRoutePlan {
@@ -45,5 +48,5 @@ export function planLogoutRoute(result: MeResult): AuthRoutePlan {
   }
   return result.status === 401
     ? { action: "redirect", to: "/login" }
-    : { action: "rethrow" }
+    : { action: "rethrow", error: result.error }
 }

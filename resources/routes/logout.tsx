@@ -8,23 +8,24 @@ import { planLogoutRoute, toMeResult, type MeResult } from "@/lib/auth-redirect"
 export const Route = createFileRoute("/logout")({
   beforeLoad: async () => {
     let result: MeResult
-    let caught: unknown
     try {
       result = { ok: true, me: await fetchMe() }
     } catch (error) {
-      caught = error
       result = toMeResult(error)
     }
     const plan = planLogoutRoute(result)
     if (plan.action === "endSessionThenRedirect") {
       await logout()
-      throw redirect({ to: plan.to })
+      // Hard navigation, matching the sidebar's Log out button: it discards
+      // the TanStack Query cache holding the previous session's data, which
+      // a client-side redirect would not.
+      window.location.href = plan.to
+      return
     }
     // Same rule as /login: the redirect is thrown outside the try, or the
-    // catch above would swallow it. And the rethrow carries the original
-    // error rather than a generic replacement.
+    // catch above would swallow it.
     if (plan.action === "redirect") throw redirect({ to: plan.to })
-    throw caught
+    if (plan.action === "rethrow") throw plan.error
   },
   component: () => null,
 })
