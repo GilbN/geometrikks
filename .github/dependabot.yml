@@ -19,6 +19,7 @@ updates:
         update-types:
           - "minor"
           - "patch"
+    target-branch: "develop"
 
   # Frontend dependencies (package.json + bun.lock)
   - package-ecosystem: "bun"
