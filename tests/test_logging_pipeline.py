@@ -621,6 +621,15 @@ class TestLogDirWritabilityFallback:
         import structlog
         structlog.stdlib.get_logger("geometrikks.test").info("still_alive")
 
+        # This is the one test whose console handler is bound to a per-test
+        # capsys stream, and emits happen on the queue-listener thread. Drain
+        # it before capsys closes that stream, or the late emit prints
+        # "--- Logging error --- I/O operation on closed file" on stderr
+        # (deterministically when the test runs alone, flakily in the suite).
+        for handler in root.handlers:
+            if isinstance(handler, lh.QueueHandler) and handler.listener is not None:
+                handler.listener.stop()
+
     def test_writable_log_dir_keeps_file_handlers(self, tmp_path, monkeypatch):
         monkeypatch.setenv("LOG_DIR", str(tmp_path / "logs"))
         monkeypatch.setenv("LOG_LEVEL", "DEBUG")
@@ -676,7 +685,9 @@ class TestExceptionLoggingHandler:
         try:
             raise exc
         except Exception:
-            handler(logger, scope, ["Traceback (most recent call last):\n", "boom\n"])
+            # cast: the handler's signature wants the structlog Logger and a
+            # typed Scope; the fake and the plain dict cover what it reads.
+            handler(cast("Any", logger), cast("Any", scope), ["Traceback (most recent call last):\n", "boom\n"])
         return logger
 
     def test_not_found_logs_one_warning_without_traceback(self):
@@ -724,7 +735,8 @@ class TestExceptionLoggingWiring:
         config = create_logging_config(get_settings())
         assert config.log_exceptions == "always"
         assert config.exception_logging_handler is not None
-        assert config.exception_logging_handler.__name__ == "_log_exception"
+        # getattr: the config type promises a Callable, not a function.
+        assert getattr(config.exception_logging_handler, "__name__", None) == "_log_exception"
 
     @staticmethod
     def _app_with_pipeline():

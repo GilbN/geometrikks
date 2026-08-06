@@ -3,8 +3,8 @@ import { fetchMe, logout } from "@/lib/api"
 import { planLogoutRoute, toMeResult, type MeResult } from "@/lib/auth-redirect"
 
 /** A bookmarkable equivalent of the sidebar's Log out button, and the reason
- *  /logout cannot land on a dead page when APP_AUTH_DISABLED=true. Renders
- *  nothing: every branch redirects. */
+ *  /logout cannot land on a dead page when APP_AUTH_DISABLED=true. Never
+ *  shows UI: every branch ends in a redirect or a hard navigation. */
 export const Route = createFileRoute("/logout")({
   beforeLoad: async () => {
     let result: MeResult
