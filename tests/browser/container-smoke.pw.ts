@@ -180,7 +180,7 @@ test("production image serves the authenticated dashboard without browser errors
     .locator('[data-slot="card"]')
     .filter({ has: page.getByText("Authentication", { exact: true }) })
   await expect(authenticationCard).toBeVisible()
-  await expect(authenticationCard.getByText("Session login", { exact: true })).toBeVisible()
+  await expect(authenticationCard.getByText("Session login active", { exact: true })).toBeVisible()
   await expect(authenticationCard.getByText(adminUser, { exact: true })).toBeVisible()
 
   // /logout is a real route, not just a sidebar button. This must come last:

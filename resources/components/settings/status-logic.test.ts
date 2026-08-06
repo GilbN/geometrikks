@@ -303,7 +303,7 @@ describe("authState", () => {
     // not an achievement. Only the disabled case is worth an operator's eye.
     expect(authState({ mode: "session", username: "admin" }, false)).toEqual({
       tone: "muted",
-      label: "Session login",
+      label: "Session login active",
     })
   })
 

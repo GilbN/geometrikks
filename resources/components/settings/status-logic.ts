@@ -210,7 +210,7 @@ export function authState(me: MeResponse | undefined, isError: boolean): CardSta
   if (isError) return { tone: "muted", label: "Unavailable" }
   if (!me) return { tone: "muted", label: "Unknown" }
   // Neutral: the built-in auth being on is the expected baseline.
-  if (me.mode === "session") return { tone: "muted", label: "Session login" }
+  if (me.mode === "session") return { tone: "muted", label: "Session login active" }
   // Amber, not muted: this is a deliberate setting, but an operator scanning
   // the status page should notice that the app is unauthenticated. Says only
   // what is observable; the app cannot tell whether a proxy is in front.

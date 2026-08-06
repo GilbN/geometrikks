@@ -143,15 +143,16 @@ export function StatusOverview() {
           <CardHeader className="pb-3">
             <div className="flex items-center gap-3">
               <SectionIcon icon={ShieldUser} />
-              <div>
-                <CardTitle className="text-base">Authentication</CardTitle>
-                <CardDescription>Who may reach this deployment</CardDescription>
-              </div>
+              <CardTitle className="text-base">Authentication</CardTitle>
             </div>
           </CardHeader>
           <CardContent className="space-y-2">
             <StateLine state={authState(me, meError)} />
-            {me?.mode === "session" && <MonoChip>{me.username}</MonoChip>}
+            {me?.mode === "session" && (
+              <p className="text-xs text-muted-foreground">
+                User <MonoChip>{me.username}</MonoChip>
+              </p>
+            )}
           </CardContent>
         </Card>
       </div>
