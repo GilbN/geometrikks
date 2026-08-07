@@ -28,7 +28,7 @@ top-URLs, top-user-agents, and status-code breakdowns.
 
 **Live feed** - a WebSocket-backed live tail on the access-logs page (new
 rows prepend as they arrive, pause on hover) and a "Live" pulse overlay on
-the map, both authenticated by the same session cookie as the REST API.
+the map.
 
 ![Live tail](/data/screenshots/live-tail.png)
 
@@ -50,8 +50,7 @@ updating live from the decision stream. See
 ![CrowdSec](/data/screenshots/crowdsec.png)
 
 **Batch import** - backfill rotated or archived logs (plain or `.gz`) with
-`litestar import-logs`, reusing the same parsing/GeoIP/DB pipeline as live
-tailing.
+`litestar import-logs`.
 
 ## Quickstart
 
@@ -91,9 +90,6 @@ reproducible deployments:
 ```yaml
 image: ghcr.io/gilbn/geometrikks:0.3.0
 ```
-
-Development tags are intended for testing upcoming changes; production
-installs should use a stable tag.
 
 `docker-compose.yml` mounts `${NGINX_LOG_DIR:-/var/log/nginx}` read-only into
 the container at `/var/log/nginx` and reads `LOGPARSER_LOG_PATHS` from
@@ -143,16 +139,8 @@ MAXMINDDB_USER_ID=<your-account-id>
 MAXMINDDB_LICENSE_KEY=<your-license-key>
 ```
 
-These are deliberately **not** prefixed `GEOIP_*` like the rest of the GeoIP
-settings - they map onto MaxMind's own account-ID/license-key naming via
-`validation_alias` in the settings model, matching the credentials shown on
-your MaxMind account page.
-
 On startup GeoMetrikks downloads the database automatically and refreshes it
 weekly (`GEOIP_REFRESH_DAYS`, default 7) - no manual `.mmdb` handling needed.
-Without credentials and without an existing database file, the app still
-starts, but ingestion doesn't run and the UI shows a geo-degraded banner
-until you add credentials and restart.
 
 You must accept MaxMind's GeoLite2 EULA to use the database - see the
 [MaxMind EULA](https://www.maxmind.com/en/geolite2/eula) for details.
@@ -171,16 +159,16 @@ under `/api/` requires a session; the SPA shell, `/health`, `/health/ready`,
 and `/schema` stay open. **Sessions are held in memory**, so restarting the
 app container logs everyone out - just log in again.
 
-If an authenticating reverse proxy (Authelia, Tailscale, ...) already sits in
-front of the app, you can disable the built-in auth entirely:
+If something else already controls who reaches the app (an authenticating
+proxy such as Authelia or Tailscale, or a network only you can get to), you
+can turn the built-in auth off:
 
 ```bash
-APP_AUTH_DISABLED=true  # only safe behind an authenticating reverse proxy
+APP_AUTH_DISABLED=true
 ```
 
-This is a reverse-proxy-only mode: with it set, `/api/v1/auth/*` is not
-registered (404s) and the WebSocket accepts anonymous connections, so only
-enable it when something else is already gating access to the app.
+There is then no login and no session: anyone who can reach the app has full
+access to it and to the WebSocket feeds.
 
 ## Running behind a reverse proxy
 
@@ -206,9 +194,8 @@ Keep the range tight: everything inside it can put arbitrary addresses in
 the header.
 
 The WebSocket feeds (`/ws/live`, `/ws/crowdsec`) work through the standard
-`Upgrade`/`Connection` proxy headers, and the server sends a keepalive
-frame every 30 seconds, so idle connections survive nginx's default
-`proxy_read_timeout` without extra tuning.
+`Upgrade`/`Connection` proxy headers, and idle connections survive nginx's
+default `proxy_read_timeout` without extra tuning.
 
 ### Sample nginx configs
 
@@ -334,7 +321,7 @@ Notes for exposing GeoMetrikks to the internet:
 - The login endpoint has no built-in rate limiting. Run fail2ban or
   CrowdSec against your proxy's access logs to stop brute force at the
   edge.
-- `APP_AUTH_DISABLED=true` must only be used when an authenticating proxy
+- `APP_AUTH_DISABLED=true` should only be used when an authenticating proxy
   (Authelia, Tailscale, ...) sits in front of the app.
 
 ## CrowdSec integration (optional)
@@ -463,9 +450,7 @@ hardened setups)? Set a `user:` on the `app` service in the compose file;
 the entrypoint detects it, skips the re-mapping, and just runs the app as
 that user. You are then back to managing `./logs` ownership yourself.
 
-Want to harden further? The entrypoint only needs the capabilities the
-remap itself uses, and `gosu` is not a setuid binary, so both of these are
-verified working combinations. With PUID/PGID re-mapping:
+Want to harden further? With PUID/PGID re-mapping:
 
 ```yaml
   app:
@@ -563,8 +548,6 @@ http://localhost:8000/map?demoTraffic=1       # steady traffic
 http://localhost:8000/map?demoTraffic=burst   # overlapping bursts
 ```
 
-The query parameter is ignored by production builds.
-
 The live route destination defaults to the GeoIP location of the app server's
 public IP. GeoMetrikks discovers that address once at startup through ipify and
 looks it up in the local GeoLite2 database. If the logs come from another
@@ -592,6 +575,3 @@ The integration suite creates a scratch database `geometrikks_it` on the
 compose server (migrated to alembic head + timescale objects) and drops it at
 session end - it never touches the `geometrikks` dev database. Connection
 overrides: `IT_DB_HOST`, `IT_DB_PORT`, `IT_DB_USER`, `IT_DB_PASSWORD`.
-
-CI (`.github/workflows/ci.yml`) runs the integration suite against a
-`timescale/timescaledb-ha:pg18` service container via the `IT_DB_*` env vars.

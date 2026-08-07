@@ -37,9 +37,9 @@ import {
   ShieldBan,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { fetchHealth, fetchMe, logout } from "@/lib/api"
+import { fetchHealth, logout } from "@/lib/api"
 import { useLiveFeedStatus } from "@/lib/live-feed-context"
-import { useCrowdsecStatus, useRuntimeSettings } from "@/lib/queries"
+import { useCrowdsecStatus, useMe, useRuntimeSettings } from "@/lib/queries"
 import { SiDocker } from "react-icons/si"
 
 const navigationItems = [
@@ -351,22 +351,20 @@ function LogoutButton() {
   const { state, isMobile, tooltipsSuppressed, resetTooltipSuppression } = useSidebar()
   const collapsed = isMobile ? false : state === "collapsed"
 
-  // Only render when session auth is active: /auth/me succeeds when logged
-  // in, 404s when APP_AUTH_DISABLED=true (endpoints not registered), and a
-  // 401 already redirects to /login via the api interceptor.
-  const { data: me } = useQuery({
-    queryKey: ["auth", "me"],
-    queryFn: fetchMe,
-    retry: false,
-    staleTime: Infinity,
-  })
+  // Only render when there is a session to end. /auth/me reports
+  // mode: "disabled" when APP_AUTH_DISABLED=true, and a 401 already
+  // redirects to /login via the api interceptor.
+  const { data: me } = useMe()
 
-  if (!me) return null
+  if (me?.mode !== "session") return null
 
   async function onLogout() {
     try {
       await logout()
     } finally {
+      // Hard navigation is deliberate, not a leftover: it discards the
+      // TanStack Query cache holding the previous session's data, which a
+      // client-side redirect would not. The /logout route does the same.
       window.location.href = "/login"
     }
   }

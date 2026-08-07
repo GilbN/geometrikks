@@ -1,11 +1,21 @@
 import { Link } from "@tanstack/react-router"
-import { Activity, CalendarClock, Database, Globe, Radio, ShieldCheck, TriangleAlert } from "lucide-react"
+import {
+  Activity,
+  CalendarClock,
+  Database,
+  Globe,
+  Radio,
+  ShieldCheck,
+  ShieldUser,
+  TriangleAlert,
+} from "lucide-react"
 import {
   useCrowdsecStats,
   useCrowdsecStatus,
   useDatabaseInfo,
   useHealth,
   useLogFiles,
+  useMe,
   useRecentErrors,
   useSchedulerJobs,
   useStats,
@@ -16,6 +26,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Skeleton } from "@/components/ui/skeleton"
 import { MonoChip, StatusLed } from "@/components/settings/status-led"
 import {
+  authState,
   type CardState,
   compressionSummary,
   crowdsecState,
@@ -71,6 +82,7 @@ export function StatusOverview() {
   const { data: health, isError: healthError, isLoading: healthLoading } = useHealth()
   const { data: stats, isError: statsError } = useStats()
   const { data: crowdsec, isError: crowdsecError } = useCrowdsecStatus()
+  const { data: me, isError: meError } = useMe()
   const { data: crowdsecStats } = useCrowdsecStats()
   const { data: files, isError: filesError } = useLogFiles()
   const { data: schedulerData, isError: jobsError } = useSchedulerJobs()
@@ -105,23 +117,45 @@ export function StatusOverview() {
 
   return (
     <div className="space-y-4">
-      <Card>
-        <CardHeader className="pb-3">
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-3">
-              <StatusLed tone={overall.tone} pulse={overall.tone !== "muted"} />
-              <CardTitle>{overall.label}</CardTitle>
+      {/* Overall state and Authentication share the banner row: the subsystem
+          grid below holds an even number of cards, so putting Authentication
+          there instead would leave a hole in its last row. */}
+      <div className="grid gap-4 md:grid-cols-2">
+        <Card>
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-3">
+                <StatusLed tone={overall.tone} pulse={overall.tone !== "muted"} />
+                <CardTitle>{overall.label}</CardTitle>
+              </div>
+              {health && (
+                <span className="text-xs text-muted-foreground">
+                  {uptime && `${uptime} · `}
+                  Updated {new Date(health.timestamp).toLocaleTimeString()}
+                </span>
+              )}
             </div>
-            {health && (
-              <span className="text-xs text-muted-foreground">
-                {uptime && `${uptime} · `}
-                Updated {new Date(health.timestamp).toLocaleTimeString()}
-              </span>
+            {overall.detail && <CardDescription>{overall.detail}</CardDescription>}
+          </CardHeader>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-3">
+            <div className="flex items-center gap-3">
+              <SectionIcon icon={ShieldUser} />
+              <CardTitle className="text-base">Authentication</CardTitle>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            <StateLine state={authState(me, meError)} />
+            {me?.mode === "session" && (
+              <p className="text-xs text-muted-foreground">
+                User <MonoChip>{me.username}</MonoChip>
+              </p>
             )}
-          </div>
-          {overall.detail && <CardDescription>{overall.detail}</CardDescription>}
-        </CardHeader>
-      </Card>
+          </CardContent>
+        </Card>
+      </div>
 
       <div className="grid gap-4 md:grid-cols-2">
         <Card>

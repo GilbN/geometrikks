@@ -25,8 +25,12 @@ from typing import TYPE_CHECKING, Any, ClassVar
 
 import structlog
 from litestar.logging.config import LoggingConfig, StructLoggingConfig
+from litestar.status_codes import HTTP_401_UNAUTHORIZED, HTTP_404_NOT_FOUND
 
 if TYPE_CHECKING:
+    from litestar.types import Scope
+    from litestar.types.callable_types import ExceptionLoggingHandler
+
     from geometrikks.config.settings import Settings
 
 SUCCESS_LEVEL = 25  # between INFO (20) and WARNING (30)
@@ -357,6 +361,49 @@ def _log_dir_write_error(log_dir: "Path") -> str | None:
     return None
 
 
+# Statuses that mean "the client asked for something it cannot have", not
+# "the server is broken": a typo'd URL, a stale bookmark, a bot probing for
+# /wp-admin, an expired session, the SPA asking who it is before anyone has
+# logged in. Litestar logs every exception at error level with a full
+# traceback when log_exceptions="always", which buries the records that
+# matter. These get one line instead.
+QUIET_STATUS_CODES = frozenset({HTTP_401_UNAUTHORIZED, HTTP_404_NOT_FOUND})
+
+
+def _exception_logging_handler_factory(*, debug: bool) -> "ExceptionLoggingHandler":
+    """Build the hook Litestar calls for every exception it turns into a response.
+
+    Litestar invokes this from inside its own ``except`` block, so
+    ``sys.exc_info()`` is live here and we can branch on the status code.
+    ``disable_stack_trace`` is deliberately not used instead: it suppresses
+    the whole log call, and for a path that matches no route this is the only
+    record there is (the request-logging middleware never runs for one).
+    """
+
+    def _log_exception(logger: Any, scope: "Scope", _tb: list[str]) -> None:
+        exc = sys.exc_info()[1]
+        status_code = getattr(exc, "status_code", None)
+        if not debug and status_code in QUIET_STATUS_CODES:
+            # warning(), not exception(): the latter implies exc_info=True,
+            # which _capture_exc_info turns into a rendered traceback.
+            logger.warning(
+                "client_error",
+                status_code=status_code,
+                connection_type=scope["type"],
+                path=scope["path"],
+                detail=getattr(exc, "detail", None),
+            )
+            return
+        # Mirrors Litestar's own struct-logger default.
+        logger.exception(
+            "Uncaught exception",
+            connection_type=scope["type"],
+            path=scope["path"],
+        )
+
+    return _log_exception
+
+
 def create_logging_config(settings: "Settings") -> StructLoggingConfig:
     """Full pipeline: console + JSONL file + login file + WS broadcast.
 
@@ -472,6 +519,9 @@ def create_logging_config(settings: "Settings") -> StructLoggingConfig:
         wrapper_class=SuccessBoundLogger,
         standard_lib_logging_config=standard_lib,
         log_exceptions="always",
+        # Shape what "always" means: 404/401 get one warning line, everything
+        # else keeps the traceback. See _exception_logging_handler_factory.
+        exception_logging_handler=_exception_logging_handler_factory(debug=settings.debug),
         # Litestar defaults this to True, which freezes each module-level
         # logger onto whatever processors list is current at its first use.
         # Every create_app() builds a fresh list, so cached loggers silently

@@ -92,7 +92,7 @@ def create_app(
     # Create app with configuration
     app = Litestar(
         debug=settings.debug,
-        route_handlers=get_route_handlers(include_auth=not settings.auth_disabled),
+        route_handlers=get_route_handlers(),
         lifespan=list(LIFESPAN),
         plugins=plugins.create_plugins(settings, db_config=db_config),
         dependencies=dependency_map,

@@ -57,14 +57,8 @@ def create_api_v1_router(handlers: list[ControllerRouterHandler]) -> Router:
     return Router(path=API_V1_PREFIX, route_handlers=handlers)
 
 
-def get_route_handlers(*, include_auth: bool = True) -> list[ControllerRouterHandler]:
-    """Get all route handlers for the application.
-
-    Args:
-        include_auth: Register the login/logout/me endpoints. Disabled when
-            APP_AUTH_DISABLED=true — without the session middleware those
-            handlers would crash on ``app.state.auth_state`` / ``request.user``.
-    """
+def get_route_handlers() -> list[ControllerRouterHandler]:
+    """Get all route handlers for the application."""
 
     api_handlers: list[ControllerRouterHandler] = [
         GeoEventController,
@@ -75,11 +69,10 @@ def get_route_handlers(*, include_auth: bool = True) -> list[ControllerRouterHan
         CrowdSecController,
         LogsController,
         SystemController,
+        AuthController,
         read_settings,
         stats,
     ]
-    if include_auth:
-        api_handlers.append(AuthController)
 
     return [
         create_api_v1_router(api_handlers),

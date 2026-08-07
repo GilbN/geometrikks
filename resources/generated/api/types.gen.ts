@@ -103,6 +103,13 @@ export type AnalyticsSettingsView = {
 };
 
 /**
+ * AuthDisabled
+ */
+export type AuthDisabled = {
+  mode: "disabled";
+};
+
+/**
  * BanRequest
  */
 export type BanRequest = {
@@ -624,13 +631,6 @@ export type MapSettingsView = {
 };
 
 /**
- * MeResponse
- */
-export type MeResponse = {
-  username: string;
-};
-
-/**
  * OriginCount
  */
 export type OriginCount = {
@@ -746,6 +746,14 @@ export type SchedulerJobsResponse = {
   jobs: Array<SchedulerJobView>;
   schedulerEnabled: boolean;
   schedulerRunning: boolean;
+};
+
+/**
+ * SessionUser
+ */
+export type SessionUser = {
+  mode: "session";
+  username: string;
 };
 
 /**
@@ -1822,7 +1830,7 @@ export type ApiV1AuthLoginLoginResponses = {
   /**
    * Request fulfilled, document follows
    */
-  200: MeResponse;
+  200: SessionUser | AuthDisabled;
 };
 
 export type ApiV1AuthLoginLoginResponse =
@@ -1856,7 +1864,7 @@ export type ApiV1AuthMeMeResponses = {
   /**
    * Request fulfilled, document follows
    */
-  200: MeResponse;
+  200: SessionUser | AuthDisabled;
 };
 
 export type ApiV1AuthMeMeResponse =

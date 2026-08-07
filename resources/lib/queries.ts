@@ -33,6 +33,7 @@ import {
   fetchSchedulerJobs,
   fetchAbout,
   fetchHealth,
+  fetchMe,
   fetchStats,
   fetchCrowdsecStatus,
   fetchCrowdsecBannedIps,
@@ -83,6 +84,9 @@ import { useGeoLogFilters } from "./geo-log-filters-context"
 
 export const queryKeys = {
   settings: ["settings"] as const,
+  auth: {
+    me: ["auth", "me"] as const,
+  },
   system: {
     settings: ["system", "settings"] as const,
     schedulerJobs: ["system", "scheduler-jobs"] as const,
@@ -237,6 +241,21 @@ export function useDatabaseInfo() {
       return data
     },
     refetchInterval: 60_000,
+  })
+}
+
+// ============================================================================
+// Auth
+// ============================================================================
+
+export function useMe() {
+  return useQuery({
+    queryKey: queryKeys.auth.me,
+    queryFn: fetchMe,
+    // The API 401s for an anonymous caller and the axios interceptor
+    // redirects; retrying would just repeat that.
+    retry: false,
+    staleTime: Infinity,
   })
 }
 

@@ -31,6 +31,8 @@ import type {
   AlertView,
   DecisionView,
   IpLocation,
+  SessionUser,
+  AuthDisabled,
 } from "@/generated/api/types.gen"
 
 export type {
@@ -69,9 +71,11 @@ api.interceptors.response.use(
 // Types & Functions - Auth API
 // ============================================================================
 
-export interface MeResponse {
-  username: string
-}
+/** Discriminated union: username exists only on the session branch. With
+ *  APP_AUTH_DISABLED=true the endpoints stay registered and report "disabled"
+ *  rather than 404ing. Comes from the generated schema, not hand-rolled, so
+ *  a backend change to the tagged union cannot silently leave this stale. */
+export type MeResponse = SessionUser | AuthDisabled
 
 export async function login(username: string, password: string): Promise<MeResponse> {
   const { data } = await api.post<MeResponse>("/auth/login", { username, password })

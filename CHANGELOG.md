@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- `GET /api/v1/auth/me` now reports an auth mode: `{"mode": "session",
+  "username": "..."}` when logged in, `{"mode": "disabled"}` when
+  `APP_AUTH_DISABLED=true`. In that mode a valid `POST /api/v1/auth/login`
+  returns the same disabled payload without establishing a session, and
+  `POST /api/v1/auth/logout` returns 204 without touching one.
+- 404 and 401 responses now log a single `client_error` warning instead of an
+  error-level traceback. Debug mode keeps the full traceback.
+- Settings > Status has an Authentication card reporting whether the built-in
+  authentication is active.
+- `/logout` is now a route of its own, not only a sidebar button.
+
+### Fixed
+
+- With `APP_AUTH_DISABLED=true` the auth endpoints stay registered, so the
+  frontend's `/api/v1/auth/me` call no longer 404s into an uncaught-exception
+  traceback on every page load. `/login` and `/logout` redirect to the
+  dashboard in that mode instead of rendering a form that cannot work.
+
 ## [0.7.0] - 2026-08-02
 
 ### Added
