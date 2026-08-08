@@ -292,7 +292,7 @@ async def test_create_debug_entry_copies_context_from_access_log() -> None:
     record = SimpleNamespace(raw_line="raw line", parse_error="err", is_malformed=True)
 
     service = LogIngestionService.__new__(LogIngestionService)
-    await service._create_debug_entry(record, access_log, _Repos())  # type: ignore[arg-type]
+    await service._create_debug_entry(record, access_log, _Repos())  # ty: ignore[invalid-argument-type]
 
     assert len(added) == 1
     entry = added[0]
@@ -326,7 +326,7 @@ async def test_create_debug_entry_leaves_context_null_when_unlinked() -> None:
     record = SimpleNamespace(raw_line="junk", parse_error="no method", is_malformed=True)
 
     service = LogIngestionService.__new__(LogIngestionService)
-    await service._create_debug_entry(record, None, _Repos())  # type: ignore[arg-type]
+    await service._create_debug_entry(record, None, _Repos())  # ty: ignore[invalid-argument-type]
 
     assert len(added) == 1
     entry = added[0]
