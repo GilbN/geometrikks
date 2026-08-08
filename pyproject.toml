@@ -18,10 +18,10 @@ dependencies = [
     "geoalchemy2>=0.20.0",
     "litestar-geoalchemy>=0.3.0",
     "apscheduler>=3.11.3,<4.0",
-    "litestar-vite>=0.29.0",
+    "litestar-vite>=0.29.1",
     "litestar-granian>=0.15.0",
     "advanced-alchemy[argon2,passlib,pwdlib,cli]>=1.11.0",
-    "alembic>=1.18.5",
+    "alembic>=1.19.0",
 ]
 
 [build-system]
@@ -32,7 +32,7 @@ build-backend = "hatchling.build"
 dev = [
     "pytest>=9.1.1",
     "pytest-cov>=7.1.0",
-    "ty>=0.0.63",
+    "ty>=0.0.66",
     "faker>=40.36.0",
     "polyfactory>=3.3.0",
 ]
