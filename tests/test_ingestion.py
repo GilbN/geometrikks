@@ -33,6 +33,16 @@ def make_log_line(ip: str) -> str:
     )
 
 
+class FakeExecuteResult:
+    """Stands in for the Result of the ON CONFLICT DO NOTHING ... RETURNING execute()."""
+
+    def __init__(self, value: int | None) -> None:
+        self._value = value
+
+    def scalar_one_or_none(self) -> int | None:
+        return self._value
+
+
 class FakeSession:
     """Models deferred-insert semantics: session.add() buffers, flush assigns
     ids, commit routes objects to the per-model `added` lists, rollback
@@ -81,6 +91,21 @@ class FakeSession:
         if self.repos.flush_calls in self.repos.fail_flush_calls:
             raise RuntimeError("simulated integrity error at flush")
         self._assign_ids()
+
+    async def execute(self, stmt: object) -> FakeExecuteResult:
+        """Models the GeoLocation ON CONFLICT DO NOTHING insert.
+
+        Conflict resolution itself is DB behaviour and is covered by the
+        integration test; here the insert always "wins", reusing the same
+        fail-injection counter as flush() since both represent the
+        flush-time write that can raise an integrity error.
+        """
+        self.repos.flush_calls += 1
+        if self.repos.flush_calls in self.repos.fail_flush_calls:
+            raise RuntimeError("simulated integrity error at insert")
+        location = GeoLocation(id=FakeRepos.next_id())
+        self.pending.append(location)
+        return FakeExecuteResult(location.id)
 
 
 class FakeRepo:
