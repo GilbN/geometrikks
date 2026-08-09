@@ -55,8 +55,11 @@ def provide_access_log_in_filters(
     ip_address_not_in: Annotated[list[str] | None, QueryParameter(name="ipAddressNotIn", required=False)] = None,
     host_in: Annotated[list[str] | None, QueryParameter(name="hostIn", required=False)] = None,
     host_not_in: Annotated[list[str] | None, QueryParameter(name="hostNotIn", required=False)] = None,
+    hostname_in: Annotated[list[str] | None, QueryParameter(name="hostnameIn", required=False)] = None,
+    hostname_not_in: Annotated[list[str] | None, QueryParameter(name="hostnameNotIn", required=False)] = None,
+    log_format_in: Annotated[list[str] | None, QueryParameter(name="logFormatIn", required=False)] = None,
 ) -> list[FilterTypes]:
-    """Include/exclude matches on method / IP / city / country / status / host.
+    """Include/exclude matches on method / IP / city / country / status / host / hostname / log format.
 
     Provided here rather than via the built-in ``in_fields`` config, whose
     generated providers yield ``None`` when the param is absent and fail the
@@ -68,7 +71,9 @@ def provide_access_log_in_filters(
     with ``host IS NULL`` because ``host`` is nullable and SQL evaluates
     ``NULL NOT IN (...)`` as NULL rather than TRUE - a bare NOT IN would
     silently drop every row whose host never parsed. ``ip_address`` is
-    NOT NULL, so ``ipAddressNotIn`` needs no such treatment.
+    NOT NULL, so ``ipAddressNotIn`` needs no such treatment. ``hostname`` is
+    nullable for the same reason ``host`` is (older rows predate the
+    Task 6 columns), so ``hostnameNotIn`` gets the same NULL-OR treatment.
 
     Raises:
         DomainValidationError: If an ``ipAddressIn``/``ipAddressNotIn`` value
@@ -101,6 +106,20 @@ def provide_access_log_in_filters(
                 ],
             )
         )
+    if hostname_in:
+        result.append(CollectionFilter(field_name="hostname", values=hostname_in))
+    if hostname_not_in:
+        result.append(
+            FilterGroup(
+                logical_operator=or_,
+                filters=[
+                    NotInCollectionFilter(field_name="hostname", values=hostname_not_in),
+                    NullFilter(field_name="hostname"),
+                ],
+            )
+        )
+    if log_format_in:
+        result.append(CollectionFilter(field_name="log_format", values=log_format_in))
     return result
 
 
@@ -151,7 +170,7 @@ class AccessLogController(Controller):
         self,
         access_log_service: NamedDependency[AccessLogService],
     ) -> AccessLogFacets:
-        """Distinct country/city/host values present in the data, for filter dropdowns.
+        """Distinct country/city/host/hostname/log-format values, for filter dropdowns.
 
         ``return_dto=None`` opts out of the controller-level ``AccessLogDTO``
         (bound to the AccessLog model); Litestar serializes the dataclasses
