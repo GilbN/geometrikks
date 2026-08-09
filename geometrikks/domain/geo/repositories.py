@@ -63,6 +63,26 @@ def get_stats_granularity(from_timestamp: datetime, to_timestamp: datetime) -> S
         return StatsGranularity.DAILY
 
 
+def use_local_days(
+    granularity: StatsGranularity,
+    start: datetime,
+    end: datetime,
+    tz: str | None,
+) -> bool:
+    """True when daily buckets should be local days in ``tz``.
+
+    Mirrors the analytics twin (this domain keeps its own granularity
+    routing): non-UTC daily buckets need hourly source data, so windows
+    routed to the daily CAGGs (> 30 days) keep UTC days.
+    """
+    return (
+        granularity == StatsGranularity.DAILY
+        and tz is not None
+        and tz != "UTC"
+        and get_stats_granularity(start, end) != StatsGranularity.DAILY
+    )
+
+
 IP_LOCATION_CAGGS = {
     StatsGranularity.HOURLY: ("ip_location_hourly_stats", "1 hour"),
     StatsGranularity.DAILY: ("ip_location_daily_stats", "1 day"),

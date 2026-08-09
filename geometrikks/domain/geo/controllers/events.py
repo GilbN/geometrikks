@@ -37,9 +37,10 @@ from geometrikks.lib.parameters import (
     IpAddressIn,
     IpAddressNotIn,
     FromTimestamp,
+    Timezone,
 )
 from geometrikks.lib.time import ensure_utc
-from geometrikks.lib.validation import validate_ip_addresses
+from geometrikks.lib.validation import validate_ip_addresses, validate_timezone
 
 
 
@@ -278,6 +279,7 @@ class GeoEventController(Controller):
                 required=False,
             ),
         ] = None,
+        tz: Timezone = None,
     ) -> GeoLogTimeSeriesResponse:
         """Bucketed totals + unique IPs.
 
@@ -288,8 +290,10 @@ class GeoEventController(Controller):
         from_timestamp = ensure_utc(from_timestamp)
         to_timestamp = ensure_utc(to_timestamp)
         resolved = _resolve_chart_granularity(from_timestamp, to_timestamp, granularity)
+        if tz is not None:
+            validate_timezone(tz)
         points = await geo_event_service.get_time_series(
-            from_timestamp, to_timestamp, resolved, geo_filters
+            from_timestamp, to_timestamp, resolved, geo_filters, tz=tz
         )
         return GeoLogTimeSeriesResponse(
             granularity=resolved.value,

@@ -19,6 +19,7 @@ import {
   apiV1AnalyticsTopUrlsGetTopUrls,
   apiV1AnalyticsTopUserAgentsGetTopUserAgents,
 } from "@/generated/api/sdk.gen"
+import { BROWSER_TZ } from "@/lib/datetime"
 import type {
   GeoJsonFeatureCollection as GeoJSONFeatureCollection,
   SafeSettingsResponse,
@@ -541,6 +542,7 @@ export async function fetchTimeSeries(params: TimeSeriesParams & AnalyticsFilter
       startDate: params.startDate,
       endDate: params.endDate,
       granularity: params.granularity,
+      tz: BROWSER_TZ,
       countryCode: params.countryCodes?.length ? params.countryCodes : undefined,
       city: params.cities?.length ? params.cities : undefined,
       ipAddress: params.ips?.length ? params.ips : undefined,
@@ -553,7 +555,12 @@ export async function fetchTimeSeries(params: TimeSeriesParams & AnalyticsFilter
 
 export async function fetchGeoTimeSeries(params: TimeSeriesParams) {
   const { data } = await apiV1AnalyticsGeoTimeSeriesGetGeoTimeSeries({
-    query: { startDate: params.startDate, endDate: params.endDate, granularity: params.granularity },
+    query: {
+      startDate: params.startDate,
+      endDate: params.endDate,
+      granularity: params.granularity,
+      tz: BROWSER_TZ,
+    },
     throwOnError: true,
   })
   return data
@@ -758,6 +765,7 @@ export async function fetchGeoLogTimeSeries(
       fromTimestamp: params.fromTimestamp,
       toTimestamp: params.toTimestamp,
       granularity: params.granularity,
+      tz: BROWSER_TZ,
       ...geoLogFilterQuery(params),
     },
     throwOnError: true,

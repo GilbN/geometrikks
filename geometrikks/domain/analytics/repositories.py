@@ -71,6 +71,27 @@ def get_stats_granularity(start: datetime, end: datetime) -> StatsGranularity:
     return StatsGranularity.DAILY
 
 
+def use_local_days(
+    granularity: StatsGranularity,
+    start: datetime,
+    end: datetime,
+    tz: str | None,
+) -> bool:
+    """True when daily buckets should be local days in ``tz``.
+
+    Daily buckets in a non-UTC zone can only be assembled from hourly source
+    data. Ranges that route to the daily CAGGs (> 30 days) keep UTC day
+    buckets: hourly CAGG retention is not guaranteed to reach that far back,
+    and the daily CAGGs are baked as UTC days.
+    """
+    return (
+        granularity == StatsGranularity.DAILY
+        and tz is not None
+        and tz != "UTC"
+        and get_stats_granularity(start, end) != StatsGranularity.DAILY
+    )
+
+
 def _floor_to_hour(dt: datetime) -> datetime:
     """Truncate datetime to the start of its hour."""
     result = dt.replace(minute=0, second=0, microsecond=0)
@@ -379,6 +400,7 @@ class SummaryStatsRepository:
         start: datetime,
         end: datetime,
         granularity: StatsGranularity | None = None,
+        tz: str | None = None,
     ) -> Sequence[SummaryStatsRow]:
         """Get time series data for charts.
 
@@ -387,6 +409,9 @@ class SummaryStatsRepository:
             end: End datetime.
             granularity: Explicit bucket granularity override. None auto-routes
                 via get_stats_granularity (RAW is clamped to HOURLY).
+            tz: IANA timezone for daily buckets. When set (and non-UTC), daily
+                buckets are local days rolled up from the hourly CAGG; ranges
+                routed to the daily CAGGs keep UTC days (see use_local_days).
 
         Returns:
             List of SummaryStatsRow ordered by bucket ascending.
@@ -395,30 +420,61 @@ class SummaryStatsRepository:
             granularity = get_stats_granularity(start, end)
         if granularity == StatsGranularity.RAW:
             granularity = StatsGranularity.HOURLY  # no raw CAGG; hourly + real-time agg covers <=24h
-        table = f"summary_{granularity.value}_stats"
-        bucket_interval = "1 hour" if granularity == StatsGranularity.HOURLY else "1 day"
 
-        stmt = text(f"""
-            SELECT
-                bucket,
-                total_requests,
-                total_bytes,
-                status_2xx,
-                status_3xx,
-                status_4xx,
-                status_5xx,
-                avg_request_time,
-                max_request_time,
-                approx_percentile(0.50, pct_agg) AS p50_request_time,
-                approx_percentile(0.95, pct_agg) AS p95_request_time,
-                approx_percentile(0.99, pct_agg) AS p99_request_time
-            FROM {table}
-            WHERE bucket >= time_bucket('{bucket_interval}', CAST(:start AS timestamptz))
-              AND bucket < :end
-            ORDER BY bucket ASC
-        """)
+        if use_local_days(granularity, start, end, tz):
+            # Local days assembled from hourly buckets: counts sum, sketches
+            # merge via rollup(), and the mean is request-weighted. The CAGG's
+            # AVG skips NULL request_time rows while total_requests counts
+            # them, so the weighted mean drifts slightly when NULLs cluster.
+            # GROUP BY 1: a bare "bucket" would resolve to the source column.
+            stmt = text("""
+                SELECT
+                    time_bucket('1 day', bucket, CAST(:tz AS TEXT)) AS bucket,
+                    CAST(SUM(total_requests) AS BIGINT) AS total_requests,
+                    CAST(COALESCE(SUM(total_bytes), 0) AS BIGINT) AS total_bytes,
+                    CAST(SUM(status_2xx) AS BIGINT) AS status_2xx,
+                    CAST(SUM(status_3xx) AS BIGINT) AS status_3xx,
+                    CAST(SUM(status_4xx) AS BIGINT) AS status_4xx,
+                    CAST(SUM(status_5xx) AS BIGINT) AS status_5xx,
+                    SUM(avg_request_time * total_requests)
+                        / NULLIF(SUM(total_requests), 0) AS avg_request_time,
+                    MAX(max_request_time) AS max_request_time,
+                    approx_percentile(0.50, rollup(pct_agg)) AS p50_request_time,
+                    approx_percentile(0.95, rollup(pct_agg)) AS p95_request_time,
+                    approx_percentile(0.99, rollup(pct_agg)) AS p99_request_time
+                FROM summary_hourly_stats
+                WHERE bucket >= time_bucket('1 day', CAST(:start AS timestamptz), CAST(:tz AS TEXT))
+                  AND bucket < :end
+                GROUP BY 1
+                ORDER BY 1 ASC
+            """)
+            params: dict = {"start": start, "end": end, "tz": tz}
+        else:
+            table = f"summary_{granularity.value}_stats"
+            bucket_interval = "1 hour" if granularity == StatsGranularity.HOURLY else "1 day"
 
-        result = await self.session.execute(stmt, {"start": start, "end": end})
+            stmt = text(f"""
+                SELECT
+                    bucket,
+                    total_requests,
+                    total_bytes,
+                    status_2xx,
+                    status_3xx,
+                    status_4xx,
+                    status_5xx,
+                    avg_request_time,
+                    max_request_time,
+                    approx_percentile(0.50, pct_agg) AS p50_request_time,
+                    approx_percentile(0.95, pct_agg) AS p95_request_time,
+                    approx_percentile(0.99, pct_agg) AS p99_request_time
+                FROM {table}
+                WHERE bucket >= time_bucket('{bucket_interval}', CAST(:start AS timestamptz))
+                  AND bucket < :end
+                ORDER BY bucket ASC
+            """)
+            params = {"start": start, "end": end}
+
+        result = await self.session.execute(stmt, params)
         rows = result.fetchall()
 
         return [
@@ -444,6 +500,7 @@ class SummaryStatsRepository:
         start: datetime,
         end: datetime,
         granularity: StatsGranularity | None = None,
+        tz: str | None = None,
     ) -> Sequence[dict]:
         """Get geo event time series data for charts.
 
@@ -454,6 +511,7 @@ class SummaryStatsRepository:
             end: End datetime.
             granularity: Explicit bucket granularity override. None auto-routes
                 via get_stats_granularity (RAW is clamped to HOURLY).
+            tz: IANA timezone for daily buckets (see get_time_series).
 
         Returns:
             List of dicts with bucket, total_events, unique_ips, unique_countries, unique_cities.
@@ -462,23 +520,42 @@ class SummaryStatsRepository:
             granularity = get_stats_granularity(start, end)
         if granularity == StatsGranularity.RAW:
             granularity = StatsGranularity.HOURLY  # no raw CAGG; hourly + real-time agg covers <=24h
-        table = f"geo_summary_{granularity.value}_stats"
-        bucket_interval = "1 hour" if granularity == StatsGranularity.HOURLY else "1 day"
 
-        stmt = text(f"""
-            SELECT
-                bucket,
-                total_events,
-                distinct_count(hll_ips) AS unique_ips,
-                distinct_count(hll_countries) AS unique_countries,
-                distinct_count(hll_cities) AS unique_cities
-            FROM {table}
-            WHERE bucket >= time_bucket('{bucket_interval}', CAST(:start AS timestamptz))
-              AND bucket < :end
-            ORDER BY bucket ASC
-        """)
+        if use_local_days(granularity, start, end, tz):
+            # GROUP BY 1: a bare "bucket" would resolve to the source column.
+            stmt = text("""
+                SELECT
+                    time_bucket('1 day', bucket, CAST(:tz AS TEXT)) AS bucket,
+                    CAST(SUM(total_events) AS BIGINT) AS total_events,
+                    distinct_count(rollup(hll_ips)) AS unique_ips,
+                    distinct_count(rollup(hll_countries)) AS unique_countries,
+                    distinct_count(rollup(hll_cities)) AS unique_cities
+                FROM geo_summary_hourly_stats
+                WHERE bucket >= time_bucket('1 day', CAST(:start AS timestamptz), CAST(:tz AS TEXT))
+                  AND bucket < :end
+                GROUP BY 1
+                ORDER BY 1 ASC
+            """)
+            params: dict = {"start": start, "end": end, "tz": tz}
+        else:
+            table = f"geo_summary_{granularity.value}_stats"
+            bucket_interval = "1 hour" if granularity == StatsGranularity.HOURLY else "1 day"
 
-        result = await self.session.execute(stmt, {"start": start, "end": end})
+            stmt = text(f"""
+                SELECT
+                    bucket,
+                    total_events,
+                    distinct_count(hll_ips) AS unique_ips,
+                    distinct_count(hll_countries) AS unique_countries,
+                    distinct_count(hll_cities) AS unique_cities
+                FROM {table}
+                WHERE bucket >= time_bucket('{bucket_interval}', CAST(:start AS timestamptz))
+                  AND bucket < :end
+                ORDER BY bucket ASC
+            """)
+            params = {"start": start, "end": end}
+
+        result = await self.session.execute(stmt, params)
         return [dict(row._mapping) for row in result.fetchall()]
 
     async def get_cumulative_time_series(
@@ -1057,18 +1134,29 @@ class LiveStatsRepository:
         *,
         bucket_interval: str,
         filters: AnalyticsFilters | None = None,
+        tz: str | None = None,
     ) -> Sequence[SummaryStatsRow]:
         """Bucketed access-log metrics from the raw hypertable.
 
         Used when dimension filters are active (CAGGs cannot filter).
         bucket_interval is '1 hour' or '1 day' (validated by the caller).
+        With a non-UTC ``tz``, daily buckets are local days; raw rows carry
+        exact timestamps, so this needs no range restriction.
         """
         if bucket_interval not in ("1 hour", "1 day"):
             raise ValueError("bucket_interval must be '1 hour' or '1 day'")
+        local_days = bucket_interval == "1 day" and tz is not None and tz != "UTC"
+        bucket_expr = (
+            "time_bucket('1 day', timestamp, CAST(:tz AS TEXT))"
+            if local_days
+            else f"time_bucket('{bucket_interval}', timestamp)"
+        )
         filter_sql, filter_params = (filters or AnalyticsFilters()).sql_conditions()
+        if local_days:
+            filter_params = {**filter_params, "tz": tz}
         stmt = text(f"""
             SELECT
-                time_bucket('{bucket_interval}', timestamp) AS bucket,
+                {bucket_expr} AS bucket,
                 CAST(COUNT(*) AS BIGINT) AS total_requests,
                 CAST(COALESCE(SUM(bytes_sent), 0) AS BIGINT) AS total_bytes,
                 COUNT(*) FILTER (WHERE status_code >= 200 AND status_code < 300) AS status_2xx,

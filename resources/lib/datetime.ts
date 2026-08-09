@@ -10,6 +10,12 @@
  * way on the gridline and another way in the tooltip.
  */
 
+/**
+ * The browser's IANA timezone, sent as the `tz` query param so the API can
+ * bucket daily chart data into local days instead of UTC days.
+ */
+export const BROWSER_TZ = new Intl.DateTimeFormat().resolvedOptions().timeZone
+
 const HOURLY = new Intl.DateTimeFormat(undefined, {
   month: "short",
   day: "numeric",

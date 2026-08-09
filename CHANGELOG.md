@@ -22,6 +22,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Selecting "Today" (or any range not starting at UTC midnight) with daily
+  granularity no longer renders an extra full day in the charts. The frontend
+  now sends the browser's timezone as a new optional `tz` query parameter on
+  the time-series endpoints, and daily buckets are computed as local days in
+  that zone for ranges up to 30 days (rolled up from hourly data: counts
+  summed, latency sketches and unique-count HLLs merged). Ranges beyond 30
+  days keep UTC day buckets, since only the daily aggregates reach that far
+  back.
+
 - Chart tooltips now show the bucket time in the browser's timezone instead of
   the raw UTC ISO string, matching the X axis ticks. Affected the requests,
   bandwidth, latency, status-class and geo-events charts.
