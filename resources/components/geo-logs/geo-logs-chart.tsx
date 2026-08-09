@@ -3,7 +3,7 @@
  * unique IPs, honoring the shared filter set and the global time range.
  */
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   ChartContainer,
   ChartTooltip,
@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/chart"
 import { Skeleton } from "@/components/ui/skeleton"
 import { formatNumber } from "@/lib/api"
+import { clampedYMax } from "@/lib/chart-scale"
 import { formatTs } from "@/lib/datetime"
 import { useGeoLogTimeSeries } from "@/lib/queries"
 import { TimeSeriesTooltip } from "@/components/analytics/time-series-tooltip"
@@ -22,11 +23,19 @@ const chartConfig = {
 
 export function GeoLogsChart() {
   const { data, isLoading } = useGeoLogTimeSeries()
+  const clipMax = clampedYMax(
+    (data?.data ?? []).flatMap((d) => [d.totalEvents, d.uniqueIps]),
+  )
 
   return (
     <Card>
       <CardHeader>
         <CardTitle className="text-sm font-medium">Geo Events Over Time</CardTitle>
+        {clipMax != null && (
+          <CardAction className="text-xs text-muted-foreground">
+            y-axis clipped at {formatNumber(clipMax)}
+          </CardAction>
+        )}
       </CardHeader>
       <CardContent>
         {isLoading || !data ? (
@@ -46,6 +55,8 @@ export function GeoLogsChart() {
                 axisLine={false}
                 width={48}
                 tickFormatter={(v: number) => formatNumber(v)}
+                domain={clipMax != null ? [0, clipMax] : undefined}
+                allowDataOverflow={clipMax != null}
               />
               <ChartTooltip content={<TimeSeriesTooltip granularity={data.granularity} />} />
               <Area
