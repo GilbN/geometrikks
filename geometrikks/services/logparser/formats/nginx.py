@@ -22,6 +22,15 @@ class NginxFormat:
     name = "nginx"
 
     def parse(self, line: str, *, geo_only: bool = False) -> NormalizedLine | None:
+        """Validate the line against the IPv4/IPv6 patterns and normalize it.
+
+        Args:
+            line: Raw log line.
+            geo_only: Only require the IP address and the timestamp (send_logs=False mode).
+
+        Returns:
+            NormalizedLine on a match, None when the line does not match.
+        """
         if geo_only:
             matched = ipv4_geo_pattern().match(line) or ipv6_geo_pattern().match(line)
         else:
@@ -85,6 +94,14 @@ class NginxFormat:
         )
 
     def detect_malformed(self, norm: NormalizedLine) -> tuple[bool, str | None]:
+        """Detect malformed requests such as TLS probes and invalid HTTP.
+
+        Args:
+            norm: The normalized line to inspect.
+
+        Returns:
+            tuple of (is_malformed, parse_error_message)
+        """
         request = norm.request_raw or ""
         method = norm.method
         status_code = norm.status_code

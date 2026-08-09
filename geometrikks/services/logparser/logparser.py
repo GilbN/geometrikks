@@ -86,13 +86,13 @@ def make_cached_ignore_check(ignore_ips: list[str]) -> Callable[[str], bool]:
 
 
 class LogParser:
-    """Parses nginx access logs and performs GeoIP lookups.
+    """Tails access logs, parses lines via a pluggable format adapter, and performs GeoIP lookups.
 
-    Log parser module for tailing and parsing nginx access logs.
+    Log parser module for tailing and parsing access logs.
 
     This module handles:
-    - Tailing nginx access logs asynchronously
-    - Validating log lines against regex patterns
+    - Tailing access logs asynchronously
+    - Parsing log lines through a format adapter (nginx, traefik-json, ...)
     - Performing GeoIP lookups
     - Detecting malformed requests (TLS probes, SSH scans, etc.)
     """
@@ -275,6 +275,10 @@ class LogParser:
         performs GeoIP lookup, and detects malformed requests. Updates
         self.parsed_lines/self.skipped_lines.
 
+        Args:
+            line: Raw log line to parse.
+            lookup: Callable to look up City data for an IP address.
+
         Returns:
             ParsedLogRecord with parsed data. A record with ip_address=None
             indicates the line didn't match the format (counted in
@@ -432,7 +436,13 @@ class LogParser:
     ) -> ParsedAccessLog | None:
         """Build the ParsedAccessLog for a normalized line, enriched with GeoIP.
 
-        Returns None when the IP type is not monitored or has no GeoIP data.
+        Args:
+            norm: Normalized line from the format adapter.
+            ip: IP address string.
+            lookup: Callable to look up City data for an IP address.
+
+        Returns:
+            ParsedAccessLog if the IP is monitored and has GeoIP data, None otherwise.
         """
         if not check_ip_type(ip):
             return None
