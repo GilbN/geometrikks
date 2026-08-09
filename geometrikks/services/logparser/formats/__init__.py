@@ -3,10 +3,12 @@ from __future__ import annotations
 
 from .base import LogLineFormat, NormalizedLine
 from .nginx import NginxFormat
+from .traefik import TraefikJsonFormat
 
 # Sniffing order matters: cheap/most-specific first. traefik-json is added
 # in front of nginx by a later task (its '{' prefix check is near-free).
 FORMATS: dict[str, LogLineFormat] = {
+    TraefikJsonFormat.name: TraefikJsonFormat(),
     NginxFormat.name: NginxFormat(),
 }
 
