@@ -23,7 +23,15 @@ from litestar.plugins import CLIPlugin
 )
 @click.option("--force", is_flag=True, help="Re-import files whose checksum was already imported (updates the prior import_jobs row; does NOT remove previously imported rows).")
 @click.option("--batch-size", default=500, show_default=True, type=click.IntRange(min=1), help="Records per commit batch.")
-def import_logs_command(paths: tuple[Path, ...], force: bool, batch_size: int) -> None:
+@click.option(
+    "--format",
+    "log_format",
+    default="auto",
+    show_default=True,
+    type=click.Choice(["auto", "nginx", "traefik-json"]),
+    help="Log format of the given files (auto = detect per file).",
+)
+def import_logs_command(paths: tuple[Path, ...], force: bool, batch_size: int, log_format: str) -> None:
     """Import historical access-log files (plain or .gz) into the database.
 
     Reads whole files, uses log-line timestamps, refreshes the continuous
@@ -31,10 +39,10 @@ def import_logs_command(paths: tuple[Path, ...], force: bool, batch_size: int) -
     that is also being live-tailed will double-count — import archived
     (rotated) files only.
     """
-    asyncio.run(_run_import(list(paths), force=force, batch_size=batch_size))
+    asyncio.run(_run_import(list(paths), force=force, batch_size=batch_size, log_format=log_format))
 
 
-async def _run_import(paths: list[Path], *, force: bool, batch_size: int) -> None:
+async def _run_import(paths: list[Path], *, force: bool, batch_size: int, log_format: str) -> None:
     from geoip2.database import Reader
 
     from geometrikks.config.settings import get_settings
@@ -77,6 +85,7 @@ async def _run_import(paths: list[Path], *, force: bool, batch_size: int) -> Non
                 log_path=path,
                 send_logs=settings.logparser.send_logs,
                 ignore_ips=settings.logparser.ignore_ips,
+                log_format=log_format,
             )
 
             def show_progress(lines: int, lps: float) -> None:

@@ -260,8 +260,9 @@ async def ingestion_lifespan(app: "Litestar") -> "AsyncGenerator[None]":
             poll_interval=settings.logparser.poll_interval,
             hostname=settings.logparser.host_name,
             ignore_ips=settings.logparser.ignore_ips,
+            log_format=fmt,
         )
-        for path in settings.logparser.log_paths
+        for path, fmt in zip(settings.logparser.log_paths, settings.logparser.resolved_formats())
     ]
 
     ingestion_service = LogIngestionService(
