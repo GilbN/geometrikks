@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from typing import Any
 
 from geometrikks.server.logging import get_logger
 from geometrikks.services.logparser.constants import (
@@ -27,7 +28,7 @@ class NginxFormat:
             matched = ipv4_pattern().match(line) or ipv6_pattern().match(line)
         if not matched:
             return None
-        d = matched.groupdict()
+        d: dict[str, str | Any] = matched.groupdict()
 
         try:
             ts = datetime.strptime(d["dateandtime"], "%d/%b/%Y:%H:%M:%S %z")
@@ -88,13 +89,20 @@ class NginxFormat:
         method = norm.method
         status_code = norm.status_code
 
+        # TLS handshake sent to HTTP port - starts with \x16\x03 (TLS record header)
+        # Common patterns: \x16\x03\x01 (TLS 1.0), \x16\x03\x03 (TLS 1.2/1.3)
+        # Check both escaped string representation and raw bytes
         if request:
+            # Escaped form in log: \x16\x03
             if "\\x16\\x03" in request:
                 return True, "TLS handshake sent to HTTP port (escaped)"
+            # Raw bytes form (unlikely but possible)
             if "\x16\x03" in request:
                 return True, "TLS handshake sent to HTTP port (raw)"
+            # SSH probe
             if request.startswith("SSH-") or "\\x53\\x53\\x48" in request:
                 return True, "SSH probe sent to HTTP port"
+            # SMB probe - \xFFSMB or escaped \x00...\xFFSMB
             if (
                 "\\xffSMB" in request.lower()
                 or "\xffSMB" in request
@@ -104,13 +112,17 @@ class NginxFormat:
             if "NT LM" in request:
                 return True, "SMB dialect negotiation probe"
 
+        # TLS probe: No HTTP method and 400 status (client sent HTTP to HTTPS port)
         if method is None and status_code == 400:
             return True, "TLS probe: HTTP request sent to HTTPS port"
+        # Invalid HTTP method (connection closed before sending valid request)
         if method is None:
             return True, "No HTTP method in request"
+        # Check for non-standard/invalid HTTP methods
         if method.upper() not in VALID_HTTP_METHODS:
             return True, f"Invalid HTTP method: {method}"
 
+        # nginx-specific status codes that indicate connection issues, not normal HTTP errors
         if status_code == 408:
             return True, "Request timeout (408)"
         if status_code == 444:
