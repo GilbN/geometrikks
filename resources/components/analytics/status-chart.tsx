@@ -5,13 +5,13 @@ import {
   ChartLegend,
   ChartLegendContent,
   ChartTooltip,
-  ChartTooltipContent,
   type ChartConfig,
 } from "@/components/ui/chart"
 import { Skeleton } from "@/components/ui/skeleton"
 import { formatNumber } from "@/lib/api"
+import { formatTs } from "@/lib/datetime"
 import { useTimeSeries } from "@/lib/queries"
-import { formatBucketTick } from "./chart-utils"
+import { TimeSeriesTooltip } from "./time-series-tooltip"
 
 // Slot order matches the stack order: adjacent-pair CVD separation of the
 // palette is only guaranteed for slots used in sequence.
@@ -41,7 +41,7 @@ export function StatusChart() {
                 dataKey="timestamp"
                 tickLine={false}
                 axisLine={false}
-                tickFormatter={formatBucketTick(data.granularity)}
+                tickFormatter={(v: string) => formatTs(v, data.granularity)}
               />
               <YAxis
                 tickLine={false}
@@ -49,7 +49,7 @@ export function StatusChart() {
                 width={48}
                 tickFormatter={(v: number) => formatNumber(v)}
               />
-              <ChartTooltip content={<ChartTooltipContent />} />
+              <ChartTooltip content={<TimeSeriesTooltip granularity={data.granularity} />} />
               <ChartLegend content={<ChartLegendContent />} />
               {/* stroke = card surface: the 2px spacer between stacked segments */}
               <Bar dataKey="status2xx" stackId="s" fill="var(--color-status2xx)" stroke="var(--card)" strokeWidth={1} />

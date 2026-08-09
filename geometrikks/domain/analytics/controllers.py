@@ -379,7 +379,7 @@ class AnalyticsController(Controller):
 
         data_points = [
             CumulativeDataPoint(
-                timestamp=row["timestamp"].isoformat() if hasattr(row["timestamp"], "isoformat") else str(row["timestamp"]),
+                timestamp=row["timestamp"].isoformat(),
                 cumulative_geo_events=int(row["cumulative_geo_events"]),
                 cumulative_access_logs=int(row["cumulative_access_logs"]),
                 cumulative_bytes=int(row["cumulative_bytes"]),

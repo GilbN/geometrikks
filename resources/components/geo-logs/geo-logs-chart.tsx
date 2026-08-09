@@ -7,13 +7,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   ChartContainer,
   ChartTooltip,
-  ChartTooltipContent,
   type ChartConfig,
 } from "@/components/ui/chart"
 import { Skeleton } from "@/components/ui/skeleton"
 import { formatNumber } from "@/lib/api"
+import { formatTs } from "@/lib/datetime"
 import { useGeoLogTimeSeries } from "@/lib/queries"
-import { formatBucketTick } from "@/components/analytics/chart-utils"
+import { TimeSeriesTooltip } from "@/components/analytics/time-series-tooltip"
 
 const chartConfig = {
   totalEvents: { label: "Events", color: "var(--chart-1)" },
@@ -39,7 +39,7 @@ export function GeoLogsChart() {
                 dataKey="timestamp"
                 tickLine={false}
                 axisLine={false}
-                tickFormatter={formatBucketTick(data.granularity)}
+                tickFormatter={(v: string) => formatTs(v, data.granularity)}
               />
               <YAxis
                 tickLine={false}
@@ -47,7 +47,7 @@ export function GeoLogsChart() {
                 width={48}
                 tickFormatter={(v: number) => formatNumber(v)}
               />
-              <ChartTooltip content={<ChartTooltipContent />} />
+              <ChartTooltip content={<TimeSeriesTooltip granularity={data.granularity} />} />
               <Area
                 dataKey="totalEvents"
                 type="monotone"

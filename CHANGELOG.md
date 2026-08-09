@@ -22,6 +22,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Chart tooltips now show the bucket time in the browser's timezone instead of
+  the raw UTC ISO string, matching the X axis ticks. Affected the requests,
+  bandwidth, latency, status-class and geo-events charts.
+
+- The Summary page's date-range badge now shows the range in the browser's
+  timezone with a matching zone label instead of hardcoded UTC; hovering it
+  still shows the full UTC instant.
+
 - With `APP_AUTH_DISABLED=true` the auth endpoints stay registered, so the
   frontend's `/api/v1/auth/me` call no longer 404s into an uncaught-exception
   traceback on every page load. `/login` and `/logout` redirect to the
