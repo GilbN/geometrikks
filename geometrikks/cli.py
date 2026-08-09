@@ -1,4 +1,4 @@
-"""Litestar CLI plugin: `litestar import-logs <paths...>`.
+"""Litestar CLI plugin: `litestar import-logs <paths...>`, `litestar backfill-hostname NAME`.
 
 Import-time safe: settings, engine, reader are constructed inside the
 command callback, never at module import.
@@ -144,8 +144,99 @@ async def _run_import(paths: list[Path], *, force: bool, batch_size: int, log_fo
         )
 
 
+@click.command(name="backfill-hostname")
+@click.argument("name")
+@click.option(
+    "--consolidate", is_flag=True,
+    help=(
+        "Also rewrite ALL existing hostnames (geo_events and stamped "
+        "access_logs rows) to NAME. For DBs polluted by Docker container-ID "
+        "hostnames from unset LOGPARSER_HOST_NAME."
+    ),
+)
+@click.option("--yes", is_flag=True, help="Skip the confirmation prompt.")
+def backfill_hostname_command(name: str, consolidate: bool, yes: bool) -> None:
+    """Set the recording hostname on historical rows.
+
+    Default: fills only access_logs rows with NULL hostname (idempotent,
+    cannot clobber stamped data). With --consolidate it collapses every
+    existing hostname in geo_events and access_logs to NAME as well.
+    May run for minutes on large databases.
+    """
+    asyncio.run(_run_backfill_hostname(name, consolidate=consolidate, yes=yes))
+
+
+async def _run_backfill_hostname(name: str, *, consolidate: bool, yes: bool) -> None:
+    from sqlalchemy import text
+
+    from geometrikks.server.logging import get_logger
+    from geometrikks.server.plugins import get_sqlalchemy_config
+    from geometrikks.server.timescale import refresh_caggs_range
+
+    logger = get_logger(__name__)
+    config = get_sqlalchemy_config()
+    engine = config.get_engine()
+    try:
+        async with engine.connect() as conn:
+            distinct = (await conn.execute(text(
+                "SELECT hostname, COUNT(*) FROM geo_events GROUP BY hostname ORDER BY hostname"
+            ))).all()
+
+        if consolidate:
+            click.echo("Hostnames that will be consolidated into "
+                       f"{name!r} (geo_events counts):")
+            for host, count in distinct:
+                click.echo(f"  {host}: {count:,}")
+            if not yes and not click.confirm("Rewrite ALL of these?"):
+                click.echo("Aborted.")
+                return
+
+        async with engine.begin() as conn:
+            filled = (await conn.execute(
+                text("UPDATE access_logs SET hostname = :n WHERE hostname IS NULL"),
+                {"n": name},
+            )).rowcount
+            rewritten_geo = rewritten_logs = 0
+            if consolidate:
+                rewritten_geo = (await conn.execute(
+                    text("UPDATE geo_events SET hostname = :n WHERE hostname <> :n"),
+                    {"n": name},
+                )).rowcount
+                rewritten_logs = (await conn.execute(
+                    text("UPDATE access_logs SET hostname = :n "
+                         "WHERE hostname IS NOT NULL AND hostname <> :n"),
+                    {"n": name},
+                )).rowcount
+
+        click.echo(f"access_logs NULL hostnames filled: {filled:,}")
+        if consolidate:
+            click.echo(f"geo_events hostnames rewritten: {rewritten_geo:,}")
+            click.echo(f"access_logs hostnames rewritten: {rewritten_logs:,}")
+
+            # The hostname CAGGs still show the old values until refreshed.
+            bounds = None
+            async with engine.connect() as conn:
+                bounds = (await conn.execute(text(
+                    "SELECT MIN(timestamp), MAX(timestamp) FROM geo_events"
+                ))).one()
+            if bounds and bounds[0] is not None:
+                click.echo("Refreshing hostname CAGGs ...")
+                await refresh_caggs_range(
+                    engine, start=bounds[0], end=bounds[1] + timedelta(microseconds=1),
+                    caggs=["hostname_daily_stats", "log_source_daily_stats"],
+                )
+
+        logger.info(
+            "hostname_backfill_completed name=%s consolidate=%s filled=%d rewritten_geo=%d rewritten_logs=%d",
+            name, consolidate, filled, rewritten_geo, rewritten_logs,
+        )
+    finally:
+        await engine.dispose()
+
+
 class ImportLogsCLIPlugin(CLIPlugin):
-    """Registers import-logs on the litestar CLI group."""
+    """Registers import-logs and backfill-hostname on the litestar CLI group."""
 
     def on_cli_init(self, cli: click.Group) -> None:
         cli.add_command(import_logs_command)
+        cli.add_command(backfill_hostname_command)
