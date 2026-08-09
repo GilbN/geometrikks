@@ -1,5 +1,5 @@
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   ChartContainer,
   ChartTooltip,
@@ -7,6 +7,7 @@ import {
 } from "@/components/ui/chart"
 import { Skeleton } from "@/components/ui/skeleton"
 import { formatBytes } from "@/lib/api"
+import { clampedYMax } from "@/lib/chart-scale"
 import { formatTs } from "@/lib/datetime"
 import { useTimeSeries } from "@/lib/queries"
 import { TimeSeriesTooltip } from "./time-series-tooltip"
@@ -17,11 +18,17 @@ const chartConfig = {
 
 export function BytesChart() {
   const { data, isLoading } = useTimeSeries()
+  const clipMax = clampedYMax((data?.data ?? []).map((d) => d.totalBytesSent))
 
   return (
     <Card>
       <CardHeader>
         <CardTitle className="text-sm font-medium">Bandwidth</CardTitle>
+        {clipMax != null && (
+          <CardAction className="text-xs text-muted-foreground">
+            y-axis clipped at {formatBytes(clipMax)}
+          </CardAction>
+        )}
       </CardHeader>
       <CardContent>
         {isLoading || !data ? (
@@ -41,6 +48,8 @@ export function BytesChart() {
                 axisLine={false}
                 width={64}
                 tickFormatter={(v: number) => formatBytes(v)}
+                domain={clipMax != null ? [0, clipMax] : undefined}
+                allowDataOverflow={clipMax != null}
               />
               <ChartTooltip
                 content={

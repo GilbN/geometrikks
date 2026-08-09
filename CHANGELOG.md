@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Time-series charts (requests, bandwidth, latency, status classes, geo events)
+  now auto-clamp the y-axis when a single traffic burst dwarfs the rest of the
+  range, keeping normal traffic readable. Clamped charts show a
+  "y-axis clipped at ..." note in the card header; spike buckets clip at the
+  top edge and tooltips keep the true values.
+
 ### Changed
 
 - `GET /api/v1/auth/me` now reports an auth mode: `{"mode": "session",
@@ -30,6 +38,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   summed, latency sketches and unique-count HLLs merged). Ranges beyond 30
   days keep UTC day buckets, since only the daily aggregates reach that far
   back.
+- The status-classes chart no longer renders near-invisible bars on dense
+  views such as 7d+ with hourly granularity: past 48 buckets it switches to a
+  stacked area chart with the same colors and stack order. The card-colored
+  spacer strokes between bar segments were wider than the sub-pixel bars
+  themselves, erasing the fill entirely.
 
 - Chart tooltips now show the bucket time in the browser's timezone instead of
   the raw UTC ISO string, matching the X axis ticks. Affected the requests,
