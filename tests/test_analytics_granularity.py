@@ -8,7 +8,7 @@ import pytest
 from geometrikks.domain.exceptions import DomainValidationError
 
 from geometrikks.domain.analytics.controllers import _build_filters, _resolve_chart_granularity
-from geometrikks.domain.analytics.repositories import StatsGranularity
+from geometrikks.domain.analytics.repositories import StatsGranularity, use_local_days
 
 NOW = datetime(2026, 7, 16, 12, 0, tzinfo=timezone.utc)
 
@@ -29,6 +29,29 @@ def test_fallback_matches_get_stats_granularity():
 def test_raw_is_never_returned():
     # <= 24h falls back to RAW internally but must clamp to HOURLY for charts
     assert _resolve_chart_granularity(NOW - timedelta(hours=6), NOW, None) is StatsGranularity.HOURLY
+
+
+def test_local_days_apply_to_short_daily_ranges_in_non_utc_zone():
+    start = NOW - timedelta(days=7)
+    assert use_local_days(StatsGranularity.DAILY, start, NOW, "Europe/Oslo") is True
+
+
+def test_local_days_ignored_without_a_zone_or_for_utc():
+    start = NOW - timedelta(days=7)
+    assert use_local_days(StatsGranularity.DAILY, start, NOW, None) is False
+    assert use_local_days(StatsGranularity.DAILY, start, NOW, "UTC") is False
+
+
+def test_local_days_ignored_when_range_routes_to_daily_caggs():
+    # > 30 days: hourly source data is not guaranteed to exist (retention),
+    # so daily buckets stay UTC days.
+    start = NOW - timedelta(days=90)
+    assert use_local_days(StatsGranularity.DAILY, start, NOW, "Europe/Oslo") is False
+
+
+def test_local_days_never_apply_to_hourly_buckets():
+    start = NOW - timedelta(days=7)
+    assert use_local_days(StatsGranularity.HOURLY, start, NOW, "Europe/Oslo") is False
 
 
 def test_build_filters_accepts_valid_ipv4():

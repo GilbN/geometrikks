@@ -30,6 +30,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Selecting "Today" (or any range not starting at UTC midnight) with daily
+  granularity no longer renders an extra full day in the charts. The frontend
+  now sends the browser's timezone as a new optional `tz` query parameter on
+  the time-series endpoints, and daily buckets are computed as local days in
+  that zone for ranges up to 30 days (rolled up from hourly data: counts
+  summed, latency sketches and unique-count HLLs merged). Ranges beyond 30
+  days keep UTC day buckets, since only the daily aggregates reach that far
+  back.
 - The status-classes chart no longer renders near-invisible bars on dense
   views such as 7d+ with hourly granularity: past 48 buckets it switches to a
   stacked area chart with the same colors and stack order. The card-colored

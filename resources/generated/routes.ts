@@ -169,6 +169,7 @@ export interface RouteQueryParams {
     ipAddressIn?: string[];
     ipAddressNotIn?: string[];
     toTimestamp: DateTime;
+    tz?: string;
   };
   'get_geo_log_top_cities': {
     cityIn?: string[];
@@ -217,6 +218,7 @@ export interface RouteQueryParams {
     endDate: DateTime;
     granularity?: "hourly" | "daily";
     startDate: DateTime;
+    tz?: string;
   };
   'get_geojson': {
     city?: string[];
@@ -259,6 +261,7 @@ export interface RouteQueryParams {
     ipAddress?: string[];
     ipAddressNotIn?: string[];
     startDate: DateTime;
+    tz?: string;
   };
   'get_top_cities': {
     city?: string[];
@@ -473,7 +476,7 @@ export const routeDefinitions = {
     methods: ['GET'] as const,
     method: 'get',
     pathParams: [] as const,
-    queryParams: ['cityIn', 'countryCodeIn', 'fromTimestamp', 'granularity', 'hostnameIn', 'ipAddressIn', 'ipAddressNotIn', 'toTimestamp'] as const,
+    queryParams: ['cityIn', 'countryCodeIn', 'fromTimestamp', 'granularity', 'hostnameIn', 'ipAddressIn', 'ipAddressNotIn', 'toTimestamp', 'tz'] as const,
   },
   'get_geo_log_top_cities': {
     path: '/api/v1/geo-events/top-cities',
@@ -508,7 +511,7 @@ export const routeDefinitions = {
     methods: ['GET'] as const,
     method: 'get',
     pathParams: [] as const,
-    queryParams: ['endDate', 'granularity', 'startDate'] as const,
+    queryParams: ['endDate', 'granularity', 'startDate', 'tz'] as const,
   },
   'get_geojson': {
     path: '/api/v1/geo-locations/geojson',
@@ -578,7 +581,7 @@ export const routeDefinitions = {
     methods: ['GET'] as const,
     method: 'get',
     pathParams: [] as const,
-    queryParams: ['city', 'countryCode', 'endDate', 'granularity', 'ipAddress', 'ipAddressNotIn', 'startDate'] as const,
+    queryParams: ['city', 'countryCode', 'endDate', 'granularity', 'ipAddress', 'ipAddressNotIn', 'startDate', 'tz'] as const,
   },
   'get_top_cities': {
     path: '/api/v1/analytics/top-cities',

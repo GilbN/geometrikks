@@ -103,7 +103,8 @@
         "hostnameIn": "string[] | undefined",
         "ipAddressIn": "string[] | undefined",
         "ipAddressNotIn": "string[] | undefined",
-        "toTimestamp": "DateTime"
+        "toTimestamp": "DateTime",
+        "tz": "string | undefined"
       },
       "uri": "/api/v1/geo-events/time-series"
     },
@@ -186,7 +187,8 @@
       "queryParameters": {
         "endDate": "DateTime",
         "granularity": "\"hourly\" | \"daily\" | undefined",
-        "startDate": "DateTime"
+        "startDate": "DateTime",
+        "tz": "string | undefined"
       },
       "uri": "/api/v1/analytics/geo-time-series"
     },
@@ -300,7 +302,8 @@
         "granularity": "\"hourly\" | \"daily\" | undefined",
         "ipAddress": "string[] | undefined",
         "ipAddressNotIn": "string[] | undefined",
-        "startDate": "DateTime"
+        "startDate": "DateTime",
+        "tz": "string | undefined"
       },
       "uri": "/api/v1/analytics/time-series"
     },

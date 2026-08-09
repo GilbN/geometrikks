@@ -50,6 +50,19 @@ EndDate = Annotated[
     ),
 ]
 
+Timezone = Annotated[
+    str | None,
+    QueryParameter(
+        name="tz",
+        description="IANA timezone for daily buckets (e.g. Europe/Oslo). When "
+        "set, daily buckets are local days in this zone for ranges the hourly "
+        "source data can serve (<= 30 days); longer ranges keep UTC days. "
+        "Hourly buckets are unaffected.",
+        examples=[Example(value="Europe/Oslo")],
+        required=False,
+    ),
+]
+
 CountryCodeFilter = Annotated[
     list[str] | None,
     QueryParameter(name="countryCode", description="Filter to these ISO country codes (repeatable)", required=False),
