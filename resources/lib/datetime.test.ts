@@ -6,9 +6,17 @@
  * `Intl.DateTimeFormat` instances at module load, so they capture whatever
  * timezone is in effect at import time.
  */
-import { describe, expect, it } from "vitest"
+import { afterAll, describe, expect, it } from "vitest"
 
+const ORIGINAL_TZ = process.env.TZ
 process.env.TZ = "America/New_York"
+afterAll(() => {
+  if (ORIGINAL_TZ === undefined) {
+    delete process.env.TZ
+  } else {
+    process.env.TZ = ORIGINAL_TZ
+  }
+})
 
 const { formatTs } = await import("@/lib/datetime")
 const { TimeSeriesTooltip } = await import("@/components/analytics/time-series-tooltip")
