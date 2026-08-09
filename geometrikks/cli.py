@@ -214,17 +214,25 @@ async def _run_backfill_hostname(name: str, *, consolidate: bool, yes: bool) -> 
             click.echo(f"access_logs hostnames rewritten: {rewritten_logs:,}")
 
             # The hostname CAGGs still show the old values until refreshed.
-            bounds = None
+            # Ranges are computed per source table: hostname_daily_stats reads
+            # geo_events while log_source_daily_stats reads access_logs, and
+            # the two tables' time bounds differ (access logs exist for rows
+            # that never produced a geo event).
+            click.echo("Refreshing hostname CAGGs ...")
             async with engine.connect() as conn:
-                bounds = (await conn.execute(text(
-                    "SELECT MIN(timestamp), MAX(timestamp) FROM geo_events"
-                ))).one()
-            if bounds and bounds[0] is not None:
-                click.echo("Refreshing hostname CAGGs ...")
-                await refresh_caggs_range(
-                    engine, start=bounds[0], end=bounds[1] + timedelta(microseconds=1),
-                    caggs=["hostname_daily_stats", "log_source_daily_stats"],
-                )
+                for table, cagg in (
+                    ("geo_events", "hostname_daily_stats"),
+                    ("access_logs", "log_source_daily_stats"),
+                ):
+                    bounds = (await conn.execute(text(
+                        f"SELECT MIN(timestamp), MAX(timestamp) FROM {table}"
+                    ))).one()
+                    if bounds[0] is not None:
+                        await refresh_caggs_range(
+                            engine, start=bounds[0],
+                            end=bounds[1] + timedelta(microseconds=1),
+                            caggs=[cagg],
+                        )
 
         logger.info(
             "hostname_backfill_completed name=%s consolidate=%s filled=%d rewritten_geo=%d rewritten_logs=%d",
