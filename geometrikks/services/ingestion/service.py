@@ -333,7 +333,7 @@ class LogIngestionService:
                 flushed["geo"] += 1
 
         if record.access_log:
-            access_log_model = self._to_access_log_model(record.access_log)
+            access_log_model = self._to_access_log_model(record.access_log, log_format=record.log_format)
             repos.access_log.session.add(access_log_model)
             self.total_log_records += 1
             flushed["log"] += 1
@@ -535,8 +535,21 @@ class LogIngestionService:
                     except (asyncio.QueueEmpty, asyncio.QueueFull):
                         pass
 
-    def _to_access_log_model(self, parsed: ParsedAccessLog) -> AccessLog:
-        """Convert ParsedAccessLog schema to ORM model."""
+    def _to_access_log_model(
+        self, parsed: ParsedAccessLog, log_format: str | None = None
+    ) -> AccessLog:
+        """Convert ParsedAccessLog schema to ORM model, stamping source info.
+
+        Args:
+            parsed: The parsed access log fields.
+            log_format: The format adapter that produced this record (e.g.
+                'nginx', 'traefik-json'), stamped onto the row alongside the
+                writer's hostname.
+
+        Returns:
+            An unpersisted AccessLog ORM instance ready to be added to a
+            session.
+        """
         return AccessLog(
             timestamp=parsed.timestamp,
             ip_address=parsed.ip_address,
@@ -554,6 +567,8 @@ class LogIngestionService:
             country_code=parsed.country_code,
             country_name=parsed.country_name,
             city=parsed.city,
+            hostname=self.hostname,
+            log_format=log_format,
         )
 
     # Statistics properties for API endpoints
