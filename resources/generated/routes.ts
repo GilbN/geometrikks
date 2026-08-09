@@ -336,8 +336,11 @@ export interface RouteQueryParams {
     fromTimestamp?: DateTime;
     hostIn?: string[];
     hostNotIn?: string[];
+    hostnameIn?: string[];
+    hostnameNotIn?: string[];
     ipAddressIn?: string[];
     ipAddressNotIn?: string[];
+    logFormatIn?: string[];
     methodIn?: string[];
     orderBy?: string;
     pageSize?: number;
@@ -651,7 +654,7 @@ export const routeDefinitions = {
     methods: ['GET'] as const,
     method: 'get',
     pathParams: [] as const,
-    queryParams: ['cityIn', 'countryCodeIn', 'currentPage', 'fromTimestamp', 'hostIn', 'hostNotIn', 'ipAddressIn', 'ipAddressNotIn', 'methodIn', 'orderBy', 'pageSize', 'searchIgnoreCase', 'searchString', 'sortOrder', 'statusIn', 'toTimestamp'] as const,
+    queryParams: ['cityIn', 'countryCodeIn', 'currentPage', 'fromTimestamp', 'hostIn', 'hostNotIn', 'hostnameIn', 'hostnameNotIn', 'ipAddressIn', 'ipAddressNotIn', 'logFormatIn', 'methodIn', 'orderBy', 'pageSize', 'searchIgnoreCase', 'searchString', 'sortOrder', 'statusIn', 'toTimestamp'] as const,
   },
   'list_alerts': {
     path: '/api/v1/crowdsec/alerts',

@@ -843,6 +843,8 @@ export interface AccessLog {
   requestTime: number
   upstreamResponseTime: number | null
   host: string | null
+  hostname: string | null
+  logFormat: string | null
   countryCode: string | null
   countryName: string | null
   city: string | null
@@ -890,6 +892,12 @@ export interface AccessLogsParams {
   hostIn?: string[]
   /** Hosts to exclude. */
   hostNotIn?: string[]
+  /** Exact recording-hostname match(es), chosen from the facets list. */
+  hostnameIn?: string[]
+  /** Recording hostnames to exclude. */
+  hostnameNotIn?: string[]
+  /** Exact log-format match(es), chosen from the facets list. */
+  logFormatIn?: string[]
   /** Exact city match(es). */
   cityIn?: string[]
   /** Exact ISO-3166 alpha-2 country code match(es). */
@@ -912,6 +920,9 @@ export async function fetchAccessLogs(params: AccessLogsParams): Promise<AccessL
       methodIn: params.methodIn?.length ? params.methodIn : undefined,
       hostIn: params.hostIn?.length ? params.hostIn : undefined,
       hostNotIn: params.hostNotIn?.length ? params.hostNotIn : undefined,
+      hostnameIn: params.hostnameIn?.length ? params.hostnameIn : undefined,
+      hostnameNotIn: params.hostnameNotIn?.length ? params.hostnameNotIn : undefined,
+      logFormatIn: params.logFormatIn?.length ? params.logFormatIn : undefined,
       cityIn: params.cityIn?.length ? params.cityIn : undefined,
       countryCodeIn: params.countryCodeIn?.length ? params.countryCodeIn : undefined,
       statusIn: params.statusIn?.length ? params.statusIn : undefined,
@@ -939,9 +950,13 @@ export interface AccessLogFacets {
   cities: string[]
   /** Sorted alphabetically. */
   hosts: string[]
+  /** Sorted alphabetically. */
+  hostnames: string[]
+  /** Sorted alphabetically. */
+  logFormats: string[]
 }
 
-/** Distinct country/city/host values present in the data, for the filter dropdowns. */
+/** Distinct country/city/host/hostname/log-format values present in the data, for the filter dropdowns. */
 export async function fetchAccessLogFacets(): Promise<AccessLogFacets> {
   const { data } = await api.get<AccessLogFacets>("/access-logs/facets")
   return data

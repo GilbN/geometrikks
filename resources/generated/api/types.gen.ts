@@ -72,7 +72,9 @@ export type AccessLogDebugStats = {
 export type AccessLogFacets = {
   cities: Array<string>;
   countries: Array<CountryFacet>;
+  hostnames: Array<string>;
   hosts: Array<string>;
+  logFormats: Array<string>;
 };
 
 /**
@@ -483,9 +485,11 @@ export type ListAccessLogsAccessLogResponseBody = {
   countryCode?: string | null;
   countryName?: string | null;
   host?: string | null;
+  hostname?: string | null;
   httpVersion?: string | null;
   id: number;
   ipAddress: string;
+  logFormat?: string | null;
   method?: string | null;
   referrer?: string | null;
   remoteUser?: string;
@@ -1153,6 +1157,9 @@ export type ApiV1AccessLogsListAccessLogsData = {
     ipAddressNotIn?: Array<string> | null;
     hostIn?: Array<string> | null;
     hostNotIn?: Array<string> | null;
+    hostnameIn?: Array<string> | null;
+    hostnameNotIn?: Array<string> | null;
+    logFormatIn?: Array<string> | null;
   };
   url: "/api/v1/access-logs";
 };

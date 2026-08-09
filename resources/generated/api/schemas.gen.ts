@@ -265,14 +265,26 @@ export const AccessLogFacetsSchema = {
       },
       type: "array",
     },
+    hostnames: {
+      items: {
+        type: "string",
+      },
+      type: "array",
+    },
     hosts: {
       items: {
         type: "string",
       },
       type: "array",
     },
+    logFormats: {
+      items: {
+        type: "string",
+      },
+      type: "array",
+    },
   },
-  required: ["cities", "countries", "hosts"],
+  required: ["cities", "countries", "hostnames", "hosts", "logFormats"],
   title: "AccessLogFacets",
   type: "object",
 } as const;
@@ -1640,6 +1652,16 @@ export const ListAccessLogsAccessLogResponseBodySchema = {
         },
       ],
     },
+    hostname: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
     httpVersion: {
       oneOf: [
         {
@@ -1655,6 +1677,16 @@ export const ListAccessLogsAccessLogResponseBodySchema = {
     },
     ipAddress: {
       type: "string",
+    },
+    logFormat: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
     },
     method: {
       oneOf: [
