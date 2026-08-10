@@ -173,7 +173,8 @@ class AccessLogController(Controller):
         """Distinct country/city/host/hostname/log-format values, for filter dropdowns.
 
         ``return_dto=None`` opts out of the controller-level ``AccessLogDTO``
-        (bound to the AccessLog model); Litestar serializes the dataclasses
-        directly. Field names are single words, so no camelCase rename needed.
+        (bound to the AccessLog model); Litestar serializes the structs
+        directly, and ``AccessLogFacets`` carries its own ``rename="camel"``
+        (``log_formats`` goes out as ``logFormats``).
         """
         return await access_log_service.get_facets()

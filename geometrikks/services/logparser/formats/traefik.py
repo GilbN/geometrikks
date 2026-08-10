@@ -1,4 +1,4 @@
-"""Adapter for Traefik JSON access logs (accesslog.format: json).
+"""Adapter for Traefik JSON access logs (accessLog.format: json).
 
 Field reference verified against Traefik v2.11/v3.x source
 (pkg/middlewares/accesslog/): Duration/OriginDuration are integer

@@ -33,6 +33,7 @@ services:
       context: .
       dockerfile: Dockerfile
     restart: unless-stopped
+    hostname: geometrikks
     environment:
       APP_ENVIRONMENT: production
       # Admin login for the web UI/API. Set both in .env; the app refuses to
@@ -68,6 +69,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.dev
+    hostname: geometrikks
     environment:
       APP_ENVIRONMENT: development
       APP_DEBUG: "true"
