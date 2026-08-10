@@ -92,13 +92,12 @@ image: ghcr.io/gilbn/geometrikks:0.3.0
 ```
 
 `docker-compose.yml` mounts `${ACCESS_LOG_DIR:-${NGINX_LOG_DIR:-/var/log/nginx}}`
-read-only into the container at `/var/log/nginx` and reads
+read-only into the container at `/var/log/access` and reads
 `LOGPARSER_LOG_PATHS` from `.env`. `ACCESS_LOG_DIR` is the preferred
 variable name now that the parser supports more than nginx
 (`NGINX_LOG_DIR` still works as a fallback); point it at wherever your
-reverse proxy writes its access logs. The container path stays
-`/var/log/nginx` regardless of what you mount there - what matters is
-that `LOGPARSER_LOG_PATHS` points at the file(s) inside the container.
+reverse proxy writes its access logs. `LOGPARSER_LOG_PATHS` must point at
+the file(s) inside the container, i.e. under `/var/log/access/`.
 
 ## Nginx setup
 
@@ -129,7 +128,7 @@ access_log /config/log/nginx/access.log custom;
 ```
 
 ```bash
-LOGPARSER_LOG_PATHS=["/var/log/nginx/access.log", "/var/log/nginx/somepage/access.log"]
+LOGPARSER_LOG_PATHS=["/var/log/access/access.log", "/var/log/access/somepage/access.log"]
 ```
 
 ## Traefik setup
@@ -156,7 +155,7 @@ point the parser at it:
 
 ```env
 ACCESS_LOG_DIR=/var/log/traefik
-LOGPARSER_LOG_PATHS=/var/log/nginx/access.log
+LOGPARSER_LOG_PATHS=/var/log/access/access.log
 ```
 
 The format is auto-detected per file; set `LOGPARSER_LOG_FORMATS=traefik-json`
@@ -435,7 +434,7 @@ history - rotated or archived nginx logs, plain or gzip-compressed - use the
 `litestar import-logs` CLI command:
 
 ```bash
-docker compose exec -u geometrikks app litestar import-logs /var/log/nginx/access.log.1.gz
+docker compose exec -u geometrikks app litestar import-logs /var/log/access/access.log.1.gz
 ```
 
 It reuses the live ingestion pipeline (same parsing, GeoIP lookup, and DB
@@ -450,7 +449,7 @@ paths, and the import runs as the non-root `geometrikks` user
 stopped, use `run --rm` instead:
 
 ```bash
-docker compose run --rm app litestar import-logs /var/log/nginx/access.log.1.gz
+docker compose run --rm app litestar import-logs /var/log/access/access.log.1.gz
 ```
 
 **Caveats**
@@ -523,10 +522,10 @@ Or with a `user:` override, where the image needs no capabilities at all:
 
 **I'm using Nginx Proxy Manager (or another proxy-manager container) - what
 log path do I use?**
-Point `NGINX_LOG_DIR` at the host directory where the proxy container writes
+Point `ACCESS_LOG_DIR` at the host directory where the proxy container writes
 its access logs (for Nginx Proxy Manager this is typically its `data/logs`
 volume), and set `LOGPARSER_LOG_PATHS` to the specific access-log file(s)
-inside it, using the *container* path (`/var/log/nginx/...`), not the host
+inside it, using the *container* path (`/var/log/access/...`), not the host
 path.
 
 **Permission denied reading my log files?**

@@ -23,6 +23,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   bookmarked download links containing `/nginx/` change.
 - docker-compose: `ACCESS_LOG_DIR` is the preferred mount variable
   (`NGINX_LOG_DIR` still works); the app container has a stable hostname.
+- **Breaking:** the access-log mount inside the container moved from
+  `/var/log/nginx` to the proxy-neutral `/var/log/access`, and the
+  `LOGPARSER_LOG_PATHS` default is now `/var/log/access/access.log`. If your
+  `.env` sets `LOGPARSER_LOG_PATHS` with `/var/log/nginx/...` paths, change
+  them to `/var/log/access/...` when upgrading the compose file.
 
 ### Fixed
 

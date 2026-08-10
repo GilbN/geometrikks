@@ -215,11 +215,11 @@ class LogParserSettings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="LOGPARSER_", env_file=_env_file(), extra="ignore")
 
     log_paths: Annotated[list[Path], NoDecode] = Field(
-        default_factory=lambda: [Path("/var/log/nginx/access.log")],
+        default_factory=lambda: [Path("/var/log/access/access.log")],
         min_length=1,
         description=(
-            "Nginx access log files to tail. Env accepts a single path or a JSON "
-            "list of paths. Default: /var/log/nginx/access.log"
+            "Access log files to tail. Env accepts a single path or a JSON "
+            "list of paths. Default: /var/log/access/access.log"
         ),
     )
     log_formats: Annotated[list[str], NoDecode] = Field(

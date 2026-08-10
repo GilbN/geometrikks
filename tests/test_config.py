@@ -180,9 +180,9 @@ def test_production_configuration(monkeypatch):
 
 
 def test_logparser_default_paths():
-    """Default is a single-element list with the classic nginx path."""
+    """Default is a single-element list with the container mount path."""
     settings = Settings()
-    assert settings.logparser.log_paths == [Path("/var/log/nginx/access.log")]
+    assert settings.logparser.log_paths == [Path("/var/log/access/access.log")]
 
 
 def test_logparser_single_path_env(monkeypatch):
