@@ -91,10 +91,14 @@ reproducible deployments:
 image: ghcr.io/gilbn/geometrikks:0.3.0
 ```
 
-`docker-compose.yml` mounts `${NGINX_LOG_DIR:-/var/log/nginx}` read-only into
-the container at `/var/log/nginx` and reads `LOGPARSER_LOG_PATHS` from
-`.env`. Point `NGINX_LOG_DIR` at wherever your nginx (or reverse proxy)
-writes its access logs.
+`docker-compose.yml` mounts `${ACCESS_LOG_DIR:-${NGINX_LOG_DIR:-/var/log/nginx}}`
+read-only into the container at `/var/log/nginx` and reads
+`LOGPARSER_LOG_PATHS` from `.env`. `ACCESS_LOG_DIR` is the preferred
+variable name now that the parser supports more than nginx
+(`NGINX_LOG_DIR` still works as a fallback); point it at wherever your
+reverse proxy writes its access logs. The container path stays
+`/var/log/nginx` regardless of what you mount there - what matters is
+that `LOGPARSER_LOG_PATHS` points at the file(s) inside the container.
 
 ## Nginx setup
 
@@ -127,6 +131,44 @@ access_log /config/log/nginx/access.log custom;
 ```bash
 LOGPARSER_LOG_PATHS=["/var/log/nginx/access.log", "/var/log/nginx/somepage/access.log"]
 ```
+
+## Traefik setup
+
+GeoMetrikks parses Traefik JSON access logs. Traefik logs to stdout by
+default, so configure a file and the JSON format in your static
+configuration, and keep the User-Agent and Referer headers so analytics
+have them:
+
+```yaml
+accesslog:
+  filePath: "/var/log/traefik/access.log"
+  format: json
+  fields:
+    headers:
+      names:
+        User-Agent: keep
+        Referer: keep
+```
+
+Mount the log directory into the GeoMetrikks container (set
+`ACCESS_LOG_DIR=/path/to/traefik/logs` in `.env`, or edit the volume) and
+point the parser at it:
+
+```env
+ACCESS_LOG_DIR=/var/log/traefik
+LOGPARSER_LOG_PATHS=/var/log/nginx/access.log
+```
+
+The format is auto-detected per file; set `LOGPARSER_LOG_FORMATS=traefik-json`
+to pin it. Notes:
+
+- Rotate with logrotate and signal Traefik afterwards:
+  `docker kill --signal=USR1 traefik`. GeoMetrikks follows the rotation
+  automatically.
+- Behind a CDN or load balancer, configure Traefik's
+  `entryPoints.<name>.forwardedHeaders.trustedIPs` so the logged client IP
+  is the real client, not the proxy.
+- Logging to stdout only is not supported; a file path is required.
 
 ## MaxMind GeoLite2
 

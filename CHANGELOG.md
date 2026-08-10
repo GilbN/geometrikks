@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Traefik JSON access log support with per-file format auto-detection
+  (`LOGPARSER_LOG_FORMATS`), and a `--format` option on `litestar import-logs`.
+- `hostname` and `log_format` columns on access logs, with new facet filters
+  (recording hostname, source format) on the access-logs page.
+- `litestar backfill-hostname` CLI command to set the recording hostname on
+  historical rows; `--consolidate` collapses accumulated container-ID
+  hostnames.
+
+### Changed
+
+- Log files UI: the `nginx` kind is now `access` with proxy-neutral labels;
+  bookmarked download links containing `/nginx/` change.
+- docker-compose: `ACCESS_LOG_DIR` is the preferred mount variable
+  (`NGINX_LOG_DIR` still works); the app container has a stable hostname.
+
+### Fixed
+
+- The access-log `url` and `referrer` columns were historically swapped
+  (URL showed the Referer header, Referrer showed the request path); a
+  migration corrects existing data and rebuilds the Top URLs aggregates.
+- Concurrent GeoMetrikks instances sharing one database no longer drop an
+  ingestion batch when racing to create the same geo location.
+
 ## [0.7.1] - 2026-08-11
 
 ### Added
