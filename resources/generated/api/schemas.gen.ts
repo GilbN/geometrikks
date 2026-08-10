@@ -2020,7 +2020,7 @@ export const LogFileViewSchema = {
       type: "boolean",
     },
     kind: {
-      enum: ["app", "login", "nginx"],
+      enum: ["app", "login", "access"],
       type: "string",
     },
     modifiedAt: {

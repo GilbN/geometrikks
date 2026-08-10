@@ -2107,7 +2107,7 @@
             "enum": [
               "app",
               "login",
-              "nginx"
+              "access"
             ],
             "type": "string"
           },

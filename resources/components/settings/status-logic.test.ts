@@ -8,6 +8,7 @@ import type {
 } from "@/generated/api/types.gen"
 import type { LogRecord } from "@/lib/logstream"
 import {
+  accessLogFiles,
   authState,
   compressionSummary,
   crowdsecState,
@@ -20,7 +21,6 @@ import {
   ingestionState,
   lastEventState,
   liveFeedState,
-  nginxLogFiles,
   overallState,
   relativeTime,
   schedulerJobState,
@@ -144,14 +144,14 @@ describe("crowdsecState", () => {
   })
 })
 
-describe("nginxLogFiles", () => {
+describe("accessLogFiles", () => {
   const files: LogFileView[] = [
     { name: "geometrikks.log", kind: "app", sizeBytes: 10, modifiedAt: null, available: true },
-    { name: "access.log", kind: "nginx", sizeBytes: 20, modifiedAt: null, available: false },
+    { name: "access.log", kind: "access", sizeBytes: 20, modifiedAt: null, available: false },
   ]
-  it("keeps only nginx entries and tolerates undefined", () => {
-    expect(nginxLogFiles(files).map((f) => f.name)).toEqual(["access.log"])
-    expect(nginxLogFiles(undefined)).toEqual([])
+  it("keeps only access entries and tolerates undefined", () => {
+    expect(accessLogFiles(files).map((f) => f.name)).toEqual(["access.log"])
+    expect(accessLogFiles(undefined)).toEqual([])
   })
 })
 

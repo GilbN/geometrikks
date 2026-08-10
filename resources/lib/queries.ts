@@ -1276,7 +1276,7 @@ export function useRecentErrors() {
   })
 }
 
-/** Available log files (app/login/nginx) for the Logs page file picker. */
+/** Available log files (app/login/access) for the Logs page file picker. */
 export function useLogFiles() {
   return useQuery({
     queryKey: queryKeys.logs.files,

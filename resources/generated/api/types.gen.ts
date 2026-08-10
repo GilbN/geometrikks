@@ -568,7 +568,7 @@ export type LocationTopIpsResponse = {
  */
 export type LogFileView = {
   available: boolean;
-  kind: "app" | "login" | "nginx";
+  kind: "app" | "login" | "access";
   modifiedAt: string | null;
   name: string;
   sizeBytes: number;

@@ -1,4 +1,4 @@
-"""Enumerate, resolve and tail application/nginx log files.
+"""Enumerate, resolve and tail application/access log files.
 
 resolve() is the download allowlist: a (kind, name) pair is only served if
 list_files() enumerates it, so no client-supplied path ever hits the
@@ -25,7 +25,7 @@ _LOGIN_LINE_RE = re.compile(
     r'^(?P<timestamp>\S+) (?P<event>[A-Za-z0-9_]+) user="(?P<user>[^"]*)" ip=(?P<ip>\S+)$'
 )
 
-LogFileKind = Literal["app", "login", "nginx"]
+LogFileKind = Literal["app", "login", "access"]
 
 
 class LogTailRecord(TypedDict, total=False):
@@ -93,7 +93,7 @@ class LogFilesService:
                 name = f"{path.name}.{seen[path.name]}"
             else:
                 seen[name] = 1
-            entry = _entry(path, "nginx", name=name)
+            entry = _entry(path, "access", name=name)
             if not path.is_file():
                 entry.available = False
             pairs.append((entry, path))
