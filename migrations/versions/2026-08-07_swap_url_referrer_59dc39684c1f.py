@@ -4,6 +4,13 @@ Revision ID: 59dc39684c1f
 Revises: b7d41e9c2a30
 Create Date: 2026-08-07 00:00:00.000000
 
+Runs in alembic's normal transaction on purpose. The swap UPDATE is its own
+inverse, so it MUST commit together with the version stamp: under autocommit
+a crash after the swap but before the stamp would rerun the revision on the
+next startup and silently swap the data back. The CAGG rebuild that has to
+run outside a transaction lives in the follow-up revision 5f1c8a7d24b3,
+which is rerun-safe on its own.
+
 """
 
 import warnings
@@ -53,16 +60,14 @@ depends_on = None
 def upgrade() -> None:
     with warnings.catch_warnings():
         warnings.filterwarnings("ignore", category=UserWarning)
-        with op.get_context().autocommit_block():
-            schema_upgrades()
-            data_upgrades()
+        schema_upgrades()
+        data_upgrades()
 
 def downgrade() -> None:
     with warnings.catch_warnings():
         warnings.filterwarnings("ignore", category=UserWarning)
-        with op.get_context().autocommit_block():
-            data_downgrades()
-            schema_downgrades()
+        data_downgrades()
+        schema_downgrades()
 
 def schema_upgrades() -> None:
     """No schema changes; data-only migration."""
@@ -96,6 +101,9 @@ def data_upgrades() -> None:
     geoip2influx). Order matters: the debug backfill reads pre-swap
     ``access_logs.referrer`` (= the request path), so it runs first.
     May take minutes on large hypertables.
+
+    The url CAGGs still hold pre-swap values when this returns; revision
+    5f1c8a7d24b3 rebuilds them.
     """
     bind = op.get_bind()
     if _timescale_present(bind):
@@ -127,21 +135,18 @@ def data_upgrades() -> None:
         "WHERE host IS NOT NULL AND host <> btrim(host)"
     )
 
-    # 4. Top URLs CAGGs aggregated Referer values; rebuild over all time.
-    #    Guard: on first boot alembic runs before server/timescale.py creates
-    #    the CAGGs (and there is no data to fix anyway).
-    if _timescale_present(bind):
-        for cagg in ("url_hourly_stats", "url_daily_stats"):
-            exists = bind.execute(sa.text(
-                "SELECT EXISTS (SELECT 1 FROM timescaledb_information.continuous_aggregates "
-                "WHERE view_name = :name)"
-            ), {"name": cagg}).scalar()
-            if exists:
-                op.execute(f"CALL refresh_continuous_aggregate('{cagg}', NULL, NULL)")
-
 
 def data_downgrades() -> None:
-    """Reverse the swap; debug rows revert from the re-linked access_logs."""
+    """Reverse the swap; debug rows revert from the re-linked access_logs.
+
+    The url CAGGs are left holding post-swap values: refreshing them needs
+    ``CALL refresh_continuous_aggregate``, which cannot run inside this
+    transaction, and running it in the follow-up revision's downgrade would
+    happen before this one (alembic downgrades head-first). Rebuild them by
+    hand after a downgrade:
+    ``CALL refresh_continuous_aggregate('url_daily_stats', NULL, NULL);``
+    (same for ``url_hourly_stats``).
+    """
     bind = op.get_bind()
     if _timescale_present(bind):
         _decompress_access_logs(bind)
@@ -159,11 +164,3 @@ def data_downgrades() -> None:
         FROM src
         WHERE d.access_log_id = src.id
     """)
-    if _timescale_present(bind):
-        for cagg in ("url_hourly_stats", "url_daily_stats"):
-            exists = bind.execute(sa.text(
-                "SELECT EXISTS (SELECT 1 FROM timescaledb_information.continuous_aggregates "
-                "WHERE view_name = :name)"
-            ), {"name": cagg}).scalar()
-            if exists:
-                op.execute(f"CALL refresh_continuous_aggregate('{cagg}', NULL, NULL)")

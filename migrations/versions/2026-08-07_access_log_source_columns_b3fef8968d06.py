@@ -1,7 +1,7 @@
 """add hostname and log_format columns to access_logs
 
 Revision ID: b3fef8968d06
-Revises: 59dc39684c1f
+Revises: 5f1c8a7d24b3
 Create Date: 2026-08-07 00:00:00.000000
 
 """
@@ -45,7 +45,7 @@ sa.OneTimeCode = OneTimeCode
 
 # revision identifiers, used by Alembic.
 revision = 'b3fef8968d06'
-down_revision = '59dc39684c1f'
+down_revision = '5f1c8a7d24b3'
 branch_labels = None
 depends_on = None
 
@@ -65,15 +65,29 @@ def downgrade() -> None:
             schema_downgrades()
 
 def schema_upgrades() -> None:
-    op.add_column('access_logs', sa.Column('hostname', sa.String(length=255), nullable=True))
-    op.add_column('access_logs', sa.Column('log_format', sa.String(length=32), nullable=True))
-    op.create_index('ix_access_logs_hostname', 'access_logs', ['hostname'], unique=False)
+    """Add the source columns, tolerating a partially applied rerun.
+
+    Each statement commits on its own (autocommit block), so a crash before
+    alembic stamps the revision leaves the columns in place and reruns this
+    on the next startup; plain ADD COLUMN would then fail with DuplicateColumn
+    and take startup down with it.
+    """
+    op.execute("ALTER TABLE access_logs ADD COLUMN IF NOT EXISTS hostname VARCHAR(255)")
+    op.execute("ALTER TABLE access_logs ADD COLUMN IF NOT EXISTS log_format VARCHAR(32)")
+    op.execute("CREATE INDEX IF NOT EXISTS ix_access_logs_hostname ON access_logs (hostname)")
 
 
 def schema_downgrades() -> None:
-    op.drop_index('ix_access_logs_hostname', table_name='access_logs')
-    op.drop_column('access_logs', 'log_format')
-    op.drop_column('access_logs', 'hostname')
+    """Drop the source columns, and first the CAGG that reads them.
+
+    log_source_daily_stats (created by server/timescale.py, not by alembic)
+    selects hostname and log_format, so DROP COLUMN fails while it exists.
+    Dropping it is safe: startup recreates it.
+    """
+    op.execute("DROP MATERIALIZED VIEW IF EXISTS log_source_daily_stats CASCADE")
+    op.execute("DROP INDEX IF EXISTS ix_access_logs_hostname")
+    op.execute("ALTER TABLE access_logs DROP COLUMN IF EXISTS log_format")
+    op.execute("ALTER TABLE access_logs DROP COLUMN IF EXISTS hostname")
 
 
 def _timescale_present(bind: "Connection") -> bool:

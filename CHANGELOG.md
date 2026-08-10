@@ -29,6 +29,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The access-log `url` and `referrer` columns were historically swapped
   (URL showed the Referer header, Referrer showed the request path); a
   migration corrects existing data and rebuilds the Top URLs aggregates.
+  The migration decompresses compressed `access_logs` chunks to do it, so
+  disk usage grows for a while until the compression policy recompresses
+  them.
 - Concurrent GeoMetrikks instances sharing one database no longer drop an
   ingestion batch when racing to create the same geo location.
 
