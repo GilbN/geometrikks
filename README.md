@@ -140,7 +140,7 @@ configuration, and keep the User-Agent and Referer headers so analytics
 have them:
 
 ```yaml
-accesslog:
+accessLog:
   filePath: "/var/log/traefik/access.log"
   format: json
   fields:
