@@ -161,6 +161,7 @@ def backfill_hostname_command(name: str, consolidate: bool, yes: bool) -> None:
     Default: fills only access_logs rows with NULL hostname (idempotent,
     cannot clobber stamped data). With --consolidate it collapses every
     existing hostname in geo_events and access_logs to NAME as well.
+    Refreshes the hostname continuous aggregates whenever rows changed.
     May run for minutes on large databases.
     """
     asyncio.run(_run_backfill_hostname(name, consolidate=consolidate, yes=yes))
@@ -213,11 +214,15 @@ async def _run_backfill_hostname(name: str, *, consolidate: bool, yes: bool) -> 
             click.echo(f"geo_events hostnames rewritten: {rewritten_geo:,}")
             click.echo(f"access_logs hostnames rewritten: {rewritten_logs:,}")
 
-            # The hostname CAGGs still show the old values until refreshed.
-            # Ranges are computed per source table: hostname_daily_stats reads
-            # geo_events while log_source_daily_stats reads access_logs, and
-            # the two tables' time bounds differ (access logs exist for rows
-            # that never produced a geo event).
+        # The hostname CAGGs still show the old values until refreshed. The
+        # plain fill path needs this too: without it log_source_daily_stats
+        # keeps hostname NULL for history, and once raw retention drops the
+        # access_logs rows the facet can never be corrected.
+        # Ranges are computed per source table: hostname_daily_stats reads
+        # geo_events while log_source_daily_stats reads access_logs, and
+        # the two tables' time bounds differ (access logs exist for rows
+        # that never produced a geo event).
+        if filled or rewritten_geo or rewritten_logs:
             click.echo("Refreshing hostname CAGGs ...")
             async with engine.connect() as conn:
                 for table, cagg in (
@@ -235,8 +240,12 @@ async def _run_backfill_hostname(name: str, *, consolidate: bool, yes: bool) -> 
                         )
 
         logger.info(
-            "hostname_backfill_completed name=%s consolidate=%s filled=%d rewritten_geo=%d rewritten_logs=%d",
-            name, consolidate, filled, rewritten_geo, rewritten_logs,
+            "hostname_backfill_completed",
+            name=name,
+            consolidate=consolidate,
+            filled=filled,
+            rewritten_geo=rewritten_geo,
+            rewritten_logs=rewritten_logs,
         )
     finally:
         await engine.dispose()

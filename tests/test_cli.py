@@ -78,6 +78,109 @@ def _make_engine(distinct_rows: list[tuple[str, int]]) -> MagicMock:
     return engine
 
 
+def _make_updating_engine(
+    distinct_rows: list[tuple[str, int]], *, rowcount: int
+) -> MagicMock:
+    """Engine that also serves the write path: begin() plus MIN/MAX bounds.
+
+    Every UPDATE reports ``rowcount``; the bounds query answers with a fixed
+    timestamp pair so the CAGG refresh has a range to work with.
+    """
+    from datetime import datetime, timezone
+
+    read_result = MagicMock()
+    read_result.all.return_value = distinct_rows
+    read_result.one.return_value = (
+        datetime(2026, 1, 1, tzinfo=timezone.utc),
+        datetime(2026, 1, 2, tzinfo=timezone.utc),
+    )
+
+    write_result = MagicMock()
+    write_result.rowcount = rowcount
+
+    read_conn = MagicMock()
+    read_conn.execute = AsyncMock(return_value=read_result)
+    read_conn.__aenter__ = AsyncMock(return_value=read_conn)
+    read_conn.__aexit__ = AsyncMock(return_value=False)
+
+    write_conn = MagicMock()
+    write_conn.execute = AsyncMock(return_value=write_result)
+    write_conn.__aenter__ = AsyncMock(return_value=write_conn)
+    write_conn.__aexit__ = AsyncMock(return_value=False)
+
+    engine = MagicMock()
+    engine.connect = MagicMock(return_value=read_conn)
+    engine.begin = MagicMock(return_value=write_conn)
+    engine.dispose = AsyncMock()
+    return engine
+
+
+def _invoke_backfill(monkeypatch, engine: MagicMock, args: list[str], refresh: AsyncMock):
+    """Run backfill-hostname against a mocked engine and CAGG refresher."""
+    import click
+
+    import geometrikks.server.plugins as plugins_module
+    import geometrikks.server.timescale as timescale_module
+    from geometrikks.cli import ImportLogsCLIPlugin
+
+    config = MagicMock()
+    config.get_engine.return_value = engine
+    monkeypatch.setattr(plugins_module, "get_sqlalchemy_config", lambda: config)
+    monkeypatch.setattr(timescale_module, "refresh_caggs_range", refresh)
+
+    @click.group()
+    def cli() -> None: ...
+
+    ImportLogsCLIPlugin().on_cli_init(cli)
+    return CliRunner().invoke(cli, ["backfill-hostname", *args])
+
+
+def test_backfill_hostname_plain_refreshes_caggs(monkeypatch) -> None:
+    """Without --consolidate the CAGGs must still be refreshed when rows changed.
+
+    Otherwise log_source_daily_stats keeps hostname NULL for history, and
+    raw retention eventually makes that uncorrectable.
+    """
+    engine = _make_updating_engine([("abc123def456", 5)], rowcount=7)
+    refresh = AsyncMock()
+
+    result = _invoke_backfill(monkeypatch, engine, ["geometrikks"], refresh)
+
+    assert result.exit_code == 0, result.output
+    assert "access_logs NULL hostnames filled: 7" in result.output
+    assert "Refreshing hostname CAGGs ..." in result.output
+    refreshed = [call.kwargs["caggs"] for call in refresh.await_args_list]
+    assert refreshed == [["hostname_daily_stats"], ["log_source_daily_stats"]]
+
+
+def test_backfill_hostname_no_changes_skips_refresh(monkeypatch) -> None:
+    engine = _make_updating_engine([("geometrikks", 5)], rowcount=0)
+    refresh = AsyncMock()
+
+    result = _invoke_backfill(monkeypatch, engine, ["geometrikks"], refresh)
+
+    assert result.exit_code == 0, result.output
+    assert "access_logs NULL hostnames filled: 0" in result.output
+    assert "Refreshing hostname CAGGs" not in result.output
+    refresh.assert_not_awaited()
+
+
+def test_backfill_hostname_consolidate_yes_skips_prompt(monkeypatch) -> None:
+    """--yes runs the rewrite without a confirmation prompt."""
+    engine = _make_updating_engine([("abc123def456", 5)], rowcount=3)
+    refresh = AsyncMock()
+
+    result = _invoke_backfill(
+        monkeypatch, engine, ["geometrikks", "--consolidate", "--yes"], refresh
+    )
+
+    assert result.exit_code == 0, result.output
+    assert "Rewrite ALL of these?" not in result.output
+    assert "geo_events hostnames rewritten: 3" in result.output
+    assert "access_logs hostnames rewritten: 3" in result.output
+    assert refresh.await_count == 2
+
+
 def test_backfill_hostname_consolidate_prompts(monkeypatch) -> None:
     """--consolidate without --yes must prompt; answering 'n' aborts with no updates."""
     import click
