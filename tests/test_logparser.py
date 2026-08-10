@@ -640,3 +640,85 @@ class TestParseLine:
         record = parser.parse_line(make_log_line("2.125.160.216"), lookup)
         assert record is not None
         assert parser.ignored_lines == 0
+
+
+class TestAutoFormatSniffing:
+    """log_format='auto' locks a format on the first line it recognizes."""
+
+    def test_geo_only_match_degrades_send_logs(self, geoip_reader: Reader) -> None:
+        """A CLF line matches only the geo-only pattern.
+
+        Full parsing would then drop every line, so the parser degrades to
+        geo-only mode instead of locking the file into a format it cannot
+        actually parse.
+        """
+        clf = (
+            '2.125.160.216 - frank [03/Aug/2024:13:14:17 +0200] '
+            '"GET /a.gif HTTP/1.0" 200 2326'
+        )
+        parser = LogParser(log_path=Path("/dev/null"), send_logs=True, log_format="auto")
+        lookup = make_cached_city_lookup(geoip_reader)
+
+        record = parser.parse_line(clf, lookup)
+
+        assert parser.send_logs is False
+        assert parser.format is not None and parser.format.name == "nginx"
+        assert record is not None
+        assert record.ip_address == "2.125.160.216"
+        assert record.geo_data is not None
+        assert record.access_log is None
+        assert record.is_malformed is False
+        assert parser.parsed_lines == 1
+        assert parser.skipped_lines == 0
+
+    def test_full_match_keeps_send_logs(self, geoip_reader: Reader) -> None:
+        parser = LogParser(log_path=Path("/dev/null"), send_logs=True, log_format="auto")
+        lookup = make_cached_city_lookup(geoip_reader)
+
+        record = parser.parse_line(make_log_line("2.125.160.216"), lookup)
+
+        assert parser.send_logs is True
+        assert parser.format is not None and parser.format.name == "nginx"
+        assert record is not None and record.access_log is not None
+
+    def test_validation_sniffs_over_all_candidate_lines(
+        self, tmp_path: Path, geoip_reader: Reader
+    ) -> None:
+        """One near-miss line among parseable ones must not degrade the file."""
+        clf = (
+            '2.125.160.216 - frank [03/Aug/2024:13:14:17 +0200] '
+            '"GET /a.gif HTTP/1.0" 200 2326'
+        )
+        log_file = tmp_path / "mixed.log"
+        log_file.write_text(
+            "\n".join([clf, make_log_line("2.125.160.216"), make_log_line("2.125.160.216")])
+            + "\n",
+            encoding="utf-8",
+        )
+        parser = LogParser(log_path=log_file, send_logs=True, log_format="auto")
+
+        assert parser.validate_log_format(log_file) is True
+        assert parser.send_logs is True
+        assert parser.format is not None and parser.format.name == "nginx"
+
+    def test_traefik_json_still_sniffs_to_traefik(self, geoip_reader: Reader) -> None:
+        import json
+
+        line = json.dumps({
+            "ClientHost": "2.125.160.216", "ClientAddr": "2.125.160.216:34567",
+            "DownstreamContentSize": 1234, "DownstreamStatus": 200,
+            "Duration": 45678900, "RequestHost": "app.example.com",
+            "RequestMethod": "GET", "RequestPath": "/api/users",
+            "RequestProtocol": "HTTP/2.0",
+            "StartUTC": "2026-08-07T10:34:56.123456789Z",
+            "level": "info", "msg": "", "time": "2026-08-07T10:34:56Z",
+        })
+        parser = LogParser(log_path=Path("/dev/null"), send_logs=True, log_format="auto")
+        lookup = make_cached_city_lookup(geoip_reader)
+
+        record = parser.parse_line(line, lookup)
+
+        assert parser.send_logs is True
+        assert parser.format is not None and parser.format.name == "traefik-json"
+        assert record is not None and record.access_log is not None
+        assert record.log_format == "traefik-json"

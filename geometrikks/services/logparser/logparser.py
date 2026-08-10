@@ -182,16 +182,42 @@ class LogParser:
         """Return the number of ignored (ignore-list) lines."""
         return self.ignored_lines
 
+    def _lock_format(self, lines: list[str]) -> None:
+        """Sniff the format from candidate lines and lock it in (auto mode).
+
+        Feed as many lines as are available: a single near-miss line would
+        otherwise decide the mode for the whole file.
+
+        Args:
+            lines: Candidate raw log lines.
+        """
+        if self.format is not None:
+            return
+        sniffed = sniff_format(lines)
+        if sniffed is None:
+            return
+        self.format = sniffed.format
+        logger.info(
+            "log_format_detected", path=str(self.log_path), format=sniffed.format.name
+        )
+        if sniffed.geo_only and self.send_logs:
+            # Only the relaxed ip+timestamp pattern matched, so a full parse
+            # would fail for every line: the file would produce no geo events,
+            # no access logs and one malformed debug row per line. Degrade
+            # exactly like a pinned format that fails validation does.
+            self.send_logs = False
+            logger.warning(
+                "Log file %s matched %s only on its geo-only pattern. "
+                "Streaming without access log objects.",
+                self.log_path,
+                sniffed.format.name,
+            )
+
     def validate_log_line(self, log_line: str) -> NormalizedLine | None:
         """Parse the line with the locked format; sniff-and-lock when auto."""
+        self._lock_format([log_line])
         if self.format is None:
-            fmt = sniff_format([log_line])
-            if fmt is None:
-                return None
-            self.format = fmt
-            logger.info(
-                "log_format_detected", path=str(self.log_path), format=fmt.name
-            )
+            return None
         return self.format.parse(log_line, geo_only=not self.send_logs)
 
     def validate_log_format(self, log_path: Path) -> bool:  # regex tester
@@ -215,6 +241,7 @@ class LogParser:
                     log_lines_capture = list(f)  # Read all lines from the current position
                 position *= 2  # Double the position to read more lines
         lines = log_lines_capture[-LAST_LINE_COUNT:]  # Get the last 3 lines
+        self._lock_format(lines)
         for line in lines:
             if self.validate_log_line(line):
                 logger.info("Log file format is valid!")
@@ -313,7 +340,10 @@ class LogParser:
 
         # validate_log_line only returns a NormalizedLine once self.format is
         # locked (explicit, or sniffed-and-locked on the first matching line).
-        assert self.format is not None
+        # Not an assert: asserts are stripped under python -O and this is a
+        # data-path invariant.
+        if self.format is None:
+            raise RuntimeError("Parsed a line without a locked log format")
 
         geo_data: ParsedGeoData | None = self._parse_geo_data(ip, norm, lookup)
         access_log: ParsedAccessLog | None = (
@@ -494,7 +524,7 @@ class LogParser:
                 # the format, the tail loop below would exit immediately anyway.
                 return
             if not valid:
-                if self.log_format_setting == "auto":
+                if self.log_format_setting == "auto" and self.format is None:
                     logger.warning(
                         "Log format not detected yet for %s; will sniff incoming lines",
                         self.log_path,

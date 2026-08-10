@@ -97,12 +97,34 @@ def test_registry_contains_nginx() -> None:
 
 
 def test_sniff_format_nginx() -> None:
-    fmt = sniff_format([NGINX_GARBAGE, NGINX_LINE])
-    assert fmt is not None and fmt.name == "nginx"
+    sniffed = sniff_format([NGINX_GARBAGE, NGINX_LINE])
+    assert sniffed is not None
+    assert sniffed.format.name == "nginx"
+    assert sniffed.geo_only is False
 
 
 def test_sniff_format_unrecognized() -> None:
     assert sniff_format([NGINX_GARBAGE, "{}"]) is None
+
+
+# Apache/nginx common log format: the geo-only pattern matches the
+# 'IP - user [date]' prefix, the full custom-format pattern does not.
+CLF_LINE = '203.0.113.7 - frank [03/Aug/2024:13:14:17 +0200] "GET /a.gif HTTP/1.0" 200 2326'
+
+
+def test_sniff_format_clf_line_is_geo_only() -> None:
+    sniffed = sniff_format([CLF_LINE])
+    assert sniffed is not None
+    assert sniffed.format.name == "nginx"
+    assert sniffed.geo_only is True
+
+
+def test_sniff_format_full_match_wins_over_earlier_geo_only_line() -> None:
+    """A near-miss line must not lock the file into geo-only mode."""
+    sniffed = sniff_format([CLF_LINE, NGINX_LINE])
+    assert sniffed is not None
+    assert sniffed.format.name == "nginx"
+    assert sniffed.geo_only is False
 
 
 TRAEFIK_FULL = json.dumps({
@@ -225,5 +247,7 @@ def test_traefik_detect_malformed_method_only() -> None:
 
 
 def test_sniff_format_traefik_before_nginx() -> None:
-    fmt = sniff_format([TRAEFIK_FULL])
-    assert fmt is not None and fmt.name == "traefik-json"
+    sniffed = sniff_format([TRAEFIK_FULL])
+    assert sniffed is not None
+    assert sniffed.format.name == "traefik-json"
+    assert sniffed.geo_only is False
