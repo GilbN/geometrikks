@@ -494,7 +494,7 @@ wheels = [
 
 [[package]]
 name = "geometrikks"
-version = "0.7.0"
+version = "0.7.1"
 source = { editable = "." }
 dependencies = [
     { name = "advanced-alchemy", extra = ["argon2", "cli", "passlib", "pwdlib"] },
