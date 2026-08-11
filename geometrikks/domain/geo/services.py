@@ -30,6 +30,7 @@ from geometrikks.domain.geo.repositories import (
     get_stats_granularity,
     stitch_params,
     stitched_ip_location_cte,
+    use_local_days,
 )
 from geometrikks.domain.geo.schemas import (
     GeoCountryFacet,
@@ -254,6 +255,7 @@ class GeoEventService(SQLAlchemyAsyncRepositoryService[GeoEvent]):
         end: datetime,
         granularity: StatsGranularity,
         filters: GeoEventFilters,
+        tz: str | None = None,
     ) -> list[GeoLogTimeSeriesPoint]:
         """Bucketed event totals + unique IPs for the chart.
 
@@ -267,6 +269,11 @@ class GeoEventService(SQLAlchemyAsyncRepositoryService[GeoEvent]):
         and the stitched per-IP CAGGs only carry the daily rollup there.
         Other country/city/IP-filtered ranges use the stitched per-IP CAGGs;
         unfiltered ranges > 24h use the HLL geo_summary CAGGs.
+
+        With a non-UTC ``tz``, daily buckets are local days: the raw path
+        re-buckets exact timestamps, the CAGG paths roll up hourly buckets.
+        Windows routed to the daily CAGGs (> 30 days) keep UTC days (see
+        use_local_days); the raw path honors ``tz`` regardless of span.
         """
         if granularity not in (StatsGranularity.HOURLY, StatsGranularity.DAILY):
             raise ValueError("granularity must be HOURLY or DAILY")
@@ -275,6 +282,10 @@ class GeoEventService(SQLAlchemyAsyncRepositoryService[GeoEvent]):
         # requested bucket size above: a <= 24h span must stay on raw even
         # when the caller asks for hourly buckets on it.
         data_granularity = get_stats_granularity(start, end)
+        local_days = use_local_days(granularity, start, end, tz)
+        raw_local_days = (
+            granularity == StatsGranularity.DAILY and tz is not None and tz != "UTC"
+        )
 
         if (
             filters.forces_raw
@@ -285,10 +296,15 @@ class GeoEventService(SQLAlchemyAsyncRepositoryService[GeoEvent]):
                 and data_granularity == StatsGranularity.DAILY
             )
         ):
+            bucket_expr = (
+                "time_bucket('1 day', ge.timestamp, CAST(:tz AS TEXT))"
+                if raw_local_days
+                else f"time_bucket('{interval}', ge.timestamp)"
+            )
             filter_sql, filter_params = filters.sql_conditions("ge", "gl")
             stmt = text(f"""
                 SELECT
-                    time_bucket('{interval}', ge.timestamp) AS bucket,
+                    {bucket_expr} AS bucket,
                     CAST(COUNT(*) AS BIGINT) AS total_events,
                     CAST(COUNT(DISTINCT ge.ip_address) AS BIGINT) AS unique_ips
                 FROM geo_events ge
@@ -299,15 +315,27 @@ class GeoEventService(SQLAlchemyAsyncRepositoryService[GeoEvent]):
                 ORDER BY bucket ASC
             """)
             params = {"start": start, "end": end, **filter_params}
+            if raw_local_days:
+                params["tz"] = tz
         elif filters.is_active():
             # Country/city/IP filters: stitched per-IP CAGG rows re-bucketed.
             # CAGG-leg rows carry last_seen = bucket; raw edge rows carry the
             # exact timestamp, so partial head/tail buckets fold correctly.
+            # Local days stitch on the hourly CAGG (a daily-CAGG leg would fold
+            # a whole UTC day into one local day).
+            stitch_granularity = (
+                StatsGranularity.HOURLY if local_days else granularity
+            )
+            bucket_expr = (
+                "time_bucket('1 day', c.last_seen, CAST(:tz AS TEXT))"
+                if local_days
+                else f"time_bucket('{interval}', c.last_seen)"
+            )
             filter_sql, filter_params = filters.sql_conditions("c", "gl")
             stmt = text(f"""
-                {stitched_ip_location_cte(granularity)}
+                {stitched_ip_location_cte(stitch_granularity)}
                 SELECT
-                    time_bucket('{interval}', c.last_seen) AS bucket,
+                    {bucket_expr} AS bucket,
                     CAST(SUM(c.event_count) AS BIGINT) AS total_events,
                     CAST(COUNT(DISTINCT c.ip_address) AS BIGINT) AS unique_ips
                 FROM combined c
@@ -317,7 +345,23 @@ class GeoEventService(SQLAlchemyAsyncRepositoryService[GeoEvent]):
                 GROUP BY bucket
                 ORDER BY bucket ASC
             """)
-            params = {**stitch_params(start, end, granularity), **filter_params}
+            params = {**stitch_params(start, end, stitch_granularity), **filter_params}
+            if local_days:
+                params["tz"] = tz
+        elif local_days:
+            # GROUP BY 1: a bare "bucket" would resolve to the source column.
+            stmt = text("""
+                SELECT
+                    time_bucket('1 day', bucket, CAST(:tz AS TEXT)) AS bucket,
+                    CAST(SUM(total_events) AS BIGINT) AS total_events,
+                    CAST(distinct_count(rollup(hll_ips)) AS BIGINT) AS unique_ips
+                FROM geo_summary_hourly_stats
+                WHERE bucket >= time_bucket('1 day', CAST(:start AS timestamptz), CAST(:tz AS TEXT))
+                  AND bucket < :end
+                GROUP BY 1
+                ORDER BY 1 ASC
+            """)
+            params = {"start": start, "end": end, "tz": tz}
         else:
             table = f"geo_summary_{granularity.value}_stats"
             stmt = text(f"""

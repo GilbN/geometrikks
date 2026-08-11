@@ -8,6 +8,7 @@ import type {
 } from "@/generated/api/types.gen"
 import type { LogRecord } from "@/lib/logstream"
 import {
+  authState,
   compressionSummary,
   crowdsecState,
   databaseState,
@@ -285,5 +286,34 @@ describe("liveFeedState", () => {
     expect(down.tone).toBe("amber")
     expect(down.label).toBe("Not connected")
     expect(down.detail).toBeTruthy()
+  })
+})
+
+describe("authState", () => {
+  it("is muted while the mode is unknown", () => {
+    expect(authState(undefined, false)).toEqual({ tone: "muted", label: "Unknown" })
+  })
+
+  it("is muted when the query failed", () => {
+    expect(authState(undefined, true)).toEqual({ tone: "muted", label: "Unavailable" })
+  })
+
+  it("reports an active session login neutrally", () => {
+    // Neutral, not emerald: session auth being on is the normal baseline,
+    // not an achievement. Only the disabled case is worth an operator's eye.
+    expect(authState({ mode: "session", username: "admin" }, false)).toEqual({
+      tone: "muted",
+      label: "Session login active",
+    })
+  })
+
+  it("warns that a disabled deployment is wide open, without claiming a proxy", () => {
+    const state = authState({ mode: "disabled" }, false)
+    expect(state.tone).toBe("amber")
+    expect(state.label).toBe("Disabled")
+    expect(state.detail).toBe(
+      "Built-in authentication is turned off (APP_AUTH_DISABLED=true). Anyone who can reach this app has full access.",
+    )
+    expect(state.detail).not.toMatch(/proxy/i)
   })
 })

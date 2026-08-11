@@ -49,8 +49,9 @@ from geometrikks.lib.parameters import (
     IpAddressExcludeFilter,
     IpAddressFilter,
     StartDate,
+    Timezone,
 )
-from geometrikks.lib.validation import validate_ip_addresses
+from geometrikks.lib.validation import validate_ip_addresses, validate_timezone
 
 
 def _calculate_percent_change(current: float, previous: float) -> float | None:
@@ -379,7 +380,7 @@ class AnalyticsController(Controller):
 
         data_points = [
             CumulativeDataPoint(
-                timestamp=row["timestamp"].isoformat() if hasattr(row["timestamp"], "isoformat") else str(row["timestamp"]),
+                timestamp=row["timestamp"].isoformat(),
                 cumulative_geo_events=int(row["cumulative_geo_events"]),
                 cumulative_access_logs=int(row["cumulative_access_logs"]),
                 cumulative_bytes=int(row["cumulative_bytes"]),
@@ -413,6 +414,7 @@ class AnalyticsController(Controller):
         city: CityFilter = None,
         ip_address: IpAddressFilter = None,
         ip_address_not_in: IpAddressExcludeFilter = None,
+        tz: Timezone = None,
     ) -> TimeSeriesResponse:
         """Get per-bucket access-log metrics (requests, status, bytes, latency).
 
@@ -425,14 +427,16 @@ class AnalyticsController(Controller):
         """
         filters = _build_filters(country_code, city, ip_address, ip_address_not_in)
         resolved = _resolve_chart_granularity(start_date, end_date, granularity)
+        if tz is not None:
+            validate_timezone(tz)
         if filters.is_active():
             interval = "1 hour" if resolved == StatsGranularity.HOURLY else "1 day"
             rows = await live_stats_repo.get_time_series(
-                start_date, end_date, bucket_interval=interval, filters=filters
+                start_date, end_date, bucket_interval=interval, filters=filters, tz=tz
             )
         else:
             rows = await summary_stats_repo.get_time_series(
-                start_date, end_date, granularity=resolved
+                start_date, end_date, granularity=resolved, tz=tz
             )
         return TimeSeriesResponse(
             granularity=resolved.value,
@@ -472,10 +476,15 @@ class AnalyticsController(Controller):
                 required=False,
             ),
         ] = None,
+        tz: Timezone = None,
     ) -> GeoEventsTimeSeriesResponse:
         """Get per-bucket geo-event metrics (events, unique IPs/countries/cities)."""
         resolved = _resolve_chart_granularity(start_date, end_date, granularity)
-        rows = await summary_stats_repo.get_geo_time_series(start_date, end_date, granularity=resolved)
+        if tz is not None:
+            validate_timezone(tz)
+        rows = await summary_stats_repo.get_geo_time_series(
+            start_date, end_date, granularity=resolved, tz=tz
+        )
         return GeoEventsTimeSeriesResponse(
             granularity=resolved.value,
             start_date=start_date.isoformat(),

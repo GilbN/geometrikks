@@ -11,6 +11,7 @@ from geometrikks.config.settings import Settings
 from geometrikks.domain.auth.controllers import AuthController
 from geometrikks.domain.realtime.controllers import crowdsec_feed, live_feed, logs_feed
 from geometrikks.server.auth import build_auth_state, create_session_auth
+from geometrikks.server.dependencies import create_settings_provider
 from geometrikks.server.routes import create_api_v1_router
 
 from tests.test_live_ws import FakeIngestion
@@ -39,6 +40,7 @@ def make_app(**settings_kwargs) -> Litestar:
             create_api_v1_router([AuthController]),
             protected, fake_health, live_feed, crowdsec_feed, logs_feed,
         ],
+        dependencies={"settings": create_settings_provider(settings)},
         on_app_init=[session_auth.on_app_init],
         logging_config=None,
     )
@@ -46,6 +48,22 @@ def make_app(**settings_kwargs) -> Litestar:
     # A working ingestion service so the authenticated branch streams rather
     # than taking the 1013-close (no-service) path.
     app.state.ingestion_service = FakeIngestion()
+    return app
+
+
+def make_disabled_app() -> Litestar:
+    """APP_AUTH_DISABLED=true: no session middleware, no auth_state.
+
+    Mirrors what create_app() composes in that mode, without the lifespan
+    (and therefore without needing a database).
+    """
+    settings = Settings(admin_user="admin", auth_disabled=True, _env_file=None)
+    app = Litestar(
+        route_handlers=[create_api_v1_router([AuthController]), protected, fake_health],
+        dependencies={"settings": create_settings_provider(settings)},
+        logging_config=None,
+    )
+    app.state.auth_state = None
     return app
 
 
@@ -75,13 +93,13 @@ def test_login_logout_flow():
             json={"username": "admin", "password": "bestpasswordintheworldnojoke"},
         )
         assert res.status_code == 200
-        assert res.json() == {"username": "admin"}
+        assert res.json() == {"mode": "session", "username": "admin"}
 
         # Session cookie now grants access
         assert client.get("/api/v1/protected").status_code == 200
         me = client.get("/api/v1/auth/me")
         assert me.status_code == 200
-        assert me.json() == {"username": "admin"}
+        assert me.json() == {"mode": "session", "username": "admin"}
 
         assert client.post("/api/v1/auth/logout").status_code == 204
         assert client.get("/api/v1/protected").status_code == 401
@@ -142,15 +160,72 @@ def test_create_app_auth_disabled_builds_without_password(monkeypatch):
 AUTH_ROUTE_PATHS = {"/api/v1/auth/login", "/api/v1/auth/logout", "/api/v1/auth/me"}
 
 
-def test_auth_routes_not_registered_when_auth_disabled(monkeypatch):
-    # Without SessionAuth there is no auth_state / request.user, so the
-    # handlers must not be reachable at all (404 instead of a 500).
+def test_auth_routes_registered_when_auth_disabled(monkeypatch):
+    # The SPA calls /auth/me on every load. Leaving the routes unregistered
+    # made every load raise NotFoundException and log an error-level
+    # traceback, which is the whole point of this change.
     monkeypatch.setenv("APP_AUTH_DISABLED", "true")
     monkeypatch.delenv("APP_ADMIN_PASSWORD", raising=False)
     from geometrikks.server.core import create_app
     app = create_app()
     paths = {route.path for route in app.routes}
-    assert not (AUTH_ROUTE_PATHS & paths)
+    assert AUTH_ROUTE_PATHS <= paths
+
+
+def test_me_reports_disabled_mode():
+    with TestClient(app=make_disabled_app()) as client:
+        res = client.get("/api/v1/auth/me")
+        assert res.status_code == 200
+        assert res.json() == {"mode": "disabled"}
+
+
+def test_login_is_a_no_op_when_auth_disabled():
+    with TestClient(app=make_disabled_app()) as client:
+        res = client.post(
+            "/api/v1/auth/login",
+            json={"username": "admin", "password": "does-not-matter"},
+        )
+        assert res.status_code == 200
+        assert res.json() == {"mode": "disabled"}
+        # No session was established, so nothing to set.
+        assert "set-cookie" not in res.headers
+
+
+def test_login_still_validates_its_body_when_auth_disabled():
+    # Litestar validates `data: LoginPayload` before the handler runs. The
+    # mode changes what valid credentials do, not whether the request shape
+    # is checked, and a 400 stays loud in the log.
+    with TestClient(app=make_disabled_app()) as client:
+        assert client.post("/api/v1/auth/login", json={"username": "admin"}).status_code == 400
+
+
+def test_logout_is_a_no_op_when_auth_disabled():
+    with TestClient(app=make_disabled_app()) as client:
+        assert client.post("/api/v1/auth/logout").status_code == 204
+
+
+def test_disabled_login_writes_no_audit_event():
+    # Nobody logged in, so the login.log contract must stay silent. A
+    # login_success here would be a false audit record.
+    import structlog
+
+    with structlog.testing.capture_logs() as captured:
+        with TestClient(app=make_disabled_app()) as client:
+            client.post(
+                "/api/v1/auth/login",
+                json={"username": "admin", "password": "does-not-matter"},
+            )
+            client.post("/api/v1/auth/logout")
+    events = {e["event"] for e in captured}
+    assert not events & {"login_success", "login_failed", "logout"}
+
+
+def test_me_is_401_for_an_anonymous_caller_when_auth_enabled():
+    # The frontend depends on this: the axios interceptor turns the 401 into
+    # a redirect to /login. Adding the disabled-mode branch must not have
+    # made /auth/me publicly readable.
+    with TestClient(app=make_app()) as client:
+        assert client.get("/api/v1/auth/me").status_code == 401
 
 
 def test_auth_routes_registered_when_auth_enabled(monkeypatch):

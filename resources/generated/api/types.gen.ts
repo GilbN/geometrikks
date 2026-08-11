@@ -103,6 +103,13 @@ export type AnalyticsSettingsView = {
 };
 
 /**
+ * AuthDisabled
+ */
+export type AuthDisabled = {
+  mode: "disabled";
+};
+
+/**
  * BanRequest
  */
 export type BanRequest = {
@@ -624,13 +631,6 @@ export type MapSettingsView = {
 };
 
 /**
- * MeResponse
- */
-export type MeResponse = {
-  username: string;
-};
-
-/**
  * OriginCount
  */
 export type OriginCount = {
@@ -746,6 +746,14 @@ export type SchedulerJobsResponse = {
   jobs: Array<SchedulerJobView>;
   schedulerEnabled: boolean;
   schedulerRunning: boolean;
+};
+
+/**
+ * SessionUser
+ */
+export type SessionUser = {
+  mode: "session";
+  username: string;
 };
 
 /**
@@ -1225,6 +1233,10 @@ export type ApiV1AnalyticsGeoTimeSeriesGetGeoTimeSeriesData = {
      * Bucket size override. Omit to auto-select (hourly <= 30 days, daily above). RAW is never available.
      */
     granularity?: "hourly" | "daily" | null;
+    /**
+     * IANA timezone for daily buckets (e.g. Europe/Oslo). When set, daily buckets are local days in this zone for ranges the hourly source data can serve (<= 30 days); longer ranges keep UTC days. Hourly buckets are unaffected.
+     */
+    tz?: string | null;
   };
   url: "/api/v1/analytics/geo-time-series";
 };
@@ -1388,6 +1400,10 @@ export type ApiV1AnalyticsTimeSeriesGetTimeSeriesData = {
      * Exclude these client IPs (repeatable)
      */
     ipAddressNotIn?: Array<string> | null;
+    /**
+     * IANA timezone for daily buckets (e.g. Europe/Oslo). When set, daily buckets are local days in this zone for ranges the hourly source data can serve (<= 30 days); longer ranges keep UTC days. Hourly buckets are unaffected.
+     */
+    tz?: string | null;
   };
   url: "/api/v1/analytics/time-series";
 };
@@ -1822,7 +1838,7 @@ export type ApiV1AuthLoginLoginResponses = {
   /**
    * Request fulfilled, document follows
    */
-  200: MeResponse;
+  200: SessionUser | AuthDisabled;
 };
 
 export type ApiV1AuthLoginLoginResponse =
@@ -1856,7 +1872,7 @@ export type ApiV1AuthMeMeResponses = {
   /**
    * Request fulfilled, document follows
    */
-  200: MeResponse;
+  200: SessionUser | AuthDisabled;
 };
 
 export type ApiV1AuthMeMeResponse =
@@ -2431,6 +2447,10 @@ export type ApiV1GeoEventsTimeSeriesGetGeoLogTimeSeriesData = {
      * Bucket size override. Omit to auto-select (hourly <= 30 days, daily above). RAW is never available.
      */
     granularity?: "hourly" | "daily" | null;
+    /**
+     * IANA timezone for daily buckets (e.g. Europe/Oslo). When set, daily buckets are local days in this zone for ranges the hourly source data can serve (<= 30 days); longer ranges keep UTC days. Hourly buckets are unaffected.
+     */
+    tz?: string | null;
   };
   url: "/api/v1/geo-events/time-series";
 };

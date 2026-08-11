@@ -1,15 +1,16 @@
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   ChartContainer,
   ChartTooltip,
-  ChartTooltipContent,
   type ChartConfig,
 } from "@/components/ui/chart"
 import { Skeleton } from "@/components/ui/skeleton"
 import { formatNumber } from "@/lib/api"
+import { clampedYMax } from "@/lib/chart-scale"
+import { formatTs } from "@/lib/datetime"
 import { useTimeSeries } from "@/lib/queries"
-import { formatBucketTick } from "./chart-utils"
+import { TimeSeriesTooltip } from "./time-series-tooltip"
 
 const chartConfig = {
   totalRequests: { label: "Requests", color: "var(--chart-1)" },
@@ -17,11 +18,17 @@ const chartConfig = {
 
 export function RequestsChart() {
   const { data, isLoading } = useTimeSeries()
+  const clipMax = clampedYMax((data?.data ?? []).map((d) => d.totalRequests))
 
   return (
     <Card>
       <CardHeader>
         <CardTitle className="text-sm font-medium">Requests</CardTitle>
+        {clipMax != null && (
+          <CardAction className="text-xs text-muted-foreground">
+            y-axis clipped at {formatNumber(clipMax)}
+          </CardAction>
+        )}
       </CardHeader>
       <CardContent>
         {isLoading || !data ? (
@@ -34,15 +41,17 @@ export function RequestsChart() {
                 dataKey="timestamp"
                 tickLine={false}
                 axisLine={false}
-                tickFormatter={formatBucketTick(data.granularity)}
+                tickFormatter={(v: string) => formatTs(v, data.granularity)}
               />
               <YAxis
                 tickLine={false}
                 axisLine={false}
                 width={48}
                 tickFormatter={(v: number) => formatNumber(v)}
+                domain={clipMax != null ? [0, clipMax] : undefined}
+                allowDataOverflow={clipMax != null}
               />
-              <ChartTooltip content={<ChartTooltipContent />} />
+              <ChartTooltip content={<TimeSeriesTooltip granularity={data.granularity} />} />
               <Area
                 dataKey="totalRequests"
                 type="monotone"

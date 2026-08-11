@@ -15,6 +15,7 @@ import { Route as AnalyticsRouteImport } from './routes/analytics'
 import { Route as DebugLogsRouteImport } from './routes/debug-logs'
 import { Route as GeoLogsRouteImport } from './routes/geo-logs'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as LogoutRouteImport } from './routes/logout'
 import { Route as MapRouteImport } from './routes/map'
 import { Route as SecurityRouteImport } from './routes/security'
 import { Route as SettingsRouteImport } from './routes/settings'
@@ -53,6 +54,11 @@ const GeoLogsRoute = GeoLogsRouteImport.update({
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LogoutRoute = LogoutRouteImport.update({
+  id: '/logout',
+  path: '/logout',
   getParentRoute: () => rootRouteImport,
 } as any)
 const MapRoute = MapRouteImport.update({
@@ -108,6 +114,7 @@ export interface FileRoutesByFullPath {
   '/debug-logs': typeof DebugLogsRoute
   '/geo-logs': typeof GeoLogsRoute
   '/login': typeof LoginRoute
+  '/logout': typeof LogoutRoute
   '/map': typeof MapRoute
   '/security': typeof SecurityRoute
   '/settings': typeof SettingsRouteWithChildren
@@ -125,6 +132,7 @@ export interface FileRoutesByTo {
   '/debug-logs': typeof DebugLogsRoute
   '/geo-logs': typeof GeoLogsRoute
   '/login': typeof LoginRoute
+  '/logout': typeof LogoutRoute
   '/map': typeof MapRoute
   '/security': typeof SecurityRoute
   '/settings/about': typeof SettingsAboutRoute
@@ -142,6 +150,7 @@ export interface FileRoutesById {
   '/debug-logs': typeof DebugLogsRoute
   '/geo-logs': typeof GeoLogsRoute
   '/login': typeof LoginRoute
+  '/logout': typeof LogoutRoute
   '/map': typeof MapRoute
   '/security': typeof SecurityRoute
   '/settings': typeof SettingsRouteWithChildren
@@ -161,6 +170,7 @@ export interface FileRouteTypes {
     | '/debug-logs'
     | '/geo-logs'
     | '/login'
+    | '/logout'
     | '/map'
     | '/security'
     | '/settings'
@@ -178,6 +188,7 @@ export interface FileRouteTypes {
     | '/debug-logs'
     | '/geo-logs'
     | '/login'
+    | '/logout'
     | '/map'
     | '/security'
     | '/settings/about'
@@ -194,6 +205,7 @@ export interface FileRouteTypes {
     | '/debug-logs'
     | '/geo-logs'
     | '/login'
+    | '/logout'
     | '/map'
     | '/security'
     | '/settings'
@@ -212,6 +224,7 @@ export interface RootRouteChildren {
   DebugLogsRoute: typeof DebugLogsRoute
   GeoLogsRoute: typeof GeoLogsRoute
   LoginRoute: typeof LoginRoute
+  LogoutRoute: typeof LogoutRoute
   MapRoute: typeof MapRoute
   SecurityRoute: typeof SecurityRoute
   SettingsRoute: typeof SettingsRouteWithChildren
@@ -259,6 +272,13 @@ declare module '@tanstack/react-router' {
       path: '/login'
       fullPath: '/login'
       preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/logout': {
+      id: '/logout'
+      path: '/logout'
+      fullPath: '/logout'
+      preLoaderRoute: typeof LogoutRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/map': {
@@ -356,6 +376,7 @@ const rootRouteChildren: RootRouteChildren = {
   DebugLogsRoute: DebugLogsRoute,
   GeoLogsRoute: GeoLogsRoute,
   LoginRoute: LoginRoute,
+  LogoutRoute: LogoutRoute,
   MapRoute: MapRoute,
   SecurityRoute: SecurityRoute,
   SettingsRoute: SettingsRouteWithChildren,

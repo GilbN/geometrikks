@@ -171,6 +171,28 @@ test("production image serves the authenticated dashboard without browser errors
   expect(breakpointWidths.body[1]).toBe(breakpointWidths.body[0])
   expect(breakpointWidths.content[1]).toBe(breakpointWidths.content[0])
 
+  // The Authentication card reports the mode the deployment is actually in.
+  // Scoped to that card (not page-wide) so a future card printing a
+  // username elsewhere cannot make this assertion pass for the wrong reason.
+  await page.setViewportSize({ width: 1280, height: 900 })
+  await page.goto("/settings/status")
+  const authenticationCard = page
+    .locator('[data-slot="card"]')
+    .filter({ has: page.getByText("Authentication", { exact: true }) })
+  await expect(authenticationCard).toBeVisible()
+  await expect(authenticationCard.getByText("Session login active", { exact: true })).toBeVisible()
+  await expect(authenticationCard.getByText(adminUser, { exact: true })).toBeVisible()
+
+  // /logout is a real route, not just a sidebar button. This must come last:
+  // it ends the session, and the 401s that follow are expected again, so the
+  // flag that gates isExpectedUnauthenticated401 has to go back to false
+  // first or the console-error filter below fails the run.
+  authenticated = false
+  await page.goto("/logout")
+  await expect(page).toHaveURL(/\/login$/)
+  await page.goto("/")
+  await expect(page).toHaveURL(/\/login$/)
+
   expect(consoleErrors, "browser console errors").toEqual([])
   expect(pageErrors, "uncaught page errors").toEqual([])
   expect(failedRequests, "failed browser requests").toEqual([])

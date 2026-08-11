@@ -397,6 +397,19 @@
         "title": "AnalyticsSettingsView",
         "type": "object"
       },
+      "AuthDisabled": {
+        "properties": {
+          "mode": {
+            "const": "disabled",
+            "type": "string"
+          }
+        },
+        "required": [
+          "mode"
+        ],
+        "title": "AuthDisabled",
+        "type": "object"
+      },
       "BanRequest": {
         "properties": {
           "duration": {
@@ -2246,18 +2259,6 @@
         "title": "MapSettingsView",
         "type": "object"
       },
-      "MeResponse": {
-        "properties": {
-          "username": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "username"
-        ],
-        "title": "MeResponse",
-        "type": "object"
-      },
       "OriginCount": {
         "properties": {
           "count": {
@@ -2656,6 +2657,23 @@
           "schedulerRunning"
         ],
         "title": "SchedulerJobsResponse",
+        "type": "object"
+      },
+      "SessionUser": {
+        "properties": {
+          "mode": {
+            "const": "session",
+            "type": "string"
+          },
+          "username": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "mode",
+          "username"
+        ],
+        "title": "SessionUser",
         "type": "object"
       },
       "SettingFieldView": {
@@ -3402,7 +3420,7 @@
   "info": {
     "description": "Real-time GeoIP lookups and traffic analytics API",
     "title": "GeoMetrikks API",
-    "version": "0.7.0"
+    "version": "0.7.1"
   },
   "openapi": "3.1.0",
   "paths": {
@@ -4294,6 +4312,34 @@
                 "string"
               ]
             }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "IANA timezone for daily buckets (e.g. Europe/Oslo). When set, daily buckets are local days in this zone for ranges the hourly source data can serve (<= 30 days); longer ranges keep UTC days. Hourly buckets are unaffected.",
+            "examples": {
+              "tz-example-1": {
+                "value": "Europe/Oslo"
+              }
+            },
+            "in": "query",
+            "name": "tz",
+            "required": false,
+            "schema": {
+              "description": "IANA timezone for daily buckets (e.g. Europe/Oslo). When set, daily buckets are local days in this zone for ranges the hourly source data can serve (<= 30 days); longer ranges keep UTC days. Hourly buckets are unaffected.",
+              "examples": [
+                "Europe/Oslo"
+              ],
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
           }
         ],
         "responses": {
@@ -4753,6 +4799,34 @@
                     "type": "string"
                   },
                   "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "IANA timezone for daily buckets (e.g. Europe/Oslo). When set, daily buckets are local days in this zone for ranges the hourly source data can serve (<= 30 days); longer ranges keep UTC days. Hourly buckets are unaffected.",
+            "examples": {
+              "tz-example-1": {
+                "value": "Europe/Oslo"
+              }
+            },
+            "in": "query",
+            "name": "tz",
+            "required": false,
+            "schema": {
+              "description": "IANA timezone for daily buckets (e.g. Europe/Oslo). When set, daily buckets are local days in this zone for ranges the hourly source data can serve (<= 30 days); longer ranges keep UTC days. Hourly buckets are unaffected.",
+              "examples": [
+                "Europe/Oslo"
+              ],
+              "oneOf": [
+                {
+                  "type": "string"
                 },
                 {
                   "type": "null"
@@ -6025,7 +6099,14 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/MeResponse"
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/SessionUser"
+                    },
+                    {
+                      "$ref": "#/components/schemas/AuthDisabled"
+                    }
+                  ]
                 }
               }
             },
@@ -6102,7 +6183,14 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/MeResponse"
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/SessionUser"
+                    },
+                    {
+                      "$ref": "#/components/schemas/AuthDisabled"
+                    }
+                  ]
                 }
               }
             },
@@ -7761,6 +7849,34 @@
               "type": [
                 "null",
                 "string"
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "IANA timezone for daily buckets (e.g. Europe/Oslo). When set, daily buckets are local days in this zone for ranges the hourly source data can serve (<= 30 days); longer ranges keep UTC days. Hourly buckets are unaffected.",
+            "examples": {
+              "tz-example-1": {
+                "value": "Europe/Oslo"
+              }
+            },
+            "in": "query",
+            "name": "tz",
+            "required": false,
+            "schema": {
+              "description": "IANA timezone for daily buckets (e.g. Europe/Oslo). When set, daily buckets are local days in this zone for ranges the hourly source data can serve (<= 30 days); longer ranges keep UTC days. Hourly buckets are unaffected.",
+              "examples": [
+                "Europe/Oslo"
+              ],
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
               ]
             }
           }

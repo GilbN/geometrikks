@@ -7,6 +7,55 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.1] - 2026-08-11
+
+### Added
+
+- Time-series charts (requests, bandwidth, latency, status classes, geo events)
+  now auto-clamp the y-axis when a single traffic burst dwarfs the rest of the
+  range, keeping normal traffic readable. Clamped charts show a
+  "y-axis clipped at ..." note in the card header; spike buckets clip at the
+  top edge and tooltips keep the true values.
+- Settings > Status has an Authentication card reporting whether the built-in
+  authentication is active.
+- `/logout` is now a route of its own, not only a sidebar button.
+
+### Changed
+
+- `GET /api/v1/auth/me` now reports an auth mode: `{"mode": "session",
+  "username": "..."}` when logged in, `{"mode": "disabled"}` when
+  `APP_AUTH_DISABLED=true`. In that mode a valid `POST /api/v1/auth/login`
+  returns the same disabled payload without establishing a session, and
+  `POST /api/v1/auth/logout` returns 204 without touching one.
+- 404 and 401 responses now log a single `client_error` warning instead of an
+  error-level traceback. Debug mode keeps the full traceback.
+
+### Fixed
+
+- Selecting "Today" (or any range not starting at UTC midnight) with daily
+  granularity no longer renders an extra full day in the charts. The frontend
+  now sends the browser's timezone as a new optional `tz` query parameter on
+  the time-series endpoints, and daily buckets are computed as local days in
+  that zone for ranges up to 30 days (rolled up from hourly data: counts
+  summed, latency sketches and unique-count HLLs merged). Ranges beyond 30
+  days keep UTC day buckets, since only the daily aggregates reach that far
+  back.
+- The status-classes chart no longer renders near-invisible bars on dense
+  views such as 7d+ with hourly granularity: past 48 buckets it switches to a
+  stacked area chart with the same colors and stack order. The card-colored
+  spacer strokes between bar segments were wider than the sub-pixel bars
+  themselves, erasing the fill entirely.
+- Chart tooltips now show the bucket time in the browser's timezone instead of
+  the raw UTC ISO string, matching the X axis ticks. Affected the requests,
+  bandwidth, latency, status-class and geo-events charts.
+- The Summary page's date-range badge now shows the range in the browser's
+  timezone with a matching zone label instead of hardcoded UTC; hovering it
+  still shows the full UTC instant.
+- With `APP_AUTH_DISABLED=true` the auth endpoints stay registered, so the
+  frontend's `/api/v1/auth/me` call no longer 404s into an uncaught-exception
+  traceback on every page load. `/login` and `/logout` redirect to the
+  dashboard in that mode instead of rendering a form that cannot work.
+
 ## [0.7.0] - 2026-08-02
 
 ### Added
@@ -661,7 +710,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Settings endpoint no longer exposes the full settings tree (database credentials leaked via `model_dump()`); response is now an explicit whitelist.
 - Timestamps in `CALL refresh_continuous_aggregate` are bound as asyncpg parameters instead of interpolated into SQL.
 
-[Unreleased]: https://github.com/GilbN/geometrikks/compare/v0.7.0...HEAD
+[Unreleased]: https://github.com/GilbN/geometrikks/compare/v0.7.1...HEAD
+[0.7.1]: https://github.com/GilbN/geometrikks/compare/v0.7.0...v0.7.1
 [0.7.0]: https://github.com/GilbN/geometrikks/releases/tag/v0.7.0
 [0.1.0-alpha.1]: https://github.com/GilbN/geometrikks/releases/tag/v0.1.0-alpha.1
 [0.1.0]: https://github.com/GilbN/geometrikks/compare/v0.1.0-alpha.1...v0.1.0

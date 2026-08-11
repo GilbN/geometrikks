@@ -19,6 +19,7 @@ import {
   apiV1AnalyticsTopUrlsGetTopUrls,
   apiV1AnalyticsTopUserAgentsGetTopUserAgents,
 } from "@/generated/api/sdk.gen"
+import { BROWSER_TZ } from "@/lib/datetime"
 import type {
   GeoJsonFeatureCollection as GeoJSONFeatureCollection,
   SafeSettingsResponse,
@@ -31,6 +32,8 @@ import type {
   AlertView,
   DecisionView,
   IpLocation,
+  SessionUser,
+  AuthDisabled,
 } from "@/generated/api/types.gen"
 
 export type {
@@ -69,9 +72,11 @@ api.interceptors.response.use(
 // Types & Functions - Auth API
 // ============================================================================
 
-export interface MeResponse {
-  username: string
-}
+/** Discriminated union: username exists only on the session branch. With
+ *  APP_AUTH_DISABLED=true the endpoints stay registered and report "disabled"
+ *  rather than 404ing. Comes from the generated schema, not hand-rolled, so
+ *  a backend change to the tagged union cannot silently leave this stale. */
+export type MeResponse = SessionUser | AuthDisabled
 
 export async function login(username: string, password: string): Promise<MeResponse> {
   const { data } = await api.post<MeResponse>("/auth/login", { username, password })
@@ -537,6 +542,7 @@ export async function fetchTimeSeries(params: TimeSeriesParams & AnalyticsFilter
       startDate: params.startDate,
       endDate: params.endDate,
       granularity: params.granularity,
+      tz: BROWSER_TZ,
       countryCode: params.countryCodes?.length ? params.countryCodes : undefined,
       city: params.cities?.length ? params.cities : undefined,
       ipAddress: params.ips?.length ? params.ips : undefined,
@@ -549,7 +555,12 @@ export async function fetchTimeSeries(params: TimeSeriesParams & AnalyticsFilter
 
 export async function fetchGeoTimeSeries(params: TimeSeriesParams) {
   const { data } = await apiV1AnalyticsGeoTimeSeriesGetGeoTimeSeries({
-    query: { startDate: params.startDate, endDate: params.endDate, granularity: params.granularity },
+    query: {
+      startDate: params.startDate,
+      endDate: params.endDate,
+      granularity: params.granularity,
+      tz: BROWSER_TZ,
+    },
     throwOnError: true,
   })
   return data
@@ -754,6 +765,7 @@ export async function fetchGeoLogTimeSeries(
       fromTimestamp: params.fromTimestamp,
       toTimestamp: params.toTimestamp,
       granularity: params.granularity,
+      tz: BROWSER_TZ,
       ...geoLogFilterQuery(params),
     },
     throwOnError: true,

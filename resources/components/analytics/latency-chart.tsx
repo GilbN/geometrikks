@@ -1,17 +1,18 @@
 import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   ChartContainer,
   ChartLegend,
   ChartLegendContent,
   ChartTooltip,
-  ChartTooltipContent,
   type ChartConfig,
 } from "@/components/ui/chart"
 import { Skeleton } from "@/components/ui/skeleton"
 import { formatDuration } from "@/lib/api"
+import { clampedYMax } from "@/lib/chart-scale"
+import { formatTs } from "@/lib/datetime"
 import { useTimeSeries } from "@/lib/queries"
-import { formatBucketTick } from "./chart-utils"
+import { TimeSeriesTooltip } from "./time-series-tooltip"
 
 const chartConfig = {
   avgRequestTime: { label: "avg", color: "var(--chart-1)" },
@@ -24,11 +25,19 @@ const SERIES = Object.keys(chartConfig) as (keyof typeof chartConfig)[]
 
 export function LatencyChart() {
   const { data, isLoading } = useTimeSeries()
+  const clipMax = clampedYMax(
+    (data?.data ?? []).flatMap((d) => SERIES.map((key) => d[key])),
+  )
 
   return (
     <Card>
       <CardHeader>
         <CardTitle className="text-sm font-medium">Latency (avg / p50 / p95 / p99)</CardTitle>
+        {clipMax != null && (
+          <CardAction className="text-xs text-muted-foreground">
+            y-axis clipped at {formatDuration(clipMax * 1000)}
+          </CardAction>
+        )}
       </CardHeader>
       <CardContent>
         {isLoading || !data ? (
@@ -41,7 +50,7 @@ export function LatencyChart() {
                 dataKey="timestamp"
                 tickLine={false}
                 axisLine={false}
-                tickFormatter={formatBucketTick(data.granularity)}
+                tickFormatter={(v: string) => formatTs(v, data.granularity)}
               />
               <YAxis
                 tickLine={false}
@@ -49,10 +58,13 @@ export function LatencyChart() {
                 width={56}
                 // request_time is seconds; formatDuration takes ms
                 tickFormatter={(v: number) => formatDuration(v * 1000)}
+                domain={clipMax != null ? [0, clipMax] : undefined}
+                allowDataOverflow={clipMax != null}
               />
               <ChartTooltip
                 content={
-                  <ChartTooltipContent
+                  <TimeSeriesTooltip
+                    granularity={data.granularity}
                     formatter={(value, name) => (
                       <span className="flex w-full justify-between gap-2">
                         <span className="text-muted-foreground">
