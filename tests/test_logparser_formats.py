@@ -68,6 +68,7 @@ def test_nginx_detect_malformed_tls_probe() -> None:
     assert norm is not None
     is_malformed, reason = fmt.detect_malformed(norm)
     assert is_malformed is True
+    assert reason is not None
     assert "TLS" in reason
 
 
@@ -82,12 +83,14 @@ def test_nginx_detect_malformed_nginx_statuses() -> None:
         assert norm is not None
         is_malformed, reason = fmt.detect_malformed(norm)
         assert is_malformed is True, f"status {status} should be malformed"
+        assert reason is not None
         assert fragment in reason
 
 
 def test_nginx_detect_malformed_ok_line() -> None:
     fmt = NginxFormat()
     norm = fmt.parse(NGINX_LINE)
+    assert norm is not None
     assert fmt.detect_malformed(norm) == (False, None)
 
 
@@ -199,7 +202,9 @@ def test_traefik_parse_startlocal_fallback() -> None:
     del data["StartUTC"]
     norm = TraefikJsonFormat().parse(json.dumps(data))
     assert norm is not None
-    assert norm.timestamp.utcoffset().total_seconds() == 7200
+    offset = norm.timestamp.utcoffset()
+    assert offset is not None
+    assert offset.total_seconds() == 7200
 
 
 def test_traefik_parse_origin_zero_means_no_upstream() -> None:
@@ -232,17 +237,21 @@ def test_traefik_geo_only_needs_ip_and_timestamp() -> None:
 def test_traefik_detect_malformed_method_only() -> None:
     fmt = TraefikJsonFormat()
     norm = fmt.parse(TRAEFIK_FULL)
+    assert norm is not None
     assert fmt.detect_malformed(norm) == (False, None)
     data = json.loads(TRAEFIK_FULL)
     data["RequestMethod"] = "BOGUS"
     norm = fmt.parse(json.dumps(data))
+    assert norm is not None
     is_malformed, reason = fmt.detect_malformed(norm)
     assert is_malformed is True
+    assert reason is not None
     assert "BOGUS" in reason
     # nginx-specific status heuristics must NOT apply
     data = json.loads(TRAEFIK_FULL)
     data["DownstreamStatus"] = 499
     norm = fmt.parse(json.dumps(data))
+    assert norm is not None
     assert fmt.detect_malformed(norm) == (False, None)
 
 

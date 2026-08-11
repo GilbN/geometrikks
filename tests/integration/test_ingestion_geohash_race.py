@@ -29,7 +29,7 @@ async def test_get_or_create_location_survives_existing_geohash(pg_session_maker
         await db_session.flush()
 
         service = LogIngestionService(
-            parsers=[], session_maker=None, geoip_path="unused", hostname="test",
+            parsers=[], session_maker=pg_session_maker, geoip_path="unused", hostname="test",
         )
         repos = IngestionRepos.from_session(db_session)
         geo = ParsedGeoData(
@@ -58,7 +58,7 @@ async def test_insert_conflict_resolves_to_existing_id(pg_session_maker, clean_t
         await db_session.flush()
 
         service = LogIngestionService(
-            parsers=[], session_maker=None, geoip_path="unused", hostname="test",
+            parsers=[], session_maker=pg_session_maker, geoip_path="unused", hostname="test",
         )
         repos = IngestionRepos.from_session(db_session)
         geo = ParsedGeoData(
