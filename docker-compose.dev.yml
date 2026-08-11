@@ -33,6 +33,7 @@ services:
       context: .
       dockerfile: Dockerfile
     restart: unless-stopped
+    hostname: geometrikks
     environment:
       APP_ENVIRONMENT: production
       # Admin login for the web UI/API. Set both in .env; the app refuses to
@@ -45,11 +46,11 @@ services:
       DB_USER: geouser
       DB_PASSWORD: geopass
       DB_DATABASE: geometrikks
-      LOGPARSER_LOG_PATHS: /var/log/nginx/access.log
+      LOGPARSER_LOG_PATHS: /var/log/access/access.log
     ports:
       - "8000:8000"
     volumes:
-      - /var/log/nginx:/var/log/nginx:ro
+      - /var/log/nginx:/var/log/access:ro
     networks:
       - geometrikks_net
     env_file:
@@ -68,6 +69,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.dev
+    hostname: geometrikks
     environment:
       APP_ENVIRONMENT: development
       APP_DEBUG: "true"
@@ -82,7 +84,7 @@ services:
       DB_PASSWORD: geopass
       DB_DATABASE: geometrikks
       GEOIP_DB_PATH: /app/data/geoip/GeoLite2-City.mmdb
-      LOGPARSER_LOG_PATHS: /var/log/nginx/access.log
+      LOGPARSER_LOG_PATHS: /var/log/access/access.log
       VITE_DEV_MODE: "true"
       VITE_EXECUTOR: "bun"
     ports:
@@ -97,7 +99,7 @@ services:
       - ./tests:/app/tests:cached
       - ./data:/app/data:cached
       # Sample nginx access logs for ingestion, same mount point as prod
-      - ./nginx_logs:/var/log/nginx:ro
+      - ./nginx_logs:/var/log/access:ro
       # The app's own log files (geometrikks.log, login.log)
       - ./logs:/var/log/geometrikks
     networks:

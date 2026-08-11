@@ -68,7 +68,7 @@ def baseline_settings_env():
         # Map (tests must never depend on an external public-IP service)
         "MAP_AUTO_DETECT_HOME": "false",
         # Log parser
-        "LOGPARSER_LOG_PATHS": "/var/log/nginx/access.log",
+        "LOGPARSER_LOG_PATHS": "/var/log/access/access.log",
     })
 
 

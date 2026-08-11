@@ -19,6 +19,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from geoip2.database import Reader
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from geometrikks.domain.geo.models import GeoLocation, GeoEvent
@@ -333,7 +334,7 @@ class LogIngestionService:
                 flushed["geo"] += 1
 
         if record.access_log:
-            access_log_model = self._to_access_log_model(record.access_log)
+            access_log_model = self._to_access_log_model(record.access_log, log_format=record.log_format)
             repos.access_log.session.add(access_log_model)
             self.total_log_records += 1
             flushed["log"] += 1
@@ -359,27 +360,44 @@ class LogIngestionService:
             self._location_cache[geo_data.geohash] = existing.id
             return existing.id
 
-        location = GeoLocation(
-            geohash=geo_data.geohash,
-            latitude=geo_data.latitude,
-            longitude=geo_data.longitude,
-            country_code=geo_data.country_code,
-            country_name=geo_data.country_name,
-            state=geo_data.state,
-            state_code=geo_data.state_code,
-            city=geo_data.city,
-            postal_code=geo_data.postal_code,
-            timezone=geo_data.timezone,
-            geographic_point=make_point(geo_data.latitude, geo_data.longitude),
+        # Two instances sharing a DB can race this insert; ON CONFLICT
+        # DO NOTHING + re-select resolves the loser to the winner's row
+        # instead of poisoning the whole batch with a unique violation.
+        # Postgres blocks a conflicting insert until the concurrent
+        # transaction resolves, so the re-select sees the winner's row.
+        stmt = (
+            pg_insert(GeoLocation)
+            .values(
+                geohash=geo_data.geohash,
+                latitude=geo_data.latitude,
+                longitude=geo_data.longitude,
+                country_code=geo_data.country_code,
+                country_name=geo_data.country_name,
+                state=geo_data.state,
+                state_code=geo_data.state_code,
+                city=geo_data.city,
+                postal_code=geo_data.postal_code,
+                timezone=geo_data.timezone,
+                geographic_point=make_point(geo_data.latitude, geo_data.longitude),
+            )
+            .on_conflict_do_nothing(index_elements=["geohash"])
+            .returning(GeoLocation.id)
         )
-        # session.add + one flush to get the id; repo.add() would add a
-        # redundant refresh round trip. Fires only for geohashes not in cache.
-        repos.geo_location.session.add(location)
-        await repos.geo_location.session.flush()
+        new_id: int | None = (await repos.geo_location.session.execute(stmt)).scalar_one_or_none()
 
-        self._location_cache[geo_data.geohash] = location.id
-        self._uncommitted_geohashes.add(geo_data.geohash)
-        return location.id
+        if new_id is not None:
+            self._location_cache[geo_data.geohash] = new_id
+            self._uncommitted_geohashes.add(geo_data.geohash)
+            return new_id
+
+        # Lost the race: the row exists (committed by the other writer).
+        raced = await repos.geo_location.get_by_geohash(geo_data.geohash)
+        if raced is None:
+            raise RuntimeError(
+                f"geo_locations insert conflicted but row not found: {geo_data.geohash}"
+            )
+        self._location_cache[geo_data.geohash] = raced.id
+        return raced.id
 
     def _evict_uncommitted_locations(self) -> None:
         """Drop cache entries whose inserts were rolled back before committing."""
@@ -535,8 +553,21 @@ class LogIngestionService:
                     except (asyncio.QueueEmpty, asyncio.QueueFull):
                         pass
 
-    def _to_access_log_model(self, parsed: ParsedAccessLog) -> AccessLog:
-        """Convert ParsedAccessLog schema to ORM model."""
+    def _to_access_log_model(
+        self, parsed: ParsedAccessLog, log_format: str | None = None
+    ) -> AccessLog:
+        """Convert ParsedAccessLog schema to ORM model, stamping source info.
+
+        Args:
+            parsed: The parsed access log fields.
+            log_format: The format adapter that produced this record (e.g.
+                'nginx', 'traefik-json'), stamped onto the row alongside the
+                writer's hostname.
+
+        Returns:
+            An unpersisted AccessLog ORM instance ready to be added to a
+            session.
+        """
         return AccessLog(
             timestamp=parsed.timestamp,
             ip_address=parsed.ip_address,
@@ -554,6 +585,8 @@ class LogIngestionService:
             country_code=parsed.country_code,
             country_name=parsed.country_name,
             city=parsed.city,
+            hostname=self.hostname,
+            log_format=log_format,
         )
 
     # Statistics properties for API endpoints

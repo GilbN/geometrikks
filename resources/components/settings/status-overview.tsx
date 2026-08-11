@@ -26,6 +26,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Skeleton } from "@/components/ui/skeleton"
 import { MonoChip, StatusLed } from "@/components/settings/status-led"
 import {
+  accessLogFiles,
   authState,
   type CardState,
   compressionSummary,
@@ -39,7 +40,6 @@ import {
   ingestionState,
   lastEventState,
   liveFeedState,
-  nginxLogFiles,
   overallState,
   relativeTime,
   schedulerJobState,
@@ -97,7 +97,7 @@ export function StatusOverview() {
 
   const now = Date.now()
   const overall = overallState(health, healthError)
-  const nginx = nginxLogFiles(files)
+  const access = accessLogFiles(files)
   const uptime = formatUptime(health?.startedAt, now)
   const geoipRefreshJob = jobs?.find((j) => j.id === "geoip-refresh")
   const recentErrors = filterErrorRecords(logRecords, 5)
@@ -164,7 +164,7 @@ export function StatusOverview() {
               <SectionIcon icon={Activity} />
               <div>
                 <CardTitle className="text-base">Ingestion</CardTitle>
-                <CardDescription>Nginx log tailing and parsing pipeline</CardDescription>
+                <CardDescription>Access log tailing and parsing pipeline</CardDescription>
               </div>
             </div>
           </CardHeader>
@@ -205,10 +205,10 @@ export function StatusOverview() {
             <div className="space-y-2 border-t pt-3">
               <p className="text-xs font-medium text-muted-foreground">Tailed access logs</p>
               {filesError && <p className="text-xs text-muted-foreground">File list unavailable.</p>}
-              {!filesError && nginx.length === 0 && (
-                <p className="text-xs text-muted-foreground">No nginx access logs configured.</p>
+              {!filesError && access.length === 0 && (
+                <p className="text-xs text-muted-foreground">No access logs configured.</p>
               )}
-              {nginx.map((f) => (
+              {access.map((f) => (
                 <div key={f.name} className="flex items-center gap-2 text-xs">
                   <StatusLed tone={f.available ? "emerald" : "red"} />
                   <MonoChip>{f.name}</MonoChip>

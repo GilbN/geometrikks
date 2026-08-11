@@ -91,10 +91,13 @@ reproducible deployments:
 image: ghcr.io/gilbn/geometrikks:0.3.0
 ```
 
-`docker-compose.yml` mounts `${NGINX_LOG_DIR:-/var/log/nginx}` read-only into
-the container at `/var/log/nginx` and reads `LOGPARSER_LOG_PATHS` from
-`.env`. Point `NGINX_LOG_DIR` at wherever your nginx (or reverse proxy)
-writes its access logs.
+`docker-compose.yml` mounts `${ACCESS_LOG_DIR:-${NGINX_LOG_DIR:-/var/log/nginx}}`
+read-only into the container at `/var/log/access` and reads
+`LOGPARSER_LOG_PATHS` from `.env`. `ACCESS_LOG_DIR` is the preferred
+variable name now that the parser supports more than nginx
+(`NGINX_LOG_DIR` still works as a fallback); point it at wherever your
+reverse proxy writes its access logs. `LOGPARSER_LOG_PATHS` must point at
+the file(s) inside the container, i.e. under `/var/log/access/`.
 
 ## Nginx setup
 
@@ -125,8 +128,46 @@ access_log /config/log/nginx/access.log custom;
 ```
 
 ```bash
-LOGPARSER_LOG_PATHS=["/var/log/nginx/access.log", "/var/log/nginx/somepage/access.log"]
+LOGPARSER_LOG_PATHS=["/var/log/access/access.log", "/var/log/access/somepage/access.log"]
 ```
+
+## Traefik setup
+
+GeoMetrikks parses Traefik JSON access logs. Traefik logs to stdout by
+default, so configure a file and the JSON format in your static
+configuration, and keep the User-Agent and Referer headers so analytics
+have them:
+
+```yaml
+accessLog:
+  filePath: "/var/log/traefik/access.log"
+  format: json
+  fields:
+    headers:
+      names:
+        User-Agent: keep
+        Referer: keep
+```
+
+Mount the log directory into the GeoMetrikks container (set
+`ACCESS_LOG_DIR=/path/to/traefik/logs` in `.env`, or edit the volume) and
+point the parser at it:
+
+```env
+ACCESS_LOG_DIR=/var/log/traefik
+LOGPARSER_LOG_PATHS=/var/log/access/access.log
+```
+
+The format is auto-detected per file; set `LOGPARSER_LOG_FORMATS=traefik-json`
+to pin it. Notes:
+
+- Rotate with logrotate and signal Traefik afterwards:
+  `docker kill --signal=USR1 traefik`. GeoMetrikks follows the rotation
+  automatically.
+- Behind a CDN or load balancer, configure Traefik's
+  `entryPoints.<name>.forwardedHeaders.trustedIPs` so the logged client IP
+  is the real client, not the proxy.
+- Logging to stdout only is not supported; a file path is required.
 
 ## MaxMind GeoLite2
 
@@ -393,7 +434,7 @@ history - rotated or archived nginx logs, plain or gzip-compressed - use the
 `litestar import-logs` CLI command:
 
 ```bash
-docker compose exec -u geometrikks app litestar import-logs /var/log/nginx/access.log.1.gz
+docker compose exec -u geometrikks app litestar import-logs /var/log/access/access.log.1.gz
 ```
 
 It reuses the live ingestion pipeline (same parsing, GeoIP lookup, and DB
@@ -408,7 +449,7 @@ paths, and the import runs as the non-root `geometrikks` user
 stopped, use `run --rm` instead:
 
 ```bash
-docker compose run --rm app litestar import-logs /var/log/nginx/access.log.1.gz
+docker compose run --rm app litestar import-logs /var/log/access/access.log.1.gz
 ```
 
 **Caveats**
@@ -481,10 +522,10 @@ Or with a `user:` override, where the image needs no capabilities at all:
 
 **I'm using Nginx Proxy Manager (or another proxy-manager container) - what
 log path do I use?**
-Point `NGINX_LOG_DIR` at the host directory where the proxy container writes
+Point `ACCESS_LOG_DIR` at the host directory where the proxy container writes
 its access logs (for Nginx Proxy Manager this is typically its `data/logs`
 volume), and set `LOGPARSER_LOG_PATHS` to the specific access-log file(s)
-inside it, using the *container* path (`/var/log/nginx/...`), not the host
+inside it, using the *container* path (`/var/log/access/...`), not the host
 path.
 
 **Permission denied reading my log files?**

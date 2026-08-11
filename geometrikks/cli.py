@@ -1,4 +1,4 @@
-"""Litestar CLI plugin: `litestar import-logs <paths...>`.
+"""Litestar CLI plugin: `litestar import-logs <paths...>`, `litestar backfill-hostname NAME`.
 
 Import-time safe: settings, engine, reader are constructed inside the
 command callback, never at module import.
@@ -23,7 +23,15 @@ from litestar.plugins import CLIPlugin
 )
 @click.option("--force", is_flag=True, help="Re-import files whose checksum was already imported (updates the prior import_jobs row; does NOT remove previously imported rows).")
 @click.option("--batch-size", default=500, show_default=True, type=click.IntRange(min=1), help="Records per commit batch.")
-def import_logs_command(paths: tuple[Path, ...], force: bool, batch_size: int) -> None:
+@click.option(
+    "--format",
+    "log_format",
+    default="auto",
+    show_default=True,
+    type=click.Choice(["auto", "nginx", "traefik-json"]),
+    help="Log format of the given files (auto = detect per file).",
+)
+def import_logs_command(paths: tuple[Path, ...], force: bool, batch_size: int, log_format: str) -> None:
     """Import historical access-log files (plain or .gz) into the database.
 
     Reads whole files, uses log-line timestamps, refreshes the continuous
@@ -31,10 +39,10 @@ def import_logs_command(paths: tuple[Path, ...], force: bool, batch_size: int) -
     that is also being live-tailed will double-count — import archived
     (rotated) files only.
     """
-    asyncio.run(_run_import(list(paths), force=force, batch_size=batch_size))
+    asyncio.run(_run_import(list(paths), force=force, batch_size=batch_size, log_format=log_format))
 
 
-async def _run_import(paths: list[Path], *, force: bool, batch_size: int) -> None:
+async def _run_import(paths: list[Path], *, force: bool, batch_size: int, log_format: str) -> None:
     from geoip2.database import Reader
 
     from geometrikks.config.settings import get_settings
@@ -77,6 +85,7 @@ async def _run_import(paths: list[Path], *, force: bool, batch_size: int) -> Non
                 log_path=path,
                 send_logs=settings.logparser.send_logs,
                 ignore_ips=settings.logparser.ignore_ips,
+                log_format=log_format,
             )
 
             def show_progress(lines: int, lps: float) -> None:
@@ -135,8 +144,116 @@ async def _run_import(paths: list[Path], *, force: bool, batch_size: int) -> Non
         )
 
 
+@click.command(name="backfill-hostname")
+@click.argument("name")
+@click.option(
+    "--consolidate", is_flag=True,
+    help=(
+        "Also rewrite ALL existing hostnames (geo_events and stamped "
+        "access_logs rows) to NAME. For DBs polluted by Docker container-ID "
+        "hostnames from unset LOGPARSER_HOST_NAME."
+    ),
+)
+@click.option("--yes", is_flag=True, help="Skip the confirmation prompt.")
+def backfill_hostname_command(name: str, consolidate: bool, yes: bool) -> None:
+    """Set the recording hostname on historical rows.
+
+    Default: fills only access_logs rows with NULL hostname (idempotent,
+    cannot clobber stamped data). With --consolidate it collapses every
+    existing hostname in geo_events and access_logs to NAME as well.
+    Refreshes the hostname continuous aggregates whenever rows changed.
+    May run for minutes on large databases.
+    """
+    asyncio.run(_run_backfill_hostname(name, consolidate=consolidate, yes=yes))
+
+
+async def _run_backfill_hostname(name: str, *, consolidate: bool, yes: bool) -> None:
+    from sqlalchemy import text
+
+    from geometrikks.server.logging import get_logger
+    from geometrikks.server.plugins import get_sqlalchemy_config
+    from geometrikks.server.timescale import refresh_caggs_range
+
+    logger = get_logger(__name__)
+    config = get_sqlalchemy_config()
+    engine = config.get_engine()
+    try:
+        async with engine.connect() as conn:
+            distinct = (await conn.execute(text(
+                "SELECT hostname, COUNT(*) FROM geo_events GROUP BY hostname ORDER BY hostname"
+            ))).all()
+
+        if consolidate:
+            click.echo("Hostnames that will be consolidated into "
+                       f"{name!r} (geo_events counts):")
+            for host, count in distinct:
+                click.echo(f"  {host}: {count:,}")
+            if not yes and not click.confirm("Rewrite ALL of these?"):
+                click.echo("Aborted.")
+                return
+
+        async with engine.begin() as conn:
+            filled = (await conn.execute(
+                text("UPDATE access_logs SET hostname = :n WHERE hostname IS NULL"),
+                {"n": name},
+            )).rowcount
+            rewritten_geo = rewritten_logs = 0
+            if consolidate:
+                rewritten_geo = (await conn.execute(
+                    text("UPDATE geo_events SET hostname = :n WHERE hostname <> :n"),
+                    {"n": name},
+                )).rowcount
+                rewritten_logs = (await conn.execute(
+                    text("UPDATE access_logs SET hostname = :n "
+                         "WHERE hostname IS NOT NULL AND hostname <> :n"),
+                    {"n": name},
+                )).rowcount
+
+        click.echo(f"access_logs NULL hostnames filled: {filled:,}")
+        if consolidate:
+            click.echo(f"geo_events hostnames rewritten: {rewritten_geo:,}")
+            click.echo(f"access_logs hostnames rewritten: {rewritten_logs:,}")
+
+        # The hostname CAGGs still show the old values until refreshed. The
+        # plain fill path needs this too: without it log_source_daily_stats
+        # keeps hostname NULL for history, and once raw retention drops the
+        # access_logs rows the facet can never be corrected.
+        # Ranges are computed per source table: hostname_daily_stats reads
+        # geo_events while log_source_daily_stats reads access_logs, and
+        # the two tables' time bounds differ (access logs exist for rows
+        # that never produced a geo event).
+        if filled or rewritten_geo or rewritten_logs:
+            click.echo("Refreshing hostname CAGGs ...")
+            async with engine.connect() as conn:
+                for table, cagg in (
+                    ("geo_events", "hostname_daily_stats"),
+                    ("access_logs", "log_source_daily_stats"),
+                ):
+                    bounds = (await conn.execute(text(
+                        f"SELECT MIN(timestamp), MAX(timestamp) FROM {table}"
+                    ))).one()
+                    if bounds[0] is not None:
+                        await refresh_caggs_range(
+                            engine, start=bounds[0],
+                            end=bounds[1] + timedelta(microseconds=1),
+                            caggs=[cagg],
+                        )
+
+        logger.info(
+            "hostname_backfill_completed",
+            name=name,
+            consolidate=consolidate,
+            filled=filled,
+            rewritten_geo=rewritten_geo,
+            rewritten_logs=rewritten_logs,
+        )
+    finally:
+        await engine.dispose()
+
+
 class ImportLogsCLIPlugin(CLIPlugin):
-    """Registers import-logs on the litestar CLI group."""
+    """Registers import-logs and backfill-hostname on the litestar CLI group."""
 
     def on_cli_init(self, cli: click.Group) -> None:
         cli.add_command(import_logs_command)
+        cli.add_command(backfill_hostname_command)

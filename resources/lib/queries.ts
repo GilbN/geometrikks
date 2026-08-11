@@ -890,6 +890,9 @@ export interface UseAccessLogsOptions {
   methodIn?: string[]
   hostIn?: string[]
   hostNotIn?: string[]
+  hostnameIn?: string[]
+  hostnameNotIn?: string[]
+  logFormatIn?: string[]
   cityIn?: string[]
   countryCodeIn?: string[]
   statusIn?: number[]
@@ -912,6 +915,9 @@ export function useAccessLogs(options: UseAccessLogsOptions = {}) {
     methodIn,
     hostIn,
     hostNotIn,
+    hostnameIn,
+    hostnameNotIn,
+    logFormatIn,
     cityIn,
     countryCodeIn,
     statusIn,
@@ -922,7 +928,7 @@ export function useAccessLogs(options: UseAccessLogsOptions = {}) {
 
   return useQuery<AccessLogsPage>({
     queryKey: queryKeys.accessLogs.list(
-      { range, customRange, currentPage, pageSize, searchString, ipAddressIn, ipAddressNotIn, methodIn, hostIn, hostNotIn, cityIn, countryCodeIn, statusIn, sortField, sortOrder },
+      { range, customRange, currentPage, pageSize, searchString, ipAddressIn, ipAddressNotIn, methodIn, hostIn, hostNotIn, hostnameIn, hostnameNotIn, logFormatIn, cityIn, countryCodeIn, statusIn, sortField, sortOrder },
       lastRefresh,
     ),
     queryFn: () => {
@@ -938,6 +944,9 @@ export function useAccessLogs(options: UseAccessLogsOptions = {}) {
         methodIn,
         hostIn,
         hostNotIn,
+        hostnameIn,
+        hostnameNotIn,
+        logFormatIn,
         cityIn,
         countryCodeIn,
         statusIn,
@@ -1267,7 +1276,7 @@ export function useRecentErrors() {
   })
 }
 
-/** Available log files (app/login/nginx) for the Logs page file picker. */
+/** Available log files (app/login/access) for the Logs page file picker. */
 export function useLogFiles() {
   return useQuery({
     queryKey: queryKeys.logs.files,

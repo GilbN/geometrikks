@@ -278,7 +278,19 @@
             },
             "type": "array"
           },
+          "hostnames": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
           "hosts": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "logFormats": {
             "items": {
               "type": "string"
             },
@@ -288,7 +300,9 @@
         "required": [
           "cities",
           "countries",
-          "hosts"
+          "hostnames",
+          "hosts",
+          "logFormats"
         ],
         "title": "AccessLogFacets",
         "type": "object"
@@ -1714,6 +1728,16 @@
               }
             ]
           },
+          "hostname": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "httpVersion": {
             "oneOf": [
               {
@@ -1729,6 +1753,16 @@
           },
           "ipAddress": {
             "type": "string"
+          },
+          "logFormat": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "method": {
             "oneOf": [
@@ -2073,7 +2107,7 @@
             "enum": [
               "app",
               "login",
-              "nginx"
+              "access"
             ],
             "type": "string"
           },
@@ -4126,6 +4160,69 @@
             "deprecated": false,
             "in": "query",
             "name": "hostNotIn",
+            "required": false,
+            "schema": {
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "hostnameIn",
+            "required": false,
+            "schema": {
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "hostnameNotIn",
+            "required": false,
+            "schema": {
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "logFormatIn",
             "required": false,
             "schema": {
               "oneOf": [
