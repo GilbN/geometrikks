@@ -2,12 +2,12 @@
 
 ![Map](/data/screenshots/live.png)
 
-GeoMetrikks tails your nginx access logs, geolocates every request with
-MaxMind GeoLite2, and gives you a real-time GeoIP map plus a traffic
-analytics dashboard for your homelab - no external services, no
-subscriptions, just Docker and your existing nginx logs. Run CrowdSec?
-Hook up its Local API and manage bans right next to the traffic they
-came from.
+GeoMetrikks tails your reverse-proxy access logs (nginx and Traefik),
+geolocates every request with MaxMind GeoLite2, and gives you a real-time
+GeoIP map plus a traffic analytics dashboard for your homelab - no external
+services, no subscriptions, just Docker and the access logs you already
+have. Run CrowdSec? Hook up its Local API and manage bans right next to
+the traffic they came from.
 
 ## Features
 
@@ -34,9 +34,9 @@ the map.
 
 **Access logs** - a searchable, server-paginated history of every request:
 free-text search across URL / referrer / user-agent, filters for status,
-method, IP, host, country, and city, sortable columns, and a column picker
-for the full log line (bytes, request time, upstream time, HTTP version,
-and more).
+method, IP, host, country, city, recording hostname, and source format,
+sortable columns, and a column picker for the full log line (bytes,
+request time, upstream time, HTTP version, and more).
 
 ![Access Logs](/data/screenshots/access-logs.png)
 
@@ -370,7 +370,7 @@ Notes for exposing GeoMetrikks to the internet:
 If a [CrowdSec](https://www.crowdsec.net/) instance protects your stack,
 GeoMetrikks can talk to its Local API (LAPI) and show active decisions
 (bans) joined with the traffic data it already stores: per banned IP you see
-the country/city and the request count from your actual nginx logs.
+the country/city and the request count from your actual access logs.
 
 Register GeoMetrikks as a bouncer on the CrowdSec side and point the app at
 the LAPI:
@@ -430,8 +430,8 @@ Notes:
 ## Importing history
 
 Live tailing only picks up lines written after the app starts. To backfill
-history - rotated or archived nginx logs, plain or gzip-compressed - use the
-`litestar import-logs` CLI command:
+history - rotated or archived access logs (nginx or Traefik JSON), plain or
+gzip-compressed - use the `litestar import-logs` CLI command:
 
 ```bash
 docker compose exec -u geometrikks app litestar import-logs /var/log/access/access.log.1.gz
@@ -440,6 +440,8 @@ docker compose exec -u geometrikks app litestar import-logs /var/log/access/acce
 It reuses the live ingestion pipeline (same parsing, GeoIP lookup, and DB
 writes), uses the timestamps in each log line rather than wall-clock time,
 and refreshes the continuous aggregates for the imported range when done.
+The log format is auto-detected per file, same as live tailing; pass
+`--format nginx` or `--format traefik-json` to pin it.
 Multiple files can be passed in one invocation; paths are **container**
 paths, and the import runs as the non-root `geometrikks` user
 (`PUID`:`PGID`, default 1000:1000), so host files must be readable by it
@@ -460,7 +462,7 @@ docker compose run --rm app litestar import-logs /var/log/access/access.log.1.gz
   content again (even under a different filename) is skipped. Pass `--force`
   to re-import - this updates the bookkeeping row but does **not** delete
   rows written by the earlier import.
-- A file that doesn't match the expected log format is rejected up front,
+- A file that doesn't match any supported log format is rejected up front,
   before anything is written.
 - Rows older than the raw retention window (`ANALYTICS_RAW_RETENTION_DAYS`,
   default 180 days) are dropped by the TimescaleDB retention policy -
@@ -532,8 +534,8 @@ path.
 The app container runs as `PUID`:`PGID` (default 1000:1000), and log mounts
 are read-only. Make sure the log files (and their parent directory) are
 readable by that uid/gid on the host - `chmod`/`chown` or an ACL entry,
-whichever fits your setup. Read-only mounts are intentional: GeoMetrikks never needs to write to
-your nginx logs.
+whichever fits your setup. Read-only mounts are intentional: GeoMetrikks
+never needs to write to your access logs.
 
 **Does this run on arm64?**
 Yes - the published GHCR image is a multi-arch manifest for `linux/amd64`
@@ -542,8 +544,9 @@ and `linux/arm64`.
 **The map is empty.**
 Check three things in order: (1) the geo-degraded banner - if it's showing,
 MaxMind credentials or the GeoLite2 database are missing; (2) that
-`LOGPARSER_LOG_PATHS` actually points at a file receiving traffic, matching
-the `log_format` above; (3) that some time has passed since you last
+`LOGPARSER_LOG_PATHS` actually points at a file receiving traffic in a
+supported format (the nginx `log_format` above, or Traefik JSON); (3) that
+some time has passed since you last
 restarted - the map only shows events ingested after startup unless you've
 run a batch import.
 
