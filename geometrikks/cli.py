@@ -162,7 +162,10 @@ def backfill_hostname_command(name: str, consolidate: bool, yes: bool) -> None:
     cannot clobber stamped data). With --consolidate it collapses every
     existing hostname in geo_events and access_logs to NAME as well.
     Refreshes the hostname continuous aggregates whenever rows changed.
-    May run for minutes on large databases.
+    Compressed hypertable chunks are decompressed first (a full-table
+    UPDATE would trip the TimescaleDB tuple decompression limit); the
+    compression policy recompresses them later. May run for minutes on
+    large databases.
     """
     asyncio.run(_run_backfill_hostname(name, consolidate=consolidate, yes=yes))
 
@@ -191,6 +194,47 @@ async def _run_backfill_hostname(name: str, *, consolidate: bool, yes: bool) -> 
             if not yes and not click.confirm("Rewrite ALL of these?"):
                 click.echo("Aborted.")
                 return
+
+        # Cheap EXISTS probes (hostname is indexed) so a rerun with nothing
+        # left to change exits before the expensive decompression below.
+        async with engine.connect() as conn:
+            async def _exists(sql: str) -> bool:
+                return bool((await conn.execute(text(sql), {"n": name})).scalar())
+
+            needs_fill = await _exists(
+                "SELECT EXISTS (SELECT 1 FROM access_logs WHERE hostname IS NULL)")
+            needs_logs_rewrite = consolidate and await _exists(
+                "SELECT EXISTS (SELECT 1 FROM access_logs "
+                "WHERE hostname IS NOT NULL AND hostname <> :n)")
+            needs_geo_rewrite = consolidate and await _exists(
+                "SELECT EXISTS (SELECT 1 FROM geo_events WHERE hostname <> :n)")
+            timescale = await _exists(
+                "SELECT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'timescaledb')")
+
+        if not (needs_fill or needs_logs_rewrite or needs_geo_rewrite):
+            click.echo("Nothing to do: no NULL hostnames"
+                       + (" and nothing to consolidate" if consolidate else "") + ".")
+            return
+
+        # Full-table UPDATEs on compressed hypertable chunks trip
+        # timescaledb.max_tuples_decompressed_per_dml_transaction (100k by
+        # default, vs millions of historical rows). Decompress first, same
+        # pattern as the url/referrer swap migration; the compression policy
+        # recompresses on its own schedule.
+        if timescale:
+            tables = []
+            if needs_fill or needs_logs_rewrite:
+                tables.append("access_logs")
+            if needs_geo_rewrite:
+                tables.append("geo_events")
+            for table in tables:
+                click.echo(f"Decompressing compressed {table} chunks ...")
+                async with engine.begin() as conn:
+                    await conn.execute(text(
+                        "SELECT decompress_chunk(format('%I.%I', chunk_schema, chunk_name)::regclass, true) "
+                        "FROM timescaledb_information.chunks "
+                        "WHERE hypertable_name = :t AND is_compressed"
+                    ), {"t": table})
 
         async with engine.begin() as conn:
             filled = (await conn.execute(

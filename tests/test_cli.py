@@ -165,6 +165,47 @@ def test_backfill_hostname_no_changes_skips_refresh(monkeypatch) -> None:
     refresh.assert_not_awaited()
 
 
+def test_backfill_hostname_nothing_to_do_skips_everything(monkeypatch) -> None:
+    """No NULL hostnames (and nothing to consolidate): the command must exit
+    before decompressing chunks or opening a write transaction."""
+    engine = _make_updating_engine([("geometrikks", 5)], rowcount=0)
+    engine.connect.return_value.execute.return_value.scalar.return_value = False
+    refresh = AsyncMock()
+
+    result = _invoke_backfill(monkeypatch, engine, ["geometrikks"], refresh)
+
+    assert result.exit_code == 0, result.output
+    assert "Nothing to do" in result.output
+    engine.begin.assert_not_called()
+    refresh.assert_not_awaited()
+
+
+def test_backfill_hostname_decompresses_before_updates(monkeypatch) -> None:
+    """Full-table UPDATEs on compressed chunks trip the TimescaleDB tuple
+    decompression limit (seen at 18M rows in prod); chunks must be
+    decompressed first, like the url/referrer swap migration does."""
+    engine = _make_updating_engine([("abc123def456", 5)], rowcount=3)
+    refresh = AsyncMock()
+
+    result = _invoke_backfill(
+        monkeypatch, engine, ["geometrikks", "--consolidate", "--yes"], refresh
+    )
+
+    assert result.exit_code == 0, result.output
+    calls = engine.begin.return_value.execute.await_args_list
+    stmts = [str(call.args[0]) for call in calls]
+    decompress = [i for i, s in enumerate(stmts) if "decompress_chunk" in s]
+    updates = [i for i, s in enumerate(stmts) if s.lstrip().startswith("UPDATE")]
+    assert decompress, "no decompress_chunk statement was issued"
+    assert updates and max(decompress) < min(updates)
+    tables = {
+        call.args[1]["t"]
+        for i, call in enumerate(calls)
+        if i in decompress
+    }
+    assert tables == {"access_logs", "geo_events"}
+
+
 def test_backfill_hostname_consolidate_yes_skips_prompt(monkeypatch) -> None:
     """--yes runs the rewrite without a confirmation prompt."""
     engine = _make_updating_engine([("abc123def456", 5)], rowcount=3)

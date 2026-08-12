@@ -508,8 +508,11 @@ first (`--yes` skips the prompt):
 docker compose exec -u geometrikks app litestar backfill-hostname myhost --consolidate
 ```
 
-Either form refreshes the affected continuous aggregates afterwards so the
-filter dropdowns update, and may run for minutes on a large database.
+Either form decompresses compressed history chunks first (a full-table
+update would trip TimescaleDB's tuple decompression limit), so disk usage
+grows temporarily until the compression policy recompresses them. It then
+refreshes the affected continuous aggregates so the filter dropdowns
+update. May run for minutes on a large database.
 
 ## Configuration
 
