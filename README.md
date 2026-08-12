@@ -433,8 +433,10 @@ Besides the server, the image ships maintenance commands under the
 `litestar` CLI. Run them inside the container with
 `docker compose exec -u geometrikks app litestar <command>` (or
 `docker compose run --rm app litestar <command>` when the stack is
-stopped); bare-metal installs use `uv run litestar <command>`. Every
-command supports `--help`.
+stopped). The image sets `LITESTAR_APP` so the bare command works there;
+outside the container you have to point the CLI at the app yourself:
+`uv run litestar --app geometrikks.server.core:create_app <command>`.
+Every command supports `--help`.
 
 ### import-logs: backfill history
 
