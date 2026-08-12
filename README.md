@@ -427,11 +427,20 @@ Notes:
 - Without `CROWDSEC_*` settings the integration is simply off; nothing else
   changes.
 
-## Importing history
+## CLI commands
+
+Besides the server, the image ships maintenance commands under the
+`litestar` CLI. Run them inside the container with
+`docker compose exec -u geometrikks app litestar <command>` (or
+`docker compose run --rm app litestar <command>` when the stack is
+stopped); bare-metal installs use `uv run litestar <command>`. Every
+command supports `--help`.
+
+### import-logs: backfill history
 
 Live tailing only picks up lines written after the app starts. To backfill
 history - rotated or archived access logs (nginx or Traefik JSON), plain or
-gzip-compressed - use the `litestar import-logs` CLI command:
+gzip-compressed - use `import-logs`:
 
 ```bash
 docker compose exec -u geometrikks app litestar import-logs /var/log/access/access.log.1.gz
@@ -468,6 +477,37 @@ docker compose run --rm app litestar import-logs /var/log/access/access.log.1.gz
   default 180 days) are dropped by the TimescaleDB retention policy -
   importing history beyond that window won't persist. Raise the retention
   setting before importing older archives if you want to keep them.
+
+### backfill-hostname: fix up historical hostnames
+
+Every ingested row records which GeoMetrikks instance wrote it
+(`LOGPARSER_HOST_NAME`; defaults to the machine hostname, which the compose
+file pins to `geometrikks`). Rows ingested by older versions have no
+hostname, so they are invisible to the access-logs "Recorded by" filter.
+`backfill-hostname` stamps them retroactively:
+
+```bash
+docker compose exec -u geometrikks app litestar backfill-hostname myhost
+```
+
+The plain form fills **only** rows with no hostname - it is idempotent and
+cannot overwrite stamped values - and runs immediately, without a
+confirmation prompt.
+
+If your database has accumulated many bogus hostnames, add
+`--consolidate` to rewrite **all** existing hostnames to the given name as
+well. The classic cause is running in Docker with `LOGPARSER_HOST_NAME`
+unset before the compose file pinned a hostname: every container
+recreation minted a new 12-hex container-ID "hostname". Consolidate lists
+every hostname it will rewrite, with row counts, and asks for confirmation
+first (`--yes` skips the prompt):
+
+```bash
+docker compose exec -u geometrikks app litestar backfill-hostname myhost --consolidate
+```
+
+Either form refreshes the affected continuous aggregates afterwards so the
+filter dropdowns update, and may run for minutes on a large database.
 
 ## Configuration
 
