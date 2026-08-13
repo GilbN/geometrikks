@@ -340,7 +340,7 @@ class LogParserSettings(BaseSettings):
         """Fail at startup on empty entries; '' would silently un-stamp records."""
         if any(not entry.strip() for entry in value):
             raise ValueError("LOGPARSER_HOST_NAME entries must be non-empty")
-        return value
+        return [entry.strip() for entry in value]
 
     @model_validator(mode="after")
     def validate_host_name_length(self) -> "LogParserSettings":

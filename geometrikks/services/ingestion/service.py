@@ -108,7 +108,8 @@ class LogIngestionService:
             geoip_path: Path|str, GeoIP2 database file path.
             locales: GeoIP2 locales to use for lookups.
             repos_factory: Builds the IngestionRepos bundle from a session.
-            hostname: Hostname recorded on GeoEvent records.
+            hostname: Fallback hostname for records that carry none (the
+                importer path); tail-path records are stamped by their parser.
             batch_size: Maximum records before forced commit.
             commit_interval: Maximum seconds between commits.
             store_debug_lines: If True, store all raw lines in debug table.

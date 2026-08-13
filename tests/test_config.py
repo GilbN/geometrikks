@@ -323,6 +323,14 @@ def test_host_name_empty_entry_rejected(monkeypatch) -> None:
         LogParserSettings()
 
 
+def test_host_name_entries_are_stripped(monkeypatch) -> None:
+    """Whitespace around JSON-list entries must not leak into stamped hostnames."""
+    monkeypatch.setenv("LOGPARSER_LOG_PATHS", '["/a.log", "/b.log"]')
+    monkeypatch.setenv("LOGPARSER_HOST_NAME", '["vps-1 ", " vps-2"]')
+    settings = LogParserSettings()
+    assert settings.resolved_hostnames() == ["vps-1", "vps-2"]
+
+
 class TestAuthSettings:
     """APP_ADMIN_USER / APP_ADMIN_PASSWORD / APP_AUTH_DISABLED."""
 
