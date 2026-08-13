@@ -34,6 +34,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `LOGPARSER_LOG_PATHS` default is now `/var/log/access/access.log`. If your
   `.env` sets `LOGPARSER_LOG_PATHS` with `/var/log/nginx/...` paths, change
   them to `/var/log/access/...` when upgrading the compose file.
+- The live map feed (`/ws/live`) now fans out through PostgreSQL
+  LISTEN/NOTIFY, so committed traffic from any writer process reaches the
+  map, and live events carry the source hostname. Batch imports no longer
+  feed the live map.
 
 ### Fixed
 

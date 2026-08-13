@@ -70,6 +70,16 @@ def it_database_url() -> Iterator[str]:
 
 
 @pytest.fixture(scope="session")
+def it_asyncpg_dsn(it_database_url: str) -> str:
+    """Plain postgresql:// DSN for the scratch DB, for asyncpg-based backends.
+
+    Mirrors DatabaseSettings.asyncpg_dsn: AsyncPgChannelsBackend hands the DSN
+    straight to asyncpg, which does not understand the +asyncpg driver suffix.
+    """
+    return it_database_url.replace("postgresql+asyncpg://", "postgresql://", 1)
+
+
+@pytest.fixture(scope="session")
 def monkeypatch_session():
     """Session-scoped monkeypatch (pytest's default fixture is function-scoped)."""
     from _pytest.monkeypatch import MonkeyPatch

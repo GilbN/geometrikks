@@ -5,7 +5,7 @@
  */
 
 export type LiveEvent =
-  | { type: "geo_event"; data: { timestamp: string; ip_address: string; latitude: number; longitude: number; city: string | null; country_code: string | null } }
+  | { type: "geo_event"; data: { timestamp: string; ip_address: string; latitude: number; longitude: number; city: string | null; country_code: string | null; hostname: string } }
   | {
       type: "access_log"
       data: {
@@ -25,6 +25,7 @@ export type LiveEvent =
         country_code: string | null
         country_name: string | null
         city: string | null
+        hostname: string
       }
     }
 

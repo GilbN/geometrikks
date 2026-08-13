@@ -117,6 +117,7 @@ export function makeDemoRequests(cursor: number, count: number, now: number): Li
         country_code: origin.countryCode,
         country_name: null,
         city: origin.city,
+        hostname: "demo",
       },
     })
   }

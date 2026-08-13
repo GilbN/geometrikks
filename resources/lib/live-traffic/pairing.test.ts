@@ -14,6 +14,7 @@ function geo(ip: string, timestamp = TS): LiveEvent {
       longitude: 10.7389,
       city: "Oslo",
       country_code: "NO",
+      hostname: "vps-1",
     },
   }
 }
@@ -38,6 +39,7 @@ function log(ip: string, status: number, timestamp = TS): LiveEvent {
       country_code: "NO",
       country_name: "Norway",
       city: "Oslo",
+      hostname: "vps-1",
     },
   }
 }
