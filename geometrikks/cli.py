@@ -49,6 +49,10 @@ def import_logs_command(
     that is also being live-tailed will double-count — import archived
     (rotated) files only.
     """
+    if hostname is not None:
+        hostname = hostname.strip()
+        if not hostname:
+            raise click.BadParameter("must not be blank", param_hint="'--hostname'")
     asyncio.run(
         _run_import(
             list(paths), force=force, batch_size=batch_size, log_format=log_format, hostname=hostname

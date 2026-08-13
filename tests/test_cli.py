@@ -17,6 +17,23 @@ def test_cli_plugin_registers_command() -> None:
     assert "import-logs" in cli.commands
 
 
+def test_import_logs_rejects_blank_hostname(tmp_path) -> None:
+    """Whitespace-only --hostname must fail fast, matching the settings-side
+    rejection of blank entries, instead of stamping whitespace into rows."""
+    import click
+    from geometrikks.cli import ImportLogsCLIPlugin
+
+    @click.group()
+    def cli() -> None: ...
+
+    ImportLogsCLIPlugin().on_cli_init(cli)
+    log = tmp_path / "a.log"
+    log.write_text("", encoding="utf-8")
+    result = CliRunner().invoke(cli, ["import-logs", "--hostname", "  ", str(log)])
+    assert result.exit_code != 0
+    assert "hostname" in result.output.lower()
+
+
 def test_import_logs_help_runs_without_app() -> None:
     """--help must not construct settings/engine (import-time safety)."""
     import click

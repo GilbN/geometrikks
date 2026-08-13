@@ -253,6 +253,7 @@ async def ingestion_lifespan(app: "Litestar") -> "AsyncGenerator[None]":
     # Ingestion opens a short-lived session per batch flush.
     session_maker = get_app_db_config(app).create_session_maker()
 
+    hostnames = settings.logparser.resolved_hostnames()
     parsers = [
         LogParser(
             log_path=path,
@@ -265,7 +266,7 @@ async def ingestion_lifespan(app: "Litestar") -> "AsyncGenerator[None]":
         for path, fmt, host in zip(
             settings.logparser.log_paths,
             settings.logparser.resolved_formats(),
-            settings.logparser.resolved_hostnames(),
+            hostnames,
         )
     ]
 
@@ -274,7 +275,7 @@ async def ingestion_lifespan(app: "Litestar") -> "AsyncGenerator[None]":
         session_maker=session_maker,
         geoip_path=settings.geoip.db_path,
         locales=settings.geoip.locales,
-        hostname=settings.logparser.resolved_hostnames()[0],
+        hostname=hostnames[0],
         batch_size=settings.logparser.batch_size,
         commit_interval=settings.logparser.commit_interval,
         store_debug_lines=settings.logparser.store_debug_lines,

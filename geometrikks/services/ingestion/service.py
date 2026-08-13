@@ -568,7 +568,7 @@ class LogIngestionService:
             parsed: The parsed access log fields.
             log_format: The format adapter that produced this record (e.g.
                 'nginx', 'traefik-json'), stamped onto the row alongside the
-                writer's hostname.
+                source hostname.
             hostname: Source hostname for the row; empty/None falls back to the service default.
 
         Returns:
