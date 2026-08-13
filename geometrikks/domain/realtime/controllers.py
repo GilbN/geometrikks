@@ -19,6 +19,7 @@ frames, and cadences.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 from typing import TYPE_CHECKING, Any
 
@@ -51,6 +52,11 @@ MAX_EVENTS_PER_FRAME = 100
 # events flow, so emit an empty frame of the endpoint's own type as a
 # keepalive — existing clients treat it as a no-op and reset their backoff.
 HEARTBEAT_INTERVAL = 30.0
+# The pump's local relay queue between the channel subscriber and
+# batched_frames. Bursts beyond this drop the oldest queued event first
+# (never blocks the channel pump); a separate, counted drop happens later in
+# batched_frames when a single flush window has more than MAX_EVENTS_PER_FRAME.
+LIVE_QUEUE_MAXSIZE = 1000
 
 
 @websocket("/ws/crowdsec", tags=["Live Feed"])
@@ -106,19 +112,31 @@ async def live_feed(socket: WebSocket) -> None:
 
     async def stream() -> AsyncGenerator[Frame]:
         logger.info("ws_client_connected", endpoint="/ws/live")
-        queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue(maxsize=1000)
+        queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue(maxsize=LIVE_QUEUE_MAXSIZE)
 
         async def pump() -> None:
-            async for raw in subscriber.iter_events():
-                event = msgspec_json.decode(raw)
-                try:
-                    queue.put_nowait(event)
-                except asyncio.QueueFull:
+            # A malformed payload or any other per-event failure must not kill
+            # the pump for the rest of the connection: log it and keep going.
+            try:
+                async for raw in subscriber.iter_events():
                     try:
-                        queue.get_nowait()
-                        queue.put_nowait(event)
-                    except (asyncio.QueueEmpty, asyncio.QueueFull):
-                        pass
+                        event = msgspec_json.decode(raw)
+                        try:
+                            queue.put_nowait(event)
+                        except asyncio.QueueFull:
+                            try:
+                                queue.get_nowait()
+                                queue.put_nowait(event)
+                            except (asyncio.QueueEmpty, asyncio.QueueFull):
+                                pass
+                    except Exception:
+                        logger.exception("ws_live_pump_event_failed", endpoint="/ws/live")
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                # Defensive: iter_events() itself failing would otherwise silently
+                # degrade the feed to heartbeat-only with no trace in the logs.
+                logger.exception("ws_live_pump_failed", endpoint="/ws/live")
 
         async with channels.start_subscription(LIVE_EVENTS_CHANNEL) as subscriber:
             pump_task = asyncio.create_task(pump(), name="ws-live-pump")
@@ -135,6 +153,8 @@ async def live_feed(socket: WebSocket) -> None:
                     yield frame
             finally:
                 pump_task.cancel()
+                with contextlib.suppress(asyncio.CancelledError):
+                    await pump_task
                 logger.info("ws_client_disconnected", endpoint="/ws/live")
 
     await stream_json_frames(socket, stream())

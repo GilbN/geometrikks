@@ -195,6 +195,43 @@ async def test_ws_cancellation_still_cleans_up_subscription():
         assert channels._channels[LIVE_EVENTS_CHANNEL] == set()
 
 
+@pytest.mark.anyio
+async def test_pump_drops_oldest_when_local_queue_is_full(monkeypatch):
+    """The pump's relay queue (channel subscriber -> batched_frames) silently
+    drops the oldest queued event when a burst outpaces its capacity — the
+    behavior the deleted in-process `subscribe(maxsize=...)` full-queue test
+    used to cover, now living in pump()'s own `except asyncio.QueueFull`
+    branch. This is distinct from (and invisible to) batched_frames' own
+    counted drop for overflow beyond MAX_EVENTS_PER_FRAME within one flush.
+
+    `LIVE_QUEUE_MAXSIZE` is monkeypatched down to 3 so a small burst can fill
+    it; the burst is published only after the handler has had a chance to
+    subscribe and start pumping (`asyncio.sleep(0.05)`, the same pattern the
+    disconnect/cancellation tests above use), so publishing 10 events lands
+    in the pump loop's `except QueueFull` path deterministically instead of
+    racing a real consumer.
+    """
+    from geometrikks.domain.realtime import controllers as live_controller
+    from geometrikks.domain.realtime.controllers import live_feed
+
+    monkeypatch.setattr(live_controller, "LIVE_QUEUE_MAXSIZE", 3, raising=False)
+    channels = ChannelsPlugin(backend=MemoryChannelsBackend(), channels=[LIVE_EVENTS_CHANNEL])
+    async with channels:
+        socket = FakeSocket(channels)
+        task = asyncio.create_task(cast("Coroutine[Any, Any, None]", live_feed.fn(socket)))
+        await asyncio.sleep(0.05)  # let the handler subscribe and start pumping
+        for i in range(10):
+            channels.publish({"type": "geo_event", "data": {"n": i}}, LIVE_EVENTS_CHANNEL)
+        await asyncio.sleep(0.3)  # let the pump drain the burst and batched_frames flush
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+
+    frame = socket.sent[0]
+    assert [e["data"]["n"] for e in frame["events"]] == [7, 8, 9]
+    assert frame["dropped"] == 0
+
+
 class TestLogsFeed:
     def _make_app(self):
         from geometrikks.domain.realtime.controllers import logs_feed
