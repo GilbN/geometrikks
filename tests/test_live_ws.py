@@ -8,9 +8,12 @@ from typing import TYPE_CHECKING, cast
 
 import pytest
 from litestar import Litestar
+from litestar.channels import ChannelsPlugin
+from litestar.channels.backends.memory import MemoryChannelsBackend
 from litestar.exceptions import WebSocketDisconnect
 from litestar.testing import TestClient
 
+from geometrikks.domain.realtime.events import LIVE_EVENTS_CHANNEL, record_to_events
 from geometrikks.services.logparser.schemas import ParsedAccessLog, ParsedGeoData, ParsedLogRecord
 
 if TYPE_CHECKING:
@@ -20,7 +23,7 @@ if TYPE_CHECKING:
 TS = datetime(2026, 7, 1, 12, 0, tzinfo=timezone.utc)
 
 
-def make_record(with_geo: bool = True, with_log: bool = True) -> ParsedLogRecord:
+def make_record(with_geo: bool = True, with_log: bool = True, hostname: str = "") -> ParsedLogRecord:
     geo = ParsedGeoData(
         latitude=51.5, longitude=-0.09, geohash="gcpvj", country_code="GB",
         country_name="UK", timestamp=TS, city="London",
@@ -34,40 +37,39 @@ def make_record(with_geo: bool = True, with_log: bool = True) -> ParsedLogRecord
     ) if with_log else None
     return ParsedLogRecord(
         ip_address="81.2.69.142", geo_data=geo, access_log=log, raw_line="x",
+        hostname=hostname,
     )
 
 
-class FakeIngestion:
-    """subscribe/unsubscribe stub the handler can drive."""
-
-    def __init__(self) -> None:
-        self.queue: asyncio.Queue = asyncio.Queue()
-        self.unsubscribed = False
-
-    def subscribe(self, maxsize: int = 1000):
-        return self.queue
-
-    def unsubscribe(self, queue) -> None:
-        self.unsubscribed = True
-
-
-def make_app(ingestion) -> Litestar:
+def _live_app(db_available: bool = True) -> tuple[Litestar, ChannelsPlugin]:
     from geometrikks.domain.realtime.controllers import live_feed
-    app = Litestar(route_handlers=[live_feed])
-    app.state.ingestion_service = ingestion
-    return app
+
+    channels = ChannelsPlugin(backend=MemoryChannelsBackend(), channels=[LIVE_EVENTS_CHANNEL])
+    app = Litestar(route_handlers=[live_feed], plugins=[channels])
+    app.state.db_available = db_available
+    return app, channels
 
 
-def test_ws_streams_batch_frames():
-    ingestion = FakeIngestion()
-    with TestClient(app=make_app(ingestion)) as client:
-        with client.websocket_connect("/ws/live") as ws:
-            ingestion.queue.put_nowait(make_record())
-            frame = ws.receive_json(timeout=5)
+def test_ws_streams_batch_frames_from_channel():
+    app, channels = _live_app()
+    with TestClient(app) as client, client.websocket_connect("/ws/live") as ws:
+        for event in record_to_events(make_record()):
+            channels.publish(event, LIVE_EVENTS_CHANNEL)
+        frame = ws.receive_json(timeout=5)
     assert frame["type"] == "batch"
     assert frame["dropped"] == 0
     assert [e["type"] for e in frame["events"]] == ["geo_event", "access_log"]
-    assert ingestion.unsubscribed is True
+
+
+def test_ws_hostname_arrives_in_frames():
+    """The wire event's hostname (needed for multi-instance ingestion) survives
+    the round trip through the channel unchanged."""
+    app, channels = _live_app()
+    with TestClient(app) as client, client.websocket_connect("/ws/live") as ws:
+        for event in record_to_events(make_record(with_log=False, hostname="vps-1")):
+            channels.publish(event, LIVE_EVENTS_CHANNEL)
+        frame = ws.receive_json(timeout=5)
+    assert frame["events"][0]["data"]["hostname"] == "vps-1"
 
 
 def test_ws_sends_empty_batch_heartbeat_when_idle(monkeypatch):
@@ -76,53 +78,50 @@ def test_ws_sends_empty_batch_heartbeat_when_idle(monkeypatch):
     from geometrikks.domain.realtime import controllers as live_controller
 
     monkeypatch.setattr(live_controller, "HEARTBEAT_INTERVAL", 0.3, raising=False)
-    ingestion = FakeIngestion()
-    with TestClient(app=make_app(ingestion)) as client:
-        with client.websocket_connect("/ws/live") as ws:
-            frame = ws.receive_json(timeout=5)
+    app, _channels = _live_app()
+    with TestClient(app) as client, client.websocket_connect("/ws/live") as ws:
+        frame = ws.receive_json(timeout=5)
     assert frame == {"type": "batch", "events": [], "dropped": 0}
-    assert ingestion.unsubscribed is True
 
 
-def test_ws_closes_when_no_ingestion_service():
+def test_ws_closes_1013_when_db_unavailable():
     """Degraded mode closes with 1013 (try again later) and a usable reason."""
-    with TestClient(app=make_app(None)) as client:
+    app, _channels = _live_app(db_available=False)
+    with TestClient(app) as client:
         with pytest.raises(WebSocketDisconnect) as exc_info:
             with client.websocket_connect("/ws/live") as ws:
                 ws.receive_json(timeout=2)
     assert exc_info.value.code == 1013
-    assert exc_info.value.detail == "ingestion not running"
+    assert exc_info.value.detail == "live feed unavailable (database down)"
 
 
 def test_ws_counts_dropped_events_beyond_frame_cap():
     """Overflow beyond MAX_EVENTS_PER_FRAME is counted, not silently lost."""
-    ingestion = FakeIngestion()
-    # 60 prefilled records -> 120 events; the first flush window drains them
-    # all, keeps 100 and counts 20 dropped.
-    for _ in range(60):
-        ingestion.queue.put_nowait(make_record())
-    with TestClient(app=make_app(ingestion)) as client:
-        with client.websocket_connect("/ws/live") as ws:
-            frame = ws.receive_json(timeout=5)
+    app, channels = _live_app()
+    with TestClient(app) as client, client.websocket_connect("/ws/live") as ws:
+        # 60 records -> 120 events; the first flush window drains them all,
+        # keeps 100 and counts 20 dropped.
+        for _ in range(60):
+            for event in record_to_events(make_record()):
+                channels.publish(event, LIVE_EVENTS_CHANNEL)
+        frame = ws.receive_json(timeout=5)
     assert frame["type"] == "batch"
     assert len(frame["events"]) == 100
     assert frame["dropped"] == 20
-    assert ingestion.unsubscribed is True
 
 
 def test_ws_ignores_unexpected_inbound_frames():
     """Policy: inbound client frames are consumed and ignored; the stream
     keeps flowing on the same connection."""
-    ingestion = FakeIngestion()
-    with TestClient(app=make_app(ingestion)) as client:
-        with client.websocket_connect("/ws/live") as ws:
-            ws.send_text("unexpected")
-            ws.send_json({"also": "unexpected"})
-            ingestion.queue.put_nowait(make_record())
-            frame = ws.receive_json(timeout=5)
+    app, channels = _live_app()
+    with TestClient(app) as client, client.websocket_connect("/ws/live") as ws:
+        ws.send_text("unexpected")
+        ws.send_json({"also": "unexpected"})
+        for event in record_to_events(make_record()):
+            channels.publish(event, LIVE_EVENTS_CHANNEL)
+        frame = ws.receive_json(timeout=5)
     assert frame["type"] == "batch"
     assert len(frame["events"]) == 2
-    assert ingestion.unsubscribed is True
 
 
 class FakeSocket:
@@ -130,8 +129,11 @@ class FakeSocket:
 
     connection_state = "connect"
 
-    def __init__(self, state: SimpleNamespace) -> None:
-        self.app = SimpleNamespace(state=state)
+    def __init__(self, channels: ChannelsPlugin, *, db_available: bool = True) -> None:
+        self.app = SimpleNamespace(
+            state=SimpleNamespace(db_available=db_available),
+            plugins=SimpleNamespace(get=lambda _cls: channels),
+        )
         self.sent: list[dict] = []
 
     async def accept(self) -> None: ...
@@ -154,32 +156,43 @@ class DisconnectingSendSocket(FakeSocket):
 
 
 @pytest.mark.anyio
-async def test_ws_disconnect_during_send_is_suppressed_and_unsubscribes():
+async def test_ws_disconnect_during_send_is_suppressed_and_cleans_up_subscription():
     """A WebSocketDisconnect raised from send_json travels through AnyIO's
     task group as an ExceptionGroup; the handler must suppress it (not let
-    the group escape) and unsubscribe before returning."""
+    the group escape) and clean up its channel subscription before returning.
+
+    There is no more `unsubscribed` flag to assert on (that was the fake
+    ingestion broker's bookkeeping); the observable analogue is that the
+    channel's subscriber set is empty again once the handler returns, same
+    as the log-broadcaster feed's disconnect test below asserts.
+    """
     from geometrikks.domain.realtime.controllers import live_feed
 
-    ingestion = FakeIngestion()
-    ingestion.queue.put_nowait(make_record())
-    socket = DisconnectingSendSocket(SimpleNamespace(ingestion_service=ingestion))
-    await live_feed.fn(socket)  # must not raise
-    assert ingestion.unsubscribed is True
+    channels = ChannelsPlugin(backend=MemoryChannelsBackend(), channels=[LIVE_EVENTS_CHANNEL])
+    async with channels:
+        socket = DisconnectingSendSocket(channels)
+        task = asyncio.create_task(cast("Coroutine[Any, Any, None]", live_feed.fn(socket)))
+        await asyncio.sleep(0.05)  # let the handler subscribe and enter its loop
+        for event in record_to_events(make_record()):
+            channels.publish(event, LIVE_EVENTS_CHANNEL)
+        await asyncio.wait_for(task, timeout=5)  # must not raise
+        assert channels._channels[LIVE_EVENTS_CHANNEL] == set()
 
 
 @pytest.mark.anyio
-async def test_ws_cancellation_still_unsubscribes():
+async def test_ws_cancellation_still_cleans_up_subscription():
     """Server-side cancellation (shutdown) must run the cleanup path."""
     from geometrikks.domain.realtime.controllers import live_feed
 
-    ingestion = FakeIngestion()
-    socket = FakeSocket(SimpleNamespace(ingestion_service=ingestion))
-    task = asyncio.create_task(cast("Coroutine[Any, Any, None]", live_feed.fn(socket)))
-    await asyncio.sleep(0.05)  # let the handler subscribe and enter its loop
-    task.cancel()
-    with pytest.raises(asyncio.CancelledError):
-        await task
-    assert ingestion.unsubscribed is True
+    channels = ChannelsPlugin(backend=MemoryChannelsBackend(), channels=[LIVE_EVENTS_CHANNEL])
+    async with channels:
+        socket = FakeSocket(channels)
+        task = asyncio.create_task(cast("Coroutine[Any, Any, None]", live_feed.fn(socket)))
+        await asyncio.sleep(0.05)  # let the handler subscribe and enter its loop
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+        assert channels._channels[LIVE_EVENTS_CHANNEL] == set()
 
 
 class TestLogsFeed:

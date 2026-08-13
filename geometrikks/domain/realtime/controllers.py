@@ -23,8 +23,10 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 from litestar import WebSocket, websocket
+from litestar.channels import ChannelsPlugin
+from msgspec import json as msgspec_json
 
-from geometrikks.domain.realtime.events import record_to_events
+from geometrikks.domain.realtime.events import LIVE_EVENTS_CHANNEL
 from geometrikks.domain.realtime.stream import (
     batched_frames,
     close_service_unavailable,
@@ -34,7 +36,6 @@ from geometrikks.domain.realtime.stream import (
 )
 from geometrikks.server import runtime
 from geometrikks.server.logging import get_logger, log_broadcaster, register_success_level
-from geometrikks.services.logparser.schemas import ParsedLogRecord
 
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator
@@ -90,28 +91,51 @@ async def crowdsec_feed(socket: WebSocket) -> None:
 
 @websocket("/ws/live", tags=["Live Feed"])
 async def live_feed(socket: WebSocket) -> None:
-    """Stream committed ingestion events, batched and coalesced."""
-    ingestion = runtime.get_ingestion_service(socket.app)
+    """Stream committed ingestion events from the live_events channel, batched
+    and coalesced. Fan-out is cross-process (Postgres LISTEN/NOTIFY via
+    ChannelsPlugin), not tied to this worker's own ingestion instance, so the
+    gate is DB availability rather than "is ingestion running here"."""
     await socket.accept()
-    if ingestion is None:
+    if not getattr(socket.app.state, "db_available", False):
         await close_service_unavailable(
-            socket, endpoint="/ws/live", reason="ingestion not running"
+            socket, endpoint="/ws/live", reason="live feed unavailable (database down)"
         )
         return
 
+    channels = socket.app.plugins.get(ChannelsPlugin)
+
     async def stream() -> AsyncGenerator[Frame]:
-        async with subscription(ingestion, endpoint="/ws/live") as queue:
-            async for frame in batched_frames(
-                queue,
-                flush_interval=FLUSH_INTERVAL,
-                max_items=MAX_EVENTS_PER_FRAME,
-                heartbeat_interval=HEARTBEAT_INTERVAL,
-                expand=record_to_events,
-                make_frame=lambda events, dropped: {
-                    "type": "batch", "events": events, "dropped": dropped
-                },
-            ):
-                yield frame
+        logger.info("ws_client_connected", endpoint="/ws/live")
+        queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue(maxsize=1000)
+
+        async def pump() -> None:
+            async for raw in subscriber.iter_events():
+                event = msgspec_json.decode(raw)
+                try:
+                    queue.put_nowait(event)
+                except asyncio.QueueFull:
+                    try:
+                        queue.get_nowait()
+                        queue.put_nowait(event)
+                    except (asyncio.QueueEmpty, asyncio.QueueFull):
+                        pass
+
+        async with channels.start_subscription(LIVE_EVENTS_CHANNEL) as subscriber:
+            pump_task = asyncio.create_task(pump(), name="ws-live-pump")
+            try:
+                async for frame in batched_frames(
+                    queue,
+                    flush_interval=FLUSH_INTERVAL,
+                    max_items=MAX_EVENTS_PER_FRAME,
+                    heartbeat_interval=HEARTBEAT_INTERVAL,
+                    make_frame=lambda events, dropped: {
+                        "type": "batch", "events": events, "dropped": dropped
+                    },
+                ):
+                    yield frame
+            finally:
+                pump_task.cancel()
+                logger.info("ws_client_disconnected", endpoint="/ws/live")
 
     await stream_json_frames(socket, stream())
 

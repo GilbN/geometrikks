@@ -658,41 +658,15 @@ def make_parsed_record(ip: str) -> ParsedLogRecord:
     )
 
 
-async def test_pubsub_subscribers_receive_committed_records() -> None:
-    service, _repos, _sessions = make_service([])
-    q = service.subscribe()
-    records = [make_parsed_record(ip) for ip in TEST_DB_IPS]
-
-    await service.flush_records(records)
-
-    got = [q.get_nowait() for _ in range(len(records))]
-    assert [r.ip_address for r in got] == [r.ip_address for r in records]
-
-
-async def test_pubsub_unsubscribed_queue_gets_nothing() -> None:
-    service, _repos, _sessions = make_service([])
-    q = service.subscribe()
-    service.unsubscribe(q)
-    await service.flush_records([make_parsed_record(TEST_DB_IPS[0])])
-    assert q.empty()
-
-
-async def test_pubsub_failed_commit_publishes_nothing() -> None:
-    service, repos, _sessions = make_service([])
-    repos.fail_next_commits = 1
-    q = service.subscribe()
-    await service.flush_records([make_parsed_record(TEST_DB_IPS[0])])
-    assert q.empty(), "post-commit publish only — rolled-back records must not stream"
-
-
-async def test_pubsub_full_subscriber_drops_oldest_not_ingestion() -> None:
-    service, _repos, _sessions = make_service([])
-    q = service.subscribe(maxsize=1)
-    r1, r2 = (make_parsed_record(ip) for ip in TEST_DB_IPS)
-    await service.flush_records([r1])
-    await service.flush_records([r2])   # must not block or raise
-    assert q.qsize() == 1
-    assert q.get_nowait().ip_address == r2.ip_address
+def test_service_has_no_inprocess_subscriber_api() -> None:
+    """The in-process fan-out (subscribe/unsubscribe/_subscribers) is gone;
+    /ws/live now subscribes to the live_events channel instead. Post-commit
+    delivery is covered by the channel-publish tests below."""
+    service = LogIngestionService(
+        parsers=[], session_maker=cast("Any", None), geoip_path="unused", hostname="myserver",
+    )
+    assert not hasattr(service, "subscribe")
+    assert not hasattr(service, "unsubscribe")
 
 
 def make_full_record(hostname: str) -> ParsedLogRecord:
@@ -754,3 +728,13 @@ def test_publish_never_raises_into_ingestion() -> None:
         hostname="myserver", channels=channels,
     )
     service._publish([make_full_record(hostname="vps-1")])  # must not raise
+
+
+async def test_channel_publish_only_after_successful_commit() -> None:
+    """post-commit publish only — a rolled-back batch must not reach the channel
+    (the same invariant the deleted in-process pubsub tests covered)."""
+    channels = _channels_stub()
+    service, repos, _sessions = make_service([], channels=channels)
+    repos.fail_next_commits = 1
+    await service.flush_records([make_parsed_record(TEST_DB_IPS[0])])
+    assert channels.publish.call_count == 0

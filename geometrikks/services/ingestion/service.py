@@ -138,9 +138,6 @@ class LogIngestionService:
         self._channels: "ChannelsPlugin | None" = channels
         self.publish_dropped: int = 0
 
-        # Live-feed fan-out: bounded queues, publish post-commit only.
-        self._subscribers: set[asyncio.Queue[ParsedLogRecord]] = set()
-
         # In-memory cache: geohash -> committed (or pending-commit) GeoLocation id.
         # Ids cached since the last successful commit are tracked so a rollback
         # can evict them (their rows never landed -> FK poison otherwise).
@@ -543,32 +540,11 @@ class LogIngestionService:
             self.last_record_at = datetime.now(timezone.utc)
         await self._flush_batch()
 
-    def subscribe(self, maxsize: int = 1000) -> asyncio.Queue[ParsedLogRecord]:
-        """Register a live-feed subscriber. Caller must unsubscribe()."""
-        queue: asyncio.Queue[ParsedLogRecord] = asyncio.Queue(maxsize=maxsize)
-        self._subscribers.add(queue)
-        return queue
-
-    def unsubscribe(self, queue: asyncio.Queue[ParsedLogRecord]) -> None:
-        self._subscribers.discard(queue)
-
     def _publish(self, records: list[ParsedLogRecord]) -> None:
-        """Fan committed records out to subscribers; drop oldest when full.
+        """Publish committed records to the live_events channel.
 
-        Never blocks and never raises: a slow browser must not backpressure
-        ingestion.
+        Never raises: a publish failure must not backpressure or break ingestion.
         """
-        for queue in self._subscribers:
-            for record in records:
-                try:
-                    queue.put_nowait(record)
-                except asyncio.QueueFull:
-                    try:
-                        queue.get_nowait()
-                        queue.put_nowait(record)
-                    except (asyncio.QueueEmpty, asyncio.QueueFull):
-                        pass
-
         if self._channels is not None:
             for record in records:
                 for event in record_to_events(record):
