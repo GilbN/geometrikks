@@ -17,6 +17,7 @@ from collections.abc import Callable
 from datetime import datetime, timezone
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from geoip2.database import Reader
 from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -27,11 +28,15 @@ from geometrikks.domain.geo.repositories import GeoLocationRepository, GeoEventR
 from geometrikks.domain.logs.models import AccessLog, AccessLogDebug
 from geometrikks.domain.logs.repositories import AccessLogRepository, AccessLogDebugRepository
 from geometrikks.domain.geo.utils import make_point
+from geometrikks.domain.realtime.events import LIVE_EVENTS_CHANNEL, encode_guard, record_to_events
 from geometrikks.services.logparser.schemas import ParsedLogRecord, ParsedGeoData, ParsedAccessLog
 from geometrikks.services.logparser.constants import ALLOWED_GEOIP_LOCALES, GEOIP_LOCALES_DEFAULT
 from geometrikks.services.logparser.logparser import LogParser
 from geometrikks.lib.utils import wait_for_path
 from geometrikks.server.logging import get_logger
+
+if TYPE_CHECKING:
+    from litestar.channels import ChannelsPlugin
 
 
 logger = get_logger(__name__)
@@ -99,6 +104,7 @@ class LogIngestionService:
         commit_interval: float = 5.0,
         store_debug_lines: bool = False,
         queue_maxsize: int = 10_000,
+        channels: "ChannelsPlugin | None" = None,
     ) -> None:
         """Initialize the log ingestion service.
 
@@ -114,6 +120,9 @@ class LogIngestionService:
             commit_interval: Maximum seconds between commits.
             store_debug_lines: If True, store all raw lines in debug table.
             queue_maxsize: Maximum size of the shared record queue.
+            channels: When set, committed records are additionally published
+                to the live_events channel. None (the importer path) publishes
+                nothing.
         """
         self.parsers: list[LogParser] = parsers
         self.hostname: str = hostname
@@ -126,6 +135,8 @@ class LogIngestionService:
         self.commit_interval: int | float = commit_interval
         self.store_debug_lines: bool = store_debug_lines
         self._queue_maxsize: int = queue_maxsize
+        self._channels: "ChannelsPlugin | None" = channels
+        self.publish_dropped: int = 0
 
         # Live-feed fan-out: bounded queues, publish post-commit only.
         self._subscribers: set[asyncio.Queue[ParsedLogRecord]] = set()
@@ -557,6 +568,21 @@ class LogIngestionService:
                         queue.put_nowait(record)
                     except (asyncio.QueueEmpty, asyncio.QueueFull):
                         pass
+
+        if self._channels is not None:
+            for record in records:
+                for event in record_to_events(record):
+                    if not encode_guard(event):
+                        self.publish_dropped += 1
+                        logger.warning(
+                            "live event dropped: encoded payload over budget (ip=%s)",
+                            record.ip_address,
+                        )
+                        continue
+                    try:
+                        self._channels.publish(event, LIVE_EVENTS_CHANNEL)
+                    except Exception:
+                        logger.exception("live event publish failed; continuing")
 
     def _to_access_log_model(
         self, parsed: ParsedAccessLog, log_format: str | None = None,

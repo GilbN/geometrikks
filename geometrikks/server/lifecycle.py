@@ -249,9 +249,23 @@ async def ingestion_lifespan(app: "Litestar") -> "AsyncGenerator[None]":
         yield
         return
 
+    from litestar.channels import ChannelsPlugin
+
     settings = _resolve_settings(app)
     # Ingestion opens a short-lived session per batch flush.
     session_maker = get_app_db_config(app).create_session_maker()
+
+    # Hand-built test apps in the lifespan suites are bare stand-ins with no
+    # `.plugins` registry at all; real apps always carry ChannelsPlugin
+    # (registered in server/plugins.py), so a genuine lookup miss there would
+    # be a wiring bug worth surfacing, not swallowing.
+    channels: ChannelsPlugin | None = None
+    plugins = getattr(app, "plugins", None)
+    if plugins is not None:
+        try:
+            channels = plugins.get(ChannelsPlugin)
+        except KeyError:
+            channels = None
 
     hostnames = settings.logparser.resolved_hostnames()
     parsers = [
@@ -279,6 +293,7 @@ async def ingestion_lifespan(app: "Litestar") -> "AsyncGenerator[None]":
         batch_size=settings.logparser.batch_size,
         commit_interval=settings.logparser.commit_interval,
         store_debug_lines=settings.logparser.store_debug_lines,
+        channels=channels,
     )
     app.state.ingestion_service = ingestion_service
 

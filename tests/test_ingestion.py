@@ -5,7 +5,7 @@ import asyncio
 import time
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import pytest
 from geohash2 import encode
@@ -693,3 +693,64 @@ async def test_pubsub_full_subscriber_drops_oldest_not_ingestion() -> None:
     await service.flush_records([r2])   # must not block or raise
     assert q.qsize() == 1
     assert q.get_nowait().ip_address == r2.ip_address
+
+
+def make_full_record(hostname: str) -> ParsedLogRecord:
+    """A record with both geo_data and access_log (field values mirror
+    tests/test_realtime_events.py's `_record`), stamped with `hostname`."""
+    ts = datetime.now(timezone.utc)
+    return ParsedLogRecord(
+        ip_address="203.0.113.7",
+        geo_data=ParsedGeoData(
+            latitude=51.5, longitude=-0.1, geohash="gcpvj0", country_code="GB",
+            country_name="United Kingdom", timestamp=ts,
+        ),
+        access_log=ParsedAccessLog(
+            timestamp=ts, ip_address="203.0.113.7", remote_user=None, method="GET",
+            url="/index", http_version="HTTP/2.0", status_code=200, bytes_sent=10,
+            referrer=None, user_agent=None, request_time=0.1,
+            upstream_response_time=None, host="example.com",
+            country_code="GB", country_name="United Kingdom", city="London",
+        ),
+        raw_line="raw",
+        hostname=hostname,
+    )
+
+
+def _channels_stub():
+    from unittest.mock import MagicMock
+    return MagicMock()
+
+
+def test_publish_sends_events_to_channel() -> None:
+    from geometrikks.domain.realtime.events import LIVE_EVENTS_CHANNEL
+
+    channels = _channels_stub()
+    service = LogIngestionService(
+        parsers=[], session_maker=cast("Any", None), geoip_path="unused",
+        hostname="myserver", channels=channels,
+    )
+    record = make_full_record(hostname="vps-1")
+    service._publish([record])
+    assert channels.publish.call_count == 2  # geo_event + access_log
+    for call in channels.publish.call_args_list:
+        event, channel = call.args
+        assert channel == LIVE_EVENTS_CHANNEL
+        assert event["data"]["hostname"] == "vps-1"
+
+
+def test_publish_without_channels_is_silent_and_safe() -> None:
+    service = LogIngestionService(
+        parsers=[], session_maker=cast("Any", None), geoip_path="unused", hostname="myserver",
+    )
+    service._publish([make_full_record(hostname="vps-1")])  # must not raise
+
+
+def test_publish_never_raises_into_ingestion() -> None:
+    channels = _channels_stub()
+    channels.publish.side_effect = RuntimeError("backend down")
+    service = LogIngestionService(
+        parsers=[], session_maker=cast("Any", None), geoip_path="unused",
+        hostname="myserver", channels=channels,
+    )
+    service._publish([make_full_record(hostname="vps-1")])  # must not raise
