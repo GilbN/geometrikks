@@ -7,12 +7,15 @@ when e.g. the GeoIP database is missing.
 """
 
 from __future__ import annotations
+import asyncio
 import platform
 import shutil
 from functools import lru_cache
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
+from litestar.channels import ChannelsPlugin
+from litestar.channels.backends.asyncpg import AsyncPgChannelsBackend
 from litestar.middleware.logging import LoggingMiddlewareConfig
 from litestar.plugins.structlog import StructlogConfig, StructlogPlugin
 from litestar.serialization import decode_json, encode_json
@@ -33,10 +36,15 @@ from litestar_vite import ViteConfig, VitePlugin
 from litestar_vite.config import RuntimeConfig, TypeGenConfig, PathConfig
 
 from geometrikks.config.settings import get_settings, Settings
-from geometrikks.server.logging import create_logging_config
+from geometrikks.domain.realtime.events import LIVE_EVENTS_CHANNEL
+from geometrikks.server.logging import get_logger, create_logging_config
 
 if TYPE_CHECKING:
+    from collections.abc import AsyncGenerator, Iterable
+
     from litestar import Litestar
+
+logger = get_logger(__name__)
 
 
 def create_sqlalchemy_config(settings: Settings) -> SQLAlchemyAsyncConfig:
@@ -134,11 +142,75 @@ def create_structlog_plugin(settings: Settings) -> StructlogPlugin:
     )
 
 
+class DegradedTolerantAsyncPgBackend(AsyncPgChannelsBackend):
+    """AsyncPg channels backend that degrades instead of failing startup.
+
+    ChannelsPlugin connects during app startup; an unreachable database must
+    put the app in the existing DB-degraded mode, not crash boot. When
+    degraded, publish and subscribe are no-ops and the event stream stays
+    silent; /ws/live independently gates on db_available and closes 1013.
+    """
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+        self.degraded = False
+
+    async def on_startup(self) -> None:
+        try:
+            await super().on_startup()
+        except Exception as exc:
+            self.degraded = True
+            logger.warning("Channels backend degraded (DB unreachable): %s", exc)
+
+    async def on_shutdown(self) -> None:
+        if self.degraded:
+            return
+        await super().on_shutdown()
+
+    async def publish(self, data: bytes, channels: Iterable[str]) -> None:
+        if self.degraded:
+            return
+        await super().publish(data, channels)
+
+    async def subscribe(self, channels: Iterable[str]) -> None:
+        if self.degraded:
+            return
+        await super().subscribe(channels)
+
+    async def unsubscribe(self, channels: Iterable[str]) -> None:
+        if self.degraded:
+            return
+        await super().unsubscribe(channels)
+
+    async def stream_events(self) -> AsyncGenerator[tuple[str, bytes], None]:
+        if self.degraded:
+            await asyncio.Event().wait()  # silent forever; plugin task parks here
+        async for item in super().stream_events():
+            yield item
+
+
+def create_channels_plugin(settings: Settings) -> ChannelsPlugin:
+    """Cross-process live-events fan-out over Postgres LISTEN/NOTIFY."""
+    return ChannelsPlugin(
+        backend=DegradedTolerantAsyncPgBackend(dsn=settings.database.asyncpg_dsn),
+        channels=[LIVE_EVENTS_CHANNEL],
+        arbitrary_channels_allowed=False,
+        subscriber_max_backlog=1000,
+        subscriber_backlog_strategy="dropleft",
+    )
+
+
 def create_plugins(
     settings: Settings | None = None,
     db_config: SQLAlchemyAsyncConfig | None = None,
 ) -> list[
-    SQLAlchemyInitPlugin | GeoAlchemyPlugin | GranianPlugin | VitePlugin | CLIPlugin | StructlogPlugin
+    SQLAlchemyInitPlugin
+    | GeoAlchemyPlugin
+    | GranianPlugin
+    | VitePlugin
+    | CLIPlugin
+    | StructlogPlugin
+    | ChannelsPlugin
 ]:
     """Instantiate all app plugins; called once from create_app()."""
     from geometrikks.cli import ImportLogsCLIPlugin
@@ -156,4 +228,5 @@ def create_plugins(
         VitePlugin(config=create_vite_config(settings)),
         ImportLogsCLIPlugin(),
         create_structlog_plugin(settings),
+        create_channels_plugin(settings),
     ]

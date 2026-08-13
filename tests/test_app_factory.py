@@ -104,6 +104,13 @@ async def test_domain_validation_error_translates_to_400():
     assert "Invalid IP address" in body["detail"]
 
 
+def test_channels_plugin_registered() -> None:
+    from litestar.channels import ChannelsPlugin
+
+    app = create_app(settings=_hermetic_settings())
+    assert app.plugins.get(ChannelsPlugin) is not None
+
+
 def test_create_plugins_derives_db_config_from_explicit_settings(monkeypatch):
     """create_plugins(settings=...) without a db_config must not fall back to
     the ambient process-cached engine (split-brain configuration)."""
