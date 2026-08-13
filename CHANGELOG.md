@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- `LOGPARSER_HOST_NAME` accepts a JSON list matched positionally to
+  `LOGPARSER_LOG_PATHS`, so one instance tailing logs shipped from several
+  machines records each file under its source hostname. `litestar
+  import-logs` gained `--hostname` to set the stamped hostname per import.
+
 ## [0.8.0] - 2026-08-16
 
 ### Added
