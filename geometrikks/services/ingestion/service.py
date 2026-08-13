@@ -322,7 +322,7 @@ class LogIngestionService:
                 geo_event = GeoEvent(
                     timestamp=record.geo_data.timestamp,
                     ip_address=record.ip_address,
-                    hostname=self.hostname,
+                    hostname=record.hostname or self.hostname,
                     location_id=location_id,
                 )
                 # Plain session.add: repo.add() flushes + refreshes per call
@@ -334,7 +334,11 @@ class LogIngestionService:
                 flushed["geo"] += 1
 
         if record.access_log:
-            access_log_model = self._to_access_log_model(record.access_log, log_format=record.log_format)
+            access_log_model = self._to_access_log_model(
+                record.access_log,
+                log_format=record.log_format,
+                hostname=record.hostname or self.hostname,
+            )
             repos.access_log.session.add(access_log_model)
             self.total_log_records += 1
             flushed["log"] += 1
@@ -554,7 +558,8 @@ class LogIngestionService:
                         pass
 
     def _to_access_log_model(
-        self, parsed: ParsedAccessLog, log_format: str | None = None
+        self, parsed: ParsedAccessLog, log_format: str | None = None,
+        hostname: str | None = None,
     ) -> AccessLog:
         """Convert ParsedAccessLog schema to ORM model, stamping source info.
 
@@ -563,6 +568,7 @@ class LogIngestionService:
             log_format: The format adapter that produced this record (e.g.
                 'nginx', 'traefik-json'), stamped onto the row alongside the
                 writer's hostname.
+            hostname: Source hostname for the row; empty/None falls back to the service default.
 
         Returns:
             An unpersisted AccessLog ORM instance ready to be added to a
@@ -585,7 +591,7 @@ class LogIngestionService:
             country_code=parsed.country_code,
             country_name=parsed.country_name,
             city=parsed.city,
-            hostname=self.hostname,
+            hostname=hostname or self.hostname,
             log_format=log_format,
         )
 
