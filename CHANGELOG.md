@@ -49,6 +49,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   them.
 - Concurrent GeoMetrikks instances sharing one database no longer drop an
   ingestion batch when racing to create the same geo location.
+- The live-events channel publisher no longer dies permanently on a
+  transient database outage; a failed publish is logged and the event is
+  dropped instead of wedging the channel worker (and eventually hanging
+  shutdown). A dropped LISTEN connection now logs an error instead of
+  silently going dead until restart.
 
 ## [0.7.1] - 2026-08-11
 

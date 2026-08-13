@@ -738,3 +738,29 @@ async def test_channel_publish_only_after_successful_commit() -> None:
     repos.fail_next_commits = 1
     await service.flush_records([make_parsed_record(TEST_DB_IPS[0])])
     assert channels.publish.call_count == 0
+
+
+async def test_publish_blowup_after_commit_does_not_look_like_commit_failure(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A record_to_events explosion happens strictly after `await
+    session.commit()` succeeds, so it must not be caught by the
+    commit-failure handler: no rollback, no cache eviction, and no
+    misleading "Batch commit failed" log. `_publish` must swallow it instead."""
+    import geometrikks.services.ingestion.service as service_module
+
+    def boom(record: object) -> None:
+        raise RuntimeError("record_to_events blew up")
+
+    monkeypatch.setattr(service_module, "record_to_events", boom)
+
+    channels = _channels_stub()
+    service, repos, sessions = make_service([], channels=channels)
+    with caplog.at_level("ERROR"):
+        await service.flush_records([make_parsed_record(TEST_DB_IPS[0])])
+
+    assert sessions[0].commits == 1
+    assert sessions[0].rollbacks == 0
+    assert service._location_cache  # committed location must still be cached
+    assert not any("Batch commit failed" in r.getMessage() for r in caplog.records)
+    assert any("live publish failed; batch already committed" in r.getMessage() for r in caplog.records)

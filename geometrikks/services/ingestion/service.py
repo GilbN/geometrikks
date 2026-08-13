@@ -508,8 +508,6 @@ class LogIngestionService:
 
             try:
                 await session.commit()
-                self._uncommitted_geohashes.clear()
-                self._publish(committed_candidates)
             except Exception as e:
                 logger.error("Batch commit failed (rolling back): %s", e)
                 await session.rollback()
@@ -520,6 +518,9 @@ class LogIngestionService:
                 for record in batch:
                     if record.geo_data:
                         self._location_cache.pop(record.geo_data.geohash, None)
+            else:
+                self._uncommitted_geohashes.clear()
+                self._publish(committed_candidates)
 
         logger.debug(
             "Committed batch of %d records. (Geo: %d | Log: %d | Debug: %d)",
@@ -543,22 +544,27 @@ class LogIngestionService:
     def _publish(self, records: list[ParsedLogRecord]) -> None:
         """Publish committed records to the live_events channel.
 
-        Never raises: a publish failure must not backpressure or break ingestion.
+        Never raises: called after commit, so a publish failure (including
+        one from record_to_events) must not backpressure or break ingestion,
+        and must never be mistaken for a commit failure by the caller.
         """
-        if self._channels is not None:
-            for record in records:
-                for event in record_to_events(record):
-                    if not encode_guard(event):
-                        self.publish_dropped += 1
-                        logger.warning(
-                            "live event dropped: encoded payload over budget (ip=%s)",
-                            record.ip_address,
-                        )
-                        continue
-                    try:
-                        self._channels.publish(event, LIVE_EVENTS_CHANNEL)
-                    except Exception:
-                        logger.exception("live event publish failed; continuing")
+        try:
+            if self._channels is not None:
+                for record in records:
+                    for event in record_to_events(record):
+                        if not encode_guard(event):
+                            self.publish_dropped += 1
+                            logger.warning(
+                                "live event dropped: encoded payload over budget (ip=%s)",
+                                record.ip_address,
+                            )
+                            continue
+                        try:
+                            self._channels.publish(event, LIVE_EVENTS_CHANNEL)
+                        except Exception:
+                            logger.exception("live event publish failed; continuing")
+        except Exception:
+            logger.exception("live publish failed; batch already committed")
 
     def _to_access_log_model(
         self, parsed: ParsedAccessLog, log_format: str | None = None,

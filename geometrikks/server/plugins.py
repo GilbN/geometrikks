@@ -161,6 +161,23 @@ class DegradedTolerantAsyncPgBackend(AsyncPgChannelsBackend):
         except Exception as exc:
             self.degraded = True
             logger.warning("Channels backend degraded (DB unreachable): %s", exc)
+            return
+        self._listener_conn.add_termination_listener(self._on_listener_terminated)
+
+    def _on_listener_terminated(self, connection: Any) -> None:
+        """Surface a dropped LISTEN connection; asyncpg otherwise fails silently.
+
+        No reconnect here (deliberately deferred): the feed is dead on this
+        instance until restart. Must never raise: asyncpg schedules this via
+        call_soon/create_task, and an escaping exception there is unhandled by
+        our code.
+        """
+        try:
+            logger.error(
+                "channels listener connection lost; live feed is dead on this instance until restart"
+            )
+        except Exception:  # pragma: no cover - logging itself must not cascade
+            pass
 
     async def on_shutdown(self) -> None:
         if self.degraded:
@@ -170,7 +187,10 @@ class DegradedTolerantAsyncPgBackend(AsyncPgChannelsBackend):
     async def publish(self, data: bytes, channels: Iterable[str]) -> None:
         if self.degraded:
             return
-        await super().publish(data, channels)
+        try:
+            await super().publish(data, channels)
+        except Exception as exc:
+            logger.warning("live event publish failed; event lost (transient DB failure?): %s", exc)
 
     async def subscribe(self, channels: Iterable[str]) -> None:
         if self.degraded:

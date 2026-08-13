@@ -12,8 +12,8 @@ Auth: /ws/ paths are NOT excluded in AUTH_EXCLUDE_PATTERNS, so the session
 middleware authenticates the handshake exactly like an API request.
 
 Subscription lifecycle, batching, heartbeats, and the transport loop live in
-stream.py; this module owns each feed's event conversion, filters, snapshot
-frames, and cadences.
+stream.py; live-feed event conversion lives in events.py. This module owns
+the handlers themselves, filters, snapshot frames, and cadences.
 """
 
 from __future__ import annotations
