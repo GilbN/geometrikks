@@ -24,6 +24,7 @@ from typing import TYPE_CHECKING, Any
 
 from litestar import WebSocket, websocket
 
+from geometrikks.domain.realtime.events import record_to_events
 from geometrikks.domain.realtime.stream import (
     batched_frames,
     close_service_unavailable,
@@ -49,48 +50,6 @@ MAX_EVENTS_PER_FRAME = 100
 # events flow, so emit an empty frame of the endpoint's own type as a
 # keepalive — existing clients treat it as a no-op and reset their backoff.
 HEARTBEAT_INTERVAL = 30.0
-
-
-def record_to_events(record: ParsedLogRecord) -> list[dict[str, Any]]:
-    """Convert one committed record to wire events (0, 1, or 2)."""
-    events: list[dict[str, Any]] = []
-    if record.geo_data and record.ip_address:
-        g = record.geo_data
-        events.append({
-            "type": "geo_event",
-            "data": {
-                "timestamp": g.timestamp.isoformat(),
-                "ip_address": record.ip_address,
-                "latitude": g.latitude,
-                "longitude": g.longitude,
-                "city": g.city,
-                "country_code": g.country_code,
-            },
-        })
-    if record.access_log:
-        a = record.access_log
-        events.append({
-            "type": "access_log",
-            "data": {
-                "timestamp": a.timestamp.isoformat(),
-                "ip_address": a.ip_address,
-                "remote_user": a.remote_user,
-                "method": a.method,
-                "url": a.url,
-                "http_version": a.http_version,
-                "status_code": a.status_code,
-                "bytes_sent": a.bytes_sent,
-                "referrer": a.referrer,
-                "user_agent": a.user_agent,
-                "request_time": a.request_time,
-                "upstream_response_time": a.upstream_response_time,
-                "host": a.host,
-                "country_code": a.country_code,
-                "country_name": a.country_name,
-                "city": a.city,
-            },
-        })
-    return events
 
 
 @websocket("/ws/crowdsec", tags=["Live Feed"])
