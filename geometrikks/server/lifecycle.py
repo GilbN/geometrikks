@@ -266,6 +266,7 @@ async def ingestion_lifespan(app: "Litestar") -> "AsyncGenerator[None]":
             channels = plugins.get(ChannelsPlugin)
         except KeyError:
             channels = None
+            logger.warning("live_events channel unavailable: ChannelsPlugin not registered")
 
     hostnames = settings.logparser.resolved_hostnames()
     parsers = [
