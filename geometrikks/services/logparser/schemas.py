@@ -60,3 +60,4 @@ class ParsedLogRecord:
     parse_error: str | None = field(default=None)
     source: str = field(default="")
     log_format: str | None = field(default=None)
+    hostname: str = field(default="")

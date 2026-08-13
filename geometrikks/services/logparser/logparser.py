@@ -102,7 +102,7 @@ class LogParser:
         log_path: Path,
         send_logs: bool = False,
         poll_interval: float = 1.0,
-        hostname: str = "localhost",
+        hostname: str = "",
         ignore_ips: list[str] | None = None,
         log_format: str = "auto",
     ) -> None:
@@ -112,7 +112,9 @@ class LogParser:
             log_path (Path): The path to the log file.
             send_logs (bool, optional): If True, parse full access log data. Defaults to False.
             poll_interval (float, optional): How often to check for new log lines. Defaults to 1.0.
-            hostname (str, optional): Hostname to tag geo events with. Defaults to "localhost".
+            hostname (str, optional): Source hostname stamped onto parsed
+                records. Empty (default): the ingestion service's fallback
+                hostname applies.
             ignore_ips (list[str] | None, optional): IPs/CIDRs whose lines are dropped entirely. Defaults to None.
             log_format (str, optional): A registry name from ``formats.FORMATS`` (e.g. "nginx"),
                 or "auto" to sniff the format from the first parseable line. Defaults to "auto".
@@ -327,6 +329,7 @@ class LogParser:
                 parse_error="Line did not match expected log format",
                 source=str(self.log_path),
                 log_format=self.format.name if self.format else None,
+                hostname=self.hostname,
             )
 
         ip = norm.ip_address
@@ -362,6 +365,7 @@ class LogParser:
             parse_error=parse_error,
             source=str(self.log_path),
             log_format=self.format.name if self.format else None,
+            hostname=self.hostname,
         )
 
     async def _is_rotated_async(self, prev_stat: os.stat_result) -> bool:
