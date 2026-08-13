@@ -84,7 +84,15 @@ class DatabaseSettings(BaseSettings):
             f"{quote(self.password.get_secret_value(), safe='')}"
             f"@{self.host}:{self.port}/{self.database}"
         )
-    
+
+    @property
+    def asyncpg_dsn(self) -> str:
+        """The connection URL as a plain postgresql:// DSN.
+
+        AsyncPgChannelsBackend hands the DSN straight to asyncpg, which does
+        not understand SQLAlchemy's +asyncpg driver suffix.
+        """
+        return self.url.replace("postgresql+asyncpg://", "postgresql://", 1)
 
     @model_validator(mode="after")
     def validate_db_url(self) -> "DatabaseSettings":

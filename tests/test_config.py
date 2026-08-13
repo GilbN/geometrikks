@@ -50,10 +50,19 @@ def test_runtime_metadata_defaults_and_overrides(monkeypatch):
 def test_database_settings():
     """Test database configuration."""
     settings = Settings()
-    
+
     assert "postgresql" in settings.database.url
     assert settings.database.pool_size == 5
     assert settings.database.echo is False
+
+
+def test_database_asyncpg_dsn_strips_driver_suffix() -> None:
+    """AsyncPgChannelsBackend needs a plain postgresql:// DSN."""
+    from geometrikks.config.settings import DatabaseSettings
+    settings = DatabaseSettings()
+    assert settings.url.startswith("postgresql+asyncpg://")
+    assert settings.asyncpg_dsn == settings.url.replace("postgresql+asyncpg://", "postgresql://", 1)
+    assert "+asyncpg" not in settings.asyncpg_dsn
 
 
 def test_geoip_settings(tmp_path):
