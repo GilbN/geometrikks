@@ -31,7 +31,17 @@ from litestar.plugins import CLIPlugin
     type=click.Choice(["auto", "nginx", "traefik-json"]),
     help="Log format of the given files (auto = detect per file).",
 )
-def import_logs_command(paths: tuple[Path, ...], force: bool, batch_size: int, log_format: str) -> None:
+@click.option(
+    "--hostname",
+    default=None,
+    help=(
+        "Source hostname stamped on imported records. Default: the first "
+        "LOGPARSER_HOST_NAME value."
+    ),
+)
+def import_logs_command(
+    paths: tuple[Path, ...], force: bool, batch_size: int, log_format: str, hostname: str | None
+) -> None:
     """Import historical access-log files (plain or .gz) into the database.
 
     Reads whole files, uses log-line timestamps, refreshes the continuous
@@ -39,10 +49,16 @@ def import_logs_command(paths: tuple[Path, ...], force: bool, batch_size: int, l
     that is also being live-tailed will double-count — import archived
     (rotated) files only.
     """
-    asyncio.run(_run_import(list(paths), force=force, batch_size=batch_size, log_format=log_format))
+    asyncio.run(
+        _run_import(
+            list(paths), force=force, batch_size=batch_size, log_format=log_format, hostname=hostname
+        )
+    )
 
 
-async def _run_import(paths: list[Path], *, force: bool, batch_size: int, log_format: str) -> None:
+async def _run_import(
+    paths: list[Path], *, force: bool, batch_size: int, log_format: str, hostname: str | None
+) -> None:
     from geoip2.database import Reader
 
     from geometrikks.config.settings import get_settings
@@ -71,7 +87,7 @@ async def _run_import(paths: list[Path], *, force: bool, batch_size: int, log_fo
         session_maker=session_maker,
         geoip_path=settings.geoip.db_path,
         locales=settings.geoip.locales,
-        hostname=settings.logparser.host_name,
+        hostname=hostname or settings.logparser.resolved_hostnames()[0],
         store_debug_lines=settings.logparser.store_debug_lines,
     )
 

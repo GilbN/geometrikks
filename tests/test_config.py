@@ -1,5 +1,6 @@
 """Tests for configuration management."""
 
+import socket
 from pathlib import Path
 
 import pytest
@@ -278,6 +279,46 @@ def test_log_formats_length_mismatch_rejected(monkeypatch) -> None:
 def test_log_formats_unknown_value_rejected(monkeypatch) -> None:
     """An unrecognized format name fails settings validation."""
     monkeypatch.setenv("LOGPARSER_LOG_FORMATS", "apache")
+    with pytest.raises(ValidationError):
+        LogParserSettings()
+
+
+def test_host_name_default_is_machine_hostname(monkeypatch) -> None:
+    """No LOGPARSER_HOST_NAME set: the machine hostname applies to every path."""
+    monkeypatch.delenv("LOGPARSER_HOST_NAME", raising=False)
+    settings = LogParserSettings()
+    assert settings.host_name == [socket.gethostname()]
+    assert settings.resolved_hostnames() == [socket.gethostname()] * len(settings.log_paths)
+
+
+def test_host_name_single_value_fans_out(monkeypatch) -> None:
+    """A single hostname value applies to every configured log path."""
+    monkeypatch.setenv("LOGPARSER_LOG_PATHS", '["/a.log", "/b.log"]')
+    monkeypatch.setenv("LOGPARSER_HOST_NAME", "edge-1")
+    settings = LogParserSettings()
+    assert settings.resolved_hostnames() == ["edge-1", "edge-1"]
+
+
+def test_host_name_json_list_positional(monkeypatch) -> None:
+    """A JSON list of hostnames maps positionally onto log_paths."""
+    monkeypatch.setenv("LOGPARSER_LOG_PATHS", '["/a.log", "/b.log"]')
+    monkeypatch.setenv("LOGPARSER_HOST_NAME", '["vps-1", "vps-2"]')
+    settings = LogParserSettings()
+    assert settings.resolved_hostnames() == ["vps-1", "vps-2"]
+
+
+def test_host_name_length_mismatch_rejected(monkeypatch) -> None:
+    """A hostname list whose length matches neither 1 nor len(log_paths) fails."""
+    monkeypatch.setenv("LOGPARSER_LOG_PATHS", '["/a.log", "/b.log", "/c.log"]')
+    monkeypatch.setenv("LOGPARSER_HOST_NAME", '["vps-1", "vps-2"]')
+    with pytest.raises(ValidationError):
+        LogParserSettings()
+
+
+def test_host_name_empty_entry_rejected(monkeypatch) -> None:
+    """An empty hostname would silently un-stamp records; fail at startup."""
+    monkeypatch.setenv("LOGPARSER_HOST_NAME", '["vps-1", ""]')
+    monkeypatch.setenv("LOGPARSER_LOG_PATHS", '["/a.log", "/b.log"]')
     with pytest.raises(ValidationError):
         LogParserSettings()
 

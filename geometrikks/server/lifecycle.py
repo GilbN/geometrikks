@@ -258,11 +258,15 @@ async def ingestion_lifespan(app: "Litestar") -> "AsyncGenerator[None]":
             log_path=path,
             send_logs=settings.logparser.send_logs,
             poll_interval=settings.logparser.poll_interval,
-            hostname=settings.logparser.host_name,
+            hostname=host,
             ignore_ips=settings.logparser.ignore_ips,
             log_format=fmt,
         )
-        for path, fmt in zip(settings.logparser.log_paths, settings.logparser.resolved_formats())
+        for path, fmt, host in zip(
+            settings.logparser.log_paths,
+            settings.logparser.resolved_formats(),
+            settings.logparser.resolved_hostnames(),
+        )
     ]
 
     ingestion_service = LogIngestionService(
@@ -270,7 +274,7 @@ async def ingestion_lifespan(app: "Litestar") -> "AsyncGenerator[None]":
         session_maker=session_maker,
         geoip_path=settings.geoip.db_path,
         locales=settings.geoip.locales,
-        hostname=settings.logparser.host_name,
+        hostname=settings.logparser.resolved_hostnames()[0],
         batch_size=settings.logparser.batch_size,
         commit_interval=settings.logparser.commit_interval,
         store_debug_lines=settings.logparser.store_debug_lines,

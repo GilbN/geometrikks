@@ -31,6 +31,19 @@ def test_import_logs_help_runs_without_app() -> None:
     assert "--force" in result.output
 
 
+def test_import_logs_help_lists_hostname_option() -> None:
+    import click
+    from geometrikks.cli import ImportLogsCLIPlugin
+
+    @click.group()
+    def cli() -> None: ...
+
+    ImportLogsCLIPlugin().on_cli_init(cli)
+    result = CliRunner().invoke(cli, ["import-logs", "--help"])
+    assert result.exit_code == 0
+    assert "--hostname" in result.output
+
+
 def test_cli_plugin_registers_backfill_hostname() -> None:
     import click
     from geometrikks.cli import ImportLogsCLIPlugin

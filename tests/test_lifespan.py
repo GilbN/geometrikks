@@ -151,3 +151,27 @@ async def test_db_degraded_mode_skips_scheduler_and_ingestion(monkeypatch):
 
     cast("AsyncMock", lc.create_scheduler).assert_not_awaited()
     cast("MagicMock", lc.LogIngestionService).assert_not_called()
+
+
+async def test_ingestion_wires_per_file_hostnames(monkeypatch):
+    """Each tailed file's parser gets its positional hostname; the service
+    fallback gets the first resolved hostname."""
+    from geometrikks.server import lifecycle as lc
+    from geometrikks.config.settings import Settings
+
+    monkeypatch.setenv("LOGPARSER_LOG_PATHS", '["/a.log", "/b.log"]')
+    monkeypatch.setenv("LOGPARSER_HOST_NAME", '["vps-1", "vps-2"]')
+    _patch_startup_collaborators(
+        monkeypatch, lc, db_available=True, ensure=AsyncMock(return_value=True)
+    )
+
+    app = SimpleNamespace(state=SimpleNamespace())
+    app.state.settings = Settings()
+    async with enter_lifespan(app):
+        pass
+
+    hostnames = [
+        call.kwargs["hostname"] for call in cast("MagicMock", lc.LogParser).call_args_list
+    ]
+    assert hostnames == ["vps-1", "vps-2"]
+    assert cast("MagicMock", lc.LogIngestionService).call_args.kwargs["hostname"] == "vps-1"

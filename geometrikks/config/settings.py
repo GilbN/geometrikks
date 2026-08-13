@@ -236,9 +236,15 @@ class LogParserSettings(BaseSettings):
         description="Interval in seconds to poll the log file for new entries",
     )
     send_logs: bool = Field(default=True, description="Send parsed logs to the database")
-    host_name: str = Field(
-        default_factory=socket.gethostname,
-        description="Host name for log parser (used in log entries)",
+    host_name: Annotated[list[str], NoDecode] = Field(
+        default_factory=lambda: [socket.gethostname()],
+        min_length=1,
+        description=(
+            "Source hostname stamped on ingested records. Env accepts a "
+            "single value applied to every tailed file, or a JSON list "
+            "matching LOGPARSER_LOG_PATHS by position. Default: this "
+            "machine's hostname."
+        ),
     )
     batch_size: int = Field(
         default=100,
@@ -316,6 +322,46 @@ class LogParserSettings(BaseSettings):
         if len(self.log_formats) == 1:
             return self.log_formats * len(self.log_paths)
         return list(self.log_formats)
+
+    @field_validator("host_name", mode="before")
+    @classmethod
+    def parse_host_name(cls, value: object) -> object:
+        """Accept a single hostname or a JSON list of hostnames."""
+        if isinstance(value, str):
+            stripped = value.strip()
+            if stripped.startswith("["):
+                return json.loads(stripped)
+            return [stripped]
+        return value
+
+    @field_validator("host_name")
+    @classmethod
+    def validate_host_name_entries(cls, value: list[str]) -> list[str]:
+        """Fail at startup on empty entries; '' would silently un-stamp records."""
+        if any(not entry.strip() for entry in value):
+            raise ValueError("LOGPARSER_HOST_NAME entries must be non-empty")
+        return value
+
+    @model_validator(mode="after")
+    def validate_host_name_length(self) -> "LogParserSettings":
+        """Reject hostname list lengths that cannot map to log_paths."""
+        if len(self.host_name) not in (1, len(self.log_paths)):
+            raise ValueError(
+                "LOGPARSER_HOST_NAME must be one value or match "
+                f"LOGPARSER_LOG_PATHS in length ({len(self.log_paths)})"
+            )
+        return self
+
+    def resolved_hostnames(self) -> list[str]:
+        """Return one hostname per log path.
+
+        Returns:
+            The configured hostnames, fanning a single value out across all
+            log paths when only one value was provided.
+        """
+        if len(self.host_name) == 1:
+            return self.host_name * len(self.log_paths)
+        return list(self.host_name)
 
     @field_validator("ignore_ips", mode="before")
     @classmethod
