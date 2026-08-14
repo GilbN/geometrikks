@@ -7,7 +7,7 @@ import pytest
 from pydantic import ValidationError
 
 from geometrikks.config import GeoIPSettings, MapSettings, Settings, get_settings
-from geometrikks.config.settings import LogParserSettings, get_installed_version
+from geometrikks.config.settings import AppSettings, LogParserSettings, get_installed_version
 
 
 def test_default_settings():
@@ -561,3 +561,32 @@ class TestLogSettings:
             warnings.simplefilter("error")  # no DeprecationWarning may fire
             s = Settings(_env_file=None)
         assert s.log.level == "ERROR"
+
+
+def test_app_mode_default_full(monkeypatch) -> None:
+    monkeypatch.delenv("APP_MODE", raising=False)
+    assert AppSettings().mode == "full"
+
+
+def test_app_mode_agent(monkeypatch) -> None:
+    monkeypatch.setenv("APP_MODE", "agent")
+    assert AppSettings().mode == "agent"
+
+
+def test_app_mode_invalid_rejected(monkeypatch) -> None:
+    monkeypatch.setenv("APP_MODE", "worker")
+    with pytest.raises(ValidationError):
+        AppSettings()
+
+
+def test_logparser_enabled_default_true(monkeypatch) -> None:
+    monkeypatch.delenv("LOGPARSER_ENABLED", raising=False)
+    assert LogParserSettings().enabled is True
+
+
+def test_agent_with_tailing_disabled_rejected(monkeypatch) -> None:
+    """An agent that tails nothing is a no-op process: fail at startup."""
+    monkeypatch.setenv("APP_MODE", "agent")
+    monkeypatch.setenv("LOGPARSER_ENABLED", "false")
+    with pytest.raises(ValidationError):
+        Settings()

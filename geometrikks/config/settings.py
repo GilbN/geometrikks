@@ -222,6 +222,10 @@ class LogParserSettings(BaseSettings):
 
     model_config = SettingsConfigDict(env_prefix="LOGPARSER_", env_file=_env_file(), extra="ignore")
 
+    enabled: bool = Field(
+        default=True,
+        description="Enable log parser ingestion service"
+    )
     log_paths: Annotated[list[Path], NoDecode] = Field(
         default_factory=lambda: [Path("/var/log/access/access.log")],
         min_length=1,
@@ -601,6 +605,17 @@ class ViteSettings(BaseSettings):
     )
 
 
+class AppSettings(BaseSettings):
+    """Application-level settings."""
+
+    model_config = SettingsConfigDict(env_prefix="APP_", env_file=_env_file(), extra="ignore")
+
+    mode: Literal["full", "agent"] = Field(
+        default="full",
+        description="Application mode: full (all components) or agent (logparser only)"
+    )
+
+
 class Settings(BaseSettings):
     """Main application settings.
     
@@ -722,6 +737,7 @@ class Settings(BaseSettings):
         return self
 
     # Sub-configurations
+    app: AppSettings = Field(default_factory=AppSettings)
     api: APISettings = Field(default_factory=APISettings)
     database: DatabaseSettings = Field(default_factory=DatabaseSettings)
     geoip: GeoIPSettings = Field(default_factory=GeoIPSettings)
@@ -732,6 +748,21 @@ class Settings(BaseSettings):
     map: MapSettings = Field(default_factory=MapSettings)
     crowdsec: CrowdSecSettings = Field(default_factory=CrowdSecSettings)
     vite: ViteSettings = Field(default_factory=ViteSettings)
+
+    @model_validator(mode="after")
+    def validate_agent_tails_something(self) -> "Settings":
+        """APP_MODE=agent with LOGPARSER_ENABLED=false is a no-op process."""
+        if self.app.mode == "agent" and not self.logparser.enabled:
+            raise ValueError(
+                "APP_MODE=agent requires LOGPARSER_ENABLED=true: an agent "
+                "that tails nothing does nothing"
+            )
+        return self
+
+    @property
+    def is_agent(self) -> bool:
+        """Check if running in agent mode."""
+        return self.app.mode == "agent"
 
     @property
     def is_production(self) -> bool:

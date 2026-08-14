@@ -26,6 +26,7 @@ from real environment variables. It is read once at import time.
 | `APP_ADMIN_PASSWORD` | — | Admin login password (required unless auth_disabled=true) |
 | `APP_SESSION_SECURE` | `false` | Mark the session cookie Secure so browsers only send it over HTTPS. Recommended when serving behind a TLS reverse proxy. |
 | `APP_TRUSTED_PROXIES` | *(computed)* | Reverse-proxy IPs/CIDRs allowed to supply X-Forwarded-For. Env accepts one value, comma-separated values, or a JSON list. Empty (default): forwarded headers are never trusted. |
+| `APP_APP` | *(computed)* |  |
 
 ## API server
 
@@ -82,6 +83,7 @@ from real environment variables. It is read once at import time.
 
 | Variable | Default | Description |
 |---|---|---|
+| `LOGPARSER_ENABLED` | `true` | Enable log parser ingestion service |
 | `LOGPARSER_LOG_PATHS` | *(computed)* | Access log files to tail. Env accepts a single path or a JSON list of paths. Default: /var/log/access/access.log |
 | `LOGPARSER_LOG_FORMATS` | *(computed)* | Log format per tailed file: 'auto' (default, detected from the file's content), 'nginx', or 'traefik-json'. Env accepts a single value applied to every path, or a JSON list matching LOGPARSER_LOG_PATHS by position. |
 | `LOGPARSER_POLL_INTERVAL` | `1.0` | Interval in seconds to poll the log file for new entries |
