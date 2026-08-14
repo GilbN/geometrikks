@@ -77,6 +77,7 @@ async def wait_for_schema(
                 result = await conn.execute(text("SELECT version_num FROM alembic_version"))
                 version = result.scalar_one()
             if version == head:
+                logger.info("schema wait: head reached")
                 return "ready"
             if version not in known:
                 logger.warning(
@@ -87,7 +88,12 @@ async def wait_for_schema(
                     head,
                 )
                 return "newer"
+            logger.info("schema wait: db at %s (bundled head %s), retrying", version, head)
         except Exception as e:
+            logger.info(
+                "schema wait: no alembic_version yet / DB unreachable (bundled head %s), retrying",
+                head,
+            )
             logger.debug("Schema not ready yet: %s", e)
 
         if loop.time() >= deadline:

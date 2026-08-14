@@ -292,6 +292,40 @@ async def test_reconnect_backs_off_and_stops_on_shutdown(monkeypatch) -> None:
     assert backend._reconnect_task is None or backend._reconnect_task.cancelled()
 
 
+async def test_reconnect_closes_connection_on_partial_setup_failure(monkeypatch) -> None:
+    """If _connect() succeeds but a subsequent setup step (add_listener)
+    raises, the abandoned connection must be closed before the next
+    attempt -- otherwise a flapping DB leaks one socket per failed attempt."""
+    fake_conn = FakeConnection()
+
+    class BadListenerConn(FakeConnection):
+        async def add_listener(self, channel, callback) -> None:
+            raise OSError("listen failed")
+
+    bad_conn = BadListenerConn()
+    connections = [fake_conn, bad_conn]
+
+    async def make_connection() -> FakeConnection:
+        return connections.pop(0)
+
+    backend = DegradedTolerantAsyncPgBackend(make_connection=make_connection)
+    await backend.on_startup()
+    await backend.subscribe(["live_events"])
+
+    async def fake_sleep(seconds: float) -> None:
+        raise asyncio.CancelledError
+
+    monkeypatch.setattr(asyncio, "sleep", fake_sleep)
+
+    fake_conn._call_termination_listeners()
+    assert backend._reconnect_task is not None
+
+    with contextlib.suppress(asyncio.CancelledError):
+        await backend._reconnect_task
+
+    assert bad_conn.close_called is True
+
+
 async def test_graceful_shutdown_does_not_reconnect() -> None:
     """Existing graceful-shutdown behavior extended: on_shutdown()'s
     unregister-before-close means the termination listener never fires as

@@ -204,16 +204,21 @@ class DegradedTolerantAsyncPgBackend(AsyncPgChannelsBackend):
         """
         delay = self._RECONNECT_INITIAL_DELAY
         while not self._closing:
+            new_conn: Any | None = None
             try:
-                self._listener_conn = await self._connect()
-                self._listener_conn.add_termination_listener(self._on_listener_terminated)
+                new_conn = await self._connect()
+                new_conn.add_termination_listener(self._on_listener_terminated)
                 for channel in self._subscribed_channels:
-                    await self._listener_conn.add_listener(channel, self._listener)
+                    await new_conn.add_listener(channel, self._listener)
             except Exception as exc:
                 logger.warning("channels listener reconnect attempt failed: %s", exc)
+                if new_conn is not None:
+                    with contextlib.suppress(Exception):
+                        await new_conn.close()
                 await asyncio.sleep(delay)
                 delay = min(delay * 2, self._RECONNECT_MAX_DELAY)
                 continue
+            self._listener_conn = new_conn
             logger.info("channels listener reconnected")
             return
 

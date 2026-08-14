@@ -474,7 +474,10 @@ needs no `APP_ADMIN_PASSWORD`. It still downloads and refreshes its own
 GeoLite2 database like a full instance does, so it still needs MaxMind
 credentials and a geoip volume. It never runs migrations or touches
 TimescaleDB objects; at startup it waits for the shared database's schema to
-reach the revision it was built against.
+reach the revision it was built against. If that wait times out, the agent
+stays up serving `/health` in degraded mode rather than exiting, so restart
+policies never re-trigger it - restart the agent container yourself once the
+full instance has finished migrating.
 
 The reverse case works too: to keep a full instance's UI and API without it
 tailing local files - for example, a machine that only hosts the app, with

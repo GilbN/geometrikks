@@ -283,11 +283,11 @@ async def ingestion_lifespan(app: "Litestar") -> "AsyncGenerator[None]":
 
     LOGPARSER_ENABLED=false no-ops the same way, without ever constructing a
     parser or the service, and independently of database availability: a
-    disabled ingestion is an operator choice, not an outage. The recorded
-    flag lets /health tell "disabled by configuration" apart from degraded.
+    disabled ingestion is an operator choice, not an outage. /health reads
+    settings.logparser.enabled directly to tell "disabled by configuration"
+    apart from degraded.
     """
     settings = _resolve_settings(app)
-    app.state.ingestion_enabled = settings.logparser.enabled
     if not settings.logparser.enabled:
         logger.info("Ingestion disabled (LOGPARSER_ENABLED=false): skipping log tailing.")
         yield

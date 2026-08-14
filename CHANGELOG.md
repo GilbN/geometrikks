@@ -7,15 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
 - `LOGPARSER_HOST_NAME` accepts a JSON list matched positionally to
   `LOGPARSER_LOG_PATHS`, so one instance tailing logs shipped from several
   machines records each file under its source hostname. `litestar
   import-logs` gained `--hostname` to set the stamped hostname per import.
 - `APP_MODE=agent`: run the same image as a lightweight remote agent that
   tails, geolocates, writes, and publishes to the live map, serving only
-  `/health`. `LOGPARSER_ENABLED=false` turns a full instance into a UI head
-  with no local tailing. The live-feed backend now reuses a persistent
-  publish connection and reconnects its listener automatically.
+  `/health` and `/health/ready`. `LOGPARSER_ENABLED=false` turns a full
+  instance into a UI head with no local tailing. The live-feed backend now
+  reuses a persistent publish connection and reconnects its listener
+  automatically.
+
+### Changed
+
+- The live map feed (`/ws/live`) now fans out through PostgreSQL
+  LISTEN/NOTIFY, so committed traffic from any writer process reaches the
+  map, and live events carry the source hostname. Batch imports no longer
+  feed the live map.
+
+### Fixed
+
+- The live-events channel publisher no longer dies permanently on a
+  transient database outage; a failed publish is logged and the event is
+  dropped instead of wedging the channel worker (and eventually hanging
+  shutdown). A dropped LISTEN connection now logs an error instead of
+  silently going dead until restart.
+
 ## [0.8.0] - 2026-08-16
 
 ### Added
@@ -38,10 +57,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `LOGPARSER_LOG_PATHS` default is now `/var/log/access/access.log`. If your
   `.env` sets `LOGPARSER_LOG_PATHS` with `/var/log/nginx/...` paths, change
   them to `/var/log/access/...` when upgrading the compose file.
-- The live map feed (`/ws/live`) now fans out through PostgreSQL
-  LISTEN/NOTIFY, so committed traffic from any writer process reaches the
-  map, and live events carry the source hostname. Batch imports no longer
-  feed the live map.
+
 
 ### Fixed
 
@@ -53,11 +69,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   them.
 - Concurrent GeoMetrikks instances sharing one database no longer drop an
   ingestion batch when racing to create the same geo location.
-- The live-events channel publisher no longer dies permanently on a
-  transient database outage; a failed publish is logged and the event is
-  dropped instead of wedging the channel worker (and eventually hanging
-  shutdown). A dropped LISTEN connection now logs an error instead of
-  silently going dead until restart.
 
 ## [0.7.1] - 2026-08-11
 

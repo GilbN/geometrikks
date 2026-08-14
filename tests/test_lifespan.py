@@ -204,8 +204,9 @@ async def test_agent_mode_schema_timeout_is_db_degraded(monkeypatch):
 
 async def test_ingestion_disabled_by_config_skips_construction(monkeypatch):
     """LOGPARSER_ENABLED=false no-ops ingestion without building parsers or
-    the service -- mirrors the DB-degraded no-op path -- and records a state
-    flag so health can tell "disabled by configuration" apart from degraded."""
+    the service -- mirrors the DB-degraded no-op path. /health tells
+    "disabled by configuration" apart from degraded by reading
+    settings.logparser.enabled directly."""
     from geometrikks.server import lifecycle as lc
     from geometrikks.config.settings import Settings
 
@@ -217,7 +218,6 @@ async def test_ingestion_disabled_by_config_skips_construction(monkeypatch):
     app = SimpleNamespace(state=SimpleNamespace())
     app.state.settings = Settings()
     async with enter_lifespan(app):
-        assert app.state.ingestion_enabled is False
         assert not hasattr(app.state, "ingestion_service")
 
     cast("MagicMock", lc.LogParser).assert_not_called()
