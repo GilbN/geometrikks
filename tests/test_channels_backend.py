@@ -140,3 +140,62 @@ async def test_graceful_shutdown_does_not_log_false_listener_lost(
     assert fake_conn.close_called is True
     assert not fake_conn._listeners  # unregistered before close fired anything
     assert not any("listener connection lost" in r.getMessage() for r in caplog.records)
+
+
+async def test_publish_reuses_one_connection() -> None:
+    calls = []
+
+    class FakeConn:
+        def __init__(self):
+            self.executed = []
+
+        async def execute(self, *a):
+            self.executed.append(a)
+
+        async def close(self):
+            pass
+
+        def is_closed(self):
+            return False
+
+    async def factory():
+        conn = FakeConn()
+        calls.append(conn)
+        return conn
+
+    backend = DegradedTolerantAsyncPgBackend(make_connection=factory)
+    await backend.publish(b"{}", ["live_events"])
+    await backend.publish(b"{}", ["live_events"])
+    assert len(calls) == 1
+    assert len(calls[0].executed) == 2
+
+
+async def test_publish_failure_drops_event_and_reconnects_next_time() -> None:
+    calls = []
+
+    class FlakyConn:
+        def __init__(self, fail: bool):
+            self.fail = fail
+            self.executed = []
+
+        async def execute(self, *a):
+            if self.fail:
+                raise OSError("connection lost")
+            self.executed.append(a)
+
+        async def close(self):
+            pass
+
+        def is_closed(self):
+            return False
+
+    async def factory():
+        conn = FlakyConn(fail=len(calls) == 0)
+        calls.append(conn)
+        return conn
+
+    backend = DegradedTolerantAsyncPgBackend(make_connection=factory)
+    await backend.publish(b"{}", ["live_events"])  # fails internally, must not raise
+    await backend.publish(b"{}", ["live_events"])  # new connection, succeeds
+    assert len(calls) == 2
+    assert len(calls[1].executed) == 1

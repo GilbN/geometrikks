@@ -8,6 +8,7 @@ when e.g. the GeoIP database is missing.
 
 from __future__ import annotations
 import asyncio
+import contextlib
 import platform
 import shutil
 from functools import lru_cache
@@ -154,6 +155,7 @@ class DegradedTolerantAsyncPgBackend(AsyncPgChannelsBackend):
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
         self.degraded = False
+        self._pub_conn: Any | None = None
 
     async def on_startup(self) -> None:
         try:
@@ -182,6 +184,10 @@ class DegradedTolerantAsyncPgBackend(AsyncPgChannelsBackend):
     async def on_shutdown(self) -> None:
         if self.degraded:
             return
+        if self._pub_conn is not None:
+            with contextlib.suppress(Exception):
+                await self._pub_conn.close()
+            self._pub_conn = None
         # asyncpg fires termination listeners on a graceful close() too (via
         # Connection._cleanup()), not just on an unexpected drop. Unregister
         # first so a normal shutdown doesn't log a false "listener lost"
@@ -194,12 +200,28 @@ class DegradedTolerantAsyncPgBackend(AsyncPgChannelsBackend):
         await super().on_shutdown()
 
     async def publish(self, data: bytes, channels: Iterable[str]) -> None:
+        """Publish over one lazily opened, reused connection.
+
+        The parent opens/closes a fresh asyncpg connection per call, which is
+        too slow for a live-events feed. We keep our own connection instead
+        of calling super().publish(); a failed publish drops that event
+        (lossy feed is spec-sanctioned) and clears the connection so the next
+        publish reopens it.
+        """
         if self.degraded:
             return
         try:
-            await super().publish(data, channels)
+            if self._pub_conn is None or self._pub_conn.is_closed():
+                self._pub_conn = await self._connect()
+            dec_data = data.decode("utf-8")
+            for channel in channels:
+                await self._pub_conn.execute("SELECT pg_notify($1, $2);", channel, dec_data)
         except Exception as exc:
             logger.warning("live event publish failed; event lost (transient DB failure?): %s", exc)
+            if self._pub_conn is not None:
+                with contextlib.suppress(Exception):
+                    await self._pub_conn.close()
+            self._pub_conn = None
 
     async def subscribe(self, channels: Iterable[str]) -> None:
         if self.degraded:
