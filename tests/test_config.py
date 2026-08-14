@@ -144,6 +144,19 @@ def test_environment_properties():
     assert prod_settings.is_development is False
 
 
+def test_is_agent_reflects_app_mode(monkeypatch):
+    """Settings.is_agent is a thin proxy over app.mode == "agent"; LOGPARSER
+    stays enabled by default so agent mode's own validator doesn't reject it."""
+    monkeypatch.delenv("LOGPARSER_ENABLED", raising=False)
+
+    default_settings = Settings(_env_file=None)
+    assert default_settings.is_agent is False
+
+    monkeypatch.setenv("APP_MODE", "agent")
+    agent_settings = Settings(_env_file=None)
+    assert agent_settings.is_agent is True
+
+
 def test_settings_caching():
     """Test that get_settings returns cached instance."""
     get_settings.cache_clear()

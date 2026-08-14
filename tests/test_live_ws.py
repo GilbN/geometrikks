@@ -267,15 +267,37 @@ class TestLogsFeed:
                 assert any(r.get("event") == "hello_ws" for r in frame["records"])
 
     def test_level_filter_drops_lower_levels(self):
+        """log_broadcaster is a process-wide singleton, so under full-suite
+        load unrelated concurrent log records can share frames with this
+        test's own publishes. A single frame's worth of records is not
+        reliable evidence either way (a frame full of other tests' >=warning
+        noise can crowd out our own "boom" record before it's ever seen), so
+        this collects records across frames using unique per-run sentinel
+        event names and keeps going until its own "boom" sentinel is seen
+        rather than trusting whatever showed up in the first frame.
+        """
+        import time
+        import uuid
+
         from geometrikks.server.logging import log_broadcaster
+
+        marker = uuid.uuid4().hex
+        noise_event = f"noise-{marker}"
+        boom_event = f"boom-{marker}"
         with TestClient(app=self._make_app()) as client:
             with client.websocket_connect("/ws/logs?level=warning") as ws:
                 def publish():
-                    log_broadcaster.publish_threadsafe({"level": "debug", "event": "noise"})
-                    log_broadcaster.publish_threadsafe({"level": "error", "event": "boom"})
-                frame = self._receive_data_frame(ws, publish)
-                events = [r["event"] for r in frame["records"]]
-                assert "boom" in events and "noise" not in events
+                    log_broadcaster.publish_threadsafe({"level": "debug", "event": noise_event})
+                    log_broadcaster.publish_threadsafe({"level": "error", "event": boom_event})
+
+                seen_events: set[str] = set()
+                deadline = time.time() + 5
+                while time.time() < deadline and boom_event not in seen_events:
+                    publish()
+                    frame = ws.receive_json(timeout=2)
+                    seen_events.update(r.get("event", "") for r in frame["records"])
+                assert boom_event in seen_events
+                assert noise_event not in seen_events
 
     def test_sends_empty_log_batch_heartbeat_when_idle(self, monkeypatch):
         from geometrikks.domain.realtime import controllers as live_controller
