@@ -152,10 +152,15 @@ class DegradedTolerantAsyncPgBackend(AsyncPgChannelsBackend):
     silent; /ws/live independently gates on db_available and closes 1013.
     """
 
+    _RECONNECT_INITIAL_DELAY = 1
+    _RECONNECT_MAX_DELAY = 30
+
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
         self.degraded = False
         self._pub_conn: Any | None = None
+        self._reconnect_task: asyncio.Task[None] | None = None
+        self._closing = False
 
     async def on_startup(self) -> None:
         try:
@@ -167,12 +172,14 @@ class DegradedTolerantAsyncPgBackend(AsyncPgChannelsBackend):
         self._listener_conn.add_termination_listener(self._on_listener_terminated)
 
     def _on_listener_terminated(self, connection: Any) -> None:
-        """Surface a dropped LISTEN connection; asyncpg otherwise fails silently.
+        """Surface a dropped LISTEN connection and self-heal it.
 
-        No reconnect here (deliberately deferred): the feed is dead on this
-        instance until restart. Must never raise: asyncpg schedules this via
-        call_soon/create_task, and an escaping exception there is unhandled by
-        our code.
+        Must never raise: asyncpg schedules this via call_soon/create_task,
+        and an escaping exception there is unhandled by our code. A graceful
+        on_shutdown() unregisters this callback before closing, so reaching
+        here means the drop was unexpected -- log it and, unless we're
+        already shutting down or already recovering, spawn the reconnect
+        loop.
         """
         try:
             logger.error(
@@ -180,8 +187,43 @@ class DegradedTolerantAsyncPgBackend(AsyncPgChannelsBackend):
             )
         except Exception:  # pragma: no cover - logging itself must not cascade
             pass
+        if self._closing:
+            return
+        if self._reconnect_task is not None and not self._reconnect_task.done():
+            return
+        self._reconnect_task = asyncio.get_running_loop().create_task(self._reconnect_listener())
+
+    async def _reconnect_listener(self) -> None:
+        """Rebuild the LISTEN connection with capped exponential backoff.
+
+        Each attempt redoes exactly what on_startup() + subscribe() did:
+        open a fresh connection, register the termination callback, and
+        LISTEN every channel still in `_subscribed_channels`. subscribe()
+        itself won't re-issue LISTEN for channels already in that set, so
+        the re-registration goes straight through add_listener() instead.
+        """
+        delay = self._RECONNECT_INITIAL_DELAY
+        while not self._closing:
+            try:
+                self._listener_conn = await self._connect()
+                self._listener_conn.add_termination_listener(self._on_listener_terminated)
+                for channel in self._subscribed_channels:
+                    await self._listener_conn.add_listener(channel, self._listener)
+            except Exception as exc:
+                logger.warning("channels listener reconnect attempt failed: %s", exc)
+                await asyncio.sleep(delay)
+                delay = min(delay * 2, self._RECONNECT_MAX_DELAY)
+                continue
+            logger.info("channels listener reconnected")
+            return
 
     async def on_shutdown(self) -> None:
+        self._closing = True
+        if self._reconnect_task is not None:
+            self._reconnect_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await self._reconnect_task
+            self._reconnect_task = None
         if self.degraded:
             return
         if self._pub_conn is not None:
