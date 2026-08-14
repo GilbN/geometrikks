@@ -257,8 +257,9 @@ async def ingestion_lifespan(app: "Litestar") -> "AsyncGenerator[None]":
 
     # Hand-built test apps in the lifespan suites are bare stand-ins with no
     # `.plugins` registry at all; real apps always carry ChannelsPlugin
-    # (registered in server/plugins.py), so a genuine lookup miss there would
-    # be a wiring bug worth surfacing, not swallowing.
+    # (registered in server/plugins.py), so a genuine lookup miss there is a
+    # wiring bug: log it loudly and degrade the live feed rather than crash
+    # ingestion over it.
     channels: ChannelsPlugin | None = None
     plugins = getattr(app, "plugins", None)
     if plugins is not None:

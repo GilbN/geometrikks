@@ -75,7 +75,7 @@ TS = datetime(2026, 7, 1, 12, 0, tzinfo=timezone.utc)
 
 
 def _make_record_for_legacy_tests(with_geo: bool = True, with_log: bool = True) -> ParsedLogRecord:
-    """Helper for TestRecordToEvents; provides hostname required by new implementation."""
+    """Helper for TestRecordToEvents; stamps a hostname so events carry a real value."""
     geo = ParsedGeoData(
         latitude=51.5, longitude=-0.09, geohash="gcpvj", country_code="GB",
         country_name="UK", timestamp=TS, city="London",
@@ -89,6 +89,7 @@ def _make_record_for_legacy_tests(with_geo: bool = True, with_log: bool = True) 
     ) if with_log else None
     return ParsedLogRecord(
         ip_address="81.2.69.142", geo_data=geo, access_log=log, raw_line="x",
+        hostname="legacy-host",
     )
 
 
@@ -110,6 +111,7 @@ class TestRecordToEvents:
         }
         assert log["http_version"] == "1.1" and log["user_agent"] == "curl"
         assert log["host"] == "example.com" and log["country_code"] == "GB"
+        assert geo["hostname"] == "legacy-host" and log["hostname"] == "legacy-host"
 
     def test_geo_only_record(self):
         events = record_to_events(_make_record_for_legacy_tests(with_log=False))
