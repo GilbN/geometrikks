@@ -292,10 +292,19 @@ async def test_reconnect_backs_off_and_stops_on_shutdown(monkeypatch) -> None:
     assert backend._reconnect_task is None or backend._reconnect_task.cancelled()
 
 
-async def test_reconnect_closes_connection_on_partial_setup_failure(monkeypatch) -> None:
+async def test_reconnect_closes_connection_on_partial_setup_failure(
+    monkeypatch, caplog: pytest.LogCaptureFixture
+) -> None:
     """If _connect() succeeds but a subsequent setup step (add_listener)
     raises, the abandoned connection must be closed before the next
-    attempt -- otherwise a flapping DB leaks one socket per failed attempt."""
+    attempt -- otherwise a flapping DB leaks one socket per failed attempt.
+
+    The abandoned connection's best-effort close must also not log a false
+    "listener connection lost" ERROR: FakeConnection.close() fires
+    termination listeners (mirroring asyncpg's real behavior), and the
+    just-registered callback on `new_conn` would otherwise see that close
+    as an unexpected drop even though a retry follows right after.
+    """
     fake_conn = FakeConnection()
 
     class BadListenerConn(FakeConnection):
@@ -317,13 +326,19 @@ async def test_reconnect_closes_connection_on_partial_setup_failure(monkeypatch)
 
     monkeypatch.setattr(asyncio, "sleep", fake_sleep)
 
+    # The initial drop of fake_conn is a real unexpected termination and
+    # legitimately logs its own ERROR; clear it so the assertion below is
+    # scoped to the cleanup close of the abandoned bad_conn.
     fake_conn._call_termination_listeners()
     assert backend._reconnect_task is not None
+    caplog.clear()
 
-    with contextlib.suppress(asyncio.CancelledError):
-        await backend._reconnect_task
+    with caplog.at_level("ERROR"):
+        with contextlib.suppress(asyncio.CancelledError):
+            await backend._reconnect_task
 
     assert bad_conn.close_called is True
+    assert not any("listener connection lost" in r.getMessage() for r in caplog.records)
 
 
 async def test_graceful_shutdown_does_not_reconnect() -> None:
@@ -372,3 +387,48 @@ async def test_publish_failure_drops_event_and_reconnects_next_time() -> None:
     await backend.publish(b"{}", ["live_events"])  # new connection, succeeds
     assert len(calls) == 2
     assert len(calls[1].executed) == 1
+
+
+class DeadListenerConn(FakeConnection):
+    """A listener connection that is dead (as during the reconnect window):
+    every LISTEN/UNLISTEN call raises."""
+
+    async def add_listener(self, channel, callback) -> None:
+        raise OSError("connection is closed")
+
+    async def remove_listener(self, channel, callback) -> None:
+        raise OSError("connection is closed")
+
+
+async def test_subscribe_against_dead_listener_conn_does_not_raise(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A /ws/live client subscribing during the reconnect window (the
+    tracked listener connection is dead) must not be dropped with a
+    traceback -- the channel is still recorded in _subscribed_channels so
+    the next successful reconnect's re-LISTEN restores it."""
+    backend = DegradedTolerantAsyncPgBackend(make_connection=lambda: None)
+    backend._listener_conn = DeadListenerConn()  # ty: ignore[invalid-assignment]
+
+    with caplog.at_level("WARNING"):
+        await backend.subscribe(["live_events"])  # must not raise
+
+    assert "live_events" in backend._subscribed_channels
+    assert any("subscribe" in r.getMessage().lower() for r in caplog.records)
+
+
+async def test_unsubscribe_against_dead_listener_conn_does_not_raise(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Same as subscribe: a client disconnecting during the reconnect window
+    must not raise, and the channel must still come out of the tracked set
+    so a stale entry doesn't survive to the next reconnect's re-LISTEN."""
+    backend = DegradedTolerantAsyncPgBackend(make_connection=lambda: None)
+    backend._listener_conn = DeadListenerConn()  # ty: ignore[invalid-assignment]
+    backend._subscribed_channels = {"live_events"}
+
+    with caplog.at_level("WARNING"):
+        await backend.unsubscribe(["live_events"])  # must not raise
+
+    assert "live_events" not in backend._subscribed_channels
+    assert any("unsubscribe" in r.getMessage().lower() for r in caplog.records)

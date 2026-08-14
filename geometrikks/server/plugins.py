@@ -213,6 +213,13 @@ class DegradedTolerantAsyncPgBackend(AsyncPgChannelsBackend):
             except Exception as exc:
                 logger.warning("channels listener reconnect attempt failed: %s", exc)
                 if new_conn is not None:
+                    # Unregister first: closing an abandoned connection that
+                    # still carries the just-added termination callback
+                    # would fire it and log a false "listener connection
+                    # lost" ERROR for a cleanup close, even though a retry
+                    # follows immediately after.
+                    with contextlib.suppress(Exception):
+                        new_conn.remove_termination_listener(self._on_listener_terminated)
                     with contextlib.suppress(Exception):
                         await new_conn.close()
                 await asyncio.sleep(delay)
@@ -271,14 +278,60 @@ class DegradedTolerantAsyncPgBackend(AsyncPgChannelsBackend):
             self._pub_conn = None
 
     async def subscribe(self, channels: Iterable[str]) -> None:
+        """LISTEN each not-yet-tracked channel; tolerate a dead listener conn.
+
+        During the reconnect window ``self._listener_conn`` is dead, and a
+        `/ws/live` client can connect right then. Reimplemented (rather than
+        wrapping ``super().subscribe()`` in one try/except) because the
+        parent adds each channel to ``_subscribed_channels`` only *after*
+        its LISTEN succeeds, inside the same per-channel loop iteration: one
+        try/except around the whole call would stop the bookkeeping at the
+        first failing channel too. Tracking every requested channel
+        regardless of LISTEN failure means the reconnect loop's re-LISTEN
+        (which walks `_subscribed_channels`) heals it once the connection
+        is replaced.
+        """
         if self.degraded:
             return
-        await super().subscribe(channels)
+        for channel in set(channels) - self._subscribed_channels:
+            try:
+                await self._listener_conn.add_listener(channel, self._listener)  # type: ignore[arg-type]
+            except Exception as exc:
+                logger.warning(
+                    "channels subscribe(%r) failed against a dead listener "
+                    "connection; tracked anyway, the next reconnect will "
+                    "re-LISTEN it: %s",
+                    channel,
+                    exc,
+                )
+            self._subscribed_channels.add(channel)
 
     async def unsubscribe(self, channels: Iterable[str]) -> None:
+        """UNLISTEN each channel; tolerate a dead listener conn.
+
+        Reimplemented for the same reason as subscribe(): the parent only
+        drops channels from ``_subscribed_channels`` after the whole
+        UNLISTEN loop completes, so a single try/except around
+        ``super().unsubscribe()`` would leave every channel (including ones
+        already unlistened) stuck in the tracked set if any UNLISTEN call
+        raised. Removing from the tracked set regardless of the call's
+        outcome keeps a disconnecting `/ws/live` client from leaving a
+        stale entry that the next reconnect's re-LISTEN would wrongly
+        restore.
+        """
         if self.degraded:
             return
-        await super().unsubscribe(channels)
+        for channel in channels:
+            try:
+                await self._listener_conn.remove_listener(channel, self._listener)  # type: ignore[arg-type]
+            except Exception as exc:
+                logger.warning(
+                    "channels unsubscribe(%r) failed against a dead listener "
+                    "connection; untracked anyway: %s",
+                    channel,
+                    exc,
+                )
+        self._subscribed_channels = self._subscribed_channels - set(channels)
 
     async def stream_events(self) -> AsyncGenerator[tuple[str, bytes], None]:
         if self.degraded:
