@@ -30,6 +30,7 @@ from geometrikks.server.logging import get_logger
 from geometrikks.server.migrations import migrate_database
 from geometrikks.server import runtime
 from geometrikks.server.plugins import get_app_db_config
+from geometrikks.server.schema_wait import wait_for_schema
 from geometrikks.server.timescale import setup_timescaledb
 
 from geometrikks.services.crowdsec import CrowdSecService
@@ -129,8 +130,17 @@ async def crowdsec_lifespan(app: "Litestar") -> "AsyncGenerator[None]":
 
     Teardown closes the LAPI client; it exits after the scheduler and
     ingestion managers, so nothing that could still use the client outlives it.
+
+    No-ops entirely in agent mode: the primary instance owns bans, so an
+    agent wires no LAPI client and no poller regardless of CROWDSEC_ settings.
     """
     settings = _resolve_settings(app)
+    if settings.is_agent:
+        app.state.crowdsec_service = None
+        app.state.crowdsec_stream_poller = None
+        yield
+        return
+
     service: CrowdSecService | None = None
     # The finally covers the setup phase too: if wiring fails after the LAPI
     # client exists (e.g. poller construction), the client is still closed.
@@ -163,8 +173,27 @@ async def database_lifespan(app: "Litestar") -> "AsyncGenerator[None]":
       an error to surface, not an outage to degrade around.
 
     Engine disposal belongs to the SQLAlchemy plugin, so there is no teardown.
+
+    Agent mode never migrates and never touches TimescaleDB objects -- the
+    primary instance owns the schema. It waits for that schema to reach (or
+    pass) the head this build was compiled against instead.
     """
     settings = _resolve_settings(app)
+
+    if settings.is_agent:
+        engine = get_app_db_config(app).get_engine()
+        result = await wait_for_schema(engine)
+        app.state.schema_wait_result = result
+        if result == "timeout":
+            app.state.db_available = False
+            logger.error(
+                "Timed out waiting for the database schema to be ready; "
+                "starting in degraded mode."
+            )
+        else:
+            app.state.db_available = True
+        yield
+        return
 
     if not await _db_available(app):
         logger.warning("Starting without database: skipping migrations and ingestion.")
@@ -214,12 +243,19 @@ async def scheduler_lifespan(app: "Litestar") -> "AsyncGenerator[None]":
     settings = _resolve_settings(app)
     session_maker = get_app_db_config(app).create_session_maker()
 
-    # Tracker must attach before start so no event is missed.
-    scheduler: AsyncIOScheduler = await create_scheduler(
-        session_maker,
-        settings,
-        crowdsec_poller=runtime.get_crowdsec_poller(app),
-    )
+    # Tracker must attach before start so no event is missed. mode is only
+    # passed for agent mode, not "full": some hand-built test doubles for
+    # create_scheduler predate the mode parameter and only accept the
+    # original (session_factory, settings, crowdsec_poller) call shape.
+    crowdsec_poller = runtime.get_crowdsec_poller(app)
+    if settings.is_agent:
+        scheduler: AsyncIOScheduler = await create_scheduler(
+            session_maker, settings, crowdsec_poller=crowdsec_poller, mode="agent"
+        )
+    else:
+        scheduler = await create_scheduler(
+            session_maker, settings, crowdsec_poller=crowdsec_poller
+        )
     # The finally covers start() itself: if it activates the scheduler and
     # then raises, the running scheduler is still shut down.
     try:

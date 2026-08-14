@@ -153,6 +153,55 @@ async def test_db_degraded_mode_skips_scheduler_and_ingestion(monkeypatch):
     cast("MagicMock", lc.LogIngestionService).assert_not_called()
 
 
+async def test_agent_mode_waits_for_schema_and_skips_crowdsec(monkeypatch):
+    """Agent mode never migrates or manages TimescaleDB objects -- it waits
+    for the primary instance's schema instead -- and never wires CrowdSec."""
+    from geometrikks.server import lifecycle as lc
+    from geometrikks.config.settings import Settings
+
+    monkeypatch.setenv("APP_MODE", "agent")
+    _patch_startup_collaborators(
+        monkeypatch, lc, db_available=True, ensure=AsyncMock(return_value=True)
+    )
+    wait_for_schema = AsyncMock(return_value="ready")
+    monkeypatch.setattr(lc, "wait_for_schema", wait_for_schema)
+
+    app = SimpleNamespace(state=SimpleNamespace())
+    app.state.settings = Settings()
+    async with enter_lifespan(app):
+        pass
+
+    wait_for_schema.assert_awaited_once()
+    cast("AsyncMock", lc.migrate_database).assert_not_awaited()
+    cast("AsyncMock", lc.setup_timescaledb).assert_not_awaited()
+    assert app.state.db_available is True
+    assert app.state.schema_wait_result == "ready"
+    assert app.state.crowdsec_service is None
+    assert app.state.crowdsec_stream_poller is None
+
+
+async def test_agent_mode_schema_timeout_is_db_degraded(monkeypatch):
+    """A schema wait that never reaches ready/newer degrades like an
+    unreachable database: no scheduler, no ingestion."""
+    from geometrikks.server import lifecycle as lc
+    from geometrikks.config.settings import Settings
+
+    monkeypatch.setenv("APP_MODE", "agent")
+    _patch_startup_collaborators(
+        monkeypatch, lc, db_available=True, ensure=AsyncMock(return_value=True)
+    )
+    monkeypatch.setattr(lc, "wait_for_schema", AsyncMock(return_value="timeout"))
+
+    app = SimpleNamespace(state=SimpleNamespace())
+    app.state.settings = Settings()
+    async with enter_lifespan(app):
+        assert app.state.db_available is False
+        assert app.state.schema_wait_result == "timeout"
+
+    cast("AsyncMock", lc.create_scheduler).assert_not_awaited()
+    cast("MagicMock", lc.LogIngestionService).assert_not_called()
+
+
 async def test_ingestion_wires_per_file_hostnames(monkeypatch):
     """Each tailed file's parser gets its positional hostname; the service
     fallback gets the first resolved hostname."""
