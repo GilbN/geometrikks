@@ -26,7 +26,12 @@ from real environment variables. It is read once at import time.
 | `APP_ADMIN_PASSWORD` | — | Admin login password (required unless auth_disabled=true) |
 | `APP_SESSION_SECURE` | `false` | Mark the session cookie Secure so browsers only send it over HTTPS. Recommended when serving behind a TLS reverse proxy. |
 | `APP_TRUSTED_PROXIES` | *(computed)* | Reverse-proxy IPs/CIDRs allowed to supply X-Forwarded-For. Env accepts one value, comma-separated values, or a JSON list. Empty (default): forwarded headers are never trusted. |
-| `APP_APP` | *(computed)* |  |
+
+## Application mode
+
+| Variable | Default | Description |
+|---|---|---|
+| `APP_MODE` | `full` | Application mode: full (all components) or agent (logparser only) |
 
 ## API server
 
