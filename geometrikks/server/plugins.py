@@ -182,6 +182,15 @@ class DegradedTolerantAsyncPgBackend(AsyncPgChannelsBackend):
     async def on_shutdown(self) -> None:
         if self.degraded:
             return
+        # asyncpg fires termination listeners on a graceful close() too (via
+        # Connection._cleanup()), not just on an unexpected drop. Unregister
+        # first so a normal shutdown doesn't log a false "listener lost"
+        # alarm; remove_termination_listener() uses set.discard() internally
+        # so it is a no-op if the listener was never added.
+        try:
+            self._listener_conn.remove_termination_listener(self._on_listener_terminated)
+        except Exception:  # pragma: no cover - shutdown must not be blocked by this
+            pass
         await super().on_shutdown()
 
     async def publish(self, data: bytes, channels: Iterable[str]) -> None:

@@ -59,16 +59,32 @@ async def test_publish_survives_transient_failure_when_not_degraded() -> None:
     assert backend.degraded is False
 
 
+class FakeConnection:
+    """Mirrors the asyncpg.Connection termination-listener behavior we rely
+    on: add/remove use set semantics (remove of an absent callback is a
+    no-op), and close() fires whatever listeners are still registered --
+    asyncpg's real Connection.close() unconditionally calls _cleanup(), which
+    calls _call_termination_listeners(), even on a graceful close."""
+
+    def __init__(self) -> None:
+        self._listeners: set = set()
+        self.close_called = False
+
+    def add_termination_listener(self, callback) -> None:
+        self._listeners.add(callback)
+
+    def remove_termination_listener(self, callback) -> None:
+        self._listeners.discard(callback)
+
+    async def close(self) -> None:
+        self.close_called = True
+        for cb in list(self._listeners):
+            cb(self)
+        self._listeners.clear()
+
+
 async def test_on_startup_registers_termination_listener() -> None:
     """A dropped LISTEN connection must be logged, not silently swallowed."""
-
-    class FakeConnection:
-        def __init__(self) -> None:
-            self.termination_callback = None
-
-        def add_termination_listener(self, callback) -> None:
-            self.termination_callback = callback
-
     fake_conn = FakeConnection()
 
     async def make_connection() -> FakeConnection:
@@ -78,7 +94,49 @@ async def test_on_startup_registers_termination_listener() -> None:
     await backend.on_startup()
 
     assert backend.degraded is False
-    assert fake_conn.termination_callback is not None
+    assert backend._on_listener_terminated in fake_conn._listeners
 
     # The callback itself must be exception-safe -- calling it must not raise.
-    fake_conn.termination_callback(fake_conn)
+    backend._on_listener_terminated(fake_conn)
+
+
+async def test_unexpected_termination_still_logs_error(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A connection lost while still registered (i.e. before on_shutdown had
+    a chance to unregister it) must still surface as an error."""
+    fake_conn = FakeConnection()
+
+    async def make_connection() -> FakeConnection:
+        return fake_conn
+
+    backend = DegradedTolerantAsyncPgBackend(make_connection=make_connection)
+    await backend.on_startup()
+
+    with caplog.at_level("ERROR"):
+        await fake_conn.close()  # simulates asyncpg firing listeners on drop
+
+    assert any("listener connection lost" in r.getMessage() for r in caplog.records)
+
+
+async def test_graceful_shutdown_does_not_log_false_listener_lost(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """asyncpg fires termination listeners on a graceful close() too, so
+    on_shutdown must unregister the listener first -- otherwise every normal
+    app shutdown/redeploy logs a false "listener connection lost" alarm."""
+    fake_conn = FakeConnection()
+
+    async def make_connection() -> FakeConnection:
+        return fake_conn
+
+    backend = DegradedTolerantAsyncPgBackend(make_connection=make_connection)
+    await backend.on_startup()
+    assert backend._on_listener_terminated in fake_conn._listeners
+
+    with caplog.at_level("ERROR"):
+        await backend.on_shutdown()
+
+    assert fake_conn.close_called is True
+    assert not fake_conn._listeners  # unregistered before close fired anything
+    assert not any("listener connection lost" in r.getMessage() for r in caplog.records)
