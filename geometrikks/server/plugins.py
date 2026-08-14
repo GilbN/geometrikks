@@ -183,7 +183,7 @@ class DegradedTolerantAsyncPgBackend(AsyncPgChannelsBackend):
         """
         try:
             logger.error(
-                "channels listener connection lost; live feed is dead on this instance until restart"
+                "channels listener connection lost; attempting automatic reconnect"
             )
         except Exception:  # pragma: no cover - logging itself must not cascade
             pass
@@ -208,7 +208,14 @@ class DegradedTolerantAsyncPgBackend(AsyncPgChannelsBackend):
             try:
                 new_conn = await self._connect()
                 new_conn.add_termination_listener(self._on_listener_terminated)
-                for channel in self._subscribed_channels:
+                # Snapshot: subscribe() mutates this set in place, and a
+                # /ws/live client connecting mid-reconnect would otherwise
+                # blow up the iteration ("set changed size") and waste an
+                # attempt. A channel added after the snapshot stays tracked
+                # and heals on a later reconnect, same as any subscribe that
+                # hits the dead-connection window. In production the set is
+                # a single fixed channel, so that window is a startup edge.
+                for channel in list(self._subscribed_channels):
                     await new_conn.add_listener(channel, self._listener)
             except Exception as exc:
                 logger.warning("channels listener reconnect attempt failed: %s", exc)

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+from collections.abc import Callable
 
 import pytest
 
@@ -339,6 +340,54 @@ async def test_reconnect_closes_connection_on_partial_setup_failure(
 
     assert bad_conn.close_called is True
     assert not any("listener connection lost" in r.getMessage() for r in caplog.records)
+
+
+async def test_reconnect_survives_concurrent_subscribe(monkeypatch) -> None:
+    """A /ws/live client subscribing mid-reconnect mutates _subscribed_channels
+    while the loop LISTENs the tracked set; iterating a snapshot must let the
+    attempt succeed instead of dying on RuntimeError and burning a backoff
+    cycle."""
+    class RacingConnection(FakeConnection):
+        """First add_listener call mutates the backend's tracked set, the way
+        a concurrent subscribe() would."""
+
+        race: Callable[[], None] | None = None
+        _raced = False
+
+        async def add_listener(self, channel, callback) -> None:
+            if not self._raced and self.race is not None:
+                self._raced = True
+                self.race()
+            await super().add_listener(channel, callback)
+
+    startup_conn = FakeConnection()
+    new_conn = RacingConnection()
+    conns: list[FakeConnection] = [startup_conn, new_conn]
+
+    async def make_connection() -> FakeConnection:
+        return conns.pop(0)
+
+    backend = DegradedTolerantAsyncPgBackend(make_connection=make_connection)
+    await backend.on_startup()
+    await backend.subscribe(["chan-a"])
+    await backend.subscribe(["chan-b"])
+
+    new_conn.race = lambda: backend._subscribed_channels.add("chan-late")
+
+    async def fail_fast_sleep(seconds: float) -> None:
+        # A retry means the first attempt died (the pre-fix RuntimeError);
+        # fail the test immediately instead of looping.
+        raise asyncio.CancelledError
+
+    monkeypatch.setattr(asyncio, "sleep", fail_fast_sleep)
+
+    startup_conn._call_termination_listeners()
+    assert backend._reconnect_task is not None
+    with contextlib.suppress(asyncio.CancelledError):
+        await backend._reconnect_task
+
+    assert backend._listener_conn is new_conn
+    assert {"chan-a", "chan-b"} <= new_conn._listened_channels
 
 
 async def test_graceful_shutdown_does_not_reconnect() -> None:
