@@ -11,7 +11,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `LOGPARSER_LOG_PATHS`, so one instance tailing logs shipped from several
   machines records each file under its source hostname. `litestar
   import-logs` gained `--hostname` to set the stamped hostname per import.
-
+- `APP_MODE=agent`: run the same image as a lightweight remote agent that
+  tails, geolocates, writes, and publishes to the live map, serving only
+  `/health`. `LOGPARSER_ENABLED=false` turns a full instance into a UI head
+  with no local tailing. The live-feed backend now reuses a persistent
+  publish connection and reconnects its listener automatically.
 ## [0.8.0] - 2026-08-16
 
 ### Added
