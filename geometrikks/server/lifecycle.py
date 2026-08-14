@@ -248,14 +248,10 @@ async def scheduler_lifespan(app: "Litestar") -> "AsyncGenerator[None]":
     # create_scheduler predate the mode parameter and only accept the
     # original (session_factory, settings, crowdsec_poller) call shape.
     crowdsec_poller = runtime.get_crowdsec_poller(app)
-    if settings.is_agent:
-        scheduler: AsyncIOScheduler = await create_scheduler(
-            session_maker, settings, crowdsec_poller=crowdsec_poller, mode="agent"
-        )
-    else:
-        scheduler = await create_scheduler(
-            session_maker, settings, crowdsec_poller=crowdsec_poller
-        )
+    kwargs = {"mode": "agent"} if settings.is_agent else {}
+    scheduler: AsyncIOScheduler = await create_scheduler(
+        session_maker, settings, crowdsec_poller=crowdsec_poller, **kwargs
+    )
     # The finally covers start() itself: if it activates the scheduler and
     # then raises, the running scheduler is still shut down.
     try:

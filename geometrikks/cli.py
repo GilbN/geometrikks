@@ -86,12 +86,14 @@ async def _run_import(
             "once to auto-download, or provide the mmdb manually."
         )
 
+    effective_hostname = hostname or settings.logparser.resolved_hostnames()[0]
+    click.echo(f"Stamping hostname: {effective_hostname}")
     service = LogIngestionService(
         parsers=[],
         session_maker=session_maker,
         geoip_path=settings.geoip.db_path,
         locales=settings.geoip.locales,
-        hostname=hostname or settings.logparser.resolved_hostnames()[0],
+        hostname=effective_hostname,
         store_debug_lines=settings.logparser.store_debug_lines,
     )
 

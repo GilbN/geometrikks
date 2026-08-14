@@ -260,7 +260,10 @@ class DegradedTolerantAsyncPgBackend(AsyncPgChannelsBackend):
         too slow for a live-events feed. We keep our own connection instead
         of calling super().publish(); a failed publish drops that event
         (lossy feed is spec-sanctioned) and clears the connection so the next
-        publish reopens it.
+        publish reopens it. A connection the server dropped is only noticed
+        here via the ``execute()`` call itself failing, so the event that
+        surfaces the drop is the one cost of detecting it -- there is no
+        earlier signal to catch it on.
         """
         if self.degraded:
             return

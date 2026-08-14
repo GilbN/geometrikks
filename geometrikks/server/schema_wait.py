@@ -12,6 +12,7 @@ import asyncio
 from typing import TYPE_CHECKING, Literal
 
 from sqlalchemy import text
+from sqlalchemy.exc import MultipleResultsFound
 
 from geometrikks.server.logging import get_logger
 
@@ -89,6 +90,11 @@ async def wait_for_schema(
                 )
                 return "newer"
             logger.info("schema wait: db at %s (bundled head %s), retrying", version, head)
+        except MultipleResultsFound:
+            logger.warning(
+                "alembic_version has multiple rows; branched migration "
+                "history is not supported by the agent gate"
+            )
         except Exception as e:
             logger.info(
                 "schema wait: no alembic_version yet / DB unreachable (bundled head %s), retrying",

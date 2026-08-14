@@ -176,6 +176,10 @@ async def test_ws_disconnect_during_send_is_suppressed_and_cleans_up_subscriptio
         for event in record_to_events(make_record()):
             channels.publish(event, LIVE_EVENTS_CHANNEL)
         await asyncio.wait_for(task, timeout=5)  # must not raise
+        # litestar 2.24 has no public API for subscriber introspection; this
+        # reaches into the private attribute as the only way to observe
+        # cleanup. Fragile: a litestar upgrade that renames/removes
+        # `_channels` breaks this assertion, not the behavior it checks.
         assert channels._channels[LIVE_EVENTS_CHANNEL] == set()
 
 
@@ -192,6 +196,9 @@ async def test_ws_cancellation_still_cleans_up_subscription():
         task.cancel()
         with pytest.raises(asyncio.CancelledError):
             await task
+        # See the comment on the same assertion above: litestar 2.24 has no
+        # public subscriber introspection, so this private-attr reach is the
+        # known fragility if a litestar upgrade breaks this test.
         assert channels._channels[LIVE_EVENTS_CHANNEL] == set()
 
 

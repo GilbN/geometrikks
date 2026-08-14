@@ -92,3 +92,22 @@ async def test_wait_unknown_revision_is_newer(monkeypatch) -> None:
 async def test_wait_times_out(monkeypatch) -> None:
     engine = await _engine_returning([Exception("no table")] * 1000)
     assert await schema_wait.wait_for_schema(engine, timeout=0.05, poll_interval=0.01) == "timeout"
+
+
+async def test_wait_multiple_results_found_warns_and_keeps_polling(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A branched migration history (more than one alembic_version row)
+    must not be silently swallowed by the generic except -- it's not a
+    "not ready yet" case, it's a state the agent gate doesn't support."""
+    from sqlalchemy.exc import MultipleResultsFound
+
+    engine = await _engine_returning([MultipleResultsFound()] * 1000)
+    with caplog.at_level("WARNING"):
+        result = await schema_wait.wait_for_schema(engine, timeout=0.05, poll_interval=0.01)
+    assert result == "timeout"
+    assert any(
+        "alembic_version has multiple rows" in r.getMessage()
+        and "branched migration history" in r.getMessage()
+        for r in caplog.records
+    )
