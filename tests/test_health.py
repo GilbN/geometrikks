@@ -169,6 +169,24 @@ def test_health_full_mode_running_status(monkeypatch):
     assert body["schemaWait"] is None
 
 
+def test_health_ingestion_status_degraded_when_service_not_running(monkeypatch):
+    """A constructed-but-not-running service reports ingestion.status
+    "degraded", with the legacy `running` boolean staying False alongside
+    it -- pins the side-by-side compatibility contract for the degraded leg."""
+    async def db_up(app, timeout: float = 2.0) -> bool:
+        return True
+    monkeypatch.setattr(health_module, "_database_reachable", db_up)
+
+    app = make_app()
+    service = _running_service(file_missing=False)
+    service.is_running = False
+    app.state.ingestion_service = service
+    with TestClient(app=app) as client:
+        body = client.get("/health").json()
+    assert body["ingestion"]["status"] == "degraded"
+    assert body["ingestion"]["running"] is False
+
+
 def test_health_logparser_disabled_is_not_degraded(monkeypatch):
     """LOGPARSER_ENABLED=false reports ingestion.status "disabled" and the
     overall status stays healthy -- disabled-by-config is not an outage."""
