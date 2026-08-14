@@ -12,7 +12,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `LOGPARSER_HOST_NAME` accepts a JSON list matched positionally to
   `LOGPARSER_LOG_PATHS`, so one instance tailing logs shipped from several
   machines records each file under its source hostname. `litestar
-  import-logs` gained `--hostname` to set the stamped hostname per import.
+  import-logs` gained `--hostname` to set the stamped hostname per import
+  and now echoes which hostname it stamps.
 - `APP_MODE=agent`: run the same image as a lightweight remote agent that
   tails, geolocates, writes, and publishes to the live map, serving only
   `/health` and `/health/ready`. `LOGPARSER_ENABLED=false` turns a full
