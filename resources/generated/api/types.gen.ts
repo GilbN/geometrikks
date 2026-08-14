@@ -426,6 +426,8 @@ export type HealthResponse = {
   database: DatabaseHealth;
   geoip: GeoIpHealth;
   ingestion: IngestionHealth;
+  mode?: "full" | "agent";
+  schemaWait?: string | null;
   startedAt: string | null;
   status: "healthy" | "degraded";
   timestamp: string;
@@ -450,7 +452,9 @@ export type IngestionHealth = {
   missingFiles: Array<string>;
   parsedLines: number;
   pendingRecords: number;
+  publishDropped?: number;
   running: boolean;
+  status?: "running" | "degraded" | "disabled";
 };
 
 /**

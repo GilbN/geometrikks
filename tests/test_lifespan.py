@@ -202,6 +202,28 @@ async def test_agent_mode_schema_timeout_is_db_degraded(monkeypatch):
     cast("MagicMock", lc.LogIngestionService).assert_not_called()
 
 
+async def test_ingestion_disabled_by_config_skips_construction(monkeypatch):
+    """LOGPARSER_ENABLED=false no-ops ingestion without building parsers or
+    the service -- mirrors the DB-degraded no-op path -- and records a state
+    flag so health can tell "disabled by configuration" apart from degraded."""
+    from geometrikks.server import lifecycle as lc
+    from geometrikks.config.settings import Settings
+
+    monkeypatch.setenv("LOGPARSER_ENABLED", "false")
+    _patch_startup_collaborators(
+        monkeypatch, lc, db_available=True, ensure=AsyncMock(return_value=True)
+    )
+
+    app = SimpleNamespace(state=SimpleNamespace())
+    app.state.settings = Settings()
+    async with enter_lifespan(app):
+        assert app.state.ingestion_enabled is False
+        assert not hasattr(app.state, "ingestion_service")
+
+    cast("MagicMock", lc.LogParser).assert_not_called()
+    cast("MagicMock", lc.LogIngestionService).assert_not_called()
+
+
 async def test_ingestion_wires_per_file_hostnames(monkeypatch):
     """Each tailed file's parser gets its positional hostname; the service
     fallback gets the first resolved hostname."""

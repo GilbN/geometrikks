@@ -34,6 +34,9 @@ class IngestionHealth(msgspec.Struct, rename="camel"):
     pending_records: int
     missing_files: list[str]
     last_record_at: str | None
+    # Additive: kept alongside `running` for wire compatibility.
+    status: Literal["running", "degraded", "disabled"] = "running"
+    publish_dropped: int = 0
 
 
 class DatabaseHealth(msgspec.Struct, rename="camel"):
@@ -58,6 +61,10 @@ class HealthResponse(msgspec.Struct, rename="camel"):
     geoip: GeoIPHealth
     crowdsec: CrowdSecHealth
     timestamp: str
+    # Additive: agent-mode reporting (Task 5/6). schema_wait is None in full
+    # mode, since only agent startup ever sets app.state.schema_wait_result.
+    mode: Literal["full", "agent"] = "full"
+    schema_wait: str | None = None
 
 
 class ReadinessResponse(msgspec.Struct, rename="camel"):
@@ -104,11 +111,21 @@ async def health(
 
     poller = runtime.get_crowdsec_poller(request.app)
 
+    # LOGPARSER_ENABLED=false is an operator choice, not an outage: it must
+    # report "disabled", not "degraded", and must not flip overall status.
+    ingestion_status: Literal["running", "degraded", "disabled"]
+    if not settings.logparser.enabled:
+        ingestion_status = "disabled"
+    elif is_running:
+        ingestion_status = "running"
+    else:
+        ingestion_status = "degraded"
+
     return HealthResponse(
         # geoip does not flip status on its own: without a GeoLite2 database
         # file, ingestion refuses to start and ingestion.running reflects that.
         status="healthy"
-        if (is_running and db_reachable and not missing_files)
+        if (db_reachable and not missing_files and ingestion_status != "degraded")
         else "degraded",
         started_at=_iso(runtime.get_started_at(request.app)),
         ingestion=IngestionHealth(
@@ -118,6 +135,10 @@ async def health(
             missing_files=missing_files,
             last_record_at=_iso(
                 ingestion_service.last_record_at if ingestion_service else None
+            ),
+            status=ingestion_status,
+            publish_dropped=(
+                ingestion_service.publish_dropped if ingestion_service else 0
             ),
         ),
         database=DatabaseHealth(reachable=db_reachable),
@@ -136,6 +157,12 @@ async def health(
             lapi_reachable=poller.lapi_reachable if poller is not None else None,
         ),
         timestamp=datetime.now(timezone.utc).isoformat(),
+        mode="agent" if settings.is_agent else "full",
+        schema_wait=(
+            getattr(request.app.state, "schema_wait_result", None)
+            if settings.is_agent
+            else None
+        ),
     )
 
 

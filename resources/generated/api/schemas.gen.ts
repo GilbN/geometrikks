@@ -1409,6 +1409,21 @@ export const HealthResponseSchema = {
     ingestion: {
       $ref: "#/components/schemas/IngestionHealth",
     },
+    mode: {
+      default: "full",
+      enum: ["full", "agent"],
+      type: "string",
+    },
+    schemaWait: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
     startedAt: {
       oneOf: [
         {
@@ -1521,8 +1536,17 @@ export const IngestionHealthSchema = {
     pendingRecords: {
       type: "integer",
     },
+    publishDropped: {
+      default: 0,
+      type: "integer",
+    },
     running: {
       type: "boolean",
+    },
+    status: {
+      default: "running",
+      enum: ["running", "degraded", "disabled"],
+      type: "string",
     },
   },
   required: [

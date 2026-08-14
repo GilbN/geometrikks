@@ -150,3 +150,70 @@ def test_health_crowdsec_enabled_and_down(monkeypatch):
     assert body["crowdsec"] == {"enabled": True, "lapiReachable": False}
     # CrowdSec being down must not degrade the app status by itself
     assert body["status"] == "degraded"  # degraded because no ingestion in make_app
+
+
+def test_health_full_mode_running_status(monkeypatch):
+    """Full mode (default APP_MODE) with a running service reports mode
+    "full" and ingestion.status "running", alongside the legacy boolean."""
+    async def db_up(app, timeout: float = 2.0) -> bool:
+        return True
+    monkeypatch.setattr(health_module, "_database_reachable", db_up)
+
+    app = make_app()
+    app.state.ingestion_service = _running_service(file_missing=False)
+    with TestClient(app=app) as client:
+        body = client.get("/health").json()
+    assert body["mode"] == "full"
+    assert body["ingestion"]["status"] == "running"
+    assert body["ingestion"]["running"] is True
+    assert body["schemaWait"] is None
+
+
+def test_health_logparser_disabled_is_not_degraded(monkeypatch):
+    """LOGPARSER_ENABLED=false reports ingestion.status "disabled" and the
+    overall status stays healthy -- disabled-by-config is not an outage."""
+    async def db_up(app, timeout: float = 2.0) -> bool:
+        return True
+    monkeypatch.setattr(health_module, "_database_reachable", db_up)
+    monkeypatch.setenv("LOGPARSER_ENABLED", "false")
+
+    with TestClient(app=make_app()) as client:
+        body = client.get("/health").json()
+    assert body["ingestion"]["status"] == "disabled"
+    assert body["ingestion"]["running"] is False
+    assert body["status"] == "healthy"
+
+
+def test_health_agent_mode_reports_schema_wait(monkeypatch):
+    """Agent mode surfaces mode == "agent" and the recorded schema_wait_result."""
+    async def db_up(app, timeout: float = 2.0) -> bool:
+        return True
+    monkeypatch.setattr(health_module, "_database_reachable", db_up)
+    monkeypatch.setenv("APP_MODE", "agent")
+
+    app = make_app()
+    app.state.schema_wait_result = "ready"
+    with TestClient(app=app) as client:
+        body = client.get("/health").json()
+    assert body["mode"] == "agent"
+    assert body["schemaWait"] == "ready"
+
+
+def test_health_publish_dropped_present(monkeypatch):
+    """publish_dropped surfaces the ingestion service's counter, defaulting
+    to 0 when there is no service."""
+    async def db_up(app, timeout: float = 2.0) -> bool:
+        return True
+    monkeypatch.setattr(health_module, "_database_reachable", db_up)
+
+    app = make_app()
+    service = _running_service(file_missing=False)
+    service.publish_dropped = 3
+    app.state.ingestion_service = service
+    with TestClient(app=app) as client:
+        body = client.get("/health").json()
+    assert body["ingestion"]["publishDropped"] == 3
+
+    with TestClient(app=make_app()) as client:
+        body = client.get("/health").json()
+    assert body["ingestion"]["publishDropped"] == 0
