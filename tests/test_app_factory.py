@@ -111,6 +111,36 @@ def test_channels_plugin_registered() -> None:
     assert app.plugins.get(ChannelsPlugin) is not None
 
 
+def test_agent_mode_serves_only_health_routes(monkeypatch) -> None:
+    monkeypatch.setenv("APP_MODE", "agent")
+    app = create_app(settings=_hermetic_settings())
+    paths = {route.path for route in app.routes}
+    assert paths == {"/health", "/health/ready"}
+
+
+def test_agent_mode_has_no_vite_and_keeps_channels(monkeypatch) -> None:
+    from litestar.channels import ChannelsPlugin
+    from litestar_vite import VitePlugin
+
+    monkeypatch.setenv("APP_MODE", "agent")
+    app = create_app(settings=_hermetic_settings())
+    assert app.plugins.get(ChannelsPlugin) is not None
+    with pytest.raises(KeyError):
+        app.plugins.get(VitePlugin)
+
+
+def test_agent_mode_needs_no_app_secret(monkeypatch) -> None:
+    """Agent mode must skip the whole auth block, not just relax it: full
+    mode requires APP_ADMIN_PASSWORD unless auth_disabled is set, but this
+    settings object leaves auth_disabled at its default (False)."""
+    monkeypatch.setenv("APP_MODE", "agent")
+    monkeypatch.delenv("APP_ADMIN_PASSWORD", raising=False)
+    app = create_app(
+        settings=Settings(database=DatabaseSettings(host="127.0.0.1", port=59999))
+    )
+    assert app is not None
+
+
 def test_create_plugins_derives_db_config_from_explicit_settings(monkeypatch):
     """create_plugins(settings=...) without a db_config must not fall back to
     the ambient process-cached engine (split-brain configuration)."""

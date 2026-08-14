@@ -296,6 +296,7 @@ def create_channels_plugin(settings: Settings) -> ChannelsPlugin:
 def create_plugins(
     settings: Settings | None = None,
     db_config: SQLAlchemyAsyncConfig | None = None,
+    include_vite: bool = True,
 ) -> list[
     SQLAlchemyInitPlugin
     | GeoAlchemyPlugin
@@ -305,7 +306,12 @@ def create_plugins(
     | StructlogPlugin
     | ChannelsPlugin
 ]:
-    """Instantiate all app plugins; called once from create_app()."""
+    """Instantiate all app plugins; called once from create_app().
+
+    include_vite=False for agent mode: no SPA to build/serve, and the Vite
+    plugin would otherwise try to reach a dev server or bundled assets that
+    a headless log-tailing process has no use for.
+    """
     from geometrikks.cli import ImportLogsCLIPlugin
 
     if db_config is None:
@@ -314,12 +320,26 @@ def create_plugins(
         db_config = get_sqlalchemy_config() if settings is None else create_sqlalchemy_config(settings)
     if settings is None:
         settings = get_settings()
-    return [
+    plugin_list: list[
+        SQLAlchemyInitPlugin
+        | GeoAlchemyPlugin
+        | GranianPlugin
+        | VitePlugin
+        | CLIPlugin
+        | StructlogPlugin
+        | ChannelsPlugin
+    ] = [
         SQLAlchemyInitPlugin(config=db_config),
         GeoAlchemyPlugin(),  # GeoAlchemy plugin for PostGIS support
         GranianPlugin(),
-        VitePlugin(config=create_vite_config(settings)),
-        ImportLogsCLIPlugin(),
-        create_structlog_plugin(settings),
-        create_channels_plugin(settings),
     ]
+    if include_vite:
+        plugin_list.append(VitePlugin(config=create_vite_config(settings)))
+    plugin_list.extend(
+        [
+            ImportLogsCLIPlugin(),
+            create_structlog_plugin(settings),
+            create_channels_plugin(settings),
+        ]
+    )
+    return plugin_list

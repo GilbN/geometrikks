@@ -85,3 +85,13 @@ def get_route_handlers() -> list[ControllerRouterHandler]:
         health_ready,
         service_worker,
     ]
+
+
+def get_agent_route_handlers() -> list[ControllerRouterHandler]:
+    """Route handlers for agent mode.
+
+    Agent mode is a headless log-tailing process, not a UI/API server: no
+    /api/v1, no WebSocket feeds, no SPA shell. Only the health probes stay,
+    since they're how the container/orchestrator checks the process is alive.
+    """
+    return [health, health_ready]
