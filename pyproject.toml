@@ -10,7 +10,7 @@ dependencies = [
     "geohash2>=1.1",
     "ipy>=1.1",
     "python-dotenv>=1.2.2",
-    "pydantic-settings>=2.14.2",
+    "pydantic-settings>=2.15.0",
     "asyncpg>=0.31.0",
     "httpx>=0.28",
     "httpx-oauth>=0.17.0",
@@ -18,10 +18,10 @@ dependencies = [
     "geoalchemy2>=0.20.0",
     "litestar-geoalchemy>=0.3.0",
     "apscheduler>=3.11.3,<4.0",
-    "litestar-vite>=0.29.1",
-    "litestar-granian>=0.15.0",
+    "litestar-vite>=0.30.0",
+    "litestar-granian>=0.16.0",
     "advanced-alchemy[argon2,passlib,pwdlib,cli]>=1.11.0",
-    "alembic>=1.19.0",
+    "alembic>=1.19.1",
 ]
 
 [build-system]
@@ -32,7 +32,7 @@ build-backend = "hatchling.build"
 dev = [
     "pytest>=9.1.1",
     "pytest-cov>=7.1.0",
-    "ty>=0.0.66",
+    "ty>=0.0.70",
     "faker>=40.36.0",
     "polyfactory>=3.3.0",
 ]
