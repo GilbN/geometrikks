@@ -161,6 +161,13 @@ class DegradedTolerantAsyncPgBackend(AsyncPgChannelsBackend):
         self._pub_conn: Any | None = None
         self._reconnect_task: asyncio.Task[None] | None = None
         self._closing = False
+        # Serializes subscribe/unsubscribe. A page refresh makes the plugin
+        # unsubscribe the departing /ws/live client and subscribe the new one
+        # concurrently; without the lock, subscribe can interleave into
+        # unsubscribe's awaited UNLISTEN, read the not-yet-updated
+        # bookkeeping as "already subscribed", and skip its LISTEN -- leaving
+        # the process deaf to NOTIFYs until another full cycle.
+        self._sub_lock = asyncio.Lock()
 
     async def on_startup(self) -> None:
         try:
@@ -303,18 +310,19 @@ class DegradedTolerantAsyncPgBackend(AsyncPgChannelsBackend):
         """
         if self.degraded:
             return
-        for channel in set(channels) - self._subscribed_channels:
-            try:
-                await self._listener_conn.add_listener(channel, self._listener)  # type: ignore[arg-type]
-            except Exception as exc:
-                logger.warning(
-                    "channels subscribe(%r) failed against a dead listener "
-                    "connection; tracked anyway, the next reconnect will "
-                    "re-LISTEN it: %s",
-                    channel,
-                    exc,
-                )
-            self._subscribed_channels.add(channel)
+        async with self._sub_lock:
+            for channel in set(channels) - self._subscribed_channels:
+                try:
+                    await self._listener_conn.add_listener(channel, self._listener)  # type: ignore[arg-type]
+                except Exception as exc:
+                    logger.warning(
+                        "channels subscribe(%r) failed against a dead listener "
+                        "connection; tracked anyway, the next reconnect will "
+                        "re-LISTEN it: %s",
+                        channel,
+                        exc,
+                    )
+                self._subscribed_channels.add(channel)
 
     async def unsubscribe(self, channels: Iterable[str]) -> None:
         """UNLISTEN each channel; tolerate a dead listener conn.
@@ -331,17 +339,18 @@ class DegradedTolerantAsyncPgBackend(AsyncPgChannelsBackend):
         """
         if self.degraded:
             return
-        for channel in channels:
-            try:
-                await self._listener_conn.remove_listener(channel, self._listener)  # type: ignore[arg-type]
-            except Exception as exc:
-                logger.warning(
-                    "channels unsubscribe(%r) failed against a dead listener "
-                    "connection; untracked anyway: %s",
-                    channel,
-                    exc,
-                )
-        self._subscribed_channels = self._subscribed_channels - set(channels)
+        async with self._sub_lock:
+            for channel in channels:
+                try:
+                    await self._listener_conn.remove_listener(channel, self._listener)  # type: ignore[arg-type]
+                except Exception as exc:
+                    logger.warning(
+                        "channels unsubscribe(%r) failed against a dead listener "
+                        "connection; untracked anyway: %s",
+                        channel,
+                        exc,
+                    )
+            self._subscribed_channels = self._subscribed_channels - set(channels)
 
     async def stream_events(self) -> AsyncGenerator[tuple[str, bytes], None]:
         if self.degraded:
