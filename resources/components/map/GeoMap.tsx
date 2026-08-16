@@ -230,46 +230,25 @@ function GeoMapInner({
   // Filter options come from the last UNFILTERED result (a second query just
   // for options would be wasteful), held in a ref so the option lists don't
   // shrink to the filtered subset while a filter is active.
-  const optionsRef = useRef<{
-    countries: string[]
-    cities: string[]
-    countryLabels: Record<string, string>
-  }>({
-    countries: [],
-    cities: [],
-    countryLabels: {},
-  })
+  // Options come from the facets endpoint, not the geojson payload: with
+  // URL-restored filters the first geojson response is already filtered, so
+  // deriving options from it would leave the comboboxes empty after reload.
   const filterOptions = useMemo(() => {
-    if (
-      geojson &&
-      selectedCountries.length === 0 &&
-      selectedCities.length === 0 &&
-      selectedSources.length === 0
-    ) {
-      const countryLabels: Record<string, string> = {}
-      const cities = new Set<string>()
-      for (const f of geojson.features) {
-        const code = f.properties.countryCode
-        if (code) {
-          // Display "<name> (<code>)" but keep the code as the option value,
-          // since the value feeds useGeoJSON({ countryCodes }).
-          countryLabels[code] = f.properties.countryName
-            ? `${f.properties.countryName} (${code})`
-            : code
-        }
-        if (f.properties.city) cities.add(f.properties.city)
-      }
-      optionsRef.current = {
-        // Sort country codes by their display label.
-        countries: Object.keys(countryLabels).sort((a, b) =>
-          countryLabels[a].localeCompare(countryLabels[b]),
-        ),
-        cities: [...cities].sort(),
-        countryLabels,
-      }
+    const countryLabels: Record<string, string> = {}
+    for (const c of facets?.countries ?? []) {
+      // Display "<name> (<code>)" but keep the code as the option value,
+      // since the value feeds useGeoJSON({ countryCodes }).
+      countryLabels[c.code] = c.name ? `${c.name} (${c.code})` : c.code
     }
-    return optionsRef.current
-  }, [geojson, selectedCountries, selectedCities, selectedSources])
+    return {
+      // Sort country codes by their display label.
+      countries: Object.keys(countryLabels).sort((a, b) =>
+        countryLabels[a].localeCompare(countryLabels[b]),
+      ),
+      cities: [...(facets?.cities ?? [])].sort(),
+      countryLabels,
+    }
+  }, [facets])
 
   // Handle view state changes
   const onMove = useCallback((evt: ViewStateChangeEvent) => {
