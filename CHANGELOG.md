@@ -57,6 +57,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   CAGGs already carry the hostname dimension (fresh install or
   post-consolidation migration), where its "runs unaggregated" and
   "restart to migrate" copy was false.
+- Refreshing the last open map tab no longer kills the live feed for the
+  whole instance: a departing live-feed client's UNLISTEN could interleave
+  with the arriving client's subscribe and silently skip the re-LISTEN
+  until a second refresh.
 
 ## [0.8.0] - 2026-08-16
 

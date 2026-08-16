@@ -481,3 +481,43 @@ async def test_unsubscribe_against_dead_listener_conn_does_not_raise(
 
     assert "live_events" not in backend._subscribed_channels
     assert any("unsubscribe" in r.getMessage().lower() for r in caplog.records)
+
+
+async def test_refresh_race_unsubscribe_interleaved_subscribe_keeps_listening() -> None:
+    """A page refresh tears down the old /ws/live client and connects the new
+    one concurrently. The plugin then calls unsubscribe (last client left)
+    and subscribe (first client back) back to back; if subscribe runs while
+    unsubscribe is parked awaiting UNLISTEN, it must still end with the
+    channel LISTENed and tracked -- not silently skipped because the
+    bookkeeping said "already subscribed". Seen live: head UNLISTENed and
+    never re-LISTENed until a second refresh."""
+
+    class GatedConnection(FakeConnection):
+        def __init__(self) -> None:
+            super().__init__()
+            self.remove_gate = asyncio.Event()
+
+        async def remove_listener(self, channel, callback) -> None:
+            await self.remove_gate.wait()
+            await super().remove_listener(channel, callback)
+
+    conn = GatedConnection()
+
+    async def make_connection() -> GatedConnection:
+        return conn
+
+    backend = DegradedTolerantAsyncPgBackend(make_connection=make_connection)
+    await backend.on_startup()
+    await backend.subscribe(["live_events"])
+    assert "live_events" in conn._listened_channels
+
+    unsub = asyncio.create_task(backend.unsubscribe(["live_events"]))
+    await asyncio.sleep(0)  # park unsubscribe at the gated remove_listener
+    sub = asyncio.create_task(backend.subscribe(["live_events"]))
+    await asyncio.sleep(0)
+    conn.remove_gate.set()
+    await unsub
+    await sub
+
+    assert "live_events" in conn._listened_channels
+    assert "live_events" in backend._subscribed_channels
