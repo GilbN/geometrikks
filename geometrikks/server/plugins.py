@@ -325,32 +325,21 @@ class DegradedTolerantAsyncPgBackend(AsyncPgChannelsBackend):
                 self._subscribed_channels.add(channel)
 
     async def unsubscribe(self, channels: Iterable[str]) -> None:
-        """UNLISTEN each channel; tolerate a dead listener conn.
+        """Deliberate no-op: the LISTEN is persistent for the process lifetime.
 
-        Reimplemented for the same reason as subscribe(): the parent only
-        drops channels from ``_subscribed_channels`` after the whole
-        UNLISTEN loop completes, so a single try/except around
-        ``super().unsubscribe()`` would leave every channel (including ones
-        already unlistened) stuck in the tracked set if any UNLISTEN call
-        raised. Removing from the tracked set regardless of the call's
-        outcome keeps a disconnecting `/ws/live` client from leaving a
-        stale entry that the next reconnect's re-LISTEN would wrongly
-        restore.
+        The plugin tears the backend subscription down when the last
+        `/ws/live` client disconnects and re-subscribes on the next one. On
+        a page refresh those two calls race in both orders, and a stale
+        unsubscribe decision (made while the subscriber set was momentarily
+        empty) can land after the new client's subscribe no-opped, killing
+        the LISTEN the plugin believes that client holds. Serializing the
+        backend calls cannot fix decision staleness, so with a single
+        declared channel the robust ordering fix is to never UNLISTEN at
+        all: startup subscribes, shutdown closes the connection, and client
+        churn changes nothing in between. The cost is one idle NOTIFY
+        consumer while no clients are connected.
         """
-        if self.degraded:
-            return
-        async with self._sub_lock:
-            for channel in channels:
-                try:
-                    await self._listener_conn.remove_listener(channel, self._listener)  # type: ignore[arg-type]
-                except Exception as exc:
-                    logger.warning(
-                        "channels unsubscribe(%r) failed against a dead listener "
-                        "connection; untracked anyway: %s",
-                        channel,
-                        exc,
-                    )
-            self._subscribed_channels = self._subscribed_channels - set(channels)
+        del channels
 
     async def stream_events(self) -> AsyncGenerator[tuple[str, bytes], None]:
         if self.degraded:

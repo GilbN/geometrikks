@@ -40,10 +40,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   dropped instead of wedging the channel worker (and eventually hanging
   shutdown). A dropped LISTEN connection now logs an error instead of
   silently going dead until restart.
-- Refreshing the last open map tab no longer kills the live feed for the
-  whole instance: a departing live-feed client's UNLISTEN could interleave
-  with the arriving client's subscribe and silently skip the re-LISTEN
-  until a second refresh.
+- Refreshing the last open live-feed tab (map or access-logs live tail) no
+  longer kills the live feed for the whole instance until a second refresh:
+  the departing client's teardown could race the arriving client's
+  subscribe in either order and leave the process deaf to new events. The
+  live-events LISTEN is now held for the process lifetime instead of
+  following client churn.
 
 ## [0.8.0] - 2026-08-16
 
