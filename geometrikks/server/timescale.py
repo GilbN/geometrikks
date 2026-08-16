@@ -15,6 +15,7 @@ CAGG Structure:
 - url_{hourly,daily}_stats: Per-URL access-log counts (top URLs)
 - user_agent_{hourly,daily}_stats: Per-user-agent counts (top user agents)
 - host_daily_stats / hostname_daily_stats: Daily host rollups for facet dropdowns
+- log_source_daily_stats: Daily hostname/log_format rollups for source facets
 """
 
 from __future__ import annotations
@@ -365,7 +366,7 @@ async def _create_user_agent_caggs(conn: "AsyncConnection") -> None:
 
 
 async def _create_host_facet_caggs(conn: "AsyncConnection") -> None:
-    """Create tiny daily host/hostname CAGGs for the facet dropdowns.
+    """Create tiny daily host/hostname/log-source CAGGs for the facet dropdowns.
 
     A DISTINCT over the raw hypertables scans every chunk (compressed chunks
     carry no usable btree for a loose index scan), which costs ~600ms at 18M
@@ -407,6 +408,25 @@ async def _create_host_facet_caggs(conn: "AsyncConnection") -> None:
         ON hostname_daily_stats (bucket DESC)
     """))
 
+    await conn.execute(text("""
+        CREATE MATERIALIZED VIEW IF NOT EXISTS log_source_daily_stats
+        WITH (timescaledb.continuous) AS
+        SELECT
+            time_bucket('1 day', timestamp) AS bucket,
+            hostname,
+            log_format,
+            COUNT(*) AS hits
+        FROM access_logs
+        WHERE hostname IS NOT NULL OR log_format IS NOT NULL
+        GROUP BY bucket, hostname, log_format
+        WITH NO DATA
+    """))
+    logger.info("CAGG created/verified: log_source_daily_stats")
+    await conn.execute(text("""
+        CREATE INDEX IF NOT EXISTS ix_log_source_daily_stats_bucket
+        ON log_source_daily_stats (bucket DESC)
+    """))
+
 
 # =============================================================================
 # Policy Configuration
@@ -436,6 +456,7 @@ CAGG_REFRESH_CONFIG = [
     ("user_agent_daily_stats", "3 days", "1 hour"),
     ("host_daily_stats", "3 days", "1 hour"),
     ("hostname_daily_stats", "3 days", "1 hour"),
+    ("log_source_daily_stats", "3 days", "1 hour"),
 ]
 
 HOURLY_CAGGS = [
@@ -595,6 +616,7 @@ ALL_CAGGS = [
     "user_agent_daily_stats",
     "host_daily_stats",
     "hostname_daily_stats",
+    "log_source_daily_stats",
 ]
 
 
@@ -817,6 +839,7 @@ CAGG_SOURCE_TABLES: dict[str, str] = {
     "user_agent_daily_stats": "access_logs",
     "host_daily_stats": "access_logs",
     "hostname_daily_stats": "geo_events",
+    "log_source_daily_stats": "access_logs",
 }
 
 

@@ -21,7 +21,7 @@ def service(tmp_path):
     nginx = tmp_path / "access.log"
     nginx.write_text("nginx line\n", encoding="utf-8")
     missing_nginx = tmp_path / "missing" / "other.log"
-    return LogFilesService(log_dir=log_dir, nginx_paths=[nginx, missing_nginx])
+    return LogFilesService(log_dir=log_dir, access_log_paths=[nginx, missing_nginx])
 
 
 class TestListFiles:
@@ -30,10 +30,10 @@ class TestListFiles:
         assert ("app", "geometrikks.log") in entries
         assert ("app", "geometrikks.log.1.gz") in entries
         assert ("login", "login.log") in entries
-        assert ("nginx", "access.log") in entries
+        assert ("access", "access.log") in entries
 
-    def test_unreadable_nginx_marked_unavailable(self, service):
-        entries = {e.name: e for e in service.list_files() if e.kind == "nginx"}
+    def test_unreadable_access_marked_unavailable(self, service):
+        entries = {e.name: e for e in service.list_files() if e.kind == "access"}
         assert entries["access.log"].available is True
         assert entries["other.log"].available is False
 
@@ -46,11 +46,11 @@ class TestResolve:
     def test_rejects_traversal_and_unknown(self, service):
         assert service.resolve("app", "../../etc/passwd") is None
         assert service.resolve("app", "passwd") is None
-        assert service.resolve("nginx", "geometrikks.log") is None
+        assert service.resolve("access", "geometrikks.log") is None
         assert service.resolve("bogus", "geometrikks.log") is None
 
-    def test_rejects_unavailable_nginx_file(self, service):
-        assert service.resolve("nginx", "other.log") is None
+    def test_rejects_unavailable_access_file(self, service):
+        assert service.resolve("access", "other.log") is None
 
 
 class TestTail:
@@ -66,7 +66,7 @@ class TestTail:
 
     def test_missing_file_returns_empty(self, tmp_path):
         from geometrikks.services.logfiles import LogFilesService
-        svc = LogFilesService(log_dir=tmp_path / "nope", nginx_paths=[])
+        svc = LogFilesService(log_dir=tmp_path / "nope", access_log_paths=[])
         assert svc.tail_main(lines=5) == []
 
 
@@ -113,5 +113,5 @@ class TestTailLogin:
 
     def test_missing_file_returns_empty(self, tmp_path):
         from geometrikks.services.logfiles import LogFilesService
-        svc = LogFilesService(log_dir=tmp_path / "nope", nginx_paths=[])
+        svc = LogFilesService(log_dir=tmp_path / "nope", access_log_paths=[])
         assert svc.tail_login(lines=5) == []

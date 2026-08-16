@@ -6,7 +6,7 @@ import pytest
 from pydantic import ValidationError
 
 from geometrikks.config import GeoIPSettings, MapSettings, Settings, get_settings
-from geometrikks.config.settings import get_installed_version
+from geometrikks.config.settings import LogParserSettings, get_installed_version
 
 
 def test_default_settings():
@@ -180,9 +180,9 @@ def test_production_configuration(monkeypatch):
 
 
 def test_logparser_default_paths():
-    """Default is a single-element list with the classic nginx path."""
+    """Default is a single-element list with the container mount path."""
     settings = Settings()
-    assert settings.logparser.log_paths == [Path("/var/log/nginx/access.log")]
+    assert settings.logparser.log_paths == [Path("/var/log/access/access.log")]
 
 
 def test_logparser_single_path_env(monkeypatch):
@@ -241,6 +241,45 @@ def test_logparser_ignore_ips_invalid_entry_rejected(monkeypatch):
     monkeypatch.setenv("LOGPARSER_IGNORE_IPS", "not-an-ip")
     with pytest.raises(ValidationError, match="not an IP address or CIDR"):
         Settings()
+
+
+def test_log_formats_default_auto(monkeypatch) -> None:
+    """No LOGPARSER_LOG_FORMATS set: default is 'auto' for every log path."""
+    monkeypatch.delenv("LOGPARSER_LOG_FORMATS", raising=False)
+    settings = LogParserSettings()
+    assert settings.log_formats == ["auto"]
+    assert settings.resolved_formats() == ["auto"] * len(settings.log_paths)
+
+
+def test_log_formats_single_value_fans_out(monkeypatch) -> None:
+    """A single format value applies to every configured log path."""
+    monkeypatch.setenv("LOGPARSER_LOG_PATHS", '["/a.log", "/b.log"]')
+    monkeypatch.setenv("LOGPARSER_LOG_FORMATS", "traefik-json")
+    settings = LogParserSettings()
+    assert settings.resolved_formats() == ["traefik-json", "traefik-json"]
+
+
+def test_log_formats_json_list_positional(monkeypatch) -> None:
+    """A JSON list of formats maps positionally onto log_paths."""
+    monkeypatch.setenv("LOGPARSER_LOG_PATHS", '["/a.log", "/b.log"]')
+    monkeypatch.setenv("LOGPARSER_LOG_FORMATS", '["nginx", "traefik-json"]')
+    settings = LogParserSettings()
+    assert settings.resolved_formats() == ["nginx", "traefik-json"]
+
+
+def test_log_formats_length_mismatch_rejected(monkeypatch) -> None:
+    """A format list whose length matches neither 1 nor len(log_paths) fails."""
+    monkeypatch.setenv("LOGPARSER_LOG_PATHS", '["/a.log", "/b.log", "/c.log"]')
+    monkeypatch.setenv("LOGPARSER_LOG_FORMATS", '["nginx", "traefik-json"]')
+    with pytest.raises(ValidationError):
+        LogParserSettings()
+
+
+def test_log_formats_unknown_value_rejected(monkeypatch) -> None:
+    """An unrecognized format name fails settings validation."""
+    monkeypatch.setenv("LOGPARSER_LOG_FORMATS", "apache")
+    with pytest.raises(ValidationError):
+        LogParserSettings()
 
 
 class TestAuthSettings:

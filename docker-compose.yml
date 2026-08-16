@@ -31,6 +31,7 @@ services:
   app:
     image: ghcr.io/gilbn/geometrikks:latest
     restart: unless-stopped
+    hostname: geometrikks
     environment:
       DB_HOST: timescale_db
       DB_PASSWORD: ${DB_PASSWORD:-geopass}
@@ -42,7 +43,7 @@ services:
       - .env
     volumes:
       - geoip_data:/app/data/geoip
-      - ${NGINX_LOG_DIR:-/var/log/nginx}:/var/log/nginx:ro
+      - ${ACCESS_LOG_DIR:-${NGINX_LOG_DIR:-/var/log/nginx}}:/var/log/access:ro
       # Exposes the application log and login.log on the host for tools like
       # CrowdSec/fail2ban, and persists them across container recreation.
       - ./logs:/app/logs

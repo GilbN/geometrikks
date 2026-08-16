@@ -3,8 +3,8 @@
  * global time range. Sorting and pagination state live on the parent route
  * (URL search params), driven here via props and callbacks; only column
  * visibility is local state. Filter values come from AccessLogFiltersContext
- * (search, IP, host, status, method, country and city live in
- * access-logs-filter-bar.tsx). Pairs with GET /api/v1/access-logs/.
+ * (search, IP, host, hostname, source format, status, method, country and
+ * city live in access-logs-filter-bar.tsx). Pairs with GET /api/v1/access-logs/.
  */
 import { useMemo, useState } from "react"
 import { ArrowDown, ArrowUp, ChevronsUpDown, Columns3 } from "lucide-react"
@@ -164,6 +164,20 @@ const COLUMNS: ColumnDef[] = [
     ),
   },
   {
+    key: "hostname",
+    label: "Recorded by",
+    defaultVisible: false,
+    mobileHidden: true,
+    render: (r) => <span className="font-mono">{r.hostname ?? "-"}</span>,
+  },
+  {
+    key: "logFormat",
+    label: "Source format",
+    defaultVisible: false,
+    mobileHidden: true,
+    render: (r) => <span className="font-mono">{r.logFormat ?? "-"}</span>,
+  },
+  {
     key: "userAgent",
     label: "User agent",
     defaultVisible: false,
@@ -244,6 +258,9 @@ export function AccessLogsTable({
     methodIn: filters.methods.length ? filters.methods : undefined,
     hostIn: filters.hosts.length ? filters.hosts : undefined,
     hostNotIn: filters.hostsExclude.length ? filters.hostsExclude : undefined,
+    hostnameIn: filters.hostnames.length ? filters.hostnames : undefined,
+    hostnameNotIn: filters.hostnamesExclude.length ? filters.hostnamesExclude : undefined,
+    logFormatIn: filters.logFormats.length ? filters.logFormats : undefined,
     cityIn: filters.cities.length ? filters.cities : undefined,
     countryCodeIn: filters.countryCodes.length ? filters.countryCodes : undefined,
     statusIn: filters.statusCodes.length ? filters.statusCodes : undefined,

@@ -7,6 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-08-16
+
+### Added
+
+- Traefik JSON access log support with per-file format auto-detection
+  (`LOGPARSER_LOG_FORMATS`), and a `--format` option on `litestar import-logs`.
+- `hostname` and `log_format` columns on access logs, with new facet filters
+  (recording hostname, source format) on the access-logs page.
+- `litestar backfill-hostname` CLI command to set the recording hostname on
+  historical rows; `--consolidate` collapses accumulated hostnames (e.g. container id hostnames).
+
+### Changed
+
+- Log files UI (/settings/logs): the `nginx` kind is now `access` with proxy-neutral labels;
+  bookmarked download links containing `/nginx/` change (/api/v1/logs/files/access/access.log).
+- docker-compose: `ACCESS_LOG_DIR` is the preferred mount variable
+  (`NGINX_LOG_DIR` still works); the app container has a stable hostname.
+- **Breaking:** the access-log mount inside the container moved from
+  `/var/log/nginx` to the proxy-neutral `/var/log/access`, and the
+  `LOGPARSER_LOG_PATHS` default is now `/var/log/access/access.log`. If your
+  `.env` sets `LOGPARSER_LOG_PATHS` with `/var/log/nginx/...` paths, change
+  them to `/var/log/access/...` when upgrading the compose file.
+
+### Fixed
+
+- The access-log `url` and `referrer` columns were historically swapped
+  (URL showed the Referer header, Referrer showed the request path); a
+  migration corrects existing data and rebuilds the Top URLs aggregates.
+  The migration decompresses compressed `access_logs` chunks to do it, so
+  disk usage grows for a while until the compression policy recompresses
+  them.
+- Concurrent GeoMetrikks instances sharing one database no longer drop an
+  ingestion batch when racing to create the same geo location.
+
 ## [0.7.1] - 2026-08-11
 
 ### Added
@@ -710,17 +744,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Settings endpoint no longer exposes the full settings tree (database credentials leaked via `model_dump()`); response is now an explicit whitelist.
 - Timestamps in `CALL refresh_continuous_aggregate` are bound as asyncpg parameters instead of interpolated into SQL.
 
-[Unreleased]: https://github.com/GilbN/geometrikks/compare/v0.7.1...HEAD
+[Unreleased]: https://github.com/GilbN/geometrikks/compare/v0.8.0...HEAD
+[0.8.0]: https://github.com/GilbN/geometrikks/compare/v0.7.1...v0.8.0
 [0.7.1]: https://github.com/GilbN/geometrikks/compare/v0.7.0...v0.7.1
 [0.7.0]: https://github.com/GilbN/geometrikks/releases/tag/v0.7.0
-[0.1.0-alpha.1]: https://github.com/GilbN/geometrikks/releases/tag/v0.1.0-alpha.1
-[0.1.0]: https://github.com/GilbN/geometrikks/compare/v0.1.0-alpha.1...v0.1.0
-[0.2.0]: https://github.com/GilbN/geometrikks/releases/tag/v0.2.0
-[0.2.1]: https://github.com/GilbN/geometrikks/releases/tag/v0.2.1
-[0.3.0]: https://github.com/GilbN/geometrikks/releases/tag/v0.3.0
-[0.4.0]: https://github.com/GilbN/geometrikks/releases/tag/v0.4.0
-[0.4.1]: https://github.com/GilbN/geometrikks/releases/tag/v0.4.1
-[0.4.2]: https://github.com/GilbN/geometrikks/releases/tag/v0.4.2
-[0.4.3]: https://github.com/GilbN/geometrikks/releases/tag/v0.4.3
-[0.5.0]: https://github.com/GilbN/geometrikks/releases/tag/v0.5.0
 [0.6.0]: https://github.com/GilbN/geometrikks/releases/tag/v0.6.0
+[0.5.0]: https://github.com/GilbN/geometrikks/releases/tag/v0.5.0
+[0.4.3]: https://github.com/GilbN/geometrikks/releases/tag/v0.4.3
+[0.4.2]: https://github.com/GilbN/geometrikks/releases/tag/v0.4.2
+[0.4.1]: https://github.com/GilbN/geometrikks/releases/tag/v0.4.1
+[0.4.0]: https://github.com/GilbN/geometrikks/releases/tag/v0.4.0
+[0.3.0]: https://github.com/GilbN/geometrikks/releases/tag/v0.3.0
+[0.2.1]: https://github.com/GilbN/geometrikks/releases/tag/v0.2.1
+[0.2.0]: https://github.com/GilbN/geometrikks/releases/tag/v0.2.0
+[0.1.0]: https://github.com/GilbN/geometrikks/compare/v0.1.0-alpha.1...v0.1.0
+[0.1.0-alpha.1]: https://github.com/GilbN/geometrikks/releases/tag/v0.1.0-alpha.1

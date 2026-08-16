@@ -149,3 +149,50 @@ class TestInFilters:
             None, None, None, None, None, None, None, None
         ) == []
         assert provide_access_log_in_filters(None, None, None, None, None, [], [], []) == []
+
+    def test_hostname_in_yields_collection_filter(self) -> None:
+        result = provide_access_log_in_filters(
+            None, None, None, None, None, None, None, None, ["myserver"]
+        )
+        assert len(result) == 1
+        hostname = result[0]
+        assert isinstance(hostname, CollectionFilter)
+        assert hostname.field_name == "hostname"
+        assert hostname.values == ["myserver"]
+
+    def test_hostname_not_in_keeps_rows_with_no_hostname(self) -> None:
+        # hostname is nullable (older rows predate Task 6's ingestion
+        # stamping), and SQL `NULL NOT IN (...)` is NULL, not TRUE. A bare
+        # NotInCollectionFilter would silently drop every such row, so the
+        # exclusion is OR'd with IS NULL.
+        result = provide_access_log_in_filters(
+            None, None, None, None, None, None, None, None, None, ["myserver"]
+        )
+        assert len(result) == 1
+        group = result[0]
+        assert isinstance(group, FilterGroup)
+        assert group.logical_operator is or_
+        excluded, is_null = group.filters
+        assert isinstance(excluded, NotInCollectionFilter)
+        assert excluded.field_name == "hostname"
+        assert excluded.values == ["myserver"]
+        assert isinstance(is_null, NullFilter)
+        assert is_null.field_name == "hostname"
+
+    def test_log_format_in_yields_collection_filter(self) -> None:
+        result = provide_access_log_in_filters(
+            None, None, None, None, None, None, None, None, None, None, ["traefik-json"]
+        )
+        assert len(result) == 1
+        log_format = result[0]
+        assert isinstance(log_format, CollectionFilter)
+        assert log_format.field_name == "log_format"
+        assert log_format.values == ["traefik-json"]
+
+    def test_absent_hostname_log_format_params_yield_no_filters(self) -> None:
+        assert provide_access_log_in_filters(
+            None, None, None, None, None, None, None, None, None, None, None
+        ) == []
+        assert provide_access_log_in_filters(
+            None, None, None, None, None, None, None, None, [], [], []
+        ) == []

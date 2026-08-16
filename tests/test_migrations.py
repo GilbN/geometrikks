@@ -32,6 +32,37 @@ def test_single_head() -> None:
     assert len(heads) == 1, f"expected exactly one alembic head, got {heads}"
 
 
+SWAP_REVISION = "59dc39684c1f"
+CAGG_REFRESH_REVISION = "5f1c8a7d24b3"
+VERSIONS_DIR = REPO_ROOT / "migrations" / "versions"
+
+
+def _revision_source(revision: str) -> str:
+    matches = [p for p in VERSIONS_DIR.glob("*.py") if p.name.endswith(f"_{revision}.py")]
+    assert len(matches) == 1, f"expected one file for revision {revision}, got {matches}"
+    return matches[0].read_text(encoding="utf-8")
+
+
+def test_url_swap_revision_is_transactional() -> None:
+    """The swap UPDATE is its own inverse, so it must commit with its stamp.
+
+    Under autocommit a crash between the swap and the version stamp reruns
+    the revision on the next startup and swaps the data back, silently.
+    """
+    source = _revision_source(SWAP_REVISION)
+    assert "autocommit_block" not in source
+    assert "op.execute(f\"CALL refresh_continuous_aggregate" not in source
+
+
+def test_cagg_refresh_revision_follows_the_swap() -> None:
+    """The non-transactional half is a separate, rerun-idempotent revision."""
+    revision = _script_directory().get_revision(CAGG_REFRESH_REVISION)
+    assert revision.down_revision == SWAP_REVISION
+    source = _revision_source(CAGG_REFRESH_REVISION)
+    assert "autocommit_block" in source
+    assert "refresh_continuous_aggregate" in source
+
+
 def test_revisions_parse_and_chain() -> None:
     """Every revision file loads and the chain walks back to base."""
     script = _script_directory()

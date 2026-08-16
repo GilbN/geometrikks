@@ -24,7 +24,7 @@ class ParsedGeoData:
 
 @dataclass
 class ParsedAccessLog:
-    """Parsed nginx access log entry."""
+    """Parsed access log entry."""
 
     timestamp: datetime
     ip_address: str
@@ -59,3 +59,4 @@ class ParsedLogRecord:
     is_malformed: bool = field(default=False)
     parse_error: str | None = field(default=None)
     source: str = field(default="")
+    log_format: str | None = field(default=None)

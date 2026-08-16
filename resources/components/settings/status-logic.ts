@@ -80,8 +80,8 @@ export function crowdsecState(
       }
 }
 
-export function nginxLogFiles(files: LogFileView[] | undefined): LogFileView[] {
-  return (files ?? []).filter((f) => f.kind === "nginx")
+export function accessLogFiles(files: LogFileView[] | undefined): LogFileView[] {
+  return (files ?? []).filter((f) => f.kind === "access")
 }
 
 export function formatSize(bytes: number): string {

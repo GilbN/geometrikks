@@ -29,10 +29,10 @@ def client(tmp_path, monkeypatch):
         encoding="utf-8",
     )
     (log_dir / "login.log").write_text("2026-07-23T00:00:00Z logout user=\"a\" ip=-\n", encoding="utf-8")
-    nginx = tmp_path / "access.log"
-    nginx.write_text("nginx line\n", encoding="utf-8")
+    access_log = tmp_path / "access.log"
+    access_log.write_text("access line\n", encoding="utf-8")
     monkeypatch.setenv("LOG_DIR", str(log_dir))
-    monkeypatch.setenv("LOGPARSER_LOG_PATHS", str(nginx))
+    monkeypatch.setenv("LOGPARSER_LOG_PATHS", str(access_log))
     from geometrikks.config.settings import get_settings
     get_settings.cache_clear()
     with TestClient(
@@ -85,7 +85,7 @@ class TestFilesEndpoint:
         files = {(f["kind"], f["name"]) for f in resp.json()["files"]}
         assert ("app", "geometrikks.log") in files
         assert ("login", "login.log") in files
-        assert ("nginx", "access.log") in files
+        assert ("access", "access.log") in files
 
 
 class TestRotateEndpoint:
@@ -109,4 +109,4 @@ class TestDownloadEndpoint:
         assert client.get("/api/v1/logs/files/app/..%2F..%2Fetc%2Fpasswd").status_code == 404
 
     def test_kind_mismatch_404(self, client):
-        assert client.get("/api/v1/logs/files/nginx/geometrikks.log").status_code == 404
+        assert client.get("/api/v1/logs/files/access/geometrikks.log").status_code == 404

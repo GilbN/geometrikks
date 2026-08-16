@@ -1,13 +1,10 @@
 from collections.abc import AsyncGenerator, Callable
-import re
 import os
 import time
 import asyncio
 from functools import lru_cache
-from datetime import datetime, timezone
 from ipaddress import ip_address as parse_ip_address, ip_network
 from pathlib import Path
-from typing import Any
 
 import aiofiles.os
 import aiofiles
@@ -16,13 +13,9 @@ from geoip2.models import City
 from geohash2 import encode
 from IPy import IP
 
-from .constants import (
-    ipv4_pattern,
-    ipv6_pattern,
-    MONITORED_IP_TYPES,
-    ipv4_geo_pattern,
-    ipv6_geo_pattern
-)
+from .constants import MONITORED_IP_TYPES
+from .formats import FORMATS, sniff_format
+from .formats.base import LogLineFormat, NormalizedLine
 from .schemas import ParsedLogRecord, ParsedGeoData, ParsedAccessLog
 from geometrikks.lib.utils import retries_disabled, sleep_unless_stopped
 from geometrikks.server.logging import get_logger
@@ -92,21 +85,14 @@ def make_cached_ignore_check(ignore_ips: list[str]) -> Callable[[str], bool]:
     return is_ignored
 
 
-def _convert_to_none(value: str | None) -> str | None:
-    """Convert '-' or missing values to None for optional fields."""
-    if value is None:
-        return None
-    return value if value != "-" else None
-
-
 class LogParser:
-    """Parses nginx access logs and performs GeoIP lookups.
+    """Tails access logs, parses lines via a pluggable format adapter, and performs GeoIP lookups.
 
-    Log parser module for tailing and parsing nginx access logs.
+    Log parser module for tailing and parsing access logs.
 
     This module handles:
-    - Tailing nginx access logs asynchronously
-    - Validating log lines against regex patterns
+    - Tailing access logs asynchronously
+    - Parsing log lines through a format adapter (nginx, traefik-json, ...)
     - Performing GeoIP lookups
     - Detecting malformed requests (TLS probes, SSH scans, etc.)
     """
@@ -118,6 +104,7 @@ class LogParser:
         poll_interval: float = 1.0,
         hostname: str = "localhost",
         ignore_ips: list[str] | None = None,
+        log_format: str = "auto",
     ) -> None:
         """I'm here to parse ass and kick logs, and I'm all out of logs...
 
@@ -127,6 +114,8 @@ class LogParser:
             poll_interval (float, optional): How often to check for new log lines. Defaults to 1.0.
             hostname (str, optional): Hostname to tag geo events with. Defaults to "localhost".
             ignore_ips (list[str] | None, optional): IPs/CIDRs whose lines are dropped entirely. Defaults to None.
+            log_format (str, optional): A registry name from ``formats.FORMATS`` (e.g. "nginx"),
+                or "auto" to sniff the format from the first parseable line. Defaults to "auto".
         """
         self.log_path: Path = log_path
         self.send_logs: bool = send_logs
@@ -134,6 +123,13 @@ class LogParser:
         self.hostname: str = hostname
         self.ignore_ips: list[str] = ignore_ips or []
         self._is_ignored: Callable[[str], bool] = make_cached_ignore_check(self.ignore_ips)
+
+        if log_format != "auto" and log_format not in FORMATS:
+            raise ValueError(f"Unknown log format: {log_format!r}")
+        self.log_format_setting: str = log_format
+        self.format: LogLineFormat | None = (
+            FORMATS[log_format] if log_format != "auto" else None
+        )
 
         # Statistics
         self.parsed_lines: int = 0
@@ -148,7 +144,7 @@ class LogParser:
         self._stop_event: asyncio.Event | None = None
 
         logger.debug("Log file path: %s", self.log_path)
-        logger.debug("Send NGINX logs: %s", self.send_logs)
+        logger.debug("Send access logs: %s", self.send_logs)
         logger.debug("Hostname: %s", self.hostname)
         if self.ignore_ips:
             logger.info("Ignoring traffic from: %s", ", ".join(self.ignore_ips))
@@ -186,12 +182,43 @@ class LogParser:
         """Return the number of ignored (ignore-list) lines."""
         return self.ignored_lines
 
-    def validate_log_line(self, log_line: str) -> re.Match[str] | None:
-        """Validate the log line against the IPv4 and IPv6 patterns."""
-        if self.send_logs:
-            return ipv4_pattern().match(log_line) or ipv6_pattern().match(log_line)
-        # If we are not sending logs but only geo data, only validate the IP address and the timestamp
-        return ipv4_geo_pattern().match(log_line) or ipv6_geo_pattern().match(log_line)
+    def _lock_format(self, lines: list[str]) -> None:
+        """Sniff the format from candidate lines and lock it in (auto mode).
+
+        Feed as many lines as are available: a single near-miss line would
+        otherwise decide the mode for the whole file.
+
+        Args:
+            lines: Candidate raw log lines.
+        """
+        if self.format is not None:
+            return
+        sniffed = sniff_format(lines)
+        if sniffed is None:
+            return
+        self.format = sniffed.format
+        logger.info(
+            "log_format_detected", path=str(self.log_path), format=sniffed.format.name
+        )
+        if sniffed.geo_only and self.send_logs:
+            # Only the relaxed ip+timestamp pattern matched, so a full parse
+            # would fail for every line: the file would produce no geo events,
+            # no access logs and one malformed debug row per line. Degrade
+            # exactly like a pinned format that fails validation does.
+            self.send_logs = False
+            logger.warning(
+                "Log file %s matched %s only on its geo-only pattern. "
+                "Streaming without access log objects.",
+                self.log_path,
+                sniffed.format.name,
+            )
+
+    def validate_log_line(self, log_line: str) -> NormalizedLine | None:
+        """Parse the line with the locked format; sniff-and-lock when auto."""
+        self._lock_format([log_line])
+        if self.format is None:
+            return None
+        return self.format.parse(log_line, geo_only=not self.send_logs)
 
     def validate_log_format(self, log_path: Path) -> bool:  # regex tester
         """Validate the log format once by checking the last 3 lines.
@@ -214,6 +241,7 @@ class LogParser:
                     log_lines_capture = list(f)  # Read all lines from the current position
                 position *= 2  # Double the position to read more lines
         lines = log_lines_capture[-LAST_LINE_COUNT:]  # Get the last 3 lines
+        self._lock_format(lines)
         for line in lines:
             if self.validate_log_line(line):
                 logger.info("Log file format is valid!")
@@ -237,7 +265,7 @@ class LogParser:
         and the interpreter could not finish exiting until it returned. This
         is reachable whenever the configured log file exists but is empty or
         in an unrecognised format, which is the normal state of a fresh
-        install before nginx writes its first line.
+        install before the web server writes its first line.
 
         Args:
             timeout_seconds: Maximum seconds to keep retrying.
@@ -270,23 +298,24 @@ class LogParser:
     ) -> ParsedLogRecord | None:
         """Parse one raw log line into a ParsedLogRecord (shared by tail + import).
 
-        Pure, synchronous method that validates the line, performs GeoIP lookup,
-        and detects malformed requests. Updates self.parsed_lines/self.skipped_lines.
+        Pure, synchronous method that parses the line via the format adapter,
+        performs GeoIP lookup, and detects malformed requests. Updates
+        self.parsed_lines/self.skipped_lines.
 
         Args:
             line: Raw log line to parse.
             lookup: Callable to look up City data for an IP address.
 
         Returns:
-            ParsedLogRecord with parsed data. A record with ip_address=None indicates
-            the line didn't match the expected format (counted in skipped_lines).
-            None when the client IP is on the ignore list; the line is dropped
-            and counted in ignored_lines.
+            ParsedLogRecord with parsed data. A record with ip_address=None
+            indicates the line didn't match the format (counted in
+            skipped_lines). None when the client IP is on the ignore list;
+            the line is dropped and counted in ignored_lines.
         """
-        matched = self.validate_log_line(line)
+        norm = self.validate_log_line(line)
         raw_line = line.strip()
 
-        if not matched:
+        if norm is None:
             logger.debug("Skipping unmatched line: '%s'", raw_line)
             self.skipped_lines += 1
             return ParsedLogRecord(
@@ -297,9 +326,10 @@ class LogParser:
                 is_malformed=True,
                 parse_error="Line did not match expected log format",
                 source=str(self.log_path),
+                log_format=self.format.name if self.format else None,
             )
 
-        ip = matched.group(1)
+        ip = norm.ip_address
 
         if self._is_ignored(ip):
             logger.debug("Ignoring line from ignored IP %s", ip)
@@ -308,13 +338,20 @@ class LogParser:
 
         self.parsed_lines += 1
 
-        geo_data: ParsedGeoData | None = self._parse_geo_data(ip, matched, lookup)
+        # validate_log_line only returns a NormalizedLine once self.format is
+        # locked (explicit, or sniffed-and-locked on the first matching line).
+        # Not an assert: asserts are stripped under python -O and this is a
+        # data-path invariant.
+        if self.format is None:
+            raise RuntimeError("Parsed a line without a locked log format")
 
+        geo_data: ParsedGeoData | None = self._parse_geo_data(ip, norm, lookup)
         access_log: ParsedAccessLog | None = (
-            self._parse_access_log(matched, ip, lookup) if self.send_logs else None
+            self._parse_access_log(norm, ip, lookup) if self.send_logs else None
         )
-
-        is_malformed, parse_error = self._detect_malformed_request(matched)
+        is_malformed, parse_error = (
+            self.format.detect_malformed(norm) if self.send_logs else (False, None)
+        )
 
         return ParsedLogRecord(
             ip_address=ip,
@@ -324,6 +361,7 @@ class LogParser:
             is_malformed=is_malformed,
             parse_error=parse_error,
             source=str(self.log_path),
+            log_format=self.format.name if self.format else None,
         )
 
     async def _is_rotated_async(self, prev_stat: os.stat_result) -> bool:
@@ -367,91 +405,9 @@ class LogParser:
 
         return False
 
-    def _detect_malformed_request(
-        self, matched: re.Match[str]
-    ) -> tuple[bool, str | None]:
-        """Detect malformed requests such as TLS probes and invalid HTTP.
-        Will only run if send_logs is True.
-
-        Args:
-            matched: The regex match object for the log line.
-
-        Returns:
-            tuple of (is_malformed, parse_error_message)
-        """
-        
-        if self.send_logs is False:
-            return False, None
-        
-        datadict = matched.groupdict()
-        method = datadict.get("method")
-        request = datadict.get("request", "")
-        status_code_str = datadict.get("status_code", "0")
-
-        try:
-            status_code = int(status_code_str)
-        except (ValueError, TypeError):
-            status_code = 0
-
-        # TLS handshake sent to HTTP port - starts with \x16\x03 (TLS record header)
-        # Common patterns: \x16\x03\x01 (TLS 1.0), \x16\x03\x03 (TLS 1.2/1.3)
-        # Check both escaped string representation and raw bytes
-        if request:
-            # Escaped form in log: \x16\x03
-            if "\\x16\\x03" in request:
-                return True, "TLS handshake sent to HTTP port (escaped)"
-            # Raw bytes form (unlikely but possible)
-            if "\x16\x03" in request:
-                return True, "TLS handshake sent to HTTP port (raw)"
-            # SSH probe
-            if request.startswith("SSH-") or "\\x53\\x53\\x48" in request:
-                return True, "SSH probe sent to HTTP port"
-            # SMB probe - \xFFSMB or escaped \x00...\xFFSMB
-            if (
-                "\\xffSMB" in request.lower()
-                or "\xffSMB" in request
-                or "SMBr" in request
-            ):
-                return True, "SMB protocol probe (EternalBlue scanner)"
-            if "NT LM" in request:
-                return True, "SMB dialect negotiation probe"
-
-        # TLS probe: No HTTP method and 400 status (client sent HTTP to HTTPS port)
-        if (method is None or method == "-") and status_code == 400:
-            return True, "TLS probe: HTTP request sent to HTTPS port"
-
-        # Invalid HTTP method (connection closed before sending valid request)
-        if method is None or method == "-":
-            return True, "No HTTP method in request"
-
-        # Check for non-standard/invalid HTTP methods
-        valid_methods = {
-            "GET",
-            "POST",
-            "PUT",
-            "DELETE",
-            "PATCH",
-            "HEAD",
-            "OPTIONS",
-            "CONNECT",
-            "TRACE",
-        }
-        if method.upper() not in valid_methods:
-            return True, f"Invalid HTTP method: {method}"
-
-        # nginx-specific status codes that indicate connection issues, not normal HTTP errors
-        if status_code == 408:
-            return True, "Request timeout (408)"
-
-        if status_code == 444:
-            return True, "Connection closed without response (nginx 444)"
-
-        if status_code == 499:
-            return True, "Client closed connection before response (nginx 499)"
-
-        return False, None
-
-    def _parse_geo_data(self, ip: str, log_data: re.Match[str], lookup: Callable[[str], City | None]) -> ParsedGeoData | None:
+    def _parse_geo_data(
+        self, ip: str, norm: NormalizedLine, lookup: Callable[[str], City | None]
+    ) -> ParsedGeoData | None:
         """Extract geographic data from IP address.
 
         Args:
@@ -481,13 +437,7 @@ class LogParser:
             logger.debug("GeoIP country missing for %s. Skipping geo record", ip)
             return None
 
-        datadict: dict[str, str | Any] = log_data.groupdict()
-
-        try:
-            ts = datetime.strptime(datadict["dateandtime"], "%d/%b/%Y:%H:%M:%S %z")
-        except Exception as e:
-            logger.error("Failed to parse timestamp '%s': %s", datadict.get("dateandtime"), e)
-            ts = datetime.now(timezone.utc)
+        ts = norm.timestamp
         logger.debug(
             "Parsing geo data for IP %s: lat=%s, long=%s. Country=%s, City=%s",
             ip,
@@ -511,73 +461,38 @@ class LogParser:
             timestamp=ts
         )
 
-    def _parse_access_log(self, log_data: re.Match[str], ip: str, lookup: Callable[[str], City | None]) -> ParsedAccessLog | None:
-        """Parse access log fields from regex match.
-
-        Parses request/connect timing similar to legacy metrics but returns a dataclass.
+    def _parse_access_log(
+        self, norm: NormalizedLine, ip: str, lookup: Callable[[str], City | None]
+    ) -> ParsedAccessLog | None:
+        """Build the ParsedAccessLog for a normalized line, enriched with GeoIP.
 
         Args:
-            log_data: Regex match object from log line.
+            norm: Normalized line from the format adapter.
             ip: IP address string.
+            lookup: Callable to look up City data for an IP address.
 
         Returns:
-            ParsedAccessLog if successful, None otherwise.
+            ParsedAccessLog if the IP is monitored and has GeoIP data, None otherwise.
         """
-        if not log_data or not check_ip_type(ip):
+        if not check_ip_type(ip):
             return None
-
         ip_data: City | None = lookup(ip)
-
         if not ip_data:
             return None
-
-        datadict: dict[str, str | Any] = log_data.groupdict()
-
-        # Safely parse numeric fields
-        try:
-            request_time = float(datadict.get("request_time", 0))
-        except (ValueError, TypeError):
-            request_time = 0.0
-
-        try:
-            upstream_response_time_str = datadict.get("upstream_response_time")
-            upstream_response_time = (
-                float(upstream_response_time_str)
-                if upstream_response_time_str and upstream_response_time_str != "-"
-                else None
-            )
-        except (ValueError, TypeError):
-            upstream_response_time = None
-
-        try:
-            bytes_sent = int(datadict.get("bytes_sent", 0))
-        except (ValueError, TypeError):
-            bytes_sent = 0
-
-        try:
-            status_code = int(datadict.get("status_code", 0))
-        except (ValueError, TypeError):
-            status_code = 0
-
-        try:
-            ts = datetime.strptime(datadict["dateandtime"], "%d/%b/%Y:%H:%M:%S %z")
-        except Exception:
-            ts = datetime.now(timezone.utc)
-
         return ParsedAccessLog(
-            timestamp=ts,
+            timestamp=norm.timestamp,
             ip_address=ip,
-            remote_user=_convert_to_none(datadict.get("remote_user")),
-            method=_convert_to_none(datadict.get("method")),
-            url=_convert_to_none(datadict.get("url")),
-            http_version=_convert_to_none(datadict.get("http_version")),
-            status_code=status_code,
-            bytes_sent=bytes_sent,
-            referrer=_convert_to_none(datadict.get("referrer")),
-            user_agent=_convert_to_none(datadict.get("user_agent")),
-            request_time=request_time,
-            upstream_response_time=upstream_response_time,
-            host=_convert_to_none(datadict.get("host")),
+            remote_user=norm.remote_user,
+            method=norm.method,
+            url=norm.path,
+            http_version=norm.http_version,
+            status_code=norm.status_code,
+            bytes_sent=norm.bytes_sent,
+            referrer=norm.referrer,
+            user_agent=norm.user_agent,
+            request_time=norm.request_time,
+            upstream_response_time=norm.upstream_response_time,
+            host=norm.host,
             country_code=ip_data.country.iso_code,
             country_name=ip_data.country.name,
             city=ip_data.city.name,
@@ -609,10 +524,16 @@ class LogParser:
                 # the format, the tail loop below would exit immediately anyway.
                 return
             if not valid:
-                self.send_logs = False
-                logger.warning(
-                    "Log file format invalid. Streaming without access log objects."
-                )
+                if self.log_format_setting == "auto" and self.format is None:
+                    logger.warning(
+                        "Log format not detected yet for %s; will sniff incoming lines",
+                        self.log_path,
+                    )
+                else:
+                    self.send_logs = False
+                    logger.warning(
+                        "Log file format invalid. Streaming without access log objects."
+                    )
 
         lookup = make_cached_city_lookup(reader)
 

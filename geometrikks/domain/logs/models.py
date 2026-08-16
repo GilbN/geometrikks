@@ -18,9 +18,9 @@ from litestar.dto import dto_field
 
 
 class AccessLog(base.BigIntBase):
-    """Detailed nginx access log entries.
+    """Detailed web server access log entries.
 
-    Stores comprehensive request/response data from nginx access logs.
+    Stores comprehensive request/response data from web server access logs.
     TimescaleDB hypertable for efficient time-series queries.
     """
     
@@ -66,7 +66,14 @@ class AccessLog(base.BigIntBase):
     country_code: Mapped[str | None] = mapped_column(String(2))
     country_name: Mapped[str | None] = mapped_column(String(100))
     city: Mapped[str | None] = mapped_column(String(100))
-    
+
+    # Multi-source separation: which GeoMetrikks instance wrote the row
+    # (LOGPARSER_HOST_NAME, mirrors geo_events.hostname) and which format
+    # adapter parsed it ('nginx', 'traefik-json'). NULL on pre-feature rows
+    # the backfill could not attribute.
+    hostname: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    log_format: Mapped[str | None] = mapped_column(String(32), nullable=True)
+
     # Indexes for common queries
     # Note: TimescaleDB automatically creates time-based indexes on hypertables
     __table_args__ = (
@@ -74,6 +81,7 @@ class AccessLog(base.BigIntBase):
         Index("ix_access_logs_status_code", "status_code"),
         Index("ix_access_logs_host", "host"),
         Index("ix_access_logs_method_status", "method", "status_code"),
+        Index("ix_access_logs_hostname", "hostname"),
     )
     
     def __repr__(self) -> str:

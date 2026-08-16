@@ -2,12 +2,12 @@
 
 ![Map](/data/screenshots/live.png)
 
-GeoMetrikks tails your nginx access logs, geolocates every request with
-MaxMind GeoLite2, and gives you a real-time GeoIP map plus a traffic
-analytics dashboard for your homelab - no external services, no
-subscriptions, just Docker and your existing nginx logs. Run CrowdSec?
-Hook up its Local API and manage bans right next to the traffic they
-came from.
+GeoMetrikks tails your reverse-proxy access logs (nginx and Traefik),
+geolocates every request with MaxMind GeoLite2, and gives you a real-time
+GeoIP map plus a traffic analytics dashboard for your homelab - no external
+services, no subscriptions, just Docker and the access logs you already
+have. Run CrowdSec? Hook up its Local API and manage bans right next to
+the traffic they came from.
 
 ## Features
 
@@ -34,9 +34,9 @@ the map.
 
 **Access logs** - a searchable, server-paginated history of every request:
 free-text search across URL / referrer / user-agent, filters for status,
-method, IP, host, country, and city, sortable columns, and a column picker
-for the full log line (bytes, request time, upstream time, HTTP version,
-and more).
+method, IP, host, country, city, recording hostname, and source format,
+sortable columns, and a column picker for the full log line (bytes,
+request time, upstream time, HTTP version, and more).
 
 ![Access Logs](/data/screenshots/access-logs.png)
 
@@ -91,10 +91,13 @@ reproducible deployments:
 image: ghcr.io/gilbn/geometrikks:0.3.0
 ```
 
-`docker-compose.yml` mounts `${NGINX_LOG_DIR:-/var/log/nginx}` read-only into
-the container at `/var/log/nginx` and reads `LOGPARSER_LOG_PATHS` from
-`.env`. Point `NGINX_LOG_DIR` at wherever your nginx (or reverse proxy)
-writes its access logs.
+`docker-compose.yml` mounts `${ACCESS_LOG_DIR:-${NGINX_LOG_DIR:-/var/log/nginx}}`
+read-only into the container at `/var/log/access` and reads
+`LOGPARSER_LOG_PATHS` from `.env`. `ACCESS_LOG_DIR` is the preferred
+variable name now that the parser supports more than nginx
+(`NGINX_LOG_DIR` still works as a fallback); point it at wherever your
+reverse proxy writes its access logs. `LOGPARSER_LOG_PATHS` must point at
+the file(s) inside the container, i.e. under `/var/log/access/`.
 
 ## Nginx setup
 
@@ -125,8 +128,46 @@ access_log /config/log/nginx/access.log custom;
 ```
 
 ```bash
-LOGPARSER_LOG_PATHS=["/var/log/nginx/access.log", "/var/log/nginx/somepage/access.log"]
+LOGPARSER_LOG_PATHS=["/var/log/access/access.log", "/var/log/access/somepage/access.log"]
 ```
+
+## Traefik setup
+
+GeoMetrikks parses Traefik JSON access logs. Traefik logs to stdout by
+default, so configure a file and the JSON format in your static
+configuration, and keep the User-Agent and Referer headers so analytics
+have them:
+
+```yaml
+accessLog:
+  filePath: "/var/log/traefik/access.log"
+  format: json
+  fields:
+    headers:
+      names:
+        User-Agent: keep
+        Referer: keep
+```
+
+Mount the log directory into the GeoMetrikks container (set
+`ACCESS_LOG_DIR=/path/to/traefik/logs` in `.env`, or edit the volume) and
+point the parser at it:
+
+```env
+ACCESS_LOG_DIR=/var/log/traefik
+LOGPARSER_LOG_PATHS=/var/log/access/access.log
+```
+
+The format is auto-detected per file; set `LOGPARSER_LOG_FORMATS=traefik-json`
+to pin it. Notes:
+
+- Rotate with logrotate and signal Traefik afterwards:
+  `docker kill --signal=USR1 traefik`. GeoMetrikks follows the rotation
+  automatically.
+- Behind a CDN or load balancer, configure Traefik's
+  `entryPoints.<name>.forwardedHeaders.trustedIPs` so the logged client IP
+  is the real client, not the proxy.
+- Logging to stdout only is not supported; a file path is required.
 
 ## MaxMind GeoLite2
 
@@ -329,7 +370,7 @@ Notes for exposing GeoMetrikks to the internet:
 If a [CrowdSec](https://www.crowdsec.net/) instance protects your stack,
 GeoMetrikks can talk to its Local API (LAPI) and show active decisions
 (bans) joined with the traffic data it already stores: per banned IP you see
-the country/city and the request count from your actual nginx logs.
+the country/city and the request count from your actual access logs.
 
 Register GeoMetrikks as a bouncer on the CrowdSec side and point the app at
 the LAPI:
@@ -386,19 +427,32 @@ Notes:
 - Without `CROWDSEC_*` settings the integration is simply off; nothing else
   changes.
 
-## Importing history
+## CLI commands
+
+Besides the server, the image ships maintenance commands under the
+`litestar` CLI. Run them inside the container with
+`docker compose exec -u geometrikks app litestar <command>` (or
+`docker compose run --rm app litestar <command>` when the stack is
+stopped). The image sets `LITESTAR_APP` so the bare command works there;
+outside the container you have to point the CLI at the app yourself:
+`uv run litestar --app geometrikks.server.core:create_app <command>`.
+Every command supports `--help`.
+
+### import-logs: backfill history
 
 Live tailing only picks up lines written after the app starts. To backfill
-history - rotated or archived nginx logs, plain or gzip-compressed - use the
-`litestar import-logs` CLI command:
+history - rotated or archived access logs (nginx or Traefik JSON), plain or
+gzip-compressed - use `import-logs`:
 
 ```bash
-docker compose exec -u geometrikks app litestar import-logs /var/log/nginx/access.log.1.gz
+docker compose exec -u geometrikks app litestar import-logs /var/log/access/access.log.1.gz
 ```
 
 It reuses the live ingestion pipeline (same parsing, GeoIP lookup, and DB
 writes), uses the timestamps in each log line rather than wall-clock time,
 and refreshes the continuous aggregates for the imported range when done.
+The log format is auto-detected per file, same as live tailing; pass
+`--format nginx` or `--format traefik-json` to pin it.
 Multiple files can be passed in one invocation; paths are **container**
 paths, and the import runs as the non-root `geometrikks` user
 (`PUID`:`PGID`, default 1000:1000), so host files must be readable by it
@@ -408,7 +462,7 @@ paths, and the import runs as the non-root `geometrikks` user
 stopped, use `run --rm` instead:
 
 ```bash
-docker compose run --rm app litestar import-logs /var/log/nginx/access.log.1.gz
+docker compose run --rm app litestar import-logs /var/log/access/access.log.1.gz
 ```
 
 **Caveats**
@@ -419,12 +473,46 @@ docker compose run --rm app litestar import-logs /var/log/nginx/access.log.1.gz
   content again (even under a different filename) is skipped. Pass `--force`
   to re-import - this updates the bookkeeping row but does **not** delete
   rows written by the earlier import.
-- A file that doesn't match the expected log format is rejected up front,
+- A file that doesn't match any supported log format is rejected up front,
   before anything is written.
 - Rows older than the raw retention window (`ANALYTICS_RAW_RETENTION_DAYS`,
   default 180 days) are dropped by the TimescaleDB retention policy -
   importing history beyond that window won't persist. Raise the retention
   setting before importing older archives if you want to keep them.
+
+### backfill-hostname: fix up historical hostnames
+
+Every ingested row records which GeoMetrikks instance wrote it
+(`LOGPARSER_HOST_NAME`; defaults to the machine hostname, which the compose
+file pins to `geometrikks`). Rows ingested by older versions have no
+hostname, so they are invisible to the access-logs "Recorded by" filter.
+`backfill-hostname` stamps them retroactively:
+
+```bash
+docker compose exec -u geometrikks app litestar backfill-hostname myhost
+```
+
+The plain form fills **only** rows with no hostname - it is idempotent and
+cannot overwrite stamped values - and runs immediately, without a
+confirmation prompt.
+
+If your database has accumulated many bogus hostnames, add
+`--consolidate` to rewrite **all** existing hostnames to the given name as
+well. The classic cause is running in Docker with `LOGPARSER_HOST_NAME`
+unset before the compose file pinned a hostname: every container
+recreation minted a new 12-hex container-ID "hostname". Consolidate lists
+every hostname it will rewrite, with row counts, and asks for confirmation
+first (`--yes` skips the prompt):
+
+```bash
+docker compose exec -u geometrikks app litestar backfill-hostname myhost --consolidate
+```
+
+Either form decompresses compressed history chunks first (a full-table
+update would trip TimescaleDB's tuple decompression limit), so disk usage
+grows temporarily until the compression policy recompresses them. It then
+refreshes the affected continuous aggregates so the filter dropdowns
+update. May run for minutes on a large database.
 
 ## Configuration
 
@@ -481,18 +569,18 @@ Or with a `user:` override, where the image needs no capabilities at all:
 
 **I'm using Nginx Proxy Manager (or another proxy-manager container) - what
 log path do I use?**
-Point `NGINX_LOG_DIR` at the host directory where the proxy container writes
+Point `ACCESS_LOG_DIR` at the host directory where the proxy container writes
 its access logs (for Nginx Proxy Manager this is typically its `data/logs`
 volume), and set `LOGPARSER_LOG_PATHS` to the specific access-log file(s)
-inside it, using the *container* path (`/var/log/nginx/...`), not the host
+inside it, using the *container* path (`/var/log/access/...`), not the host
 path.
 
 **Permission denied reading my log files?**
 The app container runs as `PUID`:`PGID` (default 1000:1000), and log mounts
 are read-only. Make sure the log files (and their parent directory) are
 readable by that uid/gid on the host - `chmod`/`chown` or an ACL entry,
-whichever fits your setup. Read-only mounts are intentional: GeoMetrikks never needs to write to
-your nginx logs.
+whichever fits your setup. Read-only mounts are intentional: GeoMetrikks
+never needs to write to your access logs.
 
 **Does this run on arm64?**
 Yes - the published GHCR image is a multi-arch manifest for `linux/amd64`
@@ -501,8 +589,9 @@ and `linux/arm64`.
 **The map is empty.**
 Check three things in order: (1) the geo-degraded banner - if it's showing,
 MaxMind credentials or the GeoLite2 database are missing; (2) that
-`LOGPARSER_LOG_PATHS` actually points at a file receiving traffic, matching
-the `log_format` above; (3) that some time has passed since you last
+`LOGPARSER_LOG_PATHS` actually points at a file receiving traffic in a
+supported format (the nginx `log_format` above, or Traefik JSON); (3) that
+some time has passed since you last
 restarted - the map only shows events ingested after startup unless you've
 run a batch import.
 

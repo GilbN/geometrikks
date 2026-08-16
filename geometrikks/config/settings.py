@@ -215,11 +215,20 @@ class LogParserSettings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="LOGPARSER_", env_file=_env_file(), extra="ignore")
 
     log_paths: Annotated[list[Path], NoDecode] = Field(
-        default_factory=lambda: [Path("/var/log/nginx/access.log")],
+        default_factory=lambda: [Path("/var/log/access/access.log")],
         min_length=1,
         description=(
-            "Nginx access log files to tail. Env accepts a single path or a JSON "
-            "list of paths. Default: /var/log/nginx/access.log"
+            "Access log files to tail. Env accepts a single path or a JSON "
+            "list of paths. Default: /var/log/access/access.log"
+        ),
+    )
+    log_formats: Annotated[list[str], NoDecode] = Field(
+        default_factory=lambda: ["auto"],
+        description=(
+            "Log format per tailed file: 'auto' (default, detected from the "
+            "file's content), 'nginx', or 'traefik-json'. Env accepts a single "
+            "value applied to every path, or a JSON list matching "
+            "LOGPARSER_LOG_PATHS by position."
         ),
     )
     poll_interval: float = Field(
@@ -269,6 +278,44 @@ class LogParserSettings(BaseSettings):
                 return json.loads(stripped)
             return [stripped]
         return value
+
+    @field_validator("log_formats", mode="before")
+    @classmethod
+    def parse_log_formats(cls, value: object) -> object:
+        """Accept a single format name or a JSON list of names."""
+        if isinstance(value, str):
+            stripped = value.strip()
+            if stripped.startswith("["):
+                return json.loads(stripped)
+            return [stripped]
+        return value
+
+    @model_validator(mode="after")
+    def validate_log_formats(self) -> "LogParserSettings":
+        """Reject unknown format names and lengths that cannot map to log_paths."""
+        from geometrikks.services.logparser.formats import FORMATS
+
+        allowed = {"auto", *FORMATS}
+        unknown = [f for f in self.log_formats if f not in allowed]
+        if unknown:
+            raise ValueError(f"Unknown log format(s) {unknown}; allowed: {sorted(allowed)}")
+        if len(self.log_formats) not in (1, len(self.log_paths)):
+            raise ValueError(
+                "LOGPARSER_LOG_FORMATS must be one value or match "
+                f"LOGPARSER_LOG_PATHS in length ({len(self.log_paths)})"
+            )
+        return self
+
+    def resolved_formats(self) -> list[str]:
+        """Return one format per log path.
+
+        Returns:
+            The configured formats, fanning a single value out across all
+            log paths when only one value was provided.
+        """
+        if len(self.log_formats) == 1:
+            return self.log_formats * len(self.log_paths)
+        return list(self.log_formats)
 
     @field_validator("ignore_ips", mode="before")
     @classmethod
