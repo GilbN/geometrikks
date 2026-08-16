@@ -9,6 +9,7 @@ import type {
 import type { LogRecord } from "@/lib/logstream"
 import {
   accessLogFiles,
+  advisoryCards,
   authState,
   compressionSummary,
   crowdsecState,
@@ -362,5 +363,24 @@ describe("authState", () => {
       "Built-in authentication is turned off (APP_AUTH_DISABLED=true). Anyone who can reach this app has full access.",
     )
     expect(state.detail).not.toMatch(/proxy/i)
+  })
+})
+
+describe("advisoryCards", () => {
+  it("is empty when health is missing or clean", () => {
+    expect(advisoryCards(undefined)).toEqual([])
+    expect(advisoryCards(makeHealth())).toEqual([])
+  })
+  it("maps severities to tones", () => {
+    const health = makeHealth({
+      advisories: [
+        { id: "hostname-pollution", severity: "warning", summary: "s", remedy: "cmd" },
+        { id: "other", severity: "critical", summary: "c" },
+      ],
+    })
+    const cards = advisoryCards(health)
+    expect(cards).toHaveLength(2)
+    expect(cards[0]).toMatchObject({ tone: "amber", label: "s", remedy: "cmd" })
+    expect(cards[1]).toMatchObject({ tone: "red", label: "c" })
   })
 })

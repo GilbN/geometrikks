@@ -17,6 +17,14 @@ export interface CardState {
   detail?: string
 }
 
+export interface AdvisoryCard {
+  id: string
+  tone: LedTone
+  label: string
+  detail?: string
+  remedy?: string
+}
+
 export function overallState(health: HealthResponse | undefined, isError: boolean): CardState {
   if (isError) {
     return { tone: "red", label: "Unreachable", detail: "The API did not answer the health probe." }
@@ -25,6 +33,17 @@ export function overallState(health: HealthResponse | undefined, isError: boolea
   return health.status === "healthy"
     ? { tone: "emerald", label: "Healthy", detail: "All components operational." }
     : { tone: "amber", label: "Degraded", detail: "One or more components are not operational." }
+}
+
+/** Generic operator advisories from health; one status-page card each. */
+export function advisoryCards(health: HealthResponse | undefined): AdvisoryCard[] {
+  return (health?.advisories ?? []).map((a) => ({
+    id: a.id,
+    tone: a.severity === "critical" ? "red" : "amber",
+    label: a.summary,
+    detail: a.detail ?? undefined,
+    remedy: a.remedy ?? undefined,
+  }))
 }
 
 export function ingestionState(health: HealthResponse | undefined, isError: boolean): CardState {

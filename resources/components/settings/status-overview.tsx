@@ -21,12 +21,14 @@ import {
   useStats,
 } from "@/lib/queries"
 import { useLiveEvents, useLiveFeedStatus } from "@/lib/live-feed-context"
+import { cn } from "@/lib/utils"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { MonoChip, StatusLed } from "@/components/settings/status-led"
 import {
   accessLogFiles,
+  advisoryCards,
   authState,
   type CardState,
   compressionSummary,
@@ -117,6 +119,21 @@ export function StatusOverview() {
 
   return (
     <div className="space-y-4">
+      {advisoryCards(health).map((card) => (
+        <Card key={card.id} className={cn("border-l-2", card.tone === "red" ? "border-l-red-500" : "border-l-amber-500")}>
+          <CardContent className="space-y-1 pt-4">
+            <div className="flex items-center gap-2 text-sm font-medium">
+              <StatusLed tone={card.tone} />
+              {card.label}
+            </div>
+            {card.detail && <p className="text-xs text-muted-foreground">{card.detail}</p>}
+            {card.remedy && (
+              <code className="block w-fit rounded bg-muted px-2 py-1 text-xs">{card.remedy}</code>
+            )}
+          </CardContent>
+        </Card>
+      ))}
+
       {/* Overall state and Authentication share the banner row: the subsystem
           grid below holds an even number of cards, so putting Authentication
           there instead would leave a hole in its last row. */}
