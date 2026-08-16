@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 import type { LiveEvent } from "@/lib/websocket"
-import { pairLiveEvents } from "./pairing"
+import { matchesSources, pairLiveEvents } from "./pairing"
+import type { LiveRequest } from "./types"
 
 const TS = "2026-07-22T19:57:54+02:00"
 
@@ -145,5 +146,46 @@ describe("pairLiveEvents", () => {
 
   it("returns nothing for an empty heartbeat frame", () => {
     expect(pairLiveEvents([], new Set(), 1000)).toEqual([])
+  })
+
+  it("carries the recording hostname from either event kind", () => {
+    const geoOnly = pairLiveEvents([geo("1.1.1.1")], new Set(), 1000)
+    const logOnly = pairLiveEvents([log("2.2.2.2", 200)], new Set(), 1000)
+
+    expect(geoOnly[0].hostname).toBe("vps-1")
+    expect(logOnly[0].hostname).toBe("vps-1")
+  })
+})
+
+function requestWithHostname(hostname: string | null): LiveRequest {
+  return {
+    id: "r",
+    timestamp: TS,
+    receivedAt: 0,
+    ip: "1.1.1.1",
+    coordinates: null,
+    city: null,
+    countryCode: null,
+    log: null,
+    statusClass: "unknown",
+    banned: false,
+    threat: false,
+    hostname,
+  }
+}
+
+describe("matchesSources", () => {
+  it("passes everything when no sources are selected", () => {
+    expect(matchesSources(requestWithHostname("nginx-01"), [])).toBe(true)
+    expect(matchesSources(requestWithHostname(null), [])).toBe(true)
+  })
+
+  it("filters by exact hostname", () => {
+    expect(matchesSources(requestWithHostname("nginx-01"), ["nginx-01"])).toBe(true)
+    expect(matchesSources(requestWithHostname("nginx-01"), ["traefik-01"])).toBe(false)
+  })
+
+  it("drops hostname-less requests when a filter is active", () => {
+    expect(matchesSources(requestWithHostname(null), ["nginx-01"])).toBe(false)
   })
 })

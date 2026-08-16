@@ -617,10 +617,12 @@ function GeoMapInner({
 }
 
 export default function GeoMap() {
+  const search = useSearch({ from: "/map" })
+  const sources = search.sources ?? []
   const [liveMode, setLiveMode] = useState(getDemoTrafficMode() !== "off")
 
   return (
-    <LiveTrafficProvider enabled={liveMode}>
+    <LiveTrafficProvider enabled={liveMode} sources={sources}>
       <GeoMapInner liveMode={liveMode} onLiveModeChange={setLiveMode} />
     </LiveTrafficProvider>
   )

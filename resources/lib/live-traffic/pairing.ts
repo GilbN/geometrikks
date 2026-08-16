@@ -31,10 +31,17 @@ function build(
     city: geo?.city ?? log?.city ?? null,
     countryCode: geo?.country_code ?? log?.country_code ?? null,
     log,
+    hostname: geo?.hostname ?? log?.hostname ?? null,
     statusClass: status,
     banned,
     threat: isThreat(log?.status_code, banned),
   }
+}
+
+/** Exact-match source filter; empty selection means unfiltered. */
+export function matchesSources(request: LiveRequest, sources: string[]): boolean {
+  if (sources.length === 0) return true
+  return request.hostname !== null && sources.includes(request.hostname)
 }
 
 export function pairLiveEvents(

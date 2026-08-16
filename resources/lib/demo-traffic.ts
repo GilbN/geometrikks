@@ -97,6 +97,7 @@ export function makeDemoRequests(cursor: number, count: number, now: number): Li
       coordinates: origin.coordinates,
       city: origin.city,
       countryCode: origin.countryCode,
+      hostname: "demo",
       statusClass: status,
       banned,
       threat: isThreat(code, banned),
