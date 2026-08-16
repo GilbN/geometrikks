@@ -21,6 +21,8 @@ CAGG Structure:
 from __future__ import annotations
 
 import asyncio
+import re
+from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING
 
@@ -34,6 +36,67 @@ if TYPE_CHECKING:
     from geometrikks.config.settings import AnalyticsSettings
 
 logger = get_logger(__name__)
+
+
+# =============================================================================
+# Hostname Pollution Detection
+# =============================================================================
+
+# Docker stamps the short container ID as hostname when LOGPARSER_HOST_NAME
+# is unset; 12 lowercase hex chars is that exact shape.
+CONTAINER_ID_RE = re.compile(r"^[0-9a-f]{12}$")
+CONTAINER_ID_THRESHOLD = 10
+DISTINCT_HOSTNAME_CEILING = 50
+# +1: fetching one past the ceiling proves it was exceeded without an
+# unbounded DISTINCT over the hypertable.
+_POLLUTION_PROBE_LIMIT = DISTINCT_HOSTNAME_CEILING + 1
+
+
+@dataclass(frozen=True)
+class HostnamePollution:
+    distinct_count: int
+    container_id_count: int
+
+    @property
+    def polluted(self) -> bool:
+        return (
+            self.container_id_count >= CONTAINER_ID_THRESHOLD
+            or self.distinct_count > DISTINCT_HOSTNAME_CEILING
+        )
+
+
+def classify_hostnames(hostnames: list[str]) -> HostnamePollution:
+    """Pure classification so the heuristics are unit-testable without a DB."""
+    return HostnamePollution(
+        distinct_count=len(hostnames),
+        container_id_count=sum(1 for h in hostnames if CONTAINER_ID_RE.match(h)),
+    )
+
+
+async def detect_hostname_pollution(conn: "AsyncConnection") -> HostnamePollution:
+    """Bounded distinct-hostname probe against geo_events.
+
+    GROUP BY + LIMIT streams groups off ix_geo_events_hostname and stops at
+    the cap, so this stays cheap on large hypertables and does not depend on
+    facet-CAGG freshness.
+    """
+    result = await conn.execute(text(
+        "SELECT hostname FROM geo_events GROUP BY hostname ORDER BY hostname LIMIT :cap"
+    ), {"cap": _POLLUTION_PROBE_LIMIT})
+    return classify_hostnames([row.hostname for row in result])
+
+
+_hostname_pollution: HostnamePollution | None = None
+
+
+def get_hostname_pollution() -> HostnamePollution | None:
+    """Result of the startup probe; None before setup_timescaledb ran."""
+    return _hostname_pollution
+
+
+def _set_hostname_pollution(value: HostnamePollution | None) -> None:
+    global _hostname_pollution
+    _hostname_pollution = value
 
 
 # =============================================================================
