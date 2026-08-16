@@ -23,6 +23,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- A UI head (`LOGPARSER_ENABLED=false`) no longer reads as unhealthy: the
+  sidebar shows a neutral "Ingestion off" dot instead of a warning, the
+  status page's Ingestion card explains the setting instead of "Not
+  running", and `/api/v1/logs/files` stops listing configured-but-untailed
+  access logs as missing.
 - The live map feed (`/ws/live`) now fans out through PostgreSQL
   LISTEN/NOTIFY, so committed traffic from any writer process reaches the
   map, and live events carry the source hostname. Batch imports no longer

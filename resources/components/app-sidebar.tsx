@@ -38,6 +38,10 @@ import {
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { fetchHealth, logout } from "@/lib/api"
+import {
+  sidebarIngestionVariant,
+  type SidebarIngestionVariant,
+} from "@/components/settings/status-logic"
 import { useLiveFeedStatus } from "@/lib/live-feed-context"
 import { useCrowdsecStatus, useMe, useRuntimeSettings } from "@/lib/queries"
 import { SiDocker } from "react-icons/si"
@@ -231,19 +235,20 @@ function LiveIndicator({ collapsed }: { collapsed: boolean }) {
     retry: 1,
   })
 
-  const isRunning = health?.ingestion?.running ?? false
-  const isDegraded = health?.status === "degraded"
+  const variant = sidebarIngestionVariant(health, isError)
+  const isRunning = variant === "running"
 
-  // Determine indicator color and status. Degraded wins over running: the
-  // backend can report running=true while a tailed log file is missing.
-  const getIndicatorStyle = () => {
-    if (isError) return { color: "bg-gray-400", label: "Offline", tooltip: "Cannot connect to backend" }
-    if (isDegraded) return { color: "bg-amber-400", label: "Degraded", tooltip: "Service degraded - see Settings > Status" }
-    if (isRunning) return { color: "bg-emerald-400", label: "Live ingestion", tooltip: "Live ingestion active" }
-    return { color: "bg-gray-400", label: "Inactive", tooltip: "Service status unknown" }
+  const INDICATOR_STYLES: Record<SidebarIngestionVariant, { color: string; label: string; tooltip: string }> = {
+    offline: { color: "bg-gray-400", label: "Offline", tooltip: "Cannot connect to backend" },
+    degraded: { color: "bg-amber-400", label: "Degraded", tooltip: "Service degraded - see Settings > Status" },
+    // Neutral, not amber: LOGPARSER_ENABLED=false is a deliberate setting
+    // (UI-head deployments); other instances or agents write the data.
+    disabled: { color: "bg-sidebar-foreground/30", label: "Ingestion off", tooltip: "Log tailing is turned off (LOGPARSER_ENABLED=false)" },
+    running: { color: "bg-emerald-400", label: "Live ingestion", tooltip: "Live ingestion active" },
+    inactive: { color: "bg-gray-400", label: "Inactive", tooltip: "Service status unknown" },
   }
 
-  const { color, label, tooltip } = getIndicatorStyle()
+  const { color, label, tooltip } = INDICATOR_STYLES[variant]
 
   if (collapsed) {
     return (

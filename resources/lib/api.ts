@@ -104,6 +104,9 @@ export interface HealthIngestionStatus {
   missingFiles: string[]
   /** Wall-clock of the most recent ingested record; null before the first. */
   lastRecordAt: string | null
+  /** Tri-state: "disabled" is a deliberate LOGPARSER_ENABLED=false setting,
+   *  not a fault. Optional: absent on pre-tri-state backends. */
+  status?: "running" | "degraded" | "disabled"
 }
 
 export interface HealthResponse {

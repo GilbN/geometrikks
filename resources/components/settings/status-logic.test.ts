@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import type { HealthResponse } from "@/lib/api"
+import type { HealthIngestionStatus, HealthResponse } from "@/lib/api"
 import type {
   CrowdSecStatusResponse,
   HypertableStatsView,
@@ -24,6 +24,7 @@ import {
   overallState,
   relativeTime,
   schedulerJobState,
+  sidebarIngestionVariant,
 } from "./status-logic"
 
 function makeHealth(overrides: Partial<HealthResponse> = {}): HealthResponse {
@@ -104,6 +105,52 @@ describe("ingestionState", () => {
   it("is muted when health failed or is loading", () => {
     expect(ingestionState(undefined, true).tone).toBe("muted")
     expect(ingestionState(undefined, false).tone).toBe("muted")
+  })
+  it("is muted Disabled when the parser is configured off", () => {
+    const state = ingestionState(
+      makeHealth({
+        ingestion: {
+          running: false,
+          parsedLines: 0,
+          pendingRecords: 0,
+          missingFiles: [],
+          lastRecordAt: null,
+          status: "disabled",
+        },
+      }),
+      false,
+    )
+    expect(state.tone).toBe("muted")
+    expect(state.label).toBe("Disabled")
+    expect(state.detail).toContain("LOGPARSER_ENABLED")
+  })
+})
+
+describe("sidebarIngestionVariant", () => {
+  const disabledIngestion: HealthIngestionStatus = {
+    running: false,
+    parsedLines: 0,
+    pendingRecords: 0,
+    missingFiles: [],
+    lastRecordAt: null,
+    status: "disabled",
+  }
+  it("is offline when the health probe errors", () => {
+    expect(sidebarIngestionVariant(undefined, true)).toBe("offline")
+  })
+  it("is degraded when overall status is degraded", () => {
+    expect(sidebarIngestionVariant(makeHealth({ status: "degraded" }), false)).toBe("degraded")
+  })
+  it("is disabled when the parser is configured off", () => {
+    expect(sidebarIngestionVariant(makeHealth({ ingestion: disabledIngestion }), false)).toBe(
+      "disabled",
+    )
+  })
+  it("is running when ingestion runs", () => {
+    expect(sidebarIngestionVariant(makeHealth(), false)).toBe("running")
+  })
+  it("is inactive while health is still loading", () => {
+    expect(sidebarIngestionVariant(undefined, false)).toBe("inactive")
   })
 })
 

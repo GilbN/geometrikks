@@ -202,6 +202,9 @@ export function StatusOverview() {
                 })()}
               </div>
             )}
+            {/* A disabled parser tails nothing by design, so the file list
+                (which would only say "No access logs configured.") is noise. */}
+            {health?.ingestion.status !== "disabled" && (
             <div className="space-y-2 border-t pt-3">
               <p className="text-xs font-medium text-muted-foreground">Tailed access logs</p>
               {filesError && <p className="text-xs text-muted-foreground">File list unavailable.</p>}
@@ -223,6 +226,7 @@ export function StatusOverview() {
                 </div>
               ))}
             </div>
+            )}
           </CardContent>
         </Card>
 

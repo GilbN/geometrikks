@@ -29,6 +29,16 @@ export function overallState(health: HealthResponse | undefined, isError: boolea
 
 export function ingestionState(health: HealthResponse | undefined, isError: boolean): CardState {
   if (isError || !health) return { tone: "muted", label: "Unknown" }
+  // Muted, not amber: a deliberate operator setting (UI-head deployments),
+  // not a fault. Same treatment as authState's disabled branch.
+  if (health.ingestion.status === "disabled") {
+    return {
+      tone: "muted",
+      label: "Disabled",
+      detail:
+        "Log tailing is turned off (LOGPARSER_ENABLED=false). This instance serves data ingested by other instances or agents.",
+    }
+  }
   if (!health.ingestion.running) {
     return {
       tone: "amber",
@@ -44,6 +54,23 @@ export function ingestionState(health: HealthResponse | undefined, isError: bool
     }
   }
   return { tone: "emerald", label: "Running" }
+}
+
+export type SidebarIngestionVariant = "offline" | "degraded" | "disabled" | "running" | "inactive"
+
+/** Semantics of the sidebar's ingestion-health dot; the component maps the
+ *  variant to colors/labels. Degraded wins over running: the backend can
+ *  report running=true while a tailed log file is missing. */
+export function sidebarIngestionVariant(
+  health: HealthResponse | undefined,
+  isError: boolean,
+): SidebarIngestionVariant {
+  if (isError) return "offline"
+  if (!health) return "inactive"
+  if (health.status === "degraded") return "degraded"
+  if (health.ingestion.status === "disabled") return "disabled"
+  if (health.ingestion.running) return "running"
+  return "inactive"
 }
 
 export function databaseState(health: HealthResponse | undefined): CardState {
