@@ -79,7 +79,7 @@ async def test_wait_unreachable_logs_progress(caplog: pytest.LogCaptureFixture) 
     with caplog.at_level("INFO"):
         assert await schema_wait.wait_for_schema(engine, timeout=5, poll_interval=0.01) == "ready"
     assert any(
-        "no alembic_version yet / DB unreachable" in r.getMessage() and head in r.getMessage()
+        "no alembic_versions yet / DB unreachable" in r.getMessage() and head in r.getMessage()
         for r in caplog.records
     )
 
@@ -97,7 +97,7 @@ async def test_wait_times_out(monkeypatch) -> None:
 async def test_wait_multiple_results_found_warns_and_keeps_polling(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """A branched migration history (more than one alembic_version row)
+    """A branched migration history (more than one alembic_versions row)
     must not be silently swallowed by the generic except -- it's not a
     "not ready yet" case, it's a state the agent gate doesn't support."""
     from sqlalchemy.exc import MultipleResultsFound
@@ -107,7 +107,7 @@ async def test_wait_multiple_results_found_warns_and_keeps_polling(
         result = await schema_wait.wait_for_schema(engine, timeout=0.05, poll_interval=0.01)
     assert result == "timeout"
     assert any(
-        "alembic_version has multiple rows" in r.getMessage()
+        "alembic_versions has multiple rows" in r.getMessage()
         and "branched migration history" in r.getMessage()
         for r in caplog.records
     )

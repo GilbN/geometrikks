@@ -57,14 +57,14 @@ async def wait_for_schema(
     timeout: float = 120.0,
     poll_interval: float = 3.0,
 ) -> Literal["ready", "newer", "timeout"]:
-    """Poll ``alembic_version`` until the schema matches the bundled head.
+    """Poll ``alembic_versions`` until the schema matches the bundled head.
 
     - "ready": the DB is at exactly the bundled head.
     - "newer": the DB is at a revision this build doesn't know about (a full
       instance mid rolling-restart, running ahead) -- warn and proceed
       rather than brick the agent.
     - "timeout": the window elapsed with no ready/newer read. A missing
-      alembic_version table or a connection error is treated as "not ready
+      alembic_versions table or a connection error is treated as "not ready
       yet" and keeps polling instead of failing immediately.
     """
     head = bundled_head_revision()
@@ -75,7 +75,7 @@ async def wait_for_schema(
     while True:
         try:
             async with engine.connect() as conn:
-                result = await conn.execute(text("SELECT version_num FROM alembic_version"))
+                result = await conn.execute(text("SELECT version_num FROM alembic_versions"))
                 version = result.scalar_one()
             if version == head:
                 logger.info("schema wait: head reached")
@@ -92,12 +92,12 @@ async def wait_for_schema(
             logger.info("schema wait: db at %s (bundled head %s), retrying", version, head)
         except MultipleResultsFound:
             logger.warning(
-                "alembic_version has multiple rows; branched migration "
+                "alembic_versions has multiple rows; branched migration "
                 "history is not supported by the agent gate"
             )
         except Exception as e:
             logger.info(
-                "schema wait: no alembic_version yet / DB unreachable (bundled head %s), retrying",
+                "schema wait: no alembic_versions yet / DB unreachable (bundled head %s), retrying",
                 head,
             )
             logger.debug("Schema not ready yet: %s", e)
