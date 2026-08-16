@@ -791,6 +791,20 @@ export const DecisionViewSchema = {
   type: "object",
 } as const;
 
+export const DefaultHomeViewSchema = {
+  properties: {
+    latitude: {
+      type: "number",
+    },
+    longitude: {
+      type: "number",
+    },
+  },
+  required: ["latitude", "longitude"],
+  title: "DefaultHomeView",
+  type: "object",
+} as const;
+
 export const EmbeddedLocationDTOSchema = {
   properties: {
     city: {
@@ -2721,6 +2735,61 @@ export const SettingsSectionViewSchema = {
   },
   required: ["description", "fields", "name", "title"],
   title: "SettingsSectionView",
+  type: "object",
+} as const;
+
+export const SiteHomeViewSchema = {
+  properties: {
+    detectedAt: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    hostname: {
+      type: "string",
+    },
+    latitude: {
+      type: "number",
+    },
+    longitude: {
+      type: "number",
+    },
+    source: {
+      enum: ["auto", "override"],
+      type: "string",
+    },
+  },
+  required: ["detectedAt", "hostname", "latitude", "longitude", "source"],
+  title: "SiteHomeView",
+  type: "object",
+} as const;
+
+export const SiteHomesResponseSchema = {
+  properties: {
+    default: {
+      oneOf: [
+        {
+          $ref: "#/components/schemas/DefaultHomeView",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    homes: {
+      items: {
+        $ref: "#/components/schemas/SiteHomeView",
+      },
+      type: "array",
+    },
+  },
+  required: ["default", "homes"],
+  title: "SiteHomesResponse",
   type: "object",
 } as const;
 

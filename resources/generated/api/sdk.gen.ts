@@ -113,6 +113,8 @@ import type {
   ApiV1GeoLocationsLocationIdTopIpsGetLocationTopIpsData,
   ApiV1GeoLocationsLocationIdTopIpsGetLocationTopIpsErrors,
   ApiV1GeoLocationsLocationIdTopIpsGetLocationTopIpsResponses,
+  ApiV1GeoLocationsSiteHomesSiteHomesData,
+  ApiV1GeoLocationsSiteHomesSiteHomesResponses,
   ApiV1GeoLocationsTopCountriesGetTopCountriesData,
   ApiV1GeoLocationsTopCountriesGetTopCountriesErrors,
   ApiV1GeoLocationsTopCountriesGetTopCountriesResponses,
@@ -1226,6 +1228,36 @@ export const apiV1GeoLocationsGeojsonGetGeojson = <
       },
     ],
     url: "/api/v1/geo-locations/geojson",
+    ...options,
+  });
+
+/**
+ * SiteHomes
+ *
+ * Per-source home locations for the map.
+ */
+export const apiV1GeoLocationsSiteHomesSiteHomes = <
+  ThrowOnError extends boolean = false,
+>(
+  options?: Options<ApiV1GeoLocationsSiteHomesSiteHomesData, ThrowOnError>,
+): RequestResult<
+  ApiV1GeoLocationsSiteHomesSiteHomesResponses,
+  unknown,
+  ThrowOnError
+> =>
+  (options?.client ?? client).get<
+    ApiV1GeoLocationsSiteHomesSiteHomesResponses,
+    unknown,
+    ThrowOnError
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+    ],
+    url: "/api/v1/geo-locations/site-homes",
     ...options,
   });
 

@@ -1,14 +1,16 @@
 """GeoLocation API endpoints."""
 from __future__ import annotations
-from typing import Annotated
+from typing import Annotated, Literal, cast
 
 from advanced_alchemy.extensions.litestar.providers import create_service_dependencies
 from advanced_alchemy.filters import FilterTypes
 from advanced_alchemy.service import OffsetPagination
-from litestar import Controller, get
+from litestar import Controller, Request, get
 from litestar.di import NamedDependency
 from litestar.params import PathParameter, QueryParameter, SkipValidation
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from geometrikks.config.settings import Settings
 from geometrikks.domain.geo.models import GeoLocation
 from geometrikks.domain.geo.services import GeoLocationService
 from geometrikks.domain.geo.dtos import (
@@ -24,6 +26,9 @@ from geometrikks.domain.geo.dtos import (
     GlobalTopIPsResponse,
     TopCountryDTO,
     TopCountriesResponse,
+    SiteHomeView,
+    DefaultHomeView,
+    SiteHomesResponse,
 )
 
 from geometrikks.lib.parameters import (
@@ -37,7 +42,10 @@ from geometrikks.lib.parameters import (
 )
 from geometrikks.lib.time import ensure_utc
 from geometrikks.lib.validation import validate_ip_addresses
+from geometrikks.server import runtime
 from geometrikks.server.logging import get_logger
+from geometrikks.services.geoip.home import HomeLocation
+from geometrikks.services.geoip.site_homes import fetch_site_homes
 
 logger = get_logger(__name__)
 
@@ -144,6 +152,41 @@ class GeoLocationController(Controller):
             for loc in locations_with_counts
         ]
         return GeoJSONFeatureCollection(type="FeatureCollection", features=features, stats=stats)
+
+    @get("/site-homes", return_dto=None, description="Per-source home locations for the map.")
+    async def site_homes(
+        self,
+        request: Request,
+        db_session: NamedDependency[AsyncSession],
+        settings: NamedDependency[SkipValidation[Settings]],
+    ) -> SiteHomesResponse:
+        """Merged site_homes rows plus the instance default home.
+
+        The default mirrors read_settings's fallback: the app-state home
+        resolved at startup, or the configured coordinates if resolution
+        found nothing (geo-degraded or auto-detect disabled).
+        """
+        rows = await fetch_site_homes(db_session)
+        home: HomeLocation | None = runtime.get_map_home_location(request.app)
+        if home is None and settings.map.home_latitude is not None and settings.map.home_longitude is not None:
+            home = HomeLocation(
+                latitude=settings.map.home_latitude,
+                longitude=settings.map.home_longitude,
+                source="configured",
+            )
+        return SiteHomesResponse(
+            homes=[
+                SiteHomeView(
+                    hostname=r.hostname,
+                    latitude=r.latitude,
+                    longitude=r.longitude,
+                    source=cast(Literal["auto", "override"], r.source),
+                    detected_at=r.detected_at.isoformat() if r.detected_at else None,
+                )
+                for r in rows
+            ],
+            default=DefaultHomeView(latitude=home.latitude, longitude=home.longitude) if home else None,
+        )
 
     @get("/top-ips", return_dto=None, description="Get global top IPs by event count with their primary locations.")
     async def get_global_top_ips(

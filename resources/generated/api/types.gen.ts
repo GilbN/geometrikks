@@ -232,6 +232,14 @@ export type DecisionView = {
 };
 
 /**
+ * DefaultHomeView
+ */
+export type DefaultHomeView = {
+  latitude: number;
+  longitude: number;
+};
+
+/**
  * EmbeddedLocationDTO
  */
 export type EmbeddedLocationDto = {
@@ -798,6 +806,25 @@ export type SettingsSectionView = {
   fields: Array<SettingFieldView>;
   name: string;
   title: string;
+};
+
+/**
+ * SiteHomeView
+ */
+export type SiteHomeView = {
+  detectedAt: string | null;
+  hostname: string;
+  latitude: number;
+  longitude: number;
+  source: "auto" | "override";
+};
+
+/**
+ * SiteHomesResponse
+ */
+export type SiteHomesResponse = {
+  default: DefaultHomeView | null;
+  homes: Array<SiteHomeView>;
 };
 
 /**
@@ -2813,6 +2840,23 @@ export type ApiV1GeoLocationsGeojsonGetGeojsonResponses = {
 
 export type ApiV1GeoLocationsGeojsonGetGeojsonResponse =
   ApiV1GeoLocationsGeojsonGetGeojsonResponses[keyof ApiV1GeoLocationsGeojsonGetGeojsonResponses];
+
+export type ApiV1GeoLocationsSiteHomesSiteHomesData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: "/api/v1/geo-locations/site-homes";
+};
+
+export type ApiV1GeoLocationsSiteHomesSiteHomesResponses = {
+  /**
+   * Request fulfilled, document follows
+   */
+  200: SiteHomesResponse;
+};
+
+export type ApiV1GeoLocationsSiteHomesSiteHomesResponse =
+  ApiV1GeoLocationsSiteHomesSiteHomesResponses[keyof ApiV1GeoLocationsSiteHomesSiteHomesResponses];
 
 export type ApiV1GeoLocationsTopCountriesGetTopCountriesData = {
   body?: never;

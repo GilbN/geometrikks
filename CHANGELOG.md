@@ -27,6 +27,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Settings > Status shows generic operator advisories from the health
   endpoint; the first is a warning when recorded hostnames look like Docker
   container IDs, with the consolidation command to fix them.
+- `GET /api/v1/geo-locations/site-homes` serves each hostname's current home
+  location (auto-detected or overridden) plus the instance's default home,
+  for map rendering.
 
 ### Changed
 
