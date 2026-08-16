@@ -466,21 +466,18 @@ async def test_subscribe_against_dead_listener_conn_does_not_raise(
     assert any("subscribe" in r.getMessage().lower() for r in caplog.records)
 
 
-async def test_unsubscribe_against_dead_listener_conn_does_not_raise(
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    """Same as subscribe: a client disconnecting during the reconnect window
-    must not raise, and the channel must still come out of the tracked set
-    so a stale entry doesn't survive to the next reconnect's re-LISTEN."""
+async def test_unsubscribe_is_a_persistent_listen_noop() -> None:
+    """unsubscribe never touches the connection or the tracked set: the
+    LISTEN is process-lifetime (see the refresh-race tests), so a client
+    disconnecting during the reconnect window has nothing to do and nothing
+    to break -- a dead listener conn must not even be poked."""
     backend = DegradedTolerantAsyncPgBackend(make_connection=lambda: None)
     backend._listener_conn = DeadListenerConn()  # ty: ignore[invalid-assignment]
     backend._subscribed_channels = {"live_events"}
 
-    with caplog.at_level("WARNING"):
-        await backend.unsubscribe(["live_events"])  # must not raise
+    await backend.unsubscribe(["live_events"])  # must not raise
 
-    assert "live_events" not in backend._subscribed_channels
-    assert any("unsubscribe" in r.getMessage().lower() for r in caplog.records)
+    assert "live_events" in backend._subscribed_channels
 
 
 async def test_refresh_race_unsubscribe_interleaved_subscribe_keeps_listening() -> None:
@@ -518,6 +515,27 @@ async def test_refresh_race_unsubscribe_interleaved_subscribe_keeps_listening() 
     conn.remove_gate.set()
     await unsub
     await sub
+
+    assert "live_events" in conn._listened_channels
+    assert "live_events" in backend._subscribed_channels
+
+
+async def test_stale_unsubscribe_after_winning_subscribe_keeps_listening() -> None:
+    """The other ordering of the refresh race: the plugin decides to
+    unsubscribe (its subscriber set was momentarily empty), but the new
+    client's subscribe reaches the backend first and correctly no-ops
+    because the LISTEN is still live. The stale unsubscribe lands last and
+    must NOT kill the LISTEN the plugin believes the new client holds."""
+    conn = FakeConnection()
+
+    async def make_connection() -> FakeConnection:
+        return conn
+
+    backend = DegradedTolerantAsyncPgBackend(make_connection=make_connection)
+    await backend.on_startup()
+    await backend.subscribe(["live_events"])
+    await backend.subscribe(["live_events"])  # new client wins the race: no-op
+    await backend.unsubscribe(["live_events"])  # stale departing-client decision
 
     assert "live_events" in conn._listened_channels
     assert "live_events" in backend._subscribed_channels
