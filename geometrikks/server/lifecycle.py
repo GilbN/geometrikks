@@ -37,6 +37,7 @@ from geometrikks.services.crowdsec import CrowdSecService
 from geometrikks.services.crowdsec.stream import CrowdSecStreamPoller
 from geometrikks.services.geoip.downloader import ensure_geoip_database
 from geometrikks.services.geoip.home import resolve_home_location
+from geometrikks.services.geoip.site_homes import reconcile_override_homes, upsert_auto_homes
 from geometrikks.services.ingestion import LogIngestionService
 from geometrikks.services.logparser.logparser import LogParser
 from geometrikks.server.scheduler import create_scheduler
@@ -192,6 +193,21 @@ async def database_lifespan(app: "Litestar") -> "AsyncGenerator[None]":
             )
         else:
             app.state.db_available = True
+            session_maker = get_app_db_config(app).create_session_maker()
+            # Home was resolved by geoip_lifespan (runs before this manager);
+            # a failure here is presentation data, not a startup blocker.
+            try:
+                await upsert_auto_homes(
+                    session_maker,
+                    settings.logparser.resolved_hostnames(),
+                    runtime.get_map_home_location(app),
+                )
+            except Exception:
+                logger.warning(
+                    "site_homes startup write failed; map falls back to the "
+                    "default home",
+                    exc_info=True,
+                )
         yield
         return
 
@@ -230,6 +246,22 @@ async def database_lifespan(app: "Litestar") -> "AsyncGenerator[None]":
     # out of alembic: the DDL is idempotent, timescale-version-sensitive,
     # and alembic autogenerate can neither model nor diff them.
     await setup_timescaledb(engine, settings.analytics)
+
+    session_maker = get_app_db_config(app).create_session_maker()
+    # Presentation data: a failure here must never block startup.
+    try:
+        await reconcile_override_homes(session_maker, settings.map.home_locations)
+        if settings.logparser.enabled:
+            await upsert_auto_homes(
+                session_maker,
+                settings.logparser.resolved_hostnames(),
+                runtime.get_map_home_location(app),
+            )
+    except Exception:
+        logger.warning(
+            "site_homes startup write failed; map falls back to the default home",
+            exc_info=True,
+        )
     yield
 
 

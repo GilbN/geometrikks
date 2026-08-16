@@ -86,10 +86,20 @@ async def test_scheduler_has_geoip_refresh_job(monkeypatch):
 
 async def test_scheduler_agent_mode_registers_only_geoip_refresh(monkeypatch):
     """Agent instances tail logs into a schema the primary owns: no CAGG or
-    location-refresh maintenance jobs, no CrowdSec poll -- just GeoLite2."""
+    location-refresh maintenance jobs, no CrowdSec poll -- just GeoLite2 and
+    the site-home refresh that piggybacks its cadence."""
     from geometrikks.config.settings import Settings
     from geometrikks.server.scheduler import create_scheduler
 
     scheduler = await create_scheduler(MagicMock(), Settings(), mode="agent")
     job_ids = {job.id for job in scheduler.get_jobs()}
-    assert job_ids == {"geoip-refresh"}
+    assert job_ids == {"geoip-refresh", "site-home-refresh"}
+
+
+async def test_scheduler_registers_site_home_refresh_in_full_mode(monkeypatch):
+    from geometrikks.config.settings import Settings
+    from geometrikks.server.scheduler import create_scheduler
+
+    scheduler = await create_scheduler(MagicMock(), Settings())
+    job_ids = {job.id for job in scheduler.get_jobs()}
+    assert "site-home-refresh" in job_ids

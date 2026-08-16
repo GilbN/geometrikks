@@ -224,6 +224,119 @@ async def test_ingestion_disabled_by_config_skips_construction(monkeypatch):
     cast("MagicMock", lc.LogIngestionService).assert_not_called()
 
 
+async def test_agent_schema_ready_triggers_home_upsert(monkeypatch):
+    """A successful schema wait records this agent's detected home for each
+    hostname it tails."""
+    from geometrikks.server import lifecycle as lc
+    from geometrikks.config.settings import Settings
+
+    monkeypatch.setenv("APP_MODE", "agent")
+    _patch_startup_collaborators(
+        monkeypatch, lc, db_available=True, ensure=AsyncMock(return_value=True)
+    )
+    monkeypatch.setattr(lc, "wait_for_schema", AsyncMock(return_value="ready"))
+    upsert = AsyncMock()
+    monkeypatch.setattr(lc, "upsert_auto_homes", upsert)
+
+    app = SimpleNamespace(state=SimpleNamespace())
+    app.state.settings = Settings()
+    async with enter_lifespan(app):
+        pass
+
+    upsert.assert_awaited_once()
+    assert upsert.await_args is not None
+    hostnames = upsert.await_args.args[1]
+    assert hostnames == Settings().logparser.resolved_hostnames()
+
+
+async def test_agent_schema_timeout_skips_home_upsert(monkeypatch):
+    """A timed-out schema wait leaves site_homes untouched: the agent is
+    already going degraded, there is nothing trustworthy to record."""
+    from geometrikks.server import lifecycle as lc
+    from geometrikks.config.settings import Settings
+
+    monkeypatch.setenv("APP_MODE", "agent")
+    _patch_startup_collaborators(
+        monkeypatch, lc, db_available=True, ensure=AsyncMock(return_value=True)
+    )
+    monkeypatch.setattr(lc, "wait_for_schema", AsyncMock(return_value="timeout"))
+    upsert = AsyncMock()
+    monkeypatch.setattr(lc, "upsert_auto_homes", upsert)
+
+    app = SimpleNamespace(state=SimpleNamespace())
+    app.state.settings = Settings()
+    async with enter_lifespan(app):
+        pass
+
+    upsert.assert_not_awaited()
+
+
+async def test_full_startup_reconciles_overrides_and_upserts(monkeypatch):
+    """A primary instance always reconciles MAP_HOME_LOCATIONS overrides and,
+    when it also tails logs, records its own auto-detected home."""
+    from geometrikks.server import lifecycle as lc
+    from geometrikks.config.settings import Settings
+
+    _patch_startup_collaborators(
+        monkeypatch, lc, db_available=True, ensure=AsyncMock(return_value=True)
+    )
+    reconcile = AsyncMock()
+    upsert = AsyncMock()
+    monkeypatch.setattr(lc, "reconcile_override_homes", reconcile)
+    monkeypatch.setattr(lc, "upsert_auto_homes", upsert)
+
+    app = SimpleNamespace(state=SimpleNamespace())
+    app.state.settings = Settings()
+    async with enter_lifespan(app):
+        pass
+
+    reconcile.assert_awaited_once()
+    upsert.assert_awaited_once()
+
+
+async def test_ui_head_reconciles_but_does_not_upsert(monkeypatch):
+    """LOGPARSER_ENABLED=false tails nothing under its own hostname, so it
+    still reconciles overrides but skips the auto upsert."""
+    from geometrikks.server import lifecycle as lc
+    from geometrikks.config.settings import Settings
+
+    monkeypatch.setenv("LOGPARSER_ENABLED", "false")
+    _patch_startup_collaborators(
+        monkeypatch, lc, db_available=True, ensure=AsyncMock(return_value=True)
+    )
+    reconcile = AsyncMock()
+    upsert = AsyncMock()
+    monkeypatch.setattr(lc, "reconcile_override_homes", reconcile)
+    monkeypatch.setattr(lc, "upsert_auto_homes", upsert)
+
+    app = SimpleNamespace(state=SimpleNamespace())
+    app.state.settings = Settings()
+    async with enter_lifespan(app):
+        pass
+
+    reconcile.assert_awaited_once()
+    upsert.assert_not_awaited()
+
+
+async def test_full_startup_site_home_failure_does_not_block_startup(monkeypatch):
+    """Site homes are presentation data: a write failure logs a warning and
+    startup still reaches a healthy, DB-available state."""
+    from geometrikks.server import lifecycle as lc
+    from geometrikks.config.settings import Settings
+
+    _patch_startup_collaborators(
+        monkeypatch, lc, db_available=True, ensure=AsyncMock(return_value=True)
+    )
+    monkeypatch.setattr(
+        lc, "reconcile_override_homes", AsyncMock(side_effect=RuntimeError("db boom"))
+    )
+
+    app = SimpleNamespace(state=SimpleNamespace())
+    app.state.settings = Settings()
+    async with enter_lifespan(app):
+        assert app.state.db_available is True
+
+
 async def test_ingestion_wires_per_file_hostnames(monkeypatch):
     """Each tailed file's parser gets its positional hostname; the service
     fallback gets the first resolved hostname."""

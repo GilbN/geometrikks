@@ -136,6 +136,28 @@ async def refresh_all_caggs_job(
     logger.info("All CAGGs refresh complete")
 
 
+async def refresh_site_home_job(
+    session_factory: "Callable[[], AsyncSession]", settings: "Settings"
+) -> None:
+    """Re-detect this process's home and refresh its site_homes rows.
+
+    Homelab IPs change; agents run for weeks. Piggybacks the geoip refresh
+    cadence rather than a new setting. A UI head tails nothing and records
+    no events under its own hostname, so it has nothing to write.
+    """
+    if not settings.logparser.enabled:
+        return
+    from geometrikks.services.geoip.home import resolve_home_location
+    from geometrikks.services.geoip.site_homes import upsert_auto_homes
+
+    home = await resolve_home_location(
+        settings.map,
+        settings.geoip,
+        geoip_available=settings.geoip.db_path.exists(),
+    )
+    await upsert_auto_homes(session_factory, settings.logparser.resolved_hostnames(), home)
+
+
 async def create_scheduler(
     session_factory: "Callable[[], AsyncSession]",
     settings: "Settings",
@@ -217,6 +239,20 @@ async def create_scheduler(
         replace_existing=True,
     )
     logger.info("Scheduled GeoLite2 refresh every %d day(s)", settings.geoip.refresh_days)
+
+    # Site-home refresh: re-detects this process's home location and keeps
+    # its site_homes rows current. Runs in every mode (unguarded by `mode`,
+    # like the GeoLite2 refresh above) -- the job itself no-ops for a UI head
+    # by checking settings.logparser.enabled at call time.
+    scheduler.add_job(
+        refresh_site_home_job,
+        IntervalTrigger(days=settings.geoip.refresh_days),
+        id="site-home-refresh",
+        name="Re-detect this instance's site home location",
+        args=[session_factory, settings],
+        replace_existing=True,
+    )
+    logger.info("Scheduled site home refresh every %d day(s)", settings.geoip.refresh_days)
 
     # CrowdSec decision-stream poll: feeds live ban/unban updates to the
     # /ws/crowdsec subscribers. Only registered when the integration is on;
