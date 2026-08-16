@@ -139,3 +139,22 @@ async def test_pollution_gate_keeps_old_shape(pg_engine, pg_session_maker, clean
         ))}
     assert "hostname" in cols
     assert timescale.location_caggs_have_hostname() is True
+
+
+async def test_repository_hostname_filter_reads_cagg(pg_engine, pg_session_maker, clean_tables):
+    """7-day range + hostname filter goes through the CAGG and matches raw."""
+    from geometrikks.domain.geo.repositories import GeoLocationRepository
+
+    await _seed_geo_events(pg_session_maker, ["nginx-01", "traefik-01"], per_host=5)
+    await refresh_caggs_range(
+        pg_engine, start=NOW - timedelta(days=3), end=NOW,
+        caggs=["location_hourly_stats"],
+    )
+    async with pg_session_maker() as session:
+        repo = GeoLocationRepository(session=session)
+        rows = await repo.get_all_with_event_counts(
+            from_timestamp=NOW - timedelta(days=7),
+            to_timestamp=NOW + timedelta(hours=1),
+            hostnames=["nginx-01"],
+        )
+    assert sum(r.event_count for r in rows) == 5
