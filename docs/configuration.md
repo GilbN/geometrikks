@@ -126,6 +126,7 @@ from real environment variables. It is read once at import time.
 | `MAP_AUTO_DETECT_HOME` | `true` | Resolve the server's public IP at startup and geolocate it when home coordinates are unset. |
 | `MAP_PUBLIC_IP_URL` | `https://api64.ipify.org?format=json` | JSON endpoint used for public-IP discovery; the response must contain an 'ip' field. |
 | `MAP_PUBLIC_IP_TIMEOUT` | `3.0` | Timeout in seconds for public-IP discovery. |
+| `MAP_HOME_LOCATIONS` | *(computed)* | Per-hostname home overrides as a JSON object of {"hostname": [latitude, longitude]}. Overrides win over agent auto-detection in site_homes; removing an entry deletes its override row at the next startup. Use for sites whose public IP geolocates wrong (CGNAT, VPN) or for hostnames in logs shipped from other machines. |
 
 ## CrowdSec
 

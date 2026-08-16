@@ -498,6 +498,29 @@ class MapSettings(BaseSettings):
         le=30,
         description="Timeout in seconds for public-IP discovery.",
     )
+    home_locations: dict[str, tuple[float, float]] = Field(
+        default_factory=dict,
+        description=(
+            "Per-hostname home overrides as a JSON object of "
+            '{"hostname": [latitude, longitude]}. Overrides win over '
+            "agent auto-detection in site_homes; removing an entry deletes "
+            "its override row at the next startup. Use for sites whose "
+            "public IP geolocates wrong (CGNAT, VPN) or for hostnames in "
+            "logs shipped from other machines."
+        ),
+    )
+
+    @field_validator("home_locations")
+    @classmethod
+    def validate_home_locations(cls, value: dict[str, tuple[float, float]]) -> dict[str, tuple[float, float]]:
+        """Coordinate ranges; pydantic already enforced the two-float arity."""
+        for hostname, (lat, lng) in value.items():
+            if not (-90 <= lat <= 90) or not (-180 <= lng <= 180):
+                raise ValueError(
+                    f"MAP_HOME_LOCATIONS[{hostname!r}]: latitude must be in "
+                    "[-90, 90] and longitude in [-180, 180]"
+                )
+        return value
 
     @model_validator(mode="after")
     def validate_home_coordinate_pair(self) -> "MapSettings":

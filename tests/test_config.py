@@ -603,3 +603,33 @@ def test_agent_with_tailing_disabled_rejected(monkeypatch) -> None:
     monkeypatch.setenv("LOGPARSER_ENABLED", "false")
     with pytest.raises(ValidationError):
         Settings()
+
+
+def test_map_home_locations_default_empty():
+    from geometrikks.config.settings import MapSettings
+    assert MapSettings(_env_file=None).home_locations == {}
+
+
+def test_map_home_locations_parses_json(monkeypatch):
+    from geometrikks.config.settings import MapSettings
+    monkeypatch.setenv("MAP_HOME_LOCATIONS", '{"nginx-01": [59.91, 10.75]}')
+    settings = MapSettings(_env_file=None)
+    assert settings.home_locations == {"nginx-01": (59.91, 10.75)}
+
+
+def test_map_home_locations_rejects_bad_ranges(monkeypatch):
+    import pydantic
+    import pytest as _pytest
+    from geometrikks.config.settings import MapSettings
+    monkeypatch.setenv("MAP_HOME_LOCATIONS", '{"x": [95.0, 10.0]}')
+    with _pytest.raises(pydantic.ValidationError):
+        MapSettings(_env_file=None)
+
+
+def test_map_home_locations_rejects_wrong_arity(monkeypatch):
+    import pydantic
+    import pytest as _pytest
+    from geometrikks.config.settings import MapSettings
+    monkeypatch.setenv("MAP_HOME_LOCATIONS", '{"x": [59.91]}')
+    with _pytest.raises(pydantic.ValidationError):
+        MapSettings(_env_file=None)
