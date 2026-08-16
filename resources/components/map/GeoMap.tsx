@@ -46,6 +46,12 @@ import { getDemoTrafficMode } from "@/lib/demo-traffic"
 import { decodeMapSearch, encodeMapSearch } from "@/lib/map-filters"
 import { useUrlFilters } from "@/hooks/use-url-filters"
 import { loadLiveOverlays, saveLiveOverlays, type LiveOverlayPreferences } from "@/lib/live-overlays"
+import {
+  loadLayerPreference,
+  loadLivePreference,
+  saveLayerPreference,
+  saveLivePreference,
+} from "@/lib/map-preferences"
 import { LiveTrafficProvider, useLiveTrafficStore } from "@/lib/live-traffic/context"
 import type { LiveRequest } from "@/lib/live-traffic/types"
 import { useIsMobile } from "@/hooks/use-mobile"
@@ -146,7 +152,7 @@ function GeoMapInner({
   const isLoading = isLoadingGeoJSON || isLoadingTopIPs
 
   const [viewState, setViewState] = useState(INITIAL_VIEW_STATE)
-  const [activeLayer, setActiveLayer] = useState<LayerType>("markers")
+  const [activeLayer, setActiveLayer] = useState<LayerType>(loadLayerPreference)
   const [projection, setProjection] = useState<MapProjection>(loadMapProjectionPreference)
   const [routeEffectsEnabled, setRouteEffectsEnabled] = useState(loadRouteEffectsPreference)
   const [homeMarkerEnabled, setHomeMarkerEnabled] = useState(loadHomeMarkerPreference)
@@ -206,6 +212,10 @@ function GeoMapInner({
   useEffect(() => {
     saveLiveOverlays(liveOverlays)
   }, [liveOverlays])
+
+  useEffect(() => {
+    saveLayerPreference(activeLayer)
+  }, [activeLayer])
 
   // Live off tears down the store; any live-only UI referencing it must go
   // too, or a popup stays pinned to the map after the request it describes
@@ -619,7 +629,13 @@ function GeoMapInner({
 export default function GeoMap() {
   const search = useSearch({ from: "/map" })
   const sources = search.sources ?? []
-  const [liveMode, setLiveMode] = useState(getDemoTrafficMode() !== "off")
+  const [liveMode, setLiveModeState] = useState(
+    () => (getDemoTrafficMode() !== "off" ? true : loadLivePreference()),
+  )
+  const setLiveMode = (enabled: boolean) => {
+    setLiveModeState(enabled)
+    saveLivePreference(enabled)
+  }
 
   return (
     <LiveTrafficProvider enabled={liveMode} sources={sources}>

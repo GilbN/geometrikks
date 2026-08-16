@@ -20,6 +20,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   instance into a UI head with no local tailing. The live-feed backend now
   reuses a persistent publish connection and reconnects its listener
   automatically.
+- The map can filter by source hostname: a Sources control beside the
+  country/city filters, URL-backed filter state (shareable links), live
+  traffic and vitals restricted to the selected sources, and the source
+  hostname shown on live popups and feed rows.
+- Settings > Status shows generic operator advisories from the health
+  endpoint; the first is a warning when recorded hostnames look like Docker
+  container IDs, with the consolidation command to fix them.
 
 ### Changed
 
@@ -32,6 +39,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   LISTEN/NOTIFY, so committed traffic from any writer process reaches the
   map, and live events carry the source hostname. Batch imports no longer
   feed the live map.
+- The map layer choice and Live toggle now persist across visits.
+- The location aggregates are rebuilt once at startup with a per-hostname
+  dimension so source-filtered maps stay fast. History older than the raw
+  retention window (default 180 days) cannot be rebuilt and is discarded at
+  that upgrade; installs with many container-ID hostnames skip the rebuild
+  until consolidated (see the status page advisory).
 
 ### Fixed
 
