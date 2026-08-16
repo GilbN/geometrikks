@@ -29,7 +29,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   container IDs, with the consolidation command to fix them.
 - `GET /api/v1/geo-locations/site-homes` serves each hostname's current home
   location (auto-detected or overridden) plus the instance's default home,
-  for map rendering.
+  for map rendering. The map now consumes it: each live route flies to its
+  own source's home (falling back to the default), and one beacon renders
+  per distinct site home instead of a single shared one.
 
 ### Changed
 

@@ -22,7 +22,9 @@ import {
   useBannedLocations,
   useCrowdsecStatus,
   useGeoEventFacets,
+  useSiteHomes,
 } from "@/lib/queries"
+import { buildHomeResolver, homeBeacons, type Coordinate } from "@/lib/site-homes"
 import { useMapStyle } from "./hooks/useMapStyle"
 import {
   bannedPointLayer,
@@ -141,13 +143,16 @@ function GeoMapInner({
   const sourceOptions = facets?.hostnames ?? []
   const { data: globalTopIPs, isLoading: isLoadingTopIPs } = useGlobalTopIPs()
   const { data: runtimeSettings } = useRuntimeSettings()
-  const homeDestination = useMemo<[number, number] | null>(() => {
+  const homeDestination = useMemo<Coordinate | null>(() => {
     const latitude = runtimeSettings?.map.homeLatitude
     const longitude = runtimeSettings?.map.homeLongitude
     return typeof latitude === "number" && typeof longitude === "number"
       ? [longitude, latitude]
       : null
   }, [runtimeSettings])
+  const { data: siteHomes } = useSiteHomes()
+  const resolveDestination = useMemo(() => buildHomeResolver(siteHomes), [siteHomes])
+  const beacons = useMemo(() => homeBeacons(siteHomes), [siteHomes])
 
   const isLoading = isLoadingGeoJSON || isLoadingTopIPs
 
@@ -291,15 +296,27 @@ function GeoMapInner({
     })
   }, [])
 
-  // Fly to the configured server home location
-  const goToHome = useCallback(() => {
-    if (!homeDestination) return
+  const flyToCoordinate = useCallback((coordinates: Coordinate) => {
     mapRef.current?.flyTo({
-      center: homeDestination,
+      center: coordinates,
       zoom: 7,
       duration: 1500,
     })
-  }, [homeDestination])
+  }, [])
+
+  // With exactly one source selected, "home" is that source's own resolved
+  // location; otherwise it is the instance-wide default.
+  const goHomeDestination = useMemo<Coordinate | null>(() => {
+    if (selectedSources.length === 1) {
+      return resolveDestination(selectedSources[0])
+    }
+    return homeDestination
+  }, [selectedSources, resolveDestination, homeDestination])
+
+  const goToHome = useCallback(() => {
+    if (!goHomeDestination) return
+    flyToCoordinate(goHomeDestination)
+  }, [goHomeDestination, flyToCoordinate])
 
   const changeProjection = useCallback((nextProjection: MapProjection) => {
     if (nextProjection === projection) return
@@ -512,16 +529,20 @@ function GeoMapInner({
           </Source>
         )}
 
-        {/* Live requests travelling from their GeoIP origin to the configured server home. */}
+        {/* Live requests travelling from their GeoIP origin to their source's home. */}
         <LivePulses
           enabled={liveMode && routeEffectsEnabled}
-          destination={homeDestination}
+          resolveDestination={resolveDestination}
         />
 
-        {/* Server home location beacon */}
-        {homeMarkerEnabled && (
-          <HomeMarker coordinates={homeDestination} onClick={goToHome} />
-        )}
+        {/* One beacon per site home, plus the default when it is distinct. */}
+        {homeMarkerEnabled && beacons.map((coordinates) => (
+          <HomeMarker
+            key={`${coordinates[0]},${coordinates[1]}`}
+            coordinates={coordinates}
+            onClick={() => flyToCoordinate(coordinates)}
+          />
+        ))}
 
         {/* Popup */}
         {popup && activeLayer === "markers" && (
@@ -574,7 +595,7 @@ function GeoMapInner({
         onLiveOverlayChange={changeLiveOverlay}
         routeEffectsEnabled={routeEffectsEnabled}
         onRouteEffectsChange={setRouteEffectsEnabled}
-        routeHomeAvailable={homeDestination !== null}
+        routeHomeAvailable={goHomeDestination !== null}
         homeMarkerEnabled={homeMarkerEnabled}
         onHomeMarkerChange={setHomeMarkerEnabled}
         bannedOverlayAvailable={crowdsecStatus?.enabled === true}

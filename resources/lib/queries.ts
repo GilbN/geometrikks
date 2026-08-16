@@ -28,6 +28,7 @@ import {
   fetchGeoLogTopCountries,
   fetchGeoLogTopCities,
   fetchGeoEventFacets,
+  fetchSiteHomes,
   fetchRuntimeSettings,
   fetchSystemSettings,
   fetchSchedulerJobs,
@@ -138,6 +139,7 @@ export const queryKeys = {
       [...queryKeys.geo.all, "location-top-ips", locationId, params, refreshKey] as const,
     topCountries: (params: Record<string, unknown>, refreshKey?: number) =>
       [...queryKeys.geo.all, "top-countries", params, refreshKey] as const,
+    siteHomes: ["geo", "site-homes"] as const,
   },
   accessLogs: {
     all: ["access-logs"] as const,
@@ -1241,6 +1243,15 @@ export function useGeoEventFacets({ enabled = true }: { enabled?: boolean } = {}
     queryFn: fetchGeoEventFacets,
     enabled,
     staleTime: 60 * 1000,
+  })
+}
+
+/** Per-source home locations for the map; homes change rarely. */
+export function useSiteHomes() {
+  return useQuery({
+    queryKey: queryKeys.geo.siteHomes,
+    queryFn: fetchSiteHomes,
+    staleTime: 5 * 60 * 1000,
   })
 }
 

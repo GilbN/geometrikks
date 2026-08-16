@@ -6,6 +6,7 @@ import axios from "axios"
 import {
   apiV1GeoEventsFacetsGetGeoLogFacets,
   apiV1GeoEventsLogsGetGeoLogs,
+  apiV1GeoLocationsSiteHomesSiteHomes,
   apiV1GeoEventsSummaryGetGeoLogSummary,
   apiV1GeoEventsTimeSeriesGetGeoLogTimeSeries,
   apiV1GeoEventsTopCitiesGetGeoLogTopCities,
@@ -34,6 +35,7 @@ import type {
   IpLocation,
   SessionUser,
   AuthDisabled,
+  SiteHomesResponse,
 } from "@/generated/api/types.gen"
 
 export type {
@@ -837,6 +839,12 @@ export async function fetchGeoLogTopCities(
 /** Distinct country/city/hostname values present in the geo data. */
 export async function fetchGeoEventFacets() {
   const { data } = await apiV1GeoEventsFacetsGetGeoLogFacets({ throwOnError: true })
+  return data
+}
+
+/** Per-source home locations plus the instance-wide default, for the map. */
+export async function fetchSiteHomes(): Promise<SiteHomesResponse> {
+  const { data } = await apiV1GeoLocationsSiteHomesSiteHomes({ throwOnError: true })
   return data
 }
 
