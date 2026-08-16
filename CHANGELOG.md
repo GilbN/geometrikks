@@ -27,11 +27,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Settings > Status shows generic operator advisories from the health
   endpoint; the first is a warning when recorded hostnames look like Docker
   container IDs, with the consolidation command to fix them.
-- `GET /api/v1/geo-locations/site-homes` serves each hostname's current home
-  location (auto-detected or overridden) plus the instance's default home,
-  for map rendering. The map now consumes it: each live route flies to its
-  own source's home (falling back to the default), and one beacon renders
-  per distinct site home instead of a single shared one.
+- Multi-site home locations: agents detect their own public-IP location and
+  record it per hostname, with live map routes flying to each source's home
+  (one beacon per site). `MAP_HOME_LOCATIONS` overrides any hostname's
+  coordinates for sites whose public IP geolocates wrong or whose logs are
+  shipped from another machine. Detection refreshes on its own
+  `MAP_HOME_REFRESH_HOURS` cadence (default 24h). The `GET
+  /api/v1/geo-locations/site-homes` endpoint serves each hostname's current
+  home location plus the instance's default home for map rendering.
 
 ### Changed
 
