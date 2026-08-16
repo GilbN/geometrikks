@@ -9,9 +9,9 @@ ingestion service's geo_locations upsert).
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, cast
 
-from sqlalchemy import delete, select
+from sqlalchemy import CursorResult, delete, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from geometrikks.domain.geo.models import SiteHome
@@ -40,8 +40,11 @@ async def upsert_auto_homes(
     if home is None or not hostnames:
         return
     now = datetime.now(timezone.utc)
+    affected: list[str] = []
     async with session_maker() as session:
-        for hostname in dict.fromkeys(hostnames):
+        # Sorted, not input order: concurrent writers must lock rows in the
+        # same order to avoid a deadlock.
+        for hostname in sorted(dict.fromkeys(hostnames)):
             stmt = (
                 pg_insert(SiteHome)
                 .values(
@@ -62,9 +65,15 @@ async def upsert_auto_homes(
                     where=(SiteHome.source != "override"),
                 )
             )
-            await session.execute(stmt)
+            result = await session.execute(stmt)
+            # An upsert always yields a CursorResult; Result[Any] lacks rowcount.
+            if cast("CursorResult[Any]", result).rowcount:
+                affected.append(hostname)
         await session.commit()
-    logger.info("site_homes_auto_upserted", hostnames=list(dict.fromkeys(hostnames)))
+    # Skip the log entirely when every row was guarded off by the override
+    # WHERE clause; a no-op upsert is not worth an audit line.
+    if affected:
+        logger.info("site_homes_auto_upserted", hostnames=affected, rows=len(affected))
 
 
 async def reconcile_override_homes(
@@ -78,7 +87,8 @@ async def reconcile_override_homes(
     """
     now = datetime.now(timezone.utc)
     async with session_maker() as session:
-        for hostname, (latitude, longitude) in overrides.items():
+        # Sorted, not dict order: consistent lock order across concurrent writers.
+        for hostname, (latitude, longitude) in sorted(overrides.items()):
             stmt = (
                 pg_insert(SiteHome)
                 .values(

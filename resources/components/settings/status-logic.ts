@@ -6,6 +6,7 @@ import type {
   HypertableStatsView,
   LogFileView,
   SchedulerJobView,
+  SiteHomesResponse,
 } from "@/generated/api/types.gen"
 import type { LogRecord } from "@/lib/logstream"
 import type { LiveFeedStatus } from "@/lib/websocket"
@@ -128,6 +129,23 @@ export function crowdsecState(
 
 export function accessLogFiles(files: LogFileView[] | undefined): LogFileView[] {
   return (files ?? []).filter((f) => f.kind === "access")
+}
+
+export interface SiteHomeRow {
+  hostname: string
+  coords: string
+  source: "auto" | "override"
+}
+
+/** Per-hostname rows for the Settings > Status "Site homes" block: hostname,
+ *  lat/lon to 2 decimals, and auto/override so an operator can tell a
+ *  detected home from a configured one (e.g. diagnosing CGNAT drift). */
+export function siteHomeRows(data: SiteHomesResponse | undefined): SiteHomeRow[] {
+  return (data?.homes ?? []).map((h) => ({
+    hostname: h.hostname,
+    coords: `${h.latitude.toFixed(2)}, ${h.longitude.toFixed(2)}`,
+    source: h.source,
+  }))
 }
 
 export function formatSize(bytes: number): string {

@@ -63,3 +63,12 @@ async def test_reconcile_leaves_auto_rows_alone(pg_session_maker, clean_site_hom
     await upsert_auto_homes(pg_session_maker, ["nginx-01"], HOME)
     await reconcile_override_homes(pg_session_maker, {})
     assert "nginx-01" in await _rows(pg_session_maker)
+
+
+async def test_reconcile_empty_deletes_preexisting_override(pg_session_maker, clean_site_homes):
+    await reconcile_override_homes(pg_session_maker, {"a": (1.0, 2.0)})
+    await upsert_auto_homes(pg_session_maker, ["nginx-01"], HOME)
+    await reconcile_override_homes(pg_session_maker, {})
+    rows = await _rows(pg_session_maker)
+    assert "a" not in rows
+    assert rows["nginx-01"] == (59.91, 10.75, "auto")

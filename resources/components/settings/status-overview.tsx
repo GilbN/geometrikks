@@ -4,6 +4,7 @@ import {
   CalendarClock,
   Database,
   Globe,
+  MapPin,
   Radio,
   ShieldCheck,
   ShieldUser,
@@ -18,6 +19,7 @@ import {
   useMe,
   useRecentErrors,
   useSchedulerJobs,
+  useSiteHomes,
   useStats,
 } from "@/lib/queries"
 import { useLiveEvents, useLiveFeedStatus } from "@/lib/live-feed-context"
@@ -45,6 +47,7 @@ import {
   overallState,
   relativeTime,
   schedulerJobState,
+  siteHomeRows,
 } from "@/components/settings/status-logic"
 
 function SectionIcon({ icon: Icon }: { icon: React.ComponentType<{ className?: string }> }) {
@@ -91,6 +94,7 @@ export function StatusOverview() {
   const jobs = schedulerData?.jobs
   const { data: dbInfo } = useDatabaseInfo()
   const { data: logRecords, isError: logsError } = useRecentErrors()
+  const { data: siteHomes } = useSiteHomes()
   const feedStatus = useLiveFeedStatus()
   // Probe the live WebSocket while this page is open: the client is
   // per-tab and lazy, so without our own subscription the card could
@@ -103,6 +107,7 @@ export function StatusOverview() {
   const uptime = formatUptime(health?.startedAt, now)
   const geoipRefreshJob = jobs?.find((j) => j.id === "geoip-refresh")
   const recentErrors = filterErrorRecords(logRecords, 5)
+  const homeRows = siteHomeRows(siteHomes)
 
   if (healthLoading) {
     return (
@@ -402,6 +407,38 @@ export function StatusOverview() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Only shown when at least one source has a resolved home: makes the
+          auto/override split visible in-app for CGNAT diagnosis, matching
+          the failure-mode table's promise that source is inspectable. */}
+      {homeRows.length > 0 && (
+        <Card>
+          <CardHeader className="pb-3">
+            <div className="flex items-center gap-3">
+              <SectionIcon icon={MapPin} />
+              <div>
+                <CardTitle className="text-base">Site homes</CardTitle>
+                <CardDescription>Per-source home location used for map beacons and route origins</CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {homeRows.map((row) => (
+              <div key={row.hostname} className="flex items-center gap-2 text-xs">
+                <MonoChip>{row.hostname}</MonoChip>
+                <span className="text-muted-foreground tabular-nums">{row.coords}</span>
+                {row.source === "override" ? (
+                  <Badge variant="outline" className="ml-auto">
+                    override
+                  </Badge>
+                ) : (
+                  <span className="ml-auto text-muted-foreground">auto</span>
+                )}
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader className="pb-3">

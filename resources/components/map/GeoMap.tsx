@@ -24,7 +24,7 @@ import {
   useGeoEventFacets,
   useSiteHomes,
 } from "@/lib/queries"
-import { buildHomeResolver, homeBeacons, type Coordinate } from "@/lib/site-homes"
+import { buildHomeResolver, homeBeacons, type Coordinate, type SiteHomesData } from "@/lib/site-homes"
 import { useMapStyle } from "./hooks/useMapStyle"
 import {
   bannedPointLayer,
@@ -151,8 +151,19 @@ function GeoMapInner({
       : null
   }, [runtimeSettings])
   const { data: siteHomes } = useSiteHomes()
-  const resolveDestination = useMemo(() => buildHomeResolver(siteHomes), [siteHomes])
-  const beacons = useMemo(() => homeBeacons(siteHomes), [siteHomes])
+  // Falls back to the single-home runtime setting while site-homes is
+  // unavailable (DB-degraded 500, or just the first fetch in flight) so
+  // beacons don't go empty and flash in once the query resolves.
+  const siteHomesData = useMemo<SiteHomesData | undefined>(
+    () =>
+      siteHomes ??
+      (homeDestination
+        ? { homes: [], default: { latitude: homeDestination[1], longitude: homeDestination[0] } }
+        : undefined),
+    [siteHomes, homeDestination],
+  )
+  const resolveDestination = useMemo(() => buildHomeResolver(siteHomesData), [siteHomesData])
+  const beacons = useMemo(() => homeBeacons(siteHomesData), [siteHomesData])
 
   const isLoading = isLoadingGeoJSON || isLoadingTopIPs
 

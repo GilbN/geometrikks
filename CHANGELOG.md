@@ -34,7 +34,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   shipped from another machine. Detection refreshes on its own
   `MAP_HOME_REFRESH_HOURS` cadence (default 24h). The `GET
   /api/v1/geo-locations/site-homes` endpoint serves each hostname's current
-  home location plus the instance's default home for map rendering.
+  home location plus the instance's default home for map rendering. Settings
+  > Status now shows a "Site homes" block listing each hostname's
+  coordinates and whether they came from auto-detection or an override, so
+  a CGNAT-mismapped source is visible in-app.
 
 ### Changed
 

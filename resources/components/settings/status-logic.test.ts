@@ -5,6 +5,7 @@ import type {
   HypertableStatsView,
   LogFileView,
   SchedulerJobView,
+  SiteHomesResponse,
 } from "@/generated/api/types.gen"
 import type { LogRecord } from "@/lib/logstream"
 import {
@@ -26,6 +27,7 @@ import {
   relativeTime,
   schedulerJobState,
   sidebarIngestionVariant,
+  siteHomeRows,
 } from "./status-logic"
 
 function makeHealth(overrides: Partial<HealthResponse> = {}): HealthResponse {
@@ -363,6 +365,38 @@ describe("authState", () => {
       "Built-in authentication is turned off (APP_AUTH_DISABLED=true). Anyone who can reach this app has full access.",
     )
     expect(state.detail).not.toMatch(/proxy/i)
+  })
+})
+
+describe("siteHomeRows", () => {
+  it("is empty for undefined or no homes", () => {
+    expect(siteHomeRows(undefined)).toEqual([])
+    expect(siteHomeRows({ default: null, homes: [] })).toEqual([])
+  })
+  it("formats coords to 2 decimals and passes through source", () => {
+    const data: SiteHomesResponse = {
+      default: { latitude: 59.91, longitude: 10.75 },
+      homes: [
+        {
+          hostname: "nginx-01",
+          latitude: 59.913,
+          longitude: 10.752,
+          source: "auto",
+          detectedAt: "2026-08-16T00:00:00+00:00",
+        },
+        {
+          hostname: "nginx-02",
+          latitude: -33.868,
+          longitude: 151.207,
+          source: "override",
+          detectedAt: null,
+        },
+      ],
+    }
+    expect(siteHomeRows(data)).toEqual([
+      { hostname: "nginx-01", coords: "59.91, 10.75", source: "auto" },
+      { hostname: "nginx-02", coords: "-33.87, 151.21", source: "override" },
+    ])
   })
 })
 
