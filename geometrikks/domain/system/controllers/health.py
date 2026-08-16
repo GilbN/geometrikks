@@ -78,7 +78,7 @@ class HealthResponse(msgspec.Struct, rename="camel"):
     schema_wait: str | None = None
     # Additive: generic operator advisories; empty when nothing needs
     # attention. Producers append here rather than growing bespoke fields.
-    advisories: list[Advisory] = []
+    advisories: list[Advisory] = msgspec.field(default_factory=list)
 
 
 class ReadinessResponse(msgspec.Struct, rename="camel"):
