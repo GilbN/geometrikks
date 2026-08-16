@@ -86,8 +86,10 @@ class GeoLocationController(Controller):
 
         Returns a GeoJSON FeatureCollection where each feature represents a
         location with its coordinates and properties including the event count.
-        Any IP/hostname filter forces a raw geo_events scan (the location
-        CAGGs carry no IP or hostname dimension), bounded by raw retention.
+        An IP filter always forces a raw geo_events scan, bounded by raw
+        retention. A hostname filter forces the raw scan only until the
+        location CAGGs carry the hostname dimension (pre-upgrade or
+        pollution-skipped installs); once they do, it reads the CAGGs.
         Args:
             from_datetime: Start datetime for filtering events.
             to_datetime: End datetime for filtering events.

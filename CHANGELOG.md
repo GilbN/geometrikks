@@ -53,6 +53,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   dropped instead of wedging the channel worker (and eventually hanging
   shutdown). A dropped LISTEN connection now logs an error instead of
   silently going dead until restart.
+- The hostname-pollution health advisory no longer fires once the location
+  CAGGs already carry the hostname dimension (fresh install or
+  post-consolidation migration), where its "runs unaggregated" and
+  "restart to migrate" copy was false.
 
 ## [0.8.0] - 2026-08-16
 

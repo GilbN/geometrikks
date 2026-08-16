@@ -241,6 +241,7 @@ def test_health_reports_hostname_pollution_advisory(monkeypatch):
         timescale, "_hostname_pollution",
         HostnamePollution(distinct_count=40, container_id_count=38),
     )
+    monkeypatch.setattr(timescale, "_location_caggs_have_hostname", False)
 
     with TestClient(app=make_app()) as client:
         body = client.get("/health").json()
@@ -251,6 +252,49 @@ def test_health_reports_hostname_pollution_advisory(monkeypatch):
     assert a["severity"] == "warning"
     assert "38" in a["summary"] and "40" in a["summary"]
     assert "backfill-hostname" in a["remedy"]
+
+
+def test_health_no_pollution_advisory_when_caggs_already_have_hostname(monkeypatch):
+    """Polluted history is moot once the location CAGGs already carry the
+    hostname dimension (fresh install / post-consolidation migration): the
+    filter is not unaggregated and no migration is pending, so the advisory
+    must not fire."""
+    async def db_up(app, timeout: float = 2.0) -> bool:
+        return True
+    monkeypatch.setattr(health_module, "_database_reachable", db_up)
+
+    from geometrikks.server import timescale
+    from geometrikks.server.timescale import HostnamePollution
+    monkeypatch.setattr(
+        timescale, "_hostname_pollution",
+        HostnamePollution(distinct_count=40, container_id_count=38),
+    )
+    monkeypatch.setattr(timescale, "_location_caggs_have_hostname", True)
+
+    with TestClient(app=make_app()) as client:
+        body = client.get("/health").json()
+    assert body["advisories"] == []
+
+
+def test_health_no_pollution_advisory_when_not_polluted(monkeypatch):
+    """A cached, non-None HostnamePollution that is not actually `polluted`
+    (few container-ID-looking hostnames) must not raise the advisory,
+    regardless of the CAGG capability flag."""
+    async def db_up(app, timeout: float = 2.0) -> bool:
+        return True
+    monkeypatch.setattr(health_module, "_database_reachable", db_up)
+
+    from geometrikks.server import timescale
+    from geometrikks.server.timescale import HostnamePollution
+    monkeypatch.setattr(
+        timescale, "_hostname_pollution",
+        HostnamePollution(distinct_count=3, container_id_count=0),
+    )
+    monkeypatch.setattr(timescale, "_location_caggs_have_hostname", False)
+
+    with TestClient(app=make_app()) as client:
+        body = client.get("/health").json()
+    assert body["advisories"] == []
 
 
 def test_health_publish_dropped_present(monkeypatch):

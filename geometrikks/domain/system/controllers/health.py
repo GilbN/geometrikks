@@ -107,7 +107,7 @@ def _collect_advisories() -> list[Advisory]:
 
     advisories: list[Advisory] = []
     pollution = timescale.get_hostname_pollution()
-    if pollution and pollution.polluted:
+    if pollution and pollution.polluted and not timescale.location_caggs_have_hostname():
         advisories.append(Advisory(
             id="hostname-pollution",
             severity="warning",

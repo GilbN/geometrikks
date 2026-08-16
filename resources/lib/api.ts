@@ -411,7 +411,9 @@ export interface GeoJSONParams {
   ips?: string[]
   /** Exact IPs to exclude; forces a raw geo_events scan on the backend. */
   ipsExclude?: string[]
-  /** Recording hostnames; forces a raw geo_events scan on the backend. */
+  /** Recording hostnames; reads the hostname-dimensioned location CAGGs,
+   * falling back to a raw geo_events scan on installs that have not
+   * migrated. */
   hostnames?: string[]
 }
 

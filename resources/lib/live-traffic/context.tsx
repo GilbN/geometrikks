@@ -64,7 +64,9 @@ export function LiveTrafficProvider({
   // the reset effect below is what actually applies a new filter to the window.
   const sourcesRef = useRef<string[]>(sources)
   sourcesRef.current = sources
-  const sourcesJoined = sources.join(" ")
+  // JSON.stringify (not join(" ")) so a hostname containing a space can't
+  // alias a distinct selection into the same dependency identity.
+  const sourcesKey = JSON.stringify(sources)
 
   useLiveEvents(
     (events, dropped) => {
@@ -105,8 +107,8 @@ export function LiveTrafficProvider({
   // requests do not linger next to newly-filtered ones.
   useEffect(() => {
     store.reset()
-    // sourcesJoined is the stable identity for the sources array; see above.
-  }, [sourcesJoined, store])
+    // sourcesKey is the stable identity for the sources array; see above.
+  }, [sourcesKey, store])
 
   return (
     <StoreContext.Provider value={store}>
