@@ -21,6 +21,7 @@ import {
   useRuntimeSettings,
   useBannedLocations,
   useCrowdsecStatus,
+  useGeoEventFacets,
 } from "@/lib/queries"
 import { useMapStyle } from "./hooks/useMapStyle"
 import {
@@ -130,6 +131,8 @@ function GeoMapInner({
     cities: selectedCities,
     hostnames: selectedSources,
   })
+  const { data: facets, isLoading: facetsLoading } = useGeoEventFacets()
+  const sourceOptions = facets?.hostnames ?? []
   const { data: globalTopIPs, isLoading: isLoadingTopIPs } = useGlobalTopIPs()
   const { data: runtimeSettings } = useRuntimeSettings()
   const homeDestination = useMemo<[number, number] | null>(() => {
@@ -603,8 +606,10 @@ function GeoMapInner({
         selectedCities={selectedCities}
         onCountriesChange={onCountriesChange}
         onCitiesChange={onCitiesChange}
+        sourceOptions={sourceOptions}
         selectedSources={selectedSources}
         onSourcesChange={onSourcesChange}
+        sourcesLoading={facetsLoading}
       />
 
     </div>
