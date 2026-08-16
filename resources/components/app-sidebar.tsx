@@ -34,6 +34,7 @@ import {
   AlertCircle,
   Bug,
   LogOut,
+  PowerOff,
   ShieldBan,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -278,28 +279,41 @@ function LiveIndicator({ collapsed }: { collapsed: boolean }) {
   }
 
   return (
-    <Link
-      to="/settings/status"
-      aria-label="Service status"
-      className="flex items-center gap-2 px-3 py-2 mx-2 rounded-md bg-sidebar-accent/50 border border-sidebar-border transition-colors hover:bg-sidebar-accent"
-    >
-      <div className="relative flex items-center justify-center w-2 h-2">
-        {isRunning && (
-          <span className={cn("absolute inline-flex h-full w-full animate-ping rounded-full opacity-75", color)} />
-        )}
-        <span className={cn("relative inline-flex w-2 h-2 rounded-full", color)} />
-      </div>
-      <span className="text-xs font-medium text-sidebar-foreground/70">
-        {label}
-      </span>
-      {isRunning ? (
-        <Activity className="w-3 h-3 text-emerald-400 ml-auto" />
-      ) : isError ? (
-        <AlertCircle className="w-3 h-3 text-gray-400 ml-auto" />
-      ) : (
-        <AlertCircle className="w-3 h-3 text-amber-400 ml-auto" />
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Link
+          to="/settings/status"
+          aria-label="Service status"
+          className="flex items-center gap-2 px-3 py-2 mx-2 rounded-md bg-sidebar-accent/50 border border-sidebar-border transition-colors hover:bg-sidebar-accent"
+          onPointerLeave={resetTooltipSuppression}
+        >
+          <div className="relative flex items-center justify-center w-2 h-2">
+            {isRunning && (
+              <span className={cn("absolute inline-flex h-full w-full animate-ping rounded-full opacity-75", color)} />
+            )}
+            <span className={cn("relative inline-flex w-2 h-2 rounded-full", color)} />
+          </div>
+          <span className="text-xs font-medium text-sidebar-foreground/70">
+            {label}
+          </span>
+          {variant === "running" ? (
+            <Activity className="w-3 h-3 text-emerald-400 ml-auto" />
+          ) : variant === "disabled" ? (
+            // Deliberate setting, not a fault: no warning glyph.
+            <PowerOff className="w-3 h-3 text-sidebar-foreground/40 ml-auto" />
+          ) : variant === "offline" ? (
+            <AlertCircle className="w-3 h-3 text-gray-400 ml-auto" />
+          ) : (
+            <AlertCircle className="w-3 h-3 text-amber-400 ml-auto" />
+          )}
+        </Link>
+      </TooltipTrigger>
+      {!tooltipsSuppressed && (
+        <TooltipContent side="right">
+          <span>{tooltip}</span>
+        </TooltipContent>
       )}
-    </Link>
+    </Tooltip>
   )
 }
 
