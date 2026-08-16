@@ -305,10 +305,11 @@ function GeoMapInner({
   }, [])
 
   // With exactly one source selected, "home" is that source's own resolved
-  // location; otherwise it is the instance-wide default.
+  // location when it resolves; otherwise (including an unresolved single
+  // source) it falls back to the instance-wide default.
   const goHomeDestination = useMemo<Coordinate | null>(() => {
     if (selectedSources.length === 1) {
-      return resolveDestination(selectedSources[0])
+      return resolveDestination(selectedSources[0]) ?? homeDestination
     }
     return homeDestination
   }, [selectedSources, resolveDestination, homeDestination])
