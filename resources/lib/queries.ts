@@ -511,6 +511,8 @@ export interface UseGeoJSONOptions {
   countryCodes?: string[]
   /** Filter to these city names */
   cities?: string[]
+  /** Filter to these source hostnames */
+  hostnames?: string[]
 }
 
 /**
@@ -518,12 +520,15 @@ export interface UseGeoJSONOptions {
  * Uses TimeRangeContext for time filtering.
  */
 export function useGeoJSON(options: UseGeoJSONOptions = {}) {
-  const { enabled = true, countryCodes, cities } = options
+  const { enabled = true, countryCodes, cities, hostnames } = options
   const { range, customRange, pollInterval, lastRefresh } = useTimeRange()
 
   return useQuery({
     // Query key uses lastRefresh for cache invalidation on manual refresh
-    queryKey: queryKeys.geo.geojson({ range, customRange, countryCodes, cities }, lastRefresh),
+    queryKey: queryKeys.geo.geojson(
+      { range, customRange, countryCodes, cities, hostnames },
+      lastRefresh,
+    ),
     // Compute date range at fetch time so polls get fresh data
     queryFn: () => {
       const { startDate, endDate } = parseTimeRange(range, Date.now(), customRange)
@@ -532,6 +537,7 @@ export function useGeoJSON(options: UseGeoJSONOptions = {}) {
         toTimestamp: endDate,
         countryCodes,
         cities,
+        hostnames,
       })
     },
     enabled,

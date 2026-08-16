@@ -3,6 +3,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useNavigate, useSearch } from "@tanstack/react-router"
 import Map, {
   Source,
   Layer,
@@ -41,6 +42,8 @@ import { LiveFeedSheet } from "./LiveFeedSheet"
 import { Card, CardContent } from "@/components/ui/card"
 import { AlertTriangle } from "lucide-react"
 import { getDemoTrafficMode } from "@/lib/demo-traffic"
+import { decodeMapSearch, encodeMapSearch } from "@/lib/map-filters"
+import { useUrlFilters } from "@/hooks/use-url-filters"
 import { loadLiveOverlays, saveLiveOverlays, type LiveOverlayPreferences } from "@/lib/live-overlays"
 import { LiveTrafficProvider, useLiveTrafficStore } from "@/lib/live-traffic/context"
 import type { LiveRequest } from "@/lib/live-traffic/types"
@@ -99,11 +102,33 @@ function GeoMapInner({
   const mapRef = useRef<MapRef>(null)
   const { mapStyle } = useMapStyle()
   const isMobile = useIsMobile()
-  const [selectedCountries, setSelectedCountries] = useState<string[]>([])
-  const [selectedCities, setSelectedCities] = useState<string[]>([])
+  const search = useSearch({ from: "/map" })
+  const navigate = useNavigate({ from: "/map" })
+  const { filters, setFilters } = useUrlFilters({
+    search,
+    navigate,
+    decode: decodeMapSearch,
+    encode: encodeMapSearch,
+  })
+  const selectedSources = filters.sources
+  const selectedCountries = filters.countryCodes
+  const selectedCities = filters.cities
+  const onSourcesChange = useCallback(
+    (values: string[]) => setFilters((prev) => ({ ...prev, sources: values })),
+    [setFilters],
+  )
+  const onCountriesChange = useCallback(
+    (values: string[]) => setFilters((prev) => ({ ...prev, countryCodes: values })),
+    [setFilters],
+  )
+  const onCitiesChange = useCallback(
+    (values: string[]) => setFilters((prev) => ({ ...prev, cities: values })),
+    [setFilters],
+  )
   const { data: geojson, isLoading: isLoadingGeoJSON, isError, error } = useGeoJSON({
     countryCodes: selectedCountries,
     cities: selectedCities,
+    hostnames: selectedSources,
   })
   const { data: globalTopIPs, isLoading: isLoadingTopIPs } = useGlobalTopIPs()
   const { data: runtimeSettings } = useRuntimeSettings()
@@ -202,7 +227,12 @@ function GeoMapInner({
     countryLabels: {},
   })
   const filterOptions = useMemo(() => {
-    if (geojson && selectedCountries.length === 0 && selectedCities.length === 0) {
+    if (
+      geojson &&
+      selectedCountries.length === 0 &&
+      selectedCities.length === 0 &&
+      selectedSources.length === 0
+    ) {
       const countryLabels: Record<string, string> = {}
       const cities = new Set<string>()
       for (const f of geojson.features) {
@@ -226,7 +256,7 @@ function GeoMapInner({
       }
     }
     return optionsRef.current
-  }, [geojson, selectedCountries, selectedCities])
+  }, [geojson, selectedCountries, selectedCities, selectedSources])
 
   // Handle view state changes
   const onMove = useCallback((evt: ViewStateChangeEvent) => {
@@ -571,8 +601,10 @@ function GeoMapInner({
         cityOptions={filterOptions.cities}
         selectedCountries={selectedCountries}
         selectedCities={selectedCities}
-        onCountriesChange={setSelectedCountries}
-        onCitiesChange={setSelectedCities}
+        onCountriesChange={onCountriesChange}
+        onCitiesChange={onCitiesChange}
+        selectedSources={selectedSources}
+        onSourcesChange={onSourcesChange}
       />
 
     </div>

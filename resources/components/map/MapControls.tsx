@@ -79,6 +79,9 @@ interface MapControlsProps {
   selectedCities: string[]
   onCountriesChange: (values: string[]) => void
   onCitiesChange: (values: string[]) => void
+  /** Source hostname filter; wired through for the Sources combobox. */
+  selectedSources?: string[]
+  onSourcesChange?: (values: string[]) => void
 }
 
 export function MapControls({
