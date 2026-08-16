@@ -78,6 +78,17 @@ export type AccessLogFacets = {
 };
 
 /**
+ * Advisory
+ */
+export type Advisory = {
+  detail?: string | null;
+  id: string;
+  remedy?: string | null;
+  severity: "warning" | "critical";
+  summary: string;
+};
+
+/**
  * AlertView
  */
 export type AlertView = {
@@ -422,6 +433,7 @@ export type GlobalTopIpsResponse = {
  * HealthResponse
  */
 export type HealthResponse = {
+  advisories?: Array<Advisory>;
   crowdsec: CrowdSecHealth;
   database: DatabaseHealth;
   geoip: GeoIpHealth;

@@ -53,6 +53,17 @@ class CrowdSecHealth(msgspec.Struct, rename="camel"):
     lapi_reachable: bool | None
 
 
+class Advisory(msgspec.Struct, rename="camel"):
+    """One operator-actionable warning; the status page renders a card per
+    advisory, so producers must write user-facing text, not log lines."""
+
+    id: str
+    severity: Literal["warning", "critical"]
+    summary: str
+    detail: str | None = None
+    remedy: str | None = None
+
+
 class HealthResponse(msgspec.Struct, rename="camel"):
     status: Literal["healthy", "degraded"]
     started_at: str | None
@@ -65,6 +76,9 @@ class HealthResponse(msgspec.Struct, rename="camel"):
     # mode, since only agent startup ever sets app.state.schema_wait_result.
     mode: Literal["full", "agent"] = "full"
     schema_wait: str | None = None
+    # Additive: generic operator advisories; empty when nothing needs
+    # attention. Producers append here rather than growing bespoke fields.
+    advisories: list[Advisory] = []
 
 
 class ReadinessResponse(msgspec.Struct, rename="camel"):
@@ -86,6 +100,31 @@ async def _database_reachable(app: Litestar, timeout: float = 2.0) -> bool:
         return True
     except Exception:
         return False
+
+
+def _collect_advisories() -> list[Advisory]:
+    from geometrikks.server import timescale
+
+    advisories: list[Advisory] = []
+    pollution = timescale.get_hostname_pollution()
+    if pollution and pollution.polluted:
+        advisories.append(Advisory(
+            id="hostname-pollution",
+            severity="warning",
+            summary=(
+                f"{pollution.container_id_count} of {pollution.distinct_count} "
+                "recording hostnames look like Docker container IDs; the map "
+                "source filter runs unaggregated until you consolidate."
+            ),
+            detail=(
+                "LOGPARSER_HOST_NAME was unset while running in Docker, so "
+                "rotating container IDs were recorded as hostnames. The "
+                "location-CAGG upgrade is skipped until the history is "
+                "consolidated; restart afterwards to migrate."
+            ),
+            remedy="litestar backfill-hostname <hostname> --consolidate",
+        ))
+    return advisories
 
 
 @get(
@@ -163,6 +202,7 @@ async def health(
             if settings.is_agent
             else None
         ),
+        advisories=_collect_advisories(),
     )
 
 

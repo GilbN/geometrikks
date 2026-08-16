@@ -62,6 +62,7 @@ export type {
   AccessLogDebugEntry,
   AccessLogDebugStats,
   AccessLogFacets,
+  Advisory,
   AlertView,
   AnalyticsSettingsView,
   ApiV1AccessLogDebugListAccessLogDebugData,

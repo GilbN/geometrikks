@@ -217,6 +217,42 @@ def test_health_agent_mode_reports_schema_wait(monkeypatch):
     assert body["schemaWait"] == "ready"
 
 
+def test_health_has_no_advisories_when_clean(monkeypatch):
+    async def db_up(app, timeout: float = 2.0) -> bool:
+        return True
+    monkeypatch.setattr(health_module, "_database_reachable", db_up)
+
+    from geometrikks.server import timescale
+    monkeypatch.setattr(timescale, "_hostname_pollution", None)
+
+    with TestClient(app=make_app()) as client:
+        body = client.get("/health").json()
+    assert body["advisories"] == []
+
+
+def test_health_reports_hostname_pollution_advisory(monkeypatch):
+    async def db_up(app, timeout: float = 2.0) -> bool:
+        return True
+    monkeypatch.setattr(health_module, "_database_reachable", db_up)
+
+    from geometrikks.server import timescale
+    from geometrikks.server.timescale import HostnamePollution
+    monkeypatch.setattr(
+        timescale, "_hostname_pollution",
+        HostnamePollution(distinct_count=40, container_id_count=38),
+    )
+
+    with TestClient(app=make_app()) as client:
+        body = client.get("/health").json()
+    data = body["advisories"]
+    assert len(data) == 1
+    a = data[0]
+    assert a["id"] == "hostname-pollution"
+    assert a["severity"] == "warning"
+    assert "38" in a["summary"] and "40" in a["summary"]
+    assert "backfill-hostname" in a["remedy"]
+
+
 def test_health_publish_dropped_present(monkeypatch):
     """publish_dropped surfaces the ingestion service's counter, defaulting
     to 0 when there is no service."""

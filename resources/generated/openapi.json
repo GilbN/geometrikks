@@ -307,6 +307,50 @@
         "title": "AccessLogFacets",
         "type": "object"
       },
+      "Advisory": {
+        "properties": {
+          "detail": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "remedy": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "severity": {
+            "enum": [
+              "warning",
+              "critical"
+            ],
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "severity",
+          "summary"
+        ],
+        "title": "Advisory",
+        "type": "object"
+      },
       "AlertView": {
         "properties": {
           "asName": {
@@ -1469,6 +1513,12 @@
       },
       "HealthResponse": {
         "properties": {
+          "advisories": {
+            "items": {
+              "$ref": "#/components/schemas/Advisory"
+            },
+            "type": "array"
+          },
           "crowdsec": {
             "$ref": "#/components/schemas/CrowdSecHealth"
           },

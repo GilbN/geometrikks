@@ -109,6 +109,15 @@ export interface HealthIngestionStatus {
   status?: "running" | "degraded" | "disabled"
 }
 
+export interface Advisory {
+  /** Stable slug, e.g. "hostname-pollution". */
+  id: string
+  severity: "warning" | "critical"
+  summary: string
+  detail?: string | null
+  remedy?: string | null
+}
+
 export interface HealthResponse {
   status: "healthy" | "degraded"
   /** App start time; null in test harnesses without lifecycle startup. */
@@ -119,6 +128,8 @@ export interface HealthResponse {
   geoip: { available: boolean; dbBuildDate: string | null }
   crowdsec: { enabled: boolean; lapiReachable: boolean | null }
   timestamp: string
+  /** Operator-actionable warnings; empty when nothing needs attention. */
+  advisories?: Advisory[]
 }
 
 export type RuntimeSettings = SafeSettingsResponse

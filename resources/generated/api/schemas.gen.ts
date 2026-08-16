@@ -289,6 +289,44 @@ export const AccessLogFacetsSchema = {
   type: "object",
 } as const;
 
+export const AdvisorySchema = {
+  properties: {
+    detail: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    id: {
+      type: "string",
+    },
+    remedy: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    severity: {
+      enum: ["warning", "critical"],
+      type: "string",
+    },
+    summary: {
+      type: "string",
+    },
+  },
+  required: ["id", "severity", "summary"],
+  title: "Advisory",
+  type: "object",
+} as const;
+
 export const AlertViewSchema = {
   properties: {
     asName: {
@@ -1397,6 +1435,12 @@ export const GlobalTopIPsResponseSchema = {
 
 export const HealthResponseSchema = {
   properties: {
+    advisories: {
+      items: {
+        $ref: "#/components/schemas/Advisory",
+      },
+      type: "array",
+    },
     crowdsec: {
       $ref: "#/components/schemas/CrowdSecHealth",
     },
