@@ -633,3 +633,15 @@ def test_map_home_locations_rejects_wrong_arity(monkeypatch):
     monkeypatch.setenv("MAP_HOME_LOCATIONS", '{"x": [59.91]}')
     with _pytest.raises(pydantic.ValidationError):
         MapSettings(_env_file=None)
+
+
+def test_map_home_refresh_hours_default():
+    from geometrikks.config.settings import MapSettings
+    assert MapSettings(_env_file=None).home_refresh_hours == 24
+
+
+def test_map_home_refresh_hours_parses_env(monkeypatch):
+    from geometrikks.config.settings import MapSettings
+    monkeypatch.setenv("MAP_HOME_REFRESH_HOURS", "6")
+    settings = MapSettings(_env_file=None)
+    assert settings.home_refresh_hours == 6

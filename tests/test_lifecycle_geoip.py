@@ -87,7 +87,7 @@ async def test_scheduler_has_geoip_refresh_job(monkeypatch):
 async def test_scheduler_agent_mode_registers_only_geoip_refresh(monkeypatch):
     """Agent instances tail logs into a schema the primary owns: no CAGG or
     location-refresh maintenance jobs, no CrowdSec poll -- just GeoLite2 and
-    the site-home refresh that piggybacks its cadence."""
+    the site-home refresh (on its own MAP_HOME_REFRESH_HOURS cadence)."""
     from geometrikks.config.settings import Settings
     from geometrikks.server.scheduler import create_scheduler
 
@@ -103,3 +103,20 @@ async def test_scheduler_registers_site_home_refresh_in_full_mode(monkeypatch):
     scheduler = await create_scheduler(MagicMock(), Settings())
     job_ids = {job.id for job in scheduler.get_jobs()}
     assert "site-home-refresh" in job_ids
+
+
+async def test_site_home_refresh_uses_its_own_cadence(monkeypatch):
+    """The site-home refresh trigger comes from MAP_HOME_REFRESH_HOURS, not
+    GEOIP_REFRESH_DAYS: the GeoLite2 database and a site's public IP change
+    on unrelated schedules."""
+    from datetime import timedelta
+
+    from geometrikks.config.settings import Settings
+    from geometrikks.server.scheduler import create_scheduler
+
+    monkeypatch.setenv("MAP_HOME_REFRESH_HOURS", "6")
+    monkeypatch.setenv("GEOIP_REFRESH_DAYS", "3")
+    scheduler = await create_scheduler(MagicMock(), Settings())
+    job = scheduler.get_job("site-home-refresh")
+    assert job is not None
+    assert job.trigger.interval == timedelta(hours=6)

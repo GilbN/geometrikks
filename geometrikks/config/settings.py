@@ -510,6 +510,18 @@ class MapSettings(BaseSettings):
         ),
     )
 
+    home_refresh_hours: int = Field(
+        default=24,
+        ge=1,
+        le=24 * 30,
+        description=(
+            "How often this instance re-detects its own public-IP home "
+            "location and refreshes its site_homes rows (hours). Separate "
+            "from GEOIP_REFRESH_DAYS: the GeoLite2 database and a site's "
+            "public IP change on unrelated schedules."
+        ),
+    )
+
     @field_validator("home_locations")
     @classmethod
     def validate_home_locations(cls, value: dict[str, tuple[float, float]]) -> dict[str, tuple[float, float]]:
