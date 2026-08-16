@@ -18,9 +18,9 @@ from litestar.dto import dto_field
 
 
 class AccessLog(base.BigIntBase):
-    """Detailed nginx access log entries.
+    """Detailed web server access log entries.
 
-    Stores comprehensive request/response data from nginx access logs.
+    Stores comprehensive request/response data from web server access logs.
     TimescaleDB hypertable for efficient time-series queries.
     """
     

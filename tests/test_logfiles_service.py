@@ -21,7 +21,7 @@ def service(tmp_path):
     nginx = tmp_path / "access.log"
     nginx.write_text("nginx line\n", encoding="utf-8")
     missing_nginx = tmp_path / "missing" / "other.log"
-    return LogFilesService(log_dir=log_dir, nginx_paths=[nginx, missing_nginx])
+    return LogFilesService(log_dir=log_dir, access_log_paths=[nginx, missing_nginx])
 
 
 class TestListFiles:
@@ -66,7 +66,7 @@ class TestTail:
 
     def test_missing_file_returns_empty(self, tmp_path):
         from geometrikks.services.logfiles import LogFilesService
-        svc = LogFilesService(log_dir=tmp_path / "nope", nginx_paths=[])
+        svc = LogFilesService(log_dir=tmp_path / "nope", access_log_paths=[])
         assert svc.tail_main(lines=5) == []
 
 
@@ -113,5 +113,5 @@ class TestTailLogin:
 
     def test_missing_file_returns_empty(self, tmp_path):
         from geometrikks.services.logfiles import LogFilesService
-        svc = LogFilesService(log_dir=tmp_path / "nope", nginx_paths=[])
+        svc = LogFilesService(log_dir=tmp_path / "nope", access_log_paths=[])
         assert svc.tail_login(lines=5) == []

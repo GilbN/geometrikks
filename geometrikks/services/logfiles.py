@@ -73,9 +73,9 @@ def _entry(path: Path, kind: LogFileKind, name: str | None = None) -> LogFileEnt
 
 
 class LogFilesService:
-    def __init__(self, log_dir: Path, nginx_paths: list[Path]) -> None:
+    def __init__(self, log_dir: Path, access_log_paths: list[Path]) -> None:
         self._log_dir = log_dir
-        self._nginx_paths = nginx_paths
+        self._access_log_paths = access_log_paths
 
     def _candidates(self) -> list[tuple[LogFileEntry, Path]]:
         pairs: list[tuple[LogFileEntry, Path]] = []
@@ -86,7 +86,7 @@ class LogFilesService:
             for archive in sorted(self._log_dir.glob(f"{stem}.*.gz")):
                 pairs.append((_entry(archive, kind), archive))
         seen: dict[str, int] = {}
-        for path in self._nginx_paths:
+        for path in self._access_log_paths:
             name = path.name
             if name in seen:  # two configured paths with the same basename
                 seen[name] += 1
@@ -160,5 +160,5 @@ def create_log_files_service(settings: Settings | None = None) -> LogFilesServic
         settings = get_settings()
     return LogFilesService(
         log_dir=settings.log.dir,
-        nginx_paths=list(settings.logparser.log_paths),
+        access_log_paths=list(settings.logparser.log_paths),
     )

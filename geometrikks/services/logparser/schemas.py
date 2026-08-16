@@ -24,7 +24,7 @@ class ParsedGeoData:
 
 @dataclass
 class ParsedAccessLog:
-    """Parsed nginx access log entry."""
+    """Parsed access log entry."""
 
     timestamp: datetime
     ip_address: str

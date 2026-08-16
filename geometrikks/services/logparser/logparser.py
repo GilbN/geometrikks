@@ -144,7 +144,7 @@ class LogParser:
         self._stop_event: asyncio.Event | None = None
 
         logger.debug("Log file path: %s", self.log_path)
-        logger.debug("Send NGINX logs: %s", self.send_logs)
+        logger.debug("Send access logs: %s", self.send_logs)
         logger.debug("Hostname: %s", self.hostname)
         if self.ignore_ips:
             logger.info("Ignoring traffic from: %s", ", ".join(self.ignore_ips))
@@ -265,7 +265,7 @@ class LogParser:
         and the interpreter could not finish exiting until it returned. This
         is reachable whenever the configured log file exists but is empty or
         in an unrecognised format, which is the normal state of a fresh
-        install before nginx writes its first line.
+        install before the web server writes its first line.
 
         Args:
             timeout_seconds: Maximum seconds to keep retrying.

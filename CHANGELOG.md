@@ -14,13 +14,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `hostname` and `log_format` columns on access logs, with new facet filters
   (recording hostname, source format) on the access-logs page.
 - `litestar backfill-hostname` CLI command to set the recording hostname on
-  historical rows; `--consolidate` collapses accumulated container-ID
-  hostnames.
+  historical rows; `--consolidate` collapses accumulated hostnames (e.g. container id hostnames).
 
 ### Changed
 
-- Log files UI: the `nginx` kind is now `access` with proxy-neutral labels;
-  bookmarked download links containing `/nginx/` change.
+- Log files UI (/settings/logs): the `nginx` kind is now `access` with proxy-neutral labels;
+  bookmarked download links containing `/nginx/` change (/api/v1/logs/files/access/access.log).
 - docker-compose: `ACCESS_LOG_DIR` is the preferred mount variable
   (`NGINX_LOG_DIR` still works); the app container has a stable hostname.
 - **Breaking:** the access-log mount inside the container moved from
