@@ -1,13 +1,14 @@
 /**
- * Map pin for the configured server home location.
+ * Map pin for a site's location (its "home": where the recording server
+ * lives, which may just as well be a datacenter as a house).
  *
  * A teardrop pin with the home glyph in its head, anchored so the tip sits
  * on the exact coordinate. Because the body floats above the point, data
  * markers at (or near) home stay visible. A DOM marker rather than a map
  * layer so it stays crisp at every zoom level. The ground ripple pauses when
  * the user prefers reduced motion. Clicking the pin head flies the map to
- * the home location, mirroring the "Go to home location" control; only the
- * head is interactive so data markers under the tip stay clickable.
+ * the beacon's coordinate; only the head is interactive so data markers
+ * under the tip stay clickable.
  */
 import { Marker } from "react-map-gl/maplibre"
 import { Home } from "lucide-react"
@@ -16,9 +17,12 @@ type Coordinate = [longitude: number, latitude: number]
 
 export function HomeMarker({
   coordinates,
+  label,
   onClick,
 }: {
   coordinates: Coordinate | null
+  /** Tooltip/accessibility name, e.g. "Site location: nginx-01". */
+  label: string
   onClick?: () => void
 }) {
   if (!coordinates) return null
@@ -31,7 +35,7 @@ export function HomeMarker({
       anchor="bottom"
       className="pointer-events-none"
     >
-      <div className="relative" aria-label="Server home location">
+      <div className="relative" aria-label={label}>
         {/* Ground ripple where the tip meets the coordinate */}
         <span className="absolute bottom-0 left-1/2 h-3 w-3 -translate-x-1/2 translate-y-1/2 rounded-full border border-geo-cyan/70 animate-ping [animation-duration:2.4s] motion-reduce:animate-none motion-reduce:opacity-0" />
         {/* Teardrop pin */}
@@ -61,8 +65,8 @@ export function HomeMarker({
             event.stopPropagation()
             onClick?.()
           }}
-          title="Go to home location"
-          aria-label="Zoom to home location"
+          title={label}
+          aria-label={`Zoom to ${label}`}
           className="pointer-events-auto absolute top-px left-1/2 h-6 w-6 -translate-x-1/2 cursor-pointer rounded-full"
         />
       </div>

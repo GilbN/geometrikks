@@ -516,9 +516,7 @@ class MapSettings(BaseSettings):
         le=24 * 30,
         description=(
             "How often this instance re-detects its own public-IP home "
-            "location and refreshes its site_homes rows (hours). Separate "
-            "from GEOIP_REFRESH_DAYS: the GeoLite2 database and a site's "
-            "public IP change on unrelated schedules."
+            "location and refreshes its site_homes rows (hours)."
         ),
     )
 

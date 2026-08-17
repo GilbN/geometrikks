@@ -24,18 +24,33 @@ export function buildHomeResolver(
   return (hostname) => (hostname !== null && byHost.get(hostname)) || fallback
 }
 
-/** Distinct beacon coordinates: every site home plus the default when distinct. */
-export function homeBeacons(data: SiteHomesData | undefined): Coordinate[] {
-  const seen = new Set<string>()
-  const out: Coordinate[] = []
-  const push = (c: Coordinate) => {
+export interface HomeBeacon {
+  coordinate: Coordinate
+  /** Hostnames whose home sits at this coordinate; empty for a pure default. */
+  hostnames: string[]
+}
+
+/** Distinct beacons: every site home plus the default when distinct,
+ *  coincident homes merged into one beacon carrying all their hostnames. */
+export function homeBeacons(data: SiteHomesData | undefined): HomeBeacon[] {
+  const byKey = new Map<string, HomeBeacon>()
+  const upsert = (c: Coordinate, hostname?: string) => {
     const key = `${c[0]},${c[1]}`
-    if (!seen.has(key)) {
-      seen.add(key)
-      out.push(c)
+    let beacon = byKey.get(key)
+    if (!beacon) {
+      beacon = { coordinate: c, hostnames: [] }
+      byKey.set(key, beacon)
     }
+    if (hostname) beacon.hostnames.push(hostname)
   }
-  if (data?.default) push([data.default.longitude, data.default.latitude])
-  for (const h of data?.homes ?? []) push([h.longitude, h.latitude])
-  return out
+  if (data?.default) upsert([data.default.longitude, data.default.latitude])
+  for (const h of data?.homes ?? []) upsert([h.longitude, h.latitude], h.hostname)
+  return [...byKey.values()]
+}
+
+/** Beacon tooltip copy. Says "site", not "home": a site can be a
+ *  datacenter or VPS just as well as a house. */
+export function beaconLabel(beacon: HomeBeacon): string {
+  if (beacon.hostnames.length === 0) return "Server location"
+  return `Site location: ${beacon.hostnames.join(", ")}`
 }

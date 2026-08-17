@@ -24,7 +24,7 @@ import {
   useGeoEventFacets,
   useSiteHomes,
 } from "@/lib/queries"
-import { buildHomeResolver, homeBeacons, type Coordinate, type SiteHomesData } from "@/lib/site-homes"
+import { beaconLabel, buildHomeResolver, homeBeacons, type Coordinate, type SiteHomesData } from "@/lib/site-homes"
 import { useMapStyle } from "./hooks/useMapStyle"
 import {
   bannedPointLayer,
@@ -548,11 +548,12 @@ function GeoMapInner({
         />
 
         {/* One beacon per site home, plus the default when it is distinct. */}
-        {homeMarkerEnabled && beacons.map((coordinates) => (
+        {homeMarkerEnabled && beacons.map((beacon) => (
           <HomeMarker
-            key={`${coordinates[0]},${coordinates[1]}`}
-            coordinates={coordinates}
-            onClick={() => flyToCoordinate(coordinates)}
+            key={`${beacon.coordinate[0]},${beacon.coordinate[1]}`}
+            coordinates={beacon.coordinate}
+            label={beaconLabel(beacon)}
+            onClick={() => flyToCoordinate(beacon.coordinate)}
           />
         ))}
 
