@@ -130,18 +130,17 @@ def test_ws_live_streams_after_login():
         # Same client -> the session cookie persists onto the WS handshake.
         channels = client.app.plugins.get(ChannelsPlugin)
         with client.websocket_connect("/ws/live") as ws:
-            for event in _ws_events():
-                channels.publish(event, LIVE_EVENTS_CHANNEL)
+            channels.publish(_ws_event(), LIVE_EVENTS_CHANNEL)
             frame = ws.receive_json(timeout=5)
         assert frame["type"] == "batch"
-        assert [e["type"] for e in frame["events"]] == ["geo_event", "access_log"]
+        assert [e["type"] for e in frame["events"]] == ["request"]
 
 
-def _ws_events():
+def _ws_event():
     from tests.test_live_ws import make_record
-    from geometrikks.domain.realtime.events import record_to_events
+    from geometrikks.domain.realtime.events import record_to_event
 
-    return record_to_events(make_record())
+    return record_to_event(make_record())
 
 
 def test_create_app_requires_password_when_auth_enabled(monkeypatch):

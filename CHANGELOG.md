@@ -78,6 +78,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   subscribe in either order and leave the process deaf to new events. The
   live-events LISTEN is now held for the process lifetime instead of
   following client churn.
+- With several ingesting sources, the live feed no longer splits one
+  request into two rows (a flying dot without its log line plus a log line
+  without coordinates), and no longer pairs a request with another site's
+  log line when two sites see the same IP in the same second. Each
+  committed request now travels the live channel as a single envelope
+  instead of two events the client had to re-pair by adjacency.
 - The startup upgrade of the location aggregates now checks that every
   aggregate carries the hostname dimension instead of settling for one of
   them, so a half-migrated pair (external schema drift) is completed rather

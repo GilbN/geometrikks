@@ -13,7 +13,7 @@ from litestar.channels.backends.memory import MemoryChannelsBackend
 from litestar.exceptions import WebSocketDisconnect
 from litestar.testing import TestClient
 
-from geometrikks.domain.realtime.events import LIVE_EVENTS_CHANNEL, record_to_events
+from geometrikks.domain.realtime.events import LIVE_EVENTS_CHANNEL, record_to_event
 from geometrikks.services.logparser.schemas import ParsedAccessLog, ParsedGeoData, ParsedLogRecord
 
 if TYPE_CHECKING:
@@ -53,12 +53,13 @@ def _live_app(db_available: bool = True) -> tuple[Litestar, ChannelsPlugin]:
 def test_ws_streams_batch_frames_from_channel():
     app, channels = _live_app()
     with TestClient(app) as client, client.websocket_connect("/ws/live") as ws:
-        for event in record_to_events(make_record()):
-            channels.publish(event, LIVE_EVENTS_CHANNEL)
+        channels.publish(record_to_event(make_record()), LIVE_EVENTS_CHANNEL)
         frame = ws.receive_json(timeout=5)
     assert frame["type"] == "batch"
     assert frame["dropped"] == 0
-    assert [e["type"] for e in frame["events"]] == ["geo_event", "access_log"]
+    assert [e["type"] for e in frame["events"]] == ["request"]
+    assert frame["events"][0]["geo"] is not None
+    assert frame["events"][0]["log"] is not None
 
 
 def test_ws_hostname_arrives_in_frames():
@@ -66,10 +67,13 @@ def test_ws_hostname_arrives_in_frames():
     the round trip through the channel unchanged."""
     app, channels = _live_app()
     with TestClient(app) as client, client.websocket_connect("/ws/live") as ws:
-        for event in record_to_events(make_record(with_log=False, hostname="vps-1")):
-            channels.publish(event, LIVE_EVENTS_CHANNEL)
+        channels.publish(
+            record_to_event(make_record(with_log=False, hostname="vps-1")),
+            LIVE_EVENTS_CHANNEL,
+        )
         frame = ws.receive_json(timeout=5)
-    assert frame["events"][0]["data"]["hostname"] == "vps-1"
+    assert frame["events"][0]["geo"]["hostname"] == "vps-1"
+    assert frame["events"][0]["log"] is None
 
 
 def test_ws_sends_empty_batch_heartbeat_when_idle(monkeypatch):
@@ -99,11 +103,10 @@ def test_ws_counts_dropped_events_beyond_frame_cap():
     """Overflow beyond MAX_EVENTS_PER_FRAME is counted, not silently lost."""
     app, channels = _live_app()
     with TestClient(app) as client, client.websocket_connect("/ws/live") as ws:
-        # 60 records -> 120 events; the first flush window drains them all,
-        # keeps 100 and counts 20 dropped.
-        for _ in range(60):
-            for event in record_to_events(make_record()):
-                channels.publish(event, LIVE_EVENTS_CHANNEL)
+        # 120 records -> 120 envelopes; the first flush window drains them
+        # all, keeps 100 and counts 20 dropped.
+        for _ in range(120):
+            channels.publish(record_to_event(make_record()), LIVE_EVENTS_CHANNEL)
         frame = ws.receive_json(timeout=5)
     assert frame["type"] == "batch"
     assert len(frame["events"]) == 100
@@ -117,11 +120,10 @@ def test_ws_ignores_unexpected_inbound_frames():
     with TestClient(app) as client, client.websocket_connect("/ws/live") as ws:
         ws.send_text("unexpected")
         ws.send_json({"also": "unexpected"})
-        for event in record_to_events(make_record()):
-            channels.publish(event, LIVE_EVENTS_CHANNEL)
+        channels.publish(record_to_event(make_record()), LIVE_EVENTS_CHANNEL)
         frame = ws.receive_json(timeout=5)
     assert frame["type"] == "batch"
-    assert len(frame["events"]) == 2
+    assert len(frame["events"]) == 1
 
 
 class FakeSocket:
@@ -173,8 +175,7 @@ async def test_ws_disconnect_during_send_is_suppressed_and_cleans_up_subscriptio
         socket = DisconnectingSendSocket(channels)
         task = asyncio.create_task(cast("Coroutine[Any, Any, None]", live_feed.fn(socket)))
         await asyncio.sleep(0.05)  # let the handler subscribe and enter its loop
-        for event in record_to_events(make_record()):
-            channels.publish(event, LIVE_EVENTS_CHANNEL)
+        channels.publish(record_to_event(make_record()), LIVE_EVENTS_CHANNEL)
         await asyncio.wait_for(task, timeout=5)  # must not raise
         # litestar 2.24 has no public API for subscriber introspection; this
         # reaches into the private attribute as the only way to observe
@@ -228,14 +229,14 @@ async def test_pump_drops_oldest_when_local_queue_is_full(monkeypatch):
         task = asyncio.create_task(cast("Coroutine[Any, Any, None]", live_feed.fn(socket)))
         await asyncio.sleep(0.05)  # let the handler subscribe and start pumping
         for i in range(10):
-            channels.publish({"type": "geo_event", "data": {"n": i}}, LIVE_EVENTS_CHANNEL)
+            channels.publish({"type": "request", "geo": {"n": i}, "log": None}, LIVE_EVENTS_CHANNEL)
         await asyncio.sleep(0.3)  # let the pump drain the burst and batched_frames flush
         task.cancel()
         with pytest.raises(asyncio.CancelledError):
             await task
 
     frame = socket.sent[0]
-    assert [e["data"]["n"] for e in frame["events"]] == [7, 8, 9]
+    assert [e["geo"]["n"] for e in frame["events"]] == [7, 8, 9]
     assert frame["dropped"] == 0
 
 

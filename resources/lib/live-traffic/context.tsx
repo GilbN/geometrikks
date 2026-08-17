@@ -10,7 +10,7 @@ import { createContext, useContext, useEffect, useMemo, useRef, useState } from 
 import { useLiveEvents, useLiveFeedStatus } from "@/lib/live-feed-context"
 import { useBannedIps } from "@/lib/queries"
 import { getDemoTrafficMode, makeDemoRequests } from "@/lib/demo-traffic"
-import { matchesSources, pairLiveEvents } from "./pairing"
+import { matchesSources, toLiveRequests } from "./requests"
 import { LiveTrafficStore } from "./store"
 import { EMPTY_SUMMARY, summarize, type LiveSummary } from "./summary"
 import type { LiveRequest, Vitals } from "./types"
@@ -71,10 +71,10 @@ export function LiveTrafficProvider({
   useLiveEvents(
     (events, dropped) => {
       const now = Date.now()
-      const paired = pairLiveEvents(events, bannedRef.current, now).filter((request) =>
+      const requests = toLiveRequests(events, bannedRef.current, now).filter((request) =>
         matchesSources(request, sourcesRef.current),
       )
-      store.ingest(paired, dropped, now)
+      store.ingest(requests, dropped, now)
     },
     enabled && demoMode === "off",
   )

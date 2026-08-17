@@ -1,14 +1,13 @@
 /**
  * Shapes for the joined live traffic stream.
  *
- * The socket emits a geo_event and an access_log for the same committed
- * record; a LiveRequest is the two of them zipped back together, plus the
- * classification the UI needs.
+ * The socket emits one envelope per committed record with its geo and
+ * access-log views already joined; a LiveRequest is that envelope
+ * flattened, plus the classification the UI needs.
  */
-import type { LiveEvent } from "@/lib/websocket"
+import type { AccessLogData } from "@/lib/websocket"
 
-export type AccessLogData = Extract<LiveEvent, { type: "access_log" }>["data"]
-export type GeoEventData = Extract<LiveEvent, { type: "geo_event" }>["data"]
+export type { AccessLogData, GeoEventData } from "@/lib/websocket"
 
 export type StatusClass = "2xx" | "3xx" | "4xx" | "5xx" | "unknown"
 

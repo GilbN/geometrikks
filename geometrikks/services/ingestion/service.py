@@ -28,7 +28,7 @@ from geometrikks.domain.geo.repositories import GeoLocationRepository, GeoEventR
 from geometrikks.domain.logs.models import AccessLog, AccessLogDebug
 from geometrikks.domain.logs.repositories import AccessLogRepository, AccessLogDebugRepository
 from geometrikks.domain.geo.utils import make_point
-from geometrikks.domain.realtime.events import LIVE_EVENTS_CHANNEL, encode_guard, record_to_events
+from geometrikks.domain.realtime.events import LIVE_EVENTS_CHANNEL, encode_guard, record_to_event
 from geometrikks.services.logparser.schemas import ParsedLogRecord, ParsedGeoData, ParsedAccessLog
 from geometrikks.services.logparser.constants import ALLOWED_GEOIP_LOCALES, GEOIP_LOCALES_DEFAULT
 from geometrikks.services.logparser.logparser import LogParser
@@ -545,24 +545,26 @@ class LogIngestionService:
         """Publish committed records to the live_events channel.
 
         Never raises: called after commit, so a publish failure (including
-        one from record_to_events) must not backpressure or break ingestion,
+        one from record_to_event) must not backpressure or break ingestion,
         and must never be mistaken for a commit failure by the caller.
         """
         try:
             if self._channels is not None:
                 for record in records:
-                    for event in record_to_events(record):
-                        if not encode_guard(event):
-                            self.publish_dropped += 1
-                            logger.warning(
-                                "live event dropped: encoded payload over budget (ip=%s)",
-                                record.ip_address,
-                            )
-                            continue
-                        try:
-                            self._channels.publish(event, LIVE_EVENTS_CHANNEL)
-                        except Exception:
-                            logger.exception("live event publish failed; continuing")
+                    event = record_to_event(record)
+                    if event is None:
+                        continue
+                    if not encode_guard(event):
+                        self.publish_dropped += 1
+                        logger.warning(
+                            "live event dropped: encoded payload over budget (ip=%s)",
+                            record.ip_address,
+                        )
+                        continue
+                    try:
+                        self._channels.publish(event, LIVE_EVENTS_CHANNEL)
+                    except Exception:
+                        logger.exception("live event publish failed; continuing")
         except Exception:
             logger.exception("live publish failed; batch already committed")
 

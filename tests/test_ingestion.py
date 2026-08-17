@@ -706,11 +706,12 @@ def test_publish_sends_events_to_channel() -> None:
     )
     record = make_full_record(hostname="vps-1")
     service._publish([record])
-    assert channels.publish.call_count == 2  # geo_event + access_log
-    for call in channels.publish.call_args_list:
-        event, channel = call.args
-        assert channel == LIVE_EVENTS_CHANNEL
-        assert event["data"]["hostname"] == "vps-1"
+    assert channels.publish.call_count == 1  # one envelope per record
+    event, channel = channels.publish.call_args.args
+    assert channel == LIVE_EVENTS_CHANNEL
+    assert event["type"] == "request"
+    assert event["geo"]["hostname"] == "vps-1"
+    assert event["log"]["hostname"] == "vps-1"
 
 
 def test_publish_without_channels_is_silent_and_safe() -> None:
@@ -743,16 +744,16 @@ async def test_channel_publish_only_after_successful_commit() -> None:
 async def test_publish_blowup_after_commit_does_not_look_like_commit_failure(
     monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """A record_to_events explosion happens strictly after `await
+    """A record_to_event explosion happens strictly after `await
     session.commit()` succeeds, so it must not be caught by the
     commit-failure handler: no rollback, no cache eviction, and no
     misleading "Batch commit failed" log. `_publish` must swallow it instead."""
     import geometrikks.services.ingestion.service as service_module
 
     def boom(record: object) -> None:
-        raise RuntimeError("record_to_events blew up")
+        raise RuntimeError("record_to_event blew up")
 
-    monkeypatch.setattr(service_module, "record_to_events", boom)
+    monkeypatch.setattr(service_module, "record_to_event", boom)
 
     channels = _channels_stub()
     service, repos, sessions = make_service([], channels=channels)

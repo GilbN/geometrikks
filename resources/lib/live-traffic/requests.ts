@@ -1,10 +1,9 @@
 /**
- * Zip a live batch back into whole requests.
+ * Flatten live envelopes into whole requests.
  *
- * record_to_events() emits the geo event first and the access log second for
- * one committed record, so a single forward pass with one lookahead recovers
- * the pairing. Anything that does not pair is kept on its own: a geo event
- * with no log still flies, a log with no geo still appears in the feed.
+ * Each event is one committed record with its geo view and access-log view
+ * already joined server-side. A geo view with no log still flies; a log
+ * with no geo still appears in the feed.
  */
 import type { LiveEvent } from "@/lib/websocket"
 import { isThreat, statusClass } from "./classify"
@@ -44,36 +43,15 @@ export function matchesSources(request: LiveRequest, sources: string[]): boolean
   return request.hostname !== null && sources.includes(request.hostname)
 }
 
-export function pairLiveEvents(
+export function toLiveRequests(
   events: LiveEvent[],
   bannedIps: ReadonlySet<string>,
   receivedAt: number,
 ): LiveRequest[] {
   const requests: LiveRequest[] = []
-  let index = 0
-
-  while (index < events.length) {
-    const event = events[index]
-    const next = events[index + 1]
-    const pairs =
-      event.type === "geo_event" &&
-      next?.type === "access_log" &&
-      next.data.ip_address === event.data.ip_address &&
-      next.data.timestamp === event.data.timestamp
-
-    if (pairs && next.type === "access_log" && event.type === "geo_event") {
-      requests.push(build(event.data, next.data, bannedIps, receivedAt, requests.length))
-      index += 2
-      continue
-    }
-
-    requests.push(
-      event.type === "geo_event"
-        ? build(event.data, null, bannedIps, receivedAt, requests.length)
-        : build(null, event.data, bannedIps, receivedAt, requests.length),
-    )
-    index += 1
+  for (const event of events) {
+    if (event.geo === null && event.log === null) continue
+    requests.push(build(event.geo, event.log, bannedIps, receivedAt, requests.length))
   }
-
   return requests
 }
