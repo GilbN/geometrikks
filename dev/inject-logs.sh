@@ -4,15 +4,18 @@
 # so the agents compose stack (dev/docker-compose.agents.yml) has live
 # traffic to ingest.
 #
-# Usage, from the repo root:
+# Runs automatically as the compose stack's log-injector service (for the
+# stack's lifetime; `down` stops it). Standalone usage, from the repo root:
 #   ./dev/inject-logs.sh &            # runs for 30 minutes, then stops
-#   touch dev/inject-logs.stop        # stop it early
+#   touch dev/inject-logs.stop        # stop it early (also stops the service)
 set -u
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 STOPFILE="$REPO/dev/inject-logs.stop"
-MAX_SECONDS=1800
+# 0 = no time cap, run until stopped (what the compose service sets).
+MAX_SECONDS=${INJECT_MAX_SECONDS:-1800}
 
 rm -f "$STOPFILE"
+trap 'echo "injector stopped by signal after $i iterations"; exit 0' TERM INT
 
 IPS=(8.8.8.8 1.1.1.1 81.2.69.142 91.198.174.192 185.60.216.35 34.71.167.225 104.28.42.7 197.248.21.8 133.242.187.207 200.160.2.3 77.88.55.242 129.226.3.47)
 PATHS=(/ /api/v1/status /login /wp-login.php /assets/app.js /images/logo.png /feed.xml /admin /robots.txt /health)
@@ -21,7 +24,7 @@ STATUSES=(200 200 200 301 404 200 403 200 500 204)
 AGENTS=("Mozilla/5.0 (X11; Linux x86_64) Firefox/141.0" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/152.0.0.0" "curl/8.9.1")
 
 i=0
-while [ ! -f "$STOPFILE" ] && [ "$i" -lt "$MAX_SECONDS" ]; do
+while [ ! -f "$STOPFILE" ] && { [ "$MAX_SECONDS" -eq 0 ] || [ "$i" -lt "$MAX_SECONDS" ]; }; do
   ip=${IPS[$((RANDOM % ${#IPS[@]}))]}
   path=${PATHS[$((RANDOM % ${#PATHS[@]}))]}
   method=${METHODS[$((RANDOM % ${#METHODS[@]}))]}

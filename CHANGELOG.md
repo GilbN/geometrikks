@@ -42,8 +42,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   a CGNAT-mismapped source is visible in-app.
 - `dev/`: a committed local multi-source test harness: `docker compose -f
   dev/docker-compose.agents.yml --env-file .env up --build` starts a
-  dedicated TimescaleDB, a UI head, and two agents (nginx + traefik
-  formats), and `dev/inject-logs.sh` feeds them synthetic live traffic.
+  dedicated TimescaleDB, a UI head, two agents (nginx + traefik formats),
+  and a log injector feeding them synthetic live traffic for as long as
+  the stack is up.
 
 ### Changed
 

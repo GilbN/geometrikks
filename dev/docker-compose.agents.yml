@@ -13,7 +13,10 @@
 # dev/, so the root .env is not picked up for ${...} interpolation on its
 # own):
 #   docker compose -f dev/docker-compose.agents.yml --env-file .env up --build
-#   ./dev/inject-logs.sh &     # synthetic live traffic, 1 line/s per agent
+#
+# The log-injector service feeds synthetic live traffic (1 line/s per
+# agent) for as long as the stack is up; `touch dev/inject-logs.stop`
+# pauses it without touching the rest of the stack.
 #
 # Notes:
 #   - The UI head publishes :8000, same as the normal dev stack; stop that
@@ -179,6 +182,26 @@ services:
     depends_on:
       timescale_agent_db:
         condition: service_healthy
+
+  # ===========================================================================
+  # Synthetic traffic: runs dev/inject-logs.sh for the stack's lifetime, so
+  # `up` starts the inserts and `down` ends them. Reuses the app image for
+  # bash + GNU date (the traefik timestamps need date %N) with the app
+  # entrypoint bypassed. Pause from the host with `touch dev/inject-logs.stop`
+  # (the container exits; `up -d log-injector` clears the stopfile and
+  # resumes). No restart policy for that reason: a restart would wipe a
+  # freshly touched stopfile and resume against the operator's intent.
+  # ===========================================================================
+  log-injector:
+    container_name: geometrikks_log_injector
+    image: geometrikks:agent-mode
+    user: "${PUID:-1000}:${PGID:-1000}"
+    entrypoint: ["bash", "/injector/dev/inject-logs.sh"]
+    environment:
+      INJECT_MAX_SECONDS: 0
+    volumes:
+      - .:/injector/dev
+      - ../nginx_logs:/injector/nginx_logs
 
 networks:
   geometrikks_agent_net:
