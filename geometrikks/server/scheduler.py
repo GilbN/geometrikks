@@ -141,9 +141,8 @@ async def refresh_site_home_job(
 ) -> None:
     """Re-detect this process's home and refresh its site_homes rows.
 
-    Homelab IPs change; agents run for weeks. Runs on its own
-    MAP_HOME_REFRESH_HOURS cadence. A UI head tails nothing and records no
-    events under its own hostname, so it has nothing to write.
+    Homelab IPs change; agents run for weeks. A UI head tails nothing and
+    records no events under its own hostname, so it has nothing to write.
     """
     if not settings.logparser.enabled:
         return
@@ -240,12 +239,8 @@ async def create_scheduler(
     )
     logger.info("Scheduled GeoLite2 refresh every %d day(s)", settings.geoip.refresh_days)
 
-    # Site-home refresh: re-detects this process's home location and keeps
-    # its site_homes rows current. Runs in every mode (unguarded by `mode`,
-    # like the GeoLite2 refresh above) -- the job itself no-ops for a UI head
-    # by checking settings.logparser.enabled at call time. Its own cadence:
-    # the GeoLite2 database and a site's public IP change on unrelated
-    # schedules, so this does not share geoip.refresh_days.
+    # Runs in every mode: no `mode` guard, because the job itself no-ops
+    # for a UI head (parser disabled) at call time.
     scheduler.add_job(
         refresh_site_home_job,
         IntervalTrigger(hours=settings.map.home_refresh_hours),
