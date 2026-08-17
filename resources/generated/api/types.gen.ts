@@ -78,6 +78,17 @@ export type AccessLogFacets = {
 };
 
 /**
+ * Advisory
+ */
+export type Advisory = {
+  detail?: string | null;
+  id: string;
+  remedy?: string | null;
+  severity: "warning" | "critical";
+  summary: string;
+};
+
+/**
  * AlertView
  */
 export type AlertView = {
@@ -218,6 +229,14 @@ export type DecisionView = {
   scenario: string;
   scope: string;
   type: string;
+};
+
+/**
+ * DefaultHomeView
+ */
+export type DefaultHomeView = {
+  latitude: number;
+  longitude: number;
 };
 
 /**
@@ -422,10 +441,13 @@ export type GlobalTopIpsResponse = {
  * HealthResponse
  */
 export type HealthResponse = {
+  advisories?: Array<Advisory>;
   crowdsec: CrowdSecHealth;
   database: DatabaseHealth;
   geoip: GeoIpHealth;
   ingestion: IngestionHealth;
+  mode?: "full" | "agent";
+  schemaWait?: string | null;
   startedAt: string | null;
   status: "healthy" | "degraded";
   timestamp: string;
@@ -450,7 +472,9 @@ export type IngestionHealth = {
   missingFiles: Array<string>;
   parsedLines: number;
   pendingRecords: number;
+  publishDropped?: number;
   running: boolean;
+  status?: "running" | "degraded" | "disabled";
 };
 
 /**
@@ -782,6 +806,25 @@ export type SettingsSectionView = {
   fields: Array<SettingFieldView>;
   name: string;
   title: string;
+};
+
+/**
+ * SiteHomeView
+ */
+export type SiteHomeView = {
+  detectedAt: string | null;
+  hostname: string;
+  latitude: number;
+  longitude: number;
+  source: "auto" | "override";
+};
+
+/**
+ * SiteHomesResponse
+ */
+export type SiteHomesResponse = {
+  default: DefaultHomeView | null;
+  homes: Array<SiteHomeView>;
 };
 
 /**
@@ -2798,6 +2841,23 @@ export type ApiV1GeoLocationsGeojsonGetGeojsonResponses = {
 export type ApiV1GeoLocationsGeojsonGetGeojsonResponse =
   ApiV1GeoLocationsGeojsonGetGeojsonResponses[keyof ApiV1GeoLocationsGeojsonGetGeojsonResponses];
 
+export type ApiV1GeoLocationsSiteHomesSiteHomesData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: "/api/v1/geo-locations/site-homes";
+};
+
+export type ApiV1GeoLocationsSiteHomesSiteHomesResponses = {
+  /**
+   * Request fulfilled, document follows
+   */
+  200: SiteHomesResponse;
+};
+
+export type ApiV1GeoLocationsSiteHomesSiteHomesResponse =
+  ApiV1GeoLocationsSiteHomesSiteHomesResponses[keyof ApiV1GeoLocationsSiteHomesSiteHomesResponses];
+
 export type ApiV1GeoLocationsTopCountriesGetTopCountriesData = {
   body?: never;
   path?: never;
@@ -3231,7 +3291,7 @@ export type HealthReadyHealthReadyData = {
 
 export type HealthReadyHealthReadyErrors = {
   /**
-   * Database unreachable; the app is not ready for traffic.
+   * Database unreachable, or an agent whose schema gate has not passed; the app is not ready for traffic.
    */
   503: ReadinessResponse;
 };

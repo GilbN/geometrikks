@@ -6,6 +6,7 @@ import type {
   HypertableStatsView,
   LogFileView,
   SchedulerJobView,
+  SiteHomesResponse,
 } from "@/generated/api/types.gen"
 import type { LogRecord } from "@/lib/logstream"
 import type { LiveFeedStatus } from "@/lib/websocket"
@@ -15,6 +16,14 @@ export interface CardState {
   tone: LedTone
   label: string
   detail?: string
+}
+
+export interface AdvisoryCard {
+  id: string
+  tone: LedTone
+  label: string
+  detail?: string
+  remedy?: string
 }
 
 export function overallState(health: HealthResponse | undefined, isError: boolean): CardState {
@@ -27,8 +36,29 @@ export function overallState(health: HealthResponse | undefined, isError: boolea
     : { tone: "amber", label: "Degraded", detail: "One or more components are not operational." }
 }
 
+/** Generic operator advisories from health; one status-page card each. */
+export function advisoryCards(health: HealthResponse | undefined): AdvisoryCard[] {
+  return (health?.advisories ?? []).map((a) => ({
+    id: a.id,
+    tone: a.severity === "critical" ? "red" : "amber",
+    label: a.summary,
+    detail: a.detail ?? undefined,
+    remedy: a.remedy ?? undefined,
+  }))
+}
+
 export function ingestionState(health: HealthResponse | undefined, isError: boolean): CardState {
   if (isError || !health) return { tone: "muted", label: "Unknown" }
+  // Muted, not amber: a deliberate operator setting (UI-head deployments),
+  // not a fault. Same treatment as authState's disabled branch.
+  if (health.ingestion.status === "disabled") {
+    return {
+      tone: "muted",
+      label: "Disabled",
+      detail:
+        "Log tailing is turned off (LOGPARSER_ENABLED=false). This instance serves data ingested by other instances or agents.",
+    }
+  }
   if (!health.ingestion.running) {
     return {
       tone: "amber",
@@ -44,6 +74,23 @@ export function ingestionState(health: HealthResponse | undefined, isError: bool
     }
   }
   return { tone: "emerald", label: "Running" }
+}
+
+export type SidebarIngestionVariant = "offline" | "degraded" | "disabled" | "running" | "inactive"
+
+/** Semantics of the sidebar's ingestion-health dot; the component maps the
+ *  variant to colors/labels. Degraded wins over running: the backend can
+ *  report running=true while a tailed log file is missing. */
+export function sidebarIngestionVariant(
+  health: HealthResponse | undefined,
+  isError: boolean,
+): SidebarIngestionVariant {
+  if (isError) return "offline"
+  if (!health) return "inactive"
+  if (health.status === "degraded") return "degraded"
+  if (health.ingestion.status === "disabled") return "disabled"
+  if (health.ingestion.running) return "running"
+  return "inactive"
 }
 
 export function databaseState(health: HealthResponse | undefined): CardState {
@@ -82,6 +129,23 @@ export function crowdsecState(
 
 export function accessLogFiles(files: LogFileView[] | undefined): LogFileView[] {
   return (files ?? []).filter((f) => f.kind === "access")
+}
+
+export interface SiteHomeRow {
+  hostname: string
+  coords: string
+  source: "auto" | "override"
+}
+
+/** Per-hostname rows for the Settings > Status "Site homes" block: hostname,
+ *  lat/lon to 2 decimals, and auto/override so an operator can tell a
+ *  detected home from a configured one (e.g. diagnosing CGNAT drift). */
+export function siteHomeRows(data: SiteHomesResponse | undefined): SiteHomeRow[] {
+  return (data?.homes ?? []).map((h) => ({
+    hostname: h.hostname,
+    coords: `${h.latitude.toFixed(2)}, ${h.longitude.toFixed(2)}`,
+    source: h.source,
+  }))
 }
 
 export function formatSize(bytes: number): string {

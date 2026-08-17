@@ -15,6 +15,7 @@ function request(overrides: Partial<LiveRequest> = {}): LiveRequest {
     statusClass: "2xx",
     banned: false,
     threat: false,
+    hostname: null,
     ...overrides,
   }
 }
@@ -234,6 +235,19 @@ describe("LiveTrafficStore", () => {
     const vitals = store.getVitals(1000)
     expect(vitals.dropped).toBe(0)
     expect(vitals.droppedRecently).toBe(false)
+  })
+
+  it("reset clears requests and buckets and notifies subscribers", () => {
+    const store = new LiveTrafficStore()
+    const seen = vi.fn()
+    store.ingest([request({ id: "a", receivedAt: 1000 }), request({ id: "b", receivedAt: 1000 })], 0, 1000)
+    store.onRequests(seen)
+
+    store.reset()
+
+    expect(store.getRequests()).toHaveLength(0)
+    expect(store.getBuckets(1000).every((bucket) => bucket.total === 0)).toBe(true)
+    expect(seen).toHaveBeenCalledTimes(1)
   })
 
   it("prunes stale requests on read when idle for longer than the window", () => {

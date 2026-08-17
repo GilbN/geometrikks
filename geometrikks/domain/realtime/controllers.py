@@ -12,18 +12,22 @@ Auth: /ws/ paths are NOT excluded in AUTH_EXCLUDE_PATTERNS, so the session
 middleware authenticates the handshake exactly like an API request.
 
 Subscription lifecycle, batching, heartbeats, and the transport loop live in
-stream.py; this module owns each feed's event conversion, filters, snapshot
-frames, and cadences.
+stream.py; live-feed event conversion lives in events.py. This module owns
+the handlers themselves, filters, snapshot frames, and cadences.
 """
 
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 from typing import TYPE_CHECKING, Any
 
 from litestar import WebSocket, websocket
+from litestar.channels import ChannelsPlugin
+from msgspec import json as msgspec_json
 
+from geometrikks.domain.realtime.events import LIVE_EVENTS_CHANNEL
 from geometrikks.domain.realtime.stream import (
     batched_frames,
     close_service_unavailable,
@@ -33,7 +37,6 @@ from geometrikks.domain.realtime.stream import (
 )
 from geometrikks.server import runtime
 from geometrikks.server.logging import get_logger, log_broadcaster, register_success_level
-from geometrikks.services.logparser.schemas import ParsedLogRecord
 
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator
@@ -49,48 +52,11 @@ MAX_EVENTS_PER_FRAME = 100
 # events flow, so emit an empty frame of the endpoint's own type as a
 # keepalive — existing clients treat it as a no-op and reset their backoff.
 HEARTBEAT_INTERVAL = 30.0
-
-
-def record_to_events(record: ParsedLogRecord) -> list[dict[str, Any]]:
-    """Convert one committed record to wire events (0, 1, or 2)."""
-    events: list[dict[str, Any]] = []
-    if record.geo_data and record.ip_address:
-        g = record.geo_data
-        events.append({
-            "type": "geo_event",
-            "data": {
-                "timestamp": g.timestamp.isoformat(),
-                "ip_address": record.ip_address,
-                "latitude": g.latitude,
-                "longitude": g.longitude,
-                "city": g.city,
-                "country_code": g.country_code,
-            },
-        })
-    if record.access_log:
-        a = record.access_log
-        events.append({
-            "type": "access_log",
-            "data": {
-                "timestamp": a.timestamp.isoformat(),
-                "ip_address": a.ip_address,
-                "remote_user": a.remote_user,
-                "method": a.method,
-                "url": a.url,
-                "http_version": a.http_version,
-                "status_code": a.status_code,
-                "bytes_sent": a.bytes_sent,
-                "referrer": a.referrer,
-                "user_agent": a.user_agent,
-                "request_time": a.request_time,
-                "upstream_response_time": a.upstream_response_time,
-                "host": a.host,
-                "country_code": a.country_code,
-                "country_name": a.country_name,
-                "city": a.city,
-            },
-        })
-    return events
+# The pump's local relay queue between the channel subscriber and
+# batched_frames. Bursts beyond this drop the oldest queued event first
+# (never blocks the channel pump); a separate, counted drop happens later in
+# batched_frames when a single flush window has more than MAX_EVENTS_PER_FRAME.
+LIVE_QUEUE_MAXSIZE = 1000
 
 
 @websocket("/ws/crowdsec", tags=["Live Feed"])
@@ -131,28 +97,65 @@ async def crowdsec_feed(socket: WebSocket) -> None:
 
 @websocket("/ws/live", tags=["Live Feed"])
 async def live_feed(socket: WebSocket) -> None:
-    """Stream committed ingestion events, batched and coalesced."""
-    ingestion = runtime.get_ingestion_service(socket.app)
+    """Stream committed ingestion events from the live_events channel, batched
+    and coalesced. Fan-out is cross-process (Postgres LISTEN/NOTIFY via
+    ChannelsPlugin), not tied to this worker's own ingestion instance, so the
+    gate is DB availability rather than "is ingestion running here"."""
     await socket.accept()
-    if ingestion is None:
+    if not getattr(socket.app.state, "db_available", False):
         await close_service_unavailable(
-            socket, endpoint="/ws/live", reason="ingestion not running"
+            socket, endpoint="/ws/live", reason="live feed unavailable (database down)"
         )
         return
 
+    channels = socket.app.plugins.get(ChannelsPlugin)
+
     async def stream() -> AsyncGenerator[Frame]:
-        async with subscription(ingestion, endpoint="/ws/live") as queue:
-            async for frame in batched_frames(
-                queue,
-                flush_interval=FLUSH_INTERVAL,
-                max_items=MAX_EVENTS_PER_FRAME,
-                heartbeat_interval=HEARTBEAT_INTERVAL,
-                expand=record_to_events,
-                make_frame=lambda events, dropped: {
-                    "type": "batch", "events": events, "dropped": dropped
-                },
-            ):
-                yield frame
+        logger.info("ws_client_connected", endpoint="/ws/live")
+        queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue(maxsize=LIVE_QUEUE_MAXSIZE)
+
+        async def pump() -> None:
+            # A malformed payload or any other per-event failure must not kill
+            # the pump for the rest of the connection: log it and keep going.
+            try:
+                async for raw in subscriber.iter_events():
+                    try:
+                        event = msgspec_json.decode(raw)
+                        try:
+                            queue.put_nowait(event)
+                        except asyncio.QueueFull:
+                            try:
+                                queue.get_nowait()
+                                queue.put_nowait(event)
+                            except (asyncio.QueueEmpty, asyncio.QueueFull):
+                                pass
+                    except Exception:
+                        logger.exception("ws_live_pump_event_failed", endpoint="/ws/live")
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                # Defensive: iter_events() itself failing would otherwise silently
+                # degrade the feed to heartbeat-only with no trace in the logs.
+                logger.exception("ws_live_pump_failed", endpoint="/ws/live")
+
+        async with channels.start_subscription(LIVE_EVENTS_CHANNEL) as subscriber:
+            pump_task = asyncio.create_task(pump(), name="ws-live-pump")
+            try:
+                async for frame in batched_frames(
+                    queue,
+                    flush_interval=FLUSH_INTERVAL,
+                    max_items=MAX_EVENTS_PER_FRAME,
+                    heartbeat_interval=HEARTBEAT_INTERVAL,
+                    make_frame=lambda events, dropped: {
+                        "type": "batch", "events": events, "dropped": dropped
+                    },
+                ):
+                    yield frame
+            finally:
+                pump_task.cancel()
+                with contextlib.suppress(asyncio.CancelledError):
+                    await pump_task
+                logger.info("ws_client_disconnected", endpoint="/ws/live")
 
     await stream_json_frames(socket, stream())
 

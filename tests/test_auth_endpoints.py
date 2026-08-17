@@ -5,16 +5,17 @@ from typing import Any
 
 import pytest
 from litestar import Litestar, get
+from litestar.channels import ChannelsPlugin
+from litestar.channels.backends.memory import MemoryChannelsBackend
 from litestar.testing import TestClient
 
 from geometrikks.config.settings import Settings
 from geometrikks.domain.auth.controllers import AuthController
 from geometrikks.domain.realtime.controllers import crowdsec_feed, live_feed, logs_feed
+from geometrikks.domain.realtime.events import LIVE_EVENTS_CHANNEL
 from geometrikks.server.auth import build_auth_state, create_session_auth
 from geometrikks.server.dependencies import create_settings_provider
 from geometrikks.server.routes import create_api_v1_router
-
-from tests.test_live_ws import FakeIngestion
 
 
 @get("/api/v1/protected")
@@ -35,6 +36,7 @@ def make_app(**settings_kwargs) -> Litestar:
         **settings_kwargs,
     )
     session_auth = create_session_auth(settings)
+    channels = ChannelsPlugin(backend=MemoryChannelsBackend(), channels=[LIVE_EVENTS_CHANNEL])
     app = Litestar(
         route_handlers=[
             create_api_v1_router([AuthController]),
@@ -42,12 +44,13 @@ def make_app(**settings_kwargs) -> Litestar:
         ],
         dependencies={"settings": create_settings_provider(settings)},
         on_app_init=[session_auth.on_app_init],
+        plugins=[channels],
         logging_config=None,
     )
     app.state.auth_state = build_auth_state(settings)
-    # A working ingestion service so the authenticated branch streams rather
-    # than taking the 1013-close (no-service) path.
-    app.state.ingestion_service = FakeIngestion()
+    # DB "available" so the authenticated branch streams rather than taking
+    # the 1013-close (degraded) path.
+    app.state.db_available = True
     return app
 
 
@@ -125,18 +128,19 @@ def test_ws_live_streams_after_login():
         )
         assert res.status_code == 200
         # Same client -> the session cookie persists onto the WS handshake.
-        ingestion = client.app.state.ingestion_service
+        channels = client.app.plugins.get(ChannelsPlugin)
         with client.websocket_connect("/ws/live") as ws:
-            ingestion.queue.put_nowait(_ws_record())
+            channels.publish(_ws_event(), LIVE_EVENTS_CHANNEL)
             frame = ws.receive_json(timeout=5)
         assert frame["type"] == "batch"
-        assert [e["type"] for e in frame["events"]] == ["geo_event", "access_log"]
+        assert [e["type"] for e in frame["events"]] == ["request"]
 
 
-def _ws_record():
+def _ws_event():
     from tests.test_live_ws import make_record
+    from geometrikks.domain.realtime.events import record_to_event
 
-    return make_record()
+    return record_to_event(make_record())
 
 
 def test_create_app_requires_password_when_auth_enabled(monkeypatch):

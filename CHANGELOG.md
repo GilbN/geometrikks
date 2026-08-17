@@ -7,6 +7,72 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `LOGPARSER_HOST_NAME` accepts a JSON list matched positionally to
+  `LOGPARSER_LOG_PATHS`, so one instance tailing logs shipped from several
+  machines records each file under its source hostname. `litestar
+  import-logs` gained `--hostname` to set the stamped hostname per import
+  and now echoes which hostname it stamps.
+- `APP_MODE=agent`: run the same image as a lightweight remote agent that
+  tails, geolocates, writes, and publishes to the live map, serving only
+  `/health` and `/health/ready`. An agent reports not-ready until the
+  primary's schema has arrived, so an orchestrator restarts it into a fresh
+  wait rather than leaving it idle. `LOGPARSER_ENABLED=false` turns a full
+  instance into a UI head with no local tailing. The live-feed backend now
+  reuses a persistent publish connection and reconnects its listener
+  automatically.
+- The map can filter by source hostname: a Sources control beside the
+  country/city filters, URL-backed filter state (shareable links), live
+  traffic and vitals restricted to the selected sources, and the source
+  hostname shown on live popups and feed rows.
+- Settings > Status shows generic operator advisories from the health
+  endpoint; the first is a warning when recorded hostnames look like Docker
+  container IDs, with the consolidation command to fix them.
+- Multi-site home locations: agents detect their own public-IP location and
+  record it per hostname, with live map routes flying to each source's home
+  (one beacon per site). `MAP_HOME_LOCATIONS` overrides any hostname's
+  coordinates for sites whose public IP geolocates wrong or whose logs are
+  shipped from another machine. Detection refreshes on its own
+  `MAP_HOME_REFRESH_HOURS` cadence (default 24h). The `GET
+  /api/v1/geo-locations/site-homes` endpoint serves each hostname's current
+  home location plus the instance's default home for map rendering. Settings
+  > Status now shows a "Site homes" block listing each hostname's
+  coordinates and whether they came from auto-detection or an override, so
+  a CGNAT-mismapped source is visible in-app.
+- `dev/`: a committed local multi-source test harness: `docker compose -f
+  dev/docker-compose.agents.yml --env-file .env up --build` starts a
+  dedicated TimescaleDB, a UI head, two agents (nginx + traefik formats),
+  and a log injector feeding them synthetic live traffic for as long as
+  the stack is up.
+
+### Changed
+
+- A UI head (`LOGPARSER_ENABLED=false`) no longer reads as unhealthy: the
+  sidebar shows a neutral "Ingestion off" dot instead of a warning, the
+  status page's Ingestion card explains the setting instead of "Not
+  running", and `/api/v1/logs/files` stops listing configured-but-untailed
+  access logs as missing.
+- The live map feed (`/ws/live`) now fans out through PostgreSQL
+  LISTEN/NOTIFY, so committed traffic from any writer process reaches the
+  map, and live events carry the source hostname. Batch imports no longer
+  feed the live map.
+- The map layer choice and Live toggle now persist across visits.
+- The location aggregates are rebuilt once at startup with a per-hostname
+  dimension so source-filtered maps stay fast. History older than the raw
+  retention window (default 180 days) cannot be rebuilt and is discarded at
+  that upgrade; installs with many container-ID hostnames skip the rebuild
+  until consolidated (see the status page advisory).
+
+### Fixed
+
+- The compose files size the TimescaleDB worker pool for the app's ~32
+  background jobs (`timescaledb.max_background_workers=40`,
+  `max_worker_processes=51`), stopping the periodic "failed to launch job
+  ... out of background workers" warnings when the aggregate refresh
+  policies all fire at once. Existing installs: copy the `command:` block
+  from `docker-compose.yml` onto the database service and recreate it.
+
 ## [0.8.0] - 2026-08-16
 
 ### Added
@@ -29,6 +95,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `LOGPARSER_LOG_PATHS` default is now `/var/log/access/access.log`. If your
   `.env` sets `LOGPARSER_LOG_PATHS` with `/var/log/nginx/...` paths, change
   them to `/var/log/access/...` when upgrading the compose file.
+
 
 ### Fixed
 

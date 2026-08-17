@@ -12,6 +12,7 @@ function request(overrides: Partial<LiveRequest> = {}): LiveRequest {
     city: "Oslo",
     countryCode: "NO",
     log: null,
+    hostname: null,
     statusClass: "2xx",
     banned: false,
     threat: false,

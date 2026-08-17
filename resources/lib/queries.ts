@@ -28,6 +28,7 @@ import {
   fetchGeoLogTopCountries,
   fetchGeoLogTopCities,
   fetchGeoEventFacets,
+  fetchSiteHomes,
   fetchRuntimeSettings,
   fetchSystemSettings,
   fetchSchedulerJobs,
@@ -138,6 +139,7 @@ export const queryKeys = {
       [...queryKeys.geo.all, "location-top-ips", locationId, params, refreshKey] as const,
     topCountries: (params: Record<string, unknown>, refreshKey?: number) =>
       [...queryKeys.geo.all, "top-countries", params, refreshKey] as const,
+    siteHomes: ["geo", "site-homes"] as const,
   },
   accessLogs: {
     all: ["access-logs"] as const,
@@ -511,6 +513,8 @@ export interface UseGeoJSONOptions {
   countryCodes?: string[]
   /** Filter to these city names */
   cities?: string[]
+  /** Filter to these source hostnames */
+  hostnames?: string[]
 }
 
 /**
@@ -518,12 +522,15 @@ export interface UseGeoJSONOptions {
  * Uses TimeRangeContext for time filtering.
  */
 export function useGeoJSON(options: UseGeoJSONOptions = {}) {
-  const { enabled = true, countryCodes, cities } = options
+  const { enabled = true, countryCodes, cities, hostnames } = options
   const { range, customRange, pollInterval, lastRefresh } = useTimeRange()
 
   return useQuery({
     // Query key uses lastRefresh for cache invalidation on manual refresh
-    queryKey: queryKeys.geo.geojson({ range, customRange, countryCodes, cities }, lastRefresh),
+    queryKey: queryKeys.geo.geojson(
+      { range, customRange, countryCodes, cities, hostnames },
+      lastRefresh,
+    ),
     // Compute date range at fetch time so polls get fresh data
     queryFn: () => {
       const { startDate, endDate } = parseTimeRange(range, Date.now(), customRange)
@@ -532,6 +539,7 @@ export function useGeoJSON(options: UseGeoJSONOptions = {}) {
         toTimestamp: endDate,
         countryCodes,
         cities,
+        hostnames,
       })
     },
     enabled,
@@ -1235,6 +1243,15 @@ export function useGeoEventFacets({ enabled = true }: { enabled?: boolean } = {}
     queryFn: fetchGeoEventFacets,
     enabled,
     staleTime: 60 * 1000,
+  })
+}
+
+/** Per-source home locations for the map; homes change rarely. */
+export function useSiteHomes() {
+  return useQuery({
+    queryKey: queryKeys.geo.siteHomes,
+    queryFn: fetchSiteHomes,
+    staleTime: 5 * 60 * 1000,
   })
 }
 

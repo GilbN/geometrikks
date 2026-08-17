@@ -1,14 +1,16 @@
 import { describe, expect, it } from "vitest"
-import type { HealthResponse } from "@/lib/api"
+import type { HealthIngestionStatus, HealthResponse } from "@/lib/api"
 import type {
   CrowdSecStatusResponse,
   HypertableStatsView,
   LogFileView,
   SchedulerJobView,
+  SiteHomesResponse,
 } from "@/generated/api/types.gen"
 import type { LogRecord } from "@/lib/logstream"
 import {
   accessLogFiles,
+  advisoryCards,
   authState,
   compressionSummary,
   crowdsecState,
@@ -24,6 +26,8 @@ import {
   overallState,
   relativeTime,
   schedulerJobState,
+  sidebarIngestionVariant,
+  siteHomeRows,
 } from "./status-logic"
 
 function makeHealth(overrides: Partial<HealthResponse> = {}): HealthResponse {
@@ -104,6 +108,52 @@ describe("ingestionState", () => {
   it("is muted when health failed or is loading", () => {
     expect(ingestionState(undefined, true).tone).toBe("muted")
     expect(ingestionState(undefined, false).tone).toBe("muted")
+  })
+  it("is muted Disabled when the parser is configured off", () => {
+    const state = ingestionState(
+      makeHealth({
+        ingestion: {
+          running: false,
+          parsedLines: 0,
+          pendingRecords: 0,
+          missingFiles: [],
+          lastRecordAt: null,
+          status: "disabled",
+        },
+      }),
+      false,
+    )
+    expect(state.tone).toBe("muted")
+    expect(state.label).toBe("Disabled")
+    expect(state.detail).toContain("LOGPARSER_ENABLED")
+  })
+})
+
+describe("sidebarIngestionVariant", () => {
+  const disabledIngestion: HealthIngestionStatus = {
+    running: false,
+    parsedLines: 0,
+    pendingRecords: 0,
+    missingFiles: [],
+    lastRecordAt: null,
+    status: "disabled",
+  }
+  it("is offline when the health probe errors", () => {
+    expect(sidebarIngestionVariant(undefined, true)).toBe("offline")
+  })
+  it("is degraded when overall status is degraded", () => {
+    expect(sidebarIngestionVariant(makeHealth({ status: "degraded" }), false)).toBe("degraded")
+  })
+  it("is disabled when the parser is configured off", () => {
+    expect(sidebarIngestionVariant(makeHealth({ ingestion: disabledIngestion }), false)).toBe(
+      "disabled",
+    )
+  })
+  it("is running when ingestion runs", () => {
+    expect(sidebarIngestionVariant(makeHealth(), false)).toBe("running")
+  })
+  it("is inactive while health is still loading", () => {
+    expect(sidebarIngestionVariant(undefined, false)).toBe("inactive")
   })
 })
 
@@ -315,5 +365,56 @@ describe("authState", () => {
       "Built-in authentication is turned off (APP_AUTH_DISABLED=true). Anyone who can reach this app has full access.",
     )
     expect(state.detail).not.toMatch(/proxy/i)
+  })
+})
+
+describe("siteHomeRows", () => {
+  it("is empty for undefined or no homes", () => {
+    expect(siteHomeRows(undefined)).toEqual([])
+    expect(siteHomeRows({ default: null, homes: [] })).toEqual([])
+  })
+  it("formats coords to 2 decimals and passes through source", () => {
+    const data: SiteHomesResponse = {
+      default: { latitude: 59.91, longitude: 10.75 },
+      homes: [
+        {
+          hostname: "nginx-01",
+          latitude: 59.913,
+          longitude: 10.752,
+          source: "auto",
+          detectedAt: "2026-08-16T00:00:00+00:00",
+        },
+        {
+          hostname: "nginx-02",
+          latitude: -33.868,
+          longitude: 151.207,
+          source: "override",
+          detectedAt: null,
+        },
+      ],
+    }
+    expect(siteHomeRows(data)).toEqual([
+      { hostname: "nginx-01", coords: "59.91, 10.75", source: "auto" },
+      { hostname: "nginx-02", coords: "-33.87, 151.21", source: "override" },
+    ])
+  })
+})
+
+describe("advisoryCards", () => {
+  it("is empty when health is missing or clean", () => {
+    expect(advisoryCards(undefined)).toEqual([])
+    expect(advisoryCards(makeHealth())).toEqual([])
+  })
+  it("maps severities to tones", () => {
+    const health = makeHealth({
+      advisories: [
+        { id: "hostname-pollution", severity: "warning", summary: "s", remedy: "cmd" },
+        { id: "other", severity: "critical", summary: "c" },
+      ],
+    })
+    const cards = advisoryCards(health)
+    expect(cards).toHaveLength(2)
+    expect(cards[0]).toMatchObject({ tone: "amber", label: "s", remedy: "cmd" })
+    expect(cards[1]).toMatchObject({ tone: "red", label: "c" })
   })
 })

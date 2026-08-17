@@ -115,3 +115,35 @@ class TestTailLogin:
         from geometrikks.services.logfiles import LogFilesService
         svc = LogFilesService(log_dir=tmp_path / "nope", access_log_paths=[])
         assert svc.tail_login(lines=5) == []
+
+
+class TestFactory:
+    def test_disabled_logparser_omits_access_entries(self, tmp_path):
+        """A UI head (LOGPARSER_ENABLED=false) tails nothing, so configured
+        access-log paths must not be listed as (missing) files."""
+        from geometrikks.config.settings import LogParserSettings, LogSettings, Settings
+        from geometrikks.services.logfiles import create_log_files_service
+
+        nginx = tmp_path / "access.log"
+        nginx.write_text("line\n", encoding="utf-8")
+        settings = Settings(
+            _env_file=None,
+            log=LogSettings(dir=tmp_path),
+            logparser=LogParserSettings(enabled=False, log_paths=[nginx]),
+        )
+        kinds = {e.kind for e in create_log_files_service(settings).list_files()}
+        assert "access" not in kinds
+
+    def test_enabled_logparser_lists_access_entries(self, tmp_path):
+        from geometrikks.config.settings import LogParserSettings, LogSettings, Settings
+        from geometrikks.services.logfiles import create_log_files_service
+
+        nginx = tmp_path / "access.log"
+        nginx.write_text("line\n", encoding="utf-8")
+        settings = Settings(
+            _env_file=None,
+            log=LogSettings(dir=tmp_path),
+            logparser=LogParserSettings(enabled=True, log_paths=[nginx]),
+        )
+        kinds = {e.kind for e in create_log_files_service(settings).list_files()}
+        assert "access" in kinds

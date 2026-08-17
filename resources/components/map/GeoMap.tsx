@@ -3,6 +3,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useNavigate, useSearch } from "@tanstack/react-router"
 import Map, {
   Source,
   Layer,
@@ -20,7 +21,10 @@ import {
   useRuntimeSettings,
   useBannedLocations,
   useCrowdsecStatus,
+  useGeoEventFacets,
+  useSiteHomes,
 } from "@/lib/queries"
+import { beaconLabel, buildHomeResolver, homeBeacons, type Coordinate, type SiteHomesData } from "@/lib/site-homes"
 import { useMapStyle } from "./hooks/useMapStyle"
 import {
   bannedPointLayer,
@@ -41,7 +45,15 @@ import { LiveFeedSheet } from "./LiveFeedSheet"
 import { Card, CardContent } from "@/components/ui/card"
 import { AlertTriangle } from "lucide-react"
 import { getDemoTrafficMode } from "@/lib/demo-traffic"
+import { decodeMapSearch, encodeMapSearch } from "@/lib/map-filters"
+import { useUrlFilters } from "@/hooks/use-url-filters"
 import { loadLiveOverlays, saveLiveOverlays, type LiveOverlayPreferences } from "@/lib/live-overlays"
+import {
+  loadLayerPreference,
+  loadLivePreference,
+  saveLayerPreference,
+  saveLivePreference,
+} from "@/lib/map-preferences"
 import { LiveTrafficProvider, useLiveTrafficStore } from "@/lib/live-traffic/context"
 import type { LiveRequest } from "@/lib/live-traffic/types"
 import { useIsMobile } from "@/hooks/use-mobile"
@@ -99,26 +111,64 @@ function GeoMapInner({
   const mapRef = useRef<MapRef>(null)
   const { mapStyle } = useMapStyle()
   const isMobile = useIsMobile()
-  const [selectedCountries, setSelectedCountries] = useState<string[]>([])
-  const [selectedCities, setSelectedCities] = useState<string[]>([])
+  const search = useSearch({ from: "/map" })
+  const navigate = useNavigate({ from: "/map" })
+  const { filters, setFilters } = useUrlFilters({
+    search,
+    navigate,
+    decode: decodeMapSearch,
+    encode: encodeMapSearch,
+  })
+  const selectedSources = filters.sources
+  const selectedCountries = filters.countryCodes
+  const selectedCities = filters.cities
+  const onSourcesChange = useCallback(
+    (values: string[]) => setFilters((prev) => ({ ...prev, sources: values })),
+    [setFilters],
+  )
+  const onCountriesChange = useCallback(
+    (values: string[]) => setFilters((prev) => ({ ...prev, countryCodes: values })),
+    [setFilters],
+  )
+  const onCitiesChange = useCallback(
+    (values: string[]) => setFilters((prev) => ({ ...prev, cities: values })),
+    [setFilters],
+  )
   const { data: geojson, isLoading: isLoadingGeoJSON, isError, error } = useGeoJSON({
     countryCodes: selectedCountries,
     cities: selectedCities,
+    hostnames: selectedSources,
   })
+  const { data: facets, isLoading: facetsLoading } = useGeoEventFacets()
+  const sourceOptions = facets?.hostnames ?? []
   const { data: globalTopIPs, isLoading: isLoadingTopIPs } = useGlobalTopIPs()
   const { data: runtimeSettings } = useRuntimeSettings()
-  const homeDestination = useMemo<[number, number] | null>(() => {
+  const homeDestination = useMemo<Coordinate | null>(() => {
     const latitude = runtimeSettings?.map.homeLatitude
     const longitude = runtimeSettings?.map.homeLongitude
     return typeof latitude === "number" && typeof longitude === "number"
       ? [longitude, latitude]
       : null
   }, [runtimeSettings])
+  const { data: siteHomes } = useSiteHomes()
+  // Falls back to the single-home runtime setting while site-homes is
+  // unavailable (DB-degraded 500, or just the first fetch in flight) so
+  // beacons don't go empty and flash in once the query resolves.
+  const siteHomesData = useMemo<SiteHomesData | undefined>(
+    () =>
+      siteHomes ??
+      (homeDestination
+        ? { homes: [], default: { latitude: homeDestination[1], longitude: homeDestination[0] } }
+        : undefined),
+    [siteHomes, homeDestination],
+  )
+  const resolveDestination = useMemo(() => buildHomeResolver(siteHomesData), [siteHomesData])
+  const beacons = useMemo(() => homeBeacons(siteHomesData), [siteHomesData])
 
   const isLoading = isLoadingGeoJSON || isLoadingTopIPs
 
   const [viewState, setViewState] = useState(INITIAL_VIEW_STATE)
-  const [activeLayer, setActiveLayer] = useState<LayerType>("markers")
+  const [activeLayer, setActiveLayer] = useState<LayerType>(loadLayerPreference)
   const [projection, setProjection] = useState<MapProjection>(loadMapProjectionPreference)
   const [routeEffectsEnabled, setRouteEffectsEnabled] = useState(loadRouteEffectsPreference)
   const [homeMarkerEnabled, setHomeMarkerEnabled] = useState(loadHomeMarkerPreference)
@@ -179,6 +229,10 @@ function GeoMapInner({
     saveLiveOverlays(liveOverlays)
   }, [liveOverlays])
 
+  useEffect(() => {
+    saveLayerPreference(activeLayer)
+  }, [activeLayer])
+
   // Live off tears down the store; any live-only UI referencing it must go
   // too, or a popup stays pinned to the map after the request it describes
   // is gone.
@@ -192,41 +246,25 @@ function GeoMapInner({
   // Filter options come from the last UNFILTERED result (a second query just
   // for options would be wasteful), held in a ref so the option lists don't
   // shrink to the filtered subset while a filter is active.
-  const optionsRef = useRef<{
-    countries: string[]
-    cities: string[]
-    countryLabels: Record<string, string>
-  }>({
-    countries: [],
-    cities: [],
-    countryLabels: {},
-  })
+  // Options come from the facets endpoint, not the geojson payload: with
+  // URL-restored filters the first geojson response is already filtered, so
+  // deriving options from it would leave the comboboxes empty after reload.
   const filterOptions = useMemo(() => {
-    if (geojson && selectedCountries.length === 0 && selectedCities.length === 0) {
-      const countryLabels: Record<string, string> = {}
-      const cities = new Set<string>()
-      for (const f of geojson.features) {
-        const code = f.properties.countryCode
-        if (code) {
-          // Display "<name> (<code>)" but keep the code as the option value,
-          // since the value feeds useGeoJSON({ countryCodes }).
-          countryLabels[code] = f.properties.countryName
-            ? `${f.properties.countryName} (${code})`
-            : code
-        }
-        if (f.properties.city) cities.add(f.properties.city)
-      }
-      optionsRef.current = {
-        // Sort country codes by their display label.
-        countries: Object.keys(countryLabels).sort((a, b) =>
-          countryLabels[a].localeCompare(countryLabels[b]),
-        ),
-        cities: [...cities].sort(),
-        countryLabels,
-      }
+    const countryLabels: Record<string, string> = {}
+    for (const c of facets?.countries ?? []) {
+      // Display "<name> (<code>)" but keep the code as the option value,
+      // since the value feeds useGeoJSON({ countryCodes }).
+      countryLabels[c.code] = c.name ? `${c.name} (${c.code})` : c.code
     }
-    return optionsRef.current
-  }, [geojson, selectedCountries, selectedCities])
+    return {
+      // Sort country codes by their display label.
+      countries: Object.keys(countryLabels).sort((a, b) =>
+        countryLabels[a].localeCompare(countryLabels[b]),
+      ),
+      cities: [...(facets?.cities ?? [])].sort(),
+      countryLabels,
+    }
+  }, [facets])
 
   // Handle view state changes
   const onMove = useCallback((evt: ViewStateChangeEvent) => {
@@ -269,15 +307,28 @@ function GeoMapInner({
     })
   }, [])
 
-  // Fly to the configured server home location
-  const goToHome = useCallback(() => {
-    if (!homeDestination) return
+  const flyToCoordinate = useCallback((coordinates: Coordinate) => {
     mapRef.current?.flyTo({
-      center: homeDestination,
+      center: coordinates,
       zoom: 7,
       duration: 1500,
     })
-  }, [homeDestination])
+  }, [])
+
+  // With exactly one source selected, "home" is that source's own resolved
+  // location when it resolves; otherwise (including an unresolved single
+  // source) it falls back to the instance-wide default.
+  const goHomeDestination = useMemo<Coordinate | null>(() => {
+    if (selectedSources.length === 1) {
+      return resolveDestination(selectedSources[0]) ?? homeDestination
+    }
+    return homeDestination
+  }, [selectedSources, resolveDestination, homeDestination])
+
+  const goToHome = useCallback(() => {
+    if (!goHomeDestination) return
+    flyToCoordinate(goHomeDestination)
+  }, [goHomeDestination, flyToCoordinate])
 
   const changeProjection = useCallback((nextProjection: MapProjection) => {
     if (nextProjection === projection) return
@@ -490,16 +541,21 @@ function GeoMapInner({
           </Source>
         )}
 
-        {/* Live requests travelling from their GeoIP origin to the configured server home. */}
+        {/* Live requests travelling from their GeoIP origin to their source's home. */}
         <LivePulses
           enabled={liveMode && routeEffectsEnabled}
-          destination={homeDestination}
+          resolveDestination={resolveDestination}
         />
 
-        {/* Server home location beacon */}
-        {homeMarkerEnabled && (
-          <HomeMarker coordinates={homeDestination} onClick={goToHome} />
-        )}
+        {/* One beacon per site home, plus the default when it is distinct. */}
+        {homeMarkerEnabled && beacons.map((beacon) => (
+          <HomeMarker
+            key={`${beacon.coordinate[0]},${beacon.coordinate[1]}`}
+            coordinates={beacon.coordinate}
+            label={beaconLabel(beacon)}
+            onClick={() => flyToCoordinate(beacon.coordinate)}
+          />
+        ))}
 
         {/* Popup */}
         {popup && activeLayer === "markers" && (
@@ -552,7 +608,7 @@ function GeoMapInner({
         onLiveOverlayChange={changeLiveOverlay}
         routeEffectsEnabled={routeEffectsEnabled}
         onRouteEffectsChange={setRouteEffectsEnabled}
-        routeHomeAvailable={homeDestination !== null}
+        routeHomeAvailable={goHomeDestination !== null}
         homeMarkerEnabled={homeMarkerEnabled}
         onHomeMarkerChange={setHomeMarkerEnabled}
         bannedOverlayAvailable={crowdsecStatus?.enabled === true}
@@ -571,8 +627,12 @@ function GeoMapInner({
         cityOptions={filterOptions.cities}
         selectedCountries={selectedCountries}
         selectedCities={selectedCities}
-        onCountriesChange={setSelectedCountries}
-        onCitiesChange={setSelectedCities}
+        onCountriesChange={onCountriesChange}
+        onCitiesChange={onCitiesChange}
+        sourceOptions={sourceOptions}
+        selectedSources={selectedSources}
+        onSourcesChange={onSourcesChange}
+        sourcesLoading={facetsLoading}
       />
 
     </div>
@@ -580,10 +640,18 @@ function GeoMapInner({
 }
 
 export default function GeoMap() {
-  const [liveMode, setLiveMode] = useState(getDemoTrafficMode() !== "off")
+  const search = useSearch({ from: "/map" })
+  const sources = search.sources ?? []
+  const [liveMode, setLiveModeState] = useState(
+    () => (getDemoTrafficMode() !== "off" ? true : loadLivePreference()),
+  )
+  const setLiveMode = (enabled: boolean) => {
+    setLiveModeState(enabled)
+    saveLivePreference(enabled)
+  }
 
   return (
-    <LiveTrafficProvider enabled={liveMode}>
+    <LiveTrafficProvider enabled={liveMode} sources={sources}>
       <GeoMapInner liveMode={liveMode} onLiveModeChange={setLiveMode} />
     </LiveTrafficProvider>
   )

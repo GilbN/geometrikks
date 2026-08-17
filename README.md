@@ -427,6 +427,91 @@ Notes:
 - Without `CROWDSEC_*` settings the integration is simply off; nothing else
   changes.
 
+## Multi-source setup
+
+If traffic comes in through more than one reverse proxy or host, GeoMetrikks
+can run as one full instance plus lightweight agents instead of one instance
+tailing everything remotely. Each agent runs close to its own access logs
+(same host or Docker network as the proxy it's tailing) and does the
+ingestion work locally - tail, parse, geolocate, write, publish. One full
+instance owns everything else: the UI, the API, database migrations, the
+scheduler, and CrowdSec. Every agent and the full instance share one
+TimescaleDB. The live map stays in sync regardless of which process ingested
+a request - every writer publishes committed events over PostgreSQL
+LISTEN/NOTIFY, and the full instance's `/ws/live` feed relays all of them.
+
+An agent needs only `APP_MODE=agent`, database credentials for the shared
+instance, GeoIP credentials, and its own log mount:
+
+```yaml
+services:
+  agent:
+    image: ghcr.io/gilbn/geometrikks:0.3.0   # same tag as the full instance
+    restart: unless-stopped
+    environment:
+      APP_MODE: agent
+      DB_HOST: timescale.example.internal
+      DB_PORT: "5432"
+      DB_USER: geouser
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_DATABASE: geometrikks
+      MAXMINDDB_USER_ID: ${MAXMINDDB_USER_ID}
+      MAXMINDDB_LICENSE_KEY: ${MAXMINDDB_LICENSE_KEY}
+      LOGPARSER_LOG_PATHS: '["/var/log/access/access.log"]'
+      LOGPARSER_HOST_NAME: edge-01
+    volumes:
+      - geoip_data:/app/data/geoip
+      - /var/log/nginx:/var/log/access:ro
+
+volumes:
+  geoip_data:
+```
+
+`APP_MODE=agent` composes a headless process: it tails, geolocates, writes,
+and publishes like a full instance, but serves only `/health` and
+`/health/ready` - no UI, no API, no OpenAPI schema, no session auth, so it
+needs no `APP_ADMIN_PASSWORD`. It still downloads and refreshes its own
+GeoLite2 database like a full instance does, so it still needs MaxMind
+credentials and a geoip volume. It never runs migrations or touches
+TimescaleDB objects; at startup it waits for the shared database's schema to
+reach the revision it was built against. If that wait times out, the agent
+stays up serving `/health` in degraded mode rather than exiting, so restart
+policies never re-trigger it - restart the agent container yourself once the
+full instance has finished migrating.
+
+The reverse case works too: to keep a full instance's UI and API without it
+tailing local files - for example, a machine that only hosts the app, with
+all traffic ingested by agents elsewhere - set:
+
+```bash
+LOGPARSER_ENABLED=false
+```
+
+It still serves the UI, API, migrations, scheduler, and CrowdSec; it just
+never tails a log file itself.
+
+**Trust model.** Agents authenticate with the database using ordinary
+database credentials, and the app does not care where data comes from:
+anyone who can run an agent effectively has full read/write access to the
+entire database - all traffic history from every source, any hostname, with
+no tenant isolation, no per-agent identity, and no revocation short of
+rotating the shared password. Sharing one instance across parties works,
+just understand that everyone shares everything. Run agent connections over
+a VPN or tailnet, not the open internet.
+
+**Keep versions aligned.** Run the same image tag on every agent and the
+full instance. An agent tolerates the shared database running slightly ahead
+of its own bundled schema - the case where a full instance is mid
+rolling-restart - by logging a warning and proceeding rather than refusing
+to start; that's a brief-mismatch allowance, not a reason to run agents and
+the full instance on different versions long-term.
+
+**CrowdSec.** Point `CROWDSEC_LAPI_URL` and the bouncer/machine credentials
+(see [CrowdSec integration](#crowdsec-integration-optional)) at the central
+LAPI on the full instance only; per-machine CrowdSec agents keep reporting to
+that same LAPI as usual. GeoMetrikks agents ignore `CROWDSEC_*` settings
+entirely - ban visibility and management stay a full-instance responsibility.
+
 ## CLI commands
 
 Besides the server, the image ships maintenance commands under the

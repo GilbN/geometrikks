@@ -5,7 +5,7 @@ import asyncio
 import time
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import pytest
 from geohash2 import encode
@@ -658,38 +658,110 @@ def make_parsed_record(ip: str) -> ParsedLogRecord:
     )
 
 
-async def test_pubsub_subscribers_receive_committed_records() -> None:
-    service, _repos, _sessions = make_service([])
-    q = service.subscribe()
-    records = [make_parsed_record(ip) for ip in TEST_DB_IPS]
-
-    await service.flush_records(records)
-
-    got = [q.get_nowait() for _ in range(len(records))]
-    assert [r.ip_address for r in got] == [r.ip_address for r in records]
-
-
-async def test_pubsub_unsubscribed_queue_gets_nothing() -> None:
-    service, _repos, _sessions = make_service([])
-    q = service.subscribe()
-    service.unsubscribe(q)
-    await service.flush_records([make_parsed_record(TEST_DB_IPS[0])])
-    assert q.empty()
+def test_service_has_no_inprocess_subscriber_api() -> None:
+    """The in-process fan-out (subscribe/unsubscribe/_subscribers) is gone;
+    /ws/live now subscribes to the live_events channel instead. Post-commit
+    delivery is covered by the channel-publish tests below."""
+    service = LogIngestionService(
+        parsers=[], session_maker=cast("Any", None), geoip_path="unused", hostname="myserver",
+    )
+    assert not hasattr(service, "subscribe")
+    assert not hasattr(service, "unsubscribe")
 
 
-async def test_pubsub_failed_commit_publishes_nothing() -> None:
-    service, repos, _sessions = make_service([])
+def make_full_record(hostname: str) -> ParsedLogRecord:
+    """A record with both geo_data and access_log (field values mirror
+    tests/test_realtime_events.py's `_record`), stamped with `hostname`."""
+    ts = datetime.now(timezone.utc)
+    return ParsedLogRecord(
+        ip_address="203.0.113.7",
+        geo_data=ParsedGeoData(
+            latitude=51.5, longitude=-0.1, geohash="gcpvj0", country_code="GB",
+            country_name="United Kingdom", timestamp=ts,
+        ),
+        access_log=ParsedAccessLog(
+            timestamp=ts, ip_address="203.0.113.7", remote_user=None, method="GET",
+            url="/index", http_version="HTTP/2.0", status_code=200, bytes_sent=10,
+            referrer=None, user_agent=None, request_time=0.1,
+            upstream_response_time=None, host="example.com",
+            country_code="GB", country_name="United Kingdom", city="London",
+        ),
+        raw_line="raw",
+        hostname=hostname,
+    )
+
+
+def _channels_stub():
+    from unittest.mock import MagicMock
+    return MagicMock()
+
+
+def test_publish_sends_events_to_channel() -> None:
+    from geometrikks.domain.realtime.events import LIVE_EVENTS_CHANNEL
+
+    channels = _channels_stub()
+    service = LogIngestionService(
+        parsers=[], session_maker=cast("Any", None), geoip_path="unused",
+        hostname="myserver", channels=channels,
+    )
+    record = make_full_record(hostname="vps-1")
+    service._publish([record])
+    assert channels.publish.call_count == 1  # one envelope per record
+    event, channel = channels.publish.call_args.args
+    assert channel == LIVE_EVENTS_CHANNEL
+    assert event["type"] == "request"
+    assert event["geo"]["hostname"] == "vps-1"
+    assert event["log"]["hostname"] == "vps-1"
+
+
+def test_publish_without_channels_is_silent_and_safe() -> None:
+    service = LogIngestionService(
+        parsers=[], session_maker=cast("Any", None), geoip_path="unused", hostname="myserver",
+    )
+    service._publish([make_full_record(hostname="vps-1")])  # must not raise
+
+
+def test_publish_never_raises_into_ingestion() -> None:
+    channels = _channels_stub()
+    channels.publish.side_effect = RuntimeError("backend down")
+    service = LogIngestionService(
+        parsers=[], session_maker=cast("Any", None), geoip_path="unused",
+        hostname="myserver", channels=channels,
+    )
+    service._publish([make_full_record(hostname="vps-1")])  # must not raise
+
+
+async def test_channel_publish_only_after_successful_commit() -> None:
+    """post-commit publish only — a rolled-back batch must not reach the channel
+    (the same invariant the deleted in-process pubsub tests covered)."""
+    channels = _channels_stub()
+    service, repos, _sessions = make_service([], channels=channels)
     repos.fail_next_commits = 1
-    q = service.subscribe()
     await service.flush_records([make_parsed_record(TEST_DB_IPS[0])])
-    assert q.empty(), "post-commit publish only — rolled-back records must not stream"
+    assert channels.publish.call_count == 0
 
 
-async def test_pubsub_full_subscriber_drops_oldest_not_ingestion() -> None:
-    service, _repos, _sessions = make_service([])
-    q = service.subscribe(maxsize=1)
-    r1, r2 = (make_parsed_record(ip) for ip in TEST_DB_IPS)
-    await service.flush_records([r1])
-    await service.flush_records([r2])   # must not block or raise
-    assert q.qsize() == 1
-    assert q.get_nowait().ip_address == r2.ip_address
+async def test_publish_blowup_after_commit_does_not_look_like_commit_failure(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A record_to_event explosion happens strictly after `await
+    session.commit()` succeeds, so it must not be caught by the
+    commit-failure handler: no rollback, no cache eviction, and no
+    misleading "Batch commit failed" log. `_publish` must swallow it instead."""
+    import geometrikks.services.ingestion.service as service_module
+
+    def boom(record: object) -> None:
+        raise RuntimeError("record_to_event blew up")
+
+    monkeypatch.setattr(service_module, "record_to_event", boom)
+
+    channels = _channels_stub()
+    service, repos, sessions = make_service([], channels=channels)
+    with caplog.at_level("ERROR"):
+        await service.flush_records([make_parsed_record(TEST_DB_IPS[0])])
+
+    assert sessions[0].commits == 1
+    assert sessions[0].rollbacks == 0
+    assert service._location_cache  # committed location must still be cached
+    assert not any("Batch commit failed" in r.getMessage() for r in caplog.records)
+    assert any("live publish failed; batch already committed" in r.getMessage() for r in caplog.records)

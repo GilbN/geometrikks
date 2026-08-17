@@ -158,7 +158,10 @@ def create_log_files_service(settings: Settings | None = None) -> LogFilesServic
         from geometrikks.config.settings import get_settings
 
         settings = get_settings()
+    # LOGPARSER_ENABLED=false: nothing tails these paths, so listing them
+    # (as "missing" on a UI head that never mounts them) would be noise.
+    access_log_paths = list(settings.logparser.log_paths) if settings.logparser.enabled else []
     return LogFilesService(
         log_dir=settings.log.dir,
-        access_log_paths=list(settings.logparser.log_paths),
+        access_log_paths=access_log_paths,
     )

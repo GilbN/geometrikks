@@ -64,6 +64,7 @@ export type RouteName =
   | 'rotate'
   | 'run_scheduler_job'
   | 'service_worker'
+  | 'site_homes'
   | 'stats'
   | 'tail'
   | 'unban';
@@ -129,6 +130,7 @@ export interface RoutePathParams {
     job_id: string;
   };
   'service_worker': Record<string, never>;
+  'site_homes': Record<string, never>;
   'stats': Record<string, never>;
   'tail': Record<string, never>;
   'unban': Record<string, never>;
@@ -394,6 +396,7 @@ export interface RouteQueryParams {
   'rotate': Record<string, never>;
   'run_scheduler_job': Record<string, never>;
   'service_worker': Record<string, never>;
+  'site_homes': Record<string, never>;
   'stats': Record<string, never>;
   'tail': {
     lines?: number;
@@ -770,6 +773,13 @@ export const routeDefinitions = {
   },
   'service_worker': {
     path: '/sw.js',
+    methods: ['GET'] as const,
+    method: 'get',
+    pathParams: [] as const,
+    queryParams: [] as const,
+  },
+  'site_homes': {
+    path: '/api/v1/geo-locations/site-homes',
     methods: ['GET'] as const,
     method: 'get',
     pathParams: [] as const,

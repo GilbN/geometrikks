@@ -2,6 +2,7 @@
 
 from geometrikks.config.settings import (
     APISettings,
+    AppSettings,
     CrowdSecSettings,
     DatabaseSettings,
     GeoIPSettings,
@@ -14,6 +15,7 @@ __all__ = [
     "Settings",
     "get_settings",
     "APISettings",
+    "AppSettings",
     "CrowdSecSettings",
     "DatabaseSettings",
     "GeoIPSettings",
