@@ -172,9 +172,9 @@ async def create_scheduler(
     - CrowdSec decision-stream poll, when the integration is on
 
     An agent instance (mode="agent") only tails logs into a schema the
-    primary instance owns, so it registers just the GeoLite2 refresh: the
-    other jobs are either primary-only maintenance (CAGGs, location last_hit)
-    or CrowdSec, which agents never wire up.
+    primary instance owns, so it registers just the GeoLite2 refresh and the
+    site-home refresh: the other jobs are either primary-only maintenance
+    (CAGGs, location last_hit) or CrowdSec, which agents never wire up.
 
     Note: TimescaleDB continuous aggregate policies also run in the background
     for automatic incremental refreshes. The scheduled jobs here supplement those.
@@ -239,19 +239,22 @@ async def create_scheduler(
     )
     logger.info("Scheduled GeoLite2 refresh every %d day(s)", settings.geoip.refresh_days)
 
-    # Runs in every mode: no `mode` guard, because the job itself no-ops
-    # for a UI head (parser disabled) at call time.
-    scheduler.add_job(
-        refresh_site_home_job,
-        IntervalTrigger(hours=settings.map.home_refresh_hours),
-        id="site-home-refresh",
-        name="Re-detect this instance's site home location",
-        args=[session_factory, settings],
-        replace_existing=True,
-    )
-    logger.info(
-        "Scheduled site home refresh every %d hour(s)", settings.map.home_refresh_hours
-    )
+    # Registered only when this process ingests (both modes qualify for
+    # agents; a UI head does not): the jobs list is user-visible on the
+    # Settings page, so a permanently no-op job must not appear there. The
+    # job keeps its own parser-enabled guard as cheap defense.
+    if settings.logparser.enabled:
+        scheduler.add_job(
+            refresh_site_home_job,
+            IntervalTrigger(hours=settings.map.home_refresh_hours),
+            id="site-home-refresh",
+            name="Re-detect this instance's site home location",
+            args=[session_factory, settings],
+            replace_existing=True,
+        )
+        logger.info(
+            "Scheduled site home refresh every %d hour(s)", settings.map.home_refresh_hours
+        )
 
     # CrowdSec decision-stream poll: feeds live ban/unban updates to the
     # /ws/crowdsec subscribers. Only registered when the integration is on;

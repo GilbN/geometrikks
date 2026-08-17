@@ -105,6 +105,18 @@ async def test_scheduler_registers_site_home_refresh_in_full_mode(monkeypatch):
     assert "site-home-refresh" in job_ids
 
 
+async def test_scheduler_skips_site_home_refresh_when_parser_disabled(monkeypatch):
+    """A UI head never writes site homes; the job must not appear in its
+    (user-visible) scheduler jobs list at all."""
+    from geometrikks.config.settings import Settings
+    from geometrikks.server.scheduler import create_scheduler
+
+    monkeypatch.setenv("LOGPARSER_ENABLED", "false")
+    scheduler = await create_scheduler(MagicMock(), Settings())
+    job_ids = {job.id for job in scheduler.get_jobs()}
+    assert "site-home-refresh" not in job_ids
+
+
 async def test_site_home_refresh_uses_its_own_cadence(monkeypatch):
     """The site-home refresh trigger comes from MAP_HOME_REFRESH_HOURS;
     both env vars are set to prove GEOIP_REFRESH_DAYS cannot leak in."""

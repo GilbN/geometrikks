@@ -88,7 +88,8 @@ def schema_upgrades() -> None:
             created_at TIMESTAMPTZ NOT NULL,
             updated_at TIMESTAMPTZ NOT NULL,
             CONSTRAINT pk_site_homes PRIMARY KEY (id),
-            CONSTRAINT uq_site_homes_hostname UNIQUE (hostname)
+            CONSTRAINT uq_site_homes_hostname UNIQUE (hostname),
+            CONSTRAINT ck_site_homes_source CHECK (source IN ('auto', 'override'))
         )
     """)
     op.execute("ALTER SEQUENCE site_homes_id_seq OWNED BY site_homes.id")

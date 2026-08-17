@@ -1,6 +1,7 @@
 from datetime import datetime, timezone
 
 from sqlalchemy import (
+    CheckConstraint,
     Float,
     BigInteger,
     String,
@@ -128,6 +129,9 @@ class SiteHome(base.BigIntAuditBase):
     coordinates)."""
 
     __tablename__ = "site_homes"
+    # Renders as ck_site_homes_source via the naming convention; backs the
+    # auto/override Literal on the wire with DB-level enforcement.
+    __table_args__ = (CheckConstraint("source IN ('auto', 'override')", name="source"),)
 
     hostname: Mapped[str] = mapped_column(String(255), nullable=False, unique=True)
     latitude: Mapped[float] = mapped_column(Float, nullable=False)

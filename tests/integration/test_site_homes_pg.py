@@ -72,3 +72,17 @@ async def test_reconcile_empty_deletes_preexisting_override(pg_session_maker, cl
     rows = await _rows(pg_session_maker)
     assert "a" not in rows
     assert rows["nginx-01"] == (59.91, 10.75, "auto")
+
+
+async def test_site_homes_source_is_db_constrained(pg_session_maker, clean_site_homes):
+    """The auto/override Literal on the wire is backed by a CHECK constraint,
+    not just writer convention."""
+    from sqlalchemy.exc import IntegrityError
+
+    async with pg_session_maker() as session:
+        with pytest.raises(IntegrityError):
+            await session.execute(text(
+                "INSERT INTO site_homes "
+                "(hostname, latitude, longitude, source, created_at, updated_at) "
+                "VALUES ('x', 1.0, 2.0, 'bogus', now(), now())"
+            ))
