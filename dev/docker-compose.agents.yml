@@ -1,0 +1,179 @@
+# Local test stack for the multi-source / agent-mode features:
+#
+#   timescale_agent_db  dedicated TimescaleDB (own volume, host port 5433)
+#   ui-head             full app with LOGPARSER_ENABLED=false: serves the
+#                       UI/API/WS, runs migrations, no tailing of its own
+#   agent-nginx         APP_MODE=agent tailing nginx_logs/nginx.log
+#   agent-traefik       APP_MODE=agent tailing nginx_logs/traefik.log
+#
+# All three app services build the production Dockerfile locally and share
+# one image tag, so compose builds it once.
+#
+# Usage, from the repo root (--env-file: the compose project directory is
+# dev/, so the root .env is not picked up for ${...} interpolation on its
+# own):
+#   docker compose -f dev/docker-compose.agents.yml --env-file .env up --build
+#   ./dev/inject-logs.sh &     # synthetic live traffic, 1 line/s per agent
+#
+# Notes:
+#   - The UI head publishes :8000, same as the normal dev stack; stop that
+#     first (devkill).
+#   - Agents deliberately do NOT depend on the UI head: they come up in
+#     parallel and sit in the schema-wait gate until the head has migrated.
+#     Watch it: curl localhost:8001/health
+#   - deliberately no env_file: on the services: .env carries CrowdSec
+#     creds, ignore-IPs and auth overrides that would leak into this
+#     isolated stack. The --env-file flag above only feeds the ${...}
+#     interpolations below (admin login, MaxMind creds).
+#   - ./data/geoip (the dev mmdb) is bind-mounted rw into all three
+#     services; the entrypoint chowns it, and rw lets the agents' weekly
+#     geoip-refresh job work. Fine for a test stack, one-volume-per-agent
+#     in real deployments.
+#   - Site homes (Phase 5): both agents share this machine's public IP, so
+#     their auto-detected homes coincide. The head's MAP_HOME_LOCATIONS
+#     below pins traefik-01 to Bergen so routes/beacons visibly split;
+#     edit or remove it to test the pure-auto path (the override row is
+#     deleted at the next head restart, and the agent's next write
+#     restores it as auto). Inspect the table:
+#       docker exec timescale_agent_db psql -U geouser -d geometrikks \
+#         -c "SELECT hostname, latitude, longitude, source FROM site_homes;"
+
+name: geometrikks-agents
+
+services:
+
+  timescale_agent_db:
+    container_name: timescale_agent_db
+    image: timescale/timescaledb-ha:pg18
+    restart: unless-stopped
+    shm_size: 256mb
+    environment:
+      POSTGRES_USER: geouser
+      POSTGRES_PASSWORD: geopass
+      POSTGRES_DB: geometrikks
+    ports:
+      - "5433:5432"
+    volumes:
+      - timescale_agent_data:/home/postgres/pgdata/data
+    networks:
+      - geometrikks_agent_net
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U geouser -d geometrikks" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ===========================================================================
+  # UI head: full mode, no local tailing. Owns migrations, auth, the map,
+  # and the /ws/live fan-out fed by the agents through LISTEN/NOTIFY.
+  # ===========================================================================
+  ui-head:
+    container_name: geometrikks_ui_head
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    image: geometrikks:agent-mode
+    restart: unless-stopped
+    hostname: ui-head
+    stop_grace_period: 20s
+    environment:
+      LOGPARSER_ENABLED: "false"
+      APP_ADMIN_USER: ${APP_ADMIN_USER:-admin}
+      APP_ADMIN_PASSWORD: ${APP_ADMIN_PASSWORD:-}
+      # Demo override so the two sites' homes differ (see header notes).
+      # Hardcoded rather than ${...}-interpolated: compose interpolation
+      # defaults cannot carry JSON braces.
+      MAP_HOME_LOCATIONS: '{"traefik-01": [60.39, 5.32], "nginx-01": [40.730610, 	-73.935242]}'
+      DB_HOST: timescale_agent_db
+      DB_PORT: 5432
+      DB_USER: geouser
+      DB_PASSWORD: geopass
+      DB_DATABASE: geometrikks
+    ports:
+      - "8000:8000"
+    volumes:
+      - ../data/geoip:/app/data/geoip
+    networks:
+      - geometrikks_agent_net
+    depends_on:
+      timescale_agent_db:
+        condition: service_healthy
+
+  # ===========================================================================
+  # Agents: logparser-only processes stamping their own hostname. Health
+  # endpoints published for watching schema_wait / ingestion status.
+  # ===========================================================================
+  agent-nginx:
+    container_name: geometrikks_agent_nginx
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    image: geometrikks:agent-mode
+    restart: unless-stopped
+    hostname: agent-nginx
+    stop_grace_period: 20s
+    environment:
+      APP_MODE: agent
+      # Hourly re-detection instead of the 24h default, so cadence-driven
+      # site-home refreshes are observable within a test session.
+      MAP_HOME_REFRESH_HOURS: 1
+      LOGPARSER_HOST_NAME: nginx-01
+      LOGPARSER_LOG_PATHS: /var/log/access/nginx.log
+      LOGPARSER_LOG_FORMATS: nginx
+      MAXMINDDB_USER_ID: ${MAXMINDDB_USER_ID:-}
+      MAXMINDDB_LICENSE_KEY: ${MAXMINDDB_LICENSE_KEY:-}
+      DB_HOST: timescale_agent_db
+      DB_PORT: 5432
+      DB_USER: geouser
+      DB_PASSWORD: geopass
+      DB_DATABASE: geometrikks
+    ports:
+      - "8001:8000"
+    volumes:
+      - ../nginx_logs:/var/log/access:ro
+      - ../data/geoip:/app/data/geoip
+    networks:
+      - geometrikks_agent_net
+    depends_on:
+      timescale_agent_db:
+        condition: service_healthy
+
+  agent-traefik:
+    container_name: geometrikks_agent_traefik
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    image: geometrikks:agent-mode
+    restart: unless-stopped
+    hostname: agent-traefik
+    stop_grace_period: 20s
+    environment:
+      APP_MODE: agent
+      MAP_HOME_REFRESH_HOURS: 1
+      LOGPARSER_HOST_NAME: traefik-01
+      LOGPARSER_LOG_PATHS: /var/log/access/traefik.log
+      LOGPARSER_LOG_FORMATS: traefik-json
+      MAXMINDDB_USER_ID: ${MAXMINDDB_USER_ID:-}
+      MAXMINDDB_LICENSE_KEY: ${MAXMINDDB_LICENSE_KEY:-}
+      DB_HOST: timescale_agent_db
+      DB_PORT: 5432
+      DB_USER: geouser
+      DB_PASSWORD: geopass
+      DB_DATABASE: geometrikks
+    ports:
+      - "8002:8000"
+    volumes:
+      - ../nginx_logs:/var/log/access:ro
+      - ../data/geoip:/app/data/geoip
+    networks:
+      - geometrikks_agent_net
+    depends_on:
+      timescale_agent_db:
+        condition: service_healthy
+
+networks:
+  geometrikks_agent_net:
+    driver: bridge
+
+volumes:
+  timescale_agent_data:

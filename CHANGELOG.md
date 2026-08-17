@@ -38,6 +38,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   > Status now shows a "Site homes" block listing each hostname's
   coordinates and whether they came from auto-detection or an override, so
   a CGNAT-mismapped source is visible in-app.
+- `dev/`: a committed local multi-source test harness: `docker compose -f
+  dev/docker-compose.agents.yml --env-file .env up --build` starts a
+  dedicated TimescaleDB, a UI head, and two agents (nginx + traefik
+  formats), and `dev/inject-logs.sh` feeds them synthetic live traffic.
 
 ### Changed
 
