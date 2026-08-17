@@ -3,7 +3,8 @@
 /health is safe for container HEALTHCHECK / LB probes: it returns 200 as
 long as the app process serves requests; component states live in the
 payload and never flip the status code. /health/ready returns 503 until
-the database answers, for orchestrators that want a real readiness gate.
+the database answers (and, in agent mode, until the startup schema gate
+has passed), for orchestrators that want a real readiness gate.
 
 Timestamps are pre-rendered ISO 8601 strings (datetime.isoformat), the
 format this payload has always used on the wire.
@@ -212,12 +213,24 @@ async def health(
     responses={
         HTTP_503_SERVICE_UNAVAILABLE: ResponseSpec(
             data_container=ReadinessResponse,
-            description="Database unreachable; the app is not ready for traffic.",
+            description=(
+                "Database unreachable, or an agent whose schema gate has not "
+                "passed; the app is not ready for traffic."
+            ),
         )
     },
 )
-async def health_ready(request: Request) -> Response[ReadinessResponse]:
-    """Readiness: 200 only when the database answers."""
-    if await _database_reachable(request.app):
+async def health_ready(
+    request: Request,
+    settings: NamedDependency[SkipValidation[Settings]],
+) -> Response[ReadinessResponse]:
+    """Readiness: the database answers and, in agent mode, the startup schema
+    gate passed. A schema-timeout agent never starts ingestion, so it stays
+    503 and an orchestrator restart re-runs the wait."""
+    schema_gate_passed = (
+        not settings.is_agent
+        or getattr(request.app.state, "schema_wait_result", None) in ("ready", "newer")
+    )
+    if schema_gate_passed and await _database_reachable(request.app):
         return Response(ReadinessResponse(ready=True), status_code=HTTP_200_OK)
     return Response(ReadinessResponse(ready=False), status_code=HTTP_503_SERVICE_UNAVAILABLE)

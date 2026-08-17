@@ -57,6 +57,36 @@ def test_ready_200_when_db_reachable(monkeypatch):
         assert res.json() == {"ready": True}
 
 
+def test_ready_503_for_agent_with_schema_timeout(monkeypatch):
+    """A schema-timeout agent never starts ingestion; a reachable DB alone
+    must not report it ready. Staying 503 makes an orchestrator restart it,
+    which re-runs the schema wait."""
+    async def db_up(app, timeout: float = 2.0) -> bool:
+        return True
+    monkeypatch.setattr(health_module, "_database_reachable", db_up)
+    monkeypatch.setenv("APP_MODE", "agent")
+
+    app = make_app()
+    app.state.schema_wait_result = "timeout"
+    with TestClient(app=app) as client:
+        res = client.get("/health/ready")
+    assert res.status_code == 503
+    assert res.json() == {"ready": False}
+
+
+def test_ready_200_for_agent_past_schema_gate(monkeypatch):
+    async def db_up(app, timeout: float = 2.0) -> bool:
+        return True
+    monkeypatch.setattr(health_module, "_database_reachable", db_up)
+    monkeypatch.setenv("APP_MODE", "agent")
+
+    for result in ("ready", "newer"):
+        app = make_app()
+        app.state.schema_wait_result = result
+        with TestClient(app=app) as client:
+            assert client.get("/health/ready").status_code == 200
+
+
 def _running_service(file_missing: bool) -> "LogIngestionService":
     """A real (never-started) service so Litestar DI type validation passes."""
     parser = LogParser(log_path=Path("nginx_logs/access.log"))

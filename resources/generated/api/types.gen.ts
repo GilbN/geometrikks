@@ -3291,7 +3291,7 @@ export type HealthReadyHealthReadyData = {
 
 export type HealthReadyHealthReadyErrors = {
   /**
-   * Database unreachable; the app is not ready for traffic.
+   * Database unreachable, or an agent whose schema gate has not passed; the app is not ready for traffic.
    */
   503: ReadinessResponse;
 };

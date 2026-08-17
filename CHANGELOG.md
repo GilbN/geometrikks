@@ -78,6 +78,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   subscribe in either order and leave the process deaf to new events. The
   live-events LISTEN is now held for the process lifetime instead of
   following client churn.
+- `/health/ready` on an agent now returns 503 while the startup schema gate
+  has not passed, instead of reporting ready on database reachability alone
+  while the agent sits idle after a schema-wait timeout. An orchestrator
+  restart re-runs the gate.
 
 ## [0.8.0] - 2026-08-16
 
