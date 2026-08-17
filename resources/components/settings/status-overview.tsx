@@ -408,69 +408,71 @@ export function StatusOverview() {
         </Card>
       </div>
 
-      {/* Only shown when at least one source has a resolved home: makes the
-          auto/override split visible in-app for CGNAT diagnosis, matching
-          the failure-mode table's promise that source is inspectable. */}
-      {homeRows.length > 0 && (
-        <Card>
+      <div className="grid gap-4 md:grid-cols-2">
+        {/* Only shown when at least one source has a resolved home: makes the
+            auto/override split visible in-app for CGNAT diagnosis, matching
+            the failure-mode table's promise that source is inspectable. */}
+        {homeRows.length > 0 && (
+          <Card>
+            <CardHeader className="pb-3">
+              <div className="flex items-center gap-3">
+                <SectionIcon icon={MapPin} />
+                <div>
+                  <CardTitle className="text-base">Site homes</CardTitle>
+                  <CardDescription>Per-source home location used for map beacons and route origins</CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {homeRows.map((row) => (
+                <div key={row.hostname} className="flex items-center gap-2 text-xs">
+                  <MonoChip>{row.hostname}</MonoChip>
+                  <span className="text-muted-foreground tabular-nums">{row.coords}</span>
+                  {row.source === "override" ? (
+                    <Badge variant="outline" className="ml-auto">
+                      override
+                    </Badge>
+                  ) : (
+                    <span className="ml-auto text-muted-foreground">auto</span>
+                  )}
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        )}
+
+        <Card className={homeRows.length > 0 ? undefined : "md:col-span-2"}>
           <CardHeader className="pb-3">
             <div className="flex items-center gap-3">
-              <SectionIcon icon={MapPin} />
+              <SectionIcon icon={TriangleAlert} />
               <div>
-                <CardTitle className="text-base">Site homes</CardTitle>
-                <CardDescription>Per-source home location used for map beacons and route origins</CardDescription>
+                <CardTitle className="text-base">Recent errors</CardTitle>
+                <CardDescription>
+                  Latest error-level events from the application log ·{" "}
+                  <Link to="/settings/logs" className="underline underline-offset-2">
+                    open Logs
+                  </Link>
+                </CardDescription>
               </div>
             </div>
           </CardHeader>
           <CardContent className="space-y-2">
-            {homeRows.map((row) => (
-              <div key={row.hostname} className="flex items-center gap-2 text-xs">
-                <MonoChip>{row.hostname}</MonoChip>
-                <span className="text-muted-foreground tabular-nums">{row.coords}</span>
-                {row.source === "override" ? (
-                  <Badge variant="outline" className="ml-auto">
-                    override
-                  </Badge>
-                ) : (
-                  <span className="ml-auto text-muted-foreground">auto</span>
-                )}
+            {logsError && <p className="text-xs text-muted-foreground">Log tail unavailable.</p>}
+            {!logsError && recentErrors.length === 0 && (
+              <p className="text-xs text-muted-foreground">No recent errors.</p>
+            )}
+            {recentErrors.map((r, i) => (
+              <div key={i} className="flex items-baseline gap-2 text-xs">
+                <span className="shrink-0 text-muted-foreground tabular-nums">
+                  {r.timestamp ? new Date(r.timestamp).toLocaleString() : ""}
+                </span>
+                {r.logger && <MonoChip>{r.logger}</MonoChip>}
+                <span className="truncate">{r.event}</span>
               </div>
             ))}
           </CardContent>
         </Card>
-      )}
-
-      <Card>
-        <CardHeader className="pb-3">
-          <div className="flex items-center gap-3">
-            <SectionIcon icon={TriangleAlert} />
-            <div>
-              <CardTitle className="text-base">Recent errors</CardTitle>
-              <CardDescription>
-                Latest error-level events from the application log ·{" "}
-                <Link to="/settings/logs" className="underline underline-offset-2">
-                  open Logs
-                </Link>
-              </CardDescription>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-2">
-          {logsError && <p className="text-xs text-muted-foreground">Log tail unavailable.</p>}
-          {!logsError && recentErrors.length === 0 && (
-            <p className="text-xs text-muted-foreground">No recent errors.</p>
-          )}
-          {recentErrors.map((r, i) => (
-            <div key={i} className="flex items-baseline gap-2 text-xs">
-              <span className="shrink-0 text-muted-foreground tabular-nums">
-                {r.timestamp ? new Date(r.timestamp).toLocaleString() : ""}
-              </span>
-              {r.logger && <MonoChip>{r.logger}</MonoChip>}
-              <span className="truncate">{r.event}</span>
-            </div>
-          ))}
-        </CardContent>
-      </Card>
+      </div>
     </div>
   )
 }
