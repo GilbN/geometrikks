@@ -12,7 +12,10 @@ the traffic they came from.
 ## Features
 
 **Live map** - every ingested request lands on a MapLibre world map within
-seconds; click a marker for the request, city, and ASN behind it.
+seconds; click a marker for the request, city, and ASN behind it. Ingesting
+from several sources? Filter the map by source hostname and watch live
+routes fly to each site's own home beacon - see
+[Multi-source setup](#multi-source-setup).
 
 ![Map](/data/screenshots/map.png)
 
@@ -81,14 +84,14 @@ Images are published as `ghcr.io/gilbn/geometrikks`.
 | `latest` | `latest` | The newest stable release. |
 | Exact stable version | `X.Y.Z` | A specific stable release; use this for reproducible deployments. |
 | Major/minor stable version | `X.Y` | The newest stable patch release in a major/minor series. |
-| Exact development version | `0.3.0-dev.2` | A specific prerelease build for testing upcoming changes. |
+| Exact development version | `0.9.0-dev.1` | A specific prerelease build for testing upcoming changes. |
 | `develop` | `develop` | The newest development release; a moving tag. |
 
 Use `latest` to follow the newest stable release, or pin an exact version for
 reproducible deployments:
 
 ```yaml
-image: ghcr.io/gilbn/geometrikks:0.3.0
+image: ghcr.io/gilbn/geometrikks:0.9.0
 ```
 
 `docker-compose.yml` mounts `${ACCESS_LOG_DIR:-${NGINX_LOG_DIR:-/var/log/nginx}}`
@@ -440,13 +443,27 @@ TimescaleDB. The live map stays in sync regardless of which process ingested
 a request - every writer publishes committed events over PostgreSQL
 LISTEN/NOTIFY, and the full instance's `/ws/live` feed relays all of them.
 
+Agents are not the only shape. If the log files already reach one machine
+(a shared mount, rsyslog, log shipping), a single full instance can tail
+them all and keep the sources apart by giving `LOGPARSER_HOST_NAME` a JSON
+list matched positionally to `LOGPARSER_LOG_PATHS`:
+
+```bash
+LOGPARSER_LOG_PATHS=["/var/log/access/edge-01.log", "/var/log/access/edge-02.log"]
+LOGPARSER_HOST_NAME=["edge-01", "edge-02"]
+```
+
+Everything downstream - the access-logs "Recorded by" filter, the map's
+Sources filter, per-site homes - treats those files exactly like traffic
+from separate agents.
+
 An agent needs only `APP_MODE=agent`, database credentials for the shared
 instance, GeoIP credentials, and its own log mount:
 
 ```yaml
 services:
   agent:
-    image: ghcr.io/gilbn/geometrikks:0.3.0   # same tag as the full instance
+    image: ghcr.io/gilbn/geometrikks:0.9.0   # same tag as the full instance
     restart: unless-stopped
     environment:
       APP_MODE: agent
@@ -475,9 +492,10 @@ GeoLite2 database like a full instance does, so it still needs MaxMind
 credentials and a geoip volume. It never runs migrations or touches
 TimescaleDB objects; at startup it waits for the shared database's schema to
 reach the revision it was built against. If that wait times out, the agent
-stays up serving `/health` in degraded mode rather than exiting, so restart
-policies never re-trigger it - restart the agent container yourself once the
-full instance has finished migrating.
+stays up in degraded mode rather than exiting, with `/health` answering 200
+and `/health/ready` answering 503: an orchestrator with a readiness probe
+restarts it into a fresh wait automatically, and without one, restart the
+agent container yourself once the full instance has finished migrating.
 
 The reverse case works too: to keep a full instance's UI and API without it
 tailing local files - for example, a machine that only hosts the app, with
@@ -489,6 +507,16 @@ LOGPARSER_ENABLED=false
 
 It still serves the UI, API, migrations, scheduler, and CrowdSec; it just
 never tails a log file itself.
+
+**Site homes.** Live map routes fly to the home location of the source that
+recorded them, one beacon per site. Each ingesting instance auto-detects
+its own public-IP location and re-checks it every `MAP_HOME_REFRESH_HOURS`
+(default 24h). When detection is wrong for a source - CGNAT, a VPN egress,
+or logs shipped from another machine - pin that hostname on the full
+instance with `MAP_HOME_LOCATIONS`, for example
+`MAP_HOME_LOCATIONS={"edge-01": [60.39, 5.32]}`; overrides win over
+auto-detection, and removing one restores it. Settings > Status lists each
+source's home and whether it came from auto-detection or an override.
 
 **Trust model.** Agents authenticate with the database using ordinary
 database credentials, and the app does not care where data comes from:
@@ -722,13 +750,14 @@ http://localhost:8000/map?demoTraffic=1       # steady traffic
 http://localhost:8000/map?demoTraffic=burst   # overlapping bursts
 ```
 
-The live route destination defaults to the GeoIP location of the app server's
-public IP. GeoMetrikks discovers that address once at startup through ipify and
-looks it up in the local GeoLite2 database. If the logs come from another
-server, set both `MAP_HOME_LATITUDE` and `MAP_HOME_LONGITUDE`. Set
-`MAP_AUTO_DETECT_HOME=false` to disable the outbound lookup entirely. The map's
-**Route effects** control can also hide the animation; that preference is kept
-in browser storage.
+Live routes fly to the home of the source that recorded them (see
+[Multi-source setup](#multi-source-setup)); with a single source that is
+simply the app server's own location, discovered at startup through ipify
+and looked up in the local GeoLite2 database. `MAP_HOME_LATITUDE` and
+`MAP_HOME_LONGITUDE` override that default home, `MAP_HOME_LOCATIONS`
+overrides per source, and `MAP_AUTO_DETECT_HOME=false` disables the
+outbound lookup entirely. The map's **Route effects** control can also hide
+the animation; that preference is kept in browser storage.
 
 ### Testing
 
