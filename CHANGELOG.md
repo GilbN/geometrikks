@@ -63,6 +63,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   that upgrade; installs with many container-ID hostnames skip the rebuild
   until consolidated (see the status page advisory).
 
+### Fixed
+
+- The compose files size the TimescaleDB worker pool for the app's ~32
+  background jobs (`timescaledb.max_background_workers=40`,
+  `max_worker_processes=51`), stopping the periodic "failed to launch job
+  ... out of background workers" warnings when the aggregate refresh
+  policies all fire at once. Existing installs: copy the `command:` block
+  from `docker-compose.yml` onto the database service and recreate it.
+
 ## [0.8.0] - 2026-08-16
 
 ### Added

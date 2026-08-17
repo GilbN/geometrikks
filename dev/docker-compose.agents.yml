@@ -47,6 +47,15 @@ services:
     image: timescale/timescaledb-ha:pg18
     restart: unless-stopped
     shm_size: 256mb
+    # Worker pool sized for the app's ~32 background jobs, whose CAGG
+    # refresh policies all fire on the same tick; see docker-compose.yml.
+    command:
+      - -c
+      - timescaledb.max_background_workers=40
+      - -c
+      - max_parallel_workers=8
+      - -c
+      - max_worker_processes=51
     environment:
       POSTGRES_USER: geouser
       POSTGRES_PASSWORD: geopass
