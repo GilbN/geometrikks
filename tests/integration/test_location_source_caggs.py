@@ -91,6 +91,31 @@ async def test_upgrade_replaces_old_shape(pg_engine, clean_tables):
     assert timescale.location_caggs_have_hostname() is True
 
 
+async def test_mixed_shape_upgrade_covers_both_caggs(pg_engine, clean_tables):
+    """One CAGG upgraded, the other still pre-hostname (external drift):
+    setup must migrate the laggard rather than declare the pair done and
+    hand hostname-filtered queries a view without the column."""
+    async with pg_engine.begin() as conn:
+        await conn.execute(text(
+            "DROP MATERIALIZED VIEW IF EXISTS location_daily_stats CASCADE"
+        ))
+        await conn.execute(text(
+            "CREATE MATERIALIZED VIEW location_daily_stats "
+            "WITH (timescaledb.continuous) AS "
+            "SELECT time_bucket('1 day', timestamp) AS bucket, location_id, "
+            "COUNT(*) AS event_count FROM geo_events "
+            "GROUP BY bucket, location_id WITH NO DATA"
+        ))
+    await setup_timescaledb(pg_engine, get_settings().analytics)
+    async with pg_engine.connect() as conn:
+        cols = {r.column_name for r in await conn.execute(text(
+            "SELECT column_name FROM information_schema.columns "
+            "WHERE table_name = 'location_daily_stats'"
+        ))}
+    assert "hostname" in cols
+    assert timescale.location_caggs_have_hostname() is True
+
+
 async def test_pollution_gate_keeps_old_shape(pg_engine, pg_session_maker, clean_tables):
     """Container-ID hostnames present: setup must NOT migrate, and the flag
     plus cached pollution report must say so; consolidating then heals."""

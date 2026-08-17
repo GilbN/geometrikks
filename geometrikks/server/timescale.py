@@ -791,18 +791,24 @@ def _set_location_caggs_have_hostname(value: bool) -> None:
 
 
 async def _location_caggs_need_upgrade(conn: "AsyncConnection") -> bool:
-    """True when a location CAGG exists in the pre-hostname shape."""
-    has_hostname = (await conn.execute(text("""
-        SELECT 1 FROM information_schema.columns
-        WHERE table_name = ANY(:views) AND column_name = 'hostname' LIMIT 1
-    """), {"views": LOCATION_CAGGS})).scalar()
-    if has_hostname:
+    """True when any existing location CAGG is in the pre-hostname shape.
+
+    Every existing CAGG must carry the column, not just one of them: the
+    upgrade drops and recreates the pair, so declaring victory on a partial
+    match would strand the laggard in the old shape forever while the
+    capability flag sends hostname-filtered queries at it.
+    """
+    existing = (await conn.execute(text("""
+        SELECT count(*) FROM information_schema.views
+        WHERE table_name = ANY(:views)
+    """), {"views": LOCATION_CAGGS})).scalar_one()
+    if not existing:
         return False
-    exists = (await conn.execute(text("""
-        SELECT 1 FROM information_schema.views
-        WHERE table_name = ANY(:views) LIMIT 1
-    """), {"views": LOCATION_CAGGS})).scalar()
-    return bool(exists)
+    with_hostname = (await conn.execute(text("""
+        SELECT count(DISTINCT table_name) FROM information_schema.columns
+        WHERE table_name = ANY(:views) AND column_name = 'hostname'
+    """), {"views": LOCATION_CAGGS})).scalar_one()
+    return with_hostname < existing
 
 
 async def setup_timescaledb(
