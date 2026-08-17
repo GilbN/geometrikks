@@ -106,9 +106,8 @@ async def test_scheduler_registers_site_home_refresh_in_full_mode(monkeypatch):
 
 
 async def test_site_home_refresh_uses_its_own_cadence(monkeypatch):
-    """The site-home refresh trigger comes from MAP_HOME_REFRESH_HOURS, not
-    GEOIP_REFRESH_DAYS: the GeoLite2 database and a site's public IP change
-    on unrelated schedules."""
+    """The site-home refresh trigger comes from MAP_HOME_REFRESH_HOURS;
+    both env vars are set to prove GEOIP_REFRESH_DAYS cannot leak in."""
     from datetime import timedelta
 
     from geometrikks.config.settings import Settings
