@@ -16,7 +16,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and now echoes which hostname it stamps.
 - `APP_MODE=agent`: run the same image as a lightweight remote agent that
   tails, geolocates, writes, and publishes to the live map, serving only
-  `/health` and `/health/ready`. `LOGPARSER_ENABLED=false` turns a full
+  `/health` and `/health/ready`. An agent reports not-ready until the
+  primary's schema has arrived, so an orchestrator restarts it into a fresh
+  wait rather than leaving it idle. `LOGPARSER_ENABLED=false` turns a full
   instance into a UI head with no local tailing. The live-feed backend now
   reuses a persistent publish connection and reconnects its listener
   automatically.
@@ -60,39 +62,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   retention window (default 180 days) cannot be rebuilt and is discarded at
   that upgrade; installs with many container-ID hostnames skip the rebuild
   until consolidated (see the status page advisory).
-
-### Fixed
-
-- The live-events channel publisher no longer dies permanently on a
-  transient database outage; a failed publish is logged and the event is
-  dropped instead of wedging the channel worker (and eventually hanging
-  shutdown). A dropped LISTEN connection now logs an error instead of
-  silently going dead until restart.
-- The hostname-pollution health advisory no longer fires once the location
-  CAGGs already carry the hostname dimension (fresh install or
-  post-consolidation migration), where its "runs unaggregated" and
-  "restart to migrate" copy was false.
-- Refreshing the last open live-feed tab (map or access-logs live tail) no
-  longer kills the live feed for the whole instance until a second refresh:
-  the departing client's teardown could race the arriving client's
-  subscribe in either order and leave the process deaf to new events. The
-  live-events LISTEN is now held for the process lifetime instead of
-  following client churn.
-- With several ingesting sources, the live feed no longer splits one
-  request into two rows (a flying dot without its log line plus a log line
-  without coordinates), and no longer pairs a request with another site's
-  log line when two sites see the same IP in the same second. Each
-  committed request now travels the live channel as a single envelope
-  instead of two events the client had to re-pair by adjacency.
-- The startup upgrade of the location aggregates now checks that every
-  aggregate carries the hostname dimension instead of settling for one of
-  them, so a half-migrated pair (external schema drift) is completed rather
-  than left serving source-filtered map queries from a view without the
-  column.
-- `/health/ready` on an agent now returns 503 while the startup schema gate
-  has not passed, instead of reporting ready on database reachability alone
-  while the agent sits idle after a schema-wait timeout. An orchestrator
-  restart re-runs the gate.
 
 ## [0.8.0] - 2026-08-16
 
