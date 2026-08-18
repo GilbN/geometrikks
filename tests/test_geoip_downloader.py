@@ -24,10 +24,24 @@ def no_local_maxmind_credentials(monkeypatch):
 def make_settings(tmp_path: Path, **kwargs) -> GeoIPSettings:
     return GeoIPSettings(
         db_path=tmp_path / "GeoLite2-City.mmdb",
+        asn_db_path=tmp_path / "GeoLite2-ASN.mmdb",
         validate_db_path=False,
         _env_file=None,
         **kwargs,
     )
+
+
+class TestAsnSettings:
+    def test_defaults(self):
+        s = GeoIPSettings(_env_file=None)
+        assert s.asn_enabled is True
+        assert s.asn_db_path.is_absolute()
+        assert s.asn_db_path.name == "GeoLite2-ASN.mmdb"
+
+    def test_relative_asn_path_resolves_from_project_root(self):
+        s = GeoIPSettings(asn_db_path=Path("data/geoip/custom-asn.mmdb"), _env_file=None)
+        assert s.asn_db_path.is_absolute()
+        assert str(s.asn_db_path).endswith("data/geoip/custom-asn.mmdb")
 
 
 def make_tarball(mmdb_bytes: bytes) -> bytes:
