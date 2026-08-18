@@ -26,8 +26,8 @@ status mix) at a glance, with a configurable date/time range.
 
 **Analytics** - request-volume, latency, and bytes-transferred charts, plus
 top-URLs, top-user-agents, and status-code breakdowns, and a Top ASNs view
-showing which networks your traffic comes from with a
-datacenter-vs-residential split.
+showing which networks your traffic comes from and how much of it arrives
+from datacenter/hosting providers.
 
 ![Analytics](/data/screenshots/analytics.png)
 

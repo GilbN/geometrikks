@@ -166,6 +166,8 @@ async def _run_import(
     finally:
         await engine.dispose()
         reader.close()
+        if asn_reader is not None:
+            asn_reader.close()
 
     if failed:
         raise click.ClickException(
