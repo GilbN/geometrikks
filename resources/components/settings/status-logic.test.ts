@@ -42,7 +42,12 @@ function makeHealth(overrides: Partial<HealthResponse> = {}): HealthResponse {
       lastRecordAt: "2026-07-31T09:59:00+00:00",
     },
     database: { reachable: true },
-    geoip: { available: true, dbBuildDate: "2026-07-28T00:00:00+00:00" },
+    geoip: {
+      available: true,
+      dbBuildDate: "2026-07-28T00:00:00+00:00",
+      asnAvailable: true,
+      asnDbBuildDate: "2026-07-28T00:00:00+00:00",
+    },
     crowdsec: { enabled: true, lapiReachable: true },
     timestamp: "2026-07-31T10:00:00+00:00",
     ...overrides,
@@ -166,7 +171,7 @@ describe("databaseState / geoipState", () => {
     expect(databaseState(makeHealth())).toMatchObject({ tone: "emerald", label: "Reachable" })
   })
   it("geoip missing is amber", () => {
-    expect(geoipState(makeHealth({ geoip: { available: false, dbBuildDate: null } }))).toMatchObject({
+    expect(geoipState(makeHealth({ geoip: { available: false, dbBuildDate: null, asnAvailable: false, asnDbBuildDate: null } }))).toMatchObject({
       tone: "amber",
       label: "Missing",
     })

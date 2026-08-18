@@ -127,8 +127,13 @@ export interface HealthResponse {
   startedAt: string | null
   ingestion: HealthIngestionStatus
   database: { reachable: boolean }
-  /** dbBuildDate is the GeoLite2 build from the mmdb metadata. */
-  geoip: { available: boolean; dbBuildDate: string | null }
+  /** Build dates come from the mmdb metadata, one per GeoLite2 edition. */
+  geoip: {
+    available: boolean
+    dbBuildDate: string | null
+    asnAvailable: boolean
+    asnDbBuildDate: string | null
+  }
   crowdsec: { enabled: boolean; lapiReachable: boolean | null }
   timestamp: string
   /** Operator-actionable warnings; empty when nothing needs attention. */

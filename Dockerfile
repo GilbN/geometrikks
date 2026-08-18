@@ -88,6 +88,7 @@ ENV PATH="/app/.venv/bin:$PATH" \
     APP_IMAGE_TAG=${APP_IMAGE_TAG} \
     VITE_DEV_MODE=false \
     GEOIP_DB_PATH=/app/data/geoip/GeoLite2-City.mmdb \
+    GEOIP_ASN_DB_PATH=/app/data/geoip/GeoLite2-ASN.mmdb \
     GEOIP_VALIDATE_DB_PATH=false \
     LITESTAR_APP=geometrikks.server.core:create_app
 
