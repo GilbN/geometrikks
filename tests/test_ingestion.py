@@ -815,3 +815,17 @@ class TestAsnWiring:
             assert captured["asn_reader"] is not None
         finally:
             await service.stop(timeout=1.0)
+
+    async def test_stop_closes_readers(self):
+        service = LogIngestionService(
+            parsers=[],
+            session_maker=cast(Any, lambda: None),
+            geoip_path=GEOIP_DB_PATH,
+            asn_db_path="tests/GeoLite2-ASN-Test.mmdb",
+        )
+        await service.start(skip_validation=True)
+        assert service._reader is not None
+        assert service._asn_reader is not None
+        await service.stop(timeout=1.0)
+        assert service._reader is None
+        assert service._asn_reader is None

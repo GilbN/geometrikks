@@ -149,7 +149,11 @@ class LogIngestionService:
         self._uncommitted_geohashes: set[str] = set()
         self._cache_maxsize = 10_000
 
-        # Background task management
+        # Background task management. The readers are stored so stop() can
+        # release their mmaps; a restart opens fresh ones (which also picks
+        # up a refreshed database file).
+        self._reader: Reader | None = None
+        self._asn_reader: Reader | None = None
         self._stop_event: asyncio.Event | None = None
         self._ingestion_task: asyncio.Task[None] | None = None
         self._queue: asyncio.Queue[ParsedLogRecord] | None = None
@@ -198,6 +202,8 @@ class LogIngestionService:
                     "ASN enrichment disabled: no usable GeoLite2-ASN database at %s",
                     self.asn_db_path,
                 )
+        self._reader = reader
+        self._asn_reader = asn_reader
 
         # Set synchronously (before any `await`/task scheduling) so a second
         # start() called back-to-back sees is_running=True immediately; it
@@ -284,6 +290,14 @@ class LogIngestionService:
             pass
         finally:
             self.is_running = False
+
+        # Every task that used the readers is done; release their mmaps.
+        if self._reader is not None:
+            self._reader.close()
+            self._reader = None
+        if self._asn_reader is not None:
+            self._asn_reader.close()
+            self._asn_reader = None
 
         logger.info(
             "Stopped log ingestion service. Total processed: %d", self.total_processed
