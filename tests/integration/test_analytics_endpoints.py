@@ -300,3 +300,33 @@ async def test_top_asns_ordering_and_org(pg_session_maker, clean_tables):
         (24940, "Hetzner Online GmbH", 3, 600),
         (2119, "Telenor Norge AS", 1, 100),
     ]
+
+
+async def test_apply_asn_mapping_fills_only_null_rows(pg_engine, pg_session_maker, clean_tables):
+    from geometrikks.cli import _apply_asn_mapping
+
+    ts = NOW - timedelta(hours=1)
+    async with pg_session_maker() as session:
+        # Two NULL-ASN rows for 10.0.0.1, one already-stamped row that must
+        # not be overwritten, and one NULL row whose IP is not in the mapping.
+        await _insert_log(session, ts=ts, url="/a", user_agent="x")
+        await _insert_log(session, ts=ts, url="/b", user_agent="x")
+        await _insert_asn_log(session, ts=ts, asn=999, asn_org="Stamped Org")
+        await _insert_log(session, ts=ts, url="/c", user_agent="x", ip="10.9.9.9")
+        await session.commit()
+
+    updated = await _apply_asn_mapping(pg_engine, [
+        {"ip": "10.0.0.1", "asn": 24940, "org": "Hetzner Online GmbH"},
+    ])
+    assert updated == 2
+
+    async with pg_session_maker() as session:
+        rows = (await session.execute(text(
+            "SELECT host(ip_address), autonomous_system_number, autonomous_system_organization "
+            "FROM access_logs ORDER BY url"
+        ))).all()
+
+    by_row = {(r[0], r[1], r[2]) for r in rows}
+    assert ("10.0.0.1", 24940, "Hetzner Online GmbH") in by_row
+    assert ("10.0.0.1", 999, "Stamped Org") in by_row
+    assert ("10.9.9.9", None, None) in by_row
