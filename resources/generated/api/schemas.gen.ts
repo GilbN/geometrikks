@@ -73,6 +73,20 @@ export const AboutResponseSchema = {
     geoip: {
       $ref: "#/components/schemas/GeoIPInfoView",
     },
+    geoipAsn: {
+      oneOf: [
+        {
+          $ref: "#/components/schemas/GeoIPInfoView",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    geoipAsnEnabled: {
+      default: false,
+      type: "boolean",
+    },
     links: {
       $ref: "#/components/schemas/AboutLinksView",
     },

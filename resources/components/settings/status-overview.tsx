@@ -307,7 +307,7 @@ export function StatusOverview() {
               <SectionIcon icon={Globe} />
               <div>
                 <CardTitle className="text-base">GeoIP</CardTitle>
-                <CardDescription>MaxMind GeoLite2 database</CardDescription>
+                <CardDescription>MaxMind GeoLite2 databases</CardDescription>
               </div>
             </div>
           </CardHeader>
@@ -315,7 +315,10 @@ export function StatusOverview() {
             <StateLine state={geoipState(health)} />
             <div className="space-y-1 text-xs text-muted-foreground">
               {health?.geoip.dbBuildDate && (
-                <p>Database built {relativeTime(health.geoip.dbBuildDate, now)}</p>
+                <p>City database built {relativeTime(health.geoip.dbBuildDate, now)}</p>
+              )}
+              {health?.geoip.asnAvailable && health.geoip.asnDbBuildDate && (
+                <p>ASN database built {relativeTime(health.geoip.asnDbBuildDate, now)}</p>
               )}
               {geoipRefreshJob?.nextRunTime && (
                 <p>Next refresh {relativeTime(geoipRefreshJob.nextRunTime, now)}</p>

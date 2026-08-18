@@ -18,7 +18,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   table gains ASN and AS organization columns in the column picker.
 - Settings > Status shows a warning advisory when ASN enrichment is enabled
   but the GeoLite2 ASN database is missing or failed to download, and
-  `/health` reports the ASN database's availability and build date.
+  `/health` reports the ASN database's availability and build date. The
+  Settings > About page shows both GeoLite2 editions (build date, age,
+  path), the Status GeoIP card lists both build dates, and the settings
+  tree reports the runtime ASN availability.
 - Analytics gains a Top ASNs view: a Traffic origin card showing the exact
   datacenter-vs-other split for the selected range, and a Top ASNs table
   (organization, ASN, category, hits, bytes), backed by new per-ASN

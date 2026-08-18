@@ -87,6 +87,10 @@ export function AboutPage() {
   }
 
   const geoip = geoipFreshness(data.geoip.available, data.geoip.ageDays)
+  const asn =
+    data.geoipAsnEnabled && data.geoipAsn
+      ? geoipFreshness(data.geoipAsn.available, data.geoipAsn.ageDays)
+      : null
   const dbReachable = data.database.postgresVersion !== null
 
   return (
@@ -207,20 +211,21 @@ export function AboutPage() {
 
       <Card className="md:col-span-2">
         <CardHeader>
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <SectionIcon icon={Globe2} />
-              <CardTitle className="text-base">GeoIP database</CardTitle>
-            </div>
-            <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
-              <StatusLed tone={geoip.tone} />
-              {geoip.label}
-            </span>
+          <div className="flex items-center gap-3">
+            <SectionIcon icon={Globe2} />
+            <CardTitle className="text-base">GeoIP databases</CardTitle>
           </div>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-x-8 md:grid-cols-2">
+          <div className="grid gap-x-8 gap-y-4 md:grid-cols-2">
             <div>
+              <div className="flex items-center justify-between gap-3 border-b border-border/40 pb-1.5">
+                <span className="text-sm font-medium">City</span>
+                <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <StatusLed tone={geoip.tone} />
+                  {geoip.label}
+                </span>
+              </div>
               <Row
                 label="Build date"
                 value={
@@ -237,9 +242,47 @@ export function AboutPage() {
                     : "unknown"
                 }
               />
+              <Row label="Path" value={<MonoChip>{data.geoip.dbPath}</MonoChip>} />
             </div>
             <div>
-              <Row label="Path" value={<MonoChip>{data.geoip.dbPath}</MonoChip>} />
+              <div className="flex items-center justify-between gap-3 border-b border-border/40 pb-1.5">
+                <span className="text-sm font-medium">ASN</span>
+                <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+                  {asn ? (
+                    <>
+                      <StatusLed tone={asn.tone} />
+                      {asn.label}
+                    </>
+                  ) : (
+                    "disabled"
+                  )}
+                </span>
+              </div>
+              {asn && data.geoipAsn ? (
+                <>
+                  <Row
+                    label="Build date"
+                    value={
+                      data.geoipAsn.buildDate
+                        ? new Date(data.geoipAsn.buildDate).toLocaleDateString()
+                        : "unknown"
+                    }
+                  />
+                  <Row
+                    label="Age"
+                    value={
+                      data.geoipAsn.ageDays !== null && data.geoipAsn.ageDays !== undefined
+                        ? `${data.geoipAsn.ageDays} days`
+                        : "unknown"
+                    }
+                  />
+                  <Row label="Path" value={<MonoChip>{data.geoipAsn.dbPath}</MonoChip>} />
+                </>
+              ) : (
+                <p className="pt-1.5 text-sm text-muted-foreground">
+                  ASN enrichment is turned off (GEOIP_ASN_ENABLED=false).
+                </p>
+              )}
             </div>
           </div>
         </CardContent>
