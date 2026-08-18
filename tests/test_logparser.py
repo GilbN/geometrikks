@@ -746,3 +746,63 @@ class TestAutoFormatSniffing:
         assert parser.format is not None and parser.format.name == "traefik-json"
         assert record is not None and record.access_log is not None
         assert record.log_format == "traefik-json"
+
+
+class TestAsnEnrichment:
+    def test_make_cached_asn_lookup_returns_asn(self):
+        from geometrikks.services.logparser.logparser import make_cached_asn_lookup
+
+        with Reader("tests/GeoLite2-ASN-Test.mmdb") as reader:
+            lookup = make_cached_asn_lookup(reader)
+            result = lookup("1.128.0.0")
+            assert result is not None
+            assert result.autonomous_system_number == 1221
+            assert result.autonomous_system_organization == "Telstra Pty Ltd"
+            assert lookup("203.0.113.7") is None  # not in the test db, never raises
+
+    def test_parsed_access_log_asn_fields_default_none(self):
+        from datetime import datetime, timezone
+
+        parsed = ParsedAccessLog(
+            timestamp=datetime.now(timezone.utc), ip_address="1.2.3.4",
+            remote_user=None, method="GET", url="/", http_version="HTTP/1.1",
+            status_code=200, bytes_sent=0, referrer=None, user_agent=None,
+            request_time=0.0, upstream_response_time=None, host=None,
+            country_code=None, country_name=None, city=None,
+        )
+        assert parsed.autonomous_system_number is None
+        assert parsed.autonomous_system_organization is None
+
+    def test_parse_line_attaches_asn_to_access_log(self):
+        """1.128.0.0 is only in the ASN test db, so the City side is faked:
+        access-log rows require a City hit, and the assertion must not turn
+        vacuous on a City-test-db miss."""
+        from types import SimpleNamespace
+
+        from geometrikks.services.logparser.logparser import make_cached_asn_lookup
+
+        fake_city = SimpleNamespace(
+            country=SimpleNamespace(iso_code="AU", name="Australia"),
+            city=SimpleNamespace(name=None),
+            location=SimpleNamespace(
+                latitude=-33.5, longitude=143.2, time_zone="Australia/Sydney"
+            ),
+            subdivisions=SimpleNamespace(
+                most_specific=SimpleNamespace(name=None, iso_code=None)
+            ),
+            postal=SimpleNamespace(code=None),
+        )
+
+        line = (
+            '1.128.0.0 - - [07/Aug/2026:10:34:56 +0000] "GET / HTTP/1.1" 200 42 '
+            '"-" example.com "curl/8.0" "0.001" "-"'
+        )
+        parser = LogParser(log_path=Path("/dev/null"), send_logs=True, log_format="nginx")
+        with Reader("tests/GeoLite2-ASN-Test.mmdb") as asn_reader:
+            asn_lookup = make_cached_asn_lookup(asn_reader)
+            record = parser.parse_line(line, lambda ip: fake_city, asn_lookup)
+
+        assert record is not None
+        assert record.access_log is not None
+        assert record.access_log.autonomous_system_number == 1221
+        assert record.access_log.autonomous_system_organization == "Telstra Pty Ltd"
