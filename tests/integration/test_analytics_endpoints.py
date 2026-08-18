@@ -270,3 +270,33 @@ async def test_time_series_totals_drop_by_excluded_ip(pg_session_maker, clean_ta
 
     assert sum(r.total_requests for r in unfiltered) == 5
     assert sum(r.total_requests for r in filtered) == 1
+
+
+async def _insert_asn_log(session, *, ts, asn, asn_org, bytes_sent=100):
+    await session.execute(text(
+        "INSERT INTO access_logs (timestamp, ip_address, method, url, "
+        "status_code, bytes_sent, request_time, autonomous_system_number, "
+        "autonomous_system_organization) "
+        "VALUES (:ts, '10.0.0.1', 'GET', '/', 200, :bytes, 0.01, :asn, :org)"
+    ), {"ts": ts, "bytes": bytes_sent, "asn": asn, "org": asn_org})
+
+
+async def test_top_asns_ordering_and_org(pg_session_maker, clean_tables):
+    ts = NOW - timedelta(hours=1)
+    async with pg_session_maker() as session:
+        for _ in range(3):
+            await _insert_asn_log(session, ts=ts, asn=24940, asn_org="Hetzner Online GmbH", bytes_sent=200)
+        await _insert_asn_log(session, ts=ts, asn=2119, asn_org="Telenor Norge AS")
+        # NULL-ASN rows must not appear in the grouping.
+        await _insert_log(session, ts=ts, url="/x", user_agent="curl/8.0")
+        await session.commit()
+
+    async with pg_session_maker() as session:
+        rows = await LiveStatsRepository(session=session).get_top_asns(
+            NOW - timedelta(hours=2), NOW
+        )
+
+    assert [(r.asn, r.organization, r.hits, r.total_bytes) for r in rows] == [
+        (24940, "Hetzner Online GmbH", 3, 600),
+        (2119, "Telenor Norge AS", 1, 100),
+    ]

@@ -29,6 +29,9 @@ from geometrikks.domain.analytics.dtos import (
     TopUrlsResponse,
     TopUserAgentDTO,
     TopUserAgentsResponse,
+    TopAsnDTO,
+    TopAsnsResponse,
+    AsnCategoryTotalsDTO,
     TopIpDTO,
     TopIpsResponse,
     TopCountryStatsDTO,
@@ -37,6 +40,7 @@ from geometrikks.domain.analytics.dtos import (
     TopCitiesResponse,
 )
 from geometrikks.domain.analytics.repositories import StatsGranularity, get_stats_granularity
+from geometrikks.domain.analytics.asn_classification import classify_asn
 
 from geometrikks.domain.analytics.dependencies import (
     provide_live_stats_repo,
@@ -555,6 +559,63 @@ class AnalyticsController(Controller):
             start_date=start_date.isoformat(),
             end_date=end_date.isoformat(),
             items=[TopUserAgentDTO(**vars(r)) for r in rows],
+        )
+
+    @get("/top-asns", description="Top ASNs by hits with datacenter-vs-other totals (CAGG-served above 24h; filters force a raw scan).")
+    async def get_top_asns(
+        self,
+        summary_stats_repo: NamedDependency[SummaryStatsRepository],
+        start_date: StartDate,
+        end_date: EndDate,
+        limit: Annotated[
+            int,
+            QueryParameter(description="Maximum number of ASNs to return", ge=1, le=100),
+        ] = 25,
+        country_code: CountryCodeFilter = None,
+        city: CityFilter = None,
+        ip_address: IpAddressFilter = None,
+        ip_address_not_in: IpAddressExcludeFilter = None,
+    ) -> TopAsnsResponse:
+        """Top ASNs by hit count plus exact category totals for a date range.
+
+        The repository returns the full ASN grouping (small cardinality);
+        category totals are computed over all of it, then the top N slice
+        becomes ``items``. Perf note: filtered queries scan raw access_logs
+        and are bounded by raw_retention_days.
+        """
+        filters = _build_filters(country_code, city, ip_address, ip_address_not_in)
+        rows = await summary_stats_repo.get_top_asns(start_date, end_date, filters=filters)
+
+        totals: dict[str, list[int]] = {"datacenter": [0, 0], "other": [0, 0]}
+        items: list[TopAsnDTO] = []
+        for row in rows:
+            category = classify_asn(row.asn)
+            totals[category][0] += row.hits
+            totals[category][1] += row.total_bytes
+            if len(items) < limit:
+                items.append(TopAsnDTO(
+                    asn=row.asn,
+                    organization=row.organization,
+                    hits=row.hits,
+                    total_bytes=row.total_bytes,
+                    category=category,
+                ))
+        return TopAsnsResponse(
+            start_date=start_date.isoformat(),
+            end_date=end_date.isoformat(),
+            items=items,
+            categories=[
+                AsnCategoryTotalsDTO(
+                    category="datacenter",
+                    hits=totals["datacenter"][0],
+                    total_bytes=totals["datacenter"][1],
+                ),
+                AsnCategoryTotalsDTO(
+                    category="other",
+                    hits=totals["other"][0],
+                    total_bytes=totals["other"][1],
+                ),
+            ],
         )
 
     @get("/top-ips", description="Top client IPs by hits (CAGG-served above 24h, filters included).")
