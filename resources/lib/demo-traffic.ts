@@ -73,6 +73,14 @@ const DEMO_AGENTS: readonly string[] = [
  * read is populated, so colours, sizes, strips, and the threat lane
  * can all be exercised without waiting for real scanners.
  */
+const DEMO_ASNS: Array<[number, string]> = [
+  [24940, "Hetzner Online GmbH"],
+  [2119, "Telenor Norge AS"],
+  [16509, "AMAZON-02"],
+  [13335, "CLOUDFLARENET"],
+  [16276, "OVH SAS"],
+]
+
 export function makeDemoRequests(cursor: number, count: number, now: number): LiveRequest[] {
   const requests: LiveRequest[] = []
 
@@ -118,6 +126,8 @@ export function makeDemoRequests(cursor: number, count: number, now: number): Li
         country_code: origin.countryCode,
         country_name: null,
         city: origin.city,
+        autonomous_system_number: DEMO_ASNS[step % DEMO_ASNS.length][0],
+        autonomous_system_organization: DEMO_ASNS[step % DEMO_ASNS.length][1],
         hostname: "demo",
       },
     })

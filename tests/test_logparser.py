@@ -3,7 +3,7 @@ import os
 import re
 import time
 from pathlib import Path
-from typing import cast
+from typing import Any, cast
 
 import aiofiles.os
 import pytest
@@ -800,7 +800,7 @@ class TestAsnEnrichment:
         parser = LogParser(log_path=Path("/dev/null"), send_logs=True, log_format="nginx")
         with Reader("tests/GeoLite2-ASN-Test.mmdb") as asn_reader:
             asn_lookup = make_cached_asn_lookup(asn_reader)
-            record = parser.parse_line(line, lambda ip: fake_city, asn_lookup)
+            record = parser.parse_line(line, cast(Any, lambda ip: fake_city), asn_lookup)
 
         assert record is not None
         assert record.access_log is not None

@@ -186,6 +186,11 @@ MAXMINDDB_LICENSE_KEY=<your-license-key>
 On startup GeoMetrikks downloads the database automatically and refreshes it
 weekly (`GEOIP_REFRESH_DAYS`, default 7) - no manual `.mmdb` handling needed.
 
+Both the GeoLite2 City and GeoLite2 ASN databases are downloaded: City
+powers the map and geo analytics, ASN adds the network/organization behind
+each request. Set `GEOIP_ASN_ENABLED=false` to skip the ASN database
+entirely.
+
 You must accept MaxMind's GeoLite2 EULA to use the database - see the
 [MaxMind EULA](https://www.maxmind.com/en/geolite2/eula) for details.
 

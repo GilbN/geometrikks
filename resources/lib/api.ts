@@ -872,6 +872,8 @@ export interface AccessLog {
   countryCode: string | null
   countryName: string | null
   city: string | null
+  autonomousSystemNumber: number | null
+  autonomousSystemOrganization: string | null
 }
 
 export interface AccessLogsPage {

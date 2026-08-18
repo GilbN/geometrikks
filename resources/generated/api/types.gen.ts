@@ -293,6 +293,8 @@ export type GeoEventsTimeSeriesResponse = {
  * GeoIPHealth
  */
 export type GeoIpHealth = {
+  asnAvailable?: boolean;
+  asnDbBuildDate?: string | null;
   available: boolean;
   dbBuildDate: string | null;
 };
@@ -504,6 +506,8 @@ export type IpLocation = {
  * ListAccessLogsAccessLogResponseBody
  */
 export type ListAccessLogsAccessLogResponseBody = {
+  autonomousSystemNumber?: number | null;
+  autonomousSystemOrganization?: string | null;
   bytesSent?: number;
   city?: string | null;
   countryCode?: string | null;

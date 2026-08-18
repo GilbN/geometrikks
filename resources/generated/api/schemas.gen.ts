@@ -946,6 +946,20 @@ export const GeoEventsTimeSeriesResponseSchema = {
 
 export const GeoIPHealthSchema = {
   properties: {
+    asnAvailable: {
+      default: false,
+      type: "boolean",
+    },
+    asnDbBuildDate: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
     available: {
       type: "boolean",
     },
@@ -1690,6 +1704,26 @@ export const IpLocationSchema = {
 
 export const ListAccessLogsAccessLogResponseBodySchema = {
   properties: {
+    autonomousSystemNumber: {
+      oneOf: [
+        {
+          type: "integer",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    autonomousSystemOrganization: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
     bytesSent: {
       default: 0,
       type: "integer",

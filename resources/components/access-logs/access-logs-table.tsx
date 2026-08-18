@@ -216,6 +216,31 @@ const COLUMNS: ColumnDef[] = [
     mobileHidden: true,
     render: (r) => <span className="whitespace-nowrap">{r.city ?? "-"}</span>,
   },
+  {
+    key: "asn",
+    label: "ASN",
+    defaultVisible: false,
+    mobileHidden: true,
+    render: (r) => (
+      <span className="font-mono">
+        {r.autonomousSystemNumber != null ? `AS${r.autonomousSystemNumber}` : "-"}
+      </span>
+    ),
+  },
+  {
+    key: "asnOrganization",
+    label: "AS organization",
+    defaultVisible: false,
+    mobileHidden: true,
+    render: (r) => (
+      <span
+        className="block max-w-[220px] truncate"
+        title={r.autonomousSystemOrganization ?? undefined}
+      >
+        {r.autonomousSystemOrganization ?? "-"}
+      </span>
+    ),
+  },
 ]
 
 interface AccessLogsTableProps {

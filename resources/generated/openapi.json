@@ -997,6 +997,20 @@
       },
       "GeoIPHealth": {
         "properties": {
+          "asnAvailable": {
+            "default": false,
+            "type": "boolean"
+          },
+          "asnDbBuildDate": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "available": {
             "type": "boolean"
           },
@@ -1781,6 +1795,26 @@
       },
       "ListAccessLogsAccessLogResponseBody": {
         "properties": {
+          "autonomousSystemNumber": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "autonomousSystemOrganization": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "bytesSent": {
             "default": 0,
             "type": "integer"

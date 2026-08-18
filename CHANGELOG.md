@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- ASN enrichment: every ingested request now records the autonomous system
+  number and organization from the MaxMind GeoLite2 ASN database, downloaded
+  and refreshed automatically with the same credentials as the City database
+  (`GEOIP_ASN_ENABLED=false` opts out). Missing credentials or a failed
+  download never block ingestion; rows simply carry no ASN data.
+- Live map popups show the ASN behind each request, and the access-logs
+  table gains ASN and AS organization columns in the column picker.
+- Settings > Status shows a warning advisory when ASN enrichment is enabled
+  but the GeoLite2 ASN database is missing or failed to download, and
+  `/health` reports the ASN database's availability and build date.
+
 - `LOGPARSER_HOST_NAME` accepts a JSON list matched positionally to
   `LOGPARSER_LOG_PATHS`, so one instance tailing logs shipped from several
   machines records each file under its source hostname. `litestar
