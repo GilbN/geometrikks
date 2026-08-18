@@ -625,6 +625,8 @@ class LogIngestionService:
             country_code=parsed.country_code,
             country_name=parsed.country_name,
             city=parsed.city,
+            autonomous_system_number=parsed.autonomous_system_number,
+            autonomous_system_organization=parsed.autonomous_system_organization,
             hostname=hostname or self.hostname,
             log_format=log_format,
         )
