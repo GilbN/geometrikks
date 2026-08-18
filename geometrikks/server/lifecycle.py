@@ -369,6 +369,7 @@ async def ingestion_lifespan(app: "Litestar") -> "AsyncGenerator[None]":
         session_maker=session_maker,
         geoip_path=settings.geoip.db_path,
         locales=settings.geoip.locales,
+        asn_db_path=settings.geoip.asn_db_path if settings.geoip.asn_enabled else None,
         hostname=hostnames[0],
         batch_size=settings.logparser.batch_size,
         commit_interval=settings.logparser.commit_interval,

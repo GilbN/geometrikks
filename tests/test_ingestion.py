@@ -765,3 +765,53 @@ async def test_publish_blowup_after_commit_does_not_look_like_commit_failure(
     assert service._location_cache  # committed location must still be cached
     assert not any("Batch commit failed" in r.getMessage() for r in caplog.records)
     assert any("live publish failed; batch already committed" in r.getMessage() for r in caplog.records)
+
+
+class TestAsnWiring:
+    async def test_start_without_asn_db_still_starts(self, tmp_path):
+        """A missing/broken ASN db must not stop ingestion from starting."""
+        service = LogIngestionService(
+            parsers=[],
+            session_maker=cast(Any, lambda: None),
+            geoip_path=GEOIP_DB_PATH,
+            asn_db_path=tmp_path / "missing-asn.mmdb",
+        )
+        await service.start(skip_validation=True)
+        try:
+            assert service.is_running is True
+        finally:
+            await service.stop(timeout=1.0)
+
+    async def test_tail_passes_asn_reader_to_parser(self, monkeypatch):
+        """start() must open an ASN reader and hand it to iter_parsed_records."""
+        from unittest.mock import AsyncMock
+
+        captured: dict[str, Any] = {}
+
+        class FakeParser:
+            log_path = "fake.log"
+
+            def set_stop_event(self, ev):
+                pass
+
+            async def iter_parsed_records(self, reader, asn_reader=None, *, skip_validation=False):
+                captured["asn_reader"] = asn_reader
+                return
+                yield  # generator function marker
+
+        monkeypatch.setattr(
+            "geometrikks.services.ingestion.service.wait_for_path",
+            AsyncMock(return_value=True),
+        )
+        service = LogIngestionService(
+            parsers=cast(Any, [FakeParser()]),
+            session_maker=cast(Any, lambda: None),
+            geoip_path=GEOIP_DB_PATH,
+            asn_db_path="tests/GeoLite2-ASN-Test.mmdb",
+        )
+        await service.start(skip_validation=True)
+        try:
+            await asyncio.sleep(0.05)
+            assert captured["asn_reader"] is not None
+        finally:
+            await service.stop(timeout=1.0)

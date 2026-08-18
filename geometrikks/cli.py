@@ -86,6 +86,12 @@ async def _run_import(
             "once to auto-download, or provide the mmdb manually."
         )
 
+    asn_reader: Reader | None = (
+        create_reader(settings.geoip.asn_db_path) if settings.geoip.asn_enabled else None
+    )
+    if settings.geoip.asn_enabled and asn_reader is None:
+        click.echo("No GeoLite2 ASN database found; importing without ASN enrichment.")
+
     effective_hostname = hostname or settings.logparser.resolved_hostnames()[0]
     click.echo(f"Stamping hostname: {effective_hostname}")
     service = LogIngestionService(
@@ -119,6 +125,7 @@ async def _run_import(
                     service=service,
                     parser=parser,
                     reader=reader,
+                    asn_reader=asn_reader,
                     session_maker=session_maker,
                     batch_size=batch_size,
                     force=force,
