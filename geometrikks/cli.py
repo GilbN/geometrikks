@@ -426,18 +426,31 @@ async def _run_backfill_asn(*, yes: bool) -> None:
                 "SELECT MIN(timestamp), MAX(timestamp) FROM access_logs "
                 "WHERE autonomous_system_number IS NULL"
             ))).one()
+            # Materialized deliberately: distinct-IP cardinality stays small
+            # relative to rows (tens of thousands on multi-million-row DBs),
+            # so a streamed server-side cursor interleaved with the temp-table
+            # writes is not worth the transaction plumbing.
             ips = [row[0] for row in (await conn.execute(text(
                 "SELECT DISTINCT host(ip_address) FROM access_logs "
                 "WHERE autonomous_system_number IS NULL"
             ))).all()]
 
+        from geoip2.errors import AddressNotFoundError
+
         mapping: list[dict] = []
-        unresolved = 0
+        not_found = 0
+        failed = 0
         for ip in ips:
             try:
                 asn = reader.asn(ip)
+            except AddressNotFoundError:
+                not_found += 1
+                continue
             except Exception:
-                unresolved += 1
+                # Corrupt reader state or decode errors must not abort the
+                # run, but they are not "not in the database" either.
+                failed += 1
+                logger.debug("ASN lookup failed for %s during backfill", ip, exc_info=True)
                 continue
             org = asn.autonomous_system_organization
             mapping.append({
@@ -445,7 +458,10 @@ async def _run_backfill_asn(*, yes: bool) -> None:
                 "asn": asn.autonomous_system_number,
                 "org": org[:255] if org else None,
             })
-        click.echo(f"Resolved {len(mapping):,} IPs ({unresolved:,} not in the ASN database).")
+        click.echo(
+            f"Resolved {len(mapping):,} IPs "
+            f"({not_found:,} not in the ASN database, {failed:,} lookup failures)."
+        )
 
         if not mapping:
             click.echo("No resolvable IPs; nothing written.")
@@ -482,7 +498,8 @@ async def _run_backfill_asn(*, yes: bool) -> None:
             "asn_backfill_completed",
             rows_updated=updated,
             ips_resolved=len(mapping),
-            ips_unresolved=unresolved,
+            ips_not_found=not_found,
+            ips_lookup_failed=failed,
         )
     finally:
         reader.close()
