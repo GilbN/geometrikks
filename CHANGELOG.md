@@ -19,6 +19,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Settings > Status shows a warning advisory when ASN enrichment is enabled
   but the GeoLite2 ASN database is missing or failed to download, and
   `/health` reports the ASN database's availability and build date.
+- Analytics gains a Top ASNs view: a Traffic origin card showing the exact
+  datacenter-vs-other split for the selected range, and a Top ASNs table
+  (organization, ASN, category, hits, bytes), backed by new per-ASN
+  continuous aggregates and `GET /api/v1/analytics/top-asns`. Datacenter
+  tagging uses a bundled hosting-ASN list (the MIT-licensed
+  brianhama/bad-asn-list) applied at read time, so list improvements apply
+  retroactively.
+- The Top URLs and Top user agents tables now sit side by side on wide
+  screens to save page height.
 
 - `LOGPARSER_HOST_NAME` accepts a JSON list matched positionally to
   `LOGPARSER_LOG_PATHS`, so one instance tailing logs shipped from several
