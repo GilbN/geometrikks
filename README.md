@@ -634,6 +634,28 @@ grows temporarily until the compression policy recompresses them. It then
 refreshes the affected continuous aggregates so the filter dropdowns
 update. May run for minutes on a large database.
 
+### backfill-asn: fill in ASN data for historical rows
+
+Rows ingested before the ASN feature (or while the ASN database was
+missing) have no ASN data. `backfill-asn` resolves their IPs against the
+local GeoLite2 ASN database and stamps them retroactively:
+
+```bash
+docker compose exec -u geometrikks app litestar backfill-asn
+```
+
+It fills **only** rows with no ASN data - it is idempotent and cannot
+overwrite stamped values - and asks for confirmation after reporting how
+many rows and distinct IPs are affected (`--yes` skips the prompt). IPs
+the database cannot resolve stay empty. Like `backfill-hostname`, it
+decompresses compressed history chunks first (disk usage grows until the
+compression policy recompresses them) and refreshes the ASN continuous
+aggregates afterwards so the Top ASNs view picks up the history. May run
+for minutes on a large database.
+
+Note that today's ASN database describes today's network ownership;
+stamping years-old traffic with it is a best-effort approximation.
+
 ## Configuration
 
 `.env.example` covers the short list most installs need to touch (admin

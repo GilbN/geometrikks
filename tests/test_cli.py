@@ -398,6 +398,7 @@ def test_backfill_asn_stamps_and_refreshes(monkeypatch) -> None:
     assert result.exit_code == 0, result.output
     assert "rows updated: 7" in result.output
     refresh.assert_awaited_once()
+    assert refresh.await_args is not None
     assert refresh.await_args.kwargs["caggs"] == ["asn_hourly_stats", "asn_daily_stats"]
 
 

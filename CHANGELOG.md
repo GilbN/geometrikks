@@ -28,6 +28,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   retroactively.
 - The Top URLs and Top user agents tables now sit side by side on wide
   screens to save page height.
+- `litestar backfill-asn`: retroactively stamp ASN data onto rows ingested
+  before the ASN feature (or while the database was missing), with a
+  confirmation prompt, decompress-first handling for compressed history,
+  and an ASN CAGG refresh so the Top ASNs view picks up the backfilled
+  range.
 
 - `LOGPARSER_HOST_NAME` accepts a JSON list matched positionally to
   `LOGPARSER_LOG_PATHS`, so one instance tailing logs shipped from several
