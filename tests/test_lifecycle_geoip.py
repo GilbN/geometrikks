@@ -11,7 +11,10 @@ from tests.support import enter_lifespan
 pytestmark = pytest.mark.anyio
 
 
-def _patch_startup_collaborators(monkeypatch, lc, *, db_available: bool, ensure: AsyncMock):
+def _patch_startup_collaborators(
+    monkeypatch, lc, *, db_available: bool, ensure: AsyncMock,
+    ensure_asn: AsyncMock | None = None,
+):
     async def fake_db_available(app, timeout: float = 10.0) -> bool:
         return db_available
 
@@ -28,6 +31,7 @@ def _patch_startup_collaborators(monkeypatch, lc, *, db_available: bool, ensure:
     monkeypatch.setattr(lc, "migrate_database", AsyncMock())
     monkeypatch.setattr(lc, "setup_timescaledb", AsyncMock())
     monkeypatch.setattr(lc, "ensure_geoip_database", ensure)
+    monkeypatch.setattr(lc, "ensure_asn_database", ensure_asn or AsyncMock(return_value=False))
     resolve_home = AsyncMock(return_value=None)
     monkeypatch.setattr(lc, "resolve_home_location", resolve_home)
     monkeypatch.setattr(lc, "create_scheduler", AsyncMock(return_value=MagicMock()))
@@ -73,6 +77,52 @@ async def test_startup_sets_geoip_flag_even_without_database(monkeypatch):
     ensure.assert_awaited_once()
     resolve_home.assert_awaited_once()
     assert app.state.geoip_available is True
+
+
+async def test_startup_records_asn_availability(monkeypatch):
+    from geometrikks.server import lifecycle as lc
+
+    ensure = AsyncMock(return_value=True)
+    ensure_asn = AsyncMock(return_value=True)
+    _patch_startup_collaborators(
+        monkeypatch, lc, db_available=True, ensure=ensure, ensure_asn=ensure_asn
+    )
+
+    app = SimpleNamespace(state=SimpleNamespace())
+    async with enter_lifespan(app):
+        pass
+
+    ensure_asn.assert_awaited_once()
+    assert app.state.asn_available is True
+
+
+async def test_asn_failure_does_not_flip_geoip_available(monkeypatch):
+    from geometrikks.server import lifecycle as lc
+
+    ensure = AsyncMock(return_value=True)
+    ensure_asn = AsyncMock(return_value=False)
+    _patch_startup_collaborators(
+        monkeypatch, lc, db_available=True, ensure=ensure, ensure_asn=ensure_asn
+    )
+
+    app = SimpleNamespace(state=SimpleNamespace())
+    async with enter_lifespan(app):
+        pass
+
+    assert app.state.geoip_available is True
+    assert app.state.asn_available is False
+
+
+async def test_geoip_refresh_job_covers_both_editions(monkeypatch):
+    """The single geoip-refresh job must point at refresh_geoip_databases."""
+    from geometrikks.config.settings import Settings
+    from geometrikks.server.scheduler import create_scheduler
+    from geometrikks.services.geoip.downloader import refresh_geoip_databases
+
+    scheduler = await create_scheduler(MagicMock(), Settings())
+    job = scheduler.get_job("geoip-refresh")
+    assert job is not None
+    assert job.func is refresh_geoip_databases
 
 
 async def test_scheduler_has_geoip_refresh_job(monkeypatch):

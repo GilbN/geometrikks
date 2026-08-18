@@ -70,3 +70,12 @@ def is_geoip_available(app: Litestar, *, default: bool = False) -> bool:
     settings introspection passes False (don't claim a database exists).
     """
     return bool(getattr(app.state, "geoip_available", default))
+
+
+def is_asn_available(app: Litestar, *, default: bool = False) -> bool:
+    """Whether a usable GeoLite2 ASN database is loaded.
+
+    ASN is optional enrichment; False never means degraded, only that rows
+    ingest without ASN columns. ``default`` mirrors is_geoip_available.
+    """
+    return bool(getattr(app.state, "asn_available", default))
