@@ -442,6 +442,37 @@ async def _create_user_agent_caggs(conn: "AsyncConnection") -> None:
         """))
 
 
+async def _create_asn_caggs(conn: "AsyncConnection") -> None:
+    """Create per-ASN access-log CAGGs (hourly + daily).
+
+    Used for: analytics /top-asns (unfiltered path). max(as_org) keeps a
+    series intact across organization renames in future mmdb builds. The
+    column set is deliberately final: drop/recreate of a shipped CAGG loses
+    pre-retention history, which is why total_bytes ships in the first cut.
+    """
+    for suffix, interval in (("hourly", "1 hour"), ("daily", "1 day")):
+        await conn.execute(text(f"""
+            CREATE MATERIALIZED VIEW IF NOT EXISTS asn_{suffix}_stats
+            WITH (timescaledb.continuous) AS
+            SELECT
+                time_bucket('{interval}', timestamp) AS bucket,
+                autonomous_system_number AS asn,
+                max(autonomous_system_organization) AS as_org,
+                COUNT(*) AS hits,
+                SUM(bytes_sent) AS total_bytes
+            FROM access_logs
+            WHERE autonomous_system_number IS NOT NULL
+            GROUP BY bucket, autonomous_system_number
+            WITH NO DATA
+        """))
+        logger.info("CAGG created/verified: asn_%s_stats", suffix)
+
+        await conn.execute(text(f"""
+            CREATE INDEX IF NOT EXISTS ix_asn_{suffix}_stats_bucket
+            ON asn_{suffix}_stats (bucket DESC)
+        """))
+
+
 async def _create_host_facet_caggs(conn: "AsyncConnection") -> None:
     """Create tiny daily host/hostname/log-source CAGGs for the facet dropdowns.
 
@@ -522,6 +553,7 @@ CAGG_REFRESH_CONFIG = [
     ("log_ip_hourly_stats", "3 hours", "1 hour"),
     ("url_hourly_stats", "3 hours", "1 hour"),
     ("user_agent_hourly_stats", "3 hours", "1 hour"),
+    ("asn_hourly_stats", "3 hours", "1 hour"),
     # Daily CAGGs: refresh up to 1 hour ago to keep data fresh
     # (using "1 day" would leave too large a gap for real-time aggregation)
     ("summary_daily_stats", "3 days", "1 hour"),
@@ -531,6 +563,7 @@ CAGG_REFRESH_CONFIG = [
     ("log_ip_daily_stats", "3 days", "1 hour"),
     ("url_daily_stats", "3 days", "1 hour"),
     ("user_agent_daily_stats", "3 days", "1 hour"),
+    ("asn_daily_stats", "3 days", "1 hour"),
     ("host_daily_stats", "3 days", "1 hour"),
     ("hostname_daily_stats", "3 days", "1 hour"),
     ("log_source_daily_stats", "3 days", "1 hour"),
@@ -544,6 +577,7 @@ HOURLY_CAGGS = [
     "log_ip_hourly_stats",
     "url_hourly_stats",
     "user_agent_hourly_stats",
+    "asn_hourly_stats",
 ]
 
 
@@ -691,6 +725,8 @@ ALL_CAGGS = [
     "url_daily_stats",
     "user_agent_hourly_stats",
     "user_agent_daily_stats",
+    "asn_hourly_stats",
+    "asn_daily_stats",
     "host_daily_stats",
     "hostname_daily_stats",
     "log_source_daily_stats",
@@ -869,6 +905,7 @@ async def setup_timescaledb(
         await _create_log_ip_caggs(conn)
         await _create_url_caggs(conn)
         await _create_user_agent_caggs(conn)
+        await _create_asn_caggs(conn)
         await _create_host_facet_caggs(conn)
 
         _set_location_caggs_have_hostname(
@@ -988,6 +1025,8 @@ CAGG_SOURCE_TABLES: dict[str, str] = {
     "url_daily_stats": "access_logs",
     "user_agent_hourly_stats": "access_logs",
     "user_agent_daily_stats": "access_logs",
+    "asn_hourly_stats": "access_logs",
+    "asn_daily_stats": "access_logs",
     "host_daily_stats": "access_logs",
     "hostname_daily_stats": "geo_events",
     "log_source_daily_stats": "access_logs",
