@@ -192,7 +192,7 @@ async def ensure_asn_database(settings: "GeoIPSettings") -> bool:
             return True
         logger.warning(
             "No GeoLite2-ASN database at %s and no MaxMind credentials "
-            "configured; ingesting without ASN enrichment. Set "
+            "configured; ASN enrichment is unavailable. Set "
             "GEOIP_ASN_ENABLED=false to silence this.",
             settings.asn_db_path,
         )

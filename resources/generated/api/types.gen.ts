@@ -31,6 +31,8 @@ export type AboutResponse = {
   app: AboutAppView;
   database: DatabaseVersionsView;
   geoip: GeoIpInfoView;
+  geoipAsn?: GeoIpInfoView | null;
+  geoipAsnEnabled?: boolean;
   links: AboutLinksView;
   runtime: RuntimeVersionsView;
 };
