@@ -345,3 +345,41 @@ def test_health_publish_dropped_present(monkeypatch):
     with TestClient(app=make_app()) as client:
         body = client.get("/health").json()
     assert body["ingestion"]["publishDropped"] == 0
+
+
+def _asn_advisories(app_state_asn: bool, asn_enabled: bool) -> list:
+    from geometrikks.config.settings import Settings
+    from geometrikks.domain.system.controllers.health import _collect_advisories
+
+    settings = Settings()
+    settings.geoip.asn_enabled = asn_enabled
+    app = SimpleNamespace(
+        state=SimpleNamespace(geoip_available=True, asn_available=app_state_asn)
+    )
+    return [a for a in _collect_advisories(cast("Any", app), settings) if a.id == "asn-database-missing"]
+
+
+def test_asn_advisory_emitted_when_enabled_but_unavailable():
+    advisories = _asn_advisories(app_state_asn=False, asn_enabled=True)
+    assert len(advisories) == 1
+    assert advisories[0].severity == "warning"
+    assert "GEOIP_ASN_ENABLED=false" in (advisories[0].remedy or "")
+
+
+def test_asn_advisory_absent_when_available():
+    assert _asn_advisories(app_state_asn=True, asn_enabled=True) == []
+
+
+def test_asn_advisory_absent_when_disabled():
+    assert _asn_advisories(app_state_asn=False, asn_enabled=False) == []
+
+
+def test_health_reports_asn_state(monkeypatch):
+    async def db_up(app, timeout: float = 2.0) -> bool:
+        return True
+    monkeypatch.setattr(health_module, "_database_reachable", db_up)
+
+    with TestClient(app=make_app()) as client:
+        body = client.get("/health").json()
+        assert isinstance(body["geoip"]["asnAvailable"], bool)
+        assert "asnDbBuildDate" in body["geoip"]
