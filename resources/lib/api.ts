@@ -18,6 +18,7 @@ import {
   apiV1AnalyticsTopCountriesGetTopCountries,
   apiV1AnalyticsTopIpsGetTopIps,
   apiV1AnalyticsTopUrlsGetTopUrls,
+  apiV1AnalyticsTopAsnsGetTopAsns,
   apiV1AnalyticsTopUserAgentsGetTopUserAgents,
 } from "@/generated/api/sdk.gen"
 import { BROWSER_TZ } from "@/lib/datetime"
@@ -602,6 +603,22 @@ export async function fetchTopUrls(params: TimeSeriesParams & { limit?: number }
 
 export async function fetchTopUserAgents(params: TimeSeriesParams & { limit?: number } & AnalyticsFilterParams) {
   const { data } = await apiV1AnalyticsTopUserAgentsGetTopUserAgents({
+    query: {
+      startDate: params.startDate,
+      endDate: params.endDate,
+      limit: params.limit ?? 25,
+      countryCode: params.countryCodes?.length ? params.countryCodes : undefined,
+      city: params.cities?.length ? params.cities : undefined,
+      ipAddress: params.ips?.length ? params.ips : undefined,
+      ipAddressNotIn: params.ipsExclude?.length ? params.ipsExclude : undefined,
+    },
+    throwOnError: true,
+  })
+  return data
+}
+
+export async function fetchTopAsns(params: TimeSeriesParams & { limit?: number } & AnalyticsFilterParams) {
+  const { data } = await apiV1AnalyticsTopAsnsGetTopAsns({
     query: {
       startDate: params.startDate,
       endDate: params.endDate,
