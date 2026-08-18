@@ -22,6 +22,7 @@ LIVE_EVENTS_CHANNEL = "live_events"
 URL_MAX = 2000
 REFERRER_MAX = 1000
 USER_AGENT_MAX = 500
+ASN_ORG_MAX = 100
 PAYLOAD_MAX = 7500
 
 
@@ -65,6 +66,10 @@ def record_to_event(record: "ParsedLogRecord") -> dict[str, Any] | None:
             "country_code": a.country_code,
             "country_name": a.country_name,
             "city": a.city,
+            "autonomous_system_number": a.autonomous_system_number,
+            "autonomous_system_organization": _clip(
+                a.autonomous_system_organization, ASN_ORG_MAX
+            ),
             "hostname": record.hostname,
         }
     if geo is None and log is None:
