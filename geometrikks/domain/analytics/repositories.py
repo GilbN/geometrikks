@@ -773,6 +773,60 @@ class SummaryStatsRepository:
             for row in result.fetchall()
         ]
 
+    async def get_top_asns(
+        self, start: datetime, end: datetime, *, filters: AnalyticsFilters | None = None
+    ) -> list[TopAsnRow]:
+        """All ASNs by hits: stitched CAGG read above 24h, raw otherwise.
+
+        Deliberately unlimited: ASN cardinality is a few thousand at most,
+        and the /top-asns endpoint needs the full grouping to compute exact
+        datacenter-vs-other category totals before slicing its top N.
+        Any active filter forces the raw path (no dims on the ASN CAGGs).
+        """
+        filters = filters or AnalyticsFilters()
+        granularity = get_stats_granularity(start, end)
+        if granularity == StatsGranularity.RAW or filters.is_active():
+            return await LiveStatsRepository(self.session).get_top_asns(
+                start, end, filters=filters
+            )
+        table = f"asn_{granularity.value}_stats"
+        stmt = text(f"""
+            WITH combined AS (
+                SELECT s.asn, s.as_org, s.hits, s.total_bytes
+                FROM {table} s
+                WHERE s.bucket >= :a_start AND s.bucket < :a_end
+                UNION ALL
+                SELECT al.autonomous_system_number, al.autonomous_system_organization,
+                       CAST(1 AS BIGINT), COALESCE(al.bytes_sent, 0)
+                FROM access_logs al
+                WHERE al.timestamp >= :start AND al.timestamp < :a_start
+                  AND al.autonomous_system_number IS NOT NULL
+                UNION ALL
+                SELECT al.autonomous_system_number, al.autonomous_system_organization,
+                       CAST(1 AS BIGINT), COALESCE(al.bytes_sent, 0)
+                FROM access_logs al
+                WHERE al.timestamp >= :a_end AND al.timestamp < :end
+                  AND al.autonomous_system_number IS NOT NULL
+            )
+            SELECT asn,
+                   MAX(as_org) AS organization,
+                   CAST(SUM(hits) AS BIGINT) AS hits,
+                   CAST(COALESCE(SUM(total_bytes), 0) AS BIGINT) AS total_bytes
+            FROM combined
+            GROUP BY asn
+            ORDER BY hits DESC, asn
+        """)
+        result = await self.session.execute(stmt, _stitch_params(start, end, granularity))
+        return [
+            TopAsnRow(
+                asn=row.asn,
+                organization=row.organization,
+                hits=row.hits,
+                total_bytes=row.total_bytes,
+            )
+            for row in result.fetchall()
+        ]
+
     def _log_ip_combined_cte(self, granularity: StatsGranularity) -> str:
         """WITH clause exposing ``combined`` for a stitched log_ip CAGG read.
 
@@ -915,6 +969,16 @@ class TopUserAgentRow:
 
     user_agent: str
     hits: int
+
+
+@dataclass
+class TopAsnRow:
+    """A top-ASN aggregate row (CAGG or raw access_logs)."""
+
+    asn: int
+    organization: str | None
+    hits: int
+    total_bytes: int
 
 
 @dataclass
@@ -1250,6 +1314,36 @@ class LiveStatsRepository:
             stmt, {"start": start, "end": end, "limit": limit, **filter_params}
         )
         return [TopUserAgentRow(user_agent=row.user_agent, hits=row.hits) for row in result.fetchall()]
+
+    async def get_top_asns(
+        self, start: datetime, end: datetime, *, filters: AnalyticsFilters | None = None
+    ) -> list[TopAsnRow]:
+        """All ASNs by hit count from raw access_logs (time-bounded)."""
+        filter_sql, filter_params = (filters or AnalyticsFilters()).sql_conditions()
+        stmt = text(f"""
+            SELECT autonomous_system_number AS asn,
+                   MAX(autonomous_system_organization) AS organization,
+                   CAST(COUNT(*) AS BIGINT) AS hits,
+                   CAST(COALESCE(SUM(bytes_sent), 0) AS BIGINT) AS total_bytes
+            FROM access_logs
+            WHERE timestamp >= :start AND timestamp < :end
+              AND autonomous_system_number IS NOT NULL
+            {filter_sql}
+            GROUP BY autonomous_system_number
+            ORDER BY hits DESC, asn
+        """)
+        result = await self.session.execute(
+            stmt, {"start": start, "end": end, **filter_params}
+        )
+        return [
+            TopAsnRow(
+                asn=row.asn,
+                organization=row.organization,
+                hits=row.hits,
+                total_bytes=row.total_bytes,
+            )
+            for row in result.fetchall()
+        ]
 
     async def get_top_ips(
         self, start: datetime, end: datetime, limit: int = 25, *, filters: AnalyticsFilters | None = None
