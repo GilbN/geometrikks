@@ -3045,8 +3045,21 @@ export const TopAsnsResponseSchema = {
     startDate: {
       type: "string",
     },
+    totalBytes: {
+      type: "integer",
+    },
+    totalRequests: {
+      type: "integer",
+    },
   },
-  required: ["categories", "endDate", "items", "startDate"],
+  required: [
+    "categories",
+    "endDate",
+    "items",
+    "startDate",
+    "totalBytes",
+    "totalRequests",
+  ],
   title: "TopAsnsResponse",
   type: "object",
 } as const;

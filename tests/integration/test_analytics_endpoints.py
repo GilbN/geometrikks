@@ -300,3 +300,30 @@ async def test_top_asns_ordering_and_org(pg_session_maker, clean_tables):
         (24940, "Hetzner Online GmbH", 3, 600),
         (2119, "Telenor Norge AS", 1, 100),
     ]
+
+
+async def test_request_totals_count_unenriched_rows(pg_session_maker, clean_tables):
+    """The /top-asns denominator must include NULL-ASN rows.
+
+    Regression: the Traffic origin card divided by the ASN category sum, so
+    an install whose history predates enrichment read as "100% datacenter".
+    """
+    from geometrikks.domain.analytics.repositories import SummaryStatsRepository
+
+    ts = NOW - timedelta(hours=1)
+    async with pg_session_maker() as session:
+        await _insert_asn_log(session, ts=ts, asn=24940, asn_org="Hetzner Online GmbH", bytes_sent=200)
+        for _ in range(3):  # pre-feature history: no ASN data
+            await _insert_log(session, ts=ts, url="/old", user_agent="x", bytes_sent=100)
+        await session.commit()
+
+    async with pg_session_maker() as session:
+        repo = SummaryStatsRepository(session=session)
+        asn_rows = await repo.get_top_asns(NOW - timedelta(hours=2), NOW)
+        total_requests, total_bytes = await repo.get_request_totals(
+            NOW - timedelta(hours=2), NOW
+        )
+
+    assert sum(r.hits for r in asn_rows) == 1, "ASN queries only see tagged rows"
+    assert total_requests == 4, "totals must include the unenriched rows"
+    assert total_bytes == 500
