@@ -139,15 +139,18 @@ def _collect_advisories(app: Litestar, settings: Settings) -> list[Advisory]:
             id="asn-database-missing",
             severity="warning",
             summary=(
-                "ASN enrichment is enabled but no GeoLite2 ASN database is "
-                "loaded; new requests are ingested without ASN data."
+                "ASN enrichment is enabled but no GeoLite2 ASN database was "
+                "loaded at startup; requests are ingested without ASN data."
             ),
             detail=(
-                "The GeoLite2 ASN database could not be found or downloaded. "
-                "It uses the same MaxMind credentials as the City database "
-                "(MAXMINDDB_USER_ID / MAXMINDDB_LICENSE_KEY) and downloads "
-                "automatically at startup and on the weekly refresh. Check the "
-                "app log for the download error, then restart the container."
+                "The database uses the same MaxMind credentials as the City "
+                "database (MAXMINDDB_USER_ID / MAXMINDDB_LICENSE_KEY) and "
+                "downloads automatically at startup and on the weekly refresh. "
+                "Readers are opened once at startup, so a database that "
+                "arrived since then - downloaded by the weekly refresh, or by "
+                "another instance sharing the volume - is only picked up on "
+                "restart. Check the app log for a download error, then restart "
+                "the container."
             ),
             remedy="Set GEOIP_ASN_ENABLED=false to turn ASN enrichment off instead.",
         ))
