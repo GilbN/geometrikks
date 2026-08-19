@@ -961,11 +961,17 @@ async def refresh_caggs_range(
     start: datetime,
     end: datetime,
     caggs: list[str] | None = None,
-) -> None:
+) -> list[str]:
     """Refresh CAGGs for a specific time range (used after historical imports).
 
     Timestamps are bound as asyncpg parameters. CAGG names cannot be bound
     (identifiers), so they are validated against the ALL_CAGGS allowlist.
+
+    Never raises on a refresh failure (startup and the scheduler must survive
+    one), but returns the CAGGs that could not be refreshed so callers whose
+    correctness depends on it - the backfill commands, whose written rows stay
+    invisible to analytics until the aggregates catch up - can report or exit
+    nonzero. An empty list means every requested CAGG refreshed.
 
     Args:
         engine: Async engine (raw asyncpg connection is used: CALL cannot
@@ -973,6 +979,9 @@ async def refresh_caggs_range(
         start: Range start (inclusive), timezone-aware.
         end: Range end (exclusive), timezone-aware.
         caggs: Optional subset of CAGGs (defaults to all).
+
+    Returns:
+        Names of CAGGs whose refresh failed; empty when all succeeded.
     """
     if not start or not end:
         raise ValueError("Both start and end must be provided")
@@ -982,6 +991,7 @@ async def refresh_caggs_range(
     if unknown:
         raise ValueError(f"Unknown CAGG name(s): {sorted(unknown)}")
 
+    failed: list[str] = []
     for cagg in target_caggs:
         # A background refresh-policy job on an overlapping window makes
         # refresh_continuous_aggregate raise "concurrent refresh"; without a
@@ -1006,7 +1016,9 @@ async def refresh_caggs_range(
                     await asyncio.sleep(0.5 * (attempt + 1))
                     continue
                 logger.warning("CAGG refresh failed: %s (%s → %s): %s", cagg, start, end, e)
+                failed.append(cagg)
                 break
+    return failed
 
 
 # CAGG -> raw source hypertable (all use a "timestamp" time column)

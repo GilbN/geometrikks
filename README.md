@@ -653,6 +653,10 @@ compression policy recompresses them) and refreshes the ASN continuous
 aggregates afterwards so the Top ASNs view picks up the history. May run
 for minutes on a large database.
 
+If the aggregate refresh fails the command exits non-zero and says which
+aggregates are stale: the rows are stamped, but the Top ASNs view will not
+show the backfilled range until they refresh. Rerunning is safe.
+
 Note that today's ASN database describes today's network ownership;
 stamping years-old traffic with it is a best-effort approximation.
 

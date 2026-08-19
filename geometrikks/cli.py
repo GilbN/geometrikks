@@ -343,14 +343,55 @@ def backfill_asn_command(yes: bool) -> None:
     asyncio.run(_run_backfill_asn(yes=yes))
 
 
-async def _apply_asn_mapping(engine, mapping: list[dict]) -> int:
-    """Apply an ip -> (asn, org) mapping to NULL-ASN access_logs rows.
+ASN_BACKFILL_CHUNK_SIZE = 10_000
 
-    One transaction: temp mapping table, batched inserts, a single join
-    UPDATE. Returns the UPDATE rowcount. Factored out so the temp-table SQL
+
+async def _iter_null_asn_ips(engine, *, chunk_size: int = ASN_BACKFILL_CHUNK_SIZE):
+    """Yield distinct NULL-ASN client IPs in bounded, keyset-paginated chunks.
+
+    Keyset pagination on the inet column (not OFFSET, which rescans) keeps
+    peak memory at one chunk regardless of distinct-IP cardinality: an
+    internet-facing install can approach row cardinality, where materializing
+    the whole set would be a real memory spike.
+    """
+    from sqlalchemy import text
+
+    last: str | None = None
+    while True:
+        where = "autonomous_system_number IS NULL"
+        params: dict = {"lim": chunk_size}
+        if last is not None:
+            where += " AND ip_address > CAST(:last AS inet)"
+            params["last"] = last
+        async with engine.connect() as conn:
+            rows = (await conn.execute(text(
+                f"SELECT DISTINCT ip_address, host(ip_address) AS ip_text "
+                f"FROM access_logs WHERE {where} "
+                f"ORDER BY ip_address LIMIT :lim"
+            ), params)).all()
+        if not rows:
+            return
+        yield [row.ip_text for row in rows]
+        last = rows[-1].ip_text
+
+
+async def _apply_asn_mapping(engine, chunks) -> int:
+    """Stream ip -> (asn, org) chunks into a temp table, then one join UPDATE.
+
+    One transaction so the ON COMMIT DROP temp table spans every chunk;
+    memory stays bounded because only the chunk in flight is held. Returns
+    the UPDATE rowcount. ``chunks`` may be a plain list of mapping dicts (one
+    chunk) or an async iterable of them. Factored out so the temp-table SQL
     is integration-testable against a real database.
     """
     from sqlalchemy import text
+
+    if isinstance(chunks, list):
+        # Bound as a default: reassigning `chunks` below would otherwise make
+        # the closure yield the generator itself.
+        async def _single(only=chunks):
+            yield only
+        chunks = _single()
 
     async with engine.begin() as conn:
         await conn.execute(text(
@@ -359,8 +400,14 @@ async def _apply_asn_mapping(engine, mapping: list[dict]) -> int:
             "ON COMMIT DROP"
         ))
         insert = text("INSERT INTO tmp_asn_map (ip, asn, org) VALUES (:ip, :asn, :org)")
-        for i in range(0, len(mapping), 5000):
-            await conn.execute(insert, mapping[i : i + 5000])
+        mapped = 0
+        async for chunk in chunks:
+            if not chunk:
+                continue
+            await conn.execute(insert, chunk)
+            mapped += len(chunk)
+        if not mapped:
+            return 0
         return (await conn.execute(text(
             "UPDATE access_logs al "
             "SET autonomous_system_number = m.asn, "
@@ -426,51 +473,12 @@ async def _run_backfill_asn(*, yes: bool) -> None:
                 "SELECT MIN(timestamp), MAX(timestamp) FROM access_logs "
                 "WHERE autonomous_system_number IS NULL"
             ))).one()
-            # Materialized deliberately: distinct-IP cardinality stays small
-            # relative to rows (tens of thousands on multi-million-row DBs),
-            # so a streamed server-side cursor interleaved with the temp-table
-            # writes is not worth the transaction plumbing.
-            ips = [row[0] for row in (await conn.execute(text(
-                "SELECT DISTINCT host(ip_address) FROM access_logs "
-                "WHERE autonomous_system_number IS NULL"
-            ))).all()]
 
-        from geoip2.errors import AddressNotFoundError
-
-        mapping: list[dict] = []
-        not_found = 0
-        failed = 0
-        for ip in ips:
-            try:
-                asn = reader.asn(ip)
-            except AddressNotFoundError:
-                not_found += 1
-                continue
-            except Exception:
-                # Corrupt reader state or decode errors must not abort the
-                # run, but they are not "not in the database" either.
-                failed += 1
-                logger.debug("ASN lookup failed for %s during backfill", ip, exc_info=True)
-                continue
-            org = asn.autonomous_system_organization
-            mapping.append({
-                "ip": ip,
-                "asn": asn.autonomous_system_number,
-                "org": org[:255] if org else None,
-            })
-        click.echo(
-            f"Resolved {len(mapping):,} IPs "
-            f"({not_found:,} not in the ASN database, {failed:,} lookup failures)."
-        )
-
-        if not mapping:
-            click.echo("No resolvable IPs; nothing written.")
-            return
-
-        # Full-table UPDATEs on compressed hypertable chunks trip
-        # timescaledb.max_tuples_decompressed_per_dml_transaction; decompress
-        # first, same pattern as backfill-hostname. The compression policy
-        # recompresses on its own schedule.
+        # Decompression precedes the write: the UPDATE inside
+        # _apply_asn_mapping would otherwise trip
+        # timescaledb.max_tuples_decompressed_per_dml_transaction. Same
+        # pattern as backfill-hostname; the compression policy recompresses
+        # on its own schedule.
         if timescale:
             click.echo("Decompressing compressed access_logs chunks ...")
             async with engine.begin() as conn:
@@ -480,14 +488,56 @@ async def _run_backfill_asn(*, yes: bool) -> None:
                     "WHERE hypertable_name = 'access_logs' AND is_compressed"
                 ))
 
-        updated = await _apply_asn_mapping(engine, mapping)
+        from geoip2.errors import AddressNotFoundError
+
+        stats = {"resolved": 0, "not_found": 0, "failed": 0}
+
+        async def _resolved_chunks():
+            """Resolve each IP chunk as it arrives; only one is ever held."""
+            async for ips in _iter_null_asn_ips(engine):
+                mapping: list[dict] = []
+                for ip in ips:
+                    try:
+                        asn = reader.asn(ip)
+                    except AddressNotFoundError:
+                        stats["not_found"] += 1
+                        continue
+                    except Exception:
+                        # Corrupt reader state or decode errors must not abort
+                        # the run, but they are not "not in the database" either.
+                        stats["failed"] += 1
+                        logger.debug(
+                            "ASN lookup failed for %s during backfill", ip, exc_info=True
+                        )
+                        continue
+                    org = asn.autonomous_system_organization
+                    mapping.append({
+                        "ip": ip,
+                        "asn": asn.autonomous_system_number,
+                        "org": org[:255] if org else None,
+                    })
+                stats["resolved"] += len(mapping)
+                click.echo(f"  resolved {stats['resolved']:,} IPs ...")
+                yield mapping
+
+        click.echo("Resolving IPs against the ASN database ...")
+        updated = await _apply_asn_mapping(engine, _resolved_chunks())
+        click.echo(
+            f"Resolved {stats['resolved']:,} IPs "
+            f"({stats['not_found']:,} not in the ASN database, "
+            f"{stats['failed']:,} lookup failures)."
+        )
         click.echo(f"access_logs rows updated: {updated:,}")
 
         # The ASN CAGGs exclude NULL-ASN rows, so backfilled history is
         # invisible to /top-asns until the affected range is re-refreshed.
+        # A failed refresh is not cosmetic: ranges outside the refresh
+        # policy's window may never be retried automatically, so it must not
+        # be reported as a clean run.
+        refresh_failed: list[str] = []
         if updated and bounds[0] is not None:
             click.echo("Refreshing ASN CAGGs ...")
-            await refresh_caggs_range(
+            refresh_failed = await refresh_caggs_range(
                 engine,
                 start=bounds[0],
                 end=bounds[1] + timedelta(microseconds=1),
@@ -497,10 +547,19 @@ async def _run_backfill_asn(*, yes: bool) -> None:
         logger.info(
             "asn_backfill_completed",
             rows_updated=updated,
-            ips_resolved=len(mapping),
-            ips_not_found=not_found,
-            ips_lookup_failed=failed,
+            ips_resolved=stats["resolved"],
+            ips_not_found=stats["not_found"],
+            ips_lookup_failed=stats["failed"],
+            cagg_refresh_failed=refresh_failed,
         )
+
+        if refresh_failed:
+            raise click.ClickException(
+                f"Rows were stamped, but refreshing {', '.join(refresh_failed)} failed; "
+                "the Top ASNs view will not show the backfilled range until they "
+                "refresh. Check the app log, then rerun this command (it is "
+                "idempotent) or refresh those aggregates manually."
+            )
     finally:
         reader.close()
         await engine.dispose()

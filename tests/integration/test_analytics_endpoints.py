@@ -356,3 +356,25 @@ async def test_request_totals_count_unenriched_rows(pg_session_maker, clean_tabl
     assert sum(r.hits for r in asn_rows) == 1, "ASN queries only see tagged rows"
     assert total_requests == 4, "totals must include the unenriched rows"
     assert total_bytes == 500
+
+
+async def test_iter_null_asn_ips_pages_without_gaps_or_repeats(pg_engine, pg_session_maker, clean_tables):
+    """Keyset pagination must cover every distinct NULL-ASN IP exactly once."""
+    from geometrikks.cli import _iter_null_asn_ips
+
+    ts = NOW - timedelta(hours=1)
+    ips = [f"10.0.0.{i}" for i in range(1, 8)]
+    async with pg_session_maker() as session:
+        for ip in ips:
+            for _ in range(2):  # duplicates must collapse
+                await _insert_log(session, ts=ts, url="/a", user_agent="x", ip=ip)
+        # A stamped row's IP must not appear: it needs no backfill.
+        await _insert_asn_log(session, ts=ts, asn=24940, asn_org="Hetzner Online GmbH")
+        await session.commit()
+
+    pages = [page async for page in _iter_null_asn_ips(pg_engine, chunk_size=3)]
+
+    assert len(pages) > 1, "chunk_size=3 over 7 IPs must paginate"
+    seen = [ip for page in pages for ip in page]
+    assert sorted(seen) == sorted(ips)
+    assert len(seen) == len(set(seen))

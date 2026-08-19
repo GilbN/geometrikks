@@ -1,6 +1,7 @@
 """CLI plugin registration and command surface."""
 from __future__ import annotations
 
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 from click.testing import CliRunner
@@ -321,10 +322,13 @@ def _make_asn_engine(
     """Engine for the backfill-asn flow, dispatching on SQL substrings.
 
     connect() answers the EXISTS probe, the count/bounds scan, and the
-    distinct-IP stream; begin() serves the temp-table writes and reports
-    ``rowcount`` on the join UPDATE.
+    keyset-paginated distinct-IP stream (one page, then empty, so the
+    pagination loop terminates); begin() serves the temp-table writes and
+    reports ``rowcount`` on the join UPDATE.
     """
     from datetime import datetime, timezone
+
+    ip_pages = [[SimpleNamespace(ip_text=ip) for ip in distinct_ips], []]
 
     def _result_for(sql: str) -> MagicMock:
         result = MagicMock()
@@ -340,8 +344,8 @@ def _make_asn_engine(
                 datetime(2026, 1, 1, tzinfo=timezone.utc),
                 datetime(2026, 1, 2, tzinfo=timezone.utc),
             )
-        elif "DISTINCT host(ip_address)" in sql:
-            result.all.return_value = [(ip,) for ip in distinct_ips]
+        elif "DISTINCT ip_address" in sql:
+            result.all.return_value = ip_pages.pop(0) if ip_pages else []
         return result
 
     async def _execute(stmt, params=None):
@@ -391,7 +395,7 @@ def _invoke_backfill_asn(
 def test_backfill_asn_stamps_and_refreshes(monkeypatch) -> None:
     """1.128.0.0 resolves via the test db; the run updates and refreshes."""
     engine = _make_asn_engine(null_rows=7, distinct_ips=["1.128.0.0"], rowcount=7)
-    refresh = AsyncMock()
+    refresh = AsyncMock(return_value=[])
 
     result = _invoke_backfill_asn(monkeypatch, engine, ["--yes"], refresh)
 
@@ -404,7 +408,7 @@ def test_backfill_asn_stamps_and_refreshes(monkeypatch) -> None:
 
 def test_backfill_asn_nothing_to_do(monkeypatch) -> None:
     engine = _make_asn_engine(null_rows=0, distinct_ips=[], rowcount=0)
-    refresh = AsyncMock()
+    refresh = AsyncMock(return_value=[])
 
     result = _invoke_backfill_asn(monkeypatch, engine, ["--yes"], refresh)
 
@@ -417,7 +421,7 @@ def test_backfill_asn_aborts_without_confirmation(monkeypatch) -> None:
     """Default (no --yes, input 'n'): no write transaction, no refresh."""
     engine = _make_asn_engine(null_rows=7, distinct_ips=["1.128.0.0"], rowcount=7)
     engine.begin = MagicMock(side_effect=AssertionError("begin() must not run when aborted"))
-    refresh = AsyncMock()
+    refresh = AsyncMock(return_value=[])
 
     result = _invoke_backfill_asn(monkeypatch, engine, [], refresh, cli_input="n\n")
 
@@ -428,7 +432,7 @@ def test_backfill_asn_aborts_without_confirmation(monkeypatch) -> None:
 
 def test_backfill_asn_fails_without_asn_database(monkeypatch) -> None:
     engine = _make_asn_engine(null_rows=7, distinct_ips=["1.128.0.0"], rowcount=7)
-    refresh = AsyncMock()
+    refresh = AsyncMock(return_value=[])
 
     result = _invoke_backfill_asn(
         monkeypatch, engine, ["--yes"], refresh,
@@ -437,3 +441,16 @@ def test_backfill_asn_fails_without_asn_database(monkeypatch) -> None:
 
     assert result.exit_code != 0
     assert "No GeoLite2 ASN database" in result.output
+
+
+def test_backfill_asn_exits_nonzero_when_cagg_refresh_fails(monkeypatch) -> None:
+    """Rows are stamped but the aggregates stayed stale: the run must not
+    report success, or long-range analytics silently miss the backfill."""
+    engine = _make_asn_engine(null_rows=7, distinct_ips=["1.128.0.0"], rowcount=7)
+    refresh = AsyncMock(return_value=["asn_daily_stats"])
+
+    result = _invoke_backfill_asn(monkeypatch, engine, ["--yes"], refresh)
+
+    assert result.exit_code != 0
+    assert "rows updated: 7" in result.output
+    assert "asn_daily_stats" in result.output

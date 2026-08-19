@@ -35,7 +35,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   before the ASN feature (or while the database was missing), with a
   confirmation prompt, decompress-first handling for compressed history,
   and an ASN CAGG refresh so the Top ASNs view picks up the backfilled
-  range.
+  range. IPs are resolved and written in bounded chunks, and a failed
+  aggregate refresh exits non-zero rather than reporting a clean run.
 
 - `LOGPARSER_HOST_NAME` accepts a JSON list matched positionally to
   `LOGPARSER_LOG_PATHS`, so one instance tailing logs shipped from several
