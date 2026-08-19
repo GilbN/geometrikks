@@ -35,14 +35,16 @@ export function asnCoverage(
   const datacenter = categories?.find((c) => c.category === "datacenter")?.hits ?? 0
   const other = categories?.find((c) => c.category === "other")?.hits ?? 0
   const classified = datacenter + other
-  // max(0): a range whose totals and ASN aggregates were read microseconds
-  // apart can disagree by a row or two under live ingestion.
+  // The totals and the ASN aggregates are two separate reads, so live
+  // ingestion between them can leave classified marginally ahead of the
+  // range total. Both derived figures are clamped to their physical range so
+  // no caller can render "-12 unenriched" or "105% of range".
   const unenriched = Math.max(0, totalRequests - classified)
   return {
     classified,
     unenriched,
     datacenterShare: classified > 0 ? (datacenter / classified) * 100 : 0,
-    coverage: totalRequests > 0 ? (classified / totalRequests) * 100 : 0,
+    coverage: totalRequests > 0 ? Math.min(100, (classified / totalRequests) * 100) : 0,
     hasData: classified > 0,
   }
 }

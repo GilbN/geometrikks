@@ -40,9 +40,11 @@ describe("asnCoverage", () => {
     expect(c.coverage).toBe(0)
   })
 
-  it("never reports negative unenriched when totals race the aggregates", () => {
-    // Live ingestion between the two reads can leave classified > total.
+  it("clamps both derived figures when totals race the aggregates", () => {
+    // Live ingestion between the two reads can leave classified > total;
+    // neither "-5 unenriched" nor "105% of range" may reach the UI.
     const c = asnCoverage(cats(60, 45), 100)
     expect(c.unenriched).toBe(0)
+    expect(c.coverage).toBe(100)
   })
 })
