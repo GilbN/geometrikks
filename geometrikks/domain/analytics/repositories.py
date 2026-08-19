@@ -827,6 +827,33 @@ class SummaryStatsRepository:
             for row in result.fetchall()
         ]
 
+    async def get_request_totals(
+        self, start: datetime, end: datetime, *, filters: AnalyticsFilters | None = None
+    ) -> tuple[int, int]:
+        """(total_requests, total_bytes) for the range, ASN-agnostic.
+
+        The honest denominator for /top-asns: the ASN queries exclude
+        NULL-ASN rows, so coverage can only be judged against this. Unfiltered
+        ranges ride the summary CAGGs via get_summary; filtered ranges scan
+        raw access_logs (the same trade-off as every filtered top-list).
+        """
+        filters = filters or AnalyticsFilters()
+        if not filters.is_active():
+            stats = await self.get_summary(start, end)
+            return (stats.total_log_records, stats.total_bytes) if stats else (0, 0)
+        filter_sql, filter_params = filters.sql_conditions()
+        stmt = text(f"""
+            SELECT CAST(COUNT(*) AS BIGINT) AS hits,
+                   CAST(COALESCE(SUM(bytes_sent), 0) AS BIGINT) AS total_bytes
+            FROM access_logs
+            WHERE timestamp >= :start AND timestamp < :end
+            {filter_sql}
+        """)
+        row = (await self.session.execute(
+            stmt, {"start": start, "end": end, **filter_params}
+        )).one()
+        return row.hits, row.total_bytes
+
     def _log_ip_combined_cte(self, granularity: StatsGranularity) -> str:
         """WITH clause exposing ``combined`` for a stitched log_ip CAGG read.
 

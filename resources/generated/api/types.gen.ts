@@ -908,6 +908,8 @@ export type TopAsnsResponse = {
   endDate: string;
   items: Array<TopAsnDto>;
   startDate: string;
+  totalBytes: number;
+  totalRequests: number;
 };
 
 /**

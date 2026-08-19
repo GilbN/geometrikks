@@ -17,8 +17,16 @@ export function TrafficOriginCard() {
 
   const datacenter = data?.categories.find((c) => c.category === "datacenter")
   const other = data?.categories.find((c) => c.category === "other")
-  const total = (datacenter?.hits ?? 0) + (other?.hits ?? 0)
-  const share = total > 0 ? ((datacenter?.hits ?? 0) / total) * 100 : 0
+  // Two denominators, deliberately: the share is of CLASSIFIED traffic (the
+  // only traffic whose origin is known), while coverage is judged against
+  // every request in the range. Dividing by the classified total alone would
+  // report "100% datacenter" on an install whose history predates ASN
+  // enrichment.
+  const classified = (datacenter?.hits ?? 0) + (other?.hits ?? 0)
+  const totalRequests = data?.totalRequests ?? 0
+  const unenriched = Math.max(0, totalRequests - classified)
+  const share = classified > 0 ? ((datacenter?.hits ?? 0) / classified) * 100 : 0
+  const coverage = totalRequests > 0 ? (classified / totalRequests) * 100 : 0
 
   return (
     <Card>
@@ -28,19 +36,29 @@ export function TrafficOriginCard() {
       <CardContent>
         {isLoading || !data ? (
           <Skeleton className="h-32 w-full" />
-        ) : total === 0 ? (
+        ) : classified === 0 ? (
           <p className="text-sm text-muted-foreground">
-            No ASN data in this range yet; requests are enriched from the
-            time the ASN database is first loaded.
+            None of the {formatNumber(totalRequests)} requests in this range
+            have ASN data; requests are enriched from the time the ASN
+            database is first loaded. Run <code className="font-mono">litestar backfill-asn</code>{" "}
+            to fill in history.
           </p>
         ) : (
           <div className="flex flex-col gap-4">
             <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
               <span className="text-3xl font-semibold tabular-nums">{share.toFixed(1)}%</span>
               <span className="text-muted-foreground">
-                of {formatNumber(total)} requests came from datacenter networks
+                of {formatNumber(classified)} requests with ASN data came from
+                datacenter networks
               </span>
             </div>
+            {unenriched > 0 && (
+              <p className="text-xs text-muted-foreground">
+                Covers {coverage.toFixed(1)}% of this range;{" "}
+                {formatNumber(unenriched)} of {formatNumber(totalRequests)} requests
+                have no ASN data and are excluded above.
+              </p>
+            )}
             <div className="h-2.5 rounded-full bg-muted">
               <div
                 className="h-2.5 rounded-full bg-geo-cyan"
@@ -65,10 +83,18 @@ export function TrafficOriginCard() {
                         <TableCell className="text-right tabular-nums">{formatNumber(cat.hits)}</TableCell>
                         <TableCell className="text-right tabular-nums">{formatBytes(cat.totalBytes)}</TableCell>
                         <TableCell className="text-right tabular-nums">
-                          {total > 0 ? ((cat.hits / total) * 100).toFixed(1) : "0.0"}%
+                          {classified > 0 ? ((cat.hits / classified) * 100).toFixed(1) : "0.0"}%
                         </TableCell>
                       </TableRow>
                     ),
+                )}
+                {unenriched > 0 && (
+                  <TableRow className="text-muted-foreground">
+                    <TableCell>No ASN data</TableCell>
+                    <TableCell className="text-right tabular-nums">{formatNumber(unenriched)}</TableCell>
+                    <TableCell className="text-right tabular-nums">-</TableCell>
+                    <TableCell className="text-right tabular-nums">-</TableCell>
+                  </TableRow>
                 )}
               </TableBody>
             </Table>

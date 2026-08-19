@@ -585,6 +585,12 @@ class AnalyticsController(Controller):
         """
         filters = _build_filters(country_code, city, ip_address, ip_address_not_in)
         rows = await summary_stats_repo.get_top_asns(start_date, end_date, filters=filters)
+        # ASN-agnostic totals: the categories only cover ASN-tagged rows, so
+        # the UI needs this to report coverage instead of implying that
+        # unenriched history does not exist.
+        total_requests, total_bytes = await summary_stats_repo.get_request_totals(
+            start_date, end_date, filters=filters
+        )
 
         totals: dict[str, list[int]] = {"datacenter": [0, 0], "other": [0, 0]}
         items: list[TopAsnDTO] = []
@@ -603,6 +609,8 @@ class AnalyticsController(Controller):
         return TopAsnsResponse(
             start_date=start_date.isoformat(),
             end_date=end_date.isoformat(),
+            total_requests=total_requests,
+            total_bytes=total_bytes,
             items=items,
             categories=[
                 AsnCategoryTotalsDTO(

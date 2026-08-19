@@ -3231,13 +3231,21 @@
           },
           "startDate": {
             "type": "string"
+          },
+          "totalBytes": {
+            "type": "integer"
+          },
+          "totalRequests": {
+            "type": "integer"
           }
         },
         "required": [
           "categories",
           "endDate",
           "items",
-          "startDate"
+          "startDate",
+          "totalBytes",
+          "totalRequests"
         ],
         "title": "TopAsnsResponse",
         "type": "object"
