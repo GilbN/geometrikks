@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/table"
 import { Skeleton } from "@/components/ui/skeleton"
 import { formatBytes, formatNumber } from "@/lib/api"
+import { asnCoverage } from "@/lib/asn-coverage"
 import { useTopAsns } from "@/lib/queries"
 import { CategoryBadge } from "./top-asns-table"
 
@@ -17,16 +18,13 @@ export function TrafficOriginCard() {
 
   const datacenter = data?.categories.find((c) => c.category === "datacenter")
   const other = data?.categories.find((c) => c.category === "other")
-  // Two denominators, deliberately: the share is of CLASSIFIED traffic (the
-  // only traffic whose origin is known), while coverage is judged against
-  // every request in the range. Dividing by the classified total alone would
-  // report "100% datacenter" on an install whose history predates ASN
-  // enrichment.
-  const classified = (datacenter?.hits ?? 0) + (other?.hits ?? 0)
   const totalRequests = data?.totalRequests ?? 0
-  const unenriched = Math.max(0, totalRequests - classified)
-  const share = classified > 0 ? ((datacenter?.hits ?? 0) / classified) * 100 : 0
-  const coverage = totalRequests > 0 ? (classified / totalRequests) * 100 : 0
+  // See asn-coverage.ts for why the share and the coverage use different
+  // denominators.
+  const { classified, unenriched, datacenterShare: share, coverage } = asnCoverage(
+    data?.categories,
+    totalRequests,
+  )
 
   return (
     <Card>

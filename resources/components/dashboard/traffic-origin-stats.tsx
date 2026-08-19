@@ -1,0 +1,63 @@
+/**
+ * Dashboard "Traffic origin" KPIs, fed by the analytics /top-asns endpoint.
+ *
+ * Owns its own query rather than riding /summary: the summary CAGGs carry no
+ * ASN dimension (adding one means drop+recreate, which discards history older
+ * than raw retention), and /summary runs twice per load for its
+ * previous-period comparison. TanStack shares this fetch with the analytics
+ * page whenever the selected range matches.
+ *
+ * The hook depends on AnalyticsFiltersContext, whose default is EMPTY_FILTERS
+ * precisely so dashboard-shared hooks work outside the analytics provider.
+ */
+import { Network, Server } from "lucide-react"
+
+import { SectionHeader } from "@/components/dashboard/section-header"
+import { StatCard } from "@/components/dashboard/statcard"
+import { formatNumber } from "@/lib/api"
+import { asnCoverage } from "@/lib/asn-coverage"
+import { useTopAsns } from "@/lib/queries"
+
+export function TrafficOriginStats() {
+  // limit=1: only the leading organization is shown here. Category totals are
+  // computed server-side across every ASN, so they stay exact regardless.
+  const { data } = useTopAsns({ limit: 1 })
+
+  const { classified, datacenterShare, coverage, hasData } = asnCoverage(
+    data?.categories,
+    data?.totalRequests ?? 0,
+  )
+
+  // Nothing enriched yet (fresh install, ASN disabled, history predating the
+  // feature): stay silent rather than parking an explanatory card on a
+  // glanceable KPI page. The analytics page explains it and names the
+  // backfill command.
+  if (!data || !hasData) return null
+
+  const top = data.items[0]
+
+  return (
+    <>
+      <SectionHeader>Traffic Origin</SectionHeader>
+      <div className="grid gap-4 md:grid-cols-2">
+        <StatCard
+          title="Datacenter Traffic"
+          value={`${datacenterShare.toFixed(1)}%`}
+          subtitle={
+            coverage < 99.5
+              ? `of ${formatNumber(classified)} classified requests (${coverage.toFixed(0)}% of range)`
+              : `of ${formatNumber(classified)} requests`
+          }
+          icon={Server}
+        />
+        <StatCard
+          title="Top Network"
+          value={top?.organization ?? `AS${top?.asn ?? "-"}`}
+          valueClassName="truncate text-xl"
+          subtitle={top ? `AS${top.asn} - ${formatNumber(top.hits)} requests` : "No ASN data"}
+          icon={Network}
+        />
+      </div>
+    </>
+  )
+}

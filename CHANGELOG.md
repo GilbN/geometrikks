@@ -31,6 +31,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   retroactively.
 - The Top URLs and Top user agents tables now sit side by side on wide
   screens to save page height.
+- The Summary dashboard gains a Traffic origin section: the datacenter share
+  of classified traffic and the busiest network for the selected range. It
+  is hidden entirely when no requests in range carry ASN data.
 - `litestar backfill-asn`: retroactively stamp ASN data onto rows ingested
   before the ASN feature (or while the database was missing), with a
   confirmation prompt, decompress-first handling for compressed history,
