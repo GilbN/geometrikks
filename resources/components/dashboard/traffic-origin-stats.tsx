@@ -12,6 +12,7 @@
  */
 import { Network, Server } from "lucide-react"
 
+import { Card, CardContent } from "@/components/ui/card"
 import { SectionHeader } from "@/components/dashboard/section-header"
 import { StatCard } from "@/components/dashboard/statcard"
 import { formatNumber } from "@/lib/api"
@@ -21,12 +22,32 @@ import { useTopAsns } from "@/lib/queries"
 export function TrafficOriginStats() {
   // limit=1: only the leading organization is shown here. Category totals are
   // computed server-side across every ASN, so they stay exact regardless.
-  const { data } = useTopAsns({ limit: 1 })
+  const { data, isError, error } = useTopAsns({ limit: 1 })
 
   const { classified, datacenterShare, coverage, hasData } = asnCoverage(
     data?.categories,
     data?.totalRequests ?? 0,
   )
+
+  // A failed request must not look like "you have no ASN data": without this
+  // the section would vanish while the rest of Summary renders normally, and
+  // nothing would say the query broke. Only when there is no usable data at
+  // all - a background refetch failure still has the last good values, and
+  // stale KPIs beat an error card.
+  if (isError && !data) {
+    return (
+      <>
+        <SectionHeader>Traffic Origin</SectionHeader>
+        <Card className="border-destructive/50 bg-destructive/10">
+          <CardContent className="py-4">
+            <p className="text-sm text-destructive">
+              Failed to load ASN statistics: {error?.message ?? "Unknown error"}
+            </p>
+          </CardContent>
+        </Card>
+      </>
+    )
+  }
 
   // Nothing enriched yet (fresh install, ASN disabled, history predating the
   // feature): stay silent rather than parking an explanatory card on a
