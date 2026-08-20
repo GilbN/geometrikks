@@ -132,3 +132,24 @@ def test_event_carries_clipped_asn_fields() -> None:
     assert event["log"]["autonomous_system_number"] == 24940
     assert event["log"]["autonomous_system_organization"] == "H" * ASN_ORG_MAX
     assert ASN_ORG_MAX == 100
+
+
+def test_encode_guard_bills_non_ascii_as_utf8_bytes() -> None:
+    """A URL of 2000 two-byte characters is 4000 bytes on the wire. Billing it
+    at six chars each, the way json.dumps' \\uXXXX escaping does, would drop an
+    envelope that fits well inside the NOTIFY budget."""
+    event = {"type": "request", "geo": None, "log": {"url": "\u00e9" * 2000}}
+    assert encode_guard(event) is True
+
+
+def test_encode_guard_measures_what_the_channels_plugin_sends() -> None:
+    """The guard is only meaningful if it counts the same bytes the backend
+    hands to NOTIFY."""
+    from litestar.channels import ChannelsPlugin
+    from litestar.channels.backends.memory import MemoryChannelsBackend
+
+    plugin = ChannelsPlugin(backend=MemoryChannelsBackend(), channels=["live_events"])
+    event = record_to_event(_record(url="/\u00e9" * 200))
+    assert event is not None
+    assert len(plugin.encode_data(event)) <= PAYLOAD_MAX
+    assert encode_guard(event) is True

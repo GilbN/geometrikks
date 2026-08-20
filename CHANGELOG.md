@@ -38,6 +38,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   range. IPs are resolved and written in bounded chunks, and a failed
   aggregate refresh exits non-zero rather than reporting a clean run.
 
+## [0.9.0] - 2026-08-20
+
+### Added
+
 - `LOGPARSER_HOST_NAME` accepts a JSON list matched positionally to
   `LOGPARSER_LOG_PATHS`, so one instance tailing logs shipped from several
   machines records each file under its source hostname. `litestar
@@ -57,8 +61,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   traffic and vitals restricted to the selected sources, and the source
   hostname shown on live popups and feed rows.
 - Settings > Status shows generic operator advisories from the health
-  endpoint; the first is a warning when recorded hostnames look like Docker
-  container IDs, with the consolidation command to fix them.
+  endpoint. The first producer warns when the map's per-source aggregates
+  are held back, either because the recorded hostnames look like Docker
+  container IDs or because there are more of them than those aggregates are
+  built for, and gives the consolidation command.
 - Multi-site home locations: agents detect their own public-IP location and
   record it per hostname, with live map routes flying to each source's home
   (one beacon per site). `MAP_HOME_LOCATIONS` overrides any hostname's
@@ -97,6 +103,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   ... out of background workers" warnings when the aggregate refresh
   policies all fire at once. Existing installs: copy the `command:` block
   from `docker-compose.yml` onto the database service and recreate it.
+- `docker-compose.yml` sets `stop_grace_period: 20s` on the app service, as
+  the deployment docs already prescribed. Docker's default 10s stop timeout
+  raced Granian's 15s worker-kill timeout, so `docker stop` could SIGKILL
+  the container mid-teardown and lose the ingestion batch still in flight.
+  Existing installs: add the same line to your app (and agent) services.
 
 ## [0.8.0] - 2026-08-16
 
@@ -836,7 +847,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Settings endpoint no longer exposes the full settings tree (database credentials leaked via `model_dump()`); response is now an explicit whitelist.
 - Timestamps in `CALL refresh_continuous_aggregate` are bound as asyncpg parameters instead of interpolated into SQL.
 
-[Unreleased]: https://github.com/GilbN/geometrikks/compare/v0.8.0...HEAD
+[Unreleased]: https://github.com/GilbN/geometrikks/compare/v0.9.0...HEAD
+[0.9.0]: https://github.com/GilbN/geometrikks/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/GilbN/geometrikks/compare/v0.7.1...v0.8.0
 [0.7.1]: https://github.com/GilbN/geometrikks/compare/v0.7.0...v0.7.1
 [0.7.0]: https://github.com/GilbN/geometrikks/releases/tag/v0.7.0
