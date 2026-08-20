@@ -3,7 +3,8 @@
 /health is safe for container HEALTHCHECK / LB probes: it returns 200 as
 long as the app process serves requests; component states live in the
 payload and never flip the status code. /health/ready returns 503 until
-the database answers, for orchestrators that want a real readiness gate.
+the database answers (and, in agent mode, until the startup schema gate
+has passed), for orchestrators that want a real readiness gate.
 
 Timestamps are pre-rendered ISO 8601 strings (datetime.isoformat), the
 format this payload has always used on the wire.
@@ -34,6 +35,9 @@ class IngestionHealth(msgspec.Struct, rename="camel"):
     pending_records: int
     missing_files: list[str]
     last_record_at: str | None
+    # Additive: kept alongside `running` for wire compatibility.
+    status: Literal["running", "degraded", "disabled"] = "running"
+    publish_dropped: int = 0
 
 
 class DatabaseHealth(msgspec.Struct, rename="camel"):
@@ -50,6 +54,17 @@ class CrowdSecHealth(msgspec.Struct, rename="camel"):
     lapi_reachable: bool | None
 
 
+class Advisory(msgspec.Struct, rename="camel"):
+    """One operator-actionable warning; the status page renders a card per
+    advisory, so producers must write user-facing text, not log lines."""
+
+    id: str
+    severity: Literal["warning", "critical"]
+    summary: str
+    detail: str | None = None
+    remedy: str | None = None
+
+
 class HealthResponse(msgspec.Struct, rename="camel"):
     status: Literal["healthy", "degraded"]
     started_at: str | None
@@ -58,6 +73,13 @@ class HealthResponse(msgspec.Struct, rename="camel"):
     geoip: GeoIPHealth
     crowdsec: CrowdSecHealth
     timestamp: str
+    # Additive: agent-mode reporting (Task 5/6). schema_wait is None in full
+    # mode, since only agent startup ever sets app.state.schema_wait_result.
+    mode: Literal["full", "agent"] = "full"
+    schema_wait: str | None = None
+    # Additive: generic operator advisories; empty when nothing needs
+    # attention. Producers append here rather than growing bespoke fields.
+    advisories: list[Advisory] = msgspec.field(default_factory=list)
 
 
 class ReadinessResponse(msgspec.Struct, rename="camel"):
@@ -79,6 +101,51 @@ async def _database_reachable(app: Litestar, timeout: float = 2.0) -> bool:
         return True
     except Exception:
         return False
+
+
+def _collect_advisories() -> list[Advisory]:
+    from geometrikks.server import timescale
+
+    advisories: list[Advisory] = []
+    pollution = timescale.get_hostname_pollution()
+    if not pollution or not pollution.polluted or timescale.location_caggs_have_hostname():
+        return advisories
+    if pollution.reason == "container-ids":
+        advisories.append(Advisory(
+            id="hostname-pollution",
+            severity="warning",
+            summary=(
+                f"{pollution.container_id_count} of {pollution.distinct_label} "
+                "recording hostnames look like Docker container IDs; the map "
+                "source filter runs unaggregated until you consolidate."
+            ),
+            detail=(
+                "LOGPARSER_HOST_NAME was unset while running in Docker, so "
+                "rotating container IDs were recorded as hostnames. The "
+                "location-CAGG upgrade is skipped until the history is "
+                "consolidated; restart afterwards to migrate."
+            ),
+            remedy="litestar backfill-hostname <hostname> --consolidate",
+        ))
+    else:
+        advisories.append(Advisory(
+            id="hostname-count",
+            severity="warning",
+            summary=(
+                f"{pollution.distinct_label} distinct recording hostnames is "
+                f"above the {timescale.DISTINCT_HOSTNAME_CEILING} ceiling; the "
+                "map source filter runs unaggregated."
+            ),
+            detail=(
+                "The per-hostname location aggregates are only built below "
+                "that ceiling, so source-filtered map queries fall back to raw "
+                "scans. If every hostname is a real source, only query speed "
+                "suffers. If they are churn from an unset LOGPARSER_HOST_NAME, "
+                "consolidate the history and restart to migrate."
+            ),
+            remedy="litestar backfill-hostname <hostname> --consolidate",
+        ))
+    return advisories
 
 
 @get(
@@ -104,11 +171,21 @@ async def health(
 
     poller = runtime.get_crowdsec_poller(request.app)
 
+    # LOGPARSER_ENABLED=false is an operator choice, not an outage: it must
+    # report "disabled", not "degraded", and must not flip overall status.
+    ingestion_status: Literal["running", "degraded", "disabled"]
+    if not settings.logparser.enabled:
+        ingestion_status = "disabled"
+    elif is_running:
+        ingestion_status = "running"
+    else:
+        ingestion_status = "degraded"
+
     return HealthResponse(
         # geoip does not flip status on its own: without a GeoLite2 database
         # file, ingestion refuses to start and ingestion.running reflects that.
         status="healthy"
-        if (is_running and db_reachable and not missing_files)
+        if (db_reachable and not missing_files and ingestion_status != "degraded")
         else "degraded",
         started_at=_iso(runtime.get_started_at(request.app)),
         ingestion=IngestionHealth(
@@ -118,6 +195,10 @@ async def health(
             missing_files=missing_files,
             last_record_at=_iso(
                 ingestion_service.last_record_at if ingestion_service else None
+            ),
+            status=ingestion_status,
+            publish_dropped=(
+                ingestion_service.publish_dropped if ingestion_service else 0
             ),
         ),
         database=DatabaseHealth(reachable=db_reachable),
@@ -136,6 +217,13 @@ async def health(
             lapi_reachable=poller.lapi_reachable if poller is not None else None,
         ),
         timestamp=datetime.now(timezone.utc).isoformat(),
+        mode="agent" if settings.is_agent else "full",
+        schema_wait=(
+            getattr(request.app.state, "schema_wait_result", None)
+            if settings.is_agent
+            else None
+        ),
+        advisories=_collect_advisories(),
     )
 
 
@@ -145,12 +233,24 @@ async def health(
     responses={
         HTTP_503_SERVICE_UNAVAILABLE: ResponseSpec(
             data_container=ReadinessResponse,
-            description="Database unreachable; the app is not ready for traffic.",
+            description=(
+                "Database unreachable, or an agent whose schema gate has not "
+                "passed; the app is not ready for traffic."
+            ),
         )
     },
 )
-async def health_ready(request: Request) -> Response[ReadinessResponse]:
-    """Readiness: 200 only when the database answers."""
-    if await _database_reachable(request.app):
+async def health_ready(
+    request: Request,
+    settings: NamedDependency[SkipValidation[Settings]],
+) -> Response[ReadinessResponse]:
+    """Readiness: the database answers and, in agent mode, the startup schema
+    gate passed. A schema-timeout agent never starts ingestion, so it stays
+    503 and an orchestrator restart re-runs the wait."""
+    schema_gate_passed = (
+        not settings.is_agent
+        or getattr(request.app.state, "schema_wait_result", None) in ("ready", "newer")
+    )
+    if schema_gate_passed and await _database_reachable(request.app):
         return Response(ReadinessResponse(ready=True), status_code=HTTP_200_OK)
     return Response(ReadinessResponse(ready=False), status_code=HTTP_503_SERVICE_UNAVAILABLE)

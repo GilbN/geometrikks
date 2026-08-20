@@ -1,5 +1,5 @@
 /**
- * Live-tail view: prepends incoming access_log events, keeps at most
+ * Live-tail view: prepends incoming access-log rows, keeps at most
  * MAX_ROWS, auto-scrolls to top unless the pointer is over the list.
  * Rows are laid out as aligned monospace columns mirroring the access.log
  * fields (time, status, method, url, host, ip, user, bytes, req-time, ver).
@@ -13,11 +13,9 @@ import { useMediaQuery } from "@/hooks/use-media-query"
 import { useLiveEvents } from "@/lib/live-feed-context"
 import { formatBytes, formatDuration } from "@/lib/api"
 import { cn } from "@/lib/utils"
-import type { LiveEvent } from "@/lib/websocket"
+import type { AccessLogData } from "@/lib/websocket"
 
 const MAX_ROWS = 500
-
-type AccessLogEvent = Extract<LiveEvent, { type: "access_log" }>["data"]
 
 /** Tailwind classes for the status badge, by response class. */
 function statusBadgeClass(code: number): string {
@@ -31,7 +29,7 @@ function statusBadgeClass(code: number): string {
 const COLS = "flex items-center gap-2 px-3 min-w-max"
 
 export function LiveTail({ enabled }: { enabled: boolean }) {
-  const [rows, setRows] = useState<AccessLogEvent[]>([])
+  const [rows, setRows] = useState<AccessLogData[]>([])
   const [dropped, setDropped] = useState(0)
   // Two pause sources: the explicit button (all devices) and hover (devices
   // with a real hover; touch emits sticky synthetic mouseenter on tap).
@@ -41,14 +39,12 @@ export function LiveTail({ enabled }: { enabled: boolean }) {
   const paused = manuallyPaused || (canHover && hoverPaused)
   // Events received while paused: buffered (newest first, capped) and merged
   // on resume so the visible list stays still but nothing is lost.
-  const pausedBufferRef = useRef<AccessLogEvent[]>([])
+  const pausedBufferRef = useRef<AccessLogData[]>([])
   const [pausedCount, setPausedCount] = useState(0)
   const parentRef = useRef<HTMLDivElement>(null)
 
   useLiveEvents((events, droppedCount) => {
-    const logs = events
-      .filter((e): e is Extract<LiveEvent, { type: "access_log" }> => e.type === "access_log")
-      .map((e) => e.data)
+    const logs = events.flatMap((e) => (e.log ? [e.log] : []))
     if (logs.length === 0 && droppedCount === 0) return
     if (droppedCount) setDropped((d) => d + droppedCount)
     if (paused) {

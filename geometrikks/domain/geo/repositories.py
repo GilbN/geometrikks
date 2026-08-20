@@ -63,6 +63,25 @@ def get_stats_granularity(from_timestamp: datetime, to_timestamp: datetime) -> S
         return StatsGranularity.DAILY
 
 
+def resolve_locations_granularity(
+    from_timestamp: datetime,
+    to_timestamp: datetime,
+    *,
+    has_ip_filter: bool,
+    has_hostname_filter: bool,
+) -> StatsGranularity:
+    """Routing with filters: IP filters always force RAW; hostname filters
+    force RAW only until the location CAGGs carry the hostname dimension."""
+    from geometrikks.server import timescale
+
+    granularity = get_stats_granularity(from_timestamp, to_timestamp)
+    if has_ip_filter:
+        return StatsGranularity.RAW
+    if has_hostname_filter and not timescale.location_caggs_have_hostname():
+        return StatsGranularity.RAW
+    return granularity
+
+
 def use_local_days(
     granularity: StatsGranularity,
     start: datetime,
@@ -211,9 +230,12 @@ class GeoLocationRepository(SQLAlchemyAsyncRepository[GeoLocation]):
         - > 24 hours, ≤ 30 days: location_hourly_stats CAGG
         - > 30 days: location_daily_stats CAGG
 
-        Any IP/hostname filter forces the RAW branch regardless of range:
-        the location CAGGs carry no IP or hostname dimension. Such queries
-        are bounded by raw retention (default 180d).
+        An IP filter always forces the RAW branch regardless of range: the
+        location CAGGs carry no IP dimension, and such queries are bounded
+        by raw retention (default 180d). A hostname filter forces RAW only
+        until the location CAGGs carry the hostname dimension (see
+        ``timescale.location_caggs_have_hostname``); once they do, hostname
+        filters read the CAGGs like any other range-only query.
 
         Args:
             from_timestamp: Start datetime for filtering events.
@@ -235,9 +257,12 @@ class GeoLocationRepository(SQLAlchemyAsyncRepository[GeoLocation]):
         if not from_timestamp.tzinfo or not to_timestamp.tzinfo:
             raise ValueError("from_timestamp and to_timestamp must be timezone-aware")
 
-        granularity = get_stats_granularity(from_timestamp, to_timestamp)
-        if ip_addresses or ip_addresses_exclude or hostnames:
-            granularity = StatsGranularity.RAW
+        granularity = resolve_locations_granularity(
+            from_timestamp,
+            to_timestamp,
+            has_ip_filter=bool(ip_addresses or ip_addresses_exclude),
+            has_hostname_filter=bool(hostnames),
+        )
 
         logger.debug(
             "get_all_with_event_counts: using %s for range %s to %s",
@@ -254,17 +279,23 @@ class GeoLocationRepository(SQLAlchemyAsyncRepository[GeoLocation]):
         if cities:
             filters_sql += " AND gl.city = ANY(:cities)"
             params["cities"] = cities
-        # ge-aliased conditions are safe here: any of these filters forced the
-        # RAW branch above, and only that branch joins geo_events as ge.
+        # ge-aliased IP conditions are safe here: an IP filter always forces
+        # the RAW branch above, and only that branch joins geo_events as ge.
         if ip_addresses:
             filters_sql += " AND ge.ip_address = ANY(CAST(:filter_ips AS inet[]))"
             params["filter_ips"] = list(ip_addresses)
         if ip_addresses_exclude:
             filters_sql += " AND NOT (ge.ip_address = ANY(CAST(:filter_ips_excl AS inet[])))"
             params["filter_ips_excl"] = list(ip_addresses_exclude)
+
+        # Hostname is aliased per branch: ge in RAW, ls in the CAGGs (only
+        # reachable there once the hostname dimension exists).
+        hostname_sql = ""
+        cagg_hostname_sql = ""
         if hostnames:
-            filters_sql += " AND ge.hostname = ANY(:filter_hostnames)"
             params["filter_hostnames"] = list(hostnames)
+            hostname_sql = " AND ge.hostname = ANY(:filter_hostnames)"
+            cagg_hostname_sql = " AND ls.hostname = ANY(:filter_hostnames)"
 
         if granularity == StatsGranularity.RAW:
             # Query raw geo_events table for exact time range granularity
@@ -274,7 +305,7 @@ class GeoLocationRepository(SQLAlchemyAsyncRepository[GeoLocation]):
                     CAST(COUNT(ge.id) AS INTEGER) AS event_count
                 FROM geo_locations gl
                 JOIN geo_events ge ON ge.location_id = gl.id
-                WHERE ge.timestamp >= :from_ts AND ge.timestamp < :to_ts{filters_sql}
+                WHERE ge.timestamp >= :from_ts AND ge.timestamp < :to_ts{filters_sql}{hostname_sql}
                 GROUP BY gl.id
                 ORDER BY event_count DESC, gl.id
             """)
@@ -292,7 +323,7 @@ class GeoLocationRepository(SQLAlchemyAsyncRepository[GeoLocation]):
                 FROM geo_locations gl
                 JOIN {table} ls ON ls.location_id = gl.id
                 WHERE ls.bucket >= time_bucket('{bucket_interval}', CAST(:from_ts AS timestamptz))
-                  AND ls.bucket < :to_ts{filters_sql}
+                  AND ls.bucket < :to_ts{filters_sql}{cagg_hostname_sql}
                 GROUP BY gl.id
                 ORDER BY event_count DESC, gl.id
             """)

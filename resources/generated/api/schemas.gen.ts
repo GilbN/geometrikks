@@ -289,6 +289,44 @@ export const AccessLogFacetsSchema = {
   type: "object",
 } as const;
 
+export const AdvisorySchema = {
+  properties: {
+    detail: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    id: {
+      type: "string",
+    },
+    remedy: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    severity: {
+      enum: ["warning", "critical"],
+      type: "string",
+    },
+    summary: {
+      type: "string",
+    },
+  },
+  required: ["id", "severity", "summary"],
+  title: "Advisory",
+  type: "object",
+} as const;
+
 export const AlertViewSchema = {
   properties: {
     asName: {
@@ -750,6 +788,20 @@ export const DecisionViewSchema = {
     "type",
   ],
   title: "DecisionView",
+  type: "object",
+} as const;
+
+export const DefaultHomeViewSchema = {
+  properties: {
+    latitude: {
+      type: "number",
+    },
+    longitude: {
+      type: "number",
+    },
+  },
+  required: ["latitude", "longitude"],
+  title: "DefaultHomeView",
   type: "object",
 } as const;
 
@@ -1397,6 +1449,12 @@ export const GlobalTopIPsResponseSchema = {
 
 export const HealthResponseSchema = {
   properties: {
+    advisories: {
+      items: {
+        $ref: "#/components/schemas/Advisory",
+      },
+      type: "array",
+    },
     crowdsec: {
       $ref: "#/components/schemas/CrowdSecHealth",
     },
@@ -1408,6 +1466,21 @@ export const HealthResponseSchema = {
     },
     ingestion: {
       $ref: "#/components/schemas/IngestionHealth",
+    },
+    mode: {
+      default: "full",
+      enum: ["full", "agent"],
+      type: "string",
+    },
+    schemaWait: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
     },
     startedAt: {
       oneOf: [
@@ -1521,8 +1594,17 @@ export const IngestionHealthSchema = {
     pendingRecords: {
       type: "integer",
     },
+    publishDropped: {
+      default: 0,
+      type: "integer",
+    },
     running: {
       type: "boolean",
+    },
+    status: {
+      default: "running",
+      enum: ["running", "degraded", "disabled"],
+      type: "string",
     },
   },
   required: [
@@ -2653,6 +2735,61 @@ export const SettingsSectionViewSchema = {
   },
   required: ["description", "fields", "name", "title"],
   title: "SettingsSectionView",
+  type: "object",
+} as const;
+
+export const SiteHomeViewSchema = {
+  properties: {
+    detectedAt: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    hostname: {
+      type: "string",
+    },
+    latitude: {
+      type: "number",
+    },
+    longitude: {
+      type: "number",
+    },
+    source: {
+      enum: ["auto", "override"],
+      type: "string",
+    },
+  },
+  required: ["detectedAt", "hostname", "latitude", "longitude", "source"],
+  title: "SiteHomeView",
+  type: "object",
+} as const;
+
+export const SiteHomesResponseSchema = {
+  properties: {
+    default: {
+      oneOf: [
+        {
+          $ref: "#/components/schemas/DefaultHomeView",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    homes: {
+      items: {
+        $ref: "#/components/schemas/SiteHomeView",
+      },
+      type: "array",
+    },
+  },
+  required: ["default", "homes"],
+  title: "SiteHomesResponse",
   type: "object",
 } as const;
 

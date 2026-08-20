@@ -21,8 +21,10 @@ CAGG Structure:
 from __future__ import annotations
 
 import asyncio
+import re
+from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 from sqlalchemy import text
 
@@ -34,6 +36,85 @@ if TYPE_CHECKING:
     from geometrikks.config.settings import AnalyticsSettings
 
 logger = get_logger(__name__)
+
+
+# =============================================================================
+# Hostname Pollution Detection
+# =============================================================================
+
+# Docker stamps the short container ID as hostname when LOGPARSER_HOST_NAME
+# is unset; 12 lowercase hex chars is that exact shape.
+CONTAINER_ID_RE = re.compile(r"^[0-9a-f]{12}$")
+CONTAINER_ID_THRESHOLD = 10
+DISTINCT_HOSTNAME_CEILING = 50
+# +1: fetching one past the ceiling proves it was exceeded without an
+# unbounded DISTINCT over the hypertable.
+_POLLUTION_PROBE_LIMIT = DISTINCT_HOSTNAME_CEILING + 1
+
+
+@dataclass(frozen=True)
+class HostnamePollution:
+    distinct_count: int
+    container_id_count: int
+
+    @property
+    def probe_capped(self) -> bool:
+        """distinct_count is a floor, not a total: the probe hit its LIMIT."""
+        return self.distinct_count >= _POLLUTION_PROBE_LIMIT
+
+    @property
+    def distinct_label(self) -> str:
+        """Renders a capped count as `50+` so messages do not understate."""
+        if self.probe_capped:
+            return f"{DISTINCT_HOSTNAME_CEILING}+"
+        return str(self.distinct_count)
+
+    @property
+    def reason(self) -> Literal["container-ids", "hostname-count"] | None:
+        """Which threshold tripped; callers word their message from this."""
+        if self.container_id_count >= CONTAINER_ID_THRESHOLD:
+            return "container-ids"
+        if self.distinct_count > DISTINCT_HOSTNAME_CEILING:
+            return "hostname-count"
+        return None
+
+    @property
+    def polluted(self) -> bool:
+        return self.reason is not None
+
+
+def classify_hostnames(hostnames: list[str]) -> HostnamePollution:
+    """Pure classification so the heuristics are unit-testable without a DB."""
+    return HostnamePollution(
+        distinct_count=len(hostnames),
+        container_id_count=sum(1 for h in hostnames if CONTAINER_ID_RE.match(h)),
+    )
+
+
+async def detect_hostname_pollution(conn: "AsyncConnection") -> HostnamePollution:
+    """Bounded distinct-hostname probe against geo_events.
+
+    GROUP BY + LIMIT streams groups off ix_geo_events_hostname and stops at
+    the cap, so this stays cheap on large hypertables and does not depend on
+    facet-CAGG freshness.
+    """
+    result = await conn.execute(text(
+        "SELECT hostname FROM geo_events GROUP BY hostname ORDER BY hostname LIMIT :cap"
+    ), {"cap": _POLLUTION_PROBE_LIMIT})
+    return classify_hostnames([row.hostname for row in result])
+
+
+_hostname_pollution: HostnamePollution | None = None
+
+
+def get_hostname_pollution() -> HostnamePollution | None:
+    """Result of the startup probe; None before setup_timescaledb ran."""
+    return _hostname_pollution
+
+
+def _set_hostname_pollution(value: HostnamePollution | None) -> None:
+    global _hostname_pollution
+    _hostname_pollution = value
 
 
 # =============================================================================
@@ -195,9 +276,10 @@ async def _create_location_caggs(conn: "AsyncConnection") -> None:
         SELECT
             time_bucket('1 hour', timestamp) AS bucket,
             location_id,
+            hostname,
             COUNT(*) AS event_count
         FROM geo_events
-        GROUP BY bucket, location_id
+        GROUP BY bucket, location_id, hostname
         WITH NO DATA
     """))
     logger.info("CAGG created/verified: location_hourly_stats")
@@ -208,9 +290,10 @@ async def _create_location_caggs(conn: "AsyncConnection") -> None:
         SELECT
             time_bucket('1 day', timestamp) AS bucket,
             location_id,
+            hostname,
             COUNT(*) AS event_count
         FROM geo_events
-        GROUP BY bucket, location_id
+        GROUP BY bucket, location_id, hostname
         WITH NO DATA
     """))
     logger.info("CAGG created/verified: location_daily_stats")
@@ -225,6 +308,18 @@ async def _create_location_caggs(conn: "AsyncConnection") -> None:
             CREATE INDEX IF NOT EXISTS ix_location_{suffix}_location
             ON location_{suffix}_stats (location_id)
         """))
+        # Pollution-gated skip leaves the pre-hostname view in place: probe
+        # before creating, since a CREATE INDEX on a missing column would
+        # abort the whole setup transaction (not just this statement).
+        has_hostname = (await conn.execute(text(
+            "SELECT 1 FROM information_schema.columns "
+            "WHERE table_name = :table AND column_name = 'hostname' LIMIT 1"
+        ), {"table": f"location_{suffix}_stats"})).scalar()
+        if has_hostname:
+            await conn.execute(text(f"""
+                CREATE INDEX IF NOT EXISTS ix_location_{suffix}_hostname
+                ON location_{suffix}_stats (hostname, bucket DESC)
+            """))
 
 
 async def _create_ip_location_cagg(conn: "AsyncConnection") -> None:
@@ -698,6 +793,42 @@ async def _upgrade_summary_caggs(conn: "AsyncConnection") -> None:
         )
 
 
+LOCATION_CAGGS = ["location_hourly_stats", "location_daily_stats"]
+
+_location_caggs_have_hostname: bool = False
+
+
+def location_caggs_have_hostname() -> bool:
+    """Startup-cached CAGG capability; False means hostname filters go raw."""
+    return _location_caggs_have_hostname
+
+
+def _set_location_caggs_have_hostname(value: bool) -> None:
+    global _location_caggs_have_hostname
+    _location_caggs_have_hostname = value
+
+
+async def _location_caggs_need_upgrade(conn: "AsyncConnection") -> bool:
+    """True when any existing location CAGG is in the pre-hostname shape.
+
+    Every existing CAGG must carry the column, not just one of them: the
+    upgrade drops and recreates the pair, so declaring victory on a partial
+    match would strand the laggard in the old shape forever while the
+    capability flag sends hostname-filtered queries at it.
+    """
+    existing = (await conn.execute(text("""
+        SELECT count(*) FROM information_schema.views
+        WHERE table_name = ANY(:views)
+    """), {"views": LOCATION_CAGGS})).scalar_one()
+    if not existing:
+        return False
+    with_hostname = (await conn.execute(text("""
+        SELECT count(DISTINCT table_name) FROM information_schema.columns
+        WHERE table_name = ANY(:views) AND column_name = 'hostname'
+    """), {"views": LOCATION_CAGGS})).scalar_one()
+    return with_hostname < existing
+
+
 async def setup_timescaledb(
     engine: "AsyncEngine",
     analytics: "AnalyticsSettings",
@@ -722,6 +853,41 @@ async def setup_timescaledb(
         if upgraded:
             await _upgrade_summary_caggs(conn)
 
+        # Upgrade pre-hostname location CAGGs, gated on hostname pollution:
+        # migrating polluted (container-ID) hostnames would make the map's
+        # per-source filter useless, so the old shape is kept until the
+        # deployment consolidates hostnames and restarts.
+        location_upgrade = await _location_caggs_need_upgrade(conn)
+        pollution = await detect_hostname_pollution(conn)
+        _set_hostname_pollution(pollution)
+        if location_upgrade and pollution.polluted:
+            if pollution.reason == "container-ids":
+                logger.warning(
+                    "Skipping the location-CAGG hostname upgrade: %d of %s distinct "
+                    "hostnames look like Docker container IDs. Map source filtering "
+                    "stays on raw scans. Run `litestar backfill-hostname NAME "
+                    "--consolidate`, then restart to migrate.",
+                    pollution.container_id_count,
+                    pollution.distinct_label,
+                )
+            else:
+                logger.warning(
+                    "Skipping the location-CAGG hostname upgrade: %s distinct "
+                    "recording hostnames is above the %d ceiling. Map source "
+                    "filtering stays on raw scans.",
+                    pollution.distinct_label,
+                    DISTINCT_HOSTNAME_CEILING,
+                )
+            location_upgrade = False
+        elif location_upgrade:
+            for cagg in LOCATION_CAGGS:
+                await conn.execute(text(f"DROP MATERIALIZED VIEW IF EXISTS {cagg} CASCADE"))
+            logger.warning(
+                "Recreating location CAGGs with a hostname dimension; history "
+                "older than the raw retention window cannot be rebuilt and is "
+                "discarded."
+            )
+
         # Create continuous aggregates
         await _create_summary_caggs(conn)
         await _create_geo_summary_caggs(conn)
@@ -731,6 +897,10 @@ async def setup_timescaledb(
         await _create_url_caggs(conn)
         await _create_user_agent_caggs(conn)
         await _create_host_facet_caggs(conn)
+
+        _set_location_caggs_have_hostname(
+            not await _location_caggs_need_upgrade(conn)
+        )
 
         # Enable real-time aggregation (merges materialized + live data)
         await _enable_realtime_aggregation(conn)
@@ -754,6 +924,14 @@ async def setup_timescaledb(
             start=datetime.now(timezone.utc) - timedelta(days=analytics.raw_retention_days),
             end=datetime.now(timezone.utc),
             caggs=SUMMARY_CAGGS,
+        )
+
+    if location_upgrade:
+        await refresh_caggs_range(
+            engine,
+            start=datetime.now(timezone.utc) - timedelta(days=analytics.raw_retention_days),
+            end=datetime.now(timezone.utc),
+            caggs=LOCATION_CAGGS,
         )
 
     # Repair deployments whose data predates CAGG refresh coverage

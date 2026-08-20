@@ -10,7 +10,7 @@ import { createContext, useContext, useEffect, useMemo, useRef, useState } from 
 import { useLiveEvents, useLiveFeedStatus } from "@/lib/live-feed-context"
 import { useBannedIps } from "@/lib/queries"
 import { getDemoTrafficMode, makeDemoRequests } from "@/lib/demo-traffic"
-import { pairLiveEvents } from "./pairing"
+import { matchesSources, toLiveRequests } from "./requests"
 import { LiveTrafficStore } from "./store"
 import { EMPTY_SUMMARY, summarize, type LiveSummary } from "./summary"
 import type { LiveRequest, Vitals } from "./types"
@@ -41,9 +41,11 @@ const SNAPSHOT_INTERVAL_MS = 1000
 
 export function LiveTrafficProvider({
   enabled,
+  sources = [],
   children,
 }: {
   enabled: boolean
+  sources?: string[]
   children: React.ReactNode
 }) {
   const store = useMemo(() => new LiveTrafficStore(), [])
@@ -58,10 +60,21 @@ export function LiveTrafficProvider({
   const feedState: LiveFeedState =
     demoMode !== "off" || socketStatus === "connected" ? "connected" : "reconnecting"
 
+  // Read through a ref so a changed selection does not resubscribe the socket;
+  // the reset effect below is what actually applies a new filter to the window.
+  const sourcesRef = useRef<string[]>(sources)
+  sourcesRef.current = sources
+  // JSON.stringify (not join(" ")) so a hostname containing a space can't
+  // alias a distinct selection into the same dependency identity.
+  const sourcesKey = JSON.stringify(sources)
+
   useLiveEvents(
     (events, dropped) => {
       const now = Date.now()
-      store.ingest(pairLiveEvents(events, bannedRef.current, now), dropped, now)
+      const requests = toLiveRequests(events, bannedRef.current, now).filter((request) =>
+        matchesSources(request, sourcesRef.current),
+      )
+      store.ingest(requests, dropped, now)
     },
     enabled && demoMode === "off",
   )
@@ -72,7 +85,10 @@ export function LiveTrafficProvider({
     const emit = () => {
       const now = Date.now()
       const count = demoMode === "burst" ? 4 : 1
-      store.ingest(makeDemoRequests(cursor, count, now), 0, now)
+      const requests = makeDemoRequests(cursor, count, now).filter((request) =>
+        matchesSources(request, sourcesRef.current),
+      )
+      store.ingest(requests, 0, now)
       cursor += count
     }
     const kickoff = window.setTimeout(emit, 250)
@@ -86,6 +102,13 @@ export function LiveTrafficProvider({
   useEffect(() => {
     if (!enabled) store.clear()
   }, [enabled, store])
+
+  // Drop the window whenever the selection changes so stale unfiltered
+  // requests do not linger next to newly-filtered ones.
+  useEffect(() => {
+    store.reset()
+    // sourcesKey is the stable identity for the sources array; see above.
+  }, [sourcesKey, store])
 
   return (
     <StoreContext.Provider value={store}>

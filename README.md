@@ -12,7 +12,10 @@ the traffic they came from.
 ## Features
 
 **Live map** - every ingested request lands on a MapLibre world map within
-seconds; click a marker for the request, city, and ASN behind it.
+seconds; click a marker for the request, city, and ASN behind it. Ingesting
+from several sources? Filter the map by source hostname and watch live
+routes fly to each site's own home beacon - see
+[Multi-source setup](#multi-source-setup).
 
 ![Map](/data/screenshots/map.png)
 
@@ -81,14 +84,14 @@ Images are published as `ghcr.io/gilbn/geometrikks`.
 | `latest` | `latest` | The newest stable release. |
 | Exact stable version | `X.Y.Z` | A specific stable release; use this for reproducible deployments. |
 | Major/minor stable version | `X.Y` | The newest stable patch release in a major/minor series. |
-| Exact development version | `0.3.0-dev.2` | A specific prerelease build for testing upcoming changes. |
+| Exact development version | `0.9.0-dev.1` | A specific prerelease build for testing upcoming changes. |
 | `develop` | `develop` | The newest development release; a moving tag. |
 
 Use `latest` to follow the newest stable release, or pin an exact version for
 reproducible deployments:
 
 ```yaml
-image: ghcr.io/gilbn/geometrikks:0.3.0
+image: ghcr.io/gilbn/geometrikks:0.9.0
 ```
 
 `docker-compose.yml` mounts `${ACCESS_LOG_DIR:-${NGINX_LOG_DIR:-/var/log/nginx}}`
@@ -427,6 +430,136 @@ Notes:
 - Without `CROWDSEC_*` settings the integration is simply off; nothing else
   changes.
 
+## Multi-source setup
+
+If traffic comes in through more than one reverse proxy or host, GeoMetrikks
+can run as one full instance plus lightweight agents instead of one instance
+tailing everything remotely. Each agent runs close to its own access logs
+(same host or Docker network as the proxy it's tailing) and does the
+ingestion work locally - tail, parse, geolocate, write, publish. One full
+instance owns everything else: the UI, the API, database migrations, the
+scheduler, and CrowdSec. Every agent and the full instance share one
+TimescaleDB. The live map stays in sync regardless of which process ingested
+a request - every writer publishes committed events over PostgreSQL
+LISTEN/NOTIFY, and the full instance's `/ws/live` feed relays all of them.
+
+Agents are not the only shape. If the log files already reach one machine
+(a shared mount, rsyslog, log shipping), a single full instance can tail
+them all and keep the sources apart by giving `LOGPARSER_HOST_NAME` a JSON
+list matched positionally to `LOGPARSER_LOG_PATHS`:
+
+```bash
+LOGPARSER_LOG_PATHS=["/var/log/access/edge-01.log", "/var/log/access/edge-02.log"]
+LOGPARSER_HOST_NAME=["edge-01", "edge-02"]
+```
+
+Everything downstream - the access-logs "Recorded by" filter, the map's
+Sources filter, per-site homes - treats those files exactly like traffic
+from separate agents.
+
+An agent needs only `APP_MODE=agent`, database credentials for the shared
+instance, GeoIP credentials, and its own log mount:
+
+```yaml
+services:
+  agent:
+    image: ghcr.io/gilbn/geometrikks:0.9.0   # same tag as the full instance
+    restart: unless-stopped
+    stop_grace_period: 20s
+    environment:
+      APP_MODE: agent
+      DB_HOST: timescale.example.internal
+      DB_PORT: "5432"
+      DB_USER: geouser
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_DATABASE: geometrikks
+      MAXMINDDB_USER_ID: ${MAXMINDDB_USER_ID}
+      MAXMINDDB_LICENSE_KEY: ${MAXMINDDB_LICENSE_KEY}
+      LOGPARSER_LOG_PATHS: '["/var/log/access/access.log"]'
+      LOGPARSER_HOST_NAME: edge-01
+    volumes:
+      - geoip_data:/app/data/geoip
+      - /var/log/nginx:/var/log/access:ro
+    healthcheck:
+      # The image's own healthcheck probes /health, which answers 200 for
+      # the whole schema wait. /health/ready is the one that reports 503
+      # while the agent waits for the primary to migrate.
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health/ready', timeout=5).read()\" || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      # The schema gate runs inside ASGI startup, so the port does not
+      # accept at all for up to 120s. Without this grace window the first
+      # probes fail a perfectly healthy cold start.
+      start_period: 150s
+
+volumes:
+  geoip_data:
+```
+
+`APP_MODE=agent` composes a headless process: it tails, geolocates, writes,
+and publishes like a full instance, but serves only `/health` and
+`/health/ready` - no UI, no API, no OpenAPI schema, no session auth, so it
+needs no `APP_ADMIN_PASSWORD`. It still downloads and refreshes its own
+GeoLite2 database like a full instance does, so it still needs MaxMind
+credentials and a geoip volume. It never runs migrations or touches
+TimescaleDB objects; at startup it waits for the shared database's schema to
+reach the revision it was built against. If that wait times out, the agent
+stays up in degraded mode rather than exiting, with `/health` answering 200
+and `/health/ready` answering 503: an orchestrator with a readiness probe
+restarts it into a fresh wait automatically, and without one, restart the
+agent container yourself once the full instance has finished migrating.
+
+Compose does not act on health status, so on plain Docker the probe above
+surfaces a stuck agent as `unhealthy` in `docker ps` and gates any
+`depends_on: condition: service_healthy` you add. Turning that signal into a
+restart takes Swarm, Kubernetes, or an autoheal sidecar. `restart:
+unless-stopped` will not do it, since it reacts to a container exiting and a
+waiting agent stays up.
+
+The reverse case works too: to keep a full instance's UI and API without it
+tailing local files - for example, a machine that only hosts the app, with
+all traffic ingested by agents elsewhere - set:
+
+```bash
+LOGPARSER_ENABLED=false
+```
+
+It still serves the UI, API, migrations, scheduler, and CrowdSec; it just
+never tails a log file itself.
+
+**Site homes.** Live map routes fly to the home location of the source that
+recorded them, one beacon per site. Each ingesting instance auto-detects
+its own public-IP location and re-checks it every `MAP_HOME_REFRESH_HOURS`
+(default 24h). When detection is wrong for a source - CGNAT, a VPN egress,
+or logs shipped from another machine - pin that hostname on the full
+instance with `MAP_HOME_LOCATIONS`, for example
+`MAP_HOME_LOCATIONS={"edge-01": [60.39, 5.32]}`; overrides win over
+auto-detection, and removing one restores it. Settings > Status lists each
+source's home and whether it came from auto-detection or an override.
+
+**Trust model.** Agents authenticate with the database using ordinary
+database credentials, and the app does not care where data comes from:
+anyone who can run an agent effectively has full read/write access to the
+entire database - all traffic history from every source, any hostname, with
+no tenant isolation, no per-agent identity, and no revocation short of
+rotating the shared password. Sharing one instance across parties works,
+just understand that everyone shares everything. Run agent connections over
+a VPN or tailnet, not the open internet.
+
+**Keep versions aligned.** Run the same image tag on every agent and the
+full instance. An agent tolerates the shared database running slightly ahead
+of its own bundled schema - the case where a full instance is mid
+rolling-restart - by logging a warning and proceeding rather than refusing
+to start; that's a brief-mismatch allowance, not a reason to run agents and
+the full instance on different versions long-term.
+
+**CrowdSec.** Point `CROWDSEC_LAPI_URL` and the bouncer/machine credentials
+(see [CrowdSec integration](#crowdsec-integration-optional)) at the central
+LAPI on the full instance only; per-machine CrowdSec agents keep reporting to
+that same LAPI as usual. GeoMetrikks agents ignore `CROWDSEC_*` settings
+entirely - ban visibility and management stay a full-instance responsibility.
+
 ## CLI commands
 
 Besides the server, the image ships maintenance commands under the
@@ -637,13 +770,14 @@ http://localhost:8000/map?demoTraffic=1       # steady traffic
 http://localhost:8000/map?demoTraffic=burst   # overlapping bursts
 ```
 
-The live route destination defaults to the GeoIP location of the app server's
-public IP. GeoMetrikks discovers that address once at startup through ipify and
-looks it up in the local GeoLite2 database. If the logs come from another
-server, set both `MAP_HOME_LATITUDE` and `MAP_HOME_LONGITUDE`. Set
-`MAP_AUTO_DETECT_HOME=false` to disable the outbound lookup entirely. The map's
-**Route effects** control can also hide the animation; that preference is kept
-in browser storage.
+Live routes fly to the home of the source that recorded them (see
+[Multi-source setup](#multi-source-setup)); with a single source that is
+simply the app server's own location, discovered at startup through ipify
+and looked up in the local GeoLite2 database. `MAP_HOME_LATITUDE` and
+`MAP_HOME_LONGITUDE` override that default home, `MAP_HOME_LOCATIONS`
+overrides per source, and `MAP_AUTO_DETECT_HOME=false` disables the
+outbound lookup entirely. The map's **Route effects** control can also hide
+the animation; that preference is kept in browser storage.
 
 ### Testing
 

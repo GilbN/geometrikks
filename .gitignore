@@ -390,3 +390,6 @@ openapi-ts-error-*.log
 
 # Superpowers workspaces: brainstorming mockups and SDD review artifacts (local only)
 .superpowers/
+
+# dev/inject-logs.sh stop signal
+dev/inject-logs.stop

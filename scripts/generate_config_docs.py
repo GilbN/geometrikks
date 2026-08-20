@@ -30,6 +30,7 @@ OUTPUT = REPO_ROOT / "docs" / "configuration.md"
 # (title, class, env prefix) — order defines document order.
 SECTIONS: list[tuple[str, type[BaseSettings], str]] = [
     ("Application", settings_module.Settings, "APP_"),
+    ("Application mode", settings_module.AppSettings, "APP_"),
     ("API server", settings_module.APISettings, "API_"),
     ("Database", settings_module.DatabaseSettings, "DB_"),
     ("GeoIP", settings_module.GeoIPSettings, "GEOIP_"),
@@ -44,7 +45,7 @@ SECTIONS: list[tuple[str, type[BaseSettings], str]] = [
 
 # Top-level Settings fields that are sub-models, not env vars.
 SKIP_FIELDS = {
-    "api", "database", "geoip", "log", "logparser", "analytics", "scheduler",
+    "app", "api", "database", "geoip", "log", "logparser", "analytics", "scheduler",
     "map", "crowdsec", "vite",
 }
 # Never document secrets' defaults verbatim.

@@ -19,10 +19,12 @@ cadences, frame caps) stay in the handlers in ``controllers.py``.
 Transport decisions (0.7.0): Litestar's ``send_websocket_stream`` function is
 the adopted wrapper; the ``@websocket_stream`` decorator was not, because the
 feeds must accept and then close 1013 in degraded mode before any streaming
-starts. ``ChannelsPlugin`` was evaluated and deliberately not adopted: these
-are fixed, process-local feeds with no dynamic topics, history, or
-cross-process fan-out, and an in-memory Channels backend would not lift the
-single-worker constraint. Revisit only if those requirements appear.
+starts. ``/ws/live`` now fans out via ``ChannelsPlugin`` over Postgres
+LISTEN/NOTIFY instead of this module's ``subscription()`` helper: cross-process
+fan-out became a requirement once ingestion could run as multiple instances,
+which an in-process broker cannot serve. ``/ws/crowdsec`` and ``/ws/logs``
+have no such requirement (one poller, one broadcaster per process) and stay
+on ``subscription()``.
 """
 
 from __future__ import annotations

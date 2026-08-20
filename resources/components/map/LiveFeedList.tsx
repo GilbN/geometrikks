@@ -123,6 +123,7 @@ export function LiveFeedList({
                   )}
                 >
                   {[request.city, request.countryCode].filter(Boolean).join(", ") || request.ip}
+                  {request.hostname ? ` · ${request.hostname}` : ""}
                 </span>
               </button>
             )

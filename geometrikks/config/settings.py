@@ -84,7 +84,15 @@ class DatabaseSettings(BaseSettings):
             f"{quote(self.password.get_secret_value(), safe='')}"
             f"@{self.host}:{self.port}/{self.database}"
         )
-    
+
+    @property
+    def asyncpg_dsn(self) -> str:
+        """The connection URL as a plain postgresql:// DSN.
+
+        AsyncPgChannelsBackend hands the DSN straight to asyncpg, which does
+        not understand SQLAlchemy's +asyncpg driver suffix.
+        """
+        return self.url.replace("postgresql+asyncpg://", "postgresql://", 1)
 
     @model_validator(mode="after")
     def validate_db_url(self) -> "DatabaseSettings":
@@ -214,6 +222,10 @@ class LogParserSettings(BaseSettings):
 
     model_config = SettingsConfigDict(env_prefix="LOGPARSER_", env_file=_env_file(), extra="ignore")
 
+    enabled: bool = Field(
+        default=True,
+        description="Enable log parser ingestion service"
+    )
     log_paths: Annotated[list[Path], NoDecode] = Field(
         default_factory=lambda: [Path("/var/log/access/access.log")],
         min_length=1,
@@ -236,9 +248,15 @@ class LogParserSettings(BaseSettings):
         description="Interval in seconds to poll the log file for new entries",
     )
     send_logs: bool = Field(default=True, description="Send parsed logs to the database")
-    host_name: str = Field(
-        default_factory=socket.gethostname,
-        description="Host name for log parser (used in log entries)",
+    host_name: Annotated[list[str], NoDecode] = Field(
+        default_factory=lambda: [socket.gethostname()],
+        min_length=1,
+        description=(
+            "Source hostname stamped on ingested records. Env accepts a "
+            "single value applied to every tailed file, or a JSON list "
+            "matching LOGPARSER_LOG_PATHS by position. Default: this "
+            "machine's hostname."
+        ),
     )
     batch_size: int = Field(
         default=100,
@@ -316,6 +334,46 @@ class LogParserSettings(BaseSettings):
         if len(self.log_formats) == 1:
             return self.log_formats * len(self.log_paths)
         return list(self.log_formats)
+
+    @field_validator("host_name", mode="before")
+    @classmethod
+    def parse_host_name(cls, value: object) -> object:
+        """Accept a single hostname or a JSON list of hostnames."""
+        if isinstance(value, str):
+            stripped = value.strip()
+            if stripped.startswith("["):
+                return json.loads(stripped)
+            return [stripped]
+        return value
+
+    @field_validator("host_name")
+    @classmethod
+    def validate_host_name_entries(cls, value: list[str]) -> list[str]:
+        """Fail at startup on empty entries; '' would silently un-stamp records."""
+        if any(not entry.strip() for entry in value):
+            raise ValueError("LOGPARSER_HOST_NAME entries must be non-empty")
+        return [entry.strip() for entry in value]
+
+    @model_validator(mode="after")
+    def validate_host_name_length(self) -> "LogParserSettings":
+        """Reject hostname list lengths that cannot map to log_paths."""
+        if len(self.host_name) not in (1, len(self.log_paths)):
+            raise ValueError(
+                "LOGPARSER_HOST_NAME must be one value or match "
+                f"LOGPARSER_LOG_PATHS in length ({len(self.log_paths)})"
+            )
+        return self
+
+    def resolved_hostnames(self) -> list[str]:
+        """Return one hostname per log path.
+
+        Returns:
+            The configured hostnames, fanning a single value out across all
+            log paths when only one value was provided.
+        """
+        if len(self.host_name) == 1:
+            return self.host_name * len(self.log_paths)
+        return list(self.host_name)
 
     @field_validator("ignore_ips", mode="before")
     @classmethod
@@ -440,6 +498,39 @@ class MapSettings(BaseSettings):
         le=30,
         description="Timeout in seconds for public-IP discovery.",
     )
+    home_locations: dict[str, tuple[float, float]] = Field(
+        default_factory=dict,
+        description=(
+            "Per-hostname home overrides as a JSON object of "
+            '{"hostname": [latitude, longitude]}. Overrides win over '
+            "agent auto-detection in site_homes; removing an entry deletes "
+            "its override row at the next startup. Use for sites whose "
+            "public IP geolocates wrong (CGNAT, VPN) or for hostnames in "
+            "logs shipped from other machines."
+        ),
+    )
+
+    home_refresh_hours: int = Field(
+        default=24,
+        ge=1,
+        le=24 * 30,
+        description=(
+            "How often this instance re-detects its own public-IP home "
+            "location and refreshes its site_homes rows (hours)."
+        ),
+    )
+
+    @field_validator("home_locations")
+    @classmethod
+    def validate_home_locations(cls, value: dict[str, tuple[float, float]]) -> dict[str, tuple[float, float]]:
+        """Coordinate ranges; pydantic already enforced the two-float arity."""
+        for hostname, (lat, lng) in value.items():
+            if not (-90 <= lat <= 90) or not (-180 <= lng <= 180):
+                raise ValueError(
+                    f"MAP_HOME_LOCATIONS[{hostname!r}]: latitude must be in "
+                    "[-90, 90] and longitude in [-180, 180]"
+                )
+        return value
 
     @model_validator(mode="after")
     def validate_home_coordinate_pair(self) -> "MapSettings":
@@ -544,6 +635,17 @@ class ViteSettings(BaseSettings):
     executor: Literal["node", "bun", "deno", "yarn", "pnpm"] | None = Field(
         default="bun",
         description="JS runtime executor for litestar-vite (defaults to bun).",
+    )
+
+
+class AppSettings(BaseSettings):
+    """Application-level settings."""
+
+    model_config = SettingsConfigDict(env_prefix="APP_", env_file=_env_file(), extra="ignore")
+
+    mode: Literal["full", "agent"] = Field(
+        default="full",
+        description="Application mode: full (all components) or agent (logparser only)"
     )
 
 
@@ -668,6 +770,7 @@ class Settings(BaseSettings):
         return self
 
     # Sub-configurations
+    app: AppSettings = Field(default_factory=AppSettings)
     api: APISettings = Field(default_factory=APISettings)
     database: DatabaseSettings = Field(default_factory=DatabaseSettings)
     geoip: GeoIPSettings = Field(default_factory=GeoIPSettings)
@@ -678,6 +781,21 @@ class Settings(BaseSettings):
     map: MapSettings = Field(default_factory=MapSettings)
     crowdsec: CrowdSecSettings = Field(default_factory=CrowdSecSettings)
     vite: ViteSettings = Field(default_factory=ViteSettings)
+
+    @model_validator(mode="after")
+    def validate_agent_tails_something(self) -> "Settings":
+        """APP_MODE=agent with LOGPARSER_ENABLED=false is a no-op process."""
+        if self.app.mode == "agent" and not self.logparser.enabled:
+            raise ValueError(
+                "APP_MODE=agent requires LOGPARSER_ENABLED=true: an agent "
+                "that tails nothing does nothing"
+            )
+        return self
+
+    @property
+    def is_agent(self) -> bool:
+        """Check if running in agent mode."""
+        return self.app.mode == "agent"
 
     @property
     def is_production(self) -> bool:

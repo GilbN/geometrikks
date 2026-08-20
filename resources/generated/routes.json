@@ -620,6 +620,13 @@
       ],
       "uri": "/sw.js"
     },
+    "site_homes": {
+      "method": "get",
+      "methods": [
+        "GET"
+      ],
+      "uri": "/api/v1/geo-locations/site-homes"
+    },
     "stats": {
       "method": "get",
       "methods": [

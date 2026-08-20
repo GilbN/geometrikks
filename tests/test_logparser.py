@@ -641,6 +641,30 @@ class TestParseLine:
         assert record is not None
         assert parser.ignored_lines == 0
 
+    def test_parse_line_stamps_parser_hostname(self, geoip_reader):
+        from geometrikks.services.logparser.logparser import LogParser, make_cached_city_lookup
+        parser = LogParser(log_path=Path("/dev/null"), send_logs=True, hostname="vps-1")
+        lookup = make_cached_city_lookup(geoip_reader)
+        record = parser.parse_line(make_log_line("2.125.160.216"), lookup)
+        assert record is not None
+        assert record.hostname == "vps-1"
+
+    def test_parse_line_unmatched_line_still_stamps_hostname(self, geoip_reader):
+        from geometrikks.services.logparser.logparser import LogParser, make_cached_city_lookup
+        parser = LogParser(log_path=Path("/dev/null"), send_logs=True, hostname="vps-1")
+        lookup = make_cached_city_lookup(geoip_reader)
+        record = parser.parse_line("total garbage\n", lookup)
+        assert record is not None
+        assert record.hostname == "vps-1"
+
+    def test_parse_line_default_hostname_is_empty(self, geoip_reader):
+        from geometrikks.services.logparser.logparser import LogParser, make_cached_city_lookup
+        parser = LogParser(log_path=Path("/dev/null"), send_logs=True)
+        lookup = make_cached_city_lookup(geoip_reader)
+        record = parser.parse_line(make_log_line("2.125.160.216"), lookup)
+        assert record is not None
+        assert record.hostname == ""
+
 
 class TestAutoFormatSniffing:
     """log_format='auto' locks a format on the first line it recognizes."""

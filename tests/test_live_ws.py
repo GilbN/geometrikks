@@ -8,9 +8,12 @@ from typing import TYPE_CHECKING, cast
 
 import pytest
 from litestar import Litestar
+from litestar.channels import ChannelsPlugin
+from litestar.channels.backends.memory import MemoryChannelsBackend
 from litestar.exceptions import WebSocketDisconnect
 from litestar.testing import TestClient
 
+from geometrikks.domain.realtime.events import LIVE_EVENTS_CHANNEL, record_to_event
 from geometrikks.services.logparser.schemas import ParsedAccessLog, ParsedGeoData, ParsedLogRecord
 
 if TYPE_CHECKING:
@@ -20,7 +23,7 @@ if TYPE_CHECKING:
 TS = datetime(2026, 7, 1, 12, 0, tzinfo=timezone.utc)
 
 
-def make_record(with_geo: bool = True, with_log: bool = True) -> ParsedLogRecord:
+def make_record(with_geo: bool = True, with_log: bool = True, hostname: str = "") -> ParsedLogRecord:
     geo = ParsedGeoData(
         latitude=51.5, longitude=-0.09, geohash="gcpvj", country_code="GB",
         country_name="UK", timestamp=TS, city="London",
@@ -34,70 +37,43 @@ def make_record(with_geo: bool = True, with_log: bool = True) -> ParsedLogRecord
     ) if with_log else None
     return ParsedLogRecord(
         ip_address="81.2.69.142", geo_data=geo, access_log=log, raw_line="x",
+        hostname=hostname,
     )
 
 
-class TestRecordToEvents:
-    def test_full_record_yields_both_events(self):
-        from geometrikks.domain.realtime.controllers import record_to_events
-        events = record_to_events(make_record())
-        types = [e["type"] for e in events]
-        assert types == ["geo_event", "access_log"]
-        geo = events[0]["data"]
-        assert geo["latitude"] == 51.5 and geo["country_code"] == "GB"
-        log = events[1]["data"]
-        assert log["status_code"] == 200 and log["url"] == "/x"
-        # Wire format carries the full access-log field set.
-        assert set(log) == {
-            "timestamp", "ip_address", "remote_user", "method", "url",
-            "http_version", "status_code", "bytes_sent", "referrer",
-            "user_agent", "request_time", "upstream_response_time", "host",
-            "country_code", "country_name", "city",
-        }
-        assert log["http_version"] == "1.1" and log["user_agent"] == "curl"
-        assert log["host"] == "example.com" and log["country_code"] == "GB"
-
-    def test_geo_only_record(self):
-        from geometrikks.domain.realtime.controllers import record_to_events
-        events = record_to_events(make_record(with_log=False))
-        assert [e["type"] for e in events] == ["geo_event"]
-
-    def test_malformed_record_yields_nothing(self):
-        from geometrikks.domain.realtime.controllers import record_to_events
-        assert record_to_events(make_record(with_geo=False, with_log=False)) == []
-
-
-class FakeIngestion:
-    """subscribe/unsubscribe stub the handler can drive."""
-
-    def __init__(self) -> None:
-        self.queue: asyncio.Queue = asyncio.Queue()
-        self.unsubscribed = False
-
-    def subscribe(self, maxsize: int = 1000):
-        return self.queue
-
-    def unsubscribe(self, queue) -> None:
-        self.unsubscribed = True
-
-
-def make_app(ingestion) -> Litestar:
+def _live_app(db_available: bool = True) -> tuple[Litestar, ChannelsPlugin]:
     from geometrikks.domain.realtime.controllers import live_feed
-    app = Litestar(route_handlers=[live_feed])
-    app.state.ingestion_service = ingestion
-    return app
+
+    channels = ChannelsPlugin(backend=MemoryChannelsBackend(), channels=[LIVE_EVENTS_CHANNEL])
+    app = Litestar(route_handlers=[live_feed], plugins=[channels])
+    app.state.db_available = db_available
+    return app, channels
 
 
-def test_ws_streams_batch_frames():
-    ingestion = FakeIngestion()
-    with TestClient(app=make_app(ingestion)) as client:
-        with client.websocket_connect("/ws/live") as ws:
-            ingestion.queue.put_nowait(make_record())
-            frame = ws.receive_json(timeout=5)
+def test_ws_streams_batch_frames_from_channel():
+    app, channels = _live_app()
+    with TestClient(app) as client, client.websocket_connect("/ws/live") as ws:
+        channels.publish(record_to_event(make_record()), LIVE_EVENTS_CHANNEL)
+        frame = ws.receive_json(timeout=5)
     assert frame["type"] == "batch"
     assert frame["dropped"] == 0
-    assert [e["type"] for e in frame["events"]] == ["geo_event", "access_log"]
-    assert ingestion.unsubscribed is True
+    assert [e["type"] for e in frame["events"]] == ["request"]
+    assert frame["events"][0]["geo"] is not None
+    assert frame["events"][0]["log"] is not None
+
+
+def test_ws_hostname_arrives_in_frames():
+    """The wire event's hostname (needed for multi-instance ingestion) survives
+    the round trip through the channel unchanged."""
+    app, channels = _live_app()
+    with TestClient(app) as client, client.websocket_connect("/ws/live") as ws:
+        channels.publish(
+            record_to_event(make_record(with_log=False, hostname="vps-1")),
+            LIVE_EVENTS_CHANNEL,
+        )
+        frame = ws.receive_json(timeout=5)
+    assert frame["events"][0]["geo"]["hostname"] == "vps-1"
+    assert frame["events"][0]["log"] is None
 
 
 def test_ws_sends_empty_batch_heartbeat_when_idle(monkeypatch):
@@ -106,53 +82,48 @@ def test_ws_sends_empty_batch_heartbeat_when_idle(monkeypatch):
     from geometrikks.domain.realtime import controllers as live_controller
 
     monkeypatch.setattr(live_controller, "HEARTBEAT_INTERVAL", 0.3, raising=False)
-    ingestion = FakeIngestion()
-    with TestClient(app=make_app(ingestion)) as client:
-        with client.websocket_connect("/ws/live") as ws:
-            frame = ws.receive_json(timeout=5)
+    app, _channels = _live_app()
+    with TestClient(app) as client, client.websocket_connect("/ws/live") as ws:
+        frame = ws.receive_json(timeout=5)
     assert frame == {"type": "batch", "events": [], "dropped": 0}
-    assert ingestion.unsubscribed is True
 
 
-def test_ws_closes_when_no_ingestion_service():
+def test_ws_closes_1013_when_db_unavailable():
     """Degraded mode closes with 1013 (try again later) and a usable reason."""
-    with TestClient(app=make_app(None)) as client:
+    app, _channels = _live_app(db_available=False)
+    with TestClient(app) as client:
         with pytest.raises(WebSocketDisconnect) as exc_info:
             with client.websocket_connect("/ws/live") as ws:
                 ws.receive_json(timeout=2)
     assert exc_info.value.code == 1013
-    assert exc_info.value.detail == "ingestion not running"
+    assert exc_info.value.detail == "live feed unavailable (database down)"
 
 
 def test_ws_counts_dropped_events_beyond_frame_cap():
     """Overflow beyond MAX_EVENTS_PER_FRAME is counted, not silently lost."""
-    ingestion = FakeIngestion()
-    # 60 prefilled records -> 120 events; the first flush window drains them
-    # all, keeps 100 and counts 20 dropped.
-    for _ in range(60):
-        ingestion.queue.put_nowait(make_record())
-    with TestClient(app=make_app(ingestion)) as client:
-        with client.websocket_connect("/ws/live") as ws:
-            frame = ws.receive_json(timeout=5)
+    app, channels = _live_app()
+    with TestClient(app) as client, client.websocket_connect("/ws/live") as ws:
+        # 120 records -> 120 envelopes; the first flush window drains them
+        # all, keeps 100 and counts 20 dropped.
+        for _ in range(120):
+            channels.publish(record_to_event(make_record()), LIVE_EVENTS_CHANNEL)
+        frame = ws.receive_json(timeout=5)
     assert frame["type"] == "batch"
     assert len(frame["events"]) == 100
     assert frame["dropped"] == 20
-    assert ingestion.unsubscribed is True
 
 
 def test_ws_ignores_unexpected_inbound_frames():
     """Policy: inbound client frames are consumed and ignored; the stream
     keeps flowing on the same connection."""
-    ingestion = FakeIngestion()
-    with TestClient(app=make_app(ingestion)) as client:
-        with client.websocket_connect("/ws/live") as ws:
-            ws.send_text("unexpected")
-            ws.send_json({"also": "unexpected"})
-            ingestion.queue.put_nowait(make_record())
-            frame = ws.receive_json(timeout=5)
+    app, channels = _live_app()
+    with TestClient(app) as client, client.websocket_connect("/ws/live") as ws:
+        ws.send_text("unexpected")
+        ws.send_json({"also": "unexpected"})
+        channels.publish(record_to_event(make_record()), LIVE_EVENTS_CHANNEL)
+        frame = ws.receive_json(timeout=5)
     assert frame["type"] == "batch"
-    assert len(frame["events"]) == 2
-    assert ingestion.unsubscribed is True
+    assert len(frame["events"]) == 1
 
 
 class FakeSocket:
@@ -160,8 +131,11 @@ class FakeSocket:
 
     connection_state = "connect"
 
-    def __init__(self, state: SimpleNamespace) -> None:
-        self.app = SimpleNamespace(state=state)
+    def __init__(self, channels: ChannelsPlugin, *, db_available: bool = True) -> None:
+        self.app = SimpleNamespace(
+            state=SimpleNamespace(db_available=db_available),
+            plugins=SimpleNamespace(get=lambda _cls: channels),
+        )
         self.sent: list[dict] = []
 
     async def accept(self) -> None: ...
@@ -184,32 +158,86 @@ class DisconnectingSendSocket(FakeSocket):
 
 
 @pytest.mark.anyio
-async def test_ws_disconnect_during_send_is_suppressed_and_unsubscribes():
+async def test_ws_disconnect_during_send_is_suppressed_and_cleans_up_subscription():
     """A WebSocketDisconnect raised from send_json travels through AnyIO's
     task group as an ExceptionGroup; the handler must suppress it (not let
-    the group escape) and unsubscribe before returning."""
+    the group escape) and clean up its channel subscription before returning.
+
+    There is no more `unsubscribed` flag to assert on (that was the fake
+    ingestion broker's bookkeeping); the observable analogue is that the
+    channel's subscriber set is empty again once the handler returns, same
+    as the log-broadcaster feed's disconnect test below asserts.
+    """
     from geometrikks.domain.realtime.controllers import live_feed
 
-    ingestion = FakeIngestion()
-    ingestion.queue.put_nowait(make_record())
-    socket = DisconnectingSendSocket(SimpleNamespace(ingestion_service=ingestion))
-    await live_feed.fn(socket)  # must not raise
-    assert ingestion.unsubscribed is True
+    channels = ChannelsPlugin(backend=MemoryChannelsBackend(), channels=[LIVE_EVENTS_CHANNEL])
+    async with channels:
+        socket = DisconnectingSendSocket(channels)
+        task = asyncio.create_task(cast("Coroutine[Any, Any, None]", live_feed.fn(socket)))
+        await asyncio.sleep(0.05)  # let the handler subscribe and enter its loop
+        channels.publish(record_to_event(make_record()), LIVE_EVENTS_CHANNEL)
+        await asyncio.wait_for(task, timeout=5)  # must not raise
+        # litestar 2.24 has no public API for subscriber introspection; this
+        # reaches into the private attribute as the only way to observe
+        # cleanup. Fragile: a litestar upgrade that renames/removes
+        # `_channels` breaks this assertion, not the behavior it checks.
+        assert channels._channels[LIVE_EVENTS_CHANNEL] == set()
 
 
 @pytest.mark.anyio
-async def test_ws_cancellation_still_unsubscribes():
+async def test_ws_cancellation_still_cleans_up_subscription():
     """Server-side cancellation (shutdown) must run the cleanup path."""
     from geometrikks.domain.realtime.controllers import live_feed
 
-    ingestion = FakeIngestion()
-    socket = FakeSocket(SimpleNamespace(ingestion_service=ingestion))
-    task = asyncio.create_task(cast("Coroutine[Any, Any, None]", live_feed.fn(socket)))
-    await asyncio.sleep(0.05)  # let the handler subscribe and enter its loop
-    task.cancel()
-    with pytest.raises(asyncio.CancelledError):
-        await task
-    assert ingestion.unsubscribed is True
+    channels = ChannelsPlugin(backend=MemoryChannelsBackend(), channels=[LIVE_EVENTS_CHANNEL])
+    async with channels:
+        socket = FakeSocket(channels)
+        task = asyncio.create_task(cast("Coroutine[Any, Any, None]", live_feed.fn(socket)))
+        await asyncio.sleep(0.05)  # let the handler subscribe and enter its loop
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+        # See the comment on the same assertion above: litestar 2.24 has no
+        # public subscriber introspection, so this private-attr reach is the
+        # known fragility if a litestar upgrade breaks this test.
+        assert channels._channels[LIVE_EVENTS_CHANNEL] == set()
+
+
+@pytest.mark.anyio
+async def test_pump_drops_oldest_when_local_queue_is_full(monkeypatch):
+    """The pump's relay queue (channel subscriber -> batched_frames) silently
+    drops the oldest queued event when a burst outpaces its capacity — the
+    behavior the deleted in-process `subscribe(maxsize=...)` full-queue test
+    used to cover, now living in pump()'s own `except asyncio.QueueFull`
+    branch. This is distinct from (and invisible to) batched_frames' own
+    counted drop for overflow beyond MAX_EVENTS_PER_FRAME within one flush.
+
+    `LIVE_QUEUE_MAXSIZE` is monkeypatched down to 3 so a small burst can fill
+    it; the burst is published only after the handler has had a chance to
+    subscribe and start pumping (`asyncio.sleep(0.05)`, the same pattern the
+    disconnect/cancellation tests above use), so publishing 10 events lands
+    in the pump loop's `except QueueFull` path deterministically instead of
+    racing a real consumer.
+    """
+    from geometrikks.domain.realtime import controllers as live_controller
+    from geometrikks.domain.realtime.controllers import live_feed
+
+    monkeypatch.setattr(live_controller, "LIVE_QUEUE_MAXSIZE", 3, raising=False)
+    channels = ChannelsPlugin(backend=MemoryChannelsBackend(), channels=[LIVE_EVENTS_CHANNEL])
+    async with channels:
+        socket = FakeSocket(channels)
+        task = asyncio.create_task(cast("Coroutine[Any, Any, None]", live_feed.fn(socket)))
+        await asyncio.sleep(0.05)  # let the handler subscribe and start pumping
+        for i in range(10):
+            channels.publish({"type": "request", "geo": {"n": i}, "log": None}, LIVE_EVENTS_CHANNEL)
+        await asyncio.sleep(0.3)  # let the pump drain the burst and batched_frames flush
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+
+    frame = socket.sent[0]
+    assert [e["geo"]["n"] for e in frame["events"]] == [7, 8, 9]
+    assert frame["dropped"] == 0
 
 
 class TestLogsFeed:
@@ -247,15 +275,37 @@ class TestLogsFeed:
                 assert any(r.get("event") == "hello_ws" for r in frame["records"])
 
     def test_level_filter_drops_lower_levels(self):
+        """log_broadcaster is a process-wide singleton, so under full-suite
+        load unrelated concurrent log records can share frames with this
+        test's own publishes. A single frame's worth of records is not
+        reliable evidence either way (a frame full of other tests' >=warning
+        noise can crowd out our own "boom" record before it's ever seen), so
+        this collects records across frames using unique per-run sentinel
+        event names and keeps going until its own "boom" sentinel is seen
+        rather than trusting whatever showed up in the first frame.
+        """
+        import time
+        import uuid
+
         from geometrikks.server.logging import log_broadcaster
+
+        marker = uuid.uuid4().hex
+        noise_event = f"noise-{marker}"
+        boom_event = f"boom-{marker}"
         with TestClient(app=self._make_app()) as client:
             with client.websocket_connect("/ws/logs?level=warning") as ws:
                 def publish():
-                    log_broadcaster.publish_threadsafe({"level": "debug", "event": "noise"})
-                    log_broadcaster.publish_threadsafe({"level": "error", "event": "boom"})
-                frame = self._receive_data_frame(ws, publish)
-                events = [r["event"] for r in frame["records"]]
-                assert "boom" in events and "noise" not in events
+                    log_broadcaster.publish_threadsafe({"level": "debug", "event": noise_event})
+                    log_broadcaster.publish_threadsafe({"level": "error", "event": boom_event})
+
+                seen_events: set[str] = set()
+                deadline = time.time() + 5
+                while time.time() < deadline and boom_event not in seen_events:
+                    publish()
+                    frame = ws.receive_json(timeout=2)
+                    seen_events.update(r.get("event", "") for r in frame["records"])
+                assert boom_event in seen_events
+                assert noise_event not in seen_events
 
     def test_sends_empty_log_batch_heartbeat_when_idle(self, monkeypatch):
         from geometrikks.domain.realtime import controllers as live_controller

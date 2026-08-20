@@ -6,6 +6,7 @@ import axios from "axios"
 import {
   apiV1GeoEventsFacetsGetGeoLogFacets,
   apiV1GeoEventsLogsGetGeoLogs,
+  apiV1GeoLocationsSiteHomesSiteHomes,
   apiV1GeoEventsSummaryGetGeoLogSummary,
   apiV1GeoEventsTimeSeriesGetGeoLogTimeSeries,
   apiV1GeoEventsTopCitiesGetGeoLogTopCities,
@@ -34,6 +35,7 @@ import type {
   IpLocation,
   SessionUser,
   AuthDisabled,
+  SiteHomesResponse,
 } from "@/generated/api/types.gen"
 
 export type {
@@ -104,6 +106,18 @@ export interface HealthIngestionStatus {
   missingFiles: string[]
   /** Wall-clock of the most recent ingested record; null before the first. */
   lastRecordAt: string | null
+  /** Tri-state: "disabled" is a deliberate LOGPARSER_ENABLED=false setting,
+   *  not a fault. Optional: absent on pre-tri-state backends. */
+  status?: "running" | "degraded" | "disabled"
+}
+
+export interface Advisory {
+  /** Stable slug, e.g. "hostname-pollution". */
+  id: string
+  severity: "warning" | "critical"
+  summary: string
+  detail?: string | null
+  remedy?: string | null
 }
 
 export interface HealthResponse {
@@ -116,6 +130,8 @@ export interface HealthResponse {
   geoip: { available: boolean; dbBuildDate: string | null }
   crowdsec: { enabled: boolean; lapiReachable: boolean | null }
   timestamp: string
+  /** Operator-actionable warnings; empty when nothing needs attention. */
+  advisories?: Advisory[]
 }
 
 export type RuntimeSettings = SafeSettingsResponse
@@ -397,7 +413,9 @@ export interface GeoJSONParams {
   ips?: string[]
   /** Exact IPs to exclude; forces a raw geo_events scan on the backend. */
   ipsExclude?: string[]
-  /** Recording hostnames; forces a raw geo_events scan on the backend. */
+  /** Recording hostnames; reads the hostname-dimensioned location CAGGs,
+   * falling back to a raw geo_events scan on installs that have not
+   * migrated. */
   hostnames?: string[]
 }
 
@@ -821,6 +839,12 @@ export async function fetchGeoLogTopCities(
 /** Distinct country/city/hostname values present in the geo data. */
 export async function fetchGeoEventFacets() {
   const { data } = await apiV1GeoEventsFacetsGetGeoLogFacets({ throwOnError: true })
+  return data
+}
+
+/** Per-source home locations plus the instance-wide default, for the map. */
+export async function fetchSiteHomes(): Promise<SiteHomesResponse> {
+  const { data } = await apiV1GeoLocationsSiteHomesSiteHomes({ throwOnError: true })
   return data
 }
 

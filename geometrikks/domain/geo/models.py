@@ -1,6 +1,7 @@
 from datetime import datetime, timezone
 
 from sqlalchemy import (
+    CheckConstraint,
     Float,
     BigInteger,
     String,
@@ -117,3 +118,26 @@ class GeoEvent(base.BigIntBase):
 
     def __repr__(self) -> str:
         return f"<GeoEvent(id={self.id}, ip={self.ip_address}, timestamp={self.timestamp})>"
+
+
+class SiteHome(base.BigIntAuditBase):
+    """Current home location of one recording hostname (site).
+
+    Agents upsert source="auto" rows from their own public-IP detection;
+    the head reconciles MAP_HOME_LOCATIONS into source="override" rows.
+    Current state only, no history (a moved site just gets new
+    coordinates)."""
+
+    __tablename__ = "site_homes"
+    # Renders as ck_site_homes_source via the naming convention; backs the
+    # auto/override Literal on the wire with DB-level enforcement.
+    __table_args__ = (CheckConstraint("source IN ('auto', 'override')", name="source"),)
+
+    hostname: Mapped[str] = mapped_column(String(255), nullable=False, unique=True)
+    latitude: Mapped[float] = mapped_column(Float, nullable=False)
+    longitude: Mapped[float] = mapped_column(Float, nullable=False)
+    source: Mapped[str] = mapped_column(String(16), nullable=False)
+    detected_at: Mapped[datetime | None] = mapped_column(DateTimeUTC(timezone=True), nullable=True)
+
+    def __repr__(self) -> str:
+        return f"<SiteHome {self.hostname} ({self.latitude}, {self.longitude}) {self.source}>"

@@ -1,9 +1,10 @@
 /**
  * Animated live network routes.
  *
- * Each geo event becomes a great-circle route from the request origin to the
- * configured server home. A single GeoJSON source and rAF loop drive every
- * layer so concurrent traffic remains inexpensive for MapLibre to render.
+ * Each geo event becomes a great-circle route from the request origin to its
+ * source's resolved home (falling back to the instance default). A single
+ * GeoJSON source and rAF loop drive every layer so concurrent traffic
+ * remains inexpensive for MapLibre to render.
  */
 import { useCallback, useEffect, useRef } from "react"
 import { Layer, Source, useMap } from "react-map-gl/maplibre"
@@ -21,6 +22,7 @@ interface Transmission {
   duration: number
   lane: string
   route: Coordinate[]
+  destination: Coordinate
   requestId: string
   color: string
   radius: number
@@ -181,6 +183,7 @@ function createTransmission(
     duration: reducedMotion ? 1100 : clamp(2600 + Math.sqrt(distance) * 38, 2800, 6500),
     lane: routeLane(origin),
     route,
+    destination,
     requestId: request.id,
     color: packetColor(request.statusClass),
     radius: packetRadius(request.log?.bytes_sent),
@@ -189,17 +192,20 @@ function createTransmission(
   }
 }
 
-function buildFrame(
-  transmissions: Transmission[],
-  destination: Coordinate,
-  now: number,
-): FeatureCollection {
+interface DestinationArrival {
+  point: Coordinate
+  strongest: number
+  status: StatusClass
+}
+
+function buildFrame(transmissions: Transmission[], now: number): FeatureCollection {
   const features: Feature[] = []
-  let strongestArrival = 0
   const visibleTransmissions = new Set<Transmission>()
   const visibleLanes = new Set<string>()
   const visiblePacketCells = new Set<string>()
-  let arrivalStatus: StatusClass = "unknown"
+  // Keyed by destination coordinate: each distinct home gets its own arrival
+  // ripple, aggregated across every transmission currently landing there.
+  const arrivals = new Map<string, DestinationArrival>()
 
   // Prefer the most recent packet in each corridor. Working backwards makes
   // each corridor look live without rendering overlapping copies of its line.
@@ -219,8 +225,15 @@ function buildFrame(
     const opacity = elapsed <= transmission.duration ? 1 : 1 - linger
     const originWave = (elapsed % 1050) / 1050
     const packetPulse = (Math.sin(elapsed / 105) + 1) / 2
-    strongestArrival = Math.max(strongestArrival, linger > 0 ? 1 - linger : 0)
-    if (linger > 0) arrivalStatus = worseStatus(arrivalStatus, transmission.statusClass)
+    const destinationKey = `${transmission.destination[0]},${transmission.destination[1]}`
+    const arrival = arrivals.get(destinationKey) ?? {
+      point: transmission.destination,
+      strongest: 0,
+      status: "unknown",
+    }
+    arrival.strongest = Math.max(arrival.strongest, linger > 0 ? 1 - linger : 0)
+    if (linger > 0) arrival.status = worseStatus(arrival.status, transmission.statusClass)
+    arrivals.set(destinationKey, arrival)
 
     if (visibleTransmissions.has(transmission)) {
       features.push(
@@ -271,16 +284,17 @@ function buildFrame(
     }
   }
 
-  if (transmissions.length > 0) {
+  const pulse = (Math.sin(now / 220) + 1) / 2
+  for (const arrival of arrivals.values()) {
     features.push({
       type: "Feature",
-      geometry: { type: "Point", coordinates: destination },
+      geometry: { type: "Point", coordinates: arrival.point },
       properties: {
         kind: "destination",
         opacity: 1,
-        pulse: (Math.sin(now / 220) + 1) / 2,
-        arrival: strongestArrival,
-        arrivalColor: packetColor(arrivalStatus),
+        pulse,
+        arrival: arrival.strongest,
+        arrivalColor: packetColor(arrival.status),
       },
     })
   }
@@ -290,10 +304,11 @@ function buildFrame(
 
 export function LivePulses({
   enabled,
-  destination,
+  resolveDestination,
 }: {
   enabled: boolean
-  destination: Coordinate | null
+  /** Per-request home lookup; a request whose hostname resolves to null never flies. */
+  resolveDestination: (hostname: string | null) => Coordinate | null
 }) {
   const { current: map } = useMap()
   const store = useLiveTrafficStore()
@@ -329,9 +344,10 @@ export function LivePulses({
   }, [map])
 
   const enqueueRequests = useCallback((requests: readonly LiveRequest[]) => {
-    if (!destination) return
     const now = performance.now()
     for (const request of requests) {
+      const destination = resolveDestination(request.hostname)
+      if (!destination) continue
       const transmission = createTransmission(
         request,
         destination,
@@ -350,20 +366,22 @@ export function LivePulses({
         transmissions.current.push(transmission)
       }
     }
-  }, [destination])
+  }, [resolveDestination])
 
   useEffect(() => {
-    if (!enabled || !destination) return
+    if (!enabled) return
     return store.onRequests((requests) => enqueueRequests(requests))
-  }, [destination, enabled, enqueueRequests, store])
+  }, [enabled, enqueueRequests, store])
 
+  // The resolver changes when the site-homes data changes (rare); every
+  // in-flight route was built against the old homes, so start clean.
   useEffect(() => {
     transmissions.current = []
     queuedRequests.current.clear()
-  }, [destination?.[0], destination?.[1]])
+  }, [resolveDestination])
 
   useEffect(() => {
-    if (!enabled || !destination) {
+    if (!enabled) {
       transmissions.current = []
       queuedRequests.current.clear()
       return
@@ -382,6 +400,11 @@ export function LivePulses({
         if (transmissions.current.length >= MAX_ACTIVE_TRANSMISSIONS) break
         if (transmissions.current.some((transmission) => transmission.lane === lane)) continue
 
+        const destination = resolveDestination(request.hostname)
+        if (!destination) {
+          queuedRequests.current.delete(lane)
+          continue
+        }
         const transmission = createTransmission(
           request,
           destination,
@@ -396,16 +419,16 @@ export function LivePulses({
       const idle = transmissions.current.length === 0
       if (!idle || !sourceIsEmpty.current) {
         const source = map?.getSource(SOURCE_ID) as GeoJSONSource | undefined
-        source?.setData(buildFrame(transmissions.current, destination, now))
+        source?.setData(buildFrame(transmissions.current, now))
         sourceIsEmpty.current = idle
       }
       raf.current = requestAnimationFrame(tick)
     }
     raf.current = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(raf.current)
-  }, [destination, enabled, map])
+  }, [enabled, map, resolveDestination])
 
-  if (!enabled || !destination) return null
+  if (!enabled) return null
 
   return (
     <Source id={SOURCE_ID} type="geojson" data={emptyFeatureCollection()}>

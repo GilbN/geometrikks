@@ -91,6 +91,7 @@ function LiveRequestDetail({
       </div>
 
       <Row label="IP" value={request.ip} />
+      {request.hostname && <Row label="Source" value={request.hostname} />}
       <Row label="Location" value={[request.city, request.countryCode].filter(Boolean).join(", ") || "Unknown"} />
       {!request.coordinates && <Row label="Geo" value="No GeoIP match" />}
       {log && <Row label="Host" value={log.host ?? "-"} />}

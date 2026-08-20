@@ -110,6 +110,8 @@ import type {
   ApiV1GeoLocationsLocationIdTopIpsGetLocationTopIpsData,
   ApiV1GeoLocationsLocationIdTopIpsGetLocationTopIpsErrors,
   ApiV1GeoLocationsLocationIdTopIpsGetLocationTopIpsResponses,
+  ApiV1GeoLocationsSiteHomesSiteHomesData,
+  ApiV1GeoLocationsSiteHomesSiteHomesResponses,
   ApiV1GeoLocationsTopCountriesGetTopCountriesData,
   ApiV1GeoLocationsTopCountriesGetTopCountriesErrors,
   ApiV1GeoLocationsTopCountriesGetTopCountriesResponses,
@@ -210,6 +212,7 @@ export type OperationName =
   | 'read_settings'
   | 'rotate'
   | 'run_scheduler_job'
+  | 'site_homes'
   | 'stats'
   | 'tail'
   | 'unban'
@@ -268,6 +271,7 @@ export interface OperationDataTypes {
   'read_settings': ApiV1SettingsReadSettingsData
   'rotate': ApiV1LogsRotateRotateData
   'run_scheduler_job': ApiV1SystemSchedulerJobsJobIdRunRunSchedulerJobData
+  'site_homes': ApiV1GeoLocationsSiteHomesSiteHomesData
   'stats': ApiV1StatsStatsData
   'tail': ApiV1LogsTailTailData
   'unban': ApiV1CrowdsecUnbanUnbanData
@@ -327,6 +331,7 @@ export interface OperationResponseTypes {
   'read_settings': ApiV1SettingsReadSettingsResponses
   'rotate': ApiV1LogsRotateRotateResponses
   'run_scheduler_job': ApiV1SystemSchedulerJobsJobIdRunRunSchedulerJobResponses
+  'site_homes': ApiV1GeoLocationsSiteHomesSiteHomesResponses
   'stats': ApiV1StatsStatsResponses
   'tail': ApiV1LogsTailTailResponses
   'unban': ApiV1CrowdsecUnbanUnbanResponses
@@ -386,6 +391,7 @@ export interface OperationErrorTypes {
   'read_settings': never
   'rotate': never
   'run_scheduler_job': ApiV1SystemSchedulerJobsJobIdRunRunSchedulerJobErrors
+  'site_homes': never
   'stats': never
   'tail': ApiV1LogsTailTailErrors
   'unban': ApiV1CrowdsecUnbanUnbanErrors

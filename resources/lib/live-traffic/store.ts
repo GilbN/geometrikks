@@ -138,6 +138,15 @@ export class LiveTrafficStore {
     this.droppedTotal = 0
     this.lastDropAt = null
   }
+
+  /** Drop the whole window (used when the source filter changes so stale
+   *  unfiltered requests cannot linger on screen). Buckets and vitals are
+   *  derived from `requests` on read, so clearing it is enough. */
+  reset(): void {
+    this.requests = []
+    this.byId.clear()
+    this.listeners.forEach((listener) => listener([]))
+  }
 }
 
 export type { StatusClass }

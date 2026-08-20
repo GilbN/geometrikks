@@ -1,0 +1,218 @@
+# Local test stack for the multi-source / agent-mode features:
+#
+#   timescale_agent_db  dedicated TimescaleDB (own volume, host port 5433)
+#   ui-head             full app with LOGPARSER_ENABLED=false: serves the
+#                       UI/API/WS, runs migrations, no tailing of its own
+#   agent-nginx         APP_MODE=agent tailing nginx_logs/nginx.log
+#   agent-traefik       APP_MODE=agent tailing nginx_logs/traefik.log
+#
+# All three app services build the production Dockerfile locally and share
+# one image tag, so compose builds it once.
+#
+# Usage, from the repo root (--env-file: the compose project directory is
+# dev/, so the root .env is not picked up for ${...} interpolation on its
+# own):
+#   docker compose -f dev/docker-compose.agents.yml --env-file .env up --build
+#
+# The log-injector service feeds synthetic live traffic (1 line/s per
+# agent) for as long as the stack is up; `touch dev/inject-logs.stop`
+# pauses it without touching the rest of the stack.
+#
+# Notes:
+#   - The UI head publishes :8000, same as the normal dev stack; stop that
+#     first (devkill).
+#   - Agents deliberately do NOT depend on the UI head: they come up in
+#     parallel and sit in the schema-wait gate until the head has migrated.
+#     Watch it: curl localhost:8001/health
+#   - deliberately no env_file: on the services: .env carries CrowdSec
+#     creds, ignore-IPs and auth overrides that would leak into this
+#     isolated stack. The --env-file flag above only feeds the ${...}
+#     interpolations below (admin login, MaxMind creds).
+#   - ./data/geoip (the dev mmdb) is bind-mounted rw into all three
+#     services; the entrypoint chowns it, and rw lets the agents' weekly
+#     geoip-refresh job work. Fine for a test stack, one-volume-per-agent
+#     in real deployments.
+#   - Site homes (Phase 5): both agents share this machine's public IP, so
+#     their auto-detected homes coincide. The head below pins three US
+#     cities so routes and beacons visibly split: its own home in Chicago
+#     (MAP_HOME_LATITUDE/LONGITUDE, the default beacon), nginx-01 in New
+#     York and traefik-01 in Los Angeles (MAP_HOME_LOCATIONS). Only the
+#     agents ingest, so only their two beacons draw routes; Chicago is the
+#     head. Edit or remove the overrides to test the pure-auto path (the
+#     override row is deleted at the next head restart, and the agent's
+#     next write restores it as auto). Inspect the table:
+#       docker exec timescale_agent_db psql -U geouser -d geometrikks \
+#         -c "SELECT hostname, latitude, longitude, source FROM site_homes;"
+
+name: geometrikks-agents
+
+services:
+
+  timescale_agent_db:
+    container_name: timescale_agent_db
+    image: timescale/timescaledb-ha:pg18
+    restart: unless-stopped
+    shm_size: 256mb
+    # Worker pool sized for the app's ~32 background jobs, whose CAGG
+    # refresh policies all fire on the same tick; see docker-compose.yml.
+    command:
+      - -c
+      - timescaledb.max_background_workers=40
+      - -c
+      - max_parallel_workers=8
+      - -c
+      - max_worker_processes=51
+    environment:
+      POSTGRES_USER: geouser
+      POSTGRES_PASSWORD: geopass
+      POSTGRES_DB: geometrikks
+    ports:
+      - "5433:5432"
+    volumes:
+      - timescale_agent_data:/home/postgres/pgdata/data
+    networks:
+      - geometrikks_agent_net
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U geouser -d geometrikks" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ===========================================================================
+  # UI head: full mode, no local tailing. Owns migrations, auth, the map,
+  # and the /ws/live fan-out fed by the agents through LISTEN/NOTIFY.
+  # ===========================================================================
+  ui-head:
+    container_name: geometrikks_ui_head
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    image: geometrikks:agent-mode
+    restart: unless-stopped
+    hostname: ui-head
+    stop_grace_period: 20s
+    environment:
+      LOGPARSER_ENABLED: "false"
+      APP_ADMIN_USER: ${APP_ADMIN_USER:-admin}
+      APP_ADMIN_PASSWORD: ${APP_ADMIN_PASSWORD:-}
+      # This instance's own home, which the map renders as the default
+      # beacon. Setting both coordinates skips public-IP auto-detection.
+      MAP_HOME_LATITUDE: 41.8781
+      MAP_HOME_LONGITUDE: -87.6298
+      # Demo override so the two sites' homes differ (see header notes).
+      # Hardcoded rather than ${...}-interpolated: compose interpolation
+      # defaults cannot carry JSON braces.
+      MAP_HOME_LOCATIONS: '{"nginx-01": [40.7128, -74.0060], "traefik-01": [34.0522, -118.2437]}'
+      DB_HOST: timescale_agent_db
+      DB_PORT: 5432
+      DB_USER: geouser
+      DB_PASSWORD: geopass
+      DB_DATABASE: geometrikks
+    ports:
+      - "8000:8000"
+    volumes:
+      - ../data/geoip:/app/data/geoip
+    networks:
+      - geometrikks_agent_net
+    depends_on:
+      timescale_agent_db:
+        condition: service_healthy
+
+  # ===========================================================================
+  # Agents: logparser-only processes stamping their own hostname. Health
+  # endpoints published for watching schema_wait / ingestion status.
+  # ===========================================================================
+  agent-nginx:
+    container_name: geometrikks_agent_nginx
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    image: geometrikks:agent-mode
+    restart: unless-stopped
+    hostname: agent-nginx
+    stop_grace_period: 20s
+    environment:
+      APP_MODE: agent
+      # Hourly re-detection instead of the 24h default, so cadence-driven
+      # site-home refreshes are observable within a test session.
+      MAP_HOME_REFRESH_HOURS: 1
+      LOGPARSER_HOST_NAME: nginx-01
+      LOGPARSER_LOG_PATHS: /var/log/access/nginx.log
+      LOGPARSER_LOG_FORMATS: nginx
+      MAXMINDDB_USER_ID: ${MAXMINDDB_USER_ID:-}
+      MAXMINDDB_LICENSE_KEY: ${MAXMINDDB_LICENSE_KEY:-}
+      DB_HOST: timescale_agent_db
+      DB_PORT: 5432
+      DB_USER: geouser
+      DB_PASSWORD: geopass
+      DB_DATABASE: geometrikks
+    ports:
+      - "8001:8000"
+    volumes:
+      - ../nginx_logs:/var/log/access:ro
+      - ../data/geoip:/app/data/geoip
+    networks:
+      - geometrikks_agent_net
+    depends_on:
+      timescale_agent_db:
+        condition: service_healthy
+
+  agent-traefik:
+    container_name: geometrikks_agent_traefik
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    image: geometrikks:agent-mode
+    restart: unless-stopped
+    hostname: agent-traefik
+    stop_grace_period: 20s
+    environment:
+      APP_MODE: agent
+      MAP_HOME_REFRESH_HOURS: 1
+      LOGPARSER_HOST_NAME: traefik-01
+      LOGPARSER_LOG_PATHS: /var/log/access/traefik.log
+      LOGPARSER_LOG_FORMATS: traefik-json
+      MAXMINDDB_USER_ID: ${MAXMINDDB_USER_ID:-}
+      MAXMINDDB_LICENSE_KEY: ${MAXMINDDB_LICENSE_KEY:-}
+      DB_HOST: timescale_agent_db
+      DB_PORT: 5432
+      DB_USER: geouser
+      DB_PASSWORD: geopass
+      DB_DATABASE: geometrikks
+    ports:
+      - "8002:8000"
+    volumes:
+      - ../nginx_logs:/var/log/access:ro
+      - ../data/geoip:/app/data/geoip
+    networks:
+      - geometrikks_agent_net
+    depends_on:
+      timescale_agent_db:
+        condition: service_healthy
+
+  # ===========================================================================
+  # Synthetic traffic: runs dev/inject-logs.sh for the stack's lifetime, so
+  # `up` starts the inserts and `down` ends them. Reuses the app image for
+  # bash + GNU date (the traefik timestamps need date %N) with the app
+  # entrypoint bypassed. Pause from the host with `touch dev/inject-logs.stop`
+  # (the container exits; `up -d log-injector` clears the stopfile and
+  # resumes). No restart policy for that reason: a restart would wipe a
+  # freshly touched stopfile and resume against the operator's intent.
+  # ===========================================================================
+  log-injector:
+    container_name: geometrikks_log_injector
+    image: geometrikks:agent-mode
+    user: "${PUID:-1000}:${PGID:-1000}"
+    entrypoint: ["bash", "/injector/dev/inject-logs.sh"]
+    environment:
+      INJECT_MAX_SECONDS: 0
+    volumes:
+      - .:/injector/dev
+      - ../nginx_logs:/injector/nginx_logs
+
+networks:
+  geometrikks_agent_net:
+    driver: bridge
+
+volumes:
+  timescale_agent_data:

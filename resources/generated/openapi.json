@@ -307,6 +307,50 @@
         "title": "AccessLogFacets",
         "type": "object"
       },
+      "Advisory": {
+        "properties": {
+          "detail": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "remedy": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "severity": {
+            "enum": [
+              "warning",
+              "critical"
+            ],
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "severity",
+          "summary"
+        ],
+        "title": "Advisory",
+        "type": "object"
+      },
       "AlertView": {
         "properties": {
           "asName": {
@@ -783,6 +827,22 @@
           "type"
         ],
         "title": "DecisionView",
+        "type": "object"
+      },
+      "DefaultHomeView": {
+        "properties": {
+          "latitude": {
+            "type": "number"
+          },
+          "longitude": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "latitude",
+          "longitude"
+        ],
+        "title": "DefaultHomeView",
         "type": "object"
       },
       "EmbeddedLocationDTO": {
@@ -1469,6 +1529,12 @@
       },
       "HealthResponse": {
         "properties": {
+          "advisories": {
+            "items": {
+              "$ref": "#/components/schemas/Advisory"
+            },
+            "type": "array"
+          },
           "crowdsec": {
             "$ref": "#/components/schemas/CrowdSecHealth"
           },
@@ -1480,6 +1546,24 @@
           },
           "ingestion": {
             "$ref": "#/components/schemas/IngestionHealth"
+          },
+          "mode": {
+            "default": "full",
+            "enum": [
+              "full",
+              "agent"
+            ],
+            "type": "string"
+          },
+          "schemaWait": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "startedAt": {
             "oneOf": [
@@ -1594,8 +1678,21 @@
           "pendingRecords": {
             "type": "integer"
           },
+          "publishDropped": {
+            "default": 0,
+            "type": "integer"
+          },
           "running": {
             "type": "boolean"
+          },
+          "status": {
+            "default": "running",
+            "enum": [
+              "running",
+              "degraded",
+              "disabled"
+            ],
+            "type": "string"
           }
         },
         "required": [
@@ -2797,6 +2894,71 @@
         "title": "SettingsSectionView",
         "type": "object"
       },
+      "SiteHomeView": {
+        "properties": {
+          "detectedAt": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "hostname": {
+            "type": "string"
+          },
+          "latitude": {
+            "type": "number"
+          },
+          "longitude": {
+            "type": "number"
+          },
+          "source": {
+            "enum": [
+              "auto",
+              "override"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "detectedAt",
+          "hostname",
+          "latitude",
+          "longitude",
+          "source"
+        ],
+        "title": "SiteHomeView",
+        "type": "object"
+      },
+      "SiteHomesResponse": {
+        "properties": {
+          "default": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/DefaultHomeView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "homes": {
+            "items": {
+              "$ref": "#/components/schemas/SiteHomeView"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "default",
+          "homes"
+        ],
+        "title": "SiteHomesResponse",
+        "type": "object"
+      },
       "SummaryResponse": {
         "properties": {
           "currentPeriod": {
@@ -3454,7 +3616,7 @@
   "info": {
     "description": "Real-time GeoIP lookups and traffic analytics API",
     "title": "GeoMetrikks API",
-    "version": "0.8.0"
+    "version": "0.9.0"
   },
   "openapi": "3.1.0",
   "paths": {
@@ -9072,6 +9234,30 @@
         ]
       }
     },
+    "/api/v1/geo-locations/site-homes": {
+      "get": {
+        "deprecated": false,
+        "description": "Per-source home locations for the map.",
+        "operationId": "ApiV1GeoLocationsSiteHomesSiteHomes",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SiteHomesResponse"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          }
+        },
+        "summary": "SiteHomes",
+        "tags": [
+          "Geo Locations"
+        ]
+      }
+    },
     "/api/v1/geo-locations/top-countries": {
       "get": {
         "deprecated": false,
@@ -9959,7 +10145,7 @@
                 }
               }
             },
-            "description": "Database unreachable; the app is not ready for traffic."
+            "description": "Database unreachable, or an agent whose schema gate has not passed; the app is not ready for traffic."
           }
         },
         "summary": "HealthReady",

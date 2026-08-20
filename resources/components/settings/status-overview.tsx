@@ -4,6 +4,7 @@ import {
   CalendarClock,
   Database,
   Globe,
+  MapPin,
   Radio,
   ShieldCheck,
   ShieldUser,
@@ -18,15 +19,18 @@ import {
   useMe,
   useRecentErrors,
   useSchedulerJobs,
+  useSiteHomes,
   useStats,
 } from "@/lib/queries"
 import { useLiveEvents, useLiveFeedStatus } from "@/lib/live-feed-context"
+import { cn } from "@/lib/utils"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { MonoChip, StatusLed } from "@/components/settings/status-led"
 import {
   accessLogFiles,
+  advisoryCards,
   authState,
   type CardState,
   compressionSummary,
@@ -43,6 +47,7 @@ import {
   overallState,
   relativeTime,
   schedulerJobState,
+  siteHomeRows,
 } from "@/components/settings/status-logic"
 
 function SectionIcon({ icon: Icon }: { icon: React.ComponentType<{ className?: string }> }) {
@@ -89,6 +94,7 @@ export function StatusOverview() {
   const jobs = schedulerData?.jobs
   const { data: dbInfo } = useDatabaseInfo()
   const { data: logRecords, isError: logsError } = useRecentErrors()
+  const { data: siteHomes } = useSiteHomes()
   const feedStatus = useLiveFeedStatus()
   // Probe the live WebSocket while this page is open: the client is
   // per-tab and lazy, so without our own subscription the card could
@@ -101,6 +107,7 @@ export function StatusOverview() {
   const uptime = formatUptime(health?.startedAt, now)
   const geoipRefreshJob = jobs?.find((j) => j.id === "geoip-refresh")
   const recentErrors = filterErrorRecords(logRecords, 5)
+  const homeRows = siteHomeRows(siteHomes)
 
   if (healthLoading) {
     return (
@@ -117,6 +124,21 @@ export function StatusOverview() {
 
   return (
     <div className="space-y-4">
+      {advisoryCards(health).map((card) => (
+        <Card key={card.id} className={cn("border-l-2", card.tone === "red" ? "border-l-red-500" : "border-l-amber-500")}>
+          <CardContent className="space-y-1 pt-4">
+            <div className="flex items-center gap-2 text-sm font-medium">
+              <StatusLed tone={card.tone} />
+              {card.label}
+            </div>
+            {card.detail && <p className="text-xs text-muted-foreground">{card.detail}</p>}
+            {card.remedy && (
+              <code className="block w-fit rounded bg-muted px-2 py-1 text-xs">{card.remedy}</code>
+            )}
+          </CardContent>
+        </Card>
+      ))}
+
       {/* Overall state and Authentication share the banner row: the subsystem
           grid below holds an even number of cards, so putting Authentication
           there instead would leave a hole in its last row. */}
@@ -202,6 +224,9 @@ export function StatusOverview() {
                 })()}
               </div>
             )}
+            {/* A disabled parser tails nothing by design, so the file list
+                (which would only say "No access logs configured.") is noise. */}
+            {health?.ingestion.status !== "disabled" && (
             <div className="space-y-2 border-t pt-3">
               <p className="text-xs font-medium text-muted-foreground">Tailed access logs</p>
               {filesError && <p className="text-xs text-muted-foreground">File list unavailable.</p>}
@@ -223,6 +248,7 @@ export function StatusOverview() {
                 </div>
               ))}
             </div>
+            )}
           </CardContent>
         </Card>
 
@@ -382,37 +408,71 @@ export function StatusOverview() {
         </Card>
       </div>
 
-      <Card>
-        <CardHeader className="pb-3">
-          <div className="flex items-center gap-3">
-            <SectionIcon icon={TriangleAlert} />
-            <div>
-              <CardTitle className="text-base">Recent errors</CardTitle>
-              <CardDescription>
-                Latest error-level events from the application log ·{" "}
-                <Link to="/settings/logs" className="underline underline-offset-2">
-                  open Logs
-                </Link>
-              </CardDescription>
+      <div className="grid gap-4 md:grid-cols-2">
+        {/* Only shown when at least one source has a resolved home: makes the
+            auto/override split visible in-app for CGNAT diagnosis, matching
+            the failure-mode table's promise that source is inspectable. */}
+        {homeRows.length > 0 && (
+          <Card>
+            <CardHeader className="pb-3">
+              <div className="flex items-center gap-3">
+                <SectionIcon icon={MapPin} />
+                <div>
+                  <CardTitle className="text-base">Site homes</CardTitle>
+                  <CardDescription>Per-source home location used for map beacons and route origins</CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {homeRows.map((row) => (
+                <div key={row.hostname} className="flex items-center gap-2 text-xs">
+                  <MonoChip>{row.hostname}</MonoChip>
+                  <span className="text-muted-foreground tabular-nums">{row.coords}</span>
+                  {row.source === "override" ? (
+                    <Badge variant="outline" className="ml-auto">
+                      override
+                    </Badge>
+                  ) : (
+                    <span className="ml-auto text-muted-foreground">auto</span>
+                  )}
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        )}
+
+        <Card className={homeRows.length > 0 ? undefined : "md:col-span-2"}>
+          <CardHeader className="pb-3">
+            <div className="flex items-center gap-3">
+              <SectionIcon icon={TriangleAlert} />
+              <div>
+                <CardTitle className="text-base">Recent errors</CardTitle>
+                <CardDescription>
+                  Latest error-level events from the application log ·{" "}
+                  <Link to="/settings/logs" className="underline underline-offset-2">
+                    open Logs
+                  </Link>
+                </CardDescription>
+              </div>
             </div>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-2">
-          {logsError && <p className="text-xs text-muted-foreground">Log tail unavailable.</p>}
-          {!logsError && recentErrors.length === 0 && (
-            <p className="text-xs text-muted-foreground">No recent errors.</p>
-          )}
-          {recentErrors.map((r, i) => (
-            <div key={i} className="flex items-baseline gap-2 text-xs">
-              <span className="shrink-0 text-muted-foreground tabular-nums">
-                {r.timestamp ? new Date(r.timestamp).toLocaleString() : ""}
-              </span>
-              {r.logger && <MonoChip>{r.logger}</MonoChip>}
-              <span className="truncate">{r.event}</span>
-            </div>
-          ))}
-        </CardContent>
-      </Card>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {logsError && <p className="text-xs text-muted-foreground">Log tail unavailable.</p>}
+            {!logsError && recentErrors.length === 0 && (
+              <p className="text-xs text-muted-foreground">No recent errors.</p>
+            )}
+            {recentErrors.map((r, i) => (
+              <div key={i} className="flex items-baseline gap-2 text-xs">
+                <span className="shrink-0 text-muted-foreground tabular-nums">
+                  {r.timestamp ? new Date(r.timestamp).toLocaleString() : ""}
+                </span>
+                {r.logger && <MonoChip>{r.logger}</MonoChip>}
+                <span className="truncate">{r.event}</span>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      </div>
     </div>
   )
 }

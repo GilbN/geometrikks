@@ -7,6 +7,77 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-08-20
+
+### Added
+
+- `LOGPARSER_HOST_NAME` accepts a JSON list matched positionally to
+  `LOGPARSER_LOG_PATHS`, so one instance tailing logs shipped from several
+  machines records each file under its source hostname. `litestar
+  import-logs` gained `--hostname` to set the stamped hostname per import
+  and now echoes which hostname it stamps.
+- `APP_MODE=agent`: run the same image as a lightweight remote agent that
+  tails, geolocates, writes, and publishes to the live map, serving only
+  `/health` and `/health/ready`. An agent reports not-ready until the
+  primary's schema has arrived, so an orchestrator restarts it into a fresh
+  wait rather than leaving it idle. `LOGPARSER_ENABLED=false` turns a full
+  instance into a UI head with no local tailing, presented as an operator
+  choice (a neutral "Ingestion off" state) rather than degraded health.
+  The live-feed backend now reuses a persistent publish connection and
+  reconnects its listener automatically.
+- The map can filter by source hostname: a Sources control beside the
+  country/city filters, URL-backed filter state (shareable links), live
+  traffic and vitals restricted to the selected sources, and the source
+  hostname shown on live popups and feed rows.
+- Settings > Status shows generic operator advisories from the health
+  endpoint. The first producer warns when the map's per-source aggregates
+  are held back, either because the recorded hostnames look like Docker
+  container IDs or because there are more of them than those aggregates are
+  built for, and gives the consolidation command.
+- Multi-site home locations: agents detect their own public-IP location and
+  record it per hostname, with live map routes flying to each source's home
+  (one beacon per site). `MAP_HOME_LOCATIONS` overrides any hostname's
+  coordinates for sites whose public IP geolocates wrong or whose logs are
+  shipped from another machine. Detection refreshes on its own
+  `MAP_HOME_REFRESH_HOURS` cadence (default 24h). The `GET
+  /api/v1/geo-locations/site-homes` endpoint serves each hostname's current
+  home location plus the instance's default home for map rendering. Settings
+  > Status now shows a "Site homes" block listing each hostname's
+  coordinates and whether they came from auto-detection or an override, so
+  a CGNAT-mismapped source is visible in-app.
+- `dev/`: a committed local multi-source test harness: `docker compose -f
+  dev/docker-compose.agents.yml --env-file .env up --build` starts a
+  dedicated TimescaleDB, a UI head, two agents (nginx + traefik formats),
+  and a log injector feeding them synthetic live traffic for as long as
+  the stack is up.
+
+### Changed
+
+- The live map feed (`/ws/live`) now fans out through PostgreSQL
+  LISTEN/NOTIFY, so committed traffic from any writer process reaches the
+  map, and live events carry the source hostname. Batch imports no longer
+  feed the live map.
+- The map layer choice and Live toggle now persist across visits.
+- The location aggregates are rebuilt once at startup with a per-hostname
+  dimension so source-filtered maps stay fast. History older than the raw
+  retention window (default 180 days) cannot be rebuilt and is discarded at
+  that upgrade; installs with many container-ID hostnames skip the rebuild
+  until consolidated (see the status page advisory).
+
+### Fixed
+
+- The compose files size the TimescaleDB worker pool for the app's ~32
+  background jobs (`timescaledb.max_background_workers=40`,
+  `max_worker_processes=51`), stopping the periodic "failed to launch job
+  ... out of background workers" warnings when the aggregate refresh
+  policies all fire at once. Existing installs: copy the `command:` block
+  from `docker-compose.yml` onto the database service and recreate it.
+- `docker-compose.yml` sets `stop_grace_period: 20s` on the app service, as
+  the deployment docs already prescribed. Docker's default 10s stop timeout
+  raced Granian's 15s worker-kill timeout, so `docker stop` could SIGKILL
+  the container mid-teardown and lose the ingestion batch still in flight.
+  Existing installs: add the same line to your app (and agent) services.
+
 ## [0.8.0] - 2026-08-16
 
 ### Added
@@ -29,6 +100,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `LOGPARSER_LOG_PATHS` default is now `/var/log/access/access.log`. If your
   `.env` sets `LOGPARSER_LOG_PATHS` with `/var/log/nginx/...` paths, change
   them to `/var/log/access/...` when upgrading the compose file.
+
 
 ### Fixed
 
@@ -744,7 +816,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Settings endpoint no longer exposes the full settings tree (database credentials leaked via `model_dump()`); response is now an explicit whitelist.
 - Timestamps in `CALL refresh_continuous_aggregate` are bound as asyncpg parameters instead of interpolated into SQL.
 
-[Unreleased]: https://github.com/GilbN/geometrikks/compare/v0.8.0...HEAD
+[Unreleased]: https://github.com/GilbN/geometrikks/compare/v0.9.0...HEAD
+[0.9.0]: https://github.com/GilbN/geometrikks/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/GilbN/geometrikks/compare/v0.7.1...v0.8.0
 [0.7.1]: https://github.com/GilbN/geometrikks/compare/v0.7.0...v0.7.1
 [0.7.0]: https://github.com/GilbN/geometrikks/releases/tag/v0.7.0

@@ -6,9 +6,10 @@ from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 from typing import TYPE_CHECKING, cast
 
-from geometrikks.domain.geo.repositories import StatsGranularity
+from geometrikks.domain.geo.repositories import GeoLocationRepository, StatsGranularity
 from geometrikks.domain.geo.schemas import GeoEventFilters
 from geometrikks.domain.geo.services import GeoEventService
+from geometrikks.server import timescale
 
 import pytest
 
@@ -110,3 +111,41 @@ async def test_stitched_sql_binds_bounds_as_params():
     sql = session.statements[0]
     assert "bounds" not in sql
     assert ":a_start" in sql and ":a_end" in sql
+
+
+def _location_repo(session: _RecordingSession) -> GeoLocationRepository:
+    return GeoLocationRepository(session=cast("AsyncSession", session))
+
+
+async def test_hostname_filter_uses_cagg_when_capable(monkeypatch):
+    monkeypatch.setattr(timescale, "_location_caggs_have_hostname", True)
+    session = _RecordingSession()
+    await _location_repo(session).get_all_with_event_counts(
+        WEEK_START, NOW, hostnames=["nginx-01"]
+    )
+    sql = session.statements[0]
+    assert "location_hourly_stats" in sql
+    assert "ls.hostname = ANY(:filter_hostnames)" in sql
+
+
+async def test_hostname_filter_forces_raw_without_capability(monkeypatch):
+    monkeypatch.setattr(timescale, "_location_caggs_have_hostname", False)
+    session = _RecordingSession()
+    await _location_repo(session).get_all_with_event_counts(
+        WEEK_START, NOW, hostnames=["nginx-01"]
+    )
+    sql = session.statements[0]
+    assert "location_hourly_stats" not in sql
+    assert "JOIN geo_events" in sql
+    assert "ge.hostname = ANY(:filter_hostnames)" in sql
+
+
+async def test_ip_filter_always_forces_raw(monkeypatch):
+    monkeypatch.setattr(timescale, "_location_caggs_have_hostname", True)
+    session = _RecordingSession()
+    await _location_repo(session).get_all_with_event_counts(
+        WEEK_START, NOW, ip_addresses=["1.1.1.1"], hostnames=["nginx-01"]
+    )
+    sql = session.statements[0]
+    assert "location_hourly_stats" not in sql
+    assert "JOIN geo_events" in sql
