@@ -30,8 +30,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   traffic and vitals restricted to the selected sources, and the source
   hostname shown on live popups and feed rows.
 - Settings > Status shows generic operator advisories from the health
-  endpoint; the first is a warning when recorded hostnames look like Docker
-  container IDs, with the consolidation command to fix them.
+  endpoint. The first producer warns when the map's per-source aggregates
+  are held back, either because the recorded hostnames look like Docker
+  container IDs or because there are more of them than those aggregates are
+  built for, and gives the consolidation command.
 - Multi-site home locations: agents detect their own public-IP location and
   record it per hostname, with live map routes flying to each source's home
   (one beacon per site). `MAP_HOME_LOCATIONS` overrides any hostname's

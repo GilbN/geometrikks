@@ -108,12 +108,14 @@ def _collect_advisories() -> list[Advisory]:
 
     advisories: list[Advisory] = []
     pollution = timescale.get_hostname_pollution()
-    if pollution and pollution.polluted and not timescale.location_caggs_have_hostname():
+    if not pollution or not pollution.polluted or timescale.location_caggs_have_hostname():
+        return advisories
+    if pollution.reason == "container-ids":
         advisories.append(Advisory(
             id="hostname-pollution",
             severity="warning",
             summary=(
-                f"{pollution.container_id_count} of {pollution.distinct_count} "
+                f"{pollution.container_id_count} of {pollution.distinct_label} "
                 "recording hostnames look like Docker container IDs; the map "
                 "source filter runs unaggregated until you consolidate."
             ),
@@ -122,6 +124,24 @@ def _collect_advisories() -> list[Advisory]:
                 "rotating container IDs were recorded as hostnames. The "
                 "location-CAGG upgrade is skipped until the history is "
                 "consolidated; restart afterwards to migrate."
+            ),
+            remedy="litestar backfill-hostname <hostname> --consolidate",
+        ))
+    else:
+        advisories.append(Advisory(
+            id="hostname-count",
+            severity="warning",
+            summary=(
+                f"{pollution.distinct_label} distinct recording hostnames is "
+                f"above the {timescale.DISTINCT_HOSTNAME_CEILING} ceiling; the "
+                "map source filter runs unaggregated."
+            ),
+            detail=(
+                "The per-hostname location aggregates are only built below "
+                "that ceiling, so source-filtered map queries fall back to raw "
+                "scans. If every hostname is a real source, only query speed "
+                "suffers. If they are churn from an unset LOGPARSER_HOST_NAME, "
+                "consolidate the history and restart to migrate."
             ),
             remedy="litestar backfill-hostname <hostname> --consolidate",
         ))
