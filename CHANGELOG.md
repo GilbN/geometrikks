@@ -68,6 +68,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   ... out of background workers" warnings when the aggregate refresh
   policies all fire at once. Existing installs: copy the `command:` block
   from `docker-compose.yml` onto the database service and recreate it.
+- `docker-compose.yml` sets `stop_grace_period: 20s` on the app service, as
+  the deployment docs already prescribed. Docker's default 10s stop timeout
+  raced Granian's 15s worker-kill timeout, so `docker stop` could SIGKILL
+  the container mid-teardown and lose the ingestion batch still in flight.
+  Existing installs: add the same line to your app (and agent) services.
 
 ## [0.8.0] - 2026-08-16
 
