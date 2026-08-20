@@ -284,6 +284,33 @@ def test_health_reports_hostname_pollution_advisory(monkeypatch):
     assert "backfill-hostname" in a["remedy"]
 
 
+def test_health_reports_hostname_count_advisory_without_container_ids(monkeypatch):
+    """Above the ceiling with no container IDs, the advisory must not claim
+    the hostnames look like container IDs, and the count must read as the
+    floor the capped probe actually proved."""
+    async def db_up(app, timeout: float = 2.0) -> bool:
+        return True
+    monkeypatch.setattr(health_module, "_database_reachable", db_up)
+
+    from geometrikks.server import timescale
+    from geometrikks.server.timescale import DISTINCT_HOSTNAME_CEILING, HostnamePollution
+    monkeypatch.setattr(
+        timescale, "_hostname_pollution",
+        HostnamePollution(distinct_count=DISTINCT_HOSTNAME_CEILING + 1, container_id_count=0),
+    )
+    monkeypatch.setattr(timescale, "_location_caggs_have_hostname", False)
+
+    with TestClient(app=make_app()) as client:
+        body = client.get("/health").json()
+    data = body["advisories"]
+    assert len(data) == 1
+    a = data[0]
+    assert a["id"] == "hostname-count"
+    assert "container ID" not in a["summary"]
+    assert f"{DISTINCT_HOSTNAME_CEILING}+" in a["summary"]
+    assert "real source" in a["detail"]
+
+
 def test_health_no_pollution_advisory_when_caggs_already_have_hostname(monkeypatch):
     """Polluted history is moot once the location CAGGs already carry the
     hostname dimension (fresh install / post-consolidation migration): the

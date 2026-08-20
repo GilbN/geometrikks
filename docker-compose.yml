@@ -63,6 +63,10 @@ services:
     depends_on:
       timescale_db:
         condition: service_healthy
+    # Granian is started with --workers-kill-timeout 15; the default 10s
+    # stop timeout SIGKILLs the container mid-teardown and drops the
+    # ingestion batch still in flight.
+    stop_grace_period: 20s
 
 volumes:
   timescale_data:

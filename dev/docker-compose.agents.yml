@@ -33,11 +33,14 @@
 #     geoip-refresh job work. Fine for a test stack, one-volume-per-agent
 #     in real deployments.
 #   - Site homes (Phase 5): both agents share this machine's public IP, so
-#     their auto-detected homes coincide. The head's MAP_HOME_LOCATIONS
-#     below pins traefik-01 to Bergen so routes/beacons visibly split;
-#     edit or remove it to test the pure-auto path (the override row is
-#     deleted at the next head restart, and the agent's next write
-#     restores it as auto). Inspect the table:
+#     their auto-detected homes coincide. The head below pins three US
+#     cities so routes and beacons visibly split: its own home in Chicago
+#     (MAP_HOME_LATITUDE/LONGITUDE, the default beacon), nginx-01 in New
+#     York and traefik-01 in Los Angeles (MAP_HOME_LOCATIONS). Only the
+#     agents ingest, so only their two beacons draw routes; Chicago is the
+#     head. Edit or remove the overrides to test the pure-auto path (the
+#     override row is deleted at the next head restart, and the agent's
+#     next write restores it as auto). Inspect the table:
 #       docker exec timescale_agent_db psql -U geouser -d geometrikks \
 #         -c "SELECT hostname, latitude, longitude, source FROM site_homes;"
 
@@ -92,10 +95,14 @@ services:
       LOGPARSER_ENABLED: "false"
       APP_ADMIN_USER: ${APP_ADMIN_USER:-admin}
       APP_ADMIN_PASSWORD: ${APP_ADMIN_PASSWORD:-}
+      # This instance's own home, which the map renders as the default
+      # beacon. Setting both coordinates skips public-IP auto-detection.
+      MAP_HOME_LATITUDE: 41.8781
+      MAP_HOME_LONGITUDE: -87.6298
       # Demo override so the two sites' homes differ (see header notes).
       # Hardcoded rather than ${...}-interpolated: compose interpolation
       # defaults cannot carry JSON braces.
-      MAP_HOME_LOCATIONS: '{"traefik-01": [60.39, 5.32], "nginx-01": [40.730610, 	-73.935242]}'
+      MAP_HOME_LOCATIONS: '{"nginx-01": [40.7128, -74.0060], "traefik-01": [34.0522, -118.2437]}'
       DB_HOST: timescale_agent_db
       DB_PORT: 5432
       DB_USER: geouser

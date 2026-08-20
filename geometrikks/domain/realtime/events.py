@@ -11,8 +11,9 @@ preview.
 """
 from __future__ import annotations
 
-import json
 from typing import TYPE_CHECKING, Any
+
+import msgspec
 
 if TYPE_CHECKING:
     from geometrikks.services.logparser.schemas import ParsedLogRecord
@@ -77,6 +78,13 @@ def record_to_event(record: "ParsedLogRecord") -> dict[str, Any] | None:
     return {"type": "request", "geo": geo, "log": log}
 
 
+# ChannelsPlugin encodes dict payloads with a bare msgspec JSON encoder, so
+# the guard measures the same bytes. json.dumps would overcount: its default
+# separators add two chars per key and \uXXXX escaping bills a 2-byte UTF-8
+# character as six, dropping envelopes that would have fit.
+_ENCODER = msgspec.json.Encoder()
+
+
 def encode_guard(event: dict[str, Any]) -> bool:
     """True when the encoded event fits the NOTIFY budget; False = drop it."""
-    return len(json.dumps(event)) <= PAYLOAD_MAX
+    return len(_ENCODER.encode(event)) <= PAYLOAD_MAX

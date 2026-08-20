@@ -472,6 +472,7 @@ services:
   agent:
     image: ghcr.io/gilbn/geometrikks:0.9.0   # same tag as the full instance
     restart: unless-stopped
+    stop_grace_period: 20s
     environment:
       APP_MODE: agent
       DB_HOST: timescale.example.internal
@@ -486,6 +487,18 @@ services:
     volumes:
       - geoip_data:/app/data/geoip
       - /var/log/nginx:/var/log/access:ro
+    healthcheck:
+      # The image's own healthcheck probes /health, which answers 200 for
+      # the whole schema wait. /health/ready is the one that reports 503
+      # while the agent waits for the primary to migrate.
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health/ready', timeout=5).read()\" || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      # The schema gate runs inside ASGI startup, so the port does not
+      # accept at all for up to 120s. Without this grace window the first
+      # probes fail a perfectly healthy cold start.
+      start_period: 150s
 
 volumes:
   geoip_data:
@@ -503,6 +516,13 @@ stays up in degraded mode rather than exiting, with `/health` answering 200
 and `/health/ready` answering 503: an orchestrator with a readiness probe
 restarts it into a fresh wait automatically, and without one, restart the
 agent container yourself once the full instance has finished migrating.
+
+Compose does not act on health status, so on plain Docker the probe above
+surfaces a stuck agent as `unhealthy` in `docker ps` and gates any
+`depends_on: condition: service_healthy` you add. Turning that signal into a
+restart takes Swarm, Kubernetes, or an autoheal sidecar. `restart:
+unless-stopped` will not do it, since it reacts to a container exiting and a
+waiting agent stays up.
 
 The reverse case works too: to keep a full instance's UI and API without it
 tailing local files - for example, a machine that only hosts the app, with
