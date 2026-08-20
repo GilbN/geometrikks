@@ -465,6 +465,7 @@ services:
   agent:
     image: ghcr.io/gilbn/geometrikks:0.9.0   # same tag as the full instance
     restart: unless-stopped
+    stop_grace_period: 20s
     environment:
       APP_MODE: agent
       DB_HOST: timescale.example.internal
