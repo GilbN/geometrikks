@@ -24,7 +24,7 @@ import asyncio
 import re
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 from sqlalchemy import text
 
@@ -58,11 +58,29 @@ class HostnamePollution:
     container_id_count: int
 
     @property
+    def probe_capped(self) -> bool:
+        """distinct_count is a floor, not a total: the probe hit its LIMIT."""
+        return self.distinct_count >= _POLLUTION_PROBE_LIMIT
+
+    @property
+    def distinct_label(self) -> str:
+        """Renders a capped count as `50+` so messages do not understate."""
+        if self.probe_capped:
+            return f"{DISTINCT_HOSTNAME_CEILING}+"
+        return str(self.distinct_count)
+
+    @property
+    def reason(self) -> Literal["container-ids", "hostname-count"] | None:
+        """Which threshold tripped; callers word their message from this."""
+        if self.container_id_count >= CONTAINER_ID_THRESHOLD:
+            return "container-ids"
+        if self.distinct_count > DISTINCT_HOSTNAME_CEILING:
+            return "hostname-count"
+        return None
+
+    @property
     def polluted(self) -> bool:
-        return (
-            self.container_id_count >= CONTAINER_ID_THRESHOLD
-            or self.distinct_count > DISTINCT_HOSTNAME_CEILING
-        )
+        return self.reason is not None
 
 
 def classify_hostnames(hostnames: list[str]) -> HostnamePollution:
@@ -843,14 +861,23 @@ async def setup_timescaledb(
         pollution = await detect_hostname_pollution(conn)
         _set_hostname_pollution(pollution)
         if location_upgrade and pollution.polluted:
-            logger.warning(
-                "Skipping the location-CAGG hostname upgrade: %d of %d distinct "
-                "hostnames look like Docker container IDs. Map source filtering "
-                "stays on raw scans. Run `litestar backfill-hostname NAME "
-                "--consolidate`, then restart to migrate.",
-                pollution.container_id_count,
-                pollution.distinct_count,
-            )
+            if pollution.reason == "container-ids":
+                logger.warning(
+                    "Skipping the location-CAGG hostname upgrade: %d of %s distinct "
+                    "hostnames look like Docker container IDs. Map source filtering "
+                    "stays on raw scans. Run `litestar backfill-hostname NAME "
+                    "--consolidate`, then restart to migrate.",
+                    pollution.container_id_count,
+                    pollution.distinct_label,
+                )
+            else:
+                logger.warning(
+                    "Skipping the location-CAGG hostname upgrade: %s distinct "
+                    "recording hostnames is above the %d ceiling. Map source "
+                    "filtering stays on raw scans.",
+                    pollution.distinct_label,
+                    DISTINCT_HOSTNAME_CEILING,
+                )
             location_upgrade = False
         elif location_upgrade:
             for cagg in LOCATION_CAGGS:

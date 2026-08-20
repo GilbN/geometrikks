@@ -113,12 +113,17 @@ def _collect_advisories(app: Litestar, settings: Settings) -> list[Advisory]:
 
     advisories: list[Advisory] = []
     pollution = timescale.get_hostname_pollution()
-    if pollution and pollution.polluted and not timescale.location_caggs_have_hostname():
+    # No early return here: this function has more than one producer, and the
+    # pollution gate must not swallow the ASN advisory below.
+    hostname_pollution_active = bool(
+        pollution and pollution.polluted and not timescale.location_caggs_have_hostname()
+    )
+    if hostname_pollution_active and pollution and pollution.reason == "container-ids":
         advisories.append(Advisory(
             id="hostname-pollution",
             severity="warning",
             summary=(
-                f"{pollution.container_id_count} of {pollution.distinct_count} "
+                f"{pollution.container_id_count} of {pollution.distinct_label} "
                 "recording hostnames look like Docker container IDs; the map "
                 "source filter runs unaggregated until you consolidate."
             ),
@@ -127,6 +132,24 @@ def _collect_advisories(app: Litestar, settings: Settings) -> list[Advisory]:
                 "rotating container IDs were recorded as hostnames. The "
                 "location-CAGG upgrade is skipped until the history is "
                 "consolidated; restart afterwards to migrate."
+            ),
+            remedy="litestar backfill-hostname <hostname> --consolidate",
+        ))
+    elif hostname_pollution_active and pollution:
+        advisories.append(Advisory(
+            id="hostname-count",
+            severity="warning",
+            summary=(
+                f"{pollution.distinct_label} distinct recording hostnames is "
+                f"above the {timescale.DISTINCT_HOSTNAME_CEILING} ceiling; the "
+                "map source filter runs unaggregated."
+            ),
+            detail=(
+                "The per-hostname location aggregates are only built below "
+                "that ceiling, so source-filtered map queries fall back to raw "
+                "scans. If every hostname is a real source, only query speed "
+                "suffers. If they are churn from an unset LOGPARSER_HOST_NAME, "
+                "consolidate the history and restart to migrate."
             ),
             remedy="litestar backfill-hostname <hostname> --consolidate",
         ))
