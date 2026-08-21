@@ -31,6 +31,8 @@ export interface AccessLogData {
   country_code: string | null
   country_name: string | null
   city: string | null
+  autonomous_system_number: number | null
+  autonomous_system_organization: string | null
   hostname: string
 }
 

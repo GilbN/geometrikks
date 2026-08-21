@@ -147,6 +147,19 @@ class GeoIPSettings(BaseSettings):
     refresh_days: int = Field(
         default=7, description="Re-download the GeoLite2 database when older than this many days"
     )
+    asn_db_path: Path = Field(
+        default=Path("data/geoip/GeoLite2-ASN.mmdb"),
+        description="Path to the GeoLite2 ASN database file",
+    )
+    asn_enabled: bool = Field(
+        default=True,
+        description=(
+            "Download and use the GeoLite2 ASN database for per-request "
+            "ASN/organization enrichment. Uses the same MaxMind credentials as "
+            "the City database; without credentials or a database file the app "
+            "simply ingests without ASN data."
+        ),
+    )
 
     @model_validator(mode="after")
     def validate_geoip_db_exists(self) -> "GeoIPSettings":
@@ -154,11 +167,11 @@ class GeoIPSettings(BaseSettings):
 
         Resolves relative paths from the project root to work in all contexts.
         """
+        project_root = Path(__file__).parent.parent.parent
         db_path = self.db_path
 
         # If path is relative, resolve from project root
         if not db_path.is_absolute():
-            project_root = Path(__file__).parent.parent.parent
             db_path = project_root / db_path
 
         if self.validate_db_path and not db_path.exists():
@@ -166,6 +179,13 @@ class GeoIPSettings(BaseSettings):
 
         # Update the path to absolute for runtime use
         self.db_path = db_path
+
+        # ASN path gets the same resolution but no existence check: the
+        # edition is optional enrichment owned by the downloader/degraded path.
+        asn_db_path = self.asn_db_path
+        if not asn_db_path.is_absolute():
+            asn_db_path = project_root / asn_db_path
+        self.asn_db_path = asn_db_path
         return self
 
     @model_validator(mode="after")

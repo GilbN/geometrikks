@@ -47,6 +47,9 @@ class DatabaseHealth(msgspec.Struct, rename="camel"):
 class GeoIPHealth(msgspec.Struct, rename="camel"):
     available: bool
     db_build_date: str | None
+    # Additive: optional ASN edition state; never flips overall status.
+    asn_available: bool = False
+    asn_db_build_date: str | None = None
 
 
 class CrowdSecHealth(msgspec.Struct, rename="camel"):
@@ -103,14 +106,19 @@ async def _database_reachable(app: Litestar, timeout: float = 2.0) -> bool:
         return False
 
 
-def _collect_advisories() -> list[Advisory]:
+def _collect_advisories(app: Litestar, settings: Settings) -> list[Advisory]:
+    # app/settings parameters: ASN availability lives on app.state, unlike
+    # the module-state hostname-pollution flag.
     from geometrikks.server import timescale
 
     advisories: list[Advisory] = []
     pollution = timescale.get_hostname_pollution()
-    if not pollution or not pollution.polluted or timescale.location_caggs_have_hostname():
-        return advisories
-    if pollution.reason == "container-ids":
+    # No early return here: this function has more than one producer, and the
+    # pollution gate must not swallow the ASN advisory below.
+    hostname_pollution_active = bool(
+        pollution and pollution.polluted and not timescale.location_caggs_have_hostname()
+    )
+    if hostname_pollution_active and pollution and pollution.reason == "container-ids":
         advisories.append(Advisory(
             id="hostname-pollution",
             severity="warning",
@@ -127,7 +135,7 @@ def _collect_advisories() -> list[Advisory]:
             ),
             remedy="litestar backfill-hostname <hostname> --consolidate",
         ))
-    else:
+    elif hostname_pollution_active and pollution:
         advisories.append(Advisory(
             id="hostname-count",
             severity="warning",
@@ -144,6 +152,30 @@ def _collect_advisories() -> list[Advisory]:
                 "consolidate the history and restart to migrate."
             ),
             remedy="litestar backfill-hostname <hostname> --consolidate",
+        ))
+    if (
+        settings.geoip.asn_enabled
+        and runtime.is_geoip_available(app, default=True)
+        and not runtime.is_asn_available(app, default=True)
+    ):
+        advisories.append(Advisory(
+            id="asn-database-missing",
+            severity="warning",
+            summary=(
+                "ASN enrichment is enabled but no GeoLite2 ASN database was "
+                "loaded at startup; requests are ingested without ASN data."
+            ),
+            detail=(
+                "The database uses the same MaxMind credentials as the City "
+                "database (MAXMINDDB_USER_ID / MAXMINDDB_LICENSE_KEY) and "
+                "downloads automatically at startup and on the weekly refresh. "
+                "Readers are opened once at startup, so a database that "
+                "arrived since then - downloaded by the weekly refresh, or by "
+                "another instance sharing the volume - is only picked up on "
+                "restart. Check the app log for a download error, then restart "
+                "the container."
+            ),
+            remedy="Set GEOIP_ASN_ENABLED=false to turn ASN enrichment off instead.",
         ))
     return advisories
 
@@ -208,6 +240,11 @@ async def health(
             # default=True: don't report degraded while startup is still running.
             available=runtime.is_geoip_available(request.app, default=True),
             db_build_date=_iso(geoip_info(settings.geoip.db_path).build_date),
+            asn_available=(
+                settings.geoip.asn_enabled
+                and runtime.is_asn_available(request.app, default=True)
+            ),
+            asn_db_build_date=_iso(geoip_info(settings.geoip.asn_db_path).build_date),
         ),
         # CrowdSec is an optional integration: a down LAPI never flips
         # `status`. lapi_reachable is the stream poller's cached verdict;
@@ -223,7 +260,7 @@ async def health(
             if settings.is_agent
             else None
         ),
-        advisories=_collect_advisories(),
+        advisories=_collect_advisories(request.app, settings),
     )
 
 

@@ -18,6 +18,7 @@ import {
   apiV1AnalyticsTopCountriesGetTopCountries,
   apiV1AnalyticsTopIpsGetTopIps,
   apiV1AnalyticsTopUrlsGetTopUrls,
+  apiV1AnalyticsTopAsnsGetTopAsns,
   apiV1AnalyticsTopUserAgentsGetTopUserAgents,
 } from "@/generated/api/sdk.gen"
 import { BROWSER_TZ } from "@/lib/datetime"
@@ -126,8 +127,13 @@ export interface HealthResponse {
   startedAt: string | null
   ingestion: HealthIngestionStatus
   database: { reachable: boolean }
-  /** dbBuildDate is the GeoLite2 build from the mmdb metadata. */
-  geoip: { available: boolean; dbBuildDate: string | null }
+  /** Build dates come from the mmdb metadata, one per GeoLite2 edition. */
+  geoip: {
+    available: boolean
+    dbBuildDate: string | null
+    asnAvailable: boolean
+    asnDbBuildDate: string | null
+  }
   crowdsec: { enabled: boolean; lapiReachable: boolean | null }
   timestamp: string
   /** Operator-actionable warnings; empty when nothing needs attention. */
@@ -616,6 +622,22 @@ export async function fetchTopUserAgents(params: TimeSeriesParams & { limit?: nu
   return data
 }
 
+export async function fetchTopAsns(params: TimeSeriesParams & { limit?: number } & AnalyticsFilterParams) {
+  const { data } = await apiV1AnalyticsTopAsnsGetTopAsns({
+    query: {
+      startDate: params.startDate,
+      endDate: params.endDate,
+      limit: params.limit ?? 25,
+      countryCode: params.countryCodes?.length ? params.countryCodes : undefined,
+      city: params.cities?.length ? params.cities : undefined,
+      ipAddress: params.ips?.length ? params.ips : undefined,
+      ipAddressNotIn: params.ipsExclude?.length ? params.ipsExclude : undefined,
+    },
+    throwOnError: true,
+  })
+  return data
+}
+
 export async function fetchTopIpStats(params: TimeSeriesParams & { limit?: number } & AnalyticsFilterParams) {
   const { data } = await apiV1AnalyticsTopIpsGetTopIps({
     query: {
@@ -872,6 +894,8 @@ export interface AccessLog {
   countryCode: string | null
   countryName: string | null
   city: string | null
+  autonomousSystemNumber: number | null
+  autonomousSystemOrganization: string | null
 }
 
 export interface AccessLogsPage {

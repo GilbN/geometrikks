@@ -270,3 +270,111 @@ async def test_time_series_totals_drop_by_excluded_ip(pg_session_maker, clean_ta
 
     assert sum(r.total_requests for r in unfiltered) == 5
     assert sum(r.total_requests for r in filtered) == 1
+
+
+async def _insert_asn_log(session, *, ts, asn, asn_org, bytes_sent=100):
+    await session.execute(text(
+        "INSERT INTO access_logs (timestamp, ip_address, method, url, "
+        "status_code, bytes_sent, request_time, autonomous_system_number, "
+        "autonomous_system_organization) "
+        "VALUES (:ts, '10.0.0.1', 'GET', '/', 200, :bytes, 0.01, :asn, :org)"
+    ), {"ts": ts, "bytes": bytes_sent, "asn": asn, "org": asn_org})
+
+
+async def test_top_asns_ordering_and_org(pg_session_maker, clean_tables):
+    ts = NOW - timedelta(hours=1)
+    async with pg_session_maker() as session:
+        for _ in range(3):
+            await _insert_asn_log(session, ts=ts, asn=24940, asn_org="Hetzner Online GmbH", bytes_sent=200)
+        await _insert_asn_log(session, ts=ts, asn=2119, asn_org="Telenor Norge AS")
+        # NULL-ASN rows must not appear in the grouping.
+        await _insert_log(session, ts=ts, url="/x", user_agent="curl/8.0")
+        await session.commit()
+
+    async with pg_session_maker() as session:
+        rows = await LiveStatsRepository(session=session).get_top_asns(
+            NOW - timedelta(hours=2), NOW
+        )
+
+    assert [(r.asn, r.organization, r.hits, r.total_bytes) for r in rows] == [
+        (24940, "Hetzner Online GmbH", 3, 600),
+        (2119, "Telenor Norge AS", 1, 100),
+    ]
+
+
+async def test_apply_asn_mapping_fills_only_null_rows(pg_engine, pg_session_maker, clean_tables):
+    from geometrikks.cli import _apply_asn_mapping
+
+    ts = NOW - timedelta(hours=1)
+    async with pg_session_maker() as session:
+        # Two NULL-ASN rows for 10.0.0.1, one already-stamped row that must
+        # not be overwritten, and one NULL row whose IP is not in the mapping.
+        await _insert_log(session, ts=ts, url="/a", user_agent="x")
+        await _insert_log(session, ts=ts, url="/b", user_agent="x")
+        await _insert_asn_log(session, ts=ts, asn=999, asn_org="Stamped Org")
+        await _insert_log(session, ts=ts, url="/c", user_agent="x", ip="10.9.9.9")
+        await session.commit()
+
+    updated = await _apply_asn_mapping(pg_engine, [
+        {"ip": "10.0.0.1", "asn": 24940, "org": "Hetzner Online GmbH"},
+    ])
+    assert updated == 2
+
+    async with pg_session_maker() as session:
+        rows = (await session.execute(text(
+            "SELECT host(ip_address), autonomous_system_number, autonomous_system_organization "
+            "FROM access_logs ORDER BY url"
+        ))).all()
+
+    by_row = {(r[0], r[1], r[2]) for r in rows}
+    assert ("10.0.0.1", 24940, "Hetzner Online GmbH") in by_row
+    assert ("10.0.0.1", 999, "Stamped Org") in by_row
+    assert ("10.9.9.9", None, None) in by_row
+
+async def test_request_totals_count_unenriched_rows(pg_session_maker, clean_tables):
+    """The /top-asns denominator must include NULL-ASN rows.
+
+    Regression: the Traffic origin card divided by the ASN category sum, so
+    an install whose history predates enrichment read as "100% datacenter".
+    """
+    from geometrikks.domain.analytics.repositories import SummaryStatsRepository
+
+    ts = NOW - timedelta(hours=1)
+    async with pg_session_maker() as session:
+        await _insert_asn_log(session, ts=ts, asn=24940, asn_org="Hetzner Online GmbH", bytes_sent=200)
+        for _ in range(3):  # pre-feature history: no ASN data
+            await _insert_log(session, ts=ts, url="/old", user_agent="x", bytes_sent=100)
+        await session.commit()
+
+    async with pg_session_maker() as session:
+        repo = SummaryStatsRepository(session=session)
+        asn_rows = await repo.get_top_asns(NOW - timedelta(hours=2), NOW)
+        total_requests, total_bytes = await repo.get_request_totals(
+            NOW - timedelta(hours=2), NOW
+        )
+
+    assert sum(r.hits for r in asn_rows) == 1, "ASN queries only see tagged rows"
+    assert total_requests == 4, "totals must include the unenriched rows"
+    assert total_bytes == 500
+
+
+async def test_iter_null_asn_ips_pages_without_gaps_or_repeats(pg_engine, pg_session_maker, clean_tables):
+    """Keyset pagination must cover every distinct NULL-ASN IP exactly once."""
+    from geometrikks.cli import _iter_null_asn_ips
+
+    ts = NOW - timedelta(hours=1)
+    ips = [f"10.0.0.{i}" for i in range(1, 8)]
+    async with pg_session_maker() as session:
+        for ip in ips:
+            for _ in range(2):  # duplicates must collapse
+                await _insert_log(session, ts=ts, url="/a", user_agent="x", ip=ip)
+        # A stamped row's IP must not appear: it needs no backfill.
+        await _insert_asn_log(session, ts=ts, asn=24940, asn_org="Hetzner Online GmbH")
+        await session.commit()
+
+    pages = [page async for page in _iter_null_asn_ips(pg_engine, chunk_size=3)]
+
+    assert len(pages) > 1, "chunk_size=3 over 7 IPs must paginate"
+    seen = [ip for page in pages for ip in page]
+    assert sorted(seen) == sorted(ips)
+    assert len(seen) == len(set(seen))

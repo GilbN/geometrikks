@@ -24,10 +24,24 @@ def no_local_maxmind_credentials(monkeypatch):
 def make_settings(tmp_path: Path, **kwargs) -> GeoIPSettings:
     return GeoIPSettings(
         db_path=tmp_path / "GeoLite2-City.mmdb",
+        asn_db_path=tmp_path / "GeoLite2-ASN.mmdb",
         validate_db_path=False,
         _env_file=None,
         **kwargs,
     )
+
+
+class TestAsnSettings:
+    def test_defaults(self):
+        s = GeoIPSettings(_env_file=None)
+        assert s.asn_enabled is True
+        assert s.asn_db_path.is_absolute()
+        assert s.asn_db_path.name == "GeoLite2-ASN.mmdb"
+
+    def test_relative_asn_path_resolves_from_project_root(self):
+        s = GeoIPSettings(asn_db_path=Path("data/geoip/custom-asn.mmdb"), _env_file=None)
+        assert s.asn_db_path.is_absolute()
+        assert str(s.asn_db_path).endswith("data/geoip/custom-asn.mmdb")
 
 
 def make_tarball(mmdb_bytes: bytes) -> bytes:
@@ -139,7 +153,7 @@ class TestEnsure:
         settings = make_settings(tmp_path, account_id="1", license_key="k")
         tarball = make_tarball(b"MMDB-CONTENT")
 
-        async def fake_fetch(s):
+        async def fake_fetch(s, edition):
             return tarball
 
         monkeypatch.setattr(downloader, "_fetch_tarball", fake_fetch)
@@ -160,7 +174,7 @@ class TestEnsure:
         settings = make_settings(tmp_path, account_id="1", license_key="k")
         tarball = make_tarball(b"MMDB-CONTENT")
 
-        async def fake_fetch(s):
+        async def fake_fetch(s, edition):
             return tarball
 
         def broken_replace(self, target):
@@ -179,7 +193,7 @@ class TestEnsure:
         settings = make_settings(tmp_path, account_id="1", license_key="k")
         settings.db_path.write_bytes(b"OLD")  # unreadable mmdb -> stale -> download attempted
 
-        async def boom(s):
+        async def boom(s, edition):
             raise downloader.GeoIPDownloadError("http 401")
 
         monkeypatch.setattr(downloader, "_fetch_tarball", boom)
@@ -187,3 +201,101 @@ class TestEnsure:
         ok = await downloader.ensure_geoip_database(settings)
         assert ok is True, "existing (stale) db still usable after failed refresh"
         assert settings.db_path.read_bytes() == b"OLD"
+
+
+class TestAsnEnsure:
+    async def test_disabled_returns_false_without_touching_network(self, tmp_path, monkeypatch):
+        from geometrikks.services.geoip import downloader
+
+        called = False
+
+        async def fake_fetch(settings, edition):
+            nonlocal called
+            called = True
+            return b""
+
+        monkeypatch.setattr(downloader, "_fetch_tarball", fake_fetch)
+        settings = make_settings(tmp_path, asn_enabled=False)
+        assert await downloader.ensure_asn_database(settings) is False
+        assert called is False
+
+    async def test_missing_db_no_creds_returns_false(self, tmp_path):
+        from geometrikks.services.geoip.downloader import ensure_asn_database
+        settings = make_settings(tmp_path)
+        assert await ensure_asn_database(settings) is False
+
+    async def test_downloads_asn_edition_to_asn_path(self, tmp_path, monkeypatch):
+        from geometrikks.services.geoip import downloader
+
+        seen_editions: list[str] = []
+
+        async def fake_fetch(settings, edition):
+            seen_editions.append(edition)
+            return make_tarball(b"asn-bytes")
+
+        monkeypatch.setattr(downloader, "_fetch_tarball", fake_fetch)
+        settings = make_settings(tmp_path, account_id="123", license_key="key")
+        assert await downloader.ensure_asn_database(settings) is True
+        assert seen_editions == [downloader.ASN_EDITION]
+        assert settings.asn_db_path.read_bytes() == b"asn-bytes"
+        assert not settings.db_path.exists()
+
+    async def test_stale_without_creds_keeps_existing_copy(self, tmp_path, monkeypatch):
+        from geometrikks.services.geoip.downloader import ensure_asn_database
+        settings = make_settings(tmp_path)
+        settings.asn_db_path.write_bytes(b"old")
+        patch_build_epoch(monkeypatch, age_days=30)
+        assert await ensure_asn_database(settings) is True
+
+    async def test_download_failure_reports_existing_file(self, tmp_path, monkeypatch):
+        from geometrikks.services.geoip import downloader
+
+        async def failing_fetch(settings, edition):
+            raise downloader.GeoIPDownloadError("boom")
+
+        monkeypatch.setattr(downloader, "_fetch_tarball", failing_fetch)
+        settings = make_settings(tmp_path, account_id="123", license_key="key")
+        assert await downloader.ensure_asn_database(settings) is False
+        settings.asn_db_path.write_bytes(b"present")
+        patch_build_epoch(monkeypatch, age_days=30)
+        assert await downloader.ensure_asn_database(settings) is True
+
+
+class TestRefreshBothEditions:
+    async def test_refresh_calls_city_and_asn(self, tmp_path, monkeypatch):
+        from geometrikks.services.geoip import downloader
+
+        calls: list[str] = []
+
+        async def fake_city(settings):
+            calls.append("city")
+            return True
+
+        async def fake_asn(settings):
+            calls.append("asn")
+            return True
+
+        monkeypatch.setattr(downloader, "ensure_geoip_database", fake_city)
+        monkeypatch.setattr(downloader, "ensure_asn_database", fake_asn)
+        await downloader.refresh_geoip_databases(make_settings(tmp_path))
+        assert calls == ["city", "asn"]
+
+    async def test_refresh_skips_asn_when_disabled(self, tmp_path, monkeypatch):
+        from geometrikks.services.geoip import downloader
+
+        calls: list[str] = []
+
+        async def fake_city(settings):
+            calls.append("city")
+            return True
+
+        async def fake_asn(settings):
+            calls.append("asn")
+            return True
+
+        monkeypatch.setattr(downloader, "ensure_geoip_database", fake_city)
+        monkeypatch.setattr(downloader, "ensure_asn_database", fake_asn)
+        await downloader.refresh_geoip_databases(
+            make_settings(tmp_path, asn_enabled=False)
+        )
+        assert calls == ["city"]

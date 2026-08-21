@@ -35,7 +35,7 @@ from geometrikks.server.timescale import setup_timescaledb
 
 from geometrikks.services.crowdsec import CrowdSecService
 from geometrikks.services.crowdsec.stream import CrowdSecStreamPoller
-from geometrikks.services.geoip.downloader import ensure_geoip_database
+from geometrikks.services.geoip.downloader import ensure_asn_database, ensure_geoip_database
 from geometrikks.services.geoip.home import resolve_home_location
 from geometrikks.services.geoip.site_homes import reconcile_override_homes, upsert_auto_homes
 from geometrikks.services.ingestion import LogIngestionService
@@ -106,6 +106,9 @@ async def geoip_lifespan(app: "Litestar") -> "AsyncGenerator[None]":
     settings = _resolve_settings(app)
     geoip_available: bool = await ensure_geoip_database(settings.geoip)
     app.state.geoip_available = geoip_available
+    # ASN is optional enrichment: its availability is tracked separately and
+    # never influences geo-degraded mode.
+    app.state.asn_available = await ensure_asn_database(settings.geoip)
     app.state.map_home_location = await resolve_home_location(
         settings.map,
         settings.geoip,
@@ -366,6 +369,7 @@ async def ingestion_lifespan(app: "Litestar") -> "AsyncGenerator[None]":
         session_maker=session_maker,
         geoip_path=settings.geoip.db_path,
         locales=settings.geoip.locales,
+        asn_db_path=settings.geoip.asn_db_path if settings.geoip.asn_enabled else None,
         hostname=hostnames[0],
         batch_size=settings.logparser.batch_size,
         commit_interval=settings.logparser.commit_interval,

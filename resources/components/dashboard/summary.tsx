@@ -28,17 +28,8 @@ import { useTimeRange } from "@/lib/time-range-context"
 import { cn } from "@/lib/utils"
 import { StatCard, StatCardSkeleton } from "@/components/dashboard/statcard"
 import { DateTimeRange } from "@/components/dashboard/date-time-range"
-
-function SectionHeader({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="flex items-center gap-3">
-      <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-        {children}
-      </h2>
-      <div className="flex-1 h-px bg-border/50" />
-    </div>
-  )
-}
+import { SectionHeader } from "@/components/dashboard/section-header"
+import { TrafficOriginStats } from "@/components/dashboard/traffic-origin-stats"
 
 export function Summary() {
   const { range } = useTimeRange()
@@ -273,6 +264,9 @@ export function Summary() {
                 icon={ArrowRightLeft}
               />
             </div>
+
+            {/* Section 4: Traffic Origin (renders nothing without ASN data) */}
+            <TrafficOriginStats />
           </div>
         )}
       </div>

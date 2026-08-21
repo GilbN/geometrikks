@@ -17,6 +17,7 @@ import {
   fetchTopCountryStats,
   fetchTopIpStats,
   fetchTopUrls,
+  fetchTopAsns,
   fetchTopUserAgents,
   fetchCumulativeTimeSeries,
   fetchAccessLogs,
@@ -122,6 +123,8 @@ export const queryKeys = {
       [...queryKeys.analytics.all, "top-urls", params, refreshKey] as const,
     topUserAgents: (params: Record<string, unknown>, refreshKey?: number) =>
       [...queryKeys.analytics.all, "top-user-agents", params, refreshKey] as const,
+    topAsns: (params: Record<string, unknown>, refreshKey?: number) =>
+      [...queryKeys.analytics.all, "top-asns", params, refreshKey] as const,
     topIps: (params: Record<string, unknown>, refreshKey?: number) =>
       [...queryKeys.analytics.all, "top-ips", params, refreshKey] as const,
     topCountryStats: (params: Record<string, unknown>, refreshKey?: number) =>
@@ -782,6 +785,35 @@ export function useTopUserAgents(options: UseTopListOptions = {}) {
     queryFn: () => {
       const { startDate, endDate } = parseTimeRange(range, Date.now(), customRange)
       return fetchTopUserAgents({
+        startDate,
+        endDate,
+        limit,
+        countryCodes: filters.countryCodes,
+        cities: filters.cities,
+        ips: filters.ips,
+        ipsExclude: filters.ipsExclude,
+      })
+    },
+    enabled,
+    staleTime: 60 * 1000,
+    refetchInterval: pollInterval || false,
+  })
+}
+
+/**
+ * Fetch the top ASNs plus datacenter-vs-other category totals.
+ * Uses TimeRangeContext for time filtering.
+ */
+export function useTopAsns(options: UseTopListOptions = {}) {
+  const { enabled = true, limit = 25 } = options
+  const { range, customRange, pollInterval, lastRefresh } = useTimeRange()
+  const { filters } = useAnalyticsFilters()
+
+  return useQuery({
+    queryKey: queryKeys.analytics.topAsns({ range, customRange, limit, filters }, lastRefresh),
+    queryFn: () => {
+      const { startDate, endDate } = parseTimeRange(range, Date.now(), customRange)
+      return fetchTopAsns({
         startDate,
         endDate,
         limit,

@@ -32,6 +32,9 @@ import type {
   ApiV1AnalyticsTimeSeriesGetTimeSeriesData,
   ApiV1AnalyticsTimeSeriesGetTimeSeriesErrors,
   ApiV1AnalyticsTimeSeriesGetTimeSeriesResponses,
+  ApiV1AnalyticsTopAsnsGetTopAsnsData,
+  ApiV1AnalyticsTopAsnsGetTopAsnsErrors,
+  ApiV1AnalyticsTopAsnsGetTopAsnsResponses,
   ApiV1AnalyticsTopCitiesGetTopCitiesData,
   ApiV1AnalyticsTopCitiesGetTopCitiesErrors,
   ApiV1AnalyticsTopCitiesGetTopCitiesResponses,
@@ -188,6 +191,7 @@ export type OperationName =
   | 'get_summary'
   | 'get_system_settings'
   | 'get_time_series'
+  | 'get_top_asns'
   | 'get_top_cities'
   | 'get_top_countries'
   | 'get_top_countries_api_v1_geo_locations_top_countries'
@@ -247,6 +251,7 @@ export interface OperationDataTypes {
   'get_summary': ApiV1AnalyticsSummaryGetSummaryData
   'get_system_settings': ApiV1SystemSettingsGetSystemSettingsData
   'get_time_series': ApiV1AnalyticsTimeSeriesGetTimeSeriesData
+  'get_top_asns': ApiV1AnalyticsTopAsnsGetTopAsnsData
   'get_top_cities': ApiV1AnalyticsTopCitiesGetTopCitiesData
   'get_top_countries': ApiV1AnalyticsTopCountriesGetTopCountriesData
   'get_top_countries_api_v1_geo_locations_top_countries': ApiV1GeoLocationsTopCountriesGetTopCountriesData
@@ -307,6 +312,7 @@ export interface OperationResponseTypes {
   'get_summary': ApiV1AnalyticsSummaryGetSummaryResponses
   'get_system_settings': ApiV1SystemSettingsGetSystemSettingsResponses
   'get_time_series': ApiV1AnalyticsTimeSeriesGetTimeSeriesResponses
+  'get_top_asns': ApiV1AnalyticsTopAsnsGetTopAsnsResponses
   'get_top_cities': ApiV1AnalyticsTopCitiesGetTopCitiesResponses
   'get_top_countries': ApiV1AnalyticsTopCountriesGetTopCountriesResponses
   'get_top_countries_api_v1_geo_locations_top_countries': ApiV1GeoLocationsTopCountriesGetTopCountriesResponses
@@ -367,6 +373,7 @@ export interface OperationErrorTypes {
   'get_summary': ApiV1AnalyticsSummaryGetSummaryErrors
   'get_system_settings': never
   'get_time_series': ApiV1AnalyticsTimeSeriesGetTimeSeriesErrors
+  'get_top_asns': ApiV1AnalyticsTopAsnsGetTopAsnsErrors
   'get_top_cities': ApiV1AnalyticsTopCitiesGetTopCitiesErrors
   'get_top_countries': ApiV1AnalyticsTopCountriesGetTopCountriesErrors
   'get_top_countries_api_v1_geo_locations_top_countries': ApiV1GeoLocationsTopCountriesGetTopCountriesErrors

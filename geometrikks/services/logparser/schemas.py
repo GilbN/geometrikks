@@ -42,6 +42,8 @@ class ParsedAccessLog:
     country_code: str | None
     country_name: str | None
     city: str | None
+    autonomous_system_number: int | None = None
+    autonomous_system_organization: str | None = None
 
 
 @dataclass

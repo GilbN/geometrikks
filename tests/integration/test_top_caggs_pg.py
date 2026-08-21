@@ -27,6 +27,8 @@ NEW_CAGGS = (
     "url_daily_stats",
     "user_agent_hourly_stats",
     "user_agent_daily_stats",
+    "asn_hourly_stats",
+    "asn_daily_stats",
     "host_daily_stats",
     "hostname_daily_stats",
 )

@@ -58,6 +58,7 @@ def test_full_record_yields_single_envelope() -> None:
         "http_version", "status_code", "bytes_sent", "referrer",
         "user_agent", "request_time", "upstream_response_time", "host",
         "country_code", "country_name", "city", "hostname",
+        "autonomous_system_number", "autonomous_system_organization",
     }
     assert log["http_version"] == "1.1" and log["user_agent"] == "curl"
     assert log["host"] == "example.com" and log["country_code"] == "GB"
@@ -116,6 +117,21 @@ def test_encode_guard_accepts_normal_envelope() -> None:
 def test_encode_guard_rejects_oversize_envelope() -> None:
     oversize = {"type": "request", "geo": None, "log": {"url": "x" * (PAYLOAD_MAX + 1000)}}
     assert encode_guard(oversize) is False
+
+
+def test_event_carries_clipped_asn_fields() -> None:
+    from geometrikks.domain.realtime.events import ASN_ORG_MAX
+
+    record = _record()
+    assert record.access_log is not None
+    record.access_log.autonomous_system_number = 24940
+    record.access_log.autonomous_system_organization = "H" * 500
+
+    event = record_to_event(record)
+    assert event is not None and event["log"] is not None
+    assert event["log"]["autonomous_system_number"] == 24940
+    assert event["log"]["autonomous_system_organization"] == "H" * ASN_ORG_MAX
+    assert ASN_ORG_MAX == 100
 
 
 def test_encode_guard_bills_non_ascii_as_utf8_bytes() -> None:

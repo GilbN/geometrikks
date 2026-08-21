@@ -9,7 +9,7 @@ from pathlib import Path
 import aiofiles.os
 import aiofiles
 from geoip2.database import Reader
-from geoip2.models import City
+from geoip2.models import ASN, City
 from geohash2 import encode
 from IPy import IP
 
@@ -59,6 +59,24 @@ def make_cached_city_lookup(reader: Reader, maxsize: int = 1024) -> Callable[[st
             return reader.city(ip)
         except Exception as e:
             logger.debug("GeoIP lookup failed for %s: %s", ip, e)
+            return None
+
+    return lookup
+
+
+def make_cached_asn_lookup(reader: Reader, maxsize: int = 1024) -> Callable[[str], ASN | None]:
+    """Build a cached GeoIP ASN lookup bound to one reader, keyed on IP only.
+
+    Same contract as make_cached_city_lookup: reader captured in a closure,
+    never raises, failed lookups return None. Requires a GeoLite2-ASN reader.
+    """
+
+    @lru_cache(maxsize=maxsize)
+    def lookup(ip: str) -> ASN | None:
+        try:
+            return reader.asn(ip)
+        except Exception as e:
+            logger.debug("ASN lookup failed for %s: %s", ip, e)
             return None
 
     return lookup
@@ -296,7 +314,10 @@ class LogParser:
                 return False
 
     def parse_line(
-        self, line: str, lookup: Callable[[str], City | None]
+        self,
+        line: str,
+        lookup: Callable[[str], City | None],
+        asn_lookup: Callable[[str], ASN | None] | None = None,
     ) -> ParsedLogRecord | None:
         """Parse one raw log line into a ParsedLogRecord (shared by tail + import).
 
@@ -350,7 +371,7 @@ class LogParser:
 
         geo_data: ParsedGeoData | None = self._parse_geo_data(ip, norm, lookup)
         access_log: ParsedAccessLog | None = (
-            self._parse_access_log(norm, ip, lookup) if self.send_logs else None
+            self._parse_access_log(norm, ip, lookup, asn_lookup) if self.send_logs else None
         )
         is_malformed, parse_error = (
             self.format.detect_malformed(norm) if self.send_logs else (False, None)
@@ -466,7 +487,11 @@ class LogParser:
         )
 
     def _parse_access_log(
-        self, norm: NormalizedLine, ip: str, lookup: Callable[[str], City | None]
+        self,
+        norm: NormalizedLine,
+        ip: str,
+        lookup: Callable[[str], City | None],
+        asn_lookup: Callable[[str], ASN | None] | None = None,
     ) -> ParsedAccessLog | None:
         """Build the ParsedAccessLog for a normalized line, enriched with GeoIP.
 
@@ -483,6 +508,7 @@ class LogParser:
         ip_data: City | None = lookup(ip)
         if not ip_data:
             return None
+        asn_data: ASN | None = asn_lookup(ip) if asn_lookup is not None else None
         return ParsedAccessLog(
             timestamp=norm.timestamp,
             ip_address=ip,
@@ -500,10 +526,21 @@ class LogParser:
             country_code=ip_data.country.iso_code,
             country_name=ip_data.country.name,
             city=ip_data.city.name,
+            autonomous_system_number=(
+                asn_data.autonomous_system_number if asn_data else None
+            ),
+            autonomous_system_organization=(
+                asn_data.autonomous_system_organization if asn_data else None
+            ),
         )
 
     async def iter_parsed_records(
-        self, reader: Reader, *, skip_validation: bool = False, start_at_end: bool = True
+        self,
+        reader: Reader,
+        asn_reader: Reader | None = None,
+        *,
+        skip_validation: bool = False,
+        start_at_end: bool = True,
     ) -> AsyncGenerator[ParsedLogRecord | None, None]:
         """Async generator that tails the log file and yields ParsedLogRecord objects.
 
@@ -540,6 +577,9 @@ class LogParser:
                     )
 
         lookup = make_cached_city_lookup(reader)
+        asn_lookup = (
+            make_cached_asn_lookup(asn_reader) if asn_reader is not None else None
+        )
 
         seek_to_end = start_at_end
         while not (self._stop_event and self._stop_event.is_set()):
@@ -586,4 +626,4 @@ class LogParser:
                     except OSError:
                         pass
 
-                    yield self.parse_line(line, lookup)
+                    yield self.parse_line(line, lookup, asn_lookup)

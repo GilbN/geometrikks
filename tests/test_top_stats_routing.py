@@ -128,3 +128,30 @@ async def test_stitched_sql_binds_bounds_as_params():
     sql = session.statements[0]
     assert "bounds" not in sql
     assert ":a_start" in sql and ":a_end" in sql
+
+async def test_top_asns_short_range_goes_raw():
+    session = _RecordingSession()
+    await _repo(session).get_top_asns(SHORT_START, NOW)
+    assert "asn_hourly_stats" not in session.statements[0]
+    assert "FROM access_logs" in session.statements[0]
+
+
+async def test_top_asns_week_range_uses_hourly_cagg():
+    session = _RecordingSession()
+    await _repo(session).get_top_asns(WEEK_START, NOW)
+    assert "asn_hourly_stats" in session.statements[0]
+
+
+async def test_top_asns_long_range_uses_daily_cagg():
+    session = _RecordingSession()
+    await _repo(session).get_top_asns(LONG_START, NOW)
+    assert "asn_daily_stats" in session.statements[0]
+
+
+async def test_top_asns_any_filter_forces_raw():
+    session = _RecordingSession()
+    await _repo(session).get_top_asns(
+        WEEK_START, NOW, filters=AnalyticsFilters(country_codes=["NO"])
+    )
+    assert "asn_hourly_stats" not in session.statements[0]
+    assert "FROM access_logs" in session.statements[0]

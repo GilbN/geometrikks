@@ -31,6 +31,8 @@ export type AboutResponse = {
   app: AboutAppView;
   database: DatabaseVersionsView;
   geoip: GeoIpInfoView;
+  geoipAsn?: GeoIpInfoView | null;
+  geoipAsnEnabled?: boolean;
   links: AboutLinksView;
   runtime: RuntimeVersionsView;
 };
@@ -113,6 +115,15 @@ export type AnalyticsSettingsView = {
   debugRetentionDays: number;
   hourlyRetentionDays: number;
   rawRetentionDays: number;
+};
+
+/**
+ * AsnCategoryTotalsDTO
+ */
+export type AsnCategoryTotalsDto = {
+  category: "datacenter" | "other";
+  hits: number;
+  totalBytes: number;
 };
 
 /**
@@ -293,6 +304,8 @@ export type GeoEventsTimeSeriesResponse = {
  * GeoIPHealth
  */
 export type GeoIpHealth = {
+  asnAvailable?: boolean;
+  asnDbBuildDate?: string | null;
   available: boolean;
   dbBuildDate: string | null;
 };
@@ -504,6 +517,8 @@ export type IpLocation = {
  * ListAccessLogsAccessLogResponseBody
  */
 export type ListAccessLogsAccessLogResponseBody = {
+  autonomousSystemNumber?: number | null;
+  autonomousSystemOrganization?: string | null;
   bytesSent?: number;
   city?: string | null;
   countryCode?: string | null;
@@ -872,6 +887,29 @@ export type TimeSeriesResponse = {
   endDate: string;
   granularity: string;
   startDate: string;
+};
+
+/**
+ * TopAsnDTO
+ */
+export type TopAsnDto = {
+  asn: number;
+  category: "datacenter" | "other";
+  hits: number;
+  organization: string | null;
+  totalBytes: number;
+};
+
+/**
+ * TopAsnsResponse
+ */
+export type TopAsnsResponse = {
+  categories: Array<AsnCategoryTotalsDto>;
+  endDate: string;
+  items: Array<TopAsnDto>;
+  startDate: string;
+  totalBytes: number;
+  totalRequests: number;
 };
 
 /**
@@ -1532,6 +1570,71 @@ export type ApiV1AnalyticsTimeSeriesCumulativeGetCumulativeTimeSeriesResponses =
 
 export type ApiV1AnalyticsTimeSeriesCumulativeGetCumulativeTimeSeriesResponse =
   ApiV1AnalyticsTimeSeriesCumulativeGetCumulativeTimeSeriesResponses[keyof ApiV1AnalyticsTimeSeriesCumulativeGetCumulativeTimeSeriesResponses];
+
+export type ApiV1AnalyticsTopAsnsGetTopAsnsData = {
+  body?: never;
+  path?: never;
+  query: {
+    /**
+     * Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)
+     */
+    startDate: string;
+    /**
+     * End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)
+     */
+    endDate: string;
+    /**
+     * Maximum number of ASNs to return
+     */
+    limit?: number;
+    /**
+     * Filter to these ISO country codes (repeatable)
+     */
+    countryCode?: Array<string> | null;
+    /**
+     * Filter to these city names (repeatable)
+     */
+    city?: Array<string> | null;
+    /**
+     * Filter to these client IPs (repeatable)
+     */
+    ipAddress?: Array<string> | null;
+    /**
+     * Exclude these client IPs (repeatable)
+     */
+    ipAddressNotIn?: Array<string> | null;
+  };
+  url: "/api/v1/analytics/top-asns";
+};
+
+export type ApiV1AnalyticsTopAsnsGetTopAsnsErrors = {
+  /**
+   * Validation Exception
+   */
+  400: {
+    detail: string;
+    extra?:
+      | null
+      | {
+          [key: string]: unknown;
+        }
+      | Array<unknown>;
+    status_code: number;
+  };
+};
+
+export type ApiV1AnalyticsTopAsnsGetTopAsnsError =
+  ApiV1AnalyticsTopAsnsGetTopAsnsErrors[keyof ApiV1AnalyticsTopAsnsGetTopAsnsErrors];
+
+export type ApiV1AnalyticsTopAsnsGetTopAsnsResponses = {
+  /**
+   * Request fulfilled, document follows
+   */
+  200: TopAsnsResponse;
+};
+
+export type ApiV1AnalyticsTopAsnsGetTopAsnsResponse =
+  ApiV1AnalyticsTopAsnsGetTopAsnsResponses[keyof ApiV1AnalyticsTopAsnsGetTopAsnsResponses];
 
 export type ApiV1AnalyticsTopCitiesGetTopCitiesData = {
   body?: never;

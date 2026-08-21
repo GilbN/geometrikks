@@ -37,6 +37,7 @@ export type RouteName =
   | 'get_summary'
   | 'get_system_settings'
   | 'get_time_series'
+  | 'get_top_asns'
   | 'get_top_cities'
   | 'get_top_countries'
   | 'get_top_countries_api_v1_geo_locations_top_countries'
@@ -101,6 +102,7 @@ export interface RoutePathParams {
   'get_summary': Record<string, never>;
   'get_system_settings': Record<string, never>;
   'get_time_series': Record<string, never>;
+  'get_top_asns': Record<string, never>;
   'get_top_cities': Record<string, never>;
   'get_top_countries': Record<string, never>;
   'get_top_countries_api_v1_geo_locations_top_countries': Record<string, never>;
@@ -264,6 +266,15 @@ export interface RouteQueryParams {
     ipAddressNotIn?: string[];
     startDate: DateTime;
     tz?: string;
+  };
+  'get_top_asns': {
+    city?: string[];
+    countryCode?: string[];
+    endDate: DateTime;
+    ipAddress?: string[];
+    ipAddressNotIn?: string[];
+    limit?: number;
+    startDate: DateTime;
   };
   'get_top_cities': {
     city?: string[];
@@ -588,6 +599,13 @@ export const routeDefinitions = {
     method: 'get',
     pathParams: [] as const,
     queryParams: ['city', 'countryCode', 'endDate', 'granularity', 'ipAddress', 'ipAddressNotIn', 'startDate', 'tz'] as const,
+  },
+  'get_top_asns': {
+    path: '/api/v1/analytics/top-asns',
+    methods: ['GET'] as const,
+    method: 'get',
+    pathParams: [] as const,
+    queryParams: ['city', 'countryCode', 'endDate', 'ipAddress', 'ipAddressNotIn', 'limit', 'startDate'] as const,
   },
   'get_top_cities': {
     path: '/api/v1/analytics/top-cities',

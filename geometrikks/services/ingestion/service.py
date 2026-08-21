@@ -97,6 +97,7 @@ class LogIngestionService:
         session_maker: Callable[[], AsyncSession],
         geoip_path: Path|str,
         locales: list[str] | None = None,
+        asn_db_path: Path | str | None = None,
         *,
         repos_factory: Callable[[AsyncSession], IngestionRepos] = IngestionRepos.from_session,
         hostname: str = "localhost",
@@ -113,6 +114,8 @@ class LogIngestionService:
             session_maker: Callable producing a fresh AsyncSession per flush.
             geoip_path: Path|str, GeoIP2 database file path.
             locales: GeoIP2 locales to use for lookups.
+            asn_db_path: Optional GeoLite2-ASN database path; None or an
+                unreadable file means requests ingest without ASN enrichment.
             repos_factory: Builds the IngestionRepos bundle from a session.
             hostname: Fallback hostname for records that carry none (the
                 importer path); tail-path records are stamped by their parser.
@@ -131,6 +134,7 @@ class LogIngestionService:
         self._batch: list[ParsedLogRecord] = []
         self.geoip_path: Path|str = geoip_path
         self.locales: list[str] | None = locales
+        self.asn_db_path: Path | str | None = asn_db_path
         self.batch_size: int = batch_size
         self.commit_interval: int | float = commit_interval
         self.store_debug_lines: bool = store_debug_lines
@@ -145,7 +149,11 @@ class LogIngestionService:
         self._uncommitted_geohashes: set[str] = set()
         self._cache_maxsize = 10_000
 
-        # Background task management
+        # Background task management. The readers are stored so stop() can
+        # release their mmaps; a restart opens fresh ones (which also picks
+        # up a refreshed database file).
+        self._reader: Reader | None = None
+        self._asn_reader: Reader | None = None
         self._stop_event: asyncio.Event | None = None
         self._ingestion_task: asyncio.Task[None] | None = None
         self._queue: asyncio.Queue[ParsedLogRecord] | None = None
@@ -184,6 +192,19 @@ class LogIngestionService:
             )
             return
 
+        # ASN enrichment is optional: a missing or unreadable database means
+        # NULL ASN columns, never a failed start.
+        asn_reader: Reader | None = None
+        if self.asn_db_path:
+            asn_reader = create_reader(self.asn_db_path)
+            if asn_reader is None:
+                logger.warning(
+                    "ASN enrichment disabled: no usable GeoLite2-ASN database at %s",
+                    self.asn_db_path,
+                )
+        self._reader = reader
+        self._asn_reader = asn_reader
+
         # Set synchronously (before any `await`/task scheduling) so a second
         # start() called back-to-back sees is_running=True immediately; it
         # otherwise only flips inside _run_ingestion's task body, which hasn't
@@ -199,7 +220,7 @@ class LogIngestionService:
             parser.set_stop_event(self._stop_event)
             self._tail_tasks.append(
                 asyncio.create_task(
-                    self._tail_file(parser, reader, skip_validation),
+                    self._tail_file(parser, reader, asn_reader, skip_validation),
                     name=f"log-tail:{parser.log_path}",
                 )
             )
@@ -214,7 +235,13 @@ class LogIngestionService:
             self.commit_interval,
         )
 
-    async def _tail_file(self, parser: LogParser, reader: Reader, skip_validation: bool) -> None:
+    async def _tail_file(
+        self,
+        parser: LogParser,
+        reader: Reader,
+        asn_reader: Reader | None,
+        skip_validation: bool,
+    ) -> None:
         """Tail a single log file, pushing parsed records onto the shared queue."""
         logger.debug("Waiting for log file: %s", parser.log_path)
         if not await wait_for_path(
@@ -225,7 +252,9 @@ class LogIngestionService:
             logger.error("Skipping ingestion for missing log file: %s", parser.log_path)
             return
         assert self._queue is not None
-        async for record in parser.iter_parsed_records(reader, skip_validation=skip_validation):
+        async for record in parser.iter_parsed_records(
+            reader, asn_reader, skip_validation=skip_validation
+        ):
             if record is None:
                 continue  # idle tick; the consumer handles interval commits via timeout
             await self._queue.put(record)
@@ -261,6 +290,14 @@ class LogIngestionService:
             pass
         finally:
             self.is_running = False
+
+        # Every task that used the readers is done; release their mmaps.
+        if self._reader is not None:
+            self._reader.close()
+            self._reader = None
+        if self._asn_reader is not None:
+            self._asn_reader.close()
+            self._asn_reader = None
 
         logger.info(
             "Stopped log ingestion service. Total processed: %d", self.total_processed
@@ -602,6 +639,8 @@ class LogIngestionService:
             country_code=parsed.country_code,
             country_name=parsed.country_name,
             city=parsed.city,
+            autonomous_system_number=parsed.autonomous_system_number,
+            autonomous_system_organization=parsed.autonomous_system_organization,
             hostname=hostname or self.hostname,
             log_format=log_format,
         )

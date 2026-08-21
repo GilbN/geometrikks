@@ -91,6 +91,10 @@ class AboutResponse(msgspec.Struct, rename="camel"):
     database: DatabaseVersionsView
     geoip: GeoIPInfoView
     links: AboutLinksView
+    # Additive: the GeoLite2 ASN edition. asn_enabled distinguishes a
+    # deliberately disabled feature from a missing database.
+    geoip_asn: GeoIPInfoView | None = None
+    geoip_asn_enabled: bool = False
 
 
 def _dist_version(name: str) -> str | None:
@@ -234,6 +238,11 @@ def _computed_settings_overlay(
         "runtime",
         "Whether a usable GeoLite2 database is loaded",
     )
+    overlay[("geoip", "asn_available")] = ComputedField(
+        runtime.is_asn_available(app),
+        "runtime",
+        "Whether a usable GeoLite2 ASN database is loaded",
+    )
 
     overlay[("crowdsec", "enabled")] = ComputedField(settings.crowdsec.enabled, "runtime")
     overlay[("crowdsec", "write_enabled")] = ComputedField(
@@ -286,6 +295,8 @@ class SystemController(Controller):
             database=await _database_versions(db_engine),
             geoip=geoip_info(s.geoip.db_path),
             links=AboutLinksView(repository=REPO_URL, issues=f"{REPO_URL}/issues"),
+            geoip_asn=geoip_info(s.geoip.asn_db_path),
+            geoip_asn_enabled=s.geoip.asn_enabled,
         )
 
     @get("/database")

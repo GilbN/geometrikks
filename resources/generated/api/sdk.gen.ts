@@ -35,6 +35,9 @@ import type {
   ApiV1AnalyticsTimeSeriesGetTimeSeriesData,
   ApiV1AnalyticsTimeSeriesGetTimeSeriesErrors,
   ApiV1AnalyticsTimeSeriesGetTimeSeriesResponses,
+  ApiV1AnalyticsTopAsnsGetTopAsnsData,
+  ApiV1AnalyticsTopAsnsGetTopAsnsErrors,
+  ApiV1AnalyticsTopAsnsGetTopAsnsResponses,
   ApiV1AnalyticsTopCitiesGetTopCitiesData,
   ApiV1AnalyticsTopCitiesGetTopCitiesErrors,
   ApiV1AnalyticsTopCitiesGetTopCitiesResponses,
@@ -441,6 +444,36 @@ export const apiV1AnalyticsTimeSeriesCumulativeGetCumulativeTimeSeries = <
       },
     ],
     url: "/api/v1/analytics/time-series/cumulative",
+    ...options,
+  });
+
+/**
+ * GetTopAsns
+ *
+ * Top ASNs by hits with datacenter-vs-other totals (CAGG-served above 24h; filters force a raw scan).
+ */
+export const apiV1AnalyticsTopAsnsGetTopAsns = <
+  ThrowOnError extends boolean = false,
+>(
+  options: Options<ApiV1AnalyticsTopAsnsGetTopAsnsData, ThrowOnError>,
+): RequestResult<
+  ApiV1AnalyticsTopAsnsGetTopAsnsResponses,
+  ApiV1AnalyticsTopAsnsGetTopAsnsErrors,
+  ThrowOnError
+> =>
+  (options.client ?? client).get<
+    ApiV1AnalyticsTopAsnsGetTopAsnsResponses,
+    ApiV1AnalyticsTopAsnsGetTopAsnsErrors,
+    ThrowOnError
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+    ],
+    url: "/api/v1/analytics/top-asns",
     ...options,
   });
 

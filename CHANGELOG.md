@@ -7,6 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- ASN enrichment: every ingested request now records the autonomous system
+  number and organization from the MaxMind GeoLite2 ASN database, downloaded
+  and refreshed automatically with the same credentials as the City database
+  (`GEOIP_ASN_ENABLED=false` opts out). Missing credentials or a failed
+  download never block ingestion; rows simply carry no ASN data.
+- Live map popups show the ASN behind each request, and the access-logs
+  table gains ASN and AS organization columns in the column picker.
+- Settings > Status shows a warning advisory when ASN enrichment is enabled
+  but the GeoLite2 ASN database is missing or failed to download, and
+  `/health` reports the ASN database's availability and build date. The
+  Settings > About page shows both GeoLite2 editions (build date, age,
+  path), the Status GeoIP card lists both build dates, and the settings
+  tree reports the runtime ASN availability.
+- Analytics gains a Top ASNs view: a Traffic origin card showing the exact
+  datacenter-vs-other split for the selected range, and a Top ASNs table
+  (organization, ASN, category, hits, bytes), backed by new per-ASN
+  continuous aggregates and `GET /api/v1/analytics/top-asns`. Datacenter
+  tagging uses a bundled hosting-ASN list (the MIT-licensed
+  brianhama/bad-asn-list) applied at read time, so list improvements apply
+  retroactively.
+- The Top URLs and Top user agents tables now sit side by side on wide
+  screens to save page height.
+- The Summary dashboard gains a Traffic origin section: the datacenter share
+  of classified traffic and the busiest network for the selected range. It
+  is hidden entirely when no requests in range carry ASN data.
+- `litestar backfill-asn`: retroactively stamp ASN data onto rows ingested
+  before the ASN feature (or while the database was missing), with a
+  confirmation prompt, decompress-first handling for compressed history,
+  and an ASN CAGG refresh so the Top ASNs view picks up the backfilled
+  range. IPs are resolved and written in bounded chunks, and a failed
+  aggregate refresh exits non-zero rather than reporting a clean run.
+
 ## [0.9.0] - 2026-08-20
 
 ### Added

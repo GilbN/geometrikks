@@ -67,6 +67,12 @@ class AccessLog(base.BigIntBase):
     country_name: Mapped[str | None] = mapped_column(String(100))
     city: Mapped[str | None] = mapped_column(String(100))
 
+    # ASN enrichment from GeoLite2-ASN; NULL on rows ingested without the
+    # database (pre-feature history, or ASN disabled/unavailable).
+    # BigInteger: 4-byte ASNs run to 4294967295, past signed 32-bit.
+    autonomous_system_number: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    autonomous_system_organization: Mapped[str | None] = mapped_column(String(255), nullable=True)
+
     # Multi-source separation: which GeoMetrikks instance wrote the row
     # (LOGPARSER_HOST_NAME, mirrors geo_events.hostname) and which format
     # adapter parsed it ('nginx', 'traefik-json'). NULL on pre-feature rows
@@ -82,6 +88,7 @@ class AccessLog(base.BigIntBase):
         Index("ix_access_logs_host", "host"),
         Index("ix_access_logs_method_status", "method", "status_code"),
         Index("ix_access_logs_hostname", "hostname"),
+        Index("ix_access_logs_asn", "autonomous_system_number"),
     )
     
     def __repr__(self) -> str:

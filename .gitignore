@@ -378,6 +378,7 @@ pdm-pythn
 # MaxMind databases (GeoLite2 EULA - never commit; runtime DB is downloaded)
 *.mmdb
 !tests/GeoLite2-City-Test.mmdb
+!tests/GeoLite2-ASN-Test.mmdb
 
 # Vite build output
 /public/
