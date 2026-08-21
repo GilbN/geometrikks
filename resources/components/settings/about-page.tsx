@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { MonoChip, StatusLed, type LedTone } from "@/components/settings/status-led"
+import { AsnListDialog } from "@/components/settings/asn-list-dialog"
 
 function formatUptime(startedAt: string | null | undefined): string {
   if (!startedAt) return "unknown"
@@ -277,6 +278,34 @@ export function AboutPage() {
                     }
                   />
                   <Row label="Path" value={<MonoChip>{data.geoipAsn.dbPath}</MonoChip>} />
+                  {data.asnClassification && (
+                    <>
+                      <Row
+                        label="Classification list"
+                        value={
+                          <a
+                            href={data.asnClassification.sourceUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center gap-1 hover:underline underline-offset-2"
+                          >
+                            <MonoChip>
+                              {data.asnClassification.dataset} · {data.asnClassification.entries} ASNs · {data.asnClassification.license}
+                            </MonoChip>
+                            <ExternalLink className="h-3 w-3 text-muted-foreground" />
+                          </a>
+                        }
+                      />
+                      <div className="flex flex-wrap items-center justify-between gap-2 pt-2">
+                        <p className="max-w-[32ch] text-xs text-muted-foreground">
+                          Community list of hosting, VPN, and datacenter
+                          operators; matching networks are badged Hosting,
+                          the rest show as Other.
+                        </p>
+                        <AsnListDialog />
+                      </div>
+                    </>
+                  )}
                 </>
               ) : (
                 <p className="pt-1.5 text-sm text-muted-foreground">
@@ -285,6 +314,19 @@ export function AboutPage() {
               )}
             </div>
           </div>
+          <p className="mt-4 text-xs text-muted-foreground">
+            This product includes GeoLite2 data created by MaxMind, available
+            from{" "}
+            <a
+              href="https://www.maxmind.com"
+              target="_blank"
+              rel="noreferrer"
+              className="underline underline-offset-2"
+            >
+              maxmind.com
+            </a>
+            .
+          </p>
         </CardContent>
       </Card>
 

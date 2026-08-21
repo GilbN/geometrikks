@@ -1,4 +1,5 @@
 import { Badge } from "@/components/ui/badge"
+import { AsnCategoryInfo } from "@/components/analytics/asn-category-info"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   Table,
@@ -17,7 +18,7 @@ export function CategoryBadge({ category }: { category: "datacenter" | "other" }
   return category === "datacenter" ? (
     <Badge variant="secondary" className="gap-1.5">
       <span className="size-1.5 rounded-full bg-geo-cyan" />
-      Datacenter
+      Hosting
     </Badge>
   ) : (
     <Badge variant="outline" className="text-muted-foreground">
@@ -45,7 +46,12 @@ export function TopAsnsTable() {
                 <TableRow>
                   <TableHead>Organization</TableHead>
                   <TableHead>ASN</TableHead>
-                  <TableHead>Category</TableHead>
+                  <TableHead>
+                    <span className="inline-flex items-center gap-1.5">
+                      Category
+                      <AsnCategoryInfo />
+                    </span>
+                  </TableHead>
                   <TableHead className="text-right">Hits</TableHead>
                   <TableHead className="text-right">Bytes</TableHead>
                 </TableRow>

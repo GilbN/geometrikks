@@ -29,6 +29,7 @@ export type AboutLinksView = {
  */
 export type AboutResponse = {
   app: AboutAppView;
+  asnClassification?: AsnClassificationView | null;
   database: DatabaseVersionsView;
   geoip: GeoIpInfoView;
   geoipAsn?: GeoIpInfoView | null;
@@ -124,6 +125,26 @@ export type AsnCategoryTotalsDto = {
   category: "datacenter" | "other";
   hits: number;
   totalBytes: number;
+};
+
+/**
+ * AsnClassificationListResponse
+ */
+export type AsnClassificationListResponse = {
+  dataset: string;
+  entries: Array<HostingAsnEntryView>;
+  license: string;
+  sourceUrl: string;
+};
+
+/**
+ * AsnClassificationView
+ */
+export type AsnClassificationView = {
+  dataset: string;
+  entries: number;
+  license: string;
+  sourceUrl: string;
 };
 
 /**
@@ -464,6 +485,14 @@ export type HealthResponse = {
   startedAt: string | null;
   status: "healthy" | "degraded";
   timestamp: string;
+};
+
+/**
+ * HostingAsnEntryView
+ */
+export type HostingAsnEntryView = {
+  asn: number;
+  entity: string;
 };
 
 /**
@@ -3278,6 +3307,23 @@ export type ApiV1SystemAboutGetAboutResponses = {
 
 export type ApiV1SystemAboutGetAboutResponse =
   ApiV1SystemAboutGetAboutResponses[keyof ApiV1SystemAboutGetAboutResponses];
+
+export type ApiV1SystemAsnClassificationGetAsnClassificationData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: "/api/v1/system/asn-classification";
+};
+
+export type ApiV1SystemAsnClassificationGetAsnClassificationResponses = {
+  /**
+   * Request fulfilled, document follows
+   */
+  200: AsnClassificationListResponse;
+};
+
+export type ApiV1SystemAsnClassificationGetAsnClassificationResponse =
+  ApiV1SystemAsnClassificationGetAsnClassificationResponses[keyof ApiV1SystemAsnClassificationGetAsnClassificationResponses];
 
 export type ApiV1SystemDatabaseGetDatabaseInfoData = {
   body?: never;

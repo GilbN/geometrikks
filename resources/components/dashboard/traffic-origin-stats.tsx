@@ -62,7 +62,7 @@ export function TrafficOriginStats() {
       <SectionHeader>Traffic Origin</SectionHeader>
       <div className="grid gap-4 md:grid-cols-2">
         <StatCard
-          title="Datacenter Traffic"
+          title="Hosting Traffic"
           value={`${datacenterShare.toFixed(1)}%`}
           subtitle={
             coverage < 99.5

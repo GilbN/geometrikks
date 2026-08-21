@@ -8,6 +8,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Skeleton } from "@/components/ui/skeleton"
+import { AsnCategoryInfo } from "@/components/analytics/asn-category-info"
 import { formatBytes, formatNumber } from "@/lib/api"
 import { asnCoverage } from "@/lib/asn-coverage"
 import { useTopAsns } from "@/lib/queries"
@@ -29,7 +30,10 @@ export function TrafficOriginCard() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-sm font-medium">Traffic origin</CardTitle>
+        <CardTitle className="flex items-center gap-1.5 text-sm font-medium">
+          Traffic origin
+          <AsnCategoryInfo />
+        </CardTitle>
       </CardHeader>
       <CardContent>
         {isLoading || !data ? (
@@ -47,7 +51,7 @@ export function TrafficOriginCard() {
               <span className="text-3xl font-semibold tabular-nums">{share.toFixed(1)}%</span>
               <span className="text-muted-foreground">
                 of {formatNumber(classified)} requests with ASN data came from
-                datacenter networks
+                hosting and datacenter networks
               </span>
             </div>
             {unenriched > 0 && (

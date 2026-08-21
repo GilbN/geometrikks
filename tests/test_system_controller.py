@@ -10,6 +10,7 @@ from litestar import Litestar
 from litestar.di import Provide
 from litestar.testing import AsyncTestClient
 
+from geometrikks.domain.analytics.asn_classification import hosting_asn_count
 from geometrikks.domain.system.controllers.system import SystemController
 from geometrikks.server.scheduler_tracking import JobRunTracker
 from geometrikks.server.routes import create_api_v1_router
@@ -149,6 +150,32 @@ async def test_about_reports_app_runtime_and_geoip_metadata(monkeypatch):
 
     assert body["links"]["repository"] == "https://github.com/GilbN/geometrikks"
     assert body["links"]["issues"].endswith("/issues")
+
+
+async def test_about_reports_asn_classification_provenance():
+    async with AsyncTestClient(app=make_app()) as client:
+        resp = await client.get("/api/v1/system/about")
+    meta = resp.json()["asnClassification"]
+    assert meta["dataset"] == "bad-asn-list"
+    assert meta["entries"] == hosting_asn_count()
+    assert meta["license"] == "MIT"
+    assert meta["sourceUrl"].startswith("https://github.com/")
+
+
+async def test_asn_classification_list_matches_loader():
+    async with AsyncTestClient(app=make_app()) as client:
+        resp = await client.get("/api/v1/system/asn-classification")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["dataset"] == "bad-asn-list"
+    assert body["sourceUrl"].startswith("https://github.com/")
+    entries = body["entries"]
+    assert len(entries) == hosting_asn_count()
+    asns = [e["asn"] for e in entries]
+    assert asns == sorted(asns)
+    assert len(set(asns)) == len(asns)
+    amazon = next(e for e in entries if e["asn"] == 16509)
+    assert "Amazon" in amazon["entity"]
 
 
 async def test_about_geoip_degrades_when_db_missing(monkeypatch):
