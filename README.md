@@ -680,6 +680,39 @@ show the backfilled range until they refresh. Rerunning is safe.
 Note that today's ASN database describes today's network ownership;
 stamping years-old traffic with it is a best-effort approximation.
 
+### Large imports and backfills
+
+Bulk operations - `import-logs` over months of archives, either backfill
+command on a database with real history - write WAL much faster than live
+tailing does. With PostgreSQL's default `max_wal_size` of 1GB the database
+checkpoints every few seconds and logs:
+
+```text
+LOG:  checkpoints are occurring too frequently (21 seconds apart)
+HINT: Consider increasing the configuration parameter "max_wal_size".
+```
+
+Nothing is at risk, but each checkpoint re-triggers full-page writes for
+the pages the run touches next, so the operation gets slower the longer
+this goes on. Both relevant settings reload without a restart, so you can
+raise them while a backfill is already running:
+
+```bash
+docker compose exec timescale_db psql -U geouser -d geometrikks \
+  -c "ALTER SYSTEM SET max_wal_size = '4GB';" \
+  -c "ALTER SYSTEM SET checkpoint_timeout = '15min';" \
+  -c "SELECT pg_reload_conf();"
+```
+
+Expect up to `max_wal_size` of extra disk used for WAL during the run, on
+top of the temporarily decompressed chunks. To keep the settings
+permanently, add `max_wal_size=4GB` and `checkpoint_timeout=15min` to the
+database service's `command:` block in the compose file, then run
+`ALTER SYSTEM RESET max_wal_size` and `ALTER SYSTEM RESET
+checkpoint_timeout` once: command-line flags override `ALTER SYSTEM`
+values, and keeping both means the compose file no longer tells the whole
+truth.
+
 ## Configuration
 
 `.env.example` covers the short list most installs need to touch (admin
