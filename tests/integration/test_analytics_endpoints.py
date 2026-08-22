@@ -358,6 +358,46 @@ async def test_request_totals_count_unenriched_rows(pg_session_maker, clean_tabl
     assert total_bytes == 500
 
 
+async def test_request_totals_match_asn_window_on_misaligned_ranges(
+    pg_engine, pg_session_maker, clean_tables
+):
+    """Totals and ASN hits must cover the same window above 24h.
+
+    Regression: the totals came from get_summary, whose CAGG read floors the
+    start bucket and includes the whole end bucket, while get_top_asns is
+    stitched to the exact range. On a 12:30 -> 12:30 window the totals
+    carried traffic from outside it, which the UI showed as unenriched.
+    """
+    from geometrikks.domain.analytics.repositories import SummaryStatsRepository
+    from geometrikks.server.timescale import refresh_caggs_range
+
+    start = NOW - timedelta(hours=48) + timedelta(minutes=30)
+    end = NOW - timedelta(minutes=30)
+    async with pg_session_maker() as session:
+        # Same hourly bucket as `start`, but before it: must not count.
+        await _insert_asn_log(session, ts=start - timedelta(minutes=10), asn=1, asn_org="Outside")
+        # Same hourly bucket as `end`, but after it: must not count.
+        await _insert_asn_log(session, ts=end + timedelta(minutes=10), asn=1, asn_org="Outside")
+        # Inside the window: one in the partial head bucket, one in a whole bucket.
+        await _insert_asn_log(session, ts=start + timedelta(minutes=5), asn=2, asn_org="Inside")
+        await _insert_asn_log(session, ts=NOW - timedelta(hours=24), asn=2, asn_org="Inside")
+        await session.commit()
+    await refresh_caggs_range(
+        pg_engine,
+        start=NOW - timedelta(hours=50),
+        end=NOW + timedelta(hours=1),
+        caggs=["summary_hourly_stats", "asn_hourly_stats"],
+    )
+
+    async with pg_session_maker() as session:
+        repo = SummaryStatsRepository(session=session)
+        asn_rows = await repo.get_top_asns(start, end)
+        total_requests, _ = await repo.get_request_totals(start, end)
+
+    assert sum(r.hits for r in asn_rows) == 2
+    assert total_requests == 2, "totals must not include the bucket slop outside the window"
+
+
 async def test_iter_null_asn_ips_pages_without_gaps_or_repeats(pg_engine, pg_session_maker, clean_tables):
     """Keyset pagination must cover every distinct NULL-ASN IP exactly once."""
     from geometrikks.cli import _iter_null_asn_ips
