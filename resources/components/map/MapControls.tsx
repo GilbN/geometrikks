@@ -22,7 +22,8 @@ import {
 } from "@/components/ui/drawer"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { FilterCombobox } from "@/components/ui/filter-combobox"
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
+import { Switch } from "@/components/ui/switch"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   Activity,
   Flame,
@@ -88,9 +89,9 @@ interface MapControlsProps {
 }
 
 /**
- * One 28px row per toggle: icon, label, optional metric, switch. Replaces
- * the 34px button-with-badge so the panel fits a laptop height without
- * scrolling.
+ * One 28px row per toggle: icon, label, optional metric, switch. The row is
+ * a label, so clicking anywhere on it flips the switch, and the switch
+ * itself is the keyboard target.
  */
 function SwitchRow({
   icon: Icon,
@@ -113,41 +114,27 @@ function SwitchRow({
   tone?: "accent" | "danger"
   title?: string
 }) {
-  const onColor = tone === "danger" ? "text-red-400" : "text-primary"
-  const trackOn = tone === "danger" ? "bg-red-500" : "bg-primary"
   return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={checked}
-      disabled={disabled}
+    <label
       title={title}
-      onClick={() => onCheckedChange(!checked)}
       className={cn(
-        "flex h-7 w-full cursor-pointer items-center gap-2 rounded-md px-1.5 text-sm font-medium transition-colors pointer-coarse:h-10",
-        "hover:bg-foreground/[0.05] focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-ring",
-        "disabled:cursor-default disabled:opacity-50",
-        checked ? onColor : "text-foreground",
+        "flex h-7 w-full items-center gap-2 rounded-md px-1.5 text-sm font-medium transition-colors pointer-coarse:h-10",
+        disabled ? "cursor-default opacity-50" : "cursor-pointer hover:bg-foreground/[0.05]",
+        checked && (tone === "danger" ? "text-red-400" : "text-primary"),
       )}
     >
       <Icon className={cn("h-4 w-4 shrink-0", iconClassName)} />
-      <span className="min-w-0 flex-1 truncate text-left">{label}</span>
+      <span className="min-w-0 flex-1 truncate">{label}</span>
       {meta && <span className="font-mono text-[11px] tabular-nums text-muted-foreground">{meta}</span>}
-      <span
-        aria-hidden
-        className={cn(
-          "relative h-4 w-7 shrink-0 rounded-full transition-colors",
-          checked ? trackOn : "bg-muted-foreground/30",
-        )}
-      >
-        <span
-          className={cn(
-            "absolute top-0.5 size-3 rounded-full transition-transform",
-            checked ? "translate-x-3.5 bg-background" : "translate-x-0.5 bg-muted-foreground",
-          )}
-        />
-      </span>
-    </button>
+      <Switch
+        size="sm"
+        checked={checked}
+        disabled={disabled}
+        onCheckedChange={onCheckedChange}
+        aria-label={label}
+        className={cn(tone === "danger" && "data-checked:bg-red-500")}
+      />
+    </label>
   )
 }
 
@@ -245,31 +232,18 @@ export function MapControls({
   const sections = (
     <>
       <Section label="Visualization">
-        <ToggleGroup
-          type="single"
-          value={activeLayer}
-          onValueChange={(value) => value && onLayerChange(value as LayerType)}
-          className="grid w-full grid-cols-2 gap-1"
-        >
-          <ToggleGroupItem
-            value="heatmap"
-            aria-label="Heatmap view"
-            variant="outline"
-            className="h-8 cursor-pointer gap-2 pointer-coarse:h-10 data-[state=on]:bg-primary/15 data-[state=on]:text-primary data-[state=on]:border-primary/30"
-          >
-            <Flame className="h-4 w-4" />
-            <span className="text-sm font-medium">Heatmap</span>
-          </ToggleGroupItem>
-          <ToggleGroupItem
-            value="markers"
-            aria-label="Marker view"
-            variant="outline"
-            className="h-8 cursor-pointer gap-2 pointer-coarse:h-10 data-[state=on]:bg-primary/15 data-[state=on]:text-primary data-[state=on]:border-primary/30"
-          >
-            <MapPin className="h-4 w-4" />
-            <span className="text-sm font-medium">Markers</span>
-          </ToggleGroupItem>
-        </ToggleGroup>
+        <Tabs value={activeLayer} onValueChange={(value) => onLayerChange(value as LayerType)}>
+          <TabsList className="grid h-8 w-full grid-cols-2 pointer-coarse:h-10">
+            <TabsTrigger value="heatmap" className="gap-1.5 text-xs">
+              <Flame className="h-3.5 w-3.5" />
+              Heatmap
+            </TabsTrigger>
+            <TabsTrigger value="markers" className="gap-1.5 text-xs">
+              <MapPin className="h-3.5 w-3.5" />
+              Markers
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
         <SwitchRow
           icon={Globe2}
           label="Globe"
