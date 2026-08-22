@@ -162,12 +162,12 @@ async def ensure_geoip_database(settings: "GeoIPSettings") -> bool:
         return True
     except GeoIPDownloadError as exc:
         logger.error("GeoIP download failed: %s", exc)
-        return settings.db_path.exists()
+        return geoip_info(settings.db_path).available
     except Exception:
         # Startup/scheduler entry point: a full volume, bad mount permissions,
         # or a truncated stream must degrade, never crash the app.
         logger.exception("Unexpected error while refreshing the GeoLite2 database")
-        return settings.db_path.exists()
+        return geoip_info(settings.db_path).available
 
 
 async def ensure_asn_database(settings: "GeoIPSettings") -> bool:
@@ -205,10 +205,10 @@ async def ensure_asn_database(settings: "GeoIPSettings") -> bool:
         return True
     except GeoIPDownloadError as exc:
         logger.error("GeoLite2-ASN download failed: %s", exc)
-        return settings.asn_db_path.exists()
+        return geoip_info(settings.asn_db_path).available
     except Exception:
         logger.exception("Unexpected error while refreshing the GeoLite2-ASN database")
-        return settings.asn_db_path.exists()
+        return geoip_info(settings.asn_db_path).available
 
 
 async def refresh_geoip_databases(settings: "GeoIPSettings") -> None:
