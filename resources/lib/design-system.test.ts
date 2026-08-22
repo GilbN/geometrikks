@@ -85,6 +85,23 @@ describe("page chrome", () => {
     }
   })
 
+  it("gives the data primitives the same label as the data cards", () => {
+    const frame = read("components/data/frame.ts")
+    expect(frame).toContain(`"${LABEL}"`)
+    for (const f of ["data-table-frame.tsx", "signal-panel.tsx", "filter-rail.tsx"]) {
+      const text = read(`components/data/${f}`)
+      expect(text, f).toContain("FRAME_LABEL")
+      expect(text, f).not.toMatch(/<h2 className="(?!\{)/)
+    }
+  })
+
+  it("keeps the data primitives presentation-only", () => {
+    const banned = /@\/lib\/(queries|api|.*-filters-context)|@\/generated|@\/routes/
+    for (const { path, text } of sources().filter((s) => s.path.startsWith("components/data/"))) {
+      expect(text, path).not.toMatch(banned)
+    }
+  })
+
   it("renders error states through ErrorBanner, not ad-hoc destructive cards", () => {
     const adHoc = linesMatching(/border-destructive\/50 bg-destructive\/10/).filter(
       ({ path }) => path !== "components/error-banner.tsx",

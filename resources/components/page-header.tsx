@@ -1,8 +1,9 @@
 import { cn } from "@/lib/utils"
 
 /**
- * Standard page chrome: title (+ optional meta chip inline) and subtitle on
- * the left, actions on the right. Typography per the design spec: page title
+ * Standard page chrome: the route's one <h1> (+ optional meta chip inline)
+ * and subtitle on the left, actions on the right, wrapping beneath on
+ * narrow screens. Typography per the design spec: page title
  * 20px / weight 650 / -0.01em tracking; subtitle 13px muted.
  */
 export function PageHeader({
@@ -19,15 +20,15 @@ export function PageHeader({
   className?: string
 }) {
   return (
-    <div className={cn("flex flex-wrap items-start justify-between gap-3", className)}>
-      <div className="space-y-1">
-        <div className="flex flex-wrap items-center gap-3">
-          <h1 className="text-xl font-[650] tracking-[-0.01em]">{title}</h1>
+    <header className={cn("flex min-w-0 flex-wrap items-start justify-between gap-3", className)}>
+      <div className="min-w-0 space-y-1">
+        <div className="flex min-w-0 flex-wrap items-center gap-3">
+          <h1 className="min-w-0 break-words text-xl font-[650] tracking-[-0.01em]">{title}</h1>
           {meta}
         </div>
         {subtitle && <p className="text-[13px] text-muted-foreground">{subtitle}</p>}
       </div>
-      {actions && <div className="flex items-center gap-2">{actions}</div>}
-    </div>
+      {actions && <div className="flex min-w-0 flex-wrap items-center gap-2">{actions}</div>}
+    </header>
   )
 }
