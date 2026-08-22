@@ -179,7 +179,7 @@ export function MapControls({
   // mobile bottom drawer so there is a single source of truth for the controls.
   const sections = (
     <>
-      <Section>
+      <Section label="Visualization">
         <div className="flex flex-col gap-1">
           <ToggleGroup
             type="single"
@@ -235,6 +235,11 @@ export function MapControls({
               {projection === "globe" ? "on" : "off"}
             </Badge>
           </Button>
+        </div>
+      </Section>
+
+      <Section label="Live">
+        <div className="flex flex-col gap-1">
           {/* Live geo-event pulses toggle (independent of the layer choice) */}
           <Button
             variant="outline"
