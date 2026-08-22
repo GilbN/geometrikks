@@ -17,3 +17,10 @@ export function parseAccent(value: string | null): Accent {
 export function accentAttribute(accent: Accent): string | null {
   return accent === DEFAULT_ACCENT ? null : accent
 }
+
+/** Display names, shared by the header picker and Settings > Appearance. */
+export const ACCENT_LABELS: Record<Accent, string> = {
+  teal: "Aurora teal",
+  green: "Fjord green",
+  copper: "Ember copper",
+}

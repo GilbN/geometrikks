@@ -18,6 +18,7 @@ const tabs = [
   { to: "/settings/environment", label: "Environment" },
   { to: "/settings/scheduler", label: "Scheduler" },
   { to: "/settings/logs", label: "Logs" },
+  { to: "/settings/appearance", label: "Appearance" },
   { to: "/settings/about", label: "About" },
 ] as const
 

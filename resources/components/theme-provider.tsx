@@ -1,7 +1,6 @@
-import { createContext, useContext, useEffect, useState } from "react"
+import { createContext, useContext, useEffect, useMemo, useState } from "react"
 import { type Accent, accentAttribute, parseAccent } from "@/lib/accent"
-
-type Theme = "dark" | "light" | "system"
+import { type Theme, parseTheme } from "@/lib/theme"
 
 type ThemeProviderProps = {
   children: React.ReactNode
@@ -17,82 +16,80 @@ type ThemeProviderState = {
   setAccent: (accent: Accent) => void
 }
 
-const initialState: ThemeProviderState = {
-  theme: "system",
-  setTheme: () => null,
-  accent: "teal",
-  setAccent: () => null,
+const ThemeProviderContext = createContext<ThemeProviderState | undefined>(undefined)
+
+function readStorage(key: string): string | null {
+  try {
+    return localStorage.getItem(key)
+  } catch {
+    return null
+  }
 }
 
-const ThemeProviderContext = createContext<ThemeProviderState>(initialState)
+function writeStorage(key: string, value: string) {
+  try {
+    localStorage.setItem(key, value)
+  } catch {
+    // Private mode or blocked storage: the choice still applies this session.
+  }
+}
 
 export function ThemeProvider({
   children,
   defaultTheme = "system",
   storageKey = "vite-ui-theme",
   accentStorageKey = "geometrikks-accent",
-  ...props
 }: ThemeProviderProps) {
-  const [theme, setTheme] = useState<Theme>(
-    () => (localStorage.getItem(storageKey) as Theme) || defaultTheme
+  const [theme, setThemeState] = useState<Theme>(() =>
+    parseTheme(readStorage(storageKey), defaultTheme),
   )
-  const [accent, setAccent] = useState<Accent>(() =>
-    parseAccent(localStorage.getItem(accentStorageKey))
-  )
+  const [accent, setAccentState] = useState<Accent>(() => parseAccent(readStorage(accentStorageKey)))
 
   useEffect(() => {
     const root = window.document.documentElement
-
-    root.classList.remove("light", "dark")
-
-    if (theme === "system") {
-      const systemTheme = window.matchMedia("(prefers-color-scheme: dark)")
-        .matches
-        ? "dark"
-        : "light"
-
-      root.classList.add(systemTheme)
+    const apply = (dark: boolean) => {
+      root.classList.remove("light", "dark")
+      root.classList.add(dark ? "dark" : "light")
+    }
+    if (theme !== "system") {
+      apply(theme === "dark")
       return
     }
-
-    root.classList.add(theme)
+    const query = window.matchMedia("(prefers-color-scheme: dark)")
+    apply(query.matches)
+    const onChange = (event: MediaQueryListEvent) => apply(event.matches)
+    query.addEventListener("change", onChange)
+    return () => query.removeEventListener("change", onChange)
   }, [theme])
 
   useEffect(() => {
     const root = window.document.documentElement
     const attr = accentAttribute(accent)
-    if (attr === null) {
-      root.removeAttribute("data-accent")
-    } else {
-      root.setAttribute("data-accent", attr)
-    }
+    if (attr === null) root.removeAttribute("data-accent")
+    else root.setAttribute("data-accent", attr)
   }, [accent])
 
-  const value = {
-    theme,
-    setTheme: (theme: Theme) => {
-      localStorage.setItem(storageKey, theme)
-      setTheme(theme)
-    },
-    accent,
-    setAccent: (accent: Accent) => {
-      localStorage.setItem(accentStorageKey, accent)
-      setAccent(accent)
-    },
-  }
-
-  return (
-    <ThemeProviderContext.Provider {...props} value={value}>
-      {children}
-    </ThemeProviderContext.Provider>
+  const value = useMemo<ThemeProviderState>(
+    () => ({
+      theme,
+      setTheme: (next) => {
+        writeStorage(storageKey, next)
+        setThemeState(next)
+      },
+      accent,
+      setAccent: (next) => {
+        writeStorage(accentStorageKey, next)
+        setAccentState(next)
+      },
+    }),
+    [theme, accent, storageKey, accentStorageKey],
   )
+
+  return <ThemeProviderContext.Provider value={value}>{children}</ThemeProviderContext.Provider>
 }
 
 export const useTheme = () => {
   const context = useContext(ThemeProviderContext)
-
-  if (context === undefined)
-    throw new Error("useTheme must be used within a ThemeProvider")
-
+  if (context === undefined) throw new Error("useTheme must be used within a ThemeProvider")
   return context
 }
