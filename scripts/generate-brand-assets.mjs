@@ -64,18 +64,20 @@ async function renderBanner() {
   await page.setViewportSize({ width: W, height: H })
   await page.setContent(`<style>
     @font-face { font-family: runr; src: url(data:font/woff2;base64,${font.toString("base64")}) format("woff2"); }
-    body { margin: 0; width: ${W}px; height: ${H}px; display: flex; align-items: center; justify-content: center; gap: 48px;
+    body { margin: 0; width: ${W}px; height: ${H}px; display: flex; align-items: center; justify-content: center; gap: 56px;
       background:
         radial-gradient(640px 420px at 14% -10%, oklch(0.78 0.15 178 / 18%), transparent 70%),
         radial-gradient(720px 520px at 106% 110%, oklch(0.78 0.15 178 / 18%), transparent 70%),
         oklch(0.13 0.025 245); }
-    .wordmark { font-family: runr; color: oklch(0.95 0.01 220); font-size: 64px; letter-spacing: 0.13em;
+    .wordmark { font-family: runr; color: oklch(0.95 0.01 220); font-size: 84px; letter-spacing: 0.13em;
       line-height: 1; display: flex; align-items: center; }
-    .sub { font-family: runr; color: oklch(0.95 0.01 220 / 50%); font-size: 26px; letter-spacing: 0.25em; margin-top: 14px; }
-    svg.lig { height: 0.78em; width: auto; margin: 0 0.06em; stroke: oklch(0.78 0.15 178); stroke-width: 1.5; fill: none; }
+    .sub { font-family: runr; color: oklch(0.95 0.01 220 / 50%); font-size: 32px; letter-spacing: 0.25em; margin-top: 18px; }
+    /* letter-spacing lands after the I but not after the ligature, so the
+       right margin carries the tracking the S would otherwise lose. */
+    svg.lig { height: 0.78em; width: auto; margin: 0 0.19em 0 0.06em; stroke: oklch(0.78 0.15 178); stroke-width: 1.5; fill: none; }
   </style>
   <body>
-    <img width="150" height="150" src="data:image/svg+xml;base64,${mark.toString("base64")}">
+    <img width="200" height="200" src="data:image/svg+xml;base64,${mark.toString("base64")}">
     <div>
       <div class="wordmark">GEOMETRI<svg class="lig" viewBox="0 0 10 14"><line x1="5" y1="0.75" x2="5" y2="13.25"/><line x1="0.9" y1="3.6" x2="9.1" y2="10.4"/><line x1="0.9" y1="10.4" x2="9.1" y2="3.6"/></svg>S</div>
       <div class="sub">ANALYTICS</div>

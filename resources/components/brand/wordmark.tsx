@@ -10,7 +10,9 @@ function HagallLigature({ className }: { className?: string }) {
       fill="none"
       stroke="var(--primary)"
       strokeWidth="1.5"
-      className={cn("inline-block h-[0.78em] w-auto mx-[0.06em] align-baseline", className)}
+      // The parent's tracking lands after the I but not after this SVG, so the
+      // right margin carries the 0.13em the S would otherwise lose.
+      className={cn("inline-block h-[0.78em] w-auto ml-[0.06em] mr-[0.19em] align-baseline", className)}
       aria-hidden
     >
       <line x1="5" y1="0.75" x2="5" y2="13.25" />
