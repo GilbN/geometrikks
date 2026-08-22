@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Geo logs: the grouped table, Top IPs and Top locations are framed cards with counts, and the spatial preview and event chart share the chart panel used on Analytics. Selecting a table row opens the complete location record, ban controls included.
 - Debug logs: the table is a framed card with its count and Columns menu, and the record detail moved from a dialog to a side sheet with the raw line, parse result and linked request.
 - Analytics charts say what they show and which bucket size the range resolved to (Hourly or Daily), with the legend in the card footer and a retry when a series fails to load.
+- Map: the controls are one panel with labeled sections (Visualization, Live, Live overlays, Filters, View, Summary, Top IPs), a Clear for the map filters, and a dot on the collapsed button while filters are active. The live rail no longer fills the map's height; its feed scrolls inside a bounded card.
 - Settings > Appearance: theme (System, Light, Dark) and accent side by side with previews. System now tracks the device's color scheme live instead of only at page load.
 - Accent picker in the header: Aurora teal, Fjord green or Ember copper. The choice persists per browser and is applied before first paint alongside the theme, so a non-default accent no longer flashes teal on load.
 - Shared page chrome components: standard page header, section dividers, and error banner.
