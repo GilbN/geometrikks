@@ -155,6 +155,7 @@ async def test_about_reports_app_runtime_and_geoip_metadata(monkeypatch):
 async def test_about_reports_asn_classification_provenance():
     async with AsyncTestClient(app=make_app()) as client:
         resp = await client.get("/api/v1/system/about")
+    assert resp.status_code == 200
     meta = resp.json()["asnClassification"]
     assert meta["dataset"] == "bad-asn-list"
     assert meta["entries"] == hosting_asn_count()
