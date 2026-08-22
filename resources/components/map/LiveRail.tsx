@@ -4,7 +4,8 @@
  * then where they come from, then the feed with threats on their own lane.
  *
  * It floats rather than docks so the map still runs edge to edge behind it,
- * matching the controls panel and the popups.
+ * matching the controls panel and the popups. Its height is bounded: the
+ * summary stays put and the feed scrolls inside the rail.
  */
 import { useState } from "react"
 import { useLiveWindow } from "@/lib/live-traffic/context"
@@ -12,6 +13,7 @@ import { formatNumber } from "@/lib/api"
 import { LiveSummary } from "./LiveSummary"
 import { LiveFeedList, LiveFeedTabs, type FeedLane } from "./LiveFeedList"
 import type { LiveRequest } from "@/lib/live-traffic/types"
+import { MapOverlay } from "./MapOverlay"
 
 export function LiveRail({ onSelect }: { onSelect: (request: LiveRequest) => void }) {
   const { requests, summary } = useLiveWindow()
@@ -19,10 +21,7 @@ export function LiveRail({ onSelect }: { onSelect: (request: LiveRequest) => voi
   const rows = lane === "threats" ? requests.filter((request) => request.threat) : requests
 
   return (
-    <aside
-      aria-label="Live traffic"
-      className="pointer-events-auto absolute bottom-4 left-4 top-4 z-10 flex w-56 flex-col rounded-lg border bg-background/85 shadow-sm backdrop-blur"
-    >
+    <MapOverlay placement="top-left" role="complementary" aria-label="Live traffic" className="w-60">
       <div className="px-3 pt-3">
         <LiveSummary summary={summary} />
       </div>
@@ -49,6 +48,6 @@ export function LiveRail({ onSelect }: { onSelect: (request: LiveRequest) => voi
           {summary.bannedIps === 1 ? "IP" : "IPs"} in this window
         </div>
       )}
-    </aside>
+    </MapOverlay>
   )
 }
