@@ -67,11 +67,35 @@ export const AboutResponseSchema = {
     app: {
       $ref: "#/components/schemas/AboutAppView",
     },
+    asnClassification: {
+      oneOf: [
+        {
+          $ref: "#/components/schemas/AsnClassificationView",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
     database: {
       $ref: "#/components/schemas/DatabaseVersionsView",
     },
     geoip: {
       $ref: "#/components/schemas/GeoIPInfoView",
+    },
+    geoipAsn: {
+      oneOf: [
+        {
+          $ref: "#/components/schemas/GeoIPInfoView",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    geoipAsnEnabled: {
+      default: false,
+      type: "boolean",
     },
     links: {
       $ref: "#/components/schemas/AboutLinksView",
@@ -265,15 +289,65 @@ export const AccessLogFacetsSchema = {
       },
       type: "array",
     },
+    hostnames: {
+      items: {
+        type: "string",
+      },
+      type: "array",
+    },
     hosts: {
       items: {
         type: "string",
       },
       type: "array",
     },
+    logFormats: {
+      items: {
+        type: "string",
+      },
+      type: "array",
+    },
   },
-  required: ["cities", "countries", "hosts"],
+  required: ["cities", "countries", "hostnames", "hosts", "logFormats"],
   title: "AccessLogFacets",
+  type: "object",
+} as const;
+
+export const AdvisorySchema = {
+  properties: {
+    detail: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    id: {
+      type: "string",
+    },
+    remedy: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    severity: {
+      enum: ["warning", "critical"],
+      type: "string",
+    },
+    summary: {
+      type: "string",
+    },
+  },
+  required: ["id", "severity", "summary"],
+  title: "Advisory",
   type: "object",
 } as const;
 
@@ -380,6 +454,79 @@ export const AnalyticsSettingsViewSchema = {
     "rawRetentionDays",
   ],
   title: "AnalyticsSettingsView",
+  type: "object",
+} as const;
+
+export const AsnCategoryTotalsDTOSchema = {
+  properties: {
+    category: {
+      enum: ["hosting", "other"],
+      type: "string",
+    },
+    hits: {
+      type: "integer",
+    },
+    totalBytes: {
+      type: "integer",
+    },
+  },
+  required: ["category", "hits", "totalBytes"],
+  title: "AsnCategoryTotalsDTO",
+  type: "object",
+} as const;
+
+export const AsnClassificationListResponseSchema = {
+  properties: {
+    dataset: {
+      type: "string",
+    },
+    entries: {
+      items: {
+        $ref: "#/components/schemas/HostingAsnEntryView",
+      },
+      type: "array",
+    },
+    license: {
+      type: "string",
+    },
+    sourceUrl: {
+      type: "string",
+    },
+  },
+  required: ["dataset", "entries", "license", "sourceUrl"],
+  title: "AsnClassificationListResponse",
+  type: "object",
+} as const;
+
+export const AsnClassificationViewSchema = {
+  properties: {
+    dataset: {
+      type: "string",
+    },
+    entries: {
+      type: "integer",
+    },
+    license: {
+      type: "string",
+    },
+    sourceUrl: {
+      type: "string",
+    },
+  },
+  required: ["dataset", "entries", "license", "sourceUrl"],
+  title: "AsnClassificationView",
+  type: "object",
+} as const;
+
+export const AuthDisabledSchema = {
+  properties: {
+    mode: {
+      const: "disabled",
+      type: "string",
+    },
+  },
+  required: ["mode"],
+  title: "AuthDisabled",
   type: "object",
 } as const;
 
@@ -729,6 +876,20 @@ export const DecisionViewSchema = {
   type: "object",
 } as const;
 
+export const DefaultHomeViewSchema = {
+  properties: {
+    latitude: {
+      type: "number",
+    },
+    longitude: {
+      type: "number",
+    },
+  },
+  required: ["latitude", "longitude"],
+  title: "DefaultHomeView",
+  type: "object",
+} as const;
+
 export const EmbeddedLocationDTOSchema = {
   properties: {
     city: {
@@ -870,6 +1031,20 @@ export const GeoEventsTimeSeriesResponseSchema = {
 
 export const GeoIPHealthSchema = {
   properties: {
+    asnAvailable: {
+      default: false,
+      type: "boolean",
+    },
+    asnDbBuildDate: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
     available: {
       type: "boolean",
     },
@@ -1373,6 +1548,12 @@ export const GlobalTopIPsResponseSchema = {
 
 export const HealthResponseSchema = {
   properties: {
+    advisories: {
+      items: {
+        $ref: "#/components/schemas/Advisory",
+      },
+      type: "array",
+    },
     crowdsec: {
       $ref: "#/components/schemas/CrowdSecHealth",
     },
@@ -1384,6 +1565,21 @@ export const HealthResponseSchema = {
     },
     ingestion: {
       $ref: "#/components/schemas/IngestionHealth",
+    },
+    mode: {
+      default: "full",
+      enum: ["full", "agent"],
+      type: "string",
+    },
+    schemaWait: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
     },
     startedAt: {
       oneOf: [
@@ -1413,6 +1609,20 @@ export const HealthResponseSchema = {
     "timestamp",
   ],
   title: "HealthResponse",
+  type: "object",
+} as const;
+
+export const HostingAsnEntryViewSchema = {
+  properties: {
+    asn: {
+      type: "integer",
+    },
+    entity: {
+      type: "string",
+    },
+  },
+  required: ["asn", "entity"],
+  title: "HostingAsnEntryView",
   type: "object",
 } as const;
 
@@ -1497,8 +1707,17 @@ export const IngestionHealthSchema = {
     pendingRecords: {
       type: "integer",
     },
+    publishDropped: {
+      default: 0,
+      type: "integer",
+    },
     running: {
       type: "boolean",
+    },
+    status: {
+      default: "running",
+      enum: ["running", "degraded", "disabled"],
+      type: "string",
     },
   },
   required: [
@@ -1584,6 +1803,26 @@ export const IpLocationSchema = {
 
 export const ListAccessLogsAccessLogResponseBodySchema = {
   properties: {
+    autonomousSystemNumber: {
+      oneOf: [
+        {
+          type: "integer",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    autonomousSystemOrganization: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
     bytesSent: {
       default: 0,
       type: "integer",
@@ -1628,6 +1867,16 @@ export const ListAccessLogsAccessLogResponseBodySchema = {
         },
       ],
     },
+    hostname: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
     httpVersion: {
       oneOf: [
         {
@@ -1643,6 +1892,16 @@ export const ListAccessLogsAccessLogResponseBodySchema = {
     },
     ipAddress: {
       type: "string",
+    },
+    logFormat: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
     },
     method: {
       oneOf: [
@@ -1976,7 +2235,7 @@ export const LogFileViewSchema = {
       type: "boolean",
     },
     kind: {
-      enum: ["app", "login", "nginx"],
+      enum: ["app", "login", "access"],
       type: "string",
     },
     modifiedAt: {
@@ -2136,17 +2395,6 @@ export const MapSettingsViewSchema = {
   },
   required: ["homeLatitude", "homeLongitude", "homeSource"],
   title: "MapSettingsView",
-  type: "object",
-} as const;
-
-export const MeResponseSchema = {
-  properties: {
-    username: {
-      type: "string",
-    },
-  },
-  required: ["username"],
-  title: "MeResponse",
   type: "object",
 } as const;
 
@@ -2531,6 +2779,21 @@ export const SchedulerJobsResponseSchema = {
   type: "object",
 } as const;
 
+export const SessionUserSchema = {
+  properties: {
+    mode: {
+      const: "session",
+      type: "string",
+    },
+    username: {
+      type: "string",
+    },
+  },
+  required: ["mode", "username"],
+  title: "SessionUser",
+  type: "object",
+} as const;
+
 export const SettingFieldViewSchema = {
   properties: {
     computedSource: {
@@ -2605,6 +2868,61 @@ export const SettingsSectionViewSchema = {
   },
   required: ["description", "fields", "name", "title"],
   title: "SettingsSectionView",
+  type: "object",
+} as const;
+
+export const SiteHomeViewSchema = {
+  properties: {
+    detectedAt: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    hostname: {
+      type: "string",
+    },
+    latitude: {
+      type: "number",
+    },
+    longitude: {
+      type: "number",
+    },
+    source: {
+      enum: ["auto", "override"],
+      type: "string",
+    },
+  },
+  required: ["detectedAt", "hostname", "latitude", "longitude", "source"],
+  title: "SiteHomeView",
+  type: "object",
+} as const;
+
+export const SiteHomesResponseSchema = {
+  properties: {
+    default: {
+      oneOf: [
+        {
+          $ref: "#/components/schemas/DefaultHomeView",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    homes: {
+      items: {
+        $ref: "#/components/schemas/SiteHomeView",
+      },
+      type: "array",
+    },
+  },
+  required: ["default", "homes"],
+  title: "SiteHomesResponse",
   type: "object",
 } as const;
 
@@ -2740,6 +3058,76 @@ export const TimeSeriesResponseSchema = {
   },
   required: ["data", "endDate", "granularity", "startDate"],
   title: "TimeSeriesResponse",
+  type: "object",
+} as const;
+
+export const TopAsnDTOSchema = {
+  properties: {
+    asn: {
+      type: "integer",
+    },
+    category: {
+      enum: ["hosting", "other"],
+      type: "string",
+    },
+    hits: {
+      type: "integer",
+    },
+    organization: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    totalBytes: {
+      type: "integer",
+    },
+  },
+  required: ["asn", "category", "hits", "organization", "totalBytes"],
+  title: "TopAsnDTO",
+  type: "object",
+} as const;
+
+export const TopAsnsResponseSchema = {
+  properties: {
+    categories: {
+      items: {
+        $ref: "#/components/schemas/AsnCategoryTotalsDTO",
+      },
+      type: "array",
+    },
+    endDate: {
+      type: "string",
+    },
+    items: {
+      items: {
+        $ref: "#/components/schemas/TopAsnDTO",
+      },
+      type: "array",
+    },
+    startDate: {
+      type: "string",
+    },
+    totalBytes: {
+      type: "integer",
+    },
+    totalRequests: {
+      type: "integer",
+    },
+  },
+  required: [
+    "categories",
+    "endDate",
+    "items",
+    "startDate",
+    "totalBytes",
+    "totalRequests",
+  ],
+  title: "TopAsnsResponse",
   type: "object",
 } as const;
 

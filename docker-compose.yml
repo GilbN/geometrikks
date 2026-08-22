@@ -16,6 +16,19 @@ services:
     image: timescale/timescaledb-ha:pg18
     restart: unless-stopped
     shm_size: 256mb
+    # GeoMetrikks registers ~32 TimescaleDB background jobs and its CAGG
+    # refresh policies all fire on the same tick; the image's default pool
+    # (timescaledb.max_background_workers=16) is too small for that burst
+    # and logs "failed to launch job ... out of background workers".
+    # max_worker_processes must hold the whole pool: background workers +
+    # max_parallel_workers + 3 internal processes.
+    command:
+      - -c
+      - timescaledb.max_background_workers=40
+      - -c
+      - max_parallel_workers=8
+      - -c
+      - max_worker_processes=51
     environment:
       POSTGRES_USER: geouser
       POSTGRES_PASSWORD: ${DB_PASSWORD:-geopass}
@@ -31,6 +44,7 @@ services:
   app:
     image: ghcr.io/gilbn/geometrikks:latest
     restart: unless-stopped
+    hostname: geometrikks
     environment:
       DB_HOST: timescale_db
       DB_PASSWORD: ${DB_PASSWORD:-geopass}
@@ -42,13 +56,17 @@ services:
       - .env
     volumes:
       - geoip_data:/app/data/geoip
-      - ${NGINX_LOG_DIR:-/var/log/nginx}:/var/log/nginx:ro
+      - ${ACCESS_LOG_DIR:-${NGINX_LOG_DIR:-/var/log/nginx}}:/var/log/access:ro
       # Exposes the application log and login.log on the host for tools like
       # CrowdSec/fail2ban, and persists them across container recreation.
       - ./logs:/app/logs
     depends_on:
       timescale_db:
         condition: service_healthy
+    # Granian is started with --workers-kill-timeout 15; the default 10s
+    # stop timeout SIGKILLs the container mid-teardown and drops the
+    # ingestion batch still in flight.
+    stop_grace_period: 20s
 
 volumes:
   timescale_data:

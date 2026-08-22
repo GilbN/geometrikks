@@ -26,6 +26,212 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Apple touch icon no longer has transparent corners that iOS composited black.
 - Stat card trend badges no longer pair a 0.0% label with an up or down arrow; tiny and non-finite deltas render as flat or hidden.
 
+## [0.10.0] - 2026-08-22
+
+### Added
+
+- ASN enrichment. Every ingested request records the autonomous system
+  number and organization from the MaxMind GeoLite2 ASN database, which
+  downloads and refreshes with the same credentials as the City database
+  (`GEOIP_ASN_ENABLED=false` opts out). Missing credentials or a failed
+  download never block ingestion; those rows carry no ASN data.
+- Live map popups show the ASN behind each request, and the access-logs
+  table gains ASN and AS organization columns in the column picker.
+- Settings > Status warns when ASN enrichment is enabled but the GeoLite2
+  ASN database is missing or failed to download, and `/health` reports the
+  ASN database's availability and build date. Settings > About shows both
+  GeoLite2 editions (build date, age, path), the Status GeoIP card lists
+  both build dates, and the settings tree reports ASN availability.
+- Analytics gains a Top ASNs view: a Traffic origin card with the exact
+  hosting-vs-other split for the selected range, and a Top ASNs table
+  (organization, ASN, category, hits, bytes), backed by per-ASN continuous
+  aggregates and `GET /api/v1/analytics/top-asns`. Hosting tagging uses a
+  bundled hosting-ASN list (the MIT-licensed brianhama/bad-asn-list)
+  applied at read time, so list updates apply to all history. Unlisted
+  networks read as Other, never residential.
+- An info tooltip on the analytics views says how hosting classification
+  works. Settings > About links the bundled list to its upstream source,
+  carries the MaxMind GeoLite2 attribution, and opens the full list in a
+  searchable dialog backed by `GET /api/v1/system/asn-classification`.
+- The Summary dashboard gains a Traffic origin section with the hosting
+  share of classified traffic and the busiest network for the selected
+  range. It is hidden when no requests in range carry ASN data.
+- The Top URLs and Top user agents tables sit side by side on wide screens.
+- `litestar backfill-asn` stamps ASN data onto rows ingested before the
+  feature existed or while the database was missing. It asks for
+  confirmation, decompresses compressed history first, resolves and writes
+  IPs in bounded chunks, and refreshes the ASN aggregates so the Top ASNs
+  view picks up the backfilled range. A failed aggregate refresh exits
+  non-zero.
+
+### Fixed
+
+- The Columns picker on the Access Logs, Geo Logs, and Debug Logs tables
+  remembers its selection across reloads, per browser. Only columns you
+  toggled are stored, so the rest keep their defaults and columns added in
+  later releases appear as intended. A "Reset to defaults" item clears
+  the saved selection. The picker is now wide enough for its labels
+  instead of wrapping them at the width of the Columns button.
+- The Summary dashboard shows placeholder cards for every section while
+  loading, so sections no longer pop in and shift the page, and it fetches
+  the Traffic origin data at the same time as the summary instead of after
+  it.
+
+## [0.9.0] - 2026-08-20
+
+### Added
+
+- `LOGPARSER_HOST_NAME` accepts a JSON list matched positionally to
+  `LOGPARSER_LOG_PATHS`, so one instance tailing logs shipped from several
+  machines records each file under its source hostname. `litestar
+  import-logs` gained `--hostname` to set the stamped hostname per import
+  and now echoes which hostname it stamps.
+- `APP_MODE=agent`: run the same image as a lightweight remote agent that
+  tails, geolocates, writes, and publishes to the live map, serving only
+  `/health` and `/health/ready`. An agent reports not-ready until the
+  primary's schema has arrived, so an orchestrator restarts it into a fresh
+  wait rather than leaving it idle. `LOGPARSER_ENABLED=false` turns a full
+  instance into a UI head with no local tailing, presented as an operator
+  choice (a neutral "Ingestion off" state) rather than degraded health.
+  The live-feed backend now reuses a persistent publish connection and
+  reconnects its listener automatically.
+- The map can filter by source hostname: a Sources control beside the
+  country/city filters, URL-backed filter state (shareable links), live
+  traffic and vitals restricted to the selected sources, and the source
+  hostname shown on live popups and feed rows.
+- Settings > Status shows generic operator advisories from the health
+  endpoint. The first producer warns when the map's per-source aggregates
+  are held back, either because the recorded hostnames look like Docker
+  container IDs or because there are more of them than those aggregates are
+  built for, and gives the consolidation command.
+- Multi-site home locations: agents detect their own public-IP location and
+  record it per hostname, with live map routes flying to each source's home
+  (one beacon per site). `MAP_HOME_LOCATIONS` overrides any hostname's
+  coordinates for sites whose public IP geolocates wrong or whose logs are
+  shipped from another machine. Detection refreshes on its own
+  `MAP_HOME_REFRESH_HOURS` cadence (default 24h). The `GET
+  /api/v1/geo-locations/site-homes` endpoint serves each hostname's current
+  home location plus the instance's default home for map rendering. Settings
+  > Status now shows a "Site homes" block listing each hostname's
+  coordinates and whether they came from auto-detection or an override, so
+  a CGNAT-mismapped source is visible in-app.
+- `dev/`: a committed local multi-source test harness: `docker compose -f
+  dev/docker-compose.agents.yml --env-file .env up --build` starts a
+  dedicated TimescaleDB, a UI head, two agents (nginx + traefik formats),
+  and a log injector feeding them synthetic live traffic for as long as
+  the stack is up.
+
+### Changed
+
+- The live map feed (`/ws/live`) now fans out through PostgreSQL
+  LISTEN/NOTIFY, so committed traffic from any writer process reaches the
+  map, and live events carry the source hostname. Batch imports no longer
+  feed the live map.
+- The map layer choice and Live toggle now persist across visits.
+- The location aggregates are rebuilt once at startup with a per-hostname
+  dimension so source-filtered maps stay fast. History older than the raw
+  retention window (default 180 days) cannot be rebuilt and is discarded at
+  that upgrade; installs with many container-ID hostnames skip the rebuild
+  until consolidated (see the status page advisory).
+
+### Fixed
+
+- The compose files size the TimescaleDB worker pool for the app's ~32
+  background jobs (`timescaledb.max_background_workers=40`,
+  `max_worker_processes=51`), stopping the periodic "failed to launch job
+  ... out of background workers" warnings when the aggregate refresh
+  policies all fire at once. Existing installs: copy the `command:` block
+  from `docker-compose.yml` onto the database service and recreate it.
+- `docker-compose.yml` sets `stop_grace_period: 20s` on the app service, as
+  the deployment docs already prescribed. Docker's default 10s stop timeout
+  raced Granian's 15s worker-kill timeout, so `docker stop` could SIGKILL
+  the container mid-teardown and lose the ingestion batch still in flight.
+  Existing installs: add the same line to your app (and agent) services.
+
+## [0.8.0] - 2026-08-16
+
+### Added
+
+- Traefik JSON access log support with per-file format auto-detection
+  (`LOGPARSER_LOG_FORMATS`), and a `--format` option on `litestar import-logs`.
+- `hostname` and `log_format` columns on access logs, with new facet filters
+  (recording hostname, source format) on the access-logs page.
+- `litestar backfill-hostname` CLI command to set the recording hostname on
+  historical rows; `--consolidate` collapses accumulated hostnames (e.g. container id hostnames).
+
+### Changed
+
+- Log files UI (/settings/logs): the `nginx` kind is now `access` with proxy-neutral labels;
+  bookmarked download links containing `/nginx/` change (/api/v1/logs/files/access/access.log).
+- docker-compose: `ACCESS_LOG_DIR` is the preferred mount variable
+  (`NGINX_LOG_DIR` still works); the app container has a stable hostname.
+- **Breaking:** the access-log mount inside the container moved from
+  `/var/log/nginx` to the proxy-neutral `/var/log/access`, and the
+  `LOGPARSER_LOG_PATHS` default is now `/var/log/access/access.log`. If your
+  `.env` sets `LOGPARSER_LOG_PATHS` with `/var/log/nginx/...` paths, change
+  them to `/var/log/access/...` when upgrading the compose file.
+
+
+### Fixed
+
+- The access-log `url` and `referrer` columns were historically swapped
+  (URL showed the Referer header, Referrer showed the request path); a
+  migration corrects existing data and rebuilds the Top URLs aggregates.
+  The migration decompresses compressed `access_logs` chunks to do it, so
+  disk usage grows for a while until the compression policy recompresses
+  them.
+- Concurrent GeoMetrikks instances sharing one database no longer drop an
+  ingestion batch when racing to create the same geo location.
+
+## [0.7.1] - 2026-08-11
+
+### Added
+
+- Time-series charts (requests, bandwidth, latency, status classes, geo events)
+  now auto-clamp the y-axis when a single traffic burst dwarfs the rest of the
+  range, keeping normal traffic readable. Clamped charts show a
+  "y-axis clipped at ..." note in the card header; spike buckets clip at the
+  top edge and tooltips keep the true values.
+- Settings > Status has an Authentication card reporting whether the built-in
+  authentication is active.
+- `/logout` is now a route of its own, not only a sidebar button.
+
+### Changed
+
+- `GET /api/v1/auth/me` now reports an auth mode: `{"mode": "session",
+  "username": "..."}` when logged in, `{"mode": "disabled"}` when
+  `APP_AUTH_DISABLED=true`. In that mode a valid `POST /api/v1/auth/login`
+  returns the same disabled payload without establishing a session, and
+  `POST /api/v1/auth/logout` returns 204 without touching one.
+- 404 and 401 responses now log a single `client_error` warning instead of an
+  error-level traceback. Debug mode keeps the full traceback.
+
+### Fixed
+
+- Selecting "Today" (or any range not starting at UTC midnight) with daily
+  granularity no longer renders an extra full day in the charts. The frontend
+  now sends the browser's timezone as a new optional `tz` query parameter on
+  the time-series endpoints, and daily buckets are computed as local days in
+  that zone for ranges up to 30 days (rolled up from hourly data: counts
+  summed, latency sketches and unique-count HLLs merged). Ranges beyond 30
+  days keep UTC day buckets, since only the daily aggregates reach that far
+  back.
+- The status-classes chart no longer renders near-invisible bars on dense
+  views such as 7d+ with hourly granularity: past 48 buckets it switches to a
+  stacked area chart with the same colors and stack order. The card-colored
+  spacer strokes between bar segments were wider than the sub-pixel bars
+  themselves, erasing the fill entirely.
+- Chart tooltips now show the bucket time in the browser's timezone instead of
+  the raw UTC ISO string, matching the X axis ticks. Affected the requests,
+  bandwidth, latency, status-class and geo-events charts.
+- The Summary page's date-range badge now shows the range in the browser's
+  timezone with a matching zone label instead of hardcoded UTC; hovering it
+  still shows the full UTC instant.
+- With `APP_AUTH_DISABLED=true` the auth endpoints stay registered, so the
+  frontend's `/api/v1/auth/me` call no longer 404s into an uncaught-exception
+  traceback on every page load. `/login` and `/logout` redirect to the
+  dashboard in that mode instead of rendering a form that cannot work.
+
 ## [0.7.0] - 2026-08-02
 
 ### Added
@@ -680,16 +886,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Settings endpoint no longer exposes the full settings tree (database credentials leaked via `model_dump()`); response is now an explicit whitelist.
 - Timestamps in `CALL refresh_continuous_aggregate` are bound as asyncpg parameters instead of interpolated into SQL.
 
-[Unreleased]: https://github.com/GilbN/geometrikks/compare/v0.7.0...HEAD
+[Unreleased]: https://github.com/GilbN/geometrikks/compare/v0.10.0...HEAD
+[0.10.0]: https://github.com/GilbN/geometrikks/compare/v0.9.0...v0.10.0
+[0.9.0]: https://github.com/GilbN/geometrikks/compare/v0.8.0...v0.9.0
+[0.8.0]: https://github.com/GilbN/geometrikks/compare/v0.7.1...v0.8.0
+[0.7.1]: https://github.com/GilbN/geometrikks/compare/v0.7.0...v0.7.1
 [0.7.0]: https://github.com/GilbN/geometrikks/releases/tag/v0.7.0
-[0.1.0-alpha.1]: https://github.com/GilbN/geometrikks/releases/tag/v0.1.0-alpha.1
-[0.1.0]: https://github.com/GilbN/geometrikks/compare/v0.1.0-alpha.1...v0.1.0
-[0.2.0]: https://github.com/GilbN/geometrikks/releases/tag/v0.2.0
-[0.2.1]: https://github.com/GilbN/geometrikks/releases/tag/v0.2.1
-[0.3.0]: https://github.com/GilbN/geometrikks/releases/tag/v0.3.0
-[0.4.0]: https://github.com/GilbN/geometrikks/releases/tag/v0.4.0
-[0.4.1]: https://github.com/GilbN/geometrikks/releases/tag/v0.4.1
-[0.4.2]: https://github.com/GilbN/geometrikks/releases/tag/v0.4.2
-[0.4.3]: https://github.com/GilbN/geometrikks/releases/tag/v0.4.3
-[0.5.0]: https://github.com/GilbN/geometrikks/releases/tag/v0.5.0
 [0.6.0]: https://github.com/GilbN/geometrikks/releases/tag/v0.6.0
+[0.5.0]: https://github.com/GilbN/geometrikks/releases/tag/v0.5.0
+[0.4.3]: https://github.com/GilbN/geometrikks/releases/tag/v0.4.3
+[0.4.2]: https://github.com/GilbN/geometrikks/releases/tag/v0.4.2
+[0.4.1]: https://github.com/GilbN/geometrikks/releases/tag/v0.4.1
+[0.4.0]: https://github.com/GilbN/geometrikks/releases/tag/v0.4.0
+[0.3.0]: https://github.com/GilbN/geometrikks/releases/tag/v0.3.0
+[0.2.1]: https://github.com/GilbN/geometrikks/releases/tag/v0.2.1
+[0.2.0]: https://github.com/GilbN/geometrikks/releases/tag/v0.2.0
+[0.1.0]: https://github.com/GilbN/geometrikks/compare/v0.1.0-alpha.1...v0.1.0
+[0.1.0-alpha.1]: https://github.com/GilbN/geometrikks/releases/tag/v0.1.0-alpha.1

@@ -17,6 +17,7 @@ import {
   fetchTopCountryStats,
   fetchTopIpStats,
   fetchTopUrls,
+  fetchTopAsns,
   fetchTopUserAgents,
   fetchCumulativeTimeSeries,
   fetchAccessLogs,
@@ -28,11 +29,14 @@ import {
   fetchGeoLogTopCountries,
   fetchGeoLogTopCities,
   fetchGeoEventFacets,
+  fetchSiteHomes,
   fetchRuntimeSettings,
   fetchSystemSettings,
   fetchSchedulerJobs,
   fetchAbout,
+  fetchAsnClassification,
   fetchHealth,
+  fetchMe,
   fetchStats,
   fetchCrowdsecStatus,
   fetchCrowdsecBannedIps,
@@ -83,10 +87,14 @@ import { useGeoLogFilters } from "./geo-log-filters-context"
 
 export const queryKeys = {
   settings: ["settings"] as const,
+  auth: {
+    me: ["auth", "me"] as const,
+  },
   system: {
     settings: ["system", "settings"] as const,
     schedulerJobs: ["system", "scheduler-jobs"] as const,
     about: ["system", "about"] as const,
+    asnClassification: ["system", "asn-classification"] as const,
     stats: ["system", "stats"] as const,
     database: ["system", "database"] as const,
   },
@@ -117,6 +125,8 @@ export const queryKeys = {
       [...queryKeys.analytics.all, "top-urls", params, refreshKey] as const,
     topUserAgents: (params: Record<string, unknown>, refreshKey?: number) =>
       [...queryKeys.analytics.all, "top-user-agents", params, refreshKey] as const,
+    topAsns: (params: Record<string, unknown>, refreshKey?: number) =>
+      [...queryKeys.analytics.all, "top-asns", params, refreshKey] as const,
     topIps: (params: Record<string, unknown>, refreshKey?: number) =>
       [...queryKeys.analytics.all, "top-ips", params, refreshKey] as const,
     topCountryStats: (params: Record<string, unknown>, refreshKey?: number) =>
@@ -134,6 +144,7 @@ export const queryKeys = {
       [...queryKeys.geo.all, "location-top-ips", locationId, params, refreshKey] as const,
     topCountries: (params: Record<string, unknown>, refreshKey?: number) =>
       [...queryKeys.geo.all, "top-countries", params, refreshKey] as const,
+    siteHomes: ["geo", "site-homes"] as const,
   },
   accessLogs: {
     all: ["access-logs"] as const,
@@ -208,6 +219,16 @@ export function useAbout() {
   })
 }
 
+/** The vendored hosting-ASN list; fetched only while its dialog is open. */
+export function useAsnClassification(enabled: boolean) {
+  return useQuery({
+    queryKey: queryKeys.system.asnClassification,
+    queryFn: fetchAsnClassification,
+    staleTime: Number.POSITIVE_INFINITY,
+    enabled,
+  })
+}
+
 /** Shares the ["health"] cache with the sidebar LiveIndicator's 10s poll. */
 export function useHealth() {
   return useQuery({
@@ -237,6 +258,21 @@ export function useDatabaseInfo() {
       return data
     },
     refetchInterval: 60_000,
+  })
+}
+
+// ============================================================================
+// Auth
+// ============================================================================
+
+export function useMe() {
+  return useQuery({
+    queryKey: queryKeys.auth.me,
+    queryFn: fetchMe,
+    // The API 401s for an anonymous caller and the axios interceptor
+    // redirects; retrying would just repeat that.
+    retry: false,
+    staleTime: Infinity,
   })
 }
 
@@ -492,6 +528,8 @@ export interface UseGeoJSONOptions {
   countryCodes?: string[]
   /** Filter to these city names */
   cities?: string[]
+  /** Filter to these source hostnames */
+  hostnames?: string[]
 }
 
 /**
@@ -499,12 +537,15 @@ export interface UseGeoJSONOptions {
  * Uses TimeRangeContext for time filtering.
  */
 export function useGeoJSON(options: UseGeoJSONOptions = {}) {
-  const { enabled = true, countryCodes, cities } = options
+  const { enabled = true, countryCodes, cities, hostnames } = options
   const { range, customRange, pollInterval, lastRefresh } = useTimeRange()
 
   return useQuery({
     // Query key uses lastRefresh for cache invalidation on manual refresh
-    queryKey: queryKeys.geo.geojson({ range, customRange, countryCodes, cities }, lastRefresh),
+    queryKey: queryKeys.geo.geojson(
+      { range, customRange, countryCodes, cities, hostnames },
+      lastRefresh,
+    ),
     // Compute date range at fetch time so polls get fresh data
     queryFn: () => {
       const { startDate, endDate } = parseTimeRange(range, Date.now(), customRange)
@@ -513,6 +554,7 @@ export function useGeoJSON(options: UseGeoJSONOptions = {}) {
         toTimestamp: endDate,
         countryCodes,
         cities,
+        hostnames,
       })
     },
     enabled,
@@ -771,6 +813,35 @@ export function useTopUserAgents(options: UseTopListOptions = {}) {
 }
 
 /**
+ * Fetch the top ASNs plus hosting-vs-other category totals.
+ * Uses TimeRangeContext for time filtering.
+ */
+export function useTopAsns(options: UseTopListOptions = {}) {
+  const { enabled = true, limit = 25 } = options
+  const { range, customRange, pollInterval, lastRefresh } = useTimeRange()
+  const { filters } = useAnalyticsFilters()
+
+  return useQuery({
+    queryKey: queryKeys.analytics.topAsns({ range, customRange, limit, filters }, lastRefresh),
+    queryFn: () => {
+      const { startDate, endDate } = parseTimeRange(range, Date.now(), customRange)
+      return fetchTopAsns({
+        startDate,
+        endDate,
+        limit,
+        countryCodes: filters.countryCodes,
+        cities: filters.cities,
+        ips: filters.ips,
+        ipsExclude: filters.ipsExclude,
+      })
+    },
+    enabled,
+    staleTime: 60 * 1000,
+    refetchInterval: pollInterval || false,
+  })
+}
+
+/**
  * Fetch the top client IPs by hit count.
  * Uses TimeRangeContext for time filtering.
  */
@@ -871,6 +942,9 @@ export interface UseAccessLogsOptions {
   methodIn?: string[]
   hostIn?: string[]
   hostNotIn?: string[]
+  hostnameIn?: string[]
+  hostnameNotIn?: string[]
+  logFormatIn?: string[]
   cityIn?: string[]
   countryCodeIn?: string[]
   statusIn?: number[]
@@ -893,6 +967,9 @@ export function useAccessLogs(options: UseAccessLogsOptions = {}) {
     methodIn,
     hostIn,
     hostNotIn,
+    hostnameIn,
+    hostnameNotIn,
+    logFormatIn,
     cityIn,
     countryCodeIn,
     statusIn,
@@ -903,7 +980,7 @@ export function useAccessLogs(options: UseAccessLogsOptions = {}) {
 
   return useQuery<AccessLogsPage>({
     queryKey: queryKeys.accessLogs.list(
-      { range, customRange, currentPage, pageSize, searchString, ipAddressIn, ipAddressNotIn, methodIn, hostIn, hostNotIn, cityIn, countryCodeIn, statusIn, sortField, sortOrder },
+      { range, customRange, currentPage, pageSize, searchString, ipAddressIn, ipAddressNotIn, methodIn, hostIn, hostNotIn, hostnameIn, hostnameNotIn, logFormatIn, cityIn, countryCodeIn, statusIn, sortField, sortOrder },
       lastRefresh,
     ),
     queryFn: () => {
@@ -919,6 +996,9 @@ export function useAccessLogs(options: UseAccessLogsOptions = {}) {
         methodIn,
         hostIn,
         hostNotIn,
+        hostnameIn,
+        hostnameNotIn,
+        logFormatIn,
         cityIn,
         countryCodeIn,
         statusIn,
@@ -1210,6 +1290,15 @@ export function useGeoEventFacets({ enabled = true }: { enabled?: boolean } = {}
   })
 }
 
+/** Per-source home locations for the map; homes change rarely. */
+export function useSiteHomes() {
+  return useQuery({
+    queryKey: queryKeys.geo.siteHomes,
+    queryFn: fetchSiteHomes,
+    staleTime: 5 * 60 * 1000,
+  })
+}
+
 // ============================================================================
 // Logs
 // ============================================================================
@@ -1248,7 +1337,7 @@ export function useRecentErrors() {
   })
 }
 
-/** Available log files (app/login/nginx) for the Logs page file picker. */
+/** Available log files (app/login/access) for the Logs page file picker. */
 export function useLogFiles() {
   return useQuery({
     queryKey: queryKeys.logs.files,

@@ -35,6 +35,9 @@ import type {
   ApiV1AnalyticsTimeSeriesGetTimeSeriesData,
   ApiV1AnalyticsTimeSeriesGetTimeSeriesErrors,
   ApiV1AnalyticsTimeSeriesGetTimeSeriesResponses,
+  ApiV1AnalyticsTopAsnsGetTopAsnsData,
+  ApiV1AnalyticsTopAsnsGetTopAsnsErrors,
+  ApiV1AnalyticsTopAsnsGetTopAsnsResponses,
   ApiV1AnalyticsTopCitiesGetTopCitiesData,
   ApiV1AnalyticsTopCitiesGetTopCitiesErrors,
   ApiV1AnalyticsTopCitiesGetTopCitiesResponses,
@@ -113,6 +116,8 @@ import type {
   ApiV1GeoLocationsLocationIdTopIpsGetLocationTopIpsData,
   ApiV1GeoLocationsLocationIdTopIpsGetLocationTopIpsErrors,
   ApiV1GeoLocationsLocationIdTopIpsGetLocationTopIpsResponses,
+  ApiV1GeoLocationsSiteHomesSiteHomesData,
+  ApiV1GeoLocationsSiteHomesSiteHomesResponses,
   ApiV1GeoLocationsTopCountriesGetTopCountriesData,
   ApiV1GeoLocationsTopCountriesGetTopCountriesErrors,
   ApiV1GeoLocationsTopCountriesGetTopCountriesResponses,
@@ -135,6 +140,8 @@ import type {
   ApiV1StatsStatsResponses,
   ApiV1SystemAboutGetAboutData,
   ApiV1SystemAboutGetAboutResponses,
+  ApiV1SystemAsnClassificationGetAsnClassificationData,
+  ApiV1SystemAsnClassificationGetAsnClassificationResponses,
   ApiV1SystemDatabaseGetDatabaseInfoData,
   ApiV1SystemDatabaseGetDatabaseInfoResponses,
   ApiV1SystemSchedulerJobsGetSchedulerJobsData,
@@ -439,6 +446,36 @@ export const apiV1AnalyticsTimeSeriesCumulativeGetCumulativeTimeSeries = <
       },
     ],
     url: "/api/v1/analytics/time-series/cumulative",
+    ...options,
+  });
+
+/**
+ * GetTopAsns
+ *
+ * Top ASNs by hits with hosting-vs-other totals (CAGG-served above 24h; filters force a raw scan).
+ */
+export const apiV1AnalyticsTopAsnsGetTopAsns = <
+  ThrowOnError extends boolean = false,
+>(
+  options: Options<ApiV1AnalyticsTopAsnsGetTopAsnsData, ThrowOnError>,
+): RequestResult<
+  ApiV1AnalyticsTopAsnsGetTopAsnsResponses,
+  ApiV1AnalyticsTopAsnsGetTopAsnsErrors,
+  ThrowOnError
+> =>
+  (options.client ?? client).get<
+    ApiV1AnalyticsTopAsnsGetTopAsnsResponses,
+    ApiV1AnalyticsTopAsnsGetTopAsnsErrors,
+    ThrowOnError
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+    ],
+    url: "/api/v1/analytics/top-asns",
     ...options,
   });
 
@@ -1230,6 +1267,36 @@ export const apiV1GeoLocationsGeojsonGetGeojson = <
   });
 
 /**
+ * SiteHomes
+ *
+ * Per-source home locations for the map.
+ */
+export const apiV1GeoLocationsSiteHomesSiteHomes = <
+  ThrowOnError extends boolean = false,
+>(
+  options?: Options<ApiV1GeoLocationsSiteHomesSiteHomesData, ThrowOnError>,
+): RequestResult<
+  ApiV1GeoLocationsSiteHomesSiteHomesResponses,
+  unknown,
+  ThrowOnError
+> =>
+  (options?.client ?? client).get<
+    ApiV1GeoLocationsSiteHomesSiteHomesResponses,
+    unknown,
+    ThrowOnError
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+    ],
+    url: "/api/v1/geo-locations/site-homes",
+    ...options,
+  });
+
+/**
  * GetTopCountries
  *
  * Get top countries by event count.
@@ -1486,6 +1553,37 @@ export const apiV1SystemAboutGetAbout = <ThrowOnError extends boolean = false>(
       },
     ],
     url: "/api/v1/system/about",
+    ...options,
+  });
+
+/**
+ * GetAsnClassification
+ */
+export const apiV1SystemAsnClassificationGetAsnClassification = <
+  ThrowOnError extends boolean = false,
+>(
+  options?: Options<
+    ApiV1SystemAsnClassificationGetAsnClassificationData,
+    ThrowOnError
+  >,
+): RequestResult<
+  ApiV1SystemAsnClassificationGetAsnClassificationResponses,
+  unknown,
+  ThrowOnError
+> =>
+  (options?.client ?? client).get<
+    ApiV1SystemAsnClassificationGetAsnClassificationResponses,
+    unknown,
+    ThrowOnError
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+    ],
+    url: "/api/v1/system/asn-classification",
     ...options,
   });
 

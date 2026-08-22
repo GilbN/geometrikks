@@ -1,13 +1,17 @@
 import { describe, expect, it } from "vitest"
-import type { HealthResponse } from "@/lib/api"
+import type { HealthIngestionStatus, HealthResponse } from "@/lib/api"
 import type {
   CrowdSecStatusResponse,
   HypertableStatsView,
   LogFileView,
   SchedulerJobView,
+  SiteHomesResponse,
 } from "@/generated/api/types.gen"
 import type { LogRecord } from "@/lib/logstream"
 import {
+  accessLogFiles,
+  advisoryCards,
+  authState,
   compressionSummary,
   crowdsecState,
   databaseState,
@@ -19,10 +23,11 @@ import {
   ingestionState,
   lastEventState,
   liveFeedState,
-  nginxLogFiles,
   overallState,
   relativeTime,
   schedulerJobState,
+  sidebarIngestionVariant,
+  siteHomeRows,
 } from "./status-logic"
 
 function makeHealth(overrides: Partial<HealthResponse> = {}): HealthResponse {
@@ -37,7 +42,12 @@ function makeHealth(overrides: Partial<HealthResponse> = {}): HealthResponse {
       lastRecordAt: "2026-07-31T09:59:00+00:00",
     },
     database: { reachable: true },
-    geoip: { available: true, dbBuildDate: "2026-07-28T00:00:00+00:00" },
+    geoip: {
+      available: true,
+      dbBuildDate: "2026-07-28T00:00:00+00:00",
+      asnAvailable: true,
+      asnDbBuildDate: "2026-07-28T00:00:00+00:00",
+    },
     crowdsec: { enabled: true, lapiReachable: true },
     timestamp: "2026-07-31T10:00:00+00:00",
     ...overrides,
@@ -104,6 +114,52 @@ describe("ingestionState", () => {
     expect(ingestionState(undefined, true).tone).toBe("muted")
     expect(ingestionState(undefined, false).tone).toBe("muted")
   })
+  it("is muted Disabled when the parser is configured off", () => {
+    const state = ingestionState(
+      makeHealth({
+        ingestion: {
+          running: false,
+          parsedLines: 0,
+          pendingRecords: 0,
+          missingFiles: [],
+          lastRecordAt: null,
+          status: "disabled",
+        },
+      }),
+      false,
+    )
+    expect(state.tone).toBe("muted")
+    expect(state.label).toBe("Disabled")
+    expect(state.detail).toContain("LOGPARSER_ENABLED")
+  })
+})
+
+describe("sidebarIngestionVariant", () => {
+  const disabledIngestion: HealthIngestionStatus = {
+    running: false,
+    parsedLines: 0,
+    pendingRecords: 0,
+    missingFiles: [],
+    lastRecordAt: null,
+    status: "disabled",
+  }
+  it("is offline when the health probe errors", () => {
+    expect(sidebarIngestionVariant(undefined, true)).toBe("offline")
+  })
+  it("is degraded when overall status is degraded", () => {
+    expect(sidebarIngestionVariant(makeHealth({ status: "degraded" }), false)).toBe("degraded")
+  })
+  it("is disabled when the parser is configured off", () => {
+    expect(sidebarIngestionVariant(makeHealth({ ingestion: disabledIngestion }), false)).toBe(
+      "disabled",
+    )
+  })
+  it("is running when ingestion runs", () => {
+    expect(sidebarIngestionVariant(makeHealth(), false)).toBe("running")
+  })
+  it("is inactive while health is still loading", () => {
+    expect(sidebarIngestionVariant(undefined, false)).toBe("inactive")
+  })
 })
 
 describe("databaseState / geoipState", () => {
@@ -115,7 +171,7 @@ describe("databaseState / geoipState", () => {
     expect(databaseState(makeHealth())).toMatchObject({ tone: "emerald", label: "Reachable" })
   })
   it("geoip missing is amber", () => {
-    expect(geoipState(makeHealth({ geoip: { available: false, dbBuildDate: null } }))).toMatchObject({
+    expect(geoipState(makeHealth({ geoip: { available: false, dbBuildDate: null, asnAvailable: false, asnDbBuildDate: null } }))).toMatchObject({
       tone: "amber",
       label: "Missing",
     })
@@ -143,14 +199,14 @@ describe("crowdsecState", () => {
   })
 })
 
-describe("nginxLogFiles", () => {
+describe("accessLogFiles", () => {
   const files: LogFileView[] = [
     { name: "geometrikks.log", kind: "app", sizeBytes: 10, modifiedAt: null, available: true },
-    { name: "access.log", kind: "nginx", sizeBytes: 20, modifiedAt: null, available: false },
+    { name: "access.log", kind: "access", sizeBytes: 20, modifiedAt: null, available: false },
   ]
-  it("keeps only nginx entries and tolerates undefined", () => {
-    expect(nginxLogFiles(files).map((f) => f.name)).toEqual(["access.log"])
-    expect(nginxLogFiles(undefined)).toEqual([])
+  it("keeps only access entries and tolerates undefined", () => {
+    expect(accessLogFiles(files).map((f) => f.name)).toEqual(["access.log"])
+    expect(accessLogFiles(undefined)).toEqual([])
   })
 })
 
@@ -285,5 +341,85 @@ describe("liveFeedState", () => {
     expect(down.tone).toBe("amber")
     expect(down.label).toBe("Not connected")
     expect(down.detail).toBeTruthy()
+  })
+})
+
+describe("authState", () => {
+  it("is muted while the mode is unknown", () => {
+    expect(authState(undefined, false)).toEqual({ tone: "muted", label: "Unknown" })
+  })
+
+  it("is muted when the query failed", () => {
+    expect(authState(undefined, true)).toEqual({ tone: "muted", label: "Unavailable" })
+  })
+
+  it("reports an active session login neutrally", () => {
+    // Neutral, not emerald: session auth being on is the normal baseline,
+    // not an achievement. Only the disabled case is worth an operator's eye.
+    expect(authState({ mode: "session", username: "admin" }, false)).toEqual({
+      tone: "muted",
+      label: "Session login active",
+    })
+  })
+
+  it("warns that a disabled deployment is wide open, without claiming a proxy", () => {
+    const state = authState({ mode: "disabled" }, false)
+    expect(state.tone).toBe("amber")
+    expect(state.label).toBe("Disabled")
+    expect(state.detail).toBe(
+      "Built-in authentication is turned off (APP_AUTH_DISABLED=true). Anyone who can reach this app has full access.",
+    )
+    expect(state.detail).not.toMatch(/proxy/i)
+  })
+})
+
+describe("siteHomeRows", () => {
+  it("is empty for undefined or no homes", () => {
+    expect(siteHomeRows(undefined)).toEqual([])
+    expect(siteHomeRows({ default: null, homes: [] })).toEqual([])
+  })
+  it("formats coords to 2 decimals and passes through source", () => {
+    const data: SiteHomesResponse = {
+      default: { latitude: 59.91, longitude: 10.75 },
+      homes: [
+        {
+          hostname: "nginx-01",
+          latitude: 59.913,
+          longitude: 10.752,
+          source: "auto",
+          detectedAt: "2026-08-16T00:00:00+00:00",
+        },
+        {
+          hostname: "nginx-02",
+          latitude: -33.868,
+          longitude: 151.207,
+          source: "override",
+          detectedAt: null,
+        },
+      ],
+    }
+    expect(siteHomeRows(data)).toEqual([
+      { hostname: "nginx-01", coords: "59.91, 10.75", source: "auto" },
+      { hostname: "nginx-02", coords: "-33.87, 151.21", source: "override" },
+    ])
+  })
+})
+
+describe("advisoryCards", () => {
+  it("is empty when health is missing or clean", () => {
+    expect(advisoryCards(undefined)).toEqual([])
+    expect(advisoryCards(makeHealth())).toEqual([])
+  })
+  it("maps severities to tones", () => {
+    const health = makeHealth({
+      advisories: [
+        { id: "hostname-pollution", severity: "warning", summary: "s", remedy: "cmd" },
+        { id: "other", severity: "critical", summary: "c" },
+      ],
+    })
+    const cards = advisoryCards(health)
+    expect(cards).toHaveLength(2)
+    expect(cards[0]).toMatchObject({ tone: "amber", label: "s", remedy: "cmd" })
+    expect(cards[1]).toMatchObject({ tone: "red", label: "c" })
   })
 })

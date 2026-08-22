@@ -3,7 +3,7 @@ import os
 import re
 import time
 from pathlib import Path
-from typing import cast
+from typing import Any, cast
 
 import aiofiles.os
 import pytest
@@ -187,7 +187,7 @@ def test_validate_log_line_send_logs_true(log_parser: LogParser, load_valid_ipv4
     line = load_valid_ipv4_log[0]
     matched = log_parser.validate_log_line(line)
     assert matched is not None
-    assert matched.group(1)  # IP captured
+    assert matched.ip_address  # IP captured
 
 
 def test_validate_log_line_send_logs_false_geo_only(log_parser: LogParser) -> None:
@@ -201,9 +201,9 @@ def test_validate_log_line_send_logs_false_geo_only(log_parser: LogParser) -> No
     matched = log_parser.validate_log_line(valid_line)
     assert matched is not None
     # Should capture IP address
-    assert matched.group(1) is not None
-    # Should capture dateandtime
-    assert matched.group("dateandtime") is not None
+    assert matched.ip_address is not None
+    # Should capture the timestamp
+    assert matched.timestamp is not None
 
 def test_validate_log_line_unmatched(log_parser: LogParser, load_unparseable_logs: list[str]) -> None:
     """Unparseable lines should not match when expecting full access-log format."""
@@ -307,15 +307,15 @@ def test_nonstandard_lines_match_loosened_pattern(load_nonstandard_logs: list[st
         assert ipv4_log_pattern.match(line) is not None
 
 
-def test_binary_probe_flagged_malformed(log_parser: LogParser, load_nonstandard_logs: list[str], ipv4_log_pattern: re.Pattern[str]) -> None:
+def test_binary_probe_flagged_malformed(log_parser: LogParser, load_nonstandard_logs: list[str], geoip_reader: Reader) -> None:
     """A binary probe (frp handshake) matches the pattern but is detected as malformed."""
     log_parser.send_logs = True
     line = next(ln for ln in load_nonstandard_logs if "\\x00\\x01" in ln)
-    match = ipv4_log_pattern.match(line)
-    assert match is not None
-    is_malformed, error = log_parser._detect_malformed_request(match)
-    assert is_malformed is True
-    assert error == "No HTTP method in request"
+    lookup = make_cached_city_lookup(geoip_reader)
+    record = log_parser.parse_line(line, lookup)
+    assert record is not None
+    assert record.is_malformed is True
+    assert record.parse_error == "No HTTP method in request"
 
 async def test_is_rotated_truncation_99pct(tmp_path: Path, log_parser: LogParser, monkeypatch) -> None:
     """Rotation detected when size shrinks by >=99%."""
@@ -378,15 +378,16 @@ async def test_is_rotated_disabled(tmp_path: Path, log_parser: LogParser, monkey
 
 
 def test_create_access_log_sqlalchemy_success(log_parser: LogParser, geoip_reader: Reader) -> None:
-    """Successfully create AccessLog from a valid regex match and GeoIP lookup."""
+    """Successfully create AccessLog from a valid normalized line and GeoIP lookup."""
     # Use a valid line from the IPv4 log
     line = Path("tests/valid_ipv4_log.txt").read_text(encoding="utf-8").splitlines()[0]
-    match = ipv4_pattern().match(line)
-    assert match is not None
+    log_parser.send_logs = True
+    norm = log_parser.validate_log_line(line)
+    assert norm is not None
 
-    ip = match.group(1)
+    ip = norm.ip_address
     lookup = make_cached_city_lookup(geoip_reader)
-    access_log = log_parser._parse_access_log(match, ip, lookup)
+    access_log = log_parser._parse_access_log(norm, ip, lookup)
 
     assert isinstance(access_log, ParsedAccessLog)
     assert access_log.country_code is not None
@@ -397,8 +398,9 @@ def test_create_access_log_sqlalchemy_success(log_parser: LogParser, geoip_reade
 def test_create_access_log_sqlalchemy_geoip_failure(log_parser: LogParser, monkeypatch) -> None:
     """Return None when GeoIP lookup fails."""
     line = Path("tests/valid_ipv4_log.txt").read_text(encoding="utf-8").splitlines()[0]
-    match = ipv4_pattern().match(line)
-    assert match is not None
+    log_parser.send_logs = True
+    norm = log_parser.validate_log_line(line)
+    assert norm is not None
 
     # Create a mock reader that raises an exception
     class MockReader:
@@ -406,9 +408,9 @@ def test_create_access_log_sqlalchemy_geoip_failure(log_parser: LogParser, monke
             raise RuntimeError("geo lookup error")
 
     mock_reader = MockReader()
-    ip = match.group(1)
+    ip = norm.ip_address
     lookup = make_cached_city_lookup(cast("Reader", mock_reader))
-    result = log_parser._parse_access_log(match, ip, lookup)
+    result = log_parser._parse_access_log(norm, ip, lookup)
     assert result is None
 
 
@@ -498,16 +500,17 @@ async def test_iter_log_events_async_rotation_restart(tmp_path: Path, log_parser
 
 def test_parse_geo_data(log_parser: LogParser, geoip_reader: Reader) -> None:
     """_parse_geo_data builds a ParsedGeoData object with expected fields."""
-    # Use a valid log line to get the match object
+    # Use a valid log line to get the normalized line
     valid_line = (
         Path("tests/valid_ipv4_log.txt").read_text(encoding="utf-8").splitlines()[0]
     )
-    match = ipv4_pattern().match(valid_line)
-    assert match is not None
+    log_parser.send_logs = True
+    norm = log_parser.validate_log_line(valid_line)
+    assert norm is not None
 
-    ip = match.group(1)
+    ip = norm.ip_address
     lookup = make_cached_city_lookup(geoip_reader)
-    parsed = log_parser._parse_geo_data(ip, match, lookup)
+    parsed = log_parser._parse_geo_data(ip, norm, lookup)
 
     # The IP should resolve to a location (test with real GeoIP DB)
     assert parsed is not None
@@ -637,3 +640,169 @@ class TestParseLine:
         record = parser.parse_line(make_log_line("2.125.160.216"), lookup)
         assert record is not None
         assert parser.ignored_lines == 0
+
+    def test_parse_line_stamps_parser_hostname(self, geoip_reader):
+        from geometrikks.services.logparser.logparser import LogParser, make_cached_city_lookup
+        parser = LogParser(log_path=Path("/dev/null"), send_logs=True, hostname="vps-1")
+        lookup = make_cached_city_lookup(geoip_reader)
+        record = parser.parse_line(make_log_line("2.125.160.216"), lookup)
+        assert record is not None
+        assert record.hostname == "vps-1"
+
+    def test_parse_line_unmatched_line_still_stamps_hostname(self, geoip_reader):
+        from geometrikks.services.logparser.logparser import LogParser, make_cached_city_lookup
+        parser = LogParser(log_path=Path("/dev/null"), send_logs=True, hostname="vps-1")
+        lookup = make_cached_city_lookup(geoip_reader)
+        record = parser.parse_line("total garbage\n", lookup)
+        assert record is not None
+        assert record.hostname == "vps-1"
+
+    def test_parse_line_default_hostname_is_empty(self, geoip_reader):
+        from geometrikks.services.logparser.logparser import LogParser, make_cached_city_lookup
+        parser = LogParser(log_path=Path("/dev/null"), send_logs=True)
+        lookup = make_cached_city_lookup(geoip_reader)
+        record = parser.parse_line(make_log_line("2.125.160.216"), lookup)
+        assert record is not None
+        assert record.hostname == ""
+
+
+class TestAutoFormatSniffing:
+    """log_format='auto' locks a format on the first line it recognizes."""
+
+    def test_geo_only_match_degrades_send_logs(self, geoip_reader: Reader) -> None:
+        """A CLF line matches only the geo-only pattern.
+
+        Full parsing would then drop every line, so the parser degrades to
+        geo-only mode instead of locking the file into a format it cannot
+        actually parse.
+        """
+        clf = (
+            '2.125.160.216 - frank [03/Aug/2024:13:14:17 +0200] '
+            '"GET /a.gif HTTP/1.0" 200 2326'
+        )
+        parser = LogParser(log_path=Path("/dev/null"), send_logs=True, log_format="auto")
+        lookup = make_cached_city_lookup(geoip_reader)
+
+        record = parser.parse_line(clf, lookup)
+
+        assert parser.send_logs is False
+        assert parser.format is not None and parser.format.name == "nginx"
+        assert record is not None
+        assert record.ip_address == "2.125.160.216"
+        assert record.geo_data is not None
+        assert record.access_log is None
+        assert record.is_malformed is False
+        assert parser.parsed_lines == 1
+        assert parser.skipped_lines == 0
+
+    def test_full_match_keeps_send_logs(self, geoip_reader: Reader) -> None:
+        parser = LogParser(log_path=Path("/dev/null"), send_logs=True, log_format="auto")
+        lookup = make_cached_city_lookup(geoip_reader)
+
+        record = parser.parse_line(make_log_line("2.125.160.216"), lookup)
+
+        assert parser.send_logs is True
+        assert parser.format is not None and parser.format.name == "nginx"
+        assert record is not None and record.access_log is not None
+
+    def test_validation_sniffs_over_all_candidate_lines(
+        self, tmp_path: Path, geoip_reader: Reader
+    ) -> None:
+        """One near-miss line among parseable ones must not degrade the file."""
+        clf = (
+            '2.125.160.216 - frank [03/Aug/2024:13:14:17 +0200] '
+            '"GET /a.gif HTTP/1.0" 200 2326'
+        )
+        log_file = tmp_path / "mixed.log"
+        log_file.write_text(
+            "\n".join([clf, make_log_line("2.125.160.216"), make_log_line("2.125.160.216")])
+            + "\n",
+            encoding="utf-8",
+        )
+        parser = LogParser(log_path=log_file, send_logs=True, log_format="auto")
+
+        assert parser.validate_log_format(log_file) is True
+        assert parser.send_logs is True
+        assert parser.format is not None and parser.format.name == "nginx"
+
+    def test_traefik_json_still_sniffs_to_traefik(self, geoip_reader: Reader) -> None:
+        import json
+
+        line = json.dumps({
+            "ClientHost": "2.125.160.216", "ClientAddr": "2.125.160.216:34567",
+            "DownstreamContentSize": 1234, "DownstreamStatus": 200,
+            "Duration": 45678900, "RequestHost": "app.example.com",
+            "RequestMethod": "GET", "RequestPath": "/api/users",
+            "RequestProtocol": "HTTP/2.0",
+            "StartUTC": "2026-08-07T10:34:56.123456789Z",
+            "level": "info", "msg": "", "time": "2026-08-07T10:34:56Z",
+        })
+        parser = LogParser(log_path=Path("/dev/null"), send_logs=True, log_format="auto")
+        lookup = make_cached_city_lookup(geoip_reader)
+
+        record = parser.parse_line(line, lookup)
+
+        assert parser.send_logs is True
+        assert parser.format is not None and parser.format.name == "traefik-json"
+        assert record is not None and record.access_log is not None
+        assert record.log_format == "traefik-json"
+
+
+class TestAsnEnrichment:
+    def test_make_cached_asn_lookup_returns_asn(self):
+        from geometrikks.services.logparser.logparser import make_cached_asn_lookup
+
+        with Reader("tests/GeoLite2-ASN-Test.mmdb") as reader:
+            lookup = make_cached_asn_lookup(reader)
+            result = lookup("1.128.0.0")
+            assert result is not None
+            assert result.autonomous_system_number == 1221
+            assert result.autonomous_system_organization == "Telstra Pty Ltd"
+            assert lookup("203.0.113.7") is None  # not in the test db, never raises
+
+    def test_parsed_access_log_asn_fields_default_none(self):
+        from datetime import datetime, timezone
+
+        parsed = ParsedAccessLog(
+            timestamp=datetime.now(timezone.utc), ip_address="1.2.3.4",
+            remote_user=None, method="GET", url="/", http_version="HTTP/1.1",
+            status_code=200, bytes_sent=0, referrer=None, user_agent=None,
+            request_time=0.0, upstream_response_time=None, host=None,
+            country_code=None, country_name=None, city=None,
+        )
+        assert parsed.autonomous_system_number is None
+        assert parsed.autonomous_system_organization is None
+
+    def test_parse_line_attaches_asn_to_access_log(self):
+        """1.128.0.0 is only in the ASN test db, so the City side is faked:
+        access-log rows require a City hit, and the assertion must not turn
+        vacuous on a City-test-db miss."""
+        from types import SimpleNamespace
+
+        from geometrikks.services.logparser.logparser import make_cached_asn_lookup
+
+        fake_city = SimpleNamespace(
+            country=SimpleNamespace(iso_code="AU", name="Australia"),
+            city=SimpleNamespace(name=None),
+            location=SimpleNamespace(
+                latitude=-33.5, longitude=143.2, time_zone="Australia/Sydney"
+            ),
+            subdivisions=SimpleNamespace(
+                most_specific=SimpleNamespace(name=None, iso_code=None)
+            ),
+            postal=SimpleNamespace(code=None),
+        )
+
+        line = (
+            '1.128.0.0 - - [07/Aug/2026:10:34:56 +0000] "GET / HTTP/1.1" 200 42 '
+            '"-" example.com "curl/8.0" "0.001" "-"'
+        )
+        parser = LogParser(log_path=Path("/dev/null"), send_logs=True, log_format="nginx")
+        with Reader("tests/GeoLite2-ASN-Test.mmdb") as asn_reader:
+            asn_lookup = make_cached_asn_lookup(asn_reader)
+            record = parser.parse_line(line, cast(Any, lambda ip: fake_city), asn_lookup)
+
+        assert record is not None
+        assert record.access_log is not None
+        assert record.access_log.autonomous_system_number == 1221
+        assert record.access_log.autonomous_system_organization == "Telstra Pty Ltd"

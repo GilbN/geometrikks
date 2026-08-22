@@ -83,9 +83,9 @@ const ledToneByStatus: Record<LogStreamStatus, LedTone> = {
 const fileKindLabels: Record<LogFileView["kind"], string> = {
   app: "Application log",
   login: "Login log",
-  nginx: "Nginx access logs",
+  access: "Access logs",
 }
-const FILE_KIND_ORDER: LogFileView["kind"][] = ["app", "login", "nginx"]
+const FILE_KIND_ORDER: LogFileView["kind"][] = ["app", "login", "access"]
 
 /** geometrikks.services.ingestion -> services; falls back to the raw logger name. */
 const component = (r: LogRecord): string => r.logger?.split(".")[1] ?? r.logger ?? "app"
@@ -318,7 +318,7 @@ export function LogsOverview() {
                   <CardTitle className="text-base">Log downloads</CardTitle>
                   <CardDescription>
                     Raw files behind the live stream: the application log, login log, and ingested
-                    nginx access logs.
+                    reverse proxy access logs.
                   </CardDescription>
                 </div>
               </div>

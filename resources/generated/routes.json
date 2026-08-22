@@ -48,6 +48,13 @@
       ],
       "uri": "/api/v1/access-logs/facets"
     },
+    "get_asn_classification": {
+      "method": "get",
+      "methods": [
+        "GET"
+      ],
+      "uri": "/api/v1/system/asn-classification"
+    },
     "get_cumulative_time_series": {
       "method": "get",
       "methods": [
@@ -103,7 +110,8 @@
         "hostnameIn": "string[] | undefined",
         "ipAddressIn": "string[] | undefined",
         "ipAddressNotIn": "string[] | undefined",
-        "toTimestamp": "DateTime"
+        "toTimestamp": "DateTime",
+        "tz": "string | undefined"
       },
       "uri": "/api/v1/geo-events/time-series"
     },
@@ -186,7 +194,8 @@
       "queryParameters": {
         "endDate": "DateTime",
         "granularity": "\"hourly\" | \"daily\" | undefined",
-        "startDate": "DateTime"
+        "startDate": "DateTime",
+        "tz": "string | undefined"
       },
       "uri": "/api/v1/analytics/geo-time-series"
     },
@@ -300,9 +309,26 @@
         "granularity": "\"hourly\" | \"daily\" | undefined",
         "ipAddress": "string[] | undefined",
         "ipAddressNotIn": "string[] | undefined",
-        "startDate": "DateTime"
+        "startDate": "DateTime",
+        "tz": "string | undefined"
       },
       "uri": "/api/v1/analytics/time-series"
+    },
+    "get_top_asns": {
+      "method": "get",
+      "methods": [
+        "GET"
+      ],
+      "queryParameters": {
+        "city": "string[] | undefined",
+        "countryCode": "string[] | undefined",
+        "endDate": "DateTime",
+        "ipAddress": "string[] | undefined",
+        "ipAddressNotIn": "string[] | undefined",
+        "limit": "number | undefined",
+        "startDate": "DateTime"
+      },
+      "uri": "/api/v1/analytics/top-asns"
     },
     "get_top_cities": {
       "method": "get",
@@ -443,8 +469,11 @@
         "fromTimestamp": "DateTime | undefined",
         "hostIn": "string[] | undefined",
         "hostNotIn": "string[] | undefined",
+        "hostnameIn": "string[] | undefined",
+        "hostnameNotIn": "string[] | undefined",
         "ipAddressIn": "string[] | undefined",
         "ipAddressNotIn": "string[] | undefined",
+        "logFormatIn": "string[] | undefined",
         "methodIn": "string[] | undefined",
         "orderBy": "string | undefined",
         "pageSize": "number | undefined",
@@ -613,6 +642,13 @@
         "GET"
       ],
       "uri": "/sw.js"
+    },
+    "site_homes": {
+      "method": "get",
+      "methods": [
+        "GET"
+      ],
+      "uri": "/api/v1/geo-locations/site-homes"
     },
     "stats": {
       "method": "get",

@@ -17,8 +17,10 @@ from collections.abc import Callable
 from datetime import datetime, timezone
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from geoip2.database import Reader
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from geometrikks.domain.geo.models import GeoLocation, GeoEvent
@@ -26,11 +28,15 @@ from geometrikks.domain.geo.repositories import GeoLocationRepository, GeoEventR
 from geometrikks.domain.logs.models import AccessLog, AccessLogDebug
 from geometrikks.domain.logs.repositories import AccessLogRepository, AccessLogDebugRepository
 from geometrikks.domain.geo.utils import make_point
+from geometrikks.domain.realtime.events import LIVE_EVENTS_CHANNEL, encode_guard, record_to_event
 from geometrikks.services.logparser.schemas import ParsedLogRecord, ParsedGeoData, ParsedAccessLog
 from geometrikks.services.logparser.constants import ALLOWED_GEOIP_LOCALES, GEOIP_LOCALES_DEFAULT
 from geometrikks.services.logparser.logparser import LogParser
 from geometrikks.lib.utils import wait_for_path
 from geometrikks.server.logging import get_logger
+
+if TYPE_CHECKING:
+    from litestar.channels import ChannelsPlugin
 
 
 logger = get_logger(__name__)
@@ -91,6 +97,7 @@ class LogIngestionService:
         session_maker: Callable[[], AsyncSession],
         geoip_path: Path|str,
         locales: list[str] | None = None,
+        asn_db_path: Path | str | None = None,
         *,
         repos_factory: Callable[[AsyncSession], IngestionRepos] = IngestionRepos.from_session,
         hostname: str = "localhost",
@@ -98,6 +105,7 @@ class LogIngestionService:
         commit_interval: float = 5.0,
         store_debug_lines: bool = False,
         queue_maxsize: int = 10_000,
+        channels: "ChannelsPlugin | None" = None,
     ) -> None:
         """Initialize the log ingestion service.
 
@@ -106,12 +114,18 @@ class LogIngestionService:
             session_maker: Callable producing a fresh AsyncSession per flush.
             geoip_path: Path|str, GeoIP2 database file path.
             locales: GeoIP2 locales to use for lookups.
+            asn_db_path: Optional GeoLite2-ASN database path; None or an
+                unreadable file means requests ingest without ASN enrichment.
             repos_factory: Builds the IngestionRepos bundle from a session.
-            hostname: Hostname recorded on GeoEvent records.
+            hostname: Fallback hostname for records that carry none (the
+                importer path); tail-path records are stamped by their parser.
             batch_size: Maximum records before forced commit.
             commit_interval: Maximum seconds between commits.
             store_debug_lines: If True, store all raw lines in debug table.
             queue_maxsize: Maximum size of the shared record queue.
+            channels: When set, committed records are additionally published
+                to the live_events channel. None (the importer path) publishes
+                nothing.
         """
         self.parsers: list[LogParser] = parsers
         self.hostname: str = hostname
@@ -120,13 +134,13 @@ class LogIngestionService:
         self._batch: list[ParsedLogRecord] = []
         self.geoip_path: Path|str = geoip_path
         self.locales: list[str] | None = locales
+        self.asn_db_path: Path | str | None = asn_db_path
         self.batch_size: int = batch_size
         self.commit_interval: int | float = commit_interval
         self.store_debug_lines: bool = store_debug_lines
         self._queue_maxsize: int = queue_maxsize
-
-        # Live-feed fan-out: bounded queues, publish post-commit only.
-        self._subscribers: set[asyncio.Queue[ParsedLogRecord]] = set()
+        self._channels: "ChannelsPlugin | None" = channels
+        self.publish_dropped: int = 0
 
         # In-memory cache: geohash -> committed (or pending-commit) GeoLocation id.
         # Ids cached since the last successful commit are tracked so a rollback
@@ -135,7 +149,11 @@ class LogIngestionService:
         self._uncommitted_geohashes: set[str] = set()
         self._cache_maxsize = 10_000
 
-        # Background task management
+        # Background task management. The readers are stored so stop() can
+        # release their mmaps; a restart opens fresh ones (which also picks
+        # up a refreshed database file).
+        self._reader: Reader | None = None
+        self._asn_reader: Reader | None = None
         self._stop_event: asyncio.Event | None = None
         self._ingestion_task: asyncio.Task[None] | None = None
         self._queue: asyncio.Queue[ParsedLogRecord] | None = None
@@ -174,6 +192,19 @@ class LogIngestionService:
             )
             return
 
+        # ASN enrichment is optional: a missing or unreadable database means
+        # NULL ASN columns, never a failed start.
+        asn_reader: Reader | None = None
+        if self.asn_db_path:
+            asn_reader = create_reader(self.asn_db_path)
+            if asn_reader is None:
+                logger.warning(
+                    "ASN enrichment disabled: no usable GeoLite2-ASN database at %s",
+                    self.asn_db_path,
+                )
+        self._reader = reader
+        self._asn_reader = asn_reader
+
         # Set synchronously (before any `await`/task scheduling) so a second
         # start() called back-to-back sees is_running=True immediately; it
         # otherwise only flips inside _run_ingestion's task body, which hasn't
@@ -189,7 +220,7 @@ class LogIngestionService:
             parser.set_stop_event(self._stop_event)
             self._tail_tasks.append(
                 asyncio.create_task(
-                    self._tail_file(parser, reader, skip_validation),
+                    self._tail_file(parser, reader, asn_reader, skip_validation),
                     name=f"log-tail:{parser.log_path}",
                 )
             )
@@ -204,7 +235,13 @@ class LogIngestionService:
             self.commit_interval,
         )
 
-    async def _tail_file(self, parser: LogParser, reader: Reader, skip_validation: bool) -> None:
+    async def _tail_file(
+        self,
+        parser: LogParser,
+        reader: Reader,
+        asn_reader: Reader | None,
+        skip_validation: bool,
+    ) -> None:
         """Tail a single log file, pushing parsed records onto the shared queue."""
         logger.debug("Waiting for log file: %s", parser.log_path)
         if not await wait_for_path(
@@ -215,7 +252,9 @@ class LogIngestionService:
             logger.error("Skipping ingestion for missing log file: %s", parser.log_path)
             return
         assert self._queue is not None
-        async for record in parser.iter_parsed_records(reader, skip_validation=skip_validation):
+        async for record in parser.iter_parsed_records(
+            reader, asn_reader, skip_validation=skip_validation
+        ):
             if record is None:
                 continue  # idle tick; the consumer handles interval commits via timeout
             await self._queue.put(record)
@@ -251,6 +290,14 @@ class LogIngestionService:
             pass
         finally:
             self.is_running = False
+
+        # Every task that used the readers is done; release their mmaps.
+        if self._reader is not None:
+            self._reader.close()
+            self._reader = None
+        if self._asn_reader is not None:
+            self._asn_reader.close()
+            self._asn_reader = None
 
         logger.info(
             "Stopped log ingestion service. Total processed: %d", self.total_processed
@@ -321,7 +368,7 @@ class LogIngestionService:
                 geo_event = GeoEvent(
                     timestamp=record.geo_data.timestamp,
                     ip_address=record.ip_address,
-                    hostname=self.hostname,
+                    hostname=record.hostname or self.hostname,
                     location_id=location_id,
                 )
                 # Plain session.add: repo.add() flushes + refreshes per call
@@ -333,7 +380,11 @@ class LogIngestionService:
                 flushed["geo"] += 1
 
         if record.access_log:
-            access_log_model = self._to_access_log_model(record.access_log)
+            access_log_model = self._to_access_log_model(
+                record.access_log,
+                log_format=record.log_format,
+                hostname=record.hostname or self.hostname,
+            )
             repos.access_log.session.add(access_log_model)
             self.total_log_records += 1
             flushed["log"] += 1
@@ -359,27 +410,44 @@ class LogIngestionService:
             self._location_cache[geo_data.geohash] = existing.id
             return existing.id
 
-        location = GeoLocation(
-            geohash=geo_data.geohash,
-            latitude=geo_data.latitude,
-            longitude=geo_data.longitude,
-            country_code=geo_data.country_code,
-            country_name=geo_data.country_name,
-            state=geo_data.state,
-            state_code=geo_data.state_code,
-            city=geo_data.city,
-            postal_code=geo_data.postal_code,
-            timezone=geo_data.timezone,
-            geographic_point=make_point(geo_data.latitude, geo_data.longitude),
+        # Two instances sharing a DB can race this insert; ON CONFLICT
+        # DO NOTHING + re-select resolves the loser to the winner's row
+        # instead of poisoning the whole batch with a unique violation.
+        # Postgres blocks a conflicting insert until the concurrent
+        # transaction resolves, so the re-select sees the winner's row.
+        stmt = (
+            pg_insert(GeoLocation)
+            .values(
+                geohash=geo_data.geohash,
+                latitude=geo_data.latitude,
+                longitude=geo_data.longitude,
+                country_code=geo_data.country_code,
+                country_name=geo_data.country_name,
+                state=geo_data.state,
+                state_code=geo_data.state_code,
+                city=geo_data.city,
+                postal_code=geo_data.postal_code,
+                timezone=geo_data.timezone,
+                geographic_point=make_point(geo_data.latitude, geo_data.longitude),
+            )
+            .on_conflict_do_nothing(index_elements=["geohash"])
+            .returning(GeoLocation.id)
         )
-        # session.add + one flush to get the id; repo.add() would add a
-        # redundant refresh round trip. Fires only for geohashes not in cache.
-        repos.geo_location.session.add(location)
-        await repos.geo_location.session.flush()
+        new_id: int | None = (await repos.geo_location.session.execute(stmt)).scalar_one_or_none()
 
-        self._location_cache[geo_data.geohash] = location.id
-        self._uncommitted_geohashes.add(geo_data.geohash)
-        return location.id
+        if new_id is not None:
+            self._location_cache[geo_data.geohash] = new_id
+            self._uncommitted_geohashes.add(geo_data.geohash)
+            return new_id
+
+        # Lost the race: the row exists (committed by the other writer).
+        raced = await repos.geo_location.get_by_geohash(geo_data.geohash)
+        if raced is None:
+            raise RuntimeError(
+                f"geo_locations insert conflicted but row not found: {geo_data.geohash}"
+            )
+        self._location_cache[geo_data.geohash] = raced.id
+        return raced.id
 
     def _evict_uncommitted_locations(self) -> None:
         """Drop cache entries whose inserts were rolled back before committing."""
@@ -477,8 +545,6 @@ class LogIngestionService:
 
             try:
                 await session.commit()
-                self._uncommitted_geohashes.clear()
-                self._publish(committed_candidates)
             except Exception as e:
                 logger.error("Batch commit failed (rolling back): %s", e)
                 await session.rollback()
@@ -489,6 +555,9 @@ class LogIngestionService:
                 for record in batch:
                     if record.geo_data:
                         self._location_cache.pop(record.geo_data.geohash, None)
+            else:
+                self._uncommitted_geohashes.clear()
+                self._publish(committed_candidates)
 
         logger.debug(
             "Committed batch of %d records. (Geo: %d | Log: %d | Debug: %d)",
@@ -509,34 +578,50 @@ class LogIngestionService:
             self.last_record_at = datetime.now(timezone.utc)
         await self._flush_batch()
 
-    def subscribe(self, maxsize: int = 1000) -> asyncio.Queue[ParsedLogRecord]:
-        """Register a live-feed subscriber. Caller must unsubscribe()."""
-        queue: asyncio.Queue[ParsedLogRecord] = asyncio.Queue(maxsize=maxsize)
-        self._subscribers.add(queue)
-        return queue
-
-    def unsubscribe(self, queue: asyncio.Queue[ParsedLogRecord]) -> None:
-        self._subscribers.discard(queue)
-
     def _publish(self, records: list[ParsedLogRecord]) -> None:
-        """Fan committed records out to subscribers; drop oldest when full.
+        """Publish committed records to the live_events channel.
 
-        Never blocks and never raises: a slow browser must not backpressure
-        ingestion.
+        Never raises: called after commit, so a publish failure (including
+        one from record_to_event) must not backpressure or break ingestion,
+        and must never be mistaken for a commit failure by the caller.
         """
-        for queue in self._subscribers:
-            for record in records:
-                try:
-                    queue.put_nowait(record)
-                except asyncio.QueueFull:
+        try:
+            if self._channels is not None:
+                for record in records:
+                    event = record_to_event(record)
+                    if event is None:
+                        continue
+                    if not encode_guard(event):
+                        self.publish_dropped += 1
+                        logger.warning(
+                            "live event dropped: encoded payload over budget (ip=%s)",
+                            record.ip_address,
+                        )
+                        continue
                     try:
-                        queue.get_nowait()
-                        queue.put_nowait(record)
-                    except (asyncio.QueueEmpty, asyncio.QueueFull):
-                        pass
+                        self._channels.publish(event, LIVE_EVENTS_CHANNEL)
+                    except Exception:
+                        logger.exception("live event publish failed; continuing")
+        except Exception:
+            logger.exception("live publish failed; batch already committed")
 
-    def _to_access_log_model(self, parsed: ParsedAccessLog) -> AccessLog:
-        """Convert ParsedAccessLog schema to ORM model."""
+    def _to_access_log_model(
+        self, parsed: ParsedAccessLog, log_format: str | None = None,
+        hostname: str | None = None,
+    ) -> AccessLog:
+        """Convert ParsedAccessLog schema to ORM model, stamping source info.
+
+        Args:
+            parsed: The parsed access log fields.
+            log_format: The format adapter that produced this record (e.g.
+                'nginx', 'traefik-json'), stamped onto the row alongside the
+                source hostname.
+            hostname: Source hostname for the row; empty/None falls back to the service default.
+
+        Returns:
+            An unpersisted AccessLog ORM instance ready to be added to a
+            session.
+        """
         return AccessLog(
             timestamp=parsed.timestamp,
             ip_address=parsed.ip_address,
@@ -554,6 +639,10 @@ class LogIngestionService:
             country_code=parsed.country_code,
             country_name=parsed.country_name,
             city=parsed.city,
+            autonomous_system_number=parsed.autonomous_system_number,
+            autonomous_system_organization=parsed.autonomous_system_organization,
+            hostname=hostname or self.hostname,
+            log_format=log_format,
         )
 
     # Statistics properties for API endpoints

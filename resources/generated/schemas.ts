@@ -32,6 +32,9 @@ import type {
   ApiV1AnalyticsTimeSeriesGetTimeSeriesData,
   ApiV1AnalyticsTimeSeriesGetTimeSeriesErrors,
   ApiV1AnalyticsTimeSeriesGetTimeSeriesResponses,
+  ApiV1AnalyticsTopAsnsGetTopAsnsData,
+  ApiV1AnalyticsTopAsnsGetTopAsnsErrors,
+  ApiV1AnalyticsTopAsnsGetTopAsnsResponses,
   ApiV1AnalyticsTopCitiesGetTopCitiesData,
   ApiV1AnalyticsTopCitiesGetTopCitiesErrors,
   ApiV1AnalyticsTopCitiesGetTopCitiesResponses,
@@ -110,6 +113,8 @@ import type {
   ApiV1GeoLocationsLocationIdTopIpsGetLocationTopIpsData,
   ApiV1GeoLocationsLocationIdTopIpsGetLocationTopIpsErrors,
   ApiV1GeoLocationsLocationIdTopIpsGetLocationTopIpsResponses,
+  ApiV1GeoLocationsSiteHomesSiteHomesData,
+  ApiV1GeoLocationsSiteHomesSiteHomesResponses,
   ApiV1GeoLocationsTopCountriesGetTopCountriesData,
   ApiV1GeoLocationsTopCountriesGetTopCountriesErrors,
   ApiV1GeoLocationsTopCountriesGetTopCountriesResponses,
@@ -132,6 +137,8 @@ import type {
   ApiV1StatsStatsResponses,
   ApiV1SystemAboutGetAboutData,
   ApiV1SystemAboutGetAboutResponses,
+  ApiV1SystemAsnClassificationGetAsnClassificationData,
+  ApiV1SystemAsnClassificationGetAsnClassificationResponses,
   ApiV1SystemDatabaseGetDatabaseInfoData,
   ApiV1SystemDatabaseGetDatabaseInfoResponses,
   ApiV1SystemSchedulerJobsGetSchedulerJobsData,
@@ -166,6 +173,7 @@ export type OperationName =
   | 'get_about'
   | 'get_access_log_debug_stats'
   | 'get_access_log_facets'
+  | 'get_asn_classification'
   | 'get_cumulative_time_series'
   | 'get_database_info'
   | 'get_geo_log_facets'
@@ -186,6 +194,7 @@ export type OperationName =
   | 'get_summary'
   | 'get_system_settings'
   | 'get_time_series'
+  | 'get_top_asns'
   | 'get_top_cities'
   | 'get_top_countries'
   | 'get_top_countries_api_v1_geo_locations_top_countries'
@@ -210,6 +219,7 @@ export type OperationName =
   | 'read_settings'
   | 'rotate'
   | 'run_scheduler_job'
+  | 'site_homes'
   | 'stats'
   | 'tail'
   | 'unban'
@@ -224,6 +234,7 @@ export interface OperationDataTypes {
   'get_about': ApiV1SystemAboutGetAboutData
   'get_access_log_debug_stats': ApiV1AccessLogDebugStatsGetAccessLogDebugStatsData
   'get_access_log_facets': ApiV1AccessLogsFacetsGetAccessLogFacetsData
+  'get_asn_classification': ApiV1SystemAsnClassificationGetAsnClassificationData
   'get_cumulative_time_series': ApiV1AnalyticsTimeSeriesCumulativeGetCumulativeTimeSeriesData
   'get_database_info': ApiV1SystemDatabaseGetDatabaseInfoData
   'get_geo_log_facets': ApiV1GeoEventsFacetsGetGeoLogFacetsData
@@ -244,6 +255,7 @@ export interface OperationDataTypes {
   'get_summary': ApiV1AnalyticsSummaryGetSummaryData
   'get_system_settings': ApiV1SystemSettingsGetSystemSettingsData
   'get_time_series': ApiV1AnalyticsTimeSeriesGetTimeSeriesData
+  'get_top_asns': ApiV1AnalyticsTopAsnsGetTopAsnsData
   'get_top_cities': ApiV1AnalyticsTopCitiesGetTopCitiesData
   'get_top_countries': ApiV1AnalyticsTopCountriesGetTopCountriesData
   'get_top_countries_api_v1_geo_locations_top_countries': ApiV1GeoLocationsTopCountriesGetTopCountriesData
@@ -268,6 +280,7 @@ export interface OperationDataTypes {
   'read_settings': ApiV1SettingsReadSettingsData
   'rotate': ApiV1LogsRotateRotateData
   'run_scheduler_job': ApiV1SystemSchedulerJobsJobIdRunRunSchedulerJobData
+  'site_homes': ApiV1GeoLocationsSiteHomesSiteHomesData
   'stats': ApiV1StatsStatsData
   'tail': ApiV1LogsTailTailData
   'unban': ApiV1CrowdsecUnbanUnbanData
@@ -283,6 +296,7 @@ export interface OperationResponseTypes {
   'get_about': ApiV1SystemAboutGetAboutResponses
   'get_access_log_debug_stats': ApiV1AccessLogDebugStatsGetAccessLogDebugStatsResponses
   'get_access_log_facets': ApiV1AccessLogsFacetsGetAccessLogFacetsResponses
+  'get_asn_classification': ApiV1SystemAsnClassificationGetAsnClassificationResponses
   'get_cumulative_time_series': ApiV1AnalyticsTimeSeriesCumulativeGetCumulativeTimeSeriesResponses
   'get_database_info': ApiV1SystemDatabaseGetDatabaseInfoResponses
   'get_geo_log_facets': ApiV1GeoEventsFacetsGetGeoLogFacetsResponses
@@ -303,6 +317,7 @@ export interface OperationResponseTypes {
   'get_summary': ApiV1AnalyticsSummaryGetSummaryResponses
   'get_system_settings': ApiV1SystemSettingsGetSystemSettingsResponses
   'get_time_series': ApiV1AnalyticsTimeSeriesGetTimeSeriesResponses
+  'get_top_asns': ApiV1AnalyticsTopAsnsGetTopAsnsResponses
   'get_top_cities': ApiV1AnalyticsTopCitiesGetTopCitiesResponses
   'get_top_countries': ApiV1AnalyticsTopCountriesGetTopCountriesResponses
   'get_top_countries_api_v1_geo_locations_top_countries': ApiV1GeoLocationsTopCountriesGetTopCountriesResponses
@@ -327,6 +342,7 @@ export interface OperationResponseTypes {
   'read_settings': ApiV1SettingsReadSettingsResponses
   'rotate': ApiV1LogsRotateRotateResponses
   'run_scheduler_job': ApiV1SystemSchedulerJobsJobIdRunRunSchedulerJobResponses
+  'site_homes': ApiV1GeoLocationsSiteHomesSiteHomesResponses
   'stats': ApiV1StatsStatsResponses
   'tail': ApiV1LogsTailTailResponses
   'unban': ApiV1CrowdsecUnbanUnbanResponses
@@ -342,6 +358,7 @@ export interface OperationErrorTypes {
   'get_about': never
   'get_access_log_debug_stats': ApiV1AccessLogDebugStatsGetAccessLogDebugStatsErrors
   'get_access_log_facets': never
+  'get_asn_classification': never
   'get_cumulative_time_series': ApiV1AnalyticsTimeSeriesCumulativeGetCumulativeTimeSeriesErrors
   'get_database_info': never
   'get_geo_log_facets': never
@@ -362,6 +379,7 @@ export interface OperationErrorTypes {
   'get_summary': ApiV1AnalyticsSummaryGetSummaryErrors
   'get_system_settings': never
   'get_time_series': ApiV1AnalyticsTimeSeriesGetTimeSeriesErrors
+  'get_top_asns': ApiV1AnalyticsTopAsnsGetTopAsnsErrors
   'get_top_cities': ApiV1AnalyticsTopCitiesGetTopCitiesErrors
   'get_top_countries': ApiV1AnalyticsTopCountriesGetTopCountriesErrors
   'get_top_countries_api_v1_geo_locations_top_countries': ApiV1GeoLocationsTopCountriesGetTopCountriesErrors
@@ -386,6 +404,7 @@ export interface OperationErrorTypes {
   'read_settings': never
   'rotate': never
   'run_scheduler_job': ApiV1SystemSchedulerJobsJobIdRunRunSchedulerJobErrors
+  'site_homes': never
   'stats': never
   'tail': ApiV1LogsTailTailErrors
   'unban': ApiV1CrowdsecUnbanUnbanErrors

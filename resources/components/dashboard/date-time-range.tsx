@@ -6,45 +6,45 @@ import {
 
 import { Clock } from "lucide-react"
 
+// Visible text is browser-local like the rest of the UI; the hover tooltip
+// keeps the full UTC instant for correlating with logs and the API.
+const DATE_TIME = new Intl.DateTimeFormat(undefined, {
+  year: "numeric",
+  month: "short",
+  day: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+  hour12: false,
+})
+
+const DATE_ONLY = new Intl.DateTimeFormat(undefined, {
+  year: "numeric",
+  month: "short",
+  day: "2-digit",
+})
+
+const TIME_ONLY = new Intl.DateTimeFormat(undefined, {
+  hour: "2-digit",
+  minute: "2-digit",
+  hour12: false,
+})
+
+/** Short local zone label for the badge, e.g. "GMT+2" or "CEST". */
+const ZONE_LABEL =
+  new Intl.DateTimeFormat(undefined, { timeZoneName: "short" })
+    .formatToParts(new Date())
+    .find((p) => p.type === "timeZoneName")?.value ?? ""
+
+const fullFormat = (d: Date) => d.toUTCString()
+
 export function DateTimeRange({ start, end }: { start: string; end: string }) {
   const startDate = new Date(start)
   const endDate = new Date(end)
 
-  const formatOptions: Intl.DateTimeFormatOptions = {
-    year: "numeric",
-    month: "short",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    timeZone: "UTC",
-    hour12: false,
-  }
-
-  const formatTime = (d: Date) => {
-    return d.toLocaleTimeString(undefined, {
-      hour: "2-digit",
-      minute: "2-digit",
-      timeZone: "UTC",
-      hour12: false,
-    })
-  }
-
-  const formatDate = (d: Date) => {
-    return d.toLocaleDateString(undefined, {
-      year: "numeric",
-      month: "short",
-      day: "2-digit",
-      timeZone: "UTC",
-    })
-  }
-  
-  const fullFormat = (d: Date) => d.toUTCString();
-
-
   const sameDay =
-    startDate.getUTCFullYear() === endDate.getUTCFullYear() &&
-    startDate.getUTCMonth() === endDate.getUTCMonth() &&
-    startDate.getUTCDate() === endDate.getUTCDate()
+    startDate.getFullYear() === endDate.getFullYear() &&
+    startDate.getMonth() === endDate.getMonth() &&
+    startDate.getDate() === endDate.getDate()
 
   return (
     <div className="inline-flex items-center gap-2 rounded-md bg-muted/50 px-2.5 py-1 text-xs font-semibold text-muted-foreground shadow-inner">
@@ -52,9 +52,7 @@ export function DateTimeRange({ start, end }: { start: string; end: string }) {
       <Tooltip>
         <TooltipTrigger asChild>
           <span suppressHydrationWarning className="cursor-default font-mono">
-            {sameDay
-              ? formatDate(startDate)
-              : startDate.toLocaleString(undefined, formatOptions)}
+            {sameDay ? DATE_ONLY.format(startDate) : DATE_TIME.format(startDate)}
           </span>
         </TooltipTrigger>
         <TooltipContent>
@@ -67,7 +65,7 @@ export function DateTimeRange({ start, end }: { start: string; end: string }) {
           <Tooltip>
             <TooltipTrigger asChild>
                 <span suppressHydrationWarning className="cursor-default font-mono">
-                  {formatTime(startDate)}
+                  {TIME_ONLY.format(startDate)}
               </span>
             </TooltipTrigger>
             <TooltipContent>
@@ -78,7 +76,7 @@ export function DateTimeRange({ start, end }: { start: string; end: string }) {
             <Tooltip>
             <TooltipTrigger asChild>
               <span suppressHydrationWarning className="cursor-default font-mono">
-                  {formatTime(endDate)}
+                  {TIME_ONLY.format(endDate)}
               </span>
             </TooltipTrigger>
             <TooltipContent>
@@ -94,7 +92,7 @@ export function DateTimeRange({ start, end }: { start: string; end: string }) {
           <Tooltip>
             <TooltipTrigger asChild>
                 <span suppressHydrationWarning className="cursor-default font-mono">
-                {endDate.toLocaleString(undefined, formatOptions)}
+                {DATE_TIME.format(endDate)}
               </span>
             </TooltipTrigger>
             <TooltipContent>
@@ -103,9 +101,11 @@ export function DateTimeRange({ start, end }: { start: string; end: string }) {
           </Tooltip>
         </>
       )}
-      <span className="ml-1 text-[10px] font-bold text-muted-foreground/80">
-        UTC
-      </span>
+      {ZONE_LABEL && (
+        <span className="ml-1 text-[10px] font-bold text-muted-foreground/80">
+          {ZONE_LABEL}
+        </span>
+      )}
     </div>
   )
 }

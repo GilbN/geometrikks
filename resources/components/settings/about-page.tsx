@@ -8,6 +8,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { MonoChip, StatusLed, type LedTone } from "@/components/settings/status-led"
 import { BrandMark } from "@/components/brand/brand-mark"
 import { Wordmark } from "@/components/brand/wordmark"
+import { AsnListDialog } from "@/components/settings/asn-list-dialog"
 
 function formatUptime(startedAt: string | null | undefined): string {
   if (!startedAt) return "unknown"
@@ -65,6 +66,10 @@ export function AboutPage() {
   }
 
   const geoip = geoipFreshness(data.geoip.available, data.geoip.ageDays)
+  const asn =
+    data.geoipAsnEnabled && data.geoipAsn
+      ? geoipFreshness(data.geoipAsn.available, data.geoipAsn.ageDays)
+      : null
   const dbReachable = data.database.postgresVersion !== null
 
   return (
@@ -183,20 +188,21 @@ export function AboutPage() {
 
       <Card className="md:col-span-2">
         <CardHeader>
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <SectionIcon icon={Globe2} />
-              <CardTitle className="text-base">GeoIP database</CardTitle>
-            </div>
-            <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
-              <StatusLed tone={geoip.tone} />
-              {geoip.label}
-            </span>
+          <div className="flex items-center gap-3">
+            <SectionIcon icon={Globe2} />
+            <CardTitle className="text-base">GeoIP databases</CardTitle>
           </div>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-x-8 md:grid-cols-2">
+          <div className="grid gap-x-8 gap-y-4 md:grid-cols-2">
             <div>
+              <div className="flex items-center justify-between gap-3 border-b border-border/40 pb-1.5">
+                <span className="text-sm font-medium">City</span>
+                <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <StatusLed tone={geoip.tone} />
+                  {geoip.label}
+                </span>
+              </div>
               <Row
                 label="Build date"
                 value={
@@ -213,24 +219,103 @@ export function AboutPage() {
                     : "unknown"
                 }
               />
-            </div>
-            <div>
               <Row label="Path" value={<MonoChip>{data.geoip.dbPath}</MonoChip>} />
             </div>
+            <div>
+              <div className="flex items-center justify-between gap-3 border-b border-border/40 pb-1.5">
+                <span className="text-sm font-medium">ASN</span>
+                <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+                  {asn ? (
+                    <>
+                      <StatusLed tone={asn.tone} />
+                      {asn.label}
+                    </>
+                  ) : (
+                    "disabled"
+                  )}
+                </span>
+              </div>
+              {asn && data.geoipAsn ? (
+                <>
+                  <Row
+                    label="Build date"
+                    value={
+                      data.geoipAsn.buildDate
+                        ? new Date(data.geoipAsn.buildDate).toLocaleDateString()
+                        : "unknown"
+                    }
+                  />
+                  <Row
+                    label="Age"
+                    value={
+                      data.geoipAsn.ageDays !== null && data.geoipAsn.ageDays !== undefined
+                        ? `${data.geoipAsn.ageDays} days`
+                        : "unknown"
+                    }
+                  />
+                  <Row label="Path" value={<MonoChip>{data.geoipAsn.dbPath}</MonoChip>} />
+                  {data.asnClassification && (
+                    <>
+                      <Row
+                        label="Classification list"
+                        value={
+                          <a
+                            href={data.asnClassification.sourceUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 hover:underline underline-offset-2"
+                          >
+                            <MonoChip>
+                              {data.asnClassification.dataset} · {data.asnClassification.entries} ASNs · {data.asnClassification.license}
+                            </MonoChip>
+                            <ExternalLink className="h-3 w-3 text-muted-foreground" />
+                          </a>
+                        }
+                      />
+                      <div className="flex flex-wrap items-center justify-between gap-2 pt-2">
+                        <p className="max-w-[32ch] text-xs text-muted-foreground">
+                          Community list of hosting, VPN, and datacenter
+                          operators; matching networks are badged Hosting,
+                          the rest show as Other.
+                        </p>
+                        <AsnListDialog />
+                      </div>
+                    </>
+                  )}
+                </>
+              ) : (
+                <p className="pt-1.5 text-sm text-muted-foreground">
+                  ASN enrichment is turned off (GEOIP_ASN_ENABLED=false).
+                </p>
+              )}
+            </div>
           </div>
+          <p className="mt-4 text-xs text-muted-foreground">
+            This product includes GeoLite2 data created by MaxMind, available
+            from{" "}
+            <a
+              href="https://www.maxmind.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline underline-offset-2"
+            >
+              maxmind.com
+            </a>
+            .
+          </p>
         </CardContent>
       </Card>
 
       <Card className="md:col-span-2">
         <CardContent className="flex flex-wrap gap-2 py-4">
           <Button variant="outline" size="sm" className="pointer-coarse:h-10" asChild>
-            <a href={data.links.repository} target="_blank" rel="noreferrer">
+            <a href={data.links.repository} target="_blank" rel="noopener noreferrer">
               <ExternalLink className="mr-1.5 h-3.5 w-3.5" />
               GitHub repository
             </a>
           </Button>
           <Button variant="outline" size="sm" className="pointer-coarse:h-10" asChild>
-            <a href={data.links.issues} target="_blank" rel="noreferrer">
+            <a href={data.links.issues} target="_blank" rel="noopener noreferrer">
               <Bug className="mr-1.5 h-3.5 w-3.5" />
               Issue tracker
             </a>

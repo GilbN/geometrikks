@@ -15,13 +15,16 @@ CAGG Structure:
 - url_{hourly,daily}_stats: Per-URL access-log counts (top URLs)
 - user_agent_{hourly,daily}_stats: Per-user-agent counts (top user agents)
 - host_daily_stats / hostname_daily_stats: Daily host rollups for facet dropdowns
+- log_source_daily_stats: Daily hostname/log_format rollups for source facets
 """
 
 from __future__ import annotations
 
 import asyncio
+import re
+from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 from sqlalchemy import text
 
@@ -33,6 +36,85 @@ if TYPE_CHECKING:
     from geometrikks.config.settings import AnalyticsSettings
 
 logger = get_logger(__name__)
+
+
+# =============================================================================
+# Hostname Pollution Detection
+# =============================================================================
+
+# Docker stamps the short container ID as hostname when LOGPARSER_HOST_NAME
+# is unset; 12 lowercase hex chars is that exact shape.
+CONTAINER_ID_RE = re.compile(r"^[0-9a-f]{12}$")
+CONTAINER_ID_THRESHOLD = 10
+DISTINCT_HOSTNAME_CEILING = 50
+# +1: fetching one past the ceiling proves it was exceeded without an
+# unbounded DISTINCT over the hypertable.
+_POLLUTION_PROBE_LIMIT = DISTINCT_HOSTNAME_CEILING + 1
+
+
+@dataclass(frozen=True)
+class HostnamePollution:
+    distinct_count: int
+    container_id_count: int
+
+    @property
+    def probe_capped(self) -> bool:
+        """distinct_count is a floor, not a total: the probe hit its LIMIT."""
+        return self.distinct_count >= _POLLUTION_PROBE_LIMIT
+
+    @property
+    def distinct_label(self) -> str:
+        """Renders a capped count as `50+` so messages do not understate."""
+        if self.probe_capped:
+            return f"{DISTINCT_HOSTNAME_CEILING}+"
+        return str(self.distinct_count)
+
+    @property
+    def reason(self) -> Literal["container-ids", "hostname-count"] | None:
+        """Which threshold tripped; callers word their message from this."""
+        if self.container_id_count >= CONTAINER_ID_THRESHOLD:
+            return "container-ids"
+        if self.distinct_count > DISTINCT_HOSTNAME_CEILING:
+            return "hostname-count"
+        return None
+
+    @property
+    def polluted(self) -> bool:
+        return self.reason is not None
+
+
+def classify_hostnames(hostnames: list[str]) -> HostnamePollution:
+    """Pure classification so the heuristics are unit-testable without a DB."""
+    return HostnamePollution(
+        distinct_count=len(hostnames),
+        container_id_count=sum(1 for h in hostnames if CONTAINER_ID_RE.match(h)),
+    )
+
+
+async def detect_hostname_pollution(conn: "AsyncConnection") -> HostnamePollution:
+    """Bounded distinct-hostname probe against geo_events.
+
+    GROUP BY + LIMIT streams groups off ix_geo_events_hostname and stops at
+    the cap, so this stays cheap on large hypertables and does not depend on
+    facet-CAGG freshness.
+    """
+    result = await conn.execute(text(
+        "SELECT hostname FROM geo_events GROUP BY hostname ORDER BY hostname LIMIT :cap"
+    ), {"cap": _POLLUTION_PROBE_LIMIT})
+    return classify_hostnames([row.hostname for row in result])
+
+
+_hostname_pollution: HostnamePollution | None = None
+
+
+def get_hostname_pollution() -> HostnamePollution | None:
+    """Result of the startup probe; None before setup_timescaledb ran."""
+    return _hostname_pollution
+
+
+def _set_hostname_pollution(value: HostnamePollution | None) -> None:
+    global _hostname_pollution
+    _hostname_pollution = value
 
 
 # =============================================================================
@@ -194,9 +276,10 @@ async def _create_location_caggs(conn: "AsyncConnection") -> None:
         SELECT
             time_bucket('1 hour', timestamp) AS bucket,
             location_id,
+            hostname,
             COUNT(*) AS event_count
         FROM geo_events
-        GROUP BY bucket, location_id
+        GROUP BY bucket, location_id, hostname
         WITH NO DATA
     """))
     logger.info("CAGG created/verified: location_hourly_stats")
@@ -207,9 +290,10 @@ async def _create_location_caggs(conn: "AsyncConnection") -> None:
         SELECT
             time_bucket('1 day', timestamp) AS bucket,
             location_id,
+            hostname,
             COUNT(*) AS event_count
         FROM geo_events
-        GROUP BY bucket, location_id
+        GROUP BY bucket, location_id, hostname
         WITH NO DATA
     """))
     logger.info("CAGG created/verified: location_daily_stats")
@@ -224,6 +308,18 @@ async def _create_location_caggs(conn: "AsyncConnection") -> None:
             CREATE INDEX IF NOT EXISTS ix_location_{suffix}_location
             ON location_{suffix}_stats (location_id)
         """))
+        # Pollution-gated skip leaves the pre-hostname view in place: probe
+        # before creating, since a CREATE INDEX on a missing column would
+        # abort the whole setup transaction (not just this statement).
+        has_hostname = (await conn.execute(text(
+            "SELECT 1 FROM information_schema.columns "
+            "WHERE table_name = :table AND column_name = 'hostname' LIMIT 1"
+        ), {"table": f"location_{suffix}_stats"})).scalar()
+        if has_hostname:
+            await conn.execute(text(f"""
+                CREATE INDEX IF NOT EXISTS ix_location_{suffix}_hostname
+                ON location_{suffix}_stats (hostname, bucket DESC)
+            """))
 
 
 async def _create_ip_location_cagg(conn: "AsyncConnection") -> None:
@@ -364,8 +460,38 @@ async def _create_user_agent_caggs(conn: "AsyncConnection") -> None:
         """))
 
 
+async def _create_asn_caggs(conn: "AsyncConnection") -> None:
+    """Create per-ASN access-log CAGGs (hourly + daily) for /top-asns.
+
+    max(as_org) keeps one series per ASN when an mmdb build renames the
+    organization. Changing the column set means drop and recreate, which
+    loses history older than raw retention.
+    """
+    for suffix, interval in (("hourly", "1 hour"), ("daily", "1 day")):
+        await conn.execute(text(f"""
+            CREATE MATERIALIZED VIEW IF NOT EXISTS asn_{suffix}_stats
+            WITH (timescaledb.continuous) AS
+            SELECT
+                time_bucket('{interval}', timestamp) AS bucket,
+                autonomous_system_number AS asn,
+                max(autonomous_system_organization) AS as_org,
+                COUNT(*) AS hits,
+                SUM(bytes_sent) AS total_bytes
+            FROM access_logs
+            WHERE autonomous_system_number IS NOT NULL
+            GROUP BY bucket, autonomous_system_number
+            WITH NO DATA
+        """))
+        logger.info("CAGG created/verified: asn_%s_stats", suffix)
+
+        await conn.execute(text(f"""
+            CREATE INDEX IF NOT EXISTS ix_asn_{suffix}_stats_bucket
+            ON asn_{suffix}_stats (bucket DESC)
+        """))
+
+
 async def _create_host_facet_caggs(conn: "AsyncConnection") -> None:
-    """Create tiny daily host/hostname CAGGs for the facet dropdowns.
+    """Create tiny daily host/hostname/log-source CAGGs for the facet dropdowns.
 
     A DISTINCT over the raw hypertables scans every chunk (compressed chunks
     carry no usable btree for a loose index scan), which costs ~600ms at 18M
@@ -407,6 +533,25 @@ async def _create_host_facet_caggs(conn: "AsyncConnection") -> None:
         ON hostname_daily_stats (bucket DESC)
     """))
 
+    await conn.execute(text("""
+        CREATE MATERIALIZED VIEW IF NOT EXISTS log_source_daily_stats
+        WITH (timescaledb.continuous) AS
+        SELECT
+            time_bucket('1 day', timestamp) AS bucket,
+            hostname,
+            log_format,
+            COUNT(*) AS hits
+        FROM access_logs
+        WHERE hostname IS NOT NULL OR log_format IS NOT NULL
+        GROUP BY bucket, hostname, log_format
+        WITH NO DATA
+    """))
+    logger.info("CAGG created/verified: log_source_daily_stats")
+    await conn.execute(text("""
+        CREATE INDEX IF NOT EXISTS ix_log_source_daily_stats_bucket
+        ON log_source_daily_stats (bucket DESC)
+    """))
+
 
 # =============================================================================
 # Policy Configuration
@@ -425,6 +570,7 @@ CAGG_REFRESH_CONFIG = [
     ("log_ip_hourly_stats", "3 hours", "1 hour"),
     ("url_hourly_stats", "3 hours", "1 hour"),
     ("user_agent_hourly_stats", "3 hours", "1 hour"),
+    ("asn_hourly_stats", "3 hours", "1 hour"),
     # Daily CAGGs: refresh up to 1 hour ago to keep data fresh
     # (using "1 day" would leave too large a gap for real-time aggregation)
     ("summary_daily_stats", "3 days", "1 hour"),
@@ -434,8 +580,10 @@ CAGG_REFRESH_CONFIG = [
     ("log_ip_daily_stats", "3 days", "1 hour"),
     ("url_daily_stats", "3 days", "1 hour"),
     ("user_agent_daily_stats", "3 days", "1 hour"),
+    ("asn_daily_stats", "3 days", "1 hour"),
     ("host_daily_stats", "3 days", "1 hour"),
     ("hostname_daily_stats", "3 days", "1 hour"),
+    ("log_source_daily_stats", "3 days", "1 hour"),
 ]
 
 HOURLY_CAGGS = [
@@ -446,6 +594,7 @@ HOURLY_CAGGS = [
     "log_ip_hourly_stats",
     "url_hourly_stats",
     "user_agent_hourly_stats",
+    "asn_hourly_stats",
 ]
 
 
@@ -593,8 +742,11 @@ ALL_CAGGS = [
     "url_daily_stats",
     "user_agent_hourly_stats",
     "user_agent_daily_stats",
+    "asn_hourly_stats",
+    "asn_daily_stats",
     "host_daily_stats",
     "hostname_daily_stats",
+    "log_source_daily_stats",
 ]
 
 
@@ -676,6 +828,42 @@ async def _upgrade_summary_caggs(conn: "AsyncConnection") -> None:
         )
 
 
+LOCATION_CAGGS = ["location_hourly_stats", "location_daily_stats"]
+
+_location_caggs_have_hostname: bool = False
+
+
+def location_caggs_have_hostname() -> bool:
+    """Startup-cached CAGG capability; False means hostname filters go raw."""
+    return _location_caggs_have_hostname
+
+
+def _set_location_caggs_have_hostname(value: bool) -> None:
+    global _location_caggs_have_hostname
+    _location_caggs_have_hostname = value
+
+
+async def _location_caggs_need_upgrade(conn: "AsyncConnection") -> bool:
+    """True when any existing location CAGG is in the pre-hostname shape.
+
+    Every existing CAGG must carry the column, not just one of them: the
+    upgrade drops and recreates the pair, so declaring victory on a partial
+    match would strand the laggard in the old shape forever while the
+    capability flag sends hostname-filtered queries at it.
+    """
+    existing = (await conn.execute(text("""
+        SELECT count(*) FROM information_schema.views
+        WHERE table_name = ANY(:views)
+    """), {"views": LOCATION_CAGGS})).scalar_one()
+    if not existing:
+        return False
+    with_hostname = (await conn.execute(text("""
+        SELECT count(DISTINCT table_name) FROM information_schema.columns
+        WHERE table_name = ANY(:views) AND column_name = 'hostname'
+    """), {"views": LOCATION_CAGGS})).scalar_one()
+    return with_hostname < existing
+
+
 async def setup_timescaledb(
     engine: "AsyncEngine",
     analytics: "AnalyticsSettings",
@@ -700,6 +888,41 @@ async def setup_timescaledb(
         if upgraded:
             await _upgrade_summary_caggs(conn)
 
+        # Upgrade pre-hostname location CAGGs, gated on hostname pollution:
+        # migrating polluted (container-ID) hostnames would make the map's
+        # per-source filter useless, so the old shape is kept until the
+        # deployment consolidates hostnames and restarts.
+        location_upgrade = await _location_caggs_need_upgrade(conn)
+        pollution = await detect_hostname_pollution(conn)
+        _set_hostname_pollution(pollution)
+        if location_upgrade and pollution.polluted:
+            if pollution.reason == "container-ids":
+                logger.warning(
+                    "Skipping the location-CAGG hostname upgrade: %d of %s distinct "
+                    "hostnames look like Docker container IDs. Map source filtering "
+                    "stays on raw scans. Run `litestar backfill-hostname NAME "
+                    "--consolidate`, then restart to migrate.",
+                    pollution.container_id_count,
+                    pollution.distinct_label,
+                )
+            else:
+                logger.warning(
+                    "Skipping the location-CAGG hostname upgrade: %s distinct "
+                    "recording hostnames is above the %d ceiling. Map source "
+                    "filtering stays on raw scans.",
+                    pollution.distinct_label,
+                    DISTINCT_HOSTNAME_CEILING,
+                )
+            location_upgrade = False
+        elif location_upgrade:
+            for cagg in LOCATION_CAGGS:
+                await conn.execute(text(f"DROP MATERIALIZED VIEW IF EXISTS {cagg} CASCADE"))
+            logger.warning(
+                "Recreating location CAGGs with a hostname dimension; history "
+                "older than the raw retention window cannot be rebuilt and is "
+                "discarded."
+            )
+
         # Create continuous aggregates
         await _create_summary_caggs(conn)
         await _create_geo_summary_caggs(conn)
@@ -708,7 +931,12 @@ async def setup_timescaledb(
         await _create_log_ip_caggs(conn)
         await _create_url_caggs(conn)
         await _create_user_agent_caggs(conn)
+        await _create_asn_caggs(conn)
         await _create_host_facet_caggs(conn)
+
+        _set_location_caggs_have_hostname(
+            not await _location_caggs_need_upgrade(conn)
+        )
 
         # Enable real-time aggregation (merges materialized + live data)
         await _enable_realtime_aggregation(conn)
@@ -734,6 +962,14 @@ async def setup_timescaledb(
             caggs=SUMMARY_CAGGS,
         )
 
+    if location_upgrade:
+        await refresh_caggs_range(
+            engine,
+            start=datetime.now(timezone.utc) - timedelta(days=analytics.raw_retention_days),
+            end=datetime.now(timezone.utc),
+            caggs=LOCATION_CAGGS,
+        )
+
     # Repair deployments whose data predates CAGG refresh coverage
     # (issue #14: long-range charts truncated while top lists are not).
     await backfill_cagg_gaps(
@@ -751,11 +987,17 @@ async def refresh_caggs_range(
     start: datetime,
     end: datetime,
     caggs: list[str] | None = None,
-) -> None:
+) -> list[str]:
     """Refresh CAGGs for a specific time range (used after historical imports).
 
     Timestamps are bound as asyncpg parameters. CAGG names cannot be bound
     (identifiers), so they are validated against the ALL_CAGGS allowlist.
+
+    Never raises on a refresh failure (startup and the scheduler must survive
+    one), but returns the CAGGs that could not be refreshed so callers whose
+    correctness depends on it - the backfill commands, whose written rows stay
+    invisible to analytics until the aggregates catch up - can report or exit
+    nonzero. An empty list means every requested CAGG refreshed.
 
     Args:
         engine: Async engine (raw asyncpg connection is used: CALL cannot
@@ -763,6 +1005,9 @@ async def refresh_caggs_range(
         start: Range start (inclusive), timezone-aware.
         end: Range end (exclusive), timezone-aware.
         caggs: Optional subset of CAGGs (defaults to all).
+
+    Returns:
+        Names of CAGGs whose refresh failed; empty when all succeeded.
     """
     if not start or not end:
         raise ValueError("Both start and end must be provided")
@@ -772,6 +1017,7 @@ async def refresh_caggs_range(
     if unknown:
         raise ValueError(f"Unknown CAGG name(s): {sorted(unknown)}")
 
+    failed: list[str] = []
     for cagg in target_caggs:
         # A background refresh-policy job on an overlapping window makes
         # refresh_continuous_aggregate raise "concurrent refresh"; without a
@@ -796,7 +1042,9 @@ async def refresh_caggs_range(
                     await asyncio.sleep(0.5 * (attempt + 1))
                     continue
                 logger.warning("CAGG refresh failed: %s (%s → %s): %s", cagg, start, end, e)
+                failed.append(cagg)
                 break
+    return failed
 
 
 # CAGG -> raw source hypertable (all use a "timestamp" time column)
@@ -815,8 +1063,11 @@ CAGG_SOURCE_TABLES: dict[str, str] = {
     "url_daily_stats": "access_logs",
     "user_agent_hourly_stats": "access_logs",
     "user_agent_daily_stats": "access_logs",
+    "asn_hourly_stats": "access_logs",
+    "asn_daily_stats": "access_logs",
     "host_daily_stats": "access_logs",
     "hostname_daily_stats": "geo_events",
+    "log_source_daily_stats": "access_logs",
 }
 
 

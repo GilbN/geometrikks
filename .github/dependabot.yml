@@ -19,6 +19,7 @@ updates:
         update-types:
           - "minor"
           - "patch"
+    target-branch: "develop"
 
   # Frontend dependencies (package.json + bun.lock)
   - package-ecosystem: "bun"
@@ -34,6 +35,7 @@ updates:
         update-types:
           - "minor"
           - "patch"
+    target-branch: "develop"
 
   # GitHub Actions used by ci.yml and release.yml
   - package-ecosystem: "github-actions"
@@ -47,6 +49,7 @@ updates:
       github-actions:
         patterns:
           - "*"
+    target-branch: "develop"
 
   # Base images in Dockerfile and Dockerfile.dev
   - package-ecosystem: "docker"
@@ -56,6 +59,7 @@ updates:
     labels:
       - "dependencies"
       - "docker"
+    target-branch: "develop"
 
   # Service images in docker-compose.yml and docker-compose.dev.yml
   - package-ecosystem: "docker-compose"
@@ -68,3 +72,4 @@ updates:
     ignore:
       # Published by this repo's own release workflow
       - dependency-name: "ghcr.io/gilbn/geometrikks"
+    target-branch: "develop"

@@ -1,15 +1,16 @@
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   ChartContainer,
   ChartTooltip,
-  ChartTooltipContent,
   type ChartConfig,
 } from "@/components/ui/chart"
 import { Skeleton } from "@/components/ui/skeleton"
 import { formatBytes } from "@/lib/api"
+import { clampedYMax } from "@/lib/chart-scale"
+import { formatTs } from "@/lib/datetime"
 import { useTimeSeries } from "@/lib/queries"
-import { formatBucketTick } from "./chart-utils"
+import { TimeSeriesTooltip } from "./time-series-tooltip"
 
 const chartConfig = {
   totalBytesSent: { label: "Bytes sent", color: "var(--chart-2)" },
@@ -17,11 +18,17 @@ const chartConfig = {
 
 export function BytesChart() {
   const { data, isLoading } = useTimeSeries()
+  const clipMax = clampedYMax((data?.data ?? []).map((d) => d.totalBytesSent))
 
   return (
     <Card>
       <CardHeader>
         <CardTitle className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Bandwidth</CardTitle>
+        {clipMax != null && (
+          <CardAction className="text-xs text-muted-foreground">
+            y-axis clipped at {formatBytes(clipMax)}
+          </CardAction>
+        )}
       </CardHeader>
       <CardContent>
         {isLoading || !data ? (
@@ -34,17 +41,20 @@ export function BytesChart() {
                 dataKey="timestamp"
                 tickLine={false}
                 axisLine={false}
-                tickFormatter={formatBucketTick(data.granularity)}
+                tickFormatter={(v: string) => formatTs(v, data.granularity)}
               />
               <YAxis
                 tickLine={false}
                 axisLine={false}
                 width={64}
                 tickFormatter={(v: number) => formatBytes(v)}
+                domain={clipMax != null ? [0, clipMax] : undefined}
+                allowDataOverflow={clipMax != null}
               />
               <ChartTooltip
                 content={
-                  <ChartTooltipContent
+                  <TimeSeriesTooltip
+                    granularity={data.granularity}
                     formatter={(value) => formatBytes(Number(value))}
                   />
                 }

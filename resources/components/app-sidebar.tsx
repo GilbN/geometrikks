@@ -34,14 +34,19 @@ import {
   AlertCircle,
   Bug,
   LogOut,
+  PowerOff,
   ShieldBan,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { fetchHealth, fetchMe, logout } from "@/lib/api"
+import { fetchHealth, logout } from "@/lib/api"
 import { BrandMark } from "@/components/brand/brand-mark"
 import { Wordmark } from "@/components/brand/wordmark"
+import {
+  sidebarIngestionVariant,
+  type SidebarIngestionVariant,
+} from "@/components/settings/status-logic"
 import { useLiveFeedStatus } from "@/lib/live-feed-context"
-import { useCrowdsecStatus, useRuntimeSettings } from "@/lib/queries"
+import { useCrowdsecStatus, useMe, useRuntimeSettings } from "@/lib/queries"
 import { SiDocker } from "react-icons/si"
 
 const navigationItems = [
@@ -207,19 +212,20 @@ function LiveIndicator({ collapsed }: { collapsed: boolean }) {
     retry: 1,
   })
 
-  const isRunning = health?.ingestion?.running ?? false
-  const isDegraded = health?.status === "degraded"
+  const variant = sidebarIngestionVariant(health, isError)
+  const isRunning = variant === "running"
 
-  // Determine indicator color and status. Degraded wins over running: the
-  // backend can report running=true while a tailed log file is missing.
-  const getIndicatorStyle = () => {
-    if (isError) return { color: "bg-gray-400", label: "Offline", tooltip: "Cannot connect to backend" }
-    if (isDegraded) return { color: "bg-amber-400", label: "Degraded", tooltip: "Service degraded - see Settings > Status" }
-    if (isRunning) return { color: "bg-emerald-400", label: "Live ingestion", tooltip: "Live ingestion active" }
-    return { color: "bg-gray-400", label: "Inactive", tooltip: "Service status unknown" }
+  const INDICATOR_STYLES: Record<SidebarIngestionVariant, { color: string; label: string; tooltip: string }> = {
+    offline: { color: "bg-gray-400", label: "Offline", tooltip: "Cannot connect to backend" },
+    degraded: { color: "bg-amber-400", label: "Degraded", tooltip: "Service degraded - see Settings > Status" },
+    // Neutral, not amber: LOGPARSER_ENABLED=false is a deliberate setting
+    // (UI-head deployments); other instances or agents write the data.
+    disabled: { color: "bg-sidebar-foreground/30", label: "Ingestion off", tooltip: "Log tailing is turned off (LOGPARSER_ENABLED=false)" },
+    running: { color: "bg-emerald-400", label: "Live ingestion", tooltip: "Live ingestion active" },
+    inactive: { color: "bg-gray-400", label: "Inactive", tooltip: "Service status unknown" },
   }
 
-  const { color, label, tooltip } = getIndicatorStyle()
+  const { color, label, tooltip } = INDICATOR_STYLES[variant]
 
   if (collapsed) {
     return (
@@ -249,28 +255,41 @@ function LiveIndicator({ collapsed }: { collapsed: boolean }) {
   }
 
   return (
-    <Link
-      to="/settings/status"
-      aria-label="Service status"
-      className="flex items-center gap-2 px-3 py-2 mx-2 rounded-md bg-sidebar-accent/50 border border-sidebar-border transition-colors hover:bg-sidebar-accent"
-    >
-      <div className="relative flex items-center justify-center w-2 h-2">
-        {isRunning && (
-          <span className={cn("absolute inline-flex h-full w-full animate-ping rounded-full opacity-75", color)} />
-        )}
-        <span className={cn("relative inline-flex w-2 h-2 rounded-full", color)} />
-      </div>
-      <span className="text-xs font-medium text-sidebar-foreground/70">
-        {label}
-      </span>
-      {isRunning ? (
-        <Activity className="w-3 h-3 text-emerald-400 ml-auto" />
-      ) : isError ? (
-        <AlertCircle className="w-3 h-3 text-gray-400 ml-auto" />
-      ) : (
-        <AlertCircle className="w-3 h-3 text-amber-400 ml-auto" />
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Link
+          to="/settings/status"
+          aria-label="Service status"
+          className="flex items-center gap-2 px-3 py-2 mx-2 rounded-md bg-sidebar-accent/50 border border-sidebar-border transition-colors hover:bg-sidebar-accent"
+          onPointerLeave={resetTooltipSuppression}
+        >
+          <div className="relative flex items-center justify-center w-2 h-2">
+            {isRunning && (
+              <span className={cn("absolute inline-flex h-full w-full animate-ping rounded-full opacity-75", color)} />
+            )}
+            <span className={cn("relative inline-flex w-2 h-2 rounded-full", color)} />
+          </div>
+          <span className="text-xs font-medium text-sidebar-foreground/70">
+            {label}
+          </span>
+          {variant === "running" ? (
+            <Activity className="w-3 h-3 text-emerald-400 ml-auto" />
+          ) : variant === "disabled" ? (
+            // Deliberate setting, not a fault: no warning glyph.
+            <PowerOff className="w-3 h-3 text-sidebar-foreground/40 ml-auto" />
+          ) : variant === "offline" ? (
+            <AlertCircle className="w-3 h-3 text-gray-400 ml-auto" />
+          ) : (
+            <AlertCircle className="w-3 h-3 text-amber-400 ml-auto" />
+          )}
+        </Link>
+      </TooltipTrigger>
+      {!tooltipsSuppressed && (
+        <TooltipContent side="right">
+          <span>{tooltip}</span>
+        </TooltipContent>
       )}
-    </Link>
+    </Tooltip>
   )
 }
 
@@ -327,22 +346,20 @@ function LogoutButton() {
   const { state, isMobile, tooltipsSuppressed, resetTooltipSuppression } = useSidebar()
   const collapsed = isMobile ? false : state === "collapsed"
 
-  // Only render when session auth is active: /auth/me succeeds when logged
-  // in, 404s when APP_AUTH_DISABLED=true (endpoints not registered), and a
-  // 401 already redirects to /login via the api interceptor.
-  const { data: me } = useQuery({
-    queryKey: ["auth", "me"],
-    queryFn: fetchMe,
-    retry: false,
-    staleTime: Infinity,
-  })
+  // Only render when there is a session to end. /auth/me reports
+  // mode: "disabled" when APP_AUTH_DISABLED=true, and a 401 already
+  // redirects to /login via the api interceptor.
+  const { data: me } = useMe()
 
-  if (!me) return null
+  if (me?.mode !== "session") return null
 
   async function onLogout() {
     try {
       await logout()
     } finally {
+      // Hard navigation is deliberate, not a leftover: it discards the
+      // TanStack Query cache holding the previous session's data, which a
+      // client-side redirect would not. The /logout route does the same.
       window.location.href = "/login"
     }
   }

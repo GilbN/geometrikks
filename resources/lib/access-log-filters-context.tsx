@@ -15,6 +15,11 @@ export interface AccessLogFilterState {
   /** Exact HTTP Host values, chosen from the facets list. */
   hosts: string[]
   hostsExclude: string[]
+  /** Exact recording-hostname values (writer instance), chosen from the facets list. */
+  hostnames: string[]
+  hostnamesExclude: string[]
+  /** Exact log-format values, chosen from the facets list. Include-only. */
+  logFormats: string[]
   methods: string[]
   statusCodes: number[]
   cities: string[]
@@ -27,6 +32,9 @@ export const EMPTY_ACCESS_LOG_FILTERS: AccessLogFilterState = {
   ipsExclude: [],
   hosts: [],
   hostsExclude: [],
+  hostnames: [],
+  hostnamesExclude: [],
+  logFormats: [],
   methods: [],
   statusCodes: [],
   cities: [],
@@ -41,6 +49,9 @@ export function countActiveAccessLogFilters(filters: AccessLogFilterState): numb
     (filters.ipsExclude.length ? 1 : 0) +
     (filters.hosts.length ? 1 : 0) +
     (filters.hostsExclude.length ? 1 : 0) +
+    (filters.hostnames.length ? 1 : 0) +
+    (filters.hostnamesExclude.length ? 1 : 0) +
+    (filters.logFormats.length ? 1 : 0) +
     (filters.methods.length ? 1 : 0) +
     (filters.statusCodes.length ? 1 : 0) +
     (filters.cities.length ? 1 : 0) +

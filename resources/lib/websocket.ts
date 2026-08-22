@@ -4,29 +4,48 @@
  * The connection is lazy: first onEvents subscriber connects, last one disconnects.
  */
 
-export type LiveEvent =
-  | { type: "geo_event"; data: { timestamp: string; ip_address: string; latitude: number; longitude: number; city: string | null; country_code: string | null } }
-  | {
-      type: "access_log"
-      data: {
-        timestamp: string
-        ip_address: string
-        remote_user: string | null
-        method: string | null
-        url: string | null
-        http_version: string | null
-        status_code: number
-        bytes_sent: number
-        referrer: string | null
-        user_agent: string | null
-        request_time: number
-        upstream_response_time: number | null
-        host: string | null
-        country_code: string | null
-        country_name: string | null
-        city: string | null
-      }
-    }
+export interface GeoEventData {
+  timestamp: string
+  ip_address: string
+  latitude: number
+  longitude: number
+  city: string | null
+  country_code: string | null
+  hostname: string
+}
+
+export interface AccessLogData {
+  timestamp: string
+  ip_address: string
+  remote_user: string | null
+  method: string | null
+  url: string | null
+  http_version: string | null
+  status_code: number
+  bytes_sent: number
+  referrer: string | null
+  user_agent: string | null
+  request_time: number
+  upstream_response_time: number | null
+  host: string | null
+  country_code: string | null
+  country_name: string | null
+  city: string | null
+  autonomous_system_number: number | null
+  autonomous_system_organization: string | null
+  hostname: string
+}
+
+/**
+ * One committed record: its geo view and access-log view travel in a single
+ * envelope. Concurrent agent publishers interleave their NOTIFYs, so halves
+ * shipped as separate events could not be re-paired on this side.
+ */
+export interface LiveEvent {
+  type: "request"
+  geo: GeoEventData | null
+  log: AccessLogData | null
+}
 
 interface BatchFrame {
   type: "batch"

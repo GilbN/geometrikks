@@ -3,10 +3,9 @@
  * global time range. Sorting and pagination state live on the parent route
  * (URL search params), driven here via props and callbacks; only column
  * visibility is local state. Filter values come from AccessLogFiltersContext
- * (search, IP, host, status, method, country and city live in
- * access-logs-filter-bar.tsx). Pairs with GET /api/v1/access-logs/.
+ * (search, IP, host, hostname, source format, status, method, country and
+ * city live in access-logs-filter-bar.tsx). Pairs with GET /api/v1/access-logs/.
  */
-import { useMemo, useState } from "react"
 import { ArrowDown, ArrowUp, ChevronsUpDown, Columns3 } from "lucide-react"
 import {
   Table,
@@ -23,6 +22,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
+  DropdownMenuItem,
   DropdownMenuContent,
   DropdownMenuLabel,
   DropdownMenuSeparator,
@@ -39,7 +39,8 @@ import {
   type AccessLogSortField,
   type SortOrder,
 } from "@/lib/api"
-import { cn, isMobileViewport } from "@/lib/utils"
+import { cn } from "@/lib/utils"
+import { useColumnVisibility } from "@/lib/column-visibility"
 import { useAccessLogFilters } from "@/lib/access-log-filters-context"
 import { statusBadgeClass } from "@/lib/status-badge"
 
@@ -159,6 +160,20 @@ const COLUMNS: ColumnDef[] = [
     ),
   },
   {
+    key: "hostname",
+    label: "Recorded by",
+    defaultVisible: false,
+    mobileHidden: true,
+    render: (r) => <span className="font-mono">{r.hostname ?? "-"}</span>,
+  },
+  {
+    key: "logFormat",
+    label: "Source format",
+    defaultVisible: false,
+    mobileHidden: true,
+    render: (r) => <span className="font-mono">{r.logFormat ?? "-"}</span>,
+  },
+  {
     key: "userAgent",
     label: "User agent",
     defaultVisible: false,
@@ -197,6 +212,31 @@ const COLUMNS: ColumnDef[] = [
     mobileHidden: true,
     render: (r) => <span className="whitespace-nowrap">{r.city ?? "-"}</span>,
   },
+  {
+    key: "asn",
+    label: "ASN",
+    defaultVisible: false,
+    mobileHidden: true,
+    render: (r) => (
+      <span className="font-mono">
+        {r.autonomousSystemNumber != null ? `AS${r.autonomousSystemNumber}` : "-"}
+      </span>
+    ),
+  },
+  {
+    key: "asnOrganization",
+    label: "AS organization",
+    defaultVisible: false,
+    mobileHidden: true,
+    render: (r) => (
+      <span
+        className="block max-w-[220px] truncate"
+        title={r.autonomousSystemOrganization ?? undefined}
+      >
+        {r.autonomousSystemOrganization ?? "-"}
+      </span>
+    ),
+  },
 ]
 
 interface AccessLogsTableProps {
@@ -221,14 +261,8 @@ export function AccessLogsTable({
   const { filters } = useAccessLogFilters()
   useCrowdsecLiveUpdates()
 
-  // Column visibility.
-  const [visible, setVisible] = useState<Set<string>>(() => {
-    const mobile = isMobileViewport()
-    return new Set(
-      COLUMNS.filter((c) => c.defaultVisible && !(mobile && c.mobileHidden)).map((c) => c.key),
-    )
-  })
-  const shownColumns = useMemo(() => COLUMNS.filter((c) => visible.has(c.key)), [visible])
+  const { visible, shownColumns, toggleColumn, resetColumns, hasOverrides } =
+    useColumnVisibility("geometrikks-columns-access-logs", COLUMNS)
 
   const { data, isLoading, isError, isPlaceholderData } = useAccessLogs({
     currentPage: page,
@@ -239,6 +273,9 @@ export function AccessLogsTable({
     methodIn: filters.methods.length ? filters.methods : undefined,
     hostIn: filters.hosts.length ? filters.hosts : undefined,
     hostNotIn: filters.hostsExclude.length ? filters.hostsExclude : undefined,
+    hostnameIn: filters.hostnames.length ? filters.hostnames : undefined,
+    hostnameNotIn: filters.hostnamesExclude.length ? filters.hostnamesExclude : undefined,
+    logFormatIn: filters.logFormats.length ? filters.logFormats : undefined,
     cityIn: filters.cities.length ? filters.cities : undefined,
     countryCodeIn: filters.countryCodes.length ? filters.countryCodes : undefined,
     statusIn: filters.statusCodes.length ? filters.statusCodes : undefined,
@@ -259,15 +296,6 @@ export function AccessLogsTable({
     }
   }
 
-  function toggleColumn(key: string) {
-    setVisible((prev) => {
-      const next = new Set(prev)
-      if (next.has(key)) next.delete(key)
-      else next.add(key)
-      return next
-    })
-  }
-
   const columnsMenu = (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -275,7 +303,7 @@ export function AccessLogsTable({
           <Columns3 className="mr-1 h-3.5 w-3.5" /> Columns
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="max-h-80 overflow-y-auto">
+      <DropdownMenuContent align="end" className="max-h-80 w-auto min-w-44 overflow-y-auto">
         <DropdownMenuLabel>Visible columns</DropdownMenuLabel>
         <DropdownMenuSeparator />
         {COLUMNS.map((c) => (
@@ -289,6 +317,10 @@ export function AccessLogsTable({
             {c.label}
           </DropdownMenuCheckboxItem>
         ))}
+      <DropdownMenuSeparator />
+      <DropdownMenuItem disabled={!hasOverrides} onSelect={resetColumns}>
+        Reset to defaults
+      </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   )

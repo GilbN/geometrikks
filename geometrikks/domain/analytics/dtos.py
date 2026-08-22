@@ -10,6 +10,8 @@ from __future__ import annotations
 
 import msgspec
 
+from geometrikks.domain.analytics.asn_classification import AsnCategory
+
 
 class TimeSeriesDataPoint(msgspec.Struct, rename="camel"):
     """A single data point in a time-series response.
@@ -227,6 +229,42 @@ class TopUserAgentsResponse(msgspec.Struct, rename="camel"):
     start_date: str
     end_date: str
     items: list[TopUserAgentDTO]
+
+
+class TopAsnDTO(msgspec.Struct, rename="camel"):
+    """A single autonomous system with its aggregate metrics."""
+
+    asn: int
+    organization: str | None
+    hits: int
+    total_bytes: int
+    category: AsnCategory
+
+
+class AsnCategoryTotalsDTO(msgspec.Struct, rename="camel"):
+    """Aggregate hits/bytes for one traffic-origin category."""
+
+    category: AsnCategory
+    hits: int
+    total_bytes: int
+
+
+class TopAsnsResponse(msgspec.Struct, rename="camel"):
+    """Top ASNs plus category totals.
+
+    ``categories`` covers every ASN in the range, not only the top N.
+    ``total_requests`` and ``total_bytes`` count every request, with or
+    without ASN data; rows without ASN data are absent from ``categories``,
+    so coverage is measured against these totals. Lists have no defaults
+    (see TopUrlsResponse).
+    """
+
+    start_date: str
+    end_date: str
+    total_requests: int
+    total_bytes: int
+    items: list[TopAsnDTO]
+    categories: list[AsnCategoryTotalsDTO]
 
 
 class TopIpDTO(msgspec.Struct, rename="camel"):

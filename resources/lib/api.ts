@@ -6,6 +6,7 @@ import axios from "axios"
 import {
   apiV1GeoEventsFacetsGetGeoLogFacets,
   apiV1GeoEventsLogsGetGeoLogs,
+  apiV1GeoLocationsSiteHomesSiteHomes,
   apiV1GeoEventsSummaryGetGeoLogSummary,
   apiV1GeoEventsTimeSeriesGetGeoLogTimeSeries,
   apiV1GeoEventsTopCitiesGetGeoLogTopCities,
@@ -17,8 +18,10 @@ import {
   apiV1AnalyticsTopCountriesGetTopCountries,
   apiV1AnalyticsTopIpsGetTopIps,
   apiV1AnalyticsTopUrlsGetTopUrls,
+  apiV1AnalyticsTopAsnsGetTopAsns,
   apiV1AnalyticsTopUserAgentsGetTopUserAgents,
 } from "@/generated/api/sdk.gen"
+import { BROWSER_TZ } from "@/lib/datetime"
 import type {
   GeoJsonFeatureCollection as GeoJSONFeatureCollection,
   SafeSettingsResponse,
@@ -26,11 +29,15 @@ import type {
   SchedulerJobsResponse,
   SchedulerJobView,
   AboutResponse,
+  AsnClassificationListResponse,
   CrowdSecStatusResponse,
   CrowdSecStatsResponse,
   AlertView,
   DecisionView,
   IpLocation,
+  SessionUser,
+  AuthDisabled,
+  SiteHomesResponse,
 } from "@/generated/api/types.gen"
 
 export type {
@@ -69,9 +76,11 @@ api.interceptors.response.use(
 // Types & Functions - Auth API
 // ============================================================================
 
-export interface MeResponse {
-  username: string
-}
+/** Discriminated union: username exists only on the session branch. With
+ *  APP_AUTH_DISABLED=true the endpoints stay registered and report "disabled"
+ *  rather than 404ing. Comes from the generated schema, not hand-rolled, so
+ *  a backend change to the tagged union cannot silently leave this stale. */
+export type MeResponse = SessionUser | AuthDisabled
 
 export async function login(username: string, password: string): Promise<MeResponse> {
   const { data } = await api.post<MeResponse>("/auth/login", { username, password })
@@ -99,6 +108,18 @@ export interface HealthIngestionStatus {
   missingFiles: string[]
   /** Wall-clock of the most recent ingested record; null before the first. */
   lastRecordAt: string | null
+  /** Tri-state: "disabled" is a deliberate LOGPARSER_ENABLED=false setting,
+   *  not a fault. Optional: absent on pre-tri-state backends. */
+  status?: "running" | "degraded" | "disabled"
+}
+
+export interface Advisory {
+  /** Stable slug, e.g. "hostname-pollution". */
+  id: string
+  severity: "warning" | "critical"
+  summary: string
+  detail?: string | null
+  remedy?: string | null
 }
 
 export interface HealthResponse {
@@ -107,10 +128,17 @@ export interface HealthResponse {
   startedAt: string | null
   ingestion: HealthIngestionStatus
   database: { reachable: boolean }
-  /** dbBuildDate is the GeoLite2 build from the mmdb metadata. */
-  geoip: { available: boolean; dbBuildDate: string | null }
+  /** Build dates come from the mmdb metadata, one per GeoLite2 edition. */
+  geoip: {
+    available: boolean
+    dbBuildDate: string | null
+    asnAvailable: boolean
+    asnDbBuildDate: string | null
+  }
   crowdsec: { enabled: boolean; lapiReachable: boolean | null }
   timestamp: string
+  /** Operator-actionable warnings; empty when nothing needs attention. */
+  advisories?: Advisory[]
 }
 
 export type RuntimeSettings = SafeSettingsResponse
@@ -249,6 +277,11 @@ export async function runSchedulerJob(jobId: string): Promise<SchedulerJobView> 
 
 export async function fetchAbout(): Promise<AboutResponse> {
   const { data } = await api.get<AboutResponse>("/system/about")
+  return data
+}
+
+export async function fetchAsnClassification(): Promise<AsnClassificationListResponse> {
+  const { data } = await api.get<AsnClassificationListResponse>("/system/asn-classification")
   return data
 }
 
@@ -392,7 +425,9 @@ export interface GeoJSONParams {
   ips?: string[]
   /** Exact IPs to exclude; forces a raw geo_events scan on the backend. */
   ipsExclude?: string[]
-  /** Recording hostnames; forces a raw geo_events scan on the backend. */
+  /** Recording hostnames; reads the hostname-dimensioned location CAGGs,
+   * falling back to a raw geo_events scan on installs that have not
+   * migrated. */
   hostnames?: string[]
 }
 
@@ -537,6 +572,7 @@ export async function fetchTimeSeries(params: TimeSeriesParams & AnalyticsFilter
       startDate: params.startDate,
       endDate: params.endDate,
       granularity: params.granularity,
+      tz: BROWSER_TZ,
       countryCode: params.countryCodes?.length ? params.countryCodes : undefined,
       city: params.cities?.length ? params.cities : undefined,
       ipAddress: params.ips?.length ? params.ips : undefined,
@@ -549,7 +585,12 @@ export async function fetchTimeSeries(params: TimeSeriesParams & AnalyticsFilter
 
 export async function fetchGeoTimeSeries(params: TimeSeriesParams) {
   const { data } = await apiV1AnalyticsGeoTimeSeriesGetGeoTimeSeries({
-    query: { startDate: params.startDate, endDate: params.endDate, granularity: params.granularity },
+    query: {
+      startDate: params.startDate,
+      endDate: params.endDate,
+      granularity: params.granularity,
+      tz: BROWSER_TZ,
+    },
     throwOnError: true,
   })
   return data
@@ -573,6 +614,22 @@ export async function fetchTopUrls(params: TimeSeriesParams & { limit?: number }
 
 export async function fetchTopUserAgents(params: TimeSeriesParams & { limit?: number } & AnalyticsFilterParams) {
   const { data } = await apiV1AnalyticsTopUserAgentsGetTopUserAgents({
+    query: {
+      startDate: params.startDate,
+      endDate: params.endDate,
+      limit: params.limit ?? 25,
+      countryCode: params.countryCodes?.length ? params.countryCodes : undefined,
+      city: params.cities?.length ? params.cities : undefined,
+      ipAddress: params.ips?.length ? params.ips : undefined,
+      ipAddressNotIn: params.ipsExclude?.length ? params.ipsExclude : undefined,
+    },
+    throwOnError: true,
+  })
+  return data
+}
+
+export async function fetchTopAsns(params: TimeSeriesParams & { limit?: number } & AnalyticsFilterParams) {
+  const { data } = await apiV1AnalyticsTopAsnsGetTopAsns({
     query: {
       startDate: params.startDate,
       endDate: params.endDate,
@@ -754,6 +811,7 @@ export async function fetchGeoLogTimeSeries(
       fromTimestamp: params.fromTimestamp,
       toTimestamp: params.toTimestamp,
       granularity: params.granularity,
+      tz: BROWSER_TZ,
       ...geoLogFilterQuery(params),
     },
     throwOnError: true,
@@ -812,6 +870,12 @@ export async function fetchGeoEventFacets() {
   return data
 }
 
+/** Per-source home locations plus the instance-wide default, for the map. */
+export async function fetchSiteHomes(): Promise<SiteHomesResponse> {
+  const { data } = await apiV1GeoLocationsSiteHomesSiteHomes({ throwOnError: true })
+  return data
+}
+
 // ============================================================================
 // Types & Functions - Access Logs API
 // ============================================================================
@@ -831,9 +895,13 @@ export interface AccessLog {
   requestTime: number
   upstreamResponseTime: number | null
   host: string | null
+  hostname: string | null
+  logFormat: string | null
   countryCode: string | null
   countryName: string | null
   city: string | null
+  autonomousSystemNumber: number | null
+  autonomousSystemOrganization: string | null
 }
 
 export interface AccessLogsPage {
@@ -878,6 +946,12 @@ export interface AccessLogsParams {
   hostIn?: string[]
   /** Hosts to exclude. */
   hostNotIn?: string[]
+  /** Exact recording-hostname match(es), chosen from the facets list. */
+  hostnameIn?: string[]
+  /** Recording hostnames to exclude. */
+  hostnameNotIn?: string[]
+  /** Exact log-format match(es), chosen from the facets list. */
+  logFormatIn?: string[]
   /** Exact city match(es). */
   cityIn?: string[]
   /** Exact ISO-3166 alpha-2 country code match(es). */
@@ -900,6 +974,9 @@ export async function fetchAccessLogs(params: AccessLogsParams): Promise<AccessL
       methodIn: params.methodIn?.length ? params.methodIn : undefined,
       hostIn: params.hostIn?.length ? params.hostIn : undefined,
       hostNotIn: params.hostNotIn?.length ? params.hostNotIn : undefined,
+      hostnameIn: params.hostnameIn?.length ? params.hostnameIn : undefined,
+      hostnameNotIn: params.hostnameNotIn?.length ? params.hostnameNotIn : undefined,
+      logFormatIn: params.logFormatIn?.length ? params.logFormatIn : undefined,
       cityIn: params.cityIn?.length ? params.cityIn : undefined,
       countryCodeIn: params.countryCodeIn?.length ? params.countryCodeIn : undefined,
       statusIn: params.statusIn?.length ? params.statusIn : undefined,
@@ -927,9 +1004,13 @@ export interface AccessLogFacets {
   cities: string[]
   /** Sorted alphabetically. */
   hosts: string[]
+  /** Sorted alphabetically. */
+  hostnames: string[]
+  /** Sorted alphabetically. */
+  logFormats: string[]
 }
 
-/** Distinct country/city/host values present in the data, for the filter dropdowns. */
+/** Distinct country/city/host/hostname/log-format values present in the data, for the filter dropdowns. */
 export async function fetchAccessLogFacets(): Promise<AccessLogFacets> {
   const { data } = await api.get<AccessLogFacets>("/access-logs/facets")
   return data

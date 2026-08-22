@@ -18,6 +18,8 @@ import { BytesChart } from "@/components/analytics/bytes-chart"
 import { LatencyChart } from "@/components/analytics/latency-chart"
 import { TopUrlsTable } from "@/components/analytics/top-urls-table"
 import { TopUserAgentsTable } from "@/components/analytics/top-user-agents-table"
+import { TopAsnsTable } from "@/components/analytics/top-asns-table"
+import { TrafficOriginCard } from "@/components/analytics/traffic-origin-card"
 import { TopIpsTable } from "@/components/analytics/top-ips-table"
 import { TopCountriesCities } from "@/components/analytics/top-countries-cities"
 import { AnalyticsFilterBar } from "@/components/analytics/analytics-filter-bar"
@@ -90,8 +92,12 @@ function AnalyticsPage() {
           <TopIpsTable />
           <TopCountriesCities />
         </div>
-        <TopUrlsTable />
-        <TopUserAgentsTable />
+        <div className="grid gap-4 lg:grid-cols-2">
+          <TopUrlsTable />
+          <TopUserAgentsTable />
+        </div>
+        <TrafficOriginCard />
+        <TopAsnsTable />
       </div>
     </AnalyticsFiltersProvider>
   )

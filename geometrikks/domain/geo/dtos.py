@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 from datetime import datetime
+from typing import Literal
 
 import msgspec
 
@@ -120,4 +121,28 @@ class TopCountriesResponse(msgspec.Struct, rename="camel"):
     """Response for top countries endpoint."""
 
     top_countries: list[TopCountryDTO] = msgspec.field(default_factory=list)
+
+
+class SiteHomeView(msgspec.Struct, rename="camel"):
+    """One hostname's current home location, auto-detected or overridden."""
+
+    hostname: str
+    latitude: float
+    longitude: float
+    source: Literal["auto", "override"]
+    detected_at: str | None
+
+
+class DefaultHomeView(msgspec.Struct, rename="camel"):
+    """Instance-wide fallback home used when a hostname has no site_homes row."""
+
+    latitude: float
+    longitude: float
+
+
+class SiteHomesResponse(msgspec.Struct, rename="camel"):
+    """Per-source home locations for the map, plus the instance default."""
+
+    homes: list[SiteHomeView]
+    default: DefaultHomeView | None
 

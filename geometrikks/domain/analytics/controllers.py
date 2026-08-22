@@ -29,6 +29,9 @@ from geometrikks.domain.analytics.dtos import (
     TopUrlsResponse,
     TopUserAgentDTO,
     TopUserAgentsResponse,
+    TopAsnDTO,
+    TopAsnsResponse,
+    AsnCategoryTotalsDTO,
     TopIpDTO,
     TopIpsResponse,
     TopCountryStatsDTO,
@@ -37,6 +40,7 @@ from geometrikks.domain.analytics.dtos import (
     TopCitiesResponse,
 )
 from geometrikks.domain.analytics.repositories import StatsGranularity, get_stats_granularity
+from geometrikks.domain.analytics.asn_classification import classify_asn
 
 from geometrikks.domain.analytics.dependencies import (
     provide_live_stats_repo,
@@ -49,8 +53,9 @@ from geometrikks.lib.parameters import (
     IpAddressExcludeFilter,
     IpAddressFilter,
     StartDate,
+    Timezone,
 )
-from geometrikks.lib.validation import validate_ip_addresses
+from geometrikks.lib.validation import validate_ip_addresses, validate_timezone
 
 
 def _calculate_percent_change(current: float, previous: float) -> float | None:
@@ -379,7 +384,7 @@ class AnalyticsController(Controller):
 
         data_points = [
             CumulativeDataPoint(
-                timestamp=row["timestamp"].isoformat() if hasattr(row["timestamp"], "isoformat") else str(row["timestamp"]),
+                timestamp=row["timestamp"].isoformat(),
                 cumulative_geo_events=int(row["cumulative_geo_events"]),
                 cumulative_access_logs=int(row["cumulative_access_logs"]),
                 cumulative_bytes=int(row["cumulative_bytes"]),
@@ -413,6 +418,7 @@ class AnalyticsController(Controller):
         city: CityFilter = None,
         ip_address: IpAddressFilter = None,
         ip_address_not_in: IpAddressExcludeFilter = None,
+        tz: Timezone = None,
     ) -> TimeSeriesResponse:
         """Get per-bucket access-log metrics (requests, status, bytes, latency).
 
@@ -425,14 +431,16 @@ class AnalyticsController(Controller):
         """
         filters = _build_filters(country_code, city, ip_address, ip_address_not_in)
         resolved = _resolve_chart_granularity(start_date, end_date, granularity)
+        if tz is not None:
+            validate_timezone(tz)
         if filters.is_active():
             interval = "1 hour" if resolved == StatsGranularity.HOURLY else "1 day"
             rows = await live_stats_repo.get_time_series(
-                start_date, end_date, bucket_interval=interval, filters=filters
+                start_date, end_date, bucket_interval=interval, filters=filters, tz=tz
             )
         else:
             rows = await summary_stats_repo.get_time_series(
-                start_date, end_date, granularity=resolved
+                start_date, end_date, granularity=resolved, tz=tz
             )
         return TimeSeriesResponse(
             granularity=resolved.value,
@@ -472,10 +480,15 @@ class AnalyticsController(Controller):
                 required=False,
             ),
         ] = None,
+        tz: Timezone = None,
     ) -> GeoEventsTimeSeriesResponse:
         """Get per-bucket geo-event metrics (events, unique IPs/countries/cities)."""
         resolved = _resolve_chart_granularity(start_date, end_date, granularity)
-        rows = await summary_stats_repo.get_geo_time_series(start_date, end_date, granularity=resolved)
+        if tz is not None:
+            validate_timezone(tz)
+        rows = await summary_stats_repo.get_geo_time_series(
+            start_date, end_date, granularity=resolved, tz=tz
+        )
         return GeoEventsTimeSeriesResponse(
             granularity=resolved.value,
             start_date=start_date.isoformat(),
@@ -546,6 +559,69 @@ class AnalyticsController(Controller):
             start_date=start_date.isoformat(),
             end_date=end_date.isoformat(),
             items=[TopUserAgentDTO(**vars(r)) for r in rows],
+        )
+
+    @get("/top-asns", description="Top ASNs by hits with hosting-vs-other totals (CAGG-served above 24h; filters force a raw scan).")
+    async def get_top_asns(
+        self,
+        summary_stats_repo: NamedDependency[SummaryStatsRepository],
+        start_date: StartDate,
+        end_date: EndDate,
+        limit: Annotated[
+            int,
+            QueryParameter(description="Maximum number of ASNs to return", ge=1, le=100),
+        ] = 25,
+        country_code: CountryCodeFilter = None,
+        city: CityFilter = None,
+        ip_address: IpAddressFilter = None,
+        ip_address_not_in: IpAddressExcludeFilter = None,
+    ) -> TopAsnsResponse:
+        """Top ASNs by hit count plus category totals for a date range.
+
+        Category totals cover every ASN in the range; ``items`` is the top N
+        slice. Filtered queries scan raw access_logs, so they see at most
+        raw_retention_days of history.
+        """
+        filters = _build_filters(country_code, city, ip_address, ip_address_not_in)
+        rows = await summary_stats_repo.get_top_asns(start_date, end_date, filters=filters)
+        # The categories cover only rows with ASN data; the UI reports
+        # coverage against these totals.
+        total_requests, total_bytes = await summary_stats_repo.get_request_totals(
+            start_date, end_date, filters=filters
+        )
+
+        totals: dict[str, list[int]] = {"hosting": [0, 0], "other": [0, 0]}
+        items: list[TopAsnDTO] = []
+        for row in rows:
+            category = classify_asn(row.asn)
+            totals[category][0] += row.hits
+            totals[category][1] += row.total_bytes
+            if len(items) < limit:
+                items.append(TopAsnDTO(
+                    asn=row.asn,
+                    organization=row.organization,
+                    hits=row.hits,
+                    total_bytes=row.total_bytes,
+                    category=category,
+                ))
+        return TopAsnsResponse(
+            start_date=start_date.isoformat(),
+            end_date=end_date.isoformat(),
+            total_requests=total_requests,
+            total_bytes=total_bytes,
+            items=items,
+            categories=[
+                AsnCategoryTotalsDTO(
+                    category="hosting",
+                    hits=totals["hosting"][0],
+                    total_bytes=totals["hosting"][1],
+                ),
+                AsnCategoryTotalsDTO(
+                    category="other",
+                    hits=totals["other"][0],
+                    total_bytes=totals["other"][1],
+                ),
+            ],
         )
 
     @get("/top-ips", description="Top client IPs by hits (CAGG-served above 24h, filters included).")

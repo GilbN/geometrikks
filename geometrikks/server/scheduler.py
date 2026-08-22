@@ -136,16 +136,45 @@ async def refresh_all_caggs_job(
     logger.info("All CAGGs refresh complete")
 
 
+async def refresh_site_home_job(
+    session_factory: "Callable[[], AsyncSession]", settings: "Settings"
+) -> None:
+    """Re-detect this process's home and refresh its site_homes rows.
+
+    Homelab IPs change; agents run for weeks. A UI head tails nothing and
+    records no events under its own hostname, so it has nothing to write.
+    """
+    if not settings.logparser.enabled:
+        return
+    from geometrikks.services.geoip.home import resolve_home_location
+    from geometrikks.services.geoip.site_homes import upsert_auto_homes
+
+    home = await resolve_home_location(
+        settings.map,
+        settings.geoip,
+        geoip_available=settings.geoip.db_path.exists(),
+    )
+    await upsert_auto_homes(session_factory, settings.logparser.resolved_hostnames(), home)
+
+
 async def create_scheduler(
     session_factory: "Callable[[], AsyncSession]",
     settings: "Settings",
     crowdsec_poller: "CrowdSecStreamPoller | None" = None,
+    mode: str = "full",
 ) -> AsyncIOScheduler:
     """Create and configure the APScheduler instance.
 
-    Scheduled Jobs:
+    Scheduled Jobs (mode="full"):
     - Location last_hit refresh: Every 5 minutes (configurable)
     - Full CAGG refresh: Every 6 hours (catches up any missed data)
+    - GeoLite2 refresh: weekly by default
+    - CrowdSec decision-stream poll, when the integration is on
+
+    An agent instance (mode="agent") only tails logs into a schema the
+    primary instance owns, so it registers just the GeoLite2 refresh and the
+    site-home refresh: the other jobs are either primary-only maintenance
+    (CAGGs, location last_hit) or CrowdSec, which agents never wire up.
 
     Note: TimescaleDB continuous aggregate policies also run in the background
     for automatic incremental refreshes. The scheduled jobs here supplement those.
@@ -153,6 +182,7 @@ async def create_scheduler(
     Args:
         session_factory: SQLAlchemy async session factory for creating job sessions.
         settings: Application settings for job configuration.
+        mode: "full" or "agent"; controls which jobs are registered.
 
     Returns:
         Configured AsyncIOScheduler (not yet started).
@@ -163,53 +193,74 @@ async def create_scheduler(
         logger.info("Scheduler disabled via settings")
         return scheduler
 
-    # Location last_hit refresh (default: every 5 minutes)
-    # This updates the regular geo_locations table with data from the geo_events hypertable
-    scheduler.add_job(
-        refresh_location_last_hits_job,
-        IntervalTrigger(
-            minutes=settings.scheduler.location_refresh_interval_minutes,
-        ),
-        id="location-refresh",
-        name="Refresh GeoLocation.last_hit timestamps",
-        args=[session_factory],
-        replace_existing=True,
-    )
-    logger.info(
-        "Scheduled location refresh every %d minute(s)",
-        settings.scheduler.location_refresh_interval_minutes,
-    )
+    if mode != "agent":
+        # Location last_hit refresh (default: every 5 minutes)
+        # This updates the regular geo_locations table with data from the geo_events hypertable
+        scheduler.add_job(
+            refresh_location_last_hits_job,
+            IntervalTrigger(
+                minutes=settings.scheduler.location_refresh_interval_minutes,
+            ),
+            id="location-refresh",
+            name="Refresh GeoLocation.last_hit timestamps",
+            args=[session_factory],
+            replace_existing=True,
+        )
+        logger.info(
+            "Scheduled location refresh every %d minute(s)",
+            settings.scheduler.location_refresh_interval_minutes,
+        )
 
-    # Full CAGG refresh (every 6 hours)
-    # This ensures all continuous aggregates are in sync
-    # Useful for catching up any data that might have been missed
-    scheduler.add_job(
-        refresh_all_caggs_job,
-        IntervalTrigger(hours=6),
-        id="cagg-full-refresh",
-        name="Full refresh of all CAGGs",
-        args=[session_factory],
-        replace_existing=True,
-    )
-    logger.info("Scheduled full CAGG refresh every 6 hours")
+        # Full CAGG refresh (every 6 hours)
+        # This ensures all continuous aggregates are in sync
+        # Useful for catching up any data that might have been missed
+        scheduler.add_job(
+            refresh_all_caggs_job,
+            IntervalTrigger(hours=6),
+            id="cagg-full-refresh",
+            name="Full refresh of all CAGGs",
+            args=[session_factory],
+            replace_existing=True,
+        )
+        logger.info("Scheduled full CAGG refresh every 6 hours")
 
-    # Weekly GeoLite2 refresh (only meaningful when credentials are set;
-    # ensure_geoip_database no-ops safely otherwise).
-    from geometrikks.services.geoip.downloader import ensure_geoip_database
+    # Weekly GeoLite2 refresh, City + ASN editions in one job (only meaningful
+    # when credentials are set; the ensure functions no-op safely otherwise).
+    # Runs in every mode: an agent still needs its own local databases kept
+    # current. One job id: the Settings UI looks up "geoip-refresh" by name.
+    from geometrikks.services.geoip.downloader import refresh_geoip_databases
 
     scheduler.add_job(
-        ensure_geoip_database,
+        refresh_geoip_databases,
         IntervalTrigger(days=settings.geoip.refresh_days),
         id="geoip-refresh",
-        name="Refresh GeoLite2 database from MaxMind",
+        name="Refresh GeoLite2 databases from MaxMind",
         args=[settings.geoip],
         replace_existing=True,
     )
     logger.info("Scheduled GeoLite2 refresh every %d day(s)", settings.geoip.refresh_days)
 
+    # Registered only when this process ingests (both modes qualify for
+    # agents; a UI head does not): the jobs list is user-visible on the
+    # Settings page, so a permanently no-op job must not appear there. The
+    # job keeps its own parser-enabled guard as cheap defense.
+    if settings.logparser.enabled:
+        scheduler.add_job(
+            refresh_site_home_job,
+            IntervalTrigger(hours=settings.map.home_refresh_hours),
+            id="site-home-refresh",
+            name="Re-detect this instance's site home location",
+            args=[session_factory, settings],
+            replace_existing=True,
+        )
+        logger.info(
+            "Scheduled site home refresh every %d hour(s)", settings.map.home_refresh_hours
+        )
+
     # CrowdSec decision-stream poll: feeds live ban/unban updates to the
-    # /ws/crowdsec subscribers. Only registered when the integration is on.
-    if crowdsec_poller is not None:
+    # /ws/crowdsec subscribers. Only registered when the integration is on;
+    # agents never receive a poller (crowdsec_lifespan no-ops for them).
+    if mode != "agent" and crowdsec_poller is not None:
         scheduler.add_job(
             crowdsec_poller.poll,
             IntervalTrigger(seconds=settings.crowdsec.stream_poll_interval),

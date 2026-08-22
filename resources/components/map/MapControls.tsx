@@ -79,6 +79,10 @@ interface MapControlsProps {
   selectedCities: string[]
   onCountriesChange: (values: string[]) => void
   onCitiesChange: (values: string[]) => void
+  sourceOptions: string[]
+  selectedSources: string[]
+  onSourcesChange: (values: string[]) => void
+  sourcesLoading?: boolean
 }
 
 export function MapControls({
@@ -114,6 +118,10 @@ export function MapControls({
   selectedCities,
   onCountriesChange,
   onCitiesChange,
+  sourceOptions,
+  selectedSources,
+  onSourcesChange,
+  sourcesLoading = false,
 }: MapControlsProps) {
   const { events, countries, cities, locations } = featureStats
   const [isExpanded, setIsExpanded] = useState(true)
@@ -337,6 +345,17 @@ export function MapControls({
           onChange={onCitiesChange}
           forceInline={isMobile}
         />
+        {(sourceOptions.length >= 2 || selectedSources.length > 0) && (
+          <FilterCombobox
+            label="Source"
+            options={sourceOptions}
+            selected={selectedSources}
+            onChange={onSourcesChange}
+            loading={sourcesLoading}
+            emptyText="No sources recorded"
+            forceInline={isMobile}
+          />
+        )}
       </Card>
 
       {/* Fit Bounds / Go Home Buttons */}

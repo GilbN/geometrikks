@@ -29,8 +29,11 @@ export type AboutLinksView = {
  */
 export type AboutResponse = {
   app: AboutAppView;
+  asnClassification?: AsnClassificationView | null;
   database: DatabaseVersionsView;
   geoip: GeoIpInfoView;
+  geoipAsn?: GeoIpInfoView | null;
+  geoipAsnEnabled?: boolean;
   links: AboutLinksView;
   runtime: RuntimeVersionsView;
 };
@@ -72,7 +75,20 @@ export type AccessLogDebugStats = {
 export type AccessLogFacets = {
   cities: Array<string>;
   countries: Array<CountryFacet>;
+  hostnames: Array<string>;
   hosts: Array<string>;
+  logFormats: Array<string>;
+};
+
+/**
+ * Advisory
+ */
+export type Advisory = {
+  detail?: string | null;
+  id: string;
+  remedy?: string | null;
+  severity: "warning" | "critical";
+  summary: string;
 };
 
 /**
@@ -100,6 +116,42 @@ export type AnalyticsSettingsView = {
   debugRetentionDays: number;
   hourlyRetentionDays: number;
   rawRetentionDays: number;
+};
+
+/**
+ * AsnCategoryTotalsDTO
+ */
+export type AsnCategoryTotalsDto = {
+  category: "hosting" | "other";
+  hits: number;
+  totalBytes: number;
+};
+
+/**
+ * AsnClassificationListResponse
+ */
+export type AsnClassificationListResponse = {
+  dataset: string;
+  entries: Array<HostingAsnEntryView>;
+  license: string;
+  sourceUrl: string;
+};
+
+/**
+ * AsnClassificationView
+ */
+export type AsnClassificationView = {
+  dataset: string;
+  entries: number;
+  license: string;
+  sourceUrl: string;
+};
+
+/**
+ * AuthDisabled
+ */
+export type AuthDisabled = {
+  mode: "disabled";
 };
 
 /**
@@ -212,6 +264,14 @@ export type DecisionView = {
 };
 
 /**
+ * DefaultHomeView
+ */
+export type DefaultHomeView = {
+  latitude: number;
+  longitude: number;
+};
+
+/**
  * EmbeddedLocationDTO
  */
 export type EmbeddedLocationDto = {
@@ -265,6 +325,8 @@ export type GeoEventsTimeSeriesResponse = {
  * GeoIPHealth
  */
 export type GeoIpHealth = {
+  asnAvailable?: boolean;
+  asnDbBuildDate?: string | null;
   available: boolean;
   dbBuildDate: string | null;
 };
@@ -413,13 +475,24 @@ export type GlobalTopIpsResponse = {
  * HealthResponse
  */
 export type HealthResponse = {
+  advisories?: Array<Advisory>;
   crowdsec: CrowdSecHealth;
   database: DatabaseHealth;
   geoip: GeoIpHealth;
   ingestion: IngestionHealth;
+  mode?: "full" | "agent";
+  schemaWait?: string | null;
   startedAt: string | null;
   status: "healthy" | "degraded";
   timestamp: string;
+};
+
+/**
+ * HostingAsnEntryView
+ */
+export type HostingAsnEntryView = {
+  asn: number;
+  entity: string;
 };
 
 /**
@@ -441,7 +514,9 @@ export type IngestionHealth = {
   missingFiles: Array<string>;
   parsedLines: number;
   pendingRecords: number;
+  publishDropped?: number;
   running: boolean;
+  status?: "running" | "degraded" | "disabled";
 };
 
 /**
@@ -471,14 +546,18 @@ export type IpLocation = {
  * ListAccessLogsAccessLogResponseBody
  */
 export type ListAccessLogsAccessLogResponseBody = {
+  autonomousSystemNumber?: number | null;
+  autonomousSystemOrganization?: string | null;
   bytesSent?: number;
   city?: string | null;
   countryCode?: string | null;
   countryName?: string | null;
   host?: string | null;
+  hostname?: string | null;
   httpVersion?: string | null;
   id: number;
   ipAddress: string;
+  logFormat?: string | null;
   method?: string | null;
   referrer?: string | null;
   remoteUser?: string;
@@ -557,7 +636,7 @@ export type LocationTopIpsResponse = {
  */
 export type LogFileView = {
   available: boolean;
-  kind: "app" | "login" | "nginx";
+  kind: "app" | "login" | "access";
   modifiedAt: string | null;
   name: string;
   sizeBytes: number;
@@ -621,13 +700,6 @@ export type MapSettingsView = {
   homeLatitude: number | null;
   homeLongitude: number | null;
   homeSource: "configured" | "external_ip" | null;
-};
-
-/**
- * MeResponse
- */
-export type MeResponse = {
-  username: string;
 };
 
 /**
@@ -749,6 +821,14 @@ export type SchedulerJobsResponse = {
 };
 
 /**
+ * SessionUser
+ */
+export type SessionUser = {
+  mode: "session";
+  username: string;
+};
+
+/**
  * SettingFieldView
  */
 export type SettingFieldView = {
@@ -770,6 +850,25 @@ export type SettingsSectionView = {
   fields: Array<SettingFieldView>;
   name: string;
   title: string;
+};
+
+/**
+ * SiteHomeView
+ */
+export type SiteHomeView = {
+  detectedAt: string | null;
+  hostname: string;
+  latitude: number;
+  longitude: number;
+  source: "auto" | "override";
+};
+
+/**
+ * SiteHomesResponse
+ */
+export type SiteHomesResponse = {
+  default: DefaultHomeView | null;
+  homes: Array<SiteHomeView>;
 };
 
 /**
@@ -817,6 +916,29 @@ export type TimeSeriesResponse = {
   endDate: string;
   granularity: string;
   startDate: string;
+};
+
+/**
+ * TopAsnDTO
+ */
+export type TopAsnDto = {
+  asn: number;
+  category: "hosting" | "other";
+  hits: number;
+  organization: string | null;
+  totalBytes: number;
+};
+
+/**
+ * TopAsnsResponse
+ */
+export type TopAsnsResponse = {
+  categories: Array<AsnCategoryTotalsDto>;
+  endDate: string;
+  items: Array<TopAsnDto>;
+  startDate: string;
+  totalBytes: number;
+  totalRequests: number;
 };
 
 /**
@@ -1145,6 +1267,9 @@ export type ApiV1AccessLogsListAccessLogsData = {
     ipAddressNotIn?: Array<string> | null;
     hostIn?: Array<string> | null;
     hostNotIn?: Array<string> | null;
+    hostnameIn?: Array<string> | null;
+    hostnameNotIn?: Array<string> | null;
+    logFormatIn?: Array<string> | null;
   };
   url: "/api/v1/access-logs";
 };
@@ -1225,6 +1350,10 @@ export type ApiV1AnalyticsGeoTimeSeriesGetGeoTimeSeriesData = {
      * Bucket size override. Omit to auto-select (hourly <= 30 days, daily above). RAW is never available.
      */
     granularity?: "hourly" | "daily" | null;
+    /**
+     * IANA timezone for daily buckets (e.g. Europe/Oslo). When set, daily buckets are local days in this zone for ranges the hourly source data can serve (<= 30 days); longer ranges keep UTC days. Hourly buckets are unaffected.
+     */
+    tz?: string | null;
   };
   url: "/api/v1/analytics/geo-time-series";
 };
@@ -1388,6 +1517,10 @@ export type ApiV1AnalyticsTimeSeriesGetTimeSeriesData = {
      * Exclude these client IPs (repeatable)
      */
     ipAddressNotIn?: Array<string> | null;
+    /**
+     * IANA timezone for daily buckets (e.g. Europe/Oslo). When set, daily buckets are local days in this zone for ranges the hourly source data can serve (<= 30 days); longer ranges keep UTC days. Hourly buckets are unaffected.
+     */
+    tz?: string | null;
   };
   url: "/api/v1/analytics/time-series";
 };
@@ -1466,6 +1599,71 @@ export type ApiV1AnalyticsTimeSeriesCumulativeGetCumulativeTimeSeriesResponses =
 
 export type ApiV1AnalyticsTimeSeriesCumulativeGetCumulativeTimeSeriesResponse =
   ApiV1AnalyticsTimeSeriesCumulativeGetCumulativeTimeSeriesResponses[keyof ApiV1AnalyticsTimeSeriesCumulativeGetCumulativeTimeSeriesResponses];
+
+export type ApiV1AnalyticsTopAsnsGetTopAsnsData = {
+  body?: never;
+  path?: never;
+  query: {
+    /**
+     * Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)
+     */
+    startDate: string;
+    /**
+     * End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)
+     */
+    endDate: string;
+    /**
+     * Maximum number of ASNs to return
+     */
+    limit?: number;
+    /**
+     * Filter to these ISO country codes (repeatable)
+     */
+    countryCode?: Array<string> | null;
+    /**
+     * Filter to these city names (repeatable)
+     */
+    city?: Array<string> | null;
+    /**
+     * Filter to these client IPs (repeatable)
+     */
+    ipAddress?: Array<string> | null;
+    /**
+     * Exclude these client IPs (repeatable)
+     */
+    ipAddressNotIn?: Array<string> | null;
+  };
+  url: "/api/v1/analytics/top-asns";
+};
+
+export type ApiV1AnalyticsTopAsnsGetTopAsnsErrors = {
+  /**
+   * Validation Exception
+   */
+  400: {
+    detail: string;
+    extra?:
+      | null
+      | {
+          [key: string]: unknown;
+        }
+      | Array<unknown>;
+    status_code: number;
+  };
+};
+
+export type ApiV1AnalyticsTopAsnsGetTopAsnsError =
+  ApiV1AnalyticsTopAsnsGetTopAsnsErrors[keyof ApiV1AnalyticsTopAsnsGetTopAsnsErrors];
+
+export type ApiV1AnalyticsTopAsnsGetTopAsnsResponses = {
+  /**
+   * Request fulfilled, document follows
+   */
+  200: TopAsnsResponse;
+};
+
+export type ApiV1AnalyticsTopAsnsGetTopAsnsResponse =
+  ApiV1AnalyticsTopAsnsGetTopAsnsResponses[keyof ApiV1AnalyticsTopAsnsGetTopAsnsResponses];
 
 export type ApiV1AnalyticsTopCitiesGetTopCitiesData = {
   body?: never;
@@ -1822,7 +2020,7 @@ export type ApiV1AuthLoginLoginResponses = {
   /**
    * Request fulfilled, document follows
    */
-  200: MeResponse;
+  200: SessionUser | AuthDisabled;
 };
 
 export type ApiV1AuthLoginLoginResponse =
@@ -1856,7 +2054,7 @@ export type ApiV1AuthMeMeResponses = {
   /**
    * Request fulfilled, document follows
    */
-  200: MeResponse;
+  200: SessionUser | AuthDisabled;
 };
 
 export type ApiV1AuthMeMeResponse =
@@ -2431,6 +2629,10 @@ export type ApiV1GeoEventsTimeSeriesGetGeoLogTimeSeriesData = {
      * Bucket size override. Omit to auto-select (hourly <= 30 days, daily above). RAW is never available.
      */
     granularity?: "hourly" | "daily" | null;
+    /**
+     * IANA timezone for daily buckets (e.g. Europe/Oslo). When set, daily buckets are local days in this zone for ranges the hourly source data can serve (<= 30 days); longer ranges keep UTC days. Hourly buckets are unaffected.
+     */
+    tz?: string | null;
   };
   url: "/api/v1/geo-events/time-series";
 };
@@ -2771,6 +2973,23 @@ export type ApiV1GeoLocationsGeojsonGetGeojsonResponses = {
 export type ApiV1GeoLocationsGeojsonGetGeojsonResponse =
   ApiV1GeoLocationsGeojsonGetGeojsonResponses[keyof ApiV1GeoLocationsGeojsonGetGeojsonResponses];
 
+export type ApiV1GeoLocationsSiteHomesSiteHomesData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: "/api/v1/geo-locations/site-homes";
+};
+
+export type ApiV1GeoLocationsSiteHomesSiteHomesResponses = {
+  /**
+   * Request fulfilled, document follows
+   */
+  200: SiteHomesResponse;
+};
+
+export type ApiV1GeoLocationsSiteHomesSiteHomesResponse =
+  ApiV1GeoLocationsSiteHomesSiteHomesResponses[keyof ApiV1GeoLocationsSiteHomesSiteHomesResponses];
+
 export type ApiV1GeoLocationsTopCountriesGetTopCountriesData = {
   body?: never;
   path?: never;
@@ -3089,6 +3308,23 @@ export type ApiV1SystemAboutGetAboutResponses = {
 export type ApiV1SystemAboutGetAboutResponse =
   ApiV1SystemAboutGetAboutResponses[keyof ApiV1SystemAboutGetAboutResponses];
 
+export type ApiV1SystemAsnClassificationGetAsnClassificationData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: "/api/v1/system/asn-classification";
+};
+
+export type ApiV1SystemAsnClassificationGetAsnClassificationResponses = {
+  /**
+   * Request fulfilled, document follows
+   */
+  200: AsnClassificationListResponse;
+};
+
+export type ApiV1SystemAsnClassificationGetAsnClassificationResponse =
+  ApiV1SystemAsnClassificationGetAsnClassificationResponses[keyof ApiV1SystemAsnClassificationGetAsnClassificationResponses];
+
 export type ApiV1SystemDatabaseGetDatabaseInfoData = {
   body?: never;
   path?: never;
@@ -3204,7 +3440,7 @@ export type HealthReadyHealthReadyData = {
 
 export type HealthReadyHealthReadyErrors = {
   /**
-   * Database unreachable; the app is not ready for traffic.
+   * Database unreachable, or an agent whose schema gate has not passed; the app is not ready for traffic.
    */
   503: ReadinessResponse;
 };

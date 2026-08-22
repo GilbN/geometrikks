@@ -13,7 +13,7 @@ from geometrikks.config.settings import Settings, get_settings
 from geometrikks.server import plugins
 from geometrikks.server.exceptions import EXCEPTION_HANDLERS
 from geometrikks.server.lifecycle import LIFESPAN
-from geometrikks.server.routes import get_route_handlers
+from geometrikks.server.routes import get_agent_route_handlers, get_route_handlers
 from geometrikks.server.dependencies import create_settings_provider
 
 if TYPE_CHECKING:
@@ -55,25 +55,36 @@ def create_app(
     # system inspection).
     db_config = plugins.create_sqlalchemy_config(settings)
 
-    from geometrikks.server.auth import build_auth_state, create_session_auth, warn_auth_disabled
-
     on_app_init = []
     auth_state = None
-    if settings.auth_disabled:
-        # Documented reverse-proxy mode (Authelia/Tailscale in front).
-        warn_auth_disabled()
+    openapi_config = None
+    if settings.is_agent:
+        # Headless log-tailing process: no API/UI surface to authenticate or
+        # document, so the entire auth block (including the APP_ADMIN_PASSWORD
+        # requirement) and OpenAPI are skipped rather than just disabled.
+        route_handlers = get_agent_route_handlers()
     else:
-        auth_state = build_auth_state(settings)
-        on_app_init.append(create_session_auth(settings).on_app_init)
+        from geometrikks.server.auth import (
+            build_auth_state,
+            create_session_auth,
+            warn_auth_disabled,
+        )
 
-    # Configure OpenAPI
-    openapi_config = OpenAPIConfig(
-        title=settings.name,
-        version=settings.version,
-        description=settings.description,
-        create_examples=False,
-    )
-    
+        if settings.auth_disabled:
+            # Documented reverse-proxy mode (Authelia/Tailscale in front).
+            warn_auth_disabled()
+        else:
+            auth_state = build_auth_state(settings)
+            on_app_init.append(create_session_auth(settings).on_app_init)
+
+        route_handlers = get_route_handlers()
+        openapi_config = OpenAPIConfig(
+            title=settings.name,
+            version=settings.version,
+            description=settings.description,
+            create_examples=False,
+        )
+
     compression_config = CompressionConfig(
         backend="brotli",
         minimum_size=1000,  # Only compress responses >= 1KB
@@ -92,9 +103,11 @@ def create_app(
     # Create app with configuration
     app = Litestar(
         debug=settings.debug,
-        route_handlers=get_route_handlers(include_auth=not settings.auth_disabled),
+        route_handlers=route_handlers,
         lifespan=list(LIFESPAN),
-        plugins=plugins.create_plugins(settings, db_config=db_config),
+        plugins=plugins.create_plugins(
+            settings, db_config=db_config, include_vite=not settings.is_agent
+        ),
         dependencies=dependency_map,
         openapi_config=openapi_config,
         compression_config=compression_config,

@@ -1,7 +1,7 @@
 /**
  * Filter controls for the access-logs history table: search, IP, host,
- * status, method, country and city. Renders inline on desktop and inside a
- * FiltersDrawer on mobile. State lives in the URL via
+ * hostname, source format, status, method, country and city. Renders inline
+ * on desktop and inside a FiltersDrawer on mobile. State lives in the URL via
  * AccessLogFiltersContext, so every control is a controlled input over the
  * route's search params.
  */
@@ -72,6 +72,7 @@ export function AccessLogsFilterBar() {
   const [ipInput, setIpInput] = useState("")
   const [ipExcludeInput, setIpExcludeInput] = useState("")
   const [hostExcludeInput, setHostExcludeInput] = useState("")
+  const [hostnameExcludeInput, setHostnameExcludeInput] = useState("")
 
   function addIp(key: "ips" | "ipsExclude") {
     const input = key === "ips" ? ipInput : ipExcludeInput
@@ -91,7 +92,17 @@ export function AccessLogsFilterBar() {
     setHostExcludeInput("")
   }
 
-  function removeFrom(key: "ips" | "ipsExclude" | "hostsExclude", value: string) {
+  function addHostnameExclude() {
+    const value = hostnameExcludeInput.trim()
+    if (!value || filters.hostnamesExclude.includes(value)) return
+    setFilters((prev) => ({ ...prev, hostnamesExclude: [...prev.hostnamesExclude, value] }))
+    setHostnameExcludeInput("")
+  }
+
+  function removeFrom(
+    key: "ips" | "ipsExclude" | "hostsExclude" | "hostnamesExclude",
+    value: string,
+  ) {
     setFilters((prev) => ({ ...prev, [key]: prev[key].filter((v) => v !== value) }))
   }
 
@@ -170,6 +181,47 @@ export function AccessLogsFilterBar() {
             }}
             placeholder="Exclude host + Enter"
             className={cn("h-8 font-mono text-xs", inDrawer ? "w-full" : "w-44")}
+          />,
+        )}
+        {wrap(
+          "Hostname",
+          <FilterCombobox
+            label="Hostname"
+            options={facets?.hostnames ?? []}
+            selected={filters.hostnames}
+            onChange={(values) => setFilters((prev) => ({ ...prev, hostnames: values }))}
+            loading={!facets}
+            emptyText="No hostnames"
+            onOpenChange={(open) => open && setFacetsEnabled(true)}
+            forceInline={inDrawer}
+          />,
+        )}
+        {wrap(
+          "Exclude hostname",
+          <Input
+            value={hostnameExcludeInput}
+            onChange={(e) => setHostnameExcludeInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault()
+                addHostnameExclude()
+              }
+            }}
+            placeholder="Exclude hostname + Enter"
+            className={cn("h-8 font-mono text-xs", inDrawer ? "w-full" : "w-44")}
+          />,
+        )}
+        {wrap(
+          "Source format",
+          <FilterCombobox
+            label="Source format"
+            options={facets?.logFormats ?? []}
+            selected={filters.logFormats}
+            onChange={(values) => setFilters((prev) => ({ ...prev, logFormats: values }))}
+            loading={!facets}
+            emptyText="No formats"
+            onOpenChange={(open) => open && setFacetsEnabled(true)}
+            forceInline={inDrawer}
           />,
         )}
         {wrap(
@@ -268,6 +320,25 @@ export function AccessLogsFilterBar() {
               type="button"
               onClick={() => removeFrom("hostsExclude", host)}
               aria-label={`Remove exclusion ${host}`}
+              className="ml-1 rounded-full hover:opacity-70"
+            >
+              <X className="h-3 w-3" />
+            </button>
+          </Badge>
+        ))}
+
+        {filters.hostnamesExclude.map((hostname) => (
+          <Badge
+            key={hostname}
+            variant="outline"
+            className="border-destructive/50 font-mono text-destructive"
+          >
+            <Ban className="h-3 w-3" />
+            {hostname}
+            <button
+              type="button"
+              onClick={() => removeFrom("hostnamesExclude", hostname)}
+              aria-label={`Remove exclusion ${hostname}`}
               className="ml-1 rounded-full hover:opacity-70"
             >
               <X className="h-3 w-3" />

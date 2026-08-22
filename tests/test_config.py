@@ -1,12 +1,13 @@
 """Tests for configuration management."""
 
+import socket
 from pathlib import Path
 
 import pytest
 from pydantic import ValidationError
 
 from geometrikks.config import GeoIPSettings, MapSettings, Settings, get_settings
-from geometrikks.config.settings import get_installed_version
+from geometrikks.config.settings import AppSettings, LogParserSettings, get_installed_version
 
 
 def test_default_settings():
@@ -49,10 +50,19 @@ def test_runtime_metadata_defaults_and_overrides(monkeypatch):
 def test_database_settings():
     """Test database configuration."""
     settings = Settings()
-    
+
     assert "postgresql" in settings.database.url
     assert settings.database.pool_size == 5
     assert settings.database.echo is False
+
+
+def test_database_asyncpg_dsn_strips_driver_suffix() -> None:
+    """AsyncPgChannelsBackend needs a plain postgresql:// DSN."""
+    from geometrikks.config.settings import DatabaseSettings
+    settings = DatabaseSettings()
+    assert settings.url.startswith("postgresql+asyncpg://")
+    assert settings.asyncpg_dsn == settings.url.replace("postgresql+asyncpg://", "postgresql://", 1)
+    assert "+asyncpg" not in settings.asyncpg_dsn
 
 
 def test_geoip_settings(tmp_path):
@@ -134,6 +144,19 @@ def test_environment_properties():
     assert prod_settings.is_development is False
 
 
+def test_is_agent_reflects_app_mode(monkeypatch):
+    """Settings.is_agent is a thin proxy over app.mode == "agent"; LOGPARSER
+    stays enabled by default so agent mode's own validator doesn't reject it."""
+    monkeypatch.delenv("LOGPARSER_ENABLED", raising=False)
+
+    default_settings = Settings(_env_file=None)
+    assert default_settings.is_agent is False
+
+    monkeypatch.setenv("APP_MODE", "agent")
+    agent_settings = Settings(_env_file=None)
+    assert agent_settings.is_agent is True
+
+
 def test_settings_caching():
     """Test that get_settings returns cached instance."""
     get_settings.cache_clear()
@@ -180,9 +203,9 @@ def test_production_configuration(monkeypatch):
 
 
 def test_logparser_default_paths():
-    """Default is a single-element list with the classic nginx path."""
+    """Default is a single-element list with the container mount path."""
     settings = Settings()
-    assert settings.logparser.log_paths == [Path("/var/log/nginx/access.log")]
+    assert settings.logparser.log_paths == [Path("/var/log/access/access.log")]
 
 
 def test_logparser_single_path_env(monkeypatch):
@@ -241,6 +264,93 @@ def test_logparser_ignore_ips_invalid_entry_rejected(monkeypatch):
     monkeypatch.setenv("LOGPARSER_IGNORE_IPS", "not-an-ip")
     with pytest.raises(ValidationError, match="not an IP address or CIDR"):
         Settings()
+
+
+def test_log_formats_default_auto(monkeypatch) -> None:
+    """No LOGPARSER_LOG_FORMATS set: default is 'auto' for every log path."""
+    monkeypatch.delenv("LOGPARSER_LOG_FORMATS", raising=False)
+    settings = LogParserSettings()
+    assert settings.log_formats == ["auto"]
+    assert settings.resolved_formats() == ["auto"] * len(settings.log_paths)
+
+
+def test_log_formats_single_value_fans_out(monkeypatch) -> None:
+    """A single format value applies to every configured log path."""
+    monkeypatch.setenv("LOGPARSER_LOG_PATHS", '["/a.log", "/b.log"]')
+    monkeypatch.setenv("LOGPARSER_LOG_FORMATS", "traefik-json")
+    settings = LogParserSettings()
+    assert settings.resolved_formats() == ["traefik-json", "traefik-json"]
+
+
+def test_log_formats_json_list_positional(monkeypatch) -> None:
+    """A JSON list of formats maps positionally onto log_paths."""
+    monkeypatch.setenv("LOGPARSER_LOG_PATHS", '["/a.log", "/b.log"]')
+    monkeypatch.setenv("LOGPARSER_LOG_FORMATS", '["nginx", "traefik-json"]')
+    settings = LogParserSettings()
+    assert settings.resolved_formats() == ["nginx", "traefik-json"]
+
+
+def test_log_formats_length_mismatch_rejected(monkeypatch) -> None:
+    """A format list whose length matches neither 1 nor len(log_paths) fails."""
+    monkeypatch.setenv("LOGPARSER_LOG_PATHS", '["/a.log", "/b.log", "/c.log"]')
+    monkeypatch.setenv("LOGPARSER_LOG_FORMATS", '["nginx", "traefik-json"]')
+    with pytest.raises(ValidationError):
+        LogParserSettings()
+
+
+def test_log_formats_unknown_value_rejected(monkeypatch) -> None:
+    """An unrecognized format name fails settings validation."""
+    monkeypatch.setenv("LOGPARSER_LOG_FORMATS", "apache")
+    with pytest.raises(ValidationError):
+        LogParserSettings()
+
+
+def test_host_name_default_is_machine_hostname(monkeypatch) -> None:
+    """No LOGPARSER_HOST_NAME set: the machine hostname applies to every path."""
+    monkeypatch.delenv("LOGPARSER_HOST_NAME", raising=False)
+    settings = LogParserSettings()
+    assert settings.host_name == [socket.gethostname()]
+    assert settings.resolved_hostnames() == [socket.gethostname()] * len(settings.log_paths)
+
+
+def test_host_name_single_value_fans_out(monkeypatch) -> None:
+    """A single hostname value applies to every configured log path."""
+    monkeypatch.setenv("LOGPARSER_LOG_PATHS", '["/a.log", "/b.log"]')
+    monkeypatch.setenv("LOGPARSER_HOST_NAME", "edge-1")
+    settings = LogParserSettings()
+    assert settings.resolved_hostnames() == ["edge-1", "edge-1"]
+
+
+def test_host_name_json_list_positional(monkeypatch) -> None:
+    """A JSON list of hostnames maps positionally onto log_paths."""
+    monkeypatch.setenv("LOGPARSER_LOG_PATHS", '["/a.log", "/b.log"]')
+    monkeypatch.setenv("LOGPARSER_HOST_NAME", '["vps-1", "vps-2"]')
+    settings = LogParserSettings()
+    assert settings.resolved_hostnames() == ["vps-1", "vps-2"]
+
+
+def test_host_name_length_mismatch_rejected(monkeypatch) -> None:
+    """A hostname list whose length matches neither 1 nor len(log_paths) fails."""
+    monkeypatch.setenv("LOGPARSER_LOG_PATHS", '["/a.log", "/b.log", "/c.log"]')
+    monkeypatch.setenv("LOGPARSER_HOST_NAME", '["vps-1", "vps-2"]')
+    with pytest.raises(ValidationError):
+        LogParserSettings()
+
+
+def test_host_name_empty_entry_rejected(monkeypatch) -> None:
+    """An empty hostname would silently un-stamp records; fail at startup."""
+    monkeypatch.setenv("LOGPARSER_HOST_NAME", '["vps-1", ""]')
+    monkeypatch.setenv("LOGPARSER_LOG_PATHS", '["/a.log", "/b.log"]')
+    with pytest.raises(ValidationError):
+        LogParserSettings()
+
+
+def test_host_name_entries_are_stripped(monkeypatch) -> None:
+    """Whitespace around JSON-list entries must not leak into stamped hostnames."""
+    monkeypatch.setenv("LOGPARSER_LOG_PATHS", '["/a.log", "/b.log"]')
+    monkeypatch.setenv("LOGPARSER_HOST_NAME", '["vps-1 ", " vps-2"]')
+    settings = LogParserSettings()
+    assert settings.resolved_hostnames() == ["vps-1", "vps-2"]
 
 
 class TestAuthSettings:
@@ -464,3 +574,74 @@ class TestLogSettings:
             warnings.simplefilter("error")  # no DeprecationWarning may fire
             s = Settings(_env_file=None)
         assert s.log.level == "ERROR"
+
+
+def test_app_mode_default_full(monkeypatch) -> None:
+    monkeypatch.delenv("APP_MODE", raising=False)
+    assert AppSettings().mode == "full"
+
+
+def test_app_mode_agent(monkeypatch) -> None:
+    monkeypatch.setenv("APP_MODE", "agent")
+    assert AppSettings().mode == "agent"
+
+
+def test_app_mode_invalid_rejected(monkeypatch) -> None:
+    monkeypatch.setenv("APP_MODE", "worker")
+    with pytest.raises(ValidationError):
+        AppSettings()
+
+
+def test_logparser_enabled_default_true(monkeypatch) -> None:
+    monkeypatch.delenv("LOGPARSER_ENABLED", raising=False)
+    assert LogParserSettings().enabled is True
+
+
+def test_agent_with_tailing_disabled_rejected(monkeypatch) -> None:
+    """An agent that tails nothing is a no-op process: fail at startup."""
+    monkeypatch.setenv("APP_MODE", "agent")
+    monkeypatch.setenv("LOGPARSER_ENABLED", "false")
+    with pytest.raises(ValidationError):
+        Settings()
+
+
+def test_map_home_locations_default_empty():
+    from geometrikks.config.settings import MapSettings
+    assert MapSettings(_env_file=None).home_locations == {}
+
+
+def test_map_home_locations_parses_json(monkeypatch):
+    from geometrikks.config.settings import MapSettings
+    monkeypatch.setenv("MAP_HOME_LOCATIONS", '{"nginx-01": [59.91, 10.75]}')
+    settings = MapSettings(_env_file=None)
+    assert settings.home_locations == {"nginx-01": (59.91, 10.75)}
+
+
+def test_map_home_locations_rejects_bad_ranges(monkeypatch):
+    import pydantic
+    import pytest as _pytest
+    from geometrikks.config.settings import MapSettings
+    monkeypatch.setenv("MAP_HOME_LOCATIONS", '{"x": [95.0, 10.0]}')
+    with _pytest.raises(pydantic.ValidationError):
+        MapSettings(_env_file=None)
+
+
+def test_map_home_locations_rejects_wrong_arity(monkeypatch):
+    import pydantic
+    import pytest as _pytest
+    from geometrikks.config.settings import MapSettings
+    monkeypatch.setenv("MAP_HOME_LOCATIONS", '{"x": [59.91]}')
+    with _pytest.raises(pydantic.ValidationError):
+        MapSettings(_env_file=None)
+
+
+def test_map_home_refresh_hours_default():
+    from geometrikks.config.settings import MapSettings
+    assert MapSettings(_env_file=None).home_refresh_hours == 24
+
+
+def test_map_home_refresh_hours_parses_env(monkeypatch):
+    from geometrikks.config.settings import MapSettings
+    monkeypatch.setenv("MAP_HOME_REFRESH_HOURS", "6")
+    settings = MapSettings(_env_file=None)
+    assert settings.home_refresh_hours == 6

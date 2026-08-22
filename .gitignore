@@ -379,6 +379,7 @@ pdm-pythn
 # MaxMind databases (GeoLite2 EULA - never commit; runtime DB is downloaded)
 *.mmdb
 !tests/GeoLite2-City-Test.mmdb
+!tests/GeoLite2-ASN-Test.mmdb
 
 # Vite build output
 /public/
@@ -391,3 +392,6 @@ openapi-ts-error-*.log
 
 # Superpowers workspaces: brainstorming mockups and SDD review artifacts (local only)
 .superpowers/
+
+# dev/inject-logs.sh stop signal
+dev/inject-logs.stop
