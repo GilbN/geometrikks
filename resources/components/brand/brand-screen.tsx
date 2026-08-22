@@ -1,3 +1,4 @@
+import { ReliefBackdrop, RoutesBackdrop } from "@/components/brand/backdrops"
 import { BrandMark } from "@/components/brand/brand-mark"
 import { Wordmark } from "@/components/brand/wordmark"
 import { cn } from "@/lib/utils"
@@ -6,16 +7,20 @@ import { cn } from "@/lib/utils"
  * Full-screen brand moment for states outside the app chrome: login, the
  * root error boundary and the 404 page. One card on the aurora backdrop;
  * the card's header carries the mark, wordmark, the page's H1 and a line of
- * context, the body carries `children`.
+ * context, the body carries `children`. `backdrop` picks the picture behind
+ * the card: routes converging on the mark, or relief contours; both sit on
+ * the aurora glow.
  */
 export function BrandScreen({
   title,
   description,
+  backdrop = "routes",
   children,
   className,
 }: {
   title: string
   description?: string
+  backdrop?: "routes" | "relief"
   children: React.ReactNode
   className?: string
 }) {
@@ -30,6 +35,7 @@ export function BrandScreen({
             "radial-gradient(640px 420px at 18% -8%, var(--primary-glow), transparent 70%), radial-gradient(720px 520px at 108% 108%, var(--primary-glow), transparent 70%)",
         }}
       />
+      {backdrop === "routes" ? <RoutesBackdrop /> : <ReliefBackdrop />}
       <section
         aria-labelledby="brand-screen-title"
         className={cn(
@@ -39,8 +45,8 @@ export function BrandScreen({
       >
         <header className="border-b border-border/50 bg-muted/30 px-6 pb-5 pt-7 text-center">
           <div className="inline-flex items-center gap-3 animate-in fade-in-0 zoom-in-95 duration-500 motion-reduce:animate-none">
-            <BrandMark size={40} className="text-foreground" decorative />
-            <Wordmark sub className="items-start text-[22px] text-foreground" />
+            <BrandMark size={56} className="text-foreground" decorative />
+            <Wordmark sub className="items-start text-[28px] text-foreground" />
           </div>
           <h1 id="brand-screen-title" className="mt-5 text-lg font-[650] tracking-[-0.01em]">
             {title}

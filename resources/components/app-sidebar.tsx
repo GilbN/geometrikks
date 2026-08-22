@@ -114,7 +114,7 @@ function GeoLogo({ collapsed }: { collapsed: boolean }) {
       )}
     >
       <BrandMark
-        size={30}
+        size={34}
         className="text-sidebar-foreground"
         decorative
       />
@@ -124,7 +124,7 @@ function GeoLogo({ collapsed }: { collapsed: boolean }) {
           collapsed ? "w-0 opacity-0" : "w-auto opacity-100"
         )}
       >
-        <Wordmark sub className="text-[21px] text-sidebar-foreground" />
+        <Wordmark sub className="text-[23px] text-sidebar-foreground" />
       </div>
     </div>
   )

@@ -28,6 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Redesigned stat cards with the design-system typography and theme-aware trend colors; normalized panel borders and shadows across all cards; overview page rebuilt on the shared chrome.
 - Rebuilt the color themes: new "Aurora night" dark theme and a first-class "Fjord mist" light theme; map popups and controls now follow the theme tokens.
 - Each Settings page has its own title and subtitle; the section list is a left-side navigation from 768px up and a dropdown below it.
+- Login draws the live-routes picture behind its card, the error and 404 pages the relief contours, both following the accent and color mode; the sidebar and login lockups are a step larger.
 - Login, the error boundary and the 404 page share one card: mark, wordmark and the page title sit inside it, on the aurora backdrop.
 - Access logs, Geo logs, Debug logs and Analytics have new one-line descriptions under their titles.
 - Security's Active decisions and Alert history cards use the same label style as every other data card.
