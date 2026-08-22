@@ -1,6 +1,7 @@
 /**
  * Map control overlay: one bounded panel with labeled sections, in this
- * order: Visualization, Live, Live overlays, Filters, View, Summary, Top IPs.
+ * order: Visualization, Live (with the rail switch), Filters, Summary, Top IPs.
+ * Toggles are switch rows rather than buttons so it fits without scrolling.
  * Desktop: a collapsible MapOverlay docked top-right.
  * Mobile: a trigger button portaled into the top header bar (next to the
  * time-range toolbar) that opens a bottom drawer with the same sections.
@@ -84,6 +85,70 @@ interface MapControlsProps {
   selectedSources: string[]
   onSourcesChange: (values: string[]) => void
   sourcesLoading?: boolean
+}
+
+/**
+ * One 28px row per toggle: icon, label, optional metric, switch. Replaces
+ * the 34px button-with-badge so the panel fits a laptop height without
+ * scrolling.
+ */
+function SwitchRow({
+  icon: Icon,
+  iconClassName,
+  label,
+  meta,
+  checked,
+  disabled = false,
+  onCheckedChange,
+  tone = "accent",
+  title,
+}: {
+  icon: React.ComponentType<{ className?: string }>
+  iconClassName?: string
+  label: string
+  meta?: string
+  checked: boolean
+  disabled?: boolean
+  onCheckedChange: (checked: boolean) => void
+  tone?: "accent" | "danger"
+  title?: string
+}) {
+  const onColor = tone === "danger" ? "text-red-400" : "text-primary"
+  const trackOn = tone === "danger" ? "bg-red-500" : "bg-primary"
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      disabled={disabled}
+      title={title}
+      onClick={() => onCheckedChange(!checked)}
+      className={cn(
+        "flex h-7 w-full cursor-pointer items-center gap-2 rounded-md px-1.5 text-sm font-medium transition-colors pointer-coarse:h-10",
+        "hover:bg-foreground/[0.05] focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-ring",
+        "disabled:cursor-default disabled:opacity-50",
+        checked ? onColor : "text-foreground",
+      )}
+    >
+      <Icon className={cn("h-4 w-4 shrink-0", iconClassName)} />
+      <span className="min-w-0 flex-1 truncate text-left">{label}</span>
+      {meta && <span className="font-mono text-[11px] tabular-nums text-muted-foreground">{meta}</span>}
+      <span
+        aria-hidden
+        className={cn(
+          "relative h-4 w-7 shrink-0 rounded-full transition-colors",
+          checked ? trackOn : "bg-muted-foreground/30",
+        )}
+      >
+        <span
+          className={cn(
+            "absolute top-0.5 size-3 rounded-full transition-transform",
+            checked ? "translate-x-3.5 bg-background" : "translate-x-0.5 bg-muted-foreground",
+          )}
+        />
+      </span>
+    </button>
+  )
 }
 
 function Section({ label, children }: { label?: string; children: React.ReactNode }) {
@@ -180,195 +245,90 @@ export function MapControls({
   const sections = (
     <>
       <Section label="Visualization">
-        <div className="flex flex-col gap-1">
-          <ToggleGroup
-            type="single"
-            value={activeLayer}
-            onValueChange={(value) => value && onLayerChange(value as LayerType)}
-            className="flex flex-col gap-1 w-full"
-            orientation="vertical"
-            spacing={4}
-          >
-            <ToggleGroupItem
-              value="heatmap"
-              aria-label="Heatmap view"
-              variant="outline"
-              className={cn(
-                "cursor-pointer w-full justify-start gap-2 px-3 pointer-coarse:h-10 data-[state=on]:bg-primary/15 data-[state=on]:text-primary data-[state=on]:border-primary/30",
-                activeLayer === "heatmap" && "bg-primary/15 text-primary border-primary/30"
-              )}
-            >
-              <Flame className="h-4 w-4" />
-              <span className="text-sm font-medium">Heatmap</span>
-            </ToggleGroupItem>
-            <ToggleGroupItem
-              value="markers"
-              aria-label="Marker view"
-              variant="outline"
-              className={cn(
-                "cursor-pointer w-full justify-start gap-2 px-3 pointer-coarse:h-10 data-[state=on]:bg-primary/15 data-[state=on]:text-primary data-[state=on]:border-primary/30",
-                activeLayer === "markers" && "bg-primary/15 text-primary border-primary/30"
-              )}
-            >
-              <MapPin className="h-4 w-4" />
-              <span className="text-sm font-medium">Markers</span>
-            </ToggleGroupItem>
-          </ToggleGroup>
-          <Button
+        <ToggleGroup
+          type="single"
+          value={activeLayer}
+          onValueChange={(value) => value && onLayerChange(value as LayerType)}
+          className="grid w-full grid-cols-2 gap-1"
+        >
+          <ToggleGroupItem
+            value="heatmap"
+            aria-label="Heatmap view"
             variant="outline"
-            onClick={() => onProjectionChange(
-              projection === "globe" ? "mercator" : "globe",
-            )}
-            aria-pressed={projection === "globe"}
-            title={projection === "globe"
-              ? "Switch to a flat Mercator map"
-              : "Switch to an interactive globe"}
-            className={cn(
-              "cursor-pointer w-full justify-start gap-2 px-3 pointer-coarse:h-10",
-              projection === "globe"
-                && "bg-primary/15 text-primary border-primary/30",
-            )}
+            className="h-8 cursor-pointer gap-2 pointer-coarse:h-10 data-[state=on]:bg-primary/15 data-[state=on]:text-primary data-[state=on]:border-primary/30"
           >
-            <Globe2 className="h-4 w-4" />
-            <span className="text-sm font-medium">Globe</span>
-            <Badge variant="secondary" className="ml-auto text-[9px] uppercase">
-              {projection === "globe" ? "on" : "off"}
-            </Badge>
-          </Button>
-        </div>
+            <Flame className="h-4 w-4" />
+            <span className="text-sm font-medium">Heatmap</span>
+          </ToggleGroupItem>
+          <ToggleGroupItem
+            value="markers"
+            aria-label="Marker view"
+            variant="outline"
+            className="h-8 cursor-pointer gap-2 pointer-coarse:h-10 data-[state=on]:bg-primary/15 data-[state=on]:text-primary data-[state=on]:border-primary/30"
+          >
+            <MapPin className="h-4 w-4" />
+            <span className="text-sm font-medium">Markers</span>
+          </ToggleGroupItem>
+        </ToggleGroup>
+        <SwitchRow
+          icon={Globe2}
+          label="Globe"
+          checked={projection === "globe"}
+          onCheckedChange={(on) => onProjectionChange(on ? "globe" : "mercator")}
+          title={projection === "globe" ? "Switch to a flat Mercator map" : "Switch to an interactive globe"}
+        />
       </Section>
 
       <Section label="Live">
-        <div className="flex flex-col gap-1">
-          {/* Live geo-event pulses toggle (independent of the layer choice) */}
-          <Button
-            variant="outline"
-            onClick={() => onLiveModeChange(!liveMode)}
-            aria-pressed={liveMode}
-            className={cn(
-              "cursor-pointer w-full justify-start gap-2 px-3 pointer-coarse:h-10",
-              liveMode && "bg-primary/15 text-primary border-primary/30"
-            )}
-          >
-            <Radio className={cn("h-4 w-4", liveMode && "animate-pulse")} />
-            <span className="text-sm font-medium">
-              {demoTrafficMode === "off" ? "Live" : "Demo traffic"}
-            </span>
-            {demoTrafficMode !== "off" && (
-              <Badge variant="secondary" className="ml-auto text-[9px] uppercase">
-                {demoTrafficMode}
-              </Badge>
-            )}
-          </Button>
-          <Button
-            variant="outline"
-            onClick={() => onRouteEffectsChange(!routeEffectsEnabled)}
-            aria-pressed={routeEffectsEnabled}
-            disabled={!routeHomeAvailable}
-            title={routeHomeAvailable
-              ? "Show or hide animated network routes"
-              : "No map home location could be resolved"}
-            className={cn(
-              "cursor-pointer w-full justify-start gap-2 px-3 pointer-coarse:h-10",
-              routeEffectsEnabled && routeHomeAvailable
-                && "bg-primary/15 text-primary border-primary/30",
-            )}
-          >
-            <Sparkles className="h-4 w-4" />
-            <span className="text-sm font-medium">
-              {routeHomeAvailable ? "Route effects" : "Home unavailable"}
-            </span>
-            {routeHomeAvailable && (
-              <Badge variant="secondary" className="ml-auto text-[9px] uppercase">
-                {routeEffectsEnabled ? "on" : "off"}
-              </Badge>
-            )}
-          </Button>
-          {routeHomeAvailable && (
-            <Button
-              variant="outline"
-              onClick={() => onHomeMarkerChange(!homeMarkerEnabled)}
-              aria-pressed={homeMarkerEnabled}
-              title="Show a beacon at the server home location"
-              className={cn(
-                "cursor-pointer w-full justify-start gap-2 px-3 pointer-coarse:h-10",
-                homeMarkerEnabled && "bg-primary/15 text-primary border-primary/30",
-              )}
-            >
-              <Home className="h-4 w-4" />
-              <span className="text-sm font-medium">Home marker</span>
-              <Badge variant="secondary" className="ml-auto text-[9px] uppercase">
-                {homeMarkerEnabled ? "on" : "off"}
-              </Badge>
-            </Button>
-          )}
-          {bannedOverlayAvailable && (
-            <Button
-              variant="outline"
-              onClick={() => onBannedOverlayChange(!bannedOverlayEnabled)}
-              aria-pressed={bannedOverlayEnabled}
-              title="Show banned IPs seen in your traffic within the selected time range as red markers"
-              className={cn(
-                "cursor-pointer w-full justify-start gap-2 px-3 pointer-coarse:h-10",
-                bannedOverlayEnabled && "bg-red-500/15 text-red-400 border-red-500/30",
-              )}
-            >
-              {bannedOverlayLoading ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <ShieldBan className="h-4 w-4" />
-              )}
-              <span className="text-sm font-medium">Banned IPs</span>
-              <Badge variant="secondary" className="ml-auto text-[9px] uppercase">
-                {bannedOverlayEnabled
-                  ? bannedOverlayLoading
-                    ? "…"
-                    : bannedCount.toLocaleString()
-                  : "off"}
-              </Badge>
-            </Button>
-          )}
-        </div>
+        <SwitchRow
+          icon={Radio}
+          iconClassName={liveMode ? "animate-pulse" : undefined}
+          label={demoTrafficMode === "off" ? "Live" : "Demo traffic"}
+          meta={demoTrafficMode !== "off" ? demoTrafficMode : undefined}
+          checked={liveMode}
+          onCheckedChange={onLiveModeChange}
+        />
+        <SwitchRow
+          icon={Sparkles}
+          label={routeHomeAvailable ? "Route effects" : "Home unavailable"}
+          checked={routeEffectsEnabled && routeHomeAvailable}
+          disabled={!routeHomeAvailable}
+          onCheckedChange={onRouteEffectsChange}
+          title={routeHomeAvailable ? "Show or hide animated network routes" : "No map home location could be resolved"}
+        />
+        {routeHomeAvailable && (
+          <SwitchRow
+            icon={Home}
+            label="Home marker"
+            checked={homeMarkerEnabled}
+            onCheckedChange={onHomeMarkerChange}
+            title="Show a beacon at the server home location"
+          />
+        )}
+        {bannedOverlayAvailable && (
+          <SwitchRow
+            icon={bannedOverlayLoading ? Loader2 : ShieldBan}
+            iconClassName={bannedOverlayLoading ? "animate-spin" : undefined}
+            label="Banned IPs"
+            meta={bannedOverlayEnabled && !bannedOverlayLoading ? bannedCount.toLocaleString() : undefined}
+            checked={bannedOverlayEnabled}
+            onCheckedChange={onBannedOverlayChange}
+            tone="danger"
+            title="Show banned IPs seen in your traffic within the selected time range as red markers"
+          />
+        )}
+        {/* The rail only mounts at md and up; below that the vitals pill is the
+            sole entry point into live data, so this switch would control
+            nothing. */}
+        {liveMode && !isMobile && (
+          <SwitchRow
+            icon={Activity}
+            label="Live rail"
+            checked={liveOverlays.rail}
+            onCheckedChange={(on) => onLiveOverlayChange("rail", on)}
+          />
+        )}
       </Section>
-
-      {/* The rail only mounts at md and up; below that the vitals pill is the
-          sole entry point into live data, so this section would offer a
-          switch that controls nothing. */}
-      {liveMode && !isMobile && (
-        <Section label="Live overlays">
-          {([
-            { key: "rail" as const, label: "Live rail", icon: Activity },
-          ]).map(({ key, label, icon: Icon }) => (
-            <Button
-              key={key}
-              variant="outline"
-              onClick={() => onLiveOverlayChange(key, !liveOverlays[key])}
-              aria-pressed={liveOverlays[key]}
-              className={cn(
-                "cursor-pointer w-full justify-start gap-2 px-3 pointer-coarse:h-10",
-                liveOverlays[key] && "bg-primary/15 text-primary border-primary/30",
-              )}
-            >
-              <Icon className="h-4 w-4 shrink-0" />
-              {/* The label truncates rather than pushing the indicator past
-                  the button border on narrow panels. */}
-              <span className="min-w-0 flex-1 truncate text-left text-sm font-medium">{label}</span>
-              {/* State dot, same vocabulary as the sidebar's live-ingestion
-                  dot: lit cyan while the overlay is shown. An on/off text
-                  badge does not fit next to the longest label here. */}
-              <span
-                aria-hidden
-                className={cn(
-                  "h-2 w-2 shrink-0 rounded-full",
-                  liveOverlays[key]
-                    ? "bg-primary shadow-[0_0_6px_var(--primary)]"
-                    : "bg-muted-foreground/40",
-                )}
-              />
-            </Button>
-          ))}
-        </Section>
-      )}
 
       {/* Country / city / source filters, one per row. */}
       <Section label="Filters">
@@ -420,7 +380,7 @@ export function MapControls({
       {isMobile && <Section>{viewActions}</Section>}
 
       <Section>
-        <div className="flex flex-col gap-1 text-xs text-muted-foreground">
+        <div className="flex flex-col gap-0.5 text-xs text-muted-foreground">
           {isLoading ? (
             <div className="flex items-center gap-2">
               <Loader2 className="h-3 w-3 animate-spin" />
@@ -429,18 +389,16 @@ export function MapControls({
           ) : (
             <>
               <div className="flex items-center gap-2">
-                <div className="h-2 w-2 rounded-full bg-emerald-500" />
-                <span>{formatNumber(events)} events</span>
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                <span>
+                  {formatNumber(events)} events · {formatNumber(countries)} countries
+                </span>
               </div>
               <div className="flex items-center gap-2">
-                <div className="h-2 w-2 rounded-full bg-emerald-500" />
-                <span>{formatNumber(countries)} countries</span>
-              </div>              <div className="flex items-center gap-2">
-                <div className="h-2 w-2 rounded-full bg-emerald-500" />
-                <span>{formatNumber(cities)} cities</span>
-              </div>              <div className="flex items-center gap-2">
-                <div className="h-2 w-2 rounded-full bg-emerald-500" />
-                <span>{formatNumber(locations)} locations</span>
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                <span>
+                  {formatNumber(cities)} cities · {formatNumber(locations)} locations
+                </span>
               </div>
             </>
           )}
