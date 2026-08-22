@@ -86,10 +86,10 @@ interface MapControlsProps {
   sourcesLoading?: boolean
 }
 
-function Section({ label, children }: { label: string; children: React.ReactNode }) {
+function Section({ label, children }: { label?: string; children: React.ReactNode }) {
   return (
-    <section className="space-y-1.5 border-b border-border/50 pb-3 last:border-0 last:pb-0">
-      <h3 className={FRAME_LABEL}>{label}</h3>
+    <section className="space-y-1 border-b border-border/50 pb-2.5 last:border-0 last:pb-0">
+      {label && <h3 className={cn(FRAME_LABEL, "mb-1.5")}>{label}</h3>}
       {children}
     </section>
   )
@@ -147,11 +147,39 @@ export function MapControls({
     setHeaderSlot(document.getElementById("header-actions-slot"))
   }, [])
 
+  const viewActions = (
+    <div className="flex gap-1">
+      <Button
+        variant="ghost"
+        size="icon-sm"
+        onClick={onFitBounds}
+        disabled={isLoading || events === 0}
+        title="Fit to data bounds"
+        className="cursor-pointer pointer-coarse:size-10"
+      >
+        <Maximize2 className="h-4 w-4" />
+        <span className="sr-only">Fit to data bounds</span>
+      </Button>
+      {routeHomeAvailable && onGoHome && (
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          onClick={onGoHome}
+          title="Go to home location"
+          className="cursor-pointer pointer-coarse:size-10"
+        >
+          <Home className="h-4 w-4" />
+          <span className="sr-only">Go to home location</span>
+        </Button>
+      )}
+    </div>
+  )
+
   // The control sections are shared between the desktop top-right panel and the
   // mobile bottom drawer so there is a single source of truth for the controls.
   const sections = (
     <>
-      <Section label="Visualization">
+      <Section>
         <div className="flex flex-col gap-1">
           <ToggleGroup
             type="single"
@@ -207,11 +235,6 @@ export function MapControls({
               {projection === "globe" ? "on" : "off"}
             </Badge>
           </Button>
-        </div>
-      </Section>
-
-      <Section label="Live">
-        <div className="flex flex-col gap-1">
           {/* Live geo-event pulses toggle (independent of the layer choice) */}
           <Button
             variant="outline"
@@ -342,7 +365,7 @@ export function MapControls({
         </Section>
       )}
 
-      {/* Country / city / source filters, stacked. */}
+      {/* Country / city / source filters, one per row. */}
       <Section label="Filters">
         <FilterCombobox
           label="Country"
@@ -351,6 +374,7 @@ export function MapControls({
           onChange={onCountriesChange}
           labelFor={(code) => countryLabels?.[code] ?? code}
           forceInline={isMobile}
+          className="w-full justify-between"
         />
         <FilterCombobox
           label="City"
@@ -358,6 +382,7 @@ export function MapControls({
           selected={selectedCities}
           onChange={onCitiesChange}
           forceInline={isMobile}
+          className="w-full justify-between"
         />
         {(sourceOptions.length >= 2 || selectedSources.length > 0) && (
           <FilterCombobox
@@ -368,6 +393,7 @@ export function MapControls({
             loading={sourcesLoading}
             emptyText="No sources recorded"
             forceInline={isMobile}
+            className="w-full justify-between"
           />
         )}
         {activeFilterCount > 0 && (
@@ -386,33 +412,9 @@ export function MapControls({
         )}
       </Section>
 
-      <Section label="View">
-        <div className="flex gap-1">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={onFitBounds}
-            disabled={isLoading || events === 0}
-            title="Fit to data bounds"
-            className="cursor-pointer pointer-coarse:size-10"
-          >
-            <Maximize2 className="h-4 w-4" />
-          </Button>
-          {routeHomeAvailable && onGoHome && (
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={onGoHome}
-              title="Go to home location"
-              className="cursor-pointer pointer-coarse:size-10"
-            >
-              <Home className="h-4 w-4" />
-            </Button>
-          )}
-        </div>
-      </Section>
+      {isMobile && <Section>{viewActions}</Section>}
 
-      <Section label="Summary">
+      <Section>
         <div className="flex flex-col gap-1 text-xs text-muted-foreground">
           {isLoading ? (
             <div className="flex items-center gap-2">
@@ -531,23 +533,26 @@ export function MapControls({
       placement="top-right"
       role="complementary"
       aria-label="Map controls"
-      className="w-[min(220px,calc(100vw-4rem))] max-h-[calc(100%-7rem)]"
+      className="w-[min(220px,calc(100vw-4rem))] max-h-[calc(100%-9rem)]"
     >
-      <div className="flex shrink-0 items-center justify-between border-b border-border/50 py-2 pl-3 pr-1.5">
+      <div className="flex shrink-0 items-center justify-between gap-1 border-b border-border/50 py-1.5 pl-3 pr-1.5">
         <h2 className={FRAME_LABEL}>Map controls</h2>
-        <Button
-          size="icon-sm"
-          variant="ghost"
-          className="cursor-pointer"
-          onClick={() => setIsExpanded(false)}
-          title="Hide map controls"
-        >
-          <X className="h-4 w-4" />
-          <span className="sr-only">Hide map controls</span>
-        </Button>
+        <div className="flex items-center gap-0.5">
+          {viewActions}
+          <Button
+            size="icon-sm"
+            variant="ghost"
+            className="cursor-pointer"
+            onClick={() => setIsExpanded(false)}
+            title="Hide map controls"
+          >
+            <X className="h-4 w-4" />
+            <span className="sr-only">Hide map controls</span>
+          </Button>
+        </div>
       </div>
       <div
-        className="flex min-h-0 flex-col gap-3 overflow-y-auto overscroll-contain p-3"
+        className="flex min-h-0 flex-col gap-2.5 overflow-y-auto overscroll-contain p-3"
         style={{ touchAction: "pan-y" }}
       >
         {sections}
