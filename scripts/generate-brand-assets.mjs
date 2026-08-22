@@ -9,37 +9,38 @@ import path from "node:path"
 const STATIC = path.resolve("resources/static")
 const BRAND = path.join(STATIC, "brand")
 
-// [svg source, output png, size, padding fraction of canvas]
+// [svg source, output png, size, padding fraction of canvas, opaque]
+// Opaque fills the canvas with the tile color behind the SVG, so the
+// rounded tile disappears into a square: what iOS wants (it masks its own
+// corners) and what Android's maskable icon wants (plus the 10% safe-zone
+// padding, which iOS does not use).
 const JOBS = [
-  ["mark-small.svg", "pwa-64x64.png", 64, 0],
-  ["mark.svg", "pwa-192x192.png", 192, 0],
-  ["mark.svg", "pwa-512x512.png", 512, 0],
-  // Maskable: full-bleed background, mark inside the 80% safe zone.
-  ["mark.svg", "maskable-icon-512x512.png", 512, 0.1],
-  ["mark.svg", "apple-touch-icon-180x180.png", 180, 0.1],
+  ["mark-small.svg", "pwa-64x64.png", 64, 0, false],
+  ["mark.svg", "pwa-192x192.png", 192, 0, false],
+  ["mark.svg", "pwa-512x512.png", 512, 0, false],
+  ["mark.svg", "maskable-icon-512x512.png", 512, 0.1, true],
+  ["mark.svg", "apple-touch-icon-180x180.png", 180, 0, true],
 ]
 const ICO_SIZES = [16, 32, 48]
 
 const browser = await chromium.launch()
 const page = await browser.newPage({ viewport: { width: 512, height: 512 } })
 
-async function render(svgName, outName, size, pad) {
+async function render(svgName, outName, size, pad, opaque = false) {
   const svg = await readFile(path.join(BRAND, svgName), "utf8")
   const inner = Math.round(size * (1 - 2 * pad))
   const offset = Math.round((size - inner) / 2)
-  // Maskable needs bleed: fill the canvas with the tile color, then center
-  // the (rounded-tile) SVG inside the safe zone.
-  const bg = pad > 0 ? "oklch(0.145 0.026 245)" : "transparent"
+  const bg = opaque ? "oklch(0.145 0.026 245)" : "transparent"
   await page.setViewportSize({ width: size, height: size })
   await page.setContent(`<body style="margin:0;width:${size}px;height:${size}px;background:${bg}">
     <img style="position:absolute;left:${offset}px;top:${offset}px;width:${inner}px;height:${inner}px"
          src="data:image/svg+xml;base64,${Buffer.from(svg).toString("base64")}"></body>`)
-  const buf = await page.screenshot({ omitBackground: pad === 0, type: "png" })
+  const buf = await page.screenshot({ omitBackground: !opaque, type: "png" })
   await writeFile(path.join(STATIC, outName), buf)
   console.log(`wrote ${outName}`)
 }
 
-for (const [src, out, size, pad] of JOBS) await render(src, out, size, pad)
+for (const [src, out, size, pad, opaque] of JOBS) await render(src, out, size, pad, opaque)
 
 // favicon.ico from the small mark at classic sizes
 const icoParts = []
