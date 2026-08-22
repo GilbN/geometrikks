@@ -15,7 +15,7 @@ import { useTopAsns } from "@/lib/queries"
 import { CategoryBadge } from "./top-asns-table"
 
 export function TrafficOriginCard() {
-  const { data, isLoading } = useTopAsns({ limit: 25 })
+  const { data, isError, error } = useTopAsns({ limit: 25 })
 
   const hosting = data?.categories.find((c) => c.category === "hosting")
   const other = data?.categories.find((c) => c.category === "other")
@@ -36,7 +36,11 @@ export function TrafficOriginCard() {
         </CardTitle>
       </CardHeader>
       <CardContent>
-        {isLoading || !data ? (
+        {isError && !data ? (
+          <p className="text-sm text-destructive">
+            Failed to load ASN statistics: {error?.message ?? "Unknown error"}
+          </p>
+        ) : !data ? (
           <Skeleton className="h-32 w-full" />
         ) : classified === 0 ? (
           <p className="text-sm text-muted-foreground">

@@ -137,12 +137,13 @@ class TestEnsure:
         assert await ensure_geoip_database(settings) is True
 
     async def test_no_credentials_stale_db_keeps_copy_and_returns_true(
-        self, tmp_path, caplog
+        self, tmp_path, caplog, monkeypatch
     ):
-        """Unreadable/old db without credentials: keep it, warn, stay usable."""
+        """Readable but old db without credentials: keep it, warn, stay usable."""
         from geometrikks.services.geoip.downloader import ensure_geoip_database
         settings = make_settings(tmp_path)
-        settings.db_path.write_bytes(b"existing")  # not a valid mmdb -> stale
+        settings.db_path.write_bytes(b"existing")
+        patch_build_epoch(monkeypatch, age_days=30)
         with caplog.at_level("WARNING"):
             assert await ensure_geoip_database(settings) is True
         assert any("keeping the stale copy" in r.message for r in caplog.records)
@@ -187,11 +188,23 @@ class TestEnsure:
         assert ok is False, "no db could be written -> degraded"
         assert list(settings.db_path.parent.glob("*.tmp")) == []
 
-    async def test_failed_download_keeps_existing_db_and_returns_true(self, tmp_path, monkeypatch):
+    async def test_no_credentials_unreadable_file_returns_false(self, tmp_path, caplog):
+        from geometrikks.services.geoip.downloader import ensure_geoip_database
+
+        settings = make_settings(tmp_path)
+        settings.db_path.write_bytes(b"not an mmdb")
+        with caplog.at_level("WARNING"):
+            assert await ensure_geoip_database(settings) is False
+        assert any("No usable GeoLite2 database" in r.message for r in caplog.records)
+
+    async def test_failed_download_keeps_readable_stale_db_and_returns_true(
+        self, tmp_path, monkeypatch
+    ):
         from geometrikks.services.geoip import downloader
 
         settings = make_settings(tmp_path, account_id="1", license_key="k")
-        settings.db_path.write_bytes(b"OLD")  # unreadable mmdb -> stale -> download attempted
+        settings.db_path.write_bytes(b"OLD")
+        patch_build_epoch(monkeypatch, age_days=30)  # readable but stale -> download attempted
 
         async def boom(s, edition):
             raise downloader.GeoIPDownloadError("http 401")
@@ -201,6 +214,20 @@ class TestEnsure:
         ok = await downloader.ensure_geoip_database(settings)
         assert ok is True, "existing (stale) db still usable after failed refresh"
         assert settings.db_path.read_bytes() == b"OLD"
+
+    async def test_failed_download_with_unreadable_file_returns_false(self, tmp_path, monkeypatch):
+        """A file that exists but is not an mmdb must not be reported as usable:
+        ingestion cannot open it, and a True here would silence the advisory."""
+        from geometrikks.services.geoip import downloader
+
+        settings = make_settings(tmp_path, account_id="1", license_key="k")
+        settings.db_path.write_bytes(b"not an mmdb")
+
+        async def boom(s, edition):
+            raise downloader.GeoIPDownloadError("http 401")
+
+        monkeypatch.setattr(downloader, "_fetch_tarball", boom)
+        assert await downloader.ensure_geoip_database(settings) is False
 
 
 class TestAsnEnsure:
@@ -247,7 +274,16 @@ class TestAsnEnsure:
         patch_build_epoch(monkeypatch, age_days=30)
         assert await ensure_asn_database(settings) is True
 
-    async def test_download_failure_reports_existing_file(self, tmp_path, monkeypatch):
+    async def test_no_credentials_unreadable_file_returns_false(self, tmp_path):
+        from geometrikks.services.geoip.downloader import ensure_asn_database
+
+        settings = make_settings(tmp_path)
+        settings.asn_db_path.write_bytes(b"not an mmdb")
+        assert await ensure_asn_database(settings) is False
+
+    async def test_download_failure_reports_readability_not_existence(
+        self, tmp_path, monkeypatch
+    ):
         from geometrikks.services.geoip import downloader
 
         async def failing_fetch(settings, edition):
@@ -256,7 +292,10 @@ class TestAsnEnsure:
         monkeypatch.setattr(downloader, "_fetch_tarball", failing_fetch)
         settings = make_settings(tmp_path, account_id="123", license_key="key")
         assert await downloader.ensure_asn_database(settings) is False
+        # Present but not an mmdb: still unusable.
         settings.asn_db_path.write_bytes(b"present")
+        assert await downloader.ensure_asn_database(settings) is False
+        # Readable and merely stale: usable.
         patch_build_epoch(monkeypatch, age_days=30)
         assert await downloader.ensure_asn_database(settings) is True
 

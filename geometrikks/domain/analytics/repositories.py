@@ -832,25 +832,47 @@ class SummaryStatsRepository:
         """(total_requests, total_bytes) for the range, with or without ASN data.
 
         The denominator for /top-asns coverage, since the ASN queries exclude
-        rows without ASN data. Unfiltered ranges read the summary CAGGs via
-        get_summary; filtered ranges scan raw access_logs, like every
-        filtered top list.
+        rows without ASN data. Stitched exactly like get_top_asns (CAGG for
+        whole buckets, raw for the partial edges) so the two sides of the
+        division cover the same window; get_summary's bucket-rounded totals
+        would report bucket slop as unenriched traffic. Filtered ranges scan
+        raw access_logs, like every filtered top list.
         """
         filters = filters or AnalyticsFilters()
-        if not filters.is_active():
-            stats = await self.get_summary(start, end)
-            return (stats.total_log_records, stats.total_bytes) if stats else (0, 0)
-        filter_sql, filter_params = filters.sql_conditions()
+        granularity = get_stats_granularity(start, end)
+        if granularity == StatsGranularity.RAW or filters.is_active():
+            filter_sql, filter_params = filters.sql_conditions()
+            stmt = text(f"""
+                SELECT CAST(COUNT(*) AS BIGINT) AS hits,
+                       CAST(COALESCE(SUM(bytes_sent), 0) AS BIGINT) AS total_bytes
+                FROM access_logs
+                WHERE timestamp >= :start AND timestamp < :end
+                {filter_sql}
+            """)
+            row = (await self.session.execute(
+                stmt, {"start": start, "end": end, **filter_params}
+            )).one()
+            return row.hits, row.total_bytes
+        table = f"summary_{granularity.value}_stats"
         stmt = text(f"""
-            SELECT CAST(COUNT(*) AS BIGINT) AS hits,
-                   CAST(COALESCE(SUM(bytes_sent), 0) AS BIGINT) AS total_bytes
-            FROM access_logs
-            WHERE timestamp >= :start AND timestamp < :end
-            {filter_sql}
+            WITH combined AS (
+                SELECT s.total_requests AS hits, s.total_bytes
+                FROM {table} s
+                WHERE s.bucket >= :a_start AND s.bucket < :a_end
+                UNION ALL
+                SELECT COUNT(*), COALESCE(SUM(bytes_sent), 0)
+                FROM access_logs
+                WHERE timestamp >= :start AND timestamp < :a_start
+                UNION ALL
+                SELECT COUNT(*), COALESCE(SUM(bytes_sent), 0)
+                FROM access_logs
+                WHERE timestamp >= :a_end AND timestamp < :end
+            )
+            SELECT CAST(COALESCE(SUM(hits), 0) AS BIGINT) AS hits,
+                   CAST(COALESCE(SUM(total_bytes), 0) AS BIGINT) AS total_bytes
+            FROM combined
         """)
-        row = (await self.session.execute(
-            stmt, {"start": start, "end": end, **filter_params}
-        )).one()
+        row = (await self.session.execute(stmt, _stitch_params(start, end, granularity))).one()
         return row.hits, row.total_bytes
 
     def _log_ip_combined_cte(self, granularity: StatsGranularity) -> str:

@@ -67,7 +67,26 @@ def schema_upgrades() -> None:
     """
     op.execute("ALTER TABLE access_logs ADD COLUMN IF NOT EXISTS autonomous_system_number BIGINT")
     op.execute("ALTER TABLE access_logs ADD COLUMN IF NOT EXISTS autonomous_system_organization VARCHAR(255)")
-    op.execute("CREATE INDEX IF NOT EXISTS ix_access_logs_asn ON access_logs (autonomous_system_number)")
+    # On an existing install access_logs is a hypertable with months of
+    # chunks, and a plain CREATE INDEX holds a write lock on all of them for
+    # the whole build, stalling any remote agent mid-insert. Building one
+    # chunk per transaction keeps each lock short. The option needs
+    # autocommit (this block has it) and is rejected on a plain table, which
+    # is what access_logs still is on a fresh install, where hypertable
+    # conversion happens after migrations.
+    bind = op.get_bind()
+    has_timescale = bind.execute(sa.text(
+        "SELECT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'timescaledb')"
+    )).scalar()
+    is_hypertable = has_timescale and bind.execute(sa.text(
+        "SELECT EXISTS (SELECT 1 FROM timescaledb_information.hypertables "
+        "WHERE hypertable_name = 'access_logs')"
+    )).scalar()
+    with_clause = " WITH (timescaledb.transaction_per_chunk)" if is_hypertable else ""
+    op.execute(
+        "CREATE INDEX IF NOT EXISTS ix_access_logs_asn "
+        f"ON access_logs (autonomous_system_number){with_clause}"
+    )
 
 
 def schema_downgrades() -> None:
