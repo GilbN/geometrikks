@@ -369,7 +369,7 @@ export function DebugLogsTable() {
           <Columns3 className="mr-1 h-3.5 w-3.5" /> Columns
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="max-h-80 overflow-y-auto">
+      <DropdownMenuContent align="end" className="max-h-80 w-auto min-w-44 overflow-y-auto">
         <DropdownMenuLabel>Visible columns</DropdownMenuLabel>
         <DropdownMenuSeparator />
         {COLUMNS.map((c) => (

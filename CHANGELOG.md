@@ -52,7 +52,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   now remembers its selection across reloads (per browser). Only columns
   you toggled are stored, so defaults still apply to the rest and columns
   added in later releases show up as intended. A "Reset to defaults" item
-  clears the saved selection.
+  clears the saved selection. The picker is also wide enough for its
+  labels instead of wrapping them at the width of the Columns button.
 
 ## [0.9.0] - 2026-08-20
 
