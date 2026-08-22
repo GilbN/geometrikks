@@ -264,11 +264,13 @@ export function Summary() {
                 icon={ArrowRightLeft}
               />
             </div>
-
-            {/* Section 4: Traffic Origin (renders nothing without ASN data) */}
-            <TrafficOriginStats />
           </div>
         )}
+
+        {/* Mounted outside the summary guard on purpose: it owns its own
+            query and loading/error/empty states, so its /top-asns request
+            starts with the /summary pair instead of queuing behind it. */}
+        <TrafficOriginStats />
       </div>
     </TooltipProvider>
   )
