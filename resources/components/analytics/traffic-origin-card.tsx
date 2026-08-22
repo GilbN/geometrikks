@@ -17,12 +17,12 @@ import { CategoryBadge } from "./top-asns-table"
 export function TrafficOriginCard() {
   const { data, isLoading } = useTopAsns({ limit: 25 })
 
-  const datacenter = data?.categories.find((c) => c.category === "datacenter")
+  const hosting = data?.categories.find((c) => c.category === "hosting")
   const other = data?.categories.find((c) => c.category === "other")
   const totalRequests = data?.totalRequests ?? 0
   // See asn-coverage.ts for why the share and the coverage use different
   // denominators.
-  const { classified, unenriched, datacenterShare: share, coverage } = asnCoverage(
+  const { classified, unenriched, hostingShare: share, coverage } = asnCoverage(
     data?.categories,
     totalRequests,
   )
@@ -77,7 +77,7 @@ export function TrafficOriginCard() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {[datacenter, other].map(
+                {[hosting, other].map(
                   (cat) =>
                     cat && (
                       <TableRow key={cat.category}>

@@ -452,7 +452,7 @@ export const apiV1AnalyticsTimeSeriesCumulativeGetCumulativeTimeSeries = <
 /**
  * GetTopAsns
  *
- * Top ASNs by hits with datacenter-vs-other totals (CAGG-served above 24h; filters force a raw scan).
+ * Top ASNs by hits with hosting-vs-other totals (CAGG-served above 24h; filters force a raw scan).
  */
 export const apiV1AnalyticsTopAsnsGetTopAsns = <
   ThrowOnError extends boolean = false,

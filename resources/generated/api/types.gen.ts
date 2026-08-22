@@ -122,7 +122,7 @@ export type AnalyticsSettingsView = {
  * AsnCategoryTotalsDTO
  */
 export type AsnCategoryTotalsDto = {
-  category: "datacenter" | "other";
+  category: "hosting" | "other";
   hits: number;
   totalBytes: number;
 };
@@ -923,7 +923,7 @@ export type TimeSeriesResponse = {
  */
 export type TopAsnDto = {
   asn: number;
-  category: "datacenter" | "other";
+  category: "hosting" | "other";
   hits: number;
   organization: string | null;
   totalBytes: number;

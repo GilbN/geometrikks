@@ -483,7 +483,7 @@
         "properties": {
           "category": {
             "enum": [
-              "datacenter",
+              "hosting",
               "other"
             ],
             "type": "string"
@@ -3257,7 +3257,7 @@
           },
           "category": {
             "enum": [
-              "datacenter",
+              "hosting",
               "other"
             ],
             "type": "string"
@@ -5488,7 +5488,7 @@
     "/api/v1/analytics/top-asns": {
       "get": {
         "deprecated": false,
-        "description": "Top ASNs by hits with datacenter-vs-other totals (CAGG-served above 24h; filters force a raw scan).",
+        "description": "Top ASNs by hits with hosting-vs-other totals (CAGG-served above 24h; filters force a raw scan).",
         "operationId": "ApiV1AnalyticsTopAsnsGetTopAsns",
         "parameters": [
           {

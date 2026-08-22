@@ -460,7 +460,7 @@ export const AnalyticsSettingsViewSchema = {
 export const AsnCategoryTotalsDTOSchema = {
   properties: {
     category: {
-      enum: ["datacenter", "other"],
+      enum: ["hosting", "other"],
       type: "string",
     },
     hits: {
@@ -3067,7 +3067,7 @@ export const TopAsnDTOSchema = {
       type: "integer",
     },
     category: {
-      enum: ["datacenter", "other"],
+      enum: ["hosting", "other"],
       type: "string",
     },
     hits: {

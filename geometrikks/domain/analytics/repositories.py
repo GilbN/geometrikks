@@ -780,7 +780,7 @@ class SummaryStatsRepository:
 
         Deliberately unlimited: ASN cardinality is a few thousand at most,
         and the /top-asns endpoint needs the full grouping to compute exact
-        datacenter-vs-other category totals before slicing its top N.
+        hosting-vs-other category totals before slicing its top N.
         Any active filter forces the raw path (no dims on the ASN CAGGs).
         """
         filters = filters or AnalyticsFilters()

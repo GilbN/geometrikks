@@ -253,7 +253,7 @@ class TopAsnsResponse(msgspec.Struct, rename="camel"):
     """Response containing top ASNs plus exact category totals.
 
     ``categories`` is computed over ALL ASNs in the range (not just the top
-    N items), so the datacenter share is exact. ``total_requests`` and
+    N items), so the hosting share is exact. ``total_requests`` and
     ``total_bytes`` count every request in the range, ASN-tagged or not:
     NULL-ASN rows (pre-feature history, disabled or failed enrichment) are
     invisible to the categories, so shares must be judged against these

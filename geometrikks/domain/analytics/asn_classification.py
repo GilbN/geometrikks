@@ -15,7 +15,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
-AsnCategory = Literal["datacenter", "other"]
+AsnCategory = Literal["hosting", "other"]
 
 DATASET_NAME = "bad-asn-list"
 DATASET_URL = "https://github.com/brianhama/bad-asn-list"
@@ -53,7 +53,7 @@ def _hosting_asns() -> frozenset[int]:
 
 def classify_asn(asn: int) -> AsnCategory:
     """Category for one autonomous system number."""
-    return "datacenter" if asn in _hosting_asns() else "other"
+    return "hosting" if asn in _hosting_asns() else "other"
 
 
 def hosting_asn_count() -> int:

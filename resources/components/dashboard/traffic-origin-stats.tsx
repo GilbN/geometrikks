@@ -24,7 +24,7 @@ export function TrafficOriginStats() {
   // computed server-side across every ASN, so they stay exact regardless.
   const { data, isLoading, isError, error } = useTopAsns({ limit: 1 })
 
-  const { classified, datacenterShare, coverage, hasData } = asnCoverage(
+  const { classified, hostingShare, coverage, hasData } = asnCoverage(
     data?.categories,
     data?.totalRequests ?? 0,
   )
@@ -79,7 +79,7 @@ export function TrafficOriginStats() {
       <div className="grid gap-4 md:grid-cols-2">
         <StatCard
           title="Hosting Traffic"
-          value={`${datacenterShare.toFixed(1)}%`}
+          value={`${hostingShare.toFixed(1)}%`}
           subtitle={
             coverage < 99.5
               ? `of ${formatNumber(classified)} classified requests (${coverage.toFixed(0)}% of range)`

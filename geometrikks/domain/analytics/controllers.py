@@ -561,7 +561,7 @@ class AnalyticsController(Controller):
             items=[TopUserAgentDTO(**vars(r)) for r in rows],
         )
 
-    @get("/top-asns", description="Top ASNs by hits with datacenter-vs-other totals (CAGG-served above 24h; filters force a raw scan).")
+    @get("/top-asns", description="Top ASNs by hits with hosting-vs-other totals (CAGG-served above 24h; filters force a raw scan).")
     async def get_top_asns(
         self,
         summary_stats_repo: NamedDependency[SummaryStatsRepository],
@@ -592,7 +592,7 @@ class AnalyticsController(Controller):
             start_date, end_date, filters=filters
         )
 
-        totals: dict[str, list[int]] = {"datacenter": [0, 0], "other": [0, 0]}
+        totals: dict[str, list[int]] = {"hosting": [0, 0], "other": [0, 0]}
         items: list[TopAsnDTO] = []
         for row in rows:
             category = classify_asn(row.asn)
@@ -614,9 +614,9 @@ class AnalyticsController(Controller):
             items=items,
             categories=[
                 AsnCategoryTotalsDTO(
-                    category="datacenter",
-                    hits=totals["datacenter"][0],
-                    total_bytes=totals["datacenter"][1],
+                    category="hosting",
+                    hits=totals["hosting"][0],
+                    total_bytes=totals["hosting"][1],
                 ),
                 AsnCategoryTotalsDTO(
                     category="other",

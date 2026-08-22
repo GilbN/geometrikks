@@ -8,9 +8,9 @@ from geometrikks.domain.analytics.asn_classification import (
 )
 
 
-def test_known_hosting_asn_is_datacenter():
+def test_known_hosting_asn_is_hosting():
     # AS16509 AMAZON-02: guaranteed present in any hosting-ASN list.
-    assert classify_asn(16509) == "datacenter"
+    assert classify_asn(16509) == "hosting"
 
 
 def test_private_asn_is_other():

@@ -93,7 +93,7 @@ class AboutLinksView(msgspec.Struct, rename="camel"):
 
 
 class AsnClassificationView(msgspec.Struct, rename="camel"):
-    """Provenance of the datacenter/other categorization on the ASN views.
+    """Provenance of the hosting/other categorization on the ASN views.
 
     Served from the vendored dataset itself (entry count included) so the
     About page can never drift from what actually ships.

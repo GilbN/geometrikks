@@ -14,8 +14,8 @@ import { formatBytes, formatNumber } from "@/lib/api"
 import { useTopAsns } from "@/lib/queries"
 import { TablePaginationFooter, usePagedRows } from "./table-pagination"
 
-export function CategoryBadge({ category }: { category: "datacenter" | "other" }) {
-  return category === "datacenter" ? (
+export function CategoryBadge({ category }: { category: "hosting" | "other" }) {
+  return category === "hosting" ? (
     <Badge variant="secondary" className="gap-1.5">
       <span className="size-1.5 rounded-full bg-geo-cyan" />
       Hosting

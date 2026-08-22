@@ -813,7 +813,7 @@ export function useTopUserAgents(options: UseTopListOptions = {}) {
 }
 
 /**
- * Fetch the top ASNs plus datacenter-vs-other category totals.
+ * Fetch the top ASNs plus hosting-vs-other category totals.
  * Uses TimeRangeContext for time filtering.
  */
 export function useTopAsns(options: UseTopListOptions = {}) {
