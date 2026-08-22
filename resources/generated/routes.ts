@@ -9,6 +9,9 @@ const API_URL = (typeof import.meta !== 'undefined' && (import.meta as any).env?
 /** RFC 3339 date-time string */
 export type DateTime = string;
 
+/** URI/URL string */
+export type URI = string;
+
 
 /** All available route names */
 export type RouteName =
@@ -69,7 +72,10 @@ export type RouteName =
   | 'site_homes'
   | 'stats'
   | 'tail'
-  | 'unban';
+  | 'unban'
+  | 'vite'
+  | 'vite_spa'
+  | 'vite_spa_path:path';
 
 /** Path parameter definitions per route */
 export interface RoutePathParams {
@@ -138,6 +144,13 @@ export interface RoutePathParams {
   'stats': Record<string, never>;
   'tail': Record<string, never>;
   'unban': Record<string, never>;
+  'vite': {
+    file_path: any;
+  };
+  'vite_spa': Record<string, never>;
+  'vite_spa_path:path': {
+    path: URI;
+  };
 }
 
 /** Query parameter definitions per route */
@@ -417,6 +430,9 @@ export interface RouteQueryParams {
     source?: "app" | "login";
   };
   'unban': Record<string, never>;
+  'vite': Record<string, never>;
+  'vite_spa': Record<string, never>;
+  'vite_spa_path:path': Record<string, never>;
 }
 
 type EmptyParams = Record<string, never>
@@ -832,6 +848,27 @@ export const routeDefinitions = {
     methods: ['POST'] as const,
     method: 'post',
     pathParams: [] as const,
+    queryParams: [] as const,
+  },
+  'vite': {
+    path: '/static/{file_path}',
+    methods: ['GET'] as const,
+    method: 'get',
+    pathParams: ['file_path'] as const,
+    queryParams: [] as const,
+  },
+  'vite_spa': {
+    path: '/',
+    methods: ['GET'] as const,
+    method: 'get',
+    pathParams: [] as const,
+    queryParams: [] as const,
+  },
+  'vite_spa_path:path': {
+    path: '/{path}',
+    methods: ['GET'] as const,
+    method: 'get',
+    pathParams: ['path'] as const,
     queryParams: [] as const,
   },
 } as const

@@ -96,9 +96,17 @@ export function LiveTail({ enabled }: { enabled: boolean }) {
           )}
         </Button>
       </div>
-      <div className="overflow-x-auto">
-        {/* Column header, aligned with the row layout below. */}
-        <div className={cn(COLS, "border-b py-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground")}>
+      {/* One scroll element for both axes: the header and the rows share it, so
+          a sideways scroll carries every column. Rows stay in normal flow
+          (offset by a single translate) rather than absolutely positioned, or
+          they would never widen the container past the viewport. */}
+      <div
+        ref={parentRef}
+        className="max-h-[70dvh] overflow-auto font-mono text-xs"
+        onMouseEnter={() => canHover && setHoverPaused(true)}
+        onMouseLeave={() => setHoverPaused(false)}
+      >
+        <div className={cn(COLS, "sticky top-0 z-10 border-b bg-card py-1.5 font-sans text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground")}>
           <span className="w-20 shrink-0">Time</span>
           <span className="w-10 shrink-0">Status</span>
           <span className="w-14 shrink-0">Method</span>
@@ -113,20 +121,15 @@ export function LiveTail({ enabled }: { enabled: boolean }) {
           <span className="w-16 shrink-0">Country</span>
           <span className="w-16 shrink-0">City</span>
         </div>
-        <div
-          ref={parentRef}
-          className="overflow-y-auto overflow-x-hidden font-mono text-xs"
-          onMouseEnter={() => canHover && setHoverPaused(true)}
-          onMouseLeave={() => setHoverPaused(false)}
-        >
-          <div style={{ height: virtualizer.getTotalSize(), position: "relative" }}>
+        <div style={{ height: virtualizer.getTotalSize() }} className="min-w-max">
+          <div style={{ transform: `translateY(${virtualizer.getVirtualItems()[0]?.start ?? 0}px)` }}>
             {virtualizer.getVirtualItems().map((item) => {
               const row = rows[item.index]
               return (
                 <div
                   key={item.key}
-                  className={cn(COLS, "absolute left-0 border-b border-border/40")}
-                  style={{ top: 0, height: item.size, transform: `translateY(${item.start}px)` }}
+                  className={cn(COLS, "border-b border-border/40")}
+                  style={{ height: item.size }}
                 >
                   <span className="w-20 shrink-0 text-muted-foreground">
                     {new Date(row.timestamp).toLocaleTimeString()}
