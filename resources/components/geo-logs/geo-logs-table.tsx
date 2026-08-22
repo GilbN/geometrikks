@@ -5,7 +5,6 @@
  * arrives here as props; the filter set comes from GeoLogFiltersContext like
  * everything else on the page.
  */
-import { useMemo, useState } from "react"
 import {
   ArrowDown,
   ArrowUp,
@@ -25,6 +24,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
+  DropdownMenuItem,
   DropdownMenuContent,
   DropdownMenuLabel,
   DropdownMenuSeparator,
@@ -35,7 +35,8 @@ import type { GeoLogEntry } from "@/generated/api/types.gen"
 import { formatNumber, type GeoLogSortField, type GeoLogSortOrder } from "@/lib/api"
 import { IpBanControls } from "@/components/crowdsec/ip-ban-controls"
 import { useGeoLogs } from "@/lib/queries"
-import { cn, isMobileViewport } from "@/lib/utils"
+import { cn } from "@/lib/utils"
+import { useColumnVisibility } from "@/lib/column-visibility"
 
 export const GEO_LOGS_PAGE_SIZES = [10, 20, 50, 100, 200, 500] as const
 
@@ -168,13 +169,8 @@ export function GeoLogsTable({
   onPageSizeChange: (pageSize: number) => void
   onSortChange: (sortField: GeoLogSortField, sortOrder: GeoLogSortOrder) => void
 }) {
-  const [visible, setVisible] = useState<Set<string>>(() => {
-    const mobile = isMobileViewport()
-    return new Set(
-      COLUMNS.filter((c) => c.defaultVisible && !(mobile && c.mobileHidden)).map((c) => c.key),
-    )
-  })
-  const shownColumns = useMemo(() => COLUMNS.filter((c) => visible.has(c.key)), [visible])
+  const { visible, shownColumns, toggleColumn, resetColumns, hasOverrides } =
+    useColumnVisibility("geometrikks-columns-geo-logs", COLUMNS)
 
   const { data, isLoading, isError, isPlaceholderData } = useGeoLogs({
     currentPage: page,
@@ -196,15 +192,6 @@ export function GeoLogsTable({
     }
   }
 
-  function toggleColumn(key: string) {
-    setVisible((prev) => {
-      const next = new Set(prev)
-      if (next.has(key)) next.delete(key)
-      else next.add(key)
-      return next
-    })
-  }
-
   if (isError) {
     return (
       <div className="rounded-md border p-6 text-sm text-destructive">
@@ -223,7 +210,7 @@ export function GeoLogsTable({
               <Columns3 className="mr-1 h-3.5 w-3.5" /> Columns
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="max-h-80 overflow-y-auto">
+          <DropdownMenuContent align="end" className="max-h-80 w-auto min-w-44 overflow-y-auto">
             <DropdownMenuLabel>Visible columns</DropdownMenuLabel>
             <DropdownMenuSeparator />
             {COLUMNS.map((c) => (
@@ -237,6 +224,10 @@ export function GeoLogsTable({
                 {c.label}
               </DropdownMenuCheckboxItem>
             ))}
+          <DropdownMenuSeparator />
+          <DropdownMenuItem disabled={!hasOverrides} onSelect={resetColumns}>
+            Reset to defaults
+          </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
