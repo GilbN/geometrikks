@@ -14,7 +14,7 @@ import { Network, Server } from "lucide-react"
 
 import { Card, CardContent } from "@/components/ui/card"
 import { SectionHeader } from "@/components/dashboard/section-header"
-import { StatCard } from "@/components/dashboard/statcard"
+import { StatCard, StatCardSkeleton } from "@/components/dashboard/statcard"
 import { formatNumber } from "@/lib/api"
 import { asnCoverage } from "@/lib/asn-coverage"
 import { useTopAsns } from "@/lib/queries"
@@ -22,7 +22,7 @@ import { useTopAsns } from "@/lib/queries"
 export function TrafficOriginStats() {
   // limit=1: only the leading organization is shown here. Category totals are
   // computed server-side across every ASN, so they stay exact regardless.
-  const { data, isError, error } = useTopAsns({ limit: 1 })
+  const { data, isLoading, isError, error } = useTopAsns({ limit: 1 })
 
   const { classified, datacenterShare, coverage, hasData } = asnCoverage(
     data?.categories,
@@ -45,6 +45,22 @@ export function TrafficOriginStats() {
             </p>
           </CardContent>
         </Card>
+      </>
+    )
+  }
+
+  // Placeholders on the initial load so the section does not pop in and
+  // shift the page once the query lands. On an install with no ASN data
+  // they flash once and vanish; the alternative is a layout jump on every
+  // load for everyone who has data.
+  if (isLoading) {
+    return (
+      <>
+        <SectionHeader>Traffic Origin</SectionHeader>
+        <div className="grid gap-4 md:grid-cols-2">
+          <StatCardSkeleton />
+          <StatCardSkeleton />
+        </div>
       </>
     )
   }
