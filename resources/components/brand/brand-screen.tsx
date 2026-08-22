@@ -39,11 +39,11 @@ export function BrandScreen({
       <section
         aria-labelledby="brand-screen-title"
         className={cn(
-          "relative w-full max-w-sm overflow-hidden rounded-xl bg-card text-card-foreground ring-1 ring-border shadow-[var(--shadow-card)]",
+          "relative w-full max-w-sm overflow-hidden rounded-xl bg-background/85 text-card-foreground ring-1 ring-border shadow-[var(--shadow-card)] backdrop-blur",
           className,
         )}
       >
-        <header className="border-b border-border/50 bg-muted/30 px-6 pb-5 pt-7 text-center">
+        <header className="border-b border-border/50 bg-foreground/[0.03] px-6 pb-5 pt-7 text-center">
           <div className="inline-flex items-center gap-3 animate-in fade-in-0 zoom-in-95 duration-500 motion-reduce:animate-none">
             <BrandMark size={56} className="text-foreground" decorative />
             <Wordmark sub className="items-start text-[28px] text-foreground" />
