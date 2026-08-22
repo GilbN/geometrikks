@@ -4,8 +4,8 @@
  * then where they come from, then the feed with threats on their own lane.
  *
  * It floats rather than docks so the map still runs edge to edge behind it,
- * matching the controls panel and the popups. Its height is bounded: the
- * summary stays put and the feed scrolls inside the rail.
+ * matching the controls panel and the popups. It grows with the feed up to
+ * the map's height; the summary stays put and the feed scrolls inside.
  */
 import { useState } from "react"
 import { useLiveWindow } from "@/lib/live-traffic/context"
@@ -21,7 +21,12 @@ export function LiveRail({ onSelect }: { onSelect: (request: LiveRequest) => voi
   const rows = lane === "threats" ? requests.filter((request) => request.threat) : requests
 
   return (
-    <MapOverlay placement="top-left" role="complementary" aria-label="Live traffic" className="w-60">
+    <MapOverlay
+      placement="top-left"
+      role="complementary"
+      aria-label="Live traffic"
+      className="w-60 max-h-[calc(100%-2rem)]"
+    >
       <div className="px-3 pt-3">
         <LiveSummary summary={summary} />
       </div>
