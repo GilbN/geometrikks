@@ -61,20 +61,38 @@ const SEGMENTS: Record<number, string> = {
   9: "tb", 10: "tr,lb", 11: "tr", 12: "lr", 13: "br", 14: "lb",
 }
 
+// The canvas renders at most this wide and scales up through CSS; contour
+// lines at 1px stay crisp enough and the cost stops growing with the window.
+const MAX_W = 1280
+
 function drawRelief(canvas: HTMLCanvasElement, accent: string, line: string) {
   const ctx = canvas.getContext("2d")
   if (!ctx) return
-  const w = (canvas.width = canvas.clientWidth)
-  const h = (canvas.height = canvas.clientHeight)
+  const scale = Math.min(1, MAX_W / Math.max(1, canvas.clientWidth))
+  const w = (canvas.width = Math.round(canvas.clientWidth * scale))
+  const h = (canvas.height = Math.round(canvas.clientHeight * scale))
   ctx.clearRect(0, 0, w, h)
-  // Flatten a plateau under the lockup so the card sits on calm ground.
-  const field = (x: number, y: number) =>
-    noise(x / 260, y / 260) * 0.6 +
-    noise(x / 90, y / 90) * 0.3 +
-    noise(x / 30, y / 30) * 0.1 +
-    0.35 * Math.exp(-(((x - w / 2) / 320) ** 2 + ((y - h / 2) / 300) ** 2))
+
+  // Sample the field once on the grid; every level then reads the cache
+  // instead of re-evaluating three octaves of noise per corner.
   const step = 8
+  const cols = Math.ceil(w / step) + 1
+  const rows = Math.ceil(h / step) + 1
+  const grid = new Float32Array(cols * rows)
+  for (let j = 0; j < rows; j++) {
+    for (let i = 0; i < cols; i++) {
+      const x = i * step, y = j * step
+      grid[j * cols + i] =
+        noise(x / 260, y / 260) * 0.6 +
+        noise(x / 90, y / 90) * 0.3 +
+        noise(x / 30, y / 30) * 0.1 +
+        // Flatten a plateau under the lockup so the card sits on calm ground.
+        0.35 * Math.exp(-(((x - w / 2) / 320) ** 2 + ((y - h / 2) / 300) ** 2))
+    }
+  }
+
   const levels = 14
+  const mid = step / 2
   for (let l = 1; l < levels; l++) {
     const iso = l / levels
     const accented = l % 4 === 0
@@ -82,19 +100,22 @@ function drawRelief(canvas: HTMLCanvasElement, accent: string, line: string) {
     ctx.globalAlpha = accented ? 0.3 : 0.18
     ctx.lineWidth = accented ? 1.2 : 0.8
     ctx.beginPath()
-    for (let y = 0; y < h; y += step) {
-      for (let x = 0; x < w; x += step) {
-        const v = [field(x, y), field(x + step, y), field(x + step, y + step), field(x, y + step)].map((q) => (q > iso ? 1 : 0))
-        const idx = v[0] * 8 + v[1] * 4 + v[2] * 2 + v[3]
+    for (let j = 0; j < rows - 1; j++) {
+      for (let i = 0; i < cols - 1; i++) {
+        const idx =
+          (grid[j * cols + i] > iso ? 8 : 0) +
+          (grid[j * cols + i + 1] > iso ? 4 : 0) +
+          (grid[(j + 1) * cols + i + 1] > iso ? 2 : 0) +
+          (grid[(j + 1) * cols + i] > iso ? 1 : 0)
         if (idx === 0 || idx === 15) continue
-        const mid = step / 2
+        const x = i * step, y = j * step
         const pts: Record<string, [number, number]> = {
           t: [x + mid, y], r: [x + step, y + mid], b: [x + mid, y + step], l: [x, y + mid],
         }
-        for (const s of SEGMENTS[idx].split(",")) {
-          const a = pts[s[0]], b = pts[s[1]]
-          ctx.moveTo(a[0], a[1])
-          ctx.lineTo(b[0], b[1])
+        for (const seg of SEGMENTS[idx].split(",")) {
+          const p0 = pts[seg[0]], p1 = pts[seg[1]]
+          ctx.moveTo(p0[0], p0[1])
+          ctx.lineTo(p1[0], p1[1])
         }
       }
     }
@@ -112,10 +133,14 @@ export function ReliefBackdrop() {
     if (!canvas) return
     // Canvas cannot read CSS variables, so resolve the two colors through
     // computed styles on the canvas itself (color) and its parent (border).
+    // Coalesce bursts (a drag-resize fires per frame) into one draw.
+    let frame = 0
     const draw = () => {
-      const accent = getComputedStyle(canvas).color
-      const line = getComputedStyle(canvas).borderColor
-      drawRelief(canvas, accent, line)
+      cancelAnimationFrame(frame)
+      frame = requestAnimationFrame(() => {
+        const style = getComputedStyle(canvas)
+        drawRelief(canvas, style.color, style.borderColor)
+      })
     }
     draw()
     const ro = new ResizeObserver(draw)
@@ -123,6 +148,7 @@ export function ReliefBackdrop() {
     const mo = new MutationObserver(draw)
     mo.observe(document.documentElement, { attributes: true, attributeFilter: ["class", "data-accent"] })
     return () => {
+      cancelAnimationFrame(frame)
       ro.disconnect()
       mo.disconnect()
     }
