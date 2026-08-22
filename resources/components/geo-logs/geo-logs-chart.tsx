@@ -5,6 +5,7 @@
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts"
 import { SignalPanel } from "@/components/data/signal-panel"
 import { dataState } from "@/components/data/types"
+import { ChartLegendRow } from "@/components/analytics/chart-legend-row"
 import { GranularityBadge } from "@/components/analytics/granularity-badge"
 import {
   ChartContainer,
@@ -42,18 +43,7 @@ export function GeoLogsChart() {
           <GranularityBadge granularity={data?.granularity} />
         </>
       }
-      legend={
-        <div className="flex flex-wrap items-center gap-4">
-          <span className="inline-flex items-center gap-2">
-            <span aria-hidden className="size-2 rounded-full bg-[var(--chart-1)]" />
-            Events
-          </span>
-          <span className="inline-flex items-center gap-2">
-            <span aria-hidden className="size-2 rounded-full bg-[var(--chart-2)]" />
-            Unique IPs
-          </span>
-        </div>
-      }
+      legend={<ChartLegendRow config={chartConfig} label="Geo event chart legend" />}
     >
       {data && (
         <ChartContainer config={chartConfig} className="h-[280px] w-full">
