@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Accent picker in the header: Aurora teal, Fjord green or Ember copper. The choice persists per browser and is applied before first paint alongside the theme, so a non-default accent no longer flashes teal on load.
 - Shared page chrome components: standard page header, section dividers, and error banner.
 - New brand identity: wayfinder (vegvisir) mark, runr wordmark with rune ligature, regenerated favicon and PWA icons, and a branded login screen.
 - Accent variant system: the app accent (teal default, green, copper) is switchable in code via a `data-accent` attribute.
@@ -18,12 +19,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Redesigned stat cards with the design-system typography and theme-aware trend colors; normalized panel borders and shadows across all cards; overview page rebuilt on the shared chrome.
 - Rebuilt the color themes: new "Aurora night" dark theme and a first-class "Fjord mist" light theme; map popups and controls now follow the theme tokens.
+- The error boundary and the 404 page share the login screen's brand treatment: mark, wordmark and aurora backdrop.
+- Security's Active decisions and Alert history cards use the same label style as every other data card.
 - Every page now uses the shared page header, section, and error-banner chrome; tables get uppercase headers, 13px rows, and card panels; analytics and top-list card titles use the design-system label style.
 - Retired the legacy geo-cyan color aliases; all accent color, including map popups and the about page brand block, now follows the active theme accent.
 
 ### Fixed
 
 - Apple touch icon no longer has transparent corners that iOS composited black.
+- Percent and ratio placeholders render as "-" instead of an em dash, matching every other empty cell.
 - Stat card trend badges no longer pair a 0.0% label with an up or down arrow; tiny and non-finite deltas render as flat or hidden.
 
 ## [0.10.0] - 2026-08-22

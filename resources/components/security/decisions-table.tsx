@@ -58,7 +58,7 @@ export function DecisionsTable() {
   return (
     <Card className="py-4">
       <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 pb-2">
-        <CardTitle className="text-base">Active decisions</CardTitle>
+        <CardTitle className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Active decisions</CardTitle>
         <div className="flex flex-wrap items-center gap-2">
           {status?.writeEnabled && <BanIpDialog />}
           <Tabs

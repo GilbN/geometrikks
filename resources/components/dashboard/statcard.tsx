@@ -3,7 +3,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 
 import { TrendingUp, TrendingDown, Minus } from "lucide-react"
 import { formatPercent } from "@/lib/api"
-import { deltaDirection, deltaTone } from "@/lib/stat-delta"
+import { FLAT_DELTA_LABEL, deltaDirection, deltaTone } from "@/lib/stat-delta"
 import { cn } from "@/lib/utils"
 
 export function StatCardSkeleton() {
@@ -98,7 +98,7 @@ function DeltaBadge({
       )}
     >
       <DirectionIcon className="h-3 w-3" />
-      {direction === "flat" ? "0.0%" : formatPercent(value)}
+      {direction === "flat" ? FLAT_DELTA_LABEL : formatPercent(value)}
     </span>
   )
 }

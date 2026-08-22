@@ -94,7 +94,7 @@
   --border: oklch(0.9 0.01 230);
   --input: oklch(0.9 0.01 230);
   --ring: oklch(var(--brand-l) var(--brand-c) var(--brand-h));
-  /* CVD-validated categorical slots (fixed order — assign series 1..5, never
+  /* CVD-validated categorical slots (fixed order - assign series 1..5, never
      cycle). Adjacent-pair deltas checked on white; aqua/yellow are sub-3:1 on
      the surface, so multi-series charts must keep a legend or table view. */
   --chart-1: #2a78d6;
@@ -174,7 +174,8 @@
   --shadow-card: 0 0 #0000;
 }
 
-/* Accent variants: code-switchable via data-accent on <html> (no UI yet).
+/* Accent variants, chosen from the header's accent picker and applied as
+   data-accent on <html>.
    Teal is the default and needs no attribute. Light values target ~4.5:1 on
    white cards; dark values sit in the same glow band as teal. */
 [data-accent="green"] {
@@ -182,7 +183,8 @@
   --brand-c: 0.13;
   --brand-l: 0.5;
 }
-.dark[data-accent="green"] {
+.dark[data-accent="green"],
+.dark [data-accent="green"] {
   --brand-l: 0.76;
   --brand-c: 0.17;
 }
@@ -191,7 +193,8 @@
   --brand-c: 0.1;
   --brand-l: 0.52;
 }
-.dark[data-accent="copper"] {
+.dark[data-accent="copper"],
+.dark [data-accent="copper"] {
   --brand-l: 0.72;
   --brand-c: 0.11;
 }

@@ -99,7 +99,7 @@ export function BrandMark({
       <g stroke="var(--primary)" strokeWidth="3" fill="none" strokeLinecap="square">
         <ForkTickArm />
       </g>
-      <circle cx="50" cy="6" r="2.2" fill="var(--primary)" />
+      <circle cx="50" cy="6" r="3" fill="var(--primary)" />
       <circle cx="50" cy="50" r="1.9" fill="var(--primary)" />
     </svg>
   )

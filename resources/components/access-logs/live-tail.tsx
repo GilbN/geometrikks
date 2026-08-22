@@ -97,7 +97,7 @@ export function LiveTail({ enabled }: { enabled: boolean }) {
         </Button>
       </div>
       <div className="overflow-x-auto">
-        {/* Column header — aligns with the row layout below. */}
+        {/* Column header, aligned with the row layout below. */}
         <div className={cn(COLS, "border-b py-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground")}>
           <span className="w-20 shrink-0">Time</span>
           <span className="w-10 shrink-0">Status</span>

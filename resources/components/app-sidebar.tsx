@@ -295,7 +295,7 @@ function LiveIndicator({ collapsed }: { collapsed: boolean }) {
 
 function LiveFeedIndicator({ collapsed }: { collapsed: boolean }) {
   const { tooltipsSuppressed, resetTooltipSuppression } = useSidebar()
-  // WebSocket live-feed status — distinct from the ingestion-health dot above.
+  // WebSocket live-feed status, distinct from the ingestion-health dot above.
   // Lazy-connect: reads "Live feed off" until a consumer (map pulses or the
   // access-logs live tail) subscribes to the shared connection.
   const status = useLiveFeedStatus()

@@ -3,11 +3,18 @@
  * goodness, direction follows the numeric sign. Magnitudes that would
  * display as "0.0%" count as flat so a zero label never pairs with an
  * arrow. */
+import { formatPercent } from "@/lib/api"
+
 export type DeltaTone = "accent" | "destructive" | "muted"
 
-/** formatPercent renders one decimal, so below this magnitude the badge
- * text reads "0.0%". */
-export const FLAT_DELTA_EPSILON = 0.05
+/** What formatPercent prints for zero, minus its sign: the flat badge shows
+ * this, so the two can never disagree on decimal places. */
+export const FLAT_DELTA_LABEL = formatPercent(0).replace(/^\+/, "")
+
+/** Half of the formatter's smallest step: anything below it would round to
+ * FLAT_DELTA_LABEL. Derived from the label so a formatter change moves both. */
+export const FLAT_DELTA_EPSILON =
+  0.5 * 10 ** -(FLAT_DELTA_LABEL.replace("%", "").split(".")[1]?.length ?? 0)
 
 export function deltaTone(
   value: number | null | undefined,
