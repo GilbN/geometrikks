@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Access, Geo, Debug and Analytics filters sit in one labeled rail on desktop with an active-group count and a Clear action; Geo logs and Analytics gain the same mobile filter drawer Access logs had, and the drawer gets its own Clear.
 - Access logs: the history table is one framed card (title, result count, Columns, table, pagination), and selecting a row opens the complete record in a side sheet, including ASN, recording hostname, source format and the ban controls. Rows open with Enter or Space too.
 - Geo logs: the grouped table, Top IPs and Top locations are framed cards with counts, and the spatial preview and event chart share the chart panel used on Analytics. Selecting a table row opens the complete location record, ban controls included.
+- Debug logs: the table is a framed card with its count and Columns menu, and the record detail moved from a dialog to a side sheet with the raw line, parse result and linked request.
 - Settings > Appearance: theme (System, Light, Dark) and accent side by side with previews. System now tracks the device's color scheme live instead of only at page load.
 - Accent picker in the header: Aurora teal, Fjord green or Ember copper. The choice persists per browser and is applied before first paint alongside the theme, so a non-default accent no longer flashes teal on load.
 - Shared page chrome components: standard page header, section dividers, and error banner.

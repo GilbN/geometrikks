@@ -22,9 +22,7 @@ import {
 } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { Skeleton } from "@/components/ui/skeleton"
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -45,9 +43,11 @@ import { PaginationFooter } from "@/components/ui/pagination-footer"
 import { FilterCombobox } from "@/components/ui/filter-combobox"
 import { FilterRail } from "@/components/data/filter-rail"
 import { FiltersDrawer, FilterSection } from "@/components/ui/filters-drawer"
-import { DebugLogDetailDialog } from "@/components/debug-logs/debug-log-detail-dialog"
+import { DebugLogDetailSheet } from "@/components/debug-logs/debug-log-detail-sheet"
+import { DataTableFrame } from "@/components/data/data-table-frame"
+import { rowActivation, stopRowActivation } from "@/components/data/row-activation"
+import { dataState } from "@/components/data/types"
 import { IpBanControls } from "@/components/crowdsec/ip-ban-controls"
-import { ErrorBanner } from "@/components/error-banner"
 import { useAccessLogDebug, useAccessLogFacets, useCrowdsecLiveUpdates } from "@/lib/queries"
 import { useDebouncedValue } from "@/hooks/use-debounced-value"
 import { isValidIp } from "@/lib/crowdsec"
@@ -235,7 +235,7 @@ export function DebugLogsTable() {
   const { visible, shownColumns, toggleColumn, resetColumns, hasOverrides } =
     useColumnVisibility("geometrikks-columns-debug-logs", COLUMNS)
 
-  // Detail dialog.
+  // Detail sheet.
   const [selected, setSelected] = useState<AccessLogDebugEntry | null>(null)
 
   // Keep banned badges in sync with external cscli/console decisions.
@@ -263,7 +263,7 @@ export function DebugLogsTable() {
   const rows = data?.items ?? []
   const total = data?.total ?? 0
   const pageCount = Math.max(1, Math.ceil(total / pageSize))
-  const colCount = shownColumns.length
+  const state = dataState(isLoading, isError, rows.length)
 
   function toggleSort(field: AccessLogDebugSortField) {
     if (sortField === field) {
@@ -395,37 +395,41 @@ export function DebugLogsTable() {
     </DropdownMenu>
   )
 
-  if (isError) {
-    return <ErrorBanner title="Failed to load debug logs." />
-  }
-
   return (
-    <div className="space-y-3">
-      {/* Filter toolbar */}
+    <div className="space-y-4">
       {isMobile ? (
-        <div className="flex items-center gap-2">
-          <div onClick={() => setFacetsEnabled(true)}>
-            <FiltersDrawer activeCount={activeFilterCount} onClear={clearFilters}>
-              {renderFilters(true)}
-            </FiltersDrawer>
-          </div>
-          {columnsMenu}
+        <div onClick={() => setFacetsEnabled(true)}>
+          <FiltersDrawer activeCount={activeFilterCount} onClear={clearFilters}>
+            {renderFilters(true)}
+          </FiltersDrawer>
         </div>
       ) : (
-        <div className="flex items-start gap-2">
-          <FilterRail
-            label="Debug filters"
-            activeCount={activeFilterCount}
-            onClear={clearFilters}
-            className="min-w-0 flex-1"
-          >
-            {renderFilters(false)}
-          </FilterRail>
-          {columnsMenu}
-        </div>
+        <FilterRail label="Debug filters" activeCount={activeFilterCount} onClear={clearFilters}>
+          {renderFilters(false)}
+        </FilterRail>
       )}
 
-      <Card className="gap-0 py-0">
+      <DataTableFrame
+        title="Captured source lines"
+        description="Raw parser input and linked request context. Select a row for the complete record."
+        count={data ? total : undefined}
+        tools={columnsMenu}
+        state={state}
+        error="Failed to load debug logs."
+        empty="No debug lines match these filters."
+        footer={
+          <PaginationFooter
+            page={page}
+            pageCount={pageCount}
+            total={total}
+            onPageChange={setPage}
+            disabled={isPlaceholderData}
+            pageSize={pageSize}
+            pageSizes={PAGE_SIZES}
+            onPageSizeChange={setPageSize}
+          />
+        }
+      >
         <Table>
           <TableHeader>
             <TableRow>
@@ -462,62 +466,29 @@ export function DebugLogsTable() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {isLoading
-              ? Array.from({ length: 10 }).map((_, i) => (
-                  <TableRow key={i}>
-                    {shownColumns.map((c) => (
-                      <TableCell key={c.key}>
-                        <Skeleton className="h-4 w-full" />
-                      </TableCell>
-                    ))}
-                  </TableRow>
-                ))
-              : rows.map((row) => (
-                  <TableRow
-                    key={row.id}
-                    className="cursor-pointer"
-                    onClick={() => setSelected(row)}
-                  >
-                    {shownColumns.map((c) => (
-                      <TableCell key={c.key}>
-                        {c.render(row)}
-                        {c.key === "ipAddress" && row.ipAddress && (
-                          // Rows open the detail dialog on click; keep the
-                          // ban/unban dropdown from also triggering it.
-                          <span onClick={(e) => e.stopPropagation()}>
-                            <IpBanControls ip={row.ipAddress} />
-                          </span>
-                        )}
-                      </TableCell>
-                    ))}
-                  </TableRow>
+            {rows.map((row) => (
+              <TableRow
+                key={row.id}
+                aria-label={`Debug line ${row.id}, ${row.isMalformed ? "malformed" : "parsed"}`}
+                {...rowActivation<HTMLTableRowElement>(() => setSelected(row))}
+              >
+                {shownColumns.map((c) => (
+                  <TableCell key={c.key}>
+                    {c.render(row)}
+                    {c.key === "ipAddress" && row.ipAddress && (
+                      <span {...stopRowActivation}>
+                        <IpBanControls ip={row.ipAddress} />
+                      </span>
+                    )}
+                  </TableCell>
                 ))}
-            {!isLoading && rows.length === 0 && (
-              <TableRow>
-                <TableCell colSpan={colCount} className="h-24 text-center text-muted-foreground">
-                  No debug lines match these filters.
-                </TableCell>
               </TableRow>
-            )}
+            ))}
           </TableBody>
         </Table>
-        <PaginationFooter
-          page={page}
-          pageCount={pageCount}
-          total={total}
-          onPageChange={setPage}
-          disabled={isPlaceholderData}
-          pageSize={pageSize}
-          pageSizes={PAGE_SIZES}
-          onPageSizeChange={setPageSize}
-          className="border-t"
-        />
-      </Card>
+      </DataTableFrame>
 
-      <DebugLogDetailDialog
-        entry={selected}
-        onOpenChange={(open) => !open && setSelected(null)}
-      />
+      <DebugLogDetailSheet entry={selected} onOpenChange={(open) => !open && setSelected(null)} />
     </div>
   )
 }
