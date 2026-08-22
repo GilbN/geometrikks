@@ -30,7 +30,7 @@ export function TrafficOriginCard() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center gap-1.5 text-sm font-medium">
+        <CardTitle className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
           Traffic origin
           <AsnCategoryInfo />
         </CardTitle>
@@ -67,7 +67,7 @@ export function TrafficOriginCard() {
             )}
             <div className="h-2.5 rounded-full bg-muted">
               <div
-                className="h-2.5 rounded-full bg-geo-cyan"
+                className="h-2.5 rounded-full bg-primary"
                 style={{ width: `${share}%` }}
               />
             </div>

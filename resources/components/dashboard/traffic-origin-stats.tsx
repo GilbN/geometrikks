@@ -12,8 +12,8 @@
  */
 import { Network, Server } from "lucide-react"
 
-import { Card, CardContent } from "@/components/ui/card"
-import { SectionHeader } from "@/components/dashboard/section-header"
+import { ErrorBanner } from "@/components/error-banner"
+import { SectionHeader } from "@/components/section-header"
 import { StatCard, StatCardSkeleton } from "@/components/dashboard/statcard"
 import { formatNumber } from "@/lib/api"
 import { asnCoverage } from "@/lib/asn-coverage"
@@ -38,13 +38,9 @@ export function TrafficOriginStats() {
     return (
       <>
         <SectionHeader>Traffic Origin</SectionHeader>
-        <Card className="border-destructive/50 bg-destructive/10">
-          <CardContent className="py-4">
-            <p className="text-sm text-destructive">
-              Failed to load ASN statistics: {error?.message ?? "Unknown error"}
-            </p>
-          </CardContent>
-        </Card>
+        <ErrorBanner
+          title={`Failed to load ASN statistics: ${error?.message ?? "Unknown error"}`}
+        />
       </>
     )
   }

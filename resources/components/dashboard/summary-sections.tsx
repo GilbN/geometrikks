@@ -22,10 +22,9 @@ import {
 } from "lucide-react"
 
 import { StatCard, StatCardSkeleton } from "@/components/dashboard/statcard"
-import { SectionHeader } from "@/components/dashboard/section-header"
+import { SectionHeader } from "@/components/section-header"
 import {
   formatNumber,
-  formatPercent,
   formatBytes,
   formatDuration,
   type SummaryResponse,
@@ -68,28 +67,6 @@ function Section({
 
 const calcPercent = (part: number, total: number) =>
   total > 0 ? ((part / total) * 100).toFixed(1) : "0"
-
-/** "+12.3% vs last 24 hours" colored by direction; `goodWhenUp` flips the
- *  palette for metrics where growth is bad (latency). */
-function ChangeSubtitle({
-  change,
-  rangeLabel,
-  fallback,
-  goodWhenUp = true,
-}: {
-  change: number | null | undefined
-  rangeLabel: string
-  fallback: string
-  goodWhenUp?: boolean
-}) {
-  if (change === null || change === undefined) return <>{fallback}</>
-  const good = goodWhenUp ? change >= 0 : change <= 0
-  return (
-    <span className={cn(good ? "text-emerald-500" : "text-red-500")}>
-      {formatPercent(change)} vs last {rangeLabel}
-    </span>
-  )
-}
 
 export function TrafficOverviewSection({ summary, isLoading, rangeLabel }: SectionProps) {
   const cur = summary?.currentPeriod
@@ -193,15 +170,15 @@ export function HttpStatusSection({ summary, isLoading, rangeLabel }: SectionPro
             title="Unique IPs"
             value={formatNumber(cur.uniqueIps)}
             subtitle={
-              <ChangeSubtitle
-                change={chg?.uniqueIps}
-                rangeLabel={rangeLabel}
-                fallback="Active visitors"
-              />
+              chg?.uniqueIps != null ? `vs last ${rangeLabel}` : "Active visitors"
             }
             icon={Users}
-            iconClassName="text-geo-cyan/70"
-            valueClassName="text-geo-cyan"
+            iconClassName="text-primary/70"
+            valueClassName="text-primary"
+            trend={{
+              value: chg?.uniqueIps ?? null,
+              positive: (chg?.uniqueIps ?? 0) >= 0,
+            }}
           />
         </>
       )}
@@ -225,15 +202,14 @@ export function PerformanceSection({ summary, isLoading, rangeLabel }: SectionPr
             title="Avg Request Time"
             value={formatDuration(cur.avgRequestTime)}
             subtitle={
-              <ChangeSubtitle
-                change={chg?.avgRequestTime}
-                rangeLabel={rangeLabel}
-                fallback="Response time"
-                goodWhenUp={false}
-              />
+              chg?.avgRequestTime != null ? `vs last ${rangeLabel}` : "Response time"
             }
             icon={Clock}
-            iconClassName="text-geo-cyan/70"
+            iconClassName="text-primary/70"
+            trend={{
+              value: chg?.avgRequestTime ?? null,
+              positive: (chg?.avgRequestTime ?? 0) <= 0,
+            }}
           />
           <StatCard
             title="Max Request Time"
@@ -247,14 +223,14 @@ export function PerformanceSection({ summary, isLoading, rangeLabel }: SectionPr
             title="Total Bandwidth"
             value={formatBytes(cur.totalBytesSent)}
             subtitle={
-              <ChangeSubtitle
-                change={chg?.bytesSent}
-                rangeLabel={rangeLabel}
-                fallback="Data transferred"
-              />
+              chg?.bytesSent != null ? `vs last ${rangeLabel}` : "Data transferred"
             }
             icon={HardDrive}
-            iconClassName="text-geo-cyan/70"
+            iconClassName="text-primary/70"
+            trend={{
+              value: chg?.bytesSent ?? null,
+              positive: (chg?.bytesSent ?? 0) >= 0,
+            }}
           />
           <StatCard
             title="Avg Request Size"

@@ -96,6 +96,7 @@ function AnalyticsPage() {
           <TopUrlsTable />
           <TopUserAgentsTable />
         </div>
+        <SectionHeader>Traffic Origin</SectionHeader>
         <TrafficOriginCard />
         <TopAsnsTable />
       </div>
