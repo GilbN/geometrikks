@@ -1,5 +1,8 @@
 <h1 align="center">
-  <img src="resources/static/brand/readme-banner.png" alt="GeoMetrikks" width="720">
+  <picture>
+    <source media="(prefers-color-scheme: light)" srcset="resources/static/brand/readme-banner-routes-light.png">
+    <img src="resources/static/brand/readme-banner-routes-dark.png" alt="GeoMetrikks" width="720">
+  </picture>
 </h1>
 
 ![Map](/data/screenshots/live.png)
