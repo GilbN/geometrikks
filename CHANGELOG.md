@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Redesigned stat cards with the design-system typography and theme-aware trend colors; normalized panel borders and shadows across all cards; overview page rebuilt on the shared chrome.
 - Rebuilt the color themes: new "Aurora night" dark theme and a first-class "Fjord mist" light theme; map popups and controls now follow the theme tokens.
+- Each Settings page has its own title and subtitle; the section switcher is a dropdown below 768px and a wrapping tab row above, so six sections no longer squeeze into one line.
 - The error boundary and the 404 page share the login screen's brand treatment: mark, wordmark and aurora backdrop.
 - Security's Active decisions and Alert history cards use the same label style as every other data card.
 - Every page now uses the shared page header, section, and error-banner chrome; tables get uppercase headers, 13px rows, and card panels; analytics and top-list card titles use the design-system label style.

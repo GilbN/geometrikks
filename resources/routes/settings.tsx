@@ -1,6 +1,5 @@
 import { createFileRoute, Link, Outlet, useRouterState } from "@tanstack/react-router"
 
-import { PageHeader } from "@/components/page-header"
 import {
   Select,
   SelectContent,
@@ -35,13 +34,9 @@ function SettingsLayout() {
   }
 
   return (
-    <div className="p-4 space-y-4">
-      <PageHeader
-        title="Settings"
-        subtitle="Runtime status, environment, and instance information."
-      />
+    <div className="min-w-0 space-y-4 p-4">
       <Select value={activeTab.to} onValueChange={handleTabChange}>
-        <SelectTrigger aria-label="Settings section" className="h-10 w-full sm:hidden">
+        <SelectTrigger aria-label="Settings section" className="h-10 w-full md:hidden">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
@@ -54,7 +49,7 @@ function SettingsLayout() {
       </Select>
       <nav
         aria-label="Settings"
-        className="hidden h-9 items-center justify-center rounded-lg bg-muted p-1 text-muted-foreground sm:inline-flex"
+        className="hidden w-fit max-w-full flex-wrap items-center rounded-lg bg-muted p-1 text-muted-foreground md:flex"
       >
         {tabs.map((tab) => (
           <Link
@@ -67,7 +62,9 @@ function SettingsLayout() {
           </Link>
         ))}
       </nav>
-      <Outlet />
+      <div className="min-w-0">
+        <Outlet />
+      </div>
     </div>
   )
 }

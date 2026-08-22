@@ -110,13 +110,22 @@ describe("page chrome", () => {
   })
 
   it("puts every page route on PageHeader", () => {
-    const exempt = new Set(["__root.tsx", "index.tsx", "login.tsx", "logout.tsx", "map.tsx"])
+    // settings.tsx is a layout; its children carry the H1 via SettingsPage.
+    const exempt = new Set(["__root.tsx", "index.tsx", "login.tsx", "logout.tsx", "map.tsx", "settings.tsx"])
     const routes = readdirSync(new URL("routes/", resources)).filter(
       (f) => f.endsWith(".tsx") && !exempt.has(f),
     )
     for (const f of routes) {
       expect(read(`routes/${f}`), f).toContain("@/components/page-header")
     }
+    const settings = readdirSync(new URL("routes/settings/", resources)).filter(
+      (f) => f.endsWith(".tsx") && f !== "index.tsx",
+    )
+    expect(settings.length).toBeGreaterThan(0)
+    for (const f of settings) {
+      expect(read(`routes/settings/${f}`), f).toContain("@/components/settings/settings-page")
+    }
+    expect(read("routes/settings.tsx")).not.toContain("<PageHeader")
   })
 
   it("keeps the runr font brand-only", () => {
