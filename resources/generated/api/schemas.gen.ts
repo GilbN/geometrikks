@@ -67,11 +67,35 @@ export const AboutResponseSchema = {
     app: {
       $ref: "#/components/schemas/AboutAppView",
     },
+    asnClassification: {
+      oneOf: [
+        {
+          $ref: "#/components/schemas/AsnClassificationView",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
     database: {
       $ref: "#/components/schemas/DatabaseVersionsView",
     },
     geoip: {
       $ref: "#/components/schemas/GeoIPInfoView",
+    },
+    geoipAsn: {
+      oneOf: [
+        {
+          $ref: "#/components/schemas/GeoIPInfoView",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    geoipAsnEnabled: {
+      default: false,
+      type: "boolean",
     },
     links: {
       $ref: "#/components/schemas/AboutLinksView",
@@ -430,6 +454,67 @@ export const AnalyticsSettingsViewSchema = {
     "rawRetentionDays",
   ],
   title: "AnalyticsSettingsView",
+  type: "object",
+} as const;
+
+export const AsnCategoryTotalsDTOSchema = {
+  properties: {
+    category: {
+      enum: ["hosting", "other"],
+      type: "string",
+    },
+    hits: {
+      type: "integer",
+    },
+    totalBytes: {
+      type: "integer",
+    },
+  },
+  required: ["category", "hits", "totalBytes"],
+  title: "AsnCategoryTotalsDTO",
+  type: "object",
+} as const;
+
+export const AsnClassificationListResponseSchema = {
+  properties: {
+    dataset: {
+      type: "string",
+    },
+    entries: {
+      items: {
+        $ref: "#/components/schemas/HostingAsnEntryView",
+      },
+      type: "array",
+    },
+    license: {
+      type: "string",
+    },
+    sourceUrl: {
+      type: "string",
+    },
+  },
+  required: ["dataset", "entries", "license", "sourceUrl"],
+  title: "AsnClassificationListResponse",
+  type: "object",
+} as const;
+
+export const AsnClassificationViewSchema = {
+  properties: {
+    dataset: {
+      type: "string",
+    },
+    entries: {
+      type: "integer",
+    },
+    license: {
+      type: "string",
+    },
+    sourceUrl: {
+      type: "string",
+    },
+  },
+  required: ["dataset", "entries", "license", "sourceUrl"],
+  title: "AsnClassificationView",
   type: "object",
 } as const;
 
@@ -946,6 +1031,20 @@ export const GeoEventsTimeSeriesResponseSchema = {
 
 export const GeoIPHealthSchema = {
   properties: {
+    asnAvailable: {
+      default: false,
+      type: "boolean",
+    },
+    asnDbBuildDate: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
     available: {
       type: "boolean",
     },
@@ -1513,6 +1612,20 @@ export const HealthResponseSchema = {
   type: "object",
 } as const;
 
+export const HostingAsnEntryViewSchema = {
+  properties: {
+    asn: {
+      type: "integer",
+    },
+    entity: {
+      type: "string",
+    },
+  },
+  required: ["asn", "entity"],
+  title: "HostingAsnEntryView",
+  type: "object",
+} as const;
+
 export const HypertableStatsViewSchema = {
   properties: {
     afterCompressionBytes: {
@@ -1690,6 +1803,26 @@ export const IpLocationSchema = {
 
 export const ListAccessLogsAccessLogResponseBodySchema = {
   properties: {
+    autonomousSystemNumber: {
+      oneOf: [
+        {
+          type: "integer",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    autonomousSystemOrganization: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
     bytesSent: {
       default: 0,
       type: "integer",
@@ -2925,6 +3058,76 @@ export const TimeSeriesResponseSchema = {
   },
   required: ["data", "endDate", "granularity", "startDate"],
   title: "TimeSeriesResponse",
+  type: "object",
+} as const;
+
+export const TopAsnDTOSchema = {
+  properties: {
+    asn: {
+      type: "integer",
+    },
+    category: {
+      enum: ["hosting", "other"],
+      type: "string",
+    },
+    hits: {
+      type: "integer",
+    },
+    organization: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    totalBytes: {
+      type: "integer",
+    },
+  },
+  required: ["asn", "category", "hits", "organization", "totalBytes"],
+  title: "TopAsnDTO",
+  type: "object",
+} as const;
+
+export const TopAsnsResponseSchema = {
+  properties: {
+    categories: {
+      items: {
+        $ref: "#/components/schemas/AsnCategoryTotalsDTO",
+      },
+      type: "array",
+    },
+    endDate: {
+      type: "string",
+    },
+    items: {
+      items: {
+        $ref: "#/components/schemas/TopAsnDTO",
+      },
+      type: "array",
+    },
+    startDate: {
+      type: "string",
+    },
+    totalBytes: {
+      type: "integer",
+    },
+    totalRequests: {
+      type: "integer",
+    },
+  },
+  required: [
+    "categories",
+    "endDate",
+    "items",
+    "startDate",
+    "totalBytes",
+    "totalRequests",
+  ],
+  title: "TopAsnsResponse",
   type: "object",
 } as const;
 

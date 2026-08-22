@@ -72,6 +72,8 @@ from real environment variables. It is read once at import time.
 | `MAXMINDDB_USER_ID` | — | MaxMind account ID for GeoLite2 auto-download |
 | `MAXMINDDB_LICENSE_KEY` | — | MaxMind license key for GeoLite2 auto-download |
 | `GEOIP_REFRESH_DAYS` | `7` | Re-download the GeoLite2 database when older than this many days |
+| `GEOIP_ASN_DB_PATH` | `data/geoip/GeoLite2-ASN.mmdb` | Path to the GeoLite2 ASN database file |
+| `GEOIP_ASN_ENABLED` | `true` | Download and use the GeoLite2 ASN database for per-request ASN/organization enrichment. Uses the same MaxMind credentials as the City database; without credentials or a database file the app simply ingests without ASN data. |
 
 ## Logging
 

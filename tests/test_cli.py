@@ -1,6 +1,7 @@
 """CLI plugin registration and command surface."""
 from __future__ import annotations
 
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 from click.testing import CliRunner
@@ -302,3 +303,154 @@ def test_backfill_hostname_consolidate_prompts(monkeypatch) -> None:
     assert "Aborted." in result.output
     engine.begin.assert_not_called()
     engine.dispose.assert_awaited_once()
+
+
+def test_cli_plugin_registers_backfill_asn() -> None:
+    import click
+    from geometrikks.cli import ImportLogsCLIPlugin
+
+    @click.group()
+    def cli() -> None: ...
+
+    ImportLogsCLIPlugin().on_cli_init(cli)
+    assert "backfill-asn" in cli.commands
+
+
+def _make_asn_engine(
+    *, null_rows: int, distinct_ips: list[str], rowcount: int
+) -> MagicMock:
+    """Engine for the backfill-asn flow, dispatching on SQL substrings.
+
+    connect() answers the EXISTS probe, the count/bounds scan, and the
+    keyset-paginated distinct-IP stream (one page, then empty, so the
+    pagination loop terminates); begin() serves the temp-table writes and
+    reports ``rowcount`` on the join UPDATE.
+    """
+    from datetime import datetime, timezone
+
+    ip_pages = [[SimpleNamespace(ip_text=ip) for ip in distinct_ips], []]
+
+    def _result_for(sql: str) -> MagicMock:
+        result = MagicMock()
+        result.rowcount = rowcount
+        if "EXISTS" in sql and "pg_extension" in sql:
+            result.scalar.return_value = False  # no timescale: skip decompress
+        elif "EXISTS" in sql:
+            result.scalar.return_value = null_rows > 0
+        elif "COUNT(DISTINCT" in sql:
+            result.one.return_value = (null_rows, len(distinct_ips))
+        elif "MIN(timestamp)" in sql:
+            result.one.return_value = (
+                datetime(2026, 1, 1, tzinfo=timezone.utc),
+                datetime(2026, 1, 2, tzinfo=timezone.utc),
+            )
+        elif "DISTINCT ip_address" in sql:
+            result.all.return_value = ip_pages.pop(0) if ip_pages else []
+        return result
+
+    async def _execute(stmt, params=None):
+        return _result_for(str(stmt))
+
+    conn = MagicMock()
+    conn.execute = AsyncMock(side_effect=_execute)
+    conn.__aenter__ = AsyncMock(return_value=conn)
+    conn.__aexit__ = AsyncMock(return_value=False)
+
+    engine = MagicMock()
+    engine.connect = MagicMock(return_value=conn)
+    engine.begin = MagicMock(return_value=conn)
+    engine.dispose = AsyncMock()
+    return engine
+
+
+def _invoke_backfill_asn(
+    monkeypatch, engine: MagicMock, args: list[str], refresh: AsyncMock,
+    *, asn_db_path: str = "tests/GeoLite2-ASN-Test.mmdb", cli_input: str | None = None,
+):
+    """Run backfill-asn against a mocked engine, real ASN test db, mocked refresh."""
+    import click
+
+    import geometrikks.server.plugins as plugins_module
+    import geometrikks.server.timescale as timescale_module
+    from geometrikks.cli import ImportLogsCLIPlugin
+    from geometrikks.config.settings import get_settings
+
+    config = MagicMock()
+    config.get_engine.return_value = engine
+    monkeypatch.setattr(plugins_module, "get_sqlalchemy_config", lambda: config)
+    monkeypatch.setattr(timescale_module, "refresh_caggs_range", refresh)
+    monkeypatch.setenv("GEOIP_ASN_DB_PATH", asn_db_path)
+    get_settings.cache_clear()
+
+    @click.group()
+    def cli() -> None: ...
+
+    ImportLogsCLIPlugin().on_cli_init(cli)
+    try:
+        return CliRunner().invoke(cli, ["backfill-asn", *args], input=cli_input)
+    finally:
+        get_settings.cache_clear()
+
+
+def test_backfill_asn_stamps_and_refreshes(monkeypatch) -> None:
+    """1.128.0.0 resolves via the test db; the run updates and refreshes."""
+    engine = _make_asn_engine(null_rows=7, distinct_ips=["1.128.0.0"], rowcount=7)
+    refresh = AsyncMock(return_value=[])
+
+    result = _invoke_backfill_asn(monkeypatch, engine, ["--yes"], refresh)
+
+    assert result.exit_code == 0, result.output
+    assert "rows updated: 7" in result.output
+    refresh.assert_awaited_once()
+    assert refresh.await_args is not None
+    assert refresh.await_args.kwargs["caggs"] == ["asn_hourly_stats", "asn_daily_stats"]
+
+
+def test_backfill_asn_nothing_to_do(monkeypatch) -> None:
+    engine = _make_asn_engine(null_rows=0, distinct_ips=[], rowcount=0)
+    refresh = AsyncMock(return_value=[])
+
+    result = _invoke_backfill_asn(monkeypatch, engine, ["--yes"], refresh)
+
+    assert result.exit_code == 0, result.output
+    assert "Nothing to do" in result.output
+    refresh.assert_not_awaited()
+
+
+def test_backfill_asn_aborts_without_confirmation(monkeypatch) -> None:
+    """Default (no --yes, input 'n'): no write transaction, no refresh."""
+    engine = _make_asn_engine(null_rows=7, distinct_ips=["1.128.0.0"], rowcount=7)
+    engine.begin = MagicMock(side_effect=AssertionError("begin() must not run when aborted"))
+    refresh = AsyncMock(return_value=[])
+
+    result = _invoke_backfill_asn(monkeypatch, engine, [], refresh, cli_input="n\n")
+
+    assert result.exit_code == 0, result.output
+    assert "Aborted" in result.output
+    refresh.assert_not_awaited()
+
+
+def test_backfill_asn_fails_without_asn_database(monkeypatch) -> None:
+    engine = _make_asn_engine(null_rows=7, distinct_ips=["1.128.0.0"], rowcount=7)
+    refresh = AsyncMock(return_value=[])
+
+    result = _invoke_backfill_asn(
+        monkeypatch, engine, ["--yes"], refresh,
+        asn_db_path="/nonexistent/GeoLite2-ASN.mmdb",
+    )
+
+    assert result.exit_code != 0
+    assert "No GeoLite2 ASN database" in result.output
+
+
+def test_backfill_asn_exits_nonzero_when_cagg_refresh_fails(monkeypatch) -> None:
+    """Rows are stamped but the aggregates stayed stale: the run must not
+    report success, or long-range analytics silently miss the backfill."""
+    engine = _make_asn_engine(null_rows=7, distinct_ips=["1.128.0.0"], rowcount=7)
+    refresh = AsyncMock(return_value=["asn_daily_stats"])
+
+    result = _invoke_backfill_asn(monkeypatch, engine, ["--yes"], refresh)
+
+    assert result.exit_code != 0
+    assert "rows updated: 7" in result.output
+    assert "asn_daily_stats" in result.output

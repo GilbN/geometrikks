@@ -35,6 +35,8 @@ function logData(ip: string, status: number, hostname = "vps-1"): AccessLogData 
     country_code: "NO",
     country_name: "Norway",
     city: "Oslo",
+    autonomous_system_number: 2119,
+    autonomous_system_organization: "Telenor Norge AS",
     hostname,
   }
 }

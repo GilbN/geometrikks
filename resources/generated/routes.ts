@@ -17,6 +17,7 @@ export type RouteName =
   | 'get_about'
   | 'get_access_log_debug_stats'
   | 'get_access_log_facets'
+  | 'get_asn_classification'
   | 'get_cumulative_time_series'
   | 'get_database_info'
   | 'get_geo_log_facets'
@@ -37,6 +38,7 @@ export type RouteName =
   | 'get_summary'
   | 'get_system_settings'
   | 'get_time_series'
+  | 'get_top_asns'
   | 'get_top_cities'
   | 'get_top_countries'
   | 'get_top_countries_api_v1_geo_locations_top_countries'
@@ -79,6 +81,7 @@ export interface RoutePathParams {
   'get_about': Record<string, never>;
   'get_access_log_debug_stats': Record<string, never>;
   'get_access_log_facets': Record<string, never>;
+  'get_asn_classification': Record<string, never>;
   'get_cumulative_time_series': Record<string, never>;
   'get_database_info': Record<string, never>;
   'get_geo_log_facets': Record<string, never>;
@@ -101,6 +104,7 @@ export interface RoutePathParams {
   'get_summary': Record<string, never>;
   'get_system_settings': Record<string, never>;
   'get_time_series': Record<string, never>;
+  'get_top_asns': Record<string, never>;
   'get_top_cities': Record<string, never>;
   'get_top_countries': Record<string, never>;
   'get_top_countries_api_v1_geo_locations_top_countries': Record<string, never>;
@@ -146,6 +150,7 @@ export interface RouteQueryParams {
     toTimestamp?: DateTime;
   };
   'get_access_log_facets': Record<string, never>;
+  'get_asn_classification': Record<string, never>;
   'get_cumulative_time_series': {
     endDate: DateTime;
     startDate: DateTime;
@@ -264,6 +269,15 @@ export interface RouteQueryParams {
     ipAddressNotIn?: string[];
     startDate: DateTime;
     tz?: string;
+  };
+  'get_top_asns': {
+    city?: string[];
+    countryCode?: string[];
+    endDate: DateTime;
+    ipAddress?: string[];
+    ipAddressNotIn?: string[];
+    limit?: number;
+    startDate: DateTime;
   };
   'get_top_cities': {
     city?: string[];
@@ -449,6 +463,13 @@ export const routeDefinitions = {
     pathParams: [] as const,
     queryParams: [] as const,
   },
+  'get_asn_classification': {
+    path: '/api/v1/system/asn-classification',
+    methods: ['GET'] as const,
+    method: 'get',
+    pathParams: [] as const,
+    queryParams: [] as const,
+  },
   'get_cumulative_time_series': {
     path: '/api/v1/analytics/time-series/cumulative',
     methods: ['GET'] as const,
@@ -588,6 +609,13 @@ export const routeDefinitions = {
     method: 'get',
     pathParams: [] as const,
     queryParams: ['city', 'countryCode', 'endDate', 'granularity', 'ipAddress', 'ipAddressNotIn', 'startDate', 'tz'] as const,
+  },
+  'get_top_asns': {
+    path: '/api/v1/analytics/top-asns',
+    methods: ['GET'] as const,
+    method: 'get',
+    pathParams: [] as const,
+    queryParams: ['city', 'countryCode', 'endDate', 'ipAddress', 'ipAddressNotIn', 'limit', 'startDate'] as const,
   },
   'get_top_cities': {
     path: '/api/v1/analytics/top-cities',

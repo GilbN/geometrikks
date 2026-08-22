@@ -25,7 +25,9 @@ status mix) at a glance, with a configurable date/time range.
 ![Dashboard](/data/screenshots/dashboard.png)
 
 **Analytics** - request-volume, latency, and bytes-transferred charts, plus
-top-URLs, top-user-agents, and status-code breakdowns.
+top-URLs, top-user-agents, and status-code breakdowns, and a Top ASNs view
+showing which networks your traffic comes from and how much of it arrives
+from datacenter/hosting providers.
 
 ![Analytics](/data/screenshots/analytics.png)
 
@@ -84,14 +86,14 @@ Images are published as `ghcr.io/gilbn/geometrikks`.
 | `latest` | `latest` | The newest stable release. |
 | Exact stable version | `X.Y.Z` | A specific stable release; use this for reproducible deployments. |
 | Major/minor stable version | `X.Y` | The newest stable patch release in a major/minor series. |
-| Exact development version | `0.9.0-dev.1` | A specific prerelease build for testing upcoming changes. |
+| Exact development version | `0.10.0-dev.1` | A specific prerelease build for testing upcoming changes. |
 | `develop` | `develop` | The newest development release; a moving tag. |
 
 Use `latest` to follow the newest stable release, or pin an exact version for
 reproducible deployments:
 
 ```yaml
-image: ghcr.io/gilbn/geometrikks:0.9.0
+image: ghcr.io/gilbn/geometrikks:0.10.0
 ```
 
 `docker-compose.yml` mounts `${ACCESS_LOG_DIR:-${NGINX_LOG_DIR:-/var/log/nginx}}`
@@ -185,6 +187,11 @@ MAXMINDDB_LICENSE_KEY=<your-license-key>
 
 On startup GeoMetrikks downloads the database automatically and refreshes it
 weekly (`GEOIP_REFRESH_DAYS`, default 7) - no manual `.mmdb` handling needed.
+
+Both the GeoLite2 City and GeoLite2 ASN databases are downloaded: City
+powers the map and geo analytics, ASN adds the network/organization behind
+each request. Set `GEOIP_ASN_ENABLED=false` to skip the ASN database
+entirely.
 
 You must accept MaxMind's GeoLite2 EULA to use the database - see the
 [MaxMind EULA](https://www.maxmind.com/en/geolite2/eula) for details.
@@ -463,7 +470,7 @@ instance, GeoIP credentials, and its own log mount:
 ```yaml
 services:
   agent:
-    image: ghcr.io/gilbn/geometrikks:0.9.0   # same tag as the full instance
+    image: ghcr.io/gilbn/geometrikks:0.10.0   # same tag as the full instance
     restart: unless-stopped
     stop_grace_period: 20s
     environment:
@@ -646,6 +653,65 @@ update would trip TimescaleDB's tuple decompression limit), so disk usage
 grows temporarily until the compression policy recompresses them. It then
 refreshes the affected continuous aggregates so the filter dropdowns
 update. May run for minutes on a large database.
+
+### backfill-asn: fill in ASN data for historical rows
+
+Rows ingested before the ASN feature (or while the ASN database was
+missing) have no ASN data. `backfill-asn` resolves their IPs against the
+local GeoLite2 ASN database and stamps them retroactively:
+
+```bash
+docker compose exec -u geometrikks app litestar backfill-asn
+```
+
+It fills **only** rows with no ASN data - it is idempotent and cannot
+overwrite stamped values - and asks for confirmation after reporting how
+many rows and distinct IPs are affected (`--yes` skips the prompt). IPs
+the database cannot resolve stay empty. Like `backfill-hostname`, it
+decompresses compressed history chunks first (disk usage grows until the
+compression policy recompresses them) and refreshes the ASN continuous
+aggregates afterwards so the Top ASNs view picks up the history. May run
+for minutes on a large database.
+
+If the aggregate refresh fails the command exits non-zero and says which
+aggregates are stale: the rows are stamped, but the Top ASNs view will not
+show the backfilled range until they refresh. Rerunning is safe.
+
+Note that today's ASN database describes today's network ownership;
+stamping years-old traffic with it is a best-effort approximation.
+
+### Large imports and backfills
+
+Bulk operations - `import-logs` over months of archives, either backfill
+command on a database with real history - write WAL much faster than live
+tailing does. With PostgreSQL's default `max_wal_size` of 1GB the database
+checkpoints every few seconds and logs:
+
+```text
+LOG:  checkpoints are occurring too frequently (21 seconds apart)
+HINT: Consider increasing the configuration parameter "max_wal_size".
+```
+
+Nothing is at risk, but each checkpoint re-triggers full-page writes for
+the pages the run touches next, so the operation gets slower the longer
+this goes on. Both relevant settings reload without a restart, so you can
+raise them while a backfill is already running:
+
+```bash
+docker compose exec timescale_db psql -U geouser -d geometrikks \
+  -c "ALTER SYSTEM SET max_wal_size = '4GB';" \
+  -c "ALTER SYSTEM SET checkpoint_timeout = '15min';" \
+  -c "SELECT pg_reload_conf();"
+```
+
+Expect up to `max_wal_size` of extra disk used for WAL during the run, on
+top of the temporarily decompressed chunks. To keep the settings
+permanently, add `max_wal_size=4GB` and `checkpoint_timeout=15min` to the
+database service's `command:` block in the compose file, then run
+`ALTER SYSTEM RESET max_wal_size` and `ALTER SYSTEM RESET
+checkpoint_timeout` once: command-line flags override `ALTER SYSTEM`
+values, and keeping both means the compose file no longer tells the whole
+truth.
 
 ## Configuration
 

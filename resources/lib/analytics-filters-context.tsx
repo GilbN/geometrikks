@@ -1,8 +1,8 @@
 /**
  * Shared country/city/IP-include/IP-exclude filters for the analytics page.
- * Threaded into the six analytics hooks (time-series, top-urls,
- * top-user-agents, top-ips, top-country-stats, top-city-stats) so the filter
- * bar reshapes every chart and top-list at once.
+ * Threaded into the seven analytics hooks (time-series, top-urls,
+ * top-user-agents, top-asns, top-ips, top-country-stats, top-city-stats) so
+ * the filter bar reshapes every chart and top-list at once.
  *
  * Like the geo-logs filters, the state itself lives in the URL search params
  * (shareable filter links): the /analytics route computes it from its

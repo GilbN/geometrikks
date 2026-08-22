@@ -48,6 +48,13 @@
       ],
       "uri": "/api/v1/access-logs/facets"
     },
+    "get_asn_classification": {
+      "method": "get",
+      "methods": [
+        "GET"
+      ],
+      "uri": "/api/v1/system/asn-classification"
+    },
     "get_cumulative_time_series": {
       "method": "get",
       "methods": [
@@ -306,6 +313,22 @@
         "tz": "string | undefined"
       },
       "uri": "/api/v1/analytics/time-series"
+    },
+    "get_top_asns": {
+      "method": "get",
+      "methods": [
+        "GET"
+      ],
+      "queryParameters": {
+        "city": "string[] | undefined",
+        "countryCode": "string[] | undefined",
+        "endDate": "DateTime",
+        "ipAddress": "string[] | undefined",
+        "ipAddressNotIn": "string[] | undefined",
+        "limit": "number | undefined",
+        "startDate": "DateTime"
+      },
+      "uri": "/api/v1/analytics/top-asns"
     },
     "get_top_cities": {
       "method": "get",

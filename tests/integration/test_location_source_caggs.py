@@ -1,10 +1,12 @@
 """Location CAGGs with hostname: shape, correctness, and the pollution gate."""
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime, timedelta, timezone
 
 import pytest
 from sqlalchemy import text
+from sqlalchemy.exc import DBAPIError
 
 from geometrikks.config.settings import get_settings
 from geometrikks.server import timescale
@@ -13,6 +15,24 @@ from geometrikks.server.timescale import refresh_caggs_range, setup_timescaledb
 pytestmark = pytest.mark.anyio
 
 NOW = datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0)
+
+
+async def _drop_caggs_with_retry(engine, *caggs: str, attempts: int = 4) -> None:
+    """DROP ... CASCADE can race a TimescaleDB background refresh job on the
+    same CAGG ("tuple concurrently deleted"). Retry briefly; each attempt gets
+    its own transaction because a failure aborts the one it ran in."""
+    for cagg in caggs:
+        for attempt in range(attempts):
+            try:
+                async with engine.begin() as conn:
+                    await conn.execute(
+                        text(f"DROP MATERIALIZED VIEW IF EXISTS {cagg} CASCADE")
+                    )
+                break
+            except DBAPIError:
+                if attempt == attempts - 1:
+                    raise
+                await asyncio.sleep(0.5)
 
 
 async def _seed_geo_events(session_maker, hostnames: list[str], per_host: int = 5) -> None:
@@ -64,9 +84,10 @@ async def test_filtered_cagg_counts_match_raw(pg_engine, pg_session_maker, clean
 
 async def test_upgrade_replaces_old_shape(pg_engine, clean_tables):
     """Drop to the pre-hostname shape, rerun setup, assert the new shape."""
+    await _drop_caggs_with_retry(
+        pg_engine, "location_hourly_stats", "location_daily_stats"
+    )
     async with pg_engine.begin() as conn:
-        for cagg in ("location_hourly_stats", "location_daily_stats"):
-            await conn.execute(text(f"DROP MATERIALIZED VIEW IF EXISTS {cagg} CASCADE"))
         await conn.execute(text(
             "CREATE MATERIALIZED VIEW location_hourly_stats "
             "WITH (timescaledb.continuous) AS "
@@ -95,10 +116,8 @@ async def test_mixed_shape_upgrade_covers_both_caggs(pg_engine, clean_tables):
     """One CAGG upgraded, the other still pre-hostname (external drift):
     setup must migrate the laggard rather than declare the pair done and
     hand hostname-filtered queries a view without the column."""
+    await _drop_caggs_with_retry(pg_engine, "location_daily_stats")
     async with pg_engine.begin() as conn:
-        await conn.execute(text(
-            "DROP MATERIALIZED VIEW IF EXISTS location_daily_stats CASCADE"
-        ))
         await conn.execute(text(
             "CREATE MATERIALIZED VIEW location_daily_stats "
             "WITH (timescaledb.continuous) AS "
@@ -123,9 +142,10 @@ async def test_pollution_gate_keeps_old_shape(pg_engine, pg_session_maker, clean
 
     ids = [f"{i:012x}" for i in range(CONTAINER_ID_THRESHOLD)]
     await _seed_geo_events(pg_session_maker, ids, per_host=1)
+    await _drop_caggs_with_retry(
+        pg_engine, "location_hourly_stats", "location_daily_stats"
+    )
     async with pg_engine.begin() as conn:
-        for cagg in ("location_hourly_stats", "location_daily_stats"):
-            await conn.execute(text(f"DROP MATERIALIZED VIEW IF EXISTS {cagg} CASCADE"))
         await conn.execute(text(
             "CREATE MATERIALIZED VIEW location_hourly_stats "
             "WITH (timescaledb.continuous) AS "

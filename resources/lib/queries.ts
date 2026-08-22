@@ -17,6 +17,7 @@ import {
   fetchTopCountryStats,
   fetchTopIpStats,
   fetchTopUrls,
+  fetchTopAsns,
   fetchTopUserAgents,
   fetchCumulativeTimeSeries,
   fetchAccessLogs,
@@ -33,6 +34,7 @@ import {
   fetchSystemSettings,
   fetchSchedulerJobs,
   fetchAbout,
+  fetchAsnClassification,
   fetchHealth,
   fetchMe,
   fetchStats,
@@ -92,6 +94,7 @@ export const queryKeys = {
     settings: ["system", "settings"] as const,
     schedulerJobs: ["system", "scheduler-jobs"] as const,
     about: ["system", "about"] as const,
+    asnClassification: ["system", "asn-classification"] as const,
     stats: ["system", "stats"] as const,
     database: ["system", "database"] as const,
   },
@@ -122,6 +125,8 @@ export const queryKeys = {
       [...queryKeys.analytics.all, "top-urls", params, refreshKey] as const,
     topUserAgents: (params: Record<string, unknown>, refreshKey?: number) =>
       [...queryKeys.analytics.all, "top-user-agents", params, refreshKey] as const,
+    topAsns: (params: Record<string, unknown>, refreshKey?: number) =>
+      [...queryKeys.analytics.all, "top-asns", params, refreshKey] as const,
     topIps: (params: Record<string, unknown>, refreshKey?: number) =>
       [...queryKeys.analytics.all, "top-ips", params, refreshKey] as const,
     topCountryStats: (params: Record<string, unknown>, refreshKey?: number) =>
@@ -211,6 +216,16 @@ export function useAbout() {
     queryKey: queryKeys.system.about,
     queryFn: fetchAbout,
     staleTime: Number.POSITIVE_INFINITY,
+  })
+}
+
+/** The vendored hosting-ASN list; fetched only while its dialog is open. */
+export function useAsnClassification(enabled: boolean) {
+  return useQuery({
+    queryKey: queryKeys.system.asnClassification,
+    queryFn: fetchAsnClassification,
+    staleTime: Number.POSITIVE_INFINITY,
+    enabled,
   })
 }
 
@@ -782,6 +797,35 @@ export function useTopUserAgents(options: UseTopListOptions = {}) {
     queryFn: () => {
       const { startDate, endDate } = parseTimeRange(range, Date.now(), customRange)
       return fetchTopUserAgents({
+        startDate,
+        endDate,
+        limit,
+        countryCodes: filters.countryCodes,
+        cities: filters.cities,
+        ips: filters.ips,
+        ipsExclude: filters.ipsExclude,
+      })
+    },
+    enabled,
+    staleTime: 60 * 1000,
+    refetchInterval: pollInterval || false,
+  })
+}
+
+/**
+ * Fetch the top ASNs plus hosting-vs-other category totals.
+ * Uses TimeRangeContext for time filtering.
+ */
+export function useTopAsns(options: UseTopListOptions = {}) {
+  const { enabled = true, limit = 25 } = options
+  const { range, customRange, pollInterval, lastRefresh } = useTimeRange()
+  const { filters } = useAnalyticsFilters()
+
+  return useQuery({
+    queryKey: queryKeys.analytics.topAsns({ range, customRange, limit, filters }, lastRefresh),
+    queryFn: () => {
+      const { startDate, endDate } = parseTimeRange(range, Date.now(), customRange)
+      return fetchTopAsns({
         startDate,
         endDate,
         limit,

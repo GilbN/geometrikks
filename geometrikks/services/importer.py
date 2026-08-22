@@ -28,7 +28,10 @@ from typing import TYPE_CHECKING
 from geometrikks.domain.imports.models import ImportJob
 from geometrikks.domain.imports.repositories import ImportJobRepository
 from geometrikks.server.logging import get_logger
-from geometrikks.services.logparser.logparser import make_cached_city_lookup
+from geometrikks.services.logparser.logparser import (
+    make_cached_asn_lookup,
+    make_cached_city_lookup,
+)
 from geometrikks.services.logparser.schemas import ParsedLogRecord
 
 if TYPE_CHECKING:
@@ -109,6 +112,7 @@ async def import_file(
     service: "LogIngestionService",
     parser: "LogParser",
     reader: "Reader",
+    asn_reader: "Reader | None" = None,
     session_maker: "Callable[[], AsyncSession]",
     batch_size: int = 500,
     force: bool = False,
@@ -132,6 +136,7 @@ async def import_file(
     _format_sanity_check(path, parser)
 
     lookup = make_cached_city_lookup(reader)
+    asn_lookup = make_cached_asn_lookup(asn_reader) if asn_reader is not None else None
     batch: list[ParsedLogRecord] = []
     lines_total = 0
     lines_skipped = 0
@@ -141,7 +146,7 @@ async def import_file(
 
     for line in iter_lines(path):
         lines_total += 1
-        record = parser.parse_line(line, lookup)
+        record = parser.parse_line(line, lookup, asn_lookup)
         if record is None:  # IP on the ignore list; drop the line entirely
             lines_skipped += 1
             continue

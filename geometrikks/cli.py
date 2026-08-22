@@ -1,4 +1,4 @@
-"""Litestar CLI plugin: `litestar import-logs <paths...>`, `litestar backfill-hostname NAME`.
+"""Litestar CLI plugin: `litestar import-logs <paths...>`, `litestar backfill-hostname NAME`, `litestar backfill-asn`.
 
 Import-time safe: settings, engine, reader are constructed inside the
 command callback, never at module import.
@@ -86,6 +86,12 @@ async def _run_import(
             "once to auto-download, or provide the mmdb manually."
         )
 
+    asn_reader: Reader | None = (
+        create_reader(settings.geoip.asn_db_path) if settings.geoip.asn_enabled else None
+    )
+    if settings.geoip.asn_enabled and asn_reader is None:
+        click.echo("No GeoLite2 ASN database found; importing without ASN enrichment.")
+
     effective_hostname = hostname or settings.logparser.resolved_hostnames()[0]
     click.echo(f"Stamping hostname: {effective_hostname}")
     service = LogIngestionService(
@@ -119,6 +125,7 @@ async def _run_import(
                     service=service,
                     parser=parser,
                     reader=reader,
+                    asn_reader=asn_reader,
                     session_maker=session_maker,
                     batch_size=batch_size,
                     force=force,
@@ -159,6 +166,8 @@ async def _run_import(
     finally:
         await engine.dispose()
         reader.close()
+        if asn_reader is not None:
+            asn_reader.close()
 
     if failed:
         raise click.ClickException(
@@ -317,9 +326,247 @@ async def _run_backfill_hostname(name: str, *, consolidate: bool, yes: bool) -> 
         await engine.dispose()
 
 
+@click.command(name="backfill-asn")
+@click.option("--yes", is_flag=True, help="Skip the confirmation prompt.")
+def backfill_asn_command(yes: bool) -> None:
+    """Stamp ASN data onto historical rows from the current ASN database.
+
+    Fills only access_logs rows with NULL autonomous_system_number
+    (idempotent, cannot overwrite stamped values) by resolving each
+    distinct IP through the local GeoLite2-ASN database. IPs the database
+    cannot resolve stay NULL. Refreshes the ASN continuous aggregates for
+    the affected range when rows changed. Compressed hypertable chunks are
+    decompressed first (a full-table UPDATE would trip the TimescaleDB
+    tuple decompression limit); the compression policy recompresses them
+    later. May run for minutes on large databases.
+    """
+    asyncio.run(_run_backfill_asn(yes=yes))
+
+
+ASN_BACKFILL_CHUNK_SIZE = 10_000
+
+
+async def _iter_null_asn_ips(engine, *, chunk_size: int = ASN_BACKFILL_CHUNK_SIZE):
+    """Yield distinct NULL-ASN client IPs in keyset-paginated chunks.
+
+    Keyset pagination on the inet column (OFFSET would rescan) holds one
+    chunk in memory at a time; on an internet-facing install the distinct-IP
+    count can approach the row count.
+    """
+    from sqlalchemy import text
+
+    last: str | None = None
+    while True:
+        where = "autonomous_system_number IS NULL"
+        params: dict = {"lim": chunk_size}
+        if last is not None:
+            where += " AND ip_address > CAST(:last AS inet)"
+            params["last"] = last
+        async with engine.connect() as conn:
+            rows = (await conn.execute(text(
+                f"SELECT DISTINCT ip_address, host(ip_address) AS ip_text "
+                f"FROM access_logs WHERE {where} "
+                f"ORDER BY ip_address LIMIT :lim"
+            ), params)).all()
+        if not rows:
+            return
+        yield [row.ip_text for row in rows]
+        last = rows[-1].ip_text
+
+
+async def _apply_asn_mapping(engine, chunks) -> int:
+    """Stream ip -> (asn, org) chunks into a temp table, then one join UPDATE.
+
+    One transaction, so the ON COMMIT DROP temp table spans every chunk
+    while only the chunk in flight is held. Returns the UPDATE rowcount.
+    ``chunks`` is a list of mapping dicts (one chunk) or an async iterable
+    of them. Kept separate from _run_backfill_asn so the integration tests
+    can run the SQL against a real database.
+    """
+    from sqlalchemy import text
+
+    if isinstance(chunks, list):
+        # Bound as a default: reassigning `chunks` below would otherwise make
+        # the closure yield the generator itself.
+        async def _single(only=chunks):
+            yield only
+        chunks = _single()
+
+    async with engine.begin() as conn:
+        await conn.execute(text(
+            "CREATE TEMPORARY TABLE tmp_asn_map "
+            "(ip inet PRIMARY KEY, asn bigint NOT NULL, org varchar(255)) "
+            "ON COMMIT DROP"
+        ))
+        insert = text("INSERT INTO tmp_asn_map (ip, asn, org) VALUES (:ip, :asn, :org)")
+        mapped = 0
+        async for chunk in chunks:
+            if not chunk:
+                continue
+            await conn.execute(insert, chunk)
+            mapped += len(chunk)
+        if not mapped:
+            return 0
+        return (await conn.execute(text(
+            "UPDATE access_logs al "
+            "SET autonomous_system_number = m.asn, "
+            "    autonomous_system_organization = m.org "
+            "FROM tmp_asn_map m "
+            "WHERE al.autonomous_system_number IS NULL AND al.ip_address = m.ip"
+        ))).rowcount
+
+
+async def _run_backfill_asn(*, yes: bool) -> None:
+    from sqlalchemy import text
+
+    from geometrikks.config.settings import get_settings
+    from geometrikks.server.logging import get_logger
+    from geometrikks.server.plugins import get_sqlalchemy_config
+    from geometrikks.server.timescale import refresh_caggs_range
+    from geometrikks.services.ingestion.service import create_reader
+
+    logger = get_logger(__name__)
+    settings = get_settings()
+    reader = create_reader(settings.geoip.asn_db_path)
+    if reader is None:
+        raise click.ClickException(
+            f"No GeoLite2 ASN database at {settings.geoip.asn_db_path}. Start "
+            "the app once with MaxMind credentials to download it, or place "
+            "the mmdb there yourself."
+        )
+
+    config = get_sqlalchemy_config()
+    engine = config.get_engine()
+    try:
+        # Cheap EXISTS probe (the ASN column is indexed) so a rerun with
+        # nothing left to fill exits before the expensive scans below.
+        async with engine.connect() as conn:
+            needs_fill = bool((await conn.execute(text(
+                "SELECT EXISTS (SELECT 1 FROM access_logs "
+                "WHERE autonomous_system_number IS NULL)"
+            ))).scalar())
+            timescale = bool((await conn.execute(text(
+                "SELECT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'timescaledb')"
+            ))).scalar())
+
+        if not needs_fill:
+            click.echo("Nothing to do: no rows without ASN data.")
+            return
+
+        click.echo("Scanning rows without ASN data ...")
+        async with engine.connect() as conn:
+            null_rows, distinct_ips = (await conn.execute(text(
+                "SELECT COUNT(*), COUNT(DISTINCT ip_address) FROM access_logs "
+                "WHERE autonomous_system_number IS NULL"
+            ))).one()
+
+        click.echo(f"{null_rows:,} rows across {distinct_ips:,} distinct IPs lack ASN data.")
+        if not yes and not click.confirm("Backfill them from the local ASN database?"):
+            click.echo("Aborted.")
+            return
+
+        # Bounds before the update: after it, the NULL set shrinks and the
+        # refresh range for the changed rows would be lost.
+        async with engine.connect() as conn:
+            bounds = (await conn.execute(text(
+                "SELECT MIN(timestamp), MAX(timestamp) FROM access_logs "
+                "WHERE autonomous_system_number IS NULL"
+            ))).one()
+
+        # Decompression precedes the write: the UPDATE inside
+        # _apply_asn_mapping would otherwise trip
+        # timescaledb.max_tuples_decompressed_per_dml_transaction. Same
+        # pattern as backfill-hostname; the compression policy recompresses
+        # on its own schedule.
+        if timescale:
+            click.echo("Decompressing compressed access_logs chunks ...")
+            async with engine.begin() as conn:
+                await conn.execute(text(
+                    "SELECT decompress_chunk(format('%I.%I', chunk_schema, chunk_name)::regclass, true) "
+                    "FROM timescaledb_information.chunks "
+                    "WHERE hypertable_name = 'access_logs' AND is_compressed"
+                ))
+
+        from geoip2.errors import AddressNotFoundError
+
+        stats = {"resolved": 0, "not_found": 0, "failed": 0}
+
+        async def _resolved_chunks():
+            """Resolve each IP chunk as it arrives; only one is ever held."""
+            async for ips in _iter_null_asn_ips(engine):
+                mapping: list[dict] = []
+                for ip in ips:
+                    try:
+                        asn = reader.asn(ip)
+                    except AddressNotFoundError:
+                        stats["not_found"] += 1
+                        continue
+                    except Exception:
+                        # Corrupt reader state or decode errors must not abort
+                        # the run, but they are not "not in the database" either.
+                        stats["failed"] += 1
+                        logger.debug(
+                            "ASN lookup failed for %s during backfill", ip, exc_info=True
+                        )
+                        continue
+                    org = asn.autonomous_system_organization
+                    mapping.append({
+                        "ip": ip,
+                        "asn": asn.autonomous_system_number,
+                        "org": org[:255] if org else None,
+                    })
+                stats["resolved"] += len(mapping)
+                click.echo(f"  resolved {stats['resolved']:,} IPs ...")
+                yield mapping
+
+        click.echo("Resolving IPs against the ASN database ...")
+        updated = await _apply_asn_mapping(engine, _resolved_chunks())
+        click.echo(
+            f"Resolved {stats['resolved']:,} IPs "
+            f"({stats['not_found']:,} not in the ASN database, "
+            f"{stats['failed']:,} lookup failures)."
+        )
+        click.echo(f"access_logs rows updated: {updated:,}")
+
+        # The ASN CAGGs exclude NULL-ASN rows, so backfilled history stays
+        # invisible to /top-asns until the range is refreshed. A failed
+        # refresh must fail the run: ranges outside the policy window are
+        # never retried automatically.
+        refresh_failed: list[str] = []
+        if updated and bounds[0] is not None:
+            click.echo("Refreshing ASN CAGGs ...")
+            refresh_failed = await refresh_caggs_range(
+                engine,
+                start=bounds[0],
+                end=bounds[1] + timedelta(microseconds=1),
+                caggs=["asn_hourly_stats", "asn_daily_stats"],
+            )
+
+        logger.info(
+            "asn_backfill_completed",
+            rows_updated=updated,
+            ips_resolved=stats["resolved"],
+            ips_not_found=stats["not_found"],
+            ips_lookup_failed=stats["failed"],
+            cagg_refresh_failed=refresh_failed,
+        )
+
+        if refresh_failed:
+            raise click.ClickException(
+                f"Rows were stamped, but refreshing {', '.join(refresh_failed)} failed; "
+                "the Top ASNs view will not show the backfilled range until they "
+                "refresh. Check the app log, then rerun this command (it is "
+                "idempotent) or refresh those aggregates manually."
+            )
+    finally:
+        reader.close()
+        await engine.dispose()
+
+
 class ImportLogsCLIPlugin(CLIPlugin):
-    """Registers import-logs and backfill-hostname on the litestar CLI group."""
+    """Registers import-logs, backfill-hostname, and backfill-asn on the litestar CLI group."""
 
     def on_cli_init(self, cli: click.Group) -> None:
         cli.add_command(import_logs_command)
         cli.add_command(backfill_hostname_command)
+        cli.add_command(backfill_asn_command)

@@ -69,11 +69,35 @@
           "app": {
             "$ref": "#/components/schemas/AboutAppView"
           },
+          "asnClassification": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/AsnClassificationView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "database": {
             "$ref": "#/components/schemas/DatabaseVersionsView"
           },
           "geoip": {
             "$ref": "#/components/schemas/GeoIPInfoView"
+          },
+          "geoipAsn": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/GeoIPInfoView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "geoipAsnEnabled": {
+            "default": false,
+            "type": "boolean"
           },
           "links": {
             "$ref": "#/components/schemas/AboutLinksView"
@@ -453,6 +477,81 @@
           "rawRetentionDays"
         ],
         "title": "AnalyticsSettingsView",
+        "type": "object"
+      },
+      "AsnCategoryTotalsDTO": {
+        "properties": {
+          "category": {
+            "enum": [
+              "hosting",
+              "other"
+            ],
+            "type": "string"
+          },
+          "hits": {
+            "type": "integer"
+          },
+          "totalBytes": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "category",
+          "hits",
+          "totalBytes"
+        ],
+        "title": "AsnCategoryTotalsDTO",
+        "type": "object"
+      },
+      "AsnClassificationListResponse": {
+        "properties": {
+          "dataset": {
+            "type": "string"
+          },
+          "entries": {
+            "items": {
+              "$ref": "#/components/schemas/HostingAsnEntryView"
+            },
+            "type": "array"
+          },
+          "license": {
+            "type": "string"
+          },
+          "sourceUrl": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "dataset",
+          "entries",
+          "license",
+          "sourceUrl"
+        ],
+        "title": "AsnClassificationListResponse",
+        "type": "object"
+      },
+      "AsnClassificationView": {
+        "properties": {
+          "dataset": {
+            "type": "string"
+          },
+          "entries": {
+            "type": "integer"
+          },
+          "license": {
+            "type": "string"
+          },
+          "sourceUrl": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "dataset",
+          "entries",
+          "license",
+          "sourceUrl"
+        ],
+        "title": "AsnClassificationView",
         "type": "object"
       },
       "AuthDisabled": {
@@ -997,6 +1096,20 @@
       },
       "GeoIPHealth": {
         "properties": {
+          "asnAvailable": {
+            "default": false,
+            "type": "boolean"
+          },
+          "asnDbBuildDate": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "available": {
             "type": "boolean"
           },
@@ -1598,6 +1711,22 @@
         "title": "HealthResponse",
         "type": "object"
       },
+      "HostingAsnEntryView": {
+        "properties": {
+          "asn": {
+            "type": "integer"
+          },
+          "entity": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "asn",
+          "entity"
+        ],
+        "title": "HostingAsnEntryView",
+        "type": "object"
+      },
       "HypertableStatsView": {
         "properties": {
           "afterCompressionBytes": {
@@ -1781,6 +1910,26 @@
       },
       "ListAccessLogsAccessLogResponseBody": {
         "properties": {
+          "autonomousSystemNumber": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "autonomousSystemOrganization": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "bytesSent": {
             "default": 0,
             "type": "integer"
@@ -3101,6 +3250,83 @@
         "title": "TimeSeriesResponse",
         "type": "object"
       },
+      "TopAsnDTO": {
+        "properties": {
+          "asn": {
+            "type": "integer"
+          },
+          "category": {
+            "enum": [
+              "hosting",
+              "other"
+            ],
+            "type": "string"
+          },
+          "hits": {
+            "type": "integer"
+          },
+          "organization": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "totalBytes": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "asn",
+          "category",
+          "hits",
+          "organization",
+          "totalBytes"
+        ],
+        "title": "TopAsnDTO",
+        "type": "object"
+      },
+      "TopAsnsResponse": {
+        "properties": {
+          "categories": {
+            "items": {
+              "$ref": "#/components/schemas/AsnCategoryTotalsDTO"
+            },
+            "type": "array"
+          },
+          "endDate": {
+            "type": "string"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/TopAsnDTO"
+            },
+            "type": "array"
+          },
+          "startDate": {
+            "type": "string"
+          },
+          "totalBytes": {
+            "type": "integer"
+          },
+          "totalRequests": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "categories",
+          "endDate",
+          "items",
+          "startDate",
+          "totalBytes",
+          "totalRequests"
+        ],
+        "title": "TopAsnsResponse",
+        "type": "object"
+      },
       "TopCitiesResponse": {
         "properties": {
           "endDate": {
@@ -3616,7 +3842,7 @@
   "info": {
     "description": "Real-time GeoIP lookups and traffic analytics API",
     "title": "GeoMetrikks API",
-    "version": "0.9.0"
+    "version": "0.10.0"
   },
   "openapi": "3.1.0",
   "paths": {
@@ -5254,6 +5480,222 @@
           }
         },
         "summary": "GetCumulativeTimeSeries",
+        "tags": [
+          "Analytics"
+        ]
+      }
+    },
+    "/api/v1/analytics/top-asns": {
+      "get": {
+        "deprecated": false,
+        "description": "Top ASNs by hits with hosting-vs-other totals (CAGG-served above 24h; filters force a raw scan).",
+        "operationId": "ApiV1AnalyticsTopAsnsGetTopAsns",
+        "parameters": [
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)",
+            "examples": {
+              "start_date-example-1": {
+                "value": "2024-01-01T00:00:00Z"
+              }
+            },
+            "in": "query",
+            "name": "startDate",
+            "required": true,
+            "schema": {
+              "description": "Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)",
+              "examples": [
+                "2024-01-01T00:00:00Z"
+              ],
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)",
+            "examples": {
+              "end_date-example-1": {
+                "value": "2024-12-31T23:59:59Z"
+              }
+            },
+            "in": "query",
+            "name": "endDate",
+            "required": true,
+            "schema": {
+              "description": "End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)",
+              "examples": [
+                "2024-12-31T23:59:59Z"
+              ],
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Maximum number of ASNs to return",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 25,
+              "description": "Maximum number of ASNs to return",
+              "maximum": 100.0,
+              "minimum": 1.0,
+              "type": "integer"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Filter to these ISO country codes (repeatable)",
+            "in": "query",
+            "name": "countryCode",
+            "required": false,
+            "schema": {
+              "description": "Filter to these ISO country codes (repeatable)",
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Filter to these city names (repeatable)",
+            "in": "query",
+            "name": "city",
+            "required": false,
+            "schema": {
+              "description": "Filter to these city names (repeatable)",
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Filter to these client IPs (repeatable)",
+            "in": "query",
+            "name": "ipAddress",
+            "required": false,
+            "schema": {
+              "description": "Filter to these client IPs (repeatable)",
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Exclude these client IPs (repeatable)",
+            "in": "query",
+            "name": "ipAddressNotIn",
+            "required": false,
+            "schema": {
+              "description": "Exclude these client IPs (repeatable)",
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TopAsnsResponse"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "GetTopAsns",
         "tags": [
           "Analytics"
         ]
@@ -9952,6 +10394,29 @@
           }
         },
         "summary": "GetAbout",
+        "tags": [
+          "System"
+        ]
+      }
+    },
+    "/api/v1/system/asn-classification": {
+      "get": {
+        "deprecated": false,
+        "operationId": "ApiV1SystemAsnClassificationGetAsnClassification",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AsnClassificationListResponse"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          }
+        },
+        "summary": "GetAsnClassification",
         "tags": [
           "System"
         ]

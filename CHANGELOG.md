@@ -7,6 +7,57 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-08-22
+
+### Added
+
+- ASN enrichment. Every ingested request records the autonomous system
+  number and organization from the MaxMind GeoLite2 ASN database, which
+  downloads and refreshes with the same credentials as the City database
+  (`GEOIP_ASN_ENABLED=false` opts out). Missing credentials or a failed
+  download never block ingestion; those rows carry no ASN data.
+- Live map popups show the ASN behind each request, and the access-logs
+  table gains ASN and AS organization columns in the column picker.
+- Settings > Status warns when ASN enrichment is enabled but the GeoLite2
+  ASN database is missing or failed to download, and `/health` reports the
+  ASN database's availability and build date. Settings > About shows both
+  GeoLite2 editions (build date, age, path), the Status GeoIP card lists
+  both build dates, and the settings tree reports ASN availability.
+- Analytics gains a Top ASNs view: a Traffic origin card with the exact
+  hosting-vs-other split for the selected range, and a Top ASNs table
+  (organization, ASN, category, hits, bytes), backed by per-ASN continuous
+  aggregates and `GET /api/v1/analytics/top-asns`. Hosting tagging uses a
+  bundled hosting-ASN list (the MIT-licensed brianhama/bad-asn-list)
+  applied at read time, so list updates apply to all history. Unlisted
+  networks read as Other, never residential.
+- An info tooltip on the analytics views says how hosting classification
+  works. Settings > About links the bundled list to its upstream source,
+  carries the MaxMind GeoLite2 attribution, and opens the full list in a
+  searchable dialog backed by `GET /api/v1/system/asn-classification`.
+- The Summary dashboard gains a Traffic origin section with the hosting
+  share of classified traffic and the busiest network for the selected
+  range. It is hidden when no requests in range carry ASN data.
+- The Top URLs and Top user agents tables sit side by side on wide screens.
+- `litestar backfill-asn` stamps ASN data onto rows ingested before the
+  feature existed or while the database was missing. It asks for
+  confirmation, decompresses compressed history first, resolves and writes
+  IPs in bounded chunks, and refreshes the ASN aggregates so the Top ASNs
+  view picks up the backfilled range. A failed aggregate refresh exits
+  non-zero.
+
+### Fixed
+
+- The Columns picker on the Access Logs, Geo Logs, and Debug Logs tables
+  remembers its selection across reloads, per browser. Only columns you
+  toggled are stored, so the rest keep their defaults and columns added in
+  later releases appear as intended. A "Reset to defaults" item clears
+  the saved selection. The picker is now wide enough for its labels
+  instead of wrapping them at the width of the Columns button.
+- The Summary dashboard shows placeholder cards for every section while
+  loading, so sections no longer pop in and shift the page, and it fetches
+  the Traffic origin data at the same time as the summary instead of after
+  it.
+
 ## [0.9.0] - 2026-08-20
 
 ### Added
@@ -816,7 +867,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Settings endpoint no longer exposes the full settings tree (database credentials leaked via `model_dump()`); response is now an explicit whitelist.
 - Timestamps in `CALL refresh_continuous_aggregate` are bound as asyncpg parameters instead of interpolated into SQL.
 
-[Unreleased]: https://github.com/GilbN/geometrikks/compare/v0.9.0...HEAD
+[Unreleased]: https://github.com/GilbN/geometrikks/compare/v0.10.0...HEAD
+[0.10.0]: https://github.com/GilbN/geometrikks/compare/v0.9.0...v0.10.0
 [0.9.0]: https://github.com/GilbN/geometrikks/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/GilbN/geometrikks/compare/v0.7.1...v0.8.0
 [0.7.1]: https://github.com/GilbN/geometrikks/compare/v0.7.0...v0.7.1
