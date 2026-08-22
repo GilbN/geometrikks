@@ -6,7 +6,6 @@
  * (search, IP, host, hostname, source format, status, method, country and
  * city live in access-logs-filter-bar.tsx). Pairs with GET /api/v1/access-logs/.
  */
-import { useMemo, useState } from "react"
 import { ArrowDown, ArrowUp, ChevronsUpDown, Columns3 } from "lucide-react"
 import {
   Table,
@@ -22,6 +21,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
+  DropdownMenuItem,
   DropdownMenuContent,
   DropdownMenuLabel,
   DropdownMenuSeparator,
@@ -37,7 +37,8 @@ import {
   type AccessLogSortField,
   type SortOrder,
 } from "@/lib/api"
-import { cn, isMobileViewport } from "@/lib/utils"
+import { cn } from "@/lib/utils"
+import { useColumnVisibility } from "@/lib/column-visibility"
 import { useAccessLogFilters } from "@/lib/access-log-filters-context"
 
 export const ACCESS_LOGS_PAGE_SIZES = [10, 20, 50, 100, 200, 500, 1000] as const
@@ -265,14 +266,8 @@ export function AccessLogsTable({
   const { filters } = useAccessLogFilters()
   useCrowdsecLiveUpdates()
 
-  // Column visibility.
-  const [visible, setVisible] = useState<Set<string>>(() => {
-    const mobile = isMobileViewport()
-    return new Set(
-      COLUMNS.filter((c) => c.defaultVisible && !(mobile && c.mobileHidden)).map((c) => c.key),
-    )
-  })
-  const shownColumns = useMemo(() => COLUMNS.filter((c) => visible.has(c.key)), [visible])
+  const { visible, shownColumns, toggleColumn, resetColumns, hasOverrides } =
+    useColumnVisibility("geometrikks-columns-access-logs", COLUMNS)
 
   const { data, isLoading, isError, isPlaceholderData } = useAccessLogs({
     currentPage: page,
@@ -306,15 +301,6 @@ export function AccessLogsTable({
     }
   }
 
-  function toggleColumn(key: string) {
-    setVisible((prev) => {
-      const next = new Set(prev)
-      if (next.has(key)) next.delete(key)
-      else next.add(key)
-      return next
-    })
-  }
-
   const columnsMenu = (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -336,6 +322,10 @@ export function AccessLogsTable({
             {c.label}
           </DropdownMenuCheckboxItem>
         ))}
+      <DropdownMenuSeparator />
+      <DropdownMenuItem disabled={!hasOverrides} onSelect={resetColumns}>
+        Reset to defaults
+      </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   )

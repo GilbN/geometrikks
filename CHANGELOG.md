@@ -46,6 +46,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   range. IPs are resolved and written in bounded chunks, and a failed
   aggregate refresh exits non-zero rather than reporting a clean run.
 
+### Fixed
+
+- The Columns picker on the Access Logs, Geo Logs, and Debug Logs tables
+  now remembers its selection across reloads (per browser). Only columns
+  you toggled are stored, so defaults still apply to the rest and columns
+  added in later releases show up as intended. A "Reset to defaults" item
+  clears the saved selection.
+
 ## [0.9.0] - 2026-08-20
 
 ### Added
