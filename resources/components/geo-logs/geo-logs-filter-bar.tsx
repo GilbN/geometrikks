@@ -1,46 +1,34 @@
 /**
  * Filter bar for the geo-logs page: country / city / hostname multiselects
  * (lazy-loaded facets) plus IP include and IP exclude inputs with chips.
+ * Renders in a FilterRail on desktop and inside a FiltersDrawer on mobile.
  * Everything on the page (map, stats, chart, top lists, table) reshapes
  * through GeoLogFiltersContext, whose state lives in the URL search params.
  */
 import { useState } from "react"
-import { Ban, ChevronsUpDown, X } from "lucide-react"
+import { Ban, X } from "lucide-react"
+import { FilterRail } from "@/components/data/filter-rail"
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import {
-  DropdownMenu,
-  DropdownMenuCheckboxItem,
-  DropdownMenuContent,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
 import { FilterCombobox } from "@/components/ui/filter-combobox"
+import { FiltersDrawer, FilterSection } from "@/components/ui/filters-drawer"
+import { useIsMobile } from "@/hooks/use-mobile"
 import { useGeoEventFacets } from "@/lib/queries"
 import { isValidIp } from "@/lib/crowdsec"
+import { cn } from "@/lib/utils"
 import {
+  countActiveGeoLogFilters,
   EMPTY_GEO_LOG_FILTERS,
-  hasActiveGeoLogFilters,
   useGeoLogFilters,
-  type GeoLogFilterState,
 } from "@/lib/geo-log-filters-context"
 
-function toggleValue(values: string[], value: string): string[] {
-  return values.includes(value) ? values.filter((v) => v !== value) : [...values, value]
-}
-
 export function GeoLogsFilterBar() {
+  const isMobile = useIsMobile()
   const { filters, setFilters } = useGeoLogFilters()
   const [ipInput, setIpInput] = useState("")
   const [ipExcludeInput, setIpExcludeInput] = useState("")
   const [facetsEnabled, setFacetsEnabled] = useState(false)
   const { data: facets } = useGeoEventFacets({ enabled: facetsEnabled })
-
-  function toggleList(key: keyof GeoLogFilterState, value: string) {
-    setFilters((prev) => ({ ...prev, [key]: toggleValue(prev[key], value) }))
-  }
 
   function addIp(key: "ips" | "ipsExclude") {
     const input = key === "ips" ? ipInput : ipExcludeInput
@@ -57,132 +45,139 @@ export function GeoLogsFilterBar() {
     setFilters((prev) => ({ ...prev, [key]: prev[key].filter((v) => v !== ip) }))
   }
 
-  return (
-    <div className="flex flex-wrap items-center gap-2">
-      <FilterCombobox
-        label="Country"
-        options={facets?.countries.map((c) => c.code) ?? []}
-        selected={filters.countryCodes}
-        onChange={(values) => setFilters((prev) => ({ ...prev, countryCodes: values }))}
-        labelFor={(code) => {
-          const name = facets?.countries.find((c) => c.code === code)?.name
-          return name ? `${name} (${code})` : code
-        }}
-        loading={!facets}
-        emptyText="No geo data"
-        onOpenChange={(open) => open && setFacetsEnabled(true)}
-      />
+  function renderFilters(inDrawer: boolean) {
+    const wrap = (label: string, node: React.ReactNode) =>
+      inDrawer ? <FilterSection label={label}>{node}</FilterSection> : node
+    return (
+      <>
+        {wrap(
+          "Country",
+          <FilterCombobox
+            label="Country"
+            options={facets?.countries.map((c) => c.code) ?? []}
+            selected={filters.countryCodes}
+            onChange={(values) => setFilters((prev) => ({ ...prev, countryCodes: values }))}
+            labelFor={(code) => {
+              const name = facets?.countries.find((c) => c.code === code)?.name
+              return name ? `${name} (${code})` : code
+            }}
+            loading={!facets}
+            emptyText="No geo data"
+            onOpenChange={(open) => open && setFacetsEnabled(true)}
+            forceInline={inDrawer}
+          />,
+        )}
+        {wrap(
+          "City",
+          <FilterCombobox
+            label="City"
+            options={facets?.cities ?? []}
+            selected={filters.cities}
+            onChange={(values) => setFilters((prev) => ({ ...prev, cities: values }))}
+            loading={!facets}
+            emptyText="No geo data"
+            onOpenChange={(open) => open && setFacetsEnabled(true)}
+            forceInline={inDrawer}
+          />,
+        )}
+        {wrap(
+          "Hostname",
+          <FilterCombobox
+            label="Hostname"
+            options={facets?.hostnames ?? []}
+            selected={filters.hostnames}
+            onChange={(values) => setFilters((prev) => ({ ...prev, hostnames: values }))}
+            loading={!facets}
+            emptyText="No hostnames"
+            onOpenChange={(open) => open && setFacetsEnabled(true)}
+            forceInline={inDrawer}
+          />,
+        )}
+        {wrap(
+          "IP address",
+          <Input
+            value={ipInput}
+            onChange={(e) => setIpInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault()
+                addIp("ips")
+              }
+            }}
+            placeholder="Add IP + Enter"
+            aria-invalid={ipInput !== "" && !isValidIp(ipInput)}
+            className={cn("h-8 font-mono text-xs", inDrawer ? "w-full" : "w-40")}
+          />,
+        )}
+        {wrap(
+          "Exclude IP",
+          <Input
+            value={ipExcludeInput}
+            onChange={(e) => setIpExcludeInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault()
+                addIp("ipsExclude")
+              }
+            }}
+            placeholder="Exclude IP + Enter"
+            aria-invalid={ipExcludeInput !== "" && !isValidIp(ipExcludeInput)}
+            className={cn("h-8 font-mono text-xs", inDrawer ? "w-full" : "w-40")}
+          />,
+        )}
 
-      <FilterCombobox
-        label="City"
-        options={facets?.cities ?? []}
-        selected={filters.cities}
-        onChange={(values) => setFilters((prev) => ({ ...prev, cities: values }))}
-        loading={!facets}
-        emptyText="No geo data"
-        onOpenChange={(open) => open && setFacetsEnabled(true)}
-      />
-
-      <DropdownMenu onOpenChange={(open) => open && setFacetsEnabled(true)}>
-        <DropdownMenuTrigger asChild>
-          <Button variant="outline" size="sm" className="h-8 pointer-coarse:h-10">
-            Hostname{filters.hostnames.length > 0 && ` (${filters.hostnames.length})`}
-            <ChevronsUpDown className="ml-1 h-3.5 w-3.5" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="max-h-80 w-auto min-w-44 overflow-y-auto">
-          <DropdownMenuLabel>Recording hostname</DropdownMenuLabel>
-          <DropdownMenuSeparator />
-          {!facets && (
-            <DropdownMenuLabel className="font-normal text-muted-foreground">Loading…</DropdownMenuLabel>
-          )}
-          {facets?.hostnames.map((host) => (
-            <DropdownMenuCheckboxItem
-              key={host}
-              checked={filters.hostnames.includes(host)}
-              onCheckedChange={() => toggleList("hostnames", host)}
-              onSelect={(e) => e.preventDefault()}
+        {filters.ips.map((ip) => (
+          <Badge key={ip} variant="secondary" className="font-mono">
+            {ip}
+            <button
+              type="button"
+              onClick={() => removeIp("ips", ip)}
+              aria-label={`Remove ${ip}`}
+              className="ml-1 rounded-full hover:text-destructive"
             >
-              {host}
-            </DropdownMenuCheckboxItem>
-          ))}
-          {facets && facets.hostnames.length === 0 && (
-            <DropdownMenuLabel className="font-normal text-muted-foreground">No hostnames</DropdownMenuLabel>
-          )}
-        </DropdownMenuContent>
-      </DropdownMenu>
+              <X className="h-3 w-3" />
+            </button>
+          </Badge>
+        ))}
 
-      <Input
-        value={ipInput}
-        onChange={(e) => setIpInput(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") {
-            e.preventDefault()
-            addIp("ips")
-          }
-        }}
-        placeholder="Add IP + Enter"
-        aria-invalid={ipInput !== "" && !isValidIp(ipInput)}
-        className="h-8 w-40 font-mono text-xs"
-      />
-
-      <Input
-        value={ipExcludeInput}
-        onChange={(e) => setIpExcludeInput(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") {
-            e.preventDefault()
-            addIp("ipsExclude")
-          }
-        }}
-        placeholder="Exclude IP + Enter"
-        aria-invalid={ipExcludeInput !== "" && !isValidIp(ipExcludeInput)}
-        className="h-8 w-40 font-mono text-xs"
-      />
-
-      {filters.ips.map((ip) => (
-        <Badge key={ip} variant="secondary" className="font-mono">
-          {ip}
-          <button
-            type="button"
-            onClick={() => removeIp("ips", ip)}
-            aria-label={`Remove ${ip}`}
-            className="ml-1 rounded-full hover:text-destructive"
+        {filters.ipsExclude.map((ip) => (
+          <Badge
+            key={ip}
+            variant="outline"
+            className="border-destructive/50 font-mono text-destructive"
           >
-            <X className="h-3 w-3" />
-          </button>
-        </Badge>
-      ))}
+            <Ban className="h-3 w-3" />
+            {ip}
+            <button
+              type="button"
+              onClick={() => removeIp("ipsExclude", ip)}
+              aria-label={`Remove exclusion ${ip}`}
+              className="ml-1 rounded-full hover:opacity-70"
+            >
+              <X className="h-3 w-3" />
+            </button>
+          </Badge>
+        ))}
+      </>
+    )
+  }
 
-      {filters.ipsExclude.map((ip) => (
-        <Badge
-          key={ip}
-          variant="outline"
-          className="border-destructive/50 font-mono text-destructive"
-        >
-          <Ban className="h-3 w-3" />
-          {ip}
-          <button
-            type="button"
-            onClick={() => removeIp("ipsExclude", ip)}
-            aria-label={`Remove exclusion ${ip}`}
-            className="ml-1 rounded-full hover:opacity-70"
-          >
-            <X className="h-3 w-3" />
-          </button>
-        </Badge>
-      ))}
+  const activeCount = countActiveGeoLogFilters(filters)
+  const clear = () => setFilters(() => EMPTY_GEO_LOG_FILTERS)
 
-      {hasActiveGeoLogFilters(filters) && (
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-8 pointer-coarse:h-10"
-          onClick={() => setFilters(() => EMPTY_GEO_LOG_FILTERS)}
-        >
-          Clear filters
-        </Button>
-      )}
-    </div>
+  if (isMobile) {
+    return (
+      <div onClick={() => setFacetsEnabled(true)}>
+        <FiltersDrawer activeCount={activeCount} onClear={clear}>
+          {renderFilters(true)}
+        </FiltersDrawer>
+      </div>
+    )
+  }
+
+  return (
+    <FilterRail label="Location filters" activeCount={activeCount} onClear={clear}>
+      {renderFilters(false)}
+    </FilterRail>
   )
 }

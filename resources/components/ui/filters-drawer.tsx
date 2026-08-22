@@ -17,25 +17,40 @@ import {
 
 export function FiltersDrawer({
   activeCount,
+  onClear,
   children,
 }: {
   activeCount: number
+  onClear?: () => void
   children: React.ReactNode
 }) {
   return (
     <Drawer>
       <DrawerTrigger asChild>
-        <Button variant="outline" size="sm" className="h-8 pointer-coarse:h-10">
+        <Button variant="outline" size="sm" className="h-8 pointer-coarse:h-11">
           <SlidersHorizontal className="mr-1 h-3.5 w-3.5" />
-          Filters{activeCount > 0 && ` (${activeCount})`}
+          Filters
+          {activeCount > 0 && (
+            <>
+              {" "}
+              <span className="sr-only">, active filter groups:</span>({activeCount})
+            </>
+          )}
         </Button>
       </DrawerTrigger>
       <DrawerContent>
-        <DrawerHeader>
-          <DrawerTitle>Filters</DrawerTitle>
-          <DrawerDescription className="sr-only">
-            Adjust the table filters.
-          </DrawerDescription>
+        <DrawerHeader className="flex-row items-center justify-between">
+          <div>
+            <DrawerTitle>Filters</DrawerTitle>
+            <DrawerDescription className="sr-only">
+              Adjust the table filters.
+            </DrawerDescription>
+          </div>
+          {onClear && activeCount > 0 && (
+            <Button variant="ghost" size="sm" className="pointer-coarse:h-11" onClick={onClear}>
+              Clear filters
+            </Button>
+          )}
         </DrawerHeader>
         <div className="flex flex-col gap-4 overflow-y-auto overscroll-contain px-4 pb-6">
           {children}

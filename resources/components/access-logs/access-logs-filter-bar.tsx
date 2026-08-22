@@ -1,14 +1,14 @@
 /**
  * Filter controls for the access-logs history table: search, IP, host,
- * hostname, source format, status, method, country and city. Renders inline
- * on desktop and inside a FiltersDrawer on mobile. State lives in the URL via
+ * hostname, source format, status, method, country and city. Renders in a
+ * FilterRail on desktop and inside a FiltersDrawer on mobile. State lives in the URL via
  * AccessLogFiltersContext, so every control is a controlled input over the
  * route's search params.
  */
 import { useEffect, useRef, useState } from "react"
 import { Ban, Search, X } from "lucide-react"
+import { FilterRail } from "@/components/data/filter-rail"
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { FilterCombobox } from "@/components/ui/filter-combobox"
 import { FiltersDrawer, FilterSection } from "@/components/ui/filters-drawer"
@@ -20,7 +20,6 @@ import { cn } from "@/lib/utils"
 import {
   countActiveAccessLogFilters,
   EMPTY_ACCESS_LOG_FILTERS,
-  hasActiveAccessLogFilters,
   useAccessLogFilters,
 } from "@/lib/access-log-filters-context"
 
@@ -345,33 +344,29 @@ export function AccessLogsFilterBar() {
             </button>
           </Badge>
         ))}
-
-        {hasActiveAccessLogFilters(filters) && (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-8 pointer-coarse:h-10"
-            onClick={() => {
-              setSearchInput("")
-              setFilters(() => EMPTY_ACCESS_LOG_FILTERS)
-            }}
-          >
-            Clear filters
-          </Button>
-        )}
       </>
     )
+  }
+
+  const activeCount = countActiveAccessLogFilters(filters)
+  const clear = () => {
+    setSearchInput("")
+    setFilters(() => EMPTY_ACCESS_LOG_FILTERS)
   }
 
   if (isMobile) {
     return (
       <div onClick={() => setFacetsEnabled(true)}>
-        <FiltersDrawer activeCount={countActiveAccessLogFilters(filters)}>
+        <FiltersDrawer activeCount={activeCount} onClear={clear}>
           {renderFilters(true)}
         </FiltersDrawer>
       </div>
     )
   }
 
-  return <div className="flex flex-wrap items-center gap-2">{renderFilters(false)}</div>
+  return (
+    <FilterRail label="Request filters" activeCount={activeCount} onClear={clear}>
+      {renderFilters(false)}
+    </FilterRail>
+  )
 }

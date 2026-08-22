@@ -43,6 +43,7 @@ import {
 } from "@/components/ui/select"
 import { PaginationFooter } from "@/components/ui/pagination-footer"
 import { FilterCombobox } from "@/components/ui/filter-combobox"
+import { FilterRail } from "@/components/data/filter-rail"
 import { FiltersDrawer, FilterSection } from "@/components/ui/filters-drawer"
 import { DebugLogDetailDialog } from "@/components/debug-logs/debug-log-detail-dialog"
 import { IpBanControls } from "@/components/crowdsec/ip-ban-controls"
@@ -280,6 +281,14 @@ export function DebugLogsTable() {
     (countries.length ? 1 : 0) +
     (cities.length ? 1 : 0)
 
+  function clearFilters() {
+    setSearchInput("")
+    setIpInput("")
+    setMalformedFilter("all")
+    setCountries([])
+    setCities([])
+  }
+
   function renderFilters(inDrawer: boolean) {
     const wrap = (label: string, node: React.ReactNode) =>
       inDrawer ? <FilterSection label={label}>{node}</FilterSection> : node
@@ -396,13 +405,22 @@ export function DebugLogsTable() {
       {isMobile ? (
         <div className="flex items-center gap-2">
           <div onClick={() => setFacetsEnabled(true)}>
-            <FiltersDrawer activeCount={activeFilterCount}>{renderFilters(true)}</FiltersDrawer>
+            <FiltersDrawer activeCount={activeFilterCount} onClear={clearFilters}>
+              {renderFilters(true)}
+            </FiltersDrawer>
           </div>
           {columnsMenu}
         </div>
       ) : (
-        <div className="flex flex-wrap items-center gap-2">
-          {renderFilters(false)}
+        <div className="flex items-start gap-2">
+          <FilterRail
+            label="Debug filters"
+            activeCount={activeFilterCount}
+            onClear={clearFilters}
+            className="min-w-0 flex-1"
+          >
+            {renderFilters(false)}
+          </FilterRail>
           {columnsMenu}
         </div>
       )}

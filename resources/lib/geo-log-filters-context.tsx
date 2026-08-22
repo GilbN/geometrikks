@@ -23,14 +23,20 @@ export const EMPTY_GEO_LOG_FILTERS: GeoLogFilterState = {
   hostnames: [],
 }
 
-export function hasActiveGeoLogFilters(filters: GeoLogFilterState): boolean {
+/** How many filter groups are set; a multi-select counts once however
+ * many values it holds. Drives the rail badge and the mobile drawer count. */
+export function countActiveGeoLogFilters(filters: GeoLogFilterState): number {
   return (
-    filters.countryCodes.length > 0 ||
-    filters.cities.length > 0 ||
-    filters.ips.length > 0 ||
-    filters.ipsExclude.length > 0 ||
-    filters.hostnames.length > 0
+    (filters.countryCodes.length ? 1 : 0) +
+    (filters.cities.length ? 1 : 0) +
+    (filters.ips.length ? 1 : 0) +
+    (filters.ipsExclude.length ? 1 : 0) +
+    (filters.hostnames.length ? 1 : 0)
   )
+}
+
+export function hasActiveGeoLogFilters(filters: GeoLogFilterState): boolean {
+  return countActiveGeoLogFilters(filters) > 0
 }
 
 interface GeoLogFiltersValue {

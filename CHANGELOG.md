@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Shared data presentation primitives (filter rail, table frame, chart panel, detail sheet) and a full-screen mobile variant of the side sheet, for the pages that adopt them in later changes.
+- Access, Geo, Debug and Analytics filters sit in one labeled rail on desktop with an active-group count and a Clear action; Geo logs and Analytics gain the same mobile filter drawer Access logs had, and the drawer gets its own Clear.
 - Settings > Appearance: theme (System, Light, Dark) and accent side by side with previews. System now tracks the device's color scheme live instead of only at page load.
 - Accent picker in the header: Aurora teal, Fjord green or Ember copper. The choice persists per browser and is applied before first paint alongside the theme, so a non-default accent no longer flashes teal on load.
 - Shared page chrome components: standard page header, section dividers, and error banner.
