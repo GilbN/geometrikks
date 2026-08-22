@@ -3,8 +3,9 @@
  *
  * Owns its own query instead of extending /summary: the summary CAGGs carry
  * no ASN dimension, and adding one means drop and recreate, which discards
- * history older than raw retention. TanStack shares this fetch with the
- * analytics page when the ranges match.
+ * history older than raw retention. The query key matches the analytics
+ * page's (same default limit, same range, no filters), so TanStack serves
+ * one cached response to both pages.
  *
  * The hook depends on AnalyticsFiltersContext, whose default is EMPTY_FILTERS
  * precisely so dashboard-shared hooks work outside the analytics provider.
@@ -19,9 +20,10 @@ import { asnCoverage } from "@/lib/asn-coverage"
 import { useTopAsns } from "@/lib/queries"
 
 export function TrafficOriginStats() {
-  // limit=1: only the leading organization is shown here. Category totals are
-  // computed server-side across every ASN, so they stay exact regardless.
-  const { data, isLoading, isError, error } = useTopAsns({ limit: 1 })
+  // Default limit on purpose: a different limit would be a different query
+  // key and the analytics page's cached response could not be reused. Only
+  // items[0] is shown; category totals are exact regardless of limit.
+  const { data, isLoading, isError, error } = useTopAsns()
 
   const { classified, hostingShare, coverage, hasData } = asnCoverage(
     data?.categories,
