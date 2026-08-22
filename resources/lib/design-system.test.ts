@@ -167,6 +167,15 @@ describe("mark geometry", () => {
     expect(shapes(component)).toEqual(shapes(read("static/brand/mark.svg")))
   })
 
+  it("matches the light mark to the dark one, color aside", () => {
+    expect(shapes(read("static/brand/mark-light.svg"))).toEqual(shapes(read("static/brand/mark.svg")))
+  })
+
+  it("matches the scheme-aware favicon to mark-small.svg", () => {
+    expect(shapes(read("static/favicon.svg"))).toEqual(shapes(read("static/brand/mark-small.svg")))
+    expect(read("static/favicon.svg")).toContain("prefers-color-scheme: light")
+  })
+
   it("matches the small mark to the static mark-small.svg", () => {
     const component = renderToStaticMarkup(
       createElement(BrandMark, { decorative: true, variant: "small" }),
