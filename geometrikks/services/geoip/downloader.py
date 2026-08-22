@@ -138,7 +138,7 @@ async def ensure_geoip_database(settings: "GeoIPSettings") -> bool:
         return True
 
     if not has_credentials(settings):
-        if settings.db_path.exists():
+        if geoip_info(settings.db_path).available:
             logger.warning(
                 "GeoLite2 database is older than %d days and no MaxMind "
                 "credentials are configured; keeping the stale copy. "
@@ -147,7 +147,7 @@ async def ensure_geoip_database(settings: "GeoIPSettings") -> bool:
             )
             return True
         logger.warning(
-            "No GeoLite2 database at %s and no MaxMind credentials configured. "
+            "No usable GeoLite2 database at %s and no MaxMind credentials configured. "
             "Set MAXMINDDB_USER_ID and MAXMINDDB_LICENSE_KEY (free account: "
             "https://www.maxmind.com/en/geolite2/signup) to enable geo lookups. "
             "Starting in geo-degraded mode.",
@@ -183,7 +183,7 @@ async def ensure_asn_database(settings: "GeoIPSettings") -> bool:
         return True
 
     if not has_credentials(settings):
-        if settings.asn_db_path.exists():
+        if geoip_info(settings.asn_db_path).available:
             logger.warning(
                 "GeoLite2-ASN database is older than %d days and no MaxMind "
                 "credentials are configured; keeping the stale copy.",
@@ -191,7 +191,7 @@ async def ensure_asn_database(settings: "GeoIPSettings") -> bool:
             )
             return True
         logger.warning(
-            "No GeoLite2-ASN database at %s and no MaxMind credentials "
+            "No usable GeoLite2-ASN database at %s and no MaxMind credentials "
             "configured; ASN enrichment is unavailable. Set "
             "GEOIP_ASN_ENABLED=false to silence this.",
             settings.asn_db_path,

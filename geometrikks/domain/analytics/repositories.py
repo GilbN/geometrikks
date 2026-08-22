@@ -860,13 +860,13 @@ class SummaryStatsRepository:
                 FROM {table} s
                 WHERE s.bucket >= :a_start AND s.bucket < :a_end
                 UNION ALL
-                SELECT CAST(1 AS BIGINT), COALESCE(al.bytes_sent, 0)
-                FROM access_logs al
-                WHERE al.timestamp >= :start AND al.timestamp < :a_start
+                SELECT COUNT(*), COALESCE(SUM(bytes_sent), 0)
+                FROM access_logs
+                WHERE timestamp >= :start AND timestamp < :a_start
                 UNION ALL
-                SELECT CAST(1 AS BIGINT), COALESCE(al.bytes_sent, 0)
-                FROM access_logs al
-                WHERE al.timestamp >= :a_end AND al.timestamp < :end
+                SELECT COUNT(*), COALESCE(SUM(bytes_sent), 0)
+                FROM access_logs
+                WHERE timestamp >= :a_end AND timestamp < :end
             )
             SELECT CAST(COALESCE(SUM(hits), 0) AS BIGINT) AS hits,
                    CAST(COALESCE(SUM(total_bytes), 0) AS BIGINT) AS total_bytes
