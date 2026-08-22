@@ -19,10 +19,9 @@ deduplicates on ASN, first row wins. Classification happens at read time,
 so refreshing this file applies retroactively to all existing data with no
 backfill or aggregate rebuild.
 
-Upstream's stated purpose is "ASNs you may want to block" (abuse-oriented),
-so a few entries are not hosting providers in the literal sense
-(universities, a bank). This is why the UI labels the category Hosting
-rather than claiming Datacenter outright.
+Upstream's stated purpose is "ASNs you may want to block" (abuse-oriented).
+A few entries are not hosting providers in the literal sense (universities,
+a bank), which is why the category is labeled Hosting rather than Datacenter.
 
 To refresh:
 

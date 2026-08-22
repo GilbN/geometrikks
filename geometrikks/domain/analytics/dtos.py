@@ -250,15 +250,13 @@ class AsnCategoryTotalsDTO(msgspec.Struct, rename="camel"):
 
 
 class TopAsnsResponse(msgspec.Struct, rename="camel"):
-    """Response containing top ASNs plus exact category totals.
+    """Top ASNs plus category totals.
 
-    ``categories`` is computed over ALL ASNs in the range (not just the top
-    N items), so the hosting share is exact. ``total_requests`` and
-    ``total_bytes`` count every request in the range, ASN-tagged or not:
-    NULL-ASN rows (pre-feature history, disabled or failed enrichment) are
-    invisible to the categories, so shares must be judged against these
-    totals, never against the category sum. Lists are deliberately
-    default-less (see TopUrlsResponse).
+    ``categories`` covers every ASN in the range, not only the top N.
+    ``total_requests`` and ``total_bytes`` count every request, with or
+    without ASN data; rows without ASN data are absent from ``categories``,
+    so coverage is measured against these totals. Lists have no defaults
+    (see TopUrlsResponse).
     """
 
     start_date: str

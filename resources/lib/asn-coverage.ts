@@ -2,12 +2,11 @@
  * Shared math for the ASN origin split, used by the analytics Traffic origin
  * card and the dashboard KPI cards.
  *
- * Two denominators, deliberately. The hosting share is of CLASSIFIED
- * traffic, the only traffic whose origin is known; coverage is against every
- * request in the range. The ASN aggregates exclude rows with no ASN data
- * (history predating enrichment, enrichment disabled, unresolvable IPs), so
- * dividing by the category sum alone reports "100% hosting" on a database
- * that is mostly unenriched.
+ * Two denominators. The hosting share is of classified traffic, the only
+ * traffic whose origin is known; coverage is against every request in the
+ * range. The ASN aggregates exclude rows with no ASN data (history predating
+ * enrichment, enrichment disabled, unresolvable IPs), so dividing by the
+ * category sum alone reports 100% hosting on a mostly unenriched database.
  */
 
 export interface AsnCategoryTotal {
@@ -20,7 +19,7 @@ export interface AsnCoverage {
   classified: number
   /** Requests in range with no ASN data at all. */
   unenriched: number
-  /** Hosting percentage OF CLASSIFIED traffic. */
+  /** Hosting percentage of classified traffic. */
   hostingShare: number
   /** Percentage of the range's requests that carry ASN data. */
   coverage: number
@@ -36,9 +35,9 @@ export function asnCoverage(
   const other = categories?.find((c) => c.category === "other")?.hits ?? 0
   const classified = hosting + other
   // The totals and the ASN aggregates are two separate reads, so live
-  // ingestion between them can leave classified marginally ahead of the
-  // range total. Both derived figures are clamped to their physical range so
-  // no caller can render "-12 unenriched" or "105% of range".
+  // ingestion between them can leave classified slightly ahead of the range
+  // total. Both figures are clamped so no caller renders "-12 unenriched"
+  // or "105% of range".
   const unenriched = Math.max(0, totalRequests - classified)
   return {
     classified,

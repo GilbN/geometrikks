@@ -347,12 +347,11 @@ ASN_BACKFILL_CHUNK_SIZE = 10_000
 
 
 async def _iter_null_asn_ips(engine, *, chunk_size: int = ASN_BACKFILL_CHUNK_SIZE):
-    """Yield distinct NULL-ASN client IPs in bounded, keyset-paginated chunks.
+    """Yield distinct NULL-ASN client IPs in keyset-paginated chunks.
 
-    Keyset pagination on the inet column (not OFFSET, which rescans) keeps
-    peak memory at one chunk regardless of distinct-IP cardinality: an
-    internet-facing install can approach row cardinality, where materializing
-    the whole set would be a real memory spike.
+    Keyset pagination on the inet column (OFFSET would rescan) holds one
+    chunk in memory at a time; on an internet-facing install the distinct-IP
+    count can approach the row count.
     """
     from sqlalchemy import text
 
@@ -378,11 +377,11 @@ async def _iter_null_asn_ips(engine, *, chunk_size: int = ASN_BACKFILL_CHUNK_SIZ
 async def _apply_asn_mapping(engine, chunks) -> int:
     """Stream ip -> (asn, org) chunks into a temp table, then one join UPDATE.
 
-    One transaction so the ON COMMIT DROP temp table spans every chunk;
-    memory stays bounded because only the chunk in flight is held. Returns
-    the UPDATE rowcount. ``chunks`` may be a plain list of mapping dicts (one
-    chunk) or an async iterable of them. Factored out so the temp-table SQL
-    is integration-testable against a real database.
+    One transaction, so the ON COMMIT DROP temp table spans every chunk
+    while only the chunk in flight is held. Returns the UPDATE rowcount.
+    ``chunks`` is a list of mapping dicts (one chunk) or an async iterable
+    of them. Kept separate from _run_backfill_asn so the integration tests
+    can run the SQL against a real database.
     """
     from sqlalchemy import text
 
@@ -431,9 +430,9 @@ async def _run_backfill_asn(*, yes: bool) -> None:
     reader = create_reader(settings.geoip.asn_db_path)
     if reader is None:
         raise click.ClickException(
-            f"No GeoLite2 ASN database at {settings.geoip.asn_db_path} - cannot "
-            "backfill. Start the app once with MaxMind credentials to "
-            "auto-download it, or provide the mmdb manually."
+            f"No GeoLite2 ASN database at {settings.geoip.asn_db_path}. Start "
+            "the app once with MaxMind credentials to download it, or place "
+            "the mmdb there yourself."
         )
 
     config = get_sqlalchemy_config()
@@ -529,11 +528,10 @@ async def _run_backfill_asn(*, yes: bool) -> None:
         )
         click.echo(f"access_logs rows updated: {updated:,}")
 
-        # The ASN CAGGs exclude NULL-ASN rows, so backfilled history is
-        # invisible to /top-asns until the affected range is re-refreshed.
-        # A failed refresh is not cosmetic: ranges outside the refresh
-        # policy's window may never be retried automatically, so it must not
-        # be reported as a clean run.
+        # The ASN CAGGs exclude NULL-ASN rows, so backfilled history stays
+        # invisible to /top-asns until the range is refreshed. A failed
+        # refresh must fail the run: ranges outside the policy window are
+        # never retried automatically.
         refresh_failed: list[str] = []
         if updated and bounds[0] is not None:
             click.echo("Refreshing ASN CAGGs ...")

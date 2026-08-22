@@ -107,14 +107,11 @@ async def _database_reachable(app: Litestar, timeout: float = 2.0) -> bool:
 
 
 def _collect_advisories(app: Litestar, settings: Settings) -> list[Advisory]:
-    # app/settings parameters: ASN availability lives on app.state, unlike
-    # the module-state hostname-pollution flag.
     from geometrikks.server import timescale
 
     advisories: list[Advisory] = []
     pollution = timescale.get_hostname_pollution()
-    # No early return here: this function has more than one producer, and the
-    # pollution gate must not swallow the ASN advisory below.
+    # No early return: the pollution gate must not swallow the ASN advisory.
     hostname_pollution_active = bool(
         pollution and pollution.polluted and not timescale.location_caggs_have_hostname()
     )
@@ -169,11 +166,10 @@ def _collect_advisories(app: Litestar, settings: Settings) -> list[Advisory]:
                 "The database uses the same MaxMind credentials as the City "
                 "database (MAXMINDDB_USER_ID / MAXMINDDB_LICENSE_KEY) and "
                 "downloads automatically at startup and on the weekly refresh. "
-                "Readers are opened once at startup, so a database that "
-                "arrived since then - downloaded by the weekly refresh, or by "
-                "another instance sharing the volume - is only picked up on "
-                "restart. Check the app log for a download error, then restart "
-                "the container."
+                "Readers open once at startup, so a database that arrived "
+                "later, from the weekly refresh or another instance sharing "
+                "the volume, is picked up only on restart. Check the app log "
+                "for a download error, then restart the container."
             ),
             remedy="Set GEOIP_ASN_ENABLED=false to turn ASN enrichment off instead.",
         ))

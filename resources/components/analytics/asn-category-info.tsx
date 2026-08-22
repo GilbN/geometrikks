@@ -1,8 +1,7 @@
 /**
- * The methodology disclosure for the ASN category badges, shared by the
- * Traffic origin card and the Top ASNs table so the copy cannot drift.
- * One sentence on HOW matching works; the dataset's name and license live
- * on Settings > About, where attribution belongs.
+ * Tooltip explaining the ASN category badges, shared by the Traffic origin
+ * card and the Top ASNs table. Dataset name and license live on
+ * Settings > About.
  */
 import { Info } from "lucide-react"
 

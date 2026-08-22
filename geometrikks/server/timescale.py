@@ -461,12 +461,11 @@ async def _create_user_agent_caggs(conn: "AsyncConnection") -> None:
 
 
 async def _create_asn_caggs(conn: "AsyncConnection") -> None:
-    """Create per-ASN access-log CAGGs (hourly + daily).
+    """Create per-ASN access-log CAGGs (hourly + daily) for /top-asns.
 
-    Used for: analytics /top-asns (unfiltered path). max(as_org) keeps a
-    series intact across organization renames in future mmdb builds. The
-    column set is deliberately final: drop/recreate of a shipped CAGG loses
-    pre-retention history, which is why total_bytes ships in the first cut.
+    max(as_org) keeps one series per ASN when an mmdb build renames the
+    organization. Changing the column set means drop and recreate, which
+    loses history older than raw retention.
     """
     for suffix, interval in (("hourly", "1 hour"), ("daily", "1 day")):
         await conn.execute(text(f"""

@@ -171,11 +171,11 @@ async def ensure_geoip_database(settings: "GeoIPSettings") -> bool:
 
 
 async def ensure_asn_database(settings: "GeoIPSettings") -> bool:
-    """Make the GeoLite2-ASN mmdb present-and-fresh if possible.
+    """Download or refresh the GeoLite2-ASN mmdb when possible; never raises.
 
-    Same never-raises contract as ensure_geoip_database, but ASN is optional
-    enrichment: False only means "ingest without ASN data", never degraded
-    mode. Disabled -> False without touching the network.
+    Unlike ensure_geoip_database, False is not degraded mode, only
+    ingestion without ASN data. Disabled returns False without touching the
+    network.
     """
     if not settings.asn_enabled:
         return False

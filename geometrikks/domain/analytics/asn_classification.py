@@ -1,11 +1,10 @@
 """Read-time ASN categorization: hosting/datacenter vs everything else.
 
-Classification is deliberately not stored per row: keyed by ASN it applies
-retroactively when the vendored list improves, and the analytics queries
-already group by ASN so the lookup cost is trivial. The dataset is the
-MIT-licensed brianhama/bad-asn-list (see data/README.md for provenance),
-refreshed manually when this feature is touched. Unlisted ASNs read as
-"other", never "residential": absence from a hosting list proves nothing.
+Classification is not stored per row. Keyed by ASN, it applies
+retroactively when the list changes, and the analytics queries already
+group by ASN. The dataset is the MIT-licensed brianhama/bad-asn-list (see
+data/README.md), refreshed by hand. Unlisted ASNs read as "other", never
+"residential"; absence from a hosting list proves nothing.
 """
 from __future__ import annotations
 
@@ -57,5 +56,5 @@ def classify_asn(asn: int) -> AsnCategory:
 
 
 def hosting_asn_count() -> int:
-    """Size of the vendored list; used by tests as a load sanity check."""
+    """Number of distinct ASNs in the vendored list."""
     return len(_hosting_asns())

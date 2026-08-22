@@ -180,8 +180,8 @@ class GeoIPSettings(BaseSettings):
         # Update the path to absolute for runtime use
         self.db_path = db_path
 
-        # ASN path gets the same resolution but no existence check: the
-        # edition is optional enrichment owned by the downloader/degraded path.
+        # Same resolution for the ASN path, but no existence check; the
+        # downloader handles a missing file.
         asn_db_path = self.asn_db_path
         if not asn_db_path.is_absolute():
             asn_db_path = project_root / asn_db_path

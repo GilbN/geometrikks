@@ -576,18 +576,16 @@ class AnalyticsController(Controller):
         ip_address: IpAddressFilter = None,
         ip_address_not_in: IpAddressExcludeFilter = None,
     ) -> TopAsnsResponse:
-        """Top ASNs by hit count plus exact category totals for a date range.
+        """Top ASNs by hit count plus category totals for a date range.
 
-        The repository returns the full ASN grouping (small cardinality);
-        category totals are computed over all of it, then the top N slice
-        becomes ``items``. Perf note: filtered queries scan raw access_logs
-        and are bounded by raw_retention_days.
+        Category totals cover every ASN in the range; ``items`` is the top N
+        slice. Filtered queries scan raw access_logs, so they see at most
+        raw_retention_days of history.
         """
         filters = _build_filters(country_code, city, ip_address, ip_address_not_in)
         rows = await summary_stats_repo.get_top_asns(start_date, end_date, filters=filters)
-        # ASN-agnostic totals: the categories only cover ASN-tagged rows, so
-        # the UI needs this to report coverage instead of implying that
-        # unenriched history does not exist.
+        # The categories cover only rows with ASN data; the UI reports
+        # coverage against these totals.
         total_requests, total_bytes = await summary_stats_repo.get_request_totals(
             start_date, end_date, filters=filters
         )

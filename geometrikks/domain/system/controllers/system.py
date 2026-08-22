@@ -95,8 +95,7 @@ class AboutLinksView(msgspec.Struct, rename="camel"):
 class AsnClassificationView(msgspec.Struct, rename="camel"):
     """Provenance of the hosting/other categorization on the ASN views.
 
-    Served from the vendored dataset itself (entry count included) so the
-    About page can never drift from what actually ships.
+    Read from the vendored dataset, so the About page matches what ships.
     """
 
     dataset: str
@@ -123,8 +122,7 @@ class AboutResponse(msgspec.Struct, rename="camel"):
     database: DatabaseVersionsView
     geoip: GeoIPInfoView
     links: AboutLinksView
-    # Additive: the GeoLite2 ASN edition. asn_enabled distinguishes a
-    # deliberately disabled feature from a missing database.
+    # asn_enabled distinguishes a disabled feature from a missing database.
     geoip_asn: GeoIPInfoView | None = None
     geoip_asn_enabled: bool = False
     asn_classification: AsnClassificationView | None = None

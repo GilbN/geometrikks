@@ -1,11 +1,10 @@
 /**
  * Dashboard "Traffic origin" KPIs, fed by the analytics /top-asns endpoint.
  *
- * Owns its own query rather than riding /summary: the summary CAGGs carry no
- * ASN dimension (adding one means drop+recreate, which discards history older
- * than raw retention), and /summary runs twice per load for its
- * previous-period comparison. TanStack shares this fetch with the analytics
- * page whenever the selected range matches.
+ * Owns its own query instead of extending /summary: the summary CAGGs carry
+ * no ASN dimension, and adding one means drop and recreate, which discards
+ * history older than raw retention. TanStack shares this fetch with the
+ * analytics page when the ranges match.
  *
  * The hook depends on AnalyticsFiltersContext, whose default is EMPTY_FILTERS
  * precisely so dashboard-shared hooks work outside the analytics provider.
@@ -29,11 +28,10 @@ export function TrafficOriginStats() {
     data?.totalRequests ?? 0,
   )
 
-  // A failed request must not look like "you have no ASN data": without this
-  // the section would vanish while the rest of Summary renders normally, and
-  // nothing would say the query broke. Only when there is no usable data at
-  // all - a background refetch failure still has the last good values, and
-  // stale KPIs beat an error card.
+  // A failed request must not look like "no ASN data"; the section would
+  // vanish silently while the rest of Summary renders. Shown only when there
+  // is no usable data at all. A background refetch failure keeps the last
+  // good values, and stale KPIs beat an error card.
   if (isError && !data) {
     return (
       <>
@@ -51,8 +49,7 @@ export function TrafficOriginStats() {
 
   // Placeholders on the initial load so the section does not pop in and
   // shift the page once the query lands. On an install with no ASN data
-  // they flash once and vanish; the alternative is a layout jump on every
-  // load for everyone who has data.
+  // they flash once and vanish.
   if (isLoading) {
     return (
       <>
@@ -66,8 +63,7 @@ export function TrafficOriginStats() {
   }
 
   // Nothing enriched yet (fresh install, ASN disabled, history predating the
-  // feature): stay silent rather than parking an explanatory card on a
-  // glanceable KPI page. The analytics page explains it and names the
+  // feature). Render nothing; the analytics page explains it and names the
   // backfill command.
   if (!data || !hasData) return null
 

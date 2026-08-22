@@ -778,10 +778,9 @@ class SummaryStatsRepository:
     ) -> list[TopAsnRow]:
         """All ASNs by hits: stitched CAGG read above 24h, raw otherwise.
 
-        Deliberately unlimited: ASN cardinality is a few thousand at most,
-        and the /top-asns endpoint needs the full grouping to compute exact
-        hosting-vs-other category totals before slicing its top N.
-        Any active filter forces the raw path (no dims on the ASN CAGGs).
+        No LIMIT: the endpoint needs every ASN for its category totals, and
+        cardinality is a few thousand at most. Any active filter forces the
+        raw path; the ASN CAGGs carry no filter dimensions.
         """
         filters = filters or AnalyticsFilters()
         granularity = get_stats_granularity(start, end)
@@ -830,12 +829,12 @@ class SummaryStatsRepository:
     async def get_request_totals(
         self, start: datetime, end: datetime, *, filters: AnalyticsFilters | None = None
     ) -> tuple[int, int]:
-        """(total_requests, total_bytes) for the range, ASN-agnostic.
+        """(total_requests, total_bytes) for the range, with or without ASN data.
 
-        The honest denominator for /top-asns: the ASN queries exclude
-        NULL-ASN rows, so coverage can only be judged against this. Unfiltered
-        ranges ride the summary CAGGs via get_summary; filtered ranges scan
-        raw access_logs (the same trade-off as every filtered top-list).
+        The denominator for /top-asns coverage, since the ASN queries exclude
+        rows without ASN data. Unfiltered ranges read the summary CAGGs via
+        get_summary; filtered ranges scan raw access_logs, like every
+        filtered top list.
         """
         filters = filters or AnalyticsFilters()
         if not filters.is_active():
