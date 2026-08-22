@@ -28,7 +28,7 @@ export function CategoryBadge({ category }: { category: "hosting" | "other" }) {
 }
 
 export function TopAsnsTable() {
-  const { data, isLoading } = useTopAsns({ limit: 25 })
+  const { data, isError, error } = useTopAsns({ limit: 25 })
   const { pageItems, ...pagination } = usePagedRows(data?.items)
 
   return (
@@ -37,7 +37,11 @@ export function TopAsnsTable() {
         <CardTitle className="text-sm font-medium">Top ASNs</CardTitle>
       </CardHeader>
       <CardContent>
-        {isLoading || !data ? (
+        {isError && !data ? (
+          <p className="text-sm text-destructive">
+            Failed to load ASN statistics: {error?.message ?? "Unknown error"}
+          </p>
+        ) : !data ? (
           <Skeleton className="h-48 w-full" />
         ) : (
           <>
