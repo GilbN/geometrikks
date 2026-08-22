@@ -335,7 +335,7 @@ async def test_request_totals_count_unenriched_rows(pg_session_maker, clean_tabl
     """The /top-asns denominator must include NULL-ASN rows.
 
     Regression: the Traffic origin card divided by the ASN category sum, so
-    an install whose history predates enrichment read as "100% datacenter".
+    an install whose history predates enrichment read as "100% hosting".
     """
     from geometrikks.domain.analytics.repositories import SummaryStatsRepository
 

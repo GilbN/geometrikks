@@ -34,6 +34,7 @@ import {
   fetchSystemSettings,
   fetchSchedulerJobs,
   fetchAbout,
+  fetchAsnClassification,
   fetchHealth,
   fetchMe,
   fetchStats,
@@ -93,6 +94,7 @@ export const queryKeys = {
     settings: ["system", "settings"] as const,
     schedulerJobs: ["system", "scheduler-jobs"] as const,
     about: ["system", "about"] as const,
+    asnClassification: ["system", "asn-classification"] as const,
     stats: ["system", "stats"] as const,
     database: ["system", "database"] as const,
   },
@@ -214,6 +216,16 @@ export function useAbout() {
     queryKey: queryKeys.system.about,
     queryFn: fetchAbout,
     staleTime: Number.POSITIVE_INFINITY,
+  })
+}
+
+/** The vendored hosting-ASN list; fetched only while its dialog is open. */
+export function useAsnClassification(enabled: boolean) {
+  return useQuery({
+    queryKey: queryKeys.system.asnClassification,
+    queryFn: fetchAsnClassification,
+    staleTime: Number.POSITIVE_INFINITY,
+    enabled,
   })
 }
 
@@ -801,7 +813,7 @@ export function useTopUserAgents(options: UseTopListOptions = {}) {
 }
 
 /**
- * Fetch the top ASNs plus datacenter-vs-other category totals.
+ * Fetch the top ASNs plus hosting-vs-other category totals.
  * Uses TimeRangeContext for time filtering.
  */
 export function useTopAsns(options: UseTopListOptions = {}) {

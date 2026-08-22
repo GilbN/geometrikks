@@ -67,6 +67,16 @@ export const AboutResponseSchema = {
     app: {
       $ref: "#/components/schemas/AboutAppView",
     },
+    asnClassification: {
+      oneOf: [
+        {
+          $ref: "#/components/schemas/AsnClassificationView",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
     database: {
       $ref: "#/components/schemas/DatabaseVersionsView",
     },
@@ -450,7 +460,7 @@ export const AnalyticsSettingsViewSchema = {
 export const AsnCategoryTotalsDTOSchema = {
   properties: {
     category: {
-      enum: ["datacenter", "other"],
+      enum: ["hosting", "other"],
       type: "string",
     },
     hits: {
@@ -462,6 +472,49 @@ export const AsnCategoryTotalsDTOSchema = {
   },
   required: ["category", "hits", "totalBytes"],
   title: "AsnCategoryTotalsDTO",
+  type: "object",
+} as const;
+
+export const AsnClassificationListResponseSchema = {
+  properties: {
+    dataset: {
+      type: "string",
+    },
+    entries: {
+      items: {
+        $ref: "#/components/schemas/HostingAsnEntryView",
+      },
+      type: "array",
+    },
+    license: {
+      type: "string",
+    },
+    sourceUrl: {
+      type: "string",
+    },
+  },
+  required: ["dataset", "entries", "license", "sourceUrl"],
+  title: "AsnClassificationListResponse",
+  type: "object",
+} as const;
+
+export const AsnClassificationViewSchema = {
+  properties: {
+    dataset: {
+      type: "string",
+    },
+    entries: {
+      type: "integer",
+    },
+    license: {
+      type: "string",
+    },
+    sourceUrl: {
+      type: "string",
+    },
+  },
+  required: ["dataset", "entries", "license", "sourceUrl"],
+  title: "AsnClassificationView",
   type: "object",
 } as const;
 
@@ -1556,6 +1609,20 @@ export const HealthResponseSchema = {
     "timestamp",
   ],
   title: "HealthResponse",
+  type: "object",
+} as const;
+
+export const HostingAsnEntryViewSchema = {
+  properties: {
+    asn: {
+      type: "integer",
+    },
+    entity: {
+      type: "string",
+    },
+  },
+  required: ["asn", "entity"],
+  title: "HostingAsnEntryView",
   type: "object",
 } as const;
 
@@ -3000,7 +3067,7 @@ export const TopAsnDTOSchema = {
       type: "integer",
     },
     category: {
-      enum: ["datacenter", "other"],
+      enum: ["hosting", "other"],
       type: "string",
     },
     hits: {

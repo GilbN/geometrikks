@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest"
 import { asnCoverage } from "./asn-coverage"
 
-const cats = (datacenter: number, other: number) => [
-  { category: "datacenter" as const, hits: datacenter },
+const cats = (hosting: number, other: number) => [
+  { category: "hosting" as const, hits: hosting },
   { category: "other" as const, hits: other },
 ]
 
@@ -14,7 +14,7 @@ describe("asnCoverage", () => {
     const c = asnCoverage(cats(90, 10), 1000)
     expect(c.classified).toBe(100)
     expect(c.unenriched).toBe(900)
-    expect(c.datacenterShare).toBeCloseTo(90)
+    expect(c.hostingShare).toBeCloseTo(90)
     expect(c.coverage).toBeCloseTo(10)
     expect(c.hasData).toBe(true)
   })
@@ -23,20 +23,20 @@ describe("asnCoverage", () => {
     const c = asnCoverage(cats(63, 37), 100)
     expect(c.unenriched).toBe(0)
     expect(c.coverage).toBeCloseTo(100)
-    expect(c.datacenterShare).toBeCloseTo(63)
+    expect(c.hostingShare).toBeCloseTo(63)
   })
 
   it("has no data when nothing in the range is classified", () => {
     const c = asnCoverage(cats(0, 0), 5000)
     expect(c.hasData).toBe(false)
-    expect(c.datacenterShare).toBe(0)
+    expect(c.hostingShare).toBe(0)
     expect(c.unenriched).toBe(5000)
   })
 
   it("treats missing categories as zero rather than NaN", () => {
     const c = asnCoverage(undefined, 0)
     expect(c.hasData).toBe(false)
-    expect(c.datacenterShare).toBe(0)
+    expect(c.hostingShare).toBe(0)
     expect(c.coverage).toBe(0)
   })
 

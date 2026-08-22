@@ -140,6 +140,8 @@ import type {
   ApiV1StatsStatsResponses,
   ApiV1SystemAboutGetAboutData,
   ApiV1SystemAboutGetAboutResponses,
+  ApiV1SystemAsnClassificationGetAsnClassificationData,
+  ApiV1SystemAsnClassificationGetAsnClassificationResponses,
   ApiV1SystemDatabaseGetDatabaseInfoData,
   ApiV1SystemDatabaseGetDatabaseInfoResponses,
   ApiV1SystemSchedulerJobsGetSchedulerJobsData,
@@ -450,7 +452,7 @@ export const apiV1AnalyticsTimeSeriesCumulativeGetCumulativeTimeSeries = <
 /**
  * GetTopAsns
  *
- * Top ASNs by hits with datacenter-vs-other totals (CAGG-served above 24h; filters force a raw scan).
+ * Top ASNs by hits with hosting-vs-other totals (CAGG-served above 24h; filters force a raw scan).
  */
 export const apiV1AnalyticsTopAsnsGetTopAsns = <
   ThrowOnError extends boolean = false,
@@ -1551,6 +1553,37 @@ export const apiV1SystemAboutGetAbout = <ThrowOnError extends boolean = false>(
       },
     ],
     url: "/api/v1/system/about",
+    ...options,
+  });
+
+/**
+ * GetAsnClassification
+ */
+export const apiV1SystemAsnClassificationGetAsnClassification = <
+  ThrowOnError extends boolean = false,
+>(
+  options?: Options<
+    ApiV1SystemAsnClassificationGetAsnClassificationData,
+    ThrowOnError
+  >,
+): RequestResult<
+  ApiV1SystemAsnClassificationGetAsnClassificationResponses,
+  unknown,
+  ThrowOnError
+> =>
+  (options?.client ?? client).get<
+    ApiV1SystemAsnClassificationGetAsnClassificationResponses,
+    unknown,
+    ThrowOnError
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+    ],
+    url: "/api/v1/system/asn-classification",
     ...options,
   });
 

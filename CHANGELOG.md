@@ -23,15 +23,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   path), the Status GeoIP card lists both build dates, and the settings
   tree reports the runtime ASN availability.
 - Analytics gains a Top ASNs view: a Traffic origin card showing the exact
-  datacenter-vs-other split for the selected range, and a Top ASNs table
+  hosting-vs-other split for the selected range, and a Top ASNs table
   (organization, ASN, category, hits, bytes), backed by new per-ASN
-  continuous aggregates and `GET /api/v1/analytics/top-asns`. Datacenter
+  continuous aggregates and `GET /api/v1/analytics/top-asns`. Hosting
   tagging uses a bundled hosting-ASN list (the MIT-licensed
   brianhama/bad-asn-list) applied at read time, so list improvements apply
-  retroactively.
+  retroactively; unlisted networks read as Other, never residential.
+- The ASN category badges explain themselves: an info tooltip on the
+  analytics views describes how hosting classification works, and
+  Settings > About links the bundled list to its upstream source, carries
+  the MaxMind GeoLite2 attribution, and opens the full list in a
+  searchable dialog backed by `GET /api/v1/system/asn-classification`.
 - The Top URLs and Top user agents tables now sit side by side on wide
   screens to save page height.
-- The Summary dashboard gains a Traffic origin section: the datacenter share
+- The Summary dashboard gains a Traffic origin section: the hosting share
   of classified traffic and the busiest network for the selected range. It
   is hidden entirely when no requests in range carry ASN data.
 - `litestar backfill-asn`: retroactively stamp ASN data onto rows ingested

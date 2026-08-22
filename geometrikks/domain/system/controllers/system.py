@@ -27,6 +27,13 @@ from geometrikks.config.introspection import (
     build_settings_overview,
 )
 from geometrikks.config.settings import Settings
+from geometrikks.domain.analytics.asn_classification import (
+    DATASET_LICENSE,
+    DATASET_NAME,
+    DATASET_URL,
+    hosting_asn_count,
+    hosting_asn_entries,
+)
 from geometrikks.server import runtime
 from geometrikks.server.logging import get_logger
 from geometrikks.server.scheduler_tracking import JobRunTracker, JobStatus
@@ -85,16 +92,40 @@ class AboutLinksView(msgspec.Struct, rename="camel"):
     issues: str
 
 
+class AsnClassificationView(msgspec.Struct, rename="camel"):
+    """Provenance of the hosting/other categorization on the ASN views.
+
+    Read from the vendored dataset, so the About page matches what ships.
+    """
+
+    dataset: str
+    entries: int
+    license: str
+    source_url: str
+
+
+class HostingAsnEntryView(msgspec.Struct, rename="camel"):
+    asn: int
+    entity: str
+
+
+class AsnClassificationListResponse(msgspec.Struct, rename="camel"):
+    dataset: str
+    source_url: str
+    license: str
+    entries: list[HostingAsnEntryView]
+
+
 class AboutResponse(msgspec.Struct, rename="camel"):
     app: AboutAppView
     runtime: RuntimeVersionsView
     database: DatabaseVersionsView
     geoip: GeoIPInfoView
     links: AboutLinksView
-    # Additive: the GeoLite2 ASN edition. asn_enabled distinguishes a
-    # deliberately disabled feature from a missing database.
+    # asn_enabled distinguishes a disabled feature from a missing database.
     geoip_asn: GeoIPInfoView | None = None
     geoip_asn_enabled: bool = False
+    asn_classification: AsnClassificationView | None = None
 
 
 def _dist_version(name: str) -> str | None:
@@ -297,6 +328,29 @@ class SystemController(Controller):
             links=AboutLinksView(repository=REPO_URL, issues=f"{REPO_URL}/issues"),
             geoip_asn=geoip_info(s.geoip.asn_db_path),
             geoip_asn_enabled=s.geoip.asn_enabled,
+            asn_classification=AsnClassificationView(
+                dataset=DATASET_NAME,
+                entries=hosting_asn_count(),
+                license=DATASET_LICENSE,
+                source_url=DATASET_URL,
+            ),
+        )
+
+    @get("/asn-classification")
+    async def get_asn_classification(self) -> AsnClassificationListResponse:
+        """The vendored hosting-ASN list behind the category badges.
+
+        Around 700 entries, so it ships whole and the About page filters
+        client-side.
+        """
+        return AsnClassificationListResponse(
+            dataset=DATASET_NAME,
+            source_url=DATASET_URL,
+            license=DATASET_LICENSE,
+            entries=[
+                HostingAsnEntryView(asn=asn, entity=entity)
+                for asn, entity in hosting_asn_entries()
+            ],
         )
 
     @get("/database")

@@ -48,6 +48,13 @@
       ],
       "uri": "/api/v1/access-logs/facets"
     },
+    "get_asn_classification": {
+      "method": "get",
+      "methods": [
+        "GET"
+      ],
+      "uri": "/api/v1/system/asn-classification"
+    },
     "get_cumulative_time_series": {
       "method": "get",
       "methods": [
