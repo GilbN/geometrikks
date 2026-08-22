@@ -172,12 +172,13 @@ function RootLayout() {
 function RootErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   return (
     <ThemeProvider defaultTheme="dark" storageKey="geometrikks-theme">
-      <BrandScreen className="max-w-lg">
+      <BrandScreen
+        title="Something went wrong"
+        description="Try again, or go back to the overview."
+        className="max-w-lg"
+      >
         <div className="space-y-4">
-          <ErrorBanner
-            title="Something went wrong"
-            detail={error?.message || "An unexpected error occurred. Try again or go back to the overview."}
-          />
+          {error?.message && <ErrorBanner title={error.message} />}
           <div className="flex gap-2 justify-center">
             <Button variant="outline" onClick={reset}>
               <RefreshCw className="h-4 w-4 mr-2" />
@@ -197,14 +198,11 @@ function RootErrorComponent({ error, reset }: { error: Error; reset: () => void 
 function NotFoundComponent() {
   return (
     <ThemeProvider defaultTheme="dark" storageKey="geometrikks-theme">
-      <BrandScreen>
-        <div className="space-y-4 text-center">
-          <div className="space-y-1">
-            <h1 className="text-xl font-[650] tracking-[-0.01em]">Page not found</h1>
-            <p className="text-[13px] text-muted-foreground">
-              Nothing lives at this address, or it has moved.
-            </p>
-          </div>
+      <BrandScreen
+        title="Page not found"
+        description="Nothing lives at this address, or it has moved."
+      >
+        <div className="flex justify-center">
           <Button variant="default" asChild>
             <Link to="/">
               <Home className="h-4 w-4 mr-2" />

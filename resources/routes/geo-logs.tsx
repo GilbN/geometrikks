@@ -121,7 +121,7 @@ function GeoLogsPage() {
       <div className="p-4 space-y-4">
         <PageHeader
           title="Geo Logs"
-          subtitle="Geolocated request events: where your traffic comes from."
+          subtitle="Trace where traffic originates, how locations change over time, and which clients recur."
         />
         <GeoLogsFilterBar />
         <GeoLogsStats />

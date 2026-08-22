@@ -77,7 +77,7 @@ function AnalyticsPage() {
       <div className="p-4 space-y-4">
         <PageHeader
           title="Analytics"
-          subtitle="Charts and top lists over the access-log data."
+          subtitle="Inspect request volume, delivery health, and the clients driving traffic."
         />
         <AnalyticsFilterBar />
         <SectionHeader>Traffic</SectionHeader>

@@ -32,7 +32,10 @@ export const Route = createFileRoute("/login")({
 // anonymous cold load shows a blank page until that round trip returns.
 function LoginPagePending() {
   return (
-    <BrandScreen>
+    <BrandScreen
+      title="Sign in"
+      description="Enter the administrator credentials configured for this installation."
+    >
       <div className="space-y-4">
         <div className="space-y-2">
           <Skeleton className="h-4 w-16" />
@@ -70,7 +73,10 @@ function LoginPage() {
   }
 
   return (
-    <BrandScreen>
+    <BrandScreen
+      title="Sign in"
+      description="Enter the administrator credentials configured for this installation."
+    >
       <form onSubmit={onSubmit} className="space-y-4">
         <div className="space-y-2">
           <Label htmlFor="username">Username</Label>

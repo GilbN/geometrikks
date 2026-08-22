@@ -17,7 +17,7 @@ function DebugLogsPage() {
     <div className="p-4 space-y-4">
       <PageHeader
         title="Debug Logs"
-        subtitle="Parse failures and malformed lines caught while ingesting logs."
+        subtitle="Inspect captured source lines, parse failures, and their linked request context."
       />
       <DebugLogsStats />
       <DebugLogsTable />

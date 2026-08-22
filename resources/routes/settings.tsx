@@ -34,9 +34,9 @@ function SettingsLayout() {
   }
 
   return (
-    <div className="min-w-0 space-y-4 p-4">
+    <div className="min-w-0 p-4 md:grid md:grid-cols-[11rem_minmax(0,1fr)] md:gap-8 md:p-6">
       <Select value={activeTab.to} onValueChange={handleTabChange}>
-        <SelectTrigger aria-label="Settings section" className="h-10 w-full md:hidden">
+        <SelectTrigger aria-label="Settings section" className="mb-4 h-10 w-full md:hidden">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
@@ -49,18 +49,24 @@ function SettingsLayout() {
       </Select>
       <nav
         aria-label="Settings"
-        className="hidden w-fit max-w-full flex-wrap items-center rounded-lg bg-muted p-1 text-muted-foreground md:flex"
+        className="hidden self-start md:sticky md:top-4 md:block"
       >
-        {tabs.map((tab) => (
-          <Link
-            key={tab.to}
-            to={tab.to}
-            className="inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 py-1 text-sm font-medium transition-all hover:text-foreground"
-            activeProps={{ className: "bg-background text-foreground shadow-sm" }}
-          >
-            {tab.label}
-          </Link>
-        ))}
+        <p className="mb-2 px-3 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+          Settings
+        </p>
+        <ul className="space-y-0.5 border-l border-border/50">
+          {tabs.map((tab) => (
+            <li key={tab.to}>
+              <Link
+                to={tab.to}
+                className="relative -ml-px flex items-center border-l-2 border-transparent py-1.5 pl-3 pr-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
+                activeProps={{ className: "border-primary font-medium text-foreground" }}
+              >
+                {tab.label}
+              </Link>
+            </li>
+          ))}
+        </ul>
       </nav>
       <div className="min-w-0">
         <Outlet />

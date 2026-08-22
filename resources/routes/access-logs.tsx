@@ -158,7 +158,7 @@ function AccessLogsPage() {
       <div className="p-4 space-y-4">
         <PageHeader
           title="Access Logs"
-          subtitle="Browse and search the full request history, or tail new requests live."
+          subtitle="Explore request history or follow new traffic as it arrives."
         />
         <Tabs value={mode} onValueChange={(value) => setMode(value as Mode)}>
           <TabsList className="pointer-coarse:h-10">
