@@ -41,8 +41,20 @@ while [ ! -f "$STOPFILE" ] && { [ "$MAX_SECONDS" -eq 0 ] || [ "$i" -lt "$MAX_SEC
   status=${STATUSES[$((RANDOM % ${#STATUSES[@]}))]}
   tts=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
   ttsn=$(date -u +"%Y-%m-%dT%H:%M:%S.%NZ")
-  printf '{"ClientAddr":"%s:%s","ClientHost":"%s","ClientPort":"%s","ClientUsername":"-","DownstreamContentSize":%s,"DownstreamStatus":%s,"Duration":%s,"OriginContentSize":%s,"OriginDuration":0,"OriginStatus":%s,"Overhead":1200,"RequestAddr":"chat.gflix.app","RequestContentSize":0,"RequestCount":%s,"RequestHost":"chat.gflix.app","RequestMethod":"%s","RequestPath":"%s","RequestPort":"-","RequestProtocol":"HTTP/2.0","RequestScheme":"https","RetryAttempts":0,"StartLocal":"%s","StartUTC":"%s","TLSCipher":"TLS_AES_128_GCM_SHA256","TLSVersion":"1.3","entryPointName":"https","level":"info","msg":"","request_User-Agent":"%s","time":"%s"}\n' \
+  printf '{"ClientAddr":"%s:%s","ClientHost":"%s","ClientPort":"%s","ClientUsername":"-","DownstreamContentSize":%s,"DownstreamStatus":%s,"Duration":%s,"OriginContentSize":%s,"OriginDuration":0,"OriginStatus":%s,"Overhead":1200,"RequestAddr":"traefik.example.com","RequestContentSize":0,"RequestCount":%s,"RequestHost":"traefik.example.com","RequestMethod":"%s","RequestPath":"%s","RequestPort":"-","RequestProtocol":"HTTP/2.0","RequestScheme":"https","RetryAttempts":0,"StartLocal":"%s","StartUTC":"%s","TLSCipher":"TLS_AES_128_GCM_SHA256","TLSVersion":"1.3","entryPointName":"https","level":"info","msg":"","request_User-Agent":"%s","time":"%s"}\n' \
     "$ip" "$((RANDOM % 50000 + 1024))" "$ip" "$((RANDOM % 50000 + 1024))" "$bytes" "$status" "$((RANDOM % 90000 + 500))" "$bytes" "$status" "$((i + 1))" "$method" "$path" "$ttsn" "$ttsn" "$agent" "$tts" >> "$REPO/nginx_logs/traefik.log"
+
+  # Every tenth nginx line is one the parser cannot fully use, so the Debug
+  # logs page has parse failures to show: a TLS probe on the plain port, a
+  # line cut off mid-request by a rotation, and a request with no method.
+  # Traefik never writes lines like these, so only the nginx file gets them.
+  if [ $((i % 10)) -eq 9 ]; then
+    case $((RANDOM % 3)) in
+      0) printf '%s - - [%s]"\\x16\\x03\\x01\\x02\\x00\\x01\\x00\\x01\\xfc\\x03\\x03" 400 157"-" yourdomain.com "-""0.000" "-""-" "-"\n' "$ip" "$nts" ;;
+      1) printf '%s - - [%s]"GET /assets/app\n' "$ip" "$nts" ;;
+      2) printf '%s - - [%s]"/ HTTP/1.1" 400 0"-" yourdomain.com "-""0.000" "-""-" "-"\n' "$ip" "$nts" ;;
+    esac >> "$REPO/nginx_logs/nginx.log"
+  fi
 
   i=$((i + 1))
   sleep 1

@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { MonoChip, StatusLed, type LedTone } from "@/components/settings/status-led"
+import { BrandMark } from "@/components/brand/brand-mark"
+import { Wordmark } from "@/components/brand/wordmark"
 import { AsnListDialog } from "@/components/settings/asn-list-dialog"
 
 function formatUptime(startedAt: string | null | undefined): string {
@@ -44,32 +46,8 @@ function Row({ label, value }: { label: string; value: ReactNode }) {
 
 function SectionIcon({ icon: Icon }: { icon: React.ComponentType<{ className?: string }> }) {
   return (
-    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-geo-cyan/10">
-      <Icon className="h-4 w-4 text-geo-cyan" />
-    </div>
-  )
-}
-
-/** The sidebar's brand mark, reused at masthead size. */
-function BrandMark() {
-  return (
-    <div className="relative shrink-0">
-      <div className="absolute inset-0 rounded-xl bg-geo-cyan/20 blur-md" />
-      <div className="relative flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-geo-cyan to-geo-cyan-dim shadow-lg shadow-geo-glow">
-        <svg
-          viewBox="0 0 24 24"
-          className="h-6 w-6 text-primary-foreground"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          <path d="M12 2L2 7l10 5 10-5-10-5z" />
-          <path d="M2 17l10 5 10-5" />
-          <path d="M2 12l10 5 10-5" />
-        </svg>
-      </div>
+    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+      <Icon className="h-4 w-4 text-primary" />
     </div>
   )
 }
@@ -99,12 +77,10 @@ export function AboutPage() {
       <Card className="md:col-span-2">
         <CardContent className="flex flex-wrap items-center justify-between gap-4 py-5">
           <div className="flex items-center gap-4">
-            <BrandMark />
+            <BrandMark size={48} className="text-foreground" decorative />
             <div>
               <div className="flex items-center gap-2.5">
-                <span className="text-lg font-semibold tracking-tight">
-                  Geo<span className="text-geo-cyan">Metrikks</span>
-                </span>
+                <Wordmark className="text-[17px] text-foreground" />
                 <MonoChip>v{data.app.version}</MonoChip>
               </div>
               <div className="mt-1 flex items-center gap-1.5">

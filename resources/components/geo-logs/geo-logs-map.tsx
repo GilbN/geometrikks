@@ -16,9 +16,9 @@ import "maplibre-gl/dist/maplibre-gl.css"
 import type { FeatureCollection, Point } from "geojson"
 import type { GeoJSONSource, MapLayerMouseEvent } from "maplibre-gl"
 
-import { AlertTriangle } from "lucide-react"
-import { Card } from "@/components/ui/card"
-import { MapSkeleton } from "@/components/map/MapSkeleton"
+import { FRAME_SURFACE } from "@/components/data/frame"
+import { SignalPanel } from "@/components/data/signal-panel"
+import { dataState } from "@/components/data/types"
 import { useMapStyle } from "@/components/map/hooks/useMapStyle"
 import { MapPopup, type PopupInfo } from "@/components/map/MapPopup"
 import {
@@ -28,6 +28,7 @@ import {
   unclusteredPointLayer,
 } from "@/components/map/layers"
 import { useGeoLogsGeoJSON } from "@/lib/queries"
+import { cn } from "@/lib/utils"
 
 // Same starting viewport as the full map page (centered on Europe).
 const INITIAL_VIEW_STATE = {
@@ -41,7 +42,7 @@ const INITIAL_VIEW_STATE = {
 export default function GeoLogsMap() {
   const mapRef = useRef<MapRef>(null)
   const { mapStyle } = useMapStyle()
-  const { data: geojson, isLoading, isError } = useGeoLogsGeoJSON()
+  const { data: geojson, error, isLoading, isError, refetch } = useGeoLogsGeoJSON()
   const [viewState, setViewState] = useState(INITIAL_VIEW_STATE)
   const [popup, setPopup] = useState<PopupInfo | null>(null)
   const didFitRef = useRef(false)
@@ -116,58 +117,69 @@ export default function GeoLogsMap() {
     })
   }, [])
 
+  const state = dataState(isLoading, isError, geojson?.features.length ?? 0)
+
+  // Loading, error and empty go through the panel so they match the chart
+  // beside them. The ready state is the bare map: no header or body
+  // padding, and it fills whatever height the grid row gives the card, so
+  // the map is as big as the chart next to it.
+  if (state !== "ready") {
+    return (
+      <SignalPanel
+        title="Spatial preview"
+        description="Request locations in the selected range."
+        state={state}
+        error={error?.message ?? "Failed to load map data."}
+        onRetry={() => void refetch()}
+        bodyClassName="min-h-[320px]"
+      />
+    )
+  }
+
   return (
-    <Card className="h-[380px] gap-0 overflow-hidden py-0">
-      <div className="relative flex-1">
-        {isLoading && <MapSkeleton />}
-        {isError && (
-          <div className="flex h-full items-center justify-center gap-2 text-sm text-destructive">
-            <AlertTriangle className="h-4 w-4" /> Failed to load map data.
-          </div>
-        )}
-        {!isLoading && !isError && (
-          <Map
-            ref={mapRef}
-            {...viewState}
-            onMove={onMove}
-            onClick={onClick}
-            onLoad={fitOnce}
-            mapStyle={mapStyle}
-            interactiveLayerIds={["clusters", "unclustered-point"]}
-            cursor="pointer"
-            attributionControl={false}
-          >
-            <NavigationControl position="top-right" showCompass={false} />
-            {geojson && (
-              <Source
-                id="geo-data"
-                type="geojson"
-                data={geojson as unknown as FeatureCollection}
-                cluster
-                clusterMaxZoom={14}
-                clusterRadius={50}
-                clusterProperties={{
-                  // Sum event_count for all points in the cluster
-                  sum_event_count: ["+", ["get", "eventCount"]],
-                }}
-              >
-                <Layer {...clusterLayer} />
-                <Layer {...clusterCountLayer} />
-                <Layer {...unclusteredPointLayer} />
-                <Layer {...unclusteredPointLabelLayer} />
-              </Source>
-            )}
-            {popup && (
-              <MapPopup
-                longitude={popup.longitude}
-                latitude={popup.latitude}
-                properties={popup.properties}
-                onClose={() => setPopup(null)}
-              />
-            )}
-          </Map>
-        )}
+    <section aria-label="Spatial preview" className={cn(FRAME_SURFACE, "relative min-h-[320px]")}>
+      <div className="absolute inset-0">
+        <Map
+          ref={mapRef}
+          {...viewState}
+          onMove={onMove}
+          onClick={onClick}
+          onLoad={fitOnce}
+          mapStyle={mapStyle}
+          interactiveLayerIds={["clusters", "unclustered-point"]}
+          cursor="pointer"
+          attributionControl={false}
+        >
+          <NavigationControl position="top-right" showCompass={false} />
+          {geojson && (
+            <Source
+              id="geo-data"
+              type="geojson"
+              data={geojson as unknown as FeatureCollection}
+              cluster
+              clusterMaxZoom={14}
+              clusterRadius={50}
+              clusterProperties={{
+                // Sum event_count for all points in the cluster
+                sum_event_count: ["+", ["get", "eventCount"]],
+              }}
+            >
+              <Layer {...clusterLayer} />
+              <Layer {...clusterCountLayer} />
+              <Layer {...unclusteredPointLayer} />
+              <Layer {...unclusteredPointLabelLayer} />
+            </Source>
+          )}
+          {popup && (
+            <MapPopup
+              longitude={popup.longitude}
+              latitude={popup.latitude}
+              properties={popup.properties}
+              onClose={() => setPopup(null)}
+            />
+          )}
+        </Map>
       </div>
-    </Card>
+    </section>
   )
 }

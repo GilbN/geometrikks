@@ -17,7 +17,7 @@ import { TablePaginationFooter, usePagedRows } from "./table-pagination"
 export function CategoryBadge({ category }: { category: "hosting" | "other" }) {
   return category === "hosting" ? (
     <Badge variant="secondary" className="gap-1.5">
-      <span className="size-1.5 rounded-full bg-geo-cyan" />
+      <span className="size-1.5 rounded-full bg-primary" />
       Hosting
     </Badge>
   ) : (
@@ -34,7 +34,7 @@ export function TopAsnsTable() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-sm font-medium">Top ASNs</CardTitle>
+        <CardTitle className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Top ASNs</CardTitle>
       </CardHeader>
       <CardContent>
         {isError && !data ? (

@@ -1,14 +1,15 @@
 /**
- * Map control overlay with layer toggle and utilities.
- * Desktop: a collapsible panel docked top-right.
+ * Map control overlay: one bounded panel with labeled sections, in this
+ * order: Visualization, Live (with the rail switch), Filters, Summary, Top IPs.
+ * Toggles are switch rows rather than buttons so it fits without scrolling.
+ * Desktop: a collapsible MapOverlay docked top-right.
  * Mobile: a trigger button portaled into the top header bar (next to the
- * time-range toolbar) that opens a bottom drawer, keeping the map area
- * unobstructed.
+ * time-range toolbar) that opens a bottom drawer with the same sections.
  */
 
 import { useEffect, useState } from "react"
 import { createPortal } from "react-dom"
-import { Card } from "@/components/ui/card"
+import { MapOverlay } from "./MapOverlay"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -21,7 +22,8 @@ import {
 } from "@/components/ui/drawer"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { FilterCombobox } from "@/components/ui/filter-combobox"
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
+import { Switch } from "@/components/ui/switch"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   Activity,
   Flame,
@@ -37,6 +39,7 @@ import {
   X,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { FRAME_LABEL } from "@/components/data/frame"
 import type { LayerType, MapProjection } from "./GeoMap"
 import { GeoJSONFeatureStats, TopIPDTO, formatNumber } from "@/lib/api"
 import type { DemoTrafficMode } from "@/lib/demo-traffic"
@@ -85,6 +88,65 @@ interface MapControlsProps {
   sourcesLoading?: boolean
 }
 
+/**
+ * One 28px row per toggle: icon, label, optional metric, switch. The row is
+ * a label, so clicking anywhere on it flips the switch, and the switch
+ * itself is the keyboard target.
+ */
+function SwitchRow({
+  icon: Icon,
+  iconClassName,
+  label,
+  meta,
+  checked,
+  disabled = false,
+  onCheckedChange,
+  tone = "accent",
+  title,
+}: {
+  icon: React.ComponentType<{ className?: string }>
+  iconClassName?: string
+  label: string
+  meta?: string
+  checked: boolean
+  disabled?: boolean
+  onCheckedChange: (checked: boolean) => void
+  tone?: "accent" | "danger"
+  title?: string
+}) {
+  return (
+    <label
+      title={title}
+      className={cn(
+        "flex h-7 w-full items-center gap-2 rounded-md px-1.5 text-sm font-medium transition-colors pointer-coarse:h-10",
+        disabled ? "cursor-default opacity-50" : "cursor-pointer hover:bg-foreground/[0.05]",
+        checked && (tone === "danger" ? "text-red-400" : "text-primary"),
+      )}
+    >
+      <Icon className={cn("h-4 w-4 shrink-0", iconClassName)} />
+      <span className="min-w-0 flex-1 truncate">{label}</span>
+      {meta && <span className="font-mono text-[11px] tabular-nums text-muted-foreground">{meta}</span>}
+      <Switch
+        size="sm"
+        checked={checked}
+        disabled={disabled}
+        onCheckedChange={onCheckedChange}
+        aria-label={label}
+        className={cn(tone === "danger" && "data-checked:bg-red-500")}
+      />
+    </label>
+  )
+}
+
+function Section({ label, children }: { label?: string; children: React.ReactNode }) {
+  return (
+    <section className="space-y-1 border-b border-border/50 pb-2.5 last:border-0 last:pb-0">
+      {label && <h3 className={cn(FRAME_LABEL, "mb-1.5")}>{label}</h3>}
+      {children}
+    </section>
+  )
+}
+
 export function MapControls({
   activeLayer,
   onLayerChange,
@@ -125,6 +187,8 @@ export function MapControls({
 }: MapControlsProps) {
   const { events, countries, cities, locations } = featureStats
   const [isExpanded, setIsExpanded] = useState(true)
+  const activeFilterCount =
+    (selectedCountries.length ? 1 : 0) + (selectedCities.length ? 1 : 0) + (selectedSources.length ? 1 : 0)
   const [drawerOpen, setDrawerOpen] = useState(false)
   const isMobile = useIsMobile()
 
@@ -135,201 +199,113 @@ export function MapControls({
     setHeaderSlot(document.getElementById("header-actions-slot"))
   }, [])
 
+  const viewActions = (
+    <div className="flex gap-1">
+      <Button
+        variant="ghost"
+        size="icon-sm"
+        onClick={onFitBounds}
+        disabled={isLoading || events === 0}
+        title="Fit to data bounds"
+        className="cursor-pointer pointer-coarse:size-10"
+      >
+        <Maximize2 className="h-4 w-4" />
+        <span className="sr-only">Fit to data bounds</span>
+      </Button>
+      {routeHomeAvailable && onGoHome && (
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          onClick={onGoHome}
+          title="Go to home location"
+          className="cursor-pointer pointer-coarse:size-10"
+        >
+          <Home className="h-4 w-4" />
+          <span className="sr-only">Go to home location</span>
+        </Button>
+      )}
+    </div>
+  )
+
   // The control sections are shared between the desktop top-right panel and the
   // mobile bottom drawer so there is a single source of truth for the controls.
   const sections = (
     <>
-      {/* Layer Toggle */}
-      <Card className="p-2 shrink-0 bg-background/85 backdrop-blur">
-        <div className="flex flex-col gap-1">
-          <ToggleGroup
-            type="single"
-            value={activeLayer}
-            onValueChange={(value) => value && onLayerChange(value as LayerType)}
-            className="flex flex-col gap-1 w-full"
-            orientation="vertical"
-            spacing={4}
-          >
-            <ToggleGroupItem
-              value="heatmap"
-              aria-label="Heatmap view"
-              variant="outline"
-              className={cn(
-                "cursor-pointer w-full justify-start gap-2 px-3 pointer-coarse:h-10 data-[state=on]:bg-geo-cyan/15 data-[state=on]:text-geo-cyan data-[state=on]:border-geo-cyan/30",
-                activeLayer === "heatmap" && "bg-geo-cyan/15 text-geo-cyan border-geo-cyan/30"
-              )}
-            >
-              <Flame className="h-4 w-4" />
-              <span className="text-sm font-medium">Heatmap</span>
-            </ToggleGroupItem>
-            <ToggleGroupItem
-              value="markers"
-              aria-label="Marker view"
-              variant="outline"
-              className={cn(
-                "cursor-pointer w-full justify-start gap-2 px-3 pointer-coarse:h-10 data-[state=on]:bg-geo-cyan/15 data-[state=on]:text-geo-cyan data-[state=on]:border-geo-cyan/30",
-                activeLayer === "markers" && "bg-geo-cyan/15 text-geo-cyan border-geo-cyan/30"
-              )}
-            >
-              <MapPin className="h-4 w-4" />
-              <span className="text-sm font-medium">Markers</span>
-            </ToggleGroupItem>
-          </ToggleGroup>
-          <Button
-            variant="outline"
-            onClick={() => onProjectionChange(
-              projection === "globe" ? "mercator" : "globe",
-            )}
-            aria-pressed={projection === "globe"}
-            title={projection === "globe"
-              ? "Switch to a flat Mercator map"
-              : "Switch to an interactive globe"}
-            className={cn(
-              "cursor-pointer w-full justify-start gap-2 px-3 pointer-coarse:h-10",
-              projection === "globe"
-                && "bg-geo-cyan/15 text-geo-cyan border-geo-cyan/30",
-            )}
-          >
-            <Globe2 className="h-4 w-4" />
-            <span className="text-sm font-medium">Globe</span>
-            <Badge variant="secondary" className="ml-auto text-[9px] uppercase">
-              {projection === "globe" ? "on" : "off"}
-            </Badge>
-          </Button>
-          {/* Live geo-event pulses toggle (independent of the layer choice) */}
-          <Button
-            variant="outline"
-            onClick={() => onLiveModeChange(!liveMode)}
-            aria-pressed={liveMode}
-            className={cn(
-              "cursor-pointer w-full justify-start gap-2 px-3 pointer-coarse:h-10",
-              liveMode && "bg-geo-cyan/15 text-geo-cyan border-geo-cyan/30"
-            )}
-          >
-            <Radio className={cn("h-4 w-4", liveMode && "animate-pulse")} />
-            <span className="text-sm font-medium">
-              {demoTrafficMode === "off" ? "Live" : "Demo traffic"}
-            </span>
-            {demoTrafficMode !== "off" && (
-              <Badge variant="secondary" className="ml-auto text-[9px] uppercase">
-                {demoTrafficMode}
-              </Badge>
-            )}
-          </Button>
-          <Button
-            variant="outline"
-            onClick={() => onRouteEffectsChange(!routeEffectsEnabled)}
-            aria-pressed={routeEffectsEnabled}
-            disabled={!routeHomeAvailable}
-            title={routeHomeAvailable
-              ? "Show or hide animated network routes"
-              : "No map home location could be resolved"}
-            className={cn(
-              "cursor-pointer w-full justify-start gap-2 px-3 pointer-coarse:h-10",
-              routeEffectsEnabled && routeHomeAvailable
-                && "bg-geo-cyan/15 text-geo-cyan border-geo-cyan/30",
-            )}
-          >
-            <Sparkles className="h-4 w-4" />
-            <span className="text-sm font-medium">
-              {routeHomeAvailable ? "Route effects" : "Home unavailable"}
-            </span>
-            {routeHomeAvailable && (
-              <Badge variant="secondary" className="ml-auto text-[9px] uppercase">
-                {routeEffectsEnabled ? "on" : "off"}
-              </Badge>
-            )}
-          </Button>
-          {routeHomeAvailable && (
-            <Button
-              variant="outline"
-              onClick={() => onHomeMarkerChange(!homeMarkerEnabled)}
-              aria-pressed={homeMarkerEnabled}
-              title="Show a beacon at the server home location"
-              className={cn(
-                "cursor-pointer w-full justify-start gap-2 px-3 pointer-coarse:h-10",
-                homeMarkerEnabled && "bg-geo-cyan/15 text-geo-cyan border-geo-cyan/30",
-              )}
-            >
-              <Home className="h-4 w-4" />
-              <span className="text-sm font-medium">Home marker</span>
-              <Badge variant="secondary" className="ml-auto text-[9px] uppercase">
-                {homeMarkerEnabled ? "on" : "off"}
-              </Badge>
-            </Button>
-          )}
-          {bannedOverlayAvailable && (
-            <Button
-              variant="outline"
-              onClick={() => onBannedOverlayChange(!bannedOverlayEnabled)}
-              aria-pressed={bannedOverlayEnabled}
-              title="Show banned IPs seen in your traffic within the selected time range as red markers"
-              className={cn(
-                "cursor-pointer w-full justify-start gap-2 px-3 pointer-coarse:h-10",
-                bannedOverlayEnabled && "bg-red-500/15 text-red-400 border-red-500/30",
-              )}
-            >
-              {bannedOverlayLoading ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <ShieldBan className="h-4 w-4" />
-              )}
-              <span className="text-sm font-medium">Banned IPs</span>
-              <Badge variant="secondary" className="ml-auto text-[9px] uppercase">
-                {bannedOverlayEnabled
-                  ? bannedOverlayLoading
-                    ? "…"
-                    : bannedCount.toLocaleString()
-                  : "off"}
-              </Badge>
-            </Button>
-          )}
-        </div>
-      </Card>
+      <Section label="Visualization">
+        <Tabs value={activeLayer} onValueChange={(value) => onLayerChange(value as LayerType)}>
+          <TabsList className="grid h-8 w-full grid-cols-2 pointer-coarse:h-10">
+            <TabsTrigger value="heatmap" className="gap-1.5 text-xs data-active:bg-primary/15 data-active:text-primary data-active:border-primary/30 dark:data-active:bg-primary/15 dark:data-active:text-primary dark:data-active:border-primary/30">
+              <Flame className="h-3.5 w-3.5" />
+              Heatmap
+            </TabsTrigger>
+            <TabsTrigger value="markers" className="gap-1.5 text-xs data-active:bg-primary/15 data-active:text-primary data-active:border-primary/30 dark:data-active:bg-primary/15 dark:data-active:text-primary dark:data-active:border-primary/30">
+              <MapPin className="h-3.5 w-3.5" />
+              Markers
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
+        <SwitchRow
+          icon={Globe2}
+          label="Globe"
+          checked={projection === "globe"}
+          onCheckedChange={(on) => onProjectionChange(on ? "globe" : "mercator")}
+          title={projection === "globe" ? "Switch to a flat Mercator map" : "Switch to an interactive globe"}
+        />
+      </Section>
 
-      {/* The rail only mounts at md and up; below that the vitals pill is the
-          sole entry point into live data, so this card would offer a switch
-          that controls nothing. */}
-      {liveMode && !isMobile && (
-        <Card className="p-2 gap-1 shrink-0 bg-background/85 backdrop-blur">
-          <div className="text-xs font-medium text-muted-foreground">Live overlays</div>
-          {([
-            { key: "rail" as const, label: "Live rail", icon: Activity },
-          ]).map(({ key, label, icon: Icon }) => (
-            <Button
-              key={key}
-              variant="outline"
-              onClick={() => onLiveOverlayChange(key, !liveOverlays[key])}
-              aria-pressed={liveOverlays[key]}
-              className={cn(
-                "cursor-pointer w-full justify-start gap-2 px-3 pointer-coarse:h-10",
-                liveOverlays[key] && "bg-geo-cyan/15 text-geo-cyan border-geo-cyan/30",
-              )}
-            >
-              <Icon className="h-4 w-4 shrink-0" />
-              {/* The label truncates rather than pushing the indicator past
-                  the button border on narrow panels. */}
-              <span className="min-w-0 flex-1 truncate text-left text-sm font-medium">{label}</span>
-              {/* State dot, same vocabulary as the sidebar's live-ingestion
-                  dot: lit cyan while the overlay is shown. An on/off text
-                  badge does not fit next to the longest label here. */}
-              <span
-                aria-hidden
-                className={cn(
-                  "h-2 w-2 shrink-0 rounded-full",
-                  liveOverlays[key]
-                    ? "bg-geo-cyan shadow-[0_0_6px_var(--geo-cyan)]"
-                    : "bg-muted-foreground/40",
-                )}
-              />
-            </Button>
-          ))}
-        </Card>
-      )}
+      <Section label="Live">
+        <SwitchRow
+          icon={Radio}
+          iconClassName={liveMode ? "animate-pulse" : undefined}
+          label={demoTrafficMode === "off" ? "Live" : "Demo traffic"}
+          meta={demoTrafficMode !== "off" ? demoTrafficMode : undefined}
+          checked={liveMode}
+          onCheckedChange={onLiveModeChange}
+        />
+        <SwitchRow
+          icon={Sparkles}
+          label={routeHomeAvailable ? "Route effects" : "Home unavailable"}
+          checked={routeEffectsEnabled && routeHomeAvailable}
+          disabled={!routeHomeAvailable}
+          onCheckedChange={onRouteEffectsChange}
+          title={routeHomeAvailable ? "Show or hide animated network routes" : "No map home location could be resolved"}
+        />
+        {routeHomeAvailable && (
+          <SwitchRow
+            icon={Home}
+            label="Home marker"
+            checked={homeMarkerEnabled}
+            onCheckedChange={onHomeMarkerChange}
+            title="Show a beacon at the server home location"
+          />
+        )}
+        {bannedOverlayAvailable && (
+          <SwitchRow
+            icon={bannedOverlayLoading ? Loader2 : ShieldBan}
+            iconClassName={bannedOverlayLoading ? "animate-spin" : undefined}
+            label="Banned IPs"
+            meta={bannedOverlayEnabled && !bannedOverlayLoading ? bannedCount.toLocaleString() : undefined}
+            checked={bannedOverlayEnabled}
+            onCheckedChange={onBannedOverlayChange}
+            tone="danger"
+            title="Show banned IPs seen in your traffic within the selected time range as red markers"
+          />
+        )}
+        {/* The rail only mounts at md and up; below that the vitals pill is the
+            sole entry point into live data, so this switch would control
+            nothing. */}
+        {liveMode && !isMobile && (
+          <SwitchRow
+            icon={Activity}
+            label="Live rail"
+            checked={liveOverlays.rail}
+            onCheckedChange={(on) => onLiveOverlayChange("rail", on)}
+          />
+        )}
+      </Section>
 
-      {/* Country / city filters */}
-      <Card className="p-2 gap-1.5 shrink-0 bg-background/85 backdrop-blur">
-        <div className="text-xs font-medium text-muted-foreground">Filters</div>
+      {/* Country / city / source filters, one per row. */}
+      <Section label="Filters">
         <FilterCombobox
           label="Country"
           options={countryOptions}
@@ -337,6 +313,7 @@ export function MapControls({
           onChange={onCountriesChange}
           labelFor={(code) => countryLabels?.[code] ?? code}
           forceInline={isMobile}
+          className="w-full justify-between"
         />
         <FilterCombobox
           label="City"
@@ -344,6 +321,7 @@ export function MapControls({
           selected={selectedCities}
           onChange={onCitiesChange}
           forceInline={isMobile}
+          className="w-full justify-between"
         />
         {(sourceOptions.length >= 2 || selectedSources.length > 0) && (
           <FilterCombobox
@@ -354,40 +332,29 @@ export function MapControls({
             loading={sourcesLoading}
             emptyText="No sources recorded"
             forceInline={isMobile}
+            className="w-full justify-between"
           />
         )}
-      </Card>
-
-      {/* Fit Bounds / Go Home Buttons */}
-      <Card className="p-1 shrink-0 bg-background/85 backdrop-blur">
-        <div className="flex gap-1">
+        {activeFilterCount > 0 && (
           <Button
             variant="ghost"
-            size="icon"
-            onClick={onFitBounds}
-            disabled={isLoading || events === 0}
-            title="Fit to data bounds"
-            className="cursor-pointer pointer-coarse:size-10"
+            size="sm"
+            className="h-8 w-full justify-start px-2 pointer-coarse:h-10"
+            onClick={() => {
+              onCountriesChange([])
+              onCitiesChange([])
+              onSourcesChange([])
+            }}
           >
-            <Maximize2 className="h-4 w-4" />
+            Clear filters
           </Button>
-          {routeHomeAvailable && onGoHome && (
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={onGoHome}
-              title="Go to home location"
-              className="cursor-pointer pointer-coarse:size-10"
-            >
-              <Home className="h-4 w-4" />
-            </Button>
-          )}
-        </div>
-      </Card>
+        )}
+      </Section>
 
-      {/* Status Indicator */}
-      <Card className="px-3 py-2 shrink-0 bg-background/85 backdrop-blur">
-        <div className="flex flex-col gap-1 text-xs text-muted-foreground">
+      {isMobile && <Section>{viewActions}</Section>}
+
+      <Section>
+        <div className="flex flex-col gap-0.5 text-xs text-muted-foreground">
           {isLoading ? (
             <div className="flex items-center gap-2">
               <Loader2 className="h-3 w-3 animate-spin" />
@@ -396,28 +363,24 @@ export function MapControls({
           ) : (
             <>
               <div className="flex items-center gap-2">
-                <div className="h-2 w-2 rounded-full bg-emerald-500" />
-                <span>{formatNumber(events)} events</span>
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                <span>
+                  {formatNumber(events)} events · {formatNumber(countries)} countries
+                </span>
               </div>
               <div className="flex items-center gap-2">
-                <div className="h-2 w-2 rounded-full bg-emerald-500" />
-                <span>{formatNumber(countries)} countries</span>
-              </div>              <div className="flex items-center gap-2">
-                <div className="h-2 w-2 rounded-full bg-emerald-500" />
-                <span>{formatNumber(cities)} cities</span>
-              </div>              <div className="flex items-center gap-2">
-                <div className="h-2 w-2 rounded-full bg-emerald-500" />
-                <span>{formatNumber(locations)} locations</span>
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                <span>
+                  {formatNumber(cities)} cities · {formatNumber(locations)} locations
+                </span>
               </div>
             </>
           )}
         </div>
-      </Card>
+      </Section>
 
-      {/* Top IPs */}
       {topIPs && topIPs.length > 0 && (
-        <Card className="px-3 py-2 gap-1 shrink-0 bg-background/85 backdrop-blur">
-          <div className="text-xs font-medium text-muted-foreground mb-2">Top IPs</div>
+        <Section label="Top IPs">
           <div className="flex flex-col gap-1">
             {topIPs.map((ip) => (
               <button
@@ -433,7 +396,7 @@ export function MapControls({
               </button>
             ))}
           </div>
-        </Card>
+        </Section>
       )}
     </>
   )
@@ -465,7 +428,7 @@ export function MapControls({
               Switch map layers, filter by country and city, and view statistics.
             </DrawerDescription>
           </DrawerHeader>
-          <div className="flex flex-col gap-2 overflow-y-auto overscroll-contain px-4 pb-6">
+          <div className="flex flex-col gap-3 overflow-y-auto overscroll-contain px-4 pb-6">
             {sections}
           </div>
         </DrawerContent>
@@ -473,46 +436,64 @@ export function MapControls({
     )
   }
 
-  // Desktop collapsed state - single toggle button
+  // Desktop collapsed state: one button, with a dot while filters are active
+  // so a filtered map is never mistaken for the whole dataset.
   if (!isExpanded) {
     return (
       <div className="absolute top-4 right-4 z-10">
         <Button
           size="icon"
           variant="outline"
-          className="bg-background/85 backdrop-blur mt-1 cursor-pointer"
+          className="relative bg-background/85 backdrop-blur cursor-pointer"
           onClick={() => setIsExpanded(true)}
           title="Show map controls"
+          aria-label={
+            activeFilterCount > 0
+              ? `Show map controls, ${activeFilterCount} active filter groups`
+              : "Show map controls"
+          }
         >
           <SlidersHorizontal className="h-4 w-4" />
+          {activeFilterCount > 0 && (
+            <span aria-hidden className="absolute -top-1 -right-1 size-2.5 rounded-full bg-primary ring-2 ring-background" />
+          )}
         </Button>
       </div>
     )
   }
 
-  // Desktop expanded state - full controls docked top-right.
-  // The wrapper is click-through: its bounding box spans the full panel height,
-  // and the transparent strip below the collapse button would otherwise swallow
-  // clicks meant for the map zoom controls docked bottom-right (issue #53).
+  // Desktop expanded state: one bounded overlay docked top-right. The height
+  // cap leaves room beneath it for the MapLibre navigation controls docked
+  // bottom-right (issue #53).
   return (
-    <div className="absolute top-4 right-4 z-10 flex gap-2 max-h-[calc(100vh-2rem)] pointer-events-none">
-      {/* Scrollable controls area */}
+    <MapOverlay
+      placement="top-right"
+      role="complementary"
+      aria-label="Map controls"
+      className="w-[min(220px,calc(100vw-4rem))] max-h-[calc(100%-9rem)]"
+    >
+      <div className="flex shrink-0 items-center justify-between gap-1 border-b border-border/50 py-1.5 pl-3 pr-1.5">
+        <h2 className={FRAME_LABEL}>Map controls</h2>
+        <div className="flex items-center gap-0.5">
+          {viewActions}
+          <Button
+            size="icon-sm"
+            variant="ghost"
+            className="cursor-pointer"
+            onClick={() => setIsExpanded(false)}
+            title="Hide map controls"
+          >
+            <X className="h-4 w-4" />
+            <span className="sr-only">Hide map controls</span>
+          </Button>
+        </div>
+      </div>
       <div
-        className="flex flex-col gap-2 p-1 overflow-y-auto overscroll-contain pointer-events-auto max-h-full max-w-[min(200px,calc(100vw-4rem))]"
-        style={{ touchAction: 'pan-y' }}
+        className="flex min-h-0 flex-col gap-2.5 overflow-y-auto overscroll-contain p-3"
+        style={{ touchAction: "pan-y" }}
       >
         {sections}
       </div>
-      {/* Collapse button - inline right */}
-      <Button
-        size="icon"
-        variant="outline"
-        className="mt-1 bg-background/85 backdrop-blur shrink-0 p-1 self-start cursor-pointer pointer-events-auto"
-        onClick={() => setIsExpanded(false)}
-        title="Hide map controls"
-      >
-        <X className="h-4 w-4" />
-      </Button>
-    </div>
+    </MapOverlay>
   )
 }

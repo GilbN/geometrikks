@@ -8,10 +8,21 @@
     <link rel="apple-touch-icon" href="/static/apple-touch-icon-180x180.png" />
     <!-- The web app manifest link is injected by main.tsx in production
          builds only; the dev HTML transform would mangle a hardcoded href. -->
-    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#ffffff" />
-    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#0d1220" />
+    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#f0f6f9" />
+    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#010810" />
     <meta name="color-scheme" content="dark light" />
     <title>GeoMetrikks</title>
+    <meta name="description" content="Real-time GeoIP map and traffic analytics from your reverse-proxy access logs (nginx, Traefik), with CrowdSec ban management." />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="GeoMetrikks" />
+    <meta property="og:description" content="Real-time GeoIP map and traffic analytics from your reverse-proxy access logs (nginx, Traefik), with CrowdSec ban management." />
+    <!-- Relative on purpose: the app does not know its public origin. Most
+         unfurlers (Slack, Discord, iMessage, Mastodon) resolve it; Facebook
+         does not, and GitHub uses the repo's own social preview upload. -->
+    <meta property="og:image" content="/static/brand/social-card-dark.png" />
+    <meta property="og:image:width" content="1280" />
+    <meta property="og:image:height" content="640" />
+    <meta name="twitter:card" content="summary_large_image" />
     <script>
       // Prevent flash bang - apply theme immediately before render
       // Default theme is 'dark' (matches ThemeProvider defaultTheme in __root.tsx)
@@ -24,12 +35,17 @@
         if (isDark) {
           document.documentElement.classList.add('dark');
         }
+        // Mirrors lib/accent.ts: teal is the default and needs no attribute.
+        const accent = localStorage.getItem('geometrikks-accent');
+        if (accent === 'green' || accent === 'copper') {
+          document.documentElement.setAttribute('data-accent', accent);
+        }
       })();
     </script>
     <style>
-      /* CSS to prevent flash bang - dark theme colors from tailwind.css */
-      html.dark, html.dark body { background-color: oklch(0.12 0.02 250); color: oklch(0.95 0.01 220); }
-      html:not(.dark), html:not(.dark) body { background-color: #fff; color: oklch(0.13 0.028 261.692); }
+      /* CSS to prevent flash bang - theme surface colors from main.css */
+      html.dark, html.dark body { background-color: oklch(0.13 0.025 245); color: oklch(0.95 0.01 220); }
+      html:not(.dark), html:not(.dark) body { background-color: oklch(0.97 0.008 220); color: oklch(0.22 0.03 250); }
     </style>
     <link rel="stylesheet" href="/resources/main.css">
   </head>

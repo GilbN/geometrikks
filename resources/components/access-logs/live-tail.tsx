@@ -12,18 +12,11 @@ import { Button } from "@/components/ui/button"
 import { useMediaQuery } from "@/hooks/use-media-query"
 import { useLiveEvents } from "@/lib/live-feed-context"
 import { formatBytes, formatDuration } from "@/lib/api"
+import { statusBadgeClass } from "@/lib/status-badge"
 import { cn } from "@/lib/utils"
 import type { AccessLogData } from "@/lib/websocket"
 
 const MAX_ROWS = 500
-
-/** Tailwind classes for the status badge, by response class. */
-function statusBadgeClass(code: number): string {
-  if (code >= 500) return "bg-red-500/15 text-red-600 dark:text-red-400"
-  if (code >= 400) return "bg-amber-500/15 text-amber-600 dark:text-amber-400"
-  if (code >= 300) return "bg-sky-500/15 text-sky-600 dark:text-sky-400"
-  return "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
-}
 
 /** Column layout shared by the header and every row (aligned via fixed widths). */
 const COLS = "flex items-center gap-2 px-3 min-w-max"
@@ -103,11 +96,19 @@ export function LiveTail({ enabled }: { enabled: boolean }) {
           )}
         </Button>
       </div>
-      <div className="overflow-x-auto">
-        {/* Column header — aligns with the row layout below. */}
-        <div className={cn(COLS, "border-b py-1.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground")}>
+      {/* One scroll element for both axes: the header and the rows share it, so
+          a sideways scroll carries every column. Rows stay in normal flow
+          (offset by a single translate) rather than absolutely positioned, or
+          they would never widen the container past the viewport. */}
+      <div
+        ref={parentRef}
+        className="max-h-[70dvh] overflow-auto font-mono text-xs"
+        onMouseEnter={() => canHover && setHoverPaused(true)}
+        onMouseLeave={() => setHoverPaused(false)}
+      >
+        <div className={cn(COLS, "sticky top-0 z-10 border-b bg-card py-1.5 font-sans text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground")}>
           <span className="w-20 shrink-0">Time</span>
-          <span className="w-10 shrink-0">Status</span>
+          <span className="w-14 shrink-0">Status</span>
           <span className="w-14 shrink-0">Method</span>
           <span className="w-[220px] shrink-0">URL</span>
           <span className="hidden w-[320px] shrink-0 md:block">Referrer</span>
@@ -120,29 +121,26 @@ export function LiveTail({ enabled }: { enabled: boolean }) {
           <span className="w-16 shrink-0">Country</span>
           <span className="w-16 shrink-0">City</span>
         </div>
-        <div
-          ref={parentRef}
-          className="overflow-y-auto overflow-x-hidden font-mono text-xs"
-          onMouseEnter={() => canHover && setHoverPaused(true)}
-          onMouseLeave={() => setHoverPaused(false)}
-        >
-          <div style={{ height: virtualizer.getTotalSize(), position: "relative" }}>
+        <div style={{ height: virtualizer.getTotalSize() }} className="min-w-max">
+          <div style={{ transform: `translateY(${virtualizer.getVirtualItems()[0]?.start ?? 0}px)` }}>
             {virtualizer.getVirtualItems().map((item) => {
               const row = rows[item.index]
               return (
                 <div
                   key={item.key}
-                  className={cn(COLS, "absolute left-0 border-b border-border/40")}
-                  style={{ top: 0, height: item.size, transform: `translateY(${item.start}px)` }}
+                  className={cn(COLS, "border-b border-border/40")}
+                  style={{ height: item.size }}
                 >
                   <span className="w-20 shrink-0 text-muted-foreground">
                     {new Date(row.timestamp).toLocaleTimeString()}
                   </span>
-                  <Badge
-                    className={cn("w-10 shrink-0 justify-center tabular-nums border-transparent", statusBadgeClass(row.status_code))}
-                  >
-                    {row.status_code}
-                  </Badge>
+                  <span className="w-14 shrink-0">
+                    <Badge
+                      className={cn("w-10 justify-center tabular-nums border-transparent", statusBadgeClass(row.status_code))}
+                    >
+                      {row.status_code}
+                    </Badge>
+                  </span>
                   <span className="w-14 shrink-0">{row.method ?? "-"}</span>
                   <span className="w-[220px] shrink-0 truncate" title={row.url ?? undefined}>
                     {row.url ?? "-"}

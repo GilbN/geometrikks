@@ -32,7 +32,7 @@ export function AlertsTable() {
   return (
     <Card className="py-4">
       <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 pb-2">
-        <CardTitle className="text-base">Alert history</CardTitle>
+        <CardTitle className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Alert history</CardTitle>
         <Tabs value={since} onValueChange={(value) => setSince(value as SinceKey)}>
           <TabsList>
             {SINCE_OPTIONS.map((option) => (

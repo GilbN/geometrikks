@@ -5,6 +5,7 @@
  */
 import { AlertTriangle, Bug, ScrollText } from "lucide-react"
 import { StatCard, StatCardSkeleton } from "@/components/dashboard/statcard"
+import { ErrorBanner } from "@/components/error-banner"
 import { formatNumber, formatPercent, TIME_RANGE_PRESETS } from "@/lib/api"
 import { useAccessLogDebugStats } from "@/lib/queries"
 import { useTimeRange } from "@/lib/time-range-context"
@@ -16,11 +17,7 @@ export function DebugLogsStats() {
   const rangeLabel = TIME_RANGE_PRESETS.find((p) => p.value === range)?.label ?? range
 
   if (isError) {
-    return (
-      <div className="rounded-md border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive">
-        Failed to load debug log stats.
-      </div>
-    )
+    return <ErrorBanner title="Failed to load debug log stats." />
   }
 
   if (isLoading || !data) {

@@ -12,8 +12,8 @@
 import { lazy, Suspense } from "react"
 import { createFileRoute } from "@tanstack/react-router"
 import { z } from "zod"
-import { Card } from "@/components/ui/card"
-import { Skeleton } from "@/components/ui/skeleton"
+import { PageHeader } from "@/components/page-header"
+import { SignalPanel } from "@/components/data/signal-panel"
 import { GeoLogsFilterBar } from "@/components/geo-logs/geo-logs-filter-bar"
 import { GeoLogsStats } from "@/components/geo-logs/geo-logs-stats"
 import { GeoLogsChart } from "@/components/geo-logs/geo-logs-chart"
@@ -118,14 +118,21 @@ function GeoLogsPage() {
   return (
     <GeoLogFiltersProvider filters={filters} setFilters={setFilters}>
       <div className="p-4 space-y-4">
+        <PageHeader
+          title="Geo Logs"
+          subtitle="Trace where traffic originates, how locations change over time, and which clients recur."
+        />
         <GeoLogsFilterBar />
         <GeoLogsStats />
         <div className="grid gap-4 lg:grid-cols-2">
           <Suspense
             fallback={
-              <Card className="h-[380px] overflow-hidden py-0">
-                <Skeleton className="h-full w-full rounded-none" />
-              </Card>
+              <SignalPanel
+                title="Spatial preview"
+                description="Request locations in the selected range."
+                state="loading"
+                bodyClassName="min-h-[320px]"
+              />
             }
           >
             <GeoLogsMap />

@@ -39,6 +39,8 @@ import {
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { fetchHealth, logout } from "@/lib/api"
+import { BrandMark } from "@/components/brand/brand-mark"
+import { Wordmark } from "@/components/brand/wordmark"
 import {
   sidebarIngestionVariant,
   type SidebarIngestionVariant,
@@ -111,44 +113,18 @@ function GeoLogo({ collapsed }: { collapsed: boolean }) {
         collapsed ? "justify-center px-0 gap-0" : "justify-start px-2 gap-3"
       )}
     >
-      {/* Geometric marker icon */}
-      <div className="relative flex-shrink-0">
-        <div className="relative w-8 h-8 flex items-center justify-center">
-          {/* Outer glow */}
-          <div className="absolute inset-0 rounded-lg bg-geo-cyan/20 blur-sm" />
-          {/* Main shape */}
-          <div className="relative w-8 h-8 rounded-lg bg-gradient-to-br from-geo-cyan to-geo-cyan-dim flex items-center justify-center shadow-lg shadow-geo-glow">
-            {/* Inner geometric pattern */}
-            <svg
-              viewBox="0 0 24 24"
-              className="w-4 h-4 text-sidebar-primary-foreground"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              {/* Hexagonal grid / geo marker hybrid */}
-              <path d="M12 2L2 7l10 5 10-5-10-5z" />
-              <path d="M2 17l10 5 10-5" />
-              <path d="M2 12l10 5 10-5" />
-            </svg>
-          </div>
-        </div>
-      </div>
-      {/* Brand text */}
+      <BrandMark
+        size={40}
+        className="text-sidebar-foreground"
+        decorative
+      />
       <div
         className={cn(
           "flex flex-col overflow-hidden transition-all duration-200",
           collapsed ? "w-0 opacity-0" : "w-auto opacity-100"
         )}
       >
-        <span className="text-sm font-semibold tracking-tight text-sidebar-foreground whitespace-nowrap">
-          Geo<span className="text-geo-cyan">Metrikks</span>
-        </span>
-        <span className="text-[10px] font-medium text-sidebar-foreground/50 tracking-widest uppercase whitespace-nowrap">
-          Analytics
-        </span>
+        <Wordmark sub className="text-[25px] text-sidebar-foreground" />
       </div>
     </div>
   )
@@ -187,7 +163,7 @@ function NavItem({
             "bg-sidebar-accent/80",
             "before:absolute before:left-0 before:top-1/2 before:-translate-y-1/2",
             "before:w-[3px] before:h-5 before:rounded-r-full",
-            "before:bg-geo-cyan before:shadow-[0_0_8px_var(--geo-cyan)]",
+            "before:bg-primary before:shadow-[0_0_8px_var(--primary)]",
           ]
         )}
       >
@@ -197,12 +173,12 @@ function NavItem({
               className={cn(
                 "w-4 h-4 transition-colors duration-200",
                 isActive
-                  ? "text-geo-cyan"
+                  ? "text-primary"
                   : "text-sidebar-foreground/60 group-hover/nav-item:text-sidebar-foreground"
               )}
             />
             {isActive && (
-              <div className="absolute inset-0 blur-sm bg-geo-cyan/30 rounded-full" />
+              <div className="absolute inset-0 blur-sm bg-primary/30 rounded-full" />
             )}
             {warning && (
               <span
@@ -319,7 +295,7 @@ function LiveIndicator({ collapsed }: { collapsed: boolean }) {
 
 function LiveFeedIndicator({ collapsed }: { collapsed: boolean }) {
   const { tooltipsSuppressed, resetTooltipSuppression } = useSidebar()
-  // WebSocket live-feed status — distinct from the ingestion-health dot above.
+  // WebSocket live-feed status, distinct from the ingestion-health dot above.
   // Lazy-connect: reads "Live feed off" until a consumer (map pulses or the
   // access-logs live tail) subscribes to the shared connection.
   const status = useLiveFeedStatus()
@@ -552,8 +528,10 @@ export function AppSidebar() {
 
       <SidebarContent>
         {/* Live status indicators: ingestion health + websocket live feed */}
-        <LiveIndicator collapsed={collapsed} />
-        <LiveFeedIndicator collapsed={collapsed} />
+        <div className="mt-2 flex flex-col gap-1">
+          <LiveIndicator collapsed={collapsed} />
+          <LiveFeedIndicator collapsed={collapsed} />
+        </div>
 
         <SidebarGroup className="mt-2">
           <SidebarGroupLabel

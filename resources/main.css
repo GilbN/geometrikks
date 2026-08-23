@@ -3,26 +3,17 @@
 @import "shadcn/tailwind.css";
 @import "@fontsource-variable/inter";
 
+@font-face {
+  font-family: "runr";
+  src: url("/static/fonts/runr-Regular.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  /* Covers A-Z, ÅÆØ, digits, hyphen-minus and space; nothing else is mapped. */
+  unicode-range: U+0020, U+002D, U+0030-0039, U+0041-005A, U+00C5, U+00C6, U+00D8;
+}
+
 @custom-variant dark (&:is(.dark *));
-
-/* GeoMetrikks custom utilities */
-@utility text-gradient-geo {
-  background: linear-gradient(135deg, oklch(0.75 0.18 195) 0%, oklch(0.65 0.22 180) 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-
-@utility bg-grid-pattern {
-  background-image:
-    linear-gradient(oklch(1 0 0 / 3%) 1px, transparent 1px),
-    linear-gradient(90deg, oklch(1 0 0 / 3%) 1px, transparent 1px);
-  background-size: 20px 20px;
-}
-
-@utility bg-contour-pattern {
-  background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M30 5 Q45 15 45 30 Q45 45 30 55 Q15 45 15 30 Q15 15 30 5' fill='none' stroke='%2306b6d4' stroke-opacity='0.04' stroke-width='1'/%3E%3C/svg%3E");
-}
 
 @theme inline {
   --radius-sm: calc(var(--radius) - 4px);
@@ -63,10 +54,8 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
-  --color-geo-cyan: var(--geo-cyan);
-  --color-geo-cyan-dim: var(--geo-cyan-dim);
-  --color-geo-glow: var(--geo-glow);
   --font-sans: 'Inter Variable', sans-serif;
+  --font-runr: 'runr', sans-serif;
 }
 
 :root {
@@ -79,23 +68,33 @@
   -moz-osx-font-smoothing: grayscale;
 
   --radius: 0.625rem;
+
+  /* Brand accent, decomposed so [data-accent] variants override only these
+     three numbers. Default: aurora teal. */
+  --brand-l: 0.52;
+  --brand-c: 0.115;
+  --brand-h: 178;
+
+  /* Light theme: "Fjord mist" - cool blue-tinted surfaces, dark ink. */
+  --background: oklch(0.97 0.008 220);
+  --foreground: oklch(0.22 0.03 250);
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.13 0.028 261.692);
+  --card-foreground: oklch(0.22 0.03 250);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.13 0.028 261.692);
-  --primary: oklch(0.21 0.034 264.665);
-  --primary-foreground: oklch(0.985 0.002 247.839);
-  --secondary: oklch(0.967 0.003 264.542);
-  --secondary-foreground: oklch(0.21 0.034 264.665);
-  --muted: oklch(0.967 0.003 264.542);
-  --muted-foreground: oklch(0.551 0.027 264.364);
-  --accent: oklch(0.967 0.003 264.542);
-  --accent-foreground: oklch(0.21 0.034 264.665);
+  --popover-foreground: oklch(0.22 0.03 250);
+  --primary: oklch(var(--brand-l) var(--brand-c) var(--brand-h));
+  --primary-foreground: oklch(0.985 0.005 200);
+  --secondary: oklch(0.94 0.012 225);
+  --secondary-foreground: oklch(0.3 0.03 250);
+  --muted: oklch(0.94 0.012 225);
+  --muted-foreground: oklch(0.5 0.02 245);
+  --accent: oklch(0.93 calc(var(--brand-c) * 0.2) var(--brand-h));
+  --accent-foreground: oklch(0.32 calc(var(--brand-c) * 0.7) var(--brand-h));
   --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.928 0.006 264.531);
-  --input: oklch(0.928 0.006 264.531);
-  --ring: oklch(0.707 0.022 261.325);
-  /* CVD-validated categorical slots (fixed order — assign series 1..5, never
+  --border: oklch(0.9 0.01 230);
+  --input: oklch(0.9 0.01 230);
+  --ring: oklch(var(--brand-l) var(--brand-c) var(--brand-h));
+  /* CVD-validated categorical slots (fixed order - assign series 1..5, never
      cycle). Adjacent-pair deltas checked on white; aqua/yellow are sub-3:1 on
      the surface, so multi-series charts must keep a legend or table view. */
   --chart-1: #2a78d6;
@@ -103,51 +102,56 @@
   --chart-3: #eda100;
   --chart-4: #008300;
   --chart-5: #4a3aa7;
-  --sidebar: oklch(0.985 0.002 247.839);
-  --sidebar-foreground: oklch(0.13 0.028 261.692);
-  --sidebar-primary: oklch(0.21 0.034 264.665);
-  --sidebar-primary-foreground: oklch(0.985 0.002 247.839);
-  --sidebar-accent: oklch(0.967 0.003 264.542);
-  --sidebar-accent-foreground: oklch(0.21 0.034 264.665);
-  --sidebar-border: oklch(0.928 0.006 264.531);
-  --sidebar-ring: oklch(0.707 0.022 261.325);
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.13 0.028 261.692);
+  --sidebar: oklch(0.985 0.006 220);
+  --sidebar-foreground: oklch(0.22 0.03 250);
+  --sidebar-primary: var(--primary);
+  --sidebar-primary-foreground: oklch(0.985 0.005 200);
+  --sidebar-accent: var(--accent);
+  --sidebar-accent-foreground: var(--accent-foreground);
+  --sidebar-border: oklch(0.9 0.01 230);
+  --sidebar-ring: var(--ring);
 
-  /* Geo-specific accent colors (light mode) */
-  --geo-cyan: oklch(0.55 0.18 192);
-  --geo-cyan-dim: oklch(0.45 0.14 192);
-  --geo-glow: oklch(0.55 0.18 192 / 15%);
+  /* Accent derivatives: a darker step for gradients and a soft halo. */
+  --primary-dim: oklch(calc(var(--brand-l) - 0.1) calc(var(--brand-c) * 0.87) var(--brand-h));
+  --primary-glow: oklch(var(--brand-l) var(--brand-c) var(--brand-h) / 15%);
 
-  /* Popup theme variables - light mode */
-  --popup-bg: #ffffff;
-  --popup-fg: #1a1a2e;
-  --popup-border: #e5e7eb;
-  --popup-muted: #6b7280;
-  --popup-badge-bg: rgba(6, 182, 212, 0.15);
-  --popup-badge-text: #0891b2;
-  --popup-code-bg: #f3f4f6;
+  /* Popups derive from semantic tokens; var() resolves against the scrolling
+     element's own theme, so one definition serves both themes. */
+  --popup-bg: var(--card);
+  --popup-fg: var(--foreground);
+  --popup-border: var(--border);
+  --popup-muted: var(--muted-foreground);
+  --popup-badge-bg: color-mix(in oklab, var(--primary) 15%, transparent);
+  --popup-badge-text: var(--primary);
+  --popup-code-bg: var(--muted);
+
+  /* The one panel shadow: soft in light, none in dark (borders carry depth). */
+  --shadow-card: 0 1px 2px oklch(0.3 0.03 250 / 6%);
 }
 
 .dark {
-  --background: oklch(0.12 0.02 250);
+  /* Dark theme: "Aurora night". Accent lifts into the glow band. */
+  --brand-l: 0.78;
+  --brand-c: 0.15;
+
+  --background: oklch(0.13 0.025 245);
   --foreground: oklch(0.95 0.01 220);
-  --card: oklch(0.16 0.025 250);
+  --card: oklch(0.17 0.028 245);
   --card-foreground: oklch(0.95 0.01 220);
-  --popover: oklch(0.16 0.025 250);
+  --popover: oklch(0.17 0.028 245);
   --popover-foreground: oklch(0.95 0.01 220);
-  --primary: oklch(0.72 0.15 192);
-  --primary-foreground: oklch(0.12 0.02 250);
-  --secondary: oklch(0.22 0.03 250);
+  --primary: oklch(var(--brand-l) var(--brand-c) var(--brand-h));
+  --primary-foreground: oklch(0.13 0.025 245);
+  --secondary: oklch(0.22 0.03 245);
   --secondary-foreground: oklch(0.95 0.01 220);
-  --muted: oklch(0.22 0.03 250);
-  --muted-foreground: oklch(0.65 0.02 250);
-  --accent: oklch(0.72 0.15 192);
-  --accent-foreground: oklch(0.12 0.02 250);
+  --muted: oklch(0.22 0.03 245);
+  --muted-foreground: oklch(0.66 0.02 240);
+  --accent: oklch(var(--brand-l) var(--brand-c) var(--brand-h));
+  --accent-foreground: oklch(0.13 0.025 245);
   --destructive: oklch(0.65 0.22 25);
   --border: oklch(1 0 0 / 8%);
   --input: oklch(1 0 0 / 12%);
-  --ring: oklch(0.72 0.15 192);
+  --ring: oklch(var(--brand-l) var(--brand-c) var(--brand-h));
   /* Same brand hues re-stepped into the dark lightness band and validated
      as a set against the card surface (all >= 3:1, worst adjacent CVD 30). */
   --chart-1: #00a9a6;
@@ -155,28 +159,57 @@
   --chart-3: #b58800;
   --chart-4: #9e64ee;
   --chart-5: #e9523f;
-  --sidebar: oklch(0.14 0.022 250);
+  --sidebar: oklch(0.145 0.026 245);
   --sidebar-foreground: oklch(0.92 0.01 220);
-  --sidebar-primary: oklch(0.72 0.15 192);
-  --sidebar-primary-foreground: oklch(0.12 0.02 250);
-  --sidebar-accent: oklch(0.20 0.028 250);
+  --sidebar-primary: var(--primary);
+  --sidebar-primary-foreground: oklch(0.13 0.025 245);
+  --sidebar-accent: oklch(0.2 0.028 245);
   --sidebar-accent-foreground: oklch(0.95 0.01 220);
   --sidebar-border: oklch(1 0 0 / 6%);
-  --sidebar-ring: oklch(0.72 0.15 192);
+  --sidebar-ring: var(--ring);
 
-  /* Geo-specific accent colors */
-  --geo-cyan: oklch(0.72 0.15 192);
-  --geo-cyan-dim: oklch(0.55 0.12 192);
-  --geo-glow: oklch(0.72 0.15 192 / 20%);
+  --primary-dim: oklch(calc(var(--brand-l) - 0.18) calc(var(--brand-c) * 0.8) var(--brand-h));
+  --primary-glow: oklch(var(--brand-l) var(--brand-c) var(--brand-h) / 20%);
 
-  /* Popup theme variables - dark mode */
-  --popup-bg: #1e2433;
-  --popup-fg: #e8eaed;
-  --popup-border: #3a3f4b;
-  --popup-muted: #9ca3af;
-  --popup-badge-bg: rgba(6, 182, 212, 0.2);
-  --popup-badge-text: #22d3ee;
-  --popup-code-bg: #2a2f3d;
+  --shadow-card: 0 0 #0000;
+}
+
+/* Accent variants, chosen from the header's accent picker and applied as
+   data-accent on <html>.
+   Teal is the default and needs no attribute. Light values target ~4.5:1 on
+   white cards; dark values sit in the same glow band as teal. */
+/* Teal is the default and <html> carries no attribute for it, but a scoped
+   preview (the accent picker's swatches) needs the rule to exist or it
+   inherits whatever accent is active. */
+[data-accent="teal"] {
+  --brand-l: 0.52;
+  --brand-c: 0.115;
+  --brand-h: 178;
+}
+.dark[data-accent="teal"],
+.dark [data-accent="teal"] {
+  --brand-l: 0.78;
+  --brand-c: 0.15;
+}
+[data-accent="green"] {
+  --brand-h: 155;
+  --brand-c: 0.13;
+  --brand-l: 0.5;
+}
+.dark[data-accent="green"],
+.dark [data-accent="green"] {
+  --brand-l: 0.76;
+  --brand-c: 0.17;
+}
+[data-accent="copper"] {
+  --brand-h: 60;
+  --brand-c: 0.1;
+  --brand-l: 0.52;
+}
+.dark[data-accent="copper"],
+.dark [data-accent="copper"] {
+  --brand-l: 0.72;
+  --brand-c: 0.11;
 }
 
 @layer base {
@@ -268,12 +301,12 @@
   background: color-mix(in oklab, var(--background) 85%, transparent) !important;
   backdrop-filter: blur(8px);
   border-radius: var(--radius) !important;
-  border: 1px solid #e5e5e5 !important;
+  border: 1px solid var(--border) !important;
 }
 
 .maplibregl-ctrl-group button {
   background-color: transparent !important;
-  border-color: #e5e5e5 !important;
+  border-color: var(--border) !important;
 }
 
 .maplibregl-ctrl-group .maplibregl-ctrl-zoom-in:hover {
@@ -295,18 +328,18 @@
 }
 
 .maplibregl-ctrl-group button + button {
-  border-top-color: #e5e5e5 !important;
+  border-top-color: var(--border) !important;
 }
 
 /* MapLibre GL Control Styles - Dark Mode */
 .dark .maplibregl-ctrl-group {
   background: color-mix(in oklab, var(--background) 85%, transparent) !important;
   backdrop-filter: blur(8px);
-  border: 1px solid #3a3f4b !important;
+  border: 1px solid var(--border) !important;
 }
 
 .dark .maplibregl-ctrl-group button {
-  border-color: #3a3f4b !important;
+  border-color: var(--border) !important;
 }
 
 .dark .maplibregl-ctrl-group button:hover {
@@ -314,7 +347,7 @@
 }
 
 .dark .maplibregl-ctrl-group button + button {
-  border-top-color: #3a3f4b !important;
+  border-top-color: var(--border) !important;
 }
 
 .dark .maplibregl-ctrl button .maplibregl-ctrl-icon {

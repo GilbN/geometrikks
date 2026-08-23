@@ -19,7 +19,7 @@ export function TopUserAgentsTable() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-sm font-medium">Top user agents</CardTitle>
+        <CardTitle className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Top user agents</CardTitle>
       </CardHeader>
       <CardContent>
         {isLoading || !data ? (

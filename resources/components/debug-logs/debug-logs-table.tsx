@@ -23,7 +23,6 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Skeleton } from "@/components/ui/skeleton"
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -42,8 +41,12 @@ import {
 } from "@/components/ui/select"
 import { PaginationFooter } from "@/components/ui/pagination-footer"
 import { FilterCombobox } from "@/components/ui/filter-combobox"
-import { FiltersDrawer, FilterSection } from "@/components/ui/filters-drawer"
-import { DebugLogDetailDialog } from "@/components/debug-logs/debug-log-detail-dialog"
+import { FilterField, FilterRail, FilterRow } from "@/components/data/filter-rail"
+import { FiltersDrawer } from "@/components/ui/filters-drawer"
+import { DebugLogDetailSheet } from "@/components/debug-logs/debug-log-detail-sheet"
+import { DataTableFrame } from "@/components/data/data-table-frame"
+import { rowActivation, stopRowActivation } from "@/components/data/row-activation"
+import { dataState } from "@/components/data/types"
 import { IpBanControls } from "@/components/crowdsec/ip-ban-controls"
 import { useAccessLogDebug, useAccessLogFacets, useCrowdsecLiveUpdates } from "@/lib/queries"
 import { useDebouncedValue } from "@/hooks/use-debounced-value"
@@ -51,19 +54,12 @@ import { isValidIp } from "@/lib/crowdsec"
 import { useIsMobile } from "@/hooks/use-mobile"
 import type { AccessLogDebugEntry, AccessLogDebugSortField, SortOrder } from "@/lib/api"
 import { cn } from "@/lib/utils"
+import { statusBadgeClass } from "@/lib/status-badge"
 import { useColumnVisibility } from "@/lib/column-visibility"
 
 const PAGE_SIZES = [10, 20, 50, 100, 200, 500, 1000] as const
 
 type MalformedFilter = "all" | "malformed" | "wellformed"
-
-/** Tailwind classes for the status badge, by response class. */
-function statusBadgeClass(code: number): string {
-  if (code >= 500) return "bg-red-500/15 text-red-600 dark:text-red-400"
-  if (code >= 400) return "bg-amber-500/15 text-amber-600 dark:text-amber-400"
-  if (code >= 300) return "bg-sky-500/15 text-sky-600 dark:text-sky-400"
-  return "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
-}
 
 interface ColumnDef {
   key: string
@@ -239,7 +235,7 @@ export function DebugLogsTable() {
   const { visible, shownColumns, toggleColumn, resetColumns, hasOverrides } =
     useColumnVisibility("geometrikks-columns-debug-logs", COLUMNS)
 
-  // Detail dialog.
+  // Detail sheet.
   const [selected, setSelected] = useState<AccessLogDebugEntry | null>(null)
 
   // Keep banned badges in sync with external cscli/console decisions.
@@ -267,7 +263,7 @@ export function DebugLogsTable() {
   const rows = data?.items ?? []
   const total = data?.total ?? 0
   const pageCount = Math.max(1, Math.ceil(total / pageSize))
-  const colCount = shownColumns.length
+  const state = dataState(isLoading, isError, rows.length)
 
   function toggleSort(field: AccessLogDebugSortField) {
     if (sortField === field) {
@@ -285,80 +281,107 @@ export function DebugLogsTable() {
     (countries.length ? 1 : 0) +
     (cities.length ? 1 : 0)
 
+  function clearFilters() {
+    setSearchInput("")
+    setIpInput("")
+    setMalformedFilter("all")
+    setCountries([])
+    setCities([])
+  }
+
   function renderFilters(inDrawer: boolean) {
-    const wrap = (label: string, node: React.ReactNode) =>
-      inDrawer ? <FilterSection label={label}>{node}</FilterSection> : node
-    return (
-      <>
-        {wrap(
-          "Search",
-          <div className="relative">
-            <Search className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              value={searchInput}
-              onChange={(e) => setSearchInput(e.target.value)}
-              placeholder="Search raw line / parse error…"
-              className={cn("h-8 pl-7 text-xs", inDrawer ? "w-full" : "w-64")}
-            />
-          </div>,
-        )}
-        {wrap(
-          "IP address",
+    const searchField = (
+      <FilterField label="Search">
+        <div className="relative">
+          <Search className="pointer-events-none absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
           <Input
-            value={ipInput}
-            onChange={(e) => setIpInput(e.target.value)}
-            placeholder="IP address"
-            aria-invalid={ipInput !== "" && !isValidIp(ipInput)}
-            className={cn("h-8 font-mono text-xs", inDrawer ? "w-full" : "w-36")}
-          />,
-        )}
-        {wrap(
-          "Malformed",
-          <Select
-            value={malformedFilter}
-            onValueChange={(v) => setMalformedFilter(v as MalformedFilter)}
-          >
-            <SelectTrigger size="sm" className={cn("h-8 text-xs pointer-coarse:h-10", inDrawer ? "w-full" : "w-40")}>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All lines</SelectItem>
-              <SelectItem value="malformed">Malformed only</SelectItem>
-              <SelectItem value="wellformed">Well-formed only</SelectItem>
-            </SelectContent>
-          </Select>,
-        )}
-        {wrap(
-          "Country",
-          <FilterCombobox
-            label="Country"
-            options={facets?.countries.map((c) => c.code) ?? []}
-            selected={countries}
-            onChange={setCountries}
-            labelFor={(code) => {
-              const name = facets?.countries.find((c) => c.code === code)?.name
-              return name ? `${name} (${code})` : code
-            }}
-            loading={!facets}
-            emptyText="No geo data"
-            onOpenChange={(open) => open && setFacetsEnabled(true)}
-            forceInline={inDrawer}
-          />,
-        )}
-        {wrap(
-          "City",
-          <FilterCombobox
-            label="City"
-            options={facets?.cities ?? []}
-            selected={cities}
-            onChange={setCities}
-            loading={!facets}
-            emptyText="No geo data"
-            onOpenChange={(open) => open && setFacetsEnabled(true)}
-            forceInline={inDrawer}
-          />,
-        )}
-      </>
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            placeholder="Raw line or parse error"
+            className={cn("h-8 pl-7 text-xs", inDrawer ? "w-full" : "w-64")}
+          />
+        </div>
+      </FilterField>
+    )
+    const ipField = (
+      <FilterField label="IP address">
+        <Input
+          value={ipInput}
+          onChange={(e) => setIpInput(e.target.value)}
+          placeholder="203.0.113.7"
+          aria-invalid={ipInput !== "" && !isValidIp(ipInput)}
+          className={cn("h-8 font-mono text-xs", inDrawer ? "w-full" : "w-36")}
+        />
+      </FilterField>
+    )
+    const malformedField = (
+      <FilterField label="Lines" hideLabel={!inDrawer}>
+        <Select
+          value={malformedFilter}
+          onValueChange={(v) => setMalformedFilter(v as MalformedFilter)}
+        >
+          <SelectTrigger size="sm" className={cn("h-8 text-xs pointer-coarse:h-10", inDrawer ? "w-full" : "w-40")}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All lines</SelectItem>
+            <SelectItem value="malformed">Malformed only</SelectItem>
+            <SelectItem value="wellformed">Well-formed only</SelectItem>
+          </SelectContent>
+        </Select>
+      </FilterField>
+    )
+    const countryField = (
+      <FilterField label="Country" hideLabel={!inDrawer}>
+        <FilterCombobox
+          label="Country"
+          options={facets?.countries.map((c) => c.code) ?? []}
+          selected={countries}
+          onChange={setCountries}
+          labelFor={(code) => {
+            const name = facets?.countries.find((c) => c.code === code)?.name
+            return name ? `${name} (${code})` : code
+          }}
+          loading={!facets}
+          emptyText="No geo data"
+          onOpenChange={(open) => open && setFacetsEnabled(true)}
+          forceInline={inDrawer}
+        />
+      </FilterField>
+    )
+    const cityField = (
+      <FilterField label="City" hideLabel={!inDrawer}>
+        <FilterCombobox
+          label="City"
+          options={facets?.cities ?? []}
+          selected={cities}
+          onChange={setCities}
+          loading={!facets}
+          emptyText="No geo data"
+          onOpenChange={(open) => open && setFacetsEnabled(true)}
+          forceInline={inDrawer}
+        />
+      </FilterField>
+    )
+    if (inDrawer) {
+      return (
+        <>
+          {searchField}
+          {ipField}
+          {malformedField}
+          {countryField}
+          {cityField}
+        </>
+      )
+    }
+    return (
+      <FilterRow>
+        {searchField}
+        {ipField}
+        {malformedField}
+        {countryField}
+        {cityField}
+      </FilterRow>
     )
   }
 
@@ -391,33 +414,42 @@ export function DebugLogsTable() {
     </DropdownMenu>
   )
 
-  if (isError) {
-    return (
-      <div className="rounded-md border p-6 text-sm text-destructive">
-        Failed to load debug logs.
-      </div>
-    )
-  }
-
   return (
-    <div className="space-y-3">
-      {/* Filter toolbar */}
+    <div className="space-y-4">
       {isMobile ? (
-        <div className="flex items-center gap-2">
-          <div onClick={() => setFacetsEnabled(true)}>
-            <FiltersDrawer activeCount={activeFilterCount}>{renderFilters(true)}</FiltersDrawer>
-          </div>
-          {columnsMenu}
+        <div onClick={() => setFacetsEnabled(true)}>
+          <FiltersDrawer activeCount={activeFilterCount} onClear={clearFilters}>
+            {renderFilters(true)}
+          </FiltersDrawer>
         </div>
       ) : (
-        <div className="flex flex-wrap items-center gap-2">
+        <FilterRail label="Debug filters" activeCount={activeFilterCount} onClear={clearFilters}>
           {renderFilters(false)}
-          {columnsMenu}
-        </div>
+        </FilterRail>
       )}
 
-      <div className="rounded-md border">
-        <Table className="text-xs">
+      <DataTableFrame
+        title="Captured source lines"
+        description="Raw parser input and linked request context. Select a row for the complete record."
+        count={data ? total : undefined}
+        tools={columnsMenu}
+        state={state}
+        error="Failed to load debug logs."
+        empty="No debug lines match these filters."
+        footer={
+          <PaginationFooter
+            page={page}
+            pageCount={pageCount}
+            total={total}
+            onPageChange={setPage}
+            disabled={isPlaceholderData}
+            pageSize={pageSize}
+            pageSizes={PAGE_SIZES}
+            onPageSizeChange={setPageSize}
+          />
+        }
+      >
+        <Table>
           <TableHeader>
             <TableRow>
               {shownColumns.map((c) => {
@@ -453,62 +485,29 @@ export function DebugLogsTable() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {isLoading
-              ? Array.from({ length: 10 }).map((_, i) => (
-                  <TableRow key={i}>
-                    {shownColumns.map((c) => (
-                      <TableCell key={c.key}>
-                        <Skeleton className="h-4 w-full" />
-                      </TableCell>
-                    ))}
-                  </TableRow>
-                ))
-              : rows.map((row) => (
-                  <TableRow
-                    key={row.id}
-                    className="cursor-pointer"
-                    onClick={() => setSelected(row)}
-                  >
-                    {shownColumns.map((c) => (
-                      <TableCell key={c.key}>
-                        {c.render(row)}
-                        {c.key === "ipAddress" && row.ipAddress && (
-                          // Rows open the detail dialog on click; keep the
-                          // ban/unban dropdown from also triggering it.
-                          <span onClick={(e) => e.stopPropagation()}>
-                            <IpBanControls ip={row.ipAddress} />
-                          </span>
-                        )}
-                      </TableCell>
-                    ))}
-                  </TableRow>
+            {rows.map((row) => (
+              <TableRow
+                key={row.id}
+                aria-label={`Debug line ${row.id}, ${row.isMalformed ? "malformed" : "parsed"}`}
+                {...rowActivation<HTMLTableRowElement>(() => setSelected(row))}
+              >
+                {shownColumns.map((c) => (
+                  <TableCell key={c.key}>
+                    {c.render(row)}
+                    {c.key === "ipAddress" && row.ipAddress && (
+                      <span {...stopRowActivation}>
+                        <IpBanControls ip={row.ipAddress} />
+                      </span>
+                    )}
+                  </TableCell>
                 ))}
-            {!isLoading && rows.length === 0 && (
-              <TableRow>
-                <TableCell colSpan={colCount} className="h-24 text-center text-muted-foreground">
-                  No debug lines match these filters.
-                </TableCell>
               </TableRow>
-            )}
+            ))}
           </TableBody>
         </Table>
-        <PaginationFooter
-          page={page}
-          pageCount={pageCount}
-          total={total}
-          onPageChange={setPage}
-          disabled={isPlaceholderData}
-          pageSize={pageSize}
-          pageSizes={PAGE_SIZES}
-          onPageSizeChange={setPageSize}
-          className="border-t"
-        />
-      </div>
+      </DataTableFrame>
 
-      <DebugLogDetailDialog
-        entry={selected}
-        onOpenChange={(open) => !open && setSelected(null)}
-      />
+      <DebugLogDetailSheet entry={selected} onOpenChange={(open) => !open && setSelected(null)} />
     </div>
   )
 }
