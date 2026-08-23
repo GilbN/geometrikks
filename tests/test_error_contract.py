@@ -106,3 +106,22 @@ async def test_unauthenticated_api_request_is_native_401_envelope():
     body = resp.json()
     assert body["status_code"] == 401
     assert isinstance(body["detail"], str)
+
+
+@pytest.mark.parametrize(
+    ("exc_factory", "status"),
+    [
+        (lambda: __import__("geometrikks.domain.exceptions", fromlist=["x"]).DomainNotFoundError("gone"), 404),
+        (lambda: __import__("geometrikks.domain.exceptions", fromlist=["x"]).DomainConflictError("pinned"), 409),
+    ],
+)
+def test_domain_lookup_errors_render_native_envelope(exc_factory, status):
+    from litestar.testing import RequestFactory
+
+    from geometrikks.server.exceptions import EXCEPTION_HANDLERS
+
+    exc = exc_factory()
+    handler = EXCEPTION_HANDLERS[type(exc)]
+    response = handler(RequestFactory().get("/api/v1/x"), exc)
+    assert response.status_code == status
+    assert response.content == {"status_code": status, "detail": exc.detail}

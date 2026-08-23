@@ -138,6 +138,10 @@ test("production image serves the authenticated dashboard without browser errors
   // making the document wider on very narrow phones.
   await page.setViewportSize({ width: 320, height: 812 })
   await page.goto("/settings/environment")
+  // goto resolves on the document's load event, before React has mounted;
+  // the width probe below needs the rendered page, so wait for it like the
+  // other two breakpoints do.
+  await expect(page.getByRole("heading", { name: "Environment" })).toBeVisible()
   const narrowWidths = await page.evaluate(() => {
     const content = document.querySelector<HTMLElement>("main.overflow-auto")
     if (!content) {

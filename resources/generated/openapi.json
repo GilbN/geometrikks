@@ -994,6 +994,34 @@
         "title": "EmbeddedLocationDTO",
         "type": "object"
       },
+      "ErrorEnvelope": {
+        "examples": [
+          {
+            "status_code": 4966,
+            "detail": "IgNZYFcagWptUqCwdERi"
+          }
+        ],
+        "properties": {
+          "detail": {
+            "examples": [
+              "bzayzoQbzdXMsvhsvQnj"
+            ],
+            "type": "string"
+          },
+          "status_code": {
+            "examples": [
+              9361
+            ],
+            "type": "integer"
+          }
+        },
+        "required": [
+          "detail",
+          "status_code"
+        ],
+        "title": "ErrorEnvelope",
+        "type": "object"
+      },
       "GeoCountryFacet": {
         "properties": {
           "code": {
@@ -3058,6 +3086,16 @@
           "hostname": {
             "type": "string"
           },
+          "lastEventDay": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "latitude": {
             "type": "number"
           },
@@ -3075,6 +3113,7 @@
         "required": [
           "detectedAt",
           "hostname",
+          "lastEventDay",
           "latitude",
           "longitude",
           "source"
@@ -9695,6 +9734,94 @@
           }
         },
         "summary": "SiteHomes",
+        "tags": [
+          "Geo Locations"
+        ]
+      }
+    },
+    "/api/v1/geo-locations/site-homes/{hostname}": {
+      "delete": {
+        "deprecated": false,
+        "description": "Remove a retired source's auto-detected home. Override rows (MAP_HOME_LOCATIONS) cannot be removed here.",
+        "operationId": "ApiV1GeoLocationsSiteHomesHostnameDeleteSiteHome",
+        "parameters": [
+          {
+            "deprecated": false,
+            "description": "Recording hostname whose home row to remove",
+            "in": "path",
+            "name": "hostname",
+            "required": true,
+            "schema": {
+              "description": "Recording hostname whose home row to remove",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Request fulfilled, nothing follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "No home is recorded for this hostname."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "The home is pinned by MAP_HOME_LOCATIONS; edit the setting instead."
+          }
+        },
+        "summary": "DeleteSiteHome",
         "tags": [
           "Geo Locations"
         ]

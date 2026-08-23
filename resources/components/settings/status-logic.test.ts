@@ -388,6 +388,7 @@ describe("siteHomeRows", () => {
           longitude: 10.752,
           source: "auto",
           detectedAt: "2026-08-16T00:00:00+00:00",
+          lastEventDay: "2026-08-23",
         },
         {
           hostname: "nginx-02",
@@ -395,12 +396,30 @@ describe("siteHomeRows", () => {
           longitude: 151.207,
           source: "override",
           detectedAt: null,
+          lastEventDay: null,
         },
       ],
     }
-    expect(siteHomeRows(data)).toEqual([
-      { hostname: "nginx-01", coords: "59.91, 10.75", source: "auto" },
-      { hostname: "nginx-02", coords: "-33.87, 151.21", source: "override" },
+    const now = Date.parse("2026-08-23T15:00:00Z")
+    expect(siteHomeRows(data, now)).toEqual([
+      { hostname: "nginx-01", coords: "59.91, 10.75", source: "auto", lastSeen: "Traffic today", stale: false },
+      { hostname: "nginx-02", coords: "-33.87, 151.21", source: "override", lastSeen: "No traffic", stale: false },
+    ])
+  })
+  it("flags auto rows with no traffic for two weeks as stale, never overrides", () => {
+    const home = (hostname: string, source: "auto" | "override", lastEventDay: string | null) => ({
+      hostname, latitude: 0, longitude: 0, source, detectedAt: null, lastEventDay,
+    })
+    const now = Date.parse("2026-08-23T15:00:00Z")
+    const rows = siteHomeRows(
+      { default: null, homes: [home("a", "auto", "2026-08-22"), home("b", "auto", "2026-08-01"), home("c", "auto", null), home("d", "override", null)] },
+      now,
+    )
+    expect(rows.map((r) => [r.lastSeen, r.stale])).toEqual([
+      ["Traffic yesterday", false],
+      ["Traffic 22d ago", true],
+      ["No traffic", true],
+      ["No traffic", false],
     ])
   })
 })

@@ -8,8 +8,10 @@ import {
   Radio,
   ShieldCheck,
   ShieldUser,
+  Trash2,
   TriangleAlert,
 } from "lucide-react"
+import { useState } from "react"
 import {
   useCrowdsecStats,
   useCrowdsecStatus,
@@ -17,6 +19,7 @@ import {
   useHealth,
   useLogFiles,
   useMe,
+  useDeleteSiteHome,
   useRecentErrors,
   useSchedulerJobs,
   useSiteHomes,
@@ -24,7 +27,19 @@ import {
 } from "@/lib/queries"
 import { useLiveEvents, useLiveFeedStatus } from "@/lib/live-feed-context"
 import { cn } from "@/lib/utils"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { MonoChip, StatusLed } from "@/components/settings/status-led"
@@ -47,6 +62,7 @@ import {
   overallState,
   relativeTime,
   schedulerJobState,
+  type SiteHomeRow,
   siteHomeRows,
 } from "@/components/settings/status-logic"
 
@@ -83,6 +99,67 @@ function Counter({ label, value }: { label: string; value: number | undefined })
 
 /** Settings > Status: per-component health so a sidebar "Degraded" state is
  *  explainable in-app. Read-only; each card degrades independently. */
+/** One site-home line. Auto rows can be removed (a retired source's beacon
+ *  otherwise stays on the map forever); override rows point at the env var
+ *  that owns them. */
+function SiteHomeLine({ row }: { row: SiteHomeRow }) {
+  const [confirming, setConfirming] = useState(false)
+  const remove = useDeleteSiteHome()
+  return (
+    <div className="flex items-center gap-2 text-xs">
+      <MonoChip>{row.hostname}</MonoChip>
+      <span className="text-muted-foreground tabular-nums">{row.coords}</span>
+      <span className={cn("tabular-nums", row.stale ? "text-amber-500" : "text-muted-foreground")}>
+        {row.lastSeen}
+      </span>
+      {row.source === "override" ? (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Badge variant="outline" className="ml-auto">
+              override
+            </Badge>
+          </TooltipTrigger>
+          <TooltipContent>Pinned by MAP_HOME_LOCATIONS; edit it there.</TooltipContent>
+        </Tooltip>
+      ) : (
+        <>
+          <span className="ml-auto text-muted-foreground">auto</span>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-xs"
+            aria-label={`Remove home for ${row.hostname}`}
+            className="text-muted-foreground hover:text-destructive"
+            onClick={() => setConfirming(true)}
+          >
+            <Trash2 />
+          </Button>
+          <AlertDialog open={confirming} onOpenChange={setConfirming}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Remove the home for {row.hostname}?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Its beacon leaves the map and live routes stop flying to it. If an agent still
+                  ingests as {row.hostname}, the home comes back at that agent's next refresh.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Keep</AlertDialogCancel>
+                <AlertDialogAction
+                  disabled={remove.isPending}
+                  onClick={() => remove.mutate(row.hostname, { onSettled: () => setConfirming(false) })}
+                >
+                  Remove
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </>
+      )}
+    </div>
+  )
+}
+
 export function StatusOverview() {
   const { data: health, isError: healthError, isLoading: healthLoading } = useHealth()
   const { data: stats, isError: statsError } = useStats()
@@ -107,7 +184,7 @@ export function StatusOverview() {
   const uptime = formatUptime(health?.startedAt, now)
   const geoipRefreshJob = jobs?.find((j) => j.id === "geoip-refresh")
   const recentErrors = filterErrorRecords(logRecords, 5)
-  const homeRows = siteHomeRows(siteHomes)
+  const homeRows = siteHomeRows(siteHomes, now)
 
   if (healthLoading) {
     return (
@@ -428,17 +505,7 @@ export function StatusOverview() {
             </CardHeader>
             <CardContent className="space-y-2">
               {homeRows.map((row) => (
-                <div key={row.hostname} className="flex items-center gap-2 text-xs">
-                  <MonoChip>{row.hostname}</MonoChip>
-                  <span className="text-muted-foreground tabular-nums">{row.coords}</span>
-                  {row.source === "override" ? (
-                    <Badge variant="outline" className="ml-auto">
-                      override
-                    </Badge>
-                  ) : (
-                    <span className="ml-auto text-muted-foreground">auto</span>
-                  )}
-                </div>
+                <SiteHomeLine key={row.hostname} row={row} />
               ))}
             </CardContent>
           </Card>

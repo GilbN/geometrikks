@@ -36,3 +36,10 @@ def test_site_homes_route_absent_in_agent_mode(monkeypatch):
     paths = _route_paths(create_app())
     assert "/api/v1/geo-locations/site-homes" not in paths
     assert paths == {"/health", "/health/ready"}
+
+
+def test_site_home_delete_route_present_in_full_mode(monkeypatch):
+    monkeypatch.setenv("APP_AUTH_DISABLED", "true")
+    from geometrikks.server.core import create_app
+    paths = _route_paths(create_app())
+    assert "/api/v1/geo-locations/site-homes/{hostname:str}" in paths
