@@ -1,7 +1,7 @@
 <h1 align="center">
   <picture>
     <source media="(prefers-color-scheme: light)" srcset="resources/static/brand/readme-banner-light.png">
-    <img src="resources/static/brand/readme-banner-dark.png" alt="GeoMetrikks" width="720">
+    <img src="resources/static/brand/readme-banner-dark.png" alt="GeoMetrikks">
   </picture>
 </h1>
 
