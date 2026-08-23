@@ -131,7 +131,7 @@ function GeoLogsPage() {
                 title="Spatial preview"
                 description="Request locations in the selected range."
                 state="loading"
-                bodyClassName="min-h-[280px]"
+                bodyClassName="min-h-[320px]"
               />
             }
           >

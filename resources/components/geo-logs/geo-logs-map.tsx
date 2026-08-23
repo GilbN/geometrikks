@@ -16,6 +16,7 @@ import "maplibre-gl/dist/maplibre-gl.css"
 import type { FeatureCollection, Point } from "geojson"
 import type { GeoJSONSource, MapLayerMouseEvent } from "maplibre-gl"
 
+import { FRAME_SURFACE } from "@/components/data/frame"
 import { SignalPanel } from "@/components/data/signal-panel"
 import { dataState } from "@/components/data/types"
 import { useMapStyle } from "@/components/map/hooks/useMapStyle"
@@ -27,6 +28,7 @@ import {
   unclusteredPointLayer,
 } from "@/components/map/layers"
 import { useGeoLogsGeoJSON } from "@/lib/queries"
+import { cn } from "@/lib/utils"
 
 // Same starting viewport as the full map page (centered on Europe).
 const INITIAL_VIEW_STATE = {
@@ -117,16 +119,26 @@ export default function GeoLogsMap() {
 
   const state = dataState(isLoading, isError, geojson?.features.length ?? 0)
 
+  // Loading, error and empty go through the panel so they match the chart
+  // beside them. The ready state is the bare map: no header or body
+  // padding, and it fills whatever height the grid row gives the card, so
+  // the map is as big as the chart next to it.
+  if (state !== "ready") {
+    return (
+      <SignalPanel
+        title="Spatial preview"
+        description="Request locations in the selected range."
+        state={state}
+        error={error?.message ?? "Failed to load map data."}
+        onRetry={() => void refetch()}
+        bodyClassName="min-h-[320px]"
+      />
+    )
+  }
+
   return (
-    <SignalPanel
-      title="Spatial preview"
-      description="Request locations in the selected range."
-      state={state}
-      error={error?.message ?? "Failed to load map data."}
-      onRetry={() => void refetch()}
-      bodyClassName="min-h-[280px] p-0"
-    >
-      <div className="relative h-[280px]">
+    <section aria-label="Spatial preview" className={cn(FRAME_SURFACE, "relative min-h-[320px]")}>
+      <div className="absolute inset-0">
         <Map
           ref={mapRef}
           {...viewState}
@@ -168,6 +180,6 @@ export default function GeoLogsMap() {
           )}
         </Map>
       </div>
-    </SignalPanel>
+    </section>
   )
 }

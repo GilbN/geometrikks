@@ -30,6 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Apple touch icon no longer has transparent corners that iOS composited black.
 - Percent and ratio placeholders render as "-", matching every other empty cell.
 - Stat card trend badges no longer pair a 0.0% label with an up or down arrow; tiny and non-finite deltas render as flat or hidden.
+- Geo logs: the map preview fills its card instead of leaving empty space below a fixed-height map.
 
 ## [0.10.0] - 2026-08-22
 
