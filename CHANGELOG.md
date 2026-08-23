@@ -11,11 +11,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Filters on Access logs, Geo logs, Debug logs and Analytics share one layout: text inputs on one row, selects on the next, include and exclude for the same field (IP, host, hostname) as one joined control, and a Clear button that shows how many filter groups are active. Geo logs and Analytics get the mobile filter drawer Access logs already had.
 - Access logs: selecting a row opens the full record in a side panel, with ASN, recording hostname, source format and the ban controls. Enter and Space open rows too.
-- Geo logs: selecting a row opens the full location record, ban controls included. Top IPs, Top locations, the map preview and the event chart are framed cards with counts.
+- Geo logs: selecting a row opens the full location record, ban controls included. Top IPs, Top locations and the event chart are framed cards with counts.
 - Debug logs: the record detail is a side panel instead of a dialog, showing the raw line, the parse result and the linked request.
 - Analytics charts name what they plot and the bucket size the range resolved to (Hourly or Daily), and offer a retry when a series fails to load.
 - Map controls are one panel with labeled sections (Visualization, Live, Filters, Summary, Top IPs). Toggles are switch rows so the panel fits a laptop screen without scrolling, the map filters get a Clear, fit and home moved into the panel header, and the collapsed button shows a dot while filters are active. The live feed scrolls inside a bounded card instead of stretching to the map's height.
-- Settings > Appearance: theme (System, Light, Dark) and accent (teal, green, copper) side by side with previews. System follows the device's color scheme live, not only at page load. The accent is also switchable from the header, persists per browser and is applied before first paint, so a non-default accent no longer flashes teal on load.
+- Settings > Appearance: theme (System, Light, Dark) and accent (teal, green, copper) side by side with previews. System follows the device's color scheme live, not only at page load. The accent is also switchable from the header, persists per browser and is applied before first paint.
 - Open Graph and Twitter card tags on the app shell.
 
 ### Changed
@@ -27,10 +27,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Apple touch icon no longer has transparent corners that iOS composited black.
 - Percent and ratio placeholders render as "-", matching every other empty cell.
 - Stat card trend badges no longer pair a 0.0% label with an up or down arrow; tiny and non-finite deltas render as flat or hidden.
-- Geo logs: the map preview fills its card instead of leaving empty space below a fixed-height map.
 - Live tail: the Status column is wide enough for its header, which ran into Method.
 
 ## [0.10.0] - 2026-08-22
