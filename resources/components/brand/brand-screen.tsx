@@ -25,7 +25,7 @@ export function BrandScreen({
   className?: string
 }) {
   return (
-    <div className="relative min-h-screen bg-background flex items-center justify-center p-4 overflow-hidden">
+    <div className="relative h-dvh bg-background flex items-center justify-center overflow-hidden p-4">
       {/* Aurora backdrop: two soft glows in the brand accent. */}
       <div
         aria-hidden
