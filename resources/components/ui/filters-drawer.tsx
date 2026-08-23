@@ -1,7 +1,7 @@
 /**
  * Mobile filter host: a compact "Filters (n)" trigger opening a bottom drawer
- * with the host's filter controls stacked vertically. Pair FilterCombobox
- * children with forceInline so they don't nest a second drawer.
+ * with the host's filter controls stacked vertically as FilterFields. Pair
+ * FilterCombobox children with forceInline so they don't nest a second drawer.
  */
 import type * as React from "react"
 import { SlidersHorizontal } from "lucide-react"
@@ -57,20 +57,5 @@ export function FiltersDrawer({
         </div>
       </DrawerContent>
     </Drawer>
-  )
-}
-
-export function FilterSection({
-  label,
-  children,
-}: {
-  label: string
-  children: React.ReactNode
-}) {
-  return (
-    <div className="flex flex-col gap-1.5">
-      <span className="text-xs font-medium text-muted-foreground">{label}</span>
-      {children}
-    </div>
   )
 }

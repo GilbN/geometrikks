@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Shared data presentation primitives (filter rail, table frame, chart panel, detail sheet) and a full-screen mobile variant of the side sheet, for the pages that adopt them in later changes.
-- Access, Geo, Debug and Analytics filters sit in one labeled rail on desktop with an active-group count and a Clear action; Geo logs and Analytics gain the same mobile filter drawer Access logs had, and the drawer gets its own Clear.
+- Access, Geo, Debug and Analytics filters sit in one rail on desktop with a Clear button that counts the active groups. Every control carries a label, text inputs sit on one row and selects on the next, include/exclude inputs for the same dimension are one joined control, and active selects show in the accent colour; Geo logs and Analytics gain the same mobile filter drawer Access logs had, and the drawer gets its own Clear.
 - Access logs: the history table is one framed card (title, result count, Columns, table, pagination), and selecting a row opens the complete record in a side sheet, including ASN, recording hostname, source format and the ban controls. Rows open with Enter or Space too.
 - Geo logs: the grouped table, Top IPs and Top locations are framed cards with counts, and the spatial preview and event chart share the chart panel used on Analytics. Selecting a table row opens the complete location record, ban controls included.
 - Debug logs: the table is a framed card with its count and Columns menu, and the record detail moved from a dialog to a side sheet with the raw line, parse result and linked request.

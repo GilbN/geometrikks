@@ -157,7 +157,7 @@ export function FilterCombobox<T extends string | number>({
     return (
       <Drawer onOpenChange={onOpenChange}>
         <DrawerTrigger asChild>
-          <Button variant="outline" size="sm" className={cn("h-8 pointer-coarse:h-10", className)}>
+          <Button variant="outline" size="sm" className={cn("h-8 pointer-coarse:h-10", count > 0 && "border-primary/60 text-primary", className)}>
             {triggerLabel}
             <ChevronsUpDown className="ml-1 h-3.5 w-3.5" />
           </Button>
@@ -195,7 +195,7 @@ export function FilterCombobox<T extends string | number>({
       onOpenChange={onOpenChange}
     >
       <ComboboxPrimitive.Trigger
-        render={<Button variant="outline" size="sm" className={cn("h-8 pointer-coarse:h-10", className)} />}
+        render={<Button variant="outline" size="sm" className={cn("h-8 pointer-coarse:h-10", count > 0 && "border-primary/60 text-primary", className)} />}
       >
         {triggerLabel}
         <ChevronsUpDown className="ml-1 h-3.5 w-3.5" />

@@ -89,7 +89,7 @@ describe("page chrome", () => {
   it("gives the data primitives the same label as the data cards", () => {
     const frame = read("components/data/frame.ts")
     expect(frame).toContain(`"${LABEL}"`)
-    for (const f of ["data-table-frame.tsx", "signal-panel.tsx", "filter-rail.tsx"]) {
+    for (const f of ["data-table-frame.tsx", "signal-panel.tsx"]) {
       const text = read(`components/data/${f}`)
       expect(text, f).toContain("FRAME_LABEL")
       expect(text, f).not.toMatch(/<h2 className="(?!\{)/)

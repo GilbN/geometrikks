@@ -41,8 +41,8 @@ import {
 } from "@/components/ui/select"
 import { PaginationFooter } from "@/components/ui/pagination-footer"
 import { FilterCombobox } from "@/components/ui/filter-combobox"
-import { FilterRail } from "@/components/data/filter-rail"
-import { FiltersDrawer, FilterSection } from "@/components/ui/filters-drawer"
+import { FilterField, FilterRail, FilterRow } from "@/components/data/filter-rail"
+import { FiltersDrawer } from "@/components/ui/filters-drawer"
 import { DebugLogDetailSheet } from "@/components/debug-logs/debug-log-detail-sheet"
 import { DataTableFrame } from "@/components/data/data-table-frame"
 import { rowActivation, stopRowActivation } from "@/components/data/row-activation"
@@ -290,79 +290,98 @@ export function DebugLogsTable() {
   }
 
   function renderFilters(inDrawer: boolean) {
-    const wrap = (label: string, node: React.ReactNode) =>
-      inDrawer ? <FilterSection label={label}>{node}</FilterSection> : node
-    return (
-      <>
-        {wrap(
-          "Search",
-          <div className="relative">
-            <Search className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              value={searchInput}
-              onChange={(e) => setSearchInput(e.target.value)}
-              placeholder="Search raw line / parse error…"
-              className={cn("h-8 pl-7 text-xs", inDrawer ? "w-full" : "w-64")}
-            />
-          </div>,
-        )}
-        {wrap(
-          "IP address",
+    const searchField = (
+      <FilterField label="Search">
+        <div className="relative">
+          <Search className="pointer-events-none absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
           <Input
-            value={ipInput}
-            onChange={(e) => setIpInput(e.target.value)}
-            placeholder="IP address"
-            aria-invalid={ipInput !== "" && !isValidIp(ipInput)}
-            className={cn("h-8 font-mono text-xs", inDrawer ? "w-full" : "w-36")}
-          />,
-        )}
-        {wrap(
-          "Malformed",
-          <Select
-            value={malformedFilter}
-            onValueChange={(v) => setMalformedFilter(v as MalformedFilter)}
-          >
-            <SelectTrigger size="sm" className={cn("h-8 text-xs pointer-coarse:h-10", inDrawer ? "w-full" : "w-40")}>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All lines</SelectItem>
-              <SelectItem value="malformed">Malformed only</SelectItem>
-              <SelectItem value="wellformed">Well-formed only</SelectItem>
-            </SelectContent>
-          </Select>,
-        )}
-        {wrap(
-          "Country",
-          <FilterCombobox
-            label="Country"
-            options={facets?.countries.map((c) => c.code) ?? []}
-            selected={countries}
-            onChange={setCountries}
-            labelFor={(code) => {
-              const name = facets?.countries.find((c) => c.code === code)?.name
-              return name ? `${name} (${code})` : code
-            }}
-            loading={!facets}
-            emptyText="No geo data"
-            onOpenChange={(open) => open && setFacetsEnabled(true)}
-            forceInline={inDrawer}
-          />,
-        )}
-        {wrap(
-          "City",
-          <FilterCombobox
-            label="City"
-            options={facets?.cities ?? []}
-            selected={cities}
-            onChange={setCities}
-            loading={!facets}
-            emptyText="No geo data"
-            onOpenChange={(open) => open && setFacetsEnabled(true)}
-            forceInline={inDrawer}
-          />,
-        )}
-      </>
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            placeholder="Raw line or parse error"
+            className={cn("h-8 pl-7 text-xs", inDrawer ? "w-full" : "w-64")}
+          />
+        </div>
+      </FilterField>
+    )
+    const ipField = (
+      <FilterField label="IP address">
+        <Input
+          value={ipInput}
+          onChange={(e) => setIpInput(e.target.value)}
+          placeholder="203.0.113.7"
+          aria-invalid={ipInput !== "" && !isValidIp(ipInput)}
+          className={cn("h-8 font-mono text-xs", inDrawer ? "w-full" : "w-36")}
+        />
+      </FilterField>
+    )
+    const malformedField = (
+      <FilterField label="Lines" hideLabel={!inDrawer}>
+        <Select
+          value={malformedFilter}
+          onValueChange={(v) => setMalformedFilter(v as MalformedFilter)}
+        >
+          <SelectTrigger size="sm" className={cn("h-8 text-xs pointer-coarse:h-10", inDrawer ? "w-full" : "w-40")}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All lines</SelectItem>
+            <SelectItem value="malformed">Malformed only</SelectItem>
+            <SelectItem value="wellformed">Well-formed only</SelectItem>
+          </SelectContent>
+        </Select>
+      </FilterField>
+    )
+    const countryField = (
+      <FilterField label="Country" hideLabel={!inDrawer}>
+        <FilterCombobox
+          label="Country"
+          options={facets?.countries.map((c) => c.code) ?? []}
+          selected={countries}
+          onChange={setCountries}
+          labelFor={(code) => {
+            const name = facets?.countries.find((c) => c.code === code)?.name
+            return name ? `${name} (${code})` : code
+          }}
+          loading={!facets}
+          emptyText="No geo data"
+          onOpenChange={(open) => open && setFacetsEnabled(true)}
+          forceInline={inDrawer}
+        />
+      </FilterField>
+    )
+    const cityField = (
+      <FilterField label="City" hideLabel={!inDrawer}>
+        <FilterCombobox
+          label="City"
+          options={facets?.cities ?? []}
+          selected={cities}
+          onChange={setCities}
+          loading={!facets}
+          emptyText="No geo data"
+          onOpenChange={(open) => open && setFacetsEnabled(true)}
+          forceInline={inDrawer}
+        />
+      </FilterField>
+    )
+    if (inDrawer) {
+      return (
+        <>
+          {searchField}
+          {ipField}
+          {malformedField}
+          {countryField}
+          {cityField}
+        </>
+      )
+    }
+    return (
+      <FilterRow>
+        {searchField}
+        {ipField}
+        {malformedField}
+        {countryField}
+        {cityField}
+      </FilterRow>
     )
   }
 

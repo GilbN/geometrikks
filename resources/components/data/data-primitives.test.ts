@@ -3,7 +3,8 @@ import { renderToStaticMarkup } from "react-dom/server"
 import { describe, expect, it } from "vitest"
 
 import { DataTableFrame } from "./data-table-frame"
-import { FilterRail } from "./filter-rail"
+import { FilterField, FilterPair, FilterRail } from "./filter-rail"
+import { FilterChip, TagInput } from "./tag-input"
 import { SignalPanel } from "./signal-panel"
 import { dataState, type DataState } from "./types"
 
@@ -90,22 +91,56 @@ describe("SignalPanel", () => {
 })
 
 describe("FilterRail", () => {
-  it("is a labeled region with the count in accessible text", () => {
+  it("is a named region whose Clear button carries the active count", () => {
     const html = renderToStaticMarkup(
       createElement(FilterRail, { label: "Request filters", activeCount: 3, onClear: () => {}, children: null }),
     )
-    const id = html.match(/aria-labelledby="([^"]+)"/)?.[1]
     expect(html).toContain('role="region"')
-    expect(html).toContain(`id="${id}"`)
-    expect(html).toContain("Active filter groups: ")
-    expect(html).toContain("Clear filters")
+    expect(html).toContain('aria-label="Request filters"')
+    expect(html).not.toContain(">Request filters<")
+    expect(html).toContain("Clear 3 filters")
   })
 
   it("hides Clear when nothing is active", () => {
     const html = renderToStaticMarkup(
       createElement(FilterRail, { label: "L", activeCount: 0, onClear: () => {}, children: null }),
     )
-    expect(html).not.toContain("Clear filters")
-    expect(html).not.toContain("Active filter groups")
+    expect(html).not.toContain("Clear")
+  })
+})
+
+describe("FilterField and FilterPair", () => {
+  it("labels its control", () => {
+    const html = renderToStaticMarkup(
+      createElement(FilterField, { label: "Country", children: createElement("input") }),
+    )
+    expect(html).toMatch(/<label[^>]*>.*Country.*<input/)
+  })
+
+  it("joins include and exclude on desktop and splits them when stacked", () => {
+    const props = {
+      label: "IP address",
+      excludeLabel: "Exclude IP",
+      include: createElement("input", { id: "a" }),
+      exclude: createElement("input", { id: "b" }),
+    }
+    const joined = renderToStaticMarkup(createElement(FilterPair, props))
+    expect(joined).toContain('data-pair="start"')
+    expect(joined).toContain('data-pair="end"')
+    expect(joined).not.toContain(">Exclude IP<")
+    const stacked = renderToStaticMarkup(createElement(FilterPair, { ...props, stacked: true }))
+    expect(stacked).not.toContain("data-pair")
+    expect(stacked).toContain(">Exclude IP<")
+  })
+})
+
+describe("TagInput and FilterChip", () => {
+  it("marks the exclude variants", () => {
+    expect(renderToStaticMarkup(createElement(TagInput, { onAdd: () => {}, exclude: true }))).toContain("pl-7")
+    const chip = renderToStaticMarkup(
+      createElement(FilterChip, { value: "10.0.0.1", exclude: true, onRemove: () => {} }),
+    )
+    expect(chip).toContain('aria-label="Remove exclusion 10.0.0.1"')
+    expect(chip).toContain("text-destructive")
   })
 })

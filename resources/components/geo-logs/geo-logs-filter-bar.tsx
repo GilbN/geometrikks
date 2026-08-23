@@ -1,166 +1,121 @@
 /**
- * Filter bar for the geo-logs page: country / city / hostname multiselects
- * (lazy-loaded facets) plus IP include and IP exclude inputs with chips.
- * Renders in a FilterRail on desktop and inside a FiltersDrawer on mobile.
- * Everything on the page (map, stats, chart, top lists, table) reshapes
- * through GeoLogFiltersContext, whose state lives in the URL search params.
+ * Filter bar for the geo-logs page: IP include/exclude plus country, city
+ * and hostname multiselects (lazy-loaded facets). Renders in a FilterRail on
+ * desktop and inside a FiltersDrawer on mobile. Everything on the page (map,
+ * stats, chart, top lists, table) reshapes through GeoLogFiltersContext,
+ * whose state lives in the URL search params.
  */
 import { useState } from "react"
-import { Ban, X } from "lucide-react"
-import { FilterRail } from "@/components/data/filter-rail"
-import { Badge } from "@/components/ui/badge"
-import { Input } from "@/components/ui/input"
+import { FilterField, FilterPair, FilterRail, FilterRow } from "@/components/data/filter-rail"
+import { FilterChip, TagInput } from "@/components/data/tag-input"
 import { FilterCombobox } from "@/components/ui/filter-combobox"
-import { FiltersDrawer, FilterSection } from "@/components/ui/filters-drawer"
+import { FiltersDrawer } from "@/components/ui/filters-drawer"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { useGeoEventFacets } from "@/lib/queries"
 import { isValidIp } from "@/lib/crowdsec"
-import { cn } from "@/lib/utils"
 import {
   countActiveGeoLogFilters,
   EMPTY_GEO_LOG_FILTERS,
   useGeoLogFilters,
 } from "@/lib/geo-log-filters-context"
 
+type IpKey = "ips" | "ipsExclude"
+
 export function GeoLogsFilterBar() {
   const isMobile = useIsMobile()
   const { filters, setFilters } = useGeoLogFilters()
-  const [ipInput, setIpInput] = useState("")
-  const [ipExcludeInput, setIpExcludeInput] = useState("")
   const [facetsEnabled, setFacetsEnabled] = useState(false)
   const { data: facets } = useGeoEventFacets({ enabled: facetsEnabled })
 
-  function addIp(key: "ips" | "ipsExclude") {
-    const input = key === "ips" ? ipInput : ipExcludeInput
-    const setInput = key === "ips" ? setIpInput : setIpExcludeInput
-    const value = input.trim()
-    // ip_address is INET server-side: only complete IPs can match, and the
-    // backend 400s on anything else.
-    if (!value || !isValidIp(value) || filters[key].includes(value)) return
+  const addIp = (key: IpKey) => (value: string) => {
+    if (filters[key].includes(value)) return
     setFilters((prev) => ({ ...prev, [key]: [...prev[key], value] }))
-    setInput("")
   }
-
-  function removeIp(key: "ips" | "ipsExclude", ip: string) {
+  const removeIp = (key: IpKey, ip: string) =>
     setFilters((prev) => ({ ...prev, [key]: prev[key].filter((v) => v !== ip) }))
-  }
 
-  function renderFilters(inDrawer: boolean) {
-    const wrap = (label: string, node: React.ReactNode) =>
-      inDrawer ? <FilterSection label={label}>{node}</FilterSection> : node
-    return (
-      <>
-        {wrap(
-          "Country",
-          <FilterCombobox
-            label="Country"
-            options={facets?.countries.map((c) => c.code) ?? []}
-            selected={filters.countryCodes}
-            onChange={(values) => setFilters((prev) => ({ ...prev, countryCodes: values }))}
-            labelFor={(code) => {
-              const name = facets?.countries.find((c) => c.code === code)?.name
-              return name ? `${name} (${code})` : code
-            }}
-            loading={!facets}
-            emptyText="No geo data"
-            onOpenChange={(open) => open && setFacetsEnabled(true)}
-            forceInline={inDrawer}
-          />,
-        )}
-        {wrap(
-          "City",
-          <FilterCombobox
-            label="City"
-            options={facets?.cities ?? []}
-            selected={filters.cities}
-            onChange={(values) => setFilters((prev) => ({ ...prev, cities: values }))}
-            loading={!facets}
-            emptyText="No geo data"
-            onOpenChange={(open) => open && setFacetsEnabled(true)}
-            forceInline={inDrawer}
-          />,
-        )}
-        {wrap(
-          "Hostname",
-          <FilterCombobox
-            label="Hostname"
-            options={facets?.hostnames ?? []}
-            selected={filters.hostnames}
-            onChange={(values) => setFilters((prev) => ({ ...prev, hostnames: values }))}
-            loading={!facets}
-            emptyText="No hostnames"
-            onOpenChange={(open) => open && setFacetsEnabled(true)}
-            forceInline={inDrawer}
-          />,
-        )}
-        {wrap(
-          "IP address",
-          <Input
-            value={ipInput}
-            onChange={(e) => setIpInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault()
-                addIp("ips")
-              }
-            }}
-            placeholder="Add IP + Enter"
-            aria-invalid={ipInput !== "" && !isValidIp(ipInput)}
-            className={cn("h-8 font-mono text-xs", inDrawer ? "w-full" : "w-40")}
-          />,
-        )}
-        {wrap(
-          "Exclude IP",
-          <Input
-            value={ipExcludeInput}
-            onChange={(e) => setIpExcludeInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault()
-                addIp("ipsExclude")
-              }
-            }}
-            placeholder="Exclude IP + Enter"
-            aria-invalid={ipExcludeInput !== "" && !isValidIp(ipExcludeInput)}
-            className={cn("h-8 font-mono text-xs", inDrawer ? "w-full" : "w-40")}
-          />,
-        )}
+  const ipPair = (inDrawer: boolean) => (
+    <FilterPair
+      label="IP address"
+      excludeLabel="Exclude IP"
+      stacked={inDrawer}
+      include={
+        <TagInput
+          onAdd={addIp("ips")}
+          validate={isValidIp}
+          placeholder="203.0.113.7"
+          className={inDrawer ? "w-full" : "w-36"}
+        />
+      }
+      exclude={
+        <TagInput
+          exclude
+          onAdd={addIp("ipsExclude")}
+          validate={isValidIp}
+          placeholder="Exclude"
+          className={inDrawer ? "w-full" : "w-32"}
+        />
+      }
+    />
+  )
+  const country = (inDrawer: boolean) => (
+    <FilterField label="Country" hideLabel={!inDrawer}>
+      <FilterCombobox
+        label="Country"
+        options={facets?.countries.map((c) => c.code) ?? []}
+        selected={filters.countryCodes}
+        onChange={(values) => setFilters((prev) => ({ ...prev, countryCodes: values }))}
+        labelFor={(code) => {
+          const name = facets?.countries.find((c) => c.code === code)?.name
+          return name ? `${name} (${code})` : code
+        }}
+        loading={!facets}
+        emptyText="No geo data"
+        onOpenChange={(open) => open && setFacetsEnabled(true)}
+        forceInline={inDrawer}
+      />
+    </FilterField>
+  )
+  const city = (inDrawer: boolean) => (
+    <FilterField label="City" hideLabel={!inDrawer}>
+      <FilterCombobox
+        label="City"
+        options={facets?.cities ?? []}
+        selected={filters.cities}
+        onChange={(values) => setFilters((prev) => ({ ...prev, cities: values }))}
+        loading={!facets}
+        emptyText="No geo data"
+        onOpenChange={(open) => open && setFacetsEnabled(true)}
+        forceInline={inDrawer}
+      />
+    </FilterField>
+  )
+  const hostname = (inDrawer: boolean) => (
+    <FilterField label="Hostname" hideLabel={!inDrawer}>
+      <FilterCombobox
+        label="Hostname"
+        options={facets?.hostnames ?? []}
+        selected={filters.hostnames}
+        onChange={(values) => setFilters((prev) => ({ ...prev, hostnames: values }))}
+        loading={!facets}
+        emptyText="No hostnames"
+        onOpenChange={(open) => open && setFacetsEnabled(true)}
+        forceInline={inDrawer}
+      />
+    </FilterField>
+  )
 
-        {filters.ips.map((ip) => (
-          <Badge key={ip} variant="secondary" className="font-mono">
-            {ip}
-            <button
-              type="button"
-              onClick={() => removeIp("ips", ip)}
-              aria-label={`Remove ${ip}`}
-              className="ml-1 rounded-full hover:text-destructive"
-            >
-              <X className="h-3 w-3" />
-            </button>
-          </Badge>
-        ))}
-
-        {filters.ipsExclude.map((ip) => (
-          <Badge
-            key={ip}
-            variant="outline"
-            className="border-destructive/50 font-mono text-destructive"
-          >
-            <Ban className="h-3 w-3" />
-            {ip}
-            <button
-              type="button"
-              onClick={() => removeIp("ipsExclude", ip)}
-              aria-label={`Remove exclusion ${ip}`}
-              className="ml-1 rounded-full hover:opacity-70"
-            >
-              <X className="h-3 w-3" />
-            </button>
-          </Badge>
-        ))}
-      </>
-    )
-  }
+  const chips = [
+    ...filters.ips.map((v) => ({ key: "ips" as const, v, exclude: false })),
+    ...filters.ipsExclude.map((v) => ({ key: "ipsExclude" as const, v, exclude: true })),
+  ]
+  const chipRow = chips.length > 0 && (
+    <FilterRow>
+      {chips.map((c) => (
+        <FilterChip key={`${c.key}:${c.v}`} value={c.v} exclude={c.exclude} onRemove={() => removeIp(c.key, c.v)} />
+      ))}
+    </FilterRow>
+  )
 
   const activeCount = countActiveGeoLogFilters(filters)
   const clear = () => setFilters(() => EMPTY_GEO_LOG_FILTERS)
@@ -169,7 +124,11 @@ export function GeoLogsFilterBar() {
     return (
       <div onClick={() => setFacetsEnabled(true)}>
         <FiltersDrawer activeCount={activeCount} onClear={clear}>
-          {renderFilters(true)}
+          {ipPair(true)}
+          {country(true)}
+          {city(true)}
+          {hostname(true)}
+          {chipRow}
         </FiltersDrawer>
       </div>
     )
@@ -177,7 +136,13 @@ export function GeoLogsFilterBar() {
 
   return (
     <FilterRail label="Location filters" activeCount={activeCount} onClear={clear}>
-      {renderFilters(false)}
+      <FilterRow>
+        {ipPair(false)}
+        {country(false)}
+        {city(false)}
+        {hostname(false)}
+      </FilterRow>
+      {chipRow}
     </FilterRail>
   )
 }
