@@ -68,7 +68,9 @@ test("production image serves the authenticated dashboard without browser errors
 
   await page.goto("/")
   await expect(page).toHaveURL(/\/login$/)
-  await expect(page.getByText("GeoMetrikks", { exact: true })).toBeVisible()
+  // The wordmark is letters plus an inline SVG ligature, so there is no
+  // "GeoMetrikks" text node; its role="img" carries the name instead.
+  await expect(page.getByRole("img", { name: "GeoMetrikks" })).toBeVisible()
 
   const screenshotDir = path.resolve("smoke-artifacts/screenshots")
   await mkdir(screenshotDir, { recursive: true })
