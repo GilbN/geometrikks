@@ -85,9 +85,7 @@ function drawRelief(canvas: HTMLCanvasElement, accent: string, line: string) {
       grid[j * cols + i] =
         noise(x / 260, y / 260) * 0.6 +
         noise(x / 90, y / 90) * 0.3 +
-        noise(x / 30, y / 30) * 0.1 +
-        // Flatten a plateau under the lockup so the card sits on calm ground.
-        0.35 * Math.exp(-(((x - w / 2) / 320) ** 2 + ((y - h / 2) / 300) ** 2))
+        noise(x / 30, y / 30) * 0.1
     }
   }
 
@@ -97,7 +95,7 @@ function drawRelief(canvas: HTMLCanvasElement, accent: string, line: string) {
     const iso = l / levels
     const accented = l % 4 === 0
     ctx.strokeStyle = accented ? accent : line
-    ctx.globalAlpha = accented ? 0.3 : 0.18
+    ctx.globalAlpha = accented ? 0.4 : 0.24
     ctx.lineWidth = accented ? 1.2 : 0.8
     ctx.beginPath()
     for (let j = 0; j < rows - 1; j++) {
