@@ -1,6 +1,7 @@
 """App-level exception handlers translating domain errors to HTTP responses."""
 from __future__ import annotations
 
+import msgspec
 from litestar import MediaType, Request, Response
 from litestar.exceptions import NotFoundException
 from litestar.status_codes import (
@@ -17,6 +18,17 @@ from geometrikks.server.logging import get_logger
 from geometrikks.services.crowdsec import CrowdSecAuthError, CrowdSecUnavailableError
 
 logger = get_logger(__name__)
+
+
+class ErrorEnvelope(msgspec.Struct):
+    """The public error shape, for documenting non-2xx responses in OpenAPI.
+
+    Keys stay snake_case: this is Litestar's native envelope, not a camelCase
+    success payload (docs/api-conventions.md).
+    """
+
+    status_code: int
+    detail: str
 
 
 def handle_domain_validation_error(request: Request, exc: DomainValidationError) -> Response:

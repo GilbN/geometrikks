@@ -284,6 +284,14 @@ export type EmbeddedLocationDto = {
 };
 
 /**
+ * ErrorEnvelope
+ */
+export type ErrorEnvelope = {
+  detail: string;
+  status_code: number;
+};
+
+/**
  * GeoCountryFacet
  */
 export type GeoCountryFacet = {
@@ -3017,6 +3025,14 @@ export type ApiV1GeoLocationsSiteHomesHostnameDeleteSiteHomeErrors = {
       | Array<unknown>;
     status_code: number;
   };
+  /**
+   * No home is recorded for this hostname.
+   */
+  404: ErrorEnvelope;
+  /**
+   * The home is pinned by MAP_HOME_LOCATIONS; edit the setting instead.
+   */
+  409: ErrorEnvelope;
 };
 
 export type ApiV1GeoLocationsSiteHomesHostnameDeleteSiteHomeError =

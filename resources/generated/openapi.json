@@ -994,6 +994,34 @@
         "title": "EmbeddedLocationDTO",
         "type": "object"
       },
+      "ErrorEnvelope": {
+        "examples": [
+          {
+            "status_code": 4966,
+            "detail": "IgNZYFcagWptUqCwdERi"
+          }
+        ],
+        "properties": {
+          "detail": {
+            "examples": [
+              "bzayzoQbzdXMsvhsvQnj"
+            ],
+            "type": "string"
+          },
+          "status_code": {
+            "examples": [
+              9361
+            ],
+            "type": "integer"
+          }
+        },
+        "required": [
+          "detail",
+          "status_code"
+        ],
+        "title": "ErrorEnvelope",
+        "type": "object"
+      },
       "GeoCountryFacet": {
         "properties": {
           "code": {
@@ -9771,6 +9799,26 @@
               }
             },
             "description": "Bad request syntax or unsupported method"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "No home is recorded for this hostname."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "The home is pinned by MAP_HOME_LOCATIONS; edit the setting instead."
           }
         },
         "summary": "DeleteSiteHome",

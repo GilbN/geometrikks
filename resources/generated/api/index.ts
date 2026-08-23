@@ -323,6 +323,7 @@ export type {
   DecisionView,
   DefaultHomeView,
   EmbeddedLocationDto,
+  ErrorEnvelope,
   GeoCountryFacet,
   GeoEventFacets,
   GeoEventsDataPoint,

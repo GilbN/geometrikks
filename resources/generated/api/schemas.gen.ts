@@ -937,6 +937,28 @@ export const EmbeddedLocationDTOSchema = {
   type: "object",
 } as const;
 
+export const ErrorEnvelopeSchema = {
+  examples: [
+    {
+      status_code: 4966,
+      detail: "IgNZYFcagWptUqCwdERi",
+    },
+  ],
+  properties: {
+    detail: {
+      examples: ["bzayzoQbzdXMsvhsvQnj"],
+      type: "string",
+    },
+    status_code: {
+      examples: [9361],
+      type: "integer",
+    },
+  },
+  required: ["detail", "status_code"],
+  title: "ErrorEnvelope",
+  type: "object",
+} as const;
+
 export const GeoCountryFacetSchema = {
   properties: {
     code: {

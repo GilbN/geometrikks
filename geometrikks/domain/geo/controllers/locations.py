@@ -7,7 +7,9 @@ from advanced_alchemy.filters import FilterTypes
 from advanced_alchemy.service import OffsetPagination
 from litestar import Controller, Request, delete, get
 from litestar.di import NamedDependency
+from litestar.openapi.datastructures import ResponseSpec
 from litestar.params import PathParameter, QueryParameter, SkipValidation
+from litestar.status_codes import HTTP_404_NOT_FOUND, HTTP_409_CONFLICT
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from geometrikks.config.settings import Settings
@@ -45,7 +47,8 @@ from geometrikks.lib.validation import validate_ip_addresses
 from geometrikks.server import runtime
 from geometrikks.server.logging import get_logger
 from geometrikks.services.geoip.home import HomeLocation
-from geometrikks.services.geoip.site_homes import delete_site_home, fetch_last_event_days, fetch_site_homes
+from geometrikks.server.exceptions import ErrorEnvelope
+from geometrikks.services.geoip.site_homes import fetch_last_event_days, fetch_site_homes, remove_site_home
 
 logger = get_logger(__name__)
 
@@ -194,6 +197,15 @@ class GeoLocationController(Controller):
         "/site-homes/{hostname:str}",
         return_dto=None,
         description="Remove a retired source's auto-detected home. Override rows (MAP_HOME_LOCATIONS) cannot be removed here.",
+        responses={
+            HTTP_404_NOT_FOUND: ResponseSpec(
+                data_container=ErrorEnvelope, description="No home is recorded for this hostname."
+            ),
+            HTTP_409_CONFLICT: ResponseSpec(
+                data_container=ErrorEnvelope,
+                description="The home is pinned by MAP_HOME_LOCATIONS; edit the setting instead.",
+            ),
+        },
     )
     async def delete_site_home(
         self,
@@ -201,9 +213,8 @@ class GeoLocationController(Controller):
         db_session: NamedDependency[AsyncSession],
         hostname: Annotated[str, PathParameter(description="Recording hostname whose home row to remove")],
     ) -> None:
-        await delete_site_home(db_session, hostname)
         user = request.scope.get("user")
-        logger.info("Site home removed by %s: hostname=%s", str(user) if user else "unknown", hostname)
+        await remove_site_home(db_session, hostname, actor=str(user) if user else "unknown")
 
     @get("/top-ips", return_dto=None, description="Get global top IPs by event count with their primary locations.")
     async def get_global_top_ips(

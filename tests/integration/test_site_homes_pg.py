@@ -9,10 +9,10 @@ from sqlalchemy import text
 from geometrikks.services.geoip.home import HomeLocation
 from geometrikks.domain.exceptions import DomainConflictError, DomainNotFoundError
 from geometrikks.services.geoip.site_homes import (
-    delete_site_home,
     fetch_last_event_days,
     fetch_site_homes,
     reconcile_override_homes,
+    remove_site_home,
     upsert_auto_homes,
 )
 
@@ -96,7 +96,7 @@ async def test_site_homes_source_is_db_constrained(pg_session_maker, clean_site_
 async def test_delete_removes_auto_row_and_next_upsert_recreates_it(pg_session_maker, clean_site_homes):
     await upsert_auto_homes(pg_session_maker, ["retired-01"], HOME)
     async with pg_session_maker() as session:
-        await delete_site_home(session, "retired-01")
+        await remove_site_home(session, "retired-01", actor="test")
     assert "retired-01" not in await _rows(pg_session_maker)
     # A source that still ingests gets its row back on its next refresh.
     await upsert_auto_homes(pg_session_maker, ["retired-01"], HOME)
@@ -107,9 +107,9 @@ async def test_delete_refuses_override_and_missing_rows(pg_session_maker, clean_
     await reconcile_override_homes(pg_session_maker, {"pinned-01": (51.5, -0.12)})
     async with pg_session_maker() as session:
         with pytest.raises(DomainConflictError):
-            await delete_site_home(session, "pinned-01")
+            await remove_site_home(session, "pinned-01", actor="test")
         with pytest.raises(DomainNotFoundError):
-            await delete_site_home(session, "never-seen")
+            await remove_site_home(session, "never-seen", actor="test")
     assert (await _rows(pg_session_maker))["pinned-01"][2] == "override"
 
 

@@ -144,7 +144,7 @@ async def fetch_last_event_days(session: "AsyncSession") -> dict[str, datetime]:
     return {row.hostname: row.last_day for row in result}
 
 
-async def delete_site_home(session: "AsyncSession", hostname: str) -> None:
+async def remove_site_home(session: "AsyncSession", hostname: str, *, actor: str) -> None:
     """Remove one hostname's home row.
 
     Only auto rows can go: override rows mirror MAP_HOME_LOCATIONS and would
@@ -159,4 +159,4 @@ async def delete_site_home(session: "AsyncSession", hostname: str) -> None:
         raise DomainConflictError(f"Hostname {hostname!r} is pinned by MAP_HOME_LOCATIONS; remove it there instead")
     await session.delete(row)
     await session.commit()
-    logger.info("site_home_deleted", hostname=hostname, source="auto")
+    logger.info("site_home_deleted", hostname=hostname, source="auto", actor=actor)
