@@ -9,36 +9,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Shared data presentation primitives (filter rail, table frame, chart panel, detail sheet) and a full-screen mobile variant of the side sheet, for the pages that adopt them in later changes.
-- Access, Geo, Debug and Analytics filters sit in one rail on desktop with a Clear button that counts the active groups. Every control carries a label, text inputs sit on one row and selects on the next, include/exclude inputs for the same dimension are one joined control, and active selects show in the accent colour; Geo logs and Analytics gain the same mobile filter drawer Access logs had, and the drawer gets its own Clear.
-- Access logs: the history table is one framed card (title, result count, Columns, table, pagination), and selecting a row opens the complete record in a side sheet, including ASN, recording hostname, source format and the ban controls. Rows open with Enter or Space too.
-- Geo logs: the grouped table, Top IPs and Top locations are framed cards with counts, and the spatial preview and event chart share the chart panel used on Analytics. Selecting a table row opens the complete location record, ban controls included.
-- Debug logs: the table is a framed card with its count and Columns menu, and the record detail moved from a dialog to a side sheet with the raw line, parse result and linked request.
-- Analytics charts say what they show and which bucket size the range resolved to (Hourly or Daily), with the legend in the card footer and a retry when a series fails to load.
-- Map: the controls are one panel with labeled sections (Visualization, Live, Filters, Summary, Top IPs); toggles are compact switch rows so the panel fits a laptop height without scrolling, the map filters get a Clear, fit and home sit in the panel header, and the collapsed button shows a dot while filters are active. The live rail no longer fills the map's height; its feed scrolls inside a bounded card.
-- Settings > Appearance: theme (System, Light, Dark) and accent side by side with previews. System now tracks the device's color scheme live instead of only at page load.
-- Accent picker in the header: Aurora teal, Fjord green or Ember copper. The choice persists per browser and is applied before first paint alongside the theme, so a non-default accent no longer flashes teal on load.
-- Shared page chrome components: standard page header, section dividers, and error banner.
-- New brand identity: wayfinder (vegvisir) mark, runr wordmark with rune ligature, regenerated favicon and PWA icons, and a branded login screen.
-- Accent variant system: the app accent (teal default, green, copper) is switchable in code via a `data-accent` attribute.
-- README brand banner generated from the mark and wordmark.
+- Filters on Access logs, Geo logs, Debug logs and Analytics share one layout: text inputs on one row, selects on the next, include and exclude for the same field (IP, host, hostname) as one joined control, and a Clear button that shows how many filter groups are active. Geo logs and Analytics get the mobile filter drawer Access logs already had.
+- Access logs: selecting a row opens the full record in a side panel, with ASN, recording hostname, source format and the ban controls. Enter and Space open rows too.
+- Geo logs: selecting a row opens the full location record, ban controls included. Top IPs, Top locations, the map preview and the event chart are framed cards with counts.
+- Debug logs: the record detail is a side panel instead of a dialog, showing the raw line, the parse result and the linked request.
+- Analytics charts name what they plot and the bucket size the range resolved to (Hourly or Daily), and offer a retry when a series fails to load.
+- Map controls are one panel with labeled sections (Visualization, Live, Filters, Summary, Top IPs). Toggles are switch rows so the panel fits a laptop screen without scrolling, the map filters get a Clear, fit and home moved into the panel header, and the collapsed button shows a dot while filters are active. The live feed scrolls inside a bounded card instead of stretching to the map's height.
+- Settings > Appearance: theme (System, Light, Dark) and accent (teal, green, copper) side by side with previews. System follows the device's color scheme live, not only at page load. The accent is also switchable from the header, persists per browser and is applied before first paint, so a non-default accent no longer flashes teal on load.
+- Open Graph and Twitter card tags on the app shell.
 
 ### Changed
 
-- Redesigned stat cards with the design-system typography and theme-aware trend colors; normalized panel borders and shadows across all cards; overview page rebuilt on the shared chrome.
-- Rebuilt the color themes: new "Aurora night" dark theme and a first-class "Fjord mist" light theme; map popups and controls now follow the theme tokens.
-- Each Settings page has its own title and subtitle; the section list is a left-side navigation from 768px up and a dropdown below it.
-- Login draws the live-routes picture behind its card, the error and 404 pages the relief contours, both following the accent and color mode; the sidebar and login lockups are a step larger.
-- Login, the error boundary and the 404 page share one card: mark, wordmark and the page title sit inside it, on the aurora backdrop.
-- Access logs, Geo logs, Debug logs and Analytics have new one-line descriptions under their titles.
-- Security's Active decisions and Alert history cards use the same label style as every other data card.
-- Every page now uses the shared page header, section, and error-banner chrome; tables get uppercase headers, 13px rows, and card panels; analytics and top-list card titles use the design-system label style.
-- Retired the legacy geo-cyan color aliases; all accent color, including map popups and the about page brand block, now follows the active theme accent.
+- New logo, wordmark, icons and color themes (dark "Aurora night", light "Fjord mist").
+- Refactored the Settings pages.
+- Tables, stat cards and data panels use one set of labels, borders and shadows across every page, and each page has a one-line description under its title.
+- Map popups and controls follow the active theme and accent.
 
 ### Fixed
 
 - Apple touch icon no longer has transparent corners that iOS composited black.
-- Percent and ratio placeholders render as "-" instead of an em dash, matching every other empty cell.
+- Percent and ratio placeholders render as "-", matching every other empty cell.
 - Stat card trend badges no longer pair a 0.0% label with an up or down arrow; tiny and non-finite deltas render as flat or hidden.
 
 ## [0.10.0] - 2026-08-22
