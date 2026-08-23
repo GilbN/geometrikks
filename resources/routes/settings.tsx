@@ -1,4 +1,5 @@
 import { createFileRoute, Link, Outlet, useRouterState } from "@tanstack/react-router"
+import { ReliefBackdrop } from "@/components/brand/backdrops"
 
 import {
   Select,
@@ -34,9 +35,13 @@ function SettingsLayout() {
   }
 
   return (
-    <div className="min-w-0 p-4 md:grid md:grid-cols-[11rem_minmax(0,1fr)] md:gap-8 md:p-6">
+    <div className="relative min-h-full min-w-0">
+      <ReliefBackdrop mode="viewport" />
+      {/* Glass cards, scoped to Settings: the relief shows through them
+          softly instead of only between them. */}
+      <div className="relative min-w-0 p-4 md:grid md:grid-cols-[11rem_minmax(0,1fr)] md:gap-8 md:p-6 [&_[data-slot=card]]:bg-card/55 [&_[data-slot=card]]:backdrop-blur-[2px]">
       <Select value={activeTab.to} onValueChange={handleTabChange}>
-        <SelectTrigger aria-label="Settings section" className="mb-4 h-10 w-full md:hidden">
+        <SelectTrigger aria-label="Settings section" className="mb-4 h-10 w-full bg-card/70 backdrop-blur-[2px] md:hidden">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
@@ -49,9 +54,9 @@ function SettingsLayout() {
       </Select>
       <nav
         aria-label="Settings"
-        className="hidden self-start md:sticky md:top-4 md:block"
+        className="relative hidden self-start rounded-xl bg-card/70 p-3 ring-1 ring-border shadow-[var(--shadow-card)] backdrop-blur-[2px] md:sticky md:top-4 md:block"
       >
-        <p className="mb-2 px-3 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+        <p className="mb-2 px-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
           Settings
         </p>
         <ul className="space-y-0.5 border-l border-border/50">
@@ -68,8 +73,9 @@ function SettingsLayout() {
           ))}
         </ul>
       </nav>
-      <div className="min-w-0">
+      <div className="relative min-w-0">
         <Outlet />
+      </div>
       </div>
     </div>
   )

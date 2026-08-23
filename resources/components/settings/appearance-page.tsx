@@ -18,12 +18,16 @@ const ACCENT_DESCRIPTIONS: Record<Accent, string> = {
   copper: "Forge glow, for warmer rooms.",
 }
 
+// Glass like the settings cards; selection adds the ring and a primary tint
+// layered over the glass, never replacing it.
 const OPTION =
-  "flex min-h-16 items-center gap-3 rounded-xl bg-card px-4 py-3 text-left ring-1 transition-colors pointer-coarse:min-h-11 " +
+  "flex min-h-16 items-center gap-3 rounded-xl bg-card/55 px-4 py-3 text-left ring-1 backdrop-blur-[2px] transition-colors pointer-coarse:min-h-11 " +
   "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
 
 function optionRing(selected: boolean) {
-  return selected ? "ring-primary bg-primary/5" : "ring-border hover:ring-primary/50"
+  return selected
+    ? "ring-primary bg-[linear-gradient(var(--primary-glow),var(--primary-glow))]"
+    : "ring-border hover:ring-primary/50"
 }
 
 /** Scoped accent preview: the same trick as the header swatch, grown into a

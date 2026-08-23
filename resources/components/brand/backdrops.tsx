@@ -68,7 +68,7 @@ const SEGMENTS: Record<number, string> = {
 const CANVAS_W = 1280
 const CANVAS_H = 800
 
-function drawRelief(canvas: HTMLCanvasElement, accent: string, line: string) {
+function drawRelief(canvas: HTMLCanvasElement, accent: string, line: string, strength = 1) {
   const ctx = canvas.getContext("2d")
   if (!ctx) return
   const w = (canvas.width = CANVAS_W)
@@ -97,7 +97,7 @@ function drawRelief(canvas: HTMLCanvasElement, accent: string, line: string) {
     const iso = l / levels
     const accented = l % 4 === 0
     ctx.strokeStyle = accented ? accent : line
-    ctx.globalAlpha = accented ? 0.4 : 0.24
+    ctx.globalAlpha = (accented ? 0.4 : 0.24) * strength
     ctx.lineWidth = accented ? 1.2 : 0.8
     ctx.beginPath()
     for (let j = 0; j < rows - 1; j++) {
@@ -124,8 +124,21 @@ function drawRelief(canvas: HTMLCanvasElement, accent: string, line: string) {
   ctx.globalAlpha = 1
 }
 
-/** Contour lines from a noise field, drawn once and redrawn on theme change. */
-export function ReliefBackdrop() {
+/**
+ * Contour lines from a noise field, drawn once and redrawn on theme change.
+ * `fill` covers the nearest positioned ancestor (a screen-sized shell).
+ * `viewport` pins the picture to the scroll container's visible area, for
+ * long pages that scroll past it: a zero-height sticky wrapper stays at the
+ * top of the scroller while the canvas hangs below it one viewport tall.
+ */
+export function ReliefBackdrop({
+  mode = "fill",
+  tone = "full",
+}: {
+  mode?: "fill" | "viewport"
+  /** `quiet` halves the line strength for pages with content on top. */
+  tone?: "full" | "quiet"
+}) {
   const ref = useRef<HTMLCanvasElement>(null)
 
   useEffect(() => {
@@ -138,7 +151,7 @@ export function ReliefBackdrop() {
       cancelAnimationFrame(frame)
       frame = requestAnimationFrame(() => {
         const style = getComputedStyle(canvas)
-        drawRelief(canvas, style.color, style.borderColor)
+        drawRelief(canvas, style.color, style.borderColor, tone === "quiet" ? 0.5 : 1)
       })
     }
     draw()
@@ -148,13 +161,23 @@ export function ReliefBackdrop() {
       cancelAnimationFrame(frame)
       mo.disconnect()
     }
-  }, [])
+  }, [tone])
 
-  return (
+  const canvas = (
     <canvas
       ref={ref}
       aria-hidden
-      className="pointer-events-none absolute inset-0 h-full w-full border-0 border-muted-foreground object-cover text-primary"
+      className="pointer-events-none absolute inset-x-0 top-0 h-full w-full border-0 border-muted-foreground object-cover text-primary"
     />
+  )
+  if (mode === "fill") return canvas
+  return (
+    <div aria-hidden className="pointer-events-none sticky top-0 z-0 h-0">
+      {/* Faint under the page title and its toolbar, full behind the first
+          row of cards, gone by two thirds down. */}
+      <div className="absolute inset-x-0 top-0 h-dvh [mask-image:linear-gradient(to_bottom,rgb(0_0_0/0.3)_0%,black_24%,transparent_70%)]">
+        {canvas}
+      </div>
+    </div>
   )
 }

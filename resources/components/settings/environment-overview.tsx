@@ -226,53 +226,57 @@ export function EnvironmentOverview() {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="relative">
-          <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            placeholder="Filter settings..."
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            className="w-full sm:w-64 pl-8"
-          />
+      {/* Same glass as the title band above: the toolbar and section
+          chips sit on it rather than on the relief. */}
+      <div className="space-y-3 rounded-xl bg-card/55 px-4 py-3 ring-1 ring-border shadow-[var(--shadow-card)] backdrop-blur-[2px]">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder="Filter settings..."
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              className="w-full sm:w-64 pl-8"
+            />
+          </div>
+          <Button
+            size="sm"
+            className="pointer-coarse:h-10"
+            variant={overriddenOnly ? "secondary" : "outline"}
+            onClick={() => setOverriddenOnly((v) => !v)}
+            aria-pressed={overriddenOnly}
+          >
+            <SlidersHorizontal className="mr-1.5 h-3.5 w-3.5" />
+            Overridden only
+          </Button>
+          <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+            <StatusLed tone="accent" />
+            {totalOverridden} of{" "}
+            {data.sections.reduce(
+              (n, s) => n + s.fields.filter((f) => f.envVar).length,
+              0,
+            )}{" "}
+            settings
+            overridden by env
+          </span>
         </div>
-        <Button
-          size="sm"
-          className="pointer-coarse:h-10"
-          variant={overriddenOnly ? "secondary" : "outline"}
-          onClick={() => setOverriddenOnly((v) => !v)}
-          aria-pressed={overriddenOnly}
-        >
-          <SlidersHorizontal className="mr-1.5 h-3.5 w-3.5" />
-          Overridden only
-        </Button>
-        <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
-          <StatusLed tone="accent" />
-          {totalOverridden} of{" "}
-          {data.sections.reduce(
-            (n, s) => n + s.fields.filter((f) => f.envVar).length,
-            0,
-          )}{" "}
-          settings
-          overridden by env
-        </span>
-      </div>
 
-      <div className="flex flex-wrap gap-1.5">
-        {sections.map((section) => {
-          const Icon = sectionIcons[section.name] ?? Settings2
-          return (
-            <button
-              key={section.name}
-              type="button"
-              onClick={() => jumpTo(section.name)}
-              className="inline-flex items-center gap-1.5 rounded-md border border-border/60 px-2 py-1 text-xs text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground"
-            >
-              <Icon className="h-3 w-3 text-primary" />
-              {section.title}
-            </button>
-          )
-        })}
+        <div className="flex flex-wrap gap-1.5">
+          {sections.map((section) => {
+            const Icon = sectionIcons[section.name] ?? Settings2
+            return (
+              <button
+                key={section.name}
+                type="button"
+                onClick={() => jumpTo(section.name)}
+                className="inline-flex items-center gap-1.5 rounded-md border border-border/60 px-2 py-1 text-xs text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground"
+              >
+                <Icon className="h-3 w-3 text-primary" />
+                {section.title}
+              </button>
+            )
+          })}
+        </div>
       </div>
 
       {sections.length === 0 ? (

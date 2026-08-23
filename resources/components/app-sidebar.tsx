@@ -528,8 +528,10 @@ export function AppSidebar() {
 
       <SidebarContent>
         {/* Live status indicators: ingestion health + websocket live feed */}
-        <LiveIndicator collapsed={collapsed} />
-        <LiveFeedIndicator collapsed={collapsed} />
+        <div className="mt-2 flex flex-col gap-1">
+          <LiveIndicator collapsed={collapsed} />
+          <LiveFeedIndicator collapsed={collapsed} />
+        </div>
 
         <SidebarGroup className="mt-2">
           <SidebarGroupLabel
