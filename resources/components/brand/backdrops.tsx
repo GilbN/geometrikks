@@ -61,16 +61,18 @@ const SEGMENTS: Record<number, string> = {
   9: "tb", 10: "tr,lb", 11: "tr", 12: "lr", 13: "br", 14: "lb",
 }
 
-// The canvas renders at most this wide and scales up through CSS; contour
-// lines at 1px stay crisp enough and the cost stops growing with the window.
-const MAX_W = 1280
+// The canvas renders once at a fixed size and CSS covers the screen with
+// it, so layout changes (the sidebar opening, a window resize) never
+// trigger a redraw. Contours stretch by at most the aspect difference,
+// which is invisible at hairline weight.
+const CANVAS_W = 1280
+const CANVAS_H = 800
 
 function drawRelief(canvas: HTMLCanvasElement, accent: string, line: string) {
   const ctx = canvas.getContext("2d")
   if (!ctx) return
-  const scale = Math.min(1, MAX_W / Math.max(1, canvas.clientWidth))
-  const w = (canvas.width = Math.round(canvas.clientWidth * scale))
-  const h = (canvas.height = Math.round(canvas.clientHeight * scale))
+  const w = (canvas.width = CANVAS_W)
+  const h = (canvas.height = CANVAS_H)
   ctx.clearRect(0, 0, w, h)
 
   // Sample the field once on the grid; every level then reads the cache
@@ -122,7 +124,7 @@ function drawRelief(canvas: HTMLCanvasElement, accent: string, line: string) {
   ctx.globalAlpha = 1
 }
 
-/** Contour lines from a noise field, redrawn on resize and theme change. */
+/** Contour lines from a noise field, drawn once and redrawn on theme change. */
 export function ReliefBackdrop() {
   const ref = useRef<HTMLCanvasElement>(null)
 
@@ -131,7 +133,6 @@ export function ReliefBackdrop() {
     if (!canvas) return
     // Canvas cannot read CSS variables, so resolve the two colors through
     // computed styles on the canvas itself (color) and its parent (border).
-    // Coalesce bursts (a drag-resize fires per frame) into one draw.
     let frame = 0
     const draw = () => {
       cancelAnimationFrame(frame)
@@ -141,13 +142,10 @@ export function ReliefBackdrop() {
       })
     }
     draw()
-    const ro = new ResizeObserver(draw)
-    ro.observe(canvas)
     const mo = new MutationObserver(draw)
     mo.observe(document.documentElement, { attributes: true, attributeFilter: ["class", "data-accent"] })
     return () => {
       cancelAnimationFrame(frame)
-      ro.disconnect()
       mo.disconnect()
     }
   }, [])
@@ -156,7 +154,7 @@ export function ReliefBackdrop() {
     <canvas
       ref={ref}
       aria-hidden
-      className="pointer-events-none absolute inset-0 h-full w-full border-0 border-muted-foreground text-primary"
+      className="pointer-events-none absolute inset-0 h-full w-full border-0 border-muted-foreground object-cover text-primary"
     />
   )
 }
