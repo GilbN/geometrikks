@@ -674,39 +674,6 @@
         "POST"
       ],
       "uri": "/api/v1/crowdsec/unban"
-    },
-    "vite": {
-      "method": "get",
-      "methods": [
-        "GET"
-      ],
-      "parameterTypes": {
-        "file_path": "any"
-      },
-      "parameters": [
-        "file_path"
-      ],
-      "uri": "/static/{file_path}"
-    },
-    "vite_spa": {
-      "method": "get",
-      "methods": [
-        "GET"
-      ],
-      "uri": "/"
-    },
-    "vite_spa_path:path": {
-      "method": "get",
-      "methods": [
-        "GET"
-      ],
-      "parameterTypes": {
-        "path": "URI"
-      },
-      "parameters": [
-        "path"
-      ],
-      "uri": "/{path}"
     }
   }
 }
