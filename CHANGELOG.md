@@ -31,6 +31,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Percent and ratio placeholders render as "-", matching every other empty cell.
 - Stat card trend badges no longer pair a 0.0% label with an up or down arrow; tiny and non-finite deltas render as flat or hidden.
 - Live tail: the Status column is wide enough for its header, which ran into Method.
+- Ingestion reloads its GeoIP readers after the weekly GeoLite2 refresh replaces the database files, so new geo data applies without a restart. This also picks up files replaced outside the app (for example by `geoipupdate`), and a start in geo-degraded mode recovers on its own once a later scheduled download succeeds. Running the refresh job from Settings downloads fresh databases even when the current files are younger than `GEOIP_REFRESH_DAYS`, and applies a file replaced outside the app immediately.
 
 ## [0.10.0] - 2026-08-22
 

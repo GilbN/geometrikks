@@ -12,6 +12,7 @@ Analytics aggregation is handled automatically by TimescaleDB continuous aggrega
 """
 from __future__ import annotations
 import asyncio
+import os
 import time
 from collections.abc import Callable
 from datetime import datetime, timezone
@@ -59,6 +60,21 @@ class IngestionRepos:
             access_log=AccessLogRepository(session=session),
             access_log_debug=AccessLogDebugRepository(session=session),
         )
+
+
+def _stat_fingerprint(path: Path | str | None) -> tuple[int, int, int] | None:
+    """(st_ino, st_mtime_ns, st_size) of path; None when absent or unreadable.
+
+    The downloader replaces the mmdb atomically (tmp.replace), so a refreshed
+    file always carries a new inode; an out-of-band replacement does too.
+    """
+    if not path:
+        return None
+    try:
+        st = os.stat(path)
+    except OSError:
+        return None
+    return (st.st_ino, st.st_mtime_ns, st.st_size)
 
 
 def create_reader(path: Path|str, locales: list[str] | None = None) -> Reader|None:
@@ -154,6 +170,12 @@ class LogIngestionService:
         # up a refreshed database file).
         self._reader: Reader | None = None
         self._asn_reader: Reader | None = None
+        # What the open readers actually have mmapped; readers_stale() compares
+        # these against the files on disk. None means "no reader open".
+        self._city_fingerprint: tuple[int, int, int] | None = None
+        self._asn_fingerprint: tuple[int, int, int] | None = None
+        self._skip_validation: bool = False
+        self._reloads_enabled: bool = True
         self._stop_event: asyncio.Event | None = None
         self._ingestion_task: asyncio.Task[None] | None = None
         self._queue: asyncio.Queue[ParsedLogRecord] | None = None
@@ -185,11 +207,18 @@ class LogIngestionService:
             logger.warning("Ingestion already running")
             return
 
+        self._skip_validation = skip_validation
+
         if not (reader := create_reader(self.geoip_path, self.locales)):
             logger.error(
                 "Cannot start ingestion: failed to create GeoIP2 reader with database at %s",
                 self.geoip_path,
             )
+            # No reader open: readers_stale() reads a usable file appearing
+            # later as stale, so the geoip-refresh job can start ingestion
+            # without a process restart (geo-degraded recovery).
+            self._city_fingerprint = None
+            self._asn_fingerprint = None
             return
 
         # ASN enrichment is optional: a missing or unreadable database means
@@ -204,6 +233,10 @@ class LogIngestionService:
                 )
         self._reader = reader
         self._asn_reader = asn_reader
+        self._city_fingerprint = _stat_fingerprint(self.geoip_path)
+        self._asn_fingerprint = (
+            _stat_fingerprint(self.asn_db_path) if asn_reader is not None else None
+        )
 
         # Set synchronously (before any `await`/task scheduling) so a second
         # start() called back-to-back sees is_running=True immediately; it
@@ -302,6 +335,40 @@ class LogIngestionService:
         logger.info(
             "Stopped log ingestion service. Total processed: %d", self.total_processed
         )
+
+    def readers_stale(self) -> bool:
+        """True when a database file on disk differs from what the readers opened.
+
+        Covers this process's own download, an out-of-band replacement (e.g.
+        an external geoipupdate), and the recovery case where a reader failed
+        to open but a usable file has since appeared.
+        """
+        if _stat_fingerprint(self.geoip_path) != self._city_fingerprint:
+            return True
+        if self.asn_db_path is None:
+            return False
+        return _stat_fingerprint(self.asn_db_path) != self._asn_fingerprint
+
+    def disable_reloads(self) -> None:
+        """Called by lifecycle teardown before stop(): a mid-flight
+        geoip-refresh job must not restart the tail tasks during shutdown."""
+        self._reloads_enabled = False
+
+    async def reload_readers(self) -> None:
+        """Restart the pipeline so fresh readers (and lookup caches) pick up
+        a replaced database file."""
+        if not self._reloads_enabled:
+            return
+        await self.stop()
+        if not self._reloads_enabled:  # shutdown began while draining
+            return
+        await self.start(skip_validation=self._skip_validation)
+        if self._reader is not None:  # start() logs its own failure path
+            logger.info(
+                "geoip_readers_reloaded",
+                path=str(self.geoip_path),
+                asn_path=str(self.asn_db_path) if self.asn_db_path else None,
+            )
 
     async def _run_ingestion(self) -> None:
         """Consume parsed records from the shared queue, flushing batches to fresh sessions."""

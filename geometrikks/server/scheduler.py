@@ -22,6 +22,7 @@ from geometrikks.server.logging import get_logger
 from geometrikks.server.timescale import ALL_CAGGS
 
 if TYPE_CHECKING:
+    from litestar import Litestar
     from sqlalchemy.ext.asyncio import AsyncSession
 
     from geometrikks.config.settings import Settings
@@ -157,11 +158,50 @@ async def refresh_site_home_job(
     await upsert_auto_homes(session_factory, settings.logparser.resolved_hostnames(), home)
 
 
+async def refresh_geoip_job(settings: "Settings", app: "Litestar | None") -> None:
+    """Refresh the GeoLite2 databases, then reload the ingestion readers when
+    a file on disk no longer matches what the readers have open.
+
+    The staleness check (not a download-succeeded flag) also picks up files
+    replaced out-of-band, e.g. by an external geoipupdate against a mounted
+    mmdb. The manual /scheduler/jobs/geoip-refresh/run endpoint executes this
+    same callable, so it doubles as the "pick up my replaced file now" path.
+
+    With app=None the job degrades to refresh-only (hand-built scheduler test
+    doubles that predate the app parameter).
+    """
+    from geometrikks.services.geoip import downloader
+
+    # Module lookup, not a captured reference: tests monkeypatch this.
+    # force: a run of this job (scheduled or the Settings Run button) means
+    # "fetch a fresh copy now"; the staleness gate stays for startup only.
+    await downloader.refresh_geoip_databases(settings.geoip, force=True)
+
+    if app is None:
+        return
+
+    from geometrikks.lib.utils import geoip_info
+    from geometrikks.server import runtime
+
+    # /health and the settings overlay read these; a successful download after
+    # a degraded start must flip them without a restart.
+    app.state.geoip_available = geoip_info(settings.geoip.db_path).available
+    if settings.geoip.asn_enabled:
+        app.state.asn_available = geoip_info(settings.geoip.asn_db_path).available
+
+    service = runtime.get_ingestion_service(app)
+    if service is None or not service.readers_stale():
+        return
+    await service.reload_readers()
+
+
 async def create_scheduler(
     session_factory: "Callable[[], AsyncSession]",
     settings: "Settings",
     crowdsec_poller: "CrowdSecStreamPoller | None" = None,
     mode: str = "full",
+    *,
+    app: "Litestar | None" = None,
 ) -> AsyncIOScheduler:
     """Create and configure the APScheduler instance.
 
@@ -183,6 +223,9 @@ async def create_scheduler(
         session_factory: SQLAlchemy async session factory for creating job sessions.
         settings: Application settings for job configuration.
         mode: "full" or "agent"; controls which jobs are registered.
+        app: The composed app; the geoip-refresh job resolves the ingestion
+            service through it at run time (it does not exist yet at
+            registration). None degrades that job to refresh-only.
 
     Returns:
         Configured AsyncIOScheduler (not yet started).
@@ -225,17 +268,16 @@ async def create_scheduler(
         logger.info("Scheduled full CAGG refresh every 6 hours")
 
     # Weekly GeoLite2 refresh, City + ASN editions in one job (only meaningful
-    # when credentials are set; the ensure functions no-op safely otherwise).
+    # when credentials are set; the ensure functions no-op safely otherwise),
+    # followed by an ingestion reader reload when the files changed.
     # Runs in every mode: an agent still needs its own local databases kept
     # current. One job id: the Settings UI looks up "geoip-refresh" by name.
-    from geometrikks.services.geoip.downloader import refresh_geoip_databases
-
     scheduler.add_job(
-        refresh_geoip_databases,
+        refresh_geoip_job,
         IntervalTrigger(days=settings.geoip.refresh_days),
         id="geoip-refresh",
         name="Refresh GeoLite2 databases from MaxMind",
-        args=[settings.geoip],
+        args=[settings, app],
         replace_existing=True,
     )
     logger.info("Scheduled GeoLite2 refresh every %d day(s)", settings.geoip.refresh_days)

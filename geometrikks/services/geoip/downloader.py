@@ -127,24 +127,33 @@ async def download_database(
     return db_path
 
 
-async def ensure_geoip_database(settings: "GeoIPSettings") -> bool:
+async def ensure_geoip_database(settings: "GeoIPSettings", *, force: bool = False) -> bool:
     """Make the mmdb present-and-fresh if possible. Returns usability.
 
     - fresh db, no creds        -> True (nothing to do)
     - stale/missing db, creds   -> try download; True if a db exists after
     - missing db, no creds      -> False + actionable warning (degraded mode)
+
+    force=True skips the staleness gate (the geoip-refresh job, where a run
+    means "fetch a fresh copy now"); the credentials gate still applies.
     """
-    if not database_is_stale(settings.db_path, settings.refresh_days):
+    if not force and not database_is_stale(settings.db_path, settings.refresh_days):
         return True
 
     if not has_credentials(settings):
         if geoip_info(settings.db_path).available:
-            logger.warning(
-                "GeoLite2 database is older than %d days and no MaxMind "
-                "credentials are configured; keeping the stale copy. "
-                "(GeoLite2 EULA requires refreshing within 30 days.)",
-                settings.refresh_days,
-            )
+            if database_is_stale(settings.db_path, settings.refresh_days):
+                logger.warning(
+                    "GeoLite2 database is older than %d days and no MaxMind "
+                    "credentials are configured; keeping the stale copy. "
+                    "(GeoLite2 EULA requires refreshing within 30 days.)",
+                    settings.refresh_days,
+                )
+            else:
+                logger.warning(
+                    "GeoLite2 refresh requested but no MaxMind credentials "
+                    "are configured; keeping the current database."
+                )
             return True
         logger.warning(
             "No usable GeoLite2 database at %s and no MaxMind credentials configured. "
@@ -170,25 +179,32 @@ async def ensure_geoip_database(settings: "GeoIPSettings") -> bool:
         return geoip_info(settings.db_path).available
 
 
-async def ensure_asn_database(settings: "GeoIPSettings") -> bool:
+async def ensure_asn_database(settings: "GeoIPSettings", *, force: bool = False) -> bool:
     """Download or refresh the GeoLite2-ASN mmdb when possible; never raises.
 
     Unlike ensure_geoip_database, False is not degraded mode, only
     ingestion without ASN data. Disabled returns False without touching the
-    network.
+    network. force=True skips the staleness gate, matching
+    ensure_geoip_database.
     """
     if not settings.asn_enabled:
         return False
-    if not database_is_stale(settings.asn_db_path, settings.refresh_days):
+    if not force and not database_is_stale(settings.asn_db_path, settings.refresh_days):
         return True
 
     if not has_credentials(settings):
         if geoip_info(settings.asn_db_path).available:
-            logger.warning(
-                "GeoLite2-ASN database is older than %d days and no MaxMind "
-                "credentials are configured; keeping the stale copy.",
-                settings.refresh_days,
-            )
+            if database_is_stale(settings.asn_db_path, settings.refresh_days):
+                logger.warning(
+                    "GeoLite2-ASN database is older than %d days and no MaxMind "
+                    "credentials are configured; keeping the stale copy.",
+                    settings.refresh_days,
+                )
+            else:
+                logger.warning(
+                    "GeoLite2-ASN refresh requested but no MaxMind credentials "
+                    "are configured; keeping the current database."
+                )
             return True
         logger.warning(
             "No usable GeoLite2-ASN database at %s and no MaxMind credentials "
@@ -211,7 +227,7 @@ async def ensure_asn_database(settings: "GeoIPSettings") -> bool:
         return geoip_info(settings.asn_db_path).available
 
 
-async def refresh_geoip_databases(settings: "GeoIPSettings") -> None:
+async def refresh_geoip_databases(settings: "GeoIPSettings", *, force: bool = False) -> None:
     """Scheduler entry point: refresh City always, ASN when enabled.
 
     Looked up through the module (not captured references) so tests can
@@ -219,6 +235,6 @@ async def refresh_geoip_databases(settings: "GeoIPSettings") -> None:
     """
     from geometrikks.services.geoip import downloader as _self
 
-    await _self.ensure_geoip_database(settings)
+    await _self.ensure_geoip_database(settings, force=force)
     if settings.asn_enabled:
-        await _self.ensure_asn_database(settings)
+        await _self.ensure_asn_database(settings, force=force)
