@@ -6,6 +6,7 @@ import axios from "axios"
 import {
   apiV1GeoEventsFacetsGetGeoLogFacets,
   apiV1GeoEventsLogsGetGeoLogs,
+  apiV1GeoLocationsSiteHomesHostnameDeleteSiteHome,
   apiV1GeoLocationsSiteHomesSiteHomes,
   apiV1GeoEventsSummaryGetGeoLogSummary,
   apiV1GeoEventsTimeSeriesGetGeoLogTimeSeries,
@@ -874,6 +875,10 @@ export async function fetchGeoEventFacets() {
 export async function fetchSiteHomes(): Promise<SiteHomesResponse> {
   const { data } = await apiV1GeoLocationsSiteHomesSiteHomes({ throwOnError: true })
   return data
+}
+
+export async function deleteSiteHome(hostname: string): Promise<void> {
+  await apiV1GeoLocationsSiteHomesHostnameDeleteSiteHome({ path: { hostname }, throwOnError: true })
 }
 
 // ============================================================================

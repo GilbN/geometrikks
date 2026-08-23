@@ -858,6 +858,7 @@ export type SettingsSectionView = {
 export type SiteHomeView = {
   detectedAt: string | null;
   hostname: string;
+  lastEventDay: string | null;
   latitude: number;
   longitude: number;
   source: "auto" | "override";
@@ -2989,6 +2990,47 @@ export type ApiV1GeoLocationsSiteHomesSiteHomesResponses = {
 
 export type ApiV1GeoLocationsSiteHomesSiteHomesResponse =
   ApiV1GeoLocationsSiteHomesSiteHomesResponses[keyof ApiV1GeoLocationsSiteHomesSiteHomesResponses];
+
+export type ApiV1GeoLocationsSiteHomesHostnameDeleteSiteHomeData = {
+  body?: never;
+  path: {
+    /**
+     * Recording hostname whose home row to remove
+     */
+    hostname: string;
+  };
+  query?: never;
+  url: "/api/v1/geo-locations/site-homes/{hostname}";
+};
+
+export type ApiV1GeoLocationsSiteHomesHostnameDeleteSiteHomeErrors = {
+  /**
+   * Validation Exception
+   */
+  400: {
+    detail: string;
+    extra?:
+      | null
+      | {
+          [key: string]: unknown;
+        }
+      | Array<unknown>;
+    status_code: number;
+  };
+};
+
+export type ApiV1GeoLocationsSiteHomesHostnameDeleteSiteHomeError =
+  ApiV1GeoLocationsSiteHomesHostnameDeleteSiteHomeErrors[keyof ApiV1GeoLocationsSiteHomesHostnameDeleteSiteHomeErrors];
+
+export type ApiV1GeoLocationsSiteHomesHostnameDeleteSiteHomeResponses = {
+  /**
+   * Request fulfilled, nothing follows
+   */
+  204: void;
+};
+
+export type ApiV1GeoLocationsSiteHomesHostnameDeleteSiteHomeResponse =
+  ApiV1GeoLocationsSiteHomesHostnameDeleteSiteHomeResponses[keyof ApiV1GeoLocationsSiteHomesHostnameDeleteSiteHomeResponses];
 
 export type ApiV1GeoLocationsTopCountriesGetTopCountriesData = {
   body?: never;

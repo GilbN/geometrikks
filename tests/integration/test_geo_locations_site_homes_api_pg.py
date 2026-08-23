@@ -96,3 +96,26 @@ async def test_site_homes_endpoint_empty_with_no_rows(migrated_database_url, cle
     body = resp.json()
     assert body["homes"] == []
     assert body["default"] == {"latitude": 59.91, "longitude": 10.75}
+
+
+async def test_delete_site_home_api_outcomes(migrated_database_url, pg_session_maker, clean_site_homes):
+    await upsert_auto_homes(
+        pg_session_maker, ["retired-01"], HomeLocation(latitude=60.39, longitude=5.32, source="external_ip")
+    )
+    settings = _make_settings(migrated_database_url, home_locations={"pinned-01": (51.5, -0.12)})
+
+    app = create_app(settings=settings)
+    async with AsyncTestClient(app=app) as client:
+        gone = await client.delete("/api/v1/geo-locations/site-homes/retired-01")
+        pinned = await client.delete("/api/v1/geo-locations/site-homes/pinned-01")
+        missing = await client.delete("/api/v1/geo-locations/site-homes/never-seen")
+        after = await client.get("/api/v1/geo-locations/site-homes")
+
+    assert gone.status_code == 204
+    assert pinned.status_code == 409
+    assert "MAP_HOME_LOCATIONS" in pinned.json()["detail"]
+    assert missing.status_code == 404
+    homes = {h["hostname"]: h for h in after.json()["homes"]}
+    assert set(homes) == {"pinned-01"}
+    # No geo events in the scratch database, so no source has a last day.
+    assert homes["pinned-01"]["lastEventDay"] is None

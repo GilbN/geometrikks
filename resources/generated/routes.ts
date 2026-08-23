@@ -13,6 +13,7 @@ export type DateTime = string;
 /** All available route names */
 export type RouteName =
   | 'ban'
+  | 'delete_site_home'
   | 'download'
   | 'get_about'
   | 'get_access_log_debug_stats'
@@ -74,6 +75,9 @@ export type RouteName =
 /** Path parameter definitions per route */
 export interface RoutePathParams {
   'ban': Record<string, never>;
+  'delete_site_home': {
+    hostname: string;
+  };
   'download': {
     kind: string;
     name: string;
@@ -143,6 +147,7 @@ export interface RoutePathParams {
 /** Query parameter definitions per route */
 export interface RouteQueryParams {
   'ban': Record<string, never>;
+  'delete_site_home': Record<string, never>;
   'download': Record<string, never>;
   'get_about': Record<string, never>;
   'get_access_log_debug_stats': {
@@ -433,6 +438,13 @@ export const routeDefinitions = {
     methods: ['POST'] as const,
     method: 'post',
     pathParams: [] as const,
+    queryParams: [] as const,
+  },
+  'delete_site_home': {
+    path: '/api/v1/geo-locations/site-homes/{hostname}',
+    methods: ['DELETE'] as const,
+    method: 'delete',
+    pathParams: ['hostname'] as const,
     queryParams: [] as const,
   },
   'download': {

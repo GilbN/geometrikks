@@ -6,12 +6,13 @@ from litestar.exceptions import NotFoundException
 from litestar.status_codes import (
     HTTP_400_BAD_REQUEST,
     HTTP_404_NOT_FOUND,
+    HTTP_409_CONFLICT,
     HTTP_500_INTERNAL_SERVER_ERROR,
     HTTP_502_BAD_GATEWAY,
 )
 from litestar.types import ExceptionHandlersMap
 
-from geometrikks.domain.exceptions import DomainValidationError
+from geometrikks.domain.exceptions import DomainConflictError, DomainNotFoundError, DomainValidationError
 from geometrikks.server.logging import get_logger
 from geometrikks.services.crowdsec import CrowdSecAuthError, CrowdSecUnavailableError
 
@@ -24,6 +25,24 @@ def handle_domain_validation_error(request: Request, exc: DomainValidationError)
         media_type=MediaType.JSON,
         status_code=HTTP_400_BAD_REQUEST,
         content={"status_code": HTTP_400_BAD_REQUEST, "detail": exc.detail},
+    )
+
+
+def handle_domain_not_found(request: Request, exc: DomainNotFoundError) -> Response:
+    """404: a domain lookup by name or id found nothing."""
+    return Response(
+        media_type=MediaType.JSON,
+        status_code=HTTP_404_NOT_FOUND,
+        content={"status_code": HTTP_404_NOT_FOUND, "detail": exc.detail},
+    )
+
+
+def handle_domain_conflict(request: Request, exc: DomainConflictError) -> Response:
+    """409: the request contradicts the resource's current state."""
+    return Response(
+        media_type=MediaType.JSON,
+        status_code=HTTP_409_CONFLICT,
+        content={"status_code": HTTP_409_CONFLICT, "detail": exc.detail},
     )
 
 
@@ -81,5 +100,7 @@ CROWDSEC_EXCEPTION_HANDLERS: ExceptionHandlersMap = {
 EXCEPTION_HANDLERS: ExceptionHandlersMap = {
     **CROWDSEC_EXCEPTION_HANDLERS,
     DomainValidationError: handle_domain_validation_error,
+    DomainNotFoundError: handle_domain_not_found,
+    DomainConflictError: handle_domain_conflict,
     NotFoundException: handle_not_found,
 }

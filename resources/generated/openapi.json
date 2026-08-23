@@ -3058,6 +3058,16 @@
           "hostname": {
             "type": "string"
           },
+          "lastEventDay": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "latitude": {
             "type": "number"
           },
@@ -3075,6 +3085,7 @@
         "required": [
           "detectedAt",
           "hostname",
+          "lastEventDay",
           "latitude",
           "longitude",
           "source"
@@ -9695,6 +9706,74 @@
           }
         },
         "summary": "SiteHomes",
+        "tags": [
+          "Geo Locations"
+        ]
+      }
+    },
+    "/api/v1/geo-locations/site-homes/{hostname}": {
+      "delete": {
+        "deprecated": false,
+        "description": "Remove a retired source's auto-detected home. Override rows (MAP_HOME_LOCATIONS) cannot be removed here.",
+        "operationId": "ApiV1GeoLocationsSiteHomesHostnameDeleteSiteHome",
+        "parameters": [
+          {
+            "deprecated": false,
+            "description": "Recording hostname whose home row to remove",
+            "in": "path",
+            "name": "hostname",
+            "required": true,
+            "schema": {
+              "description": "Recording hostname whose home row to remove",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Request fulfilled, nothing follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "DeleteSiteHome",
         "tags": [
           "Geo Locations"
         ]

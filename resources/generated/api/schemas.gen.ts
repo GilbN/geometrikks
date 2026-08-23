@@ -2886,6 +2886,16 @@ export const SiteHomeViewSchema = {
     hostname: {
       type: "string",
     },
+    lastEventDay: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
     latitude: {
       type: "number",
     },
@@ -2897,7 +2907,14 @@ export const SiteHomeViewSchema = {
       type: "string",
     },
   },
-  required: ["detectedAt", "hostname", "latitude", "longitude", "source"],
+  required: [
+    "detectedAt",
+    "hostname",
+    "lastEventDay",
+    "latitude",
+    "longitude",
+    "source",
+  ],
   title: "SiteHomeView",
   type: "object",
 } as const;
