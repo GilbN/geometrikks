@@ -108,7 +108,7 @@ export function LiveTail({ enabled }: { enabled: boolean }) {
       >
         <div className={cn(COLS, "sticky top-0 z-10 border-b bg-card py-1.5 font-sans text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground")}>
           <span className="w-20 shrink-0">Time</span>
-          <span className="w-10 shrink-0">Status</span>
+          <span className="w-14 shrink-0">Status</span>
           <span className="w-14 shrink-0">Method</span>
           <span className="w-[220px] shrink-0">URL</span>
           <span className="hidden w-[320px] shrink-0 md:block">Referrer</span>
@@ -134,11 +134,13 @@ export function LiveTail({ enabled }: { enabled: boolean }) {
                   <span className="w-20 shrink-0 text-muted-foreground">
                     {new Date(row.timestamp).toLocaleTimeString()}
                   </span>
-                  <Badge
-                    className={cn("w-10 shrink-0 justify-center tabular-nums border-transparent", statusBadgeClass(row.status_code))}
-                  >
-                    {row.status_code}
-                  </Badge>
+                  <span className="w-14 shrink-0">
+                    <Badge
+                      className={cn("w-10 justify-center tabular-nums border-transparent", statusBadgeClass(row.status_code))}
+                    >
+                      {row.status_code}
+                    </Badge>
+                  </span>
                   <span className="w-14 shrink-0">{row.method ?? "-"}</span>
                   <span className="w-[220px] shrink-0 truncate" title={row.url ?? undefined}>
                     {row.url ?? "-"}
