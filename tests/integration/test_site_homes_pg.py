@@ -113,9 +113,13 @@ async def test_delete_refuses_override_and_missing_rows(pg_session_maker, clean_
     assert (await _rows(pg_session_maker))["pinned-01"][2] == "override"
 
 
-async def test_last_event_days_reports_the_latest_day_per_hostname(pg_session_maker, clean_tables, clean_site_homes):
-    """Reads the daily hostname aggregate, which real-time aggregation keeps
-    current, so a freshly inserted event shows up without a refresh."""
+async def test_last_event_days_reports_the_latest_day_per_hostname(
+    pg_engine, pg_session_maker, clean_tables, clean_site_homes
+):
+    """Reads the daily hostname aggregate. Real-time aggregation only covers
+    buckets past the materialization watermark, and earlier tests may have
+    refreshed the aggregate beyond the seed day, so refresh the seed window
+    explicitly instead of relying on it."""
     day = datetime(2026, 8, 20, 13, 0, tzinfo=timezone.utc)
     async with pg_session_maker() as session:
         location_id = (await session.execute(text(
@@ -131,6 +135,15 @@ async def test_last_event_days_reports_the_latest_day_per_hostname(pg_session_ma
                 "VALUES (:ts, '203.0.113.7', 'seen-01', :location_id)"
             ), {"ts": ts, "location_id": location_id})
         await session.commit()
+    # CALL cannot run inside a transaction: use the raw asyncpg connection.
+    async with pg_engine.connect() as conn:
+        raw = await conn.get_raw_connection()
+        await raw.driver_connection.execute(
+            "CALL refresh_continuous_aggregate('hostname_daily_stats', $1::timestamptz, $2::timestamptz)",
+            day - timedelta(days=4),
+            day + timedelta(days=1),
+        )
+    async with pg_session_maker() as session:
         last = await fetch_last_event_days(session)
     assert last["seen-01"].date() == day.date()
     assert "never-seen" not in last
