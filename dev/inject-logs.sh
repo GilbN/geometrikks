@@ -41,7 +41,7 @@ while [ ! -f "$STOPFILE" ] && { [ "$MAX_SECONDS" -eq 0 ] || [ "$i" -lt "$MAX_SEC
   status=${STATUSES[$((RANDOM % ${#STATUSES[@]}))]}
   tts=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
   ttsn=$(date -u +"%Y-%m-%dT%H:%M:%S.%NZ")
-  printf '{"ClientAddr":"%s:%s","ClientHost":"%s","ClientPort":"%s","ClientUsername":"-","DownstreamContentSize":%s,"DownstreamStatus":%s,"Duration":%s,"OriginContentSize":%s,"OriginDuration":0,"OriginStatus":%s,"Overhead":1200,"RequestAddr":"chat.gflix.app","RequestContentSize":0,"RequestCount":%s,"RequestHost":"chat.gflix.app","RequestMethod":"%s","RequestPath":"%s","RequestPort":"-","RequestProtocol":"HTTP/2.0","RequestScheme":"https","RetryAttempts":0,"StartLocal":"%s","StartUTC":"%s","TLSCipher":"TLS_AES_128_GCM_SHA256","TLSVersion":"1.3","entryPointName":"https","level":"info","msg":"","request_User-Agent":"%s","time":"%s"}\n' \
+  printf '{"ClientAddr":"%s:%s","ClientHost":"%s","ClientPort":"%s","ClientUsername":"-","DownstreamContentSize":%s,"DownstreamStatus":%s,"Duration":%s,"OriginContentSize":%s,"OriginDuration":0,"OriginStatus":%s,"Overhead":1200,"RequestAddr":"traefik.example.com","RequestContentSize":0,"RequestCount":%s,"RequestHost":"traefik.example.com","RequestMethod":"%s","RequestPath":"%s","RequestPort":"-","RequestProtocol":"HTTP/2.0","RequestScheme":"https","RetryAttempts":0,"StartLocal":"%s","StartUTC":"%s","TLSCipher":"TLS_AES_128_GCM_SHA256","TLSVersion":"1.3","entryPointName":"https","level":"info","msg":"","request_User-Agent":"%s","time":"%s"}\n' \
     "$ip" "$((RANDOM % 50000 + 1024))" "$ip" "$((RANDOM % 50000 + 1024))" "$bytes" "$status" "$((RANDOM % 90000 + 500))" "$bytes" "$status" "$((i + 1))" "$method" "$path" "$ttsn" "$ttsn" "$agent" "$tts" >> "$REPO/nginx_logs/traefik.log"
 
   i=$((i + 1))
