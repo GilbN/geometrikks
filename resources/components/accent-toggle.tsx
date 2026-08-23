@@ -20,7 +20,7 @@ export function AccentSwatch({ accent, className }: { accent: Accent; className?
     <span
       data-accent={accent}
       aria-hidden
-      className={cn("inline-block size-3 rounded-full ring-1 ring-inset ring-black/10 dark:ring-white/15", className)}
+      className={cn("inline-block size-3 shrink-0 rounded-full ring-1 ring-inset ring-black/10 dark:ring-white/15", className)}
       style={{ background: "oklch(var(--brand-l) var(--brand-c) var(--brand-h))" }}
     />
   )

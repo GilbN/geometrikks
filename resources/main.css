@@ -178,6 +178,19 @@
    data-accent on <html>.
    Teal is the default and needs no attribute. Light values target ~4.5:1 on
    white cards; dark values sit in the same glow band as teal. */
+/* Teal is the default and <html> carries no attribute for it, but a scoped
+   preview (the accent picker's swatches) needs the rule to exist or it
+   inherits whatever accent is active. */
+[data-accent="teal"] {
+  --brand-l: 0.52;
+  --brand-c: 0.115;
+  --brand-h: 178;
+}
+.dark[data-accent="teal"],
+.dark [data-accent="teal"] {
+  --brand-l: 0.78;
+  --brand-c: 0.15;
+}
 [data-accent="green"] {
   --brand-h: 155;
   --brand-c: 0.13;

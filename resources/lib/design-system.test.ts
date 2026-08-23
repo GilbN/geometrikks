@@ -46,9 +46,10 @@ describe("tokens", () => {
     expect(linesMatching(/geo-cyan|geo-glow/)).toEqual([])
   })
 
-  it("declares a light and a dark block for every non-default accent", () => {
+  it("declares a light and a dark block for every accent, the default included", () => {
+    // The default has no attribute on <html>, but scoped previews need its rule.
     const css = read("main.css")
-    for (const accent of ACCENTS.filter((a) => a !== DEFAULT_ACCENT)) {
+    for (const accent of ACCENTS) {
       expect(css).toMatch(new RegExp(`^\\[data-accent="${accent}"\\] \\{`, "m"))
       expect(css).toMatch(new RegExp(`^\\.dark\\[data-accent="${accent}"\\]`, "m"))
     }
