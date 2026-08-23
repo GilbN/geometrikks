@@ -224,7 +224,7 @@ async def test_lifespan_migrates_before_timescale(monkeypatch) -> None:
     async def fake_timescale(engine, analytics) -> None:
         order.append("timescale")
 
-    async def fake_create_scheduler(session_maker, settings, crowdsec_poller=None):
+    async def fake_create_scheduler(session_maker, settings, crowdsec_poller=None, app=None):
         scheduler = MagicMock()
         scheduler.start = MagicMock()
         return scheduler
