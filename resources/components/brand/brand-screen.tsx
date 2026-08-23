@@ -39,7 +39,7 @@ export function BrandScreen({
       <section
         aria-labelledby="brand-screen-title"
         className={cn(
-          "relative w-full max-w-sm overflow-hidden rounded-xl bg-background/55 text-card-foreground ring-1 ring-border shadow-[var(--shadow-card)] backdrop-blur-[1.5px]",
+          "relative w-full max-w-sm overflow-hidden rounded-xl bg-background/55 text-card-foreground ring-1 ring-border shadow-[var(--shadow-card)] backdrop-blur",
           className,
         )}
       >
