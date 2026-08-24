@@ -1,5 +1,5 @@
 import { createFileRoute, Link, Outlet, useRouterState } from "@tanstack/react-router"
-import { ReliefBackdrop } from "@/components/brand/backdrops"
+import { MapBackdrop } from "@/components/brand/backdrops"
 
 import {
   Select,
@@ -36,8 +36,8 @@ function SettingsLayout() {
 
   return (
     <div className="relative min-h-full min-w-0">
-      <ReliefBackdrop mode="viewport" />
-      {/* Glass cards, scoped to Settings: the relief shows through them
+      <MapBackdrop mode="viewport" />
+      {/* Glass cards, scoped to Settings: the backdrop shows through them
           softly instead of only between them. */}
       <div className="relative min-w-0 p-4 md:grid md:grid-cols-[11rem_minmax(0,1fr)] md:gap-8 md:p-6 [&_[data-slot=card]]:bg-card/55 [&_[data-slot=card]]:backdrop-blur-[2px]">
       <Select value={activeTab.to} onValueChange={handleTabChange}>

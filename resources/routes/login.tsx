@@ -33,6 +33,7 @@ export const Route = createFileRoute("/login")({
 function LoginPagePending() {
   return (
     <BrandScreen
+      backdrop="map"
       title="Sign in"
       description="Enter the administrator credentials configured for this installation."
     >
@@ -74,6 +75,7 @@ function LoginPage() {
 
   return (
     <BrandScreen
+      backdrop="map"
       title="Sign in"
       description="Enter the administrator credentials configured for this installation."
     >

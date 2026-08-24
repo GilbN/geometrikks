@@ -1,14 +1,15 @@
 /**
- * Loading skeleton for the map component.
+ * Loading skeleton for the map component: the brand map scene as a stand-in
+ * for the real one, with the controls placeholder and a loading pill on top.
  */
 
 import { Skeleton } from "@/components/ui/skeleton"
+import { MapBackdrop } from "@/components/brand/backdrops"
 
 export function MapSkeleton() {
   return (
     <div className="h-full w-full relative bg-background">
-      {/* Map placeholder */}
-      <Skeleton className="h-full w-full rounded-none" />
+      <MapBackdrop tone="quiet" />
 
       {/* Controls placeholder */}
       <div className="absolute top-4 right-4 z-10 flex flex-col gap-2">
