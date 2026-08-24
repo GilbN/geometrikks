@@ -175,7 +175,7 @@ function RootErrorComponent({ error, reset }: { error: Error; reset: () => void 
       <BrandScreen
         title="Something went wrong"
         description="Try again, or go back to the overview."
-        backdrop="relief"
+        backdrop="map"
         className="max-w-lg"
       >
         <div className="space-y-4">
@@ -202,7 +202,7 @@ function NotFoundComponent() {
       <BrandScreen
         title="Page not found"
         description="Nothing lives at this address, or it has moved."
-        backdrop="relief"
+        backdrop="map"
       >
         <div className="flex justify-center">
           <Button variant="default" asChild>

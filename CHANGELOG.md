@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Login, the error page, 404 and the Settings backdrop use the brand map scene (graticule, relief, markers, routes), and the map page shows it while the map loads. Backdrops render at the screen's native resolution, so they stay sharp on hi-dpi displays.
 - Settings > Status: each site home shows the last day its source recorded traffic, and a retired source's auto-detected home can be removed so its beacon leaves the map. Homes pinned by `MAP_HOME_LOCATIONS` stay read-only. Backed by `DELETE /api/v1/geo-locations/site-homes/{hostname}` and a `lastEventDay` field on the site-homes response.
 - Filters on Access logs, Geo logs, Debug logs and Analytics share one layout: text inputs on one row, selects on the next, include and exclude for the same field (IP, host, hostname) as one joined control, and a Clear button that shows how many filter groups are active. Geo logs and Analytics get the mobile filter drawer Access logs already had.
 - Access logs: selecting a row opens the full record in a side panel, with ASN, recording hostname, source format and the ban controls. Enter and Space open rows too.

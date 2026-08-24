@@ -1,4 +1,4 @@
-import { ReliefBackdrop, RoutesBackdrop } from "@/components/brand/backdrops"
+import { MapBackdrop, ReliefBackdrop, RoutesBackdrop } from "@/components/brand/backdrops"
 import { BrandMark } from "@/components/brand/brand-mark"
 import { Wordmark } from "@/components/brand/wordmark"
 import { cn } from "@/lib/utils"
@@ -8,8 +8,8 @@ import { cn } from "@/lib/utils"
  * root error boundary and the 404 page. One card on the aurora backdrop;
  * the card's header carries the mark, wordmark, the page's H1 and a line of
  * context, the body carries `children`. `backdrop` picks the picture behind
- * the card: routes converging on the mark, or relief contours; both sit on
- * the aurora glow.
+ * the card: routes converging on the mark, relief contours, or the map that
+ * combines them; all sit on the aurora glow.
  */
 export function BrandScreen({
   title,
@@ -20,7 +20,7 @@ export function BrandScreen({
 }: {
   title: string
   description?: string
-  backdrop?: "routes" | "relief"
+  backdrop?: "routes" | "relief" | "map"
   children: React.ReactNode
   className?: string
 }) {
@@ -35,13 +35,13 @@ export function BrandScreen({
             "radial-gradient(640px 420px at 18% -8%, var(--primary-glow), transparent 70%), radial-gradient(720px 520px at 108% 108%, var(--primary-glow), transparent 70%)",
         }}
       />
-      {backdrop === "routes" ? <RoutesBackdrop /> : <ReliefBackdrop />}
+      {backdrop === "routes" ? <RoutesBackdrop /> : backdrop === "relief" ? <ReliefBackdrop /> : <MapBackdrop />}
       <section
         aria-labelledby="brand-screen-title"
         className={cn(
           "relative w-full max-w-sm overflow-hidden rounded-xl bg-background/55 text-card-foreground ring-1 ring-border shadow-[var(--shadow-card)]",
           // Hairline contours dissolve under the full 8px blur; the arcs do not.
-          backdrop === "relief" ? "backdrop-blur-[5px]" : "backdrop-blur",
+          backdrop === "routes" ? "backdrop-blur" : "backdrop-blur-[5px]",
           className,
         )}
       >
