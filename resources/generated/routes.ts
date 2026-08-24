@@ -5,6 +5,12 @@
 // Set VITE_API_URL=http://localhost:8000 when running Vite separately
 const API_URL = (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_API_URL) ?? '';
 
+/** Configured CSRF cookie name (static fallback) */
+export const CSRF_COOKIE_NAME = 'csrftoken';
+
+/** Configured CSRF header name (static fallback) */
+export const CSRF_HEADER_NAME = 'x-csrftoken';
+
 /** Semantic string aliases derived from OpenAPI `format`. */
 /** RFC 3339 date-time string */
 export type DateTime = string;
