@@ -27,6 +27,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Tables, stat cards and data panels use one set of labels, borders and shadows across every page, and each page has a one-line description under its title.
 - Map popups and controls follow the active theme and accent.
 
+### Removed
+
+- Five unused frontend dependencies: `@tanstack/react-table`, `@radix-ui/react-slot`, `@vite-pwa/assets-generator`, `baseline-browser-mapping` and `caniuse-lite`. Nothing imported them; the browserslist data pins never reached `browserslist`, which resolves its own nested copies.
+
 ### Fixed
 
 - Percent and ratio placeholders render as "-", matching every other empty cell.
