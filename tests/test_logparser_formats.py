@@ -1,10 +1,11 @@
 """Tests for the log line format adapters."""
 import json
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import pytest
 
 from geometrikks.services.logparser.formats import FORMATS, sniff_format
+from geometrikks.services.logparser.formats.geometrikks_json import GeometrikksJsonFormat
 from geometrikks.services.logparser.formats.nginx import NginxFormat
 from geometrikks.services.logparser.formats.traefik import TraefikJsonFormat
 
@@ -294,3 +295,160 @@ def test_detect_probe_method_and_status_rules() -> None:
     assert detect_probe("GET / HTTP/1.1", "GET", 499) == (True, "Client closed connection before response (nginx 499)")
     assert detect_probe("GET / HTTP/1.1", "GET", 200) == (False, None)
     assert detect_probe(None, "GET", 200) == (False, None)
+
+
+GJSON_BASE: dict[str, str] = {
+    "client_ip": "203.0.113.7",
+    "timestamp": "2026-08-25T22:00:24+02:00",
+    "method": "GET",
+    "path": "/api/v2/homepage/plex/recent",
+    "protocol": "HTTP/2.0",
+    "status": "200",
+    "bytes": "20580",
+    "host": "app.example.com",
+    "referrer": "https://app.example.com/",
+    "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/151.0.0.0",
+    "remote_user": "",
+    "request_time": "5.670",
+    "upstream_time": "5.586",
+    "request_raw": "GET /api/v2/homepage/plex/recent HTTP/2.0",
+}
+
+
+def gjson(**overrides: str | None) -> str:
+    """One geometrikks-json line; an override of None removes the key."""
+    data = {**GJSON_BASE, **{k: v for k, v in overrides.items() if v is not None}}
+    for key, value in overrides.items():
+        if value is None:
+            data.pop(key, None)
+    return json.dumps(data) + "\n"
+
+
+def test_gjson_parse_full_line() -> None:
+    norm = GeometrikksJsonFormat().parse(gjson())
+    assert norm is not None
+    assert norm.ip_address == "203.0.113.7"
+    assert norm.timestamp == datetime(2026, 8, 25, 22, 0, 24, tzinfo=timezone(timedelta(hours=2)))
+    assert norm.timestamp.astimezone(timezone.utc).hour == 20
+    assert norm.method == "GET"
+    assert norm.path == "/api/v2/homepage/plex/recent"
+    assert norm.http_version == "HTTP/2.0"
+    assert norm.status_code == 200
+    assert norm.bytes_sent == 20580
+    assert norm.host == "app.example.com"
+    assert norm.referrer == "https://app.example.com/"
+    assert norm.user_agent == "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/151.0.0.0"
+    assert norm.remote_user is None                      # "" from escape=json
+    assert norm.request_time == pytest.approx(5.670)
+    assert norm.upstream_response_time == pytest.approx(5.586)
+    assert norm.request_raw == "GET /api/v2/homepage/plex/recent HTTP/2.0"
+
+
+def test_gjson_absent_semantics() -> None:
+    """'' , '-' and a missing key are all None."""
+    fmt = GeometrikksJsonFormat()
+    for line in (
+        gjson(referrer="", host="-", user_agent=None, upstream_time=""),
+        gjson(referrer="-", host="", user_agent="-", upstream_time="-"),
+        gjson(referrer=None, host=None, user_agent=None, upstream_time=None),
+    ):
+        norm = fmt.parse(line)
+        assert norm is not None
+        assert norm.referrer is None
+        assert norm.host is None
+        assert norm.user_agent is None
+        assert norm.upstream_response_time is None
+
+
+def test_gjson_minimal_line_parses() -> None:
+    norm = GeometrikksJsonFormat().parse(
+        json.dumps({"client_ip": "203.0.113.7", "timestamp": "2026-08-25T22:00:24+02:00"})
+    )
+    assert norm is not None
+    assert norm.method is None
+    assert norm.path is None
+    assert norm.status_code == 0
+    assert norm.bytes_sent == 0
+    assert norm.request_time == 0.0
+    assert norm.upstream_response_time is None
+    assert norm.request_raw is None
+
+
+def test_gjson_geo_only() -> None:
+    norm = GeometrikksJsonFormat().parse(gjson(remote_user="alice"), geo_only=True)
+    assert norm is not None
+    assert norm.ip_address == "203.0.113.7"
+    assert norm.timestamp.tzinfo is not None
+    assert norm.remote_user == "alice"
+    assert norm.method is None
+    assert norm.status_code == 0
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "not json at all\n",
+        "[]\n",
+        json.dumps([GJSON_BASE]),
+        gjson(client_ip=None),
+        gjson(client_ip=""),
+        gjson(timestamp=None),
+        gjson(timestamp="2026-08-25T22:00:24"),           # naive
+        gjson(timestamp="25/Aug/2026:22:00:24 +0200"),    # nginx $time_local
+        json.dumps({**GJSON_BASE, "status": 200}),        # number, not string
+    ],
+    ids=["text", "empty-array", "array", "no-ip", "blank-ip", "no-ts", "naive-ts", "time-local", "typed-status"],
+)
+def test_gjson_rejections(line: str) -> None:
+    assert GeometrikksJsonFormat().parse(line) is None
+    assert GeometrikksJsonFormat().parse(line, geo_only=True) is None
+
+
+def test_gjson_numeric_conversion_fallbacks() -> None:
+    norm = GeometrikksJsonFormat().parse(gjson(status="-", bytes="abc", request_time="-"))
+    assert norm is not None
+    assert norm.status_code == 0
+    assert norm.bytes_sent == 0
+    assert norm.request_time == 0.0
+
+
+@pytest.mark.parametrize(
+    "raw, expected",
+    [
+        ("0.010", 0.010),
+        ("0.010, 0.020", 0.030),
+        ("0.010 : 0.020", 0.030),
+        ("0.010, - : 0.005", 0.015),
+        ("-, -", None),
+        ("0.000", 0.0),
+    ],
+)
+def test_gjson_upstream_time_sums_parts(raw: str, expected: float | None) -> None:
+    norm = GeometrikksJsonFormat().parse(gjson(upstream_time=raw))
+    assert norm is not None
+    if expected is None:
+        assert norm.upstream_response_time is None
+    else:
+        assert norm.upstream_response_time == pytest.approx(expected)
+
+
+def test_gjson_unknown_keys_ignored() -> None:
+    norm = GeometrikksJsonFormat().parse(gjson(scheme="https", request_id="abc123"))
+    assert norm is not None
+    assert norm.ip_address == "203.0.113.7"
+
+
+def test_gjson_websocket_upgrade_logged_at_close() -> None:
+    """Real SWAG line: a 101 upgrade is logged when the socket closes, minutes later."""
+    norm = GeometrikksJsonFormat().parse(gjson(
+        protocol="HTTP/1.1", status="101", bytes="399",
+        path="/prowlarr/signalr/messages?access_token=REDACTED&id=REDACTED",
+        request_time="258.714", upstream_time="258.576",
+        request_raw="GET /prowlarr/signalr/messages?access_token=REDACTED&id=REDACTED HTTP/1.1",
+    ))
+    assert norm is not None
+    assert norm.status_code == 101
+    assert norm.http_version == "HTTP/1.1"
+    assert norm.request_time == pytest.approx(258.714)
+    assert norm.upstream_response_time == pytest.approx(258.576)
+    assert GeometrikksJsonFormat().detect_malformed(norm) == (False, None)
