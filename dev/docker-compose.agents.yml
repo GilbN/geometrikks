@@ -34,15 +34,16 @@
 #     services; the entrypoint chowns it, and rw lets the agents' weekly
 #     geoip-refresh job work. Fine for a test stack, one-volume-per-agent
 #     in real deployments.
-#   - Site homes (Phase 5): both agents share this machine's public IP, so
-#     their auto-detected homes coincide. The head below pins three US
-#     cities so routes and beacons visibly split: its own home in Chicago
-#     (MAP_HOME_LATITUDE/LONGITUDE, the default beacon), nginx-01 in New
-#     York and traefik-01 in Los Angeles (MAP_HOME_LOCATIONS). Only the
-#     agents ingest, so only their two beacons draw routes; Chicago is the
+#   - Site homes (Phase 5): all three agents share this machine's public IP,
+#     so their auto-detected homes coincide. The head below pins two of them
+#     so routes and beacons visibly split: nginx-01 in New York and traefik-01
+#     in Los Angeles (MAP_HOME_LOCATIONS), plus its own home in Chicago
+#     (MAP_HOME_LATITUDE/LONGITUDE, the default beacon). json-01 is left
+#     unpinned, so its beacon is the auto-detected home instead. Only the
+#     agents ingest, so only their three beacons draw routes; Chicago is the
 #     head. Edit or remove the overrides to test the pure-auto path (the
-#     override row is deleted at the next head restart, and the agent's
-#     next write restores it as auto). Inspect the table:
+#     override rows are deleted at the next head restart, and each pinned
+#     agent's next write restores it as auto). Inspect the table:
 #       docker exec timescale_agent_db psql -U geouser -d geometrikks \
 #         -c "SELECT hostname, latitude, longitude, source FROM site_homes;"
 

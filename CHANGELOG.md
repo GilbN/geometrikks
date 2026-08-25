@@ -19,7 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Map controls are one panel with labeled sections (Visualization, Live, Filters, Summary, Top IPs). Toggles are switch rows so the panel fits a laptop screen without scrolling, the map filters get a Clear, fit and home moved into the panel header, and the collapsed button shows a dot while filters are active. The live feed scrolls inside a bounded card instead of stretching to the map's height.
 - Settings > Appearance: theme (System, Light, Dark) and accent (teal, green, copper) side by side with previews. System follows the device's color scheme live, not only at page load. The accent is also switchable from the header, persists per browser and is applied before first paint.
 - Open Graph and Twitter card tags on the app shell.
-- `geometrikks-json`, a keyed JSON access-log format for nginx (`log_format ... escape=json`) and the recommended nginx setup. Lines decode against a fixed schema instead of a positional regex, so a rearranged format is rejected rather than mapped to the wrong columns. Works with live tailing, `LOGPARSER_LOG_FORMATS` and `import-logs --format geometrikks-json`. The existing nginx format keeps working.
+- `geometrikks-json`, a keyed JSON access-log format for nginx (`log_format ... escape=json`) and the recommended nginx setup. Lines decode against a fixed schema instead of a positional regex, so a broken or mistyped format is rejected rather than mapped to the wrong columns. Works with live tailing, `LOGPARSER_LOG_FORMATS` and `import-logs --format geometrikks-json`. The existing nginx format keeps working.
 
 ### Changed
 

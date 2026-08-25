@@ -162,11 +162,13 @@ access_log /config/log/nginx/access.log geometrikks_json;
 Keep every value quoted, including the numbers: nginx has no typed output,
 and an unquoted empty variable breaks the line. `escape=json` is required;
 without it a quote inside a user agent produces invalid JSON, and the line
-is skipped and counted as unparseable. `client_ip` and `timestamp` are the
-only required keys. Drop any other key and the feature it feeds goes empty
-(`host` feeds the host filter, `request_time` and `upstream_time` feed the
-response-time analytics). Add your own keys freely; GeoMetrikks ignores
-the ones it does not know.
+is skipped and counted as unparseable. `escape=json` leaves bytes above
+0x7f raw, so a probe line can carry undecodable bytes; GeoMetrikks
+replaces them with U+FFFD and still classifies the line. `client_ip` and
+`timestamp` are the only required keys. Drop any other key and the feature
+it feeds goes empty (`host` feeds the host filter, `request_time` and
+`upstream_time` feed the response-time analytics). Add your own keys
+freely; GeoMetrikks ignores the ones it does not know.
 
 `LOGPARSER_LOG_FORMATS=geometrikks-json` pins the parser to this format
 instead of detecting it per file.
@@ -226,8 +228,8 @@ are unaffected.
 to more than one file and GeoMetrikks tails all of them:
 
 ```nginx
-access_log /config/log/nginx/somepage/access.log custom;
-access_log /config/log/nginx/access.log custom;
+access_log /config/log/nginx/somepage/access.log geometrikks_json;
+access_log /config/log/nginx/access.log geometrikks_json;
 ```
 
 ```bash
@@ -893,9 +895,9 @@ Check three things in order: (1) the geo-degraded banner; if it shows,
 MaxMind credentials or the GeoLite2 database are missing; (2) that
 `LOGPARSER_LOG_PATHS` points at a file receiving traffic in a supported
 format (the nginx JSON `log_format` above, the legacy nginx format, or
-Traefik JSON); (3) that some time
-has passed since you last restarted. The map only shows
-events ingested after startup unless you have run a batch import.
+Traefik JSON); (3) that some time has passed since you last restarted. The
+map only shows events ingested after startup unless you have run a batch
+import.
 
 **What does the "geo-degraded" banner mean?**
 The app started without a usable GeoLite2 database: either
