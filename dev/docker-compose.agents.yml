@@ -5,8 +5,9 @@
 #                       UI/API/WS, runs migrations, no tailing of its own
 #   agent-nginx         APP_MODE=agent tailing nginx_logs/nginx.log
 #   agent-traefik       APP_MODE=agent tailing nginx_logs/traefik.log
+#   agent-json          APP_MODE=agent tailing nginx_logs/nginx-json.log
 #
-# All three app services build the production Dockerfile locally and share
+# All four app services build the production Dockerfile locally and share
 # one image tag, so compose builds it once.
 #
 # Usage, from the repo root (--env-file: the compose project directory is
@@ -29,7 +30,7 @@
 #     flag above only feeds the ${...} interpolations below (admin login,
 #     MaxMind creds, and the CrowdSec LAPI settings on the head, which stay
 #     empty and therefore disabled when .env has none).
-#   - ./data/geoip (the dev mmdb) is bind-mounted rw into all three
+#   - ./data/geoip (the dev mmdb) is bind-mounted rw into all four
 #     services; the entrypoint chowns it, and rw lets the agents' weekly
 #     geoip-refresh job work. Fine for a test stack, one-volume-per-agent
 #     in real deployments.

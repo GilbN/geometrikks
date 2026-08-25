@@ -130,8 +130,53 @@ file(s) as seen inside the container, under `/var/log/access/`.
 
 ## Nginx setup
 
-GeoMetrikks parses a specific nginx `log_format`. Add it to the `http` block
-in your `nginx.conf`:
+GeoMetrikks reads a keyed JSON access log. Add this `log_format` to the
+`http` block in your `nginx.conf` (nginx 1.11.8 or later for `escape=json`):
+
+```nginx
+log_format geometrikks_json escape=json
+  '{'
+    '"client_ip":"$remote_addr",'
+    '"timestamp":"$time_iso8601",'
+    '"method":"$request_method",'
+    '"path":"$request_uri",'
+    '"protocol":"$server_protocol",'
+    '"status":"$status",'
+    '"bytes":"$body_bytes_sent",'
+    '"host":"$host",'
+    '"referrer":"$http_referer",'
+    '"user_agent":"$http_user_agent",'
+    '"remote_user":"$remote_user",'
+    '"request_time":"$request_time",'
+    '"upstream_time":"$upstream_response_time",'
+    '"request_raw":"$request"'
+  '}';
+```
+
+Then use it on the access log you want GeoMetrikks to tail:
+
+```nginx
+access_log /config/log/nginx/access.log geometrikks_json;
+```
+
+Keep every value quoted, including the numbers: nginx has no typed output,
+and an unquoted empty variable breaks the line. `escape=json` is required;
+without it a quote inside a user agent produces invalid JSON, and the line
+is skipped and counted as unparseable. `client_ip` and `timestamp` are the
+only required keys. Drop any other key and the feature it feeds goes empty
+(`host` feeds the host filter, `request_time` and `upstream_time` feed the
+response-time analytics). Add your own keys freely; GeoMetrikks ignores
+the ones it does not know.
+
+`LOGPARSER_LOG_FORMATS=geometrikks-json` pins the parser to this format
+instead of detecting it per file.
+
+### Legacy nginx format
+
+Earlier versions documented this positional format. It keeps working for
+both live tailing and `import-logs`, so an existing install needs no
+change, and archives already written in it import as before. Use the JSON
+format above for new setups.
 
 ```nginx
 log_format custom '$remote_addr - $remote_user [$time_local] '
@@ -140,11 +185,40 @@ log_format custom '$remote_addr - $remote_user [$time_local] '
         '"$request_time" "$upstream_response_time"';
 ```
 
-Then use it on the access log you want GeoMetrikks to tail:
+The parser matches this format on position and quoting rather than on
+field names, so a rearranged format can land values in the wrong columns
+instead of failing outright. Four rules:
 
-```nginx
-access_log /config/log/nginx/access.log custom;
-```
+- Use `$time_local`. `$time_iso8601` does not match at all, and a file that
+  uses it produces no rows.
+- Keep `$host` unquoted and between `"$http_referer"` and
+  `"$http_user_agent"`. Writing `"$host"` still parses, but the hostname
+  ends up in the user-agent column and `host` comes out empty.
+- Keep `$request_time` and `$upstream_response_time` quoted. Unquoted, both
+  are dropped and read as 0.
+- Append extra fields only after both timing fields. The parser fills the
+  two timing slots by quoting alone, so on a format without them an extra
+  quoted field lands in `$request_time`. A non-numeric value such as
+  `"$http_x_forwarded_for"` is discarded, but a numeric one is recorded and
+  charted as a response time.
+
+`LOGPARSER_LOG_FORMATS=nginx` pins the parser to this format.
+
+#### Backfilling logs written in another format
+
+Lines in nginx's built-in `combined` format also parse, so you can import
+archives you have on disk without having changed your nginx config first.
+Three fields are absent from those lines and cannot be recovered after the
+fact:
+
+| Missing field | What it costs you |
+| --- | --- |
+| `$host` | The host filter on the access-log and analytics pages has nothing to list |
+| `$request_time` | Response-time average and percentiles read 0.00s |
+| `$upstream_response_time` | Upstream timing stays empty in the access-log detail view |
+
+The map, geo analytics, status codes, URLs, referrers, user agents and bytes
+are unaffected.
 
 ### Multiple log files
 
@@ -616,7 +690,8 @@ It reuses the live ingestion pipeline (same parsing, GeoIP lookup and DB
 writes), uses the timestamps in each log line rather than wall-clock time,
 and refreshes the continuous aggregates for the imported range when done.
 The log format is auto-detected per file, as with live tailing; pass
-`--format nginx` or `--format traefik-json` to pin it. You can pass several
+`--format geometrikks-json`, `--format nginx` or `--format traefik-json`
+to pin it. You can pass several
 files in one invocation. Paths are **container** paths, and the import runs
 as the non-root `geometrikks` user (`PUID`:`PGID`, default 1000:1000), so
 host files must be readable by it (`-u geometrikks` keeps `exec` from
@@ -639,6 +714,11 @@ docker compose run --rm app litestar import-logs /var/log/access/access.log.1.gz
   delete rows written by the earlier import.
 - A file that matches no supported log format is rejected up front, before
   anything is written.
+- Without `--format`, the format is detected per file. If detection can only
+  match the relaxed IP-and-timestamp pattern, the file imports as map events
+  with no access-log rows. Pin the format (`--format geometrikks-json` or
+  `--format nginx`) to require a full parse; lines that do not match then
+  show up in the skipped count instead.
 - The TimescaleDB retention policy drops rows older than the raw retention
   window (`ANALYTICS_RAW_RETENTION_DAYS`, default 180 days), so history
   beyond that window will not persist. Raise the retention setting before
@@ -812,9 +892,10 @@ Yes. The GHCR image is a multi-arch manifest for `linux/amd64` and
 Check three things in order: (1) the geo-degraded banner; if it shows,
 MaxMind credentials or the GeoLite2 database are missing; (2) that
 `LOGPARSER_LOG_PATHS` points at a file receiving traffic in a supported
-format (the nginx `log_format` above, or Traefik JSON); (3) that some time
-has passed since you last restarted. The map only shows events ingested
-after startup unless you have run a batch import.
+format (the nginx JSON `log_format` above, the legacy nginx format, or
+Traefik JSON); (3) that some time
+has passed since you last restarted. The map only shows
+events ingested after startup unless you have run a batch import.
 
 **What does the "geo-degraded" banner mean?**
 The app started without a usable GeoLite2 database: either
