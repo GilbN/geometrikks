@@ -195,6 +195,39 @@ services:
       timescale_agent_db:
         condition: service_healthy
 
+  agent-json:
+    container_name: geometrikks_agent_json
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    image: geometrikks:agent-mode
+    restart: unless-stopped
+    hostname: agent-json
+    stop_grace_period: 20s
+    environment:
+      APP_MODE: agent
+      MAP_HOME_REFRESH_HOURS: 1
+      LOGPARSER_HOST_NAME: json-01
+      LOGPARSER_LOG_PATHS: /var/log/access/nginx-json.log
+      LOGPARSER_LOG_FORMATS: geometrikks-json
+      MAXMINDDB_USER_ID: ${MAXMINDDB_USER_ID:-}
+      MAXMINDDB_LICENSE_KEY: ${MAXMINDDB_LICENSE_KEY:-}
+      DB_HOST: timescale_agent_db
+      DB_PORT: 5432
+      DB_USER: geouser
+      DB_PASSWORD: geopass
+      DB_DATABASE: geometrikks
+    ports:
+      - "8003:8000"
+    volumes:
+      - ../nginx_logs:/var/log/access:ro
+      - ../data/geoip:/app/data/geoip
+    networks:
+      - geometrikks_agent_net
+    depends_on:
+      timescale_agent_db:
+        condition: service_healthy
+
   # ===========================================================================
   # Synthetic traffic: runs dev/inject-logs.sh for the stack's lifetime, so
   # `up` starts the inserts and `down` ends them. Reuses the app image for
