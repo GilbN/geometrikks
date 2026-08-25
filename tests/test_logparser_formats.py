@@ -452,3 +452,72 @@ def test_gjson_websocket_upgrade_logged_at_close() -> None:
     assert norm.request_time == pytest.approx(258.714)
     assert norm.upstream_response_time == pytest.approx(258.576)
     assert GeometrikksJsonFormat().detect_malformed(norm) == (False, None)
+
+
+def test_gjson_detect_malformed_tls_probe_via_json_escapes() -> None:
+    """escape=json writes control bytes as \\uXXXX; the decoder yields raw bytes."""
+    line = (
+        '{"client_ip":"203.0.113.7","timestamp":"2026-08-25T22:00:24+02:00",'
+        '"method":"","status":"400","bytes":"157",'
+        '"request_raw":"\\u0016\\u0003\\u0001\\u0002\\u0000\\u0001\\u0000\\u0001\\u00fc\\u0003\\u0003"}\n'
+    )
+    fmt = GeometrikksJsonFormat()
+    norm = fmt.parse(line)
+    assert norm is not None
+    assert norm.method is None
+    assert norm.request_raw is not None and norm.request_raw.startswith("\x16\x03")
+    is_malformed, reason = fmt.detect_malformed(norm)
+    assert is_malformed is True
+    assert reason == "TLS handshake sent to HTTP port (raw)"
+
+
+def test_gjson_detect_malformed_method_rules() -> None:
+    fmt = GeometrikksJsonFormat()
+    cases = {
+        gjson(method="", status="400", request_raw="/ HTTP/1.1"): "TLS probe: HTTP request sent to HTTPS port",
+        gjson(method="", status="200", request_raw="/ HTTP/1.1"): "No HTTP method in request",
+        gjson(method="PROPFIND", request_raw="PROPFIND / HTTP/1.1"): "Invalid HTTP method: PROPFIND",
+        gjson(method=None, request_raw=None): "No HTTP method in request",
+    }
+    for line, expected in cases.items():
+        norm = fmt.parse(line)
+        assert norm is not None
+        assert fmt.detect_malformed(norm) == (True, expected)
+
+
+def test_gjson_detect_malformed_connection_statuses() -> None:
+    fmt = GeometrikksJsonFormat()
+    for status, fragment in (("444", "444"), ("499", "499"), ("408", "408")):
+        norm = fmt.parse(gjson(status=status))
+        assert norm is not None
+        is_malformed, reason = fmt.detect_malformed(norm)
+        assert is_malformed is True
+        assert reason is not None and fragment in reason
+
+
+def test_gjson_detect_malformed_ok_line() -> None:
+    fmt = GeometrikksJsonFormat()
+    norm = fmt.parse(gjson())
+    assert norm is not None
+    assert fmt.detect_malformed(norm) == (False, None)
+
+
+def test_registry_order() -> None:
+    assert list(FORMATS) == ["geometrikks-json", "traefik-json", "nginx"]
+    assert FORMATS["geometrikks-json"].name == "geometrikks-json"
+
+
+def test_sniff_format_gjson() -> None:
+    sniffed = sniff_format([NGINX_GARBAGE, gjson()])
+    assert sniffed is not None
+    assert sniffed.format.name == "geometrikks-json"
+    assert sniffed.geo_only is False
+
+
+def test_json_adapters_decline_each_others_lines() -> None:
+    assert GeometrikksJsonFormat().parse(TRAEFIK_FULL) is None
+    assert GeometrikksJsonFormat().parse(TRAEFIK_FULL, geo_only=True) is None
+    assert TraefikJsonFormat().parse(gjson()) is None
+    assert TraefikJsonFormat().parse(gjson(), geo_only=True) is None
+    sniffed = sniff_format([TRAEFIK_FULL])
+    assert sniffed is not None and sniffed.format.name == "traefik-json"
