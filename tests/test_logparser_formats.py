@@ -260,3 +260,37 @@ def test_sniff_format_traefik_before_nginx() -> None:
     assert sniffed is not None
     assert sniffed.format.name == "traefik-json"
     assert sniffed.geo_only is False
+
+
+from geometrikks.services.logparser.formats.base import detect_probe
+
+
+def test_detect_probe_tls_escaped_text() -> None:
+    """The regex format sees nginx's default escaping as literal backslash-x text."""
+    is_malformed, reason = detect_probe("\\x16\\x03\\x01\\x01-\\x01\\x00", None, 400)
+    assert is_malformed is True
+    assert reason == "TLS handshake sent to HTTP port (escaped)"
+
+
+def test_detect_probe_tls_raw_bytes() -> None:
+    """escape=json writes \\u0016\\u0003; the JSON decoder turns that into raw bytes."""
+    is_malformed, reason = detect_probe("\x16\x03\x01\x02\x00\x01", None, 400)
+    assert is_malformed is True
+    assert reason == "TLS handshake sent to HTTP port (raw)"
+
+
+def test_detect_probe_ssh_and_smb() -> None:
+    assert detect_probe("SSH-2.0-OpenSSH_9.6", None, 400) == (True, "SSH probe sent to HTTP port")
+    assert detect_probe("\xffSMBr\x00", None, 400) == (True, "SMB protocol probe (EternalBlue scanner)")
+    assert detect_probe("NT LM 0.12", None, 400) == (True, "SMB dialect negotiation probe")
+
+
+def test_detect_probe_method_and_status_rules() -> None:
+    assert detect_probe("", None, 400) == (True, "TLS probe: HTTP request sent to HTTPS port")
+    assert detect_probe("", None, 200) == (True, "No HTTP method in request")
+    assert detect_probe("", "PROPFIND", 200) == (True, "Invalid HTTP method: PROPFIND")
+    assert detect_probe("GET / HTTP/1.1", "GET", 408) == (True, "Request timeout (408)")
+    assert detect_probe("GET / HTTP/1.1", "GET", 444) == (True, "Connection closed without response (nginx 444)")
+    assert detect_probe("GET / HTTP/1.1", "GET", 499) == (True, "Client closed connection before response (nginx 499)")
+    assert detect_probe("GET / HTTP/1.1", "GET", 200) == (False, None)
+    assert detect_probe(None, "GET", 200) == (False, None)
