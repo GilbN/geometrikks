@@ -33,6 +33,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `scripts/generate-brand-assets.mjs` imports `playwright` directly, so it is now declared in devDependencies instead of resolving through the copy `@playwright/test` pulls in.
 - Percent and ratio placeholders render as "-", matching every other empty cell.
 - Stat card trend badges no longer pair a 0.0% label with an up or down arrow; tiny and non-finite deltas render as flat or hidden.
 - Live tail: the Status column is wide enough for its header, which ran into Method.

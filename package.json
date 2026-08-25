@@ -49,6 +49,7 @@
     "@types/react-dom": "^19.2.5",
     "@vitejs/plugin-react": "^6.1.0",
     "litestar-vite-plugin": "^0.31.0",
+    "playwright": "^1.62.1",
     "png-to-ico": "^3.0.2",
     "prettier": "^3.9.6",
     "tailwindcss": "^4.3.3",
