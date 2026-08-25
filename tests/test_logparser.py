@@ -806,3 +806,47 @@ class TestAsnEnrichment:
         assert record.access_log is not None
         assert record.access_log.autonomous_system_number == 1221
         assert record.access_log.autonomous_system_organization == "Telstra Pty Ltd"
+
+
+def make_gjson_line(ip: str) -> str:
+    """One geometrikks-json line (the recommended nginx log_format, escape=json)."""
+    return (
+        '{"client_ip":"' + ip + '","timestamp":"2024-08-03T13:14:17+02:00","method":"GET",'
+        '"path":"/index.php","protocol":"HTTP/2.0","status":"200","bytes":"1024",'
+        '"host":"example.com","referrer":"","user_agent":"Mozilla/5.0","remote_user":"",'
+        '"request_time":"0.002","upstream_time":"0.001","request_raw":"GET /index.php HTTP/2.0"}\n'
+    )
+
+
+def test_parse_line_geometrikks_json_end_to_end(tmp_path: Path, geoip_reader: Reader) -> None:
+    """Geo data and the access log are assembled for the JSON format, not just normalized."""
+    ip = "2.125.160.216"  # present in the GeoLite2 test database
+    parser = LogParser(log_path=tmp_path / "access.json.log", send_logs=True, log_format="geometrikks-json")
+    lookup = make_cached_city_lookup(geoip_reader)
+
+    record = parser.parse_line(make_gjson_line(ip), lookup)
+
+    assert record is not None
+    assert record.ip_address == ip
+    assert record.log_format == "geometrikks-json"
+    assert record.is_malformed is False
+    assert record.geo_data is not None
+    assert record.geo_data.country_code == "GB"
+    assert record.access_log is not None
+    assert record.access_log.url == "/index.php"
+    assert record.access_log.host == "example.com"
+    assert record.access_log.status_code == 200
+    assert record.access_log.request_time == pytest.approx(0.002)
+    assert record.access_log.upstream_response_time == pytest.approx(0.001)
+    offset = record.access_log.timestamp.utcoffset()
+    assert offset is not None and offset.total_seconds() == 7200
+    assert parser.parsed_lines == 1
+
+
+def test_parse_line_geometrikks_json_auto_detects(tmp_path: Path, geoip_reader: Reader) -> None:
+    parser = LogParser(log_path=tmp_path / "access.json.log", send_logs=True)
+    lookup = make_cached_city_lookup(geoip_reader)
+    record = parser.parse_line(make_gjson_line("2.125.160.216"), lookup)
+    assert record is not None and record.ip_address == "2.125.160.216"
+    assert parser.format is not None and parser.format.name == "geometrikks-json"
+    assert parser.send_logs is True

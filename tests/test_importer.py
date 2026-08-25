@@ -233,3 +233,58 @@ async def test_import_file_aborts_on_unrecognized_format(tmp_path, geoip_reader,
             session_maker=session_maker,
         )
     assert service.flush_records.await_count == 0
+
+
+def make_gjson_line(ip: str, day: int = 3) -> str:
+    return (
+        '{"client_ip":"' + ip + f'","timestamp":"2024-08-{day:02d}T13:14:17+02:00","method":"GET",'
+        '"path":"/index.php","protocol":"HTTP/2.0","status":"200","bytes":"1024",'
+        '"host":"example.com","referrer":"","user_agent":"Mozilla/5.0","remote_user":"",'
+        '"request_time":"0.002","upstream_time":"0.001","request_raw":"GET /index.php HTTP/2.0"}'
+    )
+
+
+async def test_import_file_geometrikks_json(tmp_path, geoip_reader, monkeypatch):
+    from geometrikks.services import importer
+
+    log = tmp_path / "old.json.log"
+    log.write_text("".join(make_gjson_line(TEST_IP, day=d) + "\n" for d in (1, 5, 3)))
+
+    service, FakeRepo, session_maker = _import_deps(tmp_path)
+    monkeypatch.setattr(importer, "ImportJobRepository", FakeRepo)
+    parser = LogParser(log_path=log, send_logs=True, log_format="geometrikks-json")
+
+    result = await importer.import_file(
+        log, service=service, parser=parser, reader=geoip_reader,
+        session_maker=session_maker,
+    )
+    assert result.skipped is False
+    assert result.lines_total == 3
+    assert result.lines_skipped == 0
+    assert result.records_written == 3
+    assert result.time_start is not None and result.time_start.day == 1
+    assert result.time_end is not None and result.time_end.day == 5
+
+
+async def test_import_file_traefik_pinned_to_geometrikks_json_is_rejected(tmp_path, geoip_reader, monkeypatch):
+    """Pinning the wrong JSON format aborts before anything is written."""
+    from geometrikks.services import importer
+
+    traefik_line = (
+        '{"ClientAddr":"172.19.0.1:34567","ClientHost":"203.0.113.7","DownstreamStatus":200,'
+        '"Duration":45678900,"RequestMethod":"GET","RequestPath":"/","RequestProtocol":"HTTP/2.0",'
+        '"StartUTC":"2026-08-07T10:34:56.123456789Z","level":"info","msg":""}\n'
+    )
+    log = tmp_path / "traefik.log"
+    log.write_text(traefik_line * 20)
+
+    service, FakeRepo, session_maker = _import_deps(tmp_path)
+    monkeypatch.setattr(importer, "ImportJobRepository", FakeRepo)
+    parser = LogParser(log_path=log, send_logs=True, log_format="geometrikks-json")
+
+    with pytest.raises(importer.UnrecognizedLogFormatError):
+        await importer.import_file(
+            log, service=service, parser=parser, reader=geoip_reader,
+            session_maker=session_maker,
+        )
+    assert service.flush_records.await_count == 0
