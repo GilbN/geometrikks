@@ -112,9 +112,9 @@ class GeometrikksJsonFormat:
             # ValidationError (wrong type for a field) is a DecodeError subclass.
             return None
 
-        ip = (data.client_ip or "").strip()
+        ip = convert_dash_to_none(data.client_ip)
         ts = _parse_timestamp(data.timestamp)
-        if not ip or ts is None:
+        if ip is None or ts is None:
             return None
 
         remote_user = convert_dash_to_none(data.remote_user)
@@ -135,7 +135,7 @@ class GeometrikksJsonFormat:
             request_time=_to_float(data.request_time),
             upstream_response_time=_sum_upstream(data.upstream_time),
             host=convert_dash_to_none(data.host),
-            request_raw=data.request_raw or None,
+            request_raw=convert_dash_to_none(data.request_raw),
         )
 
     def detect_malformed(self, norm: NormalizedLine) -> tuple[bool, str | None]:

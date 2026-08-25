@@ -34,6 +34,19 @@ UNPARSEABLE_LOG_PATH = "tests/unparseable_logs.txt"
 NONSTANDARD_LOG_PATH = "tests/nonstandard_logs.txt"
 GEOIP_DB_PATH = "tests/GeoLite2-City-Test.mmdb"
 
+# A geometrikks-json line as nginx's escape=json would actually write a TLS
+# probe: control bytes escaped as JSON \u00XX sequences, but a byte above
+# 0x7f is left raw and, here, not valid UTF-8 on its own (0xfc, an old
+# 5-byte UTF-8 lead byte). Written in binary so the invalid byte lands on
+# disk unchanged; a text-mode write would reject or escape it before the
+# tailer ever sees it.
+GJSON_TLS_PROBE_LINE_BYTES = (
+    b'{"client_ip":"203.0.113.7","timestamp":"2026-08-25T22:00:24+02:00",'
+    b'"method":"","status":"400","request_raw":"\\u0016\\u0003\\u0001'
+    + bytes([0xFC])
+    + b'"}\n'
+)
+
 
 @pytest.fixture
 def load_valid_ipv4_log() -> list[str]:
@@ -230,6 +243,46 @@ def test_validate_log_format_false(tmp_path: Path, log_parser: LogParser) -> Non
     log_parser.send_logs = True
 
     assert log_parser.validate_log_format(log_file) is False
+
+
+def test_validate_log_format_survives_undecodable_bytes(tmp_path: Path) -> None:
+    """A raw non-UTF-8 byte in request_raw must not raise UnicodeDecodeError."""
+    log_file = tmp_path / "access.log"
+    log_file.write_bytes(GJSON_TLS_PROBE_LINE_BYTES * 3)
+    parser = LogParser(log_path=log_file, send_logs=True, log_format="geometrikks-json")
+
+    assert parser.validate_log_format(log_file) is True
+
+
+def test_parse_line_geometrikks_json_survives_undecodable_bytes(geoip_reader: Reader) -> None:
+    """The decoded line still classifies as the raw-bytes TLS probe."""
+    parser = LogParser(log_path=Path("/dev/null"), send_logs=True, log_format="geometrikks-json")
+    lookup = make_cached_city_lookup(geoip_reader)
+    line = GJSON_TLS_PROBE_LINE_BYTES.decode("utf-8", errors="replace")
+
+    record = parser.parse_line(line, lookup)
+
+    assert record is not None
+    assert record.is_malformed is True
+    assert record.parse_error == "TLS handshake sent to HTTP port (raw)"
+
+
+async def test_iter_parsed_records_geometrikks_json_survives_undecodable_bytes(
+    tmp_path: Path, geoip_reader: Reader
+) -> None:
+    """The async tail path also survives a raw non-UTF-8 byte in the file."""
+    log_file = tmp_path / "access.log"
+    log_file.write_bytes(GJSON_TLS_PROBE_LINE_BYTES)
+    parser = LogParser(log_path=log_file, send_logs=True, log_format="geometrikks-json")
+    parser._stop_event = asyncio.Event()
+
+    gen = parser.iter_parsed_records(geoip_reader, skip_validation=True, start_at_end=False)
+    record = await gen.__anext__()
+
+    assert record is not None
+    assert record.ip_address == "203.0.113.7"
+    assert record.is_malformed is True
+    assert record.parse_error == "TLS handshake sent to HTTP port (raw)"
 
 
 async def test_await_valid_log_format_returns_when_stop_requested(

@@ -5,6 +5,7 @@ from datetime import datetime, timedelta, timezone
 import pytest
 
 from geometrikks.services.logparser.formats import FORMATS, sniff_format
+from geometrikks.services.logparser.formats.base import detect_probe
 from geometrikks.services.logparser.formats.geometrikks_json import GeometrikksJsonFormat
 from geometrikks.services.logparser.formats.nginx import NginxFormat
 from geometrikks.services.logparser.formats.traefik import TraefikJsonFormat
@@ -263,9 +264,6 @@ def test_sniff_format_traefik_before_nginx() -> None:
     assert sniffed.geo_only is False
 
 
-from geometrikks.services.logparser.formats.base import detect_probe
-
-
 def test_detect_probe_tls_escaped_text() -> None:
     """The regex format sees nginx's default escaping as literal backslash-x text."""
     is_malformed, reason = detect_probe("\\x16\\x03\\x01\\x01-\\x01\\x00", None, 400)
@@ -283,6 +281,7 @@ def test_detect_probe_tls_raw_bytes() -> None:
 def test_detect_probe_ssh_and_smb() -> None:
     assert detect_probe("SSH-2.0-OpenSSH_9.6", None, 400) == (True, "SSH probe sent to HTTP port")
     assert detect_probe("\xffSMBr\x00", None, 400) == (True, "SMB protocol probe (EternalBlue scanner)")
+    assert detect_probe("\\xffSMBr\\x00", None, 400) == (True, "SMB protocol probe (EternalBlue scanner)")
     assert detect_probe("NT LM 0.12", None, 400) == (True, "SMB dialect negotiation probe")
 
 
@@ -344,6 +343,21 @@ def test_gjson_parse_full_line() -> None:
     assert norm.request_raw == "GET /api/v2/homepage/plex/recent HTTP/2.0"
 
 
+def test_gjson_ipv6_client_ip() -> None:
+    norm = GeometrikksJsonFormat().parse(gjson(client_ip="2001:db8::1"))
+    assert norm is not None
+    assert norm.ip_address == "2001:db8::1"
+
+
+def test_gjson_timestamp_z_suffix() -> None:
+    """A 'Z'-suffixed timestamp is a UTC offset of zero, not a naive datetime."""
+    norm = GeometrikksJsonFormat().parse(gjson(timestamp="2026-08-25T20:00:24Z"))
+    assert norm is not None
+    offset = norm.timestamp.utcoffset()
+    assert offset is not None
+    assert offset.total_seconds() == 0
+
+
 def test_gjson_absent_semantics() -> None:
     """'' , '-' and a missing key are all None."""
     fmt = GeometrikksJsonFormat()
@@ -392,12 +406,17 @@ def test_gjson_geo_only() -> None:
         json.dumps([GJSON_BASE]),
         gjson(client_ip=None),
         gjson(client_ip=""),
+        gjson(client_ip="-"),
+        gjson(client_ip="   "),
         gjson(timestamp=None),
         gjson(timestamp="2026-08-25T22:00:24"),           # naive
         gjson(timestamp="25/Aug/2026:22:00:24 +0200"),    # nginx $time_local
         json.dumps({**GJSON_BASE, "status": 200}),        # number, not string
     ],
-    ids=["text", "empty-array", "array", "no-ip", "blank-ip", "no-ts", "naive-ts", "time-local", "typed-status"],
+    ids=[
+        "text", "empty-array", "array", "no-ip", "blank-ip", "dash-ip",
+        "whitespace-ip", "no-ts", "naive-ts", "time-local", "typed-status",
+    ],
 )
 def test_gjson_rejections(line: str) -> None:
     assert GeometrikksJsonFormat().parse(line) is None

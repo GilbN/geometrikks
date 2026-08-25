@@ -95,7 +95,7 @@ def detect_probe(
         if request.startswith("SSH-") or "\\x53\\x53\\x48" in request:
             return True, "SSH probe sent to HTTP port"
         if (
-            "\\xffSMB" in request.lower()
+            "\\xffsmb" in request.lower()
             or "\xffSMB" in request
             or "SMBr" in request
         ):
