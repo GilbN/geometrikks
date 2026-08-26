@@ -31,7 +31,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Refactored the Settings pages.
 - Tables, stat cards and data panels use one set of labels, borders and shadows across every page, and each page has a one-line description under its title.
 - Map popups and controls follow the active theme and accent.
-- A missing `request_time` is stored as NULL instead of 0.0, so unmeasured requests stop pulling the response-time average and percentiles toward zero. The summary and URL aggregates gain a count of measured rows; the first start after upgrading adds it in place and refreshes those four aggregates over the raw retention window, which takes minutes on large databases and keeps all history.
+- A missing `request_time` is stored as NULL instead of 0.0, so unmeasured requests stop pulling the response-time average and percentiles toward zero. The summary and URL aggregates gain a count of measured rows; the first start after upgrading adds it in place and refreshes those four aggregates over the raw retention window, which takes minutes on large databases and keeps all history. Buckets older than that window keep their pre-upgrade figures, computed over every row, because the raw rows needed to recount them are gone.
 
 ### Removed
 

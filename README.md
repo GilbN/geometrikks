@@ -216,7 +216,7 @@ fact:
 | Missing field | What it costs you |
 | --- | --- |
 | `$host` | The host filter on the access-log and analytics pages has nothing to list |
-| `$request_time` | Response-time cards show n/a for those rows; run `backfill-timings` after importing so the rows stop counting as 0.00s |
+| `$request_time` | Response-time cards show n/a for those rows; rows imported by earlier versions carry a placeholder 0.0 that `backfill-timings` clears |
 | `$upstream_response_time` | Upstream timing stays empty in the access-log detail view |
 
 The map, geo analytics, status codes, URLs, referrers, user agents and bytes

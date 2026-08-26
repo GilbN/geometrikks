@@ -97,10 +97,12 @@ migration locking), not a tuning knob.
   database with tens of millions of rows expect minutes, and watch for
   `cagg_timed_column_added` followed by `cagg_timed_refresh_done` in the
   logs. No history is lost, and a container stopped mid-way resumes the
-  refresh on its next start. A TimescaleDB without in-place aggregate
-  columns (the compose images pin a version that has them) falls back to
-  dropping and recreating the aggregate, which discards daily history older
-  than the raw retention window.
+  refresh on its next start. Buckets older than the raw retention window
+  keep their pre-upgrade figures, computed over every row, because the raw
+  rows needed to recount them are gone. A TimescaleDB without in-place
+  aggregate columns (the compose images pin a version that has them) falls
+  back to dropping and recreating the aggregate, which discards daily
+  history older than the raw retention window.
 
 ## Health
 
