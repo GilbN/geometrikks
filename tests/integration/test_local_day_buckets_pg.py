@@ -106,6 +106,7 @@ class TestSummaryTimeSeries:
         assert row.total_bytes == 200
         # Weighted mean of the two in-window hourly buckets (0.01 and 0.03).
         assert row.avg_request_time == pytest.approx(0.02, rel=0.01)
+        assert row.p50_request_time is not None
         assert 0.005 < row.p50_request_time < 0.035
 
     async def test_daily_buckets_stay_utc_without_tz(self, pg_engine, pg_session_maker, clean_tables):

@@ -569,7 +569,7 @@ export type ListAccessLogsAccessLogResponseBody = {
   method?: string | null;
   referrer?: string | null;
   remoteUser?: string;
-  requestTime?: number;
+  requestTime?: number | null;
   statusCode: number;
   timestamp: string;
   upstreamResponseTime?: number | null;
@@ -744,14 +744,15 @@ export type PercentChange = {
  */
 export type PeriodSummary = {
   avgBytesPerRequest: number;
-  avgRequestTime: number;
+  avgRequestTime: number | null;
   errorRate: number;
   malformedRequests: number;
-  maxRequestTime: number;
+  maxRequestTime: number | null;
   status2xx: number;
   status3xx: number;
   status4xx: number;
   status5xx: number;
+  timedRequests: number;
   totalBytesSent: number;
   totalGeoEvents: number;
   totalRequests: number;
@@ -902,15 +903,16 @@ export type SystemSettingsResponse = {
  * TimeSeriesDataPoint
  */
 export type TimeSeriesDataPoint = {
-  avgRequestTime: number;
+  avgRequestTime: number | null;
   errorRate: number;
-  p50RequestTime: number;
-  p95RequestTime: number;
-  p99RequestTime: number;
+  p50RequestTime: number | null;
+  p95RequestTime: number | null;
+  p99RequestTime: number | null;
   status2xx: number;
   status3xx: number;
   status4xx: number;
   status5xx: number;
+  timedRequests: number;
   timestamp: string;
   totalBytesSent: number;
   totalGeoEvents: number;
@@ -1089,9 +1091,10 @@ export type TopIpsResponse = {
  * TopUrlDTO
  */
 export type TopUrlDto = {
-  avgRequestTime: number;
+  avgRequestTime: number | null;
   errorHits: number;
   hits: number;
+  timedHits: number;
   totalBytes: number;
   url: string;
 };

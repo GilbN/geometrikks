@@ -1949,8 +1949,14 @@ export const ListAccessLogsAccessLogResponseBodySchema = {
       type: "string",
     },
     requestTime: {
-      default: 0,
-      type: "number",
+      oneOf: [
+        {
+          type: "number",
+        },
+        {
+          type: "null",
+        },
+      ],
     },
     statusCode: {
       type: "integer",
@@ -2532,7 +2538,14 @@ export const PeriodSummarySchema = {
       type: "number",
     },
     avgRequestTime: {
-      type: "number",
+      oneOf: [
+        {
+          type: "number",
+        },
+        {
+          type: "null",
+        },
+      ],
     },
     errorRate: {
       type: "number",
@@ -2541,7 +2554,14 @@ export const PeriodSummarySchema = {
       type: "integer",
     },
     maxRequestTime: {
-      type: "number",
+      oneOf: [
+        {
+          type: "number",
+        },
+        {
+          type: "null",
+        },
+      ],
     },
     status2xx: {
       type: "integer",
@@ -2553,6 +2573,9 @@ export const PeriodSummarySchema = {
       type: "integer",
     },
     status5xx: {
+      type: "integer",
+    },
+    timedRequests: {
       type: "integer",
     },
     totalBytesSent: {
@@ -2581,6 +2604,7 @@ export const PeriodSummarySchema = {
     "status3xx",
     "status4xx",
     "status5xx",
+    "timedRequests",
     "totalBytesSent",
     "totalGeoEvents",
     "totalRequests",
@@ -3019,19 +3043,47 @@ export const SystemSettingsResponseSchema = {
 export const TimeSeriesDataPointSchema = {
   properties: {
     avgRequestTime: {
-      type: "number",
+      oneOf: [
+        {
+          type: "number",
+        },
+        {
+          type: "null",
+        },
+      ],
     },
     errorRate: {
       type: "number",
     },
     p50RequestTime: {
-      type: "number",
+      oneOf: [
+        {
+          type: "number",
+        },
+        {
+          type: "null",
+        },
+      ],
     },
     p95RequestTime: {
-      type: "number",
+      oneOf: [
+        {
+          type: "number",
+        },
+        {
+          type: "null",
+        },
+      ],
     },
     p99RequestTime: {
-      type: "number",
+      oneOf: [
+        {
+          type: "number",
+        },
+        {
+          type: "null",
+        },
+      ],
     },
     status2xx: {
       type: "integer",
@@ -3043,6 +3095,9 @@ export const TimeSeriesDataPointSchema = {
       type: "integer",
     },
     status5xx: {
+      type: "integer",
+    },
+    timedRequests: {
       type: "integer",
     },
     timestamp: {
@@ -3068,6 +3123,7 @@ export const TimeSeriesDataPointSchema = {
     "status3xx",
     "status4xx",
     "status5xx",
+    "timedRequests",
     "timestamp",
     "totalBytesSent",
     "totalGeoEvents",
@@ -3526,12 +3582,22 @@ export const TopIpsResponseSchema = {
 export const TopUrlDTOSchema = {
   properties: {
     avgRequestTime: {
-      type: "number",
+      oneOf: [
+        {
+          type: "number",
+        },
+        {
+          type: "null",
+        },
+      ],
     },
     errorHits: {
       type: "integer",
     },
     hits: {
+      type: "integer",
+    },
+    timedHits: {
       type: "integer",
     },
     totalBytes: {
@@ -3541,7 +3607,14 @@ export const TopUrlDTOSchema = {
       type: "string",
     },
   },
-  required: ["avgRequestTime", "errorHits", "hits", "totalBytes", "url"],
+  required: [
+    "avgRequestTime",
+    "errorHits",
+    "hits",
+    "timedHits",
+    "totalBytes",
+    "url",
+  ],
   title: "TopUrlDTO",
   type: "object",
 } as const;

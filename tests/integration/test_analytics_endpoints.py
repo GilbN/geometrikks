@@ -54,6 +54,7 @@ async def test_top_urls_ordering_and_math(pg_session_maker, clean_tables):
     assert busy.hits == 6
     assert busy.error_hits == 1
     assert busy.total_bytes == 6 * 200
+    assert busy.avg_request_time is not None
     assert 0.005 < busy.avg_request_time < 0.02
 
 
@@ -418,3 +419,74 @@ async def test_iter_null_asn_ips_pages_without_gaps_or_repeats(pg_engine, pg_ses
     seen = [ip for page in pages for ip in page]
     assert sorted(seen) == sorted(ips)
     assert len(seen) == len(set(seen))
+
+
+async def test_summary_without_timed_rows_reports_none(pg_session_maker, clean_tables):
+    from datetime import datetime, timedelta, timezone
+
+    from geometrikks.domain.analytics.repositories import LiveStatsRepository
+
+    now = datetime.now(timezone.utc)
+    async with pg_session_maker() as session:
+        for _ in range(3):
+            await session.execute(text(
+                "INSERT INTO access_logs (timestamp, ip_address, method, url, status_code, bytes_sent, request_time) "
+                "VALUES (:ts, '10.0.0.1', 'GET', '/x', 200, 100, NULL)"
+            ), {"ts": now - timedelta(minutes=5)})
+        await session.commit()
+        stats = await LiveStatsRepository(session).get_summary(now - timedelta(hours=1), now)
+    assert stats is not None
+    assert stats.total_log_records == 3
+    assert stats.timed_requests == 0
+    assert stats.avg_request_time is None
+    assert stats.max_request_time is None
+    assert stats.p95_request_time is None
+
+
+async def test_summary_mixed_rows_average_only_the_timed_ones(pg_session_maker, clean_tables):
+    from datetime import datetime, timedelta, timezone
+
+    from geometrikks.domain.analytics.repositories import LiveStatsRepository
+
+    now = datetime.now(timezone.utc)
+    async with pg_session_maker() as session:
+        for rt in (0.2, 0.4, None, None):
+            await session.execute(text(
+                "INSERT INTO access_logs (timestamp, ip_address, method, url, status_code, bytes_sent, request_time) "
+                "VALUES (:ts, '10.0.0.1', 'GET', '/x', 200, 100, :rt)"
+            ), {"ts": now - timedelta(minutes=5), "rt": rt})
+        await session.commit()
+        stats = await LiveStatsRepository(session).get_summary(now - timedelta(hours=1), now)
+        urls = await LiveStatsRepository(session).get_top_urls(now - timedelta(hours=1), now)
+    assert stats is not None
+    assert stats.timed_requests == 2
+    assert stats.avg_request_time == pytest.approx(0.3)
+    assert urls[0].hits == 4
+    assert urls[0].timed_hits == 2
+    assert urls[0].avg_request_time == pytest.approx(0.3)
+
+
+async def test_cagg_time_series_carries_timed_requests(pg_engine, pg_session_maker, clean_tables):
+    from datetime import datetime, timedelta, timezone
+
+    from geometrikks.domain.analytics.repositories import StatsGranularity, SummaryStatsRepository
+    from geometrikks.server.timescale import refresh_caggs_range
+
+    now = datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0)
+    ts = now - timedelta(hours=2)
+    async with pg_session_maker() as session:
+        for rt in (0.1, None):
+            await session.execute(text(
+                "INSERT INTO access_logs (timestamp, ip_address, method, url, status_code, bytes_sent, request_time) "
+                "VALUES (:ts, '10.0.0.1', 'GET', '/x', 200, 100, :rt)"
+            ), {"ts": ts, "rt": rt})
+        await session.commit()
+    await refresh_caggs_range(pg_engine, start=now - timedelta(days=1), end=now + timedelta(hours=1), caggs=["summary_hourly_stats"])
+    async with pg_session_maker() as session:
+        rows = await SummaryStatsRepository(session).get_time_series(
+            now - timedelta(days=1), now, granularity=StatsGranularity.HOURLY
+        )
+    row = next(r for r in rows if r.bucket == ts)
+    assert row.total_requests == 2
+    assert row.timed_requests == 1
+    assert row.avg_request_time == pytest.approx(0.1)

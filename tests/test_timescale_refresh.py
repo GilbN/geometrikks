@@ -116,7 +116,7 @@ async def test_cagg_summary_returned_when_only_geo_events_exist():
 
     row = SimpleNamespace(
         total_log_records=0, total_bytes=0, status_2xx=0, status_3xx=0,
-        status_4xx=0, status_5xx=0, avg_request_time=0.0, max_request_time=0.0,
+        status_4xx=0, status_5xx=0, timed_requests=0, avg_request_time=0.0, max_request_time=0.0,
         p50_request_time=0.0, p95_request_time=0.0, p99_request_time=0.0,
         total_geo_records=42, unique_ips=7, unique_countries=3, unique_cities=5,
         malformed_requests=0,

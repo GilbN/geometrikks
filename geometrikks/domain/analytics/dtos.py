@@ -28,10 +28,11 @@ class TimeSeriesDataPoint(msgspec.Struct, rename="camel"):
     status_4xx: int = msgspec.field(name="status4xx")
     status_5xx: int = msgspec.field(name="status5xx")
     error_rate: float
-    avg_request_time: float
-    p50_request_time: float
-    p95_request_time: float
-    p99_request_time: float
+    timed_requests: int
+    avg_request_time: float | None
+    p50_request_time: float | None
+    p95_request_time: float | None
+    p99_request_time: float | None
 
 
 class PerformanceDataPoint(msgspec.Struct, rename="camel"):
@@ -41,8 +42,9 @@ class PerformanceDataPoint(msgspec.Struct, rename="camel"):
     """
 
     timestamp: str  # ISO format string
-    avg_request_time: float
-    max_request_time: float
+    timed_requests: int
+    avg_request_time: float | None
+    max_request_time: float | None
 
 
 class BandwidthDataPoint(msgspec.Struct, rename="camel"):
@@ -110,6 +112,7 @@ class PeriodSummary(msgspec.Struct, rename="camel"):
     """Summary statistics for a single period."""
 
     total_requests: int
+    timed_requests: int
     total_geo_events: int
     unique_ips: int
     unique_countries: int
@@ -119,8 +122,8 @@ class PeriodSummary(msgspec.Struct, rename="camel"):
     status_3xx: int = msgspec.field(name="status3xx")
     status_4xx: int = msgspec.field(name="status4xx")
     status_5xx: int = msgspec.field(name="status5xx")
-    avg_request_time: float
-    max_request_time: float
+    avg_request_time: float | None
+    max_request_time: float | None
     malformed_requests: int
     error_rate: float
 
@@ -198,7 +201,8 @@ class TopUrlDTO(msgspec.Struct, rename="camel"):
     hits: int
     error_hits: int
     total_bytes: int
-    avg_request_time: float
+    timed_hits: int
+    avg_request_time: float | None
 
 
 class TopUrlsResponse(msgspec.Struct, rename="camel"):
