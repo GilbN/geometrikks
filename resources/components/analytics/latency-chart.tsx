@@ -17,8 +17,9 @@ export function LatencyChart() {
   const { data, error, isLoading, isError, refetch } = useTimeSeries()
   const points = data?.data ?? []
   const hasTimings = points.some((d) => d.timedRequests > 0)
-  const clipMax = clampedYMax(points.flatMap((d) => SERIES.map((key) => d[key] ?? 0)))
-  const state = dataState(isLoading, isError, hasTimings ? points.length : 0)
+  const noTimings = points.length > 0 && !hasTimings
+  const clipMax = clampedYMax(points.flatMap((d) => SERIES.map((key) => d[key])))
+  const state = dataState(isLoading, isError, noTimings ? 0 : points.length)
 
   return (
     <SignalPanel
@@ -26,7 +27,7 @@ export function LatencyChart() {
       description="Average and percentile response time in the selected range."
       state={state}
       error={error?.message ?? "Failed to load request latency."}
-      empty={`No timing data in this range. ${TIMING_HINT}`}
+      empty={noTimings ? `No timing data in this range. ${TIMING_HINT}` : undefined}
       onRetry={() => void refetch()}
       bodyClassName="min-h-[240px]"
       actions={

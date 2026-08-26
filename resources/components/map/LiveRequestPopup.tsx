@@ -9,8 +9,9 @@
  * sheet) opened it.
  */
 import { Popup } from "react-map-gl/maplibre"
-import { formatBytes, formatDuration } from "@/lib/api"
+import { formatBytes } from "@/lib/api"
 import { PACKET_COLORS } from "@/lib/live-traffic/classify"
+import { formatDurationOrNa } from "@/lib/timing"
 import { IpBanControls } from "./IpBanControls"
 import type { LiveRequest } from "@/lib/live-traffic/types"
 
@@ -102,7 +103,7 @@ function LiveRequestDetail({
       {!request.coordinates && <Row label="Geo" value="No GeoIP match" />}
       {log && <Row label="Host" value={log.host ?? "-"} />}
       {log && <Row label="Bytes" value={formatBytes(log.bytes_sent)} />}
-      {log && <Row label="Time" value={formatDuration(log.request_time * 1000)} />}
+      {log && <Row label="Time" value={formatDurationOrNa(log.request_time)} />}
       {log?.referrer && <Row label="Referrer" value={log.referrer} />}
       {log?.user_agent && <Row label="Agent" value={log.user_agent} />}
 
