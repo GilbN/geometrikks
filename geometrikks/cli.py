@@ -661,6 +661,7 @@ async def _run_backfill_timings(*, hostname: str | None, before: datetime | None
             )).rowcount
         click.echo(f"access_logs placeholder timings cleared: {cleared:,}")
 
+        failed: list[str] = []
         if cleared and first is not None and last is not None:
             click.echo("Refreshing summary and URL CAGGs ...")
             failed = await refresh_caggs_range(
@@ -670,17 +671,19 @@ async def _run_backfill_timings(*, hostname: str | None, before: datetime | None
                 caggs=BACKFILL_TIMINGS_CAGGS,
                 force=True,
             )
-            if failed:
-                raise click.ClickException(
-                    "Rows were cleared but these aggregates did not refresh: " + ", ".join(failed)
-                )
 
         logger.info(
             "backfill_timings_completed",
             cleared=cleared,
             hostname=hostname,
             before=before.isoformat() if before else None,
+            cagg_refresh_failed=failed,
         )
+
+        if failed:
+            raise click.ClickException(
+                "Rows were cleared but these aggregates did not refresh: " + ", ".join(failed)
+            )
     finally:
         await engine.dispose()
 

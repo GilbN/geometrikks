@@ -578,3 +578,19 @@ def test_backfill_timings_rejects_bad_before_date(monkeypatch) -> None:
     result = _invoke_backfill_timings(monkeypatch, engine, ["--yes", "--before", "yesterday"], AsyncMock())
     assert result.exit_code != 0
     assert "before" in result.output.lower()
+
+
+def test_backfill_timings_logs_audit_before_raising_on_refresh_failure(monkeypatch) -> None:
+    import geometrikks.server.logging as logging_module
+
+    engine = _make_timings_engine(7, rowcount=7)
+    refresh = AsyncMock(return_value=["url_daily_stats"])
+    logger = MagicMock()
+    monkeypatch.setattr(logging_module, "get_logger", lambda name: logger)
+    result = _invoke_backfill_timings(monkeypatch, engine, ["--yes"], refresh)
+    assert result.exit_code != 0
+    assert "url_daily_stats" in result.output
+    logger.info.assert_called_once()
+    assert logger.info.call_args.args[0] == "backfill_timings_completed"
+    assert logger.info.call_args.kwargs["cleared"] == 7
+    assert logger.info.call_args.kwargs["cagg_refresh_failed"] == ["url_daily_stats"]
