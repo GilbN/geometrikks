@@ -1,4 +1,4 @@
-"""Litestar CLI plugin: `litestar import-logs <paths...>`, `litestar backfill-hostname NAME`, `litestar backfill-asn`.
+"""Litestar CLI plugin: `litestar import-logs <paths...>`, `litestar backfill-hostname NAME`, `litestar backfill-asn`, `litestar backfill-timings`.
 
 Import-time safe: settings, engine, reader are constructed inside the
 command callback, never at module import. The format registry import
@@ -8,7 +8,7 @@ loads the logparser package but constructs none of those.
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import click
@@ -566,10 +566,130 @@ async def _run_backfill_asn(*, yes: bool) -> None:
         await engine.dispose()
 
 
+@click.command(name="backfill-timings")
+@click.option("--hostname", default=None, help="Only rows recorded by this LOGPARSER_HOST_NAME.")
+@click.option(
+    "--before",
+    default=None,
+    type=click.DateTime(formats=["%Y-%m-%d", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%dT%H:%M:%S%z"]),
+    help="Only rows older than this date or datetime (UTC when no offset is given).",
+)
+@click.option("--yes", is_flag=True, help="Skip the confirmation prompt.")
+def backfill_timings_command(hostname: str | None, before: datetime | None, yes: bool) -> None:
+    """Clear placeholder response times on rows that never carried one.
+
+    Targets only rows the legacy nginx format wrote from a combined-style
+    line: log_format 'nginx', no host, request_time 0. The custom nginx
+    format always logs $host, so a host-less row had no timing field and
+    its 0.0 was a placeholder, not a measurement. Rows written by the
+    geometrikks-json format already store NULL. No blanket rewrite of
+    zeros is offered: 0.000 is a real sub-millisecond timing.
+
+    Prints the row count and time span first and asks for confirmation.
+    Compressed hypertable chunks are decompressed before the update (a
+    full-table UPDATE would trip the TimescaleDB tuple decompression
+    limit); the compression policy recompresses them later. Refreshes the
+    summary and URL continuous aggregates for the affected span. May run
+    for minutes on large databases.
+    """
+    if before is not None and before.tzinfo is None:
+        before = before.replace(tzinfo=timezone.utc)
+    asyncio.run(_run_backfill_timings(hostname=hostname, before=before, yes=yes))
+
+
+BACKFILL_TIMINGS_CAGGS = [
+    "summary_hourly_stats",
+    "summary_daily_stats",
+    "url_hourly_stats",
+    "url_daily_stats",
+]
+
+
+async def _run_backfill_timings(*, hostname: str | None, before: datetime | None, yes: bool) -> None:
+    from sqlalchemy import text
+
+    from geometrikks.server.logging import get_logger
+    from geometrikks.server.plugins import get_sqlalchemy_config
+    from geometrikks.server.timescale import refresh_caggs_range
+
+    logger = get_logger(__name__)
+    config = get_sqlalchemy_config()
+    engine = config.get_engine()
+
+    where = "log_format = 'nginx' AND host IS NULL AND request_time = 0"
+    params: dict[str, object] = {}
+    if hostname is not None:
+        where += " AND hostname = :hostname"
+        params["hostname"] = hostname
+    if before is not None:
+        where += " AND timestamp < :before"
+        params["before"] = before
+
+    try:
+        async with engine.connect() as conn:
+            count, first, last = (await conn.execute(
+                text(f"SELECT COUNT(*), MIN(timestamp), MAX(timestamp) FROM access_logs WHERE {where}"),
+                params,
+            )).one()
+            timescale = bool((await conn.execute(text(
+                "SELECT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'timescaledb')"
+            ))).scalar())
+
+        if not count:
+            click.echo("Nothing to do: no placeholder timings match.")
+            return
+
+        click.echo(f"{count:,} rows between {first} and {last} will have request_time set to NULL.")
+        if not yes and not click.confirm("Continue?"):
+            click.echo("Aborted.")
+            return
+
+        # Same reasoning as backfill-hostname: a full-table UPDATE on compressed
+        # chunks trips timescaledb.max_tuples_decompressed_per_dml_transaction.
+        if timescale:
+            click.echo("Decompressing compressed access_logs chunks ...")
+            async with engine.begin() as conn:
+                await conn.execute(text(
+                    "SELECT decompress_chunk(format('%I.%I', chunk_schema, chunk_name)::regclass, true) "
+                    "FROM timescaledb_information.chunks "
+                    "WHERE hypertable_name = 'access_logs' AND is_compressed"
+                ))
+
+        async with engine.begin() as conn:
+            cleared = (await conn.execute(
+                text(f"UPDATE access_logs SET request_time = NULL WHERE {where}"), params
+            )).rowcount
+        click.echo(f"access_logs placeholder timings cleared: {cleared:,}")
+
+        if cleared and first is not None and last is not None:
+            click.echo("Refreshing summary and URL CAGGs ...")
+            failed = await refresh_caggs_range(
+                engine,
+                start=first,
+                end=last + timedelta(microseconds=1),
+                caggs=BACKFILL_TIMINGS_CAGGS,
+                force=True,
+            )
+            if failed:
+                raise click.ClickException(
+                    "Rows were cleared but these aggregates did not refresh: " + ", ".join(failed)
+                )
+
+        logger.info(
+            "backfill_timings_completed",
+            cleared=cleared,
+            hostname=hostname,
+            before=before.isoformat() if before else None,
+        )
+    finally:
+        await engine.dispose()
+
+
 class ImportLogsCLIPlugin(CLIPlugin):
-    """Registers import-logs, backfill-hostname, and backfill-asn on the litestar CLI group."""
+    """Registers import-logs, backfill-hostname, backfill-asn and backfill-timings on the litestar CLI group."""
 
     def on_cli_init(self, cli: click.Group) -> None:
         cli.add_command(import_logs_command)
         cli.add_command(backfill_hostname_command)
         cli.add_command(backfill_asn_command)
+        cli.add_command(backfill_timings_command)
