@@ -2,10 +2,10 @@ import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts"
 import { SignalPanel } from "@/components/data/signal-panel"
 import { dataState } from "@/components/data/types"
 import { ChartContainer, ChartTooltip } from "@/components/ui/chart"
-import { formatDuration } from "@/lib/api"
 import { clampedYMax } from "@/lib/chart-scale"
 import { formatTs } from "@/lib/datetime"
 import { useTimeSeries } from "@/lib/queries"
+import { formatDurationOrNa, TIMING_HINT } from "@/lib/timing"
 import { ChartLegendRow } from "./chart-legend-row"
 import { latencyChartConfig } from "./chart-utils"
 import { GranularityBadge } from "./granularity-badge"
@@ -16,8 +16,9 @@ const SERIES = Object.keys(latencyChartConfig) as (keyof typeof latencyChartConf
 export function LatencyChart() {
   const { data, error, isLoading, isError, refetch } = useTimeSeries()
   const points = data?.data ?? []
-  const clipMax = clampedYMax(points.flatMap((d) => SERIES.map((key) => d[key])))
-  const state = dataState(isLoading, isError, points.length)
+  const hasTimings = points.some((d) => d.timedRequests > 0)
+  const clipMax = clampedYMax(points.flatMap((d) => SERIES.map((key) => d[key] ?? 0)))
+  const state = dataState(isLoading, isError, hasTimings ? points.length : 0)
 
   return (
     <SignalPanel
@@ -25,11 +26,12 @@ export function LatencyChart() {
       description="Average and percentile response time in the selected range."
       state={state}
       error={error?.message ?? "Failed to load request latency."}
+      empty={`No timing data in this range. ${TIMING_HINT}`}
       onRetry={() => void refetch()}
       bodyClassName="min-h-[240px]"
       actions={
         <>
-          {clipMax != null && <span>y-axis clipped at {formatDuration(clipMax * 1000)}</span>}
+          {clipMax != null && <span>y-axis clipped at {formatDurationOrNa(clipMax)}</span>}
           <GranularityBadge granularity={data?.granularity} />
         </>
       }
@@ -49,8 +51,8 @@ export function LatencyChart() {
               tickLine={false}
               axisLine={false}
               width={56}
-              // request_time is seconds; formatDuration takes ms
-              tickFormatter={(v: number) => formatDuration(v * 1000)}
+              // request_time is seconds; formatDurationOrNa takes seconds
+              tickFormatter={(v: number) => formatDurationOrNa(v)}
               domain={clipMax != null ? [0, clipMax] : undefined}
               allowDataOverflow={clipMax != null}
             />
@@ -63,7 +65,9 @@ export function LatencyChart() {
                       <span className="text-muted-foreground">
                         {latencyChartConfig[name as keyof typeof latencyChartConfig]?.label ?? name}
                       </span>
-                      <span className="font-mono tabular-nums">{formatDuration(Number(value) * 1000)}</span>
+                      <span className="font-mono tabular-nums">
+                        {formatDurationOrNa(value == null ? null : Number(value))}
+                      </span>
                     </span>
                   )}
                 />
@@ -77,6 +81,7 @@ export function LatencyChart() {
                 stroke={`var(--color-${key})`}
                 strokeWidth={2}
                 dot={false}
+                connectNulls={false}
               />
             ))}
           </LineChart>

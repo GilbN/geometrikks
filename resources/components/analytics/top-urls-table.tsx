@@ -8,8 +8,9 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Skeleton } from "@/components/ui/skeleton"
-import { formatBytes, formatDuration, formatNumber } from "@/lib/api"
+import { formatBytes, formatNumber } from "@/lib/api"
 import { useTopUrls } from "@/lib/queries"
+import { formatDurationOrNa } from "@/lib/timing"
 import { TablePaginationFooter, usePagedRows } from "./table-pagination"
 
 export function TopUrlsTable() {
@@ -43,7 +44,7 @@ export function TopUrlsTable() {
                     <TableCell className="text-right tabular-nums">{formatNumber(row.hits)}</TableCell>
                     <TableCell className="text-right tabular-nums">{formatNumber(row.errorHits)}</TableCell>
                     <TableCell className="text-right tabular-nums">{formatBytes(row.totalBytes)}</TableCell>
-                    <TableCell className="text-right tabular-nums">{formatDuration(row.avgRequestTime * 1000)}</TableCell>
+                    <TableCell className="text-right tabular-nums">{formatDurationOrNa(row.avgRequestTime)}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
