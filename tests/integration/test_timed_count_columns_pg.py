@@ -100,10 +100,11 @@ async def test_old_shape_summary_view_upgrades_in_place(pg_engine, pg_session_ma
         caggs=["summary_hourly_stats"],
     )
     async with pg_engine.begin() as conn:
-        await conn.execute(text(
+        compressed_chunks = (await conn.execute(text(
             "SELECT compress_chunk(c, true) FROM show_chunks('access_logs', newer_than => INTERVAL '2 days') c"
-        ))
+        ))).scalars().all()
         needs = await timescale._timed_columns_need_upgrade(conn)
+    assert compressed_chunks
     assert "summary_hourly_stats" in needs
 
     await setup_timescaledb(pg_engine, get_settings().analytics)
@@ -112,11 +113,11 @@ async def test_old_shape_summary_view_upgrades_in_place(pg_engine, pg_session_ma
         rows = (await conn.execute(text(
             "SELECT total_requests, timed_requests FROM summary_hourly_stats WHERE bucket >= :s ORDER BY bucket"
         ), {"s": NOW - timedelta(days=1)})).all()
-        compressed = (await conn.execute(text(
-            "SELECT count(*) FILTER (WHERE is_compressed), count(*) FROM timescaledb_information.chunks "
-            "WHERE hypertable_name = 'access_logs'"
-        ))).one()
+        still_compressed = (await conn.execute(text(
+            "SELECT count(*) FROM timescaledb_information.chunks "
+            "WHERE is_compressed AND format('%I.%I', chunk_schema, chunk_name) = ANY(:names)"
+        ), {"names": compressed_chunks})).scalar_one()
         needs_after = await timescale._timed_columns_need_upgrade(conn)
     assert [(r.total_requests, r.timed_requests) for r in rows] == [(5, 3), (4, 0)]
-    assert compressed[0] == compressed[1] and compressed[1] >= 1
+    assert still_compressed == len(compressed_chunks)
     assert "summary_hourly_stats" not in needs_after
