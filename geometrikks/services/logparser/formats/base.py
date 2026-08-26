@@ -10,6 +10,7 @@ the single place where that gets corrected.
 """
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Protocol, runtime_checkable
@@ -29,7 +30,7 @@ class NormalizedLine:
     bytes_sent: int = 0
     referrer: str | None = None
     user_agent: str | None = None
-    request_time: float = 0.0
+    request_time: float | None = None
     upstream_response_time: float | None = None
     host: str | None = None
     # Raw request-line text ("GET / HTTP/1.1" or probe garbage); nginx only,
@@ -66,6 +67,21 @@ def convert_dash_to_none(value: str | None) -> str | None:
         return None
     stripped = value.strip()
     return stripped if stripped not in ("", "-") else None
+
+
+def parse_seconds(raw: str | None) -> float | None:
+    """A timing in seconds, or None when the line carries no measurement.
+
+    '', '-' and unparseable text are absence. nan and inf parse as floats
+    but are not measurements either.
+    """
+    if not raw or raw.strip() == "-":
+        return None
+    try:
+        value = float(raw)
+    except ValueError:
+        return None
+    return value if math.isfinite(value) else None
 
 
 def detect_probe(

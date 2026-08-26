@@ -5,7 +5,7 @@ from datetime import datetime, timedelta, timezone
 import pytest
 
 from geometrikks.services.logparser.formats import FORMATS, sniff_format
-from geometrikks.services.logparser.formats.base import detect_probe
+from geometrikks.services.logparser.formats.base import detect_probe, parse_seconds
 from geometrikks.services.logparser.formats.geometrikks_json import GeometrikksJsonFormat
 from geometrikks.services.logparser.formats.nginx import NginxFormat
 from geometrikks.services.logparser.formats.traefik import TraefikJsonFormat
@@ -383,7 +383,7 @@ def test_gjson_minimal_line_parses() -> None:
     assert norm.path is None
     assert norm.status_code == 0
     assert norm.bytes_sent == 0
-    assert norm.request_time == 0.0
+    assert norm.request_time is None
     assert norm.upstream_response_time is None
     assert norm.request_raw is None
 
@@ -428,7 +428,7 @@ def test_gjson_numeric_conversion_fallbacks() -> None:
     assert norm is not None
     assert norm.status_code == 0
     assert norm.bytes_sent == 0
-    assert norm.request_time == 0.0
+    assert norm.request_time is None
 
 
 @pytest.mark.parametrize(
@@ -540,3 +540,62 @@ def test_json_adapters_decline_each_others_lines() -> None:
     assert TraefikJsonFormat().parse(gjson(), geo_only=True) is None
     sniffed = sniff_format([TRAEFIK_FULL])
     assert sniffed is not None and sniffed.format.name == "traefik-json"
+
+
+@pytest.mark.parametrize(
+    "raw, expected",
+    [
+        ("0.000", 0.0),
+        ("5.670", 5.67),
+        ("", None),
+        ("-", None),
+        ("abc", None),
+        ("nan", None),
+        ("inf", None),
+        ("-inf", None),
+        (None, None),
+    ],
+)
+def test_parse_seconds(raw: str | None, expected: float | None) -> None:
+    assert parse_seconds(raw) == expected
+
+
+def test_gjson_request_time_absent_is_none() -> None:
+    fmt = GeometrikksJsonFormat()
+    for line in (gjson(request_time=None), gjson(request_time=""), gjson(request_time="-"), gjson(request_time="nan")):
+        norm = fmt.parse(line)
+        assert norm is not None
+        assert norm.request_time is None
+
+
+def test_gjson_request_time_zero_is_a_measurement() -> None:
+    norm = GeometrikksJsonFormat().parse(gjson(request_time="0.000"))
+    assert norm is not None
+    assert norm.request_time == 0.0
+
+
+def test_nginx_combined_line_has_no_request_time() -> None:
+    """A combined-format line has no timing groups; that is None, not 0.0."""
+    line = '203.0.113.7 - - [03/Aug/2024:13:14:17 +0200] "GET /a HTTP/1.1" 200 12 "-" "Mozilla/5.0"'
+    norm = NginxFormat().parse(line)
+    assert norm is not None
+    assert norm.request_time is None
+    assert norm.upstream_response_time is None
+
+
+def test_nginx_dash_request_time_is_none() -> None:
+    line = (
+        '203.0.113.7 - - [03/Aug/2024:13:14:17 +0200]"GET /a HTTP/1.1" 200 12'
+        '"-" example.com "Mozilla/5.0""-" "-"'
+    )
+    norm = NginxFormat().parse(line)
+    assert norm is not None
+    assert norm.request_time is None
+
+
+def test_traefik_missing_duration_is_none() -> None:
+    data = json.loads(TRAEFIK_FULL)
+    del data["Duration"]
+    norm = TraefikJsonFormat().parse(json.dumps(data))
+    assert norm is not None
+    assert norm.request_time is None
