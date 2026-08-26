@@ -25,6 +25,24 @@ PATHS=(/ /api/v1/status /login /wp-login.php /assets/app.js /images/logo.png /fe
 METHODS=(GET GET GET GET POST GET HEAD GET)
 STATUSES=(200 200 200 301 404 200 403 200 500 204)
 AGENTS=("Mozilla/5.0 (X11; Linux x86_64) Firefox/141.0" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/152.0.0.0" "curl/8.9.1")
+REFERRERS=("" "" "https://yourdomain.com/" "https://www.google.com/" "https://duckduckgo.com/" "https://t.co/x8f2kq")
+USERS=("" "" "" "" "" "alice" "bob" "svc-backup")
+
+# Sets rt/ut (seconds, three decimals; ut empty when nginx served the
+# request itself) and rtms/utms (milliseconds) for one request. Static
+# paths never reach an upstream; every 25th dynamic request is a slow
+# outlier so the response-time percentiles have a tail.
+timings() {
+  case "$1" in
+    /assets/*|/images/*|/robots.txt|/health)
+      rtms=$((RANDOM % 6)); utms=0 ;;
+    *)
+      if [ $((RANDOM % 25)) -eq 0 ]; then rtms=$((3000 + RANDOM % 5000)); else rtms=$((20 + RANDOM % 2480)); fi
+      utms=$((rtms - 1 - RANDOM % 40)); [ "$utms" -lt 1 ] && utms=1 ;;
+  esac
+  rt=$(printf '%d.%03d' $((rtms / 1000)) $((rtms % 1000)))
+  ut=""; [ "$utms" -gt 0 ] && ut=$(printf '%d.%03d' $((utms / 1000)) $((utms % 1000)))
+}
 
 i=0
 while [ ! -f "$STOPFILE" ] && { [ "$MAX_SECONDS" -eq 0 ] || [ "$i" -lt "$MAX_SECONDS" ]; }; do
@@ -33,28 +51,47 @@ while [ ! -f "$STOPFILE" ] && { [ "$MAX_SECONDS" -eq 0 ] || [ "$i" -lt "$MAX_SEC
   method=${METHODS[$((RANDOM % ${#METHODS[@]}))]}
   status=${STATUSES[$((RANDOM % ${#STATUSES[@]}))]}
   agent=${AGENTS[$((RANDOM % ${#AGENTS[@]}))]}
+  ref=${REFERRERS[$((RANDOM % ${#REFERRERS[@]}))]}
+  user=${USERS[$((RANDOM % ${#USERS[@]}))]}
   bytes=$((RANDOM % 5000 + 100))
+  timings "$path"
   nts=$(date +"%d/%b/%Y:%H:%M:%S %z")
-  printf '%s - - [%s]"%s %s HTTP/2.0" %s %s"-" yourdomain.com "-""0.0%02d" "0.001""-" "-"\n' \
-    "$ip" "$nts" "$method" "$path" "$status" "$bytes" "$((RANDOM % 90))" >> "$REPO/nginx_logs/nginx.log"
-
-  ip=${IPS[$((RANDOM % ${#IPS[@]}))]}
-  path=${PATHS[$((RANDOM % ${#PATHS[@]}))]}
-  method=${METHODS[$((RANDOM % ${#METHODS[@]}))]}
-  status=${STATUSES[$((RANDOM % ${#STATUSES[@]}))]}
-  tts=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-  ttsn=$(date -u +"%Y-%m-%dT%H:%M:%S.%NZ")
-  printf '{"ClientAddr":"%s:%s","ClientHost":"%s","ClientPort":"%s","ClientUsername":"-","DownstreamContentSize":%s,"DownstreamStatus":%s,"Duration":%s,"OriginContentSize":%s,"OriginDuration":0,"OriginStatus":%s,"Overhead":1200,"RequestAddr":"traefik.example.com","RequestContentSize":0,"RequestCount":%s,"RequestHost":"traefik.example.com","RequestMethod":"%s","RequestPath":"%s","RequestPort":"-","RequestProtocol":"HTTP/2.0","RequestScheme":"https","RetryAttempts":0,"StartLocal":"%s","StartUTC":"%s","TLSCipher":"TLS_AES_128_GCM_SHA256","TLSVersion":"1.3","entryPointName":"https","level":"info","msg":"","request_User-Agent":"%s","time":"%s"}\n' \
-    "$ip" "$((RANDOM % 50000 + 1024))" "$ip" "$((RANDOM % 50000 + 1024))" "$bytes" "$status" "$((RANDOM % 90000 + 500))" "$bytes" "$status" "$((i + 1))" "$method" "$path" "$ttsn" "$ttsn" "$agent" "$tts" >> "$REPO/nginx_logs/traefik.log"
+  printf '%s - %s [%s]"%s %s HTTP/2.0" %s %s"%s" yourdomain.com "%s""%s" "%s""-" "-"\n' \
+    "$ip" "${user:--}" "$nts" "$method" "$path" "$status" "$bytes" "${ref:--}" "$agent" "$rt" "${ut:--}" >> "$REPO/nginx_logs/nginx.log"
 
   ip=${IPS[$((RANDOM % ${#IPS[@]}))]}
   path=${PATHS[$((RANDOM % ${#PATHS[@]}))]}
   method=${METHODS[$((RANDOM % ${#METHODS[@]}))]}
   status=${STATUSES[$((RANDOM % ${#STATUSES[@]}))]}
   agent=${AGENTS[$((RANDOM % ${#AGENTS[@]}))]}
+  ref=${REFERRERS[$((RANDOM % ${#REFERRERS[@]}))]}
+  user=${USERS[$((RANDOM % ${#USERS[@]}))]}
+  bytes=$((RANDOM % 5000 + 100))
+  timings "$path"
+  # Traefik keeps Referer only when present, so the key is omitted for
+  # a direct hit; durations are nanoseconds, OriginStatus is 0 without
+  # an upstream.
+  tref=""; [ -n "$ref" ] && tref=",\"request_Referer\":\"$ref\""
+  dur=$((rtms * 1000000 + RANDOM % 1000 + 500))
+  orig=$((utms * 1000000))
+  ostat=0; [ "$utms" -gt 0 ] && ostat=$status
+  tts=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+  ttsn=$(date -u +"%Y-%m-%dT%H:%M:%S.%NZ")
+  printf '{"ClientAddr":"%s:%s","ClientHost":"%s","ClientPort":"%s","ClientUsername":"%s","DownstreamContentSize":%s,"DownstreamStatus":%s,"Duration":%s,"OriginContentSize":%s,"OriginDuration":%s,"OriginStatus":%s,"Overhead":%s,"RequestAddr":"traefik.example.com","RequestContentSize":0,"RequestCount":%s,"RequestHost":"traefik.example.com","RequestMethod":"%s","RequestPath":"%s","RequestPort":"-","RequestProtocol":"HTTP/2.0","RequestScheme":"https","RetryAttempts":0,"StartLocal":"%s","StartUTC":"%s","TLSCipher":"TLS_AES_128_GCM_SHA256","TLSVersion":"1.3","entryPointName":"https","level":"info","msg":"","request_User-Agent":"%s"%s,"time":"%s"}\n' \
+    "$ip" "$((RANDOM % 50000 + 1024))" "$ip" "$((RANDOM % 50000 + 1024))" "${user:--}" "$bytes" "$status" "$dur" "$bytes" "$orig" "$ostat" "$((dur - orig))" "$((i + 1))" "$method" "$path" "$ttsn" "$ttsn" "$agent" "$tref" "$tts" >> "$REPO/nginx_logs/traefik.log"
+
+  ip=${IPS[$((RANDOM % ${#IPS[@]}))]}
+  path=${PATHS[$((RANDOM % ${#PATHS[@]}))]}
+  method=${METHODS[$((RANDOM % ${#METHODS[@]}))]}
+  status=${STATUSES[$((RANDOM % ${#STATUSES[@]}))]}
+  agent=${AGENTS[$((RANDOM % ${#AGENTS[@]}))]}
+  ref=${REFERRERS[$((RANDOM % ${#REFERRERS[@]}))]}
+  user=${USERS[$((RANDOM % ${#USERS[@]}))]}
+  bytes=$((RANDOM % 5000 + 100))
+  timings "$path"
   jts=$(date +"%Y-%m-%dT%H:%M:%S%:z")
-  printf '{"client_ip":"%s","timestamp":"%s","method":"%s","path":"%s","protocol":"HTTP/2.0","status":"%s","bytes":"%s","host":"json.example.com","referrer":"","user_agent":"%s","remote_user":"","request_time":"0.0%02d","upstream_time":"0.001","request_raw":"%s %s HTTP/2.0"}\n' \
-    "$ip" "$jts" "$method" "$path" "$status" "$bytes" "$agent" "$((RANDOM % 90))" "$method" "$path" >> "$REPO/nginx_logs/nginx-json.log"
+  printf '{"client_ip":"%s","timestamp":"%s","method":"%s","path":"%s","protocol":"HTTP/2.0","status":"%s","bytes":"%s","host":"json.example.com","referrer":"%s","user_agent":"%s","remote_user":"%s","request_time":"%s","upstream_time":"%s","request_raw":"%s %s HTTP/2.0"}\n' \
+    "$ip" "$jts" "$method" "$path" "$status" "$bytes" "$ref" "$agent" "$user" "$rt" "$ut" "$method" "$path" >> "$REPO/nginx_logs/nginx-json.log"
 
   # Every tenth line is one the parser cannot fully use, so the Debug logs
   # page has parse failures to show: a TLS probe on the plain port, a line
