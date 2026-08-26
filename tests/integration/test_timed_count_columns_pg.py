@@ -1,0 +1,122 @@
+"""Summary and URL CAGGs carry a timed-row count; old-shape views upgrade in place."""
+from __future__ import annotations
+
+from datetime import datetime, timedelta, timezone
+
+from sqlalchemy import text
+
+import pytest
+
+from geometrikks.config.settings import get_settings
+from geometrikks.server import timescale
+from geometrikks.server.timescale import refresh_caggs_range, setup_timescaledb
+
+pytestmark = pytest.mark.anyio
+
+NOW = datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0)
+
+OLD_SUMMARY_HOURLY = """
+    CREATE MATERIALIZED VIEW summary_hourly_stats
+    WITH (timescaledb.continuous) AS
+    SELECT
+        time_bucket('1 hour', timestamp) AS bucket,
+        COUNT(*) AS total_requests,
+        COALESCE(SUM(bytes_sent), 0) AS total_bytes,
+        COUNT(*) FILTER (WHERE status_code >= 200 AND status_code < 300) AS status_2xx,
+        COUNT(*) FILTER (WHERE status_code >= 300 AND status_code < 400) AS status_3xx,
+        COUNT(*) FILTER (WHERE status_code >= 400 AND status_code < 500) AS status_4xx,
+        COUNT(*) FILTER (WHERE status_code >= 500 AND status_code < 600) AS status_5xx,
+        AVG(request_time) AS avg_request_time,
+        MAX(request_time) AS max_request_time,
+        percentile_agg(request_time) AS pct_agg
+    FROM access_logs
+    GROUP BY bucket
+    WITH NO DATA
+"""
+
+
+async def _seed(session_maker) -> None:
+    """Two hours: the older one has 3 timed + 2 untimed rows, the newer 4 untimed."""
+    async with session_maker() as session:
+        older = NOW - timedelta(hours=3)
+        newer = NOW - timedelta(hours=2)
+        for rt in (0.01, 0.02, 0.03, None, None):
+            await session.execute(text(
+                "INSERT INTO access_logs (timestamp, ip_address, method, url, status_code, bytes_sent, request_time) "
+                "VALUES (:ts, '10.0.0.1', 'GET', '/x', 200, 100, :rt)"
+            ), {"ts": older, "rt": rt})
+        for _ in range(4):
+            await session.execute(text(
+                "INSERT INTO access_logs (timestamp, ip_address, method, url, status_code, bytes_sent, request_time) "
+                "VALUES (:ts, '10.0.0.2', 'GET', '/y', 200, 100, NULL)"
+            ), {"ts": newer})
+        await session.commit()
+
+
+async def test_fresh_views_have_the_count_columns(pg_engine) -> None:
+    async with pg_engine.connect() as conn:
+        rows = await conn.execute(text("""
+            SELECT table_name, column_name FROM information_schema.columns
+            WHERE table_name IN ('summary_hourly_stats', 'summary_daily_stats', 'url_hourly_stats', 'url_daily_stats')
+        """))
+        cols = {(r.table_name, r.column_name) for r in rows}
+    for view, column in timescale.TIMED_COUNT_COLUMNS.items():
+        assert (view, column) in cols
+
+
+async def test_counts_follow_the_timed_rows(pg_engine, pg_session_maker, clean_tables) -> None:
+    await _seed(pg_session_maker)
+    await refresh_caggs_range(
+        pg_engine, start=NOW - timedelta(days=1), end=NOW + timedelta(hours=1),
+        caggs=["summary_hourly_stats", "url_hourly_stats"],
+    )
+    async with pg_engine.connect() as conn:
+        rows = (await conn.execute(text(
+            "SELECT bucket, total_requests, timed_requests, avg_request_time "
+            "FROM summary_hourly_stats WHERE bucket >= :s ORDER BY bucket"
+        ), {"s": NOW - timedelta(days=1)})).all()
+        url_rows = (await conn.execute(text(
+            "SELECT url, hits, timed_hits, total_request_time FROM url_hourly_stats WHERE bucket >= :s ORDER BY url"
+        ), {"s": NOW - timedelta(days=1)})).all()
+    assert [(r.total_requests, r.timed_requests) for r in rows] == [(5, 3), (4, 0)]
+    assert rows[0].avg_request_time == pytest.approx(0.02)
+    assert rows[1].avg_request_time is None
+    assert [(r.url, r.hits, r.timed_hits) for r in url_rows] == [("/x", 5, 3), ("/y", 4, 0)]
+    assert url_rows[1].total_request_time is None
+
+
+async def test_old_shape_summary_view_upgrades_in_place(pg_engine, pg_session_maker, clean_tables) -> None:
+    """Recreate the pre-count shape, populate it, compress the chunk, run setup.
+
+    The column must appear, old buckets must be counted, the raw chunk must
+    still be compressed, and a second setup must find nothing to upgrade.
+    """
+    await _seed(pg_session_maker)
+    async with pg_engine.begin() as conn:
+        await conn.execute(text("DROP MATERIALIZED VIEW IF EXISTS summary_hourly_stats CASCADE"))
+        await conn.execute(text(OLD_SUMMARY_HOURLY))
+    await refresh_caggs_range(
+        pg_engine, start=NOW - timedelta(days=1), end=NOW + timedelta(hours=1),
+        caggs=["summary_hourly_stats"],
+    )
+    async with pg_engine.begin() as conn:
+        await conn.execute(text(
+            "SELECT compress_chunk(c, true) FROM show_chunks('access_logs', newer_than => INTERVAL '2 days') c"
+        ))
+        needs = await timescale._timed_columns_need_upgrade(conn)
+    assert "summary_hourly_stats" in needs
+
+    await setup_timescaledb(pg_engine, get_settings().analytics)
+
+    async with pg_engine.connect() as conn:
+        rows = (await conn.execute(text(
+            "SELECT total_requests, timed_requests FROM summary_hourly_stats WHERE bucket >= :s ORDER BY bucket"
+        ), {"s": NOW - timedelta(days=1)})).all()
+        compressed = (await conn.execute(text(
+            "SELECT count(*) FILTER (WHERE is_compressed), count(*) FROM timescaledb_information.chunks "
+            "WHERE hypertable_name = 'access_logs'"
+        ))).one()
+        needs_after = await timescale._timed_columns_need_upgrade(conn)
+    assert [(r.total_requests, r.timed_requests) for r in rows] == [(5, 3), (4, 0)]
+    assert compressed[0] == compressed[1] and compressed[1] >= 1
+    assert "summary_hourly_stats" not in needs_after

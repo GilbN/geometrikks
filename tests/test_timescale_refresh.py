@@ -131,3 +131,37 @@ async def test_cagg_summary_returned_when_only_geo_events_exist():
     assert stats is not None
     assert stats.total_geo_records == 42
     assert stats.total_log_records == 0
+
+
+async def test_refresh_caggs_range_force_flag_adds_force_argument() -> None:
+    from datetime import datetime, timezone
+    from unittest.mock import AsyncMock, MagicMock
+
+    from geometrikks.server import timescale
+
+    driver = MagicMock()
+    driver.execute = AsyncMock()
+    raw = MagicMock()
+    raw.driver_connection = driver
+    conn = MagicMock()
+    conn.get_raw_connection = AsyncMock(return_value=raw)
+    conn.__aenter__ = AsyncMock(return_value=conn)
+    conn.__aexit__ = AsyncMock(return_value=False)
+    engine = MagicMock()
+    engine.connect = MagicMock(return_value=conn)
+
+    start = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    end = datetime(2026, 1, 2, tzinfo=timezone.utc)
+    failed = await timescale.refresh_caggs_range(
+        engine, start=start, end=end, caggs=["summary_hourly_stats"], force=True
+    )
+    assert failed == []
+    assert driver.execute.await_args is not None
+    sql = driver.execute.await_args.args[0]
+    assert "force => true" in sql
+    assert "summary_hourly_stats" in sql
+
+    driver.execute.reset_mock()
+    await timescale.refresh_caggs_range(engine, start=start, end=end, caggs=["summary_hourly_stats"])
+    assert driver.execute.await_args is not None
+    assert "force" not in driver.execute.await_args.args[0]
