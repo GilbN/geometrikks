@@ -92,7 +92,7 @@ from real environment variables. It is read once at import time.
 |---|---|---|
 | `LOGPARSER_ENABLED` | `true` | Enable log parser ingestion service |
 | `LOGPARSER_LOG_PATHS` | *(computed)* | Access log files to tail. Env accepts a single path or a JSON list of paths. Default: /var/log/access/access.log |
-| `LOGPARSER_LOG_FORMATS` | *(computed)* | Log format per tailed file: 'auto' (default, detected from the file's content), 'nginx', or 'traefik-json'. Env accepts a single value applied to every path, or a JSON list matching LOGPARSER_LOG_PATHS by position. |
+| `LOGPARSER_LOG_FORMATS` | *(computed)* | Log format per tailed file: 'auto' (default, detected from the file's content), 'geometrikks-json', 'nginx', or 'traefik-json'. Env accepts a single value applied to every path, or a JSON list matching LOGPARSER_LOG_PATHS by position. |
 | `LOGPARSER_POLL_INTERVAL` | `1.0` | Interval in seconds to poll the log file for new entries |
 | `LOGPARSER_SEND_LOGS` | `true` | Send parsed logs to the database |
 | `LOGPARSER_HOST_NAME` | *(computed)* | Source hostname stamped on ingested records. Env accepts a single value applied to every tailed file, or a JSON list matching LOGPARSER_LOG_PATHS by position. Default: this machine's hostname. |

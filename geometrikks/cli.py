@@ -1,7 +1,8 @@
 """Litestar CLI plugin: `litestar import-logs <paths...>`, `litestar backfill-hostname NAME`, `litestar backfill-asn`.
 
 Import-time safe: settings, engine, reader are constructed inside the
-command callback, never at module import.
+command callback, never at module import. The format registry import
+loads the logparser package but constructs none of those.
 """
 
 from __future__ import annotations
@@ -12,6 +13,8 @@ from pathlib import Path
 
 import click
 from litestar.plugins import CLIPlugin
+
+from geometrikks.services.logparser.formats import FORMATS
 
 
 @click.command(name="import-logs")
@@ -28,7 +31,7 @@ from litestar.plugins import CLIPlugin
     "log_format",
     default="auto",
     show_default=True,
-    type=click.Choice(["auto", "nginx", "traefik-json"]),
+    type=click.Choice(["auto", *FORMATS]),
     help="Log format of the given files (auto = detect per file).",
 )
 @click.option(

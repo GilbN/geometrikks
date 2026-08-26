@@ -250,7 +250,7 @@ class LogParser:
         position = LAST_LINE_COUNT + 1
         log_lines_capture: list[str] = []
         lines = []
-        with open(log_path, "r", encoding="utf-8") as f:
+        with open(log_path, "r", encoding="utf-8", errors="replace") as f:
             while len(log_lines_capture) <= LAST_LINE_COUNT:
                 try:
                     f.seek(-position, os.SEEK_END)  # Move to the last line
@@ -594,7 +594,9 @@ class LogParser:
                 continue
             self._mark_file_present()
 
-            async with aiofiles.open(self.log_path, "r", encoding="utf-8") as file:
+            async with aiofiles.open(
+                self.log_path, "r", encoding="utf-8", errors="replace"
+            ) as file:
                 if seek_to_end:
                     await file.seek(stat_result.st_size)
                 # After a rotation we always read the new file from the start

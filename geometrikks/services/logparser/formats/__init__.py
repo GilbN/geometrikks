@@ -4,12 +4,15 @@ from __future__ import annotations
 from typing import NamedTuple
 
 from .base import LogLineFormat, NormalizedLine
+from .geometrikks_json import GeometrikksJsonFormat
 from .nginx import NginxFormat
 from .traefik import TraefikJsonFormat
 
-# Sniffing order matters: cheap/most-specific first. traefik-json sits in
-# front of nginx: its '{' prefix check is near-free.
+# Sniffing order: the recommended format first, then the other cheap '{'
+# prefix check, then the regex. The two JSON adapters decline each other's
+# lines on required keys (client_ip vs ClientHost), so order is cost only.
 FORMATS: dict[str, LogLineFormat] = {
+    GeometrikksJsonFormat.name: GeometrikksJsonFormat(),
     TraefikJsonFormat.name: TraefikJsonFormat(),
     NginxFormat.name: NginxFormat(),
 }

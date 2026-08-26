@@ -66,3 +66,67 @@ def convert_dash_to_none(value: str | None) -> str | None:
         return None
     stripped = value.strip()
     return stripped if stripped not in ("", "-") else None
+
+
+def detect_probe(
+    request_raw: str | None, method: str | None, status_code: int
+) -> tuple[bool, str | None]:
+    """Classify probe garbage and connection-level statuses; shared by the nginx adapters.
+
+    ``request_raw`` arrives in two escapings. The regex format sees nginx's
+    default escaping as literal text (``\\x16\\x03``); ``escape=json`` writes
+    ``\\u0016\\u0003``, which the JSON decoder turns into raw bytes. Each
+    probe therefore has an escaped-text and a raw-bytes branch.
+
+    Args:
+        request_raw: The raw request line, or None when the format did not log one.
+        method: Normalized HTTP method, None when absent.
+        status_code: Response status.
+
+    Returns:
+        (is_malformed, reason) with reason None when the request looks normal.
+    """
+    request = request_raw or ""
+
+    # TLS handshake sent to HTTP port - starts with \x16\x03 (TLS record header)
+    # Common patterns: \x16\x03\x01 (TLS 1.0), \x16\x03\x03 (TLS 1.2/1.3)
+    # Check both escaped string representation and raw bytes
+    if request:
+        # Escaped form in log: \x16\x03 (nginx default escaping, regex format)
+        if "\\x16\\x03" in request:
+            return True, "TLS handshake sent to HTTP port (escaped)"
+        # Raw bytes form: what the JSON decoder yields for escape=json's \u0016\u0003
+        if "\x16\x03" in request:
+            return True, "TLS handshake sent to HTTP port (raw)"
+        # SSH probe
+        if request.startswith("SSH-") or "\\x53\\x53\\x48" in request:
+            return True, "SSH probe sent to HTTP port"
+        # SMB probe - \xFFSMB or escaped \x00...\xFFSMB
+        if (
+            "\\xffsmb" in request.lower()
+            or "\xffSMB" in request
+            or "SMBr" in request
+        ):
+            return True, "SMB protocol probe (EternalBlue scanner)"
+        if "NT LM" in request:
+            return True, "SMB dialect negotiation probe"
+
+    # TLS probe: No HTTP method and 400 status (client sent HTTP to HTTPS port)
+    if method is None and status_code == 400:
+        return True, "TLS probe: HTTP request sent to HTTPS port"
+    # Invalid HTTP method (connection closed before sending valid request)
+    if method is None:
+        return True, "No HTTP method in request"
+    # Check for non-standard/invalid HTTP methods
+    if method.upper() not in VALID_HTTP_METHODS:
+        return True, f"Invalid HTTP method: {method}"
+
+    # nginx-specific status codes that indicate connection issues, not normal HTTP errors
+    if status_code == 408:
+        return True, "Request timeout (408)"
+    if status_code == 444:
+        return True, "Connection closed without response (nginx 444)"
+    if status_code == 499:
+        return True, "Client closed connection before response (nginx 499)"
+
+    return False, None
