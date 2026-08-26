@@ -810,13 +810,25 @@ TIMED_COUNT_COLUMNS: dict[str, str] = {
 }
 
 
-async def _timed_columns_need_upgrade(conn: "AsyncConnection") -> list[str]:
+async def _timed_columns_need_upgrade(
+    conn: "AsyncConnection", *, raw_retention_days: int
+) -> list[str]:
     """Views whose count column is missing or not yet backfilled.
 
     A view that does not exist yet needs nothing: the CREATE includes the
     column. "Any bucket with a NULL count" is the rerun-safe half of the
     probe: a container killed during the forced refresh comes back with the
     column present and history still uncounted, and must refresh again.
+
+    That half is scoped to the raw retention window, the only span the forced
+    refresh can recount. Daily buckets older than it keep a NULL count for
+    good (their raw rows are gone), and an unscoped probe would see those and
+    schedule the full refresh again on every start. Readers fall back to the
+    bucket's total for them.
+
+    Args:
+        conn: Open connection inside the setup transaction.
+        raw_retention_days: Window the forced refresh covers.
     """
     result = await conn.execute(text("""
         SELECT table_name, column_name FROM information_schema.columns
@@ -832,7 +844,11 @@ async def _timed_columns_need_upgrade(conn: "AsyncConnection") -> list[str]:
             pending.append(view)
             continue
         has_null = (await conn.execute(
-            text(f"SELECT 1 FROM {view} WHERE {column} IS NULL LIMIT 1")
+            text(
+                f"SELECT 1 FROM {view} WHERE {column} IS NULL "
+                f"AND bucket >= now() - make_interval(days => :days) LIMIT 1"
+            ),
+            {"days": raw_retention_days},
         )).scalar()
         if has_null:
             pending.append(view)
@@ -862,10 +878,14 @@ async def _add_timed_columns(conn: "AsyncConnection", views: list[str]) -> list[
         if exists:
             continue
         try:
-            await conn.execute(text(
-                f"ALTER MATERIALIZED VIEW {view} ADD COLUMN {column} bigint "
-                f"GENERATED ALWAYS AS (COUNT(request_time)) STORED"
-            ))
+            # Savepoint: a failed DDL poisons the whole setup transaction, so
+            # without one the fallback DROP below would hit "current
+            # transaction is aborted" and take startup down with it.
+            async with conn.begin_nested():
+                await conn.execute(text(
+                    f"ALTER MATERIALIZED VIEW {view} ADD COLUMN {column} bigint "
+                    f"GENERATED ALWAYS AS (COUNT(request_time)) STORED"
+                ))
             logger.info("cagg_timed_column_added", view=view, column=column)
         except Exception as exc:
             logger.warning(
@@ -976,9 +996,13 @@ async def setup_timescaledb(
         # Probed before the CREATE step: CREATE IF NOT EXISTS never alters an
         # existing view. The forced refresh runs after policies, outside the
         # transaction (CALL cannot run inside one).
-        timed_views = await _timed_columns_need_upgrade(conn)
+        timed_views = await _timed_columns_need_upgrade(
+            conn, raw_retention_days=analytics.raw_retention_days
+        )
         if timed_views:
-            await _add_timed_columns(conn, timed_views)
+            recreated = await _add_timed_columns(conn, timed_views)
+            if recreated:
+                logger.info("cagg_timed_views_recreated", views=recreated)
 
         # Upgrade pre-hostname location CAGGs, gated on hostname pollution:
         # migrating polluted (container-ID) hostnames would make the map's
@@ -1064,16 +1088,20 @@ async def setup_timescaledb(
 
     if timed_views:
         started = time.monotonic()
-        await refresh_caggs_range(
+        failed = await refresh_caggs_range(
             engine,
             start=datetime.now(timezone.utc) - timedelta(days=analytics.raw_retention_days),
             end=datetime.now(timezone.utc),
             caggs=timed_views,
             force=True,
         )
+        if failed:
+            # The column is there but those views' history stays uncounted;
+            # the next start finds the NULL counts and refreshes them again.
+            logger.warning("cagg_timed_refresh_failed", views=failed)
         logger.info(
             "cagg_timed_refresh_done",
-            views=timed_views,
+            views=[view for view in timed_views if view not in failed],
             seconds=round(time.monotonic() - started, 1),
         )
 

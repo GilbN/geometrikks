@@ -320,6 +320,10 @@ class SummaryStatsRepository:
 
         # Combined query for access log, geo metrics, and malformed requests
         # Floor start time to bucket boundary for CAGG queries
+        # COALESCE(timed_requests, total_requests): buckets older than the raw
+        # retention window never got a count (the rows needed to recount them
+        # are gone) and their mean was taken over every row, so every row of
+        # theirs counts as timed.
         stmt = text(f"""
             SELECT
                 log.total_log_records,
@@ -347,8 +351,9 @@ class SummaryStatsRepository:
                     COALESCE(SUM(status_3xx), 0) AS status_3xx,
                     COALESCE(SUM(status_4xx), 0) AS status_4xx,
                     COALESCE(SUM(status_5xx), 0) AS status_5xx,
-                    COALESCE(SUM(timed_requests), 0) AS timed_requests,
-                    SUM(avg_request_time * timed_requests) / NULLIF(SUM(timed_requests), 0) AS avg_request_time,
+                    COALESCE(SUM(COALESCE(timed_requests, total_requests)), 0) AS timed_requests,
+                    SUM(avg_request_time * COALESCE(timed_requests, total_requests))
+                        / NULLIF(SUM(COALESCE(timed_requests, total_requests)), 0) AS avg_request_time,
                     MAX(max_request_time) AS max_request_time,
                     approx_percentile(0.50, rollup(pct_agg)) AS p50_request_time,
                     approx_percentile(0.95, rollup(pct_agg)) AS p95_request_time,
@@ -437,7 +442,9 @@ class SummaryStatsRepository:
             # Local days assembled from hourly buckets: counts sum, sketches
             # merge via rollup(), and the mean is weighted by the timed rows
             # of each hour, so hours with unmeasured requests do not dilute
-            # it. GROUP BY 1: a bare "bucket" would resolve to the source column.
+            # it. Buckets predating the count column have no count and were
+            # averaged over every row, so they weigh in with total_requests.
+            # GROUP BY 1: a bare "bucket" would resolve to the source column.
             stmt = text("""
                 SELECT
                     time_bucket('1 day', bucket, CAST(:tz AS TEXT)) AS bucket,
@@ -447,9 +454,9 @@ class SummaryStatsRepository:
                     CAST(SUM(status_3xx) AS BIGINT) AS status_3xx,
                     CAST(SUM(status_4xx) AS BIGINT) AS status_4xx,
                     CAST(SUM(status_5xx) AS BIGINT) AS status_5xx,
-                    CAST(COALESCE(SUM(timed_requests), 0) AS BIGINT) AS timed_requests,
-                    SUM(avg_request_time * timed_requests)
-                        / NULLIF(SUM(timed_requests), 0) AS avg_request_time,
+                    CAST(COALESCE(SUM(COALESCE(timed_requests, total_requests)), 0) AS BIGINT) AS timed_requests,
+                    SUM(avg_request_time * COALESCE(timed_requests, total_requests))
+                        / NULLIF(SUM(COALESCE(timed_requests, total_requests)), 0) AS avg_request_time,
                     MAX(max_request_time) AS max_request_time,
                     approx_percentile(0.50, rollup(pct_agg)) AS p50_request_time,
                     approx_percentile(0.95, rollup(pct_agg)) AS p95_request_time,
@@ -474,7 +481,7 @@ class SummaryStatsRepository:
                     status_3xx,
                     status_4xx,
                     status_5xx,
-                    timed_requests,
+                    COALESCE(timed_requests, total_requests) AS timed_requests,
                     avg_request_time,
                     max_request_time,
                     approx_percentile(0.50, pct_agg) AS p50_request_time,
@@ -700,9 +707,12 @@ class SummaryStatsRepository:
                 start, end, limit, filters=filters
             )
         table = f"url_{granularity.value}_stats"
+        # COALESCE(s.timed_hits, s.hits): buckets older than the raw retention
+        # window never got a count and timed every row they cover.
         stmt = text(f"""
             WITH combined AS (
-                SELECT s.url, s.hits, s.timed_hits, s.error_hits, s.total_bytes, s.total_request_time
+                SELECT s.url, s.hits, COALESCE(s.timed_hits, s.hits) AS timed_hits,
+                       s.error_hits, s.total_bytes, s.total_request_time
                 FROM {table} s
                 WHERE s.bucket >= :a_start AND s.bucket < :a_end
                 UNION ALL
@@ -721,7 +731,7 @@ class SummaryStatsRepository:
             SELECT
                 url,
                 CAST(SUM(hits) AS BIGINT) AS hits,
-                CAST(SUM(timed_hits) AS BIGINT) AS timed_hits,
+                CAST(COALESCE(SUM(timed_hits), 0) AS BIGINT) AS timed_hits,
                 CAST(SUM(error_hits) AS BIGINT) AS error_hits,
                 CAST(COALESCE(SUM(total_bytes), 0) AS BIGINT) AS total_bytes,
                 SUM(total_request_time) / NULLIF(SUM(timed_hits), 0) AS avg_request_time

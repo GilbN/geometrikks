@@ -552,6 +552,8 @@ def test_backfill_timings_previews_then_updates_and_refreshes(monkeypatch) -> No
 
 
 def test_backfill_timings_narrows_by_hostname_and_before(monkeypatch) -> None:
+    from datetime import datetime, timezone
+
     engine = _make_timings_engine(5, rowcount=5)
     refresh = AsyncMock(return_value=[])
     result = _invoke_backfill_timings(
@@ -562,6 +564,7 @@ def test_backfill_timings_narrows_by_hostname_and_before(monkeypatch) -> None:
     assert "hostname = :hostname" in str(preview_call.args[0])
     assert "timestamp < :before" in str(preview_call.args[0])
     assert preview_call.args[1]["hostname"] == "nginx-01"
+    assert preview_call.args[1]["before"] == datetime(2026, 8, 20, tzinfo=timezone.utc)
 
 
 def test_backfill_timings_aborts_without_confirmation(monkeypatch) -> None:
