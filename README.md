@@ -216,7 +216,7 @@ fact:
 | Missing field | What it costs you |
 | --- | --- |
 | `$host` | The host filter on the access-log and analytics pages has nothing to list |
-| `$request_time` | Response-time average and percentiles read 0.00s |
+| `$request_time` | Response-time cards show n/a for those rows; run `backfill-timings` after importing so the rows stop counting as 0.00s |
 | `$upstream_response_time` | Upstream timing stays empty in the access-log detail view |
 
 The map, geo analytics, status codes, URLs, referrers, user agents and bytes
@@ -785,6 +785,28 @@ the backfilled range until they refresh. Rerunning is safe.
 
 Today's ASN database describes today's network ownership; stamping
 years-old traffic with it is an approximation.
+
+### backfill-timings: clear placeholder response times
+
+Archives in nginx's built-in `combined` format have no `$request_time`.
+Older versions stored those rows with a response time of 0.0, which
+dragged every average and percentile toward zero. Rows ingested by this
+version store no timing at all for such lines; `backfill-timings` does
+the same for the rows that predate it:
+
+```bash
+docker compose exec -u geometrikks app litestar backfill-timings
+```
+
+It only touches rows the legacy nginx format wrote without a host, which is
+how a `combined` line looks after import (the custom format always logs
+`$host`), and whose response time is exactly 0. A genuine sub-millisecond
+timing on a row with a host is left alone. `--hostname NAME` and
+`--before 2026-08-20` narrow the set; the command prints the row count and
+time span and asks for confirmation (`--yes` skips it). Like the other
+backfills it decompresses history chunks first and refreshes the affected
+continuous aggregates afterwards, so it may run for minutes on a large
+database.
 
 ### Large imports and backfills
 
