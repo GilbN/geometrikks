@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - The Overview's Avg and Max Request Time cards formatted seconds as if they were milliseconds, showing a 40 ms average as 40μs.
 - Stat cards on the Summary, Geo logs and Debug logs pages no longer read "Last Last month" or "Last Today" for calendar presets. Calendar ranges show their own name, and trends on the Summary page read "vs previous period" instead of "vs last Yesterday".
+- The map basemap follows the System theme. It stayed dark while the rest of the app switched to light with the OS, and now switches with it, live.
 
 ## [0.11.0] - 2026-08-27
 
