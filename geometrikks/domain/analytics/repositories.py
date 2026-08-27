@@ -33,6 +33,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from geometrikks.server.logging import get_logger
+from geometrikks.server.timescale import LATENCY_FILTER, latency_filter
 
 logger = get_logger(__name__)
 
@@ -249,7 +250,7 @@ class SummaryStatsRepository:
         Provides exact time range granularity for short ranges.
         """
         # Query AccessLog for request metrics
-        access_stmt = text("""
+        access_stmt = text(f"""
             SELECT
                 COUNT(*) AS total_log_records,
                 COALESCE(SUM(bytes_sent), 0) AS total_bytes,
@@ -257,12 +258,12 @@ class SummaryStatsRepository:
                 COUNT(*) FILTER (WHERE status_code >= 300 AND status_code < 400) AS status_3xx,
                 COUNT(*) FILTER (WHERE status_code >= 400 AND status_code < 500) AS status_4xx,
                 COUNT(*) FILTER (WHERE status_code >= 500 AND status_code < 600) AS status_5xx,
-                COUNT(request_time) AS timed_requests,
-                AVG(request_time) AS avg_request_time,
-                MAX(request_time) AS max_request_time,
-                PERCENTILE_CONT(0.50) WITHIN GROUP (ORDER BY request_time) AS p50_request_time,
-                PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY request_time) AS p95_request_time,
-                PERCENTILE_CONT(0.99) WITHIN GROUP (ORDER BY request_time) AS p99_request_time
+                COUNT(request_time) FILTER (WHERE {LATENCY_FILTER}) AS timed_requests,
+                AVG(request_time) FILTER (WHERE {LATENCY_FILTER}) AS avg_request_time,
+                MAX(request_time) FILTER (WHERE {LATENCY_FILTER}) AS max_request_time,
+                PERCENTILE_CONT(0.50) WITHIN GROUP (ORDER BY request_time) FILTER (WHERE {LATENCY_FILTER}) AS p50_request_time,
+                PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY request_time) FILTER (WHERE {LATENCY_FILTER}) AS p95_request_time,
+                PERCENTILE_CONT(0.99) WITHIN GROUP (ORDER BY request_time) FILTER (WHERE {LATENCY_FILTER}) AS p99_request_time
             FROM access_logs
             WHERE timestamp >= :start AND timestamp < :end
         """)
@@ -740,14 +741,18 @@ class SummaryStatsRepository:
                 FROM {table} s
                 WHERE s.bucket >= :a_start AND s.bucket < :a_end
                 UNION ALL
-                SELECT al.url, CAST(1 AS BIGINT), CAST((al.request_time IS NOT NULL)::int AS BIGINT),
-                       CAST((al.status_code >= 400)::int AS BIGINT), al.bytes_sent, al.request_time
+                SELECT al.url, CAST(1 AS BIGINT),
+                       CAST((al.request_time IS NOT NULL AND {latency_filter("al.")})::int AS BIGINT),
+                       CAST((al.status_code >= 400)::int AS BIGINT), al.bytes_sent,
+                       CASE WHEN {latency_filter("al.")} THEN al.request_time END
                 FROM access_logs al
                 WHERE al.timestamp >= :start AND al.timestamp < :a_start
                   AND al.url IS NOT NULL
                 UNION ALL
-                SELECT al.url, CAST(1 AS BIGINT), CAST((al.request_time IS NOT NULL)::int AS BIGINT),
-                       CAST((al.status_code >= 400)::int AS BIGINT), al.bytes_sent, al.request_time
+                SELECT al.url, CAST(1 AS BIGINT),
+                       CAST((al.request_time IS NOT NULL AND {latency_filter("al.")})::int AS BIGINT),
+                       CAST((al.status_code >= 400)::int AS BIGINT), al.bytes_sent,
+                       CASE WHEN {latency_filter("al.")} THEN al.request_time END
                 FROM access_logs al
                 WHERE al.timestamp >= :a_end AND al.timestamp < :end
                   AND al.url IS NOT NULL
@@ -1213,7 +1218,7 @@ class LiveStatsRepository:
             SummaryStats with live values, or None if no data.
         """
         # Query AccessLog for request metrics
-        access_stmt = text("""
+        access_stmt = text(f"""
             SELECT
                 COUNT(*) AS total_requests,
                 COALESCE(SUM(bytes_sent), 0) AS total_bytes,
@@ -1221,12 +1226,12 @@ class LiveStatsRepository:
                 COUNT(*) FILTER (WHERE status_code >= 300 AND status_code < 400) AS status_3xx,
                 COUNT(*) FILTER (WHERE status_code >= 400 AND status_code < 500) AS status_4xx,
                 COUNT(*) FILTER (WHERE status_code >= 500 AND status_code < 600) AS status_5xx,
-                COUNT(request_time) AS timed_requests,
-                AVG(request_time) AS avg_request_time,
-                MAX(request_time) AS max_request_time,
-                PERCENTILE_CONT(0.50) WITHIN GROUP (ORDER BY request_time) AS p50_request_time,
-                PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY request_time) AS p95_request_time,
-                PERCENTILE_CONT(0.99) WITHIN GROUP (ORDER BY request_time) AS p99_request_time
+                COUNT(request_time) FILTER (WHERE {LATENCY_FILTER}) AS timed_requests,
+                AVG(request_time) FILTER (WHERE {LATENCY_FILTER}) AS avg_request_time,
+                MAX(request_time) FILTER (WHERE {LATENCY_FILTER}) AS max_request_time,
+                PERCENTILE_CONT(0.50) WITHIN GROUP (ORDER BY request_time) FILTER (WHERE {LATENCY_FILTER}) AS p50_request_time,
+                PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY request_time) FILTER (WHERE {LATENCY_FILTER}) AS p95_request_time,
+                PERCENTILE_CONT(0.99) WITHIN GROUP (ORDER BY request_time) FILTER (WHERE {LATENCY_FILTER}) AS p99_request_time
             FROM access_logs
             WHERE timestamp >= :start AND timestamp < :end
         """)
@@ -1328,12 +1333,12 @@ class LiveStatsRepository:
                 COUNT(*) FILTER (WHERE status_code >= 300 AND status_code < 400) AS status_3xx,
                 COUNT(*) FILTER (WHERE status_code >= 400 AND status_code < 500) AS status_4xx,
                 COUNT(*) FILTER (WHERE status_code >= 500 AND status_code < 600) AS status_5xx,
-                COUNT(request_time) AS timed_requests,
-                AVG(request_time) AS avg_request_time,
-                MAX(request_time) AS max_request_time,
-                PERCENTILE_CONT(0.50) WITHIN GROUP (ORDER BY request_time) AS p50_request_time,
-                PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY request_time) AS p95_request_time,
-                PERCENTILE_CONT(0.99) WITHIN GROUP (ORDER BY request_time) AS p99_request_time
+                COUNT(request_time) FILTER (WHERE {LATENCY_FILTER}) AS timed_requests,
+                AVG(request_time) FILTER (WHERE {LATENCY_FILTER}) AS avg_request_time,
+                MAX(request_time) FILTER (WHERE {LATENCY_FILTER}) AS max_request_time,
+                PERCENTILE_CONT(0.50) WITHIN GROUP (ORDER BY request_time) FILTER (WHERE {LATENCY_FILTER}) AS p50_request_time,
+                PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY request_time) FILTER (WHERE {LATENCY_FILTER}) AS p95_request_time,
+                PERCENTILE_CONT(0.99) WITHIN GROUP (ORDER BY request_time) FILTER (WHERE {LATENCY_FILTER}) AS p99_request_time
             FROM access_logs
             WHERE timestamp >= :start AND timestamp < :end
             {filter_sql}
@@ -1367,8 +1372,8 @@ class LiveStatsRepository:
     ) -> list[TopUrlRow]:
         """Top URLs by hit count from raw access_logs (time-bounded).
 
-        Raw-table scan by design: no CAGG exists for URL cardinality yet
-        (future optimization; fine at homelab volume with chunk exclusion).
+        Raw-table scan: this path serves ranges of 24h or less and every
+        filtered request, which the URL CAGGs cannot answer.
         """
         filter_sql, filter_params = (filters or AnalyticsFilters()).sql_conditions()
         stmt = text(f"""
@@ -1377,8 +1382,8 @@ class LiveStatsRepository:
                 CAST(COUNT(*) AS BIGINT) AS hits,
                 CAST(COUNT(*) FILTER (WHERE status_code >= 400) AS BIGINT) AS error_hits,
                 CAST(COALESCE(SUM(bytes_sent), 0) AS BIGINT) AS total_bytes,
-                CAST(COUNT(request_time) AS BIGINT) AS timed_hits,
-                AVG(request_time) AS avg_request_time
+                CAST(COUNT(request_time) FILTER (WHERE {LATENCY_FILTER}) AS BIGINT) AS timed_hits,
+                AVG(request_time) FILTER (WHERE {LATENCY_FILTER}) AS avg_request_time
             FROM access_logs
             WHERE timestamp >= :start AND timestamp < :end AND url IS NOT NULL
             {filter_sql}
