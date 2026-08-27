@@ -10,11 +10,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Response-time cards and the latency chart read "n/a" when the selected range has no measured requests, and "From N% of requests" when only some rows carry a timing. Top URLs and the access-log table show "n/a" for rows without one.
-- `litestar backfill-timings` clears the placeholder 0.0 response time on rows imported from `combined`-format nginx archives, optionally narrowed by `--hostname` and `--before`.
+- `litestar backfill-timings` clears the placeholder 0.0 response time on rows imported from `combined`-format nginx archives. `--hostname` and `--before` narrow which rows it touches.
 
 ### Changed
 
-- A missing `request_time` is stored as NULL instead of 0.0, so unmeasured requests stop pulling the response-time average and percentiles toward zero. The summary and URL aggregates gain a count of measured rows; the first start after upgrading adds it in place and refreshes those four aggregates over the raw retention window, which takes minutes on large databases and keeps all history. Buckets older than that window keep their pre-upgrade figures, computed over every row, because the raw rows needed to recount them are gone.
+- A missing `request_time` is now NULL instead of 0.0, so unmeasured requests stop dragging the response-time average and percentiles toward zero. The summary and URL aggregates gain a count of measured rows. The first start after upgrading adds that column in place and refreshes those four aggregates over the raw retention window; on a large database this takes minutes, and no history is lost. Buckets older than the window keep their pre-upgrade figures, which counted every row, because the raw rows needed to recount them are gone.
 
 ### Fixed
 
