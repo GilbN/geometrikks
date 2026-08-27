@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Response-time cards and the latency chart read "n/a" when the selected range has no measured requests, and "From N% of requests" when only some rows carry a timing. Top URLs and the access-log table show "n/a" for rows without one.
+- `litestar backfill-timings` clears the placeholder 0.0 response time on rows imported from `combined`-format nginx archives, optionally narrowed by `--hostname` and `--before`.
+
+### Changed
+
+- A missing `request_time` is stored as NULL instead of 0.0, so unmeasured requests stop pulling the response-time average and percentiles toward zero. The summary and URL aggregates gain a count of measured rows; the first start after upgrading adds it in place and refreshes those four aggregates over the raw retention window, which takes minutes on large databases and keeps all history. Buckets older than that window keep their pre-upgrade figures, computed over every row, because the raw rows needed to recount them are gone.
+
+### Fixed
+
+- The Overview's Avg and Max Request Time cards formatted seconds as if they were milliseconds, showing a 40 ms average as 40μs.
+
 ## [0.11.0] - 2026-08-27
 
 ### Added
@@ -22,8 +35,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Settings > Appearance: theme (System, Light, Dark) and accent (teal, green, copper) side by side with previews. System follows the device's color scheme live, not only at page load. The accent is also switchable from the header, persists per browser and is applied before first paint.
 - Open Graph and Twitter card tags on the app shell.
 - `geometrikks-json`, a keyed JSON access-log format for nginx (`log_format ... escape=json`) and the recommended nginx setup. Lines decode against a fixed schema instead of a positional regex, so a broken or mistyped format is rejected rather than mapped to the wrong columns. Works with live tailing, `LOGPARSER_LOG_FORMATS` and `import-logs --format geometrikks-json`. The existing nginx format keeps working.
-- Response-time cards and the latency chart read "n/a" when the selected range has no measured requests, and "From N% of requests" when only some rows carry a timing. Top URLs and the access-log table show "n/a" for rows without one.
-- `litestar backfill-timings` clears the placeholder 0.0 response time on rows imported from `combined`-format nginx archives, optionally narrowed by `--hostname` and `--before`.
 
 ### Changed
 
@@ -31,7 +42,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Refactored the Settings pages.
 - Tables, stat cards and data panels use one set of labels, borders and shadows across every page, and each page has a one-line description under its title.
 - Map popups and controls follow the active theme and accent.
-- A missing `request_time` is stored as NULL instead of 0.0, so unmeasured requests stop pulling the response-time average and percentiles toward zero. The summary and URL aggregates gain a count of measured rows; the first start after upgrading adds it in place and refreshes those four aggregates over the raw retention window, which takes minutes on large databases and keeps all history. Buckets older than that window keep their pre-upgrade figures, computed over every row, because the raw rows needed to recount them are gone.
 
 ### Removed
 
@@ -44,7 +54,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Stat card trend badges no longer pair a 0.0% label with an up or down arrow; tiny and non-finite deltas render as flat or hidden.
 - Live tail: the Status column is wide enough for its header, which ran into Method.
 - Ingestion reloads its GeoIP readers after the weekly GeoLite2 refresh replaces the database files, so new geo data applies without a restart. This also picks up files replaced outside the app (for example by `geoipupdate`), and a start in geo-degraded mode recovers on its own once a later scheduled download succeeds. Running the refresh job from Settings downloads fresh databases even when the current files are younger than `GEOIP_REFRESH_DAYS`, and applies a file replaced outside the app immediately.
-- The Overview's Avg and Max Request Time cards formatted seconds as if they were milliseconds, showing a 40 ms average as 40μs.
 
 ## [0.10.0] - 2026-08-22
 
