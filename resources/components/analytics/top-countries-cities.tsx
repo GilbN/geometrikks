@@ -22,7 +22,7 @@ export function TopCountriesCities() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-sm font-medium">Top Countries / Cities</CardTitle>
+        <CardTitle className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Top Countries / Cities</CardTitle>
       </CardHeader>
       <CardContent>
         <Tabs defaultValue="countries">

@@ -29,6 +29,7 @@ import {
   fetchGeoLogTopCountries,
   fetchGeoLogTopCities,
   fetchGeoEventFacets,
+  deleteSiteHome,
   fetchSiteHomes,
   fetchRuntimeSettings,
   fetchSystemSettings,
@@ -1296,6 +1297,16 @@ export function useSiteHomes() {
     queryKey: queryKeys.geo.siteHomes,
     queryFn: fetchSiteHomes,
     staleTime: 5 * 60 * 1000,
+  })
+}
+
+/** Removes a retired source's auto home; the map's home resolver rebuilds
+ *  from the refetched list. */
+export function useDeleteSiteHome() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (hostname: string) => deleteSiteHome(hostname),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.geo.siteHomes }),
   })
 }
 

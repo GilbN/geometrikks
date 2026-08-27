@@ -116,6 +116,9 @@ import type {
   ApiV1GeoLocationsLocationIdTopIpsGetLocationTopIpsData,
   ApiV1GeoLocationsLocationIdTopIpsGetLocationTopIpsErrors,
   ApiV1GeoLocationsLocationIdTopIpsGetLocationTopIpsResponses,
+  ApiV1GeoLocationsSiteHomesHostnameDeleteSiteHomeData,
+  ApiV1GeoLocationsSiteHomesHostnameDeleteSiteHomeErrors,
+  ApiV1GeoLocationsSiteHomesHostnameDeleteSiteHomeResponses,
   ApiV1GeoLocationsSiteHomesSiteHomesData,
   ApiV1GeoLocationsSiteHomesSiteHomesResponses,
   ApiV1GeoLocationsTopCountriesGetTopCountriesData,
@@ -1293,6 +1296,39 @@ export const apiV1GeoLocationsSiteHomesSiteHomes = <
       },
     ],
     url: "/api/v1/geo-locations/site-homes",
+    ...options,
+  });
+
+/**
+ * DeleteSiteHome
+ *
+ * Remove a retired source's auto-detected home. Override rows (MAP_HOME_LOCATIONS) cannot be removed here.
+ */
+export const apiV1GeoLocationsSiteHomesHostnameDeleteSiteHome = <
+  ThrowOnError extends boolean = false,
+>(
+  options: Options<
+    ApiV1GeoLocationsSiteHomesHostnameDeleteSiteHomeData,
+    ThrowOnError
+  >,
+): RequestResult<
+  ApiV1GeoLocationsSiteHomesHostnameDeleteSiteHomeResponses,
+  ApiV1GeoLocationsSiteHomesHostnameDeleteSiteHomeErrors,
+  ThrowOnError
+> =>
+  (options.client ?? client).delete<
+    ApiV1GeoLocationsSiteHomesHostnameDeleteSiteHomeResponses,
+    ApiV1GeoLocationsSiteHomesHostnameDeleteSiteHomeErrors,
+    ThrowOnError
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+    ],
+    url: "/api/v1/geo-locations/site-homes/{hostname}",
     ...options,
   });
 

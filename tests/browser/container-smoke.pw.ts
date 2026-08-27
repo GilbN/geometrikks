@@ -68,7 +68,9 @@ test("production image serves the authenticated dashboard without browser errors
 
   await page.goto("/")
   await expect(page).toHaveURL(/\/login$/)
-  await expect(page.getByText("GeoMetrikks", { exact: true })).toBeVisible()
+  // The wordmark is letters plus an inline SVG ligature, so there is no
+  // "GeoMetrikks" text node; its role="img" carries the name instead.
+  await expect(page.getByRole("img", { name: "GeoMetrikks" })).toBeVisible()
 
   const screenshotDir = path.resolve("smoke-artifacts/screenshots")
   await mkdir(screenshotDir, { recursive: true })
@@ -136,6 +138,10 @@ test("production image serves the authenticated dashboard without browser errors
   // making the document wider on very narrow phones.
   await page.setViewportSize({ width: 320, height: 812 })
   await page.goto("/settings/environment")
+  // goto resolves on the document's load event, before React has mounted;
+  // the width probe below needs the rendered page, so wait for it like the
+  // other two breakpoints do.
+  await expect(page.getByRole("heading", { name: "Environment" })).toBeVisible()
   const narrowWidths = await page.evaluate(() => {
     const content = document.querySelector<HTMLElement>("main.overflow-auto")
     if (!content) {

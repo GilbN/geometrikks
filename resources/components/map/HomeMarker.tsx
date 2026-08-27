@@ -37,25 +37,25 @@ export function HomeMarker({
     >
       <div className="relative" aria-label={label}>
         {/* Ground ripple where the tip meets the coordinate */}
-        <span className="absolute bottom-0 left-1/2 h-3 w-3 -translate-x-1/2 translate-y-1/2 rounded-full border border-geo-cyan/70 animate-ping [animation-duration:2.4s] motion-reduce:animate-none motion-reduce:opacity-0" />
+        <span className="absolute bottom-0 left-1/2 h-3 w-3 -translate-x-1/2 translate-y-1/2 rounded-full border border-primary/70 animate-ping [animation-duration:2.4s] motion-reduce:animate-none motion-reduce:opacity-0" />
         {/* Teardrop pin */}
         <svg
           width="30"
           height="40"
           viewBox="0 0 30 40"
-          className="drop-shadow-[0_0_6px_var(--geo-cyan-dim)]"
+          className="drop-shadow-[0_0_6px_var(--primary-dim)]"
         >
           <path
             d="M15 38.5 C 11 31.5 3 21.5 3 13 A 12 12 0 1 1 27 13 C 27 21.5 19 31.5 15 38.5 Z"
             fill="var(--background)"
             fillOpacity="0.92"
-            stroke="var(--geo-cyan)"
+            stroke="var(--primary)"
             strokeWidth="2"
             strokeLinejoin="round"
           />
         </svg>
         {/* Home glyph centered in the pin head (head center is at y=13 of 40) */}
-        <Home className="absolute top-[6px] left-1/2 h-3.5 w-3.5 -translate-x-1/2 text-geo-cyan" />
+        <Home className="absolute top-[6px] left-1/2 h-3.5 w-3.5 -translate-x-1/2 text-primary" />
         {/* Only the head is clickable; the stem and tip pass clicks through so
             data markers sharing the home coordinate remain reachable. */}
         <button

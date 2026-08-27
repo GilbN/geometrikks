@@ -25,13 +25,19 @@ export const EMPTY_FILTERS: AnalyticsFilterState = {
   ipsExclude: [],
 }
 
-export function hasActiveAnalyticsFilters(filters: AnalyticsFilterState): boolean {
+/** How many filter groups are set; a multi-select counts once however
+ * many values it holds. Drives the rail badge and the mobile drawer count. */
+export function countActiveAnalyticsFilters(filters: AnalyticsFilterState): number {
   return (
-    filters.countryCodes.length > 0 ||
-    filters.cities.length > 0 ||
-    filters.ips.length > 0 ||
-    filters.ipsExclude.length > 0
+    (filters.countryCodes.length ? 1 : 0) +
+    (filters.cities.length ? 1 : 0) +
+    (filters.ips.length ? 1 : 0) +
+    (filters.ipsExclude.length ? 1 : 0)
   )
+}
+
+export function hasActiveAnalyticsFilters(filters: AnalyticsFilterState): boolean {
+  return countActiveAnalyticsFilters(filters) > 0
 }
 
 interface AnalyticsFiltersValue {

@@ -21,12 +21,14 @@ import {
 import { Separator } from "@/components/ui/separator"
 import { AppSidebar } from "@/components/app-sidebar"
 import { ModeToggle } from "@/components/mode-toggle"
+import { AccentToggle } from "@/components/accent-toggle"
 import { TimeRangeProvider } from "@/lib/time-range-context"
 import { LiveFeedProvider } from "@/lib/live-feed-context"
 import { TimeRangeToolbar } from "@/components/time-range-toolbar"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { BrandScreen } from "@/components/brand/brand-screen"
+import { ErrorBanner } from "@/components/error-banner"
 import { Button } from "@/components/ui/button"
-import { AlertTriangle, RefreshCw, Home } from "lucide-react"
+import { RefreshCw, Home } from "lucide-react"
 
 export const Route = createRootRoute({
   component: RootLayout,
@@ -107,7 +109,7 @@ function GeoDegradedBanner() {
   if (!data || data.geoip.available) return null
   return (
     <div className="bg-amber-500/15 text-amber-600 dark:text-amber-400 text-xs px-4 py-1.5 border-b border-amber-500/30">
-      Geo lookups disabled — no GeoLite2 database. Set MAXMINDDB_USER_ID and
+      Geo lookups disabled: no GeoLite2 database. Set MAXMINDDB_USER_ID and
       MAXMINDDB_LICENSE_KEY in your .env and restart. (Free key: maxmind.com/en/geolite2/signup)
     </div>
   )
@@ -137,7 +139,7 @@ function RootLayout() {
               <OfflineBanner />
               <GeoDegradedBanner />
               {/* Top header bar */}
-              <header className="flex h-14 shrink-0 items-center justify-between gap-1 border-b border-border/50 px-2 pt-[env(safe-area-inset-top,0px)] pl-[max(0.5rem,env(safe-area-inset-left,0px))] pr-[max(0.5rem,env(safe-area-inset-right,0px))] box-content sm:gap-2 sm:px-4 sm:pl-[max(1rem,env(safe-area-inset-left,0px))] sm:pr-[max(1rem,env(safe-area-inset-right,0px))]">
+              <header className="relative z-10 flex h-14 shrink-0 items-center justify-between gap-1 border-b border-border/50 bg-background px-2 pt-[env(safe-area-inset-top,0px)] pl-[max(0.5rem,env(safe-area-inset-left,0px))] pr-[max(0.5rem,env(safe-area-inset-right,0px))] box-content sm:gap-2 sm:px-4 sm:pl-[max(1rem,env(safe-area-inset-left,0px))] sm:pr-[max(1rem,env(safe-area-inset-right,0px))]">
                 <div className="flex min-w-0 flex-1 items-center gap-2">
                   <SidebarTrigger className="-ml-1" />
                   <Separator orientation="vertical" className="mr-2 hidden h-4 sm:block" />
@@ -149,6 +151,7 @@ function RootLayout() {
                       mobile map-controls drawer trigger in MapControls). */}
                   <span id="header-actions-slot" className="contents" />
                   <Separator orientation="vertical" className="hidden h-6 sm:block" />
+                  <AccentToggle />
                   <ModeToggle />
                 </div>
               </header>
@@ -169,38 +172,26 @@ function RootLayout() {
 function RootErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   return (
     <ThemeProvider defaultTheme="dark" storageKey="geometrikks-theme">
-      <div className="min-h-screen bg-background flex items-center justify-center p-4">
-        <Card className="max-w-lg w-full">
-          <CardHeader className="text-center">
-            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-destructive/10">
-              <AlertTriangle className="h-6 w-6 text-destructive" />
-            </div>
-            <CardTitle className="text-xl">Something went wrong</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <p className="text-sm text-muted-foreground text-center">
-              An unexpected error occurred. You can try refreshing the page or going back to the home page.
-            </p>
-            {error?.message && (
-              <div className="rounded-md bg-muted p-3">
-                <code className="text-xs text-muted-foreground break-all">
-                  {error.message}
-                </code>
-              </div>
-            )}
-            <div className="flex gap-2 justify-center">
-              <Button variant="outline" onClick={reset}>
-                <RefreshCw className="h-4 w-4 mr-2" />
-                Try again
-              </Button>
-              <Button variant="default" onClick={() => window.location.href = "/"}>
-                <Home className="h-4 w-4 mr-2" />
-                Go home
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+      <BrandScreen
+        title="Something went wrong"
+        description="Try again, or go back to the overview."
+        backdrop="map"
+        className="max-w-lg"
+      >
+        <div className="space-y-4">
+          {error?.message && <ErrorBanner title={error.message} />}
+          <div className="flex gap-2 justify-center">
+            <Button variant="outline" onClick={reset}>
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Try again
+            </Button>
+            <Button variant="default" onClick={() => (window.location.href = "/")}>
+              <Home className="h-4 w-4 mr-2" />
+              Go home
+            </Button>
+          </div>
+        </div>
+      </BrandScreen>
     </ThemeProvider>
   )
 }
@@ -208,29 +199,20 @@ function RootErrorComponent({ error, reset }: { error: Error; reset: () => void 
 function NotFoundComponent() {
   return (
     <ThemeProvider defaultTheme="dark" storageKey="geometrikks-theme">
-      <div className="min-h-screen bg-background flex items-center justify-center p-4">
-        <Card className="max-w-lg w-full">
-          <CardHeader className="text-center">
-            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-muted">
-              <AlertTriangle className="h-6 w-6 text-muted-foreground" />
-            </div>
-            <CardTitle className="text-xl">Page Not Found</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <p className="text-sm text-muted-foreground text-center">
-              The page you're looking for doesn't exist or has been moved.
-            </p>
-            <div className="flex gap-2 justify-center">
-              <Button variant="default" asChild>
-                <Link to="/">
-                  <Home className="h-4 w-4 mr-2" />
-                  Go home
-                </Link>
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+      <BrandScreen
+        title="Page not found"
+        description="Nothing lives at this address, or it has moved."
+        backdrop="map"
+      >
+        <div className="flex justify-center">
+          <Button variant="default" asChild>
+            <Link to="/">
+              <Home className="h-4 w-4 mr-2" />
+              Go home
+            </Link>
+          </Button>
+        </div>
+      </BrandScreen>
     </ThemeProvider>
   )
 }

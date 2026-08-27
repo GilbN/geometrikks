@@ -1,11 +1,12 @@
 /**
  * Historical access-logs table: server-paginated, newest-first, scoped to the
  * global time range. Sorting and pagination state live on the parent route
- * (URL search params), driven here via props and callbacks; only column
- * visibility is local state. Filter values come from AccessLogFiltersContext
+ * (URL search params), driven here via props and callbacks; column visibility
+ * persists per browser and the selected row is local state. Filter values come from AccessLogFiltersContext
  * (search, IP, host, hostname, source format, status, method, country and
  * city live in access-logs-filter-bar.tsx). Pairs with GET /api/v1/access-logs/.
  */
+import { useState } from "react"
 import { ArrowDown, ArrowUp, ChevronsUpDown, Columns3 } from "lucide-react"
 import {
   Table,
@@ -17,7 +18,11 @@ import {
 } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Skeleton } from "@/components/ui/skeleton"
+import { DataTableFrame } from "@/components/data/data-table-frame"
+import { rowActivation, stopRowActivation } from "@/components/data/row-activation"
+import { dataState } from "@/components/data/types"
+import { AccessLogDetailSheet } from "@/components/access-logs/access-log-detail-sheet"
+import { ACCESS_LOG_COLUMNS, type AccessLogColumn } from "@/components/access-logs/columns"
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -40,209 +45,92 @@ import {
 import { cn } from "@/lib/utils"
 import { useColumnVisibility } from "@/lib/column-visibility"
 import { useAccessLogFilters } from "@/lib/access-log-filters-context"
+import { statusBadgeClass } from "@/lib/status-badge"
 
 export const ACCESS_LOGS_PAGE_SIZES = [10, 20, 50, 100, 200, 500, 1000] as const
 
-/** Tailwind classes for the status badge, by response class. */
-function statusBadgeClass(code: number): string {
-  if (code >= 500) return "bg-red-500/15 text-red-600 dark:text-red-400"
-  if (code >= 400) return "bg-amber-500/15 text-amber-600 dark:text-amber-400"
-  if (code >= 300) return "bg-sky-500/15 text-sky-600 dark:text-sky-400"
-  return "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
+function renderCell(column: AccessLogColumn, r: AccessLog): React.ReactNode {
+  switch (column.key) {
+    case "timestamp":
+      return (
+        <span className="whitespace-nowrap text-muted-foreground">
+          {new Date(r.timestamp).toLocaleString()}
+        </span>
+      )
+    case "statusCode":
+      return (
+        <Badge className={cn("tabular-nums border-transparent", statusBadgeClass(r.statusCode))}>
+          {r.statusCode}
+        </Badge>
+      )
+    case "method":
+      return <span className="font-mono">{r.method ?? "-"}</span>
+    case "url":
+      return (
+        <span className="block max-w-[320px] truncate font-mono" title={r.url ?? undefined}>
+          {r.url ?? "-"}
+        </span>
+      )
+    case "host":
+      return (
+        <span className="block max-w-[200px] truncate font-mono" title={r.host ?? undefined}>
+          {r.host ?? "-"}
+        </span>
+      )
+    case "ipAddress":
+      return <span className="font-mono">{r.ipAddress}</span>
+    case "bytesSent":
+      return <span className="tabular-nums">{formatBytes(r.bytesSent)}</span>
+    case "requestTime":
+      return <span className="tabular-nums">{formatDuration(r.requestTime * 1000)}</span>
+    case "remoteUser":
+      return <span className="font-mono">{r.remoteUser ?? "-"}</span>
+    case "httpVersion":
+      return <span className="font-mono">{r.httpVersion ?? "-"}</span>
+    case "referrer":
+      return (
+        <span className="block max-w-[240px] truncate font-mono" title={r.referrer ?? undefined}>
+          {r.referrer ?? "-"}
+        </span>
+      )
+    case "hostname":
+      return <span className="font-mono">{r.hostname ?? "-"}</span>
+    case "logFormat":
+      return <span className="font-mono">{r.logFormat ?? "-"}</span>
+    case "userAgent":
+      return (
+        <span className="block max-w-[280px] truncate font-mono" title={r.userAgent ?? undefined}>
+          {r.userAgent ?? "-"}
+        </span>
+      )
+    case "upstreamResponseTime":
+      return (
+        <span className="tabular-nums">
+          {r.upstreamResponseTime != null ? formatDuration(r.upstreamResponseTime * 1000) : "-"}
+        </span>
+      )
+    case "country":
+      return (
+        <span className="whitespace-nowrap" title={r.countryName ?? undefined}>
+          {r.countryCode ?? "-"}
+        </span>
+      )
+    case "city":
+      return <span className="whitespace-nowrap">{r.city ?? "-"}</span>
+    case "asn":
+      return (
+        <span className="font-mono">
+          {r.autonomousSystemNumber != null ? `AS${r.autonomousSystemNumber}` : "-"}
+        </span>
+      )
+    case "asnOrganization":
+      return (
+        <span className="block max-w-[220px] truncate" title={r.autonomousSystemOrganization ?? undefined}>
+          {r.autonomousSystemOrganization ?? "-"}
+        </span>
+      )
+  }
 }
-
-interface ColumnDef {
-  key: string
-  label: string
-  sortField?: AccessLogSortField
-  defaultVisible: boolean
-  align?: "right"
-  headClassName?: string
-  /** Start hidden on mobile viewports (still selectable via the Columns menu). */
-  mobileHidden?: boolean
-  render: (row: AccessLog) => React.ReactNode
-}
-
-const COLUMNS: ColumnDef[] = [
-  {
-    key: "timestamp",
-    label: "Time",
-    sortField: "timestamp",
-    defaultVisible: true,
-    render: (r) => (
-      <span className="whitespace-nowrap text-muted-foreground">
-        {new Date(r.timestamp).toLocaleString()}
-      </span>
-    ),
-  },
-  {
-    key: "statusCode",
-    label: "Status",
-    sortField: "statusCode",
-    defaultVisible: true,
-    render: (r) => (
-      <Badge className={cn("tabular-nums border-transparent", statusBadgeClass(r.statusCode))}>
-        {r.statusCode}
-      </Badge>
-    ),
-  },
-  {
-    key: "method",
-    label: "Method",
-    sortField: "method",
-    defaultVisible: true,
-    render: (r) => <span className="font-mono">{r.method ?? "-"}</span>,
-  },
-  {
-    key: "url",
-    label: "URL",
-    sortField: "url",
-    defaultVisible: true,
-    render: (r) => (
-      <span className="block max-w-[320px] truncate font-mono" title={r.url ?? undefined}>
-        {r.url ?? "-"}
-      </span>
-    ),
-  },
-  {
-    key: "host",
-    label: "Host",
-    sortField: "host",
-    defaultVisible: true,
-    mobileHidden: true,
-    render: (r) => (
-      <span className="block max-w-[200px] truncate font-mono" title={r.host ?? undefined}>
-        {r.host ?? "-"}
-      </span>
-    ),
-  },
-  {
-    key: "ipAddress",
-    label: "IP",
-    sortField: "ipAddress",
-    defaultVisible: true,
-    render: (r) => <span className="font-mono">{r.ipAddress}</span>,
-  },
-  {
-    key: "bytesSent",
-    label: "Bytes",
-    sortField: "bytesSent",
-    defaultVisible: true,
-    align: "right",
-    mobileHidden: true,
-    render: (r) => <span className="tabular-nums">{formatBytes(r.bytesSent)}</span>,
-  },
-  {
-    key: "requestTime",
-    label: "Req time",
-    sortField: "requestTime",
-    defaultVisible: true,
-    align: "right",
-    mobileHidden: true,
-    render: (r) => <span className="tabular-nums">{formatDuration(r.requestTime * 1000)}</span>,
-  },
-  {
-    key: "remoteUser",
-    label: "Remote user",
-    defaultVisible: false,
-    render: (r) => <span className="font-mono">{r.remoteUser ?? "-"}</span>,
-  },
-  {
-    key: "httpVersion",
-    label: "HTTP ver",
-    defaultVisible: false,
-    render: (r) => <span className="font-mono">{r.httpVersion ?? "-"}</span>,
-  },
-  {
-    key: "referrer",
-    label: "Referrer",
-    defaultVisible: true,
-    mobileHidden: true,
-    render: (r) => (
-      <span className="block max-w-[240px] truncate font-mono" title={r.referrer ?? undefined}>
-        {r.referrer ?? "-"}
-      </span>
-    ),
-  },
-  {
-    key: "hostname",
-    label: "Recorded by",
-    defaultVisible: false,
-    mobileHidden: true,
-    render: (r) => <span className="font-mono">{r.hostname ?? "-"}</span>,
-  },
-  {
-    key: "logFormat",
-    label: "Source format",
-    defaultVisible: false,
-    mobileHidden: true,
-    render: (r) => <span className="font-mono">{r.logFormat ?? "-"}</span>,
-  },
-  {
-    key: "userAgent",
-    label: "User agent",
-    defaultVisible: false,
-    render: (r) => (
-      <span className="block max-w-[280px] truncate font-mono" title={r.userAgent ?? undefined}>
-        {r.userAgent ?? "-"}
-      </span>
-    ),
-  },
-  {
-    key: "upstreamResponseTime",
-    label: "Upstream res time",
-    defaultVisible: false,
-    align: "right",
-    render: (r) => (
-      <span className="tabular-nums">
-        {r.upstreamResponseTime != null ? formatDuration(r.upstreamResponseTime * 1000) : "-"}
-      </span>
-    ),
-  },
-  {
-    key: "country",
-    label: "Country",
-    defaultVisible: true,
-    mobileHidden: true,
-    render: (r) => (
-      <span className="whitespace-nowrap" title={r.countryName ?? undefined}>
-        {r.countryCode ?? "-"}
-      </span>
-    ),
-  },
-  {
-    key: "city",
-    label: "City",
-    defaultVisible: true,
-    mobileHidden: true,
-    render: (r) => <span className="whitespace-nowrap">{r.city ?? "-"}</span>,
-  },
-  {
-    key: "asn",
-    label: "ASN",
-    defaultVisible: false,
-    mobileHidden: true,
-    render: (r) => (
-      <span className="font-mono">
-        {r.autonomousSystemNumber != null ? `AS${r.autonomousSystemNumber}` : "-"}
-      </span>
-    ),
-  },
-  {
-    key: "asnOrganization",
-    label: "AS organization",
-    defaultVisible: false,
-    mobileHidden: true,
-    render: (r) => (
-      <span
-        className="block max-w-[220px] truncate"
-        title={r.autonomousSystemOrganization ?? undefined}
-      >
-        {r.autonomousSystemOrganization ?? "-"}
-      </span>
-    ),
-  },
-]
 
 interface AccessLogsTableProps {
   page: number
@@ -265,9 +153,10 @@ export function AccessLogsTable({
 }: AccessLogsTableProps) {
   const { filters } = useAccessLogFilters()
   useCrowdsecLiveUpdates()
+  const [selected, setSelected] = useState<AccessLog | null>(null)
 
   const { visible, shownColumns, toggleColumn, resetColumns, hasOverrides } =
-    useColumnVisibility("geometrikks-columns-access-logs", COLUMNS)
+    useColumnVisibility("geometrikks-columns-access-logs", ACCESS_LOG_COLUMNS)
 
   const { data, isLoading, isError, isPlaceholderData } = useAccessLogs({
     currentPage: page,
@@ -291,7 +180,7 @@ export function AccessLogsTable({
   const rows = data?.items ?? []
   const total = data?.total ?? 0
   const pageCount = Math.max(1, Math.ceil(total / pageSize))
-  const colCount = shownColumns.length
+  const state = dataState(isLoading, isError, rows.length)
 
   function toggleSort(field: AccessLogSortField) {
     if (sortField === field) {
@@ -311,7 +200,7 @@ export function AccessLogsTable({
       <DropdownMenuContent align="end" className="max-h-80 w-auto min-w-44 overflow-y-auto">
         <DropdownMenuLabel>Visible columns</DropdownMenuLabel>
         <DropdownMenuSeparator />
-        {COLUMNS.map((c) => (
+        {ACCESS_LOG_COLUMNS.map((c) => (
           <DropdownMenuCheckboxItem
             key={c.key}
             checked={visible.has(c.key)}
@@ -322,37 +211,44 @@ export function AccessLogsTable({
             {c.label}
           </DropdownMenuCheckboxItem>
         ))}
-      <DropdownMenuSeparator />
-      <DropdownMenuItem disabled={!hasOverrides} onSelect={resetColumns}>
-        Reset to defaults
-      </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem disabled={!hasOverrides} onSelect={resetColumns}>
+          Reset to defaults
+        </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   )
 
-  if (isError) {
-    return (
-      <div className="rounded-md border p-6 text-sm text-destructive">
-        Failed to load access logs.
-      </div>
-    )
-  }
-
   return (
-    <div className="space-y-3">
-      <div className="flex items-center gap-2">{columnsMenu}</div>
-
-      <div className="rounded-md border">
-        <Table className="text-xs">
+    <>
+      <DataTableFrame
+        title="Request history"
+        description="Requests captured in the selected time range. Select a row for the complete record."
+        count={data ? total : undefined}
+        tools={columnsMenu}
+        state={state}
+        error="Failed to load access logs."
+        empty="No access logs match these filters."
+        footer={
+          <PaginationFooter
+            page={page}
+            pageCount={pageCount}
+            total={total}
+            onPageChange={onPageChange}
+            disabled={isPlaceholderData}
+            pageSize={pageSize}
+            pageSizes={ACCESS_LOGS_PAGE_SIZES}
+            onPageSizeChange={onPageSizeChange}
+          />
+        }
+      >
+        <Table>
           <TableHeader>
             <TableRow>
               {shownColumns.map((c) => {
                 const active = c.sortField && sortField === c.sortField
                 return (
-                  <TableHead
-                    key={c.key}
-                    className={cn(c.align === "right" && "text-right", c.headClassName)}
-                  >
+                  <TableHead key={c.key} className={cn(c.align === "right" && "text-right")}>
                     {c.sortField ? (
                       <button
                         type="button"
@@ -383,50 +279,29 @@ export function AccessLogsTable({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {isLoading
-              ? Array.from({ length: 10 }).map((_, i) => (
-                  <TableRow key={i}>
-                    {shownColumns.map((c) => (
-                      <TableCell key={c.key}>
-                        <Skeleton className="h-4 w-full" />
-                      </TableCell>
-                    ))}
-                  </TableRow>
-                ))
-              : rows.map((row) => (
-                  <TableRow key={row.id}>
-                    {shownColumns.map((c) => (
-                      <TableCell
-                        key={c.key}
-                        className={cn(c.align === "right" && "text-right")}
-                      >
-                        {c.render(row)}
-                        {c.key === "ipAddress" && <IpBanControls ip={row.ipAddress} />}
-                      </TableCell>
-                    ))}
-                  </TableRow>
+            {rows.map((row) => (
+              <TableRow
+                key={row.id}
+                aria-label={`Request ${row.id}, ${row.method ?? ""} ${row.url ?? ""}, HTTP ${row.statusCode}`}
+                {...rowActivation<HTMLTableRowElement>(() => setSelected(row))}
+              >
+                {shownColumns.map((c) => (
+                  <TableCell key={c.key} className={cn(c.align === "right" && "text-right")}>
+                    {renderCell(c, row)}
+                    {c.key === "ipAddress" && (
+                      <span {...stopRowActivation}>
+                        <IpBanControls ip={row.ipAddress} />
+                      </span>
+                    )}
+                  </TableCell>
                 ))}
-            {!isLoading && rows.length === 0 && (
-              <TableRow>
-                <TableCell colSpan={colCount} className="h-24 text-center text-muted-foreground">
-                  No access logs match these filters.
-                </TableCell>
               </TableRow>
-            )}
+            ))}
           </TableBody>
         </Table>
-        <PaginationFooter
-          page={page}
-          pageCount={pageCount}
-          total={total}
-          onPageChange={onPageChange}
-          disabled={isPlaceholderData}
-          pageSize={pageSize}
-          pageSizes={ACCESS_LOGS_PAGE_SIZES}
-          onPageSizeChange={onPageSizeChange}
-          className="border-t"
-        />
-      </div>
-    </div>
+      </DataTableFrame>
+
+      <AccessLogDetailSheet entry={selected} onOpenChange={(open) => !open && setSelected(null)} />
+    </>
   )
 }

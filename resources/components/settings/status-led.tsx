@@ -1,9 +1,9 @@
 import { cn } from "@/lib/utils"
 
-export type LedTone = "cyan" | "emerald" | "amber" | "red" | "muted"
+export type LedTone = "accent" | "emerald" | "amber" | "red" | "muted"
 
 const toneClasses: Record<LedTone, string> = {
-  cyan: "bg-geo-cyan shadow-[0_0_6px_var(--geo-cyan)]",
+  accent: "bg-primary shadow-[0_0_6px_var(--primary)]",
   emerald: "bg-emerald-500 shadow-[0_0_6px_var(--color-emerald-500)]",
   amber: "bg-amber-500 shadow-[0_0_6px_var(--color-amber-500)]",
   red: "bg-red-500 shadow-[0_0_6px_var(--color-red-500)]",
@@ -11,7 +11,7 @@ const toneClasses: Record<LedTone, string> = {
 }
 
 const pingClasses: Record<LedTone, string> = {
-  cyan: "bg-geo-cyan",
+  accent: "bg-primary",
   emerald: "bg-emerald-500",
   amber: "bg-amber-500",
   red: "bg-red-500",

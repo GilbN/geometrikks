@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from types import SimpleNamespace
+from typing import cast
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -113,16 +114,53 @@ async def test_asn_failure_does_not_flip_geoip_available(monkeypatch):
     assert app.state.asn_available is False
 
 
+async def test_scheduler_receives_the_app_for_reader_reloads(monkeypatch):
+    """The geoip-refresh job resolves the ingestion service through the app
+    at run time; the lifecycle must hand the app to create_scheduler."""
+    from geometrikks.server import lifecycle as lc
+
+    _patch_startup_collaborators(
+        monkeypatch, lc, db_available=True, ensure=AsyncMock(return_value=True)
+    )
+
+    app = SimpleNamespace(state=SimpleNamespace())
+    async with enter_lifespan(app):
+        pass
+
+    call = cast("AsyncMock", lc.create_scheduler).await_args
+    assert call is not None
+    assert call.kwargs["app"] is app
+
+
+async def test_teardown_disables_reloads_before_stopping_ingestion(monkeypatch):
+    """A geoip-refresh job mid-flight during shutdown must not restart the
+    tail tasks after the lifecycle stopped them."""
+    from geometrikks.server import lifecycle as lc
+
+    ingestion, _ = _patch_startup_collaborators(
+        monkeypatch, lc, db_available=True, ensure=AsyncMock(return_value=True)
+    )
+    order: list[str] = []
+    ingestion.disable_reloads = MagicMock(side_effect=lambda: order.append("disable"))
+    ingestion.stop = AsyncMock(side_effect=lambda timeout=None: order.append("stop"))
+
+    app = SimpleNamespace(state=SimpleNamespace())
+    async with enter_lifespan(app):
+        pass
+
+    assert order == ["disable", "stop"]
+
+
 async def test_geoip_refresh_job_covers_both_editions(monkeypatch):
-    """The single geoip-refresh job must point at refresh_geoip_databases."""
+    """The single geoip-refresh job must point at the wrapper that refreshes
+    both editions and reloads the ingestion readers."""
     from geometrikks.config.settings import Settings
-    from geometrikks.server.scheduler import create_scheduler
-    from geometrikks.services.geoip.downloader import refresh_geoip_databases
+    from geometrikks.server.scheduler import create_scheduler, refresh_geoip_job
 
     scheduler = await create_scheduler(MagicMock(), Settings())
     job = scheduler.get_job("geoip-refresh")
     assert job is not None
-    assert job.func is refresh_geoip_databases
+    assert job.func is refresh_geoip_job
 
 
 async def test_scheduler_has_geoip_refresh_job(monkeypatch):

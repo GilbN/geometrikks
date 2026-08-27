@@ -11,7 +11,7 @@ from geometrikks.services.logparser.constants import (
     ipv6_geo_pattern,
     ipv6_pattern,
 )
-from .base import NormalizedLine, VALID_HTTP_METHODS, convert_dash_to_none
+from .base import NormalizedLine, convert_dash_to_none, detect_probe
 
 logger = get_logger(__name__)
 
@@ -94,57 +94,5 @@ class NginxFormat:
         )
 
     def detect_malformed(self, norm: NormalizedLine) -> tuple[bool, str | None]:
-        """Detect malformed requests such as TLS probes and invalid HTTP.
-
-        Args:
-            norm: The normalized line to inspect.
-
-        Returns:
-            tuple of (is_malformed, parse_error_message)
-        """
-        request = norm.request_raw or ""
-        method = norm.method
-        status_code = norm.status_code
-
-        # TLS handshake sent to HTTP port - starts with \x16\x03 (TLS record header)
-        # Common patterns: \x16\x03\x01 (TLS 1.0), \x16\x03\x03 (TLS 1.2/1.3)
-        # Check both escaped string representation and raw bytes
-        if request:
-            # Escaped form in log: \x16\x03
-            if "\\x16\\x03" in request:
-                return True, "TLS handshake sent to HTTP port (escaped)"
-            # Raw bytes form (unlikely but possible)
-            if "\x16\x03" in request:
-                return True, "TLS handshake sent to HTTP port (raw)"
-            # SSH probe
-            if request.startswith("SSH-") or "\\x53\\x53\\x48" in request:
-                return True, "SSH probe sent to HTTP port"
-            # SMB probe - \xFFSMB or escaped \x00...\xFFSMB
-            if (
-                "\\xffSMB" in request.lower()
-                or "\xffSMB" in request
-                or "SMBr" in request
-            ):
-                return True, "SMB protocol probe (EternalBlue scanner)"
-            if "NT LM" in request:
-                return True, "SMB dialect negotiation probe"
-
-        # TLS probe: No HTTP method and 400 status (client sent HTTP to HTTPS port)
-        if method is None and status_code == 400:
-            return True, "TLS probe: HTTP request sent to HTTPS port"
-        # Invalid HTTP method (connection closed before sending valid request)
-        if method is None:
-            return True, "No HTTP method in request"
-        # Check for non-standard/invalid HTTP methods
-        if method.upper() not in VALID_HTTP_METHODS:
-            return True, f"Invalid HTTP method: {method}"
-
-        # nginx-specific status codes that indicate connection issues, not normal HTTP errors
-        if status_code == 408:
-            return True, "Request timeout (408)"
-        if status_code == 444:
-            return True, "Connection closed without response (nginx 444)"
-        if status_code == 499:
-            return True, "Client closed connection before response (nginx 499)"
-
-        return False, None
+        """Probe and connection-status classification; see ``detect_probe``."""
+        return detect_probe(norm.request_raw, norm.method, norm.status_code)

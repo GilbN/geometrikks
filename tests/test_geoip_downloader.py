@@ -99,17 +99,27 @@ class TestStaleness:
         assert database_is_stale(p, max_age_days=7) is False
 
     def test_old_build_date_is_stale_despite_fresh_mtime(
-        self, tmp_path, monkeypatch, caplog
+        self, tmp_path, monkeypatch
     ):
         """The bug this check replaced: mtime is fresh (file just written) but
-        the database itself was built 8 days ago -> stale, with a warning."""
+        the database itself was built 8 days ago -> stale, with a warning.
+
+        capture_logs, not caplog: the rendered record only carries the
+        interpolated message once something has configured the structlog
+        pipeline, so a caplog substring check fails when this file runs alone.
+        """
+        from structlog.testing import capture_logs
+
         from geometrikks.services.geoip.downloader import database_is_stale
         p = tmp_path / "db.mmdb"
         p.write_bytes(b"x")  # mtime = now
         patch_build_epoch(monkeypatch, age_days=8)
-        with caplog.at_level("WARNING"):
+        with capture_logs() as logs:
             assert database_is_stale(p, max_age_days=7) is True
-        assert any("older than 7 days" in r.message for r in caplog.records)
+        assert any(
+            "older than %d days" in log["event"] and 7 in log["positional_args"]
+            for log in logs
+        )
 
     def test_build_date_at_max_age_is_not_stale(self, tmp_path, monkeypatch):
         """Staleness is strictly greater-than: exactly max_age_days is kept."""
@@ -306,11 +316,11 @@ class TestRefreshBothEditions:
 
         calls: list[str] = []
 
-        async def fake_city(settings):
+        async def fake_city(settings, *, force=False):
             calls.append("city")
             return True
 
-        async def fake_asn(settings):
+        async def fake_asn(settings, *, force=False):
             calls.append("asn")
             return True
 
@@ -324,11 +334,11 @@ class TestRefreshBothEditions:
 
         calls: list[str] = []
 
-        async def fake_city(settings):
+        async def fake_city(settings, *, force=False):
             calls.append("city")
             return True
 
-        async def fake_asn(settings):
+        async def fake_asn(settings, *, force=False):
             calls.append("asn")
             return True
 
@@ -338,3 +348,82 @@ class TestRefreshBothEditions:
             make_settings(tmp_path, asn_enabled=False)
         )
         assert calls == ["city"]
+
+    async def test_refresh_forwards_force_to_both_editions(self, tmp_path, monkeypatch):
+        from geometrikks.services.geoip import downloader
+
+        forces: dict[str, bool] = {}
+
+        async def fake_city(settings, *, force=False):
+            forces["city"] = force
+            return True
+
+        async def fake_asn(settings, *, force=False):
+            forces["asn"] = force
+            return True
+
+        monkeypatch.setattr(downloader, "ensure_geoip_database", fake_city)
+        monkeypatch.setattr(downloader, "ensure_asn_database", fake_asn)
+        await downloader.refresh_geoip_databases(make_settings(tmp_path), force=True)
+        assert forces == {"city": True, "asn": True}
+
+
+class TestForcedRefresh:
+    """force=True skips the staleness gate (the manual Run path); the
+    credentials gate still applies."""
+
+    def _spy_download(self, monkeypatch) -> list[str]:
+        from geometrikks.services.geoip import downloader
+
+        downloads: list[str] = []
+
+        async def fake_download(settings, *, edition, db_path):
+            downloads.append(edition)
+            return db_path
+
+        monkeypatch.setattr(downloader, "download_database", fake_download)
+        return downloads
+
+    async def test_force_downloads_city_even_when_fresh(self, tmp_path, monkeypatch):
+        from geometrikks.services.geoip import downloader
+
+        settings = make_settings(tmp_path, account_id="123", license_key="key")
+        settings.db_path.write_bytes(b"mmdb")
+        patch_build_epoch(monkeypatch, age_days=1)
+        downloads = self._spy_download(monkeypatch)
+
+        assert await downloader.ensure_geoip_database(settings, force=True) is True
+        assert downloads == [downloader.CITY_EDITION]
+
+    async def test_fresh_db_without_force_skips_download(self, tmp_path, monkeypatch):
+        from geometrikks.services.geoip import downloader
+
+        settings = make_settings(tmp_path, account_id="123", license_key="key")
+        settings.db_path.write_bytes(b"mmdb")
+        patch_build_epoch(monkeypatch, age_days=1)
+        downloads = self._spy_download(monkeypatch)
+
+        assert await downloader.ensure_geoip_database(settings) is True
+        assert downloads == []
+
+    async def test_force_without_credentials_keeps_current_copy(self, tmp_path, monkeypatch):
+        from geometrikks.services.geoip import downloader
+
+        settings = make_settings(tmp_path)
+        settings.db_path.write_bytes(b"mmdb")
+        patch_build_epoch(monkeypatch, age_days=1)
+        downloads = self._spy_download(monkeypatch)
+
+        assert await downloader.ensure_geoip_database(settings, force=True) is True
+        assert downloads == []
+
+    async def test_force_downloads_asn_even_when_fresh(self, tmp_path, monkeypatch):
+        from geometrikks.services.geoip import downloader
+
+        settings = make_settings(tmp_path, account_id="123", license_key="key")
+        settings.asn_db_path.write_bytes(b"mmdb")
+        patch_build_epoch(monkeypatch, age_days=1)
+        downloads = self._spy_download(monkeypatch)
+
+        assert await downloader.ensure_asn_database(settings, force=True) is True
+        assert downloads == [downloader.ASN_EDITION]

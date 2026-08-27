@@ -116,9 +116,10 @@ async def geoip_lifespan(app: "Litestar") -> "AsyncGenerator[None]":
     )
     if not geoip_available:
         logger.warning(
-            "Geo-degraded mode: no usable GeoLite2 database. Ingestion will "
-            "not start until a GeoLite2 database file is present (restart "
-            "after configuring MAXMINDDB_USER_ID/MAXMINDDB_LICENSE_KEY)."
+            "Geo-degraded mode: no usable GeoLite2 database. With MaxMind "
+            "credentials configured, the scheduled refresh retries and starts "
+            "ingestion automatically once a database is downloaded; otherwise "
+            "restart after setting MAXMINDDB_USER_ID/MAXMINDDB_LICENSE_KEY."
         )
     yield
 
@@ -285,7 +286,7 @@ async def scheduler_lifespan(app: "Litestar") -> "AsyncGenerator[None]":
     crowdsec_poller = runtime.get_crowdsec_poller(app)
     kwargs = {"mode": "agent"} if settings.is_agent else {}
     scheduler: AsyncIOScheduler = await create_scheduler(
-        session_maker, settings, crowdsec_poller=crowdsec_poller, **kwargs
+        session_maker, settings, crowdsec_poller=crowdsec_poller, app=app, **kwargs
     )
     # The finally covers start() itself: if it activates the scheduler and
     # then raises, the running scheduler is still shut down.
@@ -388,6 +389,9 @@ async def ingestion_lifespan(app: "Litestar") -> "AsyncGenerator[None]":
     finally:
         service = runtime.get_ingestion_service(app) or ingestion_service
         if service:
+            # A geoip-refresh job mid-flight must not restart the tail tasks
+            # after this stop (the scheduler shuts down after ingestion).
+            service.disable_reloads()
             await service.stop(timeout=5.0)
 
 

@@ -1,5 +1,4 @@
 import { TooltipProvider } from "@/components/ui/tooltip"
-import { Card, CardContent } from "@/components/ui/card"
 
 import { useSummary } from "@/lib/queries"
 import { TIME_RANGE_PRESETS } from "@/lib/api"
@@ -11,6 +10,8 @@ import {
   TrafficOverviewSection,
 } from "@/components/dashboard/summary-sections"
 import { TrafficOriginStats } from "@/components/dashboard/traffic-origin-stats"
+import { PageHeader } from "@/components/page-header"
+import { ErrorBanner } from "@/components/error-banner"
 
 export function Summary() {
   const { range } = useTimeRange()
@@ -25,30 +26,21 @@ export function Summary() {
   return (
     <TooltipProvider>
       <div className="p-4 md:p-6 space-y-6">
-        <div className="space-y-1">
-          <div className="flex flex-wrap items-center gap-3">
-            <h1 className="text-2xl font-semibold tracking-tight">Summary</h1>
-
-            {summary && (
+        <PageHeader
+          title="Summary"
+          subtitle="Overview of live analytics data for your application."
+          meta={
+            summary && (
               <DateTimeRange start={summary.startDate} end={summary.endDate} />
-            )}
-          </div>
-          <p className="text-sm text-muted-foreground">
-            Overview of live analytics data for your application.
-          </p>
-        </div>
+            )
+          }
+        />
 
         {isError && (
-          <Card className="border-destructive/50 bg-destructive/10">
-            <CardContent className="pt-6">
-              <p className="text-sm text-destructive">
-                Failed to load analytics data: {error?.message ?? "Unknown error"}
-              </p>
-              <p className="text-xs text-muted-foreground mt-1">
-                Make sure the backend server is running on port 8000.
-              </p>
-            </CardContent>
-          </Card>
+          <ErrorBanner
+            title={`Failed to load analytics data: ${error?.message ?? "Unknown error"}`}
+            detail="Make sure the backend server is running on port 8000."
+          />
         )}
 
         {/* Every section renders its own skeletons in place, so this order

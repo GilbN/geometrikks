@@ -4,8 +4,8 @@
   "description": "Geo analytics for your access logs",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#0d1220",
-  "theme_color": "#0d1220",
+  "background_color": "#010810",
+  "theme_color": "#010810",
   "lang": "en",
   "scope": "/",
   "icons": [

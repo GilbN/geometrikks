@@ -135,17 +135,39 @@ export interface SiteHomeRow {
   hostname: string
   coords: string
   source: "auto" | "override"
+  /** "Traffic 23 Aug" / "Traffic 2 months ago" / "No traffic". Day precision
+   *  is all the backend has (it reads the daily hostname aggregate). */
+  lastSeen: string
+  /** A stale auto row; "No traffic" or 14+ days since the last day with events. */
+  stale: boolean
 }
 
+const STALE_AFTER_DAYS = 14
+
 /** Per-hostname rows for the Settings > Status "Site homes" block: hostname,
- *  lat/lon to 2 decimals, and auto/override so an operator can tell a
- *  detected home from a configured one (e.g. diagnosing CGNAT drift). */
-export function siteHomeRows(data: SiteHomesResponse | undefined): SiteHomeRow[] {
-  return (data?.homes ?? []).map((h) => ({
-    hostname: h.hostname,
-    coords: `${h.latitude.toFixed(2)}, ${h.longitude.toFixed(2)}`,
-    source: h.source,
-  }))
+ *  lat/lon to 2 decimals, auto/override so an operator can tell a detected
+ *  home from a configured one (e.g. diagnosing CGNAT drift), and when the
+ *  source last recorded traffic so a retired one stands out. nowMs injected
+ *  for testability. */
+export function siteHomeRows(data: SiteHomesResponse | undefined, nowMs: number = Date.now()): SiteHomeRow[] {
+  return (data?.homes ?? []).map((h) => {
+    const lastMs = h.lastEventDay ? Date.parse(`${h.lastEventDay}T00:00:00Z`) : null
+    const ageDays = lastMs === null ? Infinity : Math.floor((nowMs - lastMs) / 86_400_000)
+    return {
+      hostname: h.hostname,
+      coords: `${h.latitude.toFixed(2)}, ${h.longitude.toFixed(2)}`,
+      source: h.source,
+      lastSeen: lastMs === null ? "No traffic" : `Traffic ${formatLastDay(lastMs, ageDays)}`,
+      stale: h.source === "auto" && ageDays >= STALE_AFTER_DAYS,
+    }
+  })
+}
+
+function formatLastDay(lastMs: number, ageDays: number): string {
+  if (ageDays <= 0) return "today"
+  if (ageDays === 1) return "yesterday"
+  if (ageDays < 30) return `${ageDays}d ago`
+  return new Date(lastMs).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" })
 }
 
 export function formatSize(bytes: number): string {
@@ -236,7 +258,7 @@ export function lastEventState(
 }
 
 export function schedulerJobState(job: SchedulerJobView): CardState {
-  if (job.running) return { tone: "cyan", label: "Running" }
+  if (job.running) return { tone: "accent", label: "Running" }
   if (job.lastStatus === "error") {
     return { tone: "red", label: "Last run failed", detail: job.lastError ?? undefined }
   }

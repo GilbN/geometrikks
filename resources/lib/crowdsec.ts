@@ -14,7 +14,7 @@ export const BAN_DURATIONS = [
   { label: "Forever", value: "87600h" },
 ] as const
 
-/** Full IPv4/IPv6 check — the backend validates against INET, so a partial
+/** Full IPv4/IPv6 check. The backend validates against INET, so a partial
  * value (mid-typing) must never reach a request. */
 const IPV4_RE =
   /^(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}$/

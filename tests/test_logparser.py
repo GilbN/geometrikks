@@ -34,6 +34,19 @@ UNPARSEABLE_LOG_PATH = "tests/unparseable_logs.txt"
 NONSTANDARD_LOG_PATH = "tests/nonstandard_logs.txt"
 GEOIP_DB_PATH = "tests/GeoLite2-City-Test.mmdb"
 
+# A geometrikks-json line as nginx's escape=json would actually write a TLS
+# probe: control bytes escaped as JSON \u00XX sequences, but a byte above
+# 0x7f is left raw and, here, not valid UTF-8 on its own (0xfc, an old
+# 5-byte UTF-8 lead byte). Written in binary so the invalid byte lands on
+# disk unchanged; a text-mode write would reject or escape it before the
+# tailer ever sees it.
+GJSON_TLS_PROBE_LINE_BYTES = (
+    b'{"client_ip":"203.0.113.7","timestamp":"2026-08-25T22:00:24+02:00",'
+    b'"method":"","status":"400","request_raw":"\\u0016\\u0003\\u0001'
+    + bytes([0xFC])
+    + b'"}\n'
+)
+
 
 @pytest.fixture
 def load_valid_ipv4_log() -> list[str]:
@@ -230,6 +243,46 @@ def test_validate_log_format_false(tmp_path: Path, log_parser: LogParser) -> Non
     log_parser.send_logs = True
 
     assert log_parser.validate_log_format(log_file) is False
+
+
+def test_validate_log_format_survives_undecodable_bytes(tmp_path: Path) -> None:
+    """A raw non-UTF-8 byte in request_raw must not raise UnicodeDecodeError."""
+    log_file = tmp_path / "access.log"
+    log_file.write_bytes(GJSON_TLS_PROBE_LINE_BYTES * 3)
+    parser = LogParser(log_path=log_file, send_logs=True, log_format="geometrikks-json")
+
+    assert parser.validate_log_format(log_file) is True
+
+
+def test_parse_line_geometrikks_json_survives_undecodable_bytes(geoip_reader: Reader) -> None:
+    """The decoded line still classifies as the raw-bytes TLS probe."""
+    parser = LogParser(log_path=Path("/dev/null"), send_logs=True, log_format="geometrikks-json")
+    lookup = make_cached_city_lookup(geoip_reader)
+    line = GJSON_TLS_PROBE_LINE_BYTES.decode("utf-8", errors="replace")
+
+    record = parser.parse_line(line, lookup)
+
+    assert record is not None
+    assert record.is_malformed is True
+    assert record.parse_error == "TLS handshake sent to HTTP port (raw)"
+
+
+async def test_iter_parsed_records_geometrikks_json_survives_undecodable_bytes(
+    tmp_path: Path, geoip_reader: Reader
+) -> None:
+    """The async tail path also survives a raw non-UTF-8 byte in the file."""
+    log_file = tmp_path / "access.log"
+    log_file.write_bytes(GJSON_TLS_PROBE_LINE_BYTES)
+    parser = LogParser(log_path=log_file, send_logs=True, log_format="geometrikks-json")
+    parser._stop_event = asyncio.Event()
+
+    gen = parser.iter_parsed_records(geoip_reader, skip_validation=True, start_at_end=False)
+    record = await gen.__anext__()
+
+    assert record is not None
+    assert record.ip_address == "203.0.113.7"
+    assert record.is_malformed is True
+    assert record.parse_error == "TLS handshake sent to HTTP port (raw)"
 
 
 async def test_await_valid_log_format_returns_when_stop_requested(
@@ -806,3 +859,47 @@ class TestAsnEnrichment:
         assert record.access_log is not None
         assert record.access_log.autonomous_system_number == 1221
         assert record.access_log.autonomous_system_organization == "Telstra Pty Ltd"
+
+
+def make_gjson_line(ip: str) -> str:
+    """One geometrikks-json line (the recommended nginx log_format, escape=json)."""
+    return (
+        '{"client_ip":"' + ip + '","timestamp":"2024-08-03T13:14:17+02:00","method":"GET",'
+        '"path":"/index.php","protocol":"HTTP/2.0","status":"200","bytes":"1024",'
+        '"host":"example.com","referrer":"","user_agent":"Mozilla/5.0","remote_user":"",'
+        '"request_time":"0.002","upstream_time":"0.001","request_raw":"GET /index.php HTTP/2.0"}\n'
+    )
+
+
+def test_parse_line_geometrikks_json_end_to_end(tmp_path: Path, geoip_reader: Reader) -> None:
+    """Geo data and the access log are assembled for the JSON format, not just normalized."""
+    ip = "2.125.160.216"  # present in the GeoLite2 test database
+    parser = LogParser(log_path=tmp_path / "access.json.log", send_logs=True, log_format="geometrikks-json")
+    lookup = make_cached_city_lookup(geoip_reader)
+
+    record = parser.parse_line(make_gjson_line(ip), lookup)
+
+    assert record is not None
+    assert record.ip_address == ip
+    assert record.log_format == "geometrikks-json"
+    assert record.is_malformed is False
+    assert record.geo_data is not None
+    assert record.geo_data.country_code == "GB"
+    assert record.access_log is not None
+    assert record.access_log.url == "/index.php"
+    assert record.access_log.host == "example.com"
+    assert record.access_log.status_code == 200
+    assert record.access_log.request_time == pytest.approx(0.002)
+    assert record.access_log.upstream_response_time == pytest.approx(0.001)
+    offset = record.access_log.timestamp.utcoffset()
+    assert offset is not None and offset.total_seconds() == 7200
+    assert parser.parsed_lines == 1
+
+
+def test_parse_line_geometrikks_json_auto_detects(tmp_path: Path, geoip_reader: Reader) -> None:
+    parser = LogParser(log_path=tmp_path / "access.json.log", send_logs=True)
+    lookup = make_cached_city_lookup(geoip_reader)
+    record = parser.parse_line(make_gjson_line("2.125.160.216"), lookup)
+    assert record is not None and record.ip_address == "2.125.160.216"
+    assert parser.format is not None and parser.format.name == "geometrikks-json"
+    assert parser.send_logs is True

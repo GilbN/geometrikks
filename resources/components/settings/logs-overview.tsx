@@ -311,8 +311,8 @@ export function LogsOverview() {
           {activeTab === "downloads" ? (
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-3">
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-geo-cyan/10">
-                  <FolderDown className="h-4 w-4 text-geo-cyan" />
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+                  <FolderDown className="h-4 w-4 text-primary" />
                 </div>
                 <div>
                   <CardTitle className="text-base">Log downloads</CardTitle>
@@ -335,8 +335,8 @@ export function LogsOverview() {
             </div>
           ) : (
             <div className="flex items-center gap-3">
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-geo-cyan/10">
-                <ScrollText className="h-4 w-4 text-geo-cyan" />
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+                <ScrollText className="h-4 w-4 text-primary" />
               </div>
               <div>
                 <CardTitle className="text-base">
@@ -505,7 +505,6 @@ export function LogsOverview() {
           </div>
 
           <Table
-            className="text-sm"
             containerClassName="max-h-[65vh] overflow-y-auto rounded-md border"
           >
             <TableHeader>

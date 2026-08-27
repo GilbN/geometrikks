@@ -113,6 +113,9 @@ import type {
   ApiV1GeoLocationsLocationIdTopIpsGetLocationTopIpsData,
   ApiV1GeoLocationsLocationIdTopIpsGetLocationTopIpsErrors,
   ApiV1GeoLocationsLocationIdTopIpsGetLocationTopIpsResponses,
+  ApiV1GeoLocationsSiteHomesHostnameDeleteSiteHomeData,
+  ApiV1GeoLocationsSiteHomesHostnameDeleteSiteHomeErrors,
+  ApiV1GeoLocationsSiteHomesHostnameDeleteSiteHomeResponses,
   ApiV1GeoLocationsSiteHomesSiteHomesData,
   ApiV1GeoLocationsSiteHomesSiteHomesResponses,
   ApiV1GeoLocationsTopCountriesGetTopCountriesData,
@@ -169,6 +172,7 @@ import type {
  */
 export type OperationName =
   | 'ban'
+  | 'delete_site_home'
   | 'download'
   | 'get_about'
   | 'get_access_log_debug_stats'
@@ -230,6 +234,7 @@ export type OperationName =
  */
 export interface OperationDataTypes {
   'ban': ApiV1CrowdsecBanBanData
+  'delete_site_home': ApiV1GeoLocationsSiteHomesHostnameDeleteSiteHomeData
   'download': ApiV1LogsFilesKindNameDownloadData
   'get_about': ApiV1SystemAboutGetAboutData
   'get_access_log_debug_stats': ApiV1AccessLogDebugStatsGetAccessLogDebugStatsData
@@ -292,6 +297,7 @@ export interface OperationDataTypes {
  */
 export interface OperationResponseTypes {
   'ban': ApiV1CrowdsecBanBanResponses
+  'delete_site_home': ApiV1GeoLocationsSiteHomesHostnameDeleteSiteHomeResponses
   'download': ApiV1LogsFilesKindNameDownloadResponses
   'get_about': ApiV1SystemAboutGetAboutResponses
   'get_access_log_debug_stats': ApiV1AccessLogDebugStatsGetAccessLogDebugStatsResponses
@@ -354,6 +360,7 @@ export interface OperationResponseTypes {
  */
 export interface OperationErrorTypes {
   'ban': ApiV1CrowdsecBanBanErrors
+  'delete_site_home': ApiV1GeoLocationsSiteHomesHostnameDeleteSiteHomeErrors
   'download': ApiV1LogsFilesKindNameDownloadErrors
   'get_about': never
   'get_access_log_debug_stats': ApiV1AccessLogDebugStatsGetAccessLogDebugStatsErrors

@@ -1,47 +1,64 @@
 /**
- * Country / city / IP filter bar for the analytics page. Filters every chart
+ * IP / country / city filter bar for the analytics page. Filters every chart
  * and top-list on the page via AnalyticsFiltersContext (not geo-time-series,
- * which stays unfiltered). Country/city options are lazy-loaded facets,
- * matching the pattern in access-logs-filter-bar.tsx.
+ * which stays unfiltered). Country/city options are lazy-loaded facets.
+ * Renders in a FilterRail on desktop and inside a FiltersDrawer on mobile.
  */
 import { useState } from "react"
-import { Ban, X } from "lucide-react"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
+import { FilterField, FilterPair, FilterRail, FilterRow } from "@/components/data/filter-rail"
+import { FilterChip, TagInput } from "@/components/data/tag-input"
 import { FilterCombobox } from "@/components/ui/filter-combobox"
+import { FiltersDrawer } from "@/components/ui/filters-drawer"
+import { useIsMobile } from "@/hooks/use-mobile"
 import { useAccessLogFacets } from "@/lib/queries"
 import { isValidIp } from "@/lib/crowdsec"
 import {
+  countActiveAnalyticsFilters,
   EMPTY_FILTERS,
-  hasActiveAnalyticsFilters,
   useAnalyticsFilters,
 } from "@/lib/analytics-filters-context"
 
+type IpKey = "ips" | "ipsExclude"
+
 export function AnalyticsFilterBar() {
+  const isMobile = useIsMobile()
   const { filters, setFilters } = useAnalyticsFilters()
-  const [ipInput, setIpInput] = useState("")
-  const [ipExcludeInput, setIpExcludeInput] = useState("")
   const [facetsEnabled, setFacetsEnabled] = useState(false)
   const { data: facets } = useAccessLogFacets({ enabled: facetsEnabled })
 
-  function addIp(key: "ips" | "ipsExclude") {
-    const input = key === "ips" ? ipInput : ipExcludeInput
-    const setInput = key === "ips" ? setIpInput : setIpExcludeInput
-    const value = input.trim()
-    // ip_address is INET server-side: only complete IPs can match, and the
-    // backend 400s on anything else.
-    if (!value || !isValidIp(value) || filters[key].includes(value)) return
+  const addIp = (key: IpKey) => (value: string) => {
+    if (filters[key].includes(value)) return
     setFilters((prev) => ({ ...prev, [key]: [...prev[key], value] }))
-    setInput("")
   }
-
-  function removeIp(key: "ips" | "ipsExclude", ip: string) {
+  const removeIp = (key: IpKey, ip: string) =>
     setFilters((prev) => ({ ...prev, [key]: prev[key].filter((v) => v !== ip) }))
-  }
 
-  return (
-    <div className="flex flex-wrap items-center gap-2">
+  const ipPair = (inDrawer: boolean) => (
+    <FilterPair
+      label="IP address"
+      excludeLabel="Exclude IP"
+      stacked={inDrawer}
+      include={
+        <TagInput
+          onAdd={addIp("ips")}
+          validate={isValidIp}
+          placeholder="203.0.113.7"
+          className={inDrawer ? "w-full" : "w-36"}
+        />
+      }
+      exclude={
+        <TagInput
+          exclude
+          onAdd={addIp("ipsExclude")}
+          validate={isValidIp}
+          placeholder="Exclude"
+          className={inDrawer ? "w-full" : "w-32"}
+        />
+      }
+    />
+  )
+  const country = (inDrawer: boolean) => (
+    <FilterField label="Country" hideLabel={!inDrawer}>
       <FilterCombobox
         label="Country"
         options={facets?.countries.map((c) => c.code) ?? []}
@@ -54,8 +71,12 @@ export function AnalyticsFilterBar() {
         loading={!facets}
         emptyText="No geo data"
         onOpenChange={(open) => open && setFacetsEnabled(true)}
+        forceInline={inDrawer}
       />
-
+    </FilterField>
+  )
+  const city = (inDrawer: boolean) => (
+    <FilterField label="City" hideLabel={!inDrawer}>
       <FilterCombobox
         label="City"
         options={facets?.cities ?? []}
@@ -64,79 +85,47 @@ export function AnalyticsFilterBar() {
         loading={!facets}
         emptyText="No geo data"
         onOpenChange={(open) => open && setFacetsEnabled(true)}
+        forceInline={inDrawer}
       />
+    </FilterField>
+  )
 
-      <Input
-        value={ipInput}
-        onChange={(e) => setIpInput(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") {
-            e.preventDefault()
-            addIp("ips")
-          }
-        }}
-        placeholder="Add IP + Enter"
-        aria-invalid={ipInput !== "" && !isValidIp(ipInput)}
-        className="h-8 w-40 font-mono text-xs"
-      />
-
-      {filters.ips.map((ip) => (
-        <Badge key={ip} variant="secondary" className="font-mono">
-          {ip}
-          <button
-            type="button"
-            onClick={() => removeIp("ips", ip)}
-            aria-label={`Remove ${ip}`}
-            className="ml-1 rounded-full hover:text-destructive"
-          >
-            <X className="h-3 w-3" />
-          </button>
-        </Badge>
+  const chips = [
+    ...filters.ips.map((v) => ({ key: "ips" as const, v, exclude: false })),
+    ...filters.ipsExclude.map((v) => ({ key: "ipsExclude" as const, v, exclude: true })),
+  ]
+  const chipRow = chips.length > 0 && (
+    <FilterRow>
+      {chips.map((c) => (
+        <FilterChip key={`${c.key}:${c.v}`} value={c.v} exclude={c.exclude} onRemove={() => removeIp(c.key, c.v)} />
       ))}
+    </FilterRow>
+  )
 
-      <Input
-        value={ipExcludeInput}
-        onChange={(e) => setIpExcludeInput(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") {
-            e.preventDefault()
-            addIp("ipsExclude")
-          }
-        }}
-        placeholder="Exclude IP + Enter"
-        aria-invalid={ipExcludeInput !== "" && !isValidIp(ipExcludeInput)}
-        className="h-8 w-40 font-mono text-xs"
-      />
+  const activeCount = countActiveAnalyticsFilters(filters)
+  const clear = () => setFilters(() => EMPTY_FILTERS)
 
-      {filters.ipsExclude.map((ip) => (
-        <Badge
-          key={ip}
-          variant="outline"
-          className="border-destructive/50 font-mono text-destructive"
-        >
-          <Ban className="h-3 w-3" />
-          {ip}
-          <button
-            type="button"
-            onClick={() => removeIp("ipsExclude", ip)}
-            aria-label={`Remove exclusion ${ip}`}
-            className="ml-1 rounded-full hover:opacity-70"
-          >
-            <X className="h-3 w-3" />
-          </button>
-        </Badge>
-      ))}
+  if (isMobile) {
+    return (
+      <div onClick={() => setFacetsEnabled(true)}>
+        <FiltersDrawer activeCount={activeCount} onClear={clear}>
+          {ipPair(true)}
+          {country(true)}
+          {city(true)}
+          {chipRow}
+        </FiltersDrawer>
+      </div>
+    )
+  }
 
-      {hasActiveAnalyticsFilters(filters) && (
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-8 pointer-coarse:h-10"
-          onClick={() => setFilters(() => EMPTY_FILTERS)}
-        >
-          Clear filters
-        </Button>
-      )}
-    </div>
+  return (
+    <FilterRail label="Traffic filters" activeCount={activeCount} onClear={clear}>
+      <FilterRow>
+        {ipPair(false)}
+        {country(false)}
+        {city(false)}
+      </FilterRow>
+      {chipRow}
+    </FilterRail>
   )
 }

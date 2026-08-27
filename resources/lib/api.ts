@@ -6,6 +6,7 @@ import axios from "axios"
 import {
   apiV1GeoEventsFacetsGetGeoLogFacets,
   apiV1GeoEventsLogsGetGeoLogs,
+  apiV1GeoLocationsSiteHomesHostnameDeleteSiteHome,
   apiV1GeoLocationsSiteHomesSiteHomes,
   apiV1GeoEventsSummaryGetGeoLogSummary,
   apiV1GeoEventsTimeSeriesGetGeoLogTimeSeries,
@@ -876,6 +877,10 @@ export async function fetchSiteHomes(): Promise<SiteHomesResponse> {
   return data
 }
 
+export async function deleteSiteHome(hostname: string): Promise<void> {
+  await apiV1GeoLocationsSiteHomesHostnameDeleteSiteHome({ path: { hostname }, throwOnError: true })
+}
+
 // ============================================================================
 // Types & Functions - Access Logs API
 // ============================================================================
@@ -1166,9 +1171,9 @@ export function formatDuration(ms: number): string {
  * Format percentage with sign.
  */
 export function formatPercent(value: number | string | null | undefined): string {
-  if (value === null || value === undefined) return "—"
+  if (value === null || value === undefined) return "-"
   const num = typeof value === "string" ? parseFloat(value) : value
-  if (isNaN(num)) return "—"
+  if (isNaN(num)) return "-"
   const sign = num >= 0 ? "+" : ""
   return `${sign}${num.toFixed(1)}%`
 }

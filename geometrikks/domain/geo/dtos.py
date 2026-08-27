@@ -131,6 +131,9 @@ class SiteHomeView(msgspec.Struct, rename="camel"):
     longitude: float
     source: Literal["auto", "override"]
     detected_at: str | None
+    # Day precision (from the daily hostname aggregate); None when the
+    # hostname has never recorded a geo event.
+    last_event_day: str | None
 
 
 class DefaultHomeView(msgspec.Struct, rename="camel"):

@@ -19,7 +19,7 @@ export function TopUrlsTable() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-sm font-medium">Top URLs</CardTitle>
+        <CardTitle className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Top URLs</CardTitle>
       </CardHeader>
       <CardContent>
         {isLoading || !data ? (

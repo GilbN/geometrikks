@@ -8,6 +8,19 @@
       ],
       "uri": "/api/v1/crowdsec/ban"
     },
+    "delete_site_home": {
+      "method": "delete",
+      "methods": [
+        "DELETE"
+      ],
+      "parameterTypes": {
+        "hostname": "string"
+      },
+      "parameters": [
+        "hostname"
+      ],
+      "uri": "/api/v1/geo-locations/site-homes/{hostname}"
+    },
     "download": {
       "method": "get",
       "methods": [

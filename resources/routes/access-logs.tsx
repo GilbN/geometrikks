@@ -15,6 +15,7 @@ import { createFileRoute } from "@tanstack/react-router"
 import { History, Radio } from "lucide-react"
 import { z } from "zod"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { PageHeader } from "@/components/page-header"
 import {
   AccessLogsTable,
   ACCESS_LOGS_PAGE_SIZES,
@@ -155,6 +156,10 @@ function AccessLogsPage() {
   return (
     <AccessLogFiltersProvider filters={filters} setFilters={setFilters}>
       <div className="p-4 space-y-4">
+        <PageHeader
+          title="Access Logs"
+          subtitle="Explore request history or follow new traffic as it arrives."
+        />
         <Tabs value={mode} onValueChange={(value) => setMode(value as Mode)}>
           <TabsList className="pointer-coarse:h-10">
             <TabsTrigger value="history">

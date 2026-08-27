@@ -7,6 +7,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Login, the error page, 404 and the Settings backdrop use the brand map scene (graticule, relief, markers, routes), and the map page shows it while the map loads. Backdrops render at the screen's native resolution, so they stay sharp on hi-dpi displays.
+- Settings > Status: each site home shows the last day its source recorded traffic, and a retired source's auto-detected home can be removed so its beacon leaves the map. Homes pinned by `MAP_HOME_LOCATIONS` stay read-only. Backed by `DELETE /api/v1/geo-locations/site-homes/{hostname}` and a `lastEventDay` field on the site-homes response.
+- Filters on Access logs, Geo logs, Debug logs and Analytics share one layout: text inputs on one row, selects on the next, include and exclude for the same field (IP, host, hostname) as one joined control, and a Clear button that shows how many filter groups are active. Geo logs and Analytics get the mobile filter drawer Access logs already had.
+- Access logs: selecting a row opens the full record in a side panel, with ASN, recording hostname, source format and the ban controls. Enter and Space open rows too.
+- Geo logs: selecting a row opens the full location record, ban controls included. Top IPs, Top locations and the event chart are framed cards with counts.
+- Debug logs: the record detail is a side panel instead of a dialog, showing the raw line, the parse result and the linked request.
+- Analytics charts name what they plot and the bucket size the range resolved to (Hourly or Daily), and offer a retry when a series fails to load.
+- Map controls are one panel with labeled sections (Visualization, Live, Filters, Summary, Top IPs). Toggles are switch rows so the panel fits a laptop screen without scrolling, the map filters get a Clear, fit and home moved into the panel header, and the collapsed button shows a dot while filters are active. The live feed scrolls inside a bounded card instead of stretching to the map's height.
+- Settings > Appearance: theme (System, Light, Dark) and accent (teal, green, copper) side by side with previews. System follows the device's color scheme live, not only at page load. The accent is also switchable from the header, persists per browser and is applied before first paint.
+- Open Graph and Twitter card tags on the app shell.
+- `geometrikks-json`, a keyed JSON access-log format for nginx (`log_format ... escape=json`) and the recommended nginx setup. Lines decode against a fixed schema instead of a positional regex, so a broken or mistyped format is rejected rather than mapped to the wrong columns. Works with live tailing, `LOGPARSER_LOG_FORMATS` and `import-logs --format geometrikks-json`. The existing nginx format keeps working.
+
+### Changed
+
+- New logo, wordmark, icons and color themes (dark "Aurora night", light "Fjord mist").
+- Refactored the Settings pages.
+- Tables, stat cards and data panels use one set of labels, borders and shadows across every page, and each page has a one-line description under its title.
+- Map popups and controls follow the active theme and accent.
+
+### Removed
+
+- Five unused frontend dependencies: `@tanstack/react-table`, `@radix-ui/react-slot`, `@vite-pwa/assets-generator`, `baseline-browser-mapping` and `caniuse-lite`. Nothing imported them; the browserslist data pins never reached `browserslist`, which resolves its own nested copies.
+
+### Fixed
+
+- `scripts/generate-brand-assets.mjs` imports `playwright` directly, so it is now declared in devDependencies instead of resolving through the copy `@playwright/test` pulls in.
+- Percent and ratio placeholders render as "-", matching every other empty cell.
+- Stat card trend badges no longer pair a 0.0% label with an up or down arrow; tiny and non-finite deltas render as flat or hidden.
+- Live tail: the Status column is wide enough for its header, which ran into Method.
+- Ingestion reloads its GeoIP readers after the weekly GeoLite2 refresh replaces the database files, so new geo data applies without a restart. This also picks up files replaced outside the app (for example by `geoipupdate`), and a start in geo-degraded mode recovers on its own once a later scheduled download succeeds. Running the refresh job from Settings downloads fresh databases even when the current files are younger than `GEOIP_REFRESH_DAYS`, and applies a file replaced outside the app immediately.
+
 ## [0.10.0] - 2026-08-22
 
 ### Added

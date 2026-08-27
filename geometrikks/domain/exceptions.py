@@ -18,3 +18,19 @@ class DomainValidationError(GeometrikksError):
     def __init__(self, detail: str) -> None:
         super().__init__(detail)
         self.detail = detail
+
+
+class DomainNotFoundError(GeometrikksError):
+    """The named resource does not exist (translates to 404)."""
+
+    def __init__(self, detail: str) -> None:
+        super().__init__(detail)
+        self.detail = detail
+
+
+class DomainConflictError(GeometrikksError):
+    """The request contradicts the resource's current state (translates to 409)."""
+
+    def __init__(self, detail: str) -> None:
+        super().__init__(detail)
+        self.detail = detail

@@ -11,9 +11,10 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any, cast
 
-from sqlalchemy import CursorResult, delete, select
+from sqlalchemy import CursorResult, delete, select, text
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
+from geometrikks.domain.exceptions import DomainConflictError, DomainNotFoundError
 from geometrikks.domain.geo.models import SiteHome
 from geometrikks.server.logging import get_logger
 
@@ -127,3 +128,35 @@ async def reconcile_override_homes(
 async def fetch_site_homes(session: "AsyncSession") -> list[SiteHome]:
     result = await session.execute(select(SiteHome).order_by(SiteHome.hostname))
     return list(result.scalars())
+
+
+async def fetch_last_event_days(session: "AsyncSession") -> dict[str, datetime]:
+    """Most recent day with traffic per recording hostname.
+
+    Reads the hostname_daily_stats aggregate, not geo_events: the raw table
+    only has a single-column hostname index, so a per-hostname max(timestamp)
+    would walk every row of a busy source. Day precision is enough to tell a
+    retired source from a live one.
+    """
+    result = await session.execute(
+        text("SELECT hostname, max(bucket) AS last_day FROM hostname_daily_stats GROUP BY hostname")
+    )
+    return {row.hostname: row.last_day for row in result}
+
+
+async def remove_site_home(session: "AsyncSession", hostname: str, *, actor: str) -> None:
+    """Remove one hostname's home row.
+
+    Only auto rows can go: override rows mirror MAP_HOME_LOCATIONS and would
+    be recreated at the next startup, so deleting one here would only
+    mislead. A deleted auto row comes back at the owning agent's next home
+    refresh if that agent still runs; the delete is for retired sources.
+    """
+    row = (await session.execute(select(SiteHome).where(SiteHome.hostname == hostname))).scalar_one_or_none()
+    if row is None:
+        raise DomainNotFoundError(f"No home recorded for hostname {hostname!r}")
+    if row.source == "override":
+        raise DomainConflictError(f"Hostname {hostname!r} is pinned by MAP_HOME_LOCATIONS; remove it there instead")
+    await session.delete(row)
+    await session.commit()
+    logger.info("site_home_deleted", hostname=hostname, source="auto", actor=actor)

@@ -118,7 +118,7 @@ export function TimeRangeToolbar() {
                 onClick={() => setRange(preset.value)}
                 className={cn(
                   "text-xs",
-                  range === preset.value && "bg-geo-cyan/20 text-geo-cyan"
+                  range === preset.value && "bg-primary/20 text-primary"
                 )}
               >
                 {preset.label}
@@ -226,7 +226,7 @@ export function TimeRangeToolbar() {
                     className={cn(
                       "text-xs pointer-coarse:h-10",
                       range === preset.value &&
-                        "bg-geo-cyan/20 text-geo-cyan border-geo-cyan/40"
+                        "bg-primary/20 text-primary border-primary/40"
                     )}
                   >
                     {preset.label}

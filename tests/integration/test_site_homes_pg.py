@@ -1,13 +1,18 @@
 """site_homes: migration shape, upsert precedence, override reconcile."""
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
+
 import pytest
 from sqlalchemy import text
 
 from geometrikks.services.geoip.home import HomeLocation
+from geometrikks.domain.exceptions import DomainConflictError, DomainNotFoundError
 from geometrikks.services.geoip.site_homes import (
+    fetch_last_event_days,
     fetch_site_homes,
     reconcile_override_homes,
+    remove_site_home,
     upsert_auto_homes,
 )
 
@@ -86,3 +91,59 @@ async def test_site_homes_source_is_db_constrained(pg_session_maker, clean_site_
                 "(hostname, latitude, longitude, source, created_at, updated_at) "
                 "VALUES ('x', 1.0, 2.0, 'bogus', now(), now())"
             ))
+
+
+async def test_delete_removes_auto_row_and_next_upsert_recreates_it(pg_session_maker, clean_site_homes):
+    await upsert_auto_homes(pg_session_maker, ["retired-01"], HOME)
+    async with pg_session_maker() as session:
+        await remove_site_home(session, "retired-01", actor="test")
+    assert "retired-01" not in await _rows(pg_session_maker)
+    # A source that still ingests gets its row back on its next refresh.
+    await upsert_auto_homes(pg_session_maker, ["retired-01"], HOME)
+    assert (await _rows(pg_session_maker))["retired-01"][2] == "auto"
+
+
+async def test_delete_refuses_override_and_missing_rows(pg_session_maker, clean_site_homes):
+    await reconcile_override_homes(pg_session_maker, {"pinned-01": (51.5, -0.12)})
+    async with pg_session_maker() as session:
+        with pytest.raises(DomainConflictError):
+            await remove_site_home(session, "pinned-01", actor="test")
+        with pytest.raises(DomainNotFoundError):
+            await remove_site_home(session, "never-seen", actor="test")
+    assert (await _rows(pg_session_maker))["pinned-01"][2] == "override"
+
+
+async def test_last_event_days_reports_the_latest_day_per_hostname(
+    pg_engine, pg_session_maker, clean_tables, clean_site_homes
+):
+    """Reads the daily hostname aggregate. Real-time aggregation only covers
+    buckets past the materialization watermark, and earlier tests may have
+    refreshed the aggregate beyond the seed day, so refresh the seed window
+    explicitly instead of relying on it."""
+    day = datetime(2026, 8, 20, 13, 0, tzinfo=timezone.utc)
+    async with pg_session_maker() as session:
+        location_id = (await session.execute(text(
+            "INSERT INTO geo_locations (geohash, latitude, longitude, geographic_point, "
+            " country_code, country_name, city, last_hit, created_at, updated_at) "
+            "VALUES ('sh-last-day', 59.91, 10.75, "
+            " ST_SetSRID(ST_MakePoint(10.75, 59.91), 4326)::geography, "
+            " 'NO', 'Norway', 'Oslo', now(), now(), now()) RETURNING id"
+        ))).scalar_one()
+        for ts in (day - timedelta(days=3), day):
+            await session.execute(text(
+                "INSERT INTO geo_events (timestamp, ip_address, hostname, location_id) "
+                "VALUES (:ts, '203.0.113.7', 'seen-01', :location_id)"
+            ), {"ts": ts, "location_id": location_id})
+        await session.commit()
+    # CALL cannot run inside a transaction: use the raw asyncpg connection.
+    async with pg_engine.connect() as conn:
+        raw = await conn.get_raw_connection()
+        await raw.driver_connection.execute(
+            "CALL refresh_continuous_aggregate('hostname_daily_stats', $1::timestamptz, $2::timestamptz)",
+            day - timedelta(days=4),
+            day + timedelta(days=1),
+        )
+    async with pg_session_maker() as session:
+        last = await fetch_last_event_days(session)
+    assert last["seen-01"].date() == day.date()
+    assert "never-seen" not in last

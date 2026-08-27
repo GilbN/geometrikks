@@ -5,9 +5,11 @@ from typing import Annotated, Literal, cast
 from advanced_alchemy.extensions.litestar.providers import create_service_dependencies
 from advanced_alchemy.filters import FilterTypes
 from advanced_alchemy.service import OffsetPagination
-from litestar import Controller, Request, get
+from litestar import Controller, Request, delete, get
 from litestar.di import NamedDependency
+from litestar.openapi.datastructures import ResponseSpec
 from litestar.params import PathParameter, QueryParameter, SkipValidation
+from litestar.status_codes import HTTP_404_NOT_FOUND, HTTP_409_CONFLICT
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from geometrikks.config.settings import Settings
@@ -45,7 +47,8 @@ from geometrikks.lib.validation import validate_ip_addresses
 from geometrikks.server import runtime
 from geometrikks.server.logging import get_logger
 from geometrikks.services.geoip.home import HomeLocation
-from geometrikks.services.geoip.site_homes import fetch_site_homes
+from geometrikks.server.exceptions import ErrorEnvelope
+from geometrikks.services.geoip.site_homes import fetch_last_event_days, fetch_site_homes, remove_site_home
 
 logger = get_logger(__name__)
 
@@ -167,6 +170,7 @@ class GeoLocationController(Controller):
         found nothing (geo-degraded or auto-detect disabled).
         """
         rows = await fetch_site_homes(db_session)
+        last_days = await fetch_last_event_days(db_session) if rows else {}
         home: HomeLocation | None = runtime.get_map_home_location(request.app)
         if home is None and settings.map.home_latitude is not None and settings.map.home_longitude is not None:
             home = HomeLocation(
@@ -182,11 +186,35 @@ class GeoLocationController(Controller):
                     longitude=r.longitude,
                     source=cast(Literal["auto", "override"], r.source),
                     detected_at=r.detected_at.isoformat() if r.detected_at else None,
+                    last_event_day=last_days[r.hostname].date().isoformat() if r.hostname in last_days else None,
                 )
                 for r in rows
             ],
             default=DefaultHomeView(latitude=home.latitude, longitude=home.longitude) if home else None,
         )
+
+    @delete(
+        "/site-homes/{hostname:str}",
+        return_dto=None,
+        description="Remove a retired source's auto-detected home. Override rows (MAP_HOME_LOCATIONS) cannot be removed here.",
+        responses={
+            HTTP_404_NOT_FOUND: ResponseSpec(
+                data_container=ErrorEnvelope, description="No home is recorded for this hostname."
+            ),
+            HTTP_409_CONFLICT: ResponseSpec(
+                data_container=ErrorEnvelope,
+                description="The home is pinned by MAP_HOME_LOCATIONS; edit the setting instead.",
+            ),
+        },
+    )
+    async def delete_site_home(
+        self,
+        request: Request,
+        db_session: NamedDependency[AsyncSession],
+        hostname: Annotated[str, PathParameter(description="Recording hostname whose home row to remove")],
+    ) -> None:
+        user = request.scope.get("user")
+        await remove_site_home(db_session, hostname, actor=str(user) if user else "unknown")
 
     @get("/top-ips", return_dto=None, description="Get global top IPs by event count with their primary locations.")
     async def get_global_top_ips(
