@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import asyncio
 import re
+import time
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING, Literal
@@ -196,6 +197,7 @@ async def _create_summary_caggs(conn: "AsyncConnection") -> None:
             COUNT(*) FILTER (WHERE status_code >= 300 AND status_code < 400) AS status_3xx,
             COUNT(*) FILTER (WHERE status_code >= 400 AND status_code < 500) AS status_4xx,
             COUNT(*) FILTER (WHERE status_code >= 500 AND status_code < 600) AS status_5xx,
+            COUNT(request_time) AS timed_requests,
             AVG(request_time) AS avg_request_time,
             MAX(request_time) AS max_request_time,
             percentile_agg(request_time) AS pct_agg
@@ -216,6 +218,7 @@ async def _create_summary_caggs(conn: "AsyncConnection") -> None:
             COUNT(*) FILTER (WHERE status_code >= 300 AND status_code < 400) AS status_3xx,
             COUNT(*) FILTER (WHERE status_code >= 400 AND status_code < 500) AS status_4xx,
             COUNT(*) FILTER (WHERE status_code >= 500 AND status_code < 600) AS status_5xx,
+            COUNT(request_time) AS timed_requests,
             AVG(request_time) AS avg_request_time,
             MAX(request_time) AS max_request_time,
             percentile_agg(request_time) AS pct_agg
@@ -408,7 +411,8 @@ async def _create_url_caggs(conn: "AsyncConnection") -> None:
     """Create per-URL access-log CAGGs (hourly + daily).
 
     Used for: analytics /top-urls (unfiltered path). total_request_time is a
-    SUM so the rolled-up average is exact (SUM/SUM), never an AVG of AVGs.
+    SUM and timed_hits a COUNT of measured rows, so the rolled-up average is
+    exact (SUM/COUNT of timed rows), never an AVG of AVGs.
     """
     for suffix, interval in (("hourly", "1 hour"), ("daily", "1 day")):
         await conn.execute(text(f"""
@@ -419,6 +423,7 @@ async def _create_url_caggs(conn: "AsyncConnection") -> None:
                 url,
                 COUNT(*) AS hits,
                 COUNT(*) FILTER (WHERE status_code >= 400) AS error_hits,
+                COUNT(request_time) AS timed_hits,
                 COALESCE(SUM(bytes_sent), 0) AS total_bytes,
                 SUM(request_time) AS total_request_time
             FROM access_logs
@@ -795,6 +800,105 @@ async def teardown_timescaledb(conn: "AsyncConnection") -> None:
 
 SUMMARY_CAGGS = ["summary_hourly_stats", "summary_daily_stats"]
 
+# CAGG -> its count-of-measured-rows column. Added to existing views in
+# place by _add_timed_columns; fresh installs get them from the CREATE.
+TIMED_COUNT_COLUMNS: dict[str, str] = {
+    "summary_hourly_stats": "timed_requests",
+    "summary_daily_stats": "timed_requests",
+    "url_hourly_stats": "timed_hits",
+    "url_daily_stats": "timed_hits",
+}
+
+
+async def _timed_columns_need_upgrade(
+    conn: "AsyncConnection", *, raw_retention_days: int
+) -> list[str]:
+    """Views whose count column is missing or not yet backfilled.
+
+    A view that does not exist yet needs nothing: the CREATE includes the
+    column. "Any bucket with a NULL count" is the rerun-safe half of the
+    probe: a container killed during the forced refresh comes back with the
+    column present and history still uncounted, and must refresh again.
+
+    That half is scoped to the raw retention window, the only span the forced
+    refresh can recount. Daily buckets older than it keep a NULL count for
+    good (their raw rows are gone), and an unscoped probe would see those and
+    schedule the full refresh again on every start. Readers fall back to the
+    bucket's total for them.
+
+    Args:
+        conn: Open connection inside the setup transaction.
+        raw_retention_days: Window the forced refresh covers.
+    """
+    result = await conn.execute(text("""
+        SELECT table_name, column_name FROM information_schema.columns
+        WHERE table_name = ANY(:views)
+    """), {"views": list(TIMED_COUNT_COLUMNS)})
+    columns = {(r.table_name, r.column_name) for r in result}
+    existing_views = {name for name, _ in columns}
+    pending: list[str] = []
+    for view, column in TIMED_COUNT_COLUMNS.items():
+        if view not in existing_views:
+            continue
+        if (view, column) not in columns:
+            pending.append(view)
+            continue
+        has_null = (await conn.execute(
+            text(
+                f"SELECT 1 FROM {view} WHERE {column} IS NULL "
+                f"AND bucket >= now() - make_interval(days => :days) LIMIT 1"
+            ),
+            {"days": raw_retention_days},
+        )).scalar()
+        if has_null:
+            pending.append(view)
+    return pending
+
+
+async def _add_timed_columns(conn: "AsyncConnection", views: list[str]) -> list[str]:
+    """Add the count column in place; fall back to drop-and-recreate.
+
+    The in-place ALTER keeps every existing bucket; only the new column is
+    filled by the forced refresh the caller runs afterwards. TimescaleDB
+    versions without in-place CAGG columns raise here, and for those the
+    old percentile-upgrade route applies: drop the view (setup recreates it
+    with the column) and accept that daily history older than raw retention
+    cannot be rebuilt.
+
+    Returns:
+        Views that were dropped and will be recreated by the CREATE step.
+    """
+    dropped: list[str] = []
+    for view in views:
+        column = TIMED_COUNT_COLUMNS[view]
+        exists = (await conn.execute(text("""
+            SELECT 1 FROM information_schema.columns
+            WHERE table_name = :view AND column_name = :column
+        """), {"view": view, "column": column})).scalar()
+        if exists:
+            continue
+        try:
+            # Savepoint: a failed DDL poisons the whole setup transaction, so
+            # without one the fallback DROP below would hit "current
+            # transaction is aborted" and take startup down with it.
+            async with conn.begin_nested():
+                await conn.execute(text(
+                    f"ALTER MATERIALIZED VIEW {view} ADD COLUMN {column} bigint "
+                    f"GENERATED ALWAYS AS (COUNT(request_time)) STORED"
+                ))
+            logger.info("cagg_timed_column_added", view=view, column=column)
+        except Exception as exc:
+            logger.warning(
+                "In-place column add failed on %s (%s); recreating the view. "
+                "History older than the raw retention window cannot be rebuilt "
+                "and is discarded.",
+                view,
+                exc,
+            )
+            await conn.execute(text(f"DROP MATERIALIZED VIEW IF EXISTS {view} CASCADE"))
+            dropped.append(view)
+    return dropped
+
 
 async def _summary_caggs_need_upgrade(conn: "AsyncConnection") -> bool:
     """True when a summary CAGG exists in the pre-percentile_agg shape.
@@ -888,6 +992,18 @@ async def setup_timescaledb(
         if upgraded:
             await _upgrade_summary_caggs(conn)
 
+        # Add the timed-row count columns to pre-existing summary/URL CAGGs.
+        # Probed before the CREATE step: CREATE IF NOT EXISTS never alters an
+        # existing view. The forced refresh runs after policies, outside the
+        # transaction (CALL cannot run inside one).
+        timed_views = await _timed_columns_need_upgrade(
+            conn, raw_retention_days=analytics.raw_retention_days
+        )
+        if timed_views:
+            recreated = await _add_timed_columns(conn, timed_views)
+            if recreated:
+                logger.info("cagg_timed_views_recreated", views=recreated)
+
         # Upgrade pre-hostname location CAGGs, gated on hostname pollution:
         # migrating polluted (container-ID) hostnames would make the map's
         # per-source filter useless, so the old shape is kept until the
@@ -970,6 +1086,25 @@ async def setup_timescaledb(
             caggs=LOCATION_CAGGS,
         )
 
+    if timed_views:
+        started = time.monotonic()
+        failed = await refresh_caggs_range(
+            engine,
+            start=datetime.now(timezone.utc) - timedelta(days=analytics.raw_retention_days),
+            end=datetime.now(timezone.utc),
+            caggs=timed_views,
+            force=True,
+        )
+        if failed:
+            # The column is there but those views' history stays uncounted;
+            # the next start finds the NULL counts and refreshes them again.
+            logger.warning("cagg_timed_refresh_failed", views=failed)
+        logger.info(
+            "cagg_timed_refresh_done",
+            views=[view for view in timed_views if view not in failed],
+            seconds=round(time.monotonic() - started, 1),
+        )
+
     # Repair deployments whose data predates CAGG refresh coverage
     # (issue #14: long-range charts truncated while top lists are not).
     await backfill_cagg_gaps(
@@ -987,6 +1122,7 @@ async def refresh_caggs_range(
     start: datetime,
     end: datetime,
     caggs: list[str] | None = None,
+    force: bool = False,
 ) -> list[str]:
     """Refresh CAGGs for a specific time range (used after historical imports).
 
@@ -1005,6 +1141,9 @@ async def refresh_caggs_range(
         start: Range start (inclusive), timezone-aware.
         end: Range end (exclusive), timezone-aware.
         caggs: Optional subset of CAGGs (defaults to all).
+        force: Re-materialize buckets that are already up to date. Needed
+            once after a column is added to an existing view, since a normal
+            refresh skips buckets it considers current.
 
     Returns:
         Names of CAGGs whose refresh failed; empty when all succeeded.
@@ -1030,8 +1169,9 @@ async def refresh_caggs_range(
                     driver_conn = raw_conn.driver_connection
                     if driver_conn is None:
                         raise RuntimeError("No driver connection available for CALL statement")
+                    force_arg = ", force => true" if force else ""
                     await driver_conn.execute(
-                        f"CALL refresh_continuous_aggregate('{cagg}', $1::timestamptz, $2::timestamptz)",
+                        f"CALL refresh_continuous_aggregate('{cagg}', $1::timestamptz, $2::timestamptz{force_arg})",
                         start,
                         end,
                     )

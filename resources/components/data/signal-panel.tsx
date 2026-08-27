@@ -20,6 +20,7 @@ export function SignalPanel({
   actions,
   legend,
   error = "The chart data could not be loaded.",
+  empty = "No data for this range.",
   onRetry,
   bodyClassName = "min-h-64",
   children,
@@ -32,6 +33,7 @@ export function SignalPanel({
   actions?: React.ReactNode
   legend?: React.ReactNode
   error?: string
+  empty?: string
   onRetry?: () => void
   bodyClassName?: string
 }) {
@@ -69,7 +71,7 @@ export function SignalPanel({
         )}
         {state === "empty" && (
           <div className="flex h-full min-h-[inherit] items-center justify-center text-center text-sm text-muted-foreground">
-            No data for this range.
+            {empty}
           </div>
         )}
         {state === "ready" && children}

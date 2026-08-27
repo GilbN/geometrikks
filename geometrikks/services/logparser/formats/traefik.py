@@ -86,7 +86,7 @@ class TraefikJsonFormat:
 
         duration_ns = data.get("Duration")
         request_time = (
-            duration_ns / 1e9 if isinstance(duration_ns, (int, float)) else 0.0
+            duration_ns / 1e9 if isinstance(duration_ns, (int, float)) else None
         )
         origin_ns = data.get("OriginDuration")
         upstream = (

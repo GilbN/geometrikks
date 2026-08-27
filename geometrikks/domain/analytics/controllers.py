@@ -65,6 +65,13 @@ def _calculate_percent_change(current: float, previous: float) -> float | None:
     return ((current - previous) / previous) * 100
 
 
+def _optional_percent_change(current: float | None, previous: float | None) -> float | None:
+    """Percent change for a figure that is None when nothing was measured."""
+    if current is None or previous is None:
+        return None
+    return _calculate_percent_change(current, previous)
+
+
 def _build_filters(
     country_code: list[str] | None,
     city: list[str] | None,
@@ -136,6 +143,7 @@ class AnalyticsController(Controller):
             # Return empty summary if no data
             empty_period = PeriodSummary(
                 total_requests=0,
+                timed_requests=0,
                 total_geo_events=0,
                 unique_ips=0,
                 unique_countries=0,
@@ -145,8 +153,8 @@ class AnalyticsController(Controller):
                 status_3xx=0,
                 status_4xx=0,
                 status_5xx=0,
-                avg_request_time=0.0,
-                max_request_time=0.0,
+                avg_request_time=None,
+                max_request_time=None,
                 malformed_requests=0,
                 error_rate=0.0,
             )
@@ -158,6 +166,7 @@ class AnalyticsController(Controller):
 
         current_period = PeriodSummary(
             total_requests=current_stats.total_log_records,
+            timed_requests=current_stats.timed_requests,
             total_geo_events=current_stats.total_geo_records,
             unique_ips=current_stats.unique_ips,
             unique_countries=current_stats.unique_countries,
@@ -187,6 +196,7 @@ class AnalyticsController(Controller):
             if prev_stats:
                 previous_period = PeriodSummary(
                     total_requests=prev_stats.total_log_records,
+                    timed_requests=prev_stats.timed_requests,
                     total_geo_events=prev_stats.total_geo_records,
                     unique_ips=prev_stats.unique_ips,
                     unique_countries=prev_stats.unique_countries,
@@ -215,7 +225,7 @@ class AnalyticsController(Controller):
                     bytes_sent=_calculate_percent_change(
                         current_stats.total_bytes_sent, prev_stats.total_bytes_sent
                     ),
-                    avg_request_time=_calculate_percent_change(
+                    avg_request_time=_optional_percent_change(
                         current_stats.avg_request_time, prev_stats.avg_request_time
                     ),
                     error_rate=_calculate_percent_change(
@@ -264,6 +274,7 @@ class AnalyticsController(Controller):
             # Return empty summary if no data
             empty_period = PeriodSummary(
                 total_requests=0,
+                timed_requests=0,
                 total_geo_events=0,
                 unique_ips=0,
                 unique_countries=0,
@@ -273,8 +284,8 @@ class AnalyticsController(Controller):
                 status_3xx=0,
                 status_4xx=0,
                 status_5xx=0,
-                avg_request_time=0.0,
-                max_request_time=0.0,
+                avg_request_time=None,
+                max_request_time=None,
                 malformed_requests=0,
                 error_rate=0.0,
             )
@@ -286,6 +297,7 @@ class AnalyticsController(Controller):
 
         current_period = PeriodSummary(
             total_requests=current_stats.total_log_records,
+            timed_requests=current_stats.timed_requests,
             total_geo_events=current_stats.total_geo_records,
             unique_ips=current_stats.unique_ips,
             unique_countries=current_stats.unique_countries,
@@ -315,6 +327,7 @@ class AnalyticsController(Controller):
             if prev_stats:
                 previous_period = PeriodSummary(
                     total_requests=prev_stats.total_log_records,
+                    timed_requests=prev_stats.timed_requests,
                     total_geo_events=prev_stats.total_geo_records,
                     unique_ips=prev_stats.unique_ips,
                     unique_countries=prev_stats.unique_countries,
@@ -343,7 +356,7 @@ class AnalyticsController(Controller):
                     bytes_sent=_calculate_percent_change(
                         current_stats.total_bytes_sent, prev_stats.total_bytes_sent
                     ),
-                    avg_request_time=_calculate_percent_change(
+                    avg_request_time=_optional_percent_change(
                         current_stats.avg_request_time, prev_stats.avg_request_time
                     ),
                     error_rate=_calculate_percent_change(
@@ -457,6 +470,7 @@ class AnalyticsController(Controller):
                     status_4xx=row.status_4xx,
                     status_5xx=row.status_5xx,
                     error_rate=(row.status_4xx + row.status_5xx) / row.total_requests if row.total_requests else 0.0,
+                    timed_requests=row.timed_requests,
                     avg_request_time=row.avg_request_time,
                     p50_request_time=row.p50_request_time,
                     p95_request_time=row.p95_request_time,

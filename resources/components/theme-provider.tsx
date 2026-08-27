@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useState } from "react"
 import { type Accent, accentAttribute, parseAccent } from "@/lib/accent"
-import { type Theme, parseTheme } from "@/lib/theme"
+import { type ResolvedTheme, type Theme, parseTheme, resolveTheme } from "@/lib/theme"
 
 type ThemeProviderProps = {
   children: React.ReactNode
@@ -10,13 +10,20 @@ type ThemeProviderProps = {
 }
 
 type ThemeProviderState = {
+  /** The stored preference, "system" included. */
   theme: Theme
+  /** What the page is showing right now; "system" resolved against the OS. */
+  resolvedTheme: ResolvedTheme
   setTheme: (theme: Theme) => void
   accent: Accent
   setAccent: (accent: Accent) => void
 }
 
 const ThemeProviderContext = createContext<ThemeProviderState | undefined>(undefined)
+
+function prefersDark(): boolean {
+  return window.matchMedia("(prefers-color-scheme: dark)").matches
+}
 
 function readStorage(key: string): string | null {
   try {
@@ -44,23 +51,25 @@ export function ThemeProvider({
     parseTheme(readStorage(storageKey), defaultTheme),
   )
   const [accent, setAccentState] = useState<Accent>(() => parseAccent(readStorage(accentStorageKey)))
+  const [resolvedTheme, setResolvedTheme] = useState<ResolvedTheme>(() =>
+    resolveTheme(theme, prefersDark()),
+  )
 
   useEffect(() => {
-    const root = window.document.documentElement
-    const apply = (dark: boolean) => {
-      root.classList.remove("light", "dark")
-      root.classList.add(dark ? "dark" : "light")
-    }
-    if (theme !== "system") {
-      apply(theme === "dark")
-      return
-    }
+    setResolvedTheme(resolveTheme(theme, prefersDark()))
+    if (theme !== "system") return
     const query = window.matchMedia("(prefers-color-scheme: dark)")
-    apply(query.matches)
-    const onChange = (event: MediaQueryListEvent) => apply(event.matches)
+    const onChange = (event: MediaQueryListEvent) =>
+      setResolvedTheme(resolveTheme(theme, event.matches))
     query.addEventListener("change", onChange)
     return () => query.removeEventListener("change", onChange)
   }, [theme])
+
+  useEffect(() => {
+    const root = window.document.documentElement
+    root.classList.remove("light", "dark")
+    root.classList.add(resolvedTheme)
+  }, [resolvedTheme])
 
   useEffect(() => {
     const root = window.document.documentElement
@@ -72,6 +81,7 @@ export function ThemeProvider({
   const value = useMemo<ThemeProviderState>(
     () => ({
       theme,
+      resolvedTheme,
       setTheme: (next) => {
         writeStorage(storageKey, next)
         setThemeState(next)
@@ -82,7 +92,7 @@ export function ThemeProvider({
         setAccentState(next)
       },
     }),
-    [theme, accent, storageKey, accentStorageKey],
+    [theme, resolvedTheme, accent, storageKey, accentStorageKey],
   )
 
   return <ThemeProviderContext.Provider value={value}>{children}</ThemeProviderContext.Provider>

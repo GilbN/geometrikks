@@ -25,7 +25,7 @@ export interface AccessLogData {
   bytes_sent: number
   referrer: string | null
   user_agent: string | null
-  request_time: number
+  request_time: number | null
   upstream_response_time: number | null
   host: string | null
   country_code: string | null

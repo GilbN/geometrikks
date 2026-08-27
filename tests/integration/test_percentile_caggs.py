@@ -82,9 +82,10 @@ async def test_repo_summary_and_time_series_percentiles(pg_engine, pg_session_ma
         stats = await repo.get_summary(NOW - timedelta(days=3, hours=3), NOW)  # >24h -> CAGG path
         series = await repo.get_time_series(NOW - timedelta(days=3, hours=3), NOW)
 
-    assert stats is not None and 0.005 < stats.p50_request_time < 0.02
+    assert stats is not None and stats.p50_request_time is not None
+    assert 0.005 < stats.p50_request_time < 0.02
     assert len(series) >= 3
-    assert all(p.p50_request_time >= 0 for p in series)
+    assert all(p.p50_request_time is not None and p.p50_request_time >= 0 for p in series)
 
 
 async def test_old_shape_summary_caggs_are_upgraded(pg_engine):

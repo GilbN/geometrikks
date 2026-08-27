@@ -454,3 +454,146 @@ def test_backfill_asn_exits_nonzero_when_cagg_refresh_fails(monkeypatch) -> None
     assert result.exit_code != 0
     assert "rows updated: 7" in result.output
     assert "asn_daily_stats" in result.output
+
+
+def _make_timings_engine(count: int, *, rowcount: int) -> MagicMock:
+    """Engine for backfill-timings: preview via connect(), UPDATE via begin().
+
+    The preview returns (count, min_ts, max_ts); the EXISTS probe for
+    TimescaleDB returns True; every write reports ``rowcount``.
+    """
+    from datetime import datetime, timezone
+
+    preview = MagicMock()
+    preview.one.return_value = (
+        count,
+        datetime(2026, 1, 1, tzinfo=timezone.utc) if count else None,
+        datetime(2026, 1, 2, tzinfo=timezone.utc) if count else None,
+    )
+    preview.scalar.return_value = True
+
+    write_result = MagicMock()
+    write_result.rowcount = rowcount
+
+    read_conn = MagicMock()
+    read_conn.execute = AsyncMock(return_value=preview)
+    read_conn.__aenter__ = AsyncMock(return_value=read_conn)
+    read_conn.__aexit__ = AsyncMock(return_value=False)
+
+    write_conn = MagicMock()
+    write_conn.execute = AsyncMock(return_value=write_result)
+    write_conn.__aenter__ = AsyncMock(return_value=write_conn)
+    write_conn.__aexit__ = AsyncMock(return_value=False)
+
+    engine = MagicMock()
+    engine.connect = MagicMock(return_value=read_conn)
+    engine.begin = MagicMock(return_value=write_conn)
+    engine.dispose = AsyncMock()
+    return engine
+
+
+def _invoke_backfill_timings(monkeypatch, engine: MagicMock, args: list[str], refresh: AsyncMock, cli_input: str | None = None):
+    import click
+
+    import geometrikks.server.plugins as plugins_module
+    import geometrikks.server.timescale as timescale_module
+    from geometrikks.cli import ImportLogsCLIPlugin
+
+    config = MagicMock()
+    config.get_engine.return_value = engine
+    monkeypatch.setattr(plugins_module, "get_sqlalchemy_config", lambda: config)
+    monkeypatch.setattr(timescale_module, "refresh_caggs_range", refresh)
+
+    @click.group()
+    def cli() -> None: ...
+
+    ImportLogsCLIPlugin().on_cli_init(cli)
+    return CliRunner().invoke(cli, ["backfill-timings", *args], input=cli_input)
+
+
+def test_cli_plugin_registers_backfill_timings() -> None:
+    import click
+
+    from geometrikks.cli import ImportLogsCLIPlugin
+
+    @click.group()
+    def cli() -> None: ...
+
+    ImportLogsCLIPlugin().on_cli_init(cli)
+    assert "backfill-timings" in cli.commands
+
+
+def test_backfill_timings_nothing_to_do_skips_everything(monkeypatch) -> None:
+    engine = _make_timings_engine(0, rowcount=0)
+    refresh = AsyncMock(return_value=[])
+    result = _invoke_backfill_timings(monkeypatch, engine, ["--yes"], refresh)
+    assert result.exit_code == 0, result.output
+    assert "Nothing to do" in result.output
+    engine.begin.assert_not_called()
+    refresh.assert_not_awaited()
+
+
+def test_backfill_timings_previews_then_updates_and_refreshes(monkeypatch) -> None:
+    engine = _make_timings_engine(1200, rowcount=1200)
+    refresh = AsyncMock(return_value=[])
+    result = _invoke_backfill_timings(monkeypatch, engine, ["--yes"], refresh)
+    assert result.exit_code == 0, result.output
+    assert "1,200" in result.output
+    write_sql = [str(c.args[0]) for c in engine.begin.return_value.execute.await_args_list]
+    assert any("decompress_chunk" in s for s in write_sql)
+    update = next(s for s in write_sql if "UPDATE access_logs SET request_time = NULL" in s)
+    assert "log_format = 'nginx'" in update and "host IS NULL" in update and "request_time = 0" in update
+    refresh.assert_awaited()
+    assert refresh.await_args is not None
+    assert refresh.await_args.kwargs["force"] is True
+    assert set(refresh.await_args.kwargs["caggs"]) == {
+        "summary_hourly_stats", "summary_daily_stats", "url_hourly_stats", "url_daily_stats"
+    }
+
+
+def test_backfill_timings_narrows_by_hostname_and_before(monkeypatch) -> None:
+    from datetime import datetime, timezone
+
+    engine = _make_timings_engine(5, rowcount=5)
+    refresh = AsyncMock(return_value=[])
+    result = _invoke_backfill_timings(
+        monkeypatch, engine, ["--yes", "--hostname", "nginx-01", "--before", "2026-08-20"], refresh
+    )
+    assert result.exit_code == 0, result.output
+    preview_call = engine.connect.return_value.execute.await_args_list[0]
+    assert "hostname = :hostname" in str(preview_call.args[0])
+    assert "timestamp < :before" in str(preview_call.args[0])
+    assert preview_call.args[1]["hostname"] == "nginx-01"
+    assert preview_call.args[1]["before"] == datetime(2026, 8, 20, tzinfo=timezone.utc)
+
+
+def test_backfill_timings_aborts_without_confirmation(monkeypatch) -> None:
+    engine = _make_timings_engine(5, rowcount=5)
+    refresh = AsyncMock(return_value=[])
+    result = _invoke_backfill_timings(monkeypatch, engine, [], refresh, cli_input="n\n")
+    assert result.exit_code == 0, result.output
+    assert "Aborted" in result.output
+    engine.begin.assert_not_called()
+
+
+def test_backfill_timings_rejects_bad_before_date(monkeypatch) -> None:
+    engine = _make_timings_engine(5, rowcount=5)
+    result = _invoke_backfill_timings(monkeypatch, engine, ["--yes", "--before", "yesterday"], AsyncMock())
+    assert result.exit_code != 0
+    assert "before" in result.output.lower()
+
+
+def test_backfill_timings_logs_audit_before_raising_on_refresh_failure(monkeypatch) -> None:
+    import geometrikks.server.logging as logging_module
+
+    engine = _make_timings_engine(7, rowcount=7)
+    refresh = AsyncMock(return_value=["url_daily_stats"])
+    logger = MagicMock()
+    monkeypatch.setattr(logging_module, "get_logger", lambda name: logger)
+    result = _invoke_backfill_timings(monkeypatch, engine, ["--yes"], refresh)
+    assert result.exit_code != 0
+    assert "url_daily_stats" in result.output
+    logger.info.assert_called_once()
+    assert logger.info.call_args.args[0] == "backfill_timings_completed"
+    assert logger.info.call_args.kwargs["cleared"] == 7
+    assert logger.info.call_args.kwargs["cagg_refresh_failed"] == ["url_daily_stats"]

@@ -2062,8 +2062,14 @@
             "type": "string"
           },
           "requestTime": {
-            "default": 0.0,
-            "type": "number"
+            "oneOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "statusCode": {
             "type": "integer"
@@ -2682,7 +2688,14 @@
             "type": "number"
           },
           "avgRequestTime": {
-            "type": "number"
+            "oneOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "errorRate": {
             "type": "number"
@@ -2691,7 +2704,14 @@
             "type": "integer"
           },
           "maxRequestTime": {
-            "type": "number"
+            "oneOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "status2xx": {
             "type": "integer"
@@ -2703,6 +2723,9 @@
             "type": "integer"
           },
           "status5xx": {
+            "type": "integer"
+          },
+          "timedRequests": {
             "type": "integer"
           },
           "totalBytesSent": {
@@ -2731,6 +2754,7 @@
           "status3xx",
           "status4xx",
           "status5xx",
+          "timedRequests",
           "totalBytesSent",
           "totalGeoEvents",
           "totalRequests",
@@ -3205,19 +3229,47 @@
       "TimeSeriesDataPoint": {
         "properties": {
           "avgRequestTime": {
-            "type": "number"
+            "oneOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "errorRate": {
             "type": "number"
           },
           "p50RequestTime": {
-            "type": "number"
+            "oneOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "p95RequestTime": {
-            "type": "number"
+            "oneOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "p99RequestTime": {
-            "type": "number"
+            "oneOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "status2xx": {
             "type": "integer"
@@ -3229,6 +3281,9 @@
             "type": "integer"
           },
           "status5xx": {
+            "type": "integer"
+          },
+          "timedRequests": {
             "type": "integer"
           },
           "timestamp": {
@@ -3254,6 +3309,7 @@
           "status3xx",
           "status4xx",
           "status5xx",
+          "timedRequests",
           "timestamp",
           "totalBytesSent",
           "totalGeoEvents",
@@ -3757,12 +3813,22 @@
       "TopUrlDTO": {
         "properties": {
           "avgRequestTime": {
-            "type": "number"
+            "oneOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "errorHits": {
             "type": "integer"
           },
           "hits": {
+            "type": "integer"
+          },
+          "timedHits": {
             "type": "integer"
           },
           "totalBytes": {
@@ -3776,6 +3842,7 @@
           "avgRequestTime",
           "errorHits",
           "hits",
+          "timedHits",
           "totalBytes",
           "url"
         ],

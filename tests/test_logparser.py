@@ -445,7 +445,7 @@ def test_create_access_log_sqlalchemy_success(log_parser: LogParser, geoip_reade
     assert isinstance(access_log, ParsedAccessLog)
     assert access_log.country_code is not None
     assert access_log.bytes_sent >= 0
-    assert access_log.request_time >= 0.0
+    assert access_log.request_time is not None and access_log.request_time >= 0.0
 
 
 def test_create_access_log_sqlalchemy_geoip_failure(log_parser: LogParser, monkeypatch) -> None:

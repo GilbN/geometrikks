@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Response-time cards and the latency chart read "n/a" when the selected range has no measured requests, and "From N% of requests" when only some rows carry a timing. Top URLs and the access-log table show "n/a" for rows without one.
+- `litestar backfill-timings` clears the placeholder 0.0 response time on rows imported from `combined`-format nginx archives. `--hostname` and `--before` narrow which rows it touches.
+
+### Changed
+
+- A missing `request_time` is now NULL instead of 0.0, so unmeasured requests stop dragging the response-time average and percentiles toward zero. The summary and URL aggregates gain a count of measured rows. The first start after upgrading adds that column in place and refreshes those four aggregates over the raw retention window; on a large database this takes minutes, and no history is lost. Buckets older than the window keep their pre-upgrade figures, which counted every row, because the raw rows needed to recount them are gone.
+- nginx status 408, 444 and 499 no longer mark a request as malformed. A 444 is usually a block rule and a 499 is a client that hung up, so those lines now land in Access logs like any other request instead of filling the Debug page and the malformed count. Probe detection is unchanged; TLS, SSH and SMB handshakes and requests without a valid HTTP method are still flagged.
+
+### Fixed
+
+- The Overview's Avg and Max Request Time cards formatted seconds as if they were milliseconds, showing a 40 ms average as 40μs.
+- Stat cards on the Summary, Geo logs and Debug logs pages no longer read "Last Last month" or "Last Today" for calendar presets. Calendar ranges show their own name, and trends on the Summary page read "vs previous period" instead of "vs last Yesterday".
+- The map basemap follows the System theme. It stayed dark while the rest of the app switched to light with the OS, and now switches with it, live.
+
 ## [0.11.0] - 2026-08-27
 
 ### Added

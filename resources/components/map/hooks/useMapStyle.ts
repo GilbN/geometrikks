@@ -10,13 +10,12 @@ const MAP_STYLES = {
 } as const
 
 export function useMapStyle() {
-  const { theme } = useTheme()
-
-  // Use dark for "dark" and "system" themes (since system defaults to dark in this app)
-  const effectiveTheme = theme === "light" ? "light" : "dark"
+  // resolvedTheme, not theme: "system" has to land on whichever mode the
+  // rest of the page is showing, and it changes live with the OS setting.
+  const { resolvedTheme } = useTheme()
 
   return {
-    mapStyle: MAP_STYLES[effectiveTheme],
-    theme: effectiveTheme,
+    mapStyle: MAP_STYLES[resolvedTheme],
+    theme: resolvedTheme,
   }
 }

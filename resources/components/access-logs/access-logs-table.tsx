@@ -46,6 +46,7 @@ import { cn } from "@/lib/utils"
 import { useColumnVisibility } from "@/lib/column-visibility"
 import { useAccessLogFilters } from "@/lib/access-log-filters-context"
 import { statusBadgeClass } from "@/lib/status-badge"
+import { formatDurationOrNa } from "@/lib/timing"
 
 export const ACCESS_LOGS_PAGE_SIZES = [10, 20, 50, 100, 200, 500, 1000] as const
 
@@ -82,7 +83,7 @@ function renderCell(column: AccessLogColumn, r: AccessLog): React.ReactNode {
     case "bytesSent":
       return <span className="tabular-nums">{formatBytes(r.bytesSent)}</span>
     case "requestTime":
-      return <span className="tabular-nums">{formatDuration(r.requestTime * 1000)}</span>
+      return <span className="tabular-nums">{formatDurationOrNa(r.requestTime)}</span>
     case "remoteUser":
       return <span className="font-mono">{r.remoteUser ?? "-"}</span>
     case "httpVersion":

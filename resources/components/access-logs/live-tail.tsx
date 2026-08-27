@@ -11,8 +11,9 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { useMediaQuery } from "@/hooks/use-media-query"
 import { useLiveEvents } from "@/lib/live-feed-context"
-import { formatBytes, formatDuration } from "@/lib/api"
+import { formatBytes } from "@/lib/api"
 import { statusBadgeClass } from "@/lib/status-badge"
+import { formatDurationOrNa } from "@/lib/timing"
 import { cn } from "@/lib/utils"
 import type { AccessLogData } from "@/lib/websocket"
 
@@ -154,7 +155,7 @@ export function LiveTail({ enabled }: { enabled: boolean }) {
                   <span className="w-32 shrink-0 text-muted-foreground">{row.ip_address}</span>
                   <span className="hidden w-16 shrink-0 truncate text-muted-foreground md:block">{row.remote_user ?? "-"}</span>
                   <span className="w-16 shrink-0 text-right tabular-nums">{formatBytes(row.bytes_sent)}</span>
-                  <span className="w-16 shrink-0 text-right tabular-nums">{formatDuration(row.request_time * 1000)}</span>
+                  <span className="w-16 shrink-0 text-right tabular-nums">{formatDurationOrNa(row.request_time)}</span>
                   <span className="hidden w-16 shrink-0 text-muted-foreground md:block">{row.http_version ?? "-"}</span>
                   <span className="w-16 shrink-0 truncate" title={row.country_code ?? undefined}>
                     {row.country_name ?? row.country_code ?? "-"}

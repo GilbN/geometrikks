@@ -89,6 +89,20 @@ migration locking), not a tuning knob.
   always configured at startup. That step is idempotent but requires the
   schema to be at head, and it failing is the deliberate signal that the
   external migration step was skipped.
+- The first start on a version that adds a column to a continuous
+  aggregate (the timed-row counts on the summary and URL aggregates, for
+  example) adds it in place and then re-materializes those aggregates over
+  the raw retention window. That refresh runs inside startup, so the head
+  container answers nothing, `/health` included, until it finishes; on a
+  database with tens of millions of rows expect minutes, and watch for
+  `cagg_timed_column_added` followed by `cagg_timed_refresh_done` in the
+  logs. No history is lost, and a container stopped mid-way resumes the
+  refresh on its next start. Buckets older than the raw retention window
+  keep their pre-upgrade figures, computed over every row, because the raw
+  rows needed to recount them are gone. A TimescaleDB without in-place
+  aggregate columns (the compose images pin a version that has them) falls
+  back to dropping and recreating the aggregate, which discards daily
+  history older than the raw retention window.
 
 ## Health
 

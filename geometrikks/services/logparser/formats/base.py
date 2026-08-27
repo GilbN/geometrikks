@@ -10,6 +10,7 @@ the single place where that gets corrected.
 """
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Protocol, runtime_checkable
@@ -29,7 +30,7 @@ class NormalizedLine:
     bytes_sent: int = 0
     referrer: str | None = None
     user_agent: str | None = None
-    request_time: float = 0.0
+    request_time: float | None = None
     upstream_response_time: float | None = None
     host: str | None = None
     # Raw request-line text ("GET / HTTP/1.1" or probe garbage); nginx only,
@@ -68,10 +69,29 @@ def convert_dash_to_none(value: str | None) -> str | None:
     return stripped if stripped not in ("", "-") else None
 
 
+def parse_seconds(raw: str | None) -> float | None:
+    """A timing in seconds, or None when the line carries no measurement.
+
+    '', '-' and unparseable text are absence. nan and inf parse as floats
+    but are not measurements either.
+    """
+    if not raw or raw.strip() == "-":
+        return None
+    try:
+        value = float(raw)
+    except ValueError:
+        return None
+    return value if math.isfinite(value) else None
+
+
 def detect_probe(
     request_raw: str | None, method: str | None, status_code: int
 ) -> tuple[bool, str | None]:
-    """Classify probe garbage and connection-level statuses; shared by the nginx adapters.
+    """Classify probe garbage; shared by the nginx adapters.
+
+    Status codes are not a signal. 408, 444 and 499 used to mark a line
+    malformed, but a 444 is usually a block rule and a 499 is a client that
+    gave up, both well-formed requests the server chose not to answer.
 
     ``request_raw`` arrives in two escapings. The regex format sees nginx's
     default escaping as literal text (``\\x16\\x03``); ``escape=json`` writes
@@ -120,13 +140,5 @@ def detect_probe(
     # Check for non-standard/invalid HTTP methods
     if method.upper() not in VALID_HTTP_METHODS:
         return True, f"Invalid HTTP method: {method}"
-
-    # nginx-specific status codes that indicate connection issues, not normal HTTP errors
-    if status_code == 408:
-        return True, "Request timeout (408)"
-    if status_code == 444:
-        return True, "Connection closed without response (nginx 444)"
-    if status_code == 499:
-        return True, "Client closed connection before response (nginx 499)"
 
     return False, None

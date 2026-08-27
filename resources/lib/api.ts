@@ -150,6 +150,7 @@ export type RuntimeSettings = SafeSettingsResponse
 
 export interface PeriodSummary {
   totalRequests: number
+  timedRequests: number
   totalGeoEvents: number
   uniqueIps: number
   uniqueCountries: number
@@ -159,8 +160,8 @@ export interface PeriodSummary {
   status3xx: number
   status4xx: number
   status5xx: number
-  avgRequestTime: number
-  maxRequestTime: number
+  avgRequestTime: number | null
+  maxRequestTime: number | null
   malformedRequests: number
   errorRate: number
 }
@@ -897,7 +898,7 @@ export interface AccessLog {
   bytesSent: number
   referrer: string | null
   userAgent: string | null
-  requestTime: number
+  requestTime: number | null
   upstreamResponseTime: number | null
   host: string | null
   hostname: string | null

@@ -23,19 +23,17 @@ import {
 
 import { StatCard, StatCardSkeleton } from "@/components/dashboard/statcard"
 import { SectionHeader } from "@/components/section-header"
-import {
-  formatNumber,
-  formatBytes,
-  formatDuration,
-  type SummaryResponse,
-} from "@/lib/api"
+import { formatNumber, formatBytes, type SummaryResponse } from "@/lib/api"
+import { formatDurationOrNa, timingCoverage, TIMING_HINT } from "@/lib/timing"
 import { cn } from "@/lib/utils"
 
 interface SectionProps {
   summary: SummaryResponse | undefined
   isLoading: boolean
-  /** Human label of the selected range, e.g. "24 hours". */
-  rangeLabel: string
+  /** Span the values cover, e.g. "Last 24h" or "Last month". */
+  rangeSubtitle: string
+  /** Wording for a trend against the span before, e.g. "vs last 24h". */
+  compareLabel: string
 }
 
 /** Header plus grid; skeletons while loading, nothing on error (the page
@@ -68,7 +66,7 @@ function Section({
 const calcPercent = (part: number, total: number) =>
   total > 0 ? ((part / total) * 100).toFixed(1) : "0"
 
-export function TrafficOverviewSection({ summary, isLoading, rangeLabel }: SectionProps) {
+export function TrafficOverviewSection({ summary, isLoading, rangeSubtitle }: SectionProps) {
   const cur = summary?.currentPeriod
   const chg = summary?.percentChanges
   return (
@@ -83,7 +81,7 @@ export function TrafficOverviewSection({ summary, isLoading, rangeLabel }: Secti
           <StatCard
             title="Access Log Records"
             value={formatNumber(cur.totalRequests)}
-            subtitle={`Last ${rangeLabel}`}
+            subtitle={rangeSubtitle}
             icon={Activity}
             trend={{
               value: chg?.logRecords ?? null,
@@ -93,7 +91,7 @@ export function TrafficOverviewSection({ summary, isLoading, rangeLabel }: Secti
           <StatCard
             title="Geo Event Records"
             value={formatNumber(cur.totalGeoEvents)}
-            subtitle={`Last ${rangeLabel}`}
+            subtitle={rangeSubtitle}
             icon={FileText}
             trend={{
               value: chg?.geoRecords ?? null,
@@ -109,7 +107,7 @@ export function TrafficOverviewSection({ summary, isLoading, rangeLabel }: Secti
           <StatCard
             title="Malformed Requests"
             value={formatNumber(cur.malformedRequests)}
-            subtitle={`Last ${rangeLabel}`}
+            subtitle={rangeSubtitle}
             icon={AlertTriangle}
             trend={{
               value: chg?.malformedRate ?? null,
@@ -122,7 +120,7 @@ export function TrafficOverviewSection({ summary, isLoading, rangeLabel }: Secti
   )
 }
 
-export function HttpStatusSection({ summary, isLoading, rangeLabel }: SectionProps) {
+export function HttpStatusSection({ summary, isLoading, compareLabel }: SectionProps) {
   const cur = summary?.currentPeriod
   const chg = summary?.percentChanges
   return (
@@ -170,7 +168,7 @@ export function HttpStatusSection({ summary, isLoading, rangeLabel }: SectionPro
             title="Unique IPs"
             value={formatNumber(cur.uniqueIps)}
             subtitle={
-              chg?.uniqueIps != null ? `vs last ${rangeLabel}` : "Active visitors"
+              chg?.uniqueIps != null ? compareLabel : "Active visitors"
             }
             icon={Users}
             iconClassName="text-primary/70"
@@ -186,9 +184,17 @@ export function HttpStatusSection({ summary, isLoading, rangeLabel }: SectionPro
   )
 }
 
-export function PerformanceSection({ summary, isLoading, rangeLabel }: SectionProps) {
+function timingSubtitle(coverage: ReturnType<typeof timingCoverage>, whenFull: string): string {
+  if (coverage.state === "empty") return "No requests in this range"
+  if (coverage.state === "none") return TIMING_HINT
+  if (coverage.state === "partial") return `From ${coverage.percent}% of requests`
+  return whenFull
+}
+
+export function PerformanceSection({ summary, isLoading, compareLabel }: SectionProps) {
   const cur = summary?.currentPeriod
   const chg = summary?.percentChanges
+  const coverage = cur ? timingCoverage(cur.timedRequests, cur.totalRequests) : timingCoverage(0, 0)
   return (
     <Section
       title="Performance & Bandwidth"
@@ -200,21 +206,20 @@ export function PerformanceSection({ summary, isLoading, rangeLabel }: SectionPr
         <>
           <StatCard
             title="Avg Request Time"
-            value={formatDuration(cur.avgRequestTime)}
-            subtitle={
-              chg?.avgRequestTime != null ? `vs last ${rangeLabel}` : "Response time"
-            }
+            value={formatDurationOrNa(cur.avgRequestTime)}
+            subtitle={timingSubtitle(coverage, chg?.avgRequestTime != null ? compareLabel : "Response time")}
             icon={Clock}
             iconClassName="text-primary/70"
-            trend={{
-              value: chg?.avgRequestTime ?? null,
-              positive: (chg?.avgRequestTime ?? 0) <= 0,
-            }}
+            trend={
+              coverage.state === "empty" || coverage.state === "none"
+                ? undefined
+                : { value: chg?.avgRequestTime ?? null, positive: (chg?.avgRequestTime ?? 0) <= 0 }
+            }
           />
           <StatCard
             title="Max Request Time"
-            value={formatDuration(cur.maxRequestTime)}
-            subtitle="Peak latency"
+            value={formatDurationOrNa(cur.maxRequestTime)}
+            subtitle={timingSubtitle(coverage, "Peak latency")}
             icon={Zap}
             iconClassName="text-amber-500/70"
             valueClassName="text-amber-500"
@@ -223,7 +228,7 @@ export function PerformanceSection({ summary, isLoading, rangeLabel }: SectionPr
             title="Total Bandwidth"
             value={formatBytes(cur.totalBytesSent)}
             subtitle={
-              chg?.bytesSent != null ? `vs last ${rangeLabel}` : "Data transferred"
+              chg?.bytesSent != null ? compareLabel : "Data transferred"
             }
             icon={HardDrive}
             iconClassName="text-primary/70"

@@ -7,3 +7,11 @@ export type Theme = (typeof THEMES)[number]
 export function parseTheme(value: string | null, fallback: Theme = "system"): Theme {
   return (THEMES as readonly string[]).includes(value ?? "") ? (value as Theme) : fallback
 }
+
+export type ResolvedTheme = Exclude<Theme, "system">
+
+/** The mode a preference lands on once "system" is read against the OS setting. */
+export function resolveTheme(theme: Theme, prefersDark: boolean): ResolvedTheme {
+  if (theme === "system") return prefersDark ? "dark" : "light"
+  return theme
+}

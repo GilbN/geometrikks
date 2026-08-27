@@ -36,7 +36,7 @@ class ParsedAccessLog:
     bytes_sent: int
     referrer: str | None
     user_agent: str | None
-    request_time: float
+    request_time: float | None
     upstream_response_time: float | None
     host: str | None
     country_code: str | None
