@@ -183,6 +183,7 @@ export function HttpStatusSection({ summary, isLoading, rangeLabel }: SectionPro
 }
 
 function timingSubtitle(coverage: ReturnType<typeof timingCoverage>, whenFull: string): string {
+  if (coverage.state === "empty") return "No requests in this range"
   if (coverage.state === "none") return TIMING_HINT
   if (coverage.state === "partial") return `From ${coverage.percent}% of requests`
   return whenFull
@@ -208,7 +209,7 @@ export function PerformanceSection({ summary, isLoading, rangeLabel }: SectionPr
             icon={Clock}
             iconClassName="text-primary/70"
             trend={
-              coverage.state === "none"
+              coverage.state === "empty" || coverage.state === "none"
                 ? undefined
                 : { value: chg?.avgRequestTime ?? null, positive: (chg?.avgRequestTime ?? 0) <= 0 }
             }

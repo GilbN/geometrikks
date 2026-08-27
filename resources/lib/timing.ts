@@ -9,11 +9,13 @@ export function formatDurationOrNa(seconds: number | null | undefined): string {
   return formatDuration(seconds * 1000)
 }
 
-export type TimingCoverage = { state: "none" | "partial" | "full"; percent: number }
+export type TimingCoverage = { state: "empty" | "none" | "partial" | "full"; percent: number }
 
-/** How much of a range's requests carried a timing. */
+/** How much of a range's requests carried a timing. "empty" is a range with
+ * no requests at all, which says nothing about the log format. */
 export function timingCoverage(timed: number, total: number): TimingCoverage {
-  if (timed <= 0 || total <= 0) return { state: "none", percent: 0 }
+  if (total <= 0) return { state: "empty", percent: 0 }
+  if (timed <= 0) return { state: "none", percent: 0 }
   if (timed >= total) return { state: "full", percent: 100 }
   return { state: "partial", percent: Math.round((timed / total) * 100) }
 }

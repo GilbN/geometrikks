@@ -16,9 +16,12 @@ describe("formatDurationOrNa", () => {
 })
 
 describe("timingCoverage", () => {
-  it("is none when nothing was measured, including an empty range", () => {
+  it("is empty when the range has no requests at all", () => {
+    expect(timingCoverage(0, 0)).toEqual({ state: "empty", percent: 0 })
+  })
+
+  it("is none when requests exist but none was measured", () => {
     expect(timingCoverage(0, 10)).toEqual({ state: "none", percent: 0 })
-    expect(timingCoverage(0, 0)).toEqual({ state: "none", percent: 0 })
   })
 
   it("is partial with an integer percent", () => {
