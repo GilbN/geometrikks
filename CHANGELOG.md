@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-08-27
+
 ### Added
 
 - Login, the error page, 404 and the Settings backdrop use the brand map scene (graticule, relief, markers, routes), and the map page shows it while the map loads. Backdrops render at the screen's native resolution, so they stay sharp on hi-dpi displays.
@@ -900,7 +902,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Settings endpoint no longer exposes the full settings tree (database credentials leaked via `model_dump()`); response is now an explicit whitelist.
 - Timestamps in `CALL refresh_continuous_aggregate` are bound as asyncpg parameters instead of interpolated into SQL.
 
-[Unreleased]: https://github.com/GilbN/geometrikks/compare/v0.10.0...HEAD
+[Unreleased]: https://github.com/GilbN/geometrikks/compare/v0.11.0...HEAD
+[0.11.0]: https://github.com/GilbN/geometrikks/compare/v0.10.0...v0.11.0
 [0.10.0]: https://github.com/GilbN/geometrikks/compare/v0.9.0...v0.10.0
 [0.9.0]: https://github.com/GilbN/geometrikks/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/GilbN/geometrikks/compare/v0.7.1...v0.8.0
