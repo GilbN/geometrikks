@@ -74,19 +74,17 @@ def test_nginx_detect_malformed_tls_probe() -> None:
     assert "TLS" in reason
 
 
-def test_nginx_detect_malformed_nginx_statuses() -> None:
+def test_nginx_connection_statuses_are_well_formed() -> None:
+    """A 444 geoblock or a 499 client hang-up is a normal request the server chose not to answer."""
     fmt = NginxFormat()
-    for status, fragment in ((444, "444"), (499, "499"), (408, "408")):
+    for status in (444, 499, 408):
         line = (
             f'203.0.113.7 - - [03/Aug/2024:13:14:17 +0200]"GET / HTTP/1.1" {status} 0"-" '
             f'example.com "-""0.002" "-"'
         )
         norm = fmt.parse(line)
         assert norm is not None
-        is_malformed, reason = fmt.detect_malformed(norm)
-        assert is_malformed is True, f"status {status} should be malformed"
-        assert reason is not None
-        assert fragment in reason
+        assert fmt.detect_malformed(norm) == (False, None), f"status {status} should not be malformed"
 
 
 def test_nginx_detect_malformed_ok_line() -> None:
@@ -249,7 +247,7 @@ def test_traefik_detect_malformed_method_only() -> None:
     assert is_malformed is True
     assert reason is not None
     assert "BOGUS" in reason
-    # nginx-specific status heuristics must NOT apply
+    # a connection-level status is not a malformed line
     data = json.loads(TRAEFIK_FULL)
     data["DownstreamStatus"] = 499
     norm = fmt.parse(json.dumps(data))
@@ -282,6 +280,7 @@ def test_detect_probe_ssh_and_smb() -> None:
     assert detect_probe("SSH-2.0-OpenSSH_9.6", None, 400) == (True, "SSH probe sent to HTTP port")
     assert detect_probe("\xffSMBr\x00", None, 400) == (True, "SMB protocol probe (EternalBlue scanner)")
     assert detect_probe("\\xffSMBr\\x00", None, 400) == (True, "SMB protocol probe (EternalBlue scanner)")
+    assert detect_probe("\\xffSMB\\x25", None, 400) == (True, "SMB protocol probe (EternalBlue scanner)")
     assert detect_probe("NT LM 0.12", None, 400) == (True, "SMB dialect negotiation probe")
 
 
@@ -289,10 +288,9 @@ def test_detect_probe_method_and_status_rules() -> None:
     assert detect_probe("", None, 400) == (True, "TLS probe: HTTP request sent to HTTPS port")
     assert detect_probe("", None, 200) == (True, "No HTTP method in request")
     assert detect_probe("", "PROPFIND", 200) == (True, "Invalid HTTP method: PROPFIND")
-    assert detect_probe("GET / HTTP/1.1", "GET", 408) == (True, "Request timeout (408)")
-    assert detect_probe("GET / HTTP/1.1", "GET", 444) == (True, "Connection closed without response (nginx 444)")
-    assert detect_probe("GET / HTTP/1.1", "GET", 499) == (True, "Client closed connection before response (nginx 499)")
     assert detect_probe("GET / HTTP/1.1", "GET", 200) == (False, None)
+    for status in (408, 444, 499):
+        assert detect_probe("GET / HTTP/1.1", "GET", status) == (False, None)
     assert detect_probe(None, "GET", 200) == (False, None)
 
 
@@ -504,14 +502,12 @@ def test_gjson_detect_malformed_method_rules() -> None:
         assert fmt.detect_malformed(norm) == (True, expected)
 
 
-def test_gjson_detect_malformed_connection_statuses() -> None:
+def test_gjson_connection_statuses_are_well_formed() -> None:
     fmt = GeometrikksJsonFormat()
-    for status, fragment in (("444", "444"), ("499", "499"), ("408", "408")):
+    for status in ("444", "499", "408"):
         norm = fmt.parse(gjson(status=status))
         assert norm is not None
-        is_malformed, reason = fmt.detect_malformed(norm)
-        assert is_malformed is True
-        assert reason is not None and fragment in reason
+        assert fmt.detect_malformed(norm) == (False, None), f"status {status} should not be malformed"
 
 
 def test_gjson_detect_malformed_ok_line() -> None:

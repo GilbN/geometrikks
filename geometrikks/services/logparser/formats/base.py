@@ -87,7 +87,11 @@ def parse_seconds(raw: str | None) -> float | None:
 def detect_probe(
     request_raw: str | None, method: str | None, status_code: int
 ) -> tuple[bool, str | None]:
-    """Classify probe garbage and connection-level statuses; shared by the nginx adapters.
+    """Classify probe garbage; shared by the nginx adapters.
+
+    Status codes are not a signal. 408, 444 and 499 used to mark a line
+    malformed, but a 444 is usually a block rule and a 499 is a client that
+    gave up, both well-formed requests the server chose not to answer.
 
     ``request_raw`` arrives in two escapings. The regex format sees nginx's
     default escaping as literal text (``\\x16\\x03``); ``escape=json`` writes
@@ -136,13 +140,5 @@ def detect_probe(
     # Check for non-standard/invalid HTTP methods
     if method.upper() not in VALID_HTTP_METHODS:
         return True, f"Invalid HTTP method: {method}"
-
-    # nginx-specific status codes that indicate connection issues, not normal HTTP errors
-    if status_code == 408:
-        return True, "Request timeout (408)"
-    if status_code == 444:
-        return True, "Connection closed without response (nginx 444)"
-    if status_code == 499:
-        return True, "Client closed connection before response (nginx 499)"
 
     return False, None

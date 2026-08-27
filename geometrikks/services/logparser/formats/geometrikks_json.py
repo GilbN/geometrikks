@@ -132,5 +132,5 @@ class GeometrikksJsonFormat:
         )
 
     def detect_malformed(self, norm: NormalizedLine) -> tuple[bool, str | None]:
-        """Probe and connection-status classification; see ``detect_probe``."""
+        """Probe classification; see ``detect_probe``."""
         return detect_probe(norm.request_raw, norm.method, norm.status_code)

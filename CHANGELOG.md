@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - A missing `request_time` is now NULL instead of 0.0, so unmeasured requests stop dragging the response-time average and percentiles toward zero. The summary and URL aggregates gain a count of measured rows. The first start after upgrading adds that column in place and refreshes those four aggregates over the raw retention window; on a large database this takes minutes, and no history is lost. Buckets older than the window keep their pre-upgrade figures, which counted every row, because the raw rows needed to recount them are gone.
+- nginx status 408, 444 and 499 no longer mark a request as malformed. A 444 is usually a block rule and a 499 is a client that hung up, so those lines now land in Access logs like any other request instead of filling the Debug page and the malformed count. Probe detection is unchanged; TLS, SSH and SMB handshakes and requests without a valid HTTP method are still flagged.
 
 ### Fixed
 
