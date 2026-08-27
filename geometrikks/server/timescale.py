@@ -184,9 +184,10 @@ async def _create_hypertables(conn: "AsyncConnection") -> None:
 async def _create_summary_caggs(conn: "AsyncConnection") -> None:
     """Create summary stats CAGGs from access_logs.
 
-    Used for: Summary page, Analytics charts
+    Used for: Summary page, Analytics charts. The `latency_*` pair repeats
+    both over latency rows only (see `LATENCY_STATUS_EXCLUSIONS`).
     """
-    await conn.execute(text("""
+    await conn.execute(text(f"""
         CREATE MATERIALIZED VIEW IF NOT EXISTS summary_hourly_stats
         WITH (timescaledb.continuous) AS
         SELECT
@@ -200,14 +201,18 @@ async def _create_summary_caggs(conn: "AsyncConnection") -> None:
             COUNT(request_time) AS timed_requests,
             AVG(request_time) AS avg_request_time,
             MAX(request_time) AS max_request_time,
-            percentile_agg(request_time) AS pct_agg
+            percentile_agg(request_time) AS pct_agg,
+            COUNT(request_time) FILTER (WHERE {LATENCY_FILTER}) AS latency_requests,
+            AVG(request_time) FILTER (WHERE {LATENCY_FILTER}) AS avg_latency,
+            MAX(request_time) FILTER (WHERE {LATENCY_FILTER}) AS max_latency,
+            percentile_agg(request_time) FILTER (WHERE {LATENCY_FILTER}) AS latency_pct_agg
         FROM access_logs
         GROUP BY bucket
         WITH NO DATA
     """))
     logger.info("CAGG created/verified: summary_hourly_stats")
 
-    await conn.execute(text("""
+    await conn.execute(text(f"""
         CREATE MATERIALIZED VIEW IF NOT EXISTS summary_daily_stats
         WITH (timescaledb.continuous) AS
         SELECT
@@ -221,7 +226,11 @@ async def _create_summary_caggs(conn: "AsyncConnection") -> None:
             COUNT(request_time) AS timed_requests,
             AVG(request_time) AS avg_request_time,
             MAX(request_time) AS max_request_time,
-            percentile_agg(request_time) AS pct_agg
+            percentile_agg(request_time) AS pct_agg,
+            COUNT(request_time) FILTER (WHERE {LATENCY_FILTER}) AS latency_requests,
+            AVG(request_time) FILTER (WHERE {LATENCY_FILTER}) AS avg_latency,
+            MAX(request_time) FILTER (WHERE {LATENCY_FILTER}) AS max_latency,
+            percentile_agg(request_time) FILTER (WHERE {LATENCY_FILTER}) AS latency_pct_agg
         FROM access_logs
         GROUP BY bucket
         WITH NO DATA
@@ -412,7 +421,8 @@ async def _create_url_caggs(conn: "AsyncConnection") -> None:
 
     Used for: analytics /top-urls (unfiltered path). total_request_time is a
     SUM and timed_hits a COUNT of measured rows, so the rolled-up average is
-    exact (SUM/COUNT of timed rows), never an AVG of AVGs.
+    exact (SUM/COUNT of timed rows), never an AVG of AVGs. The `latency_*`
+    pair repeats both over latency rows only (see `LATENCY_STATUS_EXCLUSIONS`).
     """
     for suffix, interval in (("hourly", "1 hour"), ("daily", "1 day")):
         await conn.execute(text(f"""
@@ -425,7 +435,9 @@ async def _create_url_caggs(conn: "AsyncConnection") -> None:
                 COUNT(*) FILTER (WHERE status_code >= 400) AS error_hits,
                 COUNT(request_time) AS timed_hits,
                 COALESCE(SUM(bytes_sent), 0) AS total_bytes,
-                SUM(request_time) AS total_request_time
+                SUM(request_time) AS total_request_time,
+                COUNT(request_time) FILTER (WHERE {LATENCY_FILTER}) AS latency_hits,
+                SUM(request_time) FILTER (WHERE {LATENCY_FILTER}) AS total_latency
             FROM access_logs
             WHERE url IS NOT NULL
             GROUP BY bucket, url
@@ -799,6 +811,78 @@ async def teardown_timescaledb(conn: "AsyncConnection") -> None:
 
 
 SUMMARY_CAGGS = ["summary_hourly_stats", "summary_daily_stats"]
+
+# Rows whose request_time is a connection's lifetime, not a response time.
+# 101 is the WebSocket upgrade handshake: nginx and Traefik log the whole
+# connection under it, so a day-long socket reads as a day-long request.
+# 0 is "no status written" (nginx logs 000, Traefik 0), a connection that
+# ended before any response; its duration is time-to-abort.
+LATENCY_STATUS_EXCLUSIONS: tuple[int, ...] = (0, 101)
+
+
+def latency_filter(alias: str = "") -> str:
+    """SQL predicate selecting latency rows; ``alias`` prefixes the column.
+
+    Args:
+        alias: Table alias including the dot, e.g. ``"al."``, or empty.
+    """
+    codes = ", ".join(str(code) for code in LATENCY_STATUS_EXCLUSIONS)
+    return f"{alias}status_code NOT IN ({codes})"
+
+
+LATENCY_FILTER = latency_filter()
+
+
+@dataclass(frozen=True)
+class CaggColumn:
+    """A column a continuous aggregate gains after its first release.
+
+    Fresh installs get it from the CREATE statement; existing views get it
+    in place from ``_add_cagg_columns`` with the same expression.
+    """
+
+    name: str
+    sql_type: str
+    expression: str
+
+    @property
+    def ddl(self) -> str:
+        return f"{self.name} {self.sql_type} GENERATED ALWAYS AS ({self.expression}) STORED"
+
+
+_SUMMARY_COLUMNS: tuple[CaggColumn, ...] = (
+    CaggColumn("timed_requests", "bigint", "COUNT(request_time)"),
+    CaggColumn("latency_requests", "bigint", f"COUNT(request_time) FILTER (WHERE {LATENCY_FILTER})"),
+    CaggColumn("avg_latency", "double precision", f"AVG(request_time) FILTER (WHERE {LATENCY_FILTER})"),
+    CaggColumn("max_latency", "double precision", f"MAX(request_time) FILTER (WHERE {LATENCY_FILTER})"),
+    CaggColumn("latency_pct_agg", "uddsketch", f"percentile_agg(request_time) FILTER (WHERE {LATENCY_FILTER})"),
+)
+_URL_COLUMNS: tuple[CaggColumn, ...] = (
+    CaggColumn("timed_hits", "bigint", "COUNT(request_time)"),
+    CaggColumn("latency_hits", "bigint", f"COUNT(request_time) FILTER (WHERE {LATENCY_FILTER})"),
+    CaggColumn("total_latency", "double precision", f"SUM(request_time) FILTER (WHERE {LATENCY_FILTER})"),
+)
+
+# View -> columns added after the view first shipped, oldest first. A
+# database missing several gets them all in one pass and one forced refresh.
+CAGG_COLUMNS: dict[str, tuple[CaggColumn, ...]] = {
+    "summary_hourly_stats": _SUMMARY_COLUMNS,
+    "summary_daily_stats": _SUMMARY_COLUMNS,
+    "url_hourly_stats": _URL_COLUMNS,
+    "url_daily_stats": _URL_COLUMNS,
+}
+
+# The newest COUNT column per view. A COUNT is 0, never NULL, once a bucket
+# has been refreshed, and one forced refresh fills every column of a view,
+# so "this column is NULL" means "this bucket predates the newest upgrade".
+# Older count columns are not probed: the latency columns are added after
+# the timed ones, so a filled latency count implies a filled timed count.
+CAGG_PROBE_COLUMNS: dict[str, str] = {
+    "summary_hourly_stats": "latency_requests",
+    "summary_daily_stats": "latency_requests",
+    "url_hourly_stats": "latency_hits",
+    "url_daily_stats": "latency_hits",
+}
 
 # CAGG -> its count-of-measured-rows column. Added to existing views in
 # place by _add_timed_columns; fresh installs get them from the CREATE.
