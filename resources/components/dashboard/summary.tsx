@@ -1,7 +1,7 @@
 import { TooltipProvider } from "@/components/ui/tooltip"
 
 import { useSummary } from "@/lib/queries"
-import { TIME_RANGE_PRESETS } from "@/lib/api"
+import { rangeCompareLabel, rangeSubtitle } from "@/lib/time-range-labels"
 import { useTimeRange } from "@/lib/time-range-context"
 import { DateTimeRange } from "@/components/dashboard/date-time-range"
 import {
@@ -19,9 +19,12 @@ export function Summary() {
     comparePrevious: true,
   })
 
-  const rangeLabel =
-    TIME_RANGE_PRESETS.find((p) => p.value === range)?.label ?? range
-  const section = { summary, isLoading, rangeLabel }
+  const section = {
+    summary,
+    isLoading,
+    rangeSubtitle: rangeSubtitle(range),
+    compareLabel: rangeCompareLabel(range),
+  }
 
   return (
     <TooltipProvider>
