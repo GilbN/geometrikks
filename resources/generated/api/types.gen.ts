@@ -1094,6 +1094,7 @@ export type TopUrlDto = {
   avgRequestTime: number | null;
   errorHits: number;
   hits: number;
+  host: string | null;
   timedHits: number;
   totalBytes: number;
   url: string;
