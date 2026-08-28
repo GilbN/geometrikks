@@ -80,6 +80,50 @@ async def test_create_statements_define_every_upgrade_column() -> None:
             assert f"{column.expression} AS {column.name}" in create, (view, column.name)
 
 
+async def test_url_creates_group_by_host_and_url() -> None:
+    conn = RecordingConn()
+    await timescale._create_url_caggs(cast("Any", conn))
+    creates = [s for s in conn.statements if "CREATE MATERIALIZED VIEW" in s]
+    assert len(creates) == 2
+    for create in creates:
+        assert "\n                host,\n" in create
+        assert "GROUP BY bucket, host, url" in create
+        assert "WHERE url IS NOT NULL" in create
+
+
+def _url_probe_conn(existing: int, with_host: int) -> Any:
+    class ProbeConn:
+        def __init__(self) -> None:
+            self.params: list[Any] = []
+
+        async def execute(self, statement: Any, params: Any = None) -> Any:
+            sql = str(statement)
+            self.params.append(params)
+            value = with_host if "column_name = 'host'" in sql else existing
+
+            class _One:
+                def scalar_one(self) -> int:
+                    return value
+
+            return _One()
+
+    return ProbeConn()
+
+
+async def test_url_probe_fires_when_a_view_lacks_host() -> None:
+    conn = _url_probe_conn(existing=2, with_host=1)
+    assert await timescale._url_caggs_need_upgrade(conn) is True
+    assert conn.params[0] == {"views": timescale.URL_CAGGS}
+
+
+async def test_url_probe_is_quiet_when_both_views_carry_host() -> None:
+    assert await timescale._url_caggs_need_upgrade(_url_probe_conn(existing=2, with_host=2)) is False
+
+
+async def test_url_probe_is_quiet_on_a_fresh_database() -> None:
+    assert await timescale._url_caggs_need_upgrade(_url_probe_conn(existing=0, with_host=0)) is False
+
+
 class FakeConn:
     """AsyncConnection double that models an aborted transaction.
 
@@ -247,8 +291,13 @@ async def _run_setup(
     pending_views: list[str],
     refresh_failed: list[str],
     dropped: list[str] | None = None,
+    url_upgrade: bool = False,
+    order: list[str] | None = None,
 ) -> MagicMock:
-    """Run setup_timescaledb with every DDL step stubbed; return its logger."""
+    """Run setup_timescaledb with every DDL step stubbed; return its logger.
+
+    ``order`` collects the probe names in call order when given.
+    """
     conn = MagicMock()
     conn.execute = AsyncMock(return_value=_Scalar(None))
     begin_ctx = MagicMock()
@@ -256,6 +305,7 @@ async def _run_setup(
     begin_ctx.__aexit__ = AsyncMock(return_value=False)
     engine = MagicMock()
     engine.begin = MagicMock(return_value=begin_ctx)
+    engine.conn = conn
 
     for name in dir(timescale):
         attr = getattr(timescale, name)
@@ -267,7 +317,19 @@ async def _run_setup(
         timescale, "detect_hostname_pollution",
         AsyncMock(return_value=timescale.classify_hostnames(["nginx-01"])),
     )
-    monkeypatch.setattr(timescale, "_cagg_columns_need_upgrade", AsyncMock(return_value=pending_views))
+
+    async def url_probe(_conn: Any) -> bool:
+        if order is not None:
+            order.append("url")
+        return url_upgrade
+
+    async def column_probe(_conn: Any, *, raw_retention_days: int) -> list[str]:
+        if order is not None:
+            order.append("columns")
+        return pending_views
+
+    monkeypatch.setattr(timescale, "_url_caggs_need_upgrade", url_probe)
+    monkeypatch.setattr(timescale, "_cagg_columns_need_upgrade", AsyncMock(side_effect=column_probe))
     monkeypatch.setattr(timescale, "_add_cagg_columns", AsyncMock(return_value=dropped or []))
     monkeypatch.setattr(timescale, "backfill_cagg_gaps", AsyncMock(return_value=None))
     monkeypatch.setattr(timescale, "refresh_caggs_range", AsyncMock(return_value=refresh_failed))
@@ -282,6 +344,7 @@ async def _run_setup(
         cagg_refresh_interval_minutes=5,
     )
     await timescale.setup_timescaledb(engine, cast("Any", analytics))
+    logger.engine = engine
     return logger
 
 
@@ -336,3 +399,37 @@ async def test_setup_passes_the_raw_retention_window_to_the_probe(
     probe = cast("Any", timescale._cagg_columns_need_upgrade)
     assert probe.await_args is not None
     assert probe.await_args.kwargs["raw_retention_days"] == 180
+
+
+async def test_setup_rebuilds_the_url_views_before_probing_columns(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    order: list[str] = []
+    logger = await _run_setup(
+        monkeypatch, pending_views=[], refresh_failed=[], url_upgrade=True, order=order
+    )
+
+    assert order == ["url", "columns"], "the drop must precede the in-place column probe"
+    drops = [
+        str(call.args[0]) for call in logger.engine.conn.execute.call_args_list
+        if "DROP MATERIALIZED VIEW" in str(call.args[0])
+    ]
+    assert drops == [
+        "DROP MATERIALIZED VIEW IF EXISTS url_hourly_stats CASCADE",
+        "DROP MATERIALIZED VIEW IF EXISTS url_daily_stats CASCADE",
+    ]
+    assert _events(logger.warning)["url_caggs_recreated"]["views"] == timescale.URL_CAGGS
+    refresh = cast("Any", timescale.refresh_caggs_range)
+    url_refreshes = [c for c in refresh.await_args_list if c.kwargs.get("caggs") == timescale.URL_CAGGS]
+    assert len(url_refreshes) == 1
+    assert url_refreshes[0].kwargs.get("force", False) is False
+
+
+async def test_setup_leaves_the_url_views_alone_when_they_carry_host(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    logger = await _run_setup(monkeypatch, pending_views=[], refresh_failed=[])
+
+    assert "url_caggs_recreated" not in _events(logger.warning)
+    refresh = cast("Any", timescale.refresh_caggs_range)
+    assert all(c.kwargs.get("caggs") != timescale.URL_CAGGS for c in refresh.await_args_list)
