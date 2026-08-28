@@ -8,18 +8,10 @@
 
 import { createFileRoute } from "@tanstack/react-router"
 import { lazy, Suspense } from "react"
-import { z } from "zod"
 import { MapSkeleton } from "@/components/map/MapSkeleton"
+import { mapSearchSchema } from "@/lib/map-filters"
 
 const GeoMap = lazy(() => import("@/components/map/GeoMap"))
-
-const mapSearchSchema = z.object({
-  sources: z.array(z.string()).optional().catch(undefined),
-  countries: z.array(z.string()).optional().catch(undefined),
-  cities: z.array(z.string()).optional().catch(undefined),
-  demoTraffic: z.string().optional().catch(undefined),
-  focus: z.coerce.number().int().positive().optional().catch(undefined),
-})
 
 export const Route = createFileRoute("/map")({
   validateSearch: (search: Record<string, unknown>) => mapSearchSchema.parse(search),
