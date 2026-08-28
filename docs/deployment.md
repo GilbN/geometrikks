@@ -109,10 +109,16 @@ migration locking), not a tuning knob.
   rows (the URL aggregates gained a host dimension so Top URLs can tell
   `app-a.example.com/graphql` from `app-b.example.com/graphql`) drops and
   recreates that aggregate, then re-materializes it over the raw retention
-  window inside startup, like the column upgrade above. Watch for
-  `url_caggs_recreated` in the logs. Per-URL daily history older than the
-  raw retention window is discarded, because the raw rows needed to rebuild
-  it are gone; every other aggregate is untouched.
+  window inside startup. Watch for `url_caggs_recreated` followed by
+  `url_caggs_refresh_done` (or `url_caggs_refresh_failed`) in the logs;
+  a later start logs neither. The refresh commits in batches, newest
+  buckets first, so a container stopped mid-way leaves the oldest buckets
+  missing; the next start detects that gap the same way it detects
+  history predating refresh coverage and fills it. To repair by hand
+  instead, run `CALL refresh_continuous_aggregate('url_hourly_stats',
+  NULL, NULL);` and the same for `url_daily_stats`. Per-URL daily history
+  older than the raw retention window is discarded, because the raw rows
+  needed to rebuild it are gone; every other aggregate is untouched.
 
 ## Health
 

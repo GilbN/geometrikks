@@ -14,7 +14,7 @@ CAGG Structure:
 - geo_summary_hourly_stats / geo_summary_daily_stats: Geo metrics with HyperLogLog (events, unique IPs/countries/cities)
 - location_hourly_stats / location_daily_stats: Location event counts for map (GeoJSON features)
 - ip_location_daily_stats: Per-IP counts by location for top IPs
-- url_hourly_stats / url_daily_stats: Top URLs by hits, error_hits, total_bytes, total_request_time
+- url_hourly_stats / url_daily_stats: Top host-and-path pairs by hits, error_hits, total_bytes, total_request_time
 - user_agent_hourly_stats / user_agent_daily_stats: Top user agents by hits
 - log_ip_{hourly,daily}_stats: Per-IP access-log counts (top IPs/countries/cities, facets)
 
@@ -732,8 +732,11 @@ class SummaryStatsRepository:
                 start, end, limit, filters=filters
             )
         table = f"url_{granularity.value}_stats"
-        # URL_LATENCY_*: buckets older than the raw retention window never got
-        # the latency columns and keep their unfiltered totals; see latency_col.
+        # URL_LATENCY_*: the fallback chain reads the older columns when a
+        # bucket's latency count is NULL; see latency_col. The host rebuild
+        # discarded every URL bucket older than the raw window, so today
+        # none is NULL here, and the chain stays for the next in-place
+        # column generation.
         stmt = text(f"""
             WITH combined AS (
                 SELECT s.host, s.url, s.hits, {URL_LATENCY_HITS} AS timed_hits,
