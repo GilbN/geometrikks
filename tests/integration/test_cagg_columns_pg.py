@@ -1,4 +1,4 @@
-"""Summary and URL CAGGs carry a timed-row count; old-shape views upgrade in place."""
+"""Summary and URL CAGGs carry timed-row and latency columns; old-shape views upgrade in place."""
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
@@ -54,18 +54,19 @@ async def _seed(session_maker) -> None:
         await session.commit()
 
 
-async def test_fresh_views_have_the_count_columns(pg_engine) -> None:
+async def test_fresh_views_have_every_upgrade_column(pg_engine) -> None:
     async with pg_engine.connect() as conn:
         rows = await conn.execute(text("""
             SELECT table_name, column_name FROM information_schema.columns
             WHERE table_name IN ('summary_hourly_stats', 'summary_daily_stats', 'url_hourly_stats', 'url_daily_stats')
         """))
         cols = {(r.table_name, r.column_name) for r in rows}
-    for view, column in timescale.TIMED_COUNT_COLUMNS.items():
-        assert (view, column) in cols
+    for view, columns in timescale.CAGG_COLUMNS.items():
+        for column in columns:
+            assert (view, column.name) in cols
 
 
-async def test_counts_follow_the_timed_rows(pg_engine, pg_session_maker, clean_tables) -> None:
+async def test_counts_follow_the_timed_and_latency_rows(pg_engine, pg_session_maker, clean_tables) -> None:
     await _seed(pg_session_maker)
     await refresh_caggs_range(
         pg_engine, start=NOW - timedelta(days=1), end=NOW + timedelta(hours=1),
@@ -73,24 +74,32 @@ async def test_counts_follow_the_timed_rows(pg_engine, pg_session_maker, clean_t
     )
     async with pg_engine.connect() as conn:
         rows = (await conn.execute(text(
-            "SELECT bucket, total_requests, timed_requests, avg_request_time "
+            "SELECT bucket, total_requests, timed_requests, latency_requests, avg_request_time "
             "FROM summary_hourly_stats WHERE bucket >= :s ORDER BY bucket"
         ), {"s": NOW - timedelta(days=1)})).all()
         url_rows = (await conn.execute(text(
-            "SELECT url, hits, timed_hits, total_request_time FROM url_hourly_stats WHERE bucket >= :s ORDER BY url"
+            "SELECT url, hits, timed_hits, latency_hits, total_request_time "
+            "FROM url_hourly_stats WHERE bucket >= :s ORDER BY url"
         ), {"s": NOW - timedelta(days=1)})).all()
-    assert [(r.total_requests, r.timed_requests) for r in rows] == [(5, 3), (4, 0)]
+    # No seeded row carries status 0 or 101, so latency_requests/latency_hits
+    # track timed_requests/timed_hits exactly for this data.
+    assert [(r.total_requests, r.timed_requests, r.latency_requests) for r in rows] == [
+        (5, 3, 3), (4, 0, 0),
+    ]
     assert rows[0].avg_request_time == pytest.approx(0.02)
     assert rows[1].avg_request_time is None
-    assert [(r.url, r.hits, r.timed_hits) for r in url_rows] == [("/x", 5, 3), ("/y", 4, 0)]
+    assert [(r.url, r.hits, r.timed_hits, r.latency_hits) for r in url_rows] == [
+        ("/x", 5, 3, 3), ("/y", 4, 0, 0),
+    ]
     assert url_rows[1].total_request_time is None
 
 
 async def test_old_shape_summary_view_upgrades_in_place(pg_engine, pg_session_maker, clean_tables) -> None:
-    """Recreate the pre-count shape, populate it, compress the chunk, run setup.
+    """Recreate the pre-upgrade shape, populate it, compress the chunk, run setup.
 
-    The column must appear, old buckets must be counted, the raw chunk must
-    still be compressed, and a second setup must find nothing to upgrade.
+    Every upgrade column must appear, old buckets must be counted, the raw
+    chunk must still be compressed, and a second setup must find nothing to
+    upgrade.
     """
     await _seed(pg_session_maker)
     async with pg_engine.begin() as conn:
@@ -104,7 +113,7 @@ async def test_old_shape_summary_view_upgrades_in_place(pg_engine, pg_session_ma
         compressed_chunks = (await conn.execute(text(
             "SELECT compress_chunk(c, true) FROM show_chunks('access_logs', newer_than => INTERVAL '2 days') c"
         ))).scalars().all()
-        needs = await timescale._timed_columns_need_upgrade(
+        needs = await timescale._cagg_columns_need_upgrade(
             conn, raw_retention_days=RETENTION_DAYS
         )
     assert compressed_chunks
@@ -114,16 +123,25 @@ async def test_old_shape_summary_view_upgrades_in_place(pg_engine, pg_session_ma
 
     async with pg_engine.connect() as conn:
         rows = (await conn.execute(text(
-            "SELECT total_requests, timed_requests FROM summary_hourly_stats WHERE bucket >= :s ORDER BY bucket"
+            "SELECT total_requests, timed_requests, latency_requests "
+            "FROM summary_hourly_stats WHERE bucket >= :s ORDER BY bucket"
         ), {"s": NOW - timedelta(days=1)})).all()
+        cols = (await conn.execute(text("""
+            SELECT column_name FROM information_schema.columns
+            WHERE table_name = 'summary_hourly_stats'
+        """))).scalars().all()
         still_compressed = (await conn.execute(text(
             "SELECT count(*) FROM timescaledb_information.chunks "
             "WHERE is_compressed AND format('%I.%I', chunk_schema, chunk_name) = ANY(:names)"
         ), {"names": compressed_chunks})).scalar_one()
-        needs_after = await timescale._timed_columns_need_upgrade(
+        needs_after = await timescale._cagg_columns_need_upgrade(
             conn, raw_retention_days=RETENTION_DAYS
         )
-    assert [(r.total_requests, r.timed_requests) for r in rows] == [(5, 3), (4, 0)]
+    assert [(r.total_requests, r.timed_requests, r.latency_requests) for r in rows] == [
+        (5, 3, 3), (4, 0, 0),
+    ]
+    for column in timescale.CAGG_COLUMNS["summary_hourly_stats"]:
+        assert column.name in cols
     assert still_compressed == len(compressed_chunks)
     assert "summary_hourly_stats" not in needs_after
 
@@ -140,11 +158,6 @@ async def _restore_view(pg_engine, view: str) -> None:
         await conn.execute(text(f"DROP MATERIALIZED VIEW IF EXISTS {view} CASCADE"))
     await setup_timescaledb(pg_engine, get_settings().analytics)
 
-
-ADD_TIMED_REQUESTS = (
-    "ALTER MATERIALIZED VIEW summary_hourly_stats ADD COLUMN timed_requests bigint "
-    "GENERATED ALWAYS AS (COUNT(request_time)) STORED"
-)
 
 OLD_SUMMARY_DAILY = """
     CREATE MATERIALIZED VIEW summary_daily_stats
@@ -175,13 +188,13 @@ async def _insert(session_maker, ts: datetime, request_time: float | None) -> No
         await session.commit()
 
 
-async def test_present_column_with_null_counts_triggers_the_refresh_only(
+async def test_present_columns_with_null_counts_trigger_the_refresh_only(
     pg_engine, pg_session_maker, clean_tables
 ) -> None:
-    """A start killed mid-refresh leaves the column in place and history NULL.
+    """A start killed mid-refresh leaves the columns in place and history NULL.
 
-    The next start must not try to add the column again; it must refresh the
-    buckets that still carry no count.
+    The next start must not try to add the columns again; it must refresh
+    the buckets that still carry no count.
     """
     await _seed(pg_session_maker)
     async with pg_engine.begin() as conn:
@@ -192,13 +205,15 @@ async def test_present_column_with_null_counts_triggers_the_refresh_only(
         caggs=["summary_hourly_stats"],
     )
     async with pg_engine.begin() as conn:
-        await conn.execute(text(ADD_TIMED_REQUESTS))
-        needs = await timescale._timed_columns_need_upgrade(
+        # Add every upgrade column without a forced refresh, mimicking a
+        # start that got the columns in but died before the refresh ran.
+        assert await timescale._add_cagg_columns(conn, ["summary_hourly_stats"]) == []
+        needs = await timescale._cagg_columns_need_upgrade(
             conn, raw_retention_days=RETENTION_DAYS
         )
         uncounted = (await conn.execute(text(
             "SELECT count(*) FROM summary_hourly_stats "
-            "WHERE bucket >= :s AND timed_requests IS NULL"
+            "WHERE bucket >= :s AND latency_requests IS NULL"
         ), {"s": NOW - timedelta(days=1)})).scalar_one()
     assert uncounted == 2
     assert "summary_hourly_stats" in needs
@@ -207,13 +222,15 @@ async def test_present_column_with_null_counts_triggers_the_refresh_only(
 
     async with pg_engine.connect() as conn:
         rows = (await conn.execute(text(
-            "SELECT total_requests, timed_requests FROM summary_hourly_stats "
+            "SELECT total_requests, timed_requests, latency_requests FROM summary_hourly_stats "
             "WHERE bucket >= :s ORDER BY bucket"
         ), {"s": NOW - timedelta(days=1)})).all()
-        needs_after = await timescale._timed_columns_need_upgrade(
+        needs_after = await timescale._cagg_columns_need_upgrade(
             conn, raw_retention_days=RETENTION_DAYS
         )
-    assert [(r.total_requests, r.timed_requests) for r in rows] == [(5, 3), (4, 0)]
+    assert [(r.total_requests, r.timed_requests, r.latency_requests) for r in rows] == [
+        (5, 3, 3), (4, 0, 0),
+    ]
     assert needs_after == []
 
     await _restore_view(pg_engine, "summary_hourly_stats")
@@ -248,13 +265,15 @@ async def test_buckets_beyond_the_raw_window_keep_their_pre_upgrade_figures(
 
     async with pg_engine.connect() as conn:
         rows = (await conn.execute(text(
-            "SELECT bucket, total_requests, timed_requests FROM summary_daily_stats "
+            "SELECT bucket, total_requests, timed_requests, latency_requests FROM summary_daily_stats "
             "WHERE bucket >= :s ORDER BY bucket"
         ), {"s": old_ts - timedelta(days=1)})).all()
-        needs_after = await timescale._timed_columns_need_upgrade(
+        needs_after = await timescale._cagg_columns_need_upgrade(
             conn, raw_retention_days=RETENTION_DAYS
         )
-    assert [(r.total_requests, r.timed_requests) for r in rows] == [(1, None), (1, 1)]
+    assert [(r.total_requests, r.timed_requests, r.latency_requests) for r in rows] == [
+        (1, None, None), (1, 1, 1),
+    ]
     assert needs_after == [], "an unrecountable bucket must not reschedule the refresh"
 
     from geometrikks.domain.analytics.repositories import SummaryStatsRepository

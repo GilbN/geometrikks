@@ -30,7 +30,7 @@ export function TopUrlsTable() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>URL</TableHead>
+                  <TableHead>Path</TableHead>
                   <TableHead className="text-right">Hits</TableHead>
                   <TableHead className="text-right">Errors</TableHead>
                   <TableHead className="text-right">Bytes</TableHead>
