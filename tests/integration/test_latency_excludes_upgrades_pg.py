@@ -33,6 +33,8 @@ BUSY_HOUR = NOW - timedelta(days=2, hours=2)
 SOCKET_ONLY_HOUR = NOW - timedelta(days=2, hours=5)
 RANGE = (NOW - timedelta(days=3), NOW)
 
+LATENCY_VIEWS = ["summary_hourly_stats", "summary_daily_stats", "url_hourly_stats", "url_daily_stats"]
+
 INSERT = text(
     "INSERT INTO access_logs (timestamp, ip_address, method, url, "
     "status_code, bytes_sent, request_time) "
@@ -65,6 +67,7 @@ async def _seed(session_maker) -> None:
 async def _refresh_all(pg_engine) -> None:
     failed = await refresh_caggs_range(
         pg_engine, start=NOW - timedelta(days=5), end=NOW + timedelta(hours=1),
+        caggs=LATENCY_VIEWS,
     )
     assert failed == []
 
@@ -158,10 +161,10 @@ PRE_LATENCY_URL = """
     WITH NO DATA
 """
 SHAPES = {
-    "summary_hourly_stats": (PRE_LATENCY_SUMMARY, "1 hour"),
-    "summary_daily_stats": (PRE_LATENCY_SUMMARY, "1 day"),
-    "url_hourly_stats": (PRE_LATENCY_URL, "1 hour"),
-    "url_daily_stats": (PRE_LATENCY_URL, "1 day"),
+    LATENCY_VIEWS[0]: (PRE_LATENCY_SUMMARY, "1 hour"),
+    LATENCY_VIEWS[1]: (PRE_LATENCY_SUMMARY, "1 day"),
+    LATENCY_VIEWS[2]: (PRE_LATENCY_URL, "1 hour"),
+    LATENCY_VIEWS[3]: (PRE_LATENCY_URL, "1 day"),
 }
 
 

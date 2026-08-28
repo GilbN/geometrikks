@@ -884,6 +884,7 @@ CAGG_PROBE_COLUMNS: dict[str, str] = {
     "url_daily_stats": "latency_hits",
 }
 
+
 async def _cagg_columns_need_upgrade(
     conn: "AsyncConnection", *, raw_retention_days: int
 ) -> list[str]:
@@ -907,7 +908,7 @@ async def _cagg_columns_need_upgrade(
     """
     result = await conn.execute(text("""
         SELECT table_name, column_name FROM information_schema.columns
-        WHERE table_name = ANY(:views)
+        WHERE table_name = ANY(:views) AND table_schema = 'public'
     """), {"views": list(CAGG_COLUMNS)})
     columns = {(r.table_name, r.column_name) for r in result}
     existing_views = {name for name, _ in columns}
@@ -949,7 +950,7 @@ async def _add_cagg_columns(conn: "AsyncConnection", views: list[str]) -> list[s
             row.column_name
             for row in await conn.execute(text("""
                 SELECT column_name FROM information_schema.columns
-                WHERE table_name = :view
+                WHERE table_name = :view AND table_schema = 'public'
             """), {"view": view})
         }
         missing = [column for column in CAGG_COLUMNS[view] if column.name not in existing]

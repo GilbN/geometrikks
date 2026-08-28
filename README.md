@@ -35,8 +35,8 @@ URLs, user agents and status codes; and a Top ASNs view showing which
 networks your traffic comes from and how much of it arrives from hosting
 providers. Latency figures skip WebSocket connections (status 101) and
 connections that ended without a response (status 0). Their logged time
-is how long the socket stayed open, not how long the server took to
-answer, and the rows stay in Access logs with that duration.
+covers the whole connection, not the response, and the rows stay in
+Access logs with that duration.
 
 ![Analytics](/data/screenshots/analytics.png)
 

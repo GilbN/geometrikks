@@ -54,6 +54,8 @@ def test_column_table_covers_every_upgraded_view() -> None:
         names = [c.name for c in columns]
         assert timescale.CAGG_PROBE_COLUMNS[view] in names
         assert timescale.CAGG_PROBE_COLUMNS[view].startswith("latency_")
+        newest_count = [c.name for c in columns if c.expression.startswith("COUNT(")][-1]
+        assert timescale.CAGG_PROBE_COLUMNS[view] == newest_count
     assert [c.name for c in timescale.CAGG_COLUMNS["summary_hourly_stats"]] == [
         "timed_requests", "latency_requests", "avg_latency", "max_latency", "latency_pct_agg",
     ]
