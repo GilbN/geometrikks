@@ -281,7 +281,9 @@ class TestTieOrdering:
     async def test_tied_hosts_order_by_host_then_path(self, pg_engine, pg_session_maker, clean_tables):
         ts = NOW - timedelta(days=2)
         async with pg_session_maker() as session:
-            for host, url in (("b.example.com", "/x"), ("a.example.com", "/y"), ("a.example.com", "/x")):
+            for host, url in (
+                ("b.example.com", "/x"), ("a.example.com", "/y"), ("a.example.com", "/x"), (None, "/x"),
+            ):
                 for _ in range(2):
                     await _insert_log(session, ts=ts, url=url, host=host)
             await session.commit()
@@ -290,6 +292,6 @@ class TestTieOrdering:
             routed = await SummaryStatsRepository(session=session).get_top_urls(B_START, B_END)
             raw = await LiveStatsRepository(session=session).get_top_urls(B_START, B_END)
         assert [(r.host, r.url) for r in routed] == [
-            ("a.example.com", "/x"), ("a.example.com", "/y"), ("b.example.com", "/x"),
-        ], "equal hits break ties by host ASC, then url ASC"
+            ("a.example.com", "/x"), ("a.example.com", "/y"), ("b.example.com", "/x"), (None, "/x"),
+        ], "equal hits break ties by host ASC (NULL last), then url ASC"
         assert routed == raw

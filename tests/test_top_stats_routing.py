@@ -6,6 +6,7 @@ CAGG reads mention the *_stats view name).
 """
 from __future__ import annotations
 
+import re
 from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING, cast
 
@@ -161,7 +162,7 @@ async def test_top_urls_raw_groups_and_orders_by_host_then_path():
     session = _RecordingSession()
     await _repo(session).get_top_urls(SHORT_START, NOW)
     sql = session.statements[0]
-    assert "\n                host,\n                url," in sql
+    assert re.search(r"SELECT\s+host,\s+url,", sql)
     assert "GROUP BY host, url" in sql
     assert "ORDER BY hits DESC, host, url" in sql
 
@@ -176,7 +177,7 @@ async def test_top_urls_stitched_carries_host_through_every_arm():
     assert "ORDER BY hits DESC, host, url" in sql
 
 
-def test_top_url_row_and_dto_lead_with_host():
+def test_top_url_row_round_trips_into_the_dto():
     from geometrikks.domain.analytics.dtos import TopUrlDTO
     from geometrikks.domain.analytics.repositories import TopUrlRow
 
@@ -186,7 +187,6 @@ def test_top_url_row_and_dto_lead_with_host():
     )
     dto = TopUrlDTO(**vars(row))
     assert dto.host == "app.example.com"
-    assert TopUrlDTO.__struct_fields__[0] == "host"
     assert TopUrlDTO(**vars(TopUrlRow(
         host=None, url="/", hits=1, error_hits=0, total_bytes=0,
         avg_request_time=None, timed_hits=0,

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import inspect
+import re
 from types import SimpleNamespace
 from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock
@@ -86,7 +87,7 @@ async def test_url_creates_group_by_host_and_url() -> None:
     creates = [s for s in conn.statements if "CREATE MATERIALIZED VIEW" in s]
     assert len(creates) == 2
     for create in creates:
-        assert "\n                host,\n" in create
+        assert re.search(r"AS bucket,\s+host,\s+url,", create)
         assert "GROUP BY bucket, host, url" in create
         assert "WHERE url IS NOT NULL" in create
 
@@ -136,9 +137,14 @@ class FakeConn:
         self,
         fail_alter_on: set[str] | None = None,
         existing: dict[str, set[str]] | None = None,
+        fail_drop_once: set[str] | None = None,
+        fail_drop_always: set[str] | None = None,
     ) -> None:
         self.fail_alter_on = fail_alter_on or set()
         self.existing = existing or {}
+        self.fail_drop_once = fail_drop_once or set()
+        self.fail_drop_always = fail_drop_always or set()
+        self._drop_once_spent: set[str] = set()
         self.statements: list[str] = []
         self.aborted = False
         self.savepoints = 0
@@ -154,6 +160,16 @@ class FakeConn:
         if "ALTER MATERIALIZED VIEW" in sql and any(v in sql for v in self.fail_alter_on):
             self.aborted = True
             raise RuntimeError("cannot add column to a continuous aggregate")
+        if "DROP MATERIALIZED VIEW" in sql:
+            always = next((v for v in self.fail_drop_always if v in sql), None)
+            once = next(
+                (v for v in self.fail_drop_once if v in sql and v not in self._drop_once_spent), None
+            )
+            if always is not None or once is not None:
+                if once is not None:
+                    self._drop_once_spent.add(once)
+                self.aborted = True
+                raise RuntimeError("tuple concurrently deleted")
         return _Scalar(None)
 
     def begin_nested(self) -> Any:
@@ -212,6 +228,29 @@ async def test_failed_alter_falls_back_to_drop_in_a_healthy_transaction() -> Non
         "DROP MATERIALIZED VIEW IF EXISTS summary_hourly_stats" in sql
         for sql in conn.statements
     ), "a view whose ALTER succeeded must not be dropped"
+
+
+async def test_drop_url_caggs_retries_a_transient_catalog_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(timescale.asyncio, "sleep", AsyncMock())
+    conn = FakeConn(fail_drop_once={"url_hourly_stats"})
+
+    await timescale._drop_url_caggs(cast("Any", conn))
+
+    drops = [s for s in conn.statements if "DROP MATERIALIZED VIEW" in s]
+    assert sum("url_hourly_stats" in s for s in drops) == 2
+    assert sum("url_daily_stats" in s for s in drops) == 1
+    assert conn.savepoints == 3
+
+
+async def test_drop_url_caggs_gives_up_after_the_last_attempt(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(timescale.asyncio, "sleep", AsyncMock())
+    conn = FakeConn(fail_drop_always={"url_hourly_stats"})
+
+    with pytest.raises(RuntimeError, match="tuple concurrently deleted"):
+        await timescale._drop_url_caggs(cast("Any", conn), attempts=2)
+
+    drops = [s for s in conn.statements if "DROP MATERIALIZED VIEW" in s and "url_hourly_stats" in s]
+    assert len(drops) == 2
 
 
 def _all_columns() -> list[SimpleNamespace]:
@@ -293,8 +332,8 @@ async def _run_setup(
     dropped: list[str] | None = None,
     url_upgrade: bool = False,
     order: list[str] | None = None,
-) -> MagicMock:
-    """Run setup_timescaledb with every DDL step stubbed; return its logger.
+) -> tuple[MagicMock, MagicMock]:
+    """Run setup_timescaledb with every DDL step stubbed; return (logger, conn).
 
     ``order`` collects the probe names in call order when given.
     """
@@ -305,7 +344,6 @@ async def _run_setup(
     begin_ctx.__aexit__ = AsyncMock(return_value=False)
     engine = MagicMock()
     engine.begin = MagicMock(return_value=begin_ctx)
-    engine.conn = conn
 
     for name in dir(timescale):
         attr = getattr(timescale, name)
@@ -344,8 +382,7 @@ async def _run_setup(
         cagg_refresh_interval_minutes=5,
     )
     await timescale.setup_timescaledb(engine, cast("Any", analytics))
-    logger.engine = engine
-    return logger
+    return logger, conn
 
 
 def _events(logger_method: Any) -> dict[str, dict]:
@@ -355,7 +392,7 @@ def _events(logger_method: Any) -> dict[str, dict]:
 async def test_setup_logs_the_views_that_failed_and_the_ones_that_refreshed(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    logger = await _run_setup(
+    logger, _ = await _run_setup(
         monkeypatch,
         pending_views=["summary_hourly_stats", "url_daily_stats"],
         refresh_failed=["url_daily_stats"],
@@ -370,7 +407,7 @@ async def test_setup_logs_the_views_that_failed_and_the_ones_that_refreshed(
 async def test_setup_logs_only_done_when_every_view_refreshed(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    logger = await _run_setup(
+    logger, _ = await _run_setup(
         monkeypatch, pending_views=["summary_hourly_stats"], refresh_failed=[]
     )
 
@@ -381,7 +418,7 @@ async def test_setup_logs_only_done_when_every_view_refreshed(
 async def test_setup_logs_the_views_the_upgrade_recreated(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    logger = await _run_setup(
+    logger, _ = await _run_setup(
         monkeypatch,
         pending_views=["summary_daily_stats"],
         refresh_failed=[],
@@ -405,13 +442,13 @@ async def test_setup_rebuilds_the_url_views_before_probing_columns(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     order: list[str] = []
-    logger = await _run_setup(
+    logger, conn = await _run_setup(
         monkeypatch, pending_views=[], refresh_failed=[], url_upgrade=True, order=order
     )
 
     assert order == ["url", "columns"], "the drop must precede the in-place column probe"
     drops = [
-        str(call.args[0]) for call in logger.engine.conn.execute.call_args_list
+        str(call.args[0]) for call in conn.execute.call_args_list
         if "DROP MATERIALIZED VIEW" in str(call.args[0])
     ]
     assert drops == [
@@ -419,16 +456,29 @@ async def test_setup_rebuilds_the_url_views_before_probing_columns(
         "DROP MATERIALIZED VIEW IF EXISTS url_daily_stats CASCADE",
     ]
     assert _events(logger.warning)["url_caggs_recreated"]["views"] == timescale.URL_CAGGS
+    assert "url_caggs_refresh_failed" not in _events(logger.warning)
+    assert _events(logger.info)["url_caggs_refresh_done"]["views"] == timescale.URL_CAGGS
     refresh = cast("Any", timescale.refresh_caggs_range)
     url_refreshes = [c for c in refresh.await_args_list if c.kwargs.get("caggs") == timescale.URL_CAGGS]
     assert len(url_refreshes) == 1
     assert url_refreshes[0].kwargs.get("force", False) is False
 
 
+async def test_setup_logs_the_url_views_whose_rebuild_refresh_failed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    logger, _ = await _run_setup(
+        monkeypatch, pending_views=[], refresh_failed=["url_daily_stats"], url_upgrade=True
+    )
+
+    assert _events(logger.warning)["url_caggs_refresh_failed"]["views"] == ["url_daily_stats"]
+    assert _events(logger.info)["url_caggs_refresh_done"]["views"] == ["url_hourly_stats"]
+
+
 async def test_setup_leaves_the_url_views_alone_when_they_carry_host(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    logger = await _run_setup(monkeypatch, pending_views=[], refresh_failed=[])
+    logger, _ = await _run_setup(monkeypatch, pending_views=[], refresh_failed=[])
 
     assert "url_caggs_recreated" not in _events(logger.warning)
     refresh = cast("Any", timescale.refresh_caggs_range)
