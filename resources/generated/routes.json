@@ -240,6 +240,18 @@
       },
       "uri": "/api/v1/geo-locations/top-ips"
     },
+    "get_ip_profile": {
+      "method": "get",
+      "methods": [
+        "GET"
+      ],
+      "queryParameters": {
+        "endDate": "DateTime",
+        "ipAddress": "string",
+        "startDate": "DateTime"
+      },
+      "uri": "/api/v1/analytics/ip-profile"
+    },
     "get_live_summary": {
       "method": "get",
       "methods": [

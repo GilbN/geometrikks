@@ -37,6 +37,7 @@ export type RouteName =
   | 'get_geo_time_series'
   | 'get_geojson'
   | 'get_global_top_ips'
+  | 'get_ip_profile'
   | 'get_live_summary'
   | 'get_location_top_ips'
   | 'get_scheduler_jobs'
@@ -104,6 +105,7 @@ export interface RoutePathParams {
   'get_geo_time_series': Record<string, never>;
   'get_geojson': Record<string, never>;
   'get_global_top_ips': Record<string, never>;
+  'get_ip_profile': Record<string, never>;
   'get_live_summary': Record<string, never>;
   'get_location_top_ips': {
     location_id: number;
@@ -251,6 +253,11 @@ export interface RouteQueryParams {
     fromTimestamp: DateTime;
     limit?: number;
     toTimestamp: DateTime;
+  };
+  'get_ip_profile': {
+    endDate: DateTime;
+    ipAddress: string;
+    startDate: DateTime;
   };
   'get_live_summary': {
     comparePrevious?: boolean;
@@ -571,6 +578,13 @@ export const routeDefinitions = {
     method: 'get',
     pathParams: [] as const,
     queryParams: ['fromTimestamp', 'limit', 'toTimestamp'] as const,
+  },
+  'get_ip_profile': {
+    path: '/api/v1/analytics/ip-profile',
+    methods: ['GET'] as const,
+    method: 'get',
+    pathParams: [] as const,
+    queryParams: ['endDate', 'ipAddress', 'startDate'] as const,
   },
   'get_live_summary': {
     path: '/api/v1/analytics/live-summary',
