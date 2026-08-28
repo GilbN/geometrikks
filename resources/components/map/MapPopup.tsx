@@ -9,6 +9,7 @@ import { formatNumber } from "@/lib/api"
 import type { GeoJSONFeatureProperties } from "@/lib/api"
 import { useLocationTopIPs } from "@/lib/queries"
 import { IpBanControls } from "./IpBanControls"
+import { InspectIpButton } from "./InspectIpButton"
 
 import {
   Tooltip,
@@ -238,6 +239,7 @@ export function MapPopup({
                     1. {top_ips[0].ipAddress}
                   </code>
                   <span style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
+                    <InspectIpButton ip={top_ips[0].ipAddress} fromLocationId={locationId} />
                     <IpBanControls ip={top_ips[0].ipAddress} />
                     <span
                       style={{
@@ -276,6 +278,7 @@ export function MapPopup({
                               {index + 2}. {ip.ipAddress}
                             </code>
                             <span style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
+                              <InspectIpButton ip={ip.ipAddress} fromLocationId={locationId} />
                               <IpBanControls ip={ip.ipAddress} />
                               <span
                                 style={{

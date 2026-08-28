@@ -20,6 +20,7 @@ import {
   DrawerTitle,
   DrawerTrigger,
 } from "@/components/ui/drawer"
+import { InspectIpButton } from "@/components/ip-inspector/inspect-ip-button"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { FilterCombobox } from "@/components/ui/filter-combobox"
 import { Switch } from "@/components/ui/switch"
@@ -383,17 +384,19 @@ export function MapControls({
         <Section label="Top IPs">
           <div className="flex flex-col gap-1">
             {topIPs.map((ip) => (
-              <button
-                key={ip.ipAddress}
-                onClick={() => ip.location && onFlyToLocation?.(ip.location.latitude, ip.location.longitude)}
-                disabled={!ip.location}
-                className="flex items-center justify-between text-[10px] hover:bg-foreground/[0.07] rounded px-1 py-0.5 -mx-1 cursor-pointer disabled:cursor-default disabled:opacity-50 text-left"
-              >
-                <div className="font-mono truncate"><Badge variant="secondary" className="text-[10px] h-5 min-w-5 py-0 font-mono tabular-nums">{formatNumber(ip.eventCount)}</Badge> {ip.ipAddress}</div>
-                <span className="text-muted-foreground ml-2 shrink-0">
-                  {ip.location?.city ?? ip.location?.countryCode ?? ""}
-                </span>
-              </button>
+              <div key={ip.ipAddress} className="flex items-center gap-1 -mx-1">
+                <button
+                  onClick={() => ip.location && onFlyToLocation?.(ip.location.latitude, ip.location.longitude)}
+                  disabled={!ip.location}
+                  className="flex min-w-0 flex-1 items-center justify-between text-[10px] hover:bg-foreground/[0.07] rounded px-1 py-0.5 cursor-pointer disabled:cursor-default disabled:opacity-50 text-left"
+                >
+                  <div className="font-mono truncate"><Badge variant="secondary" className="text-[10px] h-5 min-w-5 py-0 font-mono tabular-nums">{formatNumber(ip.eventCount)}</Badge> {ip.ipAddress}</div>
+                  <span className="text-muted-foreground ml-2 shrink-0">
+                    {ip.location?.city ?? ip.location?.countryCode ?? ""}
+                  </span>
+                </button>
+                <InspectIpButton ip={ip.ipAddress} fromLocationId={ip.location?.id} />
+              </div>
             ))}
           </div>
         </Section>

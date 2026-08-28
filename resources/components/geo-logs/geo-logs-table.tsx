@@ -34,6 +34,7 @@ import { GeoLogDetailSheet } from "@/components/geo-logs/geo-log-detail-sheet"
 import type { GeoLogEntry } from "@/generated/api/types.gen"
 import { formatNumber, type GeoLogSortField, type GeoLogSortOrder } from "@/lib/api"
 import { IpBanControls } from "@/components/crowdsec/ip-ban-controls"
+import { InspectIpButton } from "@/components/ip-inspector/inspect-ip-button"
 import { useGeoLogs } from "@/lib/queries"
 import { cn } from "@/lib/utils"
 import { useColumnVisibility } from "@/lib/column-visibility"
@@ -53,7 +54,12 @@ function renderCell(column: GeoLogColumn, r: GeoLogEntry): React.ReactNode {
     case "countryName":
       return <span className="whitespace-nowrap">{r.countryName}</span>
     case "ipAddress":
-      return <span className="font-mono">{r.ipAddress}</span>
+      return (
+        <span className="inline-flex items-center gap-1 font-mono">
+          {r.ipAddress}
+          <InspectIpButton ip={r.ipAddress} />
+        </span>
+      )
     case "latitude":
       return <span className="tabular-nums">{r.latitude.toFixed(4)}</span>
     case "longitude":

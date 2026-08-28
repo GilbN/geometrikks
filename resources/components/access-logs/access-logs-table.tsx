@@ -35,6 +35,7 @@ import {
 import { PaginationFooter } from "@/components/ui/pagination-footer"
 import { useAccessLogs, useCrowdsecLiveUpdates } from "@/lib/queries"
 import { IpBanControls } from "@/components/crowdsec/ip-ban-controls"
+import { InspectIpButton } from "@/components/ip-inspector/inspect-ip-button"
 import {
   formatBytes,
   formatDuration,
@@ -79,7 +80,12 @@ function renderCell(column: AccessLogColumn, r: AccessLog): React.ReactNode {
         </span>
       )
     case "ipAddress":
-      return <span className="font-mono">{r.ipAddress}</span>
+      return (
+        <span className="inline-flex items-center gap-1 font-mono">
+          {r.ipAddress}
+          <InspectIpButton ip={r.ipAddress} />
+        </span>
+      )
     case "bytesSent":
       return <span className="tabular-nums">{formatBytes(r.bytesSent)}</span>
     case "requestTime":

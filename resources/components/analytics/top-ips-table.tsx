@@ -11,6 +11,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { formatBytes, formatNumber } from "@/lib/api"
 import { useCrowdsecLiveUpdates, useTopIpStats } from "@/lib/queries"
 import { IpBanControls } from "@/components/crowdsec/ip-ban-controls"
+import { InspectIpButton } from "@/components/ip-inspector/inspect-ip-button"
 import { TablePaginationFooter, usePagedRows } from "./table-pagination"
 
 export function TopIpsTable() {
@@ -45,6 +46,7 @@ export function TopIpsTable() {
                   <TableRow key={row.ipAddress}>
                     <TableCell className="font-mono text-xs">
                       {row.ipAddress}
+                      <InspectIpButton ip={row.ipAddress} className="ml-1" />
                       <IpBanControls ip={row.ipAddress} />
                     </TableCell>
                     <TableCell>{row.countryCode ?? "-"}</TableCell>
