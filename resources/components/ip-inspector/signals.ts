@@ -72,9 +72,13 @@ export function computeSignals({
   if (banned && banCreatedAt && profile.lastSeen && Date.parse(profile.lastSeen) > Date.parse(banCreatedAt)) {
     const hours = hoursBetween(banCreatedAt, profile.lastSeen)
     const count = requestsAfter(profile.series, banCreatedAt)
+    const when = hours === 0 ? "under an hour" : `${hours}h`
+    const label = count === 0
+      ? `Still seen ${when} after ban`
+      : `Still seen ${when} after ban (${count} request${count === 1 ? "" : "s"})`
     out.push({
       key: "after-ban",
-      label: `Still seen ${hours}h after ban (${count} request${count === 1 ? "" : "s"})`,
+      label,
       tone: "red",
     })
   }

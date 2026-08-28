@@ -1,5 +1,6 @@
 import { Skeleton } from "@/components/ui/skeleton"
 import { formatBytes } from "@/lib/api"
+import { formatTs } from "@/lib/datetime"
 import { useIpLatestRequests } from "@/lib/queries"
 
 export function IpLatestRequests({ ip }: { ip: string }) {
@@ -15,7 +16,7 @@ export function IpLatestRequests({ ip }: { ip: string }) {
         <ul className="font-mono text-[11px]">
           {rows.map((r) => (
             <li key={r.id} className="grid grid-cols-[auto_minmax(0,1fr)_auto_auto] gap-2 py-0.5 tabular-nums">
-              <span className="text-muted-foreground">{new Date(r.timestamp).toLocaleTimeString()}</span>
+              <span className="text-muted-foreground">{formatTs(r.timestamp, "hourly")}</span>
               <span className="truncate">{r.method ?? "?"} {r.url ?? ""}</span>
               <span className={r.statusCode >= 400 ? "text-amber-600 dark:text-amber-400" : ""}>{r.statusCode}</span>
               <span className="text-muted-foreground">{formatBytes(r.bytesSent)}</span>

@@ -83,8 +83,8 @@ export function IpStatsBlock({
       </ChartContainer>
 
       <div className="flex justify-between text-[11px] text-muted-foreground tabular-nums">
-        <span>first {profile.firstSeen ? formatTs(profile.firstSeen) : "n/a"}</span>
-        <span>last {profile.lastSeen ? formatTs(profile.lastSeen) : "n/a"}</span>
+        <span>first {profile.firstSeen ? formatTs(profile.firstSeen, "hourly") : "n/a"}</span>
+        <span>last {profile.lastSeen ? formatTs(profile.lastSeen, "hourly") : "n/a"}</span>
       </div>
     </div>
   )

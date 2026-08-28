@@ -11,37 +11,40 @@ import { useIpLocations } from "@/lib/queries"
 export function IpLocationsBlock({ ip }: { ip: string }) {
   const { originLocationId } = useIpInspector()
   const navigate = useNavigate()
-  const { data, isLoading } = useIpLocations(ip)
+  const { data, isLoading, isError } = useIpLocations(ip)
   const rows = (data?.items ?? []).filter((r) => r.locationId !== originLocationId)
-  if (!isLoading && rows.length === 0) return null
+  if (!isLoading && !isError && rows.length === 0) return null
   return (
     <section className="space-y-1">
       <h3 className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Also seen from</h3>
       {isLoading && <Skeleton className="h-10 w-full" />}
-      <ul className="space-y-0.5">
-        {rows.map((r) => (
-          <li key={r.locationId} className="flex items-center justify-between gap-2 text-xs">
-            <span className="min-w-0 truncate">{r.city ?? r.countryName}, {r.countryCode}</span>
-            <span className="flex shrink-0 items-center gap-1 tabular-nums text-muted-foreground">
-              {formatNumber(r.eventCount)}
-              <Button
-                variant="ghost"
-                size="icon-xs"
-                title="Fly to on the map"
-                aria-label={`Fly to ${r.city ?? r.countryName}`}
-                onClick={() =>
-                  void navigate({
-                    to: "/map",
-                    search: { inspect: ip, focus: r.locationId, sources: undefined, countries: undefined, cities: undefined },
-                  })
-                }
-              >
-                <LocateFixed />
-              </Button>
-            </span>
-          </li>
-        ))}
-      </ul>
+      {isError && <p className="text-xs text-destructive">Could not load other locations.</p>}
+      {!isError && (
+        <ul className="space-y-0.5">
+          {rows.map((r) => (
+            <li key={r.locationId} className="flex items-center justify-between gap-2 text-xs">
+              <span className="min-w-0 truncate">{r.city ?? r.countryName}, {r.countryCode}</span>
+              <span className="flex shrink-0 items-center gap-1 tabular-nums text-muted-foreground">
+                {formatNumber(r.eventCount)}
+                <Button
+                  variant="ghost"
+                  size="icon-xs"
+                  title="Fly to on the map"
+                  aria-label={`Fly to ${r.city ?? r.countryName}`}
+                  onClick={() =>
+                    void navigate({
+                      to: "/map",
+                      search: { inspect: ip, focus: r.locationId, sources: undefined, countries: undefined, cities: undefined },
+                    })
+                  }
+                >
+                  <LocateFixed />
+                </Button>
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
     </section>
   )
 }

@@ -80,6 +80,33 @@ describe("computeSignals", () => {
     expect(keys(computeSignals({ profile: p, banned: false, banCreatedAt: "2026-08-28T14:02:00Z" }))).not.toContain("after-ban")
     expect(keys(computeSignals({ profile: p, banned: true, banCreatedAt: null }))).not.toContain("after-ban")
   })
+
+  it("drops the request count when the ban lands inside the last bucket (daily)", () => {
+    const p = profile({
+      granularity: "daily",
+      totalRequests: 5,
+      lastSeen: "2026-08-28T22:00:00Z",
+      series: [{ timestamp: "2026-08-28T00:00:00Z", hits: 5, errorHits: 0 }],
+    })
+    const after = computeSignals({ profile: p, banned: true, banCreatedAt: "2026-08-28T10:00:00Z" })
+    expect(after.find((s) => s.key === "after-ban")).toMatchObject({
+      tone: "red",
+      label: "Still seen 12h after ban",
+    })
+  })
+
+  it("says 'under an hour' instead of 0h when the ban lands minutes before the last request", () => {
+    const p = profile({
+      totalRequests: 3,
+      lastSeen: "2026-08-28T15:00:00Z",
+      series: [{ timestamp: "2026-08-28T14:00:00Z", hits: 3, errorHits: 0 }],
+    })
+    const after = computeSignals({ profile: p, banned: true, banCreatedAt: "2026-08-28T14:40:00Z" })
+    expect(after.find((s) => s.key === "after-ban")).toMatchObject({
+      tone: "red",
+      label: "Still seen under an hour after ban",
+    })
+  })
 })
 
 describe("requestsAfter", () => {

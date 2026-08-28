@@ -3,7 +3,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { DetailSheet } from "@/components/data/detail-sheet"
-import { IpBanControls } from "@/components/crowdsec/ip-ban-controls"
+import { IpBanAction } from "@/components/crowdsec/ip-ban-controls"
 import { isValidIp } from "@/lib/crowdsec"
 import { useIpInspector } from "@/lib/ip-inspector"
 import { useIpDecisions, useIpLatestAlert, useIpLocations, useIpProfile } from "@/lib/queries"
@@ -62,7 +62,7 @@ function IpInspectorBody({ ip }: { ip: string }) {
               Banned · {decision.scenario} · {decision.duration} left
             </Badge>
           )}
-          <IpBanControls ip={ip} />
+          <IpBanAction ip={ip} banned={banned} />
         </div>
       </header>
 
