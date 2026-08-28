@@ -21,6 +21,7 @@ import {
   apiV1AnalyticsTopUrlsGetTopUrls,
   apiV1AnalyticsTopAsnsGetTopAsns,
   apiV1AnalyticsTopUserAgentsGetTopUserAgents,
+  apiV1AnalyticsIpProfileGetIpProfile,
 } from "@/generated/api/sdk.gen"
 import { BROWSER_TZ } from "@/lib/datetime"
 import type {
@@ -354,13 +355,21 @@ export async function fetchCrowdsecStats(): Promise<CrowdSecStatsResponse> {
 export async function fetchCrowdsecAlerts(params?: {
   limit?: number
   since?: string
+  ip?: string
 }): Promise<AlertView[]> {
   const { data } = await api.get<AlertView[]>("/crowdsec/alerts", {
     params: {
       limit: params?.limit ?? 50,
       since: params?.since || undefined,
+      ip: params?.ip || undefined,
     },
   })
+  return data
+}
+
+/** Active decisions for one IP, no enrichment (the caller has the geo context). */
+export async function fetchCrowdsecDecisionLookup(ip: string): Promise<DecisionView[]> {
+  const { data } = await api.get<DecisionView[]>("/crowdsec/decisions/lookup", { params: { ip } })
   return data
 }
 
@@ -689,6 +698,14 @@ export async function fetchTopCityStats(params: TimeSeriesParams & { limit?: num
       ipAddress: params.ips?.length ? params.ips : undefined,
       ipAddressNotIn: params.ipsExclude?.length ? params.ipsExclude : undefined,
     },
+    throwOnError: true,
+  })
+  return data
+}
+
+export async function fetchIpProfile(params: TimeSeriesParams & { ip: string }) {
+  const { data } = await apiV1AnalyticsIpProfileGetIpProfile({
+    query: { startDate: params.startDate, endDate: params.endDate, ipAddress: params.ip },
     throwOnError: true,
   })
   return data
