@@ -11,4 +11,9 @@ describe("map filter codec", () => {
     expect(encoded).toEqual({ sources: ["nginx-01"], countries: ["NO", "DE"], cities: undefined })
     expect(decodeMapSearch(encoded)).toEqual(filters)
   })
+  it("leaves focus and demoTraffic alone when encoding filters", () => {
+    const prev = { focus: 12, demoTraffic: "1" }
+    const next = { ...prev, ...encodeMapSearch({ sources: [], countryCodes: ["NO"], cities: [] }) }
+    expect(next).toEqual({ focus: 12, demoTraffic: "1", sources: undefined, countries: ["NO"], cities: undefined })
+  })
 })

@@ -10,6 +10,7 @@ import { useIpDecisions, useIpLatestAlert, useIpLocations, useIpProfile } from "
 import { useTimeRange } from "@/lib/time-range-context"
 import { rangeSubtitle } from "@/lib/time-range-labels"
 import { IpLatestRequests } from "./ip-latest-requests"
+import { IpLocationsBlock } from "./ip-locations-block"
 import { IpSignalsStrip } from "./ip-signals-strip"
 import { IpStatsBlock } from "./ip-stats-block"
 import { IpTopList } from "./ip-top-list"
@@ -97,7 +98,7 @@ function IpInspectorBody({ ip }: { ip: string }) {
         <IpTopList title="User agents" rows={profile.userAgents.map((u) => ({ label: u.userAgent, hits: u.hits }))} />
       )}
 
-      {/* "Also seen from" mounts here in Task 6. */}
+      <IpLocationsBlock ip={ip} />
 
       <IpLatestRequests ip={ip} />
 

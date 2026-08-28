@@ -14,6 +14,8 @@ export interface MapSearch {
   cities?: string[]
   /** Dev-only demo traffic mode; preserved so navigation never strips it. */
   demoTraffic?: string
+  /** Location id to fly to and open; set by the IP inspector, cleared by GeoMap once handled. */
+  focus?: number
 }
 
 export function decodeMapSearch(search: MapSearch): MapFilterState {

@@ -18,6 +18,7 @@ const mapSearchSchema = z.object({
   countries: z.array(z.string()).optional().catch(undefined),
   cities: z.array(z.string()).optional().catch(undefined),
   demoTraffic: z.string().optional().catch(undefined),
+  focus: z.coerce.number().int().positive().optional().catch(undefined),
 })
 
 export const Route = createFileRoute("/map")({
