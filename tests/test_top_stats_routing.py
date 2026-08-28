@@ -155,3 +155,39 @@ async def test_top_asns_any_filter_forces_raw():
     )
     assert "asn_hourly_stats" not in session.statements[0]
     assert "FROM access_logs" in session.statements[0]
+
+
+async def test_top_urls_raw_groups_and_orders_by_host_then_path():
+    session = _RecordingSession()
+    await _repo(session).get_top_urls(SHORT_START, NOW)
+    sql = session.statements[0]
+    assert "\n                host,\n                url," in sql
+    assert "GROUP BY host, url" in sql
+    assert "ORDER BY hits DESC, host, url" in sql
+
+
+async def test_top_urls_stitched_carries_host_through_every_arm():
+    session = _RecordingSession()
+    await _repo(session).get_top_urls(WEEK_START, NOW)
+    sql = session.statements[0]
+    assert sql.count("SELECT s.host, s.url,") == 1
+    assert sql.count("SELECT al.host, al.url,") == 2
+    assert "GROUP BY host, url" in sql
+    assert "ORDER BY hits DESC, host, url" in sql
+
+
+def test_top_url_row_and_dto_lead_with_host():
+    from geometrikks.domain.analytics.dtos import TopUrlDTO
+    from geometrikks.domain.analytics.repositories import TopUrlRow
+
+    row = TopUrlRow(
+        host="app.example.com", url="/graphql", hits=3, error_hits=0,
+        total_bytes=10, avg_request_time=None, timed_hits=0,
+    )
+    dto = TopUrlDTO(**vars(row))
+    assert dto.host == "app.example.com"
+    assert TopUrlDTO.__struct_fields__[0] == "host"
+    assert TopUrlDTO(**vars(TopUrlRow(
+        host=None, url="/", hits=1, error_hits=0, total_bytes=0,
+        avg_request_time=None, timed_hits=0,
+    ))).host is None

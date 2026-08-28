@@ -195,8 +195,13 @@ class CumulativeTimeSeriesResponse(msgspec.Struct, rename="camel"):
 
 
 class TopUrlDTO(msgspec.Struct, rename="camel"):
-    """A single URL with its aggregate hit metrics."""
+    """One host and path with its aggregate hit metrics.
 
+    ``host`` is NULL for rows whose log line carried no Host header
+    (combined-format nginx archives).
+    """
+
+    host: str | None
     url: str
     hits: int
     error_hits: int
