@@ -125,6 +125,34 @@ async def test_top_urls_show_na_for_socket_endpoints(pg_engine, pg_session_maker
         assert by_url["/ws/live"].avg_request_time is None
 
 
+async def test_local_day_rollup_skips_socket_lifetimes(pg_engine, pg_session_maker, clean_tables):
+    """The non-UTC daily branch sums hourly buckets, weights the mean by the
+    latency count and merges the filtered sketches through the fallback
+    CASE; a socket-only hour must contribute a NULL sketch, not 3000 s.
+    Etc/GMT-2 is a fixed UTC+2 so the expectations do not move with DST."""
+    await _seed(pg_session_maker)
+    await _refresh_all(pg_engine)
+
+    async with pg_session_maker() as session:
+        days = await SummaryStatsRepository(session=session).get_time_series(
+            *RANGE, granularity=StatsGranularity.DAILY, tz="Etc/GMT-2"
+        )
+
+    assert days, "a 3-day range in a non-UTC zone must produce local-day buckets"
+    assert sum(d.total_requests for d in days) == 23
+    assert sum(d.timed_requests for d in days) == 20
+    busy = [d for d in days if d.timed_requests > 0]
+    assert len(busy) == 1
+    assert busy[0].avg_request_time == pytest.approx(0.2)
+    assert busy[0].max_request_time == pytest.approx(0.2)
+    assert busy[0].p99_request_time is not None and busy[0].p99_request_time < 1.0
+    for day in days:
+        if day.timed_requests == 0:
+            assert day.avg_request_time is None
+            assert day.max_request_time is None
+            assert day.p99_request_time is None
+
+
 PRE_LATENCY_SUMMARY = """
     CREATE MATERIALIZED VIEW {name}
     WITH (timescaledb.continuous) AS
