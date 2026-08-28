@@ -113,3 +113,24 @@ async def test_profile_for_unknown_ip_is_empty_but_counts_malformed(pg_session_m
     assert profile.malformed_requests == 1
     assert profile.first_seen is None and profile.peak is None
     assert profile.hosts == [] and profile.paths == [] and profile.user_agents == []
+
+
+async def test_profile_hosts_null_host_sorts_last(pg_session_maker, clean_tables):
+    t0 = NOW - timedelta(hours=1)
+    async with pg_session_maker() as session:
+        await _insert_log(session, ts=t0, host="blog.example.com")
+        await _insert_log(session, ts=t0, host="blog.example.com")
+        await _insert_log(session, ts=t0, host=None)
+        await _insert_log(session, ts=t0, host="cloud.example.com")
+        await session.commit()
+
+    async with pg_session_maker() as session:
+        profile = await IpProfileRepository(session).get_profile(
+            IP, NOW - timedelta(hours=6), NOW
+        )
+
+    # blog.example.com leads on hits; cloud.example.com and the null host
+    # tie at one hit each, and NULLS LAST puts the null host after it.
+    assert [(h.host, h.hits) for h in profile.hosts] == [
+        ("blog.example.com", 2), ("cloud.example.com", 1), (None, 1),
+    ]

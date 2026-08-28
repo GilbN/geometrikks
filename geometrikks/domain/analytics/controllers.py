@@ -95,14 +95,16 @@ def _build_filters(
     )
 
 
-def _bucket_dto(bucket: IpProfileBucket | None) -> IpProfileBucketDTO | None:
-    if bucket is None:
-        return None
+def _bucket_dto(bucket: IpProfileBucket) -> IpProfileBucketDTO:
     return IpProfileBucketDTO(
         timestamp=bucket.timestamp.isoformat(),
         hits=bucket.hits,
         error_hits=bucket.error_hits,
     )
+
+
+def _optional_bucket_dto(bucket: IpProfileBucket | None) -> IpProfileBucketDTO | None:
+    return _bucket_dto(bucket) if bucket is not None else None
 
 
 def _to_ip_profile_response(
@@ -132,8 +134,8 @@ def _to_ip_profile_response(
         asn_organization=profile.asn_organization,
         asn_category=classify_asn(profile.asn) if profile.asn is not None else None,
         granularity=profile.granularity,
-        series=[dto for b in profile.series if (dto := _bucket_dto(b)) is not None],
-        peak=_bucket_dto(profile.peak),
+        series=[_bucket_dto(b) for b in profile.series],
+        peak=_optional_bucket_dto(profile.peak),
         hosts=[IpProfileHostDTO(host=h.host, hits=h.hits, error_hits=h.error_hits) for h in profile.hosts],
         paths=[IpProfilePathDTO(url=p.url, hits=p.hits, error_hits=p.error_hits) for p in profile.paths],
         user_agents=[IpProfileUserAgentDTO(user_agent=u.user_agent, hits=u.hits) for u in profile.user_agents],

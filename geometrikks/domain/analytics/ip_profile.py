@@ -1,9 +1,14 @@
 """Per-IP access-log profile for the IP inspector sheet.
 
-Raw-only on purpose: the CAGGs carry no IP dimension, so one IP is always
-an indexed lookup on ``access_logs.ip_address`` narrowed by chunk
-exclusion. That is why this lives outside ``repositories.py``, whose job
-is stitching CAGG reads with raw tails.
+Raw-only on purpose: the CAGGs carry no IP dimension, so this always goes
+straight to ``access_logs``. Six sequential statements per profile, each
+filtered on ``ip_address``. Chunks still on the recent, uncompressed side
+get an indexed lookup; ``server/timescale.py`` compresses ``access_logs``
+past ``ANALYTICS_COMPRESSION_AFTER_DAYS`` with ``compress_orderby =
+'timestamp DESC'`` and no ``compress_segmentby``, so older chunks are
+decompressed and filtered row by row instead. That is why this lives
+outside ``repositories.py``, whose job is stitching CAGG reads with raw
+tails.
 """
 from __future__ import annotations
 

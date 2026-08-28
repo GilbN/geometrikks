@@ -357,12 +357,16 @@ class IpProfileHostDTO(msgspec.Struct, rename="camel"):
 
 
 class IpProfilePathDTO(msgspec.Struct, rename="camel"):
+    """One path this IP requested, with its hit and error counts."""
+
     url: str
     hits: int
     error_hits: int
 
 
 class IpProfileUserAgentDTO(msgspec.Struct, rename="camel"):
+    """One user agent this IP sent, with its hit count."""
+
     user_agent: str
     hits: int
 
