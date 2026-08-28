@@ -46,16 +46,19 @@ def test_cagg_column_ddl() -> None:
 
 
 def test_column_table_covers_every_upgraded_view() -> None:
-    assert set(timescale.CAGG_COLUMNS) == {
+    assert set(timescale.CAGG_GENERATIONS) == {
         "summary_hourly_stats", "summary_daily_stats", "url_hourly_stats", "url_daily_stats",
     }
-    assert set(timescale.CAGG_PROBE_COLUMNS) == set(timescale.CAGG_COLUMNS)
-    for view, columns in timescale.CAGG_COLUMNS.items():
-        names = [c.name for c in columns]
-        assert timescale.CAGG_PROBE_COLUMNS[view] in names
-        assert timescale.CAGG_PROBE_COLUMNS[view].startswith("latency_")
-        newest_count = [c.name for c in columns if c.expression.startswith("COUNT(")][-1]
-        assert timescale.CAGG_PROBE_COLUMNS[view] == newest_count
+    assert set(timescale.CAGG_COLUMNS) == set(timescale.CAGG_GENERATIONS)
+    for view, generations in timescale.CAGG_GENERATIONS.items():
+        for generation in generations:
+            # The count column is what the probe reads, so it must be one of
+            # the generation's own columns and a COUNT, which is never NULL
+            # once a bucket has been refreshed.
+            count = next(c for c in generation.columns if c.name == generation.count)
+            assert count.expression.startswith("COUNT(")
+        flat = [c.name for g in generations for c in g.columns]
+        assert [c.name for c in timescale.CAGG_COLUMNS[view]] == flat
     assert [c.name for c in timescale.CAGG_COLUMNS["summary_hourly_stats"]] == [
         "timed_requests", "latency_requests", "avg_latency", "max_latency", "latency_pct_agg",
     ]
@@ -197,8 +200,10 @@ async def test_probe_scopes_the_null_check_to_the_raw_window() -> None:
         assert "make_interval(days => :days)" in sql
         assert "bucket >=" in sql
         assert params == {"days": 180}
-    probed = {sql.split("WHERE ")[1].split(" IS NULL")[0] for sql, _ in null_probes}
-    assert probed == {"latency_requests", "latency_hits"}
+    summary_probe = next(sql for sql, _ in null_probes if "FROM summary_hourly_stats" in sql)
+    assert "(timed_requests IS NULL OR latency_requests IS NULL)" in summary_probe
+    url_probe = next(sql for sql, _ in null_probes if "FROM url_daily_stats" in sql)
+    assert "(timed_hits IS NULL OR latency_hits IS NULL)" in url_probe
 
 
 async def test_probe_reports_a_view_with_a_null_count_inside_the_window() -> None:

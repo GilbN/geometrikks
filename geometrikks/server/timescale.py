@@ -850,38 +850,56 @@ class CaggColumn:
         return f"{self.name} {self.sql_type} GENERATED ALWAYS AS ({self.expression}) STORED"
 
 
-_SUMMARY_COLUMNS: tuple[CaggColumn, ...] = (
-    CaggColumn("timed_requests", "bigint", "COUNT(request_time)"),
-    CaggColumn("latency_requests", "bigint", f"COUNT(request_time) FILTER (WHERE {LATENCY_FILTER})"),
-    CaggColumn("avg_latency", "double precision", f"AVG(request_time) FILTER (WHERE {LATENCY_FILTER})"),
-    CaggColumn("max_latency", "double precision", f"MAX(request_time) FILTER (WHERE {LATENCY_FILTER})"),
-    CaggColumn("latency_pct_agg", "uddsketch", f"percentile_agg(request_time) FILTER (WHERE {LATENCY_FILTER})"),
+@dataclass(frozen=True)
+class CaggGeneration:
+    """One release's worth of columns added to a continuous aggregate.
+
+    ``count`` names the generation's COUNT column. A COUNT is 0, never NULL,
+    once a bucket has been refreshed, so a NULL there means the bucket
+    predates this generation's forced refresh and still needs it. Every
+    generation carries its own count so the probe can check each one; a
+    refresh interrupted while backfilling an older generation is caught
+    even after a newer generation's refresh completed.
+    """
+
+    count: str
+    columns: tuple[CaggColumn, ...]
+
+
+_SUMMARY_GENERATIONS: tuple[CaggGeneration, ...] = (
+    CaggGeneration("timed_requests", (
+        CaggColumn("timed_requests", "bigint", "COUNT(request_time)"),
+    )),
+    CaggGeneration("latency_requests", (
+        CaggColumn("latency_requests", "bigint", f"COUNT(request_time) FILTER (WHERE {LATENCY_FILTER})"),
+        CaggColumn("avg_latency", "double precision", f"AVG(request_time) FILTER (WHERE {LATENCY_FILTER})"),
+        CaggColumn("max_latency", "double precision", f"MAX(request_time) FILTER (WHERE {LATENCY_FILTER})"),
+        CaggColumn("latency_pct_agg", "uddsketch", f"percentile_agg(request_time) FILTER (WHERE {LATENCY_FILTER})"),
+    )),
 )
-_URL_COLUMNS: tuple[CaggColumn, ...] = (
-    CaggColumn("timed_hits", "bigint", "COUNT(request_time)"),
-    CaggColumn("latency_hits", "bigint", f"COUNT(request_time) FILTER (WHERE {LATENCY_FILTER})"),
-    CaggColumn("total_latency", "double precision", f"SUM(request_time) FILTER (WHERE {LATENCY_FILTER})"),
+_URL_GENERATIONS: tuple[CaggGeneration, ...] = (
+    CaggGeneration("timed_hits", (
+        CaggColumn("timed_hits", "bigint", "COUNT(request_time)"),
+    )),
+    CaggGeneration("latency_hits", (
+        CaggColumn("latency_hits", "bigint", f"COUNT(request_time) FILTER (WHERE {LATENCY_FILTER})"),
+        CaggColumn("total_latency", "double precision", f"SUM(request_time) FILTER (WHERE {LATENCY_FILTER})"),
+    )),
 )
 
-# View -> columns added after the view first shipped, oldest first. A
+# View -> generations added after the view first shipped, oldest first. A
 # database missing several gets them all in one pass and one forced refresh.
-CAGG_COLUMNS: dict[str, tuple[CaggColumn, ...]] = {
-    "summary_hourly_stats": _SUMMARY_COLUMNS,
-    "summary_daily_stats": _SUMMARY_COLUMNS,
-    "url_hourly_stats": _URL_COLUMNS,
-    "url_daily_stats": _URL_COLUMNS,
+CAGG_GENERATIONS: dict[str, tuple[CaggGeneration, ...]] = {
+    "summary_hourly_stats": _SUMMARY_GENERATIONS,
+    "summary_daily_stats": _SUMMARY_GENERATIONS,
+    "url_hourly_stats": _URL_GENERATIONS,
+    "url_daily_stats": _URL_GENERATIONS,
 }
 
-# The newest COUNT column per view. A COUNT is 0, never NULL, once a bucket
-# has been refreshed, and one forced refresh fills every column of a view,
-# so "this column is NULL" means "this bucket predates the newest upgrade".
-# Older count columns are not probed: the latency columns are added after
-# the timed ones, so a filled latency count implies a filled timed count.
-CAGG_PROBE_COLUMNS: dict[str, str] = {
-    "summary_hourly_stats": "latency_requests",
-    "summary_daily_stats": "latency_requests",
-    "url_hourly_stats": "latency_hits",
-    "url_daily_stats": "latency_hits",
+# Flat view of the same table for callers that only need the columns.
+CAGG_COLUMNS: dict[str, tuple[CaggColumn, ...]] = {
+    view: tuple(column for generation in generations for column in generation.columns)
+    for view, generations in CAGG_GENERATIONS.items()
 }
 
 
@@ -891,10 +909,10 @@ async def _cagg_columns_need_upgrade(
     """Views missing an upgrade column, or not yet backfilled after one.
 
     A view that does not exist yet needs nothing: the CREATE includes every
-    column. "Any bucket with a NULL probe count" is the rerun-safe half of
-    the rule: a container killed during the forced refresh comes back with
-    the columns present and history still uncounted, and must refresh
-    again.
+    column. "Any bucket with a NULL generation count" is the rerun-safe half
+    of the rule: a container killed during the forced refresh comes back
+    with the columns present and history still uncounted, and must refresh
+    again. One query per view checks every generation's count at once.
 
     That half is scoped to the raw retention window, the only span the forced
     refresh can recount. Daily buckets older than it keep a NULL count for
@@ -913,15 +931,16 @@ async def _cagg_columns_need_upgrade(
     columns = {(r.table_name, r.column_name) for r in result}
     existing_views = {name for name, _ in columns}
     pending: list[str] = []
-    for view, probe_column in CAGG_PROBE_COLUMNS.items():
+    for view, generations in CAGG_GENERATIONS.items():
         if view not in existing_views:
             continue
         if any((view, column.name) not in columns for column in CAGG_COLUMNS[view]):
             pending.append(view)
             continue
+        null_counts = " OR ".join(f"{generation.count} IS NULL" for generation in generations)
         has_null = (await conn.execute(
             text(
-                f"SELECT 1 FROM {view} WHERE {probe_column} IS NULL "
+                f"SELECT 1 FROM {view} WHERE ({null_counts}) "
                 f"AND bucket >= now() - make_interval(days => :days) LIMIT 1"
             ),
             {"days": raw_retention_days},
