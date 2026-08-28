@@ -12,7 +12,7 @@ CAGG Structure:
 - location_hourly_stats / location_daily_stats: Location event counts for map
 - ip_location_{hourly,daily}_stats: Per-IP counts by location for top IPs
 - log_ip_{hourly,daily}_stats: Per-IP access-log counts (top IPs/countries/cities, facets)
-- url_{hourly,daily}_stats: Per-URL access-log counts (top URLs)
+- url_{hourly,daily}_stats: Per-host-and-URL access-log counts (top URLs)
 - user_agent_{hourly,daily}_stats: Per-user-agent counts (top user agents)
 - host_daily_stats / hostname_daily_stats: Daily host rollups for facet dropdowns
 - log_source_daily_stats: Daily hostname/log_format rollups for source facets
@@ -417,12 +417,15 @@ async def _create_log_ip_caggs(conn: "AsyncConnection") -> None:
 
 
 async def _create_url_caggs(conn: "AsyncConnection") -> None:
-    """Create per-URL access-log CAGGs (hourly + daily).
+    """Create per-host-and-URL access-log CAGGs (hourly + daily).
 
-    Used for: analytics /top-urls (unfiltered path). total_request_time is a
-    SUM and timed_hits a COUNT of measured rows, so the rolled-up average is
-    exact (SUM/COUNT of timed rows), never an AVG of AVGs. The `latency_*`
-    pair repeats both over latency rows only (see `LATENCY_STATUS_EXCLUSIONS`).
+    Used for: analytics /top-urls (unfiltered path). One group per host and
+    path, so a path two vhosts share is not summed across them; a NULL host
+    (combined-format archives carry none) is its own group. total_request_time
+    is a SUM and timed_hits a COUNT of measured rows, so the rolled-up
+    average is exact (SUM/COUNT of timed rows), never an AVG of AVGs. The
+    `latency_*` pair repeats both over latency rows only (see
+    `LATENCY_STATUS_EXCLUSIONS`).
     """
     for suffix, interval in (("hourly", "1 hour"), ("daily", "1 day")):
         await conn.execute(text(f"""
@@ -430,6 +433,7 @@ async def _create_url_caggs(conn: "AsyncConnection") -> None:
             WITH (timescaledb.continuous) AS
             SELECT
                 time_bucket('{interval}', timestamp) AS bucket,
+                host,
                 url,
                 COUNT(*) AS hits,
                 COUNT(*) FILTER (WHERE status_code >= 400) AS error_hits,
@@ -440,7 +444,7 @@ async def _create_url_caggs(conn: "AsyncConnection") -> None:
                 SUM(request_time) FILTER (WHERE {LATENCY_FILTER}) AS total_latency
             FROM access_logs
             WHERE url IS NOT NULL
-            GROUP BY bucket, url
+            GROUP BY bucket, host, url
             WITH NO DATA
         """))
         logger.info("CAGG created/verified: url_%s_stats", suffix)
@@ -1053,15 +1057,60 @@ async def _location_caggs_need_upgrade(conn: "AsyncConnection") -> bool:
     """
     existing = (await conn.execute(text("""
         SELECT count(*) FROM information_schema.views
-        WHERE table_name = ANY(:views)
+        WHERE table_name = ANY(:views) AND table_schema = 'public'
     """), {"views": LOCATION_CAGGS})).scalar_one()
     if not existing:
         return False
     with_hostname = (await conn.execute(text("""
         SELECT count(DISTINCT table_name) FROM information_schema.columns
-        WHERE table_name = ANY(:views) AND column_name = 'hostname'
+        WHERE table_name = ANY(:views) AND column_name = 'hostname' AND table_schema = 'public'
     """), {"views": LOCATION_CAGGS})).scalar_one()
     return with_hostname < existing
+
+
+URL_CAGGS = ["url_hourly_stats", "url_daily_stats"]
+
+
+async def _url_caggs_need_upgrade(conn: "AsyncConnection") -> bool:
+    """True when an existing URL CAGG is in the pre-host shape.
+
+    A GROUP BY cannot change in place, so the pair is dropped and recreated
+    together; as with the location CAGGs, a partial match must not declare
+    victory or the laggard stays in the old shape forever.
+    """
+    existing = (await conn.execute(text("""
+        SELECT count(*) FROM information_schema.views
+        WHERE table_name = ANY(:views) AND table_schema = 'public'
+    """), {"views": URL_CAGGS})).scalar_one()
+    if not existing:
+        return False
+    with_host = (await conn.execute(text("""
+        SELECT count(DISTINCT table_name) FROM information_schema.columns
+        WHERE table_name = ANY(:views) AND column_name = 'host' AND table_schema = 'public'
+    """), {"views": URL_CAGGS})).scalar_one()
+    return with_host < existing
+
+
+async def _drop_url_caggs(conn: "AsyncConnection", *, attempts: int = 3) -> None:
+    """Drop both URL CAGGs, retrying a transient catalog error.
+
+    A refresh-policy job running on the view makes the DROP fail with
+    "tuple concurrently deleted". Each attempt runs in a savepoint: a
+    failed DDL poisons the setup transaction until the savepoint rolls
+    back, and without one the retry would hit "current transaction is
+    aborted". The last failure propagates and startup fails, the same
+    contract as the location upgrade.
+    """
+    for cagg in URL_CAGGS:
+        for attempt in range(attempts):
+            try:
+                async with conn.begin_nested():
+                    await conn.execute(text(f"DROP MATERIALIZED VIEW IF EXISTS {cagg} CASCADE"))
+                break
+            except Exception:
+                if attempt == attempts - 1:
+                    raise
+                await asyncio.sleep(0.5 * (attempt + 1))
 
 
 async def setup_timescaledb(
@@ -1087,6 +1136,19 @@ async def setup_timescaledb(
         upgraded = await _summary_caggs_need_upgrade(conn)
         if upgraded:
             await _upgrade_summary_caggs(conn)
+
+        # Rebuild pre-host URL CAGGs: a GROUP BY cannot change in place.
+        # Runs before the column probe, which skips views that no longer
+        # exist, so the drop never races an in-place ALTER on the same view.
+        url_upgrade = await _url_caggs_need_upgrade(conn)
+        if url_upgrade:
+            await _drop_url_caggs(conn)
+            logger.warning(
+                "url_caggs_recreated",
+                views=URL_CAGGS,
+                detail="host dimension added; per-URL history older than the "
+                "raw retention window cannot be rebuilt and is discarded",
+            )
 
         # Add the upgrade columns (timed-row counts, latency figures) to
         # pre-existing summary/URL CAGGs. Probed before the CREATE step:
@@ -1181,6 +1243,25 @@ async def setup_timescaledb(
             start=datetime.now(timezone.utc) - timedelta(days=analytics.raw_retention_days),
             end=datetime.now(timezone.utc),
             caggs=LOCATION_CAGGS,
+        )
+
+    if url_upgrade:
+        started = time.monotonic()
+        failed = await refresh_caggs_range(
+            engine,
+            start=datetime.now(timezone.utc) - timedelta(days=analytics.raw_retention_days),
+            end=datetime.now(timezone.utc),
+            caggs=URL_CAGGS,
+        )
+        if failed:
+            # The views exist with every column but no history; the next
+            # start's gap probe (backfill_cagg_gaps) sees the empty
+            # materialization and refreshes it from the raw rows.
+            logger.warning("url_caggs_refresh_failed", views=failed)
+        logger.info(
+            "url_caggs_refresh_done",
+            views=[view for view in URL_CAGGS if view not in failed],
+            seconds=round(time.monotonic() - started, 1),
         )
 
     if pending_views:

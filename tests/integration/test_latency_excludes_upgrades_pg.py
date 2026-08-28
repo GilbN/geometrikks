@@ -177,6 +177,7 @@ PRE_LATENCY_URL = """
     WITH (timescaledb.continuous) AS
     SELECT
         time_bucket('{bucket}', timestamp) AS bucket,
+        host,
         url,
         COUNT(*) AS hits,
         COUNT(*) FILTER (WHERE status_code >= 400) AS error_hits,
@@ -185,7 +186,7 @@ PRE_LATENCY_URL = """
         SUM(request_time) AS total_request_time
     FROM access_logs
     WHERE url IS NOT NULL
-    GROUP BY bucket, url
+    GROUP BY bucket, host, url
     WITH NO DATA
 """
 SHAPES = {

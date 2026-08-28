@@ -158,6 +158,25 @@ class TestTopUrlsParity:
         assert routed[0].avg_request_time == 0.3125
         assert routed[0].avg_request_time == raw[0].avg_request_time
 
+    async def test_shared_path_splits_by_host(self, pg_engine, pg_session_maker, clean_tables):
+        ts = NOW - timedelta(days=2)
+        async with pg_session_maker() as session:
+            for host, count in (("app-a.example.com", 3), ("app-b.example.com", 2)):
+                for _ in range(count):
+                    await _insert_log(session, ts=ts, url="/graphql", host=host, rt=0.5)
+            await _insert_log(session, ts=ts, url="/graphql", host=None, rt=0.25)
+            await session.commit()
+        await _refresh_all(pg_engine)
+        async with pg_session_maker() as session:
+            routed = await SummaryStatsRepository(session=session).get_top_urls(B_START, B_END)
+            raw = await LiveStatsRepository(session=session).get_top_urls(B_START, B_END)
+        assert routed == raw
+        assert [(r.host, r.url, r.hits, r.avg_request_time) for r in routed] == [
+            ("app-a.example.com", "/graphql", 3, 0.5),
+            ("app-b.example.com", "/graphql", 2, 0.5),
+            (None, "/graphql", 1, 0.25),
+        ], "one row per host; a NULL host is its own row, not dropped"
+
 
 class TestTopUserAgentsParity:
     async def test_matches_raw_scan_and_excludes_edges(self, pg_engine, pg_session_maker, clean_tables):
@@ -258,3 +277,21 @@ class TestTieOrdering:
         assert routed_u == raw_u
         assert [r.ip_address for r in routed_i] == ["5.5.5.5", "6.6.6.6"], "equal hits break ties by ip ASC"
         assert routed_i == raw_i
+
+    async def test_tied_hosts_order_by_host_then_path(self, pg_engine, pg_session_maker, clean_tables):
+        ts = NOW - timedelta(days=2)
+        async with pg_session_maker() as session:
+            for host, url in (
+                ("b.example.com", "/x"), ("a.example.com", "/y"), ("a.example.com", "/x"), (None, "/x"),
+            ):
+                for _ in range(2):
+                    await _insert_log(session, ts=ts, url=url, host=host)
+            await session.commit()
+        await _refresh_all(pg_engine)
+        async with pg_session_maker() as session:
+            routed = await SummaryStatsRepository(session=session).get_top_urls(B_START, B_END)
+            raw = await LiveStatsRepository(session=session).get_top_urls(B_START, B_END)
+        assert [(r.host, r.url) for r in routed] == [
+            ("a.example.com", "/x"), ("a.example.com", "/y"), ("b.example.com", "/x"), (None, "/x"),
+        ], "equal hits break ties by host ASC (NULL last), then url ASC"
+        assert routed == raw

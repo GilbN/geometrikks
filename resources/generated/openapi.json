@@ -3828,6 +3828,16 @@
           "hits": {
             "type": "integer"
           },
+          "host": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "timedHits": {
             "type": "integer"
           },
@@ -3842,6 +3852,7 @@
           "avgRequestTime",
           "errorHits",
           "hits",
+          "host",
           "timedHits",
           "totalBytes",
           "url"

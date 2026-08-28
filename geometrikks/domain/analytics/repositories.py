@@ -14,7 +14,7 @@ CAGG Structure:
 - geo_summary_hourly_stats / geo_summary_daily_stats: Geo metrics with HyperLogLog (events, unique IPs/countries/cities)
 - location_hourly_stats / location_daily_stats: Location event counts for map (GeoJSON features)
 - ip_location_daily_stats: Per-IP counts by location for top IPs
-- url_hourly_stats / url_daily_stats: Top URLs by hits, error_hits, total_bytes, total_request_time
+- url_hourly_stats / url_daily_stats: Top host-and-path pairs by hits, error_hits, total_bytes, total_request_time
 - user_agent_hourly_stats / user_agent_daily_stats: Top user agents by hits
 - log_ip_{hourly,daily}_stats: Per-IP access-log counts (top IPs/countries/cities, facets)
 
@@ -720,7 +720,7 @@ class SummaryStatsRepository:
     async def get_top_urls(
         self, start: datetime, end: datetime, limit: int = 25, *, filters: AnalyticsFilters | None = None
     ) -> list[TopUrlRow]:
-        """Top URLs by hits: stitched url CAGG read above 24h, raw otherwise.
+        """Top host-and-path pairs by hits: stitched url CAGG read above 24h, raw otherwise.
 
         Any active filter forces the raw path: the url CAGGs carry no
         country/city/IP dimensions (adding them would multiply cardinality).
@@ -732,16 +732,19 @@ class SummaryStatsRepository:
                 start, end, limit, filters=filters
             )
         table = f"url_{granularity.value}_stats"
-        # URL_LATENCY_*: buckets older than the raw retention window never got
-        # the latency columns and keep their unfiltered totals; see latency_col.
+        # URL_LATENCY_*: the fallback chain reads the older columns when a
+        # bucket's latency count is NULL; see latency_col. The host rebuild
+        # discarded every URL bucket older than the raw window, so today
+        # none is NULL here, and the chain stays for the next in-place
+        # column generation.
         stmt = text(f"""
             WITH combined AS (
-                SELECT s.url, s.hits, {URL_LATENCY_HITS} AS timed_hits,
+                SELECT s.host, s.url, s.hits, {URL_LATENCY_HITS} AS timed_hits,
                        s.error_hits, s.total_bytes, {URL_LATENCY_TOTAL} AS total_request_time
                 FROM {table} s
                 WHERE s.bucket >= :a_start AND s.bucket < :a_end
                 UNION ALL
-                SELECT al.url, CAST(1 AS BIGINT),
+                SELECT al.host, al.url, CAST(1 AS BIGINT),
                        CAST((al.request_time IS NOT NULL AND {latency_filter("al.")})::int AS BIGINT),
                        CAST((al.status_code >= 400)::int AS BIGINT), al.bytes_sent,
                        CASE WHEN {latency_filter("al.")} THEN al.request_time END
@@ -749,7 +752,7 @@ class SummaryStatsRepository:
                 WHERE al.timestamp >= :start AND al.timestamp < :a_start
                   AND al.url IS NOT NULL
                 UNION ALL
-                SELECT al.url, CAST(1 AS BIGINT),
+                SELECT al.host, al.url, CAST(1 AS BIGINT),
                        CAST((al.request_time IS NOT NULL AND {latency_filter("al.")})::int AS BIGINT),
                        CAST((al.status_code >= 400)::int AS BIGINT), al.bytes_sent,
                        CASE WHEN {latency_filter("al.")} THEN al.request_time END
@@ -758,6 +761,7 @@ class SummaryStatsRepository:
                   AND al.url IS NOT NULL
             )
             SELECT
+                host,
                 url,
                 CAST(SUM(hits) AS BIGINT) AS hits,
                 CAST(COALESCE(SUM(timed_hits), 0) AS BIGINT) AS timed_hits,
@@ -765,8 +769,8 @@ class SummaryStatsRepository:
                 CAST(COALESCE(SUM(total_bytes), 0) AS BIGINT) AS total_bytes,
                 SUM(total_request_time) / NULLIF(SUM(timed_hits), 0) AS avg_request_time
             FROM combined
-            GROUP BY url
-            ORDER BY hits DESC, url
+            GROUP BY host, url
+            ORDER BY hits DESC, host, url
             LIMIT :limit
         """)
         result = await self.session.execute(
@@ -774,6 +778,7 @@ class SummaryStatsRepository:
         )
         return [
             TopUrlRow(
+                host=row.host,
                 url=row.url,
                 hits=row.hits,
                 error_hits=row.error_hits,
@@ -1057,8 +1062,9 @@ class SummaryStatsRepository:
 
 @dataclass
 class TopUrlRow:
-    """A top-URL aggregate row from raw access_logs."""
+    """A top-URL aggregate row: one host and path."""
 
+    host: str | None
     url: str
     hits: int
     error_hits: int
@@ -1370,7 +1376,7 @@ class LiveStatsRepository:
     async def get_top_urls(
         self, start: datetime, end: datetime, limit: int = 25, *, filters: AnalyticsFilters | None = None
     ) -> list[TopUrlRow]:
-        """Top URLs by hit count from raw access_logs (time-bounded).
+        """Top host-and-path pairs by hit count from raw access_logs (time-bounded).
 
         Raw-table scan: this path serves ranges of 24h or less and every
         filtered request, which the URL CAGGs cannot answer.
@@ -1378,6 +1384,7 @@ class LiveStatsRepository:
         filter_sql, filter_params = (filters or AnalyticsFilters()).sql_conditions()
         stmt = text(f"""
             SELECT
+                host,
                 url,
                 CAST(COUNT(*) AS BIGINT) AS hits,
                 CAST(COUNT(*) FILTER (WHERE status_code >= 400) AS BIGINT) AS error_hits,
@@ -1387,8 +1394,8 @@ class LiveStatsRepository:
             FROM access_logs
             WHERE timestamp >= :start AND timestamp < :end AND url IS NOT NULL
             {filter_sql}
-            GROUP BY url
-            ORDER BY hits DESC, url
+            GROUP BY host, url
+            ORDER BY hits DESC, host, url
             LIMIT :limit
         """)
         result = await self.session.execute(
@@ -1396,6 +1403,7 @@ class LiveStatsRepository:
         )
         return [
             TopUrlRow(
+                host=row.host,
                 url=row.url,
                 hits=row.hits,
                 error_hits=row.error_hits,

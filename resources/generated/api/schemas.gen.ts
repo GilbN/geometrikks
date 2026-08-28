@@ -3597,6 +3597,16 @@ export const TopUrlDTOSchema = {
     hits: {
       type: "integer",
     },
+    host: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
     timedHits: {
       type: "integer",
     },
@@ -3611,6 +3621,7 @@ export const TopUrlDTOSchema = {
     "avgRequestTime",
     "errorHits",
     "hits",
+    "host",
     "timedHits",
     "totalBytes",
     "url",
