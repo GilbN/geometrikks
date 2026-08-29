@@ -5,13 +5,24 @@ from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING, cast
 
 import pytest
+from litestar import Litestar
+from litestar.di import Provide
+from litestar.testing import AsyncTestClient
 
+from geometrikks.domain.analytics.asn_classification import classify_asn
+from geometrikks.domain.analytics.controllers import AnalyticsController, _to_ip_profile_response
 from geometrikks.domain.analytics.ip_profile import (
     IpProfile,
     IpProfileBucket,
+    IpProfileHost,
+    IpProfilePath,
     IpProfileRepository,
+    IpProfileUserAgent,
     profile_bucket_width,
 )
+from geometrikks.server.exceptions import EXCEPTION_HANDLERS
+from geometrikks.server.routes import create_api_v1_router
+from tests.support import ambient_settings_dependency
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
@@ -103,17 +114,6 @@ async def test_every_statement_binds_the_ip_as_inet():
     for sql in session.statements:
         assert "CAST(:ip AS inet)" in sql
 
-
-from litestar import Litestar
-from litestar.di import Provide
-from litestar.testing import AsyncTestClient
-
-from geometrikks.domain.analytics.asn_classification import classify_asn
-from geometrikks.domain.analytics.controllers import AnalyticsController, _to_ip_profile_response
-from geometrikks.domain.analytics.ip_profile import IpProfileHost, IpProfilePath, IpProfileUserAgent
-from geometrikks.server.exceptions import EXCEPTION_HANDLERS
-from geometrikks.server.routes import create_api_v1_router
-from tests.support import ambient_settings_dependency
 
 START = NOW - timedelta(hours=6)
 
