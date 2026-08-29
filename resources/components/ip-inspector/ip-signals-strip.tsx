@@ -1,6 +1,7 @@
 import { Badge } from "@/components/ui/badge"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
-import type { Signal, SignalTone } from "./signals"
+import { SIGNAL_DESCRIPTIONS, type Signal, type SignalTone } from "./signals"
 
 const TONE: Record<SignalTone, string> = {
   red: "border-destructive/40 bg-destructive/10 text-destructive",
@@ -14,9 +15,14 @@ export function IpSignalsStrip({ signals }: { signals: Signal[] }) {
   return (
     <div className="flex flex-wrap gap-1.5" aria-label="Signals">
       {signals.map((s) => (
-        <Badge key={s.key} variant="outline" className={cn("font-medium", TONE[s.tone])}>
-          {s.label}
-        </Badge>
+        <Tooltip key={s.key}>
+          <TooltipTrigger asChild>
+            <Badge variant="outline" tabIndex={0} className={cn("cursor-help font-medium", TONE[s.tone])}>
+              {s.label}
+            </Badge>
+          </TooltipTrigger>
+          <TooltipContent className="max-w-xs">{SIGNAL_DESCRIPTIONS[s.key]}</TooltipContent>
+        </Tooltip>
       ))}
     </div>
   )

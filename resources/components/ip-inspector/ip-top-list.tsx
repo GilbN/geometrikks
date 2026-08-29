@@ -4,6 +4,8 @@ import { cn } from "@/lib/utils"
 
 export interface TopRow {
   label: string
+  /** Muted text before the label; the host a path belongs to. */
+  prefix?: string
   hits: number
   errorHits?: number
   mono?: boolean
@@ -19,15 +21,19 @@ export function IpTopList({ title, rows, bars = false }: { title: string; rows: 
       <h3 className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{title}</h3>
       <ul className="space-y-1">
         {rows.map((r) => (
-          <li key={r.label} className="text-xs">
+          <li key={`${r.prefix ?? ""}|${r.label}`} className="text-xs">
             <div className="flex items-center justify-between gap-3">
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <span className={cn("min-w-0 truncate", r.mono && "font-mono")}>{r.label}</span>
+                  <span className={cn("min-w-0 truncate", r.mono && "font-mono")}>
+                    {r.prefix && <span className="text-muted-foreground">{r.prefix} </span>}
+                    {r.label}
+                  </span>
                 </TooltipTrigger>
                 <TooltipContent className="max-w-sm break-all">
+                  {r.prefix && `${r.prefix} `}
                   {r.label}
-                  {r.errorHits !== undefined && ` · ${formatNumber(r.errorHits)} errors`}
+                  {r.errorHits !== undefined && ` · ${formatNumber(r.errorHits)} with a 4xx or 5xx response`}
                 </TooltipContent>
               </Tooltip>
               <span className="shrink-0 tabular-nums text-muted-foreground">{formatNumber(r.hits)}</span>

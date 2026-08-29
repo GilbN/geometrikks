@@ -17,7 +17,9 @@ export function IpLatestRequests({ ip }: { ip: string }) {
           {rows.map((r) => (
             <li key={r.id} className="grid grid-cols-[auto_minmax(0,1fr)_auto_auto] gap-2 py-0.5 tabular-nums">
               <span className="text-muted-foreground">{formatTs(r.timestamp, "hourly")}</span>
-              <span className="truncate">{r.method ?? "?"} {r.url ?? ""}</span>
+              <span className="truncate">
+                <span className="text-muted-foreground">{r.host ?? "(no host)"}</span> {r.method ?? "?"} {r.url ?? ""}
+              </span>
               <span className={r.statusCode >= 400 ? "text-amber-600 dark:text-amber-400" : ""}>{r.statusCode}</span>
               <span className="text-muted-foreground">{formatBytes(r.bytesSent)}</span>
             </li>

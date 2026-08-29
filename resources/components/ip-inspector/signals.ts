@@ -15,10 +15,36 @@ export const SIGNAL_THRESHOLDS = {
 
 export type SignalTone = "red" | "amber" | "gray"
 
+export type SignalKey = "errors" | "hosting" | "after-ban" | "paths" | "malformed" | "burst"
+
 export interface Signal {
-  key: "errors" | "hosting" | "after-ban" | "paths" | "malformed" | "burst"
+  key: SignalKey
   label: string
   tone: SignalTone
+}
+
+const pct = (share: number) => `${Math.round(share * 100)}%`
+
+/** Hover text for each chip, written from the same thresholds the rules use. */
+export const SIGNAL_DESCRIPTIONS: Record<SignalKey, string> = {
+  errors:
+    `${pct(SIGNAL_THRESHOLDS.errorShareMin)} or more of this IP's requests got a 4xx response, ` +
+    `counted from ${SIGNAL_THRESHOLDS.errorShareMinRequests} requests up. Red from ${pct(SIGNAL_THRESHOLDS.errorShareRed)}. ` +
+    "Mostly-failing traffic is what scanners and brute-force tools produce.",
+  hosting:
+    "The address belongs to a hosting or cloud provider's network rather than a residential or mobile ISP. " +
+    "Bots and scanners usually run from hosting.",
+  "after-ban":
+    "Requests kept arriving after the CrowdSec ban started. Either no bouncer enforces this decision " +
+    "or the traffic reaches the proxy on a path the bouncer does not cover.",
+  paths:
+    `The IP requested ${SIGNAL_THRESHOLDS.distinctPathsMin} or more distinct paths in this range, ` +
+    "which is typical for crawlers and vulnerability scanners.",
+  malformed:
+    "Log lines from this IP that the parser could not read. Often requests crafted to confuse parsers or probe for bugs.",
+  burst:
+    `At least ${pct(SIGNAL_THRESHOLDS.burstShare)} of the requests landed in one hour or day bucket, ` +
+    `counted from ${SIGNAL_THRESHOLDS.burstMinRequests} requests up. The traffic came as a single spike rather than spread over the range.`,
 }
 
 /** Requests in buckets that start at or after `sinceIso`. Bucket

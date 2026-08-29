@@ -5,6 +5,7 @@
  * dialog. Pairs with GET /api/v1/access-log-debug/.
  */
 import { useEffect, useState } from "react"
+import { useSearch } from "@tanstack/react-router"
 import {
   ArrowDown,
   ArrowUp,
@@ -48,6 +49,7 @@ import { DataTableFrame } from "@/components/data/data-table-frame"
 import { rowActivation, stopRowActivation } from "@/components/data/row-activation"
 import { dataState } from "@/components/data/types"
 import { IpBanControls } from "@/components/crowdsec/ip-ban-controls"
+import { InspectIpButton } from "@/components/ip-inspector/inspect-ip-button"
 import { useAccessLogDebug, useAccessLogFacets, useCrowdsecLiveUpdates } from "@/lib/queries"
 import { useDebouncedValue } from "@/hooks/use-debounced-value"
 import { isValidIp } from "@/lib/crowdsec"
@@ -217,11 +219,12 @@ export function DebugLogsTable() {
   const [pageSize, setPageSize] = useState(20)
 
   // Filters (raw input; text inputs are debounced before hitting the query).
+  const initial = useSearch({ from: "/debug-logs" })
   const [searchInput, setSearchInput] = useState("")
-  const [ipInput, setIpInput] = useState("")
+  const [ipInput, setIpInput] = useState(initial.ip ?? "")
   const [cities, setCities] = useState<string[]>([])
   const [countries, setCountries] = useState<string[]>([])
-  const [malformedFilter, setMalformedFilter] = useState<MalformedFilter>("all")
+  const [malformedFilter, setMalformedFilter] = useState<MalformedFilter>(initial.malformed ?? "all")
   // Facet values are fetched lazily, on first open of either dropdown.
   const [facetsEnabled, setFacetsEnabled] = useState(false)
   const { data: facets } = useAccessLogFacets({ enabled: facetsEnabled })
@@ -496,7 +499,9 @@ export function DebugLogsTable() {
                     {c.render(row)}
                     {c.key === "ipAddress" && row.ipAddress && (
                       <span {...stopRowActivation}>
-                        <IpBanControls ip={row.ipAddress} />
+                        <IpBanControls ip={row.ipAddress}>
+                          <InspectIpButton ip={row.ipAddress} />
+                        </IpBanControls>
                       </span>
                     )}
                   </TableCell>
