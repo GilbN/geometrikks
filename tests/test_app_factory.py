@@ -154,3 +154,52 @@ def test_create_plugins_derives_db_config_from_explicit_settings(monkeypatch):
     url = str(init_plugin.config[0].get_engine().url)
     assert "127.0.0.1" in url
     assert "ambient.invalid" not in url
+
+
+async def test_lifecycle_managers_nest_inside_channels_plugin(monkeypatch) -> None:
+    """The channels plugin must start before ingestion and stop after it.
+
+    ChannelsPlugin appends itself to the lifespan list during on_app_init;
+    if the app's own managers were registered ahead of it, they would exit
+    first and ingestion's final flush would publish into a torn-down plugin.
+    """
+    from contextlib import asynccontextmanager
+
+    from litestar.channels import ChannelsPlugin
+
+    from geometrikks.server import lifecycle
+
+    events: list[str] = []
+
+    @asynccontextmanager
+    async def recording_lifespan(app):
+        events.append("lifecycle:enter")
+        yield
+        events.append("lifecycle:exit")
+
+    monkeypatch.setattr(lifecycle, "LIFESPAN", [recording_lifespan])
+
+    real_aenter = ChannelsPlugin.__aenter__
+    real_aexit = ChannelsPlugin.__aexit__
+
+    async def aenter(self):
+        events.append("channels:enter")
+        return await real_aenter(self)
+
+    async def aexit(self, exc_type, exc_val, exc_tb):
+        events.append("channels:exit")
+        return await real_aexit(self, exc_type, exc_val, exc_tb)
+
+    monkeypatch.setattr(ChannelsPlugin, "__aenter__", aenter)
+    monkeypatch.setattr(ChannelsPlugin, "__aexit__", aexit)
+
+    app = create_app(settings=_hermetic_settings())
+    async with AsyncTestClient(app=app):
+        pass
+
+    assert events == [
+        "channels:enter",
+        "lifecycle:enter",
+        "lifecycle:exit",
+        "channels:exit",
+    ]
