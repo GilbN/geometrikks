@@ -12,7 +12,6 @@ from litestar.config.compression import CompressionConfig
 from geometrikks.config.settings import Settings, get_settings
 from geometrikks.server import plugins
 from geometrikks.server.exceptions import EXCEPTION_HANDLERS
-from geometrikks.server.lifecycle import LIFESPAN
 from geometrikks.server.routes import get_agent_route_handlers, get_route_handlers
 from geometrikks.server.dependencies import create_settings_provider
 
@@ -104,7 +103,6 @@ def create_app(
     app = Litestar(
         debug=settings.debug,
         route_handlers=route_handlers,
-        lifespan=list(LIFESPAN),
         plugins=plugins.create_plugins(
             settings, db_config=db_config, include_vite=not settings.is_agent
         ),
