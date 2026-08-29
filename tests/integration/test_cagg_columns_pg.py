@@ -1,6 +1,7 @@
 """Summary and URL CAGGs carry timed-row and latency columns; old-shape views upgrade in place."""
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import text
@@ -34,6 +35,24 @@ OLD_SUMMARY_HOURLY = """
     GROUP BY bucket
     WITH NO DATA
 """
+
+
+async def _drop_view(conn, view: str, *, attempts: int = 3) -> None:
+    """Drop a CAGG the way setup does: retry "tuple concurrently deleted".
+
+    The previous test's setup_timescaledb schedules refresh policies, and a
+    policy job still running on the view makes the DROP fail. Each attempt
+    runs in a savepoint so a failed DDL does not poison the transaction.
+    """
+    for attempt in range(attempts):
+        try:
+            async with conn.begin_nested():
+                await conn.execute(text(f"DROP MATERIALIZED VIEW IF EXISTS {view} CASCADE"))
+            return
+        except Exception:
+            if attempt == attempts - 1:
+                raise
+            await asyncio.sleep(0.5 * (attempt + 1))
 
 
 async def _seed(session_maker) -> None:
@@ -103,7 +122,7 @@ async def test_old_shape_summary_view_upgrades_in_place(pg_engine, pg_session_ma
     """
     await _seed(pg_session_maker)
     async with pg_engine.begin() as conn:
-        await conn.execute(text("DROP MATERIALIZED VIEW IF EXISTS summary_hourly_stats CASCADE"))
+        await _drop_view(conn, "summary_hourly_stats")
         await conn.execute(text(OLD_SUMMARY_HOURLY))
     await refresh_caggs_range(
         pg_engine, start=NOW - timedelta(days=1), end=NOW + timedelta(hours=1),
@@ -155,7 +174,7 @@ async def _restore_view(pg_engine, view: str) -> None:
     again.
     """
     async with pg_engine.begin() as conn:
-        await conn.execute(text(f"DROP MATERIALIZED VIEW IF EXISTS {view} CASCADE"))
+        await _drop_view(conn, view)
     await setup_timescaledb(pg_engine, get_settings().analytics)
 
 
@@ -198,7 +217,7 @@ async def test_present_columns_with_null_counts_trigger_the_refresh_only(
     """
     await _seed(pg_session_maker)
     async with pg_engine.begin() as conn:
-        await conn.execute(text("DROP MATERIALIZED VIEW IF EXISTS summary_hourly_stats CASCADE"))
+        await _drop_view(conn, "summary_hourly_stats")
         await conn.execute(text(OLD_SUMMARY_HOURLY))
     await refresh_caggs_range(
         pg_engine, start=NOW - timedelta(days=1), end=NOW + timedelta(hours=1),
@@ -250,7 +269,7 @@ async def test_buckets_beyond_the_raw_window_keep_their_pre_upgrade_figures(
     await _insert(pg_session_maker, old_ts, 0.5)
     await _insert(pg_session_maker, recent_ts, 0.25)
     async with pg_engine.begin() as conn:
-        await conn.execute(text("DROP MATERIALIZED VIEW IF EXISTS summary_daily_stats CASCADE"))
+        await _drop_view(conn, "summary_daily_stats")
         await conn.execute(text(OLD_SUMMARY_DAILY))
     await refresh_caggs_range(
         pg_engine, start=old_ts - timedelta(days=1), end=NOW + timedelta(hours=1),

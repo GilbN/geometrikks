@@ -88,8 +88,9 @@ export function IpBanAction({ ip, banned }: { ip: string; banned: boolean }) {
 }
 
 /** Banned badge plus the ban/unban dropdown, driven by the shared
- *  banned-IP set. */
-export function IpBanControls({ ip }: { ip: string }) {
+ *  banned-IP set. `children` (the inspect button) sit between the badge
+ *  and the shield so the two icons stay together. */
+export function IpBanControls({ ip, children }: { ip: string; children?: React.ReactNode }) {
   const { data: bannedIps } = useBannedIps()
   const banned = !!bannedIps?.has(ip)
   return (
@@ -103,6 +104,7 @@ export function IpBanControls({ ip }: { ip: string }) {
           Banned
         </Badge>
       )}
+      {children}
       <IpBanAction ip={ip} banned={banned} />
     </>
   )

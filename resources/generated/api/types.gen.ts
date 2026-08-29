@@ -551,6 +551,74 @@ export type IpLocation = {
 };
 
 /**
+ * IpProfileBucketDTO
+ */
+export type IpProfileBucketDto = {
+  errorHits: number;
+  hits: number;
+  timestamp: string;
+};
+
+/**
+ * IpProfileHostDTO
+ */
+export type IpProfileHostDto = {
+  errorHits: number;
+  hits: number;
+  host: string | null;
+};
+
+/**
+ * IpProfilePathDTO
+ */
+export type IpProfilePathDto = {
+  errorHits: number;
+  hits: number;
+  host: string | null;
+  url: string;
+};
+
+/**
+ * IpProfileResponse
+ */
+export type IpProfileResponse = {
+  asn: number | null;
+  asnCategory: "hosting" | "other" | null;
+  asnOrganization: string | null;
+  avgRequestTime: number | null;
+  distinctPaths: number;
+  endDate: string;
+  errorRate: number;
+  firstSeen: string | null;
+  granularity: "hourly" | "daily";
+  hosts: Array<IpProfileHostDto>;
+  ipAddress: string;
+  lastSeen: string | null;
+  malformedRequests: number;
+  p95RequestTime: number | null;
+  paths: Array<IpProfilePathDto>;
+  peak: IpProfileBucketDto | null;
+  series: Array<IpProfileBucketDto>;
+  startDate: string;
+  status2xx: number;
+  status3xx: number;
+  status4xx: number;
+  status5xx: number;
+  timedRequests: number;
+  totalBytes: number;
+  totalRequests: number;
+  userAgents: Array<IpProfileUserAgentDto>;
+};
+
+/**
+ * IpProfileUserAgentDTO
+ */
+export type IpProfileUserAgentDto = {
+  hits: number;
+  userAgent: string;
+};
+
+/**
  * ListAccessLogsAccessLogResponseBody
  */
 export type ListAccessLogsAccessLogResponseBody = {
@@ -1399,6 +1467,59 @@ export type ApiV1AnalyticsGeoTimeSeriesGetGeoTimeSeriesResponses = {
 
 export type ApiV1AnalyticsGeoTimeSeriesGetGeoTimeSeriesResponse =
   ApiV1AnalyticsGeoTimeSeriesGetGeoTimeSeriesResponses[keyof ApiV1AnalyticsGeoTimeSeriesGetGeoTimeSeriesResponses];
+
+export type ApiV1AnalyticsIpProfileGetIpProfileData = {
+  body?: never;
+  path?: never;
+  query: {
+    /**
+     * Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)
+     */
+    startDate: string;
+    /**
+     * End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)
+     */
+    endDate: string;
+    /**
+     * Client IP to profile
+     */
+    ipAddress: string;
+    /**
+     * IANA timezone for daily buckets (e.g. Europe/Oslo). When set, daily buckets are local days in this zone for ranges the hourly source data can serve (<= 30 days); longer ranges keep UTC days. Hourly buckets are unaffected.
+     */
+    tz?: string | null;
+  };
+  url: "/api/v1/analytics/ip-profile";
+};
+
+export type ApiV1AnalyticsIpProfileGetIpProfileErrors = {
+  /**
+   * Validation Exception
+   */
+  400: {
+    detail: string;
+    extra?:
+      | null
+      | {
+          [key: string]: unknown;
+        }
+      | Array<unknown>;
+    status_code: number;
+  };
+};
+
+export type ApiV1AnalyticsIpProfileGetIpProfileError =
+  ApiV1AnalyticsIpProfileGetIpProfileErrors[keyof ApiV1AnalyticsIpProfileGetIpProfileErrors];
+
+export type ApiV1AnalyticsIpProfileGetIpProfileResponses = {
+  /**
+   * Request fulfilled, document follows
+   */
+  200: IpProfileResponse;
+};
+
+export type ApiV1AnalyticsIpProfileGetIpProfileResponse =
+  ApiV1AnalyticsIpProfileGetIpProfileResponses[keyof ApiV1AnalyticsIpProfileGetIpProfileResponses];
 
 export type ApiV1AnalyticsLiveSummaryGetLiveSummaryData = {
   body?: never;

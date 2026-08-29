@@ -5,6 +5,7 @@
  */
 import { DetailField, DetailSheet } from "@/components/data/detail-sheet"
 import { IpBanControls } from "@/components/crowdsec/ip-ban-controls"
+import { InspectIpButton } from "@/components/ip-inspector/inspect-ip-button"
 import { Badge } from "@/components/ui/badge"
 import { formatBytes, formatDuration, type AccessLog } from "@/lib/api"
 import { statusBadgeClass } from "@/lib/status-badge"
@@ -43,7 +44,11 @@ export function AccessLogDetailSheet({
             value={
               <span className="inline-flex flex-wrap items-center gap-2 font-mono text-xs">
                 {entry.ipAddress}
-                <IpBanControls ip={entry.ipAddress} />
+                <IpBanControls ip={entry.ipAddress}>
+                  <span onClickCapture={() => onOpenChange(false)}>
+                    <InspectIpButton ip={entry.ipAddress} />
+                  </span>
+                </IpBanControls>
               </span>
             }
           />

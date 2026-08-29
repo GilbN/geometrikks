@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/table"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useCrowdsecDecisions, useCrowdsecStatus, useUnbanIp } from "@/lib/queries"
+import { InspectIpButton } from "@/components/ip-inspector/inspect-ip-button"
 import { crowdsecErrorMessage } from "@/lib/crowdsec"
 import { cn } from "@/lib/utils"
 import { BanIpDialog } from "./ban-ip-dialog"
@@ -111,6 +112,7 @@ export function DecisionsTable() {
                     >
                       <TableCell className="font-mono">
                         {d.ip}
+                        {d.scope === "Ip" && <InspectIpButton ip={d.ip} className="ml-1" />}
                         {d.scope !== "Ip" && (
                           <Badge variant="outline" className="ml-2 align-middle">
                             {d.scope}

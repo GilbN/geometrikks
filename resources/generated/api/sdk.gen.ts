@@ -23,6 +23,9 @@ import type {
   ApiV1AnalyticsGeoTimeSeriesGetGeoTimeSeriesData,
   ApiV1AnalyticsGeoTimeSeriesGetGeoTimeSeriesErrors,
   ApiV1AnalyticsGeoTimeSeriesGetGeoTimeSeriesResponses,
+  ApiV1AnalyticsIpProfileGetIpProfileData,
+  ApiV1AnalyticsIpProfileGetIpProfileErrors,
+  ApiV1AnalyticsIpProfileGetIpProfileResponses,
   ApiV1AnalyticsLiveSummaryGetLiveSummaryData,
   ApiV1AnalyticsLiveSummaryGetLiveSummaryErrors,
   ApiV1AnalyticsLiveSummaryGetLiveSummaryResponses,
@@ -326,6 +329,36 @@ export const apiV1AnalyticsGeoTimeSeriesGetGeoTimeSeries = <
       },
     ],
     url: "/api/v1/analytics/geo-time-series",
+    ...options,
+  });
+
+/**
+ * GetIpProfile
+ *
+ * Access-log profile of one client IP for the IP inspector (raw scan bounded to one indexed IP).
+ */
+export const apiV1AnalyticsIpProfileGetIpProfile = <
+  ThrowOnError extends boolean = false,
+>(
+  options: Options<ApiV1AnalyticsIpProfileGetIpProfileData, ThrowOnError>,
+): RequestResult<
+  ApiV1AnalyticsIpProfileGetIpProfileResponses,
+  ApiV1AnalyticsIpProfileGetIpProfileErrors,
+  ThrowOnError
+> =>
+  (options.client ?? client).get<
+    ApiV1AnalyticsIpProfileGetIpProfileResponses,
+    ApiV1AnalyticsIpProfileGetIpProfileErrors,
+    ThrowOnError
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+    ],
+    url: "/api/v1/analytics/ip-profile",
     ...options,
   });
 

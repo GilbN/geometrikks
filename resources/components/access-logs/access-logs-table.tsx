@@ -35,6 +35,7 @@ import {
 import { PaginationFooter } from "@/components/ui/pagination-footer"
 import { useAccessLogs, useCrowdsecLiveUpdates } from "@/lib/queries"
 import { IpBanControls } from "@/components/crowdsec/ip-ban-controls"
+import { InspectIpButton } from "@/components/ip-inspector/inspect-ip-button"
 import {
   formatBytes,
   formatDuration,
@@ -291,7 +292,9 @@ export function AccessLogsTable({
                     {renderCell(c, row)}
                     {c.key === "ipAddress" && (
                       <span {...stopRowActivation}>
-                        <IpBanControls ip={row.ipAddress} />
+                        <IpBanControls ip={row.ipAddress}>
+                          <InspectIpButton ip={row.ipAddress} className="ml-1" />
+                        </IpBanControls>
                       </span>
                     )}
                   </TableCell>

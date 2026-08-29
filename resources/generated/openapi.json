@@ -1936,6 +1936,285 @@
         "title": "IpLocation",
         "type": "object"
       },
+      "IpProfileBucketDTO": {
+        "properties": {
+          "errorHits": {
+            "type": "integer"
+          },
+          "hits": {
+            "type": "integer"
+          },
+          "timestamp": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "errorHits",
+          "hits",
+          "timestamp"
+        ],
+        "title": "IpProfileBucketDTO",
+        "type": "object"
+      },
+      "IpProfileHostDTO": {
+        "properties": {
+          "errorHits": {
+            "type": "integer"
+          },
+          "hits": {
+            "type": "integer"
+          },
+          "host": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "errorHits",
+          "hits",
+          "host"
+        ],
+        "title": "IpProfileHostDTO",
+        "type": "object"
+      },
+      "IpProfilePathDTO": {
+        "properties": {
+          "errorHits": {
+            "type": "integer"
+          },
+          "hits": {
+            "type": "integer"
+          },
+          "host": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "url": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "errorHits",
+          "hits",
+          "host",
+          "url"
+        ],
+        "title": "IpProfilePathDTO",
+        "type": "object"
+      },
+      "IpProfileResponse": {
+        "properties": {
+          "asn": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "asnCategory": {
+            "enum": [
+              "hosting",
+              "other",
+              null
+            ],
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "asnOrganization": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "avgRequestTime": {
+            "oneOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "distinctPaths": {
+            "type": "integer"
+          },
+          "endDate": {
+            "type": "string"
+          },
+          "errorRate": {
+            "type": "number"
+          },
+          "firstSeen": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "granularity": {
+            "enum": [
+              "hourly",
+              "daily"
+            ],
+            "type": "string"
+          },
+          "hosts": {
+            "items": {
+              "$ref": "#/components/schemas/IpProfileHostDTO"
+            },
+            "type": "array"
+          },
+          "ipAddress": {
+            "type": "string"
+          },
+          "lastSeen": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "malformedRequests": {
+            "type": "integer"
+          },
+          "p95RequestTime": {
+            "oneOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "paths": {
+            "items": {
+              "$ref": "#/components/schemas/IpProfilePathDTO"
+            },
+            "type": "array"
+          },
+          "peak": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/IpProfileBucketDTO"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "series": {
+            "items": {
+              "$ref": "#/components/schemas/IpProfileBucketDTO"
+            },
+            "type": "array"
+          },
+          "startDate": {
+            "type": "string"
+          },
+          "status2xx": {
+            "type": "integer"
+          },
+          "status3xx": {
+            "type": "integer"
+          },
+          "status4xx": {
+            "type": "integer"
+          },
+          "status5xx": {
+            "type": "integer"
+          },
+          "timedRequests": {
+            "type": "integer"
+          },
+          "totalBytes": {
+            "type": "integer"
+          },
+          "totalRequests": {
+            "type": "integer"
+          },
+          "userAgents": {
+            "items": {
+              "$ref": "#/components/schemas/IpProfileUserAgentDTO"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "asn",
+          "asnCategory",
+          "asnOrganization",
+          "avgRequestTime",
+          "distinctPaths",
+          "endDate",
+          "errorRate",
+          "firstSeen",
+          "granularity",
+          "hosts",
+          "ipAddress",
+          "lastSeen",
+          "malformedRequests",
+          "p95RequestTime",
+          "paths",
+          "peak",
+          "series",
+          "startDate",
+          "status2xx",
+          "status3xx",
+          "status4xx",
+          "status5xx",
+          "timedRequests",
+          "totalBytes",
+          "totalRequests",
+          "userAgents"
+        ],
+        "title": "IpProfileResponse",
+        "type": "object"
+      },
+      "IpProfileUserAgentDTO": {
+        "properties": {
+          "hits": {
+            "type": "integer"
+          },
+          "userAgent": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "hits",
+          "userAgent"
+        ],
+        "title": "IpProfileUserAgentDTO",
+        "type": "object"
+      },
       "ListAccessLogsAccessLogResponseBody": {
         "properties": {
           "autonomousSystemNumber": {
@@ -4996,6 +5275,155 @@
           }
         },
         "summary": "GetGeoTimeSeries",
+        "tags": [
+          "Analytics"
+        ]
+      }
+    },
+    "/api/v1/analytics/ip-profile": {
+      "get": {
+        "deprecated": false,
+        "description": "Access-log profile of one client IP for the IP inspector (raw scan bounded to one indexed IP).",
+        "operationId": "ApiV1AnalyticsIpProfileGetIpProfile",
+        "parameters": [
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)",
+            "examples": {
+              "start_date-example-1": {
+                "value": "2024-01-01T00:00:00Z"
+              }
+            },
+            "in": "query",
+            "name": "startDate",
+            "required": true,
+            "schema": {
+              "description": "Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)",
+              "examples": [
+                "2024-01-01T00:00:00Z"
+              ],
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)",
+            "examples": {
+              "end_date-example-1": {
+                "value": "2024-12-31T23:59:59Z"
+              }
+            },
+            "in": "query",
+            "name": "endDate",
+            "required": true,
+            "schema": {
+              "description": "End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)",
+              "examples": [
+                "2024-12-31T23:59:59Z"
+              ],
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Client IP to profile",
+            "in": "query",
+            "name": "ipAddress",
+            "required": true,
+            "schema": {
+              "description": "Client IP to profile",
+              "type": "string"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "IANA timezone for daily buckets (e.g. Europe/Oslo). When set, daily buckets are local days in this zone for ranges the hourly source data can serve (<= 30 days); longer ranges keep UTC days. Hourly buckets are unaffected.",
+            "examples": {
+              "tz-example-1": {
+                "value": "Europe/Oslo"
+              }
+            },
+            "in": "query",
+            "name": "tz",
+            "required": false,
+            "schema": {
+              "description": "IANA timezone for daily buckets (e.g. Europe/Oslo). When set, daily buckets are local days in this zone for ranges the hourly source data can serve (<= 30 days); longer ranges keep UTC days. Hourly buckets are unaffected.",
+              "examples": [
+                "Europe/Oslo"
+              ],
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IpProfileResponse"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "GetIpProfile",
         "tags": [
           "Analytics"
         ]

@@ -29,8 +29,12 @@ import { BrandScreen } from "@/components/brand/brand-screen"
 import { ErrorBanner } from "@/components/error-banner"
 import { Button } from "@/components/ui/button"
 import { RefreshCw, Home } from "lucide-react"
+import { inspectSearchSchema } from "@/lib/ip-inspector-search"
+import { IpInspectorProvider } from "@/lib/ip-inspector"
+import { IpInspectorSheet } from "@/components/ip-inspector/ip-inspector-sheet"
 
 export const Route = createRootRoute({
+  validateSearch: (search: Record<string, unknown>) => inspectSearchSchema.parse(search),
   component: RootLayout,
   errorComponent: RootErrorComponent,
   notFoundComponent: NotFoundComponent,
@@ -133,6 +137,7 @@ function RootLayout() {
       <TooltipProvider delayDuration={0}>
         <TimeRangeProvider>
           <LiveFeedProvider>
+          <IpInspectorProvider>
           <SidebarProvider defaultOpen={true}>
             <AppSidebar />
             <SidebarInset className="bg-background h-dvh">
@@ -160,7 +165,9 @@ function RootLayout() {
                 <Outlet />
               </main>
             </SidebarInset>
+            <IpInspectorSheet />
           </SidebarProvider>
+          </IpInspectorProvider>
           </LiveFeedProvider>
         </TimeRangeProvider>
       </TooltipProvider>

@@ -42,6 +42,7 @@ import { LiveRequestCard, LiveRequestPopup } from "./LiveRequestPopup"
 import { LiveVitalsPill } from "./LiveVitalsPill"
 import { LiveRail } from "./LiveRail"
 import { LiveFeedSheet } from "./LiveFeedSheet"
+import { MapBackdrop } from "@/components/brand/backdrops"
 import { ErrorBanner } from "@/components/error-banner"
 import { getDemoTrafficMode } from "@/lib/demo-traffic"
 import { decodeMapSearch, encodeMapSearch } from "@/lib/map-filters"
@@ -174,6 +175,22 @@ function GeoMapInner({
   const [liveOverlays, setLiveOverlays] = useState<LiveOverlayPreferences>(loadLiveOverlays)
   const [showBanned, setShowBanned] = useState(false)
   const [popup, setPopup] = useState<PopupInfo | null>(null)
+
+  // The IP inspector navigates here with ?focus=<locationId> and the data
+  // filters cleared, so the feature is in this payload once it loads.
+  const focusId = search.focus
+  useEffect(() => {
+    if (focusId === undefined || isLoadingGeoJSON || !geojson) return
+    const feature = geojson.features.find((f) => f.properties?.id === focusId)
+    if (feature) {
+      const [lng, lat] = (feature.geometry as Point).coordinates
+      setLivePopup(null)
+      setPopup({ longitude: lng, latitude: lat, properties: feature.properties as PopupInfo["properties"] })
+      mapRef.current?.flyTo({ center: [lng, lat], zoom: 7, duration: 1500 })
+    }
+    void navigate({ search: (prev) => ({ ...prev, focus: undefined }), replace: true })
+  }, [focusId, geojson, isLoadingGeoJSON, navigate])
+
   const liveStore = useLiveTrafficStore()
   const [livePopup, setLivePopup] = useState<LiveRequest | null>(null)
   const [feedOpen, setFeedOpen] = useState(false)
@@ -453,9 +470,10 @@ function GeoMapInner({
   // Show error state
   if (isError) {
     return (
-      <div className="h-full w-full flex items-center justify-center bg-background p-4">
+      <div className="relative h-full w-full flex items-center justify-center overflow-hidden bg-background p-4">
+        <MapBackdrop tone="quiet" />
         <ErrorBanner
-          className="w-full max-w-md"
+          className="relative w-full max-w-md backdrop-blur-[2px]"
           title="Failed to load map data"
           detail={`${(error?.message ?? "Unknown error occurred").replace(/\.$/, "")}. Make sure the backend server is running.`}
         />
