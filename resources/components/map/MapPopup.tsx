@@ -3,6 +3,7 @@
  * Uses CSS variables for theming - defined in main.css as --popup-* variables.
  */
 
+import type { CSSProperties } from "react"
 import { Popup } from "react-map-gl/maplibre"
 import { MapPin, Globe, Clock, Hash, Users, ChevronsUpDown, Loader2 } from "lucide-react"
 import { formatNumber } from "@/lib/api"
@@ -21,6 +22,18 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible"
+
+// One line per IP: the rank is glued to the address with a non-breaking
+// space and the box never wraps. A full IPv6 address needs the wider popup
+// below to fit beside the icons and the count.
+const IP_CODE_STYLE: CSSProperties = {
+  fontSize: "10px",
+  background: "var(--popup-code-bg)",
+  padding: "2px 6px",
+  borderRadius: "4px",
+  fontFamily: "monospace",
+  whiteSpace: "nowrap",
+}
 
 function LastHitToolTip({ lastHit }: { lastHit: string }) {
   return (
@@ -65,6 +78,7 @@ export function MapPopup({
   // Fetch top IPs on-demand when popup opens
   const { data: topIPsData, isLoading: isLoadingTopIPs } = useLocationTopIPs(locationId)
   const top_ips = topIPsData?.topIps ?? []
+  const hasIpv6 = top_ips.some((ip) => ip.ipAddress.includes(":"))
 
   // Format last hit date
   const formattedLastHit = lastHit
@@ -84,7 +98,7 @@ export function MapPopup({
       closeButton={false}
       closeOnClick={false}
       className="geo-popup"
-      maxWidth="280px"
+      maxWidth={hasIpv6 ? "380px" : "280px"}
       style={{
         // Override the popup container background
         background: "transparent",
@@ -228,17 +242,11 @@ export function MapPopup({
                   }}
                 >
                   <code
-                    style={{
-                      fontSize: "10px",
-                      background: "var(--popup-code-bg)",
-                      padding: "2px 6px",
-                      borderRadius: "4px",
-                      fontFamily: "monospace",
-                    }}
+                    style={IP_CODE_STYLE}
                   >
-                    1. {top_ips[0].ipAddress}
+                    1.&nbsp;{top_ips[0].ipAddress}
                   </code>
-                  <span style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: "6px", flexShrink: 0 }}>
                     <IpBanControls ip={top_ips[0].ipAddress}>
                       <InspectIpButton ip={top_ips[0].ipAddress} fromLocationId={locationId} />
                     </IpBanControls>
@@ -268,17 +276,11 @@ export function MapPopup({
                             }}
                           >
                             <code
-                              style={{
-                                fontSize: "10px",
-                                background: "var(--popup-code-bg)",
-                                padding: "2px 6px",
-                                borderRadius: "4px",
-                                fontFamily: "monospace",
-                              }}
+                              style={IP_CODE_STYLE}
                             >
-                              {index + 2}. {ip.ipAddress}
+                              {index + 2}.&nbsp;{ip.ipAddress}
                             </code>
-                            <span style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
+                            <span style={{ display: "inline-flex", alignItems: "center", gap: "6px", flexShrink: 0 }}>
                               <IpBanControls ip={ip.ipAddress}>
                                 <InspectIpButton ip={ip.ipAddress} fromLocationId={locationId} />
                               </IpBanControls>
