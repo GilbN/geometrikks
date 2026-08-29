@@ -14,7 +14,7 @@ CAGG Structure:
 - geo_summary_hourly_stats / geo_summary_daily_stats: Geo metrics with HyperLogLog (events, unique IPs/countries/cities)
 - location_hourly_stats / location_daily_stats: Location event counts for map (GeoJSON features)
 - ip_location_daily_stats: Per-IP counts by location for top IPs
-- url_hourly_stats / url_daily_stats: Top URLs by hits, error_hits, total_bytes, total_request_time
+- url_hourly_stats / url_daily_stats: Top host-and-path pairs by hits, error_hits, total_bytes, total_request_time
 - user_agent_hourly_stats / user_agent_daily_stats: Top user agents by hits
 - log_ip_{hourly,daily}_stats: Per-IP access-log counts (top IPs/countries/cities, facets)
 
@@ -27,12 +27,13 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from enum import Enum
-from typing import Sequence
+from typing import Sequence, cast
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from geometrikks.server.logging import get_logger
+from geometrikks.server.timescale import LATENCY_FILTER, latency_filter
 
 logger = get_logger(__name__)
 
@@ -92,6 +93,35 @@ def use_local_days(
     )
 
 
+def _optional_float(value: object) -> float | None:
+    """A timing aggregate is None when the range had no measured rows."""
+    return float(cast("float", value)) if value is not None else None
+
+
+def latency_col(new: str, old: str, *, count: str = "latency_requests") -> str:
+    """Read a latency column with a fallback for buckets that predate it.
+
+    Keyed on the count column, not the value: a post-upgrade bucket holding
+    only WebSocket rows has a count of 0 and a legitimately NULL figure, and
+    must not fall back to the unfiltered one. Buckets older than the raw
+    retention window never get the new columns (their raw rows are gone) and
+    keep reading their pre-upgrade, unfiltered figures.
+    """
+    return f"CASE WHEN {count} IS NULL THEN {old} ELSE {new} END"
+
+
+# Summary CAGG reads. The count chains through every upgrade generation:
+# latency_requests (this one), timed_requests (nullable timings), and the
+# bucket total for buckets that predate both and averaged over every row.
+LATENCY_COUNT = "COALESCE(latency_requests, timed_requests, total_requests)"
+LATENCY_AVG = latency_col("avg_latency", "avg_request_time")
+LATENCY_MAX = latency_col("max_latency", "max_request_time")
+LATENCY_PCT = latency_col("latency_pct_agg", "pct_agg")
+# URL CAGG reads, same chain over hits.
+URL_LATENCY_HITS = "COALESCE(latency_hits, timed_hits, hits)"
+URL_LATENCY_TOTAL = latency_col("total_latency", "total_request_time", count="latency_hits")
+
+
 def _floor_to_hour(dt: datetime) -> datetime:
     """Truncate datetime to the start of its hour."""
     result = dt.replace(minute=0, second=0, microsecond=0)
@@ -122,11 +152,12 @@ class SummaryStatsRow:
     status_3xx: int
     status_4xx: int
     status_5xx: int
-    avg_request_time: float
-    max_request_time: float
-    p50_request_time: float
-    p95_request_time: float
-    p99_request_time: float
+    avg_request_time: float | None
+    max_request_time: float | None
+    p50_request_time: float | None
+    p95_request_time: float | None
+    p99_request_time: float | None
+    timed_requests: int = 0
 
 
 @dataclass
@@ -141,11 +172,11 @@ class SummaryStats:
     status_3xx: int
     status_4xx: int
     status_5xx: int
-    avg_request_time: float
-    max_request_time: float
-    p50_request_time: float
-    p95_request_time: float
-    p99_request_time: float
+    avg_request_time: float | None
+    max_request_time: float | None
+    p50_request_time: float | None
+    p95_request_time: float | None
+    p99_request_time: float | None
     error_rate: float
 
     # Geo metrics (from HyperLogLog)
@@ -156,6 +187,7 @@ class SummaryStats:
 
     # Optional fields for backwards compatibility
     malformed_requests: int = 0
+    timed_requests: int = 0
 
     @property
     def total_bytes_sent(self) -> int:
@@ -218,7 +250,7 @@ class SummaryStatsRepository:
         Provides exact time range granularity for short ranges.
         """
         # Query AccessLog for request metrics
-        access_stmt = text("""
+        access_stmt = text(f"""
             SELECT
                 COUNT(*) AS total_log_records,
                 COALESCE(SUM(bytes_sent), 0) AS total_bytes,
@@ -226,11 +258,12 @@ class SummaryStatsRepository:
                 COUNT(*) FILTER (WHERE status_code >= 300 AND status_code < 400) AS status_3xx,
                 COUNT(*) FILTER (WHERE status_code >= 400 AND status_code < 500) AS status_4xx,
                 COUNT(*) FILTER (WHERE status_code >= 500 AND status_code < 600) AS status_5xx,
-                COALESCE(AVG(request_time), 0) AS avg_request_time,
-                COALESCE(MAX(request_time), 0) AS max_request_time,
-                COALESCE(PERCENTILE_CONT(0.50) WITHIN GROUP (ORDER BY request_time), 0) AS p50_request_time,
-                COALESCE(PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY request_time), 0) AS p95_request_time,
-                COALESCE(PERCENTILE_CONT(0.99) WITHIN GROUP (ORDER BY request_time), 0) AS p99_request_time
+                COUNT(request_time) FILTER (WHERE {LATENCY_FILTER}) AS timed_requests,
+                AVG(request_time) FILTER (WHERE {LATENCY_FILTER}) AS avg_request_time,
+                MAX(request_time) FILTER (WHERE {LATENCY_FILTER}) AS max_request_time,
+                PERCENTILE_CONT(0.50) WITHIN GROUP (ORDER BY request_time) FILTER (WHERE {LATENCY_FILTER}) AS p50_request_time,
+                PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY request_time) FILTER (WHERE {LATENCY_FILTER}) AS p95_request_time,
+                PERCENTILE_CONT(0.99) WITHIN GROUP (ORDER BY request_time) FILTER (WHERE {LATENCY_FILTER}) AS p99_request_time
             FROM access_logs
             WHERE timestamp >= :start AND timestamp < :end
         """)
@@ -282,11 +315,12 @@ class SummaryStatsRepository:
             status_3xx=access_row.status_3xx if access_row else 0,
             status_4xx=access_row.status_4xx if access_row else 0,
             status_5xx=access_row.status_5xx if access_row else 0,
-            avg_request_time=float(access_row.avg_request_time or 0.0) if access_row else 0.0,
-            max_request_time=float(access_row.max_request_time or 0.0) if access_row else 0.0,
-            p50_request_time=float(access_row.p50_request_time or 0.0) if access_row else 0.0,
-            p95_request_time=float(access_row.p95_request_time or 0.0) if access_row else 0.0,
-            p99_request_time=float(access_row.p99_request_time or 0.0) if access_row else 0.0,
+            timed_requests=int(access_row.timed_requests) if access_row else 0,
+            avg_request_time=_optional_float(access_row.avg_request_time) if access_row else None,
+            max_request_time=_optional_float(access_row.max_request_time) if access_row else None,
+            p50_request_time=_optional_float(access_row.p50_request_time) if access_row else None,
+            p95_request_time=_optional_float(access_row.p95_request_time) if access_row else None,
+            p99_request_time=_optional_float(access_row.p99_request_time) if access_row else None,
             error_rate=error_rate,
             total_geo_records=total_geo_records,
             unique_ips=geo_row.unique_ips if geo_row else 0,
@@ -311,6 +345,10 @@ class SummaryStatsRepository:
 
         # Combined query for access log, geo metrics, and malformed requests
         # Floor start time to bucket boundary for CAGG queries
+        # LATENCY_*: buckets older than the raw retention window never got the
+        # latency columns (the rows needed to recount them are gone); they
+        # keep their unfiltered figures, and every row of theirs counts as
+        # timed. See latency_col.
         stmt = text(f"""
             SELECT
                 log.total_log_records,
@@ -319,6 +357,7 @@ class SummaryStatsRepository:
                 log.status_3xx,
                 log.status_4xx,
                 log.status_5xx,
+                log.timed_requests,
                 log.avg_request_time,
                 log.max_request_time,
                 log.p50_request_time,
@@ -337,11 +376,13 @@ class SummaryStatsRepository:
                     COALESCE(SUM(status_3xx), 0) AS status_3xx,
                     COALESCE(SUM(status_4xx), 0) AS status_4xx,
                     COALESCE(SUM(status_5xx), 0) AS status_5xx,
-                    COALESCE(AVG(avg_request_time), 0) AS avg_request_time,
-                    COALESCE(MAX(max_request_time), 0) AS max_request_time,
-                    COALESCE(approx_percentile(0.50, rollup(pct_agg)), 0) AS p50_request_time,
-                    COALESCE(approx_percentile(0.95, rollup(pct_agg)), 0) AS p95_request_time,
-                    COALESCE(approx_percentile(0.99, rollup(pct_agg)), 0) AS p99_request_time
+                    COALESCE(SUM({LATENCY_COUNT}), 0) AS timed_requests,
+                    SUM({LATENCY_AVG} * {LATENCY_COUNT})
+                        / NULLIF(SUM({LATENCY_COUNT}), 0) AS avg_request_time,
+                    MAX({LATENCY_MAX}) AS max_request_time,
+                    approx_percentile(0.50, rollup({LATENCY_PCT})) AS p50_request_time,
+                    approx_percentile(0.95, rollup({LATENCY_PCT})) AS p95_request_time,
+                    approx_percentile(0.99, rollup({LATENCY_PCT})) AS p99_request_time
                 FROM {summary_table}
                 WHERE bucket >= time_bucket('{bucket_interval}', CAST(:start AS timestamptz))
                 AND bucket < :end
@@ -382,11 +423,12 @@ class SummaryStatsRepository:
             status_3xx=row.status_3xx,
             status_4xx=row.status_4xx,
             status_5xx=row.status_5xx,
-            avg_request_time=float(row.avg_request_time),
-            max_request_time=float(row.max_request_time),
-            p50_request_time=float(row.p50_request_time),
-            p95_request_time=float(row.p95_request_time),
-            p99_request_time=float(row.p99_request_time),
+            timed_requests=int(row.timed_requests),
+            avg_request_time=_optional_float(row.avg_request_time),
+            max_request_time=_optional_float(row.max_request_time),
+            p50_request_time=_optional_float(row.p50_request_time),
+            p95_request_time=_optional_float(row.p95_request_time),
+            p99_request_time=_optional_float(row.p99_request_time),
             error_rate=error_rate,
             total_geo_records=row.total_geo_records,
             unique_ips=row.unique_ips,
@@ -423,11 +465,12 @@ class SummaryStatsRepository:
 
         if use_local_days(granularity, start, end, tz):
             # Local days assembled from hourly buckets: counts sum, sketches
-            # merge via rollup(), and the mean is request-weighted. The CAGG's
-            # AVG skips NULL request_time rows while total_requests counts
-            # them, so the weighted mean drifts slightly when NULLs cluster.
+            # merge via rollup(), and the mean is weighted by the timed rows
+            # of each hour, so hours with unmeasured requests do not dilute
+            # it. Buckets predating a count column fall back through
+            # LATENCY_COUNT and weigh in with what they were averaged over.
             # GROUP BY 1: a bare "bucket" would resolve to the source column.
-            stmt = text("""
+            stmt = text(f"""
                 SELECT
                     time_bucket('1 day', bucket, CAST(:tz AS TEXT)) AS bucket,
                     CAST(SUM(total_requests) AS BIGINT) AS total_requests,
@@ -436,12 +479,13 @@ class SummaryStatsRepository:
                     CAST(SUM(status_3xx) AS BIGINT) AS status_3xx,
                     CAST(SUM(status_4xx) AS BIGINT) AS status_4xx,
                     CAST(SUM(status_5xx) AS BIGINT) AS status_5xx,
-                    SUM(avg_request_time * total_requests)
-                        / NULLIF(SUM(total_requests), 0) AS avg_request_time,
-                    MAX(max_request_time) AS max_request_time,
-                    approx_percentile(0.50, rollup(pct_agg)) AS p50_request_time,
-                    approx_percentile(0.95, rollup(pct_agg)) AS p95_request_time,
-                    approx_percentile(0.99, rollup(pct_agg)) AS p99_request_time
+                    CAST(COALESCE(SUM({LATENCY_COUNT}), 0) AS BIGINT) AS timed_requests,
+                    SUM({LATENCY_AVG} * {LATENCY_COUNT})
+                        / NULLIF(SUM({LATENCY_COUNT}), 0) AS avg_request_time,
+                    MAX({LATENCY_MAX}) AS max_request_time,
+                    approx_percentile(0.50, rollup({LATENCY_PCT})) AS p50_request_time,
+                    approx_percentile(0.95, rollup({LATENCY_PCT})) AS p95_request_time,
+                    approx_percentile(0.99, rollup({LATENCY_PCT})) AS p99_request_time
                 FROM summary_hourly_stats
                 WHERE bucket >= time_bucket('1 day', CAST(:start AS timestamptz), CAST(:tz AS TEXT))
                   AND bucket < :end
@@ -462,11 +506,12 @@ class SummaryStatsRepository:
                     status_3xx,
                     status_4xx,
                     status_5xx,
-                    avg_request_time,
-                    max_request_time,
-                    approx_percentile(0.50, pct_agg) AS p50_request_time,
-                    approx_percentile(0.95, pct_agg) AS p95_request_time,
-                    approx_percentile(0.99, pct_agg) AS p99_request_time
+                    {LATENCY_COUNT} AS timed_requests,
+                    {LATENCY_AVG} AS avg_request_time,
+                    {LATENCY_MAX} AS max_request_time,
+                    approx_percentile(0.50, {LATENCY_PCT}) AS p50_request_time,
+                    approx_percentile(0.95, {LATENCY_PCT}) AS p95_request_time,
+                    approx_percentile(0.99, {LATENCY_PCT}) AS p99_request_time
                 FROM {table}
                 WHERE bucket >= time_bucket('{bucket_interval}', CAST(:start AS timestamptz))
                   AND bucket < :end
@@ -486,11 +531,12 @@ class SummaryStatsRepository:
                 status_3xx=row.status_3xx or 0,
                 status_4xx=row.status_4xx or 0,
                 status_5xx=row.status_5xx or 0,
-                avg_request_time=float(row.avg_request_time or 0.0),
-                max_request_time=float(row.max_request_time or 0.0),
-                p50_request_time=float(row.p50_request_time or 0.0),
-                p95_request_time=float(row.p95_request_time or 0.0),
-                p99_request_time=float(row.p99_request_time or 0.0),
+                timed_requests=int(row.timed_requests or 0),
+                avg_request_time=_optional_float(row.avg_request_time),
+                max_request_time=_optional_float(row.max_request_time),
+                p50_request_time=_optional_float(row.p50_request_time),
+                p95_request_time=_optional_float(row.p95_request_time),
+                p99_request_time=_optional_float(row.p99_request_time),
             )
             for row in rows
         ]
@@ -674,7 +720,7 @@ class SummaryStatsRepository:
     async def get_top_urls(
         self, start: datetime, end: datetime, limit: int = 25, *, filters: AnalyticsFilters | None = None
     ) -> list[TopUrlRow]:
-        """Top URLs by hits: stitched url CAGG read above 24h, raw otherwise.
+        """Top host-and-path pairs by hits: stitched url CAGG read above 24h, raw otherwise.
 
         Any active filter forces the raw path: the url CAGGs carry no
         country/city/IP dimensions (adding them would multiply cardinality).
@@ -686,33 +732,45 @@ class SummaryStatsRepository:
                 start, end, limit, filters=filters
             )
         table = f"url_{granularity.value}_stats"
+        # URL_LATENCY_*: the fallback chain reads the older columns when a
+        # bucket's latency count is NULL; see latency_col. The host rebuild
+        # discarded every URL bucket older than the raw window, so today
+        # none is NULL here, and the chain stays for the next in-place
+        # column generation.
         stmt = text(f"""
             WITH combined AS (
-                SELECT s.url, s.hits, s.error_hits, s.total_bytes, s.total_request_time
+                SELECT s.host, s.url, s.hits, {URL_LATENCY_HITS} AS timed_hits,
+                       s.error_hits, s.total_bytes, {URL_LATENCY_TOTAL} AS total_request_time
                 FROM {table} s
                 WHERE s.bucket >= :a_start AND s.bucket < :a_end
                 UNION ALL
-                SELECT al.url, CAST(1 AS BIGINT), CAST((al.status_code >= 400)::int AS BIGINT),
-                       al.bytes_sent, al.request_time
+                SELECT al.host, al.url, CAST(1 AS BIGINT),
+                       CAST((al.request_time IS NOT NULL AND {latency_filter("al.")})::int AS BIGINT),
+                       CAST((al.status_code >= 400)::int AS BIGINT), al.bytes_sent,
+                       CASE WHEN {latency_filter("al.")} THEN al.request_time END
                 FROM access_logs al
                 WHERE al.timestamp >= :start AND al.timestamp < :a_start
                   AND al.url IS NOT NULL
                 UNION ALL
-                SELECT al.url, CAST(1 AS BIGINT), CAST((al.status_code >= 400)::int AS BIGINT),
-                       al.bytes_sent, al.request_time
+                SELECT al.host, al.url, CAST(1 AS BIGINT),
+                       CAST((al.request_time IS NOT NULL AND {latency_filter("al.")})::int AS BIGINT),
+                       CAST((al.status_code >= 400)::int AS BIGINT), al.bytes_sent,
+                       CASE WHEN {latency_filter("al.")} THEN al.request_time END
                 FROM access_logs al
                 WHERE al.timestamp >= :a_end AND al.timestamp < :end
                   AND al.url IS NOT NULL
             )
             SELECT
+                host,
                 url,
                 CAST(SUM(hits) AS BIGINT) AS hits,
+                CAST(COALESCE(SUM(timed_hits), 0) AS BIGINT) AS timed_hits,
                 CAST(SUM(error_hits) AS BIGINT) AS error_hits,
                 CAST(COALESCE(SUM(total_bytes), 0) AS BIGINT) AS total_bytes,
-                COALESCE(SUM(total_request_time) / NULLIF(SUM(hits), 0), 0) AS avg_request_time
+                SUM(total_request_time) / NULLIF(SUM(timed_hits), 0) AS avg_request_time
             FROM combined
-            GROUP BY url
-            ORDER BY hits DESC, url
+            GROUP BY host, url
+            ORDER BY hits DESC, host, url
             LIMIT :limit
         """)
         result = await self.session.execute(
@@ -720,11 +778,13 @@ class SummaryStatsRepository:
         )
         return [
             TopUrlRow(
+                host=row.host,
                 url=row.url,
                 hits=row.hits,
                 error_hits=row.error_hits,
                 total_bytes=row.total_bytes,
-                avg_request_time=float(row.avg_request_time),
+                timed_hits=row.timed_hits,
+                avg_request_time=_optional_float(row.avg_request_time),
             )
             for row in result.fetchall()
         ]
@@ -1002,13 +1062,15 @@ class SummaryStatsRepository:
 
 @dataclass
 class TopUrlRow:
-    """A top-URL aggregate row from raw access_logs."""
+    """A top-URL aggregate row: one host and path."""
 
+    host: str | None
     url: str
     hits: int
     error_hits: int
     total_bytes: int
-    avg_request_time: float
+    avg_request_time: float | None
+    timed_hits: int
 
 
 @dataclass
@@ -1162,7 +1224,7 @@ class LiveStatsRepository:
             SummaryStats with live values, or None if no data.
         """
         # Query AccessLog for request metrics
-        access_stmt = text("""
+        access_stmt = text(f"""
             SELECT
                 COUNT(*) AS total_requests,
                 COALESCE(SUM(bytes_sent), 0) AS total_bytes,
@@ -1170,11 +1232,12 @@ class LiveStatsRepository:
                 COUNT(*) FILTER (WHERE status_code >= 300 AND status_code < 400) AS status_3xx,
                 COUNT(*) FILTER (WHERE status_code >= 400 AND status_code < 500) AS status_4xx,
                 COUNT(*) FILTER (WHERE status_code >= 500 AND status_code < 600) AS status_5xx,
-                COALESCE(AVG(request_time), 0) AS avg_request_time,
-                COALESCE(MAX(request_time), 0) AS max_request_time,
-                COALESCE(PERCENTILE_CONT(0.50) WITHIN GROUP (ORDER BY request_time), 0) AS p50_request_time,
-                COALESCE(PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY request_time), 0) AS p95_request_time,
-                COALESCE(PERCENTILE_CONT(0.99) WITHIN GROUP (ORDER BY request_time), 0) AS p99_request_time
+                COUNT(request_time) FILTER (WHERE {LATENCY_FILTER}) AS timed_requests,
+                AVG(request_time) FILTER (WHERE {LATENCY_FILTER}) AS avg_request_time,
+                MAX(request_time) FILTER (WHERE {LATENCY_FILTER}) AS max_request_time,
+                PERCENTILE_CONT(0.50) WITHIN GROUP (ORDER BY request_time) FILTER (WHERE {LATENCY_FILTER}) AS p50_request_time,
+                PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY request_time) FILTER (WHERE {LATENCY_FILTER}) AS p95_request_time,
+                PERCENTILE_CONT(0.99) WITHIN GROUP (ORDER BY request_time) FILTER (WHERE {LATENCY_FILTER}) AS p99_request_time
             FROM access_logs
             WHERE timestamp >= :start AND timestamp < :end
         """)
@@ -1226,11 +1289,12 @@ class LiveStatsRepository:
             status_3xx=access_row.status_3xx if access_row else 0,
             status_4xx=access_row.status_4xx if access_row else 0,
             status_5xx=access_row.status_5xx if access_row else 0,
-            avg_request_time=float(access_row.avg_request_time or 0.0) if access_row else 0.0,
-            max_request_time=float(access_row.max_request_time or 0.0) if access_row else 0.0,
-            p50_request_time=float(access_row.p50_request_time or 0.0) if access_row else 0.0,
-            p95_request_time=float(access_row.p95_request_time or 0.0) if access_row else 0.0,
-            p99_request_time=float(access_row.p99_request_time or 0.0) if access_row else 0.0,
+            timed_requests=int(access_row.timed_requests) if access_row else 0,
+            avg_request_time=_optional_float(access_row.avg_request_time) if access_row else None,
+            max_request_time=_optional_float(access_row.max_request_time) if access_row else None,
+            p50_request_time=_optional_float(access_row.p50_request_time) if access_row else None,
+            p95_request_time=_optional_float(access_row.p95_request_time) if access_row else None,
+            p99_request_time=_optional_float(access_row.p99_request_time) if access_row else None,
             error_rate=error_rate,
             total_geo_records=total_events,
             unique_ips=geo_row.unique_ips if geo_row else 0,
@@ -1275,11 +1339,12 @@ class LiveStatsRepository:
                 COUNT(*) FILTER (WHERE status_code >= 300 AND status_code < 400) AS status_3xx,
                 COUNT(*) FILTER (WHERE status_code >= 400 AND status_code < 500) AS status_4xx,
                 COUNT(*) FILTER (WHERE status_code >= 500 AND status_code < 600) AS status_5xx,
-                COALESCE(AVG(request_time), 0) AS avg_request_time,
-                COALESCE(MAX(request_time), 0) AS max_request_time,
-                COALESCE(PERCENTILE_CONT(0.50) WITHIN GROUP (ORDER BY request_time), 0) AS p50_request_time,
-                COALESCE(PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY request_time), 0) AS p95_request_time,
-                COALESCE(PERCENTILE_CONT(0.99) WITHIN GROUP (ORDER BY request_time), 0) AS p99_request_time
+                COUNT(request_time) FILTER (WHERE {LATENCY_FILTER}) AS timed_requests,
+                AVG(request_time) FILTER (WHERE {LATENCY_FILTER}) AS avg_request_time,
+                MAX(request_time) FILTER (WHERE {LATENCY_FILTER}) AS max_request_time,
+                PERCENTILE_CONT(0.50) WITHIN GROUP (ORDER BY request_time) FILTER (WHERE {LATENCY_FILTER}) AS p50_request_time,
+                PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY request_time) FILTER (WHERE {LATENCY_FILTER}) AS p95_request_time,
+                PERCENTILE_CONT(0.99) WITHIN GROUP (ORDER BY request_time) FILTER (WHERE {LATENCY_FILTER}) AS p99_request_time
             FROM access_logs
             WHERE timestamp >= :start AND timestamp < :end
             {filter_sql}
@@ -1298,11 +1363,12 @@ class LiveStatsRepository:
                 status_3xx=row.status_3xx or 0,
                 status_4xx=row.status_4xx or 0,
                 status_5xx=row.status_5xx or 0,
-                avg_request_time=float(row.avg_request_time or 0.0),
-                max_request_time=float(row.max_request_time or 0.0),
-                p50_request_time=float(row.p50_request_time or 0.0),
-                p95_request_time=float(row.p95_request_time or 0.0),
-                p99_request_time=float(row.p99_request_time or 0.0),
+                timed_requests=int(row.timed_requests or 0),
+                avg_request_time=_optional_float(row.avg_request_time),
+                max_request_time=_optional_float(row.max_request_time),
+                p50_request_time=_optional_float(row.p50_request_time),
+                p95_request_time=_optional_float(row.p95_request_time),
+                p99_request_time=_optional_float(row.p99_request_time),
             )
             for row in result.fetchall()
         ]
@@ -1310,24 +1376,26 @@ class LiveStatsRepository:
     async def get_top_urls(
         self, start: datetime, end: datetime, limit: int = 25, *, filters: AnalyticsFilters | None = None
     ) -> list[TopUrlRow]:
-        """Top URLs by hit count from raw access_logs (time-bounded).
+        """Top host-and-path pairs by hit count from raw access_logs (time-bounded).
 
-        Raw-table scan by design: no CAGG exists for URL cardinality yet
-        (future optimization; fine at homelab volume with chunk exclusion).
+        Raw-table scan: this path serves ranges of 24h or less and every
+        filtered request, which the URL CAGGs cannot answer.
         """
         filter_sql, filter_params = (filters or AnalyticsFilters()).sql_conditions()
         stmt = text(f"""
             SELECT
+                host,
                 url,
                 CAST(COUNT(*) AS BIGINT) AS hits,
                 CAST(COUNT(*) FILTER (WHERE status_code >= 400) AS BIGINT) AS error_hits,
                 CAST(COALESCE(SUM(bytes_sent), 0) AS BIGINT) AS total_bytes,
-                COALESCE(AVG(request_time), 0) AS avg_request_time
+                CAST(COUNT(request_time) FILTER (WHERE {LATENCY_FILTER}) AS BIGINT) AS timed_hits,
+                AVG(request_time) FILTER (WHERE {LATENCY_FILTER}) AS avg_request_time
             FROM access_logs
             WHERE timestamp >= :start AND timestamp < :end AND url IS NOT NULL
             {filter_sql}
-            GROUP BY url
-            ORDER BY hits DESC, url
+            GROUP BY host, url
+            ORDER BY hits DESC, host, url
             LIMIT :limit
         """)
         result = await self.session.execute(
@@ -1335,11 +1403,13 @@ class LiveStatsRepository:
         )
         return [
             TopUrlRow(
+                host=row.host,
                 url=row.url,
                 hits=row.hits,
                 error_hits=row.error_hits,
                 total_bytes=row.total_bytes,
-                avg_request_time=float(row.avg_request_time),
+                timed_hits=row.timed_hits,
+                avg_request_time=_optional_float(row.avg_request_time),
             )
             for row in result.fetchall()
         ]

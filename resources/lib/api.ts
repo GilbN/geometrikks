@@ -21,6 +21,7 @@ import {
   apiV1AnalyticsTopUrlsGetTopUrls,
   apiV1AnalyticsTopAsnsGetTopAsns,
   apiV1AnalyticsTopUserAgentsGetTopUserAgents,
+  apiV1AnalyticsIpProfileGetIpProfile,
 } from "@/generated/api/sdk.gen"
 import { BROWSER_TZ } from "@/lib/datetime"
 import type {
@@ -150,6 +151,7 @@ export type RuntimeSettings = SafeSettingsResponse
 
 export interface PeriodSummary {
   totalRequests: number
+  timedRequests: number
   totalGeoEvents: number
   uniqueIps: number
   uniqueCountries: number
@@ -159,8 +161,8 @@ export interface PeriodSummary {
   status3xx: number
   status4xx: number
   status5xx: number
-  avgRequestTime: number
-  maxRequestTime: number
+  avgRequestTime: number | null
+  maxRequestTime: number | null
   malformedRequests: number
   errorRate: number
 }
@@ -353,13 +355,21 @@ export async function fetchCrowdsecStats(): Promise<CrowdSecStatsResponse> {
 export async function fetchCrowdsecAlerts(params?: {
   limit?: number
   since?: string
+  ip?: string
 }): Promise<AlertView[]> {
   const { data } = await api.get<AlertView[]>("/crowdsec/alerts", {
     params: {
       limit: params?.limit ?? 50,
       since: params?.since || undefined,
+      ip: params?.ip || undefined,
     },
   })
+  return data
+}
+
+/** Active decisions for one IP, no enrichment (the caller has the geo context). */
+export async function fetchCrowdsecDecisionLookup(ip: string): Promise<DecisionView[]> {
+  const { data } = await api.get<DecisionView[]>("/crowdsec/decisions/lookup", { params: { ip } })
   return data
 }
 
@@ -693,6 +703,14 @@ export async function fetchTopCityStats(params: TimeSeriesParams & { limit?: num
   return data
 }
 
+export async function fetchIpProfile(params: TimeSeriesParams & { ip: string }) {
+  const { data } = await apiV1AnalyticsIpProfileGetIpProfile({
+    query: { startDate: params.startDate, endDate: params.endDate, ipAddress: params.ip, tz: BROWSER_TZ },
+    throwOnError: true,
+  })
+  return data
+}
+
 /**
  * Fetch cumulative time series data.
  */
@@ -897,7 +915,7 @@ export interface AccessLog {
   bytesSent: number
   referrer: string | null
   userAgent: string | null
-  requestTime: number
+  requestTime: number | null
   upstreamResponseTime: number | null
   host: string | null
   hostname: string | null

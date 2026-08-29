@@ -56,7 +56,7 @@ class AccessLog(base.BigIntBase):
     user_agent: Mapped[str | None] = mapped_column(Text)
     
     # Performance metrics
-    request_time: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    request_time: Mapped[float | None] = mapped_column(Float, nullable=True)
     upstream_response_time: Mapped[float | None] = mapped_column(Float, nullable=True, default=None)
     
     # Host information (may be missing on malformed lines)

@@ -31,9 +31,12 @@ selected time range, with trends against the previous range.
 ![Overview](/data/screenshots/dashboard.png)
 
 **Analytics.** Request volume, latency and bytes-transferred charts; top
-URLs, user agents and status codes; and a Top ASNs view showing which
-networks your traffic comes from and how much of it arrives from hosting
-providers.
+URLs (one row per host and path), user agents and status codes; and a
+Top ASNs view showing which networks your traffic comes from and how
+much of it arrives from hosting providers. Latency figures skip
+WebSocket connections (status 101) and connections that ended without a
+response (status 0). Their logged time covers the whole connection, not
+the response, and the rows stay in Access logs with that duration.
 
 ![Analytics](/data/screenshots/analytics.png)
 
@@ -113,13 +116,13 @@ Images are published as `ghcr.io/gilbn/geometrikks`.
 | `latest` | `latest` | The newest stable release. |
 | Exact stable version | `X.Y.Z` | A specific stable release; use this for reproducible deployments. |
 | Major/minor stable version | `X.Y` | The newest stable patch release in a major/minor series. |
-| Exact development version | `0.11.0-dev.1` | A specific prerelease build for testing upcoming changes. |
+| Exact development version | `0.12.0-dev.1` | A specific prerelease build for testing upcoming changes. |
 | `develop` | `develop` | The newest development release; a moving tag. |
 
 Use `latest` to follow stable releases, or pin an exact version:
 
 ```yaml
-image: ghcr.io/gilbn/geometrikks:0.11.0
+image: ghcr.io/gilbn/geometrikks:0.12.0
 ```
 
 `docker-compose.yml` mounts `ACCESS_LOG_DIR` (default `/var/log/nginx`)
@@ -216,7 +219,7 @@ fact:
 | Missing field | What it costs you |
 | --- | --- |
 | `$host` | The host filter on the access-log and analytics pages has nothing to list |
-| `$request_time` | Response-time average and percentiles read 0.00s |
+| `$request_time` | Response-time cards show n/a for those rows; rows imported by earlier versions carry a placeholder 0.0 that `backfill-timings` clears |
 | `$upstream_response_time` | Upstream timing stays empty in the access-log detail view |
 
 The map, geo analytics, status codes, URLs, referrers, user agents and bytes
@@ -568,7 +571,7 @@ instance, GeoIP credentials, and its own log mount:
 ```yaml
 services:
   agent:
-    image: ghcr.io/gilbn/geometrikks:0.11.0   # same tag as the full instance
+    image: ghcr.io/gilbn/geometrikks:0.12.0   # same tag as the full instance
     restart: unless-stopped
     stop_grace_period: 20s
     environment:
@@ -785,6 +788,28 @@ the backfilled range until they refresh. Rerunning is safe.
 
 Today's ASN database describes today's network ownership; stamping
 years-old traffic with it is an approximation.
+
+### backfill-timings: clear placeholder response times
+
+Archives in nginx's built-in `combined` format have no `$request_time`.
+Older versions stored those rows with a response time of 0.0, which
+dragged every average and percentile toward zero. Rows ingested by this
+version store no timing at all for such lines; `backfill-timings` does
+the same for the rows that predate it:
+
+```bash
+docker compose exec -u geometrikks app litestar backfill-timings
+```
+
+It only touches rows the legacy nginx format wrote without a host, which is
+how a `combined` line looks after import (the custom format always logs
+`$host`), and whose response time is exactly 0. A genuine sub-millisecond
+timing on a row with a host is left alone. `--hostname NAME` and
+`--before 2026-08-20` narrow the set; the command prints the row count and
+time span and asks for confirmation (`--yes` skips it). Like the other
+backfills it decompresses history chunks first and refreshes the affected
+continuous aggregates afterwards, so it may run for minutes on a large
+database.
 
 ### Large imports and backfills
 

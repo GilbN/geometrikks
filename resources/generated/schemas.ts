@@ -20,6 +20,9 @@ import type {
   ApiV1AnalyticsGeoTimeSeriesGetGeoTimeSeriesData,
   ApiV1AnalyticsGeoTimeSeriesGetGeoTimeSeriesErrors,
   ApiV1AnalyticsGeoTimeSeriesGetGeoTimeSeriesResponses,
+  ApiV1AnalyticsIpProfileGetIpProfileData,
+  ApiV1AnalyticsIpProfileGetIpProfileErrors,
+  ApiV1AnalyticsIpProfileGetIpProfileResponses,
   ApiV1AnalyticsLiveSummaryGetLiveSummaryData,
   ApiV1AnalyticsLiveSummaryGetLiveSummaryErrors,
   ApiV1AnalyticsLiveSummaryGetLiveSummaryResponses,
@@ -190,6 +193,7 @@ export type OperationName =
   | 'get_geo_time_series'
   | 'get_geojson'
   | 'get_global_top_ips'
+  | 'get_ip_profile'
   | 'get_live_summary'
   | 'get_location_top_ips'
   | 'get_scheduler_jobs'
@@ -252,6 +256,7 @@ export interface OperationDataTypes {
   'get_geo_time_series': ApiV1AnalyticsGeoTimeSeriesGetGeoTimeSeriesData
   'get_geojson': ApiV1GeoLocationsGeojsonGetGeojsonData
   'get_global_top_ips': ApiV1GeoLocationsTopIpsGetGlobalTopIpsData
+  'get_ip_profile': ApiV1AnalyticsIpProfileGetIpProfileData
   'get_live_summary': ApiV1AnalyticsLiveSummaryGetLiveSummaryData
   'get_location_top_ips': ApiV1GeoLocationsLocationIdTopIpsGetLocationTopIpsData
   'get_scheduler_jobs': ApiV1SystemSchedulerJobsGetSchedulerJobsData
@@ -315,6 +320,7 @@ export interface OperationResponseTypes {
   'get_geo_time_series': ApiV1AnalyticsGeoTimeSeriesGetGeoTimeSeriesResponses
   'get_geojson': ApiV1GeoLocationsGeojsonGetGeojsonResponses
   'get_global_top_ips': ApiV1GeoLocationsTopIpsGetGlobalTopIpsResponses
+  'get_ip_profile': ApiV1AnalyticsIpProfileGetIpProfileResponses
   'get_live_summary': ApiV1AnalyticsLiveSummaryGetLiveSummaryResponses
   'get_location_top_ips': ApiV1GeoLocationsLocationIdTopIpsGetLocationTopIpsResponses
   'get_scheduler_jobs': ApiV1SystemSchedulerJobsGetSchedulerJobsResponses
@@ -378,6 +384,7 @@ export interface OperationErrorTypes {
   'get_geo_time_series': ApiV1AnalyticsGeoTimeSeriesGetGeoTimeSeriesErrors
   'get_geojson': ApiV1GeoLocationsGeojsonGetGeojsonErrors
   'get_global_top_ips': ApiV1GeoLocationsTopIpsGetGlobalTopIpsErrors
+  'get_ip_profile': ApiV1AnalyticsIpProfileGetIpProfileErrors
   'get_live_summary': ApiV1AnalyticsLiveSummaryGetLiveSummaryErrors
   'get_location_top_ips': ApiV1GeoLocationsLocationIdTopIpsGetLocationTopIpsErrors
   'get_scheduler_jobs': never

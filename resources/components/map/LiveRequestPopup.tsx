@@ -9,12 +9,14 @@
  * sheet) opened it.
  */
 import { Popup } from "react-map-gl/maplibre"
-import { formatBytes, formatDuration } from "@/lib/api"
+import { formatBytes } from "@/lib/api"
 import { PACKET_COLORS } from "@/lib/live-traffic/classify"
+import { formatDurationOrNa } from "@/lib/timing"
 import { IpBanControls } from "./IpBanControls"
+import { InspectIpButton } from "./InspectIpButton"
 import type { LiveRequest } from "@/lib/live-traffic/types"
 
-function Row({ label, value }: { label: string; value: string }) {
+function Row({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", fontSize: "11px", marginBottom: "4px" }}>
       <span style={{ color: "var(--popup-muted)" }}>{label}</span>
@@ -90,7 +92,15 @@ function LiveRequestDetail({
         {log?.url ?? "No access log url data for this event"}
       </div>
 
-      <Row label="IP" value={request.ip} />
+      <Row
+        label="IP"
+        value={
+          <span style={{ display: "inline-flex", alignItems: "center", gap: "4px" }}>
+            {request.ip}
+            <InspectIpButton ip={request.ip} />
+          </span>
+        }
+      />
       {request.hostname && <Row label="Source" value={request.hostname} />}
       <Row label="Location" value={[request.city, request.countryCode].filter(Boolean).join(", ") || "Unknown"} />
       {log && log.autonomous_system_number != null && (
@@ -102,7 +112,7 @@ function LiveRequestDetail({
       {!request.coordinates && <Row label="Geo" value="No GeoIP match" />}
       {log && <Row label="Host" value={log.host ?? "-"} />}
       {log && <Row label="Bytes" value={formatBytes(log.bytes_sent)} />}
-      {log && <Row label="Time" value={formatDuration(log.request_time * 1000)} />}
+      {log && <Row label="Time" value={formatDurationOrNa(log.request_time)} />}
       {log?.referrer && <Row label="Referrer" value={log.referrer} />}
       {log?.user_agent && <Row label="Agent" value={log.user_agent} />}
 

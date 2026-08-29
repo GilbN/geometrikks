@@ -22,8 +22,11 @@ export function IpBanControls({
   ip,
   initialBanned = false,
   variant = "inline",
+  children,
 }: {
   ip: string
+  /** Rendered between the banned pill and the shield (the inspect button). */
+  children?: React.ReactNode
   /** Known banned state before the banned-IP query has loaded; only the
    *  live popup has this from its own event data. */
   initialBanned?: boolean
@@ -38,7 +41,7 @@ export function IpBanControls({
   const banned = bannedIps?.has(ip) ?? initialBanned
   const isPending = ban.isPending || unban.isPending
 
-  if (!banned && !status?.writeEnabled) return null
+  if (!banned && !status?.writeEnabled) return <>{children}</>
 
   const isFooter = variant === "footer"
   const Wrapper = isFooter ? "div" : "span"
@@ -73,6 +76,7 @@ export function IpBanControls({
           banned
         </span>
       )}
+      {children}
       {status?.writeEnabled && (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>

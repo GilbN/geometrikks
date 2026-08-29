@@ -1823,6 +1823,264 @@ export const IpLocationSchema = {
   type: "object",
 } as const;
 
+export const IpProfileBucketDTOSchema = {
+  properties: {
+    errorHits: {
+      type: "integer",
+    },
+    hits: {
+      type: "integer",
+    },
+    timestamp: {
+      type: "string",
+    },
+  },
+  required: ["errorHits", "hits", "timestamp"],
+  title: "IpProfileBucketDTO",
+  type: "object",
+} as const;
+
+export const IpProfileHostDTOSchema = {
+  properties: {
+    errorHits: {
+      type: "integer",
+    },
+    hits: {
+      type: "integer",
+    },
+    host: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+  },
+  required: ["errorHits", "hits", "host"],
+  title: "IpProfileHostDTO",
+  type: "object",
+} as const;
+
+export const IpProfilePathDTOSchema = {
+  properties: {
+    errorHits: {
+      type: "integer",
+    },
+    hits: {
+      type: "integer",
+    },
+    host: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    url: {
+      type: "string",
+    },
+  },
+  required: ["errorHits", "hits", "host", "url"],
+  title: "IpProfilePathDTO",
+  type: "object",
+} as const;
+
+export const IpProfileResponseSchema = {
+  properties: {
+    asn: {
+      oneOf: [
+        {
+          type: "integer",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    asnCategory: {
+      enum: ["hosting", "other", null],
+      type: ["null", "string"],
+    },
+    asnOrganization: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    avgRequestTime: {
+      oneOf: [
+        {
+          type: "number",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    distinctPaths: {
+      type: "integer",
+    },
+    endDate: {
+      type: "string",
+    },
+    errorRate: {
+      type: "number",
+    },
+    firstSeen: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    granularity: {
+      enum: ["hourly", "daily"],
+      type: "string",
+    },
+    hosts: {
+      items: {
+        $ref: "#/components/schemas/IpProfileHostDTO",
+      },
+      type: "array",
+    },
+    ipAddress: {
+      type: "string",
+    },
+    lastSeen: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    malformedRequests: {
+      type: "integer",
+    },
+    p95RequestTime: {
+      oneOf: [
+        {
+          type: "number",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    paths: {
+      items: {
+        $ref: "#/components/schemas/IpProfilePathDTO",
+      },
+      type: "array",
+    },
+    peak: {
+      oneOf: [
+        {
+          $ref: "#/components/schemas/IpProfileBucketDTO",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    series: {
+      items: {
+        $ref: "#/components/schemas/IpProfileBucketDTO",
+      },
+      type: "array",
+    },
+    startDate: {
+      type: "string",
+    },
+    status2xx: {
+      type: "integer",
+    },
+    status3xx: {
+      type: "integer",
+    },
+    status4xx: {
+      type: "integer",
+    },
+    status5xx: {
+      type: "integer",
+    },
+    timedRequests: {
+      type: "integer",
+    },
+    totalBytes: {
+      type: "integer",
+    },
+    totalRequests: {
+      type: "integer",
+    },
+    userAgents: {
+      items: {
+        $ref: "#/components/schemas/IpProfileUserAgentDTO",
+      },
+      type: "array",
+    },
+  },
+  required: [
+    "asn",
+    "asnCategory",
+    "asnOrganization",
+    "avgRequestTime",
+    "distinctPaths",
+    "endDate",
+    "errorRate",
+    "firstSeen",
+    "granularity",
+    "hosts",
+    "ipAddress",
+    "lastSeen",
+    "malformedRequests",
+    "p95RequestTime",
+    "paths",
+    "peak",
+    "series",
+    "startDate",
+    "status2xx",
+    "status3xx",
+    "status4xx",
+    "status5xx",
+    "timedRequests",
+    "totalBytes",
+    "totalRequests",
+    "userAgents",
+  ],
+  title: "IpProfileResponse",
+  type: "object",
+} as const;
+
+export const IpProfileUserAgentDTOSchema = {
+  properties: {
+    hits: {
+      type: "integer",
+    },
+    userAgent: {
+      type: "string",
+    },
+  },
+  required: ["hits", "userAgent"],
+  title: "IpProfileUserAgentDTO",
+  type: "object",
+} as const;
+
 export const ListAccessLogsAccessLogResponseBodySchema = {
   properties: {
     autonomousSystemNumber: {
@@ -1949,8 +2207,14 @@ export const ListAccessLogsAccessLogResponseBodySchema = {
       type: "string",
     },
     requestTime: {
-      default: 0,
-      type: "number",
+      oneOf: [
+        {
+          type: "number",
+        },
+        {
+          type: "null",
+        },
+      ],
     },
     statusCode: {
       type: "integer",
@@ -2532,7 +2796,14 @@ export const PeriodSummarySchema = {
       type: "number",
     },
     avgRequestTime: {
-      type: "number",
+      oneOf: [
+        {
+          type: "number",
+        },
+        {
+          type: "null",
+        },
+      ],
     },
     errorRate: {
       type: "number",
@@ -2541,7 +2812,14 @@ export const PeriodSummarySchema = {
       type: "integer",
     },
     maxRequestTime: {
-      type: "number",
+      oneOf: [
+        {
+          type: "number",
+        },
+        {
+          type: "null",
+        },
+      ],
     },
     status2xx: {
       type: "integer",
@@ -2553,6 +2831,9 @@ export const PeriodSummarySchema = {
       type: "integer",
     },
     status5xx: {
+      type: "integer",
+    },
+    timedRequests: {
       type: "integer",
     },
     totalBytesSent: {
@@ -2581,6 +2862,7 @@ export const PeriodSummarySchema = {
     "status3xx",
     "status4xx",
     "status5xx",
+    "timedRequests",
     "totalBytesSent",
     "totalGeoEvents",
     "totalRequests",
@@ -3019,19 +3301,47 @@ export const SystemSettingsResponseSchema = {
 export const TimeSeriesDataPointSchema = {
   properties: {
     avgRequestTime: {
-      type: "number",
+      oneOf: [
+        {
+          type: "number",
+        },
+        {
+          type: "null",
+        },
+      ],
     },
     errorRate: {
       type: "number",
     },
     p50RequestTime: {
-      type: "number",
+      oneOf: [
+        {
+          type: "number",
+        },
+        {
+          type: "null",
+        },
+      ],
     },
     p95RequestTime: {
-      type: "number",
+      oneOf: [
+        {
+          type: "number",
+        },
+        {
+          type: "null",
+        },
+      ],
     },
     p99RequestTime: {
-      type: "number",
+      oneOf: [
+        {
+          type: "number",
+        },
+        {
+          type: "null",
+        },
+      ],
     },
     status2xx: {
       type: "integer",
@@ -3043,6 +3353,9 @@ export const TimeSeriesDataPointSchema = {
       type: "integer",
     },
     status5xx: {
+      type: "integer",
+    },
+    timedRequests: {
       type: "integer",
     },
     timestamp: {
@@ -3068,6 +3381,7 @@ export const TimeSeriesDataPointSchema = {
     "status3xx",
     "status4xx",
     "status5xx",
+    "timedRequests",
     "timestamp",
     "totalBytesSent",
     "totalGeoEvents",
@@ -3526,12 +3840,32 @@ export const TopIpsResponseSchema = {
 export const TopUrlDTOSchema = {
   properties: {
     avgRequestTime: {
-      type: "number",
+      oneOf: [
+        {
+          type: "number",
+        },
+        {
+          type: "null",
+        },
+      ],
     },
     errorHits: {
       type: "integer",
     },
     hits: {
+      type: "integer",
+    },
+    host: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    timedHits: {
       type: "integer",
     },
     totalBytes: {
@@ -3541,7 +3875,15 @@ export const TopUrlDTOSchema = {
       type: "string",
     },
   },
-  required: ["avgRequestTime", "errorHits", "hits", "totalBytes", "url"],
+  required: [
+    "avgRequestTime",
+    "errorHits",
+    "hits",
+    "host",
+    "timedHits",
+    "totalBytes",
+    "url",
+  ],
   title: "TopUrlDTO",
   type: "object",
 } as const;

@@ -8,8 +8,9 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Skeleton } from "@/components/ui/skeleton"
-import { formatBytes, formatDuration, formatNumber } from "@/lib/api"
+import { formatBytes, formatNumber } from "@/lib/api"
 import { useTopUrls } from "@/lib/queries"
+import { formatDurationOrNa } from "@/lib/timing"
 import { TablePaginationFooter, usePagedRows } from "./table-pagination"
 
 export function TopUrlsTable() {
@@ -29,7 +30,8 @@ export function TopUrlsTable() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>URL</TableHead>
+                  <TableHead>Host</TableHead>
+                  <TableHead>Path</TableHead>
                   <TableHead className="text-right">Hits</TableHead>
                   <TableHead className="text-right">Errors</TableHead>
                   <TableHead className="text-right">Bytes</TableHead>
@@ -38,12 +40,20 @@ export function TopUrlsTable() {
               </TableHeader>
               <TableBody>
                 {pageItems.map((row) => (
-                  <TableRow key={row.url}>
-                    <TableCell className="font-mono text-xs max-w-[420px] truncate">{row.url}</TableCell>
+                  <TableRow key={`${row.host ?? ""} ${row.url}`}>
+                    <TableCell
+                      className="max-w-[220px] truncate text-xs text-muted-foreground"
+                      title={row.host ?? undefined}
+                    >
+                      {row.host ?? "-"}
+                    </TableCell>
+                    <TableCell className="font-mono text-xs max-w-[420px] truncate" title={row.url}>
+                      {row.url}
+                    </TableCell>
                     <TableCell className="text-right tabular-nums">{formatNumber(row.hits)}</TableCell>
                     <TableCell className="text-right tabular-nums">{formatNumber(row.errorHits)}</TableCell>
                     <TableCell className="text-right tabular-nums">{formatBytes(row.totalBytes)}</TableCell>
-                    <TableCell className="text-right tabular-nums">{formatDuration(row.avgRequestTime * 1000)}</TableCell>
+                    <TableCell className="text-right tabular-nums">{formatDurationOrNa(row.avgRequestTime)}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>

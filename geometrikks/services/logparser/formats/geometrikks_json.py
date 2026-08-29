@@ -13,7 +13,7 @@ from datetime import datetime
 
 import msgspec
 
-from .base import NormalizedLine, convert_dash_to_none, detect_probe
+from .base import NormalizedLine, convert_dash_to_none, detect_probe, parse_seconds
 
 
 class GeometrikksJsonLine(msgspec.Struct):
@@ -54,13 +54,6 @@ def _to_int(raw: str | None) -> int:
         return int(raw) if raw else 0
     except ValueError:
         return 0
-
-
-def _to_float(raw: str | None) -> float:
-    try:
-        return float(raw) if raw else 0.0
-    except ValueError:
-        return 0.0
 
 
 def _sum_upstream(raw: str | None) -> float | None:
@@ -132,12 +125,12 @@ class GeometrikksJsonFormat:
             bytes_sent=_to_int(data.bytes),
             referrer=convert_dash_to_none(data.referrer),
             user_agent=convert_dash_to_none(data.user_agent),
-            request_time=_to_float(data.request_time),
+            request_time=parse_seconds(data.request_time),
             upstream_response_time=_sum_upstream(data.upstream_time),
             host=convert_dash_to_none(data.host),
             request_raw=convert_dash_to_none(data.request_raw),
         )
 
     def detect_malformed(self, norm: NormalizedLine) -> tuple[bool, str | None]:
-        """Probe and connection-status classification; see ``detect_probe``."""
+        """Probe classification; see ``detect_probe``."""
         return detect_probe(norm.request_raw, norm.method, norm.status_code)

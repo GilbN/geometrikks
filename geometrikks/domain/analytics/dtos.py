@@ -8,6 +8,8 @@ wire names explicitly because the camel strategy would render status_2xx as
 
 from __future__ import annotations
 
+from typing import Literal
+
 import msgspec
 
 from geometrikks.domain.analytics.asn_classification import AsnCategory
@@ -28,10 +30,11 @@ class TimeSeriesDataPoint(msgspec.Struct, rename="camel"):
     status_4xx: int = msgspec.field(name="status4xx")
     status_5xx: int = msgspec.field(name="status5xx")
     error_rate: float
-    avg_request_time: float
-    p50_request_time: float
-    p95_request_time: float
-    p99_request_time: float
+    timed_requests: int
+    avg_request_time: float | None
+    p50_request_time: float | None
+    p95_request_time: float | None
+    p99_request_time: float | None
 
 
 class PerformanceDataPoint(msgspec.Struct, rename="camel"):
@@ -41,8 +44,9 @@ class PerformanceDataPoint(msgspec.Struct, rename="camel"):
     """
 
     timestamp: str  # ISO format string
-    avg_request_time: float
-    max_request_time: float
+    timed_requests: int
+    avg_request_time: float | None
+    max_request_time: float | None
 
 
 class BandwidthDataPoint(msgspec.Struct, rename="camel"):
@@ -110,6 +114,7 @@ class PeriodSummary(msgspec.Struct, rename="camel"):
     """Summary statistics for a single period."""
 
     total_requests: int
+    timed_requests: int
     total_geo_events: int
     unique_ips: int
     unique_countries: int
@@ -119,8 +124,8 @@ class PeriodSummary(msgspec.Struct, rename="camel"):
     status_3xx: int = msgspec.field(name="status3xx")
     status_4xx: int = msgspec.field(name="status4xx")
     status_5xx: int = msgspec.field(name="status5xx")
-    avg_request_time: float
-    max_request_time: float
+    avg_request_time: float | None
+    max_request_time: float | None
     malformed_requests: int
     error_rate: float
 
@@ -192,13 +197,19 @@ class CumulativeTimeSeriesResponse(msgspec.Struct, rename="camel"):
 
 
 class TopUrlDTO(msgspec.Struct, rename="camel"):
-    """A single URL with its aggregate hit metrics."""
+    """One host and path with its aggregate hit metrics.
 
+    ``host`` is NULL for rows whose log line carried no Host header
+    (combined-format nginx archives).
+    """
+
+    host: str | None
     url: str
     hits: int
     error_hits: int
     total_bytes: int
-    avg_request_time: float
+    timed_hits: int
+    avg_request_time: float | None
 
 
 class TopUrlsResponse(msgspec.Struct, rename="camel"):
@@ -327,3 +338,71 @@ class TopCitiesResponse(msgspec.Struct, rename="camel"):
     start_date: str
     end_date: str
     items: list[TopCityStatsDTO]
+
+
+class IpProfileBucketDTO(msgspec.Struct, rename="camel"):
+    """One sparkline bucket for the IP inspector."""
+
+    timestamp: str
+    hits: int
+    error_hits: int
+
+
+class IpProfileHostDTO(msgspec.Struct, rename="camel"):
+    """Hits against one proxied host; ``host`` is null for lines without one."""
+
+    host: str | None
+    hits: int
+    error_hits: int
+
+
+class IpProfilePathDTO(msgspec.Struct, rename="camel"):
+    """One host and path pair this IP requested, with its hit and error counts."""
+
+    host: str | None
+    url: str
+    hits: int
+    error_hits: int
+
+
+class IpProfileUserAgentDTO(msgspec.Struct, rename="camel"):
+    """One user agent this IP sent, with its hit count."""
+
+    user_agent: str
+    hits: int
+
+
+class IpProfileResponse(msgspec.Struct, rename="camel"):
+    """Access-log profile of one client IP for the IP inspector sheet.
+
+    An IP with no rows in range comes back zeroed with empty lists, not as a
+    404: the sheet still has ban state and other locations to show. Lists
+    have no defaults (see TopUrlsResponse).
+    """
+
+    ip_address: str
+    start_date: str
+    end_date: str
+    total_requests: int
+    status_2xx: int = msgspec.field(name="status2xx")
+    status_3xx: int = msgspec.field(name="status3xx")
+    status_4xx: int = msgspec.field(name="status4xx")
+    status_5xx: int = msgspec.field(name="status5xx")
+    error_rate: float
+    total_bytes: int
+    timed_requests: int
+    avg_request_time: float | None
+    p95_request_time: float | None
+    first_seen: str | None
+    last_seen: str | None
+    distinct_paths: int
+    malformed_requests: int
+    asn: int | None
+    asn_organization: str | None
+    asn_category: AsnCategory | None
+    granularity: Literal["hourly", "daily"]
+    series: list[IpProfileBucketDTO]
+    peak: IpProfileBucketDTO | None
+    hosts: list[IpProfileHostDTO]
+    paths: list[IpProfilePathDTO]
+    user_agents: list[IpProfileUserAgentDTO]

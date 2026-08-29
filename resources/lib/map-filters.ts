@@ -1,5 +1,7 @@
-/** URL codec for the map's data filters (sources/countries/cities). Pure
- *  module: vitest runs without a DOM, so no router imports here. */
+/** URL codec for the map's data filters (sources/countries/cities), plus the
+ *  route's search schema. Pure module: vitest runs without a DOM, so no
+ *  router imports here. */
+import { z } from "zod"
 import { arrayParam } from "@/lib/url-filters"
 
 export interface MapFilterState {
@@ -14,6 +16,8 @@ export interface MapSearch {
   cities?: string[]
   /** Dev-only demo traffic mode; preserved so navigation never strips it. */
   demoTraffic?: string
+  /** Location id to fly to and open; set by the IP inspector, cleared by GeoMap once handled. */
+  focus?: number
 }
 
 export function decodeMapSearch(search: MapSearch): MapFilterState {
@@ -31,3 +35,11 @@ export function encodeMapSearch(filters: MapFilterState): Partial<MapSearch> {
     cities: arrayParam(filters.cities),
   }
 }
+
+export const mapSearchSchema = z.object({
+  sources: z.array(z.string()).optional().catch(undefined),
+  countries: z.array(z.string()).optional().catch(undefined),
+  cities: z.array(z.string()).optional().catch(undefined),
+  demoTraffic: z.string().optional().catch(undefined),
+  focus: z.coerce.number().int().positive().optional().catch(undefined),
+})

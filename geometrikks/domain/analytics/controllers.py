@@ -38,11 +38,18 @@ from geometrikks.domain.analytics.dtos import (
     TopCountriesStatsResponse,
     TopCityStatsDTO,
     TopCitiesResponse,
+    IpProfileBucketDTO,
+    IpProfileHostDTO,
+    IpProfilePathDTO,
+    IpProfileResponse,
+    IpProfileUserAgentDTO,
 )
 from geometrikks.domain.analytics.repositories import StatsGranularity, get_stats_granularity
 from geometrikks.domain.analytics.asn_classification import classify_asn
+from geometrikks.domain.analytics.ip_profile import IpProfile, IpProfileBucket, IpProfileRepository
 
 from geometrikks.domain.analytics.dependencies import (
+    provide_ip_profile_repo,
     provide_live_stats_repo,
     provide_summary_stats_repo
 )
@@ -55,7 +62,7 @@ from geometrikks.lib.parameters import (
     StartDate,
     Timezone,
 )
-from geometrikks.lib.validation import validate_ip_addresses, validate_timezone
+from geometrikks.lib.validation import validate_ip_address, validate_ip_addresses, validate_timezone
 
 
 def _calculate_percent_change(current: float, previous: float) -> float | None:
@@ -63,6 +70,13 @@ def _calculate_percent_change(current: float, previous: float) -> float | None:
     if previous == 0:
         return None
     return ((current - previous) / previous) * 100
+
+
+def _optional_percent_change(current: float | None, previous: float | None) -> float | None:
+    """Percent change for a figure that is None when nothing was measured."""
+    if current is None or previous is None:
+        return None
+    return _calculate_percent_change(current, previous)
 
 
 def _build_filters(
@@ -78,6 +92,53 @@ def _build_filters(
         cities=city or None,
         ip_addresses=ip_address or None,
         ip_exclude=ip_address_not_in or None,
+    )
+
+
+def _bucket_dto(bucket: IpProfileBucket) -> IpProfileBucketDTO:
+    return IpProfileBucketDTO(
+        timestamp=bucket.timestamp.isoformat(),
+        hits=bucket.hits,
+        error_hits=bucket.error_hits,
+    )
+
+
+def _optional_bucket_dto(bucket: IpProfileBucket | None) -> IpProfileBucketDTO | None:
+    return _bucket_dto(bucket) if bucket is not None else None
+
+
+def _to_ip_profile_response(
+    ip_address: str, start: datetime, end: datetime, profile: IpProfile
+) -> IpProfileResponse:
+    """Wire shape for one profile; pure so the mapping is unit-testable."""
+    errors = profile.status_4xx + profile.status_5xx
+    return IpProfileResponse(
+        ip_address=ip_address,
+        start_date=start.isoformat(),
+        end_date=end.isoformat(),
+        total_requests=profile.total_requests,
+        status_2xx=profile.status_2xx,
+        status_3xx=profile.status_3xx,
+        status_4xx=profile.status_4xx,
+        status_5xx=profile.status_5xx,
+        error_rate=errors / profile.total_requests if profile.total_requests else 0.0,
+        total_bytes=profile.total_bytes,
+        timed_requests=profile.timed_requests,
+        avg_request_time=profile.avg_request_time,
+        p95_request_time=profile.p95_request_time,
+        first_seen=profile.first_seen.isoformat() if profile.first_seen else None,
+        last_seen=profile.last_seen.isoformat() if profile.last_seen else None,
+        distinct_paths=profile.distinct_paths,
+        malformed_requests=profile.malformed_requests,
+        asn=profile.asn,
+        asn_organization=profile.asn_organization,
+        asn_category=classify_asn(profile.asn) if profile.asn is not None else None,
+        granularity=profile.granularity,
+        series=[_bucket_dto(b) for b in profile.series],
+        peak=_optional_bucket_dto(profile.peak),
+        hosts=[IpProfileHostDTO(host=h.host, hits=h.hits, error_hits=h.error_hits) for h in profile.hosts],
+        paths=[IpProfilePathDTO(host=p.host, url=p.url, hits=p.hits, error_hits=p.error_hits) for p in profile.paths],
+        user_agents=[IpProfileUserAgentDTO(user_agent=u.user_agent, hits=u.hits) for u in profile.user_agents],
     )
 
 
@@ -107,6 +168,7 @@ class AnalyticsController(Controller):
     dependencies = {
         "live_stats_repo": Provide(provide_live_stats_repo),
         "summary_stats_repo": Provide(provide_summary_stats_repo),
+        "ip_profile_repo": Provide(provide_ip_profile_repo),
     }
 
     @get("/summary", description="Get summary statistics for dashboard header cards.")
@@ -136,6 +198,7 @@ class AnalyticsController(Controller):
             # Return empty summary if no data
             empty_period = PeriodSummary(
                 total_requests=0,
+                timed_requests=0,
                 total_geo_events=0,
                 unique_ips=0,
                 unique_countries=0,
@@ -145,8 +208,8 @@ class AnalyticsController(Controller):
                 status_3xx=0,
                 status_4xx=0,
                 status_5xx=0,
-                avg_request_time=0.0,
-                max_request_time=0.0,
+                avg_request_time=None,
+                max_request_time=None,
                 malformed_requests=0,
                 error_rate=0.0,
             )
@@ -158,6 +221,7 @@ class AnalyticsController(Controller):
 
         current_period = PeriodSummary(
             total_requests=current_stats.total_log_records,
+            timed_requests=current_stats.timed_requests,
             total_geo_events=current_stats.total_geo_records,
             unique_ips=current_stats.unique_ips,
             unique_countries=current_stats.unique_countries,
@@ -187,6 +251,7 @@ class AnalyticsController(Controller):
             if prev_stats:
                 previous_period = PeriodSummary(
                     total_requests=prev_stats.total_log_records,
+                    timed_requests=prev_stats.timed_requests,
                     total_geo_events=prev_stats.total_geo_records,
                     unique_ips=prev_stats.unique_ips,
                     unique_countries=prev_stats.unique_countries,
@@ -215,7 +280,7 @@ class AnalyticsController(Controller):
                     bytes_sent=_calculate_percent_change(
                         current_stats.total_bytes_sent, prev_stats.total_bytes_sent
                     ),
-                    avg_request_time=_calculate_percent_change(
+                    avg_request_time=_optional_percent_change(
                         current_stats.avg_request_time, prev_stats.avg_request_time
                     ),
                     error_rate=_calculate_percent_change(
@@ -264,6 +329,7 @@ class AnalyticsController(Controller):
             # Return empty summary if no data
             empty_period = PeriodSummary(
                 total_requests=0,
+                timed_requests=0,
                 total_geo_events=0,
                 unique_ips=0,
                 unique_countries=0,
@@ -273,8 +339,8 @@ class AnalyticsController(Controller):
                 status_3xx=0,
                 status_4xx=0,
                 status_5xx=0,
-                avg_request_time=0.0,
-                max_request_time=0.0,
+                avg_request_time=None,
+                max_request_time=None,
                 malformed_requests=0,
                 error_rate=0.0,
             )
@@ -286,6 +352,7 @@ class AnalyticsController(Controller):
 
         current_period = PeriodSummary(
             total_requests=current_stats.total_log_records,
+            timed_requests=current_stats.timed_requests,
             total_geo_events=current_stats.total_geo_records,
             unique_ips=current_stats.unique_ips,
             unique_countries=current_stats.unique_countries,
@@ -315,6 +382,7 @@ class AnalyticsController(Controller):
             if prev_stats:
                 previous_period = PeriodSummary(
                     total_requests=prev_stats.total_log_records,
+                    timed_requests=prev_stats.timed_requests,
                     total_geo_events=prev_stats.total_geo_records,
                     unique_ips=prev_stats.unique_ips,
                     unique_countries=prev_stats.unique_countries,
@@ -343,7 +411,7 @@ class AnalyticsController(Controller):
                     bytes_sent=_calculate_percent_change(
                         current_stats.total_bytes_sent, prev_stats.total_bytes_sent
                     ),
-                    avg_request_time=_calculate_percent_change(
+                    avg_request_time=_optional_percent_change(
                         current_stats.avg_request_time, prev_stats.avg_request_time
                     ),
                     error_rate=_calculate_percent_change(
@@ -457,6 +525,7 @@ class AnalyticsController(Controller):
                     status_4xx=row.status_4xx,
                     status_5xx=row.status_5xx,
                     error_rate=(row.status_4xx + row.status_5xx) / row.total_requests if row.total_requests else 0.0,
+                    timed_requests=row.timed_requests,
                     avg_request_time=row.avg_request_time,
                     p50_request_time=row.p50_request_time,
                     p95_request_time=row.p95_request_time,
@@ -695,4 +764,29 @@ class AnalyticsController(Controller):
             end_date=end_date.isoformat(),
             items=[TopCityStatsDTO(**vars(r)) for r in rows],
         )
+
+    @get(
+        "/ip-profile",
+        description="Access-log profile of one client IP for the IP inspector (raw scan bounded to one indexed IP).",
+    )
+    async def get_ip_profile(
+        self,
+        ip_profile_repo: NamedDependency[IpProfileRepository],
+        start_date: StartDate,
+        end_date: EndDate,
+        ip_address: Annotated[
+            str,
+            QueryParameter(name="ipAddress", description="Client IP to profile"),
+        ],
+        tz: Timezone = None,
+    ) -> IpProfileResponse:
+        """Totals, sparkline, hosts, paths and user agents for one IP.
+
+        Zero rows in range return a zeroed profile, not a 404.
+        """
+        validate_ip_address(ip_address)
+        if tz is not None:
+            validate_timezone(tz)
+        profile = await ip_profile_repo.get_profile(ip_address, start_date, end_date, tz=tz)
+        return _to_ip_profile_response(ip_address, start_date, end_date, profile)
 

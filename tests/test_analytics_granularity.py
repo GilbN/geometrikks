@@ -83,3 +83,12 @@ def test_build_filters_empty_lists_behave_like_none():
     assert filters.country_codes is None
     assert filters.cities is None
     assert filters.ip_addresses is None
+
+
+def test_optional_percent_change_is_none_when_either_side_is_missing():
+    from geometrikks.domain.analytics.controllers import _optional_percent_change
+
+    assert _optional_percent_change(None, 0.5) is None
+    assert _optional_percent_change(0.5, None) is None
+    assert _optional_percent_change(0.5, 0.0) is None
+    assert _optional_percent_change(0.6, 0.5) == pytest.approx(20.0)

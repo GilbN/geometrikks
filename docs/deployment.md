@@ -89,6 +89,36 @@ migration locking), not a tuning knob.
   always configured at startup. That step is idempotent but requires the
   schema to be at head, and it failing is the deliberate signal that the
   external migration step was skipped.
+- The first start on a version that adds columns to a continuous
+  aggregate (the timed-row counts, then the latency columns that skip
+  WebSocket connections, on the summary and URL aggregates) adds them in
+  place and then re-materializes those aggregates over the raw retention
+  window. That refresh runs inside startup, so the head container answers
+  nothing, `/health` included, until it finishes; on a database with tens
+  of millions of rows expect minutes, and watch for `cagg_column_added`
+  followed by `cagg_columns_refresh_done` in the logs. No history is lost,
+  and a container stopped mid-way resumes the refresh on its next start. A
+  database that is several versions behind gets every missing column in
+  one pass and one refresh. Buckets older than the raw retention window
+  keep their pre-upgrade figures, computed over every row, because the raw
+  rows needed to recount them are gone. A TimescaleDB without in-place
+  aggregate columns (the compose images pin a version that has them) falls
+  back to dropping and recreating the aggregate, which discards daily
+  history older than the raw retention window.
+- The first start on a version that changes how an aggregate groups its
+  rows (the URL aggregates gained a host dimension so Top URLs can tell
+  `app-a.example.com/graphql` from `app-b.example.com/graphql`) drops and
+  recreates that aggregate, then re-materializes it over the raw retention
+  window inside startup. Watch for `url_caggs_recreated` followed by
+  `url_caggs_refresh_done` (or `url_caggs_refresh_failed`) in the logs;
+  a later start logs neither. The refresh commits in batches, newest
+  buckets first, so a container stopped mid-way leaves the oldest buckets
+  missing; the next start detects that gap the same way it detects
+  history predating refresh coverage and fills it. To repair by hand
+  instead, run `CALL refresh_continuous_aggregate('url_hourly_stats',
+  NULL, NULL);` and the same for `url_daily_stats`. Per-URL daily history
+  older than the raw retention window is discarded, because the raw rows
+  needed to rebuild it are gone; every other aggregate is untouched.
 
 ## Health
 

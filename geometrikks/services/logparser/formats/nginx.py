@@ -11,7 +11,7 @@ from geometrikks.services.logparser.constants import (
     ipv6_geo_pattern,
     ipv6_pattern,
 )
-from .base import NormalizedLine, convert_dash_to_none, detect_probe
+from .base import NormalizedLine, convert_dash_to_none, detect_probe, parse_seconds
 
 logger = get_logger(__name__)
 
@@ -52,10 +52,7 @@ class NginxFormat:
                 remote_user=convert_dash_to_none(d.get("remote_user")),
             )
 
-        try:
-            request_time = float(d.get("request_time") or 0)
-        except (ValueError, TypeError):
-            request_time = 0.0
+        request_time = parse_seconds(d.get("request_time"))
         upstream_raw = d.get("upstream_response_time")
         try:
             upstream = (
@@ -94,5 +91,5 @@ class NginxFormat:
         )
 
     def detect_malformed(self, norm: NormalizedLine) -> tuple[bool, str | None]:
-        """Probe and connection-status classification; see ``detect_probe``."""
+        """Probe classification; see ``detect_probe``."""
         return detect_probe(norm.request_raw, norm.method, norm.status_code)

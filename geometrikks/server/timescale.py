@@ -12,7 +12,7 @@ CAGG Structure:
 - location_hourly_stats / location_daily_stats: Location event counts for map
 - ip_location_{hourly,daily}_stats: Per-IP counts by location for top IPs
 - log_ip_{hourly,daily}_stats: Per-IP access-log counts (top IPs/countries/cities, facets)
-- url_{hourly,daily}_stats: Per-URL access-log counts (top URLs)
+- url_{hourly,daily}_stats: Per-host-and-URL access-log counts (top URLs)
 - user_agent_{hourly,daily}_stats: Per-user-agent counts (top user agents)
 - host_daily_stats / hostname_daily_stats: Daily host rollups for facet dropdowns
 - log_source_daily_stats: Daily hostname/log_format rollups for source facets
@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import asyncio
 import re
+import time
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING, Literal
@@ -183,9 +184,10 @@ async def _create_hypertables(conn: "AsyncConnection") -> None:
 async def _create_summary_caggs(conn: "AsyncConnection") -> None:
     """Create summary stats CAGGs from access_logs.
 
-    Used for: Summary page, Analytics charts
+    Used for: Summary page, Analytics charts. The `latency_*` pair repeats
+    both over latency rows only (see `LATENCY_STATUS_EXCLUSIONS`).
     """
-    await conn.execute(text("""
+    await conn.execute(text(f"""
         CREATE MATERIALIZED VIEW IF NOT EXISTS summary_hourly_stats
         WITH (timescaledb.continuous) AS
         SELECT
@@ -196,16 +198,21 @@ async def _create_summary_caggs(conn: "AsyncConnection") -> None:
             COUNT(*) FILTER (WHERE status_code >= 300 AND status_code < 400) AS status_3xx,
             COUNT(*) FILTER (WHERE status_code >= 400 AND status_code < 500) AS status_4xx,
             COUNT(*) FILTER (WHERE status_code >= 500 AND status_code < 600) AS status_5xx,
+            COUNT(request_time) AS timed_requests,
             AVG(request_time) AS avg_request_time,
             MAX(request_time) AS max_request_time,
-            percentile_agg(request_time) AS pct_agg
+            percentile_agg(request_time) AS pct_agg,
+            COUNT(request_time) FILTER (WHERE {LATENCY_FILTER}) AS latency_requests,
+            AVG(request_time) FILTER (WHERE {LATENCY_FILTER}) AS avg_latency,
+            MAX(request_time) FILTER (WHERE {LATENCY_FILTER}) AS max_latency,
+            percentile_agg(request_time) FILTER (WHERE {LATENCY_FILTER}) AS latency_pct_agg
         FROM access_logs
         GROUP BY bucket
         WITH NO DATA
     """))
     logger.info("CAGG created/verified: summary_hourly_stats")
 
-    await conn.execute(text("""
+    await conn.execute(text(f"""
         CREATE MATERIALIZED VIEW IF NOT EXISTS summary_daily_stats
         WITH (timescaledb.continuous) AS
         SELECT
@@ -216,9 +223,14 @@ async def _create_summary_caggs(conn: "AsyncConnection") -> None:
             COUNT(*) FILTER (WHERE status_code >= 300 AND status_code < 400) AS status_3xx,
             COUNT(*) FILTER (WHERE status_code >= 400 AND status_code < 500) AS status_4xx,
             COUNT(*) FILTER (WHERE status_code >= 500 AND status_code < 600) AS status_5xx,
+            COUNT(request_time) AS timed_requests,
             AVG(request_time) AS avg_request_time,
             MAX(request_time) AS max_request_time,
-            percentile_agg(request_time) AS pct_agg
+            percentile_agg(request_time) AS pct_agg,
+            COUNT(request_time) FILTER (WHERE {LATENCY_FILTER}) AS latency_requests,
+            AVG(request_time) FILTER (WHERE {LATENCY_FILTER}) AS avg_latency,
+            MAX(request_time) FILTER (WHERE {LATENCY_FILTER}) AS max_latency,
+            percentile_agg(request_time) FILTER (WHERE {LATENCY_FILTER}) AS latency_pct_agg
         FROM access_logs
         GROUP BY bucket
         WITH NO DATA
@@ -405,10 +417,15 @@ async def _create_log_ip_caggs(conn: "AsyncConnection") -> None:
 
 
 async def _create_url_caggs(conn: "AsyncConnection") -> None:
-    """Create per-URL access-log CAGGs (hourly + daily).
+    """Create per-host-and-URL access-log CAGGs (hourly + daily).
 
-    Used for: analytics /top-urls (unfiltered path). total_request_time is a
-    SUM so the rolled-up average is exact (SUM/SUM), never an AVG of AVGs.
+    Used for: analytics /top-urls (unfiltered path). One group per host and
+    path, so a path two vhosts share is not summed across them; a NULL host
+    (combined-format archives carry none) is its own group. total_request_time
+    is a SUM and timed_hits a COUNT of measured rows, so the rolled-up
+    average is exact (SUM/COUNT of timed rows), never an AVG of AVGs. The
+    `latency_*` pair repeats both over latency rows only (see
+    `LATENCY_STATUS_EXCLUSIONS`).
     """
     for suffix, interval in (("hourly", "1 hour"), ("daily", "1 day")):
         await conn.execute(text(f"""
@@ -416,14 +433,18 @@ async def _create_url_caggs(conn: "AsyncConnection") -> None:
             WITH (timescaledb.continuous) AS
             SELECT
                 time_bucket('{interval}', timestamp) AS bucket,
+                host,
                 url,
                 COUNT(*) AS hits,
                 COUNT(*) FILTER (WHERE status_code >= 400) AS error_hits,
+                COUNT(request_time) AS timed_hits,
                 COALESCE(SUM(bytes_sent), 0) AS total_bytes,
-                SUM(request_time) AS total_request_time
+                SUM(request_time) AS total_request_time,
+                COUNT(request_time) FILTER (WHERE {LATENCY_FILTER}) AS latency_hits,
+                SUM(request_time) FILTER (WHERE {LATENCY_FILTER}) AS total_latency
             FROM access_logs
             WHERE url IS NOT NULL
-            GROUP BY bucket, url
+            GROUP BY bucket, host, url
             WITH NO DATA
         """))
         logger.info("CAGG created/verified: url_%s_stats", suffix)
@@ -795,6 +816,189 @@ async def teardown_timescaledb(conn: "AsyncConnection") -> None:
 
 SUMMARY_CAGGS = ["summary_hourly_stats", "summary_daily_stats"]
 
+# Rows whose request_time is a connection's lifetime, not a response time.
+# 101 is the WebSocket upgrade handshake: nginx and Traefik log the whole
+# connection under it, so a day-long socket reads as a day-long request.
+# 0 is "no status written" (nginx logs 000, Traefik 0), a connection that
+# ended before any response; its duration is time-to-abort.
+LATENCY_STATUS_EXCLUSIONS: tuple[int, ...] = (0, 101)
+
+
+def latency_filter(alias: str = "") -> str:
+    """SQL predicate selecting latency rows; ``alias`` prefixes the column.
+
+    Args:
+        alias: Table alias including the dot, e.g. ``"al."``, or empty.
+    """
+    codes = ", ".join(str(code) for code in LATENCY_STATUS_EXCLUSIONS)
+    return f"{alias}status_code NOT IN ({codes})"
+
+
+LATENCY_FILTER = latency_filter()
+
+
+@dataclass(frozen=True)
+class CaggColumn:
+    """A column a continuous aggregate gains after its first release.
+
+    Fresh installs get it from the CREATE statement; existing views get it
+    in place from ``_add_cagg_columns`` with the same expression.
+    """
+
+    name: str
+    sql_type: str
+    expression: str
+
+    @property
+    def ddl(self) -> str:
+        return f"{self.name} {self.sql_type} GENERATED ALWAYS AS ({self.expression}) STORED"
+
+
+@dataclass(frozen=True)
+class CaggGeneration:
+    """One release's worth of columns added to a continuous aggregate.
+
+    ``count`` names the generation's COUNT column. A COUNT is 0, never NULL,
+    once a bucket has been refreshed, so a NULL there means the bucket
+    predates this generation's forced refresh and still needs it. Every
+    generation carries its own count so the probe can check each one; a
+    refresh interrupted while backfilling an older generation is caught
+    even after a newer generation's refresh completed.
+    """
+
+    count: str
+    columns: tuple[CaggColumn, ...]
+
+
+_SUMMARY_GENERATIONS: tuple[CaggGeneration, ...] = (
+    CaggGeneration("timed_requests", (
+        CaggColumn("timed_requests", "bigint", "COUNT(request_time)"),
+    )),
+    CaggGeneration("latency_requests", (
+        CaggColumn("latency_requests", "bigint", f"COUNT(request_time) FILTER (WHERE {LATENCY_FILTER})"),
+        CaggColumn("avg_latency", "double precision", f"AVG(request_time) FILTER (WHERE {LATENCY_FILTER})"),
+        CaggColumn("max_latency", "double precision", f"MAX(request_time) FILTER (WHERE {LATENCY_FILTER})"),
+        CaggColumn("latency_pct_agg", "uddsketch", f"percentile_agg(request_time) FILTER (WHERE {LATENCY_FILTER})"),
+    )),
+)
+_URL_GENERATIONS: tuple[CaggGeneration, ...] = (
+    CaggGeneration("timed_hits", (
+        CaggColumn("timed_hits", "bigint", "COUNT(request_time)"),
+    )),
+    CaggGeneration("latency_hits", (
+        CaggColumn("latency_hits", "bigint", f"COUNT(request_time) FILTER (WHERE {LATENCY_FILTER})"),
+        CaggColumn("total_latency", "double precision", f"SUM(request_time) FILTER (WHERE {LATENCY_FILTER})"),
+    )),
+)
+
+# View -> generations added after the view first shipped, oldest first. A
+# database missing several gets them all in one pass and one forced refresh.
+CAGG_GENERATIONS: dict[str, tuple[CaggGeneration, ...]] = {
+    "summary_hourly_stats": _SUMMARY_GENERATIONS,
+    "summary_daily_stats": _SUMMARY_GENERATIONS,
+    "url_hourly_stats": _URL_GENERATIONS,
+    "url_daily_stats": _URL_GENERATIONS,
+}
+
+# Flat view of the same table for callers that only need the columns.
+CAGG_COLUMNS: dict[str, tuple[CaggColumn, ...]] = {
+    view: tuple(column for generation in generations for column in generation.columns)
+    for view, generations in CAGG_GENERATIONS.items()
+}
+
+
+async def _cagg_columns_need_upgrade(
+    conn: "AsyncConnection", *, raw_retention_days: int
+) -> list[str]:
+    """Views missing an upgrade column, or not yet backfilled after one.
+
+    A view that does not exist yet needs nothing: the CREATE includes every
+    column. "Any bucket with a NULL generation count" is the rerun-safe half
+    of the rule: a container killed during the forced refresh comes back
+    with the columns present and history still uncounted, and must refresh
+    again. One query per view checks every generation's count at once.
+
+    That half is scoped to the raw retention window, the only span the forced
+    refresh can recount. Daily buckets older than it keep a NULL count for
+    good (their raw rows are gone), and an unscoped probe would see those and
+    schedule the full refresh again on every start. Readers fall back to the
+    bucket's older columns for them.
+
+    Args:
+        conn: Open connection inside the setup transaction.
+        raw_retention_days: Window the forced refresh covers.
+    """
+    result = await conn.execute(text("""
+        SELECT table_name, column_name FROM information_schema.columns
+        WHERE table_name = ANY(:views) AND table_schema = 'public'
+    """), {"views": list(CAGG_COLUMNS)})
+    columns = {(r.table_name, r.column_name) for r in result}
+    existing_views = {name for name, _ in columns}
+    pending: list[str] = []
+    for view, generations in CAGG_GENERATIONS.items():
+        if view not in existing_views:
+            continue
+        if any((view, column.name) not in columns for column in CAGG_COLUMNS[view]):
+            pending.append(view)
+            continue
+        null_counts = " OR ".join(f"{generation.count} IS NULL" for generation in generations)
+        has_null = (await conn.execute(
+            text(
+                f"SELECT 1 FROM {view} WHERE ({null_counts}) "
+                f"AND bucket >= now() - make_interval(days => :days) LIMIT 1"
+            ),
+            {"days": raw_retention_days},
+        )).scalar()
+        if has_null:
+            pending.append(view)
+    return pending
+
+
+async def _add_cagg_columns(conn: "AsyncConnection", views: list[str]) -> list[str]:
+    """Add every missing upgrade column of ``views`` in place.
+
+    The in-place ALTER keeps every existing bucket; only the new columns are
+    filled by the forced refresh the caller runs afterwards. TimescaleDB
+    versions without in-place CAGG columns raise here, and for those the
+    old percentile-upgrade route applies: drop the view (setup recreates it
+    with the columns) and accept that daily history older than raw retention
+    cannot be rebuilt.
+
+    Returns:
+        Views that were dropped and will be recreated by the CREATE step.
+    """
+    dropped: list[str] = []
+    for view in views:
+        existing = {
+            row.column_name
+            for row in await conn.execute(text("""
+                SELECT column_name FROM information_schema.columns
+                WHERE table_name = :view AND table_schema = 'public'
+            """), {"view": view})
+        }
+        missing = [column for column in CAGG_COLUMNS[view] if column.name not in existing]
+        try:
+            for column in missing:
+                # Savepoint: a failed DDL poisons the whole setup transaction, so
+                # without one the fallback DROP below would hit "current
+                # transaction is aborted" and take startup down with it.
+                async with conn.begin_nested():
+                    await conn.execute(text(
+                        f"ALTER MATERIALIZED VIEW {view} ADD COLUMN {column.ddl}"
+                    ))
+                logger.info("cagg_column_added", view=view, column=column.name)
+        except Exception as exc:
+            logger.warning(
+                "In-place column add failed on %s (%s); recreating the view. "
+                "History older than the raw retention window cannot be rebuilt "
+                "and is discarded.",
+                view,
+                exc,
+            )
+            await conn.execute(text(f"DROP MATERIALIZED VIEW IF EXISTS {view} CASCADE"))
+            dropped.append(view)
+    return dropped
+
 
 async def _summary_caggs_need_upgrade(conn: "AsyncConnection") -> bool:
     """True when a summary CAGG exists in the pre-percentile_agg shape.
@@ -853,15 +1057,60 @@ async def _location_caggs_need_upgrade(conn: "AsyncConnection") -> bool:
     """
     existing = (await conn.execute(text("""
         SELECT count(*) FROM information_schema.views
-        WHERE table_name = ANY(:views)
+        WHERE table_name = ANY(:views) AND table_schema = 'public'
     """), {"views": LOCATION_CAGGS})).scalar_one()
     if not existing:
         return False
     with_hostname = (await conn.execute(text("""
         SELECT count(DISTINCT table_name) FROM information_schema.columns
-        WHERE table_name = ANY(:views) AND column_name = 'hostname'
+        WHERE table_name = ANY(:views) AND column_name = 'hostname' AND table_schema = 'public'
     """), {"views": LOCATION_CAGGS})).scalar_one()
     return with_hostname < existing
+
+
+URL_CAGGS = ["url_hourly_stats", "url_daily_stats"]
+
+
+async def _url_caggs_need_upgrade(conn: "AsyncConnection") -> bool:
+    """True when an existing URL CAGG is in the pre-host shape.
+
+    A GROUP BY cannot change in place, so the pair is dropped and recreated
+    together; as with the location CAGGs, a partial match must not declare
+    victory or the laggard stays in the old shape forever.
+    """
+    existing = (await conn.execute(text("""
+        SELECT count(*) FROM information_schema.views
+        WHERE table_name = ANY(:views) AND table_schema = 'public'
+    """), {"views": URL_CAGGS})).scalar_one()
+    if not existing:
+        return False
+    with_host = (await conn.execute(text("""
+        SELECT count(DISTINCT table_name) FROM information_schema.columns
+        WHERE table_name = ANY(:views) AND column_name = 'host' AND table_schema = 'public'
+    """), {"views": URL_CAGGS})).scalar_one()
+    return with_host < existing
+
+
+async def _drop_url_caggs(conn: "AsyncConnection", *, attempts: int = 3) -> None:
+    """Drop both URL CAGGs, retrying a transient catalog error.
+
+    A refresh-policy job running on the view makes the DROP fail with
+    "tuple concurrently deleted". Each attempt runs in a savepoint: a
+    failed DDL poisons the setup transaction until the savepoint rolls
+    back, and without one the retry would hit "current transaction is
+    aborted". The last failure propagates and startup fails, the same
+    contract as the location upgrade.
+    """
+    for cagg in URL_CAGGS:
+        for attempt in range(attempts):
+            try:
+                async with conn.begin_nested():
+                    await conn.execute(text(f"DROP MATERIALIZED VIEW IF EXISTS {cagg} CASCADE"))
+                break
+            except Exception:
+                if attempt == attempts - 1:
+                    raise
+                await asyncio.sleep(0.5 * (attempt + 1))
 
 
 async def setup_timescaledb(
@@ -887,6 +1136,32 @@ async def setup_timescaledb(
         upgraded = await _summary_caggs_need_upgrade(conn)
         if upgraded:
             await _upgrade_summary_caggs(conn)
+
+        # Rebuild pre-host URL CAGGs: a GROUP BY cannot change in place.
+        # Runs before the column probe, which skips views that no longer
+        # exist, so the drop never races an in-place ALTER on the same view.
+        url_upgrade = await _url_caggs_need_upgrade(conn)
+        if url_upgrade:
+            await _drop_url_caggs(conn)
+            logger.warning(
+                "url_caggs_recreated",
+                views=URL_CAGGS,
+                detail="host dimension added; per-URL history older than the "
+                "raw retention window cannot be rebuilt and is discarded",
+            )
+
+        # Add the upgrade columns (timed-row counts, latency figures) to
+        # pre-existing summary/URL CAGGs. Probed before the CREATE step:
+        # CREATE IF NOT EXISTS never alters an existing view. The forced
+        # refresh runs after policies, outside the transaction (CALL cannot
+        # run inside one).
+        pending_views = await _cagg_columns_need_upgrade(
+            conn, raw_retention_days=analytics.raw_retention_days
+        )
+        if pending_views:
+            recreated = await _add_cagg_columns(conn, pending_views)
+            if recreated:
+                logger.info("cagg_views_recreated", views=recreated)
 
         # Upgrade pre-hostname location CAGGs, gated on hostname pollution:
         # migrating polluted (container-ID) hostnames would make the map's
@@ -970,6 +1245,44 @@ async def setup_timescaledb(
             caggs=LOCATION_CAGGS,
         )
 
+    if url_upgrade:
+        started = time.monotonic()
+        failed = await refresh_caggs_range(
+            engine,
+            start=datetime.now(timezone.utc) - timedelta(days=analytics.raw_retention_days),
+            end=datetime.now(timezone.utc),
+            caggs=URL_CAGGS,
+        )
+        if failed:
+            # The views exist with every column but no history; the next
+            # start's gap probe (backfill_cagg_gaps) sees the empty
+            # materialization and refreshes it from the raw rows.
+            logger.warning("url_caggs_refresh_failed", views=failed)
+        logger.info(
+            "url_caggs_refresh_done",
+            views=[view for view in URL_CAGGS if view not in failed],
+            seconds=round(time.monotonic() - started, 1),
+        )
+
+    if pending_views:
+        started = time.monotonic()
+        failed = await refresh_caggs_range(
+            engine,
+            start=datetime.now(timezone.utc) - timedelta(days=analytics.raw_retention_days),
+            end=datetime.now(timezone.utc),
+            caggs=pending_views,
+            force=True,
+        )
+        if failed:
+            # The columns are there but those views' history stays unfilled;
+            # the next start finds the NULL counts and refreshes them again.
+            logger.warning("cagg_columns_refresh_failed", views=failed)
+        logger.info(
+            "cagg_columns_refresh_done",
+            views=[view for view in pending_views if view not in failed],
+            seconds=round(time.monotonic() - started, 1),
+        )
+
     # Repair deployments whose data predates CAGG refresh coverage
     # (issue #14: long-range charts truncated while top lists are not).
     await backfill_cagg_gaps(
@@ -987,6 +1300,7 @@ async def refresh_caggs_range(
     start: datetime,
     end: datetime,
     caggs: list[str] | None = None,
+    force: bool = False,
 ) -> list[str]:
     """Refresh CAGGs for a specific time range (used after historical imports).
 
@@ -1005,6 +1319,9 @@ async def refresh_caggs_range(
         start: Range start (inclusive), timezone-aware.
         end: Range end (exclusive), timezone-aware.
         caggs: Optional subset of CAGGs (defaults to all).
+        force: Re-materialize buckets that are already up to date. Needed
+            once after a column is added to an existing view, since a normal
+            refresh skips buckets it considers current.
 
     Returns:
         Names of CAGGs whose refresh failed; empty when all succeeded.
@@ -1030,8 +1347,9 @@ async def refresh_caggs_range(
                     driver_conn = raw_conn.driver_connection
                     if driver_conn is None:
                         raise RuntimeError("No driver connection available for CALL statement")
+                    force_arg = ", force => true" if force else ""
                     await driver_conn.execute(
-                        f"CALL refresh_continuous_aggregate('{cagg}', $1::timestamptz, $2::timestamptz)",
+                        f"CALL refresh_continuous_aggregate('{cagg}', $1::timestamptz, $2::timestamptz{force_arg})",
                         start,
                         end,
                     )

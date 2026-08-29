@@ -23,6 +23,7 @@ from geometrikks.domain.logs.models import AccessLog
 from geometrikks.domain.logs.schemas import AccessLogFacets
 from geometrikks.domain.logs.services import AccessLogService
 from geometrikks.domain.logs.dtos import AccessLogDTO
+from geometrikks.domain.logs.sorting import nulls_last_for_timings
 from geometrikks.lib.validation import validate_ip_addresses
 
 
@@ -161,7 +162,7 @@ class AccessLogController(Controller):
         in_filters: NamedDependency[SkipValidation[list[FilterTypes]]],
     ) -> OffsetPagination[AccessLog]:
         """List access logs newest-first, with optional search/filter/sort."""
-        all_filters = [*filters, *time_window, *in_filters]
+        all_filters = nulls_last_for_timings([*filters, *time_window, *in_filters])
         results, total = await access_log_service.get_many_and_count(*all_filters)
         return access_log_service.to_schema(results, total, filters=all_filters)
 

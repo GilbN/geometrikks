@@ -34,6 +34,7 @@ import { GeoLogDetailSheet } from "@/components/geo-logs/geo-log-detail-sheet"
 import type { GeoLogEntry } from "@/generated/api/types.gen"
 import { formatNumber, type GeoLogSortField, type GeoLogSortOrder } from "@/lib/api"
 import { IpBanControls } from "@/components/crowdsec/ip-ban-controls"
+import { InspectIpButton } from "@/components/ip-inspector/inspect-ip-button"
 import { useGeoLogs } from "@/lib/queries"
 import { cn } from "@/lib/utils"
 import { useColumnVisibility } from "@/lib/column-visibility"
@@ -217,7 +218,9 @@ export function GeoLogsTable({
                     {renderCell(c, row)}
                     {c.key === "ipAddress" && (
                       <span {...stopRowActivation}>
-                        <IpBanControls ip={row.ipAddress} />
+                        <IpBanControls ip={row.ipAddress}>
+                          <InspectIpButton ip={row.ipAddress} className="ml-1" />
+                        </IpBanControls>
                       </span>
                     )}
                   </TableCell>

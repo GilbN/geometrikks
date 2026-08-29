@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { copyText } from "@/lib/clipboard"
 import { IpBanControls } from "@/components/crowdsec/ip-ban-controls"
+import { InspectIpButton } from "@/components/ip-inspector/inspect-ip-button"
 import type { AccessLogDebugEntry } from "@/lib/api"
 
 export function DebugLogDetailSheet({
@@ -113,7 +114,9 @@ export function DebugLogDetailSheet({
                     entry.ipAddress ? (
                       <span className="inline-flex flex-wrap items-center gap-2 font-mono text-xs">
                         {entry.ipAddress}
-                        <IpBanControls ip={entry.ipAddress} />
+                        <IpBanControls ip={entry.ipAddress}>
+                          <InspectIpButton ip={entry.ipAddress} onOpen={() => onOpenChange(false)} />
+                        </IpBanControls>
                       </span>
                     ) : null
                   }

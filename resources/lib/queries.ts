@@ -45,6 +45,8 @@ import {
   fetchCrowdsecDecisions,
   fetchCrowdsecAlerts,
   fetchCrowdsecBannedLocations,
+  fetchCrowdsecDecisionLookup,
+  fetchIpProfile,
   banIp,
   unbanIp,
   parseTimeRange,
@@ -109,6 +111,8 @@ export const queryKeys = {
       ["crowdsec", "decisions", params] as const,
     alerts: (params: Record<string, unknown>) =>
       ["crowdsec", "alerts", params] as const,
+    lookup: (ip: string, refreshKey?: number) => ["crowdsec", "lookup", ip, refreshKey] as const,
+    latestAlert: (ip: string, refreshKey?: number) => ["crowdsec", "latest-alert", ip, refreshKey] as const,
   },
   analytics: {
     all: ["analytics"] as const,
@@ -134,6 +138,8 @@ export const queryKeys = {
       [...queryKeys.analytics.all, "top-country-stats", params, refreshKey] as const,
     topCityStats: (params: Record<string, unknown>, refreshKey?: number) =>
       [...queryKeys.analytics.all, "top-city-stats", params, refreshKey] as const,
+    ipProfile: (params: Record<string, unknown>, refreshKey?: number) =>
+      [...queryKeys.analytics.all, "ip-profile", params, refreshKey] as const,
   },
   geo: {
     all: ["geo"] as const,
@@ -181,6 +187,12 @@ export const queryKeys = {
   logs: {
     tail: (lines: number, source: "app" | "login") => ["logs", "tail", lines, source] as const,
     files: ["logs", "files"] as const,
+  },
+  ipInspector: {
+    locations: (params: Record<string, unknown>, refreshKey?: number) =>
+      ["ip-inspector", "locations", params, refreshKey] as const,
+    latestRequests: (params: Record<string, unknown>, refreshKey?: number) =>
+      ["ip-inspector", "latest-requests", params, refreshKey] as const,
   },
 }
 
@@ -1359,5 +1371,87 @@ export function useLogFiles() {
       return data.files
     },
     refetchInterval: 30_000,
+  })
+}
+
+// ---- IP inspector ---------------------------------------------------------
+
+export function useIpProfile(ip: string | undefined) {
+  const { range, customRange, lastRefresh } = useTimeRange()
+  return useQuery({
+    queryKey: queryKeys.analytics.ipProfile({ range, customRange, ip }, lastRefresh),
+    queryFn: () => {
+      const { startDate, endDate } = parseTimeRange(range, Date.now(), customRange)
+      return fetchIpProfile({ startDate, endDate, ip: ip! })
+    },
+    enabled: Boolean(ip),
+    staleTime: 60 * 1000,
+  })
+}
+
+/** Every location this IP resolved to in range; geo-logs is already
+ *  grouped by (location, IP), so one page with the IP filter is the list. */
+export function useIpLocations(ip: string | undefined) {
+  const { range, customRange, lastRefresh } = useTimeRange()
+  return useQuery({
+    queryKey: queryKeys.ipInspector.locations({ range, customRange, ip }, lastRefresh),
+    queryFn: () => {
+      const { startDate, endDate } = parseTimeRange(range, Date.now(), customRange)
+      return fetchGeoLogs({
+        fromTimestamp: startDate,
+        toTimestamp: endDate,
+        ips: [ip!],
+        pageSize: 50,
+        sortField: "eventCount",
+        sortOrder: "desc",
+      })
+    },
+    enabled: Boolean(ip),
+    staleTime: 60 * 1000,
+  })
+}
+
+export function useIpDecisions(ip: string | undefined) {
+  const { data: status } = useCrowdsecStatus()
+  const { lastRefresh } = useTimeRange()
+  return useQuery({
+    queryKey: queryKeys.crowdsec.lookup(ip ?? "", lastRefresh),
+    queryFn: () => fetchCrowdsecDecisionLookup(ip!),
+    enabled: Boolean(ip) && status?.enabled === true,
+    staleTime: 30 * 1000,
+  })
+}
+
+/** Newest alert for the IP; its createdAt is the ban start. Alerts need
+ *  machine credentials, hence the writeEnabled gate. */
+export function useIpLatestAlert(ip: string | undefined) {
+  const { data: status } = useCrowdsecStatus()
+  const { lastRefresh } = useTimeRange()
+  return useQuery({
+    queryKey: queryKeys.crowdsec.latestAlert(ip ?? "", lastRefresh),
+    queryFn: () => fetchCrowdsecAlerts({ ip: ip!, limit: 1 }),
+    enabled: Boolean(ip) && status?.writeEnabled === true,
+    staleTime: 30 * 1000,
+    select: (alerts) => alerts[0] ?? null,
+  })
+}
+
+export function useIpLatestRequests(ip: string | undefined) {
+  const { range, customRange, lastRefresh } = useTimeRange()
+  return useQuery({
+    queryKey: queryKeys.ipInspector.latestRequests({ range, customRange, ip }, lastRefresh),
+    queryFn: () => {
+      const { startDate, endDate } = parseTimeRange(range, Date.now(), customRange)
+      return fetchAccessLogs({
+        fromTimestamp: startDate,
+        toTimestamp: endDate,
+        ipAddressIn: [ip!],
+        pageSize: 10,
+        sortField: "timestamp",
+        sortOrder: "desc",
+      })
+    },
+    enabled: Boolean(ip),
+    staleTime: 30 * 1000,
   })
 }

@@ -45,6 +45,8 @@ if TYPE_CHECKING:
 
     from litestar import Litestar
 
+    from geometrikks.server.lifecycle import LifecyclePlugin
+
 logger = get_logger(__name__)
 
 
@@ -371,6 +373,7 @@ def create_plugins(
     | CLIPlugin
     | StructlogPlugin
     | ChannelsPlugin
+    | LifecyclePlugin
 ]:
     """Instantiate all app plugins; called once from create_app().
 
@@ -379,6 +382,7 @@ def create_plugins(
     a headless log-tailing process has no use for.
     """
     from geometrikks.cli import ImportLogsCLIPlugin
+    from geometrikks.server.lifecycle import LifecyclePlugin
 
     if db_config is None:
         # Explicit settings must also govern the SQLAlchemy plugin; only a
@@ -394,6 +398,7 @@ def create_plugins(
         | CLIPlugin
         | StructlogPlugin
         | ChannelsPlugin
+        | LifecyclePlugin
     ] = [
         SQLAlchemyInitPlugin(config=db_config),
         GeoAlchemyPlugin(),  # GeoAlchemy plugin for PostGIS support
@@ -406,6 +411,9 @@ def create_plugins(
             ImportLogsCLIPlugin(),
             create_structlog_plugin(settings),
             create_channels_plugin(settings),
+            # Last on purpose: its lifespan managers must nest inside the
+            # channels plugin's (see lifecycle.LifecyclePlugin).
+            LifecyclePlugin(),
         ]
     )
     return plugin_list

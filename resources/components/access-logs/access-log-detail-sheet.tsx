@@ -5,9 +5,11 @@
  */
 import { DetailField, DetailSheet } from "@/components/data/detail-sheet"
 import { IpBanControls } from "@/components/crowdsec/ip-ban-controls"
+import { InspectIpButton } from "@/components/ip-inspector/inspect-ip-button"
 import { Badge } from "@/components/ui/badge"
 import { formatBytes, formatDuration, type AccessLog } from "@/lib/api"
 import { statusBadgeClass } from "@/lib/status-badge"
+import { formatDurationOrNa } from "@/lib/timing"
 import { cn } from "@/lib/utils"
 
 export function AccessLogDetailSheet({
@@ -42,7 +44,9 @@ export function AccessLogDetailSheet({
             value={
               <span className="inline-flex flex-wrap items-center gap-2 font-mono text-xs">
                 {entry.ipAddress}
-                <IpBanControls ip={entry.ipAddress} />
+                <IpBanControls ip={entry.ipAddress}>
+                  <InspectIpButton ip={entry.ipAddress} onOpen={() => onOpenChange(false)} />
+                </IpBanControls>
               </span>
             }
           />
@@ -52,7 +56,7 @@ export function AccessLogDetailSheet({
           <DetailField label="Remote user" value={entry.remoteUser} mono />
           <DetailField label="HTTP version" value={entry.httpVersion} mono />
           <DetailField label="Bytes sent" value={formatBytes(entry.bytesSent)} />
-          <DetailField label="Request time" value={formatDuration(entry.requestTime * 1000)} />
+          <DetailField label="Request time" value={formatDurationOrNa(entry.requestTime)} />
           <DetailField
             label="Upstream response"
             value={entry.upstreamResponseTime != null ? formatDuration(entry.upstreamResponseTime * 1000) : null}

@@ -234,7 +234,8 @@ services:
   # Synthetic traffic: runs dev/inject-logs.sh for the stack's lifetime, so
   # `up` starts the inserts and `down` ends them. Reuses the app image for
   # bash + GNU date (the traefik timestamps need date %N) with the app
-  # entrypoint bypassed. Pause from the host with `touch dev/inject-logs.stop`
+  # entrypoint bypassed, and the image's HEALTHCHECK (a GET on :8000/health)
+  # disabled since nothing here listens. Pause from the host with `touch dev/inject-logs.stop`
   # (the container exits; `up -d log-injector` clears the stopfile and
   # resumes). No restart policy for that reason: a restart would wipe a
   # freshly touched stopfile and resume against the operator's intent.
@@ -244,6 +245,8 @@ services:
     image: geometrikks:agent-mode
     user: "${PUID:-1000}:${PGID:-1000}"
     entrypoint: ["bash", "/injector/dev/inject-logs.sh"]
+    healthcheck:
+      disable: true
     environment:
       INJECT_MAX_SECONDS: 0
     volumes:

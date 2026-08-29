@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { THEMES, parseTheme } from "./theme"
+import { THEMES, parseTheme, resolveTheme } from "./theme"
 
 describe("parseTheme", () => {
   it("returns a valid theme unchanged", () => {
@@ -11,5 +11,17 @@ describe("parseTheme", () => {
     expect(parseTheme("solarized")).toBe("system")
     expect(parseTheme(null, "dark")).toBe("dark")
     expect(parseTheme("", "dark")).toBe("dark")
+  })
+})
+
+describe("resolveTheme", () => {
+  it("returns an explicit choice regardless of the OS setting", () => {
+    expect(resolveTheme("dark", false)).toBe("dark")
+    expect(resolveTheme("light", true)).toBe("light")
+  })
+
+  it("follows the OS setting for system", () => {
+    expect(resolveTheme("system", true)).toBe("dark")
+    expect(resolveTheme("system", false)).toBe("light")
   })
 })

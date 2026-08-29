@@ -1,13 +1,21 @@
 """Application lifecycle as focused lifespan context managers.
 
 Each concern owns both its startup and its cleanup in one async context
-manager. ``create_app()`` passes :data:`LIFESPAN` to Litestar, which enters
-the managers in order on an ``AsyncExitStack`` and exits them in reverse:
+manager. :class:`LifecyclePlugin` registers :data:`LIFESPAN` with Litestar,
+which enters the managers in order on an ``AsyncExitStack`` and exits them
+in reverse:
 
 - teardown order is the exact reverse of startup (ingestion stops first,
   the scheduler second, the CrowdSec client closes after both), and
 - a failure during startup unwinds only the managers that already started,
   so partial startup no longer leaks running services.
+
+The plugin, not the ``lifespan=`` constructor argument, is what puts these
+managers after the ones other plugins register. ChannelsPlugin appends its
+own lifespan during ``on_app_init``; had ours been passed to the
+constructor they would sit ahead of it, exit first, and ingestion's final
+flush would publish into a channels plugin that had already torn down its
+queue.
 
 Degraded modes are decided once: :func:`database_lifespan` records
 ``app.state.db_available`` and the scheduler and ingestion managers no-op
@@ -24,6 +32,7 @@ from typing import TYPE_CHECKING
 
 from sqlalchemy import text
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from litestar.plugins import InitPlugin
 
 from geometrikks.config.settings import get_settings
 from geometrikks.server.logging import get_logger
@@ -48,6 +57,7 @@ if TYPE_CHECKING:
 
     from geometrikks.config.settings import Settings
     from litestar import Litestar
+    from litestar.config.app import AppConfig
 
 logger = get_logger(__name__)
 
@@ -404,3 +414,15 @@ LIFESPAN = [
     scheduler_lifespan,
     ingestion_lifespan,
 ]
+
+
+class LifecyclePlugin(InitPlugin):
+    """Registers :data:`LIFESPAN` after every plugin listed before it.
+
+    Must be the last entry in ``create_plugins()`` so the app's managers
+    nest inside the plugin-owned ones (channels, database engine).
+    """
+
+    def on_app_init(self, app_config: "AppConfig") -> "AppConfig":
+        app_config.lifespan.extend(LIFESPAN)
+        return app_config
