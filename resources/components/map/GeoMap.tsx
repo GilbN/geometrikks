@@ -42,6 +42,7 @@ import { LiveRequestCard, LiveRequestPopup } from "./LiveRequestPopup"
 import { LiveVitalsPill } from "./LiveVitalsPill"
 import { LiveRail } from "./LiveRail"
 import { LiveFeedSheet } from "./LiveFeedSheet"
+import { MapBackdrop } from "@/components/brand/backdrops"
 import { ErrorBanner } from "@/components/error-banner"
 import { getDemoTrafficMode } from "@/lib/demo-traffic"
 import { decodeMapSearch, encodeMapSearch } from "@/lib/map-filters"
@@ -469,9 +470,10 @@ function GeoMapInner({
   // Show error state
   if (isError) {
     return (
-      <div className="h-full w-full flex items-center justify-center bg-background p-4">
+      <div className="relative h-full w-full flex items-center justify-center overflow-hidden bg-background p-4">
+        <MapBackdrop tone="quiet" />
         <ErrorBanner
-          className="w-full max-w-md"
+          className="relative w-full max-w-md backdrop-blur-[2px]"
           title="Failed to load map data"
           detail={`${(error?.message ?? "Unknown error occurred").replace(/\.$/, "")}. Make sure the backend server is running.`}
         />
