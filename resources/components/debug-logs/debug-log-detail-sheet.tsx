@@ -115,9 +115,7 @@ export function DebugLogDetailSheet({
                       <span className="inline-flex flex-wrap items-center gap-2 font-mono text-xs">
                         {entry.ipAddress}
                         <IpBanControls ip={entry.ipAddress}>
-                          <span onClickCapture={() => onOpenChange(false)}>
-                            <InspectIpButton ip={entry.ipAddress} />
-                          </span>
+                          <InspectIpButton ip={entry.ipAddress} onOpen={() => onOpenChange(false)} />
                         </IpBanControls>
                       </span>
                     ) : null
