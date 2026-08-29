@@ -6,6 +6,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { formatBytes, formatNumber } from "@/lib/api"
 import { formatTs } from "@/lib/datetime"
 import { formatDurationOrNa } from "@/lib/timing"
+import { cn } from "@/lib/utils"
 
 const SPARK_CONFIG = { hits: { label: "Requests", color: "var(--chart-1)" } } satisfies ChartConfig
 
@@ -51,13 +52,16 @@ export function IpStatsBlock({
   // API timestamps carry a +00:00 offset; bucketFloor returns "...Z". Same
   // string form on both sides or the ReferenceLine never matches a bar.
   const series = profile.series.map((b) => ({ ...b, timestamp: new Date(b.timestamp).toISOString() }))
-  const bucketMs = profile.granularity === "daily" ? 86_400_000 : 3_600_000
   // Chart-level click so the whole column is a target, not only the bar's
   // painted height; activeLabel is the hovered column's x value.
   const zoomToBucket = (state: unknown) => {
     const from = (state as { activeLabel?: string } | undefined)?.activeLabel
     if (!from) return
-    onZoom(from, new Date(new Date(from).getTime() + bucketMs).toISOString())
+    const to = new Date(from)
+    // Daily buckets are local days, so the next boundary is the next local midnight (23 or 25 hours across DST).
+    if (profile.granularity === "daily") to.setDate(to.getDate() + 1)
+    else to.setUTCHours(to.getUTCHours() + 1)
+    onZoom(from, to.toISOString())
   }
   return (
     <div className="space-y-3">
@@ -82,6 +86,14 @@ export function IpStatsBlock({
             <div key={s.key} className={s.className} style={{ width: `${share}%` }} title={`${s.label}: ${formatNumber(profile[s.key])}`} />
           ) : null
         })}
+      </div>
+      <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] text-muted-foreground tabular-nums">
+        {STATUS_SEGMENTS.map((s) => (
+          <span key={s.key} className="inline-flex items-center gap-1">
+            <span className={cn("size-1.5 rounded-full", s.className)} />
+            {s.label} {formatNumber(profile[s.key])}
+          </span>
+        ))}
       </div>
 
       <ChartContainer config={SPARK_CONFIG} className="h-16 w-full">
