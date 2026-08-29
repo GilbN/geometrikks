@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-08-29
+
 ### Added
 
 - IP inspector. Every IP in the app (map popup and controls, top-IP lists, the log tables and their detail panels, the alerts and decisions tables) gets an inspect button that opens a side panel for that address. The panel covers the selected range: request and error counts, bytes, timing, first and last seen, busiest hour or day, the hosts and paths it hit, user agents, other locations it resolved to, its latest requests and its CrowdSec decision. Scanner tells show as chips with a hover explanation of what each one means: high 4xx share, hosting ASN, wide path spread, bursts, malformed lines, traffic still arriving after a ban. Clicking a bar in the panel's chart narrows the time range to that hour or day, with a way back to the range you came from; the panel has its own range picker. Footer links carry the IP to Analytics, Access logs and, when it produced malformed lines, Debug logs. The panel lives at `?inspect=<ip>`, so it survives navigation and can be linked. Backed by a new `GET /api/v1/analytics/ip-profile` endpoint.
@@ -923,7 +925,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Settings endpoint no longer exposes the full settings tree (database credentials leaked via `model_dump()`); response is now an explicit whitelist.
 - Timestamps in `CALL refresh_continuous_aggregate` are bound as asyncpg parameters instead of interpolated into SQL.
 
-[Unreleased]: https://github.com/GilbN/geometrikks/compare/v0.11.0...HEAD
+[Unreleased]: https://github.com/GilbN/geometrikks/compare/v0.12.0...HEAD
+[0.12.0]: https://github.com/GilbN/geometrikks/compare/v0.11.0...v0.12.0
 [0.11.0]: https://github.com/GilbN/geometrikks/compare/v0.10.0...v0.11.0
 [0.10.0]: https://github.com/GilbN/geometrikks/compare/v0.9.0...v0.10.0
 [0.9.0]: https://github.com/GilbN/geometrikks/compare/v0.8.0...v0.9.0
