@@ -1484,6 +1484,10 @@ export type ApiV1AnalyticsIpProfileGetIpProfileData = {
      * Client IP to profile
      */
     ipAddress: string;
+    /**
+     * IANA timezone for daily buckets (e.g. Europe/Oslo). When set, daily buckets are local days in this zone for ranges the hourly source data can serve (<= 30 days); longer ranges keep UTC days. Hourly buckets are unaffected.
+     */
+    tz?: string | null;
   };
   url: "/api/v1/analytics/ip-profile";
 };

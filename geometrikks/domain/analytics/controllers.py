@@ -778,12 +778,15 @@ class AnalyticsController(Controller):
             str,
             QueryParameter(name="ipAddress", description="Client IP to profile"),
         ],
+        tz: Timezone = None,
     ) -> IpProfileResponse:
         """Totals, sparkline, hosts, paths and user agents for one IP.
 
         Zero rows in range return a zeroed profile, not a 404.
         """
         validate_ip_address(ip_address)
-        profile = await ip_profile_repo.get_profile(ip_address, start_date, end_date)
+        if tz is not None:
+            validate_timezone(tz)
+        profile = await ip_profile_repo.get_profile(ip_address, start_date, end_date, tz=tz)
         return _to_ip_profile_response(ip_address, start_date, end_date, profile)
 

@@ -122,8 +122,10 @@ describe("requestsAfter", () => {
 })
 
 describe("bucketFloor", () => {
-  it("floors to the hour or the UTC day", () => {
+  it("floors to the UTC hour or the local day", () => {
     expect(bucketFloor("2026-08-28T14:02:33Z", "hourly")).toBe("2026-08-28T14:00:00.000Z")
-    expect(bucketFloor("2026-08-28T14:02:33Z", "daily")).toBe("2026-08-28T00:00:00.000Z")
+    const local = new Date("2026-08-28T14:02:33Z")
+    local.setHours(0, 0, 0, 0)
+    expect(bucketFloor("2026-08-28T14:02:33Z", "daily")).toBe(local.toISOString())
   })
 })

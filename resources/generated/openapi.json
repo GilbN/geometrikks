@@ -5342,6 +5342,34 @@
               "description": "Client IP to profile",
               "type": "string"
             }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "IANA timezone for daily buckets (e.g. Europe/Oslo). When set, daily buckets are local days in this zone for ranges the hourly source data can serve (<= 30 days); longer ranges keep UTC days. Hourly buckets are unaffected.",
+            "examples": {
+              "tz-example-1": {
+                "value": "Europe/Oslo"
+              }
+            },
+            "in": "query",
+            "name": "tz",
+            "required": false,
+            "schema": {
+              "description": "IANA timezone for daily buckets (e.g. Europe/Oslo). When set, daily buckets are local days in this zone for ranges the hourly source data can serve (<= 30 days); longer ranges keep UTC days. Hourly buckets are unaffected.",
+              "examples": [
+                "Europe/Oslo"
+              ],
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
           }
         ],
         "responses": {

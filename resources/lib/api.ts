@@ -705,7 +705,7 @@ export async function fetchTopCityStats(params: TimeSeriesParams & { limit?: num
 
 export async function fetchIpProfile(params: TimeSeriesParams & { ip: string }) {
   const { data } = await apiV1AnalyticsIpProfileGetIpProfile({
-    query: { startDate: params.startDate, endDate: params.endDate, ipAddress: params.ip },
+    query: { startDate: params.startDate, endDate: params.endDate, ipAddress: params.ip, tz: BROWSER_TZ },
     throwOnError: true,
   })
   return data

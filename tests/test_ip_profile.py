@@ -150,7 +150,9 @@ class _FakeIpProfileRepo(IpProfileRepository):
         self.profile = profile
         self.calls: list[tuple[str, datetime, datetime]] = []
 
-    async def get_profile(self, ip: str, start: datetime, end: datetime) -> IpProfile:
+    async def get_profile(
+        self, ip: str, start: datetime, end: datetime, tz: str | None = None
+    ) -> IpProfile:
         self.calls.append((ip, start, end))
         return self.profile
 
@@ -197,3 +199,12 @@ async def test_endpoint_uses_camel_wire_names():
     assert body["peak"] is None
     assert body["userAgents"] == []
     assert repo.calls[0][0] == "10.0.0.1"
+
+
+async def test_endpoint_rejects_unknown_timezone():
+    async with AsyncTestClient(app=_app(_FakeIpProfileRepo(IpProfile()))) as client:
+        resp = await client.get(
+            "/api/v1/analytics/ip-profile",
+            params={"ipAddress": "10.0.0.1", "startDate": START.isoformat(), "endDate": NOW.isoformat(), "tz": "Mars/Olympus"},
+        )
+    assert resp.status_code == 400

@@ -180,9 +180,16 @@ _USER_AGENTS = text(f"""
 
 
 def _series_stmt(width: BucketWidth):
-    # The interval comes from a two-entry map, never from the request.
+    # The interval comes from a two-entry map, never from the request. Daily
+    # buckets are local days in the caller's zone, like the analytics charts;
+    # hours are the same on every clock, so hourly buckets stay plain.
+    bucket = (
+        "time_bucket('1 day', timestamp, CAST(:tz AS TEXT))"
+        if width == "daily"
+        else f"time_bucket('{_BUCKET_INTERVAL[width]}', timestamp)"
+    )
     return text(f"""
-        SELECT time_bucket('{_BUCKET_INTERVAL[width]}', timestamp) AS bucket,
+        SELECT {bucket} AS bucket,
                COUNT(*) AS hits,
                COUNT(*) FILTER (WHERE status_code >= 400) AS error_hits
         FROM access_logs
@@ -198,7 +205,9 @@ class IpProfileRepository:
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
 
-    async def get_profile(self, ip: str, start: datetime, end: datetime) -> IpProfile:
+    async def get_profile(
+        self, ip: str, start: datetime, end: datetime, tz: str | None = None
+    ) -> IpProfile:
         params = {"ip": ip, "start": start, "end": end}
         profile = IpProfile(granularity=profile_bucket_width(start, end))
 
@@ -230,7 +239,8 @@ class IpProfileRepository:
             profile.asn = int(asn_row.autonomous_system_number)
             profile.asn_organization = asn_row.autonomous_system_organization
 
-        series = await self.session.execute(_series_stmt(profile.granularity), params)
+        series_params = {**params, "tz": tz or "UTC"} if profile.granularity == "daily" else params
+        series = await self.session.execute(_series_stmt(profile.granularity), series_params)
         profile.series = [
             IpProfileBucket(timestamp=r.bucket, hits=int(r.hits), error_hits=int(r.error_hits))
             for r in series.fetchall()

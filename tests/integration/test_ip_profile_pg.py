@@ -136,3 +136,20 @@ async def test_profile_hosts_null_host_sorts_last(pg_session_maker, clean_tables
     assert [(h.host, h.hits) for h in profile.hosts] == [
         ("blog.example.com", 2), ("cloud.example.com", 1), (None, 1),
     ]
+
+
+async def test_profile_daily_buckets_follow_the_requested_timezone(pg_session_maker, clean_tables):
+    # 23:00 UTC on the 20th is already the 21st in Oslo (UTC+2 in August).
+    late = datetime(2026, 8, 20, 23, 0, tzinfo=timezone.utc)
+    async with pg_session_maker() as session:
+        await _insert_log(session, ts=late)
+        await session.commit()
+
+    start, end = datetime(2026, 8, 10, tzinfo=timezone.utc), datetime(2026, 8, 25, tzinfo=timezone.utc)
+    async with pg_session_maker() as session:
+        utc_days = await IpProfileRepository(session).get_profile(IP, start, end)
+        oslo_days = await IpProfileRepository(session).get_profile(IP, start, end, tz="Europe/Oslo")
+
+    assert [b.timestamp for b in utc_days.series] == [datetime(2026, 8, 20, tzinfo=timezone.utc)]
+    # Oslo's 21st starts at 22:00 UTC on the 20th.
+    assert [b.timestamp for b in oslo_days.series] == [datetime(2026, 8, 20, 22, tzinfo=timezone.utc)]

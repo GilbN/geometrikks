@@ -248,7 +248,8 @@
       "queryParameters": {
         "endDate": "DateTime",
         "ipAddress": "string",
-        "startDate": "DateTime"
+        "startDate": "DateTime",
+        "tz": "string | undefined"
       },
       "uri": "/api/v1/analytics/ip-profile"
     },

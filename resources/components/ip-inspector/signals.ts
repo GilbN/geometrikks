@@ -59,11 +59,13 @@ function hoursBetween(fromIso: string, toIso: string): number {
 }
 
 /** Start of the bucket that contains `iso`, as the sparkline's category
- *  value. Recharts only draws a ReferenceLine whose x matches a data point. */
+ *  value. Recharts only draws a ReferenceLine whose x matches a data point.
+ *  Daily buckets are local days (the profile is fetched with the browser's
+ *  zone), so the day floors on the local clock; hours floor in UTC. */
 export function bucketFloor(iso: string, granularity: "hourly" | "daily"): string {
   const d = new Date(iso)
-  d.setUTCMinutes(0, 0, 0)
-  if (granularity === "daily") d.setUTCHours(0)
+  if (granularity === "daily") d.setHours(0, 0, 0, 0)
+  else d.setUTCMinutes(0, 0, 0)
   return d.toISOString()
 }
 

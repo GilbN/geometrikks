@@ -258,6 +258,7 @@ export interface RouteQueryParams {
     endDate: DateTime;
     ipAddress: string;
     startDate: DateTime;
+    tz?: string;
   };
   'get_live_summary': {
     comparePrevious?: boolean;
@@ -584,7 +585,7 @@ export const routeDefinitions = {
     methods: ['GET'] as const,
     method: 'get',
     pathParams: [] as const,
-    queryParams: ['endDate', 'ipAddress', 'startDate'] as const,
+    queryParams: ['endDate', 'ipAddress', 'startDate', 'tz'] as const,
   },
   'get_live_summary': {
     path: '/api/v1/analytics/live-summary',
