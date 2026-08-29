@@ -35,9 +35,7 @@ export function GeoLogDetailSheet({
               <span className="inline-flex flex-wrap items-center gap-2 font-mono text-xs">
                 {entry.ipAddress}
                 <IpBanControls ip={entry.ipAddress}>
-                  <span onClickCapture={() => onOpenChange(false)}>
-                    <InspectIpButton ip={entry.ipAddress} fromLocationId={entry.locationId} />
-                  </span>
+                  <InspectIpButton ip={entry.ipAddress} fromLocationId={entry.locationId} onOpen={() => onOpenChange(false)} />
                 </IpBanControls>
               </span>
             }
