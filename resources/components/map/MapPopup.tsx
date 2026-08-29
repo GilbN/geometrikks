@@ -239,8 +239,9 @@ export function MapPopup({
                     1. {top_ips[0].ipAddress}
                   </code>
                   <span style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
-                    <InspectIpButton ip={top_ips[0].ipAddress} fromLocationId={locationId} />
-                    <IpBanControls ip={top_ips[0].ipAddress} />
+                    <IpBanControls ip={top_ips[0].ipAddress}>
+                      <InspectIpButton ip={top_ips[0].ipAddress} fromLocationId={locationId} />
+                    </IpBanControls>
                     <span
                       style={{
                         fontSize: "10px",
@@ -278,8 +279,9 @@ export function MapPopup({
                               {index + 2}. {ip.ipAddress}
                             </code>
                             <span style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
-                              <InspectIpButton ip={ip.ipAddress} fromLocationId={locationId} />
-                              <IpBanControls ip={ip.ipAddress} />
+                              <IpBanControls ip={ip.ipAddress}>
+                                <InspectIpButton ip={ip.ipAddress} fromLocationId={locationId} />
+                              </IpBanControls>
                               <span
                                 style={{
                                   fontSize: "10px",

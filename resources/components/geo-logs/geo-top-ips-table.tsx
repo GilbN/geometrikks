@@ -7,6 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { formatNumber } from "@/lib/api"
 import { useGeoLogTopIps } from "@/lib/queries"
 import { IpBanControls } from "@/components/crowdsec/ip-ban-controls"
+import { InspectIpButton } from "@/components/ip-inspector/inspect-ip-button"
 import { TablePaginationFooter, usePagedRows } from "@/components/analytics/table-pagination"
 
 export function GeoTopIpsTable() {
@@ -42,7 +43,9 @@ export function GeoTopIpsTable() {
             <TableRow key={row.ipAddress}>
               <TableCell className="font-mono text-xs">
                 {row.ipAddress}
-                <IpBanControls ip={row.ipAddress} />
+                <IpBanControls ip={row.ipAddress}>
+                  <InspectIpButton ip={row.ipAddress} className="ml-1" />
+                </IpBanControls>
               </TableCell>
               <TableCell>{row.countryCode ?? "-"}</TableCell>
               <TableCell>{row.city ?? "-"}</TableCell>

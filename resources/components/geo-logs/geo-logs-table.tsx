@@ -54,12 +54,7 @@ function renderCell(column: GeoLogColumn, r: GeoLogEntry): React.ReactNode {
     case "countryName":
       return <span className="whitespace-nowrap">{r.countryName}</span>
     case "ipAddress":
-      return (
-        <span className="inline-flex items-center gap-1 font-mono">
-          {r.ipAddress}
-          <InspectIpButton ip={r.ipAddress} />
-        </span>
-      )
+      return <span className="font-mono">{r.ipAddress}</span>
     case "latitude":
       return <span className="tabular-nums">{r.latitude.toFixed(4)}</span>
     case "longitude":
@@ -223,7 +218,9 @@ export function GeoLogsTable({
                     {renderCell(c, row)}
                     {c.key === "ipAddress" && (
                       <span {...stopRowActivation}>
-                        <IpBanControls ip={row.ipAddress} />
+                        <IpBanControls ip={row.ipAddress}>
+                          <InspectIpButton ip={row.ipAddress} className="ml-1" />
+                        </IpBanControls>
                       </span>
                     )}
                   </TableCell>

@@ -395,7 +395,10 @@ export function MapControls({
                     {ip.location?.city ?? ip.location?.countryCode ?? ""}
                   </span>
                 </button>
-                <InspectIpButton ip={ip.ipAddress} fromLocationId={ip.location?.id} />
+                {/* Fly first, then let the button open the inspector: same landing as the row click. */}
+                <span onClickCapture={() => ip.location && onFlyToLocation?.(ip.location.latitude, ip.location.longitude)}>
+                  <InspectIpButton ip={ip.ipAddress} fromLocationId={ip.location?.id} />
+                </span>
               </div>
             ))}
           </div>

@@ -46,8 +46,9 @@ export function TopIpsTable() {
                   <TableRow key={row.ipAddress}>
                     <TableCell className="font-mono text-xs">
                       {row.ipAddress}
-                      <InspectIpButton ip={row.ipAddress} className="ml-1" />
-                      <IpBanControls ip={row.ipAddress} />
+                      <IpBanControls ip={row.ipAddress}>
+                        <InspectIpButton ip={row.ipAddress} className="ml-1" />
+                      </IpBanControls>
                     </TableCell>
                     <TableCell>{row.countryCode ?? "-"}</TableCell>
                     <TableCell>{row.city ?? "-"}</TableCell>
