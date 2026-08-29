@@ -186,7 +186,7 @@ function IpInspectorBody({ ip, onZoom }: { ip: string; onZoom: (from: string, to
 
       <footer className="flex gap-2 border-t border-border/50 pt-3">
         <Button asChild size="sm" variant="outline">
-          <Link to="/analytics" search={(prev) => ({ ...prev, ip: [ip], inspect: ip })}>Analytics →</Link>
+          <Link to="/analytics" search={{ ip: [ip], inspect: ip }}>Analytics →</Link>
         </Button>
         <Button asChild size="sm" variant="outline">
           <Link to="/access-logs" search={{ ip: [ip], inspect: ip }}>Access logs →</Link>

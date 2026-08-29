@@ -4,6 +4,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useNavigate, useSearch } from "@tanstack/react-router"
+import { toast } from "sonner"
 import Map, {
   Source,
   Layer,
@@ -176,24 +177,30 @@ function GeoMapInner({
   const [showBanned, setShowBanned] = useState(false)
   const [popup, setPopup] = useState<PopupInfo | null>(null)
 
+  const liveStore = useLiveTrafficStore()
+  const [livePopup, setLivePopup] = useState<LiveRequest | null>(null)
+  const [feedOpen, setFeedOpen] = useState(false)
   // The IP inspector navigates here with ?focus=<locationId> and the data
-  // filters cleared, so the feature is in this payload once it loads.
+  // filters cleared, so the feature is in this payload once it loads. The
+  // GeoJSON can arrive from the query cache before the map has a style, so
+  // the fly-to also waits for the map's load event.
+  const [mapLoaded, setMapLoaded] = useState(false)
   const focusId = search.focus
   useEffect(() => {
-    if (focusId === undefined || isLoadingGeoJSON || !geojson) return
+    if (focusId === undefined || !mapLoaded || isLoadingGeoJSON || !geojson) return
     const feature = geojson.features.find((f) => f.properties?.id === focusId)
     if (feature) {
       const [lng, lat] = (feature.geometry as Point).coordinates
       setLivePopup(null)
       setPopup({ longitude: lng, latitude: lat, properties: feature.properties as PopupInfo["properties"] })
       mapRef.current?.flyTo({ center: [lng, lat], zoom: 7, duration: 1500 })
+    } else {
+      toast.message("Location not on the map", {
+        description: "It has no geo events in the selected time range.",
+      })
     }
     void navigate({ search: (prev) => ({ ...prev, focus: undefined }), replace: true })
-  }, [focusId, geojson, isLoadingGeoJSON, navigate])
-
-  const liveStore = useLiveTrafficStore()
-  const [livePopup, setLivePopup] = useState<LiveRequest | null>(null)
-  const [feedOpen, setFeedOpen] = useState(false)
+  }, [focusId, geojson, isLoadingGeoJSON, mapLoaded, navigate])
 
   // Banned-IP overlay: attackers with an active CrowdSec decision that also
   // appear in this server's own traffic.
@@ -486,6 +493,7 @@ function GeoMapInner({
       <Map
         ref={mapRef}
         {...viewState}
+        onLoad={() => setMapLoaded(true)}
         onMove={onMove}
         onClick={onClick}
         mapStyle={mapStyle}

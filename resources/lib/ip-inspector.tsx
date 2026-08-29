@@ -11,7 +11,7 @@ interface OriginState {
   setOrigin: (id: number | null) => void
 }
 
-const OriginContext = createContext<OriginState>({ originLocationId: null, setOrigin: () => {} })
+const OriginContext = createContext<OriginState | null>(null)
 
 export function IpInspectorProvider({ children }: { children: React.ReactNode }) {
   const [originLocationId, setOrigin] = useState<number | null>(null)
@@ -22,7 +22,9 @@ export function IpInspectorProvider({ children }: { children: React.ReactNode })
 export function useIpInspector() {
   const navigate = useNavigate()
   const search = useSearch({ strict: false })
-  const { originLocationId, setOrigin } = useContext(OriginContext)
+  const origin = useContext(OriginContext)
+  if (!origin) throw new Error("useIpInspector must be used within an IpInspectorProvider")
+  const { originLocationId, setOrigin } = origin
   const ip = typeof search.inspect === "string" && search.inspect ? search.inspect : undefined
 
   const open = useCallback(
