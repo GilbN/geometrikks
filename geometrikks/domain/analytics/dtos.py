@@ -357,8 +357,9 @@ class IpProfileHostDTO(msgspec.Struct, rename="camel"):
 
 
 class IpProfilePathDTO(msgspec.Struct, rename="camel"):
-    """One path this IP requested, with its hit and error counts."""
+    """One host and path pair this IP requested, with its hit and error counts."""
 
+    host: str | None
     url: str
     hits: int
     error_hits: int

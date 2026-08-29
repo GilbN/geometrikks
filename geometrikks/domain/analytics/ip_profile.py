@@ -54,6 +54,7 @@ class IpProfileHost:
 
 @dataclass(frozen=True)
 class IpProfilePath:
+    host: str | None
     url: str
     hits: int
     error_hits: int
@@ -155,14 +156,15 @@ _HOSTS = text(f"""
 """)
 
 _PATHS = text(f"""
-    SELECT url,
+    SELECT host,
+           url,
            COUNT(*) AS hits,
            COUNT(*) FILTER (WHERE status_code >= 400) AS error_hits
     FROM access_logs
     {_WINDOW}
       AND url IS NOT NULL
-    GROUP BY url
-    ORDER BY hits DESC, url
+    GROUP BY host, url
+    ORDER BY hits DESC, host NULLS LAST, url
     LIMIT :limit
 """)
 
@@ -242,7 +244,7 @@ class IpProfileRepository:
 
         paths = await self.session.execute(_PATHS, {**params, "limit": PATH_LIMIT})
         profile.paths = [
-            IpProfilePath(url=r.url, hits=int(r.hits), error_hits=int(r.error_hits))
+            IpProfilePath(host=r.host, url=r.url, hits=int(r.hits), error_hits=int(r.error_hits))
             for r in paths.fetchall()
         ]
 

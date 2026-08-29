@@ -134,7 +134,7 @@ def test_mapper_classifies_asn_and_derives_error_rate():
         asn=16509, asn_organization="Amazon",
         series=[IpProfileBucket(NOW - timedelta(hours=1), hits=10, error_hits=8)],
         hosts=[IpProfileHost(host=None, hits=10, error_hits=8)],
-        paths=[IpProfilePath(url="/.env", hits=10, error_hits=8)],
+        paths=[IpProfilePath(host="blog.example.com", url="/.env", hits=10, error_hits=8)],
         user_agents=[IpProfileUserAgent(user_agent="curl/8.0", hits=10)],
     )
     resp = _to_ip_profile_response("10.0.0.1", START, NOW, profile)

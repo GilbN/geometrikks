@@ -574,6 +574,7 @@ export type IpProfileHostDto = {
 export type IpProfilePathDto = {
   errorHits: number;
   hits: number;
+  host: string | null;
   url: string;
 };
 

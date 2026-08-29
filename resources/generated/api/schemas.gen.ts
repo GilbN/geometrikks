@@ -1872,11 +1872,21 @@ export const IpProfilePathDTOSchema = {
     hits: {
       type: "integer",
     },
+    host: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
     url: {
       type: "string",
     },
   },
-  required: ["errorHits", "hits", "url"],
+  required: ["errorHits", "hits", "host", "url"],
   title: "IpProfilePathDTO",
   type: "object",
 } as const;

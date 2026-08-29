@@ -69,7 +69,9 @@ async def test_profile_totals_lists_and_isolation(pg_session_maker, clean_tables
     assert [(h.host, h.hits, h.error_hits) for h in profile.hosts] == [
         ("blog.example.com", 5, 4), ("cloud.example.com", 1, 1),
     ]
-    assert [p.url for p in profile.paths] == ["/wp-login.php", "/", "/.env"]
+    assert [(p.host, p.url) for p in profile.paths] == [
+        ("blog.example.com", "/wp-login.php"), ("blog.example.com", "/"), ("cloud.example.com", "/.env"),
+    ]
     assert [(u.user_agent, u.hits) for u in profile.user_agents] == [
         ("Go-http-client/1.1", 5), ("curl/8.0", 1),
     ]

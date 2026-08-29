@@ -137,7 +137,7 @@ def _to_ip_profile_response(
         series=[_bucket_dto(b) for b in profile.series],
         peak=_optional_bucket_dto(profile.peak),
         hosts=[IpProfileHostDTO(host=h.host, hits=h.hits, error_hits=h.error_hits) for h in profile.hosts],
-        paths=[IpProfilePathDTO(url=p.url, hits=p.hits, error_hits=p.error_hits) for p in profile.paths],
+        paths=[IpProfilePathDTO(host=p.host, url=p.url, hits=p.hits, error_hits=p.error_hits) for p in profile.paths],
         user_agents=[IpProfileUserAgentDTO(user_agent=u.user_agent, hits=u.hits) for u in profile.user_agents],
     )
 
