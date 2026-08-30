@@ -628,13 +628,6 @@
       ],
       "uri": "/schema/openapi.json"
     },
-    "openapi.yaml": {
-      "method": "get",
-      "methods": [
-        "GET"
-      ],
-      "uri": "/schema/openapi.yaml"
-    },
     "read_settings": {
       "method": "get",
       "methods": [
