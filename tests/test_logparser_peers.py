@@ -37,8 +37,50 @@ class FakeASN:
         self.autonomous_system_organization = "org"
 
 
-def parse(parser: LogParser, ip: str) -> None:
-    lookup = lambda _ip: None                     # no City data needed for classification
+class FakeCountry:
+    iso_code = "US"
+    name = "United States"
+
+
+class FakeCityDetail:
+    name = "Testville"
+
+
+class FakeLocation:
+    latitude = 37.0
+    longitude = -122.0
+    time_zone = "America/Los_Angeles"
+
+
+class FakeSubdivision:
+    name = "California"
+    iso_code = "CA"
+
+
+class FakeSubdivisions:
+    most_specific = FakeSubdivision()
+
+
+class FakePostal:
+    code = "94103"
+
+
+class FakeCity:
+    """Enough of geoip2.models.City for _parse_geo_data/_parse_access_log."""
+
+    country = FakeCountry()
+    city = FakeCityDetail()
+    location = FakeLocation()
+    subdivisions = FakeSubdivisions()
+    postal = FakePostal()
+
+
+def parse(parser: LogParser, ip: str, *, lookup=None) -> None:
+    # CDN classification reads access_log.autonomous_system_number, which
+    # _parse_access_log only sets once the City lookup also succeeds; pass a
+    # FakeCity stub via `lookup=` for tests that need that row to carry ASN.
+    if lookup is None:
+        lookup = lambda _ip: None
     stub_asn = parser._asn  # ty: ignore[unresolved-attribute]
     asn_lookup = (lambda _ip: FakeASN(stub_asn)) if stub_asn else (lambda _ip: None)
     parser.parse_line(make_line(ip), lookup, asn_lookup=asn_lookup)  # ty: ignore[invalid-argument-type]
@@ -69,7 +111,7 @@ def test_private_line_recorded() -> None:
 def test_cdn_line_recorded_with_provider() -> None:
     window = PeerWindow(size=100)
     parser = make_parser(window=window, asn=13335)
-    parse(parser, "203.0.113.7")
+    parse(parser, "203.0.113.7", lookup=lambda _ip: FakeCity())
     s = window.summary()
     assert s.cdn_share == 1.0 and s.top_provider == "Cloudflare"
 

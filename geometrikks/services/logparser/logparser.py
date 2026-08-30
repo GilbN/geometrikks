@@ -400,7 +400,7 @@ class LogParser:
         )
 
         if self.peer_window is not None:
-            self._record_peer(ip, asn_lookup)
+            self._record_peer(ip, access_log)
 
         return ParsedLogRecord(
             ip_address=ip,
@@ -559,16 +559,16 @@ class LogParser:
             ),
         )
 
-    def _record_peer(
-        self, ip: str, asn_lookup: Callable[[str], ASN | None] | None
-    ) -> None:
+    def _record_peer(self, ip: str, access_log: ParsedAccessLog | None) -> None:
         """Classify one peer address and log it into the rolling window.
 
-        Uses the same cached ASN lookup already threaded through parse_line,
-        not access_log.autonomous_system_number: that field is only present
-        once the City lookup for the line also succeeds, and CDN edges are
-        exactly the addresses most likely to be missing from the City
-        database while still resolving in the ASN one.
+        CDN classification reads the ASN already carried by access_log, not a
+        fresh asn_lookup(ip) call: that keeps this on a zero-mmdb-read budget.
+        The trade-off is by design, not a gap to close: lines with no
+        access-log row - geo-only mode (send_logs=False), or a City-lookup
+        miss even in full mode - classify as "other" here even when the peer
+        is a CDN edge. Private-peer detection is unaffected since it never
+        needs the ASN.
         """
         window = self.peer_window
         if window is None:
@@ -578,8 +578,7 @@ class LogParser:
                 return  # reserved/multicast: noise, not a proxy symptom
             window.record("private")
         else:
-            asn_data = asn_lookup(ip) if asn_lookup is not None else None
-            asn = asn_data.autonomous_system_number if asn_data else None
+            asn = access_log.autonomous_system_number if access_log else None
             provider = CDN_ASNS.get(asn) if asn is not None else None
             if provider:
                 window.record("cdn", provider)
