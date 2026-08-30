@@ -32,6 +32,7 @@ from real environment variables. It is read once at import time.
 | Variable | Default | Description |
 |---|---|---|
 | `APP_MODE` | `full` | Application mode: full (all components) or agent (logparser only) |
+| `APP_PROXY_ADVISORY` | `true` | Warn on Settings > Status when most recent traffic for a tailed file comes from CDN or private peer addresses, meaning the proxy logs its upstream instead of the visitor. Set to false when that is deliberate (Tailscale-only access, a CDN you front on purpose). |
 
 ## API server
 

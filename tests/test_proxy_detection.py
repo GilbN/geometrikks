@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from types import SimpleNamespace
+from typing import Any, cast
 
 from geometrikks.domain.system.proxy_detection import (
     PROXY_SETUP_DOCS_URL, ProxyFinding, proxy_advisories, proxy_findings,
@@ -88,3 +89,52 @@ def test_two_kinds_two_cards_multiple_sources() -> None:
     assert (cdn.remedy is not None
             and "set_real_ip_from" in cdn.remedy
             and "forwardedHeaders.trustedIPs" in cdn.remedy)
+
+
+def test_collect_advisories_includes_proxy_cards(monkeypatch) -> None:
+    from types import SimpleNamespace
+    from geometrikks.domain.system.controllers import health
+    from geometrikks.server import runtime, timescale
+
+    s = summary(private_share=0.9, private_active=True)
+    service = SimpleNamespace(parsers=[fake_parser(summary=s)])
+    monkeypatch.setattr(runtime, "get_ingestion_service", lambda app: service)
+    monkeypatch.setattr(timescale, "get_hostname_pollution", lambda: None)
+
+    settings = SimpleNamespace(
+        app=SimpleNamespace(proxy_advisory=True),
+        geoip=SimpleNamespace(asn_enabled=False),
+    )
+    cards = health._collect_advisories(app=cast(Any, object()), settings=cast(Any, settings))
+    assert [c.id for c in cards] == ["proxy-peer-private"]
+
+
+def test_collect_advisories_respects_off_switch(monkeypatch) -> None:
+    from types import SimpleNamespace
+    from geometrikks.domain.system.controllers import health
+    from geometrikks.server import runtime, timescale
+
+    monkeypatch.setattr(
+        runtime, "get_ingestion_service",
+        lambda app: (_ for _ in ()).throw(AssertionError("must not be called")),
+    )
+    monkeypatch.setattr(timescale, "get_hostname_pollution", lambda: None)
+    settings = SimpleNamespace(
+        app=SimpleNamespace(proxy_advisory=False),
+        geoip=SimpleNamespace(asn_enabled=False),
+    )
+    assert health._collect_advisories(app=cast(Any, object()), settings=cast(Any, settings)) == []
+
+
+def test_collect_advisories_survives_no_ingestion_service(monkeypatch) -> None:
+    from types import SimpleNamespace
+    from geometrikks.domain.system.controllers import health
+    from geometrikks.server import runtime, timescale
+
+    monkeypatch.setattr(runtime, "get_ingestion_service", lambda app: None)
+    monkeypatch.setattr(timescale, "get_hostname_pollution", lambda: None)
+    settings = SimpleNamespace(
+        app=SimpleNamespace(proxy_advisory=True),
+        geoip=SimpleNamespace(asn_enabled=False),
+    )
+    assert health._collect_advisories(app=cast(Any, object()), settings=cast(Any, settings)) == []

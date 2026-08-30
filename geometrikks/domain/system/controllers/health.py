@@ -23,6 +23,7 @@ from litestar.status_codes import HTTP_200_OK, HTTP_503_SERVICE_UNAVAILABLE
 from sqlalchemy import text
 
 from geometrikks.config.settings import Settings
+from geometrikks.domain.system.proxy_detection import proxy_advisories, proxy_findings
 from geometrikks.lib.utils import geoip_info
 from geometrikks.server import runtime
 from geometrikks.services.ingestion import LogIngestionService
@@ -174,6 +175,12 @@ def _collect_advisories(app: Litestar, settings: Settings) -> list[Advisory]:
             ),
             remedy="Set GEOIP_ASN_ENABLED=false to turn ASN enrichment off instead.",
         ))
+    if settings.app.proxy_advisory:
+        service = runtime.get_ingestion_service(app)
+        if service is not None:
+            advisories.extend(
+                proxy_advisories(proxy_findings(service.parsers))
+            )
     return advisories
 
 
