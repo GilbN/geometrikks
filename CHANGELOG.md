@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- The map runs on MapLibre GL JS 6.
+
 ## [0.12.0] - 2026-08-29
 
 ### Added
