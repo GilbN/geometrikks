@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import httpx
+import httpx2
 
 from geometrikks.config.settings import GeoIPSettings, MapSettings
 from geometrikks.services.geoip.home import resolve_home_location
@@ -24,10 +24,10 @@ async def test_configured_home_skips_public_ip_lookup():
 
 
 async def test_external_ip_is_geolocated_with_local_database():
-    def respond(request: httpx.Request) -> httpx.Response:
-        return httpx.Response(200, json={"ip": "81.2.69.142"}, request=request)
+    def respond(request: httpx2.Request) -> httpx2.Response:
+        return httpx2.Response(200, json={"ip": "81.2.69.142"}, request=request)
 
-    async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as client:
+    async with httpx2.AsyncClient(transport=httpx2.MockTransport(respond)) as client:
         home = await resolve_home_location(
             MapSettings(auto_detect_home=True, _env_file=None),
             GeoIPSettings(
@@ -46,10 +46,10 @@ async def test_external_ip_is_geolocated_with_local_database():
 
 
 async def test_discovery_failure_degrades_without_raising():
-    def respond(request: httpx.Request) -> httpx.Response:
-        return httpx.Response(503, request=request)
+    def respond(request: httpx2.Request) -> httpx2.Response:
+        return httpx2.Response(503, request=request)
 
-    async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as client:
+    async with httpx2.AsyncClient(transport=httpx2.MockTransport(respond)) as client:
         home = await resolve_home_location(
             MapSettings(auto_detect_home=True, _env_file=None),
             GeoIPSettings(validate_db_path=False, _env_file=None),

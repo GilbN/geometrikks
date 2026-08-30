@@ -9,7 +9,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any
 
-import httpx
+import httpx2
 import msgspec
 
 from geometrikks.config.settings import CrowdSecSettings
@@ -27,7 +27,7 @@ logger = get_logger(__name__)
 class CrowdSecService:
     """Async client for the CrowdSec Local API.
 
-    Owns one ``httpx.AsyncClient`` for the process lifetime; constructed at
+    Owns one ``httpx2.AsyncClient`` for the process lifetime; constructed at
     startup only when the integration is enabled and closed on shutdown.
     """
 
@@ -35,7 +35,7 @@ class CrowdSecService:
         self,
         settings: CrowdSecSettings,
         *,
-        transport: httpx.AsyncBaseTransport | None = None,
+        transport: httpx2.AsyncBaseTransport | None = None,
     ) -> None:
         if settings.lapi_url is None or settings.bouncer_api_key is None:
             raise CrowdSecAuthError(
@@ -43,7 +43,7 @@ class CrowdSecService:
             )
         self._settings = settings
         self._bouncer_headers = {"X-Api-Key": settings.bouncer_api_key.get_secret_value()}
-        self._client = httpx.AsyncClient(
+        self._client = httpx2.AsyncClient(
             base_url=settings.lapi_url,
             timeout=settings.request_timeout,
             verify=settings.verify_tls,
@@ -86,13 +86,13 @@ class CrowdSecService:
                 "/v1/decisions", headers=self._bouncer_headers, params=params
             )
             resp.raise_for_status()
-        except httpx.HTTPStatusError as exc:
+        except httpx2.HTTPStatusError as exc:
             if exc.response.status_code in (401, 403):
                 raise CrowdSecAuthError("LAPI rejected the bouncer API key") from exc
             raise CrowdSecUnavailableError(
                 f"LAPI error: HTTP {exc.response.status_code}"
             ) from exc
-        except httpx.HTTPError as exc:
+        except httpx2.HTTPError as exc:
             raise CrowdSecUnavailableError(f"LAPI unreachable: {exc}") from exc
         # The LAPI returns JSON null when no decisions match.
         return msgspec.convert(resp.json() or [], list[Decision], strict=False)
@@ -117,13 +117,13 @@ class CrowdSecService:
                 "/v1/decisions/stream", headers=self._bouncer_headers, params=params
             )
             resp.raise_for_status()
-        except httpx.HTTPStatusError as exc:
+        except httpx2.HTTPStatusError as exc:
             if exc.response.status_code in (401, 403):
                 raise CrowdSecAuthError("LAPI rejected the bouncer API key") from exc
             raise CrowdSecUnavailableError(
                 f"LAPI error: HTTP {exc.response.status_code}"
             ) from exc
-        except httpx.HTTPError as exc:
+        except httpx2.HTTPError as exc:
             raise CrowdSecUnavailableError(f"LAPI unreachable: {exc}") from exc
         body = resp.json() or {}
         # Both keys are JSON null when nothing changed.
@@ -159,13 +159,13 @@ class CrowdSecService:
             if resp.status_code in (401, 403):
                 raise CrowdSecAuthError("LAPI rejected the machine credentials")
             resp.raise_for_status()
-        except httpx.HTTPError as exc:
+        except httpx2.HTTPError as exc:
             raise CrowdSecUnavailableError(f"LAPI unreachable: {exc}") from exc
         self._machine_token = resp.json()["token"]
         logger.info("Logged in to CrowdSec LAPI as machine %s", self._settings.machine_id)
         return self._machine_token
 
-    async def _machine_request(self, method: str, url: str, **kwargs: Any) -> httpx.Response:
+    async def _machine_request(self, method: str, url: str, **kwargs: Any) -> httpx2.Response:
         token = self._machine_token or await self._login()
         try:
             resp = await self._client.request(
@@ -181,11 +181,11 @@ class CrowdSecService:
                 raise CrowdSecAuthError("LAPI rejected the machine token")
             resp.raise_for_status()
             return resp
-        except httpx.HTTPStatusError as exc:
+        except httpx2.HTTPStatusError as exc:
             raise CrowdSecUnavailableError(
                 f"LAPI error: HTTP {exc.response.status_code}"
             ) from exc
-        except httpx.HTTPError as exc:
+        except httpx2.HTTPError as exc:
             raise CrowdSecUnavailableError(f"LAPI unreachable: {exc}") from exc
 
     async def ban_ip(

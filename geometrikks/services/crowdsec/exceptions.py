@@ -1,6 +1,6 @@
 """Domain exceptions for the CrowdSec integration.
 
-The service raises these instead of leaking httpx exceptions; app-level
+The service raises these instead of leaking httpx2 exceptions; app-level
 handlers in server/core.py translate them to HTTP responses.
 """
 from __future__ import annotations

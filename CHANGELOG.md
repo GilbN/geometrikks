@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.12.1] - 2026-08-30
+
+### Changed
+
+- The map runs on MapLibre GL JS 6 (6.6.0, up from 5.24.0).
+- The backend's HTTP client is `httpx2` 2.12 instead of `httpx`; the unused `httpx-oauth` dependency is dropped. The container image builds on `oven/bun` 1.4.0.
+- The API reference at `/schema` is rendered by Scalar. The ReDoc, Swagger UI, RapiDoc and Stoplight pages and `/schema/openapi.yaml` are gone; `/schema/openapi.json` is unchanged.
+
 ## [0.12.0] - 2026-08-29
 
 ### Added
@@ -925,7 +933,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Settings endpoint no longer exposes the full settings tree (database credentials leaked via `model_dump()`); response is now an explicit whitelist.
 - Timestamps in `CALL refresh_continuous_aggregate` are bound as asyncpg parameters instead of interpolated into SQL.
 
-[Unreleased]: https://github.com/GilbN/geometrikks/compare/v0.12.0...HEAD
+[Unreleased]: https://github.com/GilbN/geometrikks/compare/v0.12.1...develop
+[0.12.1]: https://github.com/GilbN/geometrikks/compare/v0.12.0...v0.12.1
 [0.12.0]: https://github.com/GilbN/geometrikks/compare/v0.11.0...v0.12.0
 [0.11.0]: https://github.com/GilbN/geometrikks/compare/v0.10.0...v0.11.0
 [0.10.0]: https://github.com/GilbN/geometrikks/compare/v0.9.0...v0.10.0
