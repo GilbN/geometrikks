@@ -66,6 +66,7 @@ class Advisory(msgspec.Struct, rename="camel"):
     summary: str
     detail: str | None = None
     remedy: str | None = None
+    docs_url: str | None = None
 
 
 class HealthResponse(msgspec.Struct, rename="camel"):
