@@ -434,7 +434,12 @@ class AnalyticsSettings(BaseSettings):
     # Retention periods for TimescaleDB policies
     raw_retention_days: int = Field(
         default=180,
-        description="Days to keep raw geo_events and access_logs data",
+        description=(
+            "Days to keep raw geo_events and access_logs data. At least 4: the "
+            "daily aggregates refresh their last 3 days from raw rows, and a "
+            "shorter retention makes each refresh erase those buckets. Startup "
+            "refuses lower values."
+        ),
     )
     debug_retention_days: int = Field(
         default=30,

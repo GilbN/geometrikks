@@ -106,7 +106,7 @@ from real environment variables. It is read once at import time.
 
 | Variable | Default | Description |
 |---|---|---|
-| `ANALYTICS_RAW_RETENTION_DAYS` | `180` | Days to keep raw geo_events and access_logs data |
+| `ANALYTICS_RAW_RETENTION_DAYS` | `180` | Days to keep raw geo_events and access_logs data. At least 4: the daily aggregates refresh their last 3 days from raw rows, and a shorter retention makes each refresh erase those buckets. Startup refuses lower values. |
 | `ANALYTICS_DEBUG_RETENTION_DAYS` | `30` | Days to keep access_log_debug data |
 | `ANALYTICS_HOURLY_RETENTION_DAYS` | `60` | Days to keep hourly continuous aggregate data |
 | `ANALYTICS_CAGG_REFRESH_INTERVAL_MINUTES` | `5` | Minutes between continuous aggregate refreshes |

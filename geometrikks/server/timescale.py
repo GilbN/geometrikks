@@ -619,6 +619,48 @@ HOURLY_CAGGS = [
 ]
 
 
+def _interval_days(interval: str) -> float:
+    """Days in a ``'<n> hours'`` / ``'<n> days'`` policy interval."""
+    amount, unit = interval.split()
+    if unit.startswith("hour"):
+        return int(amount) / 24
+    if unit.startswith("day"):
+        return int(amount)
+    raise ValueError(f"Unsupported policy interval unit: {interval!r}")
+
+
+def check_refresh_offsets(*, raw_retention_days: int) -> None:
+    """Refuse a raw retention that a CAGG refresh window would reach past.
+
+    A refresh recomputes every bucket in ``[now - start_offset, now -
+    end_offset]`` from the source hypertable. Once retention has dropped the
+    raw chunks under part of that window, the refresh finds nothing there
+    and deletes the materialized rows, silently, on every run. Raising here
+    fails startup before any policy is touched.
+
+    Raises:
+        ValueError: when any refresh ``start_offset`` is at or beyond
+            ``raw_retention_days``.
+    """
+    reaching = [
+        (cagg, start_offset)
+        for cagg, start_offset, _end in CAGG_REFRESH_CONFIG
+        if _interval_days(start_offset) >= raw_retention_days
+    ]
+    if not reaching:
+        return
+    minimum = int(max(_interval_days(offset) for _cagg, offset in reaching)) + 1
+    cagg, start_offset = reaching[0]
+    others = f" and {len(reaching) - 1} more" if len(reaching) > 1 else ""
+    raise ValueError(
+        f"ANALYTICS_RAW_RETENTION_DAYS={raw_retention_days} is inside the "
+        f"{start_offset} refresh window of {cagg}{others}: each refresh would "
+        "recompute buckets from raw rows retention has already dropped and "
+        "delete the materialized rows. Set ANALYTICS_RAW_RETENTION_DAYS to "
+        f"at least {minimum}."
+    )
+
+
 async def _add_refresh_policies(
     conn: "AsyncConnection",
     refresh_interval_minutes: int,
@@ -648,40 +690,68 @@ async def _add_retention_policies(
     debug_retention_days: int,
     hourly_retention_days: int,
 ) -> None:
-    """Add retention policies for hypertables and hourly CAGGs."""
-    # Hypertable retention
+    """Add retention policies for hypertables and hourly CAGGs, and point
+    the ones that already exist at the configured drop_after."""
     retention_configs = [
         ("geo_events", raw_retention_days),
         ("access_logs", raw_retention_days),
         ("access_log_debug", debug_retention_days),
+        *((cagg, hourly_retention_days) for cagg in HOURLY_CAGGS),
     ]
 
-    for table, days in retention_configs:
+    for target, days in retention_configs:
         try:
             await conn.execute(text(f"""
                 SELECT add_retention_policy(
-                    '{table}',
+                    '{target}',
                     drop_after => INTERVAL '{days} days',
                     if_not_exists => TRUE
                 )
             """))
-            logger.info("Retention policy added/verified: %s (%d days)", table, days)
+            logger.info("Retention policy added/verified: %s (%d days)", target, days)
         except Exception as e:
-            logger.debug("Retention policy for %s: %s", table, e)
-
-    # Hourly CAGG retention
-    for cagg in HOURLY_CAGGS:
+            logger.debug("Retention policy for %s: %s", target, e)
         try:
-            await conn.execute(text(f"""
-                SELECT add_retention_policy(
-                    '{cagg}',
-                    drop_after => INTERVAL '{hourly_retention_days} days',
-                    if_not_exists => TRUE
-                )
-            """))
-            logger.info("Retention policy added/verified: %s (%d days)", cagg, hourly_retention_days)
+            await _sync_retention_policy(conn, target, days)
         except Exception as e:
-            logger.debug("Retention policy for %s: %s", cagg, e)
+            logger.warning(
+                "retention_policy_update_failed", target=target, drop_after=f"{days} days", error=str(e)
+            )
+
+
+async def _sync_retention_policy(conn: "AsyncConnection", target: str, days: int) -> None:
+    """Update an existing retention policy whose drop_after differs from the setting.
+
+    ``add_retention_policy(if_not_exists => TRUE)`` only issues a notice when
+    the policy already exists, so a changed ``ANALYTICS_*_RETENTION_DAYS``
+    would otherwise never reach the database. A CAGG's policy hangs off its
+    materialization hypertable, hence the continuous_aggregates join.
+    """
+    interval = f"{days} days"
+    rows = (await conn.execute(text("""
+        SELECT j.job_id, j.config->>'drop_after' AS current_drop_after
+        FROM timescaledb_information.jobs j
+        LEFT JOIN timescaledb_information.continuous_aggregates c
+               ON c.materialization_hypertable_schema = j.hypertable_schema
+              AND c.materialization_hypertable_name = j.hypertable_name
+        WHERE j.proc_name = 'policy_retention'
+          AND COALESCE(c.view_name, j.hypertable_name) = :target
+          AND (j.config->>'drop_after')::interval IS DISTINCT FROM :drop_after
+    """), {"target": target, "drop_after": timedelta(days=days)})).all()
+    for job_id, current in rows:
+        await conn.execute(text("""
+            SELECT alter_job(
+                :job_id,
+                config => (SELECT config FROM timescaledb_information.jobs WHERE job_id = :job_id)
+                          || jsonb_build_object('drop_after', CAST(:drop_after AS text))
+            )
+        """), {"job_id": job_id, "drop_after": interval})
+        logger.info(
+            "retention_policy_updated",
+            target=target,
+            drop_after_before=current,
+            drop_after=interval,
+        )
 
 
 async def _add_compression_policies(
@@ -1124,7 +1194,13 @@ async def setup_timescaledb(
     Args:
         engine: SQLAlchemy async engine.
         analytics: Analytics settings for policy configuration.
+
+    Raises:
+        ValueError: when the raw retention is inside a CAGG refresh window
+            (see ``check_refresh_offsets``).
     """
+    check_refresh_offsets(raw_retention_days=analytics.raw_retention_days)
+
     async with engine.begin() as conn:
         # Enable extensions
         await _enable_extensions(conn)
