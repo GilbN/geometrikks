@@ -11,8 +11,10 @@ from litestar.di import Provide
 from litestar.testing import AsyncTestClient
 
 from geometrikks.domain.analytics.asn_classification import hosting_asn_count
+from geometrikks.domain.system import commit
 from geometrikks.domain.system.controllers.system import SystemController
 from geometrikks.server.scheduler_tracking import JobRunTracker
+from geometrikks.server.schema_wait import bundled_head_revision, bundled_revision_doc
 from geometrikks.server.routes import create_api_v1_router
 from tests.support import ambient_settings_dependency
 
@@ -140,6 +142,9 @@ async def test_about_reports_app_runtime_and_geoip_metadata(monkeypatch):
         "postgresVersion",
         "timescaledbVersion",
         "postgisVersion",
+        "migrationRevision",
+        "migrationName",
+        "migrationHead",
     }
     assert all(v is None or isinstance(v, str) for v in body["database"].values())
 
@@ -201,6 +206,9 @@ async def test_about_database_degrades_when_db_unreachable():
         "postgresVersion": None,
         "timescaledbVersion": None,
         "postgisVersion": None,
+        "migrationRevision": None,
+        "migrationName": None,
+        "migrationHead": bundled_head_revision(),
     }
 
 
@@ -273,3 +281,29 @@ async def test_database_info_degraded_without_db():
     assert isinstance(body["retentionDays"], int)
     assert isinstance(body["debugRetentionDays"], int)
     assert body["hypertables"] == []
+
+
+async def test_about_reports_bundled_migration_head_when_db_unreachable(monkeypatch):
+    monkeypatch.setenv("GEOIP_DB_PATH", "tests/GeoLite2-City-Test.mmdb")
+    async with AsyncTestClient(app=make_app()) as client:
+        resp = await client.get("/api/v1/system/about")
+    assert resp.status_code == 200
+    database = resp.json()["database"]
+    assert database["migrationRevision"] is None
+    assert database["migrationName"] is None
+    assert database["migrationHead"] == bundled_head_revision()
+
+
+async def test_about_carries_the_build_commit(monkeypatch):
+    monkeypatch.setenv("GEOIP_DB_PATH", "tests/GeoLite2-City-Test.mmdb")
+    monkeypatch.setattr(commit, "resolve_commit", lambda: "0123456789abcdef0123456789abcdef01234567")
+    async with AsyncTestClient(app=make_app()) as client:
+        resp = await client.get("/api/v1/system/about")
+    assert resp.status_code == 200
+    assert resp.json()["app"]["commit"] == "0123456789abcdef0123456789abcdef01234567"
+
+
+def test_bundled_revision_doc_is_the_migration_message():
+    head = bundled_head_revision()
+    assert bundled_revision_doc(head) == "request_time nullable: absent timings stop being 0.0"
+    assert bundled_revision_doc("ffffffffffff") is None

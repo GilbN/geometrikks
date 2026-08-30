@@ -12,6 +12,16 @@ export const AboutAppViewSchema = {
         },
       ],
     },
+    commit: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
     container: {
       type: "boolean",
     },
@@ -48,6 +58,7 @@ export const AboutAppViewSchema = {
   },
   required: [
     "changelogDigest",
+    "commit",
     "container",
     "environment",
     "imageTag",
@@ -852,6 +863,29 @@ export const DatabaseInfoResponseSchema = {
 
 export const DatabaseVersionsViewSchema = {
   properties: {
+    migrationHead: {
+      type: "string",
+    },
+    migrationName: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    migrationRevision: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
     postgisVersion: {
       oneOf: [
         {
@@ -883,7 +917,14 @@ export const DatabaseVersionsViewSchema = {
       ],
     },
   },
-  required: ["postgisVersion", "postgresVersion", "timescaledbVersion"],
+  required: [
+    "migrationHead",
+    "migrationName",
+    "migrationRevision",
+    "postgisVersion",
+    "postgresVersion",
+    "timescaledbVersion",
+  ],
   title: "DatabaseVersionsView",
   type: "object",
 } as const;

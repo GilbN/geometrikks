@@ -51,6 +51,8 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 FROM python:3.13-slim-bookworm AS production
 
 ARG APP_IMAGE_TAG=local
+# Empty on a local build; the workflows pass the commit for the About page.
+ARG GIT_SHA=""
 
 RUN groupadd --gid 1000 geometrikks \
     && useradd --uid 1000 --gid geometrikks --shell /bin/bash --create-home geometrikks
@@ -73,6 +75,7 @@ COPY --chown=geometrikks:geometrikks --from=frontend-builder /app/public /app/pu
 COPY --chown=geometrikks:geometrikks --from=frontend-builder /app/index.html /app/public/index.html
 COPY --chown=geometrikks:geometrikks alembic.ini CHANGELOG.md ./
 COPY --chown=geometrikks:geometrikks migrations/ ./migrations/
+RUN printf '%s' "${GIT_SHA}" > COMMIT
 
 RUN mkdir -p /app/logs /app/data/geoip \
     && chown -R geometrikks:geometrikks /app

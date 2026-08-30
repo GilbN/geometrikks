@@ -1,5 +1,6 @@
 import type { ReactNode } from "react"
 import { Bug, Cpu, Database, ExternalLink, Globe2 } from "lucide-react"
+import type { AboutResponse } from "@/generated/api/types.gen"
 import { useAbout } from "@/lib/queries"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -33,6 +34,23 @@ function geoipFreshness(available: boolean, ageDays: number | null | undefined):
   if (ageDays > 30) return { tone: "red", label: `stale (${ageDays} days old)` }
   if (ageDays > 14) return { tone: "amber", label: `aging (${ageDays} days old)` }
   return { tone: "emerald", label: `fresh (${ageDays} days old)` }
+}
+
+/** Which alembic revision the database is on, against the one this build ships. */
+function MigrationState({ database }: { database: AboutResponse["database"] }) {
+  const { migrationRevision, migrationName, migrationHead } = database
+  if (!migrationRevision) return <span className="text-muted-foreground">unavailable</span>
+  const atHead = migrationRevision === migrationHead
+  return (
+    <span className="inline-flex flex-wrap items-center justify-end gap-x-2 gap-y-1">
+      {migrationName && <span className="text-muted-foreground">{migrationName}</span>}
+      <MonoChip>{migrationRevision}</MonoChip>
+      <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+        <StatusLed tone={atHead ? "emerald" : "amber"} />
+        {atHead ? "at head" : `build ships ${migrationHead}`}
+      </span>
+    </span>
+  )
 }
 
 function Row({ label, value }: { label: string; value: ReactNode }) {
@@ -82,6 +100,19 @@ export function AboutPage() {
               <div className="flex items-center gap-2.5">
                 <Wordmark className="text-[17px] text-foreground" />
                 <MonoChip>v{data.app.version}</MonoChip>
+                {data.app.commit && (
+                  <a
+                    href={`${data.links.repository}/commit/${data.app.commit}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    title={data.app.commit}
+                    aria-label={`Commit ${data.app.commit.slice(0, 7)} on GitHub`}
+                    className="inline-flex items-center gap-1 text-muted-foreground hover:text-foreground"
+                  >
+                    <MonoChip className="transition-colors hover:text-foreground">{data.app.commit.slice(0, 7)}</MonoChip>
+                    <ExternalLink className="h-3 w-3" />
+                  </a>
+                )}
               </div>
               <div className="mt-1 flex items-center gap-1.5">
                 <Badge variant="outline" className="text-muted-foreground">
@@ -183,6 +214,7 @@ export function AboutPage() {
               )
             }
           />
+          <Row label="Migration" value={<MigrationState database={data.database} />} />
         </CardContent>
       </Card>
 

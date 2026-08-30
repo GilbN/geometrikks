@@ -19,7 +19,7 @@ from litestar.exceptions import NotFoundException
 from litestar.params import FromPath, SkipValidation
 from litestar.status_codes import HTTP_202_ACCEPTED
 from sqlalchemy import text
-from sqlalchemy.ext.asyncio import AsyncEngine
+from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine
 
 from geometrikks.config.introspection import (
     ComputedField,
@@ -27,7 +27,7 @@ from geometrikks.config.introspection import (
     build_settings_overview,
 )
 from geometrikks.config.settings import Settings
-from geometrikks.domain.system import changelog
+from geometrikks.domain.system import changelog, commit
 from geometrikks.domain.analytics.asn_classification import (
     DATASET_LICENSE,
     DATASET_NAME,
@@ -38,6 +38,7 @@ from geometrikks.domain.analytics.asn_classification import (
 from geometrikks.server import runtime
 from geometrikks.server.logging import get_logger
 from geometrikks.server.scheduler_tracking import JobRunTracker, JobStatus
+from geometrikks.server.schema_wait import bundled_head_revision, bundled_revision_doc
 from geometrikks.lib.utils import GeoIPInfoView, geoip_info
 
 if TYPE_CHECKING:
@@ -77,6 +78,7 @@ class AboutAppView(msgspec.Struct, rename="camel"):
     # Changes whenever the shipped changelog does; the UI keys "new since
     # you last looked" on it. None when the install has no changelog.
     changelog_digest: str | None
+    commit: str | None
 
 
 class RuntimeVersionsView(msgspec.Struct, rename="camel"):
@@ -89,6 +91,12 @@ class DatabaseVersionsView(msgspec.Struct, rename="camel"):
     postgres_version: str | None
     timescaledb_version: str | None
     postgis_version: str | None
+    # The alembic revision the database is on versus the one this build
+    # ships. They only differ after a degraded start, a rollback, or an
+    # agent running behind a newer head.
+    migration_revision: str | None
+    migration_name: str | None
+    migration_head: str
 
 
 class AboutLinksView(msgspec.Struct, rename="camel"):
@@ -140,7 +148,8 @@ def _dist_version(name: str) -> str | None:
 
 
 async def _database_versions(engine: AsyncEngine) -> DatabaseVersionsView:
-    """Server and extension versions; nulls when the DB is unreachable."""
+    """Server, extension and migration versions; nulls when the DB is unreachable."""
+    head = bundled_head_revision()
     try:
         async with engine.connect() as conn:
             pg = (await conn.execute(text("SHOW server_version"))).scalar_one()
@@ -152,17 +161,36 @@ async def _database_versions(engine: AsyncEngine) -> DatabaseVersionsView:
                     )
                 )
             ).all()
+            revision = await _migration_revision(conn)
         ext = {name: ver for name, ver in rows}
         return DatabaseVersionsView(
             postgres_version=pg,
             timescaledb_version=ext.get("timescaledb"),
             postgis_version=ext.get("postgis"),
+            migration_revision=revision,
+            migration_name=bundled_revision_doc(revision) if revision else None,
+            migration_head=head,
         )
     except Exception:
         # About must render in DB-degraded mode
         return DatabaseVersionsView(
-            postgres_version=None, timescaledb_version=None, postgis_version=None
+            postgres_version=None,
+            timescaledb_version=None,
+            postgis_version=None,
+            migration_revision=None,
+            migration_name=None,
+            migration_head=head,
         )
+
+
+async def _migration_revision(conn: AsyncConnection) -> str | None:
+    """``alembic_versions`` row, or None before the first migration ran."""
+    exists = (
+        await conn.execute(text("SELECT to_regclass('alembic_versions') IS NOT NULL"))
+    ).scalar_one()
+    if not exists:
+        return None
+    return (await conn.execute(text("SELECT version_num FROM alembic_versions"))).scalar_one_or_none()
 
 
 class HypertableStatsView(msgspec.Struct, rename="camel"):
@@ -322,6 +350,7 @@ class SystemController(Controller):
                 image_tag=s.image_tag if s.runtime == "container" else None,
                 started_at=runtime.get_started_at(request.app),
                 changelog_digest=changelog.read_changelog().digest,
+                commit=commit.resolve_commit(),
             ),
             runtime=RuntimeVersionsView(
                 python_version=platform.python_version(),

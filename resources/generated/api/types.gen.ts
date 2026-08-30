@@ -9,6 +9,7 @@ export type ClientOptions = {
  */
 export type AboutAppView = {
   changelogDigest: string | null;
+  commit: string | null;
   container: boolean;
   environment: string;
   imageTag: string | null;
@@ -276,6 +277,9 @@ export type DatabaseInfoResponse = {
  * DatabaseVersionsView
  */
 export type DatabaseVersionsView = {
+  migrationHead: string;
+  migrationName: string | null;
+  migrationRevision: string | null;
   postgisVersion: string | null;
   postgresVersion: string | null;
   timescaledbVersion: string | null;

@@ -13,6 +13,16 @@
               }
             ]
           },
+          "commit": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "container": {
             "type": "boolean"
           },
@@ -49,6 +59,7 @@
         },
         "required": [
           "changelogDigest",
+          "commit",
           "container",
           "environment",
           "imageTag",
@@ -912,6 +923,29 @@
       },
       "DatabaseVersionsView": {
         "properties": {
+          "migrationHead": {
+            "type": "string"
+          },
+          "migrationName": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "migrationRevision": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "postgisVersion": {
             "oneOf": [
               {
@@ -944,6 +978,9 @@
           }
         },
         "required": [
+          "migrationHead",
+          "migrationName",
+          "migrationRevision",
           "postgisVersion",
           "postgresVersion",
           "timescaledbVersion"
