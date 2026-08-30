@@ -3,6 +3,26 @@
     "schemas": {
       "AboutAppView": {
         "properties": {
+          "changelogDigest": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "commit": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "container": {
             "type": "boolean"
           },
@@ -38,6 +58,8 @@
           }
         },
         "required": [
+          "changelogDigest",
+          "commit",
           "container",
           "environment",
           "imageTag",
@@ -593,6 +615,105 @@
         "title": "BanRequest",
         "type": "object"
       },
+      "ChangelogEntry": {
+        "properties": {
+          "children": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "text": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "children",
+          "text"
+        ],
+        "title": "ChangelogEntry",
+        "type": "object"
+      },
+      "ChangelogRelease": {
+        "properties": {
+          "date": {
+            "oneOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "sections": {
+            "items": {
+              "$ref": "#/components/schemas/ChangelogSection"
+            },
+            "type": "array"
+          },
+          "unreleased": {
+            "type": "boolean"
+          },
+          "url": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "version": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "date",
+          "sections",
+          "unreleased",
+          "url",
+          "version"
+        ],
+        "title": "ChangelogRelease",
+        "type": "object"
+      },
+      "ChangelogResponse": {
+        "properties": {
+          "releases": {
+            "items": {
+              "$ref": "#/components/schemas/ChangelogRelease"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "releases"
+        ],
+        "title": "ChangelogResponse",
+        "type": "object"
+      },
+      "ChangelogSection": {
+        "properties": {
+          "entries": {
+            "items": {
+              "$ref": "#/components/schemas/ChangelogEntry"
+            },
+            "type": "array"
+          },
+          "kind": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "entries",
+          "kind"
+        ],
+        "title": "ChangelogSection",
+        "type": "object"
+      },
       "CountryFacet": {
         "properties": {
           "code": {
@@ -802,6 +923,29 @@
       },
       "DatabaseVersionsView": {
         "properties": {
+          "migrationHead": {
+            "type": "string"
+          },
+          "migrationName": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "migrationRevision": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "postgisVersion": {
             "oneOf": [
               {
@@ -834,6 +978,9 @@
           }
         },
         "required": [
+          "migrationHead",
+          "migrationName",
+          "migrationRevision",
           "postgisVersion",
           "postgresVersion",
           "timescaledbVersion"
@@ -11050,6 +11197,29 @@
           }
         },
         "summary": "GetAsnClassification",
+        "tags": [
+          "System"
+        ]
+      }
+    },
+    "/api/v1/system/changelog": {
+      "get": {
+        "deprecated": false,
+        "operationId": "ApiV1SystemChangelogGetChangelog",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangelogResponse"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          }
+        },
+        "summary": "GetChangelog",
         "tags": [
           "System"
         ]

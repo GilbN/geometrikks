@@ -1,5 +1,6 @@
 import { createFileRoute, Link, Outlet, useRouterState } from "@tanstack/react-router"
 import { MapBackdrop } from "@/components/brand/backdrops"
+import { useChangelogUnseen } from "@/lib/queries"
 
 import {
   Select,
@@ -19,13 +20,26 @@ const tabs = [
   { to: "/settings/scheduler", label: "Scheduler" },
   { to: "/settings/logs", label: "Logs" },
   { to: "/settings/appearance", label: "Appearance" },
+  { to: "/settings/changelog", label: "Changelog" },
   { to: "/settings/about", label: "About" },
 ] as const
+
+function UnseenDot() {
+  return (
+    <span
+      className="ml-2 inline-flex h-1.5 w-1.5 rounded-full bg-primary shadow-[0_0_6px_var(--primary)]"
+      aria-label="New changes to read"
+      role="img"
+    />
+  )
+}
 
 function SettingsLayout() {
   const navigate = Route.useNavigate()
   const pathname = useRouterState({ select: (state) => state.location.pathname })
   const activeTab = tabs.find((tab) => pathname.startsWith(tab.to)) ?? tabs[0]
+  const changelogUnseen = useChangelogUnseen()
+  const showsDot = (tab: (typeof tabs)[number]) => tab.to === "/settings/changelog" && changelogUnseen
 
   const handleTabChange = (value: string) => {
     const tab = tabs.find((candidate) => candidate.to === value)
@@ -48,6 +62,7 @@ function SettingsLayout() {
           {tabs.map((tab) => (
             <SelectItem key={tab.to} value={tab.to}>
               {tab.label}
+              {showsDot(tab) && <UnseenDot />}
             </SelectItem>
           ))}
         </SelectContent>
@@ -68,6 +83,7 @@ function SettingsLayout() {
                 activeProps={{ className: "border-primary font-medium text-foreground" }}
               >
                 {tab.label}
+                {showsDot(tab) && <UnseenDot />}
               </Link>
             </li>
           ))}

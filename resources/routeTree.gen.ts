@@ -22,6 +22,7 @@ import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as SettingsIndexRouteImport } from './routes/settings/index'
 import { Route as SettingsAboutRouteImport } from './routes/settings/about'
 import { Route as SettingsAppearanceRouteImport } from './routes/settings/appearance'
+import { Route as SettingsChangelogRouteImport } from './routes/settings/changelog'
 import { Route as SettingsEnvironmentRouteImport } from './routes/settings/environment'
 import { Route as SettingsLogsRouteImport } from './routes/settings/logs'
 import { Route as SettingsSchedulerRouteImport } from './routes/settings/scheduler'
@@ -92,6 +93,11 @@ const SettingsAppearanceRoute = SettingsAppearanceRouteImport.update({
   path: '/appearance',
   getParentRoute: () => SettingsRoute,
 } as any)
+const SettingsChangelogRoute = SettingsChangelogRouteImport.update({
+  id: '/changelog',
+  path: '/changelog',
+  getParentRoute: () => SettingsRoute,
+} as any)
 const SettingsEnvironmentRoute = SettingsEnvironmentRouteImport.update({
   id: '/environment',
   path: '/environment',
@@ -126,6 +132,7 @@ export interface FileRoutesByFullPath {
   '/settings': typeof SettingsRouteWithChildren
   '/settings/about': typeof SettingsAboutRoute
   '/settings/appearance': typeof SettingsAppearanceRoute
+  '/settings/changelog': typeof SettingsChangelogRoute
   '/settings/environment': typeof SettingsEnvironmentRoute
   '/settings/logs': typeof SettingsLogsRoute
   '/settings/scheduler': typeof SettingsSchedulerRoute
@@ -144,6 +151,7 @@ export interface FileRoutesByTo {
   '/security': typeof SecurityRoute
   '/settings/about': typeof SettingsAboutRoute
   '/settings/appearance': typeof SettingsAppearanceRoute
+  '/settings/changelog': typeof SettingsChangelogRoute
   '/settings/environment': typeof SettingsEnvironmentRoute
   '/settings/logs': typeof SettingsLogsRoute
   '/settings/scheduler': typeof SettingsSchedulerRoute
@@ -164,6 +172,7 @@ export interface FileRoutesById {
   '/settings': typeof SettingsRouteWithChildren
   '/settings/about': typeof SettingsAboutRoute
   '/settings/appearance': typeof SettingsAppearanceRoute
+  '/settings/changelog': typeof SettingsChangelogRoute
   '/settings/environment': typeof SettingsEnvironmentRoute
   '/settings/logs': typeof SettingsLogsRoute
   '/settings/scheduler': typeof SettingsSchedulerRoute
@@ -185,6 +194,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/settings/about'
     | '/settings/appearance'
+    | '/settings/changelog'
     | '/settings/environment'
     | '/settings/logs'
     | '/settings/scheduler'
@@ -203,6 +213,7 @@ export interface FileRouteTypes {
     | '/security'
     | '/settings/about'
     | '/settings/appearance'
+    | '/settings/changelog'
     | '/settings/environment'
     | '/settings/logs'
     | '/settings/scheduler'
@@ -222,6 +233,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/settings/about'
     | '/settings/appearance'
+    | '/settings/changelog'
     | '/settings/environment'
     | '/settings/logs'
     | '/settings/scheduler'
@@ -335,6 +347,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsAppearanceRouteImport
       parentRoute: typeof SettingsRoute
     }
+    '/settings/changelog': {
+      id: '/settings/changelog'
+      path: '/changelog'
+      fullPath: '/settings/changelog'
+      preLoaderRoute: typeof SettingsChangelogRouteImport
+      parentRoute: typeof SettingsRoute
+    }
     '/settings/environment': {
       id: '/settings/environment'
       path: '/environment'
@@ -369,6 +388,7 @@ declare module '@tanstack/react-router' {
 interface SettingsRouteChildren {
   SettingsAboutRoute: typeof SettingsAboutRoute
   SettingsAppearanceRoute: typeof SettingsAppearanceRoute
+  SettingsChangelogRoute: typeof SettingsChangelogRoute
   SettingsEnvironmentRoute: typeof SettingsEnvironmentRoute
   SettingsLogsRoute: typeof SettingsLogsRoute
   SettingsSchedulerRoute: typeof SettingsSchedulerRoute
@@ -379,6 +399,7 @@ interface SettingsRouteChildren {
 const SettingsRouteChildren: SettingsRouteChildren = {
   SettingsAboutRoute: SettingsAboutRoute,
   SettingsAppearanceRoute: SettingsAppearanceRoute,
+  SettingsChangelogRoute: SettingsChangelogRoute,
   SettingsEnvironmentRoute: SettingsEnvironmentRoute,
   SettingsLogsRoute: SettingsLogsRoute,
   SettingsSchedulerRoute: SettingsSchedulerRoute,

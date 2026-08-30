@@ -46,6 +46,12 @@ def bundled_head_revision() -> str:
     return head
 
 
+def bundled_revision_doc(revision: str) -> str | None:
+    """The migration message for a bundled revision; None for one this build lacks."""
+    script = _script_directory().get_revision(revision) if revision in known_revisions() else None
+    return script.doc if script is not None else None
+
+
 def known_revisions() -> set[str]:
     """Every revision hash bundled with this build."""
     return {revision.revision for revision in _script_directory().walk_revisions()}

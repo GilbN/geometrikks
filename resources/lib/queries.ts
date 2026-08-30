@@ -35,6 +35,7 @@ import {
   fetchSystemSettings,
   fetchSchedulerJobs,
   fetchAbout,
+  fetchChangelog,
   fetchAsnClassification,
   fetchHealth,
   fetchMe,
@@ -81,6 +82,7 @@ import {
 } from "@/generated/api/sdk.gen"
 import type { LogRecord } from "./logstream"
 import { useTimeRange } from "./time-range-context"
+import { currentBuildKey, hasUnseenChanges, saveSeenBuild, useSeenBuild } from "./changelog-seen"
 import { useAnalyticsFilters } from "./analytics-filters-context"
 import { useGeoLogFilters } from "./geo-log-filters-context"
 
@@ -97,6 +99,7 @@ export const queryKeys = {
     settings: ["system", "settings"] as const,
     schedulerJobs: ["system", "scheduler-jobs"] as const,
     about: ["system", "about"] as const,
+    changelog: ["system", "changelog"] as const,
     asnClassification: ["system", "asn-classification"] as const,
     stats: ["system", "stats"] as const,
     database: ["system", "database"] as const,
@@ -230,6 +233,29 @@ export function useAbout() {
     queryFn: fetchAbout,
     staleTime: Number.POSITIVE_INFINITY,
   })
+}
+
+export function useChangelog() {
+  return useQuery({
+    queryKey: queryKeys.system.changelog,
+    queryFn: fetchChangelog,
+    staleTime: Number.POSITIVE_INFINITY,
+  })
+}
+
+/**
+ * True while the running build differs from the one the user last opened
+ * the Changelog page on. A browser that has never stored a build adopts
+ * the current one silently, so a fresh install shows no dot.
+ */
+export function useChangelogUnseen(): boolean {
+  const { data } = useAbout()
+  const seen = useSeenBuild()
+  const current = data ? currentBuildKey(data.app) : null
+  useEffect(() => {
+    if (current && seen === null) saveSeenBuild(current)
+  }, [current, seen])
+  return hasUnseenChanges(seen, current)
 }
 
 /** The vendored hosting-ASN list; fetched only while its dialog is open. */
