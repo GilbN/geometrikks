@@ -58,6 +58,7 @@ import {
 import { LiveTrafficProvider, useLiveTrafficStore } from "@/lib/live-traffic/context"
 import type { LiveRequest } from "@/lib/live-traffic/types"
 import { useIsMobile } from "@/hooks/use-mobile"
+import { MAPLIBRE_WORKER_URL } from "@/lib/maplibre-worker"
 
 export type LayerType = "heatmap" | "markers"
 export type MapProjection = "mercator" | "globe"
@@ -492,6 +493,7 @@ function GeoMapInner({
     <div className="h-full w-full relative">
       <Map
         ref={mapRef}
+        workerUrl={MAPLIBRE_WORKER_URL}
         {...viewState}
         onLoad={() => setMapLoaded(true)}
         onMove={onMove}
