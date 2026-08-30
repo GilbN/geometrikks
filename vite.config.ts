@@ -11,6 +11,10 @@ export default defineConfig({
   build: {
     outDir: "public",
     emptyOutDir: true,
+    // maplibre-gl alone is ~990 kB minified and already ships as its own
+    // lazy chunk behind the map route; the default 500 kB limit only ever
+    // flagged it.
+    chunkSizeWarningLimit: 1100,
   },
   // No server block: Litestar is the single dev origin. litestar-vite runs
   // Vite as a sidecar on an ephemeral localhost port (written to the
@@ -78,7 +82,7 @@ export default defineConfig({
   ],
   resolve: {
     alias: {
-      "@": path.resolve(__dirname, "resources"),
+      "@": path.resolve(import.meta.dirname, "resources"),
     },
   },
 });
