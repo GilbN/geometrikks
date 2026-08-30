@@ -273,7 +273,11 @@ to pin it. Notes:
   `docker kill --signal=USR1 traefik`. GeoMetrikks follows the rotation.
 - Behind a CDN or load balancer, configure Traefik's
   `entryPoints.<name>.forwardedHeaders.trustedIPs` so the logged client IP
-  is the real client, not the proxy.
+  is the real client, not the proxy. With a trusted peer, Traefik logs the
+  `X-Forwarded-For` chain as it arrived; GeoMetrikks takes the rightmost
+  entry, the one your proxy appended. Do not set `forwardedHeaders.insecure`:
+  it trusts the header from anyone, and a client can then place any address
+  on the map.
 - A file path is required; GeoMetrikks cannot read Traefik's stdout.
 
 ## MaxMind GeoLite2
