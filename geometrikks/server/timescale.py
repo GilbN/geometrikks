@@ -682,6 +682,13 @@ async def _add_refresh_policies(
             logger.info("Refresh policy added/verified: %s (every %s)", cagg, refresh_interval)
         except Exception as e:
             logger.debug("Refresh policy for %s: %s", cagg, e)
+        try:
+            await _sync_policy_schedule(
+                conn, policy="refresh", proc="policy_refresh_continuous_aggregate", target=cagg,
+                interval=timedelta(minutes=refresh_interval_minutes),
+            )
+        except Exception as e:
+            logger.warning("policy_update_failed", policy="refresh", target=cagg, error=str(e))
 
 
 async def _add_retention_policies(
@@ -712,45 +719,65 @@ async def _add_retention_policies(
         except Exception as e:
             logger.debug("Retention policy for %s: %s", target, e)
         try:
-            await _sync_retention_policy(conn, target, days)
-        except Exception as e:
-            logger.warning(
-                "retention_policy_update_failed", target=target, drop_after=f"{days} days", error=str(e)
+            await _sync_policy_config(
+                conn, policy="retention", proc="policy_retention", target=target,
+                key="drop_after", interval=timedelta(days=days),
             )
+        except Exception as e:
+            logger.warning("policy_update_failed", policy="retention", target=target, error=str(e))
 
 
-async def _sync_retention_policy(conn: "AsyncConnection", target: str, days: int) -> None:
-    """Update an existing retention policy whose drop_after differs from the setting.
+_POLICY_JOB_FOR_TARGET = """
+    FROM timescaledb_information.jobs j
+    LEFT JOIN timescaledb_information.continuous_aggregates c
+           ON c.materialization_hypertable_schema = j.hypertable_schema
+          AND c.materialization_hypertable_name = j.hypertable_name
+    WHERE j.proc_name = :proc
+      AND COALESCE(c.view_name, j.hypertable_name) = :target
+"""
 
-    ``add_retention_policy(if_not_exists => TRUE)`` only issues a notice when
-    the policy already exists, so a changed ``ANALYTICS_*_RETENTION_DAYS``
-    would otherwise never reach the database. A CAGG's policy hangs off its
+
+async def _sync_policy_config(
+    conn: "AsyncConnection", *, policy: str, proc: str, target: str, key: str, interval: timedelta
+) -> None:
+    """Update an existing policy whose config interval differs from the setting.
+
+    Every ``add_*_policy(if_not_exists => TRUE)`` only issues a notice when
+    the policy already exists, so a changed ``ANALYTICS_*`` setting would
+    otherwise never reach the database. A CAGG's policies hang off its
     materialization hypertable, hence the continuous_aggregates join.
     """
-    interval = f"{days} days"
-    rows = (await conn.execute(text("""
-        SELECT j.job_id, j.config->>'drop_after' AS current_drop_after
-        FROM timescaledb_information.jobs j
-        LEFT JOIN timescaledb_information.continuous_aggregates c
-               ON c.materialization_hypertable_schema = j.hypertable_schema
-              AND c.materialization_hypertable_name = j.hypertable_name
-        WHERE j.proc_name = 'policy_retention'
-          AND COALESCE(c.view_name, j.hypertable_name) = :target
-          AND (j.config->>'drop_after')::interval IS DISTINCT FROM :drop_after
-    """), {"target": target, "drop_after": timedelta(days=days)})).all()
+    rows = (await conn.execute(text(f"""
+        SELECT j.job_id, j.config->>:key AS current {_POLICY_JOB_FOR_TARGET}
+          AND (j.config->>:key)::interval IS DISTINCT FROM :interval
+    """), {"proc": proc, "target": target, "key": key, "interval": interval})).all()
+    after = f"{interval.days} days"
     for job_id, current in rows:
         await conn.execute(text("""
             SELECT alter_job(
                 :job_id,
                 config => (SELECT config FROM timescaledb_information.jobs WHERE job_id = :job_id)
-                          || jsonb_build_object('drop_after', CAST(:drop_after AS text))
+                          || jsonb_build_object(CAST(:key AS text), CAST(:after AS text))
             )
-        """), {"job_id": job_id, "drop_after": interval})
+        """), {"job_id": job_id, "key": key, "after": after})
+        logger.info("policy_updated", policy=policy, target=target, before=current, after=after)
+
+
+async def _sync_policy_schedule(
+    conn: "AsyncConnection", *, policy: str, proc: str, target: str, interval: timedelta
+) -> None:
+    """Update an existing policy whose schedule_interval differs from the setting."""
+    rows = (await conn.execute(text(f"""
+        SELECT j.job_id, j.schedule_interval {_POLICY_JOB_FOR_TARGET}
+          AND j.schedule_interval IS DISTINCT FROM :interval
+    """), {"proc": proc, "target": target, "interval": interval})).all()
+    for job_id, current in rows:
+        await conn.execute(
+            text("SELECT alter_job(:job_id, schedule_interval => :interval)"),
+            {"job_id": job_id, "interval": interval},
+        )
         logger.info(
-            "retention_policy_updated",
-            target=target,
-            drop_after_before=current,
-            drop_after=interval,
+            "policy_updated", policy=policy, target=target, before=str(current), after=str(interval)
         )
 
 
@@ -787,6 +814,13 @@ async def _add_compression_policies(
             )
         except Exception as e:
             logger.debug("Compression policy for %s: %s", table, e)
+        try:
+            await _sync_policy_config(
+                conn, policy="compression", proc="policy_compression", target=table,
+                key="compress_after", interval=timedelta(days=compression_after_days),
+            )
+        except Exception as e:
+            logger.warning("policy_update_failed", policy="compression", target=table, error=str(e))
 
 
 async def _enable_realtime_aggregation(conn: "AsyncConnection") -> None:

@@ -15,7 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Startup refuses an `ANALYTICS_RAW_RETENTION_DAYS` below 4 with a message naming the aggregate and the floor. The daily aggregates refresh their last 3 days from raw rows, so a shorter raw retention made every refresh find empty raw data under part of that window and delete the materialized rows, with nothing in the logs.
-- Changing `ANALYTICS_RAW_RETENTION_DAYS`, `ANALYTICS_DEBUG_RETENTION_DAYS` or `ANALYTICS_HOURLY_RETENTION_DAYS` on an existing database now updates the retention policies on the next start (`retention_policy_updated` in the logs). Until now the policies kept whatever value the database was first created with, and the new value was only logged at debug level and dropped.
+- Changing any of the `ANALYTICS_*` policy settings (`RAW_RETENTION_DAYS`, `DEBUG_RETENTION_DAYS`, `HOURLY_RETENTION_DAYS`, `COMPRESSION_AFTER_DAYS`, `CAGG_REFRESH_INTERVAL_MINUTES`) on an existing database now updates the TimescaleDB policies on the next start (`policy_updated` in the logs). Until now the policies kept whatever values the database was first created with, and the new value was only logged at debug level and dropped.
 
 ## [0.12.1] - 2026-08-30
 
