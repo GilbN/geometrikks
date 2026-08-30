@@ -148,6 +148,8 @@ import type {
   ApiV1SystemAboutGetAboutResponses,
   ApiV1SystemAsnClassificationGetAsnClassificationData,
   ApiV1SystemAsnClassificationGetAsnClassificationResponses,
+  ApiV1SystemChangelogGetChangelogData,
+  ApiV1SystemChangelogGetChangelogResponses,
   ApiV1SystemDatabaseGetDatabaseInfoData,
   ApiV1SystemDatabaseGetDatabaseInfoResponses,
   ApiV1SystemSchedulerJobsGetSchedulerJobsData,
@@ -1653,6 +1655,34 @@ export const apiV1SystemAsnClassificationGetAsnClassification = <
       },
     ],
     url: "/api/v1/system/asn-classification",
+    ...options,
+  });
+
+/**
+ * GetChangelog
+ */
+export const apiV1SystemChangelogGetChangelog = <
+  ThrowOnError extends boolean = false,
+>(
+  options?: Options<ApiV1SystemChangelogGetChangelogData, ThrowOnError>,
+): RequestResult<
+  ApiV1SystemChangelogGetChangelogResponses,
+  unknown,
+  ThrowOnError
+> =>
+  (options?.client ?? client).get<
+    ApiV1SystemChangelogGetChangelogResponses,
+    unknown,
+    ThrowOnError
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+    ],
+    url: "/api/v1/system/changelog",
     ...options,
   });
 

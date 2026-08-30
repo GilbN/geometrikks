@@ -39,6 +39,7 @@ docker-compose*.yml
 # Documentation
 *.md
 !README.md
+!CHANGELOG.md
 docs/
 
 # Tests (not needed in production image)

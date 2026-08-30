@@ -66,12 +66,12 @@ RUN apt-get update \
 WORKDIR /app
 
 # The venv carries the application as an installed wheel (see the builder
-# stage), so no source tree is copied. Migrations and alembic.ini stay
-# outside the package: alembic resolves them relative to /app at runtime.
+# stage), so no source tree is copied. Migrations, alembic.ini and the
+# changelog stay outside the package and resolve relative to /app at runtime.
 COPY --chown=geometrikks:geometrikks --from=python-builder /app/.venv /app/.venv
 COPY --chown=geometrikks:geometrikks --from=frontend-builder /app/public /app/public
 COPY --chown=geometrikks:geometrikks --from=frontend-builder /app/index.html /app/public/index.html
-COPY --chown=geometrikks:geometrikks alembic.ini ./
+COPY --chown=geometrikks:geometrikks alembic.ini CHANGELOG.md ./
 COPY --chown=geometrikks:geometrikks migrations/ ./migrations/
 
 RUN mkdir -p /app/logs /app/data/geoip \

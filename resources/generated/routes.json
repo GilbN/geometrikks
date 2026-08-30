@@ -68,6 +68,13 @@
       ],
       "uri": "/api/v1/system/asn-classification"
     },
+    "get_changelog": {
+      "method": "get",
+      "methods": [
+        "GET"
+      ],
+      "uri": "/api/v1/system/changelog"
+    },
     "get_cumulative_time_series": {
       "method": "get",
       "methods": [

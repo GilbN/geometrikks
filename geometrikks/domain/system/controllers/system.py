@@ -27,6 +27,7 @@ from geometrikks.config.introspection import (
     build_settings_overview,
 )
 from geometrikks.config.settings import Settings
+from geometrikks.domain.system import changelog
 from geometrikks.domain.analytics.asn_classification import (
     DATASET_LICENSE,
     DATASET_NAME,
@@ -73,6 +74,9 @@ class AboutAppView(msgspec.Struct, rename="camel"):
     container: bool
     image_tag: str | None
     started_at: datetime | None
+    # Changes whenever the shipped changelog does; the UI keys "new since
+    # you last looked" on it. None when the install has no changelog.
+    changelog_digest: str | None
 
 
 class RuntimeVersionsView(msgspec.Struct, rename="camel"):
@@ -317,6 +321,7 @@ class SystemController(Controller):
                 container=s.runtime == "container",
                 image_tag=s.image_tag if s.runtime == "container" else None,
                 started_at=runtime.get_started_at(request.app),
+                changelog_digest=changelog.read_changelog().digest,
             ),
             runtime=RuntimeVersionsView(
                 python_version=platform.python_version(),
@@ -352,6 +357,11 @@ class SystemController(Controller):
                 for asn, entity in hosting_asn_entries()
             ],
         )
+
+    @get("/changelog")
+    async def get_changelog(self) -> changelog.ChangelogResponse:
+        """Every release in CHANGELOG.md, newest first, for the Changelog page."""
+        return changelog.ChangelogResponse(releases=changelog.read_changelog().releases)
 
     @get("/database")
     async def get_database_info(
