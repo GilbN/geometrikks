@@ -27,6 +27,7 @@ import {
   unclusteredPointLabelLayer,
   unclusteredPointLayer,
 } from "@/components/map/layers"
+import { MAPLIBRE_WORKER_URL } from "@/lib/maplibre-worker"
 import { useGeoLogsGeoJSON } from "@/lib/queries"
 import { cn } from "@/lib/utils"
 
@@ -141,6 +142,7 @@ export default function GeoLogsMap() {
       <div className="absolute inset-0">
         <Map
           ref={mapRef}
+          workerUrl={MAPLIBRE_WORKER_URL}
           {...viewState}
           onMove={onMove}
           onClick={onClick}
