@@ -212,6 +212,16 @@ export function StatusOverview() {
             {card.remedy && (
               <code className="block w-fit rounded bg-muted px-2 py-1 text-xs">{card.remedy}</code>
             )}
+            {card.docsUrl && (
+              <a
+                href={card.docsUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="text-xs text-primary underline underline-offset-2"
+              >
+                Setup guide
+              </a>
+            )}
           </CardContent>
         </Card>
       ))}
