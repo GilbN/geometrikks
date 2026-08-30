@@ -180,9 +180,20 @@ def test_traefik_parse_headers_dropped() -> None:
     assert norm.referrer is None
 
 
-def test_traefik_parse_xff_chain_takes_first_hop() -> None:
+def test_traefik_parse_xff_chain_takes_last_hop() -> None:
+    """ClientHost carries the client-supplied X-Forwarded-For chain verbatim
+    when the peer is trusted, and the leftmost entry is whatever the client
+    sent. The rightmost entry is the address the trusted proxy appended."""
     data = json.loads(TRAEFIK_FULL)
-    data["ClientHost"] = "203.0.113.7, 10.0.0.2"
+    data["ClientHost"] = "8.8.8.8, 203.0.113.7"
+    norm = TraefikJsonFormat().parse(json.dumps(data))
+    assert norm is not None
+    assert norm.ip_address == "203.0.113.7"
+
+
+def test_traefik_parse_xff_chain_strips_whitespace_around_last_hop() -> None:
+    data = json.loads(TRAEFIK_FULL)
+    data["ClientHost"] = "8.8.8.8,203.0.113.7 "
     norm = TraefikJsonFormat().parse(json.dumps(data))
     assert norm is not None
     assert norm.ip_address == "203.0.113.7"
