@@ -1,7 +1,7 @@
 """Decision stream: service parsing and the poller's broadcast behavior."""
 from __future__ import annotations
 
-import httpx
+import httpx2
 
 from tests.test_crowdsec_service import DECISION_JSON, make_service
 
@@ -17,9 +17,9 @@ class _StreamResponder:
         self._payloads = payloads
         self.calls: list[dict] = []
 
-    def __call__(self, request: httpx.Request) -> httpx.Response:
+    def __call__(self, request: httpx2.Request) -> httpx2.Response:
         self.calls.append({"params": dict(request.url.params), "headers": request.headers})
-        return httpx.Response(
+        return httpx2.Response(
             200, json=self._payloads[min(len(self.calls) - 1, len(self._payloads) - 1)]
         )
 
@@ -120,8 +120,8 @@ async def test_empty_delta_broadcasts_nothing():
 
 
 async def test_poll_survives_lapi_errors():
-    def respond(request: httpx.Request) -> httpx.Response:
-        raise httpx.ConnectError("boom")
+    def respond(request: httpx2.Request) -> httpx2.Response:
+        raise httpx2.ConnectError("boom")
 
     service = make_service(respond)
     poller = make_poller(service)
@@ -136,11 +136,11 @@ def flaky_responder(failures: int, payload: dict):
     """Raise ConnectError for the first `failures` calls, then return payload."""
     calls = {"n": 0}
 
-    def respond(request: httpx.Request) -> httpx.Response:
+    def respond(request: httpx2.Request) -> httpx2.Response:
         calls["n"] += 1
         if calls["n"] <= failures:
-            raise httpx.ConnectError("boom")
-        return httpx.Response(200, json=payload)
+            raise httpx2.ConnectError("boom")
+        return httpx2.Response(200, json=payload)
 
     return respond
 

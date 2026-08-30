@@ -6,7 +6,7 @@ import ipaddress
 from dataclasses import dataclass
 from typing import Literal
 
-import httpx
+import httpx2
 from geoip2.database import Reader
 from geoip2.errors import GeoIP2Error
 
@@ -27,7 +27,7 @@ class HomeLocation:
     source: HomeLocationSource
 
 
-async def _fetch_public_ip(settings: MapSettings, client: httpx.AsyncClient) -> str:
+async def _fetch_public_ip(settings: MapSettings, client: httpx2.AsyncClient) -> str:
     response = await client.get(settings.public_ip_url)
     response.raise_for_status()
     payload = response.json()
@@ -44,7 +44,7 @@ async def resolve_home_location(
     geoip_settings: GeoIPSettings,
     *,
     geoip_available: bool,
-    client: httpx.AsyncClient | None = None,
+    client: httpx2.AsyncClient | None = None,
 ) -> HomeLocation | None:
     """Resolve configured coordinates or geolocate the server's public IP.
 
@@ -63,8 +63,8 @@ async def resolve_home_location(
 
     try:
         if client is None:
-            timeout = httpx.Timeout(map_settings.public_ip_timeout)
-            async with httpx.AsyncClient(timeout=timeout, follow_redirects=False) as owned_client:
+            timeout = httpx2.Timeout(map_settings.public_ip_timeout)
+            async with httpx2.AsyncClient(timeout=timeout, follow_redirects=False) as owned_client:
                 public_ip = await _fetch_public_ip(map_settings, owned_client)
         else:
             public_ip = await _fetch_public_ip(map_settings, client)
@@ -77,7 +77,7 @@ async def resolve_home_location(
             raise ValueError("GeoIP lookup returned no coordinates")
         logger.info("home_location_resolved", source="external_ip")
         return HomeLocation(latitude=latitude, longitude=longitude, source="external_ip")
-    except (GeoIP2Error, httpx.HTTPError, OSError, ValueError) as exc:
+    except (GeoIP2Error, httpx2.HTTPError, OSError, ValueError) as exc:
         logger.warning(
             "Could not auto-detect map home location: %s. Set MAP_HOME_LATITUDE "
             "and MAP_HOME_LONGITUDE to override it.",

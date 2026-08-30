@@ -16,7 +16,7 @@ from io import BytesIO
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-import httpx
+import httpx2
 
 from geometrikks.lib.utils import GeoIPInfoView, geoip_info
 from geometrikks.server.logging import get_logger
@@ -66,7 +66,7 @@ def database_is_stale(db_path: Path, max_age_days: int) -> bool:
 async def _fetch_tarball(settings: "GeoIPSettings", edition: str) -> bytes:
     """GET the tar.gz with basic auth; module-level for test monkeypatching."""
     try:
-        async with httpx.AsyncClient(
+        async with httpx2.AsyncClient(
             auth=(
                 settings.account_id or "",
                 settings.license_key.get_secret_value() if settings.license_key else "",
@@ -80,7 +80,7 @@ async def _fetch_tarball(settings: "GeoIPSettings", edition: str) -> bytes:
             )
             response.raise_for_status()
             return response.content
-    except httpx.HTTPError as exc:
+    except httpx2.HTTPError as exc:
         raise GeoIPDownloadError(f"MaxMind download failed ({edition}): {exc}") from exc
 
 
