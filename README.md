@@ -277,7 +277,8 @@ to pin it. Notes:
   `X-Forwarded-For` chain as it arrived; GeoMetrikks takes the rightmost
   entry, the one your proxy appended. Do not set `forwardedHeaders.insecure`:
   it trusts the header from anyone, and a client can then place any address
-  on the map.
+  on the map. See `docs/proxy-setup.md` for the full real-IP setup,
+  including tunnels.
 - A file path is required; GeoMetrikks cannot read Traefik's stdout.
 
 ## MaxMind GeoLite2
@@ -351,6 +352,11 @@ only honors it when the request arrives from an address listed in
 `APP_TRUSTED_PROXIES`; otherwise it uses the connection's own address. Keep
 the range tight: everything inside it can put arbitrary addresses in the
 header.
+
+`APP_TRUSTED_PROXIES` only affects the app's own login logging; it has no
+effect on how the log parser reads your proxy's access log files. For
+getting the real visitor address into those log files, see
+`docs/proxy-setup.md`.
 
 The WebSocket feeds (`/ws/live`, `/ws/crowdsec`, `/ws/logs`) work through
 the standard `Upgrade`/`Connection` proxy headers, and idle connections
@@ -920,13 +926,15 @@ Yes. The GHCR image is a multi-arch manifest for `linux/amd64` and
 `linux/arm64`.
 
 **The map is empty.**
-Check three things in order: (1) the geo-degraded banner; if it shows,
+Check four things in order: (1) the geo-degraded banner; if it shows,
 MaxMind credentials or the GeoLite2 database are missing; (2) that
 `LOGPARSER_LOG_PATHS` points at a file receiving traffic in a supported
 format (the nginx JSON `log_format` above, the legacy nginx format, or
 Traefik JSON); (3) that some time has passed since you last restarted. The
 map only shows events ingested after startup unless you have run a batch
-import.
+import. (4) that your proxy logs the visitor's address, not an upstream
+proxy or tunnel; Settings > Status shows an advisory when it does not. See
+docs/proxy-setup.md.
 
 **What does the "geo-degraded" banner mean?**
 The app started without a usable GeoLite2 database: either

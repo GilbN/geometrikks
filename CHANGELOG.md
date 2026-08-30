@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Settings > Changelog lists every release from `CHANGELOG.md`, newest first, each linked to its GitHub compare view, with the one this install is running expanded and marked. A build ahead of the last release (a develop image, a local build, a source checkout) marks the Unreleased section instead. After an upgrade, the Settings entry in the sidebar and the Changelog tab show a dot until the page is opened once in that browser. Backed by `GET /api/v1/system/changelog` and a `changelogDigest` field on `/api/v1/system/about`; the container image now ships the changelog next to `alembic.ini`.
 - Settings > About shows the commit the build came from, linked to GitHub, next to the version (release and CI images carry it; a local `docker build` does not), and the Database card shows the alembic revision the database is on and whether it matches the one this build ships.
+- Settings > Status warns when most recent traffic for a tailed log comes from CDN addresses (the map would show the CDN's datacenters) or from private addresses (nothing reaches the map at all), naming the affected sources and the proxy directive to fix, with a link to the new docs/proxy-setup.md. Detection is a rolling in-process window with no database cost; `APP_PROXY_ADVISORY=false` turns it off. Sources tailed by an agent instance report on the agent's own `/health`.
 
 ### Fixed
 
