@@ -69,7 +69,6 @@ export type RouteName =
   | 'lookup_decisions'
   | 'me'
   | 'openapi.json'
-  | 'openapi.yaml'
   | 'read_settings'
   | 'rotate'
   | 'run_scheduler_job'
@@ -139,7 +138,6 @@ export interface RoutePathParams {
   'lookup_decisions': Record<string, never>;
   'me': Record<string, never>;
   'openapi.json': Record<string, never>;
-  'openapi.yaml': Record<string, never>;
   'read_settings': Record<string, never>;
   'rotate': Record<string, never>;
   'run_scheduler_job': {
@@ -424,7 +422,6 @@ export interface RouteQueryParams {
   };
   'me': Record<string, never>;
   'openapi.json': Record<string, never>;
-  'openapi.yaml': Record<string, never>;
   'read_settings': Record<string, never>;
   'rotate': Record<string, never>;
   'run_scheduler_job': Record<string, never>;
@@ -799,13 +796,6 @@ export const routeDefinitions = {
   },
   'openapi.json': {
     path: '/schema/openapi.json',
-    methods: ['GET'] as const,
-    method: 'get',
-    pathParams: [] as const,
-    queryParams: [] as const,
-  },
-  'openapi.yaml': {
-    path: '/schema/openapi.yaml',
     methods: ['GET'] as const,
     method: 'get',
     pathParams: [] as const,

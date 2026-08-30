@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 from litestar import Litestar
 from litestar.di import Provide
 from litestar.openapi import OpenAPIConfig
+from litestar.openapi.plugins import ScalarRenderPlugin
 from litestar.config.compression import CompressionConfig
 
 from geometrikks.config.settings import Settings, get_settings
@@ -82,6 +83,7 @@ def create_app(
             version=settings.version,
             description=settings.description,
             create_examples=False,
+            render_plugins=[ScalarRenderPlugin()],
         )
 
     compression_config = CompressionConfig(
