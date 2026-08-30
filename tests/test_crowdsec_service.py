@@ -4,7 +4,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
-import httpx
+import httpx2
 import pytest
 
 from geometrikks.config.settings import CrowdSecSettings
@@ -40,13 +40,13 @@ def make_settings(**overrides) -> CrowdSecSettings:
 def make_service(respond, **settings_overrides) -> CrowdSecService:
     return CrowdSecService(
         make_settings(**settings_overrides),
-        transport=httpx.MockTransport(respond),
+        transport=httpx2.MockTransport(respond),
     )
 
 
 async def test_get_decisions_parses_typed_decisions():
-    def respond(request: httpx.Request) -> httpx.Response:
-        return httpx.Response(200, json=[DECISION_JSON])
+    def respond(request: httpx2.Request) -> httpx2.Response:
+        return httpx2.Response(200, json=[DECISION_JSON])
 
     service = make_service(respond)
     decisions = await service.get_decisions()
@@ -65,9 +65,9 @@ async def test_get_decisions_parses_typed_decisions():
 
 
 async def test_get_decisions_null_body_returns_empty_list():
-    def respond(request: httpx.Request) -> httpx.Response:
+    def respond(request: httpx2.Request) -> httpx2.Response:
         # LAPI returns JSON null when no decisions match
-        return httpx.Response(200, content=b"null", headers={"content-type": "application/json"})
+        return httpx2.Response(200, content=b"null", headers={"content-type": "application/json"})
 
     service = make_service(respond)
     assert await service.get_decisions() == []
@@ -77,10 +77,10 @@ async def test_get_decisions_null_body_returns_empty_list():
 async def test_get_decisions_sends_bouncer_key_and_filters():
     seen: dict = {}
 
-    def respond(request: httpx.Request) -> httpx.Response:
+    def respond(request: httpx2.Request) -> httpx2.Response:
         seen["headers"] = request.headers
         seen["url"] = request.url
-        return httpx.Response(200, json=[])
+        return httpx2.Response(200, json=[])
 
     service = make_service(respond)
     await service.get_decisions(ip="1.2.3.4", origins="cscli,crowdsec")
@@ -94,9 +94,9 @@ async def test_get_decisions_sends_bouncer_key_and_filters():
 async def test_get_decisions_for_ip_filters_on_ip():
     seen: dict = {}
 
-    def respond(request: httpx.Request) -> httpx.Response:
+    def respond(request: httpx2.Request) -> httpx2.Response:
         seen["params"] = request.url.params
-        return httpx.Response(200, json=[])
+        return httpx2.Response(200, json=[])
 
     service = make_service(respond)
     await service.get_decisions_for_ip("10.0.0.1")
@@ -105,8 +105,8 @@ async def test_get_decisions_for_ip_filters_on_ip():
 
 
 async def test_rejected_bouncer_key_raises_auth_error():
-    def respond(request: httpx.Request) -> httpx.Response:
-        return httpx.Response(403, json={"message": "forbidden"})
+    def respond(request: httpx2.Request) -> httpx2.Response:
+        return httpx2.Response(403, json={"message": "forbidden"})
 
     service = make_service(respond)
     with pytest.raises(CrowdSecAuthError):
@@ -115,8 +115,8 @@ async def test_rejected_bouncer_key_raises_auth_error():
 
 
 async def test_lapi_5xx_raises_unavailable_error():
-    def respond(request: httpx.Request) -> httpx.Response:
-        return httpx.Response(502)
+    def respond(request: httpx2.Request) -> httpx2.Response:
+        return httpx2.Response(502)
 
     service = make_service(respond)
     with pytest.raises(CrowdSecUnavailableError):
@@ -125,8 +125,8 @@ async def test_lapi_5xx_raises_unavailable_error():
 
 
 async def test_connection_failure_raises_unavailable_error():
-    def respond(request: httpx.Request) -> httpx.Response:
-        raise httpx.ConnectError("boom")
+    def respond(request: httpx2.Request) -> httpx2.Response:
+        raise httpx2.ConnectError("boom")
 
     service = make_service(respond)
     with pytest.raises(CrowdSecUnavailableError):
@@ -135,11 +135,11 @@ async def test_connection_failure_raises_unavailable_error():
 
 
 async def test_ping_true_when_reachable_false_when_not():
-    def ok(request: httpx.Request) -> httpx.Response:
-        return httpx.Response(200, json=[])
+    def ok(request: httpx2.Request) -> httpx2.Response:
+        return httpx2.Response(200, json=[])
 
-    def down(request: httpx.Request) -> httpx.Response:
-        raise httpx.ConnectError("boom")
+    def down(request: httpx2.Request) -> httpx2.Response:
+        raise httpx2.ConnectError("boom")
 
     up_service = make_service(ok)
     down_service = make_service(down)
@@ -150,9 +150,9 @@ async def test_ping_true_when_reachable_false_when_not():
 
 
 async def test_unknown_extra_fields_are_ignored():
-    def respond(request: httpx.Request) -> httpx.Response:
+    def respond(request: httpx2.Request) -> httpx2.Response:
         payload = [{**DECISION_JSON, "simulated": False, "until": "2026-01-01T00:00:00Z"}]
-        return httpx.Response(200, content=json.dumps(payload), headers={"content-type": "application/json"})
+        return httpx2.Response(200, content=json.dumps(payload), headers={"content-type": "application/json"})
 
     service = make_service(respond)
     decisions = await service.get_decisions()
@@ -180,23 +180,23 @@ class LapiWriteFake:
         self._login_status = login_status
         self._expire_first_token = expire_first_token
 
-    def __call__(self, request: httpx.Request) -> httpx.Response:
+    def __call__(self, request: httpx2.Request) -> httpx2.Response:
         if request.url.path == "/v1/watchers/login":
             self.login_calls += 1
             if self._login_status != 200:
-                return httpx.Response(self._login_status, json={"message": "denied"})
-            return httpx.Response(200, json={"token": f"jwt-{self.login_calls}", "expire": "2099-01-01T00:00:00Z"})
+                return httpx2.Response(self._login_status, json={"message": "denied"})
+            return httpx2.Response(200, json={"token": f"jwt-{self.login_calls}", "expire": "2099-01-01T00:00:00Z"})
         self.auth_headers.append(request.headers.get("Authorization"))
         # Simulate an expired first token: 401 until re-login issues jwt-2
         if self._expire_first_token and request.headers.get("Authorization") == "Bearer jwt-1":
-            return httpx.Response(401, json={"message": "token expired"})
+            return httpx2.Response(401, json={"message": "token expired"})
         if request.url.path == "/v1/alerts" and request.method == "POST":
             self.alert_payloads.append(json.loads(request.content))
-            return httpx.Response(201, json=["1"])
+            return httpx2.Response(201, json=["1"])
         if request.url.path == "/v1/decisions" and request.method == "DELETE":
             self.delete_params.append(dict(request.url.params))
-            return httpx.Response(200, json={"nbDeleted": "2"})
-        return httpx.Response(404)
+            return httpx2.Response(200, json={"nbDeleted": "2"})
+        return httpx2.Response(404)
 
 
 def write_settings() -> dict:
@@ -290,11 +290,11 @@ ALERT_JSON = {
 
 
 class LapiAlertsFake(LapiWriteFake):
-    def __call__(self, request: httpx.Request) -> httpx.Response:
+    def __call__(self, request: httpx2.Request) -> httpx2.Response:
         if request.url.path == "/v1/alerts" and request.method == "GET":
             self.auth_headers.append(request.headers.get("Authorization"))
             self.alert_params = dict(request.url.params)
-            return httpx.Response(200, json=[ALERT_JSON, {**ALERT_JSON, "id": 8, "decisions": None}])
+            return httpx2.Response(200, json=[ALERT_JSON, {**ALERT_JSON, "id": 8, "decisions": None}])
         return super().__call__(request)
 
 
