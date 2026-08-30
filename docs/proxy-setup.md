@@ -101,9 +101,10 @@ to the container:
 DOCKER_MODS=linuxserver/mods:swag-cloudflare-real-ip
 ```
 
-The mod drops a ranges file at `/config/nginx/cf_real-ip.conf` and refreshes
-it periodically. Reference it from SWAG's `http` block (usually
-`/config/nginx/nginx.conf`, in a custom include SWAG loads at startup):
+On container start, the mod fetches Cloudflare's current ranges and writes
+them to `/config/nginx/cf_real-ip.conf`. Reference that file from SWAG's
+`http` block (usually `/config/nginx/nginx.conf`, in a custom include SWAG
+loads at startup):
 
 ```nginx
 real_ip_header X-Forwarded-For;
