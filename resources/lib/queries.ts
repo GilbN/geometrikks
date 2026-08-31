@@ -605,12 +605,22 @@ export function useGeoJSON(options: UseGeoJSONOptions = {}) {
   })
 }
 
-export function useCountryStats(options: {
+export interface UseCountryStatsOptions {
+  /** Enable/disable the query */
   enabled?: boolean
+  /** Filter to these ISO country codes */
   countryCodes?: string[]
+  /** Filter to these city names */
   cities?: string[]
+  /** Filter to these source hostnames */
   hostnames?: string[]
-} = {}) {
+}
+
+/**
+ * Fetch per-country event counts for the map choropleth.
+ * Uses TimeRangeContext for time filtering.
+ */
+export function useCountryStats(options: UseCountryStatsOptions = {}) {
   const { enabled = true, countryCodes, cities, hostnames } = options
   const { range, customRange, pollInterval, lastRefresh } = useTimeRange()
 

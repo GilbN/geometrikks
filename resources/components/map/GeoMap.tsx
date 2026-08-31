@@ -238,6 +238,26 @@ function GeoMapInner({
     [countryValues],
   )
 
+  // Anchor for the choropleth: the basemap's first symbol layer, so the fill
+  // slides under the place, country and water labels instead of burying them
+  // at 0.75 alpha. The style URL swaps on theme change and MapLibre rebuilds
+  // the layer list from scratch, so this re-reads on every styledata. An
+  // undefined id is a valid beforeId meaning "on top", which is what the map
+  // shows for the frame or two before the style resolves.
+  const [labelLayerId, setLabelLayerId] = useState<string | undefined>(undefined)
+  useEffect(() => {
+    const map = mapRef.current?.getMap()
+    if (!map) return
+    const read = () => {
+      setLabelLayerId(map.getStyle()?.layers?.find((layer) => layer.type === "symbol")?.id)
+    }
+    read()
+    map.on("styledata", read)
+    return () => {
+      map.off("styledata", read)
+    }
+  }, [mapLoaded, mapStyle])
+
   // The "countries" source only exists while activeLayer === "countries"
   // (see the conditional Source below), so its feature-state store is torn
   // down on every mode switch. Leaving the mode resets the diff baseline;
@@ -475,7 +495,9 @@ function GeoMapInner({
       setLivePopup(null)
 
       if (activeLayer === "countries") {
-        const feature = event.features?.[0]
+        // Same layer filter as the hover handler: interactiveLayerIds also
+        // carries the live-pulse layers, whose features come back first.
+        const feature = event.features?.find((f) => f.layer.id === "country-fill")
         const code = feature ? String(feature.id) : null
         if (code) {
           const next = selectedCountries.includes(code)
@@ -621,6 +643,9 @@ function GeoMapInner({
 
   return (
     <div className="h-full w-full relative">
+      {/* The country hover handlers bind only in countries mode. react-map-gl
+          hit-tests interactiveLayerIds on every mousemove that has a handler
+          attached, and the other modes have nothing for them to do. */}
       <Map
         ref={mapRef}
         workerUrl={MAPLIBRE_WORKER_URL}
@@ -628,9 +653,9 @@ function GeoMapInner({
         onLoad={() => setMapLoaded(true)}
         onMove={onMove}
         onClick={onClick}
-        onMouseMove={onCountryHover}
-        onMouseLeave={onCountryHoverEnd}
-        onMouseOut={onCountryHoverEnd}
+        onMouseMove={activeLayer === "countries" ? onCountryHover : undefined}
+        onMouseLeave={activeLayer === "countries" ? onCountryHoverEnd : undefined}
+        onMouseOut={activeLayer === "countries" ? onCountryHoverEnd : undefined}
         mapStyle={mapStyle}
         projection={projection}
         renderWorldCopies={projection === "mercator"}
@@ -688,8 +713,11 @@ function GeoMapInner({
             banned markers still stack on top of the fill. */}
         {activeLayer === "countries" && (
           <Source id="countries" type="geojson" data="/static/countries.geojson" promoteId="id">
-            <Layer {...countryFillLayer(buildFillColor(ramp.steps, countryBreaks, ramp.noData))} />
-            <Layer {...countryBorderLayer(ramp)} />
+            <Layer
+              beforeId={labelLayerId}
+              {...countryFillLayer(buildFillColor(ramp.steps, countryBreaks, ramp.noData))}
+            />
+            <Layer beforeId={labelLayerId} {...countryBorderLayer(ramp)} />
           </Source>
         )}
 
