@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Caddy is a supported log source: the `caddy-json` format parses Caddy's native JSON access logs, auto-detected like the other formats and available to `import-logs --format caddy-json`. Behind a CDN or another proxy, set `servers.trusted_proxies` so Caddy logs the visitor's address; the README's Caddy setup section has the details.
+
 ### Fixed
 
 - Add missing status codes (444, 499) in access logs status code filter dropdown.
