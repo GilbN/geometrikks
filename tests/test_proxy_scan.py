@@ -1,6 +1,8 @@
 """Head-side CDN scan: aggregation, hysteresis, failure handling."""
 from __future__ import annotations
 
+from typing import Any, cast
+
 import pytest
 import structlog
 
@@ -102,3 +104,24 @@ async def test_failed_run_clears_cache_and_state() -> None:
     with structlog.testing.capture_logs() as logs:
         apply_scan_results([groups_for("web", 1000, 800)], [ScanProvider("web", 13335, 800)])
     assert any(e["event"] == "proxy_peer_detected" for e in logs)
+
+
+@pytest.mark.anyio
+async def test_scheduler_registers_scan_job_on_head_only() -> None:
+    from geometrikks.config.settings import Settings
+    from geometrikks.server.scheduler import create_scheduler
+
+    settings = Settings()
+    factory = cast(Any, object())  # never called at registration time
+
+    scheduler = await create_scheduler(factory, settings, mode="full", app=None)
+    assert scheduler.get_job("proxy-peer-scan") is not None
+    scheduler2 = await create_scheduler(factory, settings, mode="agent", app=None)
+    assert scheduler2.get_job("proxy-peer-scan") is None
+
+    settings.app.proxy_advisory = False
+    try:
+        scheduler3 = await create_scheduler(factory, settings, mode="full", app=None)
+        assert scheduler3.get_job("proxy-peer-scan") is None
+    finally:
+        settings.app.proxy_advisory = True

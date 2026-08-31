@@ -158,6 +158,22 @@ async def refresh_site_home_job(
     await upsert_auto_homes(session_factory, settings.logparser.resolved_hostnames(), home)
 
 
+async def proxy_scan_job(
+    session_factory: "Callable[[], AsyncSession]", app: "Litestar | None"
+) -> None:
+    """Scan access_logs for CDN peer sources the head does not tail.
+
+    The exclusion set is resolved at run time: parsers can appear after
+    registration, and a LOGPARSER_ENABLED=false head has none at all.
+    """
+    from geometrikks.domain.system.proxy_scan import run_proxy_scan
+    from geometrikks.server import runtime
+
+    service = runtime.get_ingestion_service(app) if app is not None else None
+    exclude = {p.hostname for p in service.parsers} if service is not None else set()
+    await run_proxy_scan(session_factory, exclude)
+
+
 async def refresh_geoip_job(settings: "Settings", app: "Litestar | None") -> None:
     """Refresh the GeoLite2 databases, then reload the ingestion readers when
     a file on disk no longer matches what the readers have open.
@@ -209,12 +225,14 @@ async def create_scheduler(
     - Location last_hit refresh: Every 5 minutes (configurable)
     - Full CAGG refresh: Every 6 hours (catches up any missed data)
     - GeoLite2 refresh: weekly by default
+    - Proxy peer scan: every 5 minutes, when APP_PROXY_ADVISORY is on
     - CrowdSec decision-stream poll, when the integration is on
 
     An agent instance (mode="agent") only tails logs into a schema the
     primary instance owns, so it registers just the GeoLite2 refresh and the
     site-home refresh: the other jobs are either primary-only maintenance
-    (CAGGs, location last_hit) or CrowdSec, which agents never wire up.
+    (CAGGs, location last_hit, proxy peer scan) or CrowdSec, which agents
+    never wire up.
 
     Note: TimescaleDB continuous aggregate policies also run in the background
     for automatic incremental refreshes. The scheduled jobs here supplement those.
@@ -298,6 +316,19 @@ async def create_scheduler(
         logger.info(
             "Scheduled site home refresh every %d hour(s)", settings.map.home_refresh_hours
         )
+
+    # Head-only: agents report their own parser findings on their own
+    # /health; the scan exists to pull remote sources onto the head.
+    if mode != "agent" and settings.app.proxy_advisory:
+        scheduler.add_job(
+            proxy_scan_job,
+            IntervalTrigger(minutes=5),
+            id="proxy-peer-scan",
+            name="Scan access logs for CDN peer sources",
+            args=[session_factory, app],
+            replace_existing=True,
+        )
+        logger.info("Scheduled proxy peer scan every 5 minutes")
 
     # CrowdSec decision-stream poll: feeds live ban/unban updates to the
     # /ws/crowdsec subscribers. Only registered when the integration is on;
