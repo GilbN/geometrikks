@@ -347,6 +347,16 @@ export const AdvisorySchema = {
         },
       ],
     },
+    docsUrl: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
     id: {
       type: "string",
     },

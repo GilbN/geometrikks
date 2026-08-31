@@ -123,6 +123,7 @@ export interface Advisory {
   summary: string
   detail?: string | null
   remedy?: string | null
+  docsUrl?: string | null
 }
 
 export interface HealthResponse {

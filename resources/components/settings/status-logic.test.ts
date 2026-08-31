@@ -441,4 +441,20 @@ describe("advisoryCards", () => {
     expect(cards[0]).toMatchObject({ tone: "amber", label: "s", remedy: "cmd" })
     expect(cards[1]).toMatchObject({ tone: "red", label: "c" })
   })
+  it("maps docsUrl onto advisory cards", () => {
+    const health = {
+      advisories: [
+        {
+          id: "proxy-peer-cdn",
+          severity: "warning",
+          summary: "s",
+          detail: "d",
+          remedy: "r",
+          docsUrl: "https://example.test/proxy-setup",
+        },
+      ],
+    } as unknown as HealthResponse
+    const [card] = advisoryCards(health)
+    expect(card.docsUrl).toBe("https://example.test/proxy-setup")
+  })
 })

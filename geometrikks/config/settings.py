@@ -672,6 +672,17 @@ class AppSettings(BaseSettings):
         default="full",
         description="Application mode: full (all components) or agent (logparser only)"
     )
+    proxy_advisory: bool = Field(
+        default=True,
+        description=(
+            "Warn on Settings > Status when most recent traffic for a tailed "
+            "file comes from CDN or private peer addresses, meaning the proxy "
+            "logs its upstream instead of the visitor. CDN findings for "
+            "agent-tailed sources are scanned from the database on the head "
+            "every 5 minutes. Set to false when the traffic mix is deliberate "
+            "(Tailscale-only access, a CDN you front on purpose)."
+        ),
+    )
 
 
 class Settings(BaseSettings):

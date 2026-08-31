@@ -87,6 +87,7 @@ export type AccessLogFacets = {
  */
 export type Advisory = {
   detail?: string | null;
+  docsUrl?: string | null;
   id: string;
   remedy?: string | null;
   severity: "warning" | "critical";
