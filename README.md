@@ -634,19 +634,19 @@ orchestrator with a readiness probe restarts it into a fresh wait; without
 one, restart the agent container yourself once the full instance has
 finished migrating.
 
-CDN peer advisories for an agent's tailed sources reach the head's
-Settings > Status page. The head scans the shared database's last hour of
-access-log rows every 5 minutes, covering only sources with
-`LOGPARSER_SEND_LOGS=true`. Private-peer advisories still surface only on
-the agent's own `/health` and logs, since those lines are never stored. See
-`docs/proxy-setup.md` for details.
-
 Compose does not act on health status, so on plain Docker the probe above
 shows a stuck agent as `unhealthy` in `docker ps` and gates any
 `depends_on: condition: service_healthy` you add. Turning that signal into a
 restart takes Swarm, Kubernetes, or an autoheal sidecar. `restart:
 unless-stopped` will not do it: it reacts to a container exiting, and a
 waiting agent stays up.
+
+CDN peer advisories for an agent's tailed sources reach the head's
+Settings > Status page. The head scans the shared database's last hour of
+access-log rows every 5 minutes, covering only sources with
+`LOGPARSER_SEND_LOGS=true`. Private-peer advisories still surface only on
+the agent's own `/health` and logs, since those lines are never stored. See
+`docs/proxy-setup.md` for details.
 
 The reverse case works too. To keep a full instance's UI and API without it
 tailing local files (a machine that only hosts the app, with all traffic
