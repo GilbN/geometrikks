@@ -5,7 +5,11 @@ from datetime import datetime, timedelta, timezone
 import pytest
 
 from geometrikks.services.logparser.formats import FORMATS, sniff_format
-from geometrikks.services.logparser.formats.base import detect_probe, parse_seconds
+from geometrikks.services.logparser.formats.base import (
+    detect_probe,
+    host_from_addr,
+    parse_seconds,
+)
 from geometrikks.services.logparser.formats.geometrikks_json import GeometrikksJsonFormat
 from geometrikks.services.logparser.formats.nginx import NginxFormat
 from geometrikks.services.logparser.formats.traefik import TraefikJsonFormat
@@ -565,6 +569,20 @@ def test_json_adapters_decline_each_others_lines() -> None:
 )
 def test_parse_seconds(raw: str | None, expected: float | None) -> None:
     assert parse_seconds(raw) == expected
+
+
+@pytest.mark.parametrize(
+    "addr, expected",
+    [
+        ("203.0.113.7:443", "203.0.113.7"),
+        ("[2001:db8::1]:443", "2001:db8::1"),
+        ("2001:db8::1", "2001:db8::1"),
+        ("caddy.example.com:8443", "caddy.example.com"),
+        ("caddy.example.com", "caddy.example.com"),
+    ],
+)
+def test_host_from_addr(addr: str, expected: str) -> None:
+    assert host_from_addr(addr) == expected
 
 
 def test_gjson_request_time_absent_is_none() -> None:
