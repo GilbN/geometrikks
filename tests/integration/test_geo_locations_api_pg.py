@@ -7,6 +7,8 @@ dependencies, against the scratch integration database.
 """
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
+
 import pytest
 import structlog
 from litestar.testing import AsyncTestClient
@@ -76,6 +78,112 @@ async def _seed_locations(session_maker, count: int) -> None:
                 {"geohash": f"glpg{i}", "lat": 59.0 + i, "lon": 10.0 + i, "city": f"City {i}"},
             )
         await session.commit()
+
+
+async def _seed_country_events(session_maker) -> None:
+    """Two countries, one city each, one hostname each, all inside the raw window."""
+    async with session_maker() as session:
+        location_ids = {}
+        for geohash, code, name, city, lat, lon in (
+            ("chapi1", "NO", "Norway", "Oslo", 59.91, 10.75),
+            ("chapi2", "SE", "Sweden", "Umea", 63.83, 20.26),
+        ):
+            result = await session.execute(
+                text(
+                    "INSERT INTO geo_locations "
+                    "(geohash, latitude, longitude, geographic_point, country_code, "
+                    " country_name, city, last_hit, created_at, updated_at) "
+                    "VALUES (:geohash, :lat, :lon, "
+                    " ST_SetSRID(ST_MakePoint(:lon, :lat), 4326)::geography, "
+                    " :code, :name, :city, now(), now(), now()) "
+                    "RETURNING id"
+                ),
+                {"geohash": geohash, "lat": lat, "lon": lon, "code": code,
+                 "name": name, "city": city},
+            )
+            location_ids[code] = result.scalar_one()
+
+        ts = datetime.now(timezone.utc) - timedelta(hours=1)
+        for code, hostname, count in (("NO", "web-01", 5), ("SE", "web-02", 3)):
+            for _ in range(count):
+                await session.execute(
+                    text(
+                        "INSERT INTO geo_events (timestamp, ip_address, hostname, location_id) "
+                        "VALUES (:ts, '203.0.113.7', :hostname, :location_id)"
+                    ),
+                    {"ts": ts, "hostname": hostname, "location_id": location_ids[code]},
+                )
+        await session.commit()
+
+
+async def test_country_stats_through_the_full_app(
+    app_settings, pg_session_maker, clean_tables
+):
+    """The camelCase DTO shape plus the countryCode/city/hostnameIn aliases.
+
+    The service takes `cities` and `hostnames` as the same `list[str] | None`,
+    so swapping the two wires typechecks and passes every repository-level
+    test. Filtering on a city name and on a hostname separately is what pins
+    each alias to the argument it is meant to fill.
+    """
+    await _seed_country_events(pg_session_maker)
+    span = {
+        "fromTimestamp": (datetime.now(timezone.utc) - timedelta(hours=6)).isoformat(),
+        "toTimestamp": (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat(),
+    }
+
+    app = create_app(settings=app_settings)
+    async with AsyncTestClient(app=app) as client:
+        both = await client.get("/api/v1/geo-locations/country-stats", params=span)
+        by_city = await client.get(
+            "/api/v1/geo-locations/country-stats", params={**span, "city": "Oslo"}
+        )
+        by_hostname = await client.get(
+            "/api/v1/geo-locations/country-stats", params={**span, "hostnameIn": "web-02"}
+        )
+        by_country = await client.get(
+            "/api/v1/geo-locations/country-stats", params={**span, "countryCode": "se"}
+        )
+
+    assert both.status_code == 200
+    rows = both.json()["countries"]
+    assert {row["countryCode"]: row["eventCount"] for row in rows} == {"NO": 5, "SE": 3}
+    assert set(rows[0]) == {"countryCode", "countryName", "eventCount"}
+    assert {row["countryCode"]: row["countryName"] for row in rows} == {
+        "NO": "Norway", "SE": "Sweden",
+    }
+
+    # A city filter routed into `hostnames` would match no rows at all.
+    assert by_city.json()["countries"] == [
+        {"countryCode": "NO", "countryName": "Norway", "eventCount": 5}
+    ]
+    # And a hostname filter routed into `cities` would do the same.
+    assert by_hostname.json()["countries"] == [
+        {"countryCode": "SE", "countryName": "Sweden", "eventCount": 3}
+    ]
+    assert [row["countryCode"] for row in by_country.json()["countries"]] == ["SE"]
+
+
+async def test_country_stats_treats_a_naive_range_as_utc(
+    app_settings, pg_session_maker, clean_tables
+):
+    """ensure_utc: an offset-less range must cover the same rows as a Z range."""
+    await _seed_country_events(pg_session_maker)
+    now = datetime.now(timezone.utc)
+
+    app = create_app(settings=app_settings)
+    async with AsyncTestClient(app=app) as client:
+        response = await client.get(
+            "/api/v1/geo-locations/country-stats",
+            params={
+                "fromTimestamp": (now - timedelta(hours=6)).replace(tzinfo=None).isoformat(),
+                "toTimestamp": (now + timedelta(hours=1)).replace(tzinfo=None).isoformat(),
+            },
+        )
+
+    assert response.status_code == 200
+    counts = {row["countryCode"]: row["eventCount"] for row in response.json()["countries"]}
+    assert counts == {"NO": 5, "SE": 3}
 
 
 async def test_list_geo_locations_paginates_through_the_full_app(
