@@ -709,7 +709,7 @@ def test_caddy_detect_malformed() -> None:
 
 
 def test_registry_order() -> None:
-    assert list(FORMATS) == ["geometrikks-json", "traefik-json", "nginx"]
+    assert list(FORMATS) == ["geometrikks-json", "traefik-json", "caddy-json", "nginx"]
     assert FORMATS["geometrikks-json"].name == "geometrikks-json"
 
 
@@ -721,12 +721,24 @@ def test_sniff_format_gjson() -> None:
 
 
 def test_json_adapters_decline_each_others_lines() -> None:
-    assert GeometrikksJsonFormat().parse(TRAEFIK_FULL) is None
-    assert GeometrikksJsonFormat().parse(TRAEFIK_FULL, geo_only=True) is None
-    assert TraefikJsonFormat().parse(gjson()) is None
-    assert TraefikJsonFormat().parse(gjson(), geo_only=True) is None
+    for foreign in (TRAEFIK_FULL, CADDY_FULL):
+        assert GeometrikksJsonFormat().parse(foreign) is None
+        assert GeometrikksJsonFormat().parse(foreign, geo_only=True) is None
+    for foreign in (gjson(), CADDY_FULL):
+        assert TraefikJsonFormat().parse(foreign) is None
+        assert TraefikJsonFormat().parse(foreign, geo_only=True) is None
+    for foreign in (gjson(), TRAEFIK_FULL):
+        assert CaddyJsonFormat().parse(foreign) is None
+        assert CaddyJsonFormat().parse(foreign, geo_only=True) is None
     sniffed = sniff_format([TRAEFIK_FULL])
     assert sniffed is not None and sniffed.format.name == "traefik-json"
+
+
+def test_sniff_format_caddy() -> None:
+    sniffed = sniff_format([NGINX_GARBAGE, caddy()])
+    assert sniffed is not None
+    assert sniffed.format.name == "caddy-json"
+    assert sniffed.geo_only is False
 
 
 @pytest.mark.parametrize(
