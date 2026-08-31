@@ -903,3 +903,49 @@ def test_parse_line_geometrikks_json_auto_detects(tmp_path: Path, geoip_reader: 
     assert record is not None and record.ip_address == "2.125.160.216"
     assert parser.format is not None and parser.format.name == "geometrikks-json"
     assert parser.send_logs is True
+
+
+def make_caddy_line(ip: str) -> str:
+    """One Caddy JSON access-log line (zap encoder defaults)."""
+    return (
+        '{"level":"info","ts":1722683657.123,"logger":"http.log.access.log0","msg":"handled request",'
+        '"request":{"remote_ip":"' + ip + '","remote_port":"56002","client_ip":"' + ip + '",'
+        '"proto":"HTTP/2.0","method":"GET","host":"caddy.example.com","uri":"/index.php",'
+        '"headers":{"User-Agent":["Mozilla/5.0"]}},'
+        '"bytes_read":0,"user_id":"","duration":0.002,"size":1024,"status":200,'
+        '"resp_headers":{"Server":["Caddy"]}}\n'
+    )
+
+
+def test_parse_line_caddy_json_end_to_end(tmp_path: Path, geoip_reader: Reader) -> None:
+    """Geo data and the access log are assembled for the Caddy format."""
+    ip = "2.125.160.216"  # present in the GeoLite2 test database
+    parser = LogParser(log_path=tmp_path / "caddy.log", send_logs=True, log_format="caddy-json")
+    lookup = make_cached_city_lookup(geoip_reader)
+
+    record = parser.parse_line(make_caddy_line(ip), lookup)
+
+    assert record is not None
+    assert record.ip_address == ip
+    assert record.log_format == "caddy-json"
+    assert record.is_malformed is False
+    assert record.geo_data is not None
+    assert record.geo_data.country_code == "GB"
+    assert record.access_log is not None
+    assert record.access_log.url == "/index.php"
+    assert record.access_log.host == "caddy.example.com"
+    assert record.access_log.status_code == 200
+    assert record.access_log.request_time == pytest.approx(0.002)
+    assert record.access_log.upstream_response_time is None
+    offset = record.access_log.timestamp.utcoffset()
+    assert offset is not None and offset.total_seconds() == 0
+    assert parser.parsed_lines == 1
+
+
+def test_parse_line_caddy_json_auto_detects(tmp_path: Path, geoip_reader: Reader) -> None:
+    parser = LogParser(log_path=tmp_path / "caddy.log", send_logs=True)
+    lookup = make_cached_city_lookup(geoip_reader)
+    record = parser.parse_line(make_caddy_line("2.125.160.216"), lookup)
+    assert record is not None and record.ip_address == "2.125.160.216"
+    assert parser.format is not None and parser.format.name == "caddy-json"
+    assert parser.send_logs is True
