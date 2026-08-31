@@ -257,8 +257,20 @@ function GeoMapInner({
       applyCountryValues(map, "countries", prevCountryValues.current, countryValues)
       prevCountryValues.current = countryValues
     }
-    if (map.getSource("countries") && map.isSourceLoaded("countries")) apply()
-    else map.once("idle", apply)
+    if (map.getSource("countries") && map.isSourceLoaded("countries")) {
+      apply()
+      return
+    }
+    // apply() closes over this run's countryValues. Without removing the
+    // listener, a later run's immediate apply() can paint fresh data before
+    // the map goes idle, and this stale listener then fires and diffs the
+    // fresh state back down to whatever countryValues were current when it
+    // was registered - e.g. wiping every country to noData if it started
+    // out empty and the map rarely idles (live pulses animating).
+    map.once("idle", apply)
+    return () => {
+      map.off("idle", apply)
+    }
   }, [activeLayer, countryValues, mapLoaded])
 
   // Banned-IP overlay: attackers with an active CrowdSec decision that also
@@ -528,7 +540,11 @@ function GeoMapInner({
       if (countryHover && map?.getSource("countries")) {
         map.setFeatureState({ source: "countries", id: countryHover.id }, { hover: false })
       }
-      const feature = event.features?.[0]
+      // interactiveLayerIds also carries the live-pulse layers in live mode,
+      // and their features come back first (rendered on top); without this
+      // filter, hovering a packet over a country reads that packet's
+      // feature (no `id`) instead of the country underneath it.
+      const feature = event.features?.find((f) => f.layer.id === "country-fill")
       if (!feature) {
         setCountryHover(null)
         return
@@ -547,7 +563,19 @@ function GeoMapInner({
     [activeLayer, countryHover],
   )
 
-  const onCountryHoverEnd = useCallback(() => setCountryHover(null), [])
+  // Self-sufficient: clears both the popup state and the map's "hover"
+  // feature state for whatever was last hovered. Needed because the
+  // mousemove handler above only clears feature state for the *previous*
+  // feature when a *new* mousemove arrives - moving the pointer off the map
+  // canvas entirely (onMouseOut, not onMouseLeave - see below) never fires
+  // another mousemove, so without this the highlight would stay stuck.
+  const onCountryHoverEnd = useCallback(() => {
+    const map = mapRef.current?.getMap()
+    if (countryHover && map?.getSource("countries")) {
+      map.setFeatureState({ source: "countries", id: countryHover.id }, { hover: false })
+    }
+    setCountryHover(null)
+  }, [countryHover])
 
   const handleLiveSelect = useCallback((request: LiveRequest) => {
     // Only one popup at a time: selecting a live request dismisses any open
@@ -602,6 +630,7 @@ function GeoMapInner({
         onClick={onClick}
         onMouseMove={onCountryHover}
         onMouseLeave={onCountryHoverEnd}
+        onMouseOut={onCountryHoverEnd}
         mapStyle={mapStyle}
         projection={projection}
         renderWorldCopies={projection === "mercator"}
