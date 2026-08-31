@@ -26,6 +26,7 @@ export type RouteName =
   | 'get_access_log_facets'
   | 'get_asn_classification'
   | 'get_changelog'
+  | 'get_country_stats'
   | 'get_cumulative_time_series'
   | 'get_database_info'
   | 'get_geo_log_facets'
@@ -94,6 +95,7 @@ export interface RoutePathParams {
   'get_access_log_facets': Record<string, never>;
   'get_asn_classification': Record<string, never>;
   'get_changelog': Record<string, never>;
+  'get_country_stats': Record<string, never>;
   'get_cumulative_time_series': Record<string, never>;
   'get_database_info': Record<string, never>;
   'get_geo_log_facets': Record<string, never>;
@@ -165,6 +167,13 @@ export interface RouteQueryParams {
   'get_access_log_facets': Record<string, never>;
   'get_asn_classification': Record<string, never>;
   'get_changelog': Record<string, never>;
+  'get_country_stats': {
+    city?: string[];
+    countryCode?: string[];
+    fromTimestamp: DateTime;
+    hostnameIn?: string[];
+    toTimestamp: DateTime;
+  };
   'get_cumulative_time_series': {
     endDate: DateTime;
     startDate: DateTime;
@@ -502,6 +511,13 @@ export const routeDefinitions = {
     method: 'get',
     pathParams: [] as const,
     queryParams: [] as const,
+  },
+  'get_country_stats': {
+    path: '/api/v1/geo-locations/country-stats',
+    methods: ['GET'] as const,
+    method: 'get',
+    pathParams: [] as const,
+    queryParams: ['city', 'countryCode', 'fromTimestamp', 'hostnameIn', 'toTimestamp'] as const,
   },
   'get_cumulative_time_series': {
     path: '/api/v1/analytics/time-series/cumulative',

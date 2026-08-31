@@ -27,6 +27,7 @@ import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   Activity,
+  Earth,
   Flame,
   Globe2,
   Home,
@@ -234,7 +235,7 @@ export function MapControls({
     <>
       <Section label="Visualization">
         <Tabs value={activeLayer} onValueChange={(value) => onLayerChange(value as LayerType)}>
-          <TabsList className="grid h-8 w-full grid-cols-2 pointer-coarse:h-10">
+          <TabsList className="grid h-8 w-full grid-cols-3 pointer-coarse:h-10">
             <TabsTrigger value="heatmap" className="gap-1.5 text-xs data-active:bg-primary/15 data-active:text-primary data-active:border-primary/30 dark:data-active:bg-primary/15 dark:data-active:text-primary dark:data-active:border-primary/30">
               <Flame className="h-3.5 w-3.5" />
               Heatmap
@@ -242,6 +243,10 @@ export function MapControls({
             <TabsTrigger value="markers" className="gap-1.5 text-xs data-active:bg-primary/15 data-active:text-primary data-active:border-primary/30 dark:data-active:bg-primary/15 dark:data-active:text-primary dark:data-active:border-primary/30">
               <MapPin className="h-3.5 w-3.5" />
               Markers
+            </TabsTrigger>
+            <TabsTrigger value="countries" className="gap-1.5 text-xs data-active:bg-primary/15 data-active:text-primary data-active:border-primary/30 dark:data-active:bg-primary/15 dark:data-active:text-primary dark:data-active:border-primary/30">
+              <Earth className="h-3.5 w-3.5" />
+              Countries
             </TabsTrigger>
           </TabsList>
         </Tabs>

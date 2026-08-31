@@ -123,6 +123,20 @@ class TopCountriesResponse(msgspec.Struct, rename="camel"):
     top_countries: list[TopCountryDTO] = msgspec.field(default_factory=list)
 
 
+class CountryStatDTO(msgspec.Struct, rename="camel"):
+    """One country's event count for the map choropleth."""
+
+    country_code: str
+    country_name: str | None
+    event_count: int
+
+
+class CountryStatsResponse(msgspec.Struct, rename="camel"):
+    """Response for the country-stats endpoint."""
+
+    countries: list[CountryStatDTO] = msgspec.field(default_factory=list)
+
+
 class SiteHomeView(msgspec.Struct, rename="camel"):
     """One hostname's current home location, auto-detected or overridden."""
 

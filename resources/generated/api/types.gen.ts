@@ -209,6 +209,22 @@ export type CountryFacet = {
 };
 
 /**
+ * CountryStatDTO
+ */
+export type CountryStatDto = {
+  countryCode: string;
+  countryName: string | null;
+  eventCount: number;
+};
+
+/**
+ * CountryStatsResponse
+ */
+export type CountryStatsResponse = {
+  countries?: Array<CountryStatDto>;
+};
+
+/**
  * CrowdSecHealth
  */
 export type CrowdSecHealth = {
@@ -3081,6 +3097,63 @@ export type ApiV1GeoLocationsListGeoLocationsResponses = {
 
 export type ApiV1GeoLocationsListGeoLocationsResponse =
   ApiV1GeoLocationsListGeoLocationsResponses[keyof ApiV1GeoLocationsListGeoLocationsResponses];
+
+export type ApiV1GeoLocationsCountryStatsGetCountryStatsData = {
+  body?: never;
+  path?: never;
+  query: {
+    /**
+     * Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)
+     */
+    fromTimestamp: string;
+    /**
+     * End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)
+     */
+    toTimestamp: string;
+    /**
+     * Filter to these ISO country codes (repeatable)
+     */
+    countryCode?: Array<string> | null;
+    /**
+     * Filter to these city names (repeatable)
+     */
+    city?: Array<string> | null;
+    /**
+     * Filter to these recording hostnames (repeatable)
+     */
+    hostnameIn?: Array<string> | null;
+  };
+  url: "/api/v1/geo-locations/country-stats";
+};
+
+export type ApiV1GeoLocationsCountryStatsGetCountryStatsErrors = {
+  /**
+   * Validation Exception
+   */
+  400: {
+    detail: string;
+    extra?:
+      | null
+      | {
+          [key: string]: unknown;
+        }
+      | Array<unknown>;
+    status_code: number;
+  };
+};
+
+export type ApiV1GeoLocationsCountryStatsGetCountryStatsError =
+  ApiV1GeoLocationsCountryStatsGetCountryStatsErrors[keyof ApiV1GeoLocationsCountryStatsGetCountryStatsErrors];
+
+export type ApiV1GeoLocationsCountryStatsGetCountryStatsResponses = {
+  /**
+   * Request fulfilled, document follows
+   */
+  200: CountryStatsResponse;
+};
+
+export type ApiV1GeoLocationsCountryStatsGetCountryStatsResponse =
+  ApiV1GeoLocationsCountryStatsGetCountryStatsResponses[keyof ApiV1GeoLocationsCountryStatsGetCountryStatsResponses];
 
 export type ApiV1GeoLocationsGeojsonGetGeojsonData = {
   body?: never;

@@ -740,6 +740,46 @@
         "title": "CountryFacet",
         "type": "object"
       },
+      "CountryStatDTO": {
+        "properties": {
+          "countryCode": {
+            "type": "string"
+          },
+          "countryName": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "eventCount": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "countryCode",
+          "countryName",
+          "eventCount"
+        ],
+        "title": "CountryStatDTO",
+        "type": "object"
+      },
+      "CountryStatsResponse": {
+        "properties": {
+          "countries": {
+            "items": {
+              "$ref": "#/components/schemas/CountryStatDTO"
+            },
+            "type": "array"
+          }
+        },
+        "required": [],
+        "title": "CountryStatsResponse",
+        "type": "object"
+      },
       "CrowdSecHealth": {
         "properties": {
           "enabled": {
@@ -10150,6 +10190,183 @@
           }
         },
         "summary": "ListGeoLocations",
+        "tags": [
+          "Geo Locations"
+        ]
+      }
+    },
+    "/api/v1/geo-locations/country-stats": {
+      "get": {
+        "deprecated": false,
+        "description": "Event counts per country for the map choropleth.",
+        "operationId": "ApiV1GeoLocationsCountryStatsGetCountryStats",
+        "parameters": [
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)",
+            "examples": {
+              "from_timestamp-example-1": {
+                "value": "2024-01-01T00:00:00Z"
+              }
+            },
+            "in": "query",
+            "name": "fromTimestamp",
+            "required": true,
+            "schema": {
+              "description": "Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)",
+              "examples": [
+                "2024-01-01T00:00:00Z"
+              ],
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)",
+            "examples": {
+              "to_timestamp-example-1": {
+                "value": "2024-12-31T23:59:59Z"
+              }
+            },
+            "in": "query",
+            "name": "toTimestamp",
+            "required": true,
+            "schema": {
+              "description": "End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)",
+              "examples": [
+                "2024-12-31T23:59:59Z"
+              ],
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Filter to these ISO country codes (repeatable)",
+            "in": "query",
+            "name": "countryCode",
+            "required": false,
+            "schema": {
+              "description": "Filter to these ISO country codes (repeatable)",
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Filter to these city names (repeatable)",
+            "in": "query",
+            "name": "city",
+            "required": false,
+            "schema": {
+              "description": "Filter to these city names (repeatable)",
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Filter to these recording hostnames (repeatable)",
+            "in": "query",
+            "name": "hostnameIn",
+            "required": false,
+            "schema": {
+              "description": "Filter to these recording hostnames (repeatable)",
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CountryStatsResponse"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "GetCountryStats",
         "tags": [
           "Geo Locations"
         ]

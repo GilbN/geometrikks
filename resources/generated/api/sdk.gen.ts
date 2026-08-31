@@ -110,6 +110,9 @@ import type {
   ApiV1GeoEventsTopIpsGetGeoLogTopIpsData,
   ApiV1GeoEventsTopIpsGetGeoLogTopIpsErrors,
   ApiV1GeoEventsTopIpsGetGeoLogTopIpsResponses,
+  ApiV1GeoLocationsCountryStatsGetCountryStatsData,
+  ApiV1GeoLocationsCountryStatsGetCountryStatsErrors,
+  ApiV1GeoLocationsCountryStatsGetCountryStatsResponses,
   ApiV1GeoLocationsGeojsonGetGeojsonData,
   ApiV1GeoLocationsGeojsonGetGeojsonErrors,
   ApiV1GeoLocationsGeojsonGetGeojsonResponses,
@@ -1271,6 +1274,39 @@ export const apiV1GeoLocationsListGeoLocations = <
       },
     ],
     url: "/api/v1/geo-locations",
+    ...options,
+  });
+
+/**
+ * GetCountryStats
+ *
+ * Event counts per country for the map choropleth.
+ */
+export const apiV1GeoLocationsCountryStatsGetCountryStats = <
+  ThrowOnError extends boolean = false,
+>(
+  options: Options<
+    ApiV1GeoLocationsCountryStatsGetCountryStatsData,
+    ThrowOnError
+  >,
+): RequestResult<
+  ApiV1GeoLocationsCountryStatsGetCountryStatsResponses,
+  ApiV1GeoLocationsCountryStatsGetCountryStatsErrors,
+  ThrowOnError
+> =>
+  (options.client ?? client).get<
+    ApiV1GeoLocationsCountryStatsGetCountryStatsResponses,
+    ApiV1GeoLocationsCountryStatsGetCountryStatsErrors,
+    ThrowOnError
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+    ],
+    url: "/api/v1/geo-locations/country-stats",
     ...options,
   });
 

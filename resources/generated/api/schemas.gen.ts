@@ -690,6 +690,44 @@ export const CountryFacetSchema = {
   type: "object",
 } as const;
 
+export const CountryStatDTOSchema = {
+  properties: {
+    countryCode: {
+      type: "string",
+    },
+    countryName: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    eventCount: {
+      type: "integer",
+    },
+  },
+  required: ["countryCode", "countryName", "eventCount"],
+  title: "CountryStatDTO",
+  type: "object",
+} as const;
+
+export const CountryStatsResponseSchema = {
+  properties: {
+    countries: {
+      items: {
+        $ref: "#/components/schemas/CountryStatDTO",
+      },
+      type: "array",
+    },
+  },
+  required: [],
+  title: "CountryStatsResponse",
+  type: "object",
+} as const;
+
 export const CrowdSecHealthSchema = {
   properties: {
     enabled: {

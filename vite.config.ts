@@ -73,6 +73,14 @@ export default defineConfig({
               plugins: [{ cacheKeyWillBeUsed: async () => "/" }],
             },
           },
+          {
+            urlPattern: ({ url }) => /\/static\/countries\.geojson$/.test(url.pathname),
+            handler: "StaleWhileRevalidate",
+            options: {
+              cacheName: "country-geometry",
+              cacheableResponse: { statuses: [200] },
+            },
+          },
         ],
         // Inline the runtime; a sibling workbox-*.js would 404 at the root.
         inlineWorkboxRuntime: true,
