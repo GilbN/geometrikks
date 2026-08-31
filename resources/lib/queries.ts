@@ -8,6 +8,7 @@ import {
   fetchSummary,
   fetchLiveSummary,
   fetchGeoJSON,
+  fetchCountryStats,
   fetchGeoTimeSeries,
   fetchGlobalTopIPs,
   fetchLocationTopIPs,
@@ -148,6 +149,8 @@ export const queryKeys = {
     all: ["geo"] as const,
     geojson: (params: Record<string, unknown>, refreshKey?: number) =>
       [...queryKeys.geo.all, "geojson", params, refreshKey] as const,
+    countryStats: (params: Record<string, unknown>, refreshKey?: number) =>
+      [...queryKeys.geo.all, "country-stats", params, refreshKey] as const,
     globalTopIPs: (params: Record<string, unknown>, refreshKey?: number) =>
       [...queryKeys.geo.all, "global-top-ips", params, refreshKey] as const,
     locationTopIPs: (locationId: number, params: Record<string, unknown>, refreshKey?: number) =>
@@ -598,6 +601,36 @@ export function useGeoJSON(options: UseGeoJSONOptions = {}) {
     },
     enabled,
     staleTime: 60 * 1000, // Geo data changes less frequently
+    refetchInterval: pollInterval || false,
+  })
+}
+
+export function useCountryStats(options: {
+  enabled?: boolean
+  countryCodes?: string[]
+  cities?: string[]
+  hostnames?: string[]
+} = {}) {
+  const { enabled = true, countryCodes, cities, hostnames } = options
+  const { range, customRange, pollInterval, lastRefresh } = useTimeRange()
+
+  return useQuery({
+    queryKey: queryKeys.geo.countryStats(
+      { range, customRange, countryCodes, cities, hostnames },
+      lastRefresh,
+    ),
+    queryFn: () => {
+      const { startDate, endDate } = parseTimeRange(range, Date.now(), customRange)
+      return fetchCountryStats({
+        fromTimestamp: startDate,
+        toTimestamp: endDate,
+        countryCodes,
+        cities,
+        hostnames,
+      })
+    },
+    enabled,
+    staleTime: 60 * 1000,
     refetchInterval: pollInterval || false,
   })
 }

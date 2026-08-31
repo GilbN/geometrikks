@@ -33,6 +33,7 @@ import type {
   AboutResponse,
   AsnClassificationListResponse,
   ChangelogResponse,
+  CountryStatsResponse,
   CrowdSecStatusResponse,
   CrowdSecStatsResponse,
   AlertView,
@@ -458,6 +459,30 @@ export async function fetchGeoJSON(params: GeoJSONParams): Promise<GeoJSONFeatur
       city: params.cities?.length ? params.cities : undefined,
       ipAddressIn: params.ips?.length ? params.ips : undefined,
       ipAddressNotIn: params.ipsExclude?.length ? params.ipsExclude : undefined,
+      hostnameIn: params.hostnames?.length ? params.hostnames : undefined,
+    },
+    // Litestar expects repeated keys (?countryCode=NO&countryCode=SE),
+    // not axios' default bracket form (countryCode[]=NO).
+    paramsSerializer: { indexes: null },
+  })
+  return data
+}
+
+export interface CountryStatsParams {
+  fromTimestamp: string
+  toTimestamp: string
+  countryCodes?: string[]
+  cities?: string[]
+  hostnames?: string[]
+}
+
+export async function fetchCountryStats(params: CountryStatsParams): Promise<CountryStatsResponse> {
+  const { data } = await api.get<CountryStatsResponse>("/geo-locations/country-stats", {
+    params: {
+      fromTimestamp: params.fromTimestamp,
+      toTimestamp: params.toTimestamp,
+      countryCode: params.countryCodes?.length ? params.countryCodes : undefined,
+      city: params.cities?.length ? params.cities : undefined,
       hostnameIn: params.hostnames?.length ? params.hostnames : undefined,
     },
     // Litestar expects repeated keys (?countryCode=NO&countryCode=SE),
