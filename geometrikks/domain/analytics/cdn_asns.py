@@ -7,7 +7,7 @@ CDN77 (60068) appears in both, which is harmless.
 Hyperscalers (AWS 16509/14618, GCP 15169, Azure 8075) stay out: inbound
 traffic from those is scanners, not a fronting CDN.
 
-Org names taken from the 2026-08-30 spec; re-check against bgp.tools before release.
+Org names checked against https://bgp.tools/as/<asn> on 2026-08-31.
 """
 from __future__ import annotations
 
