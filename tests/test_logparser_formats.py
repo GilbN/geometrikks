@@ -10,6 +10,7 @@ from geometrikks.services.logparser.formats.base import (
     host_from_addr,
     parse_seconds,
 )
+from geometrikks.services.logparser.formats.caddy import CaddyJsonFormat
 from geometrikks.services.logparser.formats.geometrikks_json import GeometrikksJsonFormat
 from geometrikks.services.logparser.formats.nginx import NginxFormat
 from geometrikks.services.logparser.formats.traefik import TraefikJsonFormat
@@ -528,6 +529,181 @@ def test_gjson_connection_statuses_are_well_formed() -> None:
 def test_gjson_detect_malformed_ok_line() -> None:
     fmt = GeometrikksJsonFormat()
     norm = fmt.parse(gjson())
+    assert norm is not None
+    assert fmt.detect_malformed(norm) == (False, None)
+
+
+CADDY_FULL = json.dumps(
+    {
+        "level": "info",
+        "ts": 1788204125.4837868,
+        "logger": "http.log.access.log1",
+        "msg": "handled request",
+        "request": {
+            "remote_ip": "198.51.100.9",
+            "remote_port": "11085",
+            "client_ip": "203.0.113.7",
+            "proto": "HTTP/2.0",
+            "method": "GET",
+            "host": "caddy.example.com",
+            "uri": "/robots.txt",
+            "headers": {
+                "User-Agent": ["Mozilla/5.0 (compatible; test-crawler/1.0)"],
+                "Referer": ["https://caddy.example.com/"],
+                "X-Forwarded-For": ["203.0.113.7"],
+            },
+            "tls": {"resumed": False, "version": 772},
+        },
+        "bytes_read": 0,
+        "user_id": "",
+        "duration": 0.175457236,
+        "size": 5043,
+        "status": 200,
+        "resp_headers": {"Server": ["Caddy"]},
+    }
+)
+
+
+def caddy(request_overrides: dict | None = None, **overrides) -> str:
+    """One caddy-json line; an override of None removes the key."""
+    data = json.loads(CADDY_FULL)
+    for target, changes in ((data["request"], request_overrides or {}), (data, overrides)):
+        for key, value in changes.items():
+            if value is None:
+                target.pop(key, None)
+            else:
+                target[key] = value
+    return json.dumps(data) + "\n"
+
+
+def test_caddy_parse_full_line() -> None:
+    norm = CaddyJsonFormat().parse(caddy())
+    assert norm is not None
+    assert norm.ip_address == "203.0.113.7"  # client_ip, not the remote_ip peer
+    assert norm.timestamp == datetime.fromtimestamp(1788204125.4837868, tz=timezone.utc)
+    assert norm.method == "GET"
+    assert norm.path == "/robots.txt"
+    assert norm.http_version == "HTTP/2.0"
+    assert norm.status_code == 200
+    assert norm.bytes_sent == 5043
+    assert norm.host == "caddy.example.com"
+    assert norm.referrer == "https://caddy.example.com/"
+    assert norm.user_agent == "Mozilla/5.0 (compatible; test-crawler/1.0)"
+    assert norm.remote_user is None  # user_id ""
+    assert norm.request_time == pytest.approx(0.175457236)
+    assert norm.upstream_response_time is None  # Caddy logs no upstream timing
+    assert norm.request_raw is None
+
+
+def test_caddy_client_ip_fallback_to_remote_ip() -> None:
+    norm = CaddyJsonFormat().parse(caddy({"client_ip": None}))
+    assert norm is not None
+    assert norm.ip_address == "198.51.100.9"
+
+
+def test_caddy_missing_both_ips_rejected() -> None:
+    line = caddy({"client_ip": None, "remote_ip": None})
+    assert CaddyJsonFormat().parse(line) is None
+    assert CaddyJsonFormat().parse(line, geo_only=True) is None
+
+
+@pytest.mark.parametrize(
+    "ts",
+    [
+        1788204125.4837868,  # unix_seconds_float (default)
+        1788204125,  # integer seconds
+        1788204125483.7868,  # unix_milli_float
+        1788204125483786752,  # unix_nano
+        "2026-08-31T19:22:05.483786+00:00",  # rfc3339 fraction
+        "2026-08-31T19:22:05Z",  # rfc3339
+        "2026-08-31T21:22:05+0200",  # zap iso8601 offset style
+    ],
+)
+def test_caddy_ts_variants(ts: float | int | str) -> None:
+    norm = CaddyJsonFormat().parse(caddy(ts=ts))
+    assert norm is not None
+    expected = datetime(2026, 8, 31, 19, 22, 5, tzinfo=timezone.utc)
+    assert abs((norm.timestamp - expected).total_seconds()) < 1
+
+
+@pytest.mark.parametrize("ts", ["2026-08-31T19:22:05", "1m32s", 0, -5, ""])
+def test_caddy_bad_ts_rejected(ts: float | int | str) -> None:
+    assert CaddyJsonFormat().parse(caddy(ts=ts)) is None
+
+
+def test_caddy_duration_string_is_none_not_fatal() -> None:
+    norm = CaddyJsonFormat().parse(caddy(duration="1m32.05s"))
+    assert norm is not None
+    assert norm.request_time is None
+    assert norm.status_code == 200
+
+
+def test_caddy_host_port_stripped() -> None:
+    norm = CaddyJsonFormat().parse(caddy({"host": "caddy.example.com:8443"}))
+    assert norm is not None
+    assert norm.host == "caddy.example.com"
+    norm = CaddyJsonFormat().parse(caddy({"host": "[2001:db8::1]:443"}))
+    assert norm is not None
+    assert norm.host == "2001:db8::1"
+
+
+def test_caddy_absent_headers_and_fields_become_none() -> None:
+    fmt = CaddyJsonFormat()
+    for line in (
+        caddy({"headers": None}),
+        caddy({"headers": {}}),
+        caddy({"headers": {"User-Agent": [], "Referer": []}}),
+    ):
+        norm = fmt.parse(line)
+        assert norm is not None
+        assert norm.user_agent is None
+        assert norm.referrer is None
+    norm = fmt.parse(
+        caddy(
+            {"method": None, "uri": None, "proto": None, "host": None},
+            size=None,
+            duration=None,
+            user_id=None,
+        )
+    )
+    assert norm is not None
+    assert norm.method is None
+    assert norm.path is None
+    assert norm.http_version is None
+    assert norm.host is None
+    assert norm.bytes_sent == 0
+    assert norm.request_time is None
+    assert norm.remote_user is None
+
+
+def test_caddy_geo_only() -> None:
+    norm = CaddyJsonFormat().parse(caddy(status=None), geo_only=True)
+    assert norm is not None
+    assert norm.ip_address == "203.0.113.7"
+    assert norm.timestamp.tzinfo is not None
+    assert norm.method is None
+
+
+def test_caddy_rejections() -> None:
+    fmt = CaddyJsonFormat()
+    runtime_line = '{"level":"info","ts":1788204125.4,"logger":"tls","msg":"certificate obtained"}\n'
+    assert fmt.parse("not json") is None
+    assert fmt.parse("[1, 2, 3]") is None
+    assert fmt.parse(runtime_line) is None  # no request object
+    assert fmt.parse(runtime_line, geo_only=True) is None
+    assert fmt.parse(caddy(status=None)) is None  # full parse needs int status
+    assert fmt.parse(caddy(status="200")) is None  # wrong JSON type fails the decode
+
+
+def test_caddy_detect_malformed() -> None:
+    fmt = CaddyJsonFormat()
+    norm = fmt.parse(caddy({"method": ""}, status=400))
+    assert norm is not None
+    assert fmt.detect_malformed(norm) == (True, "No HTTP method in request")
+    norm = fmt.parse(caddy({"method": "PROPFIND"}))
+    assert norm is not None
+    assert fmt.detect_malformed(norm) == (True, "Invalid HTTP method: PROPFIND")
+    norm = fmt.parse(caddy())
     assert norm is not None
     assert fmt.detect_malformed(norm) == (False, None)
 
