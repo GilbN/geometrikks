@@ -1,3 +1,4 @@
+import { createPropertyExpression, latest, type StylePropertySpecification } from "@maplibre/maplibre-gl-style-spec"
 import { describe, expect, it, vi } from "vitest"
 import { applyCountryValues, buildFillColor, computeBreaks } from "./choropleth"
 
@@ -23,10 +24,37 @@ describe("computeBreaks", () => {
 })
 
 describe("buildFillColor", () => {
-  it("uses the no-data color for missing feature state", () => {
-    const expr = buildFillColor(["#a", "#b", "#c", "#d", "#e"], [1, 10, 100, 1000, 10000], "#nd") as unknown[]
-    expect(expr[0]).toBe("case")
-    expect(JSON.stringify(expr)).toContain("#nd")
+  // MapLibre validates fill-color through this same parser and silently
+  // declines to add a layer whose paint fails, so parsing the expression here
+  // is the guard against colors it cannot read (oklch(), the serialization a
+  // CSS custom property in that space resolves to).
+  const FILL_COLOR = (latest as unknown as Record<string, Record<string, StylePropertySpecification>>)
+    .paint_fill["fill-color"]
+  const RAMP = ["rgb(10, 10, 10)", "rgb(20, 20, 20)", "rgb(30, 30, 30)", "rgb(40, 40, 40)", "rgb(50, 50, 50)"]
+  const BREAKS = [1, 10, 100, 1000, 10000]
+  const NO_DATA = "rgb(1, 2, 3)"
+  const FEATURE = { type: "Polygon" as const, properties: {} }
+
+  function compile(ramp: string[], noData: string) {
+    return createPropertyExpression(buildFillColor(ramp, BREAKS, noData), "fill-color", FILL_COLOR)
+  }
+
+  it("compiles as a fill-color property expression", () => {
+    const compiled = compile(RAMP, NO_DATA)
+    expect(compiled.result).toBe("success")
+  })
+
+  it("evaluates to the no-data color without feature state, and to the ramp with it", () => {
+    const compiled = compile(RAMP, NO_DATA)
+    if (compiled.result !== "success") throw new Error("expression did not compile")
+    expect(compiled.value.evaluate({ zoom: 0 }, FEATURE, {}).toString()).toBe("rgba(1,2,3,1)")
+    // 100 requests is log10 2, landing exactly on the third break's color.
+    expect(compiled.value.evaluate({ zoom: 0 }, FEATURE, { value: 100 }).toString()).toBe("rgba(30,30,30,1)")
+  })
+
+  it("rejects colors MapLibre cannot parse", () => {
+    const compiled = compile(RAMP, "oklch(0.93 0.0325 195)")
+    expect(compiled.result).toBe("error")
   })
 })
 
