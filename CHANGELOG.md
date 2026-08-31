@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-08-31
+
+### Added
+
+- Settings > Changelog lists every release from `CHANGELOG.md`, newest first, each linked to its GitHub compare view, with the one this install is running expanded and marked. A build ahead of the last release (a develop image, a local build, a source checkout) marks the Unreleased section instead. After an upgrade, the Settings entry in the sidebar and the Changelog tab show a dot until the page is opened once in that browser. Backed by `GET /api/v1/system/changelog` and a `changelogDigest` field on `/api/v1/system/about`; the container image now ships the changelog next to `alembic.ini`.
+- Settings > About shows the commit the build came from, linked to GitHub, next to the version (release and CI images carry it; a local `docker build` does not), and the Database card shows the alembic revision the database is on and whether it matches the one this build ships.
+
+### Fixed
+
+- Startup refuses an `ANALYTICS_RAW_RETENTION_DAYS` below 4 with a message naming the aggregate and the floor. The daily aggregates refresh their last 3 days from raw rows, so a shorter raw retention made every refresh find empty raw data under part of that window and delete the materialized rows, with nothing in the logs.
+- Changing any of the `ANALYTICS_*` policy settings (`RAW_RETENTION_DAYS`, `DEBUG_RETENTION_DAYS`, `HOURLY_RETENTION_DAYS`, `COMPRESSION_AFTER_DAYS`, `CAGG_REFRESH_INTERVAL_MINUTES`) on an existing database now updates the TimescaleDB policies on the next start (`policy_updated` in the logs). Until now the policies kept whatever values the database was first created with, and the new value was only logged at debug level and dropped.
+- The `traefik-json` format takes the rightmost address of an `X-Forwarded-For` chain in `ClientHost`, not the leftmost. Traefik logs the chain as it arrived from a trusted peer without appending the peer, so the leftmost entry is whatever the client sent and any client could put an arbitrary address on the map; the rightmost entry is the one the trusted proxy added.
+
 ## [0.12.1] - 2026-08-30
 
 ### Changed
@@ -933,7 +946,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Settings endpoint no longer exposes the full settings tree (database credentials leaked via `model_dump()`); response is now an explicit whitelist.
 - Timestamps in `CALL refresh_continuous_aggregate` are bound as asyncpg parameters instead of interpolated into SQL.
 
-[Unreleased]: https://github.com/GilbN/geometrikks/compare/v0.12.1...develop
+[Unreleased]: https://github.com/GilbN/geometrikks/compare/v0.13.0...develop
+[0.13.0]: https://github.com/GilbN/geometrikks/compare/v0.12.1...v0.13.0
 [0.12.1]: https://github.com/GilbN/geometrikks/compare/v0.12.0...v0.12.1
 [0.12.0]: https://github.com/GilbN/geometrikks/compare/v0.11.0...v0.12.0
 [0.11.0]: https://github.com/GilbN/geometrikks/compare/v0.10.0...v0.11.0

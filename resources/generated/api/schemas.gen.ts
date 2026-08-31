@@ -2,6 +2,26 @@
 
 export const AboutAppViewSchema = {
   properties: {
+    changelogDigest: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    commit: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
     container: {
       type: "boolean",
     },
@@ -37,6 +57,8 @@ export const AboutAppViewSchema = {
     },
   },
   required: [
+    "changelogDigest",
+    "commit",
     "container",
     "environment",
     "imageTag",
@@ -555,6 +577,95 @@ export const BanRequestSchema = {
   type: "object",
 } as const;
 
+export const ChangelogEntrySchema = {
+  properties: {
+    children: {
+      items: {
+        type: "string",
+      },
+      type: "array",
+    },
+    text: {
+      type: "string",
+    },
+  },
+  required: ["children", "text"],
+  title: "ChangelogEntry",
+  type: "object",
+} as const;
+
+export const ChangelogReleaseSchema = {
+  properties: {
+    date: {
+      oneOf: [
+        {
+          format: "date",
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    sections: {
+      items: {
+        $ref: "#/components/schemas/ChangelogSection",
+      },
+      type: "array",
+    },
+    unreleased: {
+      type: "boolean",
+    },
+    url: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    version: {
+      type: "string",
+    },
+  },
+  required: ["date", "sections", "unreleased", "url", "version"],
+  title: "ChangelogRelease",
+  type: "object",
+} as const;
+
+export const ChangelogResponseSchema = {
+  properties: {
+    releases: {
+      items: {
+        $ref: "#/components/schemas/ChangelogRelease",
+      },
+      type: "array",
+    },
+  },
+  required: ["releases"],
+  title: "ChangelogResponse",
+  type: "object",
+} as const;
+
+export const ChangelogSectionSchema = {
+  properties: {
+    entries: {
+      items: {
+        $ref: "#/components/schemas/ChangelogEntry",
+      },
+      type: "array",
+    },
+    kind: {
+      type: "string",
+    },
+  },
+  required: ["entries", "kind"],
+  title: "ChangelogSection",
+  type: "object",
+} as const;
+
 export const CountryFacetSchema = {
   properties: {
     code: {
@@ -752,6 +863,29 @@ export const DatabaseInfoResponseSchema = {
 
 export const DatabaseVersionsViewSchema = {
   properties: {
+    migrationHead: {
+      type: "string",
+    },
+    migrationName: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    migrationRevision: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
     postgisVersion: {
       oneOf: [
         {
@@ -783,7 +917,14 @@ export const DatabaseVersionsViewSchema = {
       ],
     },
   },
-  required: ["postgisVersion", "postgresVersion", "timescaledbVersion"],
+  required: [
+    "migrationHead",
+    "migrationName",
+    "migrationRevision",
+    "postgisVersion",
+    "postgresVersion",
+    "timescaledbVersion",
+  ],
   title: "DatabaseVersionsView",
   type: "object",
 } as const;

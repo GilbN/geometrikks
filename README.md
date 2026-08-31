@@ -116,13 +116,13 @@ Images are published as `ghcr.io/gilbn/geometrikks`.
 | `latest` | `latest` | The newest stable release. |
 | Exact stable version | `X.Y.Z` | A specific stable release; use this for reproducible deployments. |
 | Major/minor stable version | `X.Y` | The newest stable patch release in a major/minor series. |
-| Exact development version | `0.12.1-dev.1` | A specific prerelease build for testing upcoming changes. |
+| Exact development version | `0.13.0-dev.1` | A specific prerelease build for testing upcoming changes. |
 | `develop` | `develop` | The newest development release; a moving tag. |
 
 Use `latest` to follow stable releases, or pin an exact version:
 
 ```yaml
-image: ghcr.io/gilbn/geometrikks:0.12.1
+image: ghcr.io/gilbn/geometrikks:0.13.0
 ```
 
 `docker-compose.yml` mounts `ACCESS_LOG_DIR` (default `/var/log/nginx`)
@@ -273,7 +273,11 @@ to pin it. Notes:
   `docker kill --signal=USR1 traefik`. GeoMetrikks follows the rotation.
 - Behind a CDN or load balancer, configure Traefik's
   `entryPoints.<name>.forwardedHeaders.trustedIPs` so the logged client IP
-  is the real client, not the proxy.
+  is the real client, not the proxy. With a trusted peer, Traefik logs the
+  `X-Forwarded-For` chain as it arrived; GeoMetrikks takes the rightmost
+  entry, the one your proxy appended. Do not set `forwardedHeaders.insecure`:
+  it trusts the header from anyone, and a client can then place any address
+  on the map.
 - A file path is required; GeoMetrikks cannot read Traefik's stdout.
 
 ## MaxMind GeoLite2
@@ -571,7 +575,7 @@ instance, GeoIP credentials, and its own log mount:
 ```yaml
 services:
   agent:
-    image: ghcr.io/gilbn/geometrikks:0.12.1   # same tag as the full instance
+    image: ghcr.io/gilbn/geometrikks:0.13.0   # same tag as the full instance
     restart: unless-stopped
     stop_grace_period: 20s
     environment:

@@ -8,6 +8,8 @@ export type ClientOptions = {
  * AboutAppView
  */
 export type AboutAppView = {
+  changelogDigest: string | null;
+  commit: string | null;
   container: boolean;
   environment: string;
   imageTag: string | null;
@@ -164,6 +166,40 @@ export type BanRequest = {
 };
 
 /**
+ * ChangelogEntry
+ */
+export type ChangelogEntry = {
+  children: Array<string>;
+  text: string;
+};
+
+/**
+ * ChangelogRelease
+ */
+export type ChangelogRelease = {
+  date: string | null;
+  sections: Array<ChangelogSection>;
+  unreleased: boolean;
+  url: string | null;
+  version: string;
+};
+
+/**
+ * ChangelogResponse
+ */
+export type ChangelogResponse = {
+  releases: Array<ChangelogRelease>;
+};
+
+/**
+ * ChangelogSection
+ */
+export type ChangelogSection = {
+  entries: Array<ChangelogEntry>;
+  kind: string;
+};
+
+/**
  * CountryFacet
  */
 export type CountryFacet = {
@@ -241,6 +277,9 @@ export type DatabaseInfoResponse = {
  * DatabaseVersionsView
  */
 export type DatabaseVersionsView = {
+  migrationHead: string;
+  migrationName: string | null;
+  migrationRevision: string | null;
   postgisVersion: string | null;
   postgresVersion: string | null;
   timescaledbVersion: string | null;
@@ -3507,6 +3546,23 @@ export type ApiV1SystemAsnClassificationGetAsnClassificationResponses = {
 
 export type ApiV1SystemAsnClassificationGetAsnClassificationResponse =
   ApiV1SystemAsnClassificationGetAsnClassificationResponses[keyof ApiV1SystemAsnClassificationGetAsnClassificationResponses];
+
+export type ApiV1SystemChangelogGetChangelogData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: "/api/v1/system/changelog";
+};
+
+export type ApiV1SystemChangelogGetChangelogResponses = {
+  /**
+   * Request fulfilled, document follows
+   */
+  200: ChangelogResponse;
+};
+
+export type ApiV1SystemChangelogGetChangelogResponse =
+  ApiV1SystemChangelogGetChangelogResponses[keyof ApiV1SystemChangelogGetChangelogResponses];
 
 export type ApiV1SystemDatabaseGetDatabaseInfoData = {
   body?: never;

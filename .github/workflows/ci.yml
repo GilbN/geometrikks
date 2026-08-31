@@ -122,6 +122,7 @@ jobs:
           tags: ${{ env.SMOKE_IMAGE }}
           build-args: |
             APP_IMAGE_TAG=ci-${{ github.sha }}
+            GIT_SHA=${{ github.sha }}
           cache-from: type=gha,scope=container-smoke
           cache-to: type=gha,mode=max,scope=container-smoke
       # npx/npm here is deliberate in this otherwise-bun repo: the Playwright

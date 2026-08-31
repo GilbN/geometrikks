@@ -3,7 +3,11 @@
 Field reference verified against Traefik v2.11/v3.x source
 (pkg/middlewares/accesslog/): Duration/OriginDuration are integer
 nanoseconds; ClientHost is the raw X-Forwarded-For value (possibly a
-comma-separated chain) when XFF is present, else the peer IP; header
+comma-separated chain) when XFF is present, else the peer IP. Traefik
+strips X-Forwarded-For from untrusted peers, so a chain only appears when
+forwardedHeaders.trustedIPs (or insecure) let it through, and Traefik does
+not append the peer itself: the rightmost entry is the address the trusted
+proxy added, the leftmost is whatever the client sent. Header
 fields (request_User-Agent, request_Referer) exist only when the user
 keeps headers; every line also carries logrus level/msg/time keys.
 """
@@ -68,7 +72,7 @@ class TraefikJsonFormat:
 
         ip = data.get("ClientHost") or ""
         if "," in ip:
-            ip = ip.split(",", 1)[0]
+            ip = ip.rsplit(",", 1)[1]
         ip = ip.strip()
         if not ip:
             ip = _host_from_addr(str(data.get("ClientAddr") or ""))

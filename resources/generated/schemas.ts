@@ -145,6 +145,8 @@ import type {
   ApiV1SystemAboutGetAboutResponses,
   ApiV1SystemAsnClassificationGetAsnClassificationData,
   ApiV1SystemAsnClassificationGetAsnClassificationResponses,
+  ApiV1SystemChangelogGetChangelogData,
+  ApiV1SystemChangelogGetChangelogResponses,
   ApiV1SystemDatabaseGetDatabaseInfoData,
   ApiV1SystemDatabaseGetDatabaseInfoResponses,
   ApiV1SystemSchedulerJobsGetSchedulerJobsData,
@@ -181,6 +183,7 @@ export type OperationName =
   | 'get_access_log_debug_stats'
   | 'get_access_log_facets'
   | 'get_asn_classification'
+  | 'get_changelog'
   | 'get_cumulative_time_series'
   | 'get_database_info'
   | 'get_geo_log_facets'
@@ -244,6 +247,7 @@ export interface OperationDataTypes {
   'get_access_log_debug_stats': ApiV1AccessLogDebugStatsGetAccessLogDebugStatsData
   'get_access_log_facets': ApiV1AccessLogsFacetsGetAccessLogFacetsData
   'get_asn_classification': ApiV1SystemAsnClassificationGetAsnClassificationData
+  'get_changelog': ApiV1SystemChangelogGetChangelogData
   'get_cumulative_time_series': ApiV1AnalyticsTimeSeriesCumulativeGetCumulativeTimeSeriesData
   'get_database_info': ApiV1SystemDatabaseGetDatabaseInfoData
   'get_geo_log_facets': ApiV1GeoEventsFacetsGetGeoLogFacetsData
@@ -308,6 +312,7 @@ export interface OperationResponseTypes {
   'get_access_log_debug_stats': ApiV1AccessLogDebugStatsGetAccessLogDebugStatsResponses
   'get_access_log_facets': ApiV1AccessLogsFacetsGetAccessLogFacetsResponses
   'get_asn_classification': ApiV1SystemAsnClassificationGetAsnClassificationResponses
+  'get_changelog': ApiV1SystemChangelogGetChangelogResponses
   'get_cumulative_time_series': ApiV1AnalyticsTimeSeriesCumulativeGetCumulativeTimeSeriesResponses
   'get_database_info': ApiV1SystemDatabaseGetDatabaseInfoResponses
   'get_geo_log_facets': ApiV1GeoEventsFacetsGetGeoLogFacetsResponses
@@ -372,6 +377,7 @@ export interface OperationErrorTypes {
   'get_access_log_debug_stats': ApiV1AccessLogDebugStatsGetAccessLogDebugStatsErrors
   'get_access_log_facets': never
   'get_asn_classification': never
+  'get_changelog': never
   'get_cumulative_time_series': ApiV1AnalyticsTimeSeriesCumulativeGetCumulativeTimeSeriesErrors
   'get_database_info': never
   'get_geo_log_facets': never

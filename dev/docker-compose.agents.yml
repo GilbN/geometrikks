@@ -90,6 +90,8 @@ services:
     build:
       context: ..
       dockerfile: Dockerfile
+      args:
+        GIT_SHA: ${GIT_SHA:-}
     image: geometrikks:agent-mode
     restart: unless-stopped
     hostname: ui-head
@@ -134,6 +136,8 @@ services:
     build:
       context: ..
       dockerfile: Dockerfile
+      args:
+        GIT_SHA: ${GIT_SHA:-}
     image: geometrikks:agent-mode
     restart: unless-stopped
     hostname: agent-nginx
@@ -169,6 +173,8 @@ services:
     build:
       context: ..
       dockerfile: Dockerfile
+      args:
+        GIT_SHA: ${GIT_SHA:-}
     image: geometrikks:agent-mode
     restart: unless-stopped
     hostname: agent-traefik
@@ -202,6 +208,8 @@ services:
     build:
       context: ..
       dockerfile: Dockerfile
+      args:
+        GIT_SHA: ${GIT_SHA:-}
     image: geometrikks:agent-mode
     restart: unless-stopped
     hostname: agent-json

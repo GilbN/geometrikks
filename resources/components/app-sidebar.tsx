@@ -46,7 +46,7 @@ import {
   type SidebarIngestionVariant,
 } from "@/components/settings/status-logic"
 import { useLiveFeedStatus } from "@/lib/live-feed-context"
-import { useCrowdsecStatus, useMe, useRuntimeSettings } from "@/lib/queries"
+import { useChangelogUnseen, useCrowdsecStatus, useMe, useRuntimeSettings } from "@/lib/queries"
 import { SiDocker } from "react-icons/si"
 
 const navigationItems = [
@@ -134,10 +134,13 @@ function NavItem({
   item,
   isActive,
   warning,
+  notice,
 }: {
   item: (typeof navigationItems)[0]
   isActive: boolean
   warning?: string
+  /** Something new to look at, in the accent color rather than amber. */
+  notice?: string
 }) {
   const Icon = item.icon
 
@@ -154,6 +157,7 @@ function NavItem({
                 <span className="text-muted-foreground text-xs">{item.description}</span>
               </span>
               {warning && <span className="text-amber-500 text-xs">{warning}</span>}
+              {notice && <span className="text-primary text-xs">{notice}</span>}
             </span>
           ),
         }}
@@ -183,6 +187,12 @@ function NavItem({
             {warning && (
               <span
                 className="absolute -top-0.5 -right-0.5 h-1.5 w-1.5 rounded-full bg-amber-400"
+                aria-hidden="true"
+              />
+            )}
+            {!warning && notice && (
+              <span
+                className="absolute -top-0.5 -right-0.5 h-1.5 w-1.5 rounded-full bg-primary shadow-[0_0_6px_var(--primary)]"
                 aria-hidden="true"
               />
             )}
@@ -498,6 +508,7 @@ export function AppSidebar() {
   const routerState = useRouterState()
   const currentPath = routerState.location.pathname
   const { data: crowdsecStatus } = useCrowdsecStatus()
+  const changelogUnseen = useChangelogUnseen()
   const visibleNavigationItems = navigationItems.filter(
     (item) => !("requiresCrowdsec" in item) || crowdsecStatus?.enabled === true,
   )
@@ -580,6 +591,7 @@ export function AppSidebar() {
                   key={item.title}
                   item={item}
                   isActive={currentPath.startsWith(item.url)}
+                  notice={changelogUnseen ? "New changes to read in the changelog" : undefined}
                 />
               ))}
             </SidebarMenu>
