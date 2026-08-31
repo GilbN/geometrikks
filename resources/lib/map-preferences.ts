@@ -3,11 +3,16 @@
 export const MAP_LAYER_STORAGE_KEY = "geometrikks-map-layer"
 export const MAP_LIVE_STORAGE_KEY = "geometrikks-map-live"
 
-export type MapLayer = "heatmap" | "markers"
+export type MapLayer = "heatmap" | "markers" | "countries"
+
+const KNOWN_LAYERS: readonly MapLayer[] = ["heatmap", "markers", "countries"]
 
 export function loadLayerPreference(): MapLayer {
   try {
-    return localStorage.getItem(MAP_LAYER_STORAGE_KEY) === "heatmap" ? "heatmap" : "markers"
+    const stored = localStorage.getItem(MAP_LAYER_STORAGE_KEY)
+    return (KNOWN_LAYERS as readonly string[]).includes(stored ?? "")
+      ? (stored as MapLayer)
+      : "markers"
   } catch {
     return "markers"
   }

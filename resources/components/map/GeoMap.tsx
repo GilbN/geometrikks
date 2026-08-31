@@ -60,7 +60,7 @@ import type { LiveRequest } from "@/lib/live-traffic/types"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { MAPLIBRE_WORKER_URL } from "@/lib/maplibre-worker"
 
-export type LayerType = "heatmap" | "markers"
+export type LayerType = "heatmap" | "markers" | "countries"
 export type MapProjection = "mercator" | "globe"
 
 // Initial viewport centered on Europe

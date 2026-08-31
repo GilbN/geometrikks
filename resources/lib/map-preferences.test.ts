@@ -1,16 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
-import {
-  loadLayerPreference,
-  loadLivePreference,
-  saveLayerPreference,
-  saveLivePreference,
-} from "@/lib/map-preferences"
+import { MAP_LAYER_STORAGE_KEY, loadLayerPreference, loadLivePreference, saveLayerPreference, saveLivePreference } from "@/lib/map-preferences"
 
 function stubStorage(initial: Record<string, string> = {}) {
   const data = new Map(Object.entries(initial))
   vi.stubGlobal("localStorage", {
     getItem: (k: string) => data.get(k) ?? null,
     setItem: (k: string, v: string) => void data.set(k, v),
+    removeItem: (k: string) => void data.delete(k),
   })
   return data
 }
@@ -35,5 +31,18 @@ describe("map preferences", () => {
     // no stub at all: loaders must return defaults, savers must not throw
     expect(loadLayerPreference()).toBe("markers")
     expect(() => saveLivePreference(true)).not.toThrow()
+  })
+})
+
+describe("loadLayerPreference", () => {
+  it("accepts countries", () => {
+    stubStorage()
+    localStorage.setItem(MAP_LAYER_STORAGE_KEY, "countries")
+    expect(loadLayerPreference()).toBe("countries")
+  })
+  it("falls back to markers for unknown stored values", () => {
+    stubStorage()
+    localStorage.setItem(MAP_LAYER_STORAGE_KEY, "hexbins")
+    expect(loadLayerPreference()).toBe("markers")
   })
 })
