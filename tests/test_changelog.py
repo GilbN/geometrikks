@@ -131,7 +131,8 @@ def test_real_changelog_parses_cleanly():
     for release in releases[1:]:
         assert release.date is not None, release.version
     for release in releases:
-        assert release.sections, release.version
+        # Unreleased is empty right after a release is cut.
+        assert release.sections or release.unreleased, release.version
         assert release.url and release.url.startswith("https://github.com/"), release.version
         for section in release.sections:
             assert section.kind in SECTION_KINDS, (release.version, section.kind)

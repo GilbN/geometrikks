@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-08-31
+
 ### Added
 
 - Settings > Changelog lists every release from `CHANGELOG.md`, newest first, each linked to its GitHub compare view, with the one this install is running expanded and marked. A build ahead of the last release (a develop image, a local build, a source checkout) marks the Unreleased section instead. After an upgrade, the Settings entry in the sidebar and the Changelog tab show a dot until the page is opened once in that browser. Backed by `GET /api/v1/system/changelog` and a `changelogDigest` field on `/api/v1/system/about`; the container image now ships the changelog next to `alembic.ini`.
@@ -944,7 +946,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Settings endpoint no longer exposes the full settings tree (database credentials leaked via `model_dump()`); response is now an explicit whitelist.
 - Timestamps in `CALL refresh_continuous_aggregate` are bound as asyncpg parameters instead of interpolated into SQL.
 
-[Unreleased]: https://github.com/GilbN/geometrikks/compare/v0.12.1...develop
+[Unreleased]: https://github.com/GilbN/geometrikks/compare/v0.13.0...develop
+[0.13.0]: https://github.com/GilbN/geometrikks/compare/v0.12.1...v0.13.0
 [0.12.1]: https://github.com/GilbN/geometrikks/compare/v0.12.0...v0.12.1
 [0.12.0]: https://github.com/GilbN/geometrikks/compare/v0.11.0...v0.12.0
 [0.11.0]: https://github.com/GilbN/geometrikks/compare/v0.10.0...v0.11.0
