@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- A Countries mode on the map, next to Heatmap and Markers: country polygons filled by request count for the selected range and filters, on a log scale in the active accent color, with a legend showing the actual break values. Hovering shows the country's requests and share; clicking toggles it in the country filter. Countries without traffic render in a neutral fill. Backed by a new `GET /api/v1/geo-locations/country-stats` endpoint.
+
 ## [0.13.0] - 2026-08-31
 
 ### Added

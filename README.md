@@ -18,9 +18,10 @@ traffic that caused them.
 ## Features
 
 **Live map.** Every ingested request lands on a MapLibre world map within
-seconds. Click a marker for the request, city, and ASN behind it. With
-several sources, filter the map by source hostname and watch live routes
-fly to each site's own home beacon (see
+seconds. Click a marker for the request, city, and ASN behind it, or choose
+a Heatmap or Countries mode for a country choropleth colored by request
+volume. With several sources, filter the map by source hostname and watch
+live routes fly to each site's own home beacon (see
 [Multi-source setup](#multi-source-setup)).
 
 ![Map](/data/screenshots/map.png)
