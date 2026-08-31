@@ -115,6 +115,15 @@
   --primary-dim: oklch(calc(var(--brand-l) - 0.1) calc(var(--brand-c) * 0.87) var(--brand-h));
   --primary-glow: oklch(var(--brand-l) var(--brand-c) var(--brand-h) / 15%);
 
+  /* Choropleth ramp: brand hue, stepped lightness. Resolved to rgb() at
+     runtime via a probe element (useMapRamp); MapLibre cannot parse oklch. */
+  --map-ramp-1: oklch(0.93 calc(var(--brand-c) * 0.25) var(--brand-h));
+  --map-ramp-2: oklch(0.82 calc(var(--brand-c) * 0.55) var(--brand-h));
+  --map-ramp-3: oklch(0.70 calc(var(--brand-c) * 0.80) var(--brand-h));
+  --map-ramp-4: oklch(0.58 var(--brand-c) var(--brand-h));
+  --map-ramp-5: oklch(0.45 var(--brand-c) var(--brand-h));
+  --map-ramp-nodata: oklch(0.88 0.005 255 / 45%);
+
   /* Popups derive from semantic tokens; var() resolves against the scrolling
      element's own theme, so one definition serves both themes. */
   --popup-bg: var(--card);
@@ -170,6 +179,13 @@
 
   --primary-dim: oklch(calc(var(--brand-l) - 0.18) calc(var(--brand-c) * 0.8) var(--brand-h));
   --primary-glow: oklch(var(--brand-l) var(--brand-c) var(--brand-h) / 20%);
+
+  --map-ramp-1: oklch(0.32 calc(var(--brand-c) * 0.35) var(--brand-h));
+  --map-ramp-2: oklch(0.44 calc(var(--brand-c) * 0.60) var(--brand-h));
+  --map-ramp-3: oklch(0.56 calc(var(--brand-c) * 0.80) var(--brand-h));
+  --map-ramp-4: oklch(0.68 var(--brand-c) var(--brand-h));
+  --map-ramp-5: oklch(0.80 var(--brand-c) var(--brand-h));
+  --map-ramp-nodata: oklch(0.34 0.005 255 / 40%);
 
   --shadow-card: 0 0 #0000;
 }
