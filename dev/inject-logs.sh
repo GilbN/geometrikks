@@ -13,7 +13,10 @@
 # classified lines and would take minutes at the per-second pace. Both
 # append geometrikks-json lines to nginx-json.log in one go and exit:
 #   ./dev/inject-logs.sh private-burst [N]   # private peer IPs, default 600
+#   ./dev/inject-logs.sh cdn-burst [N]       # CDN edge IPs, default 600
 #   ./dev/inject-logs.sh public-burst [N]    # default 2000, clears the card
+# cdn-burst needs the GeoLite2 ASN database (GEOIP_ASN_ENABLED) and
+# LOGPARSER_SEND_LOGS=true: the parser reads the ASN off the access-log row.
 set -u
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 STOPFILE="$REPO/dev/inject-logs.stop"
@@ -26,6 +29,9 @@ touch "$REPO/nginx_logs/nginx.log" "$REPO/nginx_logs/traefik.log" "$REPO/nginx_l
 
 IPS=(8.8.8.8 1.1.1.1 81.2.69.142 91.198.174.192 185.60.216.35 34.71.167.225 104.28.42.7 197.248.21.8 133.242.187.207 200.160.2.3 77.88.55.242 129.226.3.47)
 PRIVATE_IPS=(172.18.0.1 172.19.0.4 10.0.0.2 192.168.1.9 100.64.0.7)
+# Real edge addresses that resolve to CDN ASNs in GeoLite2 (checked against
+# data/geoip on 2026-08-31): Cloudflare-heavy so the card names one provider.
+CDN_IPS=(104.16.132.229 104.26.10.78 172.64.155.119 188.114.96.7 104.28.42.7 151.101.1.140 146.75.30.133 23.192.228.80 2.16.241.219)
 PATHS=(/ /api/v1/status /login /wp-login.php /assets/app.js /images/logo.png /feed.xml /admin /robots.txt /health)
 METHODS=(GET GET GET GET POST GET HEAD GET)
 STATUSES=(200 200 200 301 404 200 403 200 500 204)
@@ -67,16 +73,19 @@ json_line() {
 }
 
 case "${1:-}" in
-  private-burst|public-burst)
-    if [ "${1}" = private-burst ]; then pool=("${PRIVATE_IPS[@]}"); n=${2:-600}
-    else pool=("${IPS[@]}"); n=${2:-2000}; fi
+  private-burst|cdn-burst|public-burst)
+    case "$1" in
+      private-burst) pool=("${PRIVATE_IPS[@]}"); n=${2:-600} ;;
+      cdn-burst)     pool=("${CDN_IPS[@]}");     n=${2:-600} ;;
+      *)             pool=("${IPS[@]}");         n=${2:-2000} ;;
+    esac
     for ((b = 0; b < n; b++)); do
       json_line "${pool[$((RANDOM % ${#pool[@]}))]}"
     done
     echo "$1: appended $n lines to nginx_logs/nginx-json.log"
     exit 0 ;;
   '') ;;
-  *) echo "unknown mode: $1 (expected private-burst or public-burst)" >&2; exit 1 ;;
+  *) echo "unknown mode: $1 (expected private-burst, cdn-burst or public-burst)" >&2; exit 1 ;;
 esac
 
 rm -f "$STOPFILE"
