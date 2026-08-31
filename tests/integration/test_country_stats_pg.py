@@ -109,7 +109,10 @@ async def test_country_filter(pg_session_maker, clean_tables):
     async with pg_session_maker() as session:
         await _seed(session)
         repo = GeoLocationRepository(session=session)
-        rows = await repo.get_country_stats(
-            NOW - timedelta(hours=23), NOW + timedelta(hours=1), country_codes=["SE"],
-        )
-    assert dict((c, n) for c, _name, n in rows) == {"SE": 3}
+        span = (NOW - timedelta(hours=23), NOW + timedelta(hours=1))
+        rows = await repo.get_country_stats(*span, country_codes=["SE"])
+        assert dict((c, n) for c, _name, n in rows) == {"SE": 3}
+
+        # country_code is stored uppercase; a lowercase filter must match the same rows.
+        lower_rows = await repo.get_country_stats(*span, country_codes=["se"])
+        assert dict((c, n) for c, _name, n in lower_rows) == {"SE": 3}

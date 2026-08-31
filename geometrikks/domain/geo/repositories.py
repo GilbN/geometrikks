@@ -599,6 +599,11 @@ class GeoLocationRepository(SQLAlchemyAsyncRepository[GeoLocation]):
         Hostname filters force RAW until the location CAGGs carry the
         hostname dimension, same contract as get_locations.
         """
+        if not isinstance(from_timestamp, datetime) or not isinstance(to_timestamp, datetime):
+            raise ValueError("from_timestamp and to_timestamp must be datetime instances")
+        if not from_timestamp.tzinfo or not to_timestamp.tzinfo:
+            raise ValueError("from_timestamp and to_timestamp must be timezone-aware")
+
         granularity = resolve_locations_granularity(
             from_timestamp, to_timestamp,
             has_ip_filter=False, has_hostname_filter=bool(hostnames),
@@ -607,7 +612,7 @@ class GeoLocationRepository(SQLAlchemyAsyncRepository[GeoLocation]):
         filters_sql = ""
         if country_codes:
             filters_sql += " AND gl.country_code = ANY(:filter_country_codes)"
-            params["filter_country_codes"] = list(country_codes)
+            params["filter_country_codes"] = [c.upper() for c in country_codes]
         if cities:
             filters_sql += " AND gl.city = ANY(:cities)"
             params["cities"] = list(cities)
