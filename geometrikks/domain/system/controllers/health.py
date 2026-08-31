@@ -176,11 +176,16 @@ def _collect_advisories(app: Litestar, settings: Settings) -> list[Advisory]:
             remedy="Set GEOIP_ASN_ENABLED=false to turn ASN enrichment off instead.",
         ))
     if settings.app.proxy_advisory:
+        from geometrikks.domain.system import proxy_scan
+
         service = runtime.get_ingestion_service(app)
-        if service is not None:
-            advisories.extend(
-                proxy_advisories(proxy_findings(service.parsers))
-            )
+        parsers = service.parsers if service is not None else []
+        local = proxy_findings(parsers)
+        covered = {f.hostname for f in local} | {p.hostname for p in parsers}
+        findings = local + [
+            f for f in proxy_scan.get_scan_findings() if f.hostname not in covered
+        ]
+        advisories.extend(proxy_advisories(findings))
     return advisories
 
 

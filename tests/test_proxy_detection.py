@@ -155,3 +155,53 @@ def test_collect_advisories_survives_no_ingestion_service(monkeypatch) -> None:
         geoip=SimpleNamespace(asn_enabled=False),
     )
     assert health._collect_advisories(app=cast(Any, object()), settings=cast(Any, settings)) == []
+
+
+def test_collect_advisories_merges_scan_findings(monkeypatch) -> None:
+    from types import SimpleNamespace
+    from typing import Any, cast
+
+    from geometrikks.domain.system import proxy_scan
+    from geometrikks.domain.system.controllers import health
+    from geometrikks.server import runtime, timescale
+
+    s = summary(cdn_share=0.9, cdn_active=True, top_provider="Fastly")
+    local = fake_parser(hostname="web-01", summary=s)
+    service = SimpleNamespace(parsers=[local])
+    monkeypatch.setattr(runtime, "get_ingestion_service", lambda app: service)
+    monkeypatch.setattr(timescale, "get_hostname_pollution", lambda: None)
+    scan = [
+        ProxyFinding("traefik-01", "", "traefik-json", "cdn", 0.94, 1200, "Cloudflare"),
+        ProxyFinding("web-01", "", "nginx", "cdn", 0.8, 999, "Fastly"),  # deduped
+    ]
+    monkeypatch.setattr(proxy_scan, "get_scan_findings", lambda: scan)
+
+    settings = SimpleNamespace(
+        app=SimpleNamespace(proxy_advisory=True),
+        geoip=SimpleNamespace(asn_enabled=False),
+    )
+    [card] = health._collect_advisories(app=cast(Any, object()), settings=cast(Any, settings))
+    assert card.id == "proxy-peer-cdn"
+    assert "web-01" in card.summary and "traefik-01" in card.summary
+    assert card.summary.count("web-01") == 1
+
+
+def test_collect_advisories_scan_only_when_no_ingestion_service(monkeypatch) -> None:
+    from types import SimpleNamespace
+    from typing import Any, cast
+
+    from geometrikks.domain.system import proxy_scan
+    from geometrikks.domain.system.controllers import health
+    from geometrikks.server import runtime, timescale
+
+    monkeypatch.setattr(runtime, "get_ingestion_service", lambda app: None)
+    monkeypatch.setattr(timescale, "get_hostname_pollution", lambda: None)
+    scan = [ProxyFinding("traefik-01", "", "traefik-json", "cdn", 0.94, 1200, "Cloudflare")]
+    monkeypatch.setattr(proxy_scan, "get_scan_findings", lambda: scan)
+
+    settings = SimpleNamespace(
+        app=SimpleNamespace(proxy_advisory=True),
+        geoip=SimpleNamespace(asn_enabled=False),
+    )
+    cards = health._collect_advisories(app=cast(Any, object()), settings=cast(Any, settings))
+    assert [c.id for c in cards] == ["proxy-peer-cdn"]
