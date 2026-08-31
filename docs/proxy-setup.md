@@ -152,11 +152,31 @@ which means any client can put whatever address it wants in
 supported path.
 
 Once the peer is trusted, Traefik logs the chain exactly as it arrived,
-and GeoMetrikks takes the rightmost entry, the one your trusted proxy
-appended. If you run more than one trusted hop in front of Traefik, each
-one appending its own entry, list all of their peer addresses in
-`trustedIPs` so Traefik doesn't drop the header from an earlier hop it
-doesn't recognize.
+and GeoMetrikks takes the rightmost entry. With a single trusted hop in
+front of Traefik, that entry is the visitor. With more than one hop, it is
+not. The rightmost entry is the hop immediately before Traefik, because
+Traefik has no equivalent of nginx's `real_ip_recursive` and never looks
+past the immediate peer for an earlier trusted hop. The fix belongs at
+that earlier hop, not at Traefik. Resolve the real IP there, or have it
+collapse the chain to a single address before forwarding.
+
+## Caddy
+
+Caddy resolves the visitor into the logged `client_ip` itself, so no
+realip module and no header choice applies. Set `trusted_proxies` under
+`servers` in Caddy's global options, with the ranges in front of it:
+
+```caddyfile
+{
+    servers {
+        trusted_proxies static 173.245.48.0/20 103.21.244.0/22
+    }
+}
+```
+
+`client_ip` in the access log is already the visitor's address once that
+range is correct; the realip advice elsewhere in this guide is nginx- and
+Traefik-specific and does not apply here.
 
 ## Tailscale-only
 

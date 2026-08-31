@@ -176,6 +176,11 @@ freely; GeoMetrikks ignores the ones it does not know.
 `LOGPARSER_LOG_FORMATS=geometrikks-json` pins the parser to this format
 instead of detecting it per file.
 
+`$remote_addr` is only the visitor's address if nginx sees the visitor
+directly. Behind a CDN, tunnel, or another proxy, see
+[docs/proxy-setup.md](docs/proxy-setup.md) for the realip config that logs
+the visitor instead of that hop.
+
 ### Legacy nginx format
 
 Earlier versions documented this positional format. It keeps working for
