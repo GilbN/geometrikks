@@ -107,6 +107,9 @@ import type {
   ApiV1GeoEventsTopIpsGetGeoLogTopIpsData,
   ApiV1GeoEventsTopIpsGetGeoLogTopIpsErrors,
   ApiV1GeoEventsTopIpsGetGeoLogTopIpsResponses,
+  ApiV1GeoLocationsCountryStatsGetCountryStatsData,
+  ApiV1GeoLocationsCountryStatsGetCountryStatsErrors,
+  ApiV1GeoLocationsCountryStatsGetCountryStatsResponses,
   ApiV1GeoLocationsGeojsonGetGeojsonData,
   ApiV1GeoLocationsGeojsonGetGeojsonErrors,
   ApiV1GeoLocationsGeojsonGetGeojsonResponses,
@@ -184,6 +187,7 @@ export type OperationName =
   | 'get_access_log_facets'
   | 'get_asn_classification'
   | 'get_changelog'
+  | 'get_country_stats'
   | 'get_cumulative_time_series'
   | 'get_database_info'
   | 'get_geo_log_facets'
@@ -248,6 +252,7 @@ export interface OperationDataTypes {
   'get_access_log_facets': ApiV1AccessLogsFacetsGetAccessLogFacetsData
   'get_asn_classification': ApiV1SystemAsnClassificationGetAsnClassificationData
   'get_changelog': ApiV1SystemChangelogGetChangelogData
+  'get_country_stats': ApiV1GeoLocationsCountryStatsGetCountryStatsData
   'get_cumulative_time_series': ApiV1AnalyticsTimeSeriesCumulativeGetCumulativeTimeSeriesData
   'get_database_info': ApiV1SystemDatabaseGetDatabaseInfoData
   'get_geo_log_facets': ApiV1GeoEventsFacetsGetGeoLogFacetsData
@@ -313,6 +318,7 @@ export interface OperationResponseTypes {
   'get_access_log_facets': ApiV1AccessLogsFacetsGetAccessLogFacetsResponses
   'get_asn_classification': ApiV1SystemAsnClassificationGetAsnClassificationResponses
   'get_changelog': ApiV1SystemChangelogGetChangelogResponses
+  'get_country_stats': ApiV1GeoLocationsCountryStatsGetCountryStatsResponses
   'get_cumulative_time_series': ApiV1AnalyticsTimeSeriesCumulativeGetCumulativeTimeSeriesResponses
   'get_database_info': ApiV1SystemDatabaseGetDatabaseInfoResponses
   'get_geo_log_facets': ApiV1GeoEventsFacetsGetGeoLogFacetsResponses
@@ -378,6 +384,7 @@ export interface OperationErrorTypes {
   'get_access_log_facets': never
   'get_asn_classification': never
   'get_changelog': never
+  'get_country_stats': ApiV1GeoLocationsCountryStatsGetCountryStatsErrors
   'get_cumulative_time_series': ApiV1AnalyticsTimeSeriesCumulativeGetCumulativeTimeSeriesErrors
   'get_database_info': never
   'get_geo_log_facets': never

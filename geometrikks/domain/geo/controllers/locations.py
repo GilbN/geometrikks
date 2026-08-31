@@ -28,6 +28,8 @@ from geometrikks.domain.geo.dtos import (
     GlobalTopIPsResponse,
     TopCountryDTO,
     TopCountriesResponse,
+    CountryStatDTO,
+    CountryStatsResponse,
     SiteHomeView,
     DefaultHomeView,
     SiteHomesResponse,
@@ -313,3 +315,36 @@ class GeoLocationController(Controller):
             for country_code, country_name, event_count in top_countries_data
         ]
         return TopCountriesResponse(top_countries=top_countries)
+
+    @get(
+        "/country-stats",
+        return_dto=None,
+        description="Event counts per country for the map choropleth.",
+    )
+    async def get_country_stats(
+        self,
+        geo_location_service: NamedDependency[GeoLocationService],
+        from_timestamp: FromTimestamp,
+        to_timestamp: ToTimestamp,
+        country_code: CountryCodeFilter = None,
+        city: CityFilter = None,
+        hostname_in: HostnameIn = None,
+    ) -> CountryStatsResponse:
+        """Per-country event counts for the selected range and filters.
+
+        A hostname filter forces a raw scan until the location CAGGs carry
+        the hostname dimension; other ranges route RAW/hourly/daily like the
+        sibling endpoints.
+        """
+        from_timestamp = ensure_utc(from_timestamp)
+        to_timestamp = ensure_utc(to_timestamp)
+        rows = await geo_location_service.get_country_stats(
+            from_timestamp, to_timestamp,
+            country_codes=country_code, cities=city, hostnames=hostname_in,
+        )
+        return CountryStatsResponse(
+            countries=[
+                CountryStatDTO(country_code=c, country_name=n, event_count=e)
+                for c, n, e in rows
+            ]
+        )

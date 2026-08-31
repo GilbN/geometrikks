@@ -652,3 +652,21 @@ class GeoLocationService(SQLAlchemyAsyncRepositoryService[GeoLocation]):
         return await self.repository.get_top_countries(
             from_timestamp, to_timestamp, limit=limit
         )
+
+    async def get_country_stats(
+        self,
+        from_timestamp: datetime,
+        to_timestamp: datetime,
+        *,
+        country_codes: list[str] | None = None,
+        cities: list[str] | None = None,
+        hostnames: list[str] | None = None,
+    ) -> list[tuple[str, str | None, int]]:
+        """Event counts per country for the map choropleth."""
+        return await self.repository.get_country_stats(
+            from_timestamp,
+            to_timestamp,
+            country_codes=country_codes,
+            cities=cities,
+            hostnames=hostnames,
+        )

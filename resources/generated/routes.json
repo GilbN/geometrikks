@@ -75,6 +75,20 @@
       ],
       "uri": "/api/v1/system/changelog"
     },
+    "get_country_stats": {
+      "method": "get",
+      "methods": [
+        "GET"
+      ],
+      "queryParameters": {
+        "city": "string[] | undefined",
+        "countryCode": "string[] | undefined",
+        "fromTimestamp": "DateTime",
+        "hostnameIn": "string[] | undefined",
+        "toTimestamp": "DateTime"
+      },
+      "uri": "/api/v1/geo-locations/country-stats"
+    },
     "get_cumulative_time_series": {
       "method": "get",
       "methods": [
