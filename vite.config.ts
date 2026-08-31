@@ -74,7 +74,7 @@ export default defineConfig({
             },
           },
           {
-            urlPattern: /^\/static\/countries\.geojson$/,
+            urlPattern: ({ url }) => /\/static\/countries\.geojson$/.test(url.pathname),
             handler: "StaleWhileRevalidate",
             options: {
               cacheName: "country-geometry",
