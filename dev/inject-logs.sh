@@ -8,19 +8,24 @@
 # stack's lifetime; `down` stops it). Standalone usage, from the repo root:
 #   ./dev/inject-logs.sh &            # runs for 30 minutes, then stops
 #   touch dev/inject-logs.stop        # stop it early (also stops the service)
+#
+# One-shot burst modes for the proxy-peer Status advisory, which needs 500+
+# classified lines and would take minutes at the per-second pace. Both
+# append geometrikks-json lines to nginx-json.log in one go and exit:
+#   ./dev/inject-logs.sh private-burst [N]   # private peer IPs, default 600
+#   ./dev/inject-logs.sh public-burst [N]    # default 2000, clears the card
 set -u
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 STOPFILE="$REPO/dev/inject-logs.stop"
 # 0 = no time cap, run until stopped (what the compose service sets).
 MAX_SECONDS=${INJECT_MAX_SECONDS:-1800}
 
-rm -f "$STOPFILE"
 # nginx_logs/ is gitignored; create the tailed files so the agents find
 # them on first start instead of waiting for the first line.
 touch "$REPO/nginx_logs/nginx.log" "$REPO/nginx_logs/traefik.log" "$REPO/nginx_logs/nginx-json.log"
-trap 'echo "injector stopped by signal after $i iterations"; exit 0' TERM INT
 
 IPS=(8.8.8.8 1.1.1.1 81.2.69.142 91.198.174.192 185.60.216.35 34.71.167.225 104.28.42.7 197.248.21.8 133.242.187.207 200.160.2.3 77.88.55.242 129.226.3.47)
+PRIVATE_IPS=(172.18.0.1 172.19.0.4 10.0.0.2 192.168.1.9 100.64.0.7)
 PATHS=(/ /api/v1/status /login /wp-login.php /assets/app.js /images/logo.png /feed.xml /admin /robots.txt /health)
 METHODS=(GET GET GET GET POST GET HEAD GET)
 STATUSES=(200 200 200 301 404 200 403 200 500 204)
@@ -43,6 +48,39 @@ timings() {
   rt=$(printf '%d.%03d' $((rtms / 1000)) $((rtms % 1000)))
   ut=""; [ "$utms" -gt 0 ] && ut=$(printf '%d.%03d' $((utms / 1000)) $((utms % 1000)))
 }
+
+# One geometrikks-json line for the IP in $1; the other request fields come
+# from the same pools as the per-second loop.
+json_line() {
+  local ip=$1 path method status agent ref user bytes jts
+  path=${PATHS[$((RANDOM % ${#PATHS[@]}))]}
+  method=${METHODS[$((RANDOM % ${#METHODS[@]}))]}
+  status=${STATUSES[$((RANDOM % ${#STATUSES[@]}))]}
+  agent=${AGENTS[$((RANDOM % ${#AGENTS[@]}))]}
+  ref=${REFERRERS[$((RANDOM % ${#REFERRERS[@]}))]}
+  user=${USERS[$((RANDOM % ${#USERS[@]}))]}
+  bytes=$((RANDOM % 5000 + 100))
+  timings "$path"
+  jts=$(date +"%Y-%m-%dT%H:%M:%S%:z")
+  printf '{"client_ip":"%s","timestamp":"%s","method":"%s","path":"%s","protocol":"HTTP/2.0","status":"%s","bytes":"%s","host":"json.example.com","referrer":"%s","user_agent":"%s","remote_user":"%s","request_time":"%s","upstream_time":"%s","request_raw":"%s %s HTTP/2.0"}\n' \
+    "$ip" "$jts" "$method" "$path" "$status" "$bytes" "$ref" "$agent" "$user" "$rt" "$ut" "$method" "$path" >> "$REPO/nginx_logs/nginx-json.log"
+}
+
+case "${1:-}" in
+  private-burst|public-burst)
+    if [ "${1}" = private-burst ]; then pool=("${PRIVATE_IPS[@]}"); n=${2:-600}
+    else pool=("${IPS[@]}"); n=${2:-2000}; fi
+    for ((b = 0; b < n; b++)); do
+      json_line "${pool[$((RANDOM % ${#pool[@]}))]}"
+    done
+    echo "$1: appended $n lines to nginx_logs/nginx-json.log"
+    exit 0 ;;
+  '') ;;
+  *) echo "unknown mode: $1 (expected private-burst or public-burst)" >&2; exit 1 ;;
+esac
+
+rm -f "$STOPFILE"
+trap 'echo "injector stopped by signal after $i iterations"; exit 0' TERM INT
 
 i=0
 while [ ! -f "$STOPFILE" ] && { [ "$MAX_SECONDS" -eq 0 ] || [ "$i" -lt "$MAX_SECONDS" ]; }; do
@@ -81,17 +119,7 @@ while [ ! -f "$STOPFILE" ] && { [ "$MAX_SECONDS" -eq 0 ] || [ "$i" -lt "$MAX_SEC
     "$ip" "$((RANDOM % 50000 + 1024))" "$ip" "$((RANDOM % 50000 + 1024))" "${user:--}" "$bytes" "$status" "$dur" "$bytes" "$orig" "$ostat" "$((dur - orig))" "$((i + 1))" "$method" "$path" "$ttsn" "$ttsn" "$agent" "$tref" "$tts" >> "$REPO/nginx_logs/traefik.log"
 
   ip=${IPS[$((RANDOM % ${#IPS[@]}))]}
-  path=${PATHS[$((RANDOM % ${#PATHS[@]}))]}
-  method=${METHODS[$((RANDOM % ${#METHODS[@]}))]}
-  status=${STATUSES[$((RANDOM % ${#STATUSES[@]}))]}
-  agent=${AGENTS[$((RANDOM % ${#AGENTS[@]}))]}
-  ref=${REFERRERS[$((RANDOM % ${#REFERRERS[@]}))]}
-  user=${USERS[$((RANDOM % ${#USERS[@]}))]}
-  bytes=$((RANDOM % 5000 + 100))
-  timings "$path"
-  jts=$(date +"%Y-%m-%dT%H:%M:%S%:z")
-  printf '{"client_ip":"%s","timestamp":"%s","method":"%s","path":"%s","protocol":"HTTP/2.0","status":"%s","bytes":"%s","host":"json.example.com","referrer":"%s","user_agent":"%s","remote_user":"%s","request_time":"%s","upstream_time":"%s","request_raw":"%s %s HTTP/2.0"}\n' \
-    "$ip" "$jts" "$method" "$path" "$status" "$bytes" "$ref" "$agent" "$user" "$rt" "$ut" "$method" "$path" >> "$REPO/nginx_logs/nginx-json.log"
+  json_line "$ip"
 
   # Every tenth line is one the parser cannot fully use, so the Debug logs
   # page has parse failures to show: a TLS probe on the plain port, a line
@@ -100,6 +128,7 @@ while [ ! -f "$STOPFILE" ] && { [ "$MAX_SECONDS" -eq 0 ] || [ "$i" -lt "$MAX_SEC
   # through escape=json (control bytes arrive as \uXXXX, the method is
   # empty). Traefik never writes lines like these.
   if [ $((i % 10)) -eq 9 ]; then
+    jts=$(date +"%Y-%m-%dT%H:%M:%S%:z")
     case $((RANDOM % 3)) in
       0) printf '%s - - [%s]"\\x16\\x03\\x01\\x02\\x00\\x01\\x00\\x01\\xfc\\x03\\x03" 400 157"-" yourdomain.com "-""0.000" "-""-" "-"\n' "$ip" "$nts" ;;
       1) printf '%s - - [%s]"GET /assets/app\n' "$ip" "$nts" ;;
