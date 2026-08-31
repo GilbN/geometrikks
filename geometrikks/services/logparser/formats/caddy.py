@@ -11,6 +11,7 @@ default; the ms/ns variants are numerically indistinguishable from it and
 stay unsupported. Caddy logs no upstream timing and no raw request bytes.
 """
 
+import math
 from datetime import datetime, timezone
 
 import msgspec
@@ -48,16 +49,19 @@ def _parse_timestamp(raw: float | int | str | None) -> datetime | None:
     if isinstance(raw, (int, float)):
         if raw <= 0:
             return None
-        # Unit by magnitude: seconds below 1e11 (year 5138), millis below
-        # 1e14, else nanos. Covers unix_seconds_float (the default),
-        # unix_milli_float and unix_nano without ambiguity for real dates.
-        if raw < 1e11:
-            seconds = float(raw)
-        elif raw < 1e14:
-            seconds = raw / 1e3
-        else:
-            seconds = raw / 1e9
         try:
+            value = float(raw)
+            # Unit by magnitude: seconds below 1e11 (year 5138), millis below
+            # 1e14, else nanos. Covers unix_seconds_float (the default),
+            # unix_milli_float and unix_nano without ambiguity for real dates.
+            if raw < 1e11:
+                seconds = value
+            elif raw < 1e14:
+                seconds = value / 1e3
+            else:
+                seconds = value / 1e9
+            if not math.isfinite(seconds):
+                return None
             return datetime.fromtimestamp(seconds, tz=timezone.utc)
         except (OverflowError, OSError, ValueError):
             return None
@@ -68,6 +72,16 @@ def _parse_timestamp(raw: float | int | str | None) -> datetime | None:
             return None
         return ts if ts.tzinfo is not None else None
     return None
+
+
+def _parse_duration(raw: float | int | str | None) -> float | None:
+    if not isinstance(raw, (int, float)):
+        return None
+    try:
+        value = float(raw)
+    except OverflowError:
+        return None
+    return value if math.isfinite(value) else None
 
 
 def _header(headers: dict[str, list[str]] | None, name: str) -> str | None:
@@ -122,7 +136,6 @@ class CaddyJsonFormat:
             return None
 
         raw_host = convert_dash_to_none(req.host)
-        duration = data.duration
         return NormalizedLine(
             ip_address=ip,
             timestamp=ts,
@@ -134,7 +147,7 @@ class CaddyJsonFormat:
             bytes_sent=data.size if isinstance(data.size, int) else 0,
             referrer=_header(req.headers, "Referer"),
             user_agent=_header(req.headers, "User-Agent"),
-            request_time=float(duration) if isinstance(duration, (int, float)) else None,
+            request_time=_parse_duration(data.duration),
             upstream_response_time=None,
             host=host_from_addr(raw_host) if raw_host else None,
         )

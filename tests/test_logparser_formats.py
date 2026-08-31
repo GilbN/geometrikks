@@ -631,8 +631,19 @@ def test_caddy_bad_ts_rejected(ts: float | int | str) -> None:
     assert CaddyJsonFormat().parse(caddy(ts=ts)) is None
 
 
+def test_caddy_oversized_integer_ts_rejected() -> None:
+    assert CaddyJsonFormat().parse(caddy(ts=10**400)) is None
+
+
 def test_caddy_duration_string_is_none_not_fatal() -> None:
     norm = CaddyJsonFormat().parse(caddy(duration="1m32.05s"))
+    assert norm is not None
+    assert norm.request_time is None
+    assert norm.status_code == 200
+
+
+def test_caddy_oversized_integer_duration_is_none_not_fatal() -> None:
+    norm = CaddyJsonFormat().parse(caddy(duration=10**400))
     assert norm is not None
     assert norm.request_time is None
     assert norm.status_code == 200
