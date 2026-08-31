@@ -1,9 +1,10 @@
 /** Resolve the --map-ramp-* CSS variables to rgb() strings MapLibre accepts.
  * getComputedStyle returns custom-property text unresolved (oklch(calc(...)))
  * so each variable is read through a probe element's background-color, which
- * the browser resolves. Re-runs when theme or accent changes. */
-import { useMemo } from "react"
-import { useTheme } from "@/components/theme-provider"
+ * the browser resolves. ThemeProvider mutates the DOM in effects after render,
+ * so render-time reads race with class/data-accent updates; a MutationObserver
+ * on documentElement catches those mutations and re-resolves. */
+import { useEffect, useState } from "react"
 
 export interface MapRamp {
   steps: [string, string, string, string, string]
@@ -23,16 +24,23 @@ function resolveColor(variable: string): string {
   return resolved
 }
 
+function resolveRamp(): MapRamp {
+  return {
+    steps: VARS.map(resolveColor) as MapRamp["steps"],
+    noData: resolveColor("--map-ramp-nodata"),
+    border: resolveColor("--border"),
+  }
+}
+
 export function useMapRamp(): MapRamp {
-  // resolvedTheme and accent are pure invalidation keys: flipping either
-  // rewrites the CSS variables this reads through the probe.
-  const { resolvedTheme, accent } = useTheme()
-  return useMemo(
-    () => ({
-      steps: VARS.map(resolveColor) as MapRamp["steps"],
-      noData: resolveColor("--map-ramp-nodata"),
-      border: resolveColor("--border"),
-    }),
-    [resolvedTheme, accent],
-  )
+  const [ramp, setRamp] = useState<MapRamp>(resolveRamp)
+  useEffect(() => {
+    const observer = new MutationObserver(() => setRamp(resolveRamp()))
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["class", "data-accent"],
+    })
+    return () => observer.disconnect()
+  }, [])
+  return ramp
 }
