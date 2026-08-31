@@ -74,6 +74,23 @@ def test_private_card_names_the_off_switch() -> None:
     assert card.remedy is not None and "forwardedHeaders.trustedIPs" in card.remedy
 
 
+def test_cdn_card_caddy_remedy() -> None:
+    finding = ProxyFinding("web-01", "/logs/a.log", "caddy-json", "cdn", 0.9, 2000, "Cloudflare")
+    [card] = proxy_advisories([finding])
+    assert card.remedy is not None and "servers.trusted_proxies" in card.remedy
+
+
+def test_cdn_card_mixed_nginx_and_caddy_remedy() -> None:
+    findings = [
+        ProxyFinding("web-01", "/l/a", "nginx", "cdn", 0.94, 2000, "Cloudflare"),
+        ProxyFinding("web-02", "/l/b", "caddy-json", "cdn", 0.81, 2000, "Fastly"),
+    ]
+    [card] = proxy_advisories(findings)
+    assert (card.remedy is not None
+            and "set_real_ip_from" in card.remedy
+            and "servers.trusted_proxies" in card.remedy)
+
+
 def test_two_kinds_two_cards_multiple_sources() -> None:
     findings = [
         ProxyFinding("web-01", "/l/a", "nginx", "cdn", 0.94, 2000, "Cloudflare"),

@@ -14,6 +14,7 @@ if TYPE_CHECKING:
 PROXY_SETUP_DOCS_URL = "https://github.com/GilbN/geometrikks/blob/main/docs/proxy-setup.md"
 
 _TRAEFIK_REMEDY = "entryPoints.<name>.forwardedHeaders.trustedIPs"
+_CADDY_REMEDY = "servers.trusted_proxies"
 _NGINX_CDN_REMEDY = "set_real_ip_from <cdn ranges>; real_ip_header CF-Connecting-IP;"
 _NGINX_PRIVATE_REMEDY = "set_real_ip_from <proxy address>; real_ip_header X-Forwarded-For;"
 
@@ -70,10 +71,13 @@ def _pct(share: float) -> str:
 def _remedy(findings: list[ProxyFinding], nginx_remedy: str) -> str:
     formats = {f.log_format for f in findings}
     parts: list[str] = []
-    if formats - {"traefik-json"}:
+    # Formats without their own arm, including None, take the nginx remedy.
+    if formats - {"traefik-json", "caddy-json"}:
         parts.append(nginx_remedy)
     if "traefik-json" in formats:
         parts.append(_TRAEFIK_REMEDY)
+    if "caddy-json" in formats:
+        parts.append(_CADDY_REMEDY)
     return " ".join(parts)
 
 
