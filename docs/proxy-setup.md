@@ -217,11 +217,12 @@ proxy config, and correct addresses start from the next line it writes.
 - CDN detection needs the GeoLite2 ASN database. Without it, every peer
   classifies as "other" or "private," and CDN traffic never raises the
   advisory even at 100% share.
-- Both detectors need at least 500 lines in the rolling 2,000-line window
-  before they can trigger, and only fire once the CDN or private share
-  crosses 70% of that window. A source with light or mixed traffic can sit
-  below that floor indefinitely without an advisory, even if some fraction
-  of its traffic is affected.
+- Both detectors need at least 500 lines before they can trigger, and only
+  fire once the CDN or private share crosses 70%. The parser checks that
+  against its rolling 2,000-line window; the head's database scan applies
+  the same 500-row floor and 70% share over its one-hour window. A source
+  with light or mixed traffic can sit below that floor indefinitely without
+  an advisory, even if some fraction of its traffic is affected.
 - Installs running with `LOGPARSER_SEND_LOGS=false` get private-peer
   detection only. CDN classification reads the ASN attached to the parsed
   access-log row, and that row does not exist in geo-only mode.
