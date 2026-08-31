@@ -9,6 +9,7 @@ import Map, {
   Source,
   Layer,
   NavigationControl,
+  Popup,
   type MapRef,
   type ViewStateChangeEvent,
 } from "react-map-gl/maplibre"
@@ -21,20 +22,26 @@ import {
   useGlobalTopIPs,
   useRuntimeSettings,
   useBannedLocations,
+  useCountryStats,
   useCrowdsecStatus,
   useGeoEventFacets,
   useSiteHomes,
 } from "@/lib/queries"
 import { beaconLabel, buildHomeResolver, homeBeacons, type Coordinate, type SiteHomesData } from "@/lib/site-homes"
+import { applyCountryValues, buildFillColor, computeBreaks, type CountryValue } from "@/lib/choropleth"
 import { useMapStyle } from "./hooks/useMapStyle"
+import { useMapRamp } from "./hooks/useMapRamp"
 import {
   bannedPointLayer,
   clusterCountLayer,
   clusterLayer,
+  countryBorderLayer,
+  countryFillLayer,
   heatmapLayer,
   unclusteredPointLabelLayer,
   unclusteredPointLayer,
 } from "./layers"
+import { CountryLegend } from "./CountryLegend"
 import { MapControls } from "./MapControls"
 import { LivePulses } from "./LivePulses"
 import { HomeMarker } from "./HomeMarker"
@@ -177,6 +184,21 @@ function GeoMapInner({
   const [liveOverlays, setLiveOverlays] = useState<LiveOverlayPreferences>(loadLiveOverlays)
   const [showBanned, setShowBanned] = useState(false)
   const [popup, setPopup] = useState<PopupInfo | null>(null)
+  const [countryHover, setCountryHover] = useState<{
+    id: string
+    name: string
+    value: number
+    lng: number
+    lat: number
+  } | null>(null)
+
+  const ramp = useMapRamp()
+  const { data: countryStats } = useCountryStats({
+    enabled: activeLayer === "countries",
+    countryCodes: selectedCountries,
+    cities: selectedCities,
+    hostnames: selectedSources,
+  })
 
   const liveStore = useLiveTrafficStore()
   const [livePopup, setLivePopup] = useState<LiveRequest | null>(null)
@@ -202,6 +224,42 @@ function GeoMapInner({
     }
     void navigate({ search: (prev) => ({ ...prev, focus: undefined }), replace: true })
   }, [focusId, geojson, isLoadingGeoJSON, mapLoaded, navigate])
+
+  const countryValues = useMemo<CountryValue[]>(
+    () => (countryStats?.countries ?? []).map((c) => ({ id: c.countryCode, value: c.eventCount })),
+    [countryStats],
+  )
+  const countryBreaks = useMemo(
+    () => computeBreaks(countryValues.reduce((max, c) => Math.max(max, c.value), 0)),
+    [countryValues],
+  )
+  const totalCountryEvents = useMemo(
+    () => countryValues.reduce((sum, c) => sum + c.value, 0),
+    [countryValues],
+  )
+
+  // The "countries" source only exists while activeLayer === "countries"
+  // (see the conditional Source below), so its feature-state store is torn
+  // down on every mode switch. Leaving the mode resets the diff baseline;
+  // re-entering re-applies every value against the freshly mounted source
+  // instead of diffing against stale state that no longer exists.
+  const prevCountryValues = useRef<CountryValue[]>([])
+  useEffect(() => {
+    if (activeLayer !== "countries") {
+      prevCountryValues.current = []
+      setCountryHover(null)
+      return
+    }
+    const map = mapRef.current?.getMap()
+    if (!map || !mapLoaded) return
+    const apply = () => {
+      if (!map.getSource("countries")) return
+      applyCountryValues(map, "countries", prevCountryValues.current, countryValues)
+      prevCountryValues.current = countryValues
+    }
+    if (map.getSource("countries") && map.isSourceLoaded("countries")) apply()
+    else map.once("idle", apply)
+  }, [activeLayer, countryValues, mapLoaded])
 
   // Banned-IP overlay: attackers with an active CrowdSec decision that also
   // appear in this server's own traffic.
@@ -404,6 +462,18 @@ function GeoMapInner({
       // heatmap, which has no marker click handling of its own below.
       setLivePopup(null)
 
+      if (activeLayer === "countries") {
+        const feature = event.features?.[0]
+        const code = feature ? String(feature.id) : null
+        if (code) {
+          const next = selectedCountries.includes(code)
+            ? selectedCountries.filter((c) => c !== code)
+            : [...selectedCountries, code]
+          onCountriesChange(next)
+        }
+        return
+      }
+
       if (activeLayer !== "markers") {
         setPopup(null)
         return
@@ -444,8 +514,40 @@ function GeoMapInner({
         properties: feature.properties as PopupInfo["properties"],
       })
     },
-    [activeLayer, liveStore]
+    [activeLayer, liveStore, selectedCountries, onCountriesChange]
   )
+
+  // Track the hovered country in feature-state (for the fill-opacity bump)
+  // and in React state (for the popup). Clearing the previous feature's
+  // "hover" state before setting the new one is what makes the highlight
+  // move with the cursor instead of accumulating on every country visited.
+  const onCountryHover = useCallback(
+    (event: MapLayerMouseEvent) => {
+      if (activeLayer !== "countries") return
+      const map = mapRef.current?.getMap()
+      if (countryHover && map?.getSource("countries")) {
+        map.setFeatureState({ source: "countries", id: countryHover.id }, { hover: false })
+      }
+      const feature = event.features?.[0]
+      if (!feature) {
+        setCountryHover(null)
+        return
+      }
+      const id = String(feature.id)
+      map?.setFeatureState({ source: "countries", id }, { hover: true })
+      const value = (feature.state as { value?: number } | undefined)?.value ?? 0
+      setCountryHover({
+        id,
+        name: String(feature.properties?.name ?? id),
+        value,
+        lng: event.lngLat.lng,
+        lat: event.lngLat.lat,
+      })
+    },
+    [activeLayer, countryHover],
+  )
+
+  const onCountryHoverEnd = useCallback(() => setCountryHover(null), [])
 
   const handleLiveSelect = useCallback((request: LiveRequest) => {
     // Only one popup at a time: selecting a live request dismisses any open
@@ -498,14 +600,17 @@ function GeoMapInner({
         onLoad={() => setMapLoaded(true)}
         onMove={onMove}
         onClick={onClick}
+        onMouseMove={onCountryHover}
+        onMouseLeave={onCountryHoverEnd}
         mapStyle={mapStyle}
         projection={projection}
         renderWorldCopies={projection === "mercator"}
         interactiveLayerIds={[
           ...(activeLayer === "markers" ? ["clusters", "unclustered-point"] : []),
+          ...(activeLayer === "countries" ? ["country-fill"] : []),
           ...(liveMode && routeEffectsEnabled ? ["live-origin-core", "live-packet-core"] : []),
         ]}
-        cursor={activeLayer === "markers" ? "pointer" : "grab"}
+        cursor={activeLayer === "markers" || activeLayer === "countries" ? "pointer" : "grab"}
         attributionControl={false}
       >
         {/* Navigation controls */}
@@ -548,6 +653,17 @@ function GeoMapInner({
           </Source>
         )}
 
+        {/* Country choropleth. Mounted only in countries mode so its
+            feature-state store is fully torn down on layer switch (see the
+            reset effect above); ordered ahead of the banned-IP overlay so
+            banned markers still stack on top of the fill. */}
+        {activeLayer === "countries" && (
+          <Source id="countries" type="geojson" data="/static/countries.geojson" promoteId="id">
+            <Layer {...countryFillLayer(buildFillColor(ramp.steps, countryBreaks, ramp.noData))} />
+            <Layer {...countryBorderLayer(ramp)} />
+          </Source>
+        )}
+
         {/* Banned-IP overlay: stacks on top of either base layer */}
         {showBanned && crowdsecStatus?.enabled && (
           <Source id="banned-data" type="geojson" data={bannedGeoJSON}>
@@ -584,6 +700,26 @@ function GeoMapInner({
         {livePopup && livePopup.coordinates && (
           <LiveRequestPopup request={livePopup} onClose={() => setLivePopup(null)} />
         )}
+
+        {activeLayer === "countries" && countryHover && (
+          <Popup
+            longitude={countryHover.lng}
+            latitude={countryHover.lat}
+            closeButton={false}
+            closeOnClick={false}
+            className="geo-popup"
+            offset={12}
+          >
+            <div className="text-xs">
+              <div className="font-medium">{countryHover.name}</div>
+              <div className="text-muted-foreground">
+                {countryHover.value.toLocaleString()} requests
+                {totalCountryEvents > 0 &&
+                  ` · ${Math.round((countryHover.value / totalCountryEvents) * 100)}%`}
+              </div>
+            </div>
+          </Popup>
+        )}
       </Map>
 
       {/* A request with no GeoIP match has nowhere on the map to anchor a
@@ -595,6 +731,10 @@ function GeoMapInner({
 
       {liveMode && !isMobile && liveOverlays.rail && (
         <LiveRail onSelect={handleLiveSelect} />
+      )}
+
+      {activeLayer === "countries" && (
+        <CountryLegend breaks={countryBreaks} steps={ramp.steps} noData={ramp.noData} />
       )}
 
       {/* Mobile: the vitals pill is the only way into the feed, so it mounts

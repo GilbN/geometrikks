@@ -5,6 +5,8 @@
 
 import type { LayerSpecification } from "maplibre-gl"
 
+import type { MapRamp } from "./hooks/useMapRamp"
+
 // Heatmap layer configuration with traditional heat colors
 export const heatmapLayer: LayerSpecification = {
   id: "geo-heatmap",
@@ -231,4 +233,28 @@ export const bannedPointLayer: LayerSpecification = {
     "circle-stroke-width": 1.5,
     "circle-stroke-color": "rgba(255, 255, 255, 0.75)",
   },
+}
+
+// Country choropleth: fill color comes from a per-feature "value" state set
+// by applyCountryValues(); "hover" state brightens the country under the
+// cursor. Both layers read from the "countries" source (countries.geojson).
+export function countryFillLayer(fillColor: unknown): LayerSpecification {
+  return {
+    id: "country-fill",
+    type: "fill",
+    source: "countries",
+    paint: {
+      "fill-color": fillColor as never,
+      "fill-opacity": ["case", ["boolean", ["feature-state", "hover"], false], 0.95, 0.75],
+    },
+  } as LayerSpecification
+}
+
+export function countryBorderLayer(ramp: MapRamp): LayerSpecification {
+  return {
+    id: "country-border",
+    type: "line",
+    source: "countries",
+    paint: { "line-color": ramp.border, "line-width": 0.5 },
+  } as LayerSpecification
 }
