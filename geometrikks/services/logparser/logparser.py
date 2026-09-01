@@ -16,7 +16,9 @@ from IPy import IP
 from .constants import MONITORED_IP_TYPES
 from .formats import FORMATS, sniff_format
 from .formats.base import LogLineFormat, NormalizedLine
+from .peer_window import PeerSummary, PeerWindow
 from .schemas import ParsedLogRecord, ParsedGeoData, ParsedAccessLog
+from geometrikks.domain.analytics.cdn_asns import CDN_ASNS
 from geometrikks.lib.utils import retries_disabled, sleep_unless_stopped
 from geometrikks.server.logging import get_logger
 
@@ -44,6 +46,17 @@ def check_ip_type(ip: str) -> bool:
         logger.debug("IP type %s (%s) is not a monitored IP type.", ip_type, ip)
         return False
     return True
+
+
+PRIVATE_PEER_TYPES = frozenset(
+    {"PRIVATE", "CARRIER_GRADE_NAT", "LOOPBACK", "ULA", "LINKLOCAL"}
+)
+
+
+@lru_cache(maxsize=1024)
+def is_private_peer(ip: str) -> bool:
+    """A peer address that means the proxy logged its upstream, not the client."""
+    return get_ip_type(ip) in PRIVATE_PEER_TYPES
 
 
 def make_cached_city_lookup(reader: Reader, maxsize: int = 1024) -> Callable[[str], City | None]:
@@ -123,6 +136,7 @@ class LogParser:
         hostname: str = "",
         ignore_ips: list[str] | None = None,
         log_format: str = "auto",
+        peer_window: PeerWindow | None = None,
     ) -> None:
         """I'm here to parse ass and kick logs, and I'm all out of logs...
 
@@ -136,6 +150,9 @@ class LogParser:
             ignore_ips (list[str] | None, optional): IPs/CIDRs whose lines are dropped entirely. Defaults to None.
             log_format (str, optional): A registry name from ``formats.FORMATS`` (e.g. "nginx"),
                 or "auto" to sniff the format from the first parseable line. Defaults to "auto".
+            peer_window (PeerWindow | None, optional): Rolling classifier for
+                the logged peer address (client vs. proxy upstream vs. CDN
+                edge). None: peer classification off (APP_PROXY_ADVISORY=false).
         """
         self.log_path: Path = log_path
         self.send_logs: bool = send_logs
@@ -143,6 +160,7 @@ class LogParser:
         self.hostname: str = hostname
         self.ignore_ips: list[str] = ignore_ips or []
         self._is_ignored: Callable[[str], bool] = make_cached_ignore_check(self.ignore_ips)
+        self.peer_window: PeerWindow | None = peer_window
 
         if log_format != "auto" and log_format not in FORMATS:
             raise ValueError(f"Unknown log format: {log_format!r}")
@@ -201,6 +219,10 @@ class LogParser:
     def ignored_lines_count(self) -> int:
         """Return the number of ignored (ignore-list) lines."""
         return self.ignored_lines
+
+    def peer_summary(self) -> "PeerSummary | None":
+        """Peer-kind window state for /health; None when classification is off."""
+        return self.peer_window.summary() if self.peer_window else None
 
     def _lock_format(self, lines: list[str]) -> None:
         """Sniff the format from candidate lines and lock it in (auto mode).
@@ -377,6 +399,9 @@ class LogParser:
             self.format.detect_malformed(norm) if self.send_logs else (False, None)
         )
 
+        if self.peer_window is not None:
+            self._record_peer(ip, access_log)
+
         return ParsedLogRecord(
             ip_address=ip,
             geo_data=geo_data,
@@ -533,6 +558,44 @@ class LogParser:
                 asn_data.autonomous_system_organization if asn_data else None
             ),
         )
+
+    def _record_peer(self, ip: str, access_log: ParsedAccessLog | None) -> None:
+        """Classify one peer address and log it into the rolling window.
+
+        CDN classification reads the ASN already carried by access_log, not a
+        fresh asn_lookup(ip) call: that keeps this on a zero-mmdb-read budget.
+        The trade-off is by design, not a gap to close: lines with no
+        access-log row - geo-only mode (send_logs=False), or a City-lookup
+        miss even in full mode - classify as "other" here even when the peer
+        is a CDN edge. Private-peer detection is unaffected since it never
+        needs the ASN.
+        """
+        window = self.peer_window
+        if window is None:
+            return
+        if not check_ip_type(ip):
+            if not is_private_peer(ip):
+                return  # reserved/multicast: noise, not a proxy symptom
+            window.record("private")
+        else:
+            asn = access_log.autonomous_system_number if access_log else None
+            provider = CDN_ASNS.get(asn) if asn is not None else None
+            if provider:
+                window.record("cdn", provider)
+            else:
+                window.record("other")
+        for t in window.check():
+            summary = window.summary()
+            logger.warning(
+                "proxy_peer_detected" if t.active else "proxy_peer_cleared",
+                hostname=self.hostname,
+                path=str(self.log_path),
+                kind=t.kind,
+                share=round(t.share, 3),
+                lines=t.lines,
+                provider=summary.top_provider if t.kind == "cdn" else None,
+                log_format=self.format.name if self.format else None,
+            )
 
     async def iter_parsed_records(
         self,

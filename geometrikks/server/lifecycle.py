@@ -49,6 +49,7 @@ from geometrikks.services.geoip.home import resolve_home_location
 from geometrikks.services.geoip.site_homes import reconcile_override_homes, upsert_auto_homes
 from geometrikks.services.ingestion import LogIngestionService
 from geometrikks.services.logparser.logparser import LogParser
+from geometrikks.services.logparser.peer_window import PeerWindow
 from geometrikks.server.scheduler import create_scheduler
 from geometrikks.server.scheduler_tracking import JobRunTracker
 
@@ -367,6 +368,7 @@ async def ingestion_lifespan(app: "Litestar") -> "AsyncGenerator[None]":
             hostname=host,
             ignore_ips=settings.logparser.ignore_ips,
             log_format=fmt,
+            peer_window=PeerWindow() if settings.app.proxy_advisory else None,
         )
         for path, fmt, host in zip(
             settings.logparser.log_paths,

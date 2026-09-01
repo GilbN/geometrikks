@@ -84,6 +84,16 @@ def parse_seconds(raw: str | None) -> float | None:
     return value if math.isfinite(value) else None
 
 
+def host_from_addr(addr: str) -> str:
+    """IP or hostname from an 'addr:port' / '[v6]:port' value; best effort."""
+    if addr.startswith("["):
+        end = addr.find("]")
+        return addr[1:end] if end > 0 else addr
+    if addr.count(":") == 1:
+        return addr.rsplit(":", 1)[0]
+    return addr
+
+
 def detect_probe(
     request_raw: str | None, method: str | None, status_code: int
 ) -> tuple[bool, str | None]:

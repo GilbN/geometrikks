@@ -24,6 +24,7 @@ export interface AdvisoryCard {
   label: string
   detail?: string
   remedy?: string
+  docsUrl?: string
 }
 
 export function overallState(health: HealthResponse | undefined, isError: boolean): CardState {
@@ -44,6 +45,7 @@ export function advisoryCards(health: HealthResponse | undefined): AdvisoryCard[
     label: a.summary,
     detail: a.detail ?? undefined,
     remedy: a.remedy ?? undefined,
+    docsUrl: a.docsUrl ?? undefined,
   }))
 }
 

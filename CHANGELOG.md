@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.14.0] - 2026-09-01
+
+### Added
+
+- Caddy is a supported log source: the `caddy-json` format parses Caddy's native JSON access logs, auto-detected like the other formats and available to `import-logs --format caddy-json`. Add `log_append upstream_duration_ms {rp.upstream.duration_ms}` to record optional upstream timing. Behind a CDN or another proxy, set `servers.trusted_proxies` so Caddy logs the visitor's address; the README's Caddy setup section has the details.
+- Settings > Status warns when most recent traffic for a tailed log comes from CDN addresses (the map would show the CDN's datacenters) or from private addresses (nothing reaches the map at all), naming the affected sources and the proxy directive to fix, with a link to the new docs/proxy-setup.md. Detection is a rolling in-process window with no database cost; `APP_PROXY_ADVISORY=false` turns it off. Every 5 minutes the head scans agent-tailed sources' access-log rows in the shared database to produce their CDN findings; private-peer findings for agent sources still report on the agent's own `/health`.
+
+### Fixed
+
+- Add missing status codes (444, 499) in access logs status code filter dropdown.
+
 ## [0.13.0] - 2026-08-31
 
 ### Added
@@ -946,7 +957,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Settings endpoint no longer exposes the full settings tree (database credentials leaked via `model_dump()`); response is now an explicit whitelist.
 - Timestamps in `CALL refresh_continuous_aggregate` are bound as asyncpg parameters instead of interpolated into SQL.
 
-[Unreleased]: https://github.com/GilbN/geometrikks/compare/v0.13.0...develop
+[Unreleased]: https://github.com/GilbN/geometrikks/compare/v0.14.0...develop
+[0.14.0]: https://github.com/GilbN/geometrikks/compare/v0.13.0...v0.14.0
 [0.13.0]: https://github.com/GilbN/geometrikks/compare/v0.12.1...v0.13.0
 [0.12.1]: https://github.com/GilbN/geometrikks/compare/v0.12.0...v0.12.1
 [0.12.0]: https://github.com/GilbN/geometrikks/compare/v0.11.0...v0.12.0

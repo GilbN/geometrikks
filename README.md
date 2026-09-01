@@ -7,7 +7,7 @@
 
 ![Map](/data/screenshots/live.png)
 
-GeoMetrikks tails your reverse-proxy access logs (nginx and Traefik),
+GeoMetrikks tails your reverse-proxy access logs (nginx, Traefik and Caddy),
 geolocates every request with MaxMind GeoLite2, and shows the result on a
 real-time map and a traffic analytics dashboard. It runs on your own
 hardware from one Docker image. Outbound traffic is the GeoLite2 download
@@ -116,13 +116,13 @@ Images are published as `ghcr.io/gilbn/geometrikks`.
 | `latest` | `latest` | The newest stable release. |
 | Exact stable version | `X.Y.Z` | A specific stable release; use this for reproducible deployments. |
 | Major/minor stable version | `X.Y` | The newest stable patch release in a major/minor series. |
-| Exact development version | `0.13.0-dev.1` | A specific prerelease build for testing upcoming changes. |
+| Exact development version | `0.14.0-dev.1` | A specific prerelease build for testing upcoming changes. |
 | `develop` | `develop` | The newest development release; a moving tag. |
 
 Use `latest` to follow stable releases, or pin an exact version:
 
 ```yaml
-image: ghcr.io/gilbn/geometrikks:0.13.0
+image: ghcr.io/gilbn/geometrikks:0.14.0
 ```
 
 `docker-compose.yml` mounts `ACCESS_LOG_DIR` (default `/var/log/nginx`)
@@ -175,6 +175,11 @@ freely; GeoMetrikks ignores the ones it does not know.
 
 `LOGPARSER_LOG_FORMATS=geometrikks-json` pins the parser to this format
 instead of detecting it per file.
+
+`$remote_addr` is only the visitor's address if nginx sees the visitor
+directly. Behind a CDN, tunnel, or another proxy, see
+[docs/proxy-setup.md](docs/proxy-setup.md) for the realip config that logs
+the visitor instead of that hop.
 
 ### Legacy nginx format
 
@@ -277,8 +282,63 @@ to pin it. Notes:
   `X-Forwarded-For` chain as it arrived; GeoMetrikks takes the rightmost
   entry, the one your proxy appended. Do not set `forwardedHeaders.insecure`:
   it trusts the header from anyone, and a client can then place any address
-  on the map.
+  on the map. See `docs/proxy-setup.md` for the full real-IP setup,
+  including tunnels.
 - A file path is required; GeoMetrikks cannot read Traefik's stdout.
+
+## Caddy setup
+
+GeoMetrikks parses Caddy's native JSON access logs. Caddy logs to stderr
+by default, so give the site (or a wildcard site block) a `log` directive
+that writes to a file:
+
+```caddyfile
+  (log_settings) {
+    log {
+      output file /var/log/caddy/access.log
+      format json
+      level INFO
+    }
+    log_append upstream_duration_ms {rp.upstream.duration_ms}
+  }
+
+  app.example.com {
+    import log_settings
+    reverse_proxy app:8000
+  }
+```
+
+The optional `log_append` line populates the `Upstream res time` column in
+Access Logs and the `Upstream response` field in the selected request's
+details panel. Without it, the column shows `-` and the detail field reads
+`Not recorded`. Caddy's measurement includes writing the response body to
+the client, so it is not exactly equivalent to nginx's
+`$upstream_response_time`.
+
+Mount the log directory into the GeoMetrikks container and point the
+parser at it:
+
+```env
+ACCESS_LOG_DIR=/var/log/caddy
+LOGPARSER_LOG_PATHS=/var/log/access/access.log
+```
+
+The format is auto-detected per file; set `LOGPARSER_LOG_FORMATS=caddy-json`
+to pin it. Notes:
+
+- Caddy rotates the log file itself by default; GeoMetrikks follows the
+  rotation.
+- Behind a CDN or another proxy, set `trusted_proxies` under `servers` in
+  Caddy's global options. Caddy then resolves the visitor's address into
+  the logged `client_ip`, which is the field GeoMetrikks reads (falling
+  back to `remote_ip` on logs from Caddy older than 2.7). Without it the
+  log carries the proxy's address and the map shows the proxy. See
+  `docs/proxy-setup.md`.
+- Keep the json encoder's `time_format` at its default or any ISO variant,
+  and `duration_format` at its default. Lines with `wall`, `common_log` or
+  custom time layouts are skipped, and a non-default `duration_format`
+  loses request times. The appended `upstream_duration_ms` field always uses
+  milliseconds.
 
 ## MaxMind GeoLite2
 
@@ -351,6 +411,11 @@ only honors it when the request arrives from an address listed in
 `APP_TRUSTED_PROXIES`; otherwise it uses the connection's own address. Keep
 the range tight: everything inside it can put arbitrary addresses in the
 header.
+
+`APP_TRUSTED_PROXIES` only affects the app's own login logging; it has no
+effect on how the log parser reads your proxy's access log files. For
+getting the real visitor address into those log files, see
+`docs/proxy-setup.md`.
 
 The WebSocket feeds (`/ws/live`, `/ws/crowdsec`, `/ws/logs`) work through
 the standard `Upgrade`/`Connection` proxy headers, and idle connections
@@ -575,7 +640,7 @@ instance, GeoIP credentials, and its own log mount:
 ```yaml
 services:
   agent:
-    image: ghcr.io/gilbn/geometrikks:0.13.0   # same tag as the full instance
+    image: ghcr.io/gilbn/geometrikks:0.14.0   # same tag as the full instance
     restart: unless-stopped
     stop_grace_period: 20s
     environment:
@@ -629,6 +694,13 @@ shows a stuck agent as `unhealthy` in `docker ps` and gates any
 restart takes Swarm, Kubernetes, or an autoheal sidecar. `restart:
 unless-stopped` will not do it: it reacts to a container exiting, and a
 waiting agent stays up.
+
+CDN peer advisories for an agent's tailed sources reach the head's
+Settings > Status page. The head scans the shared database's last hour of
+access-log rows every 5 minutes, covering only sources with
+`LOGPARSER_SEND_LOGS=true`. Private-peer advisories still surface only on
+the agent's own `/health` and logs, since those lines are never stored. See
+`docs/proxy-setup.md` for details.
 
 The reverse case works too. To keep a full instance's UI and API without it
 tailing local files (a machine that only hosts the app, with all traffic
@@ -688,8 +760,8 @@ Every command supports `--help`.
 ### import-logs: backfill history
 
 Live tailing only picks up lines written after the app starts. To backfill
-rotated or archived access logs (nginx or Traefik JSON, plain or gzip),
-use `import-logs`:
+rotated or archived access logs (nginx, Traefik JSON or Caddy JSON, plain
+or gzip), use `import-logs`:
 
 ```bash
 docker compose exec -u geometrikks app litestar import-logs /var/log/access/access.log.1.gz
@@ -699,8 +771,8 @@ It reuses the live ingestion pipeline (same parsing, GeoIP lookup and DB
 writes), uses the timestamps in each log line rather than wall-clock time,
 and refreshes the continuous aggregates for the imported range when done.
 The log format is auto-detected per file, as with live tailing; pass
-`--format geometrikks-json`, `--format nginx` or `--format traefik-json`
-to pin it. You can pass several
+`--format geometrikks-json`, `--format nginx`, `--format traefik-json` or
+`--format caddy-json` to pin it. You can pass several
 files in one invocation. Paths are **container** paths, and the import runs
 as the non-root `geometrikks` user (`PUID`:`PGID`, default 1000:1000), so
 host files must be readable by it (`-u geometrikks` keeps `exec` from
@@ -920,13 +992,15 @@ Yes. The GHCR image is a multi-arch manifest for `linux/amd64` and
 `linux/arm64`.
 
 **The map is empty.**
-Check three things in order: (1) the geo-degraded banner; if it shows,
+Check four things in order: (1) the geo-degraded banner; if it shows,
 MaxMind credentials or the GeoLite2 database are missing; (2) that
 `LOGPARSER_LOG_PATHS` points at a file receiving traffic in a supported
-format (the nginx JSON `log_format` above, the legacy nginx format, or
-Traefik JSON); (3) that some time has passed since you last restarted. The
-map only shows events ingested after startup unless you have run a batch
-import.
+format (the nginx JSON `log_format` above, the legacy nginx format,
+Traefik JSON, or Caddy JSON); (3) that some time has passed since you last
+restarted. The map only shows events ingested after startup unless you
+have run a batch import. (4) that your proxy logs the visitor's address,
+not an upstream proxy or tunnel; Settings > Status shows an advisory when
+it does not. See docs/proxy-setup.md.
 
 **What does the "geo-degraded" banner mean?**
 The app started without a usable GeoLite2 database: either
