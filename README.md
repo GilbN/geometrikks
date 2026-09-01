@@ -293,15 +293,19 @@ by default, so give the site (or a wildcard site block) a `log` directive
 that writes to a file:
 
 ```caddyfile
-example.com {
+  (log_settings) {
     log {
-        output file /var/log/caddy/access.log
-        format json
+      output file /var/log/caddy/access.log
+      format json
+      level INFO
     }
-
-    reverse_proxy app:8000
     log_append upstream_duration_ms {rp.upstream.duration_ms}
-}
+  }
+
+  app.example.com {
+    import log_settings
+    reverse_proxy app:8000
+  }
 ```
 
 The optional `log_append` line populates the `Upstream res time` column in
