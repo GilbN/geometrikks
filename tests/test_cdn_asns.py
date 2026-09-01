@@ -15,6 +15,11 @@ def test_cloudflare_present() -> None:
     assert CDN_ASNS[13335] == "Cloudflare"
 
 
+def test_dead_networks_excluded() -> None:
+    """Edgio (22822) shut down 2025-01-15 and no longer announces routes."""
+    assert 22822 not in CDN_ASNS
+
+
 def test_hyperscalers_excluded() -> None:
     """AWS/GCP/Azure inbound traffic is scanners, not a fronting CDN;
     including them would fire on every low-traffic site."""
