@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.14.0] - 2026-09-01
+
 ### Added
 
 - Caddy is a supported log source: the `caddy-json` format parses Caddy's native JSON access logs, auto-detected like the other formats and available to `import-logs --format caddy-json`. Add `log_append upstream_duration_ms {rp.upstream.duration_ms}` to record optional upstream timing. Behind a CDN or another proxy, set `servers.trusted_proxies` so Caddy logs the visitor's address; the README's Caddy setup section has the details.
@@ -955,7 +957,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Settings endpoint no longer exposes the full settings tree (database credentials leaked via `model_dump()`); response is now an explicit whitelist.
 - Timestamps in `CALL refresh_continuous_aggregate` are bound as asyncpg parameters instead of interpolated into SQL.
 
-[Unreleased]: https://github.com/GilbN/geometrikks/compare/v0.13.0...develop
+[Unreleased]: https://github.com/GilbN/geometrikks/compare/v0.14.0...develop
+[0.14.0]: https://github.com/GilbN/geometrikks/compare/v0.13.0...v0.14.0
 [0.13.0]: https://github.com/GilbN/geometrikks/compare/v0.12.1...v0.13.0
 [0.12.1]: https://github.com/GilbN/geometrikks/compare/v0.12.0...v0.12.1
 [0.12.0]: https://github.com/GilbN/geometrikks/compare/v0.11.0...v0.12.0
