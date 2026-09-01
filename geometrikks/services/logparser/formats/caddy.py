@@ -8,7 +8,9 @@ configs that delete ``client_ip``. ``ts`` is unix seconds by default but
 the encoder is configurable: numbers pick their unit by magnitude and
 strings go through ``fromisoformat``. ``duration`` is read as seconds, the
 default; the ms/ns variants are numerically indistinguishable from it and
-stay unsupported. Caddy logs no upstream timing and no raw request bytes.
+stay unsupported. Default logs omit upstream timing; users can add numeric
+``upstream_duration_ms`` with Caddy's ``log_append`` directive. Caddy logs no
+raw request bytes.
 """
 
 import math
@@ -39,6 +41,7 @@ class CaddyLine(msgspec.Struct, kw_only=True):
     status: int | None = None
     size: int | None = None
     duration: float | int | str | None = None
+    upstream_duration_ms: float | int | str | None = None
     user_id: str | None = None
 
 
@@ -51,15 +54,15 @@ def _parse_timestamp(raw: float | int | str | None) -> datetime | None:
             return None
         try:
             value = float(raw)
-            # Unit by magnitude: seconds below 1e11 (year 5138), millis below
-            # 1e14, else nanos. Covers unix_seconds_float (the default),
-            # unix_milli_float and unix_nano without ambiguity for real dates.
-            if raw < 1e11:
+            # Unit by magnitude: seconds below 100_000_000_000 (year 5138),
+            # milliseconds below 100_000_000_000_000, else nanoseconds. Covers
+            # the supported unix formats without ambiguity for real dates.
+            if raw < 100_000_000_000:
                 seconds = value
-            elif raw < 1e14:
-                seconds = value / 1e3
+            elif raw < 100_000_000_000_000:
+                seconds = value / 1_000
             else:
-                seconds = value / 1e9
+                seconds = value / 1_000_000_000
             if not math.isfinite(seconds):
                 return None
             return datetime.fromtimestamp(seconds, tz=timezone.utc)
@@ -136,6 +139,7 @@ class CaddyJsonFormat:
             return None
 
         raw_host = convert_dash_to_none(req.host)
+        upstream_duration_ms = _parse_duration(data.upstream_duration_ms)
         return NormalizedLine(
             ip_address=ip,
             timestamp=ts,
@@ -148,7 +152,13 @@ class CaddyJsonFormat:
             referrer=_header(req.headers, "Referer"),
             user_agent=_header(req.headers, "User-Agent"),
             request_time=_parse_duration(data.duration),
-            upstream_response_time=None,
+            # Caddy includes writing the response body to the client, so this
+            # is not perfectly equivalent to nginx's $upstream_response_time.
+            upstream_response_time=(
+                upstream_duration_ms / 1_000
+                if upstream_duration_ms is not None
+                else None
+            ),
             host=host_from_addr(raw_host) if raw_host else None,
         )
 

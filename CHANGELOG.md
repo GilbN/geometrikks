@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Caddy is a supported log source: the `caddy-json` format parses Caddy's native JSON access logs, auto-detected like the other formats and available to `import-logs --format caddy-json`. Behind a CDN or another proxy, set `servers.trusted_proxies` so Caddy logs the visitor's address; the README's Caddy setup section has the details.
+- Caddy is a supported log source: the `caddy-json` format parses Caddy's native JSON access logs, auto-detected like the other formats and available to `import-logs --format caddy-json`. Add `log_append upstream_duration_ms {rp.upstream.duration_ms}` to record optional upstream timing. Behind a CDN or another proxy, set `servers.trusted_proxies` so Caddy logs the visitor's address; the README's Caddy setup section has the details.
 
 ### Fixed
 

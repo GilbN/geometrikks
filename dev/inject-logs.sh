@@ -74,9 +74,9 @@ json_line() {
 }
 
 # One caddy-json line for the IP in $1 (zap defaults: epoch float ts,
-# float-second duration, header arrays; client_ip == remote_ip, no proxy).
+# float-second duration, header arrays; optional log_append upstream timing).
 caddy_line() {
-  local ip=$1 path method status agent ref user bytes cts refh
+  local ip=$1 path method status agent ref user bytes cts refh upstreamh
   path=${PATHS[$((RANDOM % ${#PATHS[@]}))]}
   method=${METHODS[$((RANDOM % ${#METHODS[@]}))]}
   status=${STATUSES[$((RANDOM % ${#STATUSES[@]}))]}
@@ -87,8 +87,9 @@ caddy_line() {
   timings "$path"
   cts=$(date +%s.%3N)
   refh=""; [ -n "$ref" ] && refh=",\"Referer\":[\"$ref\"]"
-  printf '{"level":"info","ts":%s,"logger":"http.log.access.log0","msg":"handled request","request":{"remote_ip":"%s","remote_port":"%s","client_ip":"%s","proto":"HTTP/2.0","method":"%s","host":"caddy.example.com","uri":"%s","headers":{"User-Agent":["%s"]%s}},"bytes_read":0,"user_id":"%s","duration":%s,"size":%s,"status":%s,"resp_headers":{"Server":["Caddy"]}}\n' \
-    "$cts" "$ip" "$((RANDOM % 50000 + 1024))" "$ip" "$method" "$path" "$agent" "$refh" "$user" "$rt" "$bytes" "$status" >> "$REPO/nginx_logs/caddy.log"
+  upstreamh=""; [ "$utms" -gt 0 ] && upstreamh=",\"upstream_duration_ms\":$utms"
+  printf '{"level":"info","ts":%s,"logger":"http.log.access.log0","msg":"handled request","request":{"remote_ip":"%s","remote_port":"%s","client_ip":"%s","proto":"HTTP/2.0","method":"%s","host":"caddy.example.com","uri":"%s","headers":{"User-Agent":["%s"]%s}},"bytes_read":0,"user_id":"%s","duration":%s%s,"size":%s,"status":%s,"resp_headers":{"Server":["Caddy"]}}\n' \
+    "$cts" "$ip" "$((RANDOM % 50000 + 1024))" "$ip" "$method" "$path" "$agent" "$refh" "$user" "$rt" "$upstreamh" "$bytes" "$status" >> "$REPO/nginx_logs/caddy.log"
 }
 
 case "${1:-}" in

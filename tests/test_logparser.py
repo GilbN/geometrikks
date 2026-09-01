@@ -912,7 +912,8 @@ def make_caddy_line(ip: str) -> str:
         '"request":{"remote_ip":"' + ip + '","remote_port":"56002","client_ip":"' + ip + '",'
         '"proto":"HTTP/2.0","method":"GET","host":"caddy.example.com","uri":"/index.php",'
         '"headers":{"User-Agent":["Mozilla/5.0"]}},'
-        '"bytes_read":0,"user_id":"","duration":0.002,"size":1024,"status":200,'
+        '"bytes_read":0,"user_id":"","duration":0.002,"upstream_duration_ms":1.25,'
+        '"size":1024,"status":200,'
         '"resp_headers":{"Server":["Caddy"]}}\n'
     )
 
@@ -936,7 +937,7 @@ def test_parse_line_caddy_json_end_to_end(tmp_path: Path, geoip_reader: Reader) 
     assert record.access_log.host == "caddy.example.com"
     assert record.access_log.status_code == 200
     assert record.access_log.request_time == pytest.approx(0.002)
-    assert record.access_log.upstream_response_time is None
+    assert record.access_log.upstream_response_time == pytest.approx(0.00125)
     offset = record.access_log.timestamp.utcoffset()
     assert offset is not None and offset.total_seconds() == 0
     assert parser.parsed_lines == 1

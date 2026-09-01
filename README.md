@@ -298,8 +298,18 @@ example.com {
         output file /var/log/caddy/access.log
         format json
     }
+
+    reverse_proxy app:8000
+    log_append upstream_duration_ms {rp.upstream.duration_ms}
 }
 ```
+
+The optional `log_append` line populates the `Upstream res time` column in
+Access Logs and the `Upstream response` field in the selected request's
+details panel. Without it, the column shows `-` and the detail field reads
+`Not recorded`. Caddy's measurement includes writing the response body to
+the client, so it is not exactly equivalent to nginx's
+`$upstream_response_time`.
 
 Mount the log directory into the GeoMetrikks container and point the
 parser at it:
@@ -323,7 +333,8 @@ to pin it. Notes:
 - Keep the json encoder's `time_format` at its default or any ISO variant,
   and `duration_format` at its default. Lines with `wall`, `common_log` or
   custom time layouts are skipped, and a non-default `duration_format`
-  loses response times.
+  loses request times. The appended `upstream_duration_ms` field always uses
+  milliseconds.
 
 ## MaxMind GeoLite2
 

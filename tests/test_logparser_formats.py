@@ -557,6 +557,7 @@ CADDY_FULL = json.dumps(
         "bytes_read": 0,
         "user_id": "",
         "duration": 0.175457236,
+        "upstream_duration_ms": 43.21,
         "size": 5043,
         "status": 200,
         "resp_headers": {"Server": ["Caddy"]},
@@ -591,7 +592,7 @@ def test_caddy_parse_full_line() -> None:
     assert norm.user_agent == "Mozilla/5.0 (compatible; test-crawler/1.0)"
     assert norm.remote_user is None  # user_id ""
     assert norm.request_time == pytest.approx(0.175457236)
-    assert norm.upstream_response_time is None  # Caddy logs no upstream timing
+    assert norm.upstream_response_time == pytest.approx(0.04321)
     assert norm.request_raw is None
 
 
@@ -646,6 +647,26 @@ def test_caddy_oversized_integer_duration_is_none_not_fatal() -> None:
     norm = CaddyJsonFormat().parse(caddy(duration=10**400))
     assert norm is not None
     assert norm.request_time is None
+    assert norm.status_code == 200
+
+
+def test_caddy_missing_upstream_duration_is_none() -> None:
+    norm = CaddyJsonFormat().parse(caddy(upstream_duration_ms=None))
+    assert norm is not None
+    assert norm.upstream_response_time is None
+
+
+def test_caddy_zero_upstream_duration_is_preserved() -> None:
+    norm = CaddyJsonFormat().parse(caddy(upstream_duration_ms=0))
+    assert norm is not None
+    assert norm.upstream_response_time == 0
+
+
+@pytest.mark.parametrize("raw", ["43.21", 10**400])
+def test_caddy_invalid_upstream_duration_is_none_not_fatal(raw: str | int) -> None:
+    norm = CaddyJsonFormat().parse(caddy(upstream_duration_ms=raw))
+    assert norm is not None
+    assert norm.upstream_response_time is None
     assert norm.status_code == 200
 
 
