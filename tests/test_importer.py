@@ -266,6 +266,63 @@ async def test_import_file_geometrikks_json(tmp_path, geoip_reader, monkeypatch)
     assert result.time_end is not None and result.time_end.day == 5
 
 
+def make_caddy_line(ip: str, day: int = 3) -> str:
+    return (
+        '{"level":"info","ts":"2024-08-' + f"{day:02d}" + 'T13:14:17+02:00",'
+        '"logger":"http.log.access.log0","msg":"handled request",'
+        '"request":{"remote_ip":"' + ip + '","client_ip":"' + ip + '",'
+        '"proto":"HTTP/2.0","method":"GET","host":"caddy.example.com","uri":"/index.php",'
+        '"headers":{"User-Agent":["Mozilla/5.0"]}},'
+        '"user_id":"","duration":0.002,"size":1024,"status":200}'
+    )
+
+
+async def test_import_file_caddy_json(tmp_path, geoip_reader, monkeypatch):
+    from geometrikks.services import importer
+
+    log = tmp_path / "old.caddy.log"
+    log.write_text("".join(make_caddy_line(TEST_IP, day=d) + "\n" for d in (1, 5, 3)))
+
+    service, FakeRepo, session_maker = _import_deps(tmp_path)
+    monkeypatch.setattr(importer, "ImportJobRepository", FakeRepo)
+    parser = LogParser(log_path=log, send_logs=True, log_format="caddy-json")
+
+    result = await importer.import_file(
+        log, service=service, parser=parser, reader=geoip_reader,
+        session_maker=session_maker,
+    )
+    assert result.skipped is False
+    assert result.lines_total == 3
+    assert result.lines_skipped == 0
+    assert result.records_written == 3
+    assert result.time_start is not None and result.time_start.day == 1
+    assert result.time_end is not None and result.time_end.day == 5
+
+
+async def test_import_file_traefik_pinned_to_caddy_json_is_rejected(tmp_path, geoip_reader, monkeypatch):
+    """Pinning the wrong JSON format aborts before anything is written."""
+    from geometrikks.services import importer
+
+    traefik_line = (
+        '{"ClientAddr":"172.19.0.1:34567","ClientHost":"203.0.113.7","DownstreamStatus":200,'
+        '"Duration":45678900,"RequestMethod":"GET","RequestPath":"/","RequestProtocol":"HTTP/2.0",'
+        '"StartUTC":"2026-08-07T10:34:56.123456789Z","level":"info","msg":""}\n'
+    )
+    log = tmp_path / "traefik.log"
+    log.write_text(traefik_line * 20)
+
+    service, FakeRepo, session_maker = _import_deps(tmp_path)
+    monkeypatch.setattr(importer, "ImportJobRepository", FakeRepo)
+    parser = LogParser(log_path=log, send_logs=True, log_format="caddy-json")
+
+    with pytest.raises(importer.UnrecognizedLogFormatError):
+        await importer.import_file(
+            log, service=service, parser=parser, reader=geoip_reader,
+            session_maker=session_maker,
+        )
+    assert service.flush_records.await_count == 0
+
+
 async def test_import_file_traefik_pinned_to_geometrikks_json_is_rejected(tmp_path, geoip_reader, monkeypatch):
     """Pinning the wrong JSON format aborts before anything is written."""
     from geometrikks.services import importer

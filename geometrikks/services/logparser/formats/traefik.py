@@ -17,17 +17,7 @@ import json
 from datetime import datetime
 from typing import Any
 
-from .base import NormalizedLine, VALID_HTTP_METHODS, convert_dash_to_none
-
-
-def _host_from_addr(addr: str) -> str:
-    """IP from an 'IP:port' / '[v6]:port' ClientAddr; best effort."""
-    if addr.startswith("["):
-        end = addr.find("]")
-        return addr[1:end] if end > 0 else addr
-    if addr.count(":") == 1:
-        return addr.rsplit(":", 1)[0]
-    return addr
+from .base import NormalizedLine, VALID_HTTP_METHODS, convert_dash_to_none, host_from_addr
 
 
 def _parse_timestamp(data: dict[str, Any]) -> datetime | None:
@@ -75,7 +65,7 @@ class TraefikJsonFormat:
             ip = ip.rsplit(",", 1)[1]
         ip = ip.strip()
         if not ip:
-            ip = _host_from_addr(str(data.get("ClientAddr") or ""))
+            ip = host_from_addr(str(data.get("ClientAddr") or ""))
         ts = _parse_timestamp(data)
         if not ip or ts is None:
             return None

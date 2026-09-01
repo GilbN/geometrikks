@@ -4,16 +4,19 @@ from __future__ import annotations
 from typing import NamedTuple
 
 from .base import LogLineFormat, NormalizedLine
+from .caddy import CaddyJsonFormat
 from .geometrikks_json import GeometrikksJsonFormat
 from .nginx import NginxFormat
 from .traefik import TraefikJsonFormat
 
 # Sniffing order: the recommended format first, then the other cheap '{'
-# prefix check, then the regex. The two JSON adapters decline each other's
-# lines on required keys (client_ip vs ClientHost), so order is cost only.
+# prefix checks, then the regex. The JSON adapters decline each other's
+# lines on required keys (client_ip vs ClientHost vs the nested request
+# object), so order is cost only.
 FORMATS: dict[str, LogLineFormat] = {
     GeometrikksJsonFormat.name: GeometrikksJsonFormat(),
     TraefikJsonFormat.name: TraefikJsonFormat(),
+    CaddyJsonFormat.name: CaddyJsonFormat(),
     NginxFormat.name: NginxFormat(),
 }
 
