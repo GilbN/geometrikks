@@ -303,7 +303,7 @@ def test_detect_probe_ssh_and_smb() -> None:
 def test_detect_probe_method_and_status_rules() -> None:
     assert detect_probe("", None, 400) == (True, "TLS probe: HTTP request sent to HTTPS port")
     assert detect_probe("", None, 200) == (True, "No HTTP method in request")
-    assert detect_probe("", "PROPFIND", 200) == (True, "Invalid HTTP method: PROPFIND")
+    assert detect_probe("", "UNKNOWN", 200) == (True, "Invalid HTTP method: UNKNOWN")
     assert detect_probe("GET / HTTP/1.1", "GET", 200) == (False, None)
     for status in (408, 444, 499):
         assert detect_probe("GET / HTTP/1.1", "GET", status) == (False, None)
@@ -509,7 +509,7 @@ def test_gjson_detect_malformed_method_rules() -> None:
     cases = {
         gjson(method="", status="400", request_raw="/ HTTP/1.1"): "TLS probe: HTTP request sent to HTTPS port",
         gjson(method="", status="200", request_raw="/ HTTP/1.1"): "No HTTP method in request",
-        gjson(method="PROPFIND", request_raw="PROPFIND / HTTP/1.1"): "Invalid HTTP method: PROPFIND",
+        gjson(method="UNKNOWN", request_raw="UNKNOWN / HTTP/1.1"): "Invalid HTTP method: UNKNOWN",
         gjson(method=None, request_raw=None): "No HTTP method in request",
     }
     for line, expected in cases.items():
@@ -732,9 +732,9 @@ def test_caddy_detect_malformed() -> None:
     norm = fmt.parse(caddy({"method": ""}, status=400))
     assert norm is not None
     assert fmt.detect_malformed(norm) == (True, "No HTTP method in request")
-    norm = fmt.parse(caddy({"method": "PROPFIND"}))
+    norm = fmt.parse(caddy({"method": "UNKNOWN"}))
     assert norm is not None
-    assert fmt.detect_malformed(norm) == (True, "Invalid HTTP method: PROPFIND")
+    assert fmt.detect_malformed(norm) == (True, "Invalid HTTP method: UNKNOWN")
     norm = fmt.parse(caddy())
     assert norm is not None
     assert fmt.detect_malformed(norm) == (False, None)
