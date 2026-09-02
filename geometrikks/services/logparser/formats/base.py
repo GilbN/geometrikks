@@ -57,7 +57,27 @@ class LogLineFormat(Protocol):
 
 
 VALID_HTTP_METHODS: frozenset[str] = frozenset(
-    {"GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS", "CONNECT", "TRACE"}
+    {
+        "GET",
+        "POST",
+        "PUT",
+        "DELETE",
+        "PATCH",
+        "HEAD",
+        "OPTIONS",
+        "CONNECT",
+        "TRACE",
+        "PROPFIND",
+        "PROPPATCH",
+        "MKCOL",
+        "COPY",
+        "MOVE",
+        "LOCK",
+        "UNLOCK",
+        "REPORT",
+        "MKCALENDAR",
+        "ACL",
+    }
 )
 
 
