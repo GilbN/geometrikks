@@ -34,6 +34,7 @@ def test_single_head() -> None:
 
 SWAP_REVISION = "59dc39684c1f"
 CAGG_REFRESH_REVISION = "5f1c8a7d24b3"
+METHOD_WIDTH_REVISION = "8b7884d1daaf"
 VERSIONS_DIR = REPO_ROOT / "migrations" / "versions"
 
 
@@ -61,6 +62,22 @@ def test_cagg_refresh_revision_follows_the_swap() -> None:
     source = _revision_source(CAGG_REFRESH_REVISION)
     assert "autocommit_block" in source
     assert "refresh_continuous_aggregate" in source
+
+
+def test_method_width_revision_follows_previous_head() -> None:
+    revision = _script_directory().get_revision(METHOD_WIDTH_REVISION)
+    assert revision.down_revision == "d4e8f2a6b913"
+
+
+def test_method_width_revision_handles_compressed_hypertables() -> None:
+    source = _revision_source(METHOD_WIDTH_REVISION)
+    assert 'TABLES = ("access_logs", "access_log_debug")' in source
+    assert "_decompress_method_tables(op.get_bind())" in source
+    assert "decompress_chunk" in source
+    assert "startup may take several minutes" in source
+    assert "decompression progress" in source
+    assert "TYPE VARCHAR(32)" in source
+    assert "char_length(method) > 10" in source
 
 
 def test_revisions_parse_and_chain() -> None:

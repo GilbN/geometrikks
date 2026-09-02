@@ -6,6 +6,7 @@ import pytest
 
 from geometrikks.services.logparser.formats import FORMATS, sniff_format
 from geometrikks.services.logparser.formats.base import (
+    VALID_HTTP_METHODS,
     detect_probe,
     host_from_addr,
     parse_seconds,
@@ -21,27 +22,54 @@ NGINX_LINE = (
 )
 NGINX_GARBAGE = "not a log line at all\n"
 
-SUPPORTED_HTTP_METHODS = (
-    "GET",
-    "POST",
-    "PUT",
-    "DELETE",
-    "PATCH",
-    "HEAD",
-    "OPTIONS",
+# Independent snapshot of the IANA HTTP Method Registry, verified 2026-09-02.
+IANA_HTTP_METHODS = (
+    "*",
+    "ACL",
+    "BASELINE-CONTROL",
+    "BIND",
+    "CHECKIN",
+    "CHECKOUT",
     "CONNECT",
-    "TRACE",
+    "COPY",
+    "DELETE",
+    "GET",
+    "HEAD",
+    "LABEL",
+    "LINK",
+    "LOCK",
+    "MERGE",
+    "MKACTIVITY",
+    "MKCALENDAR",
+    "MKCOL",
+    "MKREDIRECTREF",
+    "MKWORKSPACE",
+    "MOVE",
+    "OPTIONS",
+    "ORDERPATCH",
+    "PATCH",
+    "POST",
+    "PRI",
     "PROPFIND",
     "PROPPATCH",
-    "MKCOL",
-    "COPY",
-    "MOVE",
-    "LOCK",
-    "UNLOCK",
+    "PUT",
+    "QUERY",
+    "REBIND",
     "REPORT",
-    "MKCALENDAR",
-    "ACL",
+    "SEARCH",
+    "TRACE",
+    "UNBIND",
+    "UNCHECKOUT",
+    "UNLINK",
+    "UNLOCK",
+    "UPDATE",
+    "UPDATEREDIRECTREF",
+    "VERSION-CONTROL",
 )
+
+
+def test_valid_http_methods_match_iana_registry() -> None:
+    assert VALID_HTTP_METHODS == frozenset(IANA_HTTP_METHODS)
 
 
 def test_nginx_parse_full_line_corrected_semantics() -> None:
@@ -119,6 +147,25 @@ def test_nginx_detect_malformed_ok_line() -> None:
     norm = fmt.parse(NGINX_LINE)
     assert norm is not None
     assert fmt.detect_malformed(norm) == (False, None)
+
+
+@pytest.mark.parametrize("method", IANA_HTTP_METHODS)
+def test_nginx_iana_http_methods_are_well_formed(method: str) -> None:
+    fmt = NginxFormat()
+    norm = fmt.parse(NGINX_LINE.replace('"GET ', f'"{method} ', 1))
+
+    assert norm is not None
+    assert norm.method == method
+    assert fmt.detect_malformed(norm) == (False, None)
+
+
+def test_nginx_unknown_token_method_is_identified() -> None:
+    fmt = NginxFormat()
+    norm = fmt.parse(NGINX_LINE.replace('"GET ', '"BOGUS-METHOD ', 1))
+
+    assert norm is not None
+    assert norm.method == "BOGUS-METHOD"
+    assert fmt.detect_malformed(norm) == (True, "Invalid HTTP method: BOGUS-METHOD")
 
 
 def test_registry_contains_nginx() -> None:
@@ -313,13 +360,13 @@ def test_detect_probe_tls_raw_bytes() -> None:
     assert is_malformed is True
     assert reason == "TLS handshake sent to HTTP port (raw)"
 
-@pytest.mark.parametrize("method", SUPPORTED_HTTP_METHODS)
-def test_detect_probe_supported_http_methods_are_well_formed(method: str) -> None:
+@pytest.mark.parametrize("method", IANA_HTTP_METHODS)
+def test_detect_probe_iana_http_methods_are_well_formed(method: str) -> None:
     assert detect_probe("", method, 200) == (False, None)
 
 
-@pytest.mark.parametrize("method", SUPPORTED_HTTP_METHODS)
-def test_traefik_supported_http_methods_are_well_formed(method: str) -> None:
+@pytest.mark.parametrize("method", IANA_HTTP_METHODS)
+def test_traefik_iana_http_methods_are_well_formed(method: str) -> None:
     data = json.loads(TRAEFIK_FULL)
     data["RequestMethod"] = method
 
@@ -330,8 +377,8 @@ def test_traefik_supported_http_methods_are_well_formed(method: str) -> None:
     assert TraefikJsonFormat().detect_malformed(norm) == (False, None)
 
 
-@pytest.mark.parametrize("method", SUPPORTED_HTTP_METHODS)
-def test_caddy_supported_http_methods_are_well_formed(method: str) -> None:
+@pytest.mark.parametrize("method", IANA_HTTP_METHODS)
+def test_caddy_iana_http_methods_are_well_formed(method: str) -> None:
     fmt = CaddyJsonFormat()
 
     norm = fmt.parse(caddy({"method": method}))
@@ -565,6 +612,16 @@ def test_gjson_detect_malformed_method_rules() -> None:
         norm = fmt.parse(line)
         assert norm is not None
         assert fmt.detect_malformed(norm) == (True, expected)
+
+
+@pytest.mark.parametrize("method", IANA_HTTP_METHODS)
+def test_gjson_iana_http_methods_are_well_formed(method: str) -> None:
+    fmt = GeometrikksJsonFormat()
+    norm = fmt.parse(gjson(method=method, request_raw=f"{method} / HTTP/1.1"))
+
+    assert norm is not None
+    assert norm.method == method
+    assert fmt.detect_malformed(norm) == (False, None)
 
 
 def test_gjson_connection_statuses_are_well_formed() -> None:

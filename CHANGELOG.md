@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Access-log parsing and the Method filter now recognize every method in the IANA HTTP Method Registry, including WebDAV versioning and binding methods, `QUERY`, and the reserved `*` method. The legacy nginx parser also accepts registered hyphenated methods instead of dropping their method field.
+- HTTP method columns expand from 10 to 32 characters. On the first startup after upgrading, the migration decompresses existing `access_logs` and `access_log_debug` chunks before changing their column types; this may temporarily require additional disk space, and the normal compression policy recompresses eligible chunks afterward.
+
 ## [0.14.0] - 2026-09-01
 
 ### Added
