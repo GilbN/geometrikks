@@ -1,9 +1,11 @@
 """Tests for the log line format adapters."""
 import json
+import re
 from datetime import datetime, timedelta, timezone
 
 import pytest
 
+from geometrikks.services.logparser.constants import ipv4_pattern, ipv6_pattern
 from geometrikks.services.logparser.formats import FORMATS, sniff_format
 from geometrikks.services.logparser.formats.base import (
     VALID_HTTP_METHODS,
@@ -90,6 +92,53 @@ def test_nginx_parse_full_line_corrected_semantics() -> None:
     assert norm.timestamp.isoformat() == "2024-08-03T13:14:17+02:00"
 
 
+@pytest.mark.parametrize(
+    "line,pattern",
+    [
+        pytest.param(NGINX_LINE, ipv4_pattern(), id="ipv4"),
+        pytest.param(
+            NGINX_LINE.replace("203.0.113.7", "2001:db8::7", 1),
+            ipv6_pattern(),
+            id="ipv6",
+        ),
+    ],
+)
+def test_nginx_pattern_consumes_complete_documented_line(
+    line: str,
+    pattern: re.Pattern[str],
+) -> None:
+    matched = pattern.match(line)
+
+    assert matched is not None
+    assert matched.end() == len(line)
+
+
+def test_nginx_appended_fields_do_not_change_documented_fields() -> None:
+    line = f'{NGINX_LINE}"Oslo" "NO"'
+    norm = NginxFormat().parse(line)
+
+    assert norm is not None
+    assert norm.referrer == "https://google.com/"
+    assert norm.host == "example.com"
+    assert norm.user_agent == "Mozilla/5.0"
+    assert norm.request_time == 0.002
+    assert norm.upstream_response_time == 0.001
+
+
+def test_nginx_default_escaped_quotes_stay_inside_fields() -> None:
+    line = NGINX_LINE.replace(
+        '"https://google.com/" example.com "Mozilla/5.0"',
+        r'"https://ref.example/a\x22b" example.com "Agent\x22Name"',
+    )
+    norm = NginxFormat().parse(line)
+
+    assert norm is not None
+    assert norm.referrer == r"https://ref.example/a\x22b"
+    assert norm.user_agent == r"Agent\x22Name"
+    assert norm.request_time == 0.002
+    assert norm.upstream_response_time == 0.001
+
+
 def test_nginx_parse_dash_fields_become_none() -> None:
     line = (
         '203.0.113.7 - - [03/Aug/2024:13:14:17 +0200]"GET /index.php HTTP/2.0" 200 1024"-" '
@@ -101,6 +150,68 @@ def test_nginx_parse_dash_fields_become_none() -> None:
     assert norm.user_agent is None
     assert norm.upstream_response_time is None
     assert norm.remote_user is None
+
+
+@pytest.mark.parametrize(
+    "referrer,user_agent,request_time,upstream_time,expected",
+    [
+        pytest.param(
+            "",
+            "Mozilla/5.0",
+            "0.010",
+            "0.004",
+            (None, "Mozilla/5.0", 0.01, 0.004),
+            id="referrer",
+        ),
+        pytest.param(
+            "-",
+            "",
+            "0.010",
+            "0.004",
+            (None, None, 0.01, 0.004),
+            id="user-agent",
+        ),
+        pytest.param(
+            "-",
+            "Mozilla/5.0",
+            "",
+            "0.004",
+            (None, "Mozilla/5.0", None, 0.004),
+            id="request-time",
+        ),
+        pytest.param(
+            "-",
+            "Mozilla/5.0",
+            "0.010",
+            "",
+            (None, "Mozilla/5.0", 0.01, None),
+            id="upstream-time",
+        ),
+    ],
+)
+def test_nginx_empty_fields_do_not_shift_following_fields(
+    referrer: str,
+    user_agent: str,
+    request_time: str,
+    upstream_time: str,
+    expected: tuple[str | None, str | None, float | None, float | None],
+) -> None:
+    line = (
+        '203.0.113.7 - - [31/Aug/2026:12:46:25 +0200] "GET /wp-login.php HTTP/1.1" '
+        f'301 162 "{referrer}" example.com "{user_agent}" "{request_time}" "{upstream_time}"'
+    )
+    matched = ipv4_pattern().match(line)
+    norm = NginxFormat().parse(line)
+
+    assert matched is not None
+    assert matched.end() == len(line)
+    assert norm is not None
+    assert (
+        norm.referrer,
+        norm.user_agent,
+        norm.request_time,
+        norm.upstream_response_time,
+    ) == expected
 
 
 def test_nginx_parse_geo_only() -> None:
