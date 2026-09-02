@@ -25,6 +25,8 @@ import {
 
 const HTTP_METHODS = [
   "GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS", "CONNECT", "TRACE",
+  "PROPFIND", "PROPPATCH", "MKCOL", "COPY", "MOVE", "LOCK", "UNLOCK", "REPORT",
+  "MKCALENDAR", "ACL",
 ] as const
 const STATUS_CODES = [
   100, 101, 102, 103, 200, 201, 202, 203, 204, 205, 206, 207, 208, 226,

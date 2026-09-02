@@ -21,6 +21,28 @@ NGINX_LINE = (
 )
 NGINX_GARBAGE = "not a log line at all\n"
 
+SUPPORTED_HTTP_METHODS = (
+    "GET",
+    "POST",
+    "PUT",
+    "DELETE",
+    "PATCH",
+    "HEAD",
+    "OPTIONS",
+    "CONNECT",
+    "TRACE",
+    "PROPFIND",
+    "PROPPATCH",
+    "MKCOL",
+    "COPY",
+    "MOVE",
+    "LOCK",
+    "UNLOCK",
+    "REPORT",
+    "MKCALENDAR",
+    "ACL",
+)
+
 
 def test_nginx_parse_full_line_corrected_semantics() -> None:
     """path comes from the request line; referrer from the Referer position."""
@@ -291,6 +313,33 @@ def test_detect_probe_tls_raw_bytes() -> None:
     assert is_malformed is True
     assert reason == "TLS handshake sent to HTTP port (raw)"
 
+@pytest.mark.parametrize("method", SUPPORTED_HTTP_METHODS)
+def test_detect_probe_supported_http_methods_are_well_formed(method: str) -> None:
+    assert detect_probe("", method, 200) == (False, None)
+
+
+@pytest.mark.parametrize("method", SUPPORTED_HTTP_METHODS)
+def test_traefik_supported_http_methods_are_well_formed(method: str) -> None:
+    data = json.loads(TRAEFIK_FULL)
+    data["RequestMethod"] = method
+
+    norm = TraefikJsonFormat().parse(json.dumps(data))
+
+    assert norm is not None
+    assert norm.method == method
+    assert TraefikJsonFormat().detect_malformed(norm) == (False, None)
+
+
+@pytest.mark.parametrize("method", SUPPORTED_HTTP_METHODS)
+def test_caddy_supported_http_methods_are_well_formed(method: str) -> None:
+    fmt = CaddyJsonFormat()
+
+    norm = fmt.parse(caddy({"method": method}))
+
+    assert norm is not None
+    assert norm.method == method
+    assert fmt.detect_malformed(norm) == (False, None)
+
 
 def test_detect_probe_ssh_and_smb() -> None:
     assert detect_probe("SSH-2.0-OpenSSH_9.6", None, 400) == (True, "SSH probe sent to HTTP port")
@@ -303,7 +352,7 @@ def test_detect_probe_ssh_and_smb() -> None:
 def test_detect_probe_method_and_status_rules() -> None:
     assert detect_probe("", None, 400) == (True, "TLS probe: HTTP request sent to HTTPS port")
     assert detect_probe("", None, 200) == (True, "No HTTP method in request")
-    assert detect_probe("", "PROPFIND", 200) == (True, "Invalid HTTP method: PROPFIND")
+    assert detect_probe("", "UNKNOWN", 200) == (True, "Invalid HTTP method: UNKNOWN")
     assert detect_probe("GET / HTTP/1.1", "GET", 200) == (False, None)
     for status in (408, 444, 499):
         assert detect_probe("GET / HTTP/1.1", "GET", status) == (False, None)
@@ -509,7 +558,7 @@ def test_gjson_detect_malformed_method_rules() -> None:
     cases = {
         gjson(method="", status="400", request_raw="/ HTTP/1.1"): "TLS probe: HTTP request sent to HTTPS port",
         gjson(method="", status="200", request_raw="/ HTTP/1.1"): "No HTTP method in request",
-        gjson(method="PROPFIND", request_raw="PROPFIND / HTTP/1.1"): "Invalid HTTP method: PROPFIND",
+        gjson(method="UNKNOWN", request_raw="UNKNOWN / HTTP/1.1"): "Invalid HTTP method: UNKNOWN",
         gjson(method=None, request_raw=None): "No HTTP method in request",
     }
     for line, expected in cases.items():
@@ -732,9 +781,9 @@ def test_caddy_detect_malformed() -> None:
     norm = fmt.parse(caddy({"method": ""}, status=400))
     assert norm is not None
     assert fmt.detect_malformed(norm) == (True, "No HTTP method in request")
-    norm = fmt.parse(caddy({"method": "PROPFIND"}))
+    norm = fmt.parse(caddy({"method": "UNKNOWN"}))
     assert norm is not None
-    assert fmt.detect_malformed(norm) == (True, "Invalid HTTP method: PROPFIND")
+    assert fmt.detect_malformed(norm) == (True, "Invalid HTTP method: UNKNOWN")
     norm = fmt.parse(caddy())
     assert norm is not None
     assert fmt.detect_malformed(norm) == (False, None)
