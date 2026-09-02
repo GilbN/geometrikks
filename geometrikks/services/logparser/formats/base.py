@@ -56,8 +56,52 @@ class LogLineFormat(Protocol):
         ...
 
 
+# https://www.iana.org/assignments/http-methods/http-methods.xhtml
+# Registry snapshot verified 2026-09-02.
 VALID_HTTP_METHODS: frozenset[str] = frozenset(
-    {"GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS", "CONNECT", "TRACE"}
+    {
+        "*",
+        "ACL",
+        "BASELINE-CONTROL",
+        "BIND",
+        "CHECKIN",
+        "CHECKOUT",
+        "CONNECT",
+        "COPY",
+        "DELETE",
+        "GET",
+        "HEAD",
+        "LABEL",
+        "LINK",
+        "LOCK",
+        "MERGE",
+        "MKACTIVITY",
+        "MKCALENDAR",
+        "MKCOL",
+        "MKREDIRECTREF",
+        "MKWORKSPACE",
+        "MOVE",
+        "OPTIONS",
+        "ORDERPATCH",
+        "PATCH",
+        "POST",
+        "PRI",
+        "PROPFIND",
+        "PROPPATCH",
+        "PUT",
+        "QUERY",
+        "REBIND",
+        "REPORT",
+        "SEARCH",
+        "TRACE",
+        "UNBIND",
+        "UNCHECKOUT",
+        "UNLINK",
+        "UNLOCK",
+        "UPDATE",
+        "UPDATEREDIRECTREF",
+        "VERSION-CONTROL",
+    }
 )
 
 

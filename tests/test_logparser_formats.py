@@ -1,11 +1,14 @@
 """Tests for the log line format adapters."""
 import json
+import re
 from datetime import datetime, timedelta, timezone
 
 import pytest
 
+from geometrikks.services.logparser.constants import ipv4_pattern, ipv6_pattern
 from geometrikks.services.logparser.formats import FORMATS, sniff_format
 from geometrikks.services.logparser.formats.base import (
+    VALID_HTTP_METHODS,
     detect_probe,
     host_from_addr,
     parse_seconds,
@@ -20,6 +23,55 @@ NGINX_LINE = (
     '"https://google.com/" example.com "Mozilla/5.0""0.002" "0.001"'
 )
 NGINX_GARBAGE = "not a log line at all\n"
+
+# Independent snapshot of the IANA HTTP Method Registry, verified 2026-09-02.
+IANA_HTTP_METHODS = (
+    "*",
+    "ACL",
+    "BASELINE-CONTROL",
+    "BIND",
+    "CHECKIN",
+    "CHECKOUT",
+    "CONNECT",
+    "COPY",
+    "DELETE",
+    "GET",
+    "HEAD",
+    "LABEL",
+    "LINK",
+    "LOCK",
+    "MERGE",
+    "MKACTIVITY",
+    "MKCALENDAR",
+    "MKCOL",
+    "MKREDIRECTREF",
+    "MKWORKSPACE",
+    "MOVE",
+    "OPTIONS",
+    "ORDERPATCH",
+    "PATCH",
+    "POST",
+    "PRI",
+    "PROPFIND",
+    "PROPPATCH",
+    "PUT",
+    "QUERY",
+    "REBIND",
+    "REPORT",
+    "SEARCH",
+    "TRACE",
+    "UNBIND",
+    "UNCHECKOUT",
+    "UNLINK",
+    "UNLOCK",
+    "UPDATE",
+    "UPDATEREDIRECTREF",
+    "VERSION-CONTROL",
+)
+
+
+def test_valid_http_methods_match_iana_registry() -> None:
+    assert VALID_HTTP_METHODS == frozenset(IANA_HTTP_METHODS)
 
 
 def test_nginx_parse_full_line_corrected_semantics() -> None:
@@ -40,6 +92,53 @@ def test_nginx_parse_full_line_corrected_semantics() -> None:
     assert norm.timestamp.isoformat() == "2024-08-03T13:14:17+02:00"
 
 
+@pytest.mark.parametrize(
+    "line,pattern",
+    [
+        pytest.param(NGINX_LINE, ipv4_pattern(), id="ipv4"),
+        pytest.param(
+            NGINX_LINE.replace("203.0.113.7", "2001:db8::7", 1),
+            ipv6_pattern(),
+            id="ipv6",
+        ),
+    ],
+)
+def test_nginx_pattern_consumes_complete_documented_line(
+    line: str,
+    pattern: re.Pattern[str],
+) -> None:
+    matched = pattern.match(line)
+
+    assert matched is not None
+    assert matched.end() == len(line)
+
+
+def test_nginx_appended_fields_do_not_change_documented_fields() -> None:
+    line = f'{NGINX_LINE}"Oslo" "NO"'
+    norm = NginxFormat().parse(line)
+
+    assert norm is not None
+    assert norm.referrer == "https://google.com/"
+    assert norm.host == "example.com"
+    assert norm.user_agent == "Mozilla/5.0"
+    assert norm.request_time == 0.002
+    assert norm.upstream_response_time == 0.001
+
+
+def test_nginx_default_escaped_quotes_stay_inside_fields() -> None:
+    line = NGINX_LINE.replace(
+        '"https://google.com/" example.com "Mozilla/5.0"',
+        r'"https://ref.example/a\x22b" example.com "Agent\x22Name"',
+    )
+    norm = NginxFormat().parse(line)
+
+    assert norm is not None
+    assert norm.referrer == r"https://ref.example/a\x22b"
+    assert norm.user_agent == r"Agent\x22Name"
+    assert norm.request_time == 0.002
+    assert norm.upstream_response_time == 0.001
+
+
 def test_nginx_parse_dash_fields_become_none() -> None:
     line = (
         '203.0.113.7 - - [03/Aug/2024:13:14:17 +0200]"GET /index.php HTTP/2.0" 200 1024"-" '
@@ -51,6 +150,68 @@ def test_nginx_parse_dash_fields_become_none() -> None:
     assert norm.user_agent is None
     assert norm.upstream_response_time is None
     assert norm.remote_user is None
+
+
+@pytest.mark.parametrize(
+    "referrer,user_agent,request_time,upstream_time,expected",
+    [
+        pytest.param(
+            "",
+            "Mozilla/5.0",
+            "0.010",
+            "0.004",
+            (None, "Mozilla/5.0", 0.01, 0.004),
+            id="referrer",
+        ),
+        pytest.param(
+            "-",
+            "",
+            "0.010",
+            "0.004",
+            (None, None, 0.01, 0.004),
+            id="user-agent",
+        ),
+        pytest.param(
+            "-",
+            "Mozilla/5.0",
+            "",
+            "0.004",
+            (None, "Mozilla/5.0", None, 0.004),
+            id="request-time",
+        ),
+        pytest.param(
+            "-",
+            "Mozilla/5.0",
+            "0.010",
+            "",
+            (None, "Mozilla/5.0", 0.01, None),
+            id="upstream-time",
+        ),
+    ],
+)
+def test_nginx_empty_fields_do_not_shift_following_fields(
+    referrer: str,
+    user_agent: str,
+    request_time: str,
+    upstream_time: str,
+    expected: tuple[str | None, str | None, float | None, float | None],
+) -> None:
+    line = (
+        '203.0.113.7 - - [31/Aug/2026:12:46:25 +0200] "GET /wp-login.php HTTP/1.1" '
+        f'301 162 "{referrer}" example.com "{user_agent}" "{request_time}" "{upstream_time}"'
+    )
+    matched = ipv4_pattern().match(line)
+    norm = NginxFormat().parse(line)
+
+    assert matched is not None
+    assert matched.end() == len(line)
+    assert norm is not None
+    assert (
+        norm.referrer,
+        norm.user_agent,
+        norm.request_time,
+        norm.upstream_response_time,
+    ) == expected
 
 
 def test_nginx_parse_geo_only() -> None:
@@ -97,6 +258,25 @@ def test_nginx_detect_malformed_ok_line() -> None:
     norm = fmt.parse(NGINX_LINE)
     assert norm is not None
     assert fmt.detect_malformed(norm) == (False, None)
+
+
+@pytest.mark.parametrize("method", IANA_HTTP_METHODS)
+def test_nginx_iana_http_methods_are_well_formed(method: str) -> None:
+    fmt = NginxFormat()
+    norm = fmt.parse(NGINX_LINE.replace('"GET ', f'"{method} ', 1))
+
+    assert norm is not None
+    assert norm.method == method
+    assert fmt.detect_malformed(norm) == (False, None)
+
+
+def test_nginx_unknown_token_method_is_identified() -> None:
+    fmt = NginxFormat()
+    norm = fmt.parse(NGINX_LINE.replace('"GET ', '"BOGUS-METHOD ', 1))
+
+    assert norm is not None
+    assert norm.method == "BOGUS-METHOD"
+    assert fmt.detect_malformed(norm) == (True, "Invalid HTTP method: BOGUS-METHOD")
 
 
 def test_registry_contains_nginx() -> None:
@@ -291,6 +471,33 @@ def test_detect_probe_tls_raw_bytes() -> None:
     assert is_malformed is True
     assert reason == "TLS handshake sent to HTTP port (raw)"
 
+@pytest.mark.parametrize("method", IANA_HTTP_METHODS)
+def test_detect_probe_iana_http_methods_are_well_formed(method: str) -> None:
+    assert detect_probe("", method, 200) == (False, None)
+
+
+@pytest.mark.parametrize("method", IANA_HTTP_METHODS)
+def test_traefik_iana_http_methods_are_well_formed(method: str) -> None:
+    data = json.loads(TRAEFIK_FULL)
+    data["RequestMethod"] = method
+
+    norm = TraefikJsonFormat().parse(json.dumps(data))
+
+    assert norm is not None
+    assert norm.method == method
+    assert TraefikJsonFormat().detect_malformed(norm) == (False, None)
+
+
+@pytest.mark.parametrize("method", IANA_HTTP_METHODS)
+def test_caddy_iana_http_methods_are_well_formed(method: str) -> None:
+    fmt = CaddyJsonFormat()
+
+    norm = fmt.parse(caddy({"method": method}))
+
+    assert norm is not None
+    assert norm.method == method
+    assert fmt.detect_malformed(norm) == (False, None)
+
 
 def test_detect_probe_ssh_and_smb() -> None:
     assert detect_probe("SSH-2.0-OpenSSH_9.6", None, 400) == (True, "SSH probe sent to HTTP port")
@@ -303,7 +510,7 @@ def test_detect_probe_ssh_and_smb() -> None:
 def test_detect_probe_method_and_status_rules() -> None:
     assert detect_probe("", None, 400) == (True, "TLS probe: HTTP request sent to HTTPS port")
     assert detect_probe("", None, 200) == (True, "No HTTP method in request")
-    assert detect_probe("", "PROPFIND", 200) == (True, "Invalid HTTP method: PROPFIND")
+    assert detect_probe("", "UNKNOWN", 200) == (True, "Invalid HTTP method: UNKNOWN")
     assert detect_probe("GET / HTTP/1.1", "GET", 200) == (False, None)
     for status in (408, 444, 499):
         assert detect_probe("GET / HTTP/1.1", "GET", status) == (False, None)
@@ -509,13 +716,23 @@ def test_gjson_detect_malformed_method_rules() -> None:
     cases = {
         gjson(method="", status="400", request_raw="/ HTTP/1.1"): "TLS probe: HTTP request sent to HTTPS port",
         gjson(method="", status="200", request_raw="/ HTTP/1.1"): "No HTTP method in request",
-        gjson(method="PROPFIND", request_raw="PROPFIND / HTTP/1.1"): "Invalid HTTP method: PROPFIND",
+        gjson(method="UNKNOWN", request_raw="UNKNOWN / HTTP/1.1"): "Invalid HTTP method: UNKNOWN",
         gjson(method=None, request_raw=None): "No HTTP method in request",
     }
     for line, expected in cases.items():
         norm = fmt.parse(line)
         assert norm is not None
         assert fmt.detect_malformed(norm) == (True, expected)
+
+
+@pytest.mark.parametrize("method", IANA_HTTP_METHODS)
+def test_gjson_iana_http_methods_are_well_formed(method: str) -> None:
+    fmt = GeometrikksJsonFormat()
+    norm = fmt.parse(gjson(method=method, request_raw=f"{method} / HTTP/1.1"))
+
+    assert norm is not None
+    assert norm.method == method
+    assert fmt.detect_malformed(norm) == (False, None)
 
 
 def test_gjson_connection_statuses_are_well_formed() -> None:
@@ -732,9 +949,9 @@ def test_caddy_detect_malformed() -> None:
     norm = fmt.parse(caddy({"method": ""}, status=400))
     assert norm is not None
     assert fmt.detect_malformed(norm) == (True, "No HTTP method in request")
-    norm = fmt.parse(caddy({"method": "PROPFIND"}))
+    norm = fmt.parse(caddy({"method": "UNKNOWN"}))
     assert norm is not None
-    assert fmt.detect_malformed(norm) == (True, "Invalid HTTP method: PROPFIND")
+    assert fmt.detect_malformed(norm) == (True, "Invalid HTTP method: UNKNOWN")
     norm = fmt.parse(caddy())
     assert norm is not None
     assert fmt.detect_malformed(norm) == (False, None)

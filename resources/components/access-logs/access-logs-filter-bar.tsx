@@ -16,6 +16,7 @@ import { useAccessLogFacets } from "@/lib/queries"
 import { useDebouncedValue } from "@/hooks/use-debounced-value"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { isValidIp } from "@/lib/crowdsec"
+import { HTTP_METHODS } from "@/lib/http-methods"
 import { cn } from "@/lib/utils"
 import {
   countActiveAccessLogFilters,
@@ -23,9 +24,6 @@ import {
   useAccessLogFilters,
 } from "@/lib/access-log-filters-context"
 
-const HTTP_METHODS = [
-  "GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS", "CONNECT", "TRACE",
-] as const
 const STATUS_CODES = [
   100, 101, 102, 103, 200, 201, 202, 203, 204, 205, 206, 207, 208, 226,
   300, 301, 302, 303, 304, 305, 306, 307, 308,

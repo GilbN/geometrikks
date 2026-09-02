@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.14.1] - 2026-09-02
+
+### Changed
+
+- Access-log parsing and the Method filter now recognize every method in the IANA HTTP Method Registry, including WebDAV versioning and binding methods, `QUERY`, and the reserved `*` method. The legacy nginx parser also accepts registered hyphenated methods instead of dropping their method field.
+- HTTP method columns expand from 10 to 32 characters. On the first startup after upgrading, the migration decompresses existing `access_logs` and `access_log_debug` chunks before changing their column types; this may temporarily require additional disk space, and the normal compression policy recompresses eligible chunks afterward.
+
+### Fixed
+
+- Legacy nginx logs with empty quoted fields, including an explicitly empty Referer header, now parse without dropping the line or shifting later fields.
+
 ## [0.14.0] - 2026-09-01
 
 ### Added
@@ -957,7 +968,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Settings endpoint no longer exposes the full settings tree (database credentials leaked via `model_dump()`); response is now an explicit whitelist.
 - Timestamps in `CALL refresh_continuous_aggregate` are bound as asyncpg parameters instead of interpolated into SQL.
 
-[Unreleased]: https://github.com/GilbN/geometrikks/compare/v0.14.0...develop
+[Unreleased]: https://github.com/GilbN/geometrikks/compare/v0.14.1...develop
+[0.14.1]: https://github.com/GilbN/geometrikks/compare/v0.14.0...v0.14.1
 [0.14.0]: https://github.com/GilbN/geometrikks/compare/v0.13.0...v0.14.0
 [0.13.0]: https://github.com/GilbN/geometrikks/compare/v0.12.1...v0.13.0
 [0.12.1]: https://github.com/GilbN/geometrikks/compare/v0.12.0...v0.12.1
