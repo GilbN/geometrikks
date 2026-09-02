@@ -41,7 +41,7 @@ class AccessLog(base.BigIntBase):
     # Some malformed TLS-handshake lines won't have method/url/http_version
     # For example, when China is fucking around, a log line can look like this:
     # 101.91.110.24 - - [23/Nov/2025:02:02:55 +0100]"\x16\x03\x01\x01-\x01\x00\x01)\x03\x03kf\xB1\x19\xED\xF9i\xE1\xBE\xEB\xDAv\xD61Z\xD5\xB0jxp\x01\x12\x87\x86\x0B\x99o\xC59\xA0\xA9\xEA {`V\x1D\xE3\xFF\xAF\xF9\x16\xCF;\xA6\xB3}\xBB" 400 150"-" _ "-""0.362" "-""Shanghai" "CN"
-    method: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    method: Mapped[str | None] = mapped_column(String(32), nullable=True)
     url: Mapped[str | None] = mapped_column(Text, nullable=True)
     http_version: Mapped[str | None] = mapped_column(String(10), nullable=True)
     
@@ -138,7 +138,7 @@ class AccessLogDebug(base.BigIntBase):
         DateTimeUTC(timezone=True), nullable=True
     )
     ip_address: Mapped[str | None] = mapped_column(postgresql.INET, nullable=True)
-    method: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    method: Mapped[str | None] = mapped_column(String(32), nullable=True)
     url: Mapped[str | None] = mapped_column(Text, nullable=True)
     host: Mapped[str | None] = mapped_column(String(255), nullable=True)
     status_code: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)

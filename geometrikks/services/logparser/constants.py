@@ -12,7 +12,10 @@ class Rgx:
     REMOTE_USER_PATTERN = r'(\S+)'
     DATE_AND_TIME_PATTERN = r'(\d{2}\/[A-Z]{1}[a-z]{2}\/\d{4}:\d{2}:\d{2}:\d{2}\s(?:\+|\-)\d{4})'
     REQUEST_PATTERN = r'(?:)'
-    METHOD_PATTERN = r'([A-Z]+)'
+    # RFC 9110 ``token`` grammar. Registered methods include hyphens and the
+    # reserved ``*`` method; accepting the full grammar also lets malformed
+    # detection report an unknown token by name instead of "No HTTP method".
+    METHOD_PATTERN = r"([!#$%&'*+\-.^_`|~0-9A-Z]+)"
     REFERRER_PATTERN = r'(.+?)'
     HTTP_VERSION_PATTERN = r'(HTTP\/[1-3]\.[0-9])'
     STATUS_CODE_PATTERN = r'(\d{3})'

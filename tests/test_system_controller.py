@@ -305,5 +305,5 @@ async def test_about_carries_the_build_commit(monkeypatch):
 
 def test_bundled_revision_doc_is_the_migration_message():
     head = bundled_head_revision()
-    assert bundled_revision_doc(head) == "request_time nullable: absent timings stop being 0.0"
+    assert bundled_revision_doc(head) == "widen HTTP method columns for the IANA registry"
     assert bundled_revision_doc("ffffffffffff") is None
