@@ -21,6 +21,28 @@ NGINX_LINE = (
 )
 NGINX_GARBAGE = "not a log line at all\n"
 
+SUPPORTED_HTTP_METHODS = (
+    "GET",
+    "POST",
+    "PUT",
+    "DELETE",
+    "PATCH",
+    "HEAD",
+    "OPTIONS",
+    "CONNECT",
+    "TRACE",
+    "PROPFIND",
+    "PROPPATCH",
+    "MKCOL",
+    "COPY",
+    "MOVE",
+    "LOCK",
+    "UNLOCK",
+    "REPORT",
+    "MKCALENDAR",
+    "ACL",
+)
+
 
 def test_nginx_parse_full_line_corrected_semantics() -> None:
     """path comes from the request line; referrer from the Referer position."""
@@ -290,6 +312,33 @@ def test_detect_probe_tls_raw_bytes() -> None:
     is_malformed, reason = detect_probe("\x16\x03\x01\x02\x00\x01", None, 400)
     assert is_malformed is True
     assert reason == "TLS handshake sent to HTTP port (raw)"
+
+@pytest.mark.parametrize("method", SUPPORTED_HTTP_METHODS)
+def test_detect_probe_supported_http_methods_are_well_formed(method: str) -> None:
+    assert detect_probe("", method, 200) == (False, None)
+
+
+@pytest.mark.parametrize("method", SUPPORTED_HTTP_METHODS)
+def test_traefik_supported_http_methods_are_well_formed(method: str) -> None:
+    data = json.loads(TRAEFIK_FULL)
+    data["RequestMethod"] = method
+
+    norm = TraefikJsonFormat().parse(json.dumps(data))
+
+    assert norm is not None
+    assert norm.method == method
+    assert TraefikJsonFormat().detect_malformed(norm) == (False, None)
+
+
+@pytest.mark.parametrize("method", SUPPORTED_HTTP_METHODS)
+def test_caddy_supported_http_methods_are_well_formed(method: str) -> None:
+    fmt = CaddyJsonFormat()
+
+    norm = fmt.parse(caddy({"method": method}))
+
+    assert norm is not None
+    assert norm.method == method
+    assert fmt.detect_malformed(norm) == (False, None)
 
 
 def test_detect_probe_ssh_and_smb() -> None:
