@@ -1,0 +1,23 @@
+/* Starlight pages only. The landing page loads landing.css instead. */
+@layer base, starlight, theme, components, utilities;
+@import "@astrojs/starlight-tailwind";
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities);
+@import "@fontsource-variable/schibsted-grotesk";
+@import "@fontsource/fragment-mono";
+
+:root {
+  --sl-font: "Schibsted Grotesk Variable", system-ui, sans-serif;
+  --sl-font-mono: "Fragment Mono", ui-monospace, monospace;
+  --sl-color-accent-low: oklch(0.9 0.04 178);
+  --sl-color-accent: oklch(0.52 0.115 178);
+  --sl-color-accent-high: oklch(0.35 0.08 178);
+}
+:root[data-theme="dark"] {
+  --sl-color-accent-low: oklch(0.25 0.06 178);
+  --sl-color-accent: oklch(0.78 0.15 178);
+  --sl-color-accent-high: oklch(0.9 0.08 178);
+  --sl-color-bg: oklch(0.14 0.02 200);
+  --sl-color-bg-nav: oklch(0.12 0.02 200);
+  --sl-color-bg-sidebar: oklch(0.12 0.02 200);
+}
