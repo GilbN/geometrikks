@@ -361,6 +361,25 @@ behind each request. Set `GEOIP_ASN_ENABLED=false` to skip the ASN database.
 Using the database means accepting the
 [MaxMind GeoLite2 EULA](https://www.maxmind.com/en/geolite2/eula).
 
+## Map tiles
+
+The map draws its basemap from [CARTO](https://carto.com/basemaps), using
+OpenStreetMap data. CARTO's terms require every deployment to send its own
+API key. Keys are free for up to five million tile requests a month;
+request one at [carto.com/basemaps/apikey](https://carto.com/basemaps/apikey)
+and set:
+
+```bash
+MAP_CARTO_API_KEY=<your-key>
+```
+
+The key is sent to the browser and appended to every basemap request, so
+treat it as public. Without a key the map still loads today, but CARTO may
+watermark or refuse keyless tiles at any time.
+
+The map shows the CARTO and OpenStreetMap attribution in its corner. Keep
+it visible; both licenses require it.
+
 ## Authentication
 
 GeoMetrikks ships with single-admin session-cookie authentication:

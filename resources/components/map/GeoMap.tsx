@@ -27,6 +27,7 @@ import {
 } from "@/lib/queries"
 import { beaconLabel, buildHomeResolver, homeBeacons, type Coordinate, type SiteHomesData } from "@/lib/site-homes"
 import { useMapStyle } from "./hooks/useMapStyle"
+import { MapAttribution } from "./MapAttribution"
 import {
   bannedPointLayer,
   clusterCountLayer,
@@ -111,7 +112,7 @@ function GeoMapInner({
 }) {
   const demoTrafficMode = getDemoTrafficMode()
   const mapRef = useRef<MapRef>(null)
-  const { mapStyle } = useMapStyle()
+  const { mapStyle, transformRequest, ready: mapReady } = useMapStyle()
   const isMobile = useIsMobile()
   const search = useSearch({ from: "/map" })
   const navigate = useNavigate({ from: "/map" })
@@ -489,6 +490,14 @@ function GeoMapInner({
     )
   }
 
+  if (!mapReady) {
+    return (
+      <div className="relative h-full w-full overflow-hidden bg-background">
+        <MapBackdrop tone="quiet" />
+      </div>
+    )
+  }
+
   return (
     <div className="h-full w-full relative">
       <Map
@@ -499,6 +508,7 @@ function GeoMapInner({
         onMove={onMove}
         onClick={onClick}
         mapStyle={mapStyle}
+        transformRequest={transformRequest}
         projection={projection}
         renderWorldCopies={projection === "mercator"}
         interactiveLayerIds={[
@@ -510,6 +520,7 @@ function GeoMapInner({
       >
         {/* Navigation controls */}
         <NavigationControl position="bottom-right" showCompass={true} />
+        <MapAttribution />
 
         {/* GeoJSON data source */}
         {/* The `key` only flips when the clustering requirement changes (markers

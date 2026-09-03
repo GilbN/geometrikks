@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `MAP_CARTO_API_KEY` sends a CARTO basemaps API key with every basemap request, as CARTO's terms now require. Keys are free; see the README.
+
+### Fixed
+
+- The map and the geo-logs map now show the CARTO and OpenStreetMap attribution that both licenses require. It was hidden before. The pill collapses to an info button on click or drag, and that state is remembered in the browser.
+
 ## [0.14.1] - 2026-09-02
 
 ### Changed

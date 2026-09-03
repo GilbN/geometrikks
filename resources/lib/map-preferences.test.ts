@@ -1,7 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 import {
+  loadAttributionPreference,
   loadLayerPreference,
   loadLivePreference,
+  saveAttributionPreference,
   saveLayerPreference,
   saveLivePreference,
 } from "@/lib/map-preferences"
@@ -31,9 +33,20 @@ describe("map preferences", () => {
     expect(loadLayerPreference()).toBe("heatmap")
     expect(loadLivePreference()).toBe(true)
   })
+  it("defaults the attribution to expanded and round-trips a collapse", () => {
+    const data = stubStorage()
+    expect(loadAttributionPreference()).toBe(true)
+    saveAttributionPreference(false)
+    expect(data.get("geometrikks-map-attribution")).toBe("false")
+    expect(loadAttributionPreference()).toBe(false)
+    saveAttributionPreference(true)
+    expect(loadAttributionPreference()).toBe(true)
+  })
   it("survives a missing localStorage", () => {
     // no stub at all: loaders must return defaults, savers must not throw
     expect(loadLayerPreference()).toBe("markers")
     expect(() => saveLivePreference(true)).not.toThrow()
+    expect(loadAttributionPreference()).toBe(true)
+    expect(() => saveAttributionPreference(false)).not.toThrow()
   })
 })

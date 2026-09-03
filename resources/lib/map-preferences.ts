@@ -1,7 +1,9 @@
-/** localStorage persistence for the map's layer choice and Live toggle.
- *  Defaults preserve pre-persistence behavior: markers, live off. */
+/** localStorage persistence for the map's layer choice, Live toggle and
+ *  attribution pill. Defaults preserve pre-persistence behavior: markers,
+ *  live off, attribution expanded. */
 export const MAP_LAYER_STORAGE_KEY = "geometrikks-map-layer"
 export const MAP_LIVE_STORAGE_KEY = "geometrikks-map-live"
+export const MAP_ATTRIBUTION_STORAGE_KEY = "geometrikks-map-attribution"
 
 export type MapLayer = "heatmap" | "markers"
 
@@ -32,6 +34,22 @@ export function loadLivePreference(): boolean {
 export function saveLivePreference(enabled: boolean): void {
   try {
     localStorage.setItem(MAP_LIVE_STORAGE_KEY, String(enabled))
+  } catch {
+    // Storage may be blocked; keep the in-memory preference for this session.
+  }
+}
+
+export function loadAttributionPreference(): boolean {
+  try {
+    return localStorage.getItem(MAP_ATTRIBUTION_STORAGE_KEY) !== "false"
+  } catch {
+    return true
+  }
+}
+
+export function saveAttributionPreference(expanded: boolean): void {
+  try {
+    localStorage.setItem(MAP_ATTRIBUTION_STORAGE_KEY, String(expanded))
   } catch {
     // Storage may be blocked; keep the in-memory preference for this session.
   }

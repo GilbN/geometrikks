@@ -40,6 +40,7 @@ def test_settings_response_is_whitelisted():
         "homeLatitude": 40.7128,
         "homeLongitude": -74.006,
         "homeSource": "external_ip",
+        "cartoApiKey": None,
     }
 
     # Credential material absent anywhere in the payload
@@ -59,3 +60,13 @@ def test_settings_reports_container_build_metadata(monkeypatch):
         "container": True,
         "imageTag": "v0.2.2-dev.4",
     }
+
+
+def test_settings_exposes_carto_api_key(monkeypatch):
+    """The basemap key is sent to the browser on purpose: MapLibre needs it on tile URLs."""
+    monkeypatch.setenv("MAP_CARTO_API_KEY", "carto-public-key")
+
+    with TestClient(app=make_app()) as client:
+        body = client.get("/api/v1/settings").json()
+
+    assert body["map"]["cartoApiKey"] == "carto-public-key"

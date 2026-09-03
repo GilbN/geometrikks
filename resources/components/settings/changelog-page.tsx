@@ -68,7 +68,7 @@ function ReleaseCard({
 }) {
   const count = release.sections.reduce((sum, section) => sum + section.entries.length, 0)
   return (
-    <Collapsible open={open} onOpenChange={onOpenChange} asChild>
+    <Collapsible open={open} onOpenChange={onOpenChange}>
       <Card size="sm" className={cn(thisBuild && "ring-primary/40")}>
         {/* The GitHub link sits beside the trigger, not inside it: a link
             inside a button is invalid and would toggle the card. */}

@@ -2805,6 +2805,16 @@ export const LogparserSettingsViewSchema = {
 
 export const MapSettingsViewSchema = {
   properties: {
+    cartoApiKey: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
     homeLatitude: {
       oneOf: [
         {
@@ -2830,7 +2840,7 @@ export const MapSettingsViewSchema = {
       type: ["null", "string"],
     },
   },
-  required: ["homeLatitude", "homeLongitude", "homeSource"],
+  required: ["cartoApiKey", "homeLatitude", "homeLongitude", "homeSource"],
   title: "MapSettingsView",
   type: "object",
 } as const;

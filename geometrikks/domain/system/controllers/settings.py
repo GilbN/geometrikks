@@ -35,6 +35,7 @@ class MapSettingsView(msgspec.Struct, rename="camel"):
     home_latitude: float | None
     home_longitude: float | None
     home_source: HomeLocationSource | None
+    carto_api_key: str | None
 
 
 class RuntimeSettingsView(msgspec.Struct, rename="camel"):
@@ -90,5 +91,6 @@ async def read_settings(
             home_latitude=home.latitude if home else None,
             home_longitude=home.longitude if home else None,
             home_source=home.source if home else None,
+            carto_api_key=s.map.carto_api_key or None,
         ),
     )
