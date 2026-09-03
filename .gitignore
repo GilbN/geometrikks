@@ -399,3 +399,5 @@ dev/inject-logs.stop
 site/src/content/docs/
 site/src/assets/screenshots/
 site/public/fonts/
+site/.astro/
+site/src/data/meta.json
