@@ -1,0 +1,223 @@
+---
+// One log line through the pipeline, then a geometrikks-json line. Every
+// line renders server-side; the script only paces the reveal. Values are
+// illustrative, not real traffic.
+type Segment = { cls?: string; text: string };
+type Line = Segment[] | null;
+const lines: Line[] = [
+  [
+    { cls: "t-in", text: "access.log" },
+    { text: '  203.0.113.7 - - [02/Sep/2026:23:41:07 +0000] "GET /wp-login.php HTTP/1.1" 403 153 "-" home.example.org "Mozilla/5.0 zgrab/0.x" "0.001" "-"' },
+  ],
+  [{ cls: "t-tag", text: "detect " }, { text: " format=" }, { cls: "t-val", text: "nginx" }, { text: "  (positional, $time_local)" }],
+  [
+    { cls: "t-tag", text: "parse  " },
+    { text: " method=GET path=/wp-login.php status=" },
+    { cls: "t-red", text: "403" },
+    { text: " host=home.example.org bytes=153 rt=1ms" },
+  ],
+  [
+    { cls: "t-tag", text: "geoip  " },
+    { text: " 203.0.113.7 → " },
+    { cls: "t-val", text: "Hanoi, VN" },
+    { text: "  21.03, 105.85  AS135905 " },
+    { cls: "t-dim", text: "(hosting)" },
+  ],
+  [{ cls: "t-tag", text: "store  " }, { text: " access_logs +1  geo_events +1  " }, { cls: "t-dim", text: "hypertable chunk 2026-09-02" }],
+  [{ cls: "t-tag", text: "notify " }, { text: " /ws/live → 1 client  " }, { cls: "t-ok", text: "map: +1 marker, route → home" }],
+  [
+    { cls: "t-tag", text: "crowdsec" },
+    { text: " decision for 203.0.113.7: " },
+    { cls: "t-red", text: "ban" },
+    { text: " (http-probing, 4h)  " },
+    { cls: "t-dim", text: "still knocking: yes" },
+  ],
+  null,
+  [
+    { cls: "t-in", text: "access.log" },
+    { text: '  {"client_ip":"198.51.100.24","timestamp":"2026-09-02T23:41:09+00:00","method":"GET","path":"/","status":"200","host":"blog.example.org","request_time":"0.018"}' },
+  ],
+  [{ cls: "t-tag", text: "detect " }, { text: " format=" }, { cls: "t-val", text: "geometrikks-json" }],
+  [{ cls: "t-tag", text: "geoip  " }, { text: " 198.51.100.24 → " }, { cls: "t-val", text: "Toronto, CA" }, { text: "  43.65, -79.38  AS812" }],
+  [{ cls: "t-tag", text: "notify " }, { text: " /ws/live → 1 client  " }, { cls: "t-ok", text: "map: +1 marker" }],
+];
+---
+
+<section class="how" id="how">
+  <div class="wrap">
+    <div>
+      <span class="mono kicker">How it works</span>
+      <h2 class="section-title">One log line in, one marker out.</h2>
+      <p>
+        GeoMetrikks follows the file your proxy already writes. Each line is detected, parsed, looked up in GeoLite2
+        City and ASN, stored in TimescaleDB, and pushed to the map over a WebSocket. With CrowdSec connected, the
+        decision for that address rides along.
+      </p>
+      <p>The only outbound call in that chain is the GeoLite2 download.</p>
+    </div>
+    <div class="term" aria-label="One log line moving through the ingestion pipeline">
+      <div class="bar"><i></i><i></i><i></i><span>geometrikks · ingestion</span></div>
+      <div class="body" id="term">
+        {
+          lines.map((line) =>
+            line ? (
+              <span class="l">{line.map((s) => (s.cls ? <span class={s.cls}>{s.text}</span> : s.text))}</span>
+            ) : (
+              <span class="l" data-blank>
+                &nbsp;
+              </span>
+            ),
+          )
+        }
+      </div>
+    </div>
+  </div>
+</section>
+
+<style>
+  .how {
+    padding: 100px 0 40px;
+  }
+  .how .wrap {
+    display: grid;
+    grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+    gap: 56px;
+    align-items: center;
+  }
+  .how p {
+    color: var(--fg-dim);
+    margin: 0 0 12px;
+    max-width: 44ch;
+  }
+  .kicker {
+    font-size: 13px;
+    color: var(--accent);
+    display: block;
+    margin-bottom: 14px;
+  }
+  .term {
+    background: var(--bg-deep);
+    border: 1px solid oklch(1 0 0 / 12%);
+    border-radius: 14px;
+    overflow: hidden;
+    box-shadow: 0 40px 120px oklch(0 0 0 / 45%);
+  }
+  .bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    height: 38px;
+    padding: 0 14px;
+    border-bottom: 1px solid var(--line);
+    font: 12px var(--mono);
+    color: var(--fg-faint);
+  }
+  .bar i {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    border: 1px solid oklch(1 0 0 / 22%);
+  }
+  .bar span {
+    margin-left: 8px;
+  }
+  .body {
+    padding: 18px 20px;
+    font: 13px/1.75 var(--mono);
+    min-height: 400px;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+  .l {
+    display: block;
+    opacity: 0;
+    transform: translateY(4px);
+    transition:
+      opacity 0.25s,
+      transform 0.25s;
+  }
+  .l.on {
+    opacity: 1;
+    transform: none;
+  }
+  .t-in {
+    color: var(--fg-faint);
+  }
+  .t-tag {
+    color: var(--accent);
+  }
+  .t-val {
+    color: var(--amber);
+  }
+  .t-ok {
+    color: var(--green);
+  }
+  .t-red {
+    color: var(--red);
+  }
+  .t-dim {
+    color: var(--fg-dim);
+  }
+  .body :global(.caret) {
+    display: inline-block;
+    width: 8px;
+    height: 15px;
+    background: var(--fg);
+    vertical-align: -2px;
+    animation: blink 1s steps(1) infinite;
+  }
+  @keyframes blink {
+    50% {
+      opacity: 0;
+    }
+  }
+  /* Without JavaScript every line is visible. */
+  @media (scripting: none) {
+    .l {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  @media (max-width: 900px) {
+    .how {
+      padding: 64px 0 0;
+    }
+    .how .wrap {
+      grid-template-columns: 1fr;
+    }
+    .body {
+      min-height: 0;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .l {
+      transition: none;
+    }
+    .body :global(.caret) {
+      animation: none;
+    }
+  }
+</style>
+
+<script>
+  const term = document.getElementById("term")!;
+  const lines = Array.from(term.querySelectorAll<HTMLElement>(".l"));
+  if (matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    lines.forEach((l) => l.classList.add("on"));
+  } else {
+    const caret = document.createElement("span");
+    caret.className = "caret";
+    let i = 0;
+    const step = () => {
+      if (i === lines.length) {
+        lines.forEach((l) => l.classList.remove("on"));
+        i = 0;
+      }
+      const line = lines[i++];
+      line.classList.add("on");
+      line.after(caret);
+      setTimeout(step, "blank" in line.dataset ? 1400 : 650);
+    };
+    step();
+  }
+</script>

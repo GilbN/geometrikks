@@ -9,7 +9,7 @@ import meta from "../data/meta.json";
 import Mark from "./Mark.astro";
 
 type LonLat = [number, number];
-const cities = geo.cities as Record<string, LonLat>;
+const cities = geo.cities as unknown as Record<string, LonLat>;
 const proj = ([lon, lat]: LonLat): [number, number] => [((lon + 180) / 360) * 1000, ((90 - lat) / 180) * 500];
 const home = proj(cities[geo.home]);
 const f = (n: number) => n.toFixed(1);

@@ -1,0 +1,69 @@
+---
+// The quickstart block is the README's, verbatim.
+---
+
+<section class="install" id="install">
+  <div class="wrap">
+    <div>
+      <h2 class="section-title">Up in one command.</h2>
+      <p>
+        Docker on amd64 or arm64. The compose file brings TimescaleDB with it. You add an admin password, a free
+        MaxMind GeoLite2 key, and the path to your proxy's log file.
+      </p>
+      <p>
+        Without the key it still starts, in geo-degraded mode, and tells you what is missing. The only traffic it sends
+        out is the GeoLite2 download and, unless you turn it off, one public-IP lookup for the map's home. No
+        telemetry.
+      </p>
+      <p class="links">
+        <a href="/docs/get-started/quickstart/">Quickstart</a>
+        <a href="/docs/sources/nginx/">Log formats</a>
+        <a href="/docs/sources/proxy-setup/">Behind a CDN or tunnel</a>
+      </p>
+    </div>
+    <pre class="block"><code>mkdir geometrikks &amp;&amp; cd geometrikks
+curl -LO https://raw.githubusercontent.com/GilbN/geometrikks/main/docker-compose.yml
+curl -Lo .env https://raw.githubusercontent.com/GilbN/geometrikks/main/.env.example
+$EDITOR .env   <span class="c"># APP_ADMIN_PASSWORD, MaxMind key, log path</span>
+docker compose up -d
+<span class="c"># open http://localhost:8000</span></code></pre>
+  </div>
+</section>
+
+<style>
+  .install {
+    padding: 100px 0 120px;
+    border-top: 1px solid var(--line);
+  }
+  .install .wrap {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 56px;
+    align-items: center;
+  }
+  .install p {
+    color: var(--fg-dim);
+    margin: 0 0 12px;
+  }
+  .links {
+    display: flex;
+    gap: 18px;
+    flex-wrap: wrap;
+    margin-top: 20px;
+  }
+  .links a {
+    color: var(--accent);
+    font-weight: 500;
+  }
+  .links a:hover {
+    text-decoration: underline;
+  }
+  @media (max-width: 900px) {
+    .install {
+      padding: 64px 0;
+    }
+    .install .wrap {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>
