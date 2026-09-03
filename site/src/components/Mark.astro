@@ -1,0 +1,60 @@
+---
+// Ported from resources/components/brand/brand-mark.tsx (full variant).
+// Keep the geometry in sync with the app.
+interface Props {
+  size?: number;
+  class?: string;
+  title?: string;
+}
+const { size = 24, class: className, title = "GeoMetrikks" } = Astro.props;
+const cardinals = [90, 180, 270];
+const diagonals = [45, 135, 225, 315];
+---
+
+<svg
+  role="img"
+  aria-label={title}
+  width={size}
+  height={size}
+  viewBox="0 0 100 100"
+  class={className}
+>
+  <circle
+    cx="50"
+    cy="50"
+    r="44"
+    fill="none"
+    stroke="currentColor"
+    stroke-opacity="0.35"
+    stroke-width="1.2"
+    stroke-dasharray="0.5 5"
+    stroke-linecap="round"></circle>
+  <g stroke="currentColor" stroke-width="3" fill="none" stroke-linecap="square">
+    {
+      cardinals.map((r) => (
+        <g transform={`rotate(${r} 50 50)`}>
+          <line x1="50" y1="41" x2="50" y2="10" />
+          <line x1="50" y1="16" x2="44" y2="10" />
+          <line x1="50" y1="16" x2="56" y2="10" />
+          <line x1="45.5" y1="23" x2="54.5" y2="23" />
+        </g>
+      ))
+    }
+    {
+      diagonals.map((r) => (
+        <g transform={`rotate(${r} 50 50)`}>
+          <line x1="50" y1="41" x2="50" y2="22" />
+        </g>
+      ))
+    }
+    <circle cx="50" cy="50" r="5.5"></circle>
+  </g>
+  <g stroke="var(--accent)" stroke-width="3" fill="none" stroke-linecap="square">
+    <line x1="50" y1="41" x2="50" y2="10"></line>
+    <line x1="50" y1="16" x2="44" y2="10"></line>
+    <line x1="50" y1="16" x2="56" y2="10"></line>
+    <line x1="45.5" y1="23" x2="54.5" y2="23"></line>
+  </g>
+  <circle cx="50" cy="6" r="3" fill="var(--accent)"></circle>
+  <circle cx="50" cy="50" r="1.9" fill="var(--accent)"></circle>
+</svg>

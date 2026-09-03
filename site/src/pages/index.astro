@@ -1,3 +1,11 @@
 ---
+import Landing from "../layouts/Landing.astro";
+import Hero from "../components/Hero.astro";
 ---
-<html lang="en"><head><meta charset="utf-8" /><title>GeoMetrikks</title></head><body><p>placeholder</p></body></html>
+
+<Landing
+  title="GeoMetrikks · See where your traffic comes from"
+  description="Your reverse proxy's access log on a live map. nginx, Traefik and Caddy. Self-hosted, one Docker image."
+>
+  <Hero />
+</Landing>

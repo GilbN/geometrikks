@@ -1,0 +1,61 @@
+---
+import Mark from "./Mark.astro";
+import Wordmark from "./Wordmark.astro";
+---
+
+<nav>
+  <div class="wrap">
+    <a class="brand" href="/" aria-label="GeoMetrikks home">
+      <Mark size={30} class="mark" />
+      <Wordmark class="text-[17px]" />
+    </a>
+    <ul>
+      <li><a href="#how">How it works</a></li>
+      <li><a href="#story">Product</a></li>
+      <li><a href="#compare">Compared</a></li>
+      <li><a href="#install">Install</a></li>
+      <li><a href="/docs/get-started/quickstart/">Docs</a></li>
+    </ul>
+    <a class="btn" href="https://github.com/GilbN/geometrikks">GitHub</a>
+  </div>
+</nav>
+
+<style>
+  nav {
+    position: absolute;
+    inset: 0 0 auto;
+    z-index: 5;
+  }
+  nav .wrap {
+    display: flex;
+    align-items: center;
+    gap: 24px;
+    height: 72px;
+  }
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    color: var(--fg);
+  }
+  ul {
+    display: flex;
+    gap: 24px;
+    list-style: none;
+    margin: 0 0 0 auto;
+    padding: 0;
+    font-size: 15px;
+    color: var(--fg-dim);
+  }
+  ul a:hover {
+    color: var(--fg);
+  }
+  @media (max-width: 900px) {
+    ul {
+      display: none;
+    }
+    .btn {
+      margin-left: auto;
+    }
+  }
+</style>

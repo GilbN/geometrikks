@@ -1,0 +1,201 @@
+---
+// The world is Natural Earth 110m land as a dot grid (equirectangular,
+// 1000x500 frame) with arcs from a dozen cities to the mark at the home
+// city. Everything is computed here at build time; the browser gets plain
+// SVG with SMIL motion, so it animates without JavaScript.
+import dots from "../data/land-dots.json";
+import geo from "../data/cities.json";
+import meta from "../data/meta.json";
+import Mark from "./Mark.astro";
+
+type LonLat = [number, number];
+const cities = geo.cities as Record<string, LonLat>;
+const proj = ([lon, lat]: LonLat): [number, number] => [((lon + 180) / 360) * 1000, ((90 - lat) / 180) * 500];
+const home = proj(cities[geo.home]);
+const f = (n: number) => n.toFixed(1);
+const arcs = Object.entries(cities)
+  .filter(([name]) => name !== geo.home)
+  .map(([name, ll], i) => {
+    const [x, y] = proj(ll);
+    const mx = (x + home[0]) / 2;
+    const my = Math.min(y, home[1]) - Math.abs(x - home[0]) * 0.16 - 14;
+    return {
+      name,
+      x,
+      y,
+      d: `M${f(x)} ${f(y)} Q${f(mx)} ${f(my)} ${f(home[0])} ${f(home[1])}`,
+      dur: 4 + (i % 5) * 1.3,
+      begin: i * 0.7,
+    };
+  });
+const markScale = 0.28;
+const markOffset = 50 * markScale;
+---
+
+<header class="hero">
+  <div class="aurora" aria-hidden="true"></div>
+  <div class="world" aria-hidden="true">
+    <svg viewBox="0 0 1000 420" id="world">
+      <g class="dots">{dots.map(([x, y]) => <circle cx={x} cy={y} r="1.6" />)}</g>
+      <g class="arcs">{arcs.map((a, i) => <path id={`arc-${i}`} d={a.d} />)}</g>
+      <g class="origins">{arcs.map((a) => <circle cx={f(a.x)} cy={f(a.y)} r="2.2" />)}</g>
+      <g class="packets">
+        {
+          arcs.map((a, i) => (
+            <circle r="2.6">
+              <animateMotion dur={`${a.dur}s`} begin={`${a.begin}s`} repeatCount="indefinite">
+                <mpath href={`#arc-${i}`} />
+              </animateMotion>
+            </circle>
+          ))
+        }
+      </g>
+      <g class="home" transform={`translate(${f(home[0] - markOffset)} ${f(home[1] - markOffset)}) scale(${markScale})`}>
+        <Mark size={100} title="Home beacon" />
+      </g>
+    </svg>
+  </div>
+  <div class="wrap">
+    <h1>See where your traffic comes from.</h1>
+    <p class="lede">
+      GeoMetrikks tails your reverse proxy's access log, locates every request with GeoLite2, and puts it on a live
+      map with analytics behind it. nginx, Traefik or Caddy. One Docker image, on your own hardware.
+    </p>
+    <div class="cta">
+      <a class="btn primary" href="#install">Install</a>
+      <a class="btn" href="#how">How it works</a>
+      <span class="mono">v{meta.version} · MIT · amd64 + arm64</span>
+    </div>
+  </div>
+</header>
+
+<style>
+  .hero {
+    position: relative;
+    min-height: 100vh;
+    display: grid;
+    align-items: end;
+    overflow: hidden;
+    padding-bottom: 64px;
+  }
+  .hero::after {
+    content: "";
+    position: absolute;
+    inset: 35% 0 0;
+    background: linear-gradient(transparent, oklch(0.14 0.02 200 / 85%) 45%, var(--bg));
+    pointer-events: none;
+  }
+  .aurora {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+  }
+  .aurora::before,
+  .aurora::after {
+    content: "";
+    position: absolute;
+    inset: -30% -10% auto;
+    height: 80%;
+    filter: blur(90px);
+    opacity: 0.55;
+  }
+  .aurora::before {
+    background:
+      radial-gradient(45% 45% at 25% 25%, oklch(0.76 0.17 155 / 55%), transparent 70%),
+      radial-gradient(40% 40% at 75% 20%, oklch(0.78 0.15 178 / 45%), transparent 70%);
+    animation: sway 18s ease-in-out infinite alternate;
+  }
+  .aurora::after {
+    background: radial-gradient(35% 35% at 55% 10%, oklch(0.72 0.16 300 / 40%), transparent 70%);
+    animation: sway 24s ease-in-out infinite alternate-reverse;
+  }
+  @keyframes sway {
+    to {
+      transform: translateX(6%) translateY(4%);
+    }
+  }
+  .world {
+    position: absolute;
+    left: 50%;
+    top: 4%;
+    width: 140vw;
+    max-width: 1900px;
+    transform: translateX(-50%);
+    pointer-events: none;
+  }
+  .world svg {
+    width: 100%;
+    height: auto;
+    display: block;
+  }
+  .dots {
+    fill: var(--fg);
+    opacity: 0.16;
+  }
+  .arcs {
+    fill: none;
+    stroke: var(--accent);
+    stroke-width: 1;
+    opacity: 0.32;
+  }
+  .origins {
+    fill: var(--accent);
+  }
+  .packets {
+    fill: var(--accent);
+    filter: drop-shadow(0 0 6px var(--accent));
+  }
+  .home {
+    color: var(--fg);
+  }
+  .hero .wrap {
+    position: relative;
+    z-index: 1;
+  }
+  h1 {
+    font-size: clamp(48px, 8.4vw, 118px);
+    line-height: 0.96;
+    letter-spacing: -0.04em;
+    font-weight: 600;
+    margin: 0 0 24px;
+    max-width: 11ch;
+  }
+  .lede {
+    font-size: clamp(18px, 1.6vw, 22px);
+    color: var(--fg-dim);
+    max-width: 44ch;
+    margin: 0 0 32px;
+  }
+  .cta {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  .cta .mono {
+    font-size: 13px;
+    color: var(--fg-faint);
+    margin-left: 8px;
+  }
+  @media (max-width: 900px) {
+    .hero {
+      min-height: 92vh;
+    }
+    .world {
+      width: 220vw;
+      top: 12%;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .aurora::before,
+    .aurora::after {
+      animation: none;
+    }
+  }
+</style>
+
+<script>
+  if (matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    (document.getElementById("world") as SVGSVGElement | null)?.pauseAnimations();
+  }
+</script>

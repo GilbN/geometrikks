@@ -1,0 +1,43 @@
+---
+import Mark from "./Mark.astro";
+---
+
+<footer>
+  <div class="wrap">
+    <Mark size={24} />
+    <span>MIT licensed. Made in Norway.</span>
+    <ul>
+      <li><a href="https://github.com/GilbN/geometrikks">GitHub</a></li>
+      <li><a href="https://github.com/GilbN/geometrikks/releases">Releases</a></li>
+      <li><a href="/docs/reference/changelog/">Changelog</a></li>
+      <li><a href="/docs/sources/proxy-setup/">Proxy setup</a></li>
+      <li><a href="/docs/reference/security/">Security</a></li>
+    </ul>
+  </div>
+</footer>
+
+<style>
+  footer {
+    border-top: 1px solid var(--line);
+    padding: 36px 0 56px;
+    color: var(--fg-faint);
+    font-size: 14px;
+  }
+  footer .wrap {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 24px;
+    align-items: center;
+  }
+  ul {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 22px;
+    list-style: none;
+    margin: 0 0 0 auto;
+    padding: 0;
+  }
+  a:hover {
+    color: var(--fg);
+  }
+</style>
