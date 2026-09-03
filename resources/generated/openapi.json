@@ -2969,6 +2969,16 @@
       },
       "MapSettingsView": {
         "properties": {
+          "cartoApiKey": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "homeLatitude": {
             "oneOf": [
               {
@@ -3002,6 +3012,7 @@
           }
         },
         "required": [
+          "cartoApiKey",
           "homeLatitude",
           "homeLongitude",
           "homeSource"

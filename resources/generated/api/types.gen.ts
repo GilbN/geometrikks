@@ -813,6 +813,7 @@ export type LogparserSettingsView = {
  * MapSettingsView
  */
 export type MapSettingsView = {
+  cartoApiKey: string | null;
   homeLatitude: number | null;
   homeLongitude: number | null;
   homeSource: "configured" | "external_ip" | null;
