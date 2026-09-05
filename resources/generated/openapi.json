@@ -4406,7 +4406,7 @@
   "info": {
     "description": "Real-time GeoIP lookups and traffic analytics API",
     "title": "GeoMetrikks API",
-    "version": "0.14.1"
+    "version": "0.14.2"
   },
   "openapi": "3.1.0",
   "paths": {
