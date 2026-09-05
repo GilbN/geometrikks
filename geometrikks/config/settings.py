@@ -544,6 +544,15 @@ class MapSettings(BaseSettings):
             "location and refreshes its site_homes rows (hours)."
         ),
     )
+    carto_api_key: str = Field(
+        default="",
+        description=(
+            "CARTO basemaps API key, sent as ?key= on every basemap request "
+            "the browser makes. CARTO's terms require one per deployment; "
+            "keys are free at https://carto.com/basemaps/apikey. Not a "
+            "secret: it is visible to anyone who can open the map."
+        ),
+    )
 
     @field_validator("home_locations")
     @classmethod

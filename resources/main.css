@@ -354,6 +354,52 @@
   filter: invert(1);
 }
 
+/* Attribution pill: same surface, radius, hover and focus ring as the
+   zoom/compass group. MapLibre paints its "i" as a black background-image,
+   so it is redrawn here as a mask filled with the text colour. */
+.maplibregl-ctrl-attrib.maplibregl-compact {
+  background: color-mix(in oklab, var(--background) 85%, transparent) !important;
+  backdrop-filter: blur(8px);
+  border: 1px solid var(--border);
+  border-radius: var(--radius) !important;
+  color: var(--muted-foreground) !important;
+  font-size: 11px;
+}
+
+.maplibregl-ctrl-attrib a {
+  color: var(--foreground) !important;
+}
+
+.maplibregl-ctrl-attrib-button {
+  background-color: transparent !important;
+  background-image: none !important;
+  border-radius: var(--radius) !important;
+  color: var(--muted-foreground);
+}
+
+.maplibregl-ctrl-attrib-button::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-color: currentColor;
+  mask: url("data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20fill-rule%3D%22evenodd%22%20viewBox%3D%220%200%2020%2020%22%3E%3Cpath%20d%3D%22M4%2010a6%206%200%201%200%2012%200%206%206%200%201%200-12%200m5-3a1%201%200%201%200%202%200%201%201%200%201%200-2%200m0%203a1%201%200%201%201%202%200v3a1%201%200%201%201-2%200%22%2F%3E%3C%2Fsvg%3E") center / 24px 24px no-repeat;
+}
+
+.maplibregl-ctrl-attrib-button:hover {
+  background-color: var(--muted) !important;
+  color: var(--foreground);
+}
+
+.maplibregl-ctrl-attrib-button:focus,
+.maplibregl-ctrl-group button:focus {
+  box-shadow: none !important;
+}
+
+.maplibregl-ctrl-attrib-button:focus-visible,
+.maplibregl-ctrl-group button:focus-visible {
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--ring) 50%, transparent) !important;
+}
+
 /* On mobile the full-page map's bottom-right zoom/compass control needs to
    clear the safe-area inset (home indicator). Scoped to .fullscreen-map so
    embedded card maps (geo-logs) are unaffected. */

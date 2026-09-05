@@ -20,6 +20,7 @@ import { FRAME_SURFACE } from "@/components/data/frame"
 import { SignalPanel } from "@/components/data/signal-panel"
 import { dataState } from "@/components/data/types"
 import { useMapStyle } from "@/components/map/hooks/useMapStyle"
+import { MapAttribution } from "@/components/map/MapAttribution"
 import { MapPopup, type PopupInfo } from "@/components/map/MapPopup"
 import {
   clusterCountLayer,
@@ -42,7 +43,7 @@ const INITIAL_VIEW_STATE = {
 
 export default function GeoLogsMap() {
   const mapRef = useRef<MapRef>(null)
-  const { mapStyle } = useMapStyle()
+  const { mapStyle, transformRequest, ready: mapReady } = useMapStyle()
   const { data: geojson, error, isLoading, isError, refetch } = useGeoLogsGeoJSON()
   const [viewState, setViewState] = useState(INITIAL_VIEW_STATE)
   const [popup, setPopup] = useState<PopupInfo | null>(null)
@@ -118,7 +119,7 @@ export default function GeoLogsMap() {
     })
   }, [])
 
-  const state = dataState(isLoading, isError, geojson?.features.length ?? 0)
+  const state = dataState(isLoading || !mapReady, isError, geojson?.features.length ?? 0)
 
   // Loading, error and empty go through the panel so they match the chart
   // beside them. The ready state is the bare map: no header or body
@@ -148,11 +149,13 @@ export default function GeoLogsMap() {
           onClick={onClick}
           onLoad={fitOnce}
           mapStyle={mapStyle}
+          transformRequest={transformRequest}
           interactiveLayerIds={["clusters", "unclustered-point"]}
           cursor="pointer"
           attributionControl={false}
         >
           <NavigationControl position="top-right" showCompass={false} />
+          <MapAttribution />
           {geojson && (
             <Source
               id="geo-data"

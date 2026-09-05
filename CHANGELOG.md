@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.14.2] - 2026-09-05
+
+### Added
+
+- `MAP_CARTO_API_KEY` sends a CARTO basemaps API key with every basemap request, as CARTO's terms now require. Keys are free; see the README.
+
+### Fixed
+
+- The map and the geo-logs map now show the CARTO and OpenStreetMap attribution that both licenses require. It was hidden before. The pill collapses to an info button on click or drag, and that state is remembered in the browser.
+
 ## [0.14.1] - 2026-09-02
 
 ### Changed
@@ -968,7 +978,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Settings endpoint no longer exposes the full settings tree (database credentials leaked via `model_dump()`); response is now an explicit whitelist.
 - Timestamps in `CALL refresh_continuous_aggregate` are bound as asyncpg parameters instead of interpolated into SQL.
 
-[Unreleased]: https://github.com/GilbN/geometrikks/compare/v0.14.1...develop
+[Unreleased]: https://github.com/GilbN/geometrikks/compare/v0.14.2...develop
+[0.14.2]: https://github.com/GilbN/geometrikks/compare/v0.14.1...v0.14.2
 [0.14.1]: https://github.com/GilbN/geometrikks/compare/v0.14.0...v0.14.1
 [0.14.0]: https://github.com/GilbN/geometrikks/compare/v0.13.0...v0.14.0
 [0.13.0]: https://github.com/GilbN/geometrikks/compare/v0.12.1...v0.13.0
