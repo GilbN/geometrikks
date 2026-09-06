@@ -46,6 +46,24 @@ branch and pull request gets a preview URL. The custom domain is attached
 to the worker under Settings, Domains & Routes, once the domain's
 nameservers point at Cloudflare.
 
+The worker is named `geometrikks`; Workers Builds refuses a config whose
+name differs from the worker it is attached to. A second worker,
+`geometrikks-develop`, connected to the same repository, serves `develop`
+at develop.geometrikks.dev. It uses the `develop` environment from
+`wrangler.jsonc` and differs from the table above in two settings:
+
+| Setting | Value |
+| --- | --- |
+| Production branch | `develop` |
+| Deploy command | `bunx wrangler deploy --env develop` |
+
+Turn non-production branch builds off on that worker so feature branches
+build once, on the main one. With an environment defined, wrangler warns
+when the main worker's deploy command names none; it still deploys the
+top-level configuration. `public/_headers` sends `X-Robots-Tag: noindex`
+for the develop hostname, and every page's canonical URL points at
+geometrikks.dev, so the staging copy stays out of search results.
+
 `public/_headers` sets HSTS, nosniff and the referrer policy. There is no
 Content-Security-Policy yet: Astro's CSP support does not work with the
 inline styles Starlight's code blocks use.
