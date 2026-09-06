@@ -364,7 +364,8 @@ async def _create_location_caggs(conn: "AsyncConnection") -> None:
 async def _create_ip_location_cagg(conn: "AsyncConnection") -> None:
     """Create IP-location stats CAGGs (hourly + daily).
 
-    Used for: Top IPs per location, Global top IPs, grouped geo-logs rows.
+    Used for: Top IPs per location, Global top IPs, grouped geo-logs rows,
+    and the ASN behind each IP (Geo Logs top IPs, top ASNs, ASN filters).
 
     Both granularities exist so the query layer can honour the same routing
     the summary/location CAGGs use (hourly for 24h-30d, daily above). Serving
@@ -379,7 +380,10 @@ async def _create_ip_location_cagg(conn: "AsyncConnection") -> None:
                 time_bucket('{interval}', timestamp) AS bucket,
                 location_id,
                 ip_address,
-                COUNT(*) AS event_count
+                COUNT(*) AS event_count,
+                MAX(autonomous_system_number) AS asn,
+                MAX(autonomous_system_organization) AS as_org,
+                COUNT(autonomous_system_number) AS asn_hits
             FROM geo_events
             GROUP BY bucket, location_id, ip_address
             WITH NO DATA
@@ -1030,6 +1034,18 @@ _URL_GENERATIONS: tuple[CaggGeneration, ...] = (
     )),
 )
 
+# One IP has one ASN, so MAX per (bucket, location, IP) is the value itself;
+# asn_hits is the generation's never-NULL count for the upgrade probe.
+_IP_LOCATION_GENERATIONS: tuple[CaggGeneration, ...] = (
+    CaggGeneration("asn_hits", (
+        CaggColumn("asn", "bigint", "MAX(autonomous_system_number)"),
+        CaggColumn("as_org", "varchar(255)", "MAX(autonomous_system_organization)"),
+        CaggColumn("asn_hits", "bigint", "COUNT(autonomous_system_number)"),
+    )),
+)
+
+IP_LOCATION_CAGGS_NAMES = ["ip_location_hourly_stats", "ip_location_daily_stats"]
+
 # View -> generations added after the view first shipped, oldest first. A
 # database missing several gets them all in one pass and one forced refresh.
 CAGG_GENERATIONS: dict[str, tuple[CaggGeneration, ...]] = {
@@ -1037,6 +1053,8 @@ CAGG_GENERATIONS: dict[str, tuple[CaggGeneration, ...]] = {
     "summary_daily_stats": _SUMMARY_GENERATIONS,
     "url_hourly_stats": _URL_GENERATIONS,
     "url_daily_stats": _URL_GENERATIONS,
+    "ip_location_hourly_stats": _IP_LOCATION_GENERATIONS,
+    "ip_location_daily_stats": _IP_LOCATION_GENERATIONS,
 }
 
 # Flat view of the same table for callers that only need the columns.

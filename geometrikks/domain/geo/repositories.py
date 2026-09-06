@@ -147,7 +147,7 @@ def stitched_ip_location_cte(granularity: StatsGranularity) -> str:
     the leftover head/tail slices are read straight from ``geo_events``, so
     the union is exact.
 
-    ``combined`` yields (location_id, ip_address, event_count, last_seen); it is
+    ``combined`` yields (location_id, ip_address, event_count, last_seen, asn, as_org); it is
     keyed by IP on all legs, so ``COUNT(DISTINCT ip_address)`` over it stays
     exact rather than summing per-bucket counts. ``last_seen`` is bucket-granular
     for CAGG rows and exact for the raw edge rows.
@@ -155,15 +155,18 @@ def stitched_ip_location_cte(granularity: StatsGranularity) -> str:
     table, _ = IP_LOCATION_CAGGS[granularity]
     return f"""
         WITH combined AS (
-            SELECT s.location_id, s.ip_address, s.event_count, s.bucket AS last_seen
+            SELECT s.location_id, s.ip_address, s.event_count, s.bucket AS last_seen,
+                   s.asn, s.as_org
             FROM {table} s
             WHERE s.bucket >= :a_start AND s.bucket < :a_end
             UNION ALL
-            SELECT ge.location_id, ge.ip_address, CAST(1 AS BIGINT), ge.timestamp
+            SELECT ge.location_id, ge.ip_address, CAST(1 AS BIGINT), ge.timestamp,
+                   ge.autonomous_system_number, ge.autonomous_system_organization
             FROM geo_events ge
             WHERE ge.timestamp >= :start AND ge.timestamp < :a_start
             UNION ALL
-            SELECT ge.location_id, ge.ip_address, CAST(1 AS BIGINT), ge.timestamp
+            SELECT ge.location_id, ge.ip_address, CAST(1 AS BIGINT), ge.timestamp,
+                   ge.autonomous_system_number, ge.autonomous_system_organization
             FROM geo_events ge
             WHERE ge.timestamp >= :a_end AND ge.timestamp < :end
         )
