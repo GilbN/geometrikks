@@ -103,6 +103,15 @@ class GeoEvent(base.BigIntBase):
         index=True,
     )
 
+    # Optional enrichment from GeoLite2-ASN; NULL when the database is
+    # missing or the IP is not in it. Same types as access_logs.
+    autonomous_system_number: Mapped[int | None] = mapped_column(
+        BigInteger, nullable=True, info=dto_field("read-only")
+    )
+    autonomous_system_organization: Mapped[str | None] = mapped_column(
+        String(255), nullable=True, info=dto_field("read-only")
+    )
+
     # Relationships
     location: Mapped["GeoLocation"] = relationship(
         "GeoLocation", back_populates="geo_events", lazy="selectin"
@@ -114,6 +123,7 @@ class GeoEvent(base.BigIntBase):
         Index("ix_geo_events_timestamp_desc", "timestamp", postgresql_using="brin"),
         Index("ix_geo_events_location_timestamp", "location_id", timestamp.desc()),
         Index("ix_geo_events_ip_timestamp", "ip_address", timestamp.desc()),
+        Index("ix_geo_events_asn", "autonomous_system_number"),
     )
 
     def __repr__(self) -> str:
