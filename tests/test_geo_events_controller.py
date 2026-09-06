@@ -110,6 +110,15 @@ class TestAggregateFilters:
         assert provide_geo_event_filters(None, None, None, None, ["web1"]).forces_raw
         assert not provide_geo_event_filters(["NO"], None, ["10.0.0.1"], None, None).forces_raw
 
+    def test_asn_lists_carried_over_and_never_force_raw(self) -> None:
+        filters = provide_geo_event_filters(
+            None, None, None, None, None, asn_in=[13335], asn_not_in=[24940, 16509]
+        )
+        assert filters.asn_include == [13335]
+        assert filters.asn_exclude == [24940, 16509]
+        assert filters.is_active()
+        assert not filters.forces_raw
+
 
 class TestSummaryComparison:
     async def test_previous_period_is_adjacent_and_equal_length(self) -> None:
@@ -155,3 +164,21 @@ class TestFiltersSqlConditions:
         assert params["filter_countries"] == ["NO"]  # normalized upper-case
         assert params["filter_ips"] == ["10.0.0.1"]
         assert params["filter_ips_excl"] == ["10.0.0.2"]
+
+    def test_asn_fragments_default_to_the_raw_column(self) -> None:
+        sql, params = GeoEventFilters(asn_include=[13335], asn_exclude=[24940]).sql_conditions("ge", "gl")
+        assert "AND ge.autonomous_system_number = ANY(CAST(:filter_asns AS bigint[]))" in sql
+        assert (
+            "AND (ge.autonomous_system_number IS NULL OR NOT "
+            "(ge.autonomous_system_number = ANY(CAST(:filter_asns_excl AS bigint[]))))"
+        ) in sql
+        assert params["filter_asns"] == [13335]
+        assert params["filter_asns_excl"] == [24940]
+
+    def test_asn_fragments_use_the_cagg_column_when_told(self) -> None:
+        sql, _ = GeoEventFilters(asn_include=[13335], asn_exclude=[24940]).sql_conditions(
+            "c", "gl", asn_column="asn"
+        )
+        assert "AND c.asn = ANY(CAST(:filter_asns AS bigint[]))" in sql
+        assert "AND (c.asn IS NULL OR NOT (c.asn = ANY(CAST(:filter_asns_excl AS bigint[]))))" in sql
+        assert "autonomous_system_number" not in sql

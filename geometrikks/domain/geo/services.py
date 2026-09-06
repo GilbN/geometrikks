@@ -134,7 +134,7 @@ class GeoEventService(SQLAlchemyAsyncRepositoryService[GeoEvent]):
                 GROUP BY gl.id, ge.ip_address
             """
         else:
-            filter_sql, filter_params = filters.sql_conditions("c", "gl")
+            filter_sql, filter_params = filters.sql_conditions("c", "gl", asn_column="asn")
             source = f"""
                 {stitched_ip_location_cte(granularity)}
                 SELECT
@@ -212,7 +212,7 @@ class GeoEventService(SQLAlchemyAsyncRepositoryService[GeoEvent]):
         elif filters.is_active():
             # Country/city/IP filters: stitched per-IP CAGG read joined to
             # geo_locations. Keyed by IP, so every unique count is exact.
-            filter_sql, filter_params = filters.sql_conditions("c", "gl")
+            filter_sql, filter_params = filters.sql_conditions("c", "gl", asn_column="asn")
             stmt = text(f"""
                 {stitched_ip_location_cte(granularity)}
                 SELECT
@@ -331,7 +331,7 @@ class GeoEventService(SQLAlchemyAsyncRepositoryService[GeoEvent]):
                 if local_days
                 else f"time_bucket('{interval}', c.last_seen)"
             )
-            filter_sql, filter_params = filters.sql_conditions("c", "gl")
+            filter_sql, filter_params = filters.sql_conditions("c", "gl", asn_column="asn")
             stmt = text(f"""
                 {stitched_ip_location_cte(stitch_granularity)}
                 SELECT
@@ -408,7 +408,7 @@ class GeoEventService(SQLAlchemyAsyncRepositoryService[GeoEvent]):
                 LIMIT :limit
             """)
         else:
-            filter_sql, filter_params = filters.sql_conditions("c", "gl")
+            filter_sql, filter_params = filters.sql_conditions("c", "gl", asn_column="asn")
             stmt = text(f"""
                 {stitched_ip_location_cte(granularity)}
                 SELECT
@@ -464,7 +464,7 @@ class GeoEventService(SQLAlchemyAsyncRepositoryService[GeoEvent]):
             """)
         else:
             # The CAGG is keyed by IP, so COUNT(DISTINCT) stays exact here.
-            filter_sql, filter_params = filters.sql_conditions("c", "gl")
+            filter_sql, filter_params = filters.sql_conditions("c", "gl", asn_column="asn")
             stmt = text(f"""
                 {stitched_ip_location_cte(granularity)}
                 SELECT
@@ -520,7 +520,7 @@ class GeoEventService(SQLAlchemyAsyncRepositoryService[GeoEvent]):
                 LIMIT :limit
             """)
         else:
-            filter_sql, filter_params = filters.sql_conditions("c", "gl")
+            filter_sql, filter_params = filters.sql_conditions("c", "gl", asn_column="asn")
             stmt = text(f"""
                 {stitched_ip_location_cte(granularity)}
                 SELECT

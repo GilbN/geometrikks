@@ -33,6 +33,8 @@ from geometrikks.domain.geo.schemas import (
 from geometrikks.domain.geo.services import GeoEventService
 from geometrikks.lib.parameters import (
     ToTimestamp,
+    AsnIn,
+    AsnNotIn,
     HostnameIn,
     IpAddressIn,
     IpAddressNotIn,
@@ -100,6 +102,8 @@ def provide_geo_event_filters(
     ip_address_in: IpAddressIn = None,
     ip_address_not_in: IpAddressNotIn = None,
     hostname_in: HostnameIn = None,
+    asn_in: AsnIn = None,
+    asn_not_in: AsnNotIn = None,
 ) -> GeoEventFilters:
     """Dimension filters consumed by the aggregate endpoints."""
     if ip_address_in:
@@ -112,6 +116,8 @@ def provide_geo_event_filters(
         ip_include=ip_address_in or None,
         ip_exclude=ip_address_not_in or None,
         hostnames=hostname_in or None,
+        asn_include=asn_in or None,
+        asn_exclude=asn_not_in or None,
     )
 
 
