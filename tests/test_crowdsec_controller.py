@@ -97,6 +97,7 @@ async def test_status_disabled():
         "enabled": False,
         "writeEnabled": False,
         "lapiReachable": False,
+        "liveUpdates": False,
     }
 
 
@@ -111,6 +112,7 @@ async def test_status_enabled_read_only(monkeypatch, tmp_path):
         "enabled": True,
         "writeEnabled": False,
         "lapiReachable": True,
+        "liveUpdates": False,
     }
 
 

@@ -61,6 +61,7 @@ from real environment variables. It is read once at import time.
 | `DB_DATABASE` | `geometrikks` | Database name |
 | `DB_DROP_ON_STARTUP` | `false` | Drop all tables on startup (development only) |
 | `DB_MIGRATE_ON_STARTUP` | `true` | Run alembic migrations automatically at app startup. Disable when migrations run as a separate deployment step (`litestar database upgrade`); the app then expects the schema to already be at head and fails startup if it is not usable |
+| `DB_STARTUP_WAIT_SECONDS` | `30` | How long startup waits for the database before serving in degraded mode. 0 probes once. The app keeps re-probing in the background after this window and recovers on its own when the database answers. |
 
 ## GeoIP
 

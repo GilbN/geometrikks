@@ -13,6 +13,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from geometrikks.server.scheduler_tracking import JobRunTracker
+from geometrikks.lib.advisories import AdvisoryRegistry
 
 if TYPE_CHECKING:
     from datetime import datetime
@@ -20,6 +21,7 @@ if TYPE_CHECKING:
     from apscheduler.schedulers.asyncio import AsyncIOScheduler
     from litestar import Litestar
 
+    from geometrikks.server.plugins import DegradedTolerantAsyncPgBackend
     from geometrikks.services.crowdsec import CrowdSecService
     from geometrikks.services.crowdsec.stream import CrowdSecStreamPoller
     from geometrikks.services.geoip.home import HomeLocation
@@ -31,13 +33,22 @@ def get_ingestion_service(app: Litestar) -> LogIngestionService | None:
     return getattr(app.state, "ingestion_service", None)
 
 
+def get_advisories(app: Litestar) -> AdvisoryRegistry:
+    """The app's open advisories, created on first access."""
+    registry: AdvisoryRegistry | None = getattr(app.state, "advisories", None)
+    if registry is None:
+        registry = AdvisoryRegistry()
+        app.state.advisories = registry
+    return registry
+
+
 def get_crowdsec_service(app: Litestar) -> CrowdSecService | None:
     """None when the integration is not enabled (no LAPI URL/bouncer key)."""
     return getattr(app.state, "crowdsec_service", None)
 
 
 def get_crowdsec_poller(app: Litestar) -> CrowdSecStreamPoller | None:
-    """None when CrowdSec is disabled or the app is DB-degraded."""
+    """None when CrowdSec is disabled or the app is DB-degraded or scheduler-disabled."""
     return getattr(app.state, "crowdsec_stream_poller", None)
 
 
@@ -79,3 +90,13 @@ def is_asn_available(app: Litestar, *, default: bool = False) -> bool:
     ingest without ASN columns. ``default`` mirrors is_geoip_available.
     """
     return bool(getattr(app.state, "asn_available", default))
+
+
+def is_db_available(app: Litestar, *, default: bool = True) -> bool:
+    """Whether database-bound services were wired during startup."""
+    return bool(getattr(app.state, "db_available", default))
+
+
+def get_channels_backend(app: Litestar) -> DegradedTolerantAsyncPgBackend | None:
+    """The live-events backend; None on hand-built test apps."""
+    return getattr(app.state, "channels_backend", None)

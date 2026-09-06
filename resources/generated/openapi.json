@@ -797,6 +797,10 @@
           "lapiReachable": {
             "type": "boolean"
           },
+          "liveUpdates": {
+            "default": false,
+            "type": "boolean"
+          },
           "writeEnabled": {
             "type": "boolean"
           }
@@ -862,6 +866,10 @@
       "DatabaseHealth": {
         "properties": {
           "reachable": {
+            "type": "boolean"
+          },
+          "servicesActive": {
+            "default": true,
             "type": "boolean"
           }
         },
@@ -1970,6 +1978,14 @@
       },
       "IngestionHealth": {
         "properties": {
+          "failedBatches": {
+            "default": 0,
+            "type": "integer"
+          },
+          "failedRecords": {
+            "default": 0,
+            "type": "integer"
+          },
           "lastRecordAt": {
             "oneOf": [
               {
@@ -3428,6 +3444,15 @@
           },
           "schedulerRunning": {
             "type": "boolean"
+          },
+          "status": {
+            "default": "running",
+            "enum": [
+              "running",
+              "disabled",
+              "unavailable"
+            ],
+            "type": "string"
           }
         },
         "required": [

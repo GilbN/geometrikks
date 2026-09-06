@@ -6,6 +6,7 @@ import tarfile
 import time
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import AsyncMock
 
 import pytest
 
@@ -176,7 +177,7 @@ class TestEnsure:
         assert list(settings.db_path.parent.glob("*.tmp")) == []
 
     async def test_os_error_during_extraction_degrades_without_litter(self, tmp_path, monkeypatch):
-        """ensure_geoip_database never raises — an OSError from the filesystem
+        """ensure_geoip_database never raises. An OSError from the filesystem
         (full volume, bad mount permissions) degrades and leaves no .tmp files."""
         from pathlib import Path as PathCls
 
@@ -316,11 +317,11 @@ class TestRefreshBothEditions:
 
         calls: list[str] = []
 
-        async def fake_city(settings, *, force=False):
+        async def fake_city(settings, *, force=False, errors=None):
             calls.append("city")
             return True
 
-        async def fake_asn(settings, *, force=False):
+        async def fake_asn(settings, *, force=False, errors=None):
             calls.append("asn")
             return True
 
@@ -334,11 +335,11 @@ class TestRefreshBothEditions:
 
         calls: list[str] = []
 
-        async def fake_city(settings, *, force=False):
+        async def fake_city(settings, *, force=False, errors=None):
             calls.append("city")
             return True
 
-        async def fake_asn(settings, *, force=False):
+        async def fake_asn(settings, *, force=False, errors=None):
             calls.append("asn")
             return True
 
@@ -354,11 +355,11 @@ class TestRefreshBothEditions:
 
         forces: dict[str, bool] = {}
 
-        async def fake_city(settings, *, force=False):
+        async def fake_city(settings, *, force=False, errors=None):
             forces["city"] = force
             return True
 
-        async def fake_asn(settings, *, force=False):
+        async def fake_asn(settings, *, force=False, errors=None):
             forces["asn"] = force
             return True
 
@@ -366,6 +367,47 @@ class TestRefreshBothEditions:
         monkeypatch.setattr(downloader, "ensure_asn_database", fake_asn)
         await downloader.refresh_geoip_databases(make_settings(tmp_path), force=True)
         assert forces == {"city": True, "asn": True}
+
+    async def test_refresh_collects_download_errors(self, tmp_path, monkeypatch):
+        from geometrikks.services.geoip import downloader
+        from geometrikks.services.geoip.downloader import GeoIPDownloadError
+
+        async def failing_download(settings, *, edition, db_path):
+            raise GeoIPDownloadError(f"{edition} 503")
+
+        monkeypatch.setattr(downloader, "download_database", failing_download)
+        settings = make_settings(
+            tmp_path,
+            account_id="1",
+            license_key="k",
+            asn_enabled=True,
+        )
+
+        result = await downloader.refresh_geoip_databases(settings, force=True)
+
+        assert result.city_error == "City: GeoLite2-City 503"
+        assert result.asn_error == "ASN: GeoLite2-ASN 503"
+        assert result.errors == [
+            "City: GeoLite2-City 503",
+            "ASN: GeoLite2-ASN 503",
+        ]
+
+    async def test_refresh_reports_no_errors_on_success(self, tmp_path, monkeypatch):
+        from geometrikks.services.geoip import downloader
+
+        city = AsyncMock(return_value=True)
+        asn = AsyncMock(return_value=True)
+        monkeypatch.setattr(downloader, "ensure_geoip_database", city)
+        monkeypatch.setattr(downloader, "ensure_asn_database", asn)
+        settings = make_settings(tmp_path)
+
+        result = await downloader.refresh_geoip_databases(settings)
+
+        assert result.city_error is None
+        assert result.asn_error is None
+        assert result.errors == []
+        city.assert_awaited_once_with(settings, force=False, errors=[])
+        asn.assert_awaited_once_with(settings, force=False, errors=[])
 
 
 class TestForcedRefresh:

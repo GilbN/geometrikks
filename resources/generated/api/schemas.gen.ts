@@ -742,6 +742,10 @@ export const CrowdSecStatusResponseSchema = {
     lapiReachable: {
       type: "boolean",
     },
+    liveUpdates: {
+      default: false,
+      type: "boolean",
+    },
     writeEnabled: {
       type: "boolean",
     },
@@ -802,6 +806,10 @@ export const CumulativeTimeSeriesResponseSchema = {
 export const DatabaseHealthSchema = {
   properties: {
     reachable: {
+      type: "boolean",
+    },
+    servicesActive: {
+      default: true,
       type: "boolean",
     },
   },
@@ -1858,6 +1866,14 @@ export const HypertableStatsViewSchema = {
 
 export const IngestionHealthSchema = {
   properties: {
+    failedBatches: {
+      default: 0,
+      type: "integer",
+    },
+    failedRecords: {
+      default: 0,
+      type: "integer",
+    },
     lastRecordAt: {
       oneOf: [
         {
@@ -3237,6 +3253,11 @@ export const SchedulerJobsResponseSchema = {
     },
     schedulerRunning: {
       type: "boolean",
+    },
+    status: {
+      default: "running",
+      enum: ["running", "disabled", "unavailable"],
+      type: "string",
     },
   },
   required: ["jobs", "schedulerEnabled", "schedulerRunning"],

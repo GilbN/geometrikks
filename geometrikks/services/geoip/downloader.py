@@ -12,6 +12,7 @@ from __future__ import annotations
 import tarfile
 import tempfile
 import time
+from dataclasses import dataclass
 from io import BytesIO
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -33,6 +34,23 @@ ASN_EDITION = "GeoLite2-ASN"
 
 class GeoIPDownloadError(Exception):
     """Download or extraction failed."""
+
+
+@dataclass
+class RefreshResult:
+    """Download failures from a City and ASN refresh attempt."""
+
+    city_error: str | None = None
+    asn_error: str | None = None
+
+    @property
+    def errors(self) -> list[str]:
+        """Return present errors in refresh order."""
+        return [
+            error
+            for error in (self.city_error, self.asn_error)
+            if error is not None
+        ]
 
 
 def has_credentials(settings: "GeoIPSettings") -> bool:
@@ -127,7 +145,12 @@ async def download_database(
     return db_path
 
 
-async def ensure_geoip_database(settings: "GeoIPSettings", *, force: bool = False) -> bool:
+async def ensure_geoip_database(
+    settings: "GeoIPSettings",
+    *,
+    force: bool = False,
+    errors: list[str] | None = None,
+) -> bool:
     """Make the mmdb present-and-fresh if possible. Returns usability.
 
     - fresh db, no creds        -> True (nothing to do)
@@ -170,16 +193,25 @@ async def ensure_geoip_database(settings: "GeoIPSettings", *, force: bool = Fals
         )
         return True
     except GeoIPDownloadError as exc:
-        logger.error("GeoIP download failed: %s", exc)
+        logger.error("geoip_city_download_failed", error=str(exc))
+        if errors is not None:
+            errors.append(f"City: {exc}")
         return geoip_info(settings.db_path).available
-    except Exception:
+    except Exception as exc:
         # Startup/scheduler entry point: a full volume, bad mount permissions,
         # or a truncated stream must degrade, never crash the app.
-        logger.exception("Unexpected error while refreshing the GeoLite2 database")
+        logger.exception("geoip_city_refresh_failed", error=str(exc))
+        if errors is not None:
+            errors.append(f"City: {exc}")
         return geoip_info(settings.db_path).available
 
 
-async def ensure_asn_database(settings: "GeoIPSettings", *, force: bool = False) -> bool:
+async def ensure_asn_database(
+    settings: "GeoIPSettings",
+    *,
+    force: bool = False,
+    errors: list[str] | None = None,
+) -> bool:
     """Download or refresh the GeoLite2-ASN mmdb when possible; never raises.
 
     Unlike ensure_geoip_database, False is not degraded mode, only
@@ -220,14 +252,20 @@ async def ensure_asn_database(settings: "GeoIPSettings", *, force: bool = False)
         )
         return True
     except GeoIPDownloadError as exc:
-        logger.error("GeoLite2-ASN download failed: %s", exc)
+        logger.error("geoip_asn_download_failed", error=str(exc))
+        if errors is not None:
+            errors.append(f"ASN: {exc}")
         return geoip_info(settings.asn_db_path).available
-    except Exception:
-        logger.exception("Unexpected error while refreshing the GeoLite2-ASN database")
+    except Exception as exc:
+        logger.exception("geoip_asn_refresh_failed", error=str(exc))
+        if errors is not None:
+            errors.append(f"ASN: {exc}")
         return geoip_info(settings.asn_db_path).available
 
 
-async def refresh_geoip_databases(settings: "GeoIPSettings", *, force: bool = False) -> None:
+async def refresh_geoip_databases(
+    settings: "GeoIPSettings", *, force: bool = False
+) -> RefreshResult:
     """Scheduler entry point: refresh City always, ASN when enabled.
 
     Looked up through the module (not captured references) so tests can
@@ -235,6 +273,12 @@ async def refresh_geoip_databases(settings: "GeoIPSettings", *, force: bool = Fa
     """
     from geometrikks.services.geoip import downloader as _self
 
-    await _self.ensure_geoip_database(settings, force=force)
+    city_errors: list[str] = []
+    asn_errors: list[str] = []
+    await _self.ensure_geoip_database(settings, force=force, errors=city_errors)
     if settings.asn_enabled:
-        await _self.ensure_asn_database(settings, force=force)
+        await _self.ensure_asn_database(settings, force=force, errors=asn_errors)
+    return RefreshResult(
+        city_error=city_errors[0] if city_errors else None,
+        asn_error=asn_errors[0] if asn_errors else None,
+    )

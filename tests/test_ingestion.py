@@ -83,6 +83,9 @@ class FakeSession:
 
     async def rollback(self) -> None:
         self.rollbacks += 1
+        if self.repos.fail_next_rollbacks:
+            self.repos.fail_next_rollbacks -= 1
+            raise RuntimeError("simulated rollback error")
         self.pending.clear()
 
     async def flush(self) -> None:
@@ -132,6 +135,7 @@ class FakeRepos:
         self.access_log_debug = FakeRepo(None)
         # failure injection: consumed by FakeSession
         self.fail_next_commits = 0
+        self.fail_next_rollbacks = 0
         self.fail_flush_calls: set[int] = set()  # 1-based flush call numbers
         self.flush_calls = 0
 
@@ -244,8 +248,108 @@ async def test_stop_drains_queue_before_exit(tmp_path: Path) -> None:
     assert any(s.commits for s in sessions)  # final flush on stop
 
 
+def _stop_failure_service() -> tuple[LogIngestionService, Any, Any]:
+    from unittest.mock import MagicMock
+
+    service, _repos, _sessions = make_service([])
+    city_reader = MagicMock()
+    asn_reader = MagicMock()
+    service._stop_event = asyncio.Event()
+    service._reader = city_reader
+    service._asn_reader = asn_reader
+    service.is_running = True
+    return service, city_reader, asn_reader
+
+
+async def test_stop_cleans_up_before_propagating_completed_consumer_error(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    service, city_reader, asn_reader = _stop_failure_service()
+    failure = RuntimeError("consumer failed")
+
+    async def fail() -> None:
+        raise failure
+
+    task = asyncio.create_task(fail(), name="failed-consumer")
+    service._ingestion_task = task
+    await asyncio.sleep(0)
+    assert task.done()
+
+    with pytest.raises(RuntimeError) as caught:
+        await service.stop(timeout=1.0)
+
+    assert caught.value is failure
+    city_reader.close.assert_called_once_with()
+    asn_reader.close.assert_called_once_with()
+    assert service._reader is None
+    assert service._asn_reader is None
+    assert service._ingestion_task is None
+    assert service.is_running is False
+    assert any(
+        "ingestion_consumer_failed_during_stop" in record.getMessage()
+        for record in caplog.records
+    )
+    await service.stop(timeout=1.0)
+
+
+async def test_stop_distinguishes_consumer_timeout_error_from_shutdown_timeout(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    service, city_reader, asn_reader = _stop_failure_service()
+    stop_event = service._stop_event
+    assert stop_event is not None
+    failure = asyncio.TimeoutError("consumer timed out")
+
+    async def fail_when_stopped() -> None:
+        await stop_event.wait()
+        raise failure
+
+    task = asyncio.create_task(fail_when_stopped(), name="timed-out-consumer")
+    service._ingestion_task = task
+
+    with pytest.raises(asyncio.TimeoutError) as caught:
+        await service.stop(timeout=1.0)
+
+    assert caught.value is failure
+    city_reader.close.assert_called_once_with()
+    asn_reader.close.assert_called_once_with()
+    assert service._reader is None
+    assert service._asn_reader is None
+    assert service._ingestion_task is None
+    assert service.is_running is False
+    assert not any(
+        "did not stop gracefully" in record.getMessage()
+        for record in caplog.records
+    )
+    assert any(
+        "ingestion_consumer_failed_during_stop" in record.getMessage()
+        for record in caplog.records
+    )
+    await service.stop(timeout=1.0)
+
+
+async def test_stop_cancels_consumer_after_actual_shutdown_timeout() -> None:
+    service, city_reader, asn_reader = _stop_failure_service()
+
+    async def wait_forever() -> None:
+        await asyncio.Event().wait()
+
+    task = asyncio.create_task(wait_forever(), name="stuck-consumer")
+    service._ingestion_task = task
+
+    await service.stop(timeout=0.01)
+
+    assert task.cancelled()
+    city_reader.close.assert_called_once_with()
+    asn_reader.close.assert_called_once_with()
+    assert service._reader is None
+    assert service._asn_reader is None
+    assert service._ingestion_task is None
+    assert service.is_running is False
+
+
 async def test_missing_file_does_not_block_other_tails(tmp_path: Path) -> None:
-    """A nonexistent log path is skipped (with an error log); other files still ingest.
+    """Waiting for a nonexistent log path does not block another file.
 
     DISABLE_WAIT=true (conftest) makes wait_for_path return immediately."""
     good = tmp_path / "good.log"
@@ -290,18 +394,51 @@ async def test_stop_ends_the_wait_for_a_missing_log_file(
     assert all(task.done() and not task.cancelled() for task in service._tail_tasks)
 
 
-async def test_all_tails_dead_stops_service_and_clears_is_running(tmp_path: Path) -> None:
-    """When every tail task exits (all log files missing), the consumer must
-    shut down and is_running must flip to False so /health reports degraded.
+async def test_never_appeared_file_is_reported_missing_and_tailed_once_it_appears(
+    tmp_path: Path,
+) -> None:
+    """A path absent at start stays in the tail loop and begins tailing later.
 
-    DISABLE_WAIT=true (conftest) makes wait_for_path return immediately."""
+    DISABLE_WAIT=true (conftest) makes the grace wait return immediately.
+    """
     missing = tmp_path / "missing.log"
-    service, _repos, _sessions = make_service([make_parser(missing)])
+    parser = make_parser(missing)
+    service, _repos, _sessions = make_service([parser])
+
+    await service.start(skip_validation=True)
+    try:
+        await wait_until(lambda: parser.file_missing)
+        assert service.is_running
+        assert service.missing_files == [str(missing)]
+
+        missing.write_text("", encoding="utf-8")
+        await wait_until(lambda: not parser.file_missing)
+        await asyncio.sleep(0.1)
+        append_line(missing, make_log_line(TEST_DB_IPS[0]))
+        await wait_until(lambda: service.total_processed >= 1)
+    finally:
+        await service.stop(timeout=5.0)
+
+
+async def test_failed_tail_task_stops_service_and_clears_is_running(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """The consumer stops when its only tail task fails."""
+    log_file = tmp_path / "a.log"
+    log_file.write_text("", encoding="utf-8")
+    service, _repos, _sessions = make_service([make_parser(log_file)])
+
+    async def fail_tail(*_args: object) -> None:
+        raise RuntimeError("simulated tail failure")
+
+    monkeypatch.setattr(service, "_tail_file", fail_tail)
 
     await service.start(skip_validation=True)
     try:
         await wait_until(lambda: not service.is_running)
         assert not service.is_task_running
+        with pytest.raises(RuntimeError, match="simulated tail failure"):
+            await service._tail_tasks[0]
     finally:
         await service.stop(timeout=5.0)
 
@@ -656,6 +793,135 @@ def make_parsed_record(ip: str) -> ParsedLogRecord:
         ),
         raw_line=make_log_line(ip),
     )
+
+
+def _geo_record(ip: str, longitude: float) -> ParsedLogRecord:
+    geo = ParsedGeoData(
+        latitude=51.5,
+        longitude=longitude,
+        geohash=encode(51.5, longitude, precision=5),
+        country_code="GB",
+        country_name="UK",
+        timestamp=datetime.now(timezone.utc),
+        city="London",
+    )
+    return ParsedLogRecord(
+        ip_address=ip,
+        geo_data=geo,
+        access_log=None,
+        raw_line="x",
+    )
+
+
+async def test_commit_failure_counts_lost_records_once_and_success_does_not_increment(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    service, repos, _sessions = make_service([])
+    repos.fail_next_commits = 1
+
+    with caplog.at_level("ERROR"):
+        await service.flush_records([
+            _geo_record(TEST_DB_IPS[0], -0.09),
+            _geo_record(TEST_DB_IPS[1], -0.19),
+        ])
+
+    assert service.failed_batches == 1
+    assert service.failed_records == 2
+    assert any(
+        "ingestion_batch_failed" in record.getMessage()
+        for record in caplog.records
+    )
+
+    await service.flush_records([_geo_record(TEST_DB_IPS[0], -0.29)])
+
+    assert service.failed_batches == 1
+    assert service.failed_records == 2
+
+
+async def test_later_record_failure_counts_earlier_rolled_back_candidates() -> None:
+    service, repos, _sessions = make_service([])
+    repos.fail_flush_calls = {2}
+
+    await service.flush_records([
+        _geo_record(TEST_DB_IPS[0], -0.09),
+        _geo_record(TEST_DB_IPS[1], -0.19),
+        _geo_record(TEST_DB_IPS[0], -0.29),
+    ])
+
+    assert service.failed_batches == 1
+    assert service.failed_records == 2
+    assert len(repos.geo_event.added) == 1
+
+
+async def test_record_and_commit_failures_do_not_double_count_records() -> None:
+    service, repos, _sessions = make_service([])
+    repos.fail_flush_calls = {2}
+    repos.fail_next_commits = 1
+
+    await service.flush_records([
+        _geo_record(TEST_DB_IPS[0], -0.09),
+        _geo_record(TEST_DB_IPS[1], -0.19),
+        _geo_record(TEST_DB_IPS[0], -0.29),
+    ])
+
+    assert service.failed_batches == 1
+    assert service.failed_records == 3
+
+
+async def test_multiple_record_failures_count_each_lost_record_once() -> None:
+    service, repos, _sessions = make_service([])
+    repos.fail_flush_calls = {2, 4}
+
+    await service.flush_records([
+        _geo_record(TEST_DB_IPS[0], -0.09),
+        _geo_record(TEST_DB_IPS[1], -0.19),
+        _geo_record(TEST_DB_IPS[0], -0.29),
+        _geo_record(TEST_DB_IPS[1], -0.39),
+        _geo_record(TEST_DB_IPS[0], -0.49),
+    ])
+
+    assert service.failed_batches == 1
+    assert service.failed_records == 4
+    assert len(repos.geo_event.added) == 1
+
+
+async def test_counters_finalize_when_commit_rollback_raises() -> None:
+    service, repos, _sessions = make_service([])
+    repos.fail_next_commits = 1
+    repos.fail_next_rollbacks = 1
+
+    with pytest.raises(RuntimeError, match="simulated rollback error"):
+        await service.flush_records([_geo_record(TEST_DB_IPS[0], -0.09)])
+
+    assert service.failed_batches == 1
+    assert service.failed_records == 1
+    assert service._location_cache == {}
+    assert service._uncommitted_geohashes == set()
+
+
+async def test_record_rollback_failure_drops_remainder_and_stops_session() -> None:
+    channels = _channels_stub()
+    service, repos, sessions = make_service([], channels=channels)
+    repos.fail_flush_calls = {2}
+    repos.fail_next_rollbacks = 1
+    records = [
+        _geo_record(TEST_DB_IPS[0], -0.09),
+        _geo_record(TEST_DB_IPS[1], -0.19),
+        _geo_record(TEST_DB_IPS[0], -0.29),
+    ]
+
+    await service.flush_records(records)
+
+    assert service.failed_batches == 1
+    assert service.failed_records == len(records)
+    assert repos.flush_calls == 2
+    assert sessions[0].commits == 0
+    assert repos.geo_event.added == []
+    assert len(repos.geo_event.added) + service.failed_records == len(records)
+    assert sessions[0].closed is True
+    channels.publish.assert_not_called()
+    assert service._location_cache == {}
+    assert service._uncommitted_geohashes == set()
 
 
 def test_service_has_no_inprocess_subscriber_api() -> None:

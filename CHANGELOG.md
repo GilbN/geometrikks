@@ -7,12 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Startup waits for the database for up to `DB_STARTUP_WAIT_SECONDS`, which defaults to 30 seconds. If it remains unreachable, the app serves in degraded mode with a critical Status advisory and keeps checking. When the database returns, recovery runs the deferred migrations and starts the paused services.
+- Status page advisories for a disconnected live-feed listener, a GeoLite2 database past MaxMind's 30-day window, an undetected map home, failed TimescaleDB policy updates, dropped ingestion batches, and a failing CDN peer scan. The sidebar dot turns amber while any advisory is open.
+
 ### Changed
 
+- Health reports degraded whenever database-bound services are paused, even with ingestion disabled by configuration, and the database card says "Reachable, services paused" for that state.
+- The Scheduler page identifies database unavailability as the reason jobs have not started.
+- Live feed indicators say "paused" when the server refuses the stream, and the CrowdSec card notes when live updates are paused.
 - `.env.example` and the quickstart now list `MAP_CARTO_API_KEY` next to the MaxMind credentials.
 
 ### Fixed
 
+- Failures from the GeoIP refresh, location refresh and aggregate refresh jobs appear on the Scheduler page.
+- A configured log file that has not appeared is listed as missing, and tailing starts when the file appears.
+- The site-home refresh job updates the map home without a restart.
+- A failed CDN peer scan retains the previous findings and keeps the advisory open.
 - The live rail on the map stops short of the bottom-left corner, so it no longer covers the basemap attribution pill.
 
 ## [0.14.2] - 2026-09-05

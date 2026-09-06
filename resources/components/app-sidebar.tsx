@@ -43,6 +43,7 @@ import { BrandMark } from "@/components/brand/brand-mark"
 import { Wordmark } from "@/components/brand/wordmark"
 import {
   sidebarIngestionVariant,
+  sidebarStatusTooltip,
   type SidebarIngestionVariant,
 } from "@/components/settings/status-logic"
 import { useLiveFeedStatus } from "@/lib/live-feed-context"
@@ -228,6 +229,7 @@ function LiveIndicator({ collapsed }: { collapsed: boolean }) {
   const INDICATOR_STYLES: Record<SidebarIngestionVariant, { color: string; label: string; tooltip: string }> = {
     offline: { color: "bg-gray-400", label: "Offline", tooltip: "Cannot connect to backend" },
     degraded: { color: "bg-amber-400", label: "Degraded", tooltip: "Service degraded - see Settings > Status" },
+    attention: { color: "bg-amber-400", label: "Attention", tooltip: "Advisories need attention - see Settings > Status" },
     // Neutral, not amber: LOGPARSER_ENABLED=false is a deliberate setting
     // (UI-head deployments); other instances or agents write the data.
     disabled: { color: "bg-sidebar-foreground/30", label: "Ingestion off", tooltip: "Log tailing is turned off (LOGPARSER_ENABLED=false)" },
@@ -235,7 +237,11 @@ function LiveIndicator({ collapsed }: { collapsed: boolean }) {
     inactive: { color: "bg-gray-400", label: "Inactive", tooltip: "Service status unknown" },
   }
 
-  const { color, label, tooltip } = INDICATOR_STYLES[variant]
+  const { color, label, tooltip: baseTooltip } = INDICATOR_STYLES[variant]
+  const tooltip =
+    variant === "degraded" || variant === "attention"
+      ? sidebarStatusTooltip(baseTooltip, health?.advisories?.length ?? 0, variant)
+      : baseTooltip
 
   if (collapsed) {
     return (
@@ -314,15 +320,25 @@ function LiveFeedIndicator({ collapsed }: { collapsed: boolean }) {
       ? "bg-emerald-400"
       : status === "connecting"
         ? "bg-amber-400 animate-pulse"
-        : "bg-sidebar-foreground/30"
+        : status === "unavailable"
+          ? "bg-amber-400"
+          : "bg-sidebar-foreground/30"
   const label =
-    status === "connected" ? "Live feed" : status === "connecting" ? "Connecting" : "Live feed off"
+    status === "connected"
+      ? "Live feed"
+      : status === "connecting"
+        ? "Connecting"
+        : status === "unavailable"
+          ? "Live feed paused"
+          : "Live feed off"
   const tooltip =
     status === "connected"
       ? "Live event feed connected"
       : status === "connecting"
         ? "Connecting to live event feed"
-        : "Live feed idle (no active subscribers)"
+        : status === "unavailable"
+          ? "The server is not streaming events right now. See Settings > Status."
+          : "Live feed idle (no active subscribers)"
 
   if (collapsed) {
     return (

@@ -174,8 +174,8 @@ class LogParser:
         self.skipped_lines: int = 0
         self.ignored_lines: int = 0
 
-        # True while the tailed file is missing mid-flight (deleted/moved);
-        # surfaced through LogIngestionService.missing_files into /health.
+        # True while the configured file is absent. This is surfaced through
+        # LogIngestionService.missing_files into /health.
         self.file_missing: bool = False
 
         # Stop event for graceful shutdown (set by ingestion service)
@@ -191,8 +191,22 @@ class LogParser:
         """Set the stop event for graceful shutdown."""
         self._stop_event = event
 
+    def mark_missing(self) -> None:
+        """Flag the file as absent and expose it through health status."""
+        if not self.file_missing:
+            logger.error(
+                "Log file does not exist: %s - waiting for it to appear", self.log_path
+            )
+            self.file_missing = True
+
+    def mark_present(self) -> None:
+        """Clear the missing flag, logging the recovery once."""
+        if self.file_missing:
+            logger.info("Log file reappeared, resuming tail: %s", self.log_path)
+            self.file_missing = False
+
     def _mark_file_missing(self, err: OSError) -> None:
-        """Record (and log exactly once) that the tailed file disappeared."""
+        """Record a mid-flight absence with the operating system error."""
         if not self.file_missing:
             logger.error(
                 "Log file no longer exists or cannot be read: %s - "
@@ -203,10 +217,7 @@ class LogParser:
             self.file_missing = True
 
     def _mark_file_present(self) -> None:
-        """Clear the missing flag, logging the recovery once."""
-        if self.file_missing:
-            logger.info("Log file reappeared, resuming tail: %s", self.log_path)
-            self.file_missing = False
+        self.mark_present()
 
     def parsed_lines_count(self) -> int:
         """Return the number of parsed lines."""

@@ -11,7 +11,7 @@ import platform
 import msgspec
 from datetime import datetime, timezone
 from importlib.metadata import PackageNotFoundError, version as dist_version
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 from litestar import Controller, Litestar, Request, get, post
 from litestar.di import NamedDependency
@@ -59,10 +59,15 @@ class SchedulerJobView(msgspec.Struct, rename="camel"):
     last_error: str | None
 
 
+SchedulerStatus = Literal["running", "disabled", "unavailable"]
+
+
 class SchedulerJobsResponse(msgspec.Struct, rename="camel"):
     scheduler_enabled: bool
     scheduler_running: bool
     jobs: list[SchedulerJobView]
+    # "unavailable" means DB-degraded mode never started the scheduler.
+    status: SchedulerStatus = "running"
 
 
 REPO_URL = "https://github.com/GilbN/geometrikks"
@@ -425,13 +430,17 @@ class SystemController(Controller):
         scheduler = runtime.get_scheduler(request.app)
         if scheduler is None:
             return SchedulerJobsResponse(
-                scheduler_enabled=False, scheduler_running=False, jobs=[]
+                scheduler_enabled=False,
+                scheduler_running=False,
+                jobs=[],
+                status="unavailable",
             )
         tracker = runtime.get_scheduler_tracker(request.app)
         return SchedulerJobsResponse(
             scheduler_enabled=settings.scheduler.enabled,
             scheduler_running=scheduler.running,
             jobs=[_job_view(job, tracker) for job in scheduler.get_jobs()],
+            status="running" if settings.scheduler.enabled else "disabled",
         )
 
     @post("/scheduler/jobs/{job_id:str}/run", status_code=HTTP_202_ACCEPTED)

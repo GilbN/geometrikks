@@ -175,8 +175,9 @@ def _fake_ingestion(*, stale: bool) -> MagicMock:
 @pytest.fixture
 def refresh(monkeypatch: pytest.MonkeyPatch) -> AsyncMock:
     from geometrikks.services.geoip import downloader
+    from geometrikks.services.geoip.downloader import RefreshResult
 
-    mock = AsyncMock()
+    mock = AsyncMock(return_value=RefreshResult())
     monkeypatch.setattr(downloader, "refresh_geoip_databases", mock)
     return mock
 
@@ -254,6 +255,23 @@ async def test_job_reports_unavailable_databases(
     await refresh_geoip_job(Settings(), cast("Any", app))
 
     assert app.state.geoip_available is False
+
+
+async def test_job_raises_after_reloading_when_a_download_failed(
+    refresh: AsyncMock,
+) -> None:
+    """A failed edition must reach the run tracker after readers reload."""
+    from geometrikks.config.settings import Settings
+    from geometrikks.server.scheduler import refresh_geoip_job
+    from geometrikks.services.geoip.downloader import RefreshResult
+
+    refresh.return_value = RefreshResult(city_error="City: 503")
+    service = _fake_ingestion(stale=True)
+
+    with pytest.raises(RuntimeError, match="City: 503"):
+        await refresh_geoip_job(Settings(), cast("Any", _fake_app(service)))
+
+    service.reload_readers.assert_awaited_once()
 
 
 async def test_create_scheduler_wires_the_wrapper_with_app() -> None:

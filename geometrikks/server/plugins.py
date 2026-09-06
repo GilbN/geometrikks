@@ -13,7 +13,7 @@ import platform
 import shutil
 from functools import lru_cache
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 
 from litestar.channels import ChannelsPlugin
 from litestar.channels.backends.asyncpg import AsyncPgChannelsBackend
@@ -146,13 +146,7 @@ def create_structlog_plugin(settings: Settings) -> StructlogPlugin:
 
 
 class DegradedTolerantAsyncPgBackend(AsyncPgChannelsBackend):
-    """AsyncPg channels backend that degrades instead of failing startup.
-
-    ChannelsPlugin connects during app startup; an unreachable database must
-    put the app in the existing DB-degraded mode, not crash boot. When
-    degraded, publish and subscribe are no-ops and the event stream stays
-    silent; /ws/live independently gates on db_available and closes 1013.
-    """
+    """Keep the live-events queue running while the LISTEN connection recovers."""
 
     _RECONNECT_INITIAL_DELAY = 1
     _RECONNECT_MAX_DELAY = 30
@@ -162,112 +156,141 @@ class DegradedTolerantAsyncPgBackend(AsyncPgChannelsBackend):
         self.degraded = False
         self._pub_conn: Any | None = None
         self._reconnect_task: asyncio.Task[None] | None = None
+        self._install_task: asyncio.Task[Any] | None = None
         self._closing = False
-        # Serializes subscribe/unsubscribe. A page refresh makes the plugin
-        # unsubscribe the departing /ws/live client and subscribe the new one
-        # concurrently; without the lock, subscribe can interleave into
-        # unsubscribe's awaited UNLISTEN, read the not-yet-updated
-        # bookkeeping as "already subscribed", and skip its LISTEN -- leaving
-        # the process deaf to NOTIFYs until another full cycle.
+        # Installing and subscribing must share a lock so no channel misses
+        # the candidate's LISTEN replay just before it becomes visible.
         self._sub_lock = asyncio.Lock()
+        self._recovered = asyncio.Event()
+
+    @property
+    def state(self) -> Literal["ok", "degraded", "reconnecting"]:
+        if self.degraded:
+            return "degraded"
+        if not self._recovered.is_set() and self._reconnect_task is not None:
+            return "reconnecting"
+        return "ok"
 
     async def on_startup(self) -> None:
+        # The plugin's stream keeps this queue through every connection retry.
+        self._queue = asyncio.Queue()
         try:
-            await super().on_startup()
+            await self._install_listener()
         except Exception as exc:
             self.degraded = True
-            logger.warning("Channels backend degraded (DB unreachable): %s", exc)
+            logger.warning("channels_backend_degraded", error=str(exc))
+            self._ensure_retry()
+
+    async def recover(self) -> None:
+        """Retry degraded startup, raising on failure while background retries continue."""
+        if self._closing:
+            raise RuntimeError("Channels backend is shutting down")
+        if not self.degraded:
             return
-        self._listener_conn.add_termination_listener(self._on_listener_terminated)
-
-    def _on_listener_terminated(self, connection: Any) -> None:
-        """Surface a dropped LISTEN connection and self-heal it.
-
-        Must never raise: asyncpg schedules this via call_soon/create_task,
-        and an escaping exception there is unhandled by our code. A graceful
-        on_shutdown() unregisters this callback before closing, so reaching
-        here means the drop was unexpected -- log it and, unless we're
-        already shutting down or already recovering, spawn the reconnect
-        loop.
-        """
         try:
-            logger.error(
-                "channels listener connection lost; attempting automatic reconnect"
-            )
-        except Exception:  # pragma: no cover - logging itself must not cascade
-            pass
+            await self._install_listener()
+        finally:
+            if self.degraded:
+                self._ensure_retry()
+
+    async def _close_listener(self, conn: Any) -> None:
+        # asyncpg fires termination listeners even on an intentional close.
+        with contextlib.suppress(Exception):
+            conn.remove_termination_listener(self._on_listener_terminated)
+        with contextlib.suppress(Exception):
+            await conn.close()
+
+    async def _install_listener(self) -> None:
+        async with self._sub_lock:
+            if self._closing:
+                raise RuntimeError("Channels backend is shutting down")
+            if self._recovered.is_set():
+                return
+            self._install_task = asyncio.current_task()
+            conn: Any | None = None
+            try:
+                conn = await self._connect()
+                conn.add_termination_listener(self._on_listener_terminated)
+                for channel in list(self._subscribed_channels):
+                    await conn.add_listener(channel, self._listener)
+                if self._closing:
+                    raise RuntimeError("Channels backend is shutting down")
+                if conn.is_closed():
+                    raise OSError("Channels listener closed during registration")
+            except BaseException:
+                if conn is not None:
+                    # Shutdown can cancel an install whose caller already
+                    # cancelled it. Finish closing before releasing the lock.
+                    cleanup = asyncio.create_task(self._close_listener(conn))
+                    cancelled = False
+                    while not cleanup.done():
+                        try:
+                            await asyncio.shield(cleanup)
+                        except asyncio.CancelledError:
+                            cancelled = True
+                    cleanup.result()
+                    if cancelled:
+                        raise asyncio.CancelledError
+                raise
+            finally:
+                self._install_task = None
+            self._listener_conn = conn
+            self.degraded = False
+            self._recovered.set()
+            logger.info("channels_backend_recovered")
+
+    def _ensure_retry(self) -> None:
         if self._closing:
             return
-        if self._reconnect_task is not None and not self._reconnect_task.done():
+        if self._reconnect_task is None or self._reconnect_task.done():
+            self._reconnect_task = asyncio.get_running_loop().create_task(self._reconnect_listener())
+
+    def _on_listener_terminated(self, connection: Any) -> None:
+        """asyncpg callbacks must not raise, including during cleanup."""
+        if self._closing or connection is not getattr(self, "_listener_conn", None):
             return
-        self._reconnect_task = asyncio.get_running_loop().create_task(self._reconnect_listener())
+        self._recovered.clear()
+        try:
+            logger.error("channels listener connection lost; attempting automatic reconnect")
+            self._ensure_retry()
+        except Exception:  # pragma: no cover - callback must not cascade
+            pass
 
     async def _reconnect_listener(self) -> None:
-        """Rebuild the LISTEN connection with capped exponential backoff.
-
-        Each attempt redoes exactly what on_startup() + subscribe() did:
-        open a fresh connection, register the termination callback, and
-        LISTEN every channel still in `_subscribed_channels`. subscribe()
-        itself won't re-issue LISTEN for channels already in that set, so
-        the re-registration goes straight through add_listener() instead.
-        """
         delay = self._RECONNECT_INITIAL_DELAY
+        if self.degraded:
+            await asyncio.sleep(delay)
         while not self._closing:
-            new_conn: Any | None = None
             try:
-                new_conn = await self._connect()
-                new_conn.add_termination_listener(self._on_listener_terminated)
-                # Snapshot: subscribe() mutates this set in place, and a
-                # /ws/live client connecting mid-reconnect would otherwise
-                # blow up the iteration ("set changed size") and waste an
-                # attempt. A channel added after the snapshot stays tracked
-                # and heals on a later reconnect, same as any subscribe that
-                # hits the dead-connection window. In production the set is
-                # a single fixed channel, so that window is a startup edge.
-                for channel in list(self._subscribed_channels):
-                    await new_conn.add_listener(channel, self._listener)
+                await self._install_listener()
             except Exception as exc:
-                logger.warning("channels listener reconnect attempt failed: %s", exc)
-                if new_conn is not None:
-                    # Unregister first: closing an abandoned connection that
-                    # still carries the just-added termination callback
-                    # would fire it and log a false "listener connection
-                    # lost" ERROR for a cleanup close, even though a retry
-                    # follows immediately after.
-                    with contextlib.suppress(Exception):
-                        new_conn.remove_termination_listener(self._on_listener_terminated)
-                    with contextlib.suppress(Exception):
-                        await new_conn.close()
+                logger.warning("channels_listener_reconnect_failed", error=str(exc))
                 await asyncio.sleep(delay)
                 delay = min(delay * 2, self._RECONNECT_MAX_DELAY)
                 continue
-            self._listener_conn = new_conn
-            logger.info("channels listener reconnected")
             return
 
     async def on_shutdown(self) -> None:
         self._closing = True
-        if self._reconnect_task is not None:
-            self._reconnect_task.cancel()
+        tasks = {task for task in (self._reconnect_task, self._install_task) if task is not None}
+        for task in tasks:
+            task.cancel()
+        for task in tasks:
             with contextlib.suppress(asyncio.CancelledError):
-                await self._reconnect_task
-            self._reconnect_task = None
-        if self.degraded:
-            return
-        if self._pub_conn is not None:
-            with contextlib.suppress(Exception):
-                await self._pub_conn.close()
-            self._pub_conn = None
-        # asyncpg fires termination listeners on a graceful close() too (via
-        # Connection._cleanup()), not just on an unexpected drop. Unregister
-        # first so a normal shutdown doesn't log a false "listener lost"
-        # alarm; remove_termination_listener() uses set.discard() internally
-        # so it is a no-op if the listener was never added.
-        try:
-            self._listener_conn.remove_termination_listener(self._on_listener_terminated)
-        except Exception:  # pragma: no cover - shutdown must not be blocked by this
-            pass
-        await super().on_shutdown()
+                await task
+        self._reconnect_task = None
+        async with self._sub_lock:
+            if self._pub_conn is not None:
+                with contextlib.suppress(Exception):
+                    await self._pub_conn.close()
+                self._pub_conn = None
+            conn = getattr(self, "_listener_conn", None)
+            if conn is not None:
+                await self._close_listener(conn)
+                del self._listener_conn
+            self._queue = None
+            self._recovered.clear()
+        logger.info("channels_backend_stopped")
 
     async def publish(self, data: bytes, channels: Iterable[str]) -> None:
         """Publish over one lazily opened, reused connection.
@@ -281,7 +304,7 @@ class DegradedTolerantAsyncPgBackend(AsyncPgChannelsBackend):
         surfaces the drop is the one cost of detecting it -- there is no
         earlier signal to catch it on.
         """
-        if self.degraded:
+        if self.degraded or self._closing:
             return
         try:
             if self._pub_conn is None or self._pub_conn.is_closed():
@@ -310,9 +333,12 @@ class DegradedTolerantAsyncPgBackend(AsyncPgChannelsBackend):
         (which walks `_subscribed_channels`) heals it once the connection
         is replaced.
         """
-        if self.degraded:
-            return
         async with self._sub_lock:
+            if self._closing:
+                return
+            if self.degraded:
+                self._subscribed_channels.update(channels)
+                return
             for channel in set(channels) - self._subscribed_channels:
                 try:
                     await self._listener_conn.add_listener(channel, self._listener)  # type: ignore[arg-type]
@@ -345,15 +371,19 @@ class DegradedTolerantAsyncPgBackend(AsyncPgChannelsBackend):
 
     async def stream_events(self) -> AsyncGenerator[tuple[str, bytes], None]:
         if self.degraded:
-            await asyncio.Event().wait()  # silent forever; plugin task parks here
+            await self._recovered.wait()
         async for item in super().stream_events():
             yield item
 
 
-def create_channels_plugin(settings: Settings) -> ChannelsPlugin:
+def create_channels_plugin(
+    settings: Settings, backend: DegradedTolerantAsyncPgBackend | None = None
+) -> ChannelsPlugin:
     """Cross-process live-events fan-out over Postgres LISTEN/NOTIFY."""
     return ChannelsPlugin(
-        backend=DegradedTolerantAsyncPgBackend(dsn=settings.database.asyncpg_dsn),
+        backend=(
+            backend if backend is not None else DegradedTolerantAsyncPgBackend(dsn=settings.database.asyncpg_dsn)
+        ),
         channels=[LIVE_EVENTS_CHANNEL],
         arbitrary_channels_allowed=False,
         subscriber_max_backlog=1000,
@@ -406,14 +436,15 @@ def create_plugins(
     ]
     if include_vite:
         plugin_list.append(VitePlugin(config=create_vite_config(settings)))
+    channels_backend = DegradedTolerantAsyncPgBackend(dsn=settings.database.asyncpg_dsn)
     plugin_list.extend(
         [
             ImportLogsCLIPlugin(),
             create_structlog_plugin(settings),
-            create_channels_plugin(settings),
+            create_channels_plugin(settings, channels_backend),
             # Last on purpose: its lifespan managers must nest inside the
             # channels plugin's (see lifecycle.LifecyclePlugin).
-            LifecyclePlugin(),
+            LifecyclePlugin(channels_backend=channels_backend),
         ]
     )
     return plugin_list

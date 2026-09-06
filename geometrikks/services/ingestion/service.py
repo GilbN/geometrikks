@@ -20,6 +20,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+import aiofiles.os
 from geoip2.database import Reader
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -33,7 +34,7 @@ from geometrikks.domain.realtime.events import LIVE_EVENTS_CHANNEL, encode_guard
 from geometrikks.services.logparser.schemas import ParsedLogRecord, ParsedGeoData, ParsedAccessLog
 from geometrikks.services.logparser.constants import ALLOWED_GEOIP_LOCALES, GEOIP_LOCALES_DEFAULT
 from geometrikks.services.logparser.logparser import LogParser
-from geometrikks.lib.utils import wait_for_path
+from geometrikks.lib.utils import sleep_unless_stopped, wait_for_path
 from geometrikks.server.logging import get_logger
 
 if TYPE_CHECKING:
@@ -41,6 +42,8 @@ if TYPE_CHECKING:
 
 
 logger = get_logger(__name__)
+
+MISSING_FILE_GRACE_SECONDS = 60.0
 
 
 @dataclass
@@ -157,6 +160,8 @@ class LogIngestionService:
         self._queue_maxsize: int = queue_maxsize
         self._channels: "ChannelsPlugin | None" = channels
         self.publish_dropped: int = 0
+        self.failed_batches: int = 0
+        self.failed_records: int = 0
 
         # In-memory cache: geohash -> committed (or pending-commit) GeoLocation id.
         # Ids cached since the last successful commit are tracked so a rollback
@@ -278,12 +283,19 @@ class LogIngestionService:
         """Tail a single log file, pushing parsed records onto the shared queue."""
         logger.debug("Waiting for log file: %s", parser.log_path)
         if not await wait_for_path(
-            parser.log_path, timeout_seconds=60.0, stop_event=self._stop_event
+            parser.log_path,
+            timeout_seconds=MISSING_FILE_GRACE_SECONDS,
+            stop_event=self._stop_event,
         ):
             if self._stop_event and self._stop_event.is_set():
                 return  # shutting down, not a missing-file problem
-            logger.error("Skipping ingestion for missing log file: %s", parser.log_path)
-            return
+            parser.mark_missing()
+            while not await aiofiles.os.path.exists(parser.log_path):
+                if await sleep_unless_stopped(
+                    parser.poll_interval, self._stop_event
+                ):
+                    return
+            parser.mark_present()
         assert self._queue is not None
         async for record in parser.iter_parsed_records(
             reader, asn_reader, skip_validation=skip_validation
@@ -310,31 +322,58 @@ class LogIngestionService:
                 task.cancel()
             await asyncio.gather(*pending, return_exceptions=True)
 
-        try:
-            await asyncio.wait_for(self._ingestion_task, timeout=timeout)
-        except asyncio.TimeoutError:
+        consumer_task = self._ingestion_task
+        _done, pending = await asyncio.wait({consumer_task}, timeout=timeout)
+        if pending:
             logger.warning("Ingestion did not stop gracefully, cancelling")
-            self._ingestion_task.cancel()
-            try:
-                await self._ingestion_task
-            except asyncio.CancelledError:
-                pass
+            consumer_task.cancel()
+
+        consumer_failure: BaseException | None = None
+        try:
+            await consumer_task
         except asyncio.CancelledError:
             pass
+        except BaseException as e:
+            consumer_failure = e
+            logger.error(
+                "ingestion_consumer_failed_during_stop",
+                error=str(e),
+                error_type=type(e).__name__,
+            )
         finally:
             self.is_running = False
 
         # Every task that used the readers is done; release their mmaps.
-        if self._reader is not None:
-            self._reader.close()
-            self._reader = None
-        if self._asn_reader is not None:
-            self._asn_reader.close()
-            self._asn_reader = None
+        cleanup_failure: BaseException | None = None
+        for attribute, reader_name in (
+            ("_reader", "city"),
+            ("_asn_reader", "asn"),
+        ):
+            reader = getattr(self, attribute)
+            if reader is None:
+                continue
+            try:
+                reader.close()
+            except BaseException as e:
+                if cleanup_failure is None:
+                    cleanup_failure = e
+                logger.exception(
+                    "ingestion_reader_close_failed",
+                    reader=reader_name,
+                    error=str(e),
+                )
+            finally:
+                setattr(self, attribute, None)
+
+        self._ingestion_task = None
 
         logger.info(
             "Stopped log ingestion service. Total processed: %d", self.total_processed
         )
+        if consumer_failure is not None:
+            raise consumer_failure
+        if cleanup_failure is not None:
+            raise cleanup_failure
 
     def readers_stale(self) -> bool:
         """True when a database file on disk differs from what the readers opened.
@@ -378,7 +417,7 @@ class LogIngestionService:
             while True:
                 # Exit once every producer is done and the queue is drained.
                 # This covers graceful stop() and the case where all tail
-                # tasks died on their own (e.g. every log file missing);
+                # tasks died on their own after unexpected failures;
                 # without the latter, is_running would stay True forever and
                 # /health would keep reporting a healthy ingestion.
                 if self._queue.empty() and all(
@@ -522,6 +561,13 @@ class LogIngestionService:
             self._location_cache.pop(geohash, None)
         self._uncommitted_geohashes.clear()
 
+    def _evict_batch_locations(self, batch: list[ParsedLogRecord]) -> None:
+        """Drop all cached locations associated with a failed transaction."""
+        self._evict_uncommitted_locations()
+        for record in batch:
+            if record.geo_data:
+                self._location_cache.pop(record.geo_data.geohash, None)
+
     def _sanitize_for_postgres(self, value: str | None) -> str | None:
         """Remove null bytes from strings for PostgreSQL compatibility.
 
@@ -584,47 +630,70 @@ class LogIngestionService:
         # post-commit. A per-record failure rolls back earlier records of this
         # batch (matching existing semantics), so reset the list on failure too.
         committed_candidates: list[ParsedLogRecord] = []
+        batch_failed = False
+        lost_records = 0
 
-        async with self._session_maker() as session:
-            repos = self._repos_factory(session)
-            for record in batch:
+        try:
+            async with self._session_maker() as session:
+                repos = self._repos_factory(session)
+                for record in batch:
+                    try:
+                        await self._process_record(record, repos, flushed)
+                        committed_candidates.append(record)
+                    except Exception as e:
+                        rolled_back_records = len(committed_candidates) + 1
+                        logger.error(
+                            "ingestion_batch_failed",
+                            records=rolled_back_records,
+                            error=str(e),
+                            raw_line=(record.raw_line or "")[:100],
+                        )
+                        batch_failed = True
+                        lost_records += rolled_back_records
+                        committed_candidates = []
+                        try:
+                            await session.rollback()
+                        except Exception as rollback_err:
+                            logger.error(
+                                "ingestion_batch_rollback_failed",
+                                records=len(batch),
+                                error=str(rollback_err),
+                            )
+                            lost_records = len(batch)
+                            self._evict_batch_locations(batch)
+                            return
+                        self._evict_uncommitted_locations()
+                        # The failing record may have hit a poisoned cache entry
+                        # (an id cached before this service run whose row does not
+                        # exist, e.g. after a crashed commit). Uncommitted-tracking
+                        # can't see those, so drop the record's own geohash too.
+                        if record.geo_data:
+                            self._location_cache.pop(record.geo_data.geohash, None)
+
                 try:
-                    await self._process_record(record, repos, flushed)
-                    committed_candidates.append(record)
+                    await session.commit()
                 except Exception as e:
+                    commit_lost_records = len(committed_candidates)
                     logger.error(
-                        "Failed to process record (rolling back batch): %s - raw_line preview: %.100s",
-                        e,
-                        record.raw_line[:100] if record.raw_line else "N/A",
+                        "ingestion_batch_failed",
+                        records=commit_lost_records,
+                        error=str(e),
                     )
-                    committed_candidates = []
+                    batch_failed = True
+                    lost_records += commit_lost_records
                     try:
                         await session.rollback()
-                    except Exception as rollback_err:
-                        logger.error("Rollback failed: %s", rollback_err)
-                    self._evict_uncommitted_locations()
-                    # The failing record may have hit a poisoned cache entry
-                    # (an id cached before this service run whose row does not
-                    # exist, e.g. after a crashed commit). Uncommitted-tracking
-                    # can't see those, so drop the record's own geohash too.
-                    if record.geo_data:
-                        self._location_cache.pop(record.geo_data.geohash, None)
-
-            try:
-                await session.commit()
-            except Exception as e:
-                logger.error("Batch commit failed (rolling back): %s", e)
-                await session.rollback()
-                self._evict_uncommitted_locations()
-                # Same poisoned-entry hazard as above, but here we don't know
-                # which record broke the commit — evict every geohash the
-                # batch touched so the next flush re-resolves them from the DB.
-                for record in batch:
-                    if record.geo_data:
-                        self._location_cache.pop(record.geo_data.geohash, None)
-            else:
-                self._uncommitted_geohashes.clear()
-                self._publish(committed_candidates)
+                    finally:
+                        # The failed commit does not identify which cached
+                        # location poisoned the transaction.
+                        self._evict_batch_locations(batch)
+                else:
+                    self._uncommitted_geohashes.clear()
+                    self._publish(committed_candidates)
+        finally:
+            if batch_failed:
+                self.failed_batches += 1
+                self.failed_records += lost_records
 
         logger.debug(
             "Committed batch of %d records. (Geo: %d | Log: %d | Debug: %d)",
@@ -730,5 +799,5 @@ class LogIngestionService:
 
     @property
     def missing_files(self) -> list[str]:
-        """Tailed log files that have disappeared mid-flight (see /health)."""
+        """Configured log files currently absent, since startup or after removal."""
         return [str(parser.log_path) for parser in self.parsers if parser.file_missing]

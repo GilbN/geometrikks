@@ -25,9 +25,15 @@ from sqlalchemy import text
 from geometrikks.config.settings import Settings
 from geometrikks.domain.system.proxy_detection import proxy_advisories, proxy_findings
 from geometrikks.lib.utils import geoip_info
+from geometrikks.lib.advisories import Advisory
 from geometrikks.server import runtime
+from geometrikks.services.geoip.downloader import has_credentials
 from geometrikks.services.ingestion import LogIngestionService
 from geometrikks.domain.system.dependencies import provide_ingestion_service as pis
+
+
+# This license window is independent of the configured refresh schedule.
+MAXMIND_REFRESH_WINDOW_DAYS = 30
 
 
 class IngestionHealth(msgspec.Struct, rename="camel"):
@@ -39,10 +45,15 @@ class IngestionHealth(msgspec.Struct, rename="camel"):
     # Additive: kept alongside `running` for wire compatibility.
     status: Literal["running", "degraded", "disabled"] = "running"
     publish_dropped: int = 0
+    failed_batches: int = 0
+    failed_records: int = 0
 
 
 class DatabaseHealth(msgspec.Struct, rename="camel"):
     reachable: bool
+    # Additive: False while the app runs DB-degraded (scheduler, ingestion
+    # and live feeds paused) even though `reachable` may already be True.
+    services_active: bool = True
 
 
 class GeoIPHealth(msgspec.Struct, rename="camel"):
@@ -56,18 +67,6 @@ class GeoIPHealth(msgspec.Struct, rename="camel"):
 class CrowdSecHealth(msgspec.Struct, rename="camel"):
     enabled: bool
     lapi_reachable: bool | None
-
-
-class Advisory(msgspec.Struct, rename="camel"):
-    """One operator-actionable warning; the status page renders a card per
-    advisory, so producers must write user-facing text, not log lines."""
-
-    id: str
-    severity: Literal["warning", "critical"]
-    summary: str
-    detail: str | None = None
-    remedy: str | None = None
-    docs_url: str | None = None
 
 
 class HealthResponse(msgspec.Struct, rename="camel"):
@@ -108,10 +107,177 @@ async def _database_reachable(app: Litestar, timeout: float = 2.0) -> bool:
         return False
 
 
+def _stale_geoip_advisories(settings: Settings) -> list[Advisory]:
+    editions = [
+        ("City", settings.geoip.db_path, True, "geoip-database-stale"),
+        (
+            "ASN",
+            settings.geoip.asn_db_path,
+            settings.geoip.asn_enabled,
+            "asn-database-stale",
+        ),
+    ]
+    advisories: list[Advisory] = []
+    credentials_available = has_credentials(settings.geoip)
+    refresh_days = settings.geoip.refresh_days
+    refresh_interval = f"{refresh_days} {'day' if refresh_days == 1 else 'days'}"
+    long_cadence = refresh_days > MAXMIND_REFRESH_WINDOW_DAYS
+    for edition, path, enabled, advisory_id in editions:
+        if not enabled:
+            continue
+        info = geoip_info(path)
+        if (
+            not info.available
+            or info.age_days is None
+            or info.age_days <= MAXMIND_REFRESH_WINDOW_DAYS
+        ):
+            continue
+        if long_cadence:
+            if credentials_available:
+                summary = (
+                    f"The GeoLite2 {edition} database is {info.age_days} days old and "
+                    "is outside MaxMind's 30-day refresh window."
+                )
+            else:
+                summary = (
+                    f"The GeoLite2 {edition} database is {info.age_days} days old and "
+                    "cannot refresh automatically because no MaxMind credentials are "
+                    "configured, which is outside MaxMind's 30-day refresh window."
+                )
+
+            if settings.scheduler.enabled:
+                detail = (
+                    "The app keeps using the stale database. The geoip-refresh job "
+                    f"runs every {refresh_interval}, which exceeds MaxMind's 30-day "
+                    "window."
+                )
+            else:
+                detail = (
+                    "The app keeps using the stale database and automatic refresh is "
+                    f"disabled. To update manually, replace {path}, then restart the app "
+                    "so the active reader loads it."
+                )
+                if not credentials_available:
+                    detail += (
+                        " MaxMind credentials are not required for manual replacement."
+                    )
+
+            automatic_steps: list[str] = []
+            remedy_lines: list[str] = []
+            if not credentials_available:
+                automatic_steps.append("configure the credentials below")
+                remedy_lines.extend([
+                    "MAXMINDDB_USER_ID=<account-id>",
+                    "MAXMINDDB_LICENSE_KEY=<license-key>",
+                ])
+            if not settings.scheduler.enabled:
+                automatic_steps.append("set SCHEDULER_ENABLED=true")
+                remedy_lines.append("SCHEDULER_ENABLED=true")
+            automatic_steps.append("set GEOIP_REFRESH_DAYS to 30 or less")
+            remedy_lines.append("GEOIP_REFRESH_DAYS=30")
+            detail += (
+                f" For automatic refresh, {', '.join(automatic_steps)}, then restart "
+                "the app. After the restart, when database services are active, open "
+                "Settings > Scheduler, find geoip-refresh, and select Run now. Check "
+                "Last run and the app logs if it fails."
+            )
+            advisories.append(Advisory(
+                id=advisory_id,
+                severity="warning",
+                summary=summary,
+                detail=detail,
+                remedy="\n".join(remedy_lines),
+            ))
+            continue
+        if credentials_available:
+            remedy = None
+            if settings.scheduler.enabled:
+                summary = (
+                    f"The GeoLite2 {edition} database is {info.age_days} days old and "
+                    "is outside MaxMind's 30-day refresh window."
+                )
+                detail = (
+                    "The app keeps using the stale database. In Settings > Scheduler, "
+                    "find geoip-refresh and select Run now. If it fails, check Last run "
+                    "and the app logs for the error."
+                )
+            else:
+                summary = (
+                    f"The GeoLite2 {edition} database is {info.age_days} days old and "
+                    "automatic refresh is disabled."
+                )
+                detail = (
+                    "The app keeps using the stale database and automatic refresh is "
+                    f"disabled. Download a current GeoLite2 {edition} database to {path} "
+                    "and restart the app, or set SCHEDULER_ENABLED=true and restart to "
+                    f"schedule automatic refresh every {refresh_interval}."
+                )
+            advisories.append(Advisory(
+                id=advisory_id,
+                severity="warning",
+                summary=summary,
+                detail=detail,
+                remedy=remedy,
+            ))
+        else:
+            if settings.scheduler.enabled:
+                detail = (
+                    "The app keeps using the stale database even though MaxMind requires "
+                    "a fresh copy within 30 days. The geoip-refresh job checks for a "
+                    f"replacement every {refresh_interval}, but it cannot download one "
+                    "without credentials. Configure the credentials below and restart "
+                    "the app so it loads them; inspect the job in Scheduler and the app "
+                    "logs if a later refresh fails."
+                )
+            else:
+                detail = (
+                    "The app keeps using the stale database even though MaxMind requires "
+                    "a fresh copy within 30 days. Automatic refresh is disabled. To "
+                    f"update manually, replace {path}, then restart the app so the active "
+                    "reader loads it; MaxMind credentials are not required for manual "
+                    "replacement. For automatic refresh, configure the credentials "
+                    "below, set SCHEDULER_ENABLED=true, restart the app, then find "
+                    "geoip-refresh in Settings > Scheduler and select Run now or wait "
+                    "for its next run."
+                )
+            advisories.append(Advisory(
+                id=advisory_id,
+                severity="warning",
+                summary=(
+                    f"The GeoLite2 {edition} database is {info.age_days} days old and "
+                    "cannot refresh automatically because no MaxMind credentials are "
+                    "configured, which is outside MaxMind's 30-day refresh window."
+                ),
+                detail=detail,
+                remedy="MAXMINDDB_USER_ID and MAXMINDDB_LICENSE_KEY",
+            ))
+    return advisories
+
+
 def _collect_advisories(app: Litestar, settings: Settings) -> list[Advisory]:
     from geometrikks.server import timescale
 
-    advisories: list[Advisory] = []
+    advisories: list[Advisory] = runtime.get_advisories(app).snapshot()
+    service = runtime.get_ingestion_service(app)
+    if service is not None and service.failed_batches > 0:
+        ingestion_state = (
+            "Ingestion continues processing new records."
+            if service.is_running
+            else "Ingestion is not running. Fix the problem, then restart the app."
+        )
+        advisories.append(Advisory(
+            id="ingestion-write-failures",
+            severity="warning",
+            summary=(
+                f"{service.failed_batches} batches ({service.failed_records} records) "
+                "could not be written to the database since startup."
+            ),
+            detail=(
+                "The app dropped the affected records and will not retry them. "
+                f"{ingestion_state} Check the app log for ingestion_batch_failed. "
+                "Persistent failures usually mean a schema mismatch or a full disk."
+            ),
+        ))
     pollution = timescale.get_hostname_pollution()
     # No early return: the pollution gate must not swallow the ASN advisory.
     hostname_pollution_active = bool(
@@ -178,7 +344,6 @@ def _collect_advisories(app: Litestar, settings: Settings) -> list[Advisory]:
     if settings.app.proxy_advisory:
         from geometrikks.domain.system import proxy_scan
 
-        service = runtime.get_ingestion_service(app)
         parsers = service.parsers if service is not None else []
         local = proxy_findings(parsers)
         covered = {f.hostname for f in local} | {p.hostname for p in parsers}
@@ -186,6 +351,60 @@ def _collect_advisories(app: Litestar, settings: Settings) -> list[Advisory]:
             f for f in proxy_scan.get_scan_findings() if f.hostname not in covered
         ]
         advisories.extend(proxy_advisories(findings))
+        scan_error = proxy_scan.get_scan_error()
+        if scan_error is not None:
+            advisories.append(Advisory(
+                id="proxy-scan-failed",
+                severity="warning",
+                summary=(
+                    "The CDN peer scan is failing; the proxy advisories above "
+                    "may be stale."
+                ),
+                detail=(
+                    "The previous proxy findings remain visible while scheduled "
+                    f"scans retry. The latest scan failed with: {scan_error}. "
+                    "Inspect the proxy-peer-scan job in Scheduler and the app "
+                    "logs for the cause."
+                ),
+            ))
+    advisories.extend(_stale_geoip_advisories(settings))
+    backend = runtime.get_channels_backend(app)
+    if (
+        backend is not None
+        and backend.state in {"degraded", "reconnecting"}
+        and runtime.is_db_available(app, default=True)
+    ):
+        advisories.append(Advisory(
+            id="live-feed-listener-down",
+            severity="warning",
+            summary=(
+                "The live feed's database listener is disconnected; the map and "
+                "live tail receive no events until it reconnects."
+            ),
+            detail=(
+                "The app reconnects on its own with backoff. If this lasts more than "
+                "a minute, check the database container and its connection limit."
+            ),
+        ))
+    policy_failures = timescale.get_policy_failures()
+    if policy_failures:
+        listed = ", ".join(
+            f"{failure.policy} on {failure.target}" for failure in policy_failures
+        )
+        noun = "policy" if len(policy_failures) == 1 else "policies"
+        advisories.append(Advisory(
+            id="timescale-policy-update-failed",
+            severity="warning",
+            summary=(
+                f"{len(policy_failures)} TimescaleDB {noun} could not be updated to "
+                f"match the current settings: {listed}; the previous intervals stay "
+                "in force."
+            ),
+            detail=(
+                "The app retries the updates at the next startup; check the app log "
+                "for policy_update_failed before restarting."
+            ),
+        ))
     return advisories
 
 
@@ -209,6 +428,7 @@ async def health(
     # being ingested from those files and status must not read as healthy.
     missing_files = ingestion_service.missing_files if ingestion_service else []
     db_reachable = await _database_reachable(request.app)
+    services_active = runtime.is_db_available(request.app, default=True)
 
     poller = runtime.get_crowdsec_poller(request.app)
 
@@ -226,7 +446,12 @@ async def health(
         # geoip does not flip status on its own: without a GeoLite2 database
         # file, ingestion refuses to start and ingestion.running reflects that.
         status="healthy"
-        if (db_reachable and not missing_files and ingestion_status != "degraded")
+        if (
+            db_reachable
+            and services_active
+            and not missing_files
+            and ingestion_status != "degraded"
+        )
         else "degraded",
         started_at=_iso(runtime.get_started_at(request.app)),
         ingestion=IngestionHealth(
@@ -241,8 +466,17 @@ async def health(
             publish_dropped=(
                 ingestion_service.publish_dropped if ingestion_service else 0
             ),
+            failed_batches=(
+                ingestion_service.failed_batches if ingestion_service else 0
+            ),
+            failed_records=(
+                ingestion_service.failed_records if ingestion_service else 0
+            ),
         ),
-        database=DatabaseHealth(reachable=db_reachable),
+        database=DatabaseHealth(
+            reachable=db_reachable,
+            services_active=services_active,
+        ),
         # build_date comes from the mmdb metadata (geoip_info), the actual
         # GeoLite2 build, not the file's mtime.
         geoip=GeoIPHealth(

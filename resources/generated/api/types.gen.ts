@@ -231,6 +231,7 @@ export type CrowdSecStatsResponse = {
 export type CrowdSecStatusResponse = {
   enabled: boolean;
   lapiReachable: boolean;
+  liveUpdates?: boolean;
   writeEnabled: boolean;
 };
 
@@ -259,6 +260,7 @@ export type CumulativeTimeSeriesResponse = {
  */
 export type DatabaseHealth = {
   reachable: boolean;
+  servicesActive?: boolean;
 };
 
 /**
@@ -558,6 +560,8 @@ export type HypertableStatsView = {
  * IngestionHealth
  */
 export type IngestionHealth = {
+  failedBatches?: number;
+  failedRecords?: number;
   lastRecordAt: string | null;
   missingFiles: Array<string>;
   parsedLines: number;
@@ -936,6 +940,7 @@ export type SchedulerJobsResponse = {
   jobs: Array<SchedulerJobView>;
   schedulerEnabled: boolean;
   schedulerRunning: boolean;
+  status?: "running" | "disabled" | "unavailable";
 };
 
 /**

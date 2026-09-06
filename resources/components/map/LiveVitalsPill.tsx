@@ -24,7 +24,9 @@ export function LiveVitalsPill({ onOpenFeed }: { onOpenFeed: () => void }) {
       onClick={onOpenFeed}
       aria-label={
         disconnected
-          ? "Live feed reconnecting. Open the live request feed"
+          ? feedState === "paused"
+            ? "Live feed paused by the server. Open the live request feed"
+            : "Live feed reconnecting. Open the live request feed"
           : `${vitals.rpm} requests per minute, ${vitals.threatCount} threats. Open the live request feed`
       }
       className={cn(
@@ -44,7 +46,9 @@ export function LiveVitalsPill({ onOpenFeed }: { onOpenFeed: () => void }) {
       />
 
       {disconnected ? (
-        <span className="text-muted-foreground">Reconnecting</span>
+        <span className="text-muted-foreground">
+          {feedState === "paused" ? "Live feed paused" : "Reconnecting"}
+        </span>
       ) : (
         <>
           <span className="flex items-baseline gap-1">
