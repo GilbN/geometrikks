@@ -44,6 +44,9 @@ class IngestionHealth(msgspec.Struct, rename="camel"):
 
 class DatabaseHealth(msgspec.Struct, rename="camel"):
     reachable: bool
+    # Additive: False while the app runs DB-degraded (scheduler, ingestion
+    # and live feeds paused) even though `reachable` may already be True.
+    services_active: bool = True
 
 
 class GeoIPHealth(msgspec.Struct, rename="camel"):
@@ -100,7 +103,7 @@ async def _database_reachable(app: Litestar, timeout: float = 2.0) -> bool:
 def _collect_advisories(app: Litestar, settings: Settings) -> list[Advisory]:
     from geometrikks.server import timescale
 
-    advisories: list[Advisory] = []
+    advisories: list[Advisory] = runtime.get_advisories(app).snapshot()
     pollution = timescale.get_hostname_pollution()
     # No early return: the pollution gate must not swallow the ASN advisory.
     hostname_pollution_active = bool(
@@ -198,6 +201,7 @@ async def health(
     # being ingested from those files and status must not read as healthy.
     missing_files = ingestion_service.missing_files if ingestion_service else []
     db_reachable = await _database_reachable(request.app)
+    services_active = runtime.is_db_available(request.app, default=True)
 
     poller = runtime.get_crowdsec_poller(request.app)
 
@@ -215,7 +219,12 @@ async def health(
         # geoip does not flip status on its own: without a GeoLite2 database
         # file, ingestion refuses to start and ingestion.running reflects that.
         status="healthy"
-        if (db_reachable and not missing_files and ingestion_status != "degraded")
+        if (
+            db_reachable
+            and services_active
+            and not missing_files
+            and ingestion_status != "degraded"
+        )
         else "degraded",
         started_at=_iso(runtime.get_started_at(request.app)),
         ingestion=IngestionHealth(
@@ -231,7 +240,10 @@ async def health(
                 ingestion_service.publish_dropped if ingestion_service else 0
             ),
         ),
-        database=DatabaseHealth(reachable=db_reachable),
+        database=DatabaseHealth(
+            reachable=db_reachable,
+            services_active=services_active,
+        ),
         # build_date comes from the mmdb metadata (geoip_info), the actual
         # GeoLite2 build, not the file's mtime.
         geoip=GeoIPHealth(

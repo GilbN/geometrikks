@@ -168,7 +168,15 @@ describe("databaseState / geoipState", () => {
       tone: "red",
       label: "Unreachable",
     })
-    expect(databaseState(makeHealth())).toMatchObject({ tone: "emerald", label: "Reachable" })
+    expect(databaseState(makeHealth())).toMatchObject({ tone: "emerald", label: "Connected" })
+  })
+  it("database reachable but services paused is amber", () => {
+    const state = databaseState(
+      makeHealth({ database: { reachable: true, servicesActive: false } }),
+    )
+    expect(state.tone).toBe("amber")
+    expect(state.label).toBe("Reachable, services paused")
+    expect(state.detail).toContain("recovery")
   })
   it("geoip missing is amber", () => {
     expect(geoipState(makeHealth({ geoip: { available: false, dbBuildDate: null, asnAvailable: false, asnDbBuildDate: null } }))).toMatchObject({

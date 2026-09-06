@@ -97,9 +97,17 @@ export function sidebarIngestionVariant(
 
 export function databaseState(health: HealthResponse | undefined): CardState {
   if (!health) return { tone: "muted", label: "Unknown" }
-  return health.database.reachable
-    ? { tone: "emerald", label: "Reachable" }
-    : { tone: "red", label: "Unreachable", detail: "Running in degraded mode without a database." }
+  if (!health.database.reachable) {
+    return { tone: "red", label: "Unreachable", detail: "Running in degraded mode without a database." }
+  }
+  if (health.database.servicesActive === false) {
+    return {
+      tone: "amber",
+      label: "Reachable, services paused",
+      detail: "Background jobs and ingestion are waiting for recovery. See the advisory above.",
+    }
+  }
+  return { tone: "emerald", label: "Connected" }
 }
 
 export function geoipState(health: HealthResponse | undefined): CardState {

@@ -863,6 +863,10 @@
         "properties": {
           "reachable": {
             "type": "boolean"
+          },
+          "servicesActive": {
+            "default": true,
+            "type": "boolean"
           }
         },
         "required": [

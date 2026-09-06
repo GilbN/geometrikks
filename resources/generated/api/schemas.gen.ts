@@ -804,6 +804,10 @@ export const DatabaseHealthSchema = {
     reachable: {
       type: "boolean",
     },
+    servicesActive: {
+      default: true,
+      type: "boolean",
+    },
   },
   required: ["reachable"],
   title: "DatabaseHealth",

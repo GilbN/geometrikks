@@ -259,6 +259,7 @@ export type CumulativeTimeSeriesResponse = {
  */
 export type DatabaseHealth = {
   reachable: boolean;
+  servicesActive?: boolean;
 };
 
 /**

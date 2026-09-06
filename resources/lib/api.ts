@@ -131,7 +131,9 @@ export interface HealthResponse {
   /** App start time; null in test harnesses without lifecycle startup. */
   startedAt: string | null
   ingestion: HealthIngestionStatus
-  database: { reachable: boolean }
+  /** servicesActive is false while the backend runs DB-degraded: the database
+   *  may answer while the scheduler, ingestion and live feeds are paused. */
+  database: { reachable: boolean; servicesActive?: boolean }
   /** Build dates come from the mmdb metadata, one per GeoLite2 edition. */
   geoip: {
     available: boolean

@@ -232,6 +232,48 @@ def test_health_logparser_disabled_is_not_degraded(monkeypatch):
     assert body["status"] == "healthy"
 
 
+def test_health_degraded_when_services_paused_even_with_ingestion_disabled(monkeypatch):
+    """The incident case: a UI head (LOGPARSER_ENABLED=false) whose startup
+    probe failed. The database answers now, but nothing DB-bound is running."""
+    async def db_up(app, timeout: float = 2.0) -> bool:
+        return True
+    monkeypatch.setattr(health_module, "_database_reachable", db_up)
+    monkeypatch.setenv("LOGPARSER_ENABLED", "false")
+
+    app = make_app()
+    app.state.db_available = False
+    with TestClient(app=app) as client:
+        body = client.get("/health").json()
+    assert body["status"] == "degraded"
+    assert body["database"] == {"reachable": True, "servicesActive": False}
+
+
+def test_health_services_active_defaults_true_before_startup(monkeypatch):
+    async def db_up(app, timeout: float = 2.0) -> bool:
+        return True
+    monkeypatch.setattr(health_module, "_database_reachable", db_up)
+
+    with TestClient(app=make_app()) as client:
+        body = client.get("/health").json()
+    assert body["database"]["servicesActive"] is True
+
+
+def test_health_includes_registry_advisories_critical_first(monkeypatch):
+    async def db_up(app, timeout: float = 2.0) -> bool:
+        return True
+    monkeypatch.setattr(health_module, "_database_reachable", db_up)
+    from geometrikks.lib.advisories import Advisory
+    from geometrikks.server import runtime, timescale
+    monkeypatch.setattr(timescale, "_hostname_pollution", None)
+
+    app = make_app()
+    runtime.get_advisories(app).set(Advisory(id="w", severity="warning", summary="w"))
+    runtime.get_advisories(app).set(Advisory(id="c", severity="critical", summary="c"))
+    with TestClient(app=app) as client:
+        body = client.get("/health").json()
+    assert [a["id"] for a in body["advisories"]] == ["c", "w"]
+
+
 def test_health_agent_mode_reports_schema_wait(monkeypatch):
     """Agent mode surfaces mode == "agent" and the recorded schema_wait_result."""
     async def db_up(app, timeout: float = 2.0) -> bool:
