@@ -102,12 +102,20 @@ export function sidebarIngestionVariant(
   return "inactive"
 }
 
-export function sidebarStatusTooltip(base: string, advisoryCount: number): string {
+export function sidebarStatusTooltip(
+  base: string,
+  advisoryCount: number,
+  variant: "degraded" | "attention",
+): string {
   if (advisoryCount === 0) return base
-  const separator = /[.!?]$/.test(base) ? " " : ". "
   const noun = advisoryCount === 1 ? "advisory needs" : "advisories need"
+  const countedAdvisories = `${advisoryCount} ${noun} attention.`
+  if (variant === "attention") {
+    return `${countedAdvisories} See Settings > Status.`
+  }
+  const separator = /[.!?]$/.test(base) ? " " : ". "
   const statusLink = base.includes("Settings > Status") ? "" : " See Settings > Status."
-  return `${base}${separator}${advisoryCount} ${noun} attention.${statusLink}`
+  return `${base}${separator}${countedAdvisories}${statusLink}`
 }
 
 export function databaseState(health: HealthResponse | undefined): CardState {

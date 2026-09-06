@@ -183,13 +183,23 @@ describe("sidebarIngestionVariant", () => {
 
 describe("sidebarStatusTooltip", () => {
   it("keeps the base text and appends the advisory count", () => {
-    expect(sidebarStatusTooltip("base", 0)).toBe("base")
-    expect(sidebarStatusTooltip("Service degraded - see Settings > Status", 1)).toBe(
-      "Service degraded - see Settings > Status. 1 advisory needs attention.",
-    )
-    expect(sidebarStatusTooltip("base.", 3)).toBe(
+    expect(sidebarStatusTooltip("base", 0, "degraded")).toBe("base")
+    expect(
+      sidebarStatusTooltip("Service degraded - see Settings > Status", 1, "degraded"),
+    ).toBe("Service degraded - see Settings > Status. 1 advisory needs attention.")
+    expect(sidebarStatusTooltip("base.", 3, "degraded")).toBe(
       "base. 3 advisories need attention. See Settings > Status.",
     )
+  })
+
+  it("counts the actual attention tooltip without repeating its message", () => {
+    expect(
+      sidebarStatusTooltip(
+        "Advisories need attention - see Settings > Status",
+        2,
+        "attention",
+      ),
+    ).toBe("2 advisories need attention. See Settings > Status.")
   })
 })
 

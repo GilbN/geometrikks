@@ -240,7 +240,7 @@ function LiveIndicator({ collapsed }: { collapsed: boolean }) {
   const { color, label, tooltip: baseTooltip } = INDICATOR_STYLES[variant]
   const tooltip =
     variant === "degraded" || variant === "attention"
-      ? sidebarStatusTooltip(baseTooltip, health?.advisories?.length ?? 0)
+      ? sidebarStatusTooltip(baseTooltip, health?.advisories?.length ?? 0, variant)
       : baseTooltip
 
   if (collapsed) {

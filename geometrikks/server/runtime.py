@@ -48,7 +48,7 @@ def get_crowdsec_service(app: Litestar) -> CrowdSecService | None:
 
 
 def get_crowdsec_poller(app: Litestar) -> CrowdSecStreamPoller | None:
-    """None when CrowdSec is disabled or the app is DB-degraded."""
+    """None when CrowdSec is disabled or the app is DB-degraded or scheduler-disabled."""
     return getattr(app.state, "crowdsec_stream_poller", None)
 
 

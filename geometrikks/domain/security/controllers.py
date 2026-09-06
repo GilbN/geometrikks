@@ -54,7 +54,7 @@ class CrowdSecStatusResponse(msgspec.Struct, rename="camel"):
     enabled: bool
     write_enabled: bool
     lapi_reachable: bool
-    # False while DB-degraded mode pauses the decision-stream poller.
+    # False while DB-degraded or scheduler-disabled mode omits the poller.
     live_updates: bool = False
 
 
@@ -194,8 +194,8 @@ class CrowdSecController(Controller):
         # The stream poller probes the LAPI every poll interval; its cached
         # verdict avoids a live ping per status request (which can block for
         # the full request timeout against a black-holed host). Live ping
-        # remains the fallback when the poller is absent (DB-degraded mode)
-        # or has not completed a poll yet.
+        # remains the fallback when the poller is absent (DB-degraded or
+        # scheduler-disabled mode) or has not completed a poll yet.
         cached: bool | None = (
             crowdsec_poller.lapi_reachable if crowdsec_poller is not None else None
         )

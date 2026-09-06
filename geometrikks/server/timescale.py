@@ -138,7 +138,11 @@ def _record_policy_failure(policy: str, target: str, error: str) -> None:
 
 
 def _reset_policy_failures() -> None:
+    count = len(_policy_failures)
+    if count == 0:
+        return
     _policy_failures.clear()
+    logger.info("policy_failures_cleared", count=count)
 
 
 # =============================================================================

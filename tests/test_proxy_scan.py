@@ -104,9 +104,21 @@ async def test_failed_run_keeps_findings_and_records_the_error() -> None:
     assert get_scan_error() == "db down"
     assert any(e["event"] == "proxy_scan_failed" for e in logs)
 
+    apply_scan_results(
+        [groups_for("web", 1000, 600)],
+        [ScanProvider("web", 13335, 600)],
+    )
+    assert len(get_scan_findings()) == 1, "failed scan must retain active hysteresis state"
+
 
 @pytest.mark.anyio
 async def test_successful_run_clears_the_error(monkeypatch) -> None:
+    apply_scan_results(
+        [groups_for("old", 1000, 800)],
+        [ScanProvider("old", 13335, 800)],
+    )
+    assert [finding.hostname for finding in get_scan_findings()] == ["old"]
+
     def broken_factory():
         raise RuntimeError("db down")
 
@@ -116,7 +128,10 @@ async def test_successful_run_clears_the_error(monkeypatch) -> None:
     from geometrikks.domain.system import proxy_scan
 
     async def fake_query(session, exclude):
-        return [], []
+        return (
+            [groups_for("new", 1000, 900)],
+            [ScanProvider("new", 13335, 900)],
+        )
 
     monkeypatch.setattr(proxy_scan, "_query_scan_rows", fake_query)
 
@@ -130,6 +145,7 @@ async def test_successful_run_clears_the_error(monkeypatch) -> None:
     with structlog.testing.capture_logs() as logs:
         await run_proxy_scan(cast(Any, lambda: _Session()), set())
     assert get_scan_error() is None
+    assert [finding.hostname for finding in get_scan_findings()] == ["new"]
     assert any(e["event"] == "proxy_scan_recovered" for e in logs)
 
 

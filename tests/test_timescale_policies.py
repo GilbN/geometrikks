@@ -7,6 +7,7 @@ from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+import structlog
 
 from geometrikks.server import timescale
 
@@ -58,6 +59,30 @@ def test_policy_failures_are_recorded_and_reset() -> None:
 
     timescale._reset_policy_failures()
     assert timescale.get_policy_failures() == []
+
+
+def test_reset_policy_failures_logs_the_cleared_count() -> None:
+    timescale._record_policy_failure("retention", "geo_events", "permission denied")
+    timescale._record_policy_failure("compression", "access_logs", "permission denied")
+
+    with structlog.testing.capture_logs() as logs:
+        timescale._reset_policy_failures()
+
+    assert timescale.get_policy_failures() == []
+    assert [event for event in logs if event["event"] == "policy_failures_cleared"] == [
+        {
+            "count": 2,
+            "event": "policy_failures_cleared",
+            "log_level": "info",
+        }
+    ]
+
+
+def test_reset_policy_failures_does_not_log_when_already_empty() -> None:
+    with structlog.testing.capture_logs() as logs:
+        timescale._reset_policy_failures()
+
+    assert logs == []
 
 
 class _PolicyResult:

@@ -561,6 +561,27 @@ def test_health_reports_a_failing_proxy_scan(monkeypatch):
     assert "app logs" in detail
 
 
+def test_proxy_advisory_setting_suppresses_scan_failure(monkeypatch):
+    async def db_up(app, timeout: float = 2.0) -> bool:
+        return True
+
+    monkeypatch.setattr(health_module, "_database_reachable", db_up)
+    monkeypatch.setenv("APP_PROXY_ADVISORY", "false")
+    from geometrikks.domain.system import proxy_scan
+    from geometrikks.server import timescale
+
+    monkeypatch.setattr(timescale, "_hostname_pollution", None)
+    monkeypatch.setattr(proxy_scan, "get_scan_error", lambda: "db down")
+    monkeypatch.setattr(proxy_scan, "get_scan_findings", lambda: [])
+
+    with TestClient(app=make_app()) as client:
+        advisory_ids = {
+            item["id"] for item in client.get("/health").json()["advisories"]
+        }
+
+    assert "proxy-scan-failed" not in advisory_ids
+
+
 def _stale_view(age_days: int | None, *, available: bool | None = None):
     from geometrikks.lib.utils import GeoIPInfoView
 

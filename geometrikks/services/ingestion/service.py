@@ -772,5 +772,5 @@ class LogIngestionService:
 
     @property
     def missing_files(self) -> list[str]:
-        """Tailed log files that have disappeared mid-flight (see /health)."""
+        """Configured log files currently absent, since startup or after removal."""
         return [str(parser.log_path) for parser in self.parsers if parser.file_missing]
