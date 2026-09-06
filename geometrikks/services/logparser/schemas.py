@@ -20,6 +20,8 @@ class ParsedGeoData:
     city: str | None = None
     postal_code: str | None = None
     timezone: str | None = None
+    autonomous_system_number: int | None = None
+    autonomous_system_organization: str | None = None
 
 
 @dataclass
