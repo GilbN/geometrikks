@@ -5,8 +5,8 @@ manager. :class:`LifecyclePlugin` registers :data:`LIFESPAN` with Litestar,
 which enters the managers in order on an ``AsyncExitStack`` and exits them
 in reverse:
 
-- teardown order is the exact reverse of startup (ingestion stops first,
-  the scheduler second, the CrowdSec client closes after both), and
+- teardown reverses startup: recovery stops before ingestion, then the
+  scheduler stops and the CrowdSec client closes, and
 - a failure during startup unwinds only the managers that already started,
   so partial startup no longer leaks running services.
 
@@ -19,7 +19,7 @@ queue.
 
 DB-degraded mode is entered once by :func:`database_lifespan`; the scheduler
 and ingestion managers start nothing while ``app.state.db_available`` is
-False. :func:`db_recovery_lifespan` (Task 6) re-probes and runs the
+False. :func:`db_recovery_lifespan` re-probes and runs the
 deferred startup in-process. Missing GeoLite2 puts the app in geo-degraded
 mode (API/UI up, ingestion inert) without failing startup.
 """
@@ -27,6 +27,7 @@ mode (API/UI up, ingestion inert) without failing startup.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import time
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
@@ -38,7 +39,7 @@ from apscheduler.events import EVENT_SCHEDULER_SHUTDOWN
 from litestar.plugins import InitPlugin
 
 from geometrikks.config.settings import get_settings
-from geometrikks.lib.advisories import DATABASE_UNAVAILABLE, Advisory
+from geometrikks.lib.advisories import DATABASE_RECOVERY_FAILED, DATABASE_UNAVAILABLE, Advisory
 from geometrikks.lib.utils import retries_disabled
 from geometrikks.server.logging import get_logger
 from geometrikks.server.migrations import migrate_database
@@ -59,7 +60,7 @@ from geometrikks.server.scheduler import create_scheduler
 from geometrikks.server.scheduler_tracking import JobRunTracker
 
 if TYPE_CHECKING:
-    from collections.abc import AsyncGenerator
+    from collections.abc import AsyncGenerator, Callable
 
     from geometrikks.server.plugins import DegradedTolerantAsyncPgBackend
     from geometrikks.config.settings import Settings
@@ -264,15 +265,21 @@ def _enter_db_degraded(app: "Litestar", *, detail: str | None = None) -> None:
     logger.warning("database_degraded_mode_entered", detail=detail)
 
 
-async def bring_up_database(app: "Litestar") -> None:
+async def bring_up_database(
+    app: "Litestar", *, _on_stage: Callable[[str], None] | None = None
+) -> None:
     """Prepare a reachable database for startup or in-process recovery."""
     settings = _resolve_settings(app)
     engine = get_app_db_config(app).get_engine()
     if settings.database.migrate_on_startup:
+        if _on_stage is not None:
+            _on_stage("migration")
         await migrate_database(engine, settings)
     else:
         logger.info("database_startup_migrations_disabled")
 
+    if _on_stage is not None:
+        _on_stage("database setup")
     await setup_timescaledb(engine, settings.analytics)
 
     session_maker = get_app_db_config(app).create_session_maker()
@@ -476,6 +483,125 @@ async def ingestion_lifespan(app: "Litestar") -> "AsyncGenerator[None]":
         await stop_ingestion(app)
 
 
+_RECOVERY_INITIAL_DELAY = 10.0
+_RECOVERY_MAX_DELAY = 60.0
+
+
+async def _unwind_database_recovery(app: "Litestar") -> None:
+    poller = runtime.get_crowdsec_poller(app)
+    if poller is not None:
+        app.state.crowdsec_stream_poller_deferred = poller
+        app.state.crowdsec_stream_poller = None
+        logger.warning("crowdsec_stream_poller_deferred")
+
+    cancelled: asyncio.CancelledError | None = None
+    for service, stop in (("ingestion", stop_ingestion), ("scheduler", stop_scheduler)):
+        try:
+            await stop(app)
+        except asyncio.CancelledError as exc:
+            cancelled = exc
+            logger.warning("db_recovery_cleanup_cancelled", service=service)
+        except Exception:
+            # Retained state lets the owning lifespan retry cleanup at shutdown.
+            logger.error("db_recovery_cleanup_failed", service=service, exc_info=True)
+    if cancelled is not None:
+        raise cancelled
+
+
+async def _recover_database(app: "Litestar") -> None:
+    """Re-probe with backoff and complete the startup skipped by the DB gate."""
+    settings = _resolve_settings(app)
+    registry = runtime.get_advisories(app)
+    since: datetime | None = getattr(app.state, "db_degraded_since", None)
+    stage = "database connection"
+
+    def set_stage(value: str) -> None:
+        nonlocal stage
+        stage = value
+
+    def degraded_seconds() -> float | None:
+        return (datetime.now(timezone.utc) - since).total_seconds() if since else None
+
+    try:
+        delay = _RECOVERY_INITIAL_DELAY
+        while True:
+            await _SYSTEM_CLOCK.sleep(delay)
+            if await _db_available(app):
+                break
+            delay = min(delay * 2, _RECOVERY_MAX_DELAY)
+
+        logger.info("db_recovery_started", degraded_seconds=degraded_seconds())
+        stage = "database setup"
+        await bring_up_database(app, _on_stage=set_stage)
+
+        deferred = getattr(app.state, "crowdsec_stream_poller_deferred", None)
+        if deferred is not None:
+            app.state.crowdsec_stream_poller = deferred
+            app.state.crowdsec_stream_poller_deferred = None
+            logger.info("crowdsec_stream_poller_restored")
+
+        stage = "channels"
+        backend = runtime.get_channels_backend(app)
+        if backend is not None:
+            try:
+                await backend.recover()
+            except Exception as exc:
+                # The backend owns listener retries independently of DB startup.
+                logger.warning("channels_backend_recover_failed", error=str(exc))
+
+        stage = "scheduler"
+        await start_scheduler(app)
+        if settings.logparser.enabled:
+            stage = "ingestion"
+            await start_ingestion(app)
+    except asyncio.CancelledError:
+        logger.info("db_recovery_cancelled", stage=stage)
+        await _unwind_database_recovery(app)
+        raise
+    except Exception as exc:
+        logger.error("db_recovery_failed", stage=stage, error=str(exc), exc_info=True)
+        advisory = DATABASE_RECOVERY_FAILED
+        if stage != "migration":
+            failed_step = f"{stage} startup" if stage in {"scheduler", "ingestion"} else stage
+            advisory = Advisory(
+                id=advisory.id,
+                severity=advisory.severity,
+                summary=f"Database recovery stopped because {failed_step} failed.",
+                detail=(
+                    "Automatic recovery has stopped. Check the app log for the "
+                    "startup error and fix the reported problem. Restart the "
+                    "container to retry."
+                ),
+            )
+        registry.clear(DATABASE_UNAVAILABLE.id)
+        registry.set(advisory)
+        await _unwind_database_recovery(app)
+        return
+
+    app.state.db_available = True
+    app.state.db_degraded_since = None
+    registry.clear(DATABASE_UNAVAILABLE.id)
+    logger.info("db_recovered", degraded_seconds=degraded_seconds())
+
+
+@asynccontextmanager
+async def db_recovery_lifespan(app: "Litestar") -> "AsyncGenerator[None]":
+    """Recover full-mode degraded startup, cancelling before service teardown."""
+    settings = _resolve_settings(app)
+    task: asyncio.Task[None] | None = None
+    if not settings.is_agent and not runtime.is_db_available(app, default=True):
+        task = asyncio.create_task(_recover_database(app), name="db-recovery")
+        app.state.db_recovery_task = task
+    try:
+        yield
+    finally:
+        if task is not None:
+            if not task.done():
+                task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await task
+
+
 # Entered in order by Litestar's lifespan AsyncExitStack; exited in reverse.
 LIFESPAN = [
     core_state_lifespan,
@@ -484,6 +610,7 @@ LIFESPAN = [
     database_lifespan,
     scheduler_lifespan,
     ingestion_lifespan,
+    db_recovery_lifespan,
 ]
 
 
