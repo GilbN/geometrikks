@@ -13,6 +13,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from geometrikks.server.scheduler_tracking import JobRunTracker
+from geometrikks.lib.advisories import AdvisoryRegistry
 
 if TYPE_CHECKING:
     from datetime import datetime
@@ -29,6 +30,15 @@ if TYPE_CHECKING:
 def get_ingestion_service(app: Litestar) -> LogIngestionService | None:
     """None when ingestion never started (DB- or geo-degraded mode)."""
     return getattr(app.state, "ingestion_service", None)
+
+
+def get_advisories(app: Litestar) -> AdvisoryRegistry:
+    """The app's open advisories, created on first access."""
+    registry: AdvisoryRegistry | None = getattr(app.state, "advisories", None)
+    if registry is None:
+        registry = AdvisoryRegistry()
+        app.state.advisories = registry
+    return registry
 
 
 def get_crowdsec_service(app: Litestar) -> CrowdSecService | None:

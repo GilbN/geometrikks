@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from types import SimpleNamespace
-from typing import cast
+from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -49,6 +49,15 @@ async def test_teardown_runs_in_reverse_startup_order(monkeypatch):
         assert order == []
 
     assert order == ["ingestion", "scheduler", "crowdsec"]
+
+
+async def test_core_state_lifespan_initializes_advisory_registry():
+    from geometrikks.lib.advisories import AdvisoryRegistry
+    from geometrikks.server import lifecycle as lc
+
+    app = SimpleNamespace(state=SimpleNamespace())
+    async with lc.core_state_lifespan(cast("Any", app)):
+        assert isinstance(app.state.advisories, AdvisoryRegistry)
 
 
 async def test_startup_failure_unwinds_started_managers(monkeypatch):

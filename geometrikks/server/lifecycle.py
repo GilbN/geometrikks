@@ -93,6 +93,7 @@ async def core_state_lifespan(app: "Litestar") -> "AsyncGenerator[None]":
     Runs first so /about reports uptime even when later managers degrade.
     """
     app.state.started_at = datetime.now(timezone.utc)
+    runtime.get_advisories(app)
 
     from geometrikks.server.logging import log_broadcaster
     log_broadcaster.bind_loop(asyncio.get_running_loop())

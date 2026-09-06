@@ -25,6 +25,7 @@ from sqlalchemy import text
 from geometrikks.config.settings import Settings
 from geometrikks.domain.system.proxy_detection import proxy_advisories, proxy_findings
 from geometrikks.lib.utils import geoip_info
+from geometrikks.lib.advisories import Advisory
 from geometrikks.server import runtime
 from geometrikks.services.ingestion import LogIngestionService
 from geometrikks.domain.system.dependencies import provide_ingestion_service as pis
@@ -56,18 +57,6 @@ class GeoIPHealth(msgspec.Struct, rename="camel"):
 class CrowdSecHealth(msgspec.Struct, rename="camel"):
     enabled: bool
     lapi_reachable: bool | None
-
-
-class Advisory(msgspec.Struct, rename="camel"):
-    """One operator-actionable warning; the status page renders a card per
-    advisory, so producers must write user-facing text, not log lines."""
-
-    id: str
-    severity: Literal["warning", "critical"]
-    summary: str
-    detail: str | None = None
-    remedy: str | None = None
-    docs_url: str | None = None
 
 
 class HealthResponse(msgspec.Struct, rename="camel"):
