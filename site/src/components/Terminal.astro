@@ -1,7 +1,7 @@
 ---
-// One log line through the pipeline, then a geometrikks-json line. Every
-// line renders server-side; the script only paces the reveal. Values are
-// illustrative, not real traffic.
+// The hero's terminal: one log line through the pipeline, then a
+// geometrikks-json line. Every line renders server-side; the script only
+// paces the reveal. Values are illustrative, not real traffic.
 type Segment = { cls?: string; text: string };
 type Line = Segment[] | null;
 const lines: Line[] = [
@@ -43,64 +43,32 @@ const lines: Line[] = [
 ];
 ---
 
-<section class="how" id="how">
-  <div class="wrap">
-    <div>
-      <span class="mono kicker">How it works</span>
-      <h2 class="section-title">One log line in, one marker out.</h2>
-      <p>
-        GeoMetrikks follows the file your proxy already writes. Each line is detected, parsed, looked up in GeoLite2
-        City and ASN, stored in TimescaleDB, and pushed to the map over a WebSocket. With CrowdSec connected, the
-        decision for that address rides along.
-      </p>
-      <p>The only outbound call in that chain is the GeoLite2 download.</p>
-    </div>
-    <div class="term" aria-label="One log line moving through the ingestion pipeline">
-      <div class="bar"><i></i><i></i><i></i><span>geometrikks · ingestion</span></div>
-      <div class="body" id="term">
-        {
-          lines.map((line) =>
-            line ? (
-              <span class="l">{line.map((s) => (s.cls ? <span class={s.cls}>{s.text}</span> : s.text))}</span>
-            ) : (
-              <span class="l" data-blank>
-                &nbsp;
-              </span>
-            ),
-          )
-        }
-      </div>
-    </div>
+<div class="term" aria-label="One log line moving through the ingestion pipeline">
+  <div class="bar"><i></i><i></i><i></i><span>geometrikks · ingestion</span></div>
+  <div class="body" id="term">
+    {
+      lines.map((line) =>
+        line ? (
+          <span class="l">{line.map((s) => (s.cls ? <span class={s.cls}>{s.text}</span> : s.text))}</span>
+        ) : (
+          <span class="l" data-blank>
+            &nbsp;
+          </span>
+        ),
+      )
+    }
   </div>
-</section>
+</div>
 
 <style>
-  .how {
-    padding: 100px 0 40px;
-  }
-  .how .wrap {
-    display: grid;
-    grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
-    gap: 56px;
-    align-items: center;
-  }
-  .how p {
-    color: var(--fg-dim);
-    margin: 0 0 12px;
-    max-width: 44ch;
-  }
-  .kicker {
-    font-size: 13px;
-    color: var(--accent);
-    display: block;
-    margin-bottom: 14px;
-  }
   .term {
     background: var(--bg-deep);
-    border: 1px solid oklch(1 0 0 / 12%);
-    border-radius: 14px;
+    border: 1px solid var(--line-strong);
+    border-radius: 12px;
     overflow: hidden;
-    box-shadow: 0 40px 120px oklch(0 0 0 / 45%);
+    box-shadow:
+      0 30px 80px oklch(0 0 0 / 45%),
+      0 0 0 1px oklch(0 0 0 / 30%);
   }
   .bar {
     display: flex;
@@ -109,6 +77,7 @@ const lines: Line[] = [
     height: 38px;
     padding: 0 14px;
     border-bottom: 1px solid var(--line);
+    background: oklch(0.15 0.026 245);
     font: 12px var(--mono);
     color: var(--fg-faint);
   }
@@ -116,15 +85,16 @@ const lines: Line[] = [
     width: 10px;
     height: 10px;
     border-radius: 50%;
-    border: 1px solid oklch(1 0 0 / 22%);
+    background: var(--fg-faint);
+    opacity: 0.5;
   }
   .bar span {
     margin-left: 8px;
   }
   .body {
     padding: 18px 20px;
-    font: 13px/1.75 var(--mono);
-    min-height: 400px;
+    font: 12.5px/1.75 var(--mono);
+    min-height: 420px;
     white-space: pre-wrap;
     overflow-wrap: anywhere;
   }
@@ -178,15 +148,14 @@ const lines: Line[] = [
       transform: none;
     }
   }
+  /* On phones the box grows line by line instead of reserving the full height. */
   @media (max-width: 900px) {
-    .how {
-      padding: 64px 0 0;
-    }
-    .how .wrap {
-      grid-template-columns: 1fr;
-    }
     .body {
       min-height: 0;
+      font-size: 12px;
+    }
+    .l:not(.on) {
+      display: none;
     }
   }
   @media (prefers-reduced-motion: reduce) {

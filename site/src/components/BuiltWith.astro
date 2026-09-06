@@ -1,0 +1,117 @@
+---
+// The larger pieces GeoMetrikks is built on. Icons are simple-icons (CC0)
+// except Litestar, whose mark and gold come from litestar-org/branding (MIT).
+import {
+  siCarto,
+  siMaplibre,
+  siPostgresql,
+  siPython,
+  siReact,
+  siShadcnui,
+  siTailwindcss,
+  siTanstack,
+  siTimescale,
+  siVite,
+} from "simple-icons";
+import Litestar from "../assets/logos/litestar.svg";
+
+const items = [
+  { name: "Litestar", role: "Python API, WebSockets, CLI", href: "https://litestar.dev", icon: null, brand: "EDB641" },
+  { name: "Python", role: "3.13, uv, asyncio", href: "https://www.python.org", icon: siPython },
+  { name: "TimescaleDB", role: "hypertables and continuous aggregates", href: "https://www.timescale.com", icon: siTimescale },
+  { name: "PostgreSQL + PostGIS", role: "geometry types and spatial queries", href: "https://postgis.net", icon: siPostgresql },
+  { name: "React", role: "the single-page UI", href: "https://react.dev", icon: siReact },
+  { name: "Vite", role: "build and dev server", href: "https://vite.dev", icon: siVite },
+  { name: "TanStack", role: "Router and Query", href: "https://tanstack.com", icon: siTanstack },
+  { name: "shadcn/ui", role: "components on Base UI", href: "https://ui.shadcn.com", icon: siShadcnui },
+  { name: "Tailwind CSS", role: "styling", href: "https://tailwindcss.com", icon: siTailwindcss },
+  { name: "MapLibre GL JS", role: "the map, flat and globe", href: "https://maplibre.org", icon: siMaplibre },
+  { name: "CARTO", role: "basemap tiles on OpenStreetMap data", href: "https://carto.com/basemaps", icon: siCarto },
+];
+---
+
+<section class="built" id="built-with">
+  <div class="wrap">
+    <p class="kicker">Built with</p>
+    <h2 class="section-title">What it runs on.</h2>
+    <div class="grid">
+      {
+        items.map((it) => (
+          <a class="item card" href={it.href} rel="noopener" style={`--brand: #${it.icon ? it.icon.hex : it.brand}`}>
+            {it.icon ? (
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d={it.icon.path} />
+              </svg>
+            ) : (
+              <Litestar class="mark" width={28} height={28} aria-hidden="true" />
+            )}
+            <span class="name">{it.name}</span>
+            <span class="role">{it.role}</span>
+          </a>
+        ))
+      }
+    </div>
+  </div>
+</section>
+
+<style>
+  .built {
+    border-top: 1px solid var(--line);
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 12px;
+    margin-top: 40px;
+  }
+  .item {
+    display: grid;
+    grid-template-columns: 28px 1fr;
+    grid-template-rows: auto auto;
+    column-gap: 14px;
+    align-items: center;
+    padding: 16px 18px;
+    color: var(--fg-dim);
+    transition:
+      border-color 0.15s,
+      color 0.15s;
+  }
+  .item svg {
+    grid-row: 1 / 3;
+    width: 28px;
+    height: 28px;
+    fill: currentColor;
+    color: var(--fg-dim);
+    transition: color 0.15s;
+  }
+  .item:hover {
+    border-color: var(--fg-faint);
+    color: var(--fg);
+  }
+  .item:hover svg {
+    color: var(--brand, var(--fg));
+  }
+  .name {
+    color: var(--fg);
+    font-weight: 600;
+    font-size: 15px;
+  }
+  .role {
+    font-size: 13px;
+  }
+  @media (max-width: 1100px) {
+    .grid {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+  }
+  @media (max-width: 900px) {
+    .grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+  @media (max-width: 520px) {
+    .grid {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+</style>

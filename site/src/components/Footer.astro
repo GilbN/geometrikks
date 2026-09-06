@@ -13,6 +13,10 @@ import Mark from "./Mark.astro";
       <li><a href="/docs/sources/proxy-setup/">Proxy setup</a></li>
       <li><a href="/docs/reference/security/">Security</a></li>
     </ul>
+    <p class="marks">
+      CrowdSec and the llama logo are trademarks of CrowdSec SAS. Other names and logos belong to their owners.
+      GeoMetrikks is not affiliated with any of them.
+    </p>
   </div>
 </footer>
 
@@ -39,5 +43,11 @@ import Mark from "./Mark.astro";
   }
   a:hover {
     color: var(--fg);
+  }
+  .marks {
+    flex-basis: 100%;
+    margin: 8px 0 0;
+    font-size: 13px;
+    max-width: 70ch;
   }
 </style>

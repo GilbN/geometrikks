@@ -1,0 +1,225 @@
+---
+// One tab per reverse proxy: the log config it needs, the two .env lines,
+// and the traps. Snippets mirror the README sections the docs are built from.
+import { siCaddy, siNginx, siTraefikproxy } from "simple-icons";
+
+const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;");
+
+const proxies = [
+  {
+    id: "nginx",
+    name: "nginx",
+    icon: siNginx.path,
+    formats: ["geometrikks-json", "nginx", "combined"],
+    file: "nginx.conf",
+    snippet:
+      esc(`log_format geometrikks_json escape=json
+  '{'
+    '"client_ip":"$remote_addr",'
+    '"timestamp":"$time_iso8601",'
+    '"method":"$request_method",'
+    '"path":"$request_uri",'
+    '"protocol":"$server_protocol",'
+    '"status":"$status",'
+    '"bytes":"$body_bytes_sent",'
+    '"host":"$host",'
+    '"referrer":"$http_referer",'
+    '"user_agent":"$http_user_agent",'
+    '"remote_user":"$remote_user",'
+    '"request_time":"$request_time",'
+    '"upstream_time":"$upstream_response_time",'
+    '"request_raw":"$request"'
+  '}';
+
+access_log /config/log/nginx/access.log geometrikks_json;`),
+    env: ["ACCESS_LOG_DIR=/var/log/nginx", "LOGPARSER_LOG_PATHS=/var/log/access/access.log"],
+    notes: [
+      "nginx 1.11.8 or later, for escape=json.",
+      "The older positional format and nginx's built-in combined parse too, so archives import without a config change.",
+      "Behind a CDN, set real_ip so $remote_addr is the visitor and not the CDN.",
+    ],
+    docs: "/docs/sources/nginx/",
+  },
+  {
+    id: "traefik",
+    name: "Traefik",
+    icon: siTraefikproxy.path,
+    formats: ["traefik-json"],
+    file: "traefik.yml",
+    snippet: esc(`accessLog:
+  filePath: "/var/log/traefik/access.log"
+  format: json
+  fields:
+    headers:
+      names:
+        User-Agent: keep
+        Referer: keep`),
+    env: ["ACCESS_LOG_DIR=/var/log/traefik", "LOGPARSER_LOG_PATHS=/var/log/access/access.log"],
+    notes: [
+      "A file path is required. Traefik logs to stdout by default, and GeoMetrikks cannot read that.",
+      "Rotate with logrotate, then docker kill --signal=USR1 traefik. GeoMetrikks follows the rotation.",
+      "Behind a CDN, set forwardedHeaders.trustedIPs on the entry point. Never forwardedHeaders.insecure.",
+    ],
+    docs: "/docs/sources/traefik/",
+  },
+  {
+    id: "caddy",
+    name: "Caddy",
+    icon: siCaddy.path,
+    formats: ["caddy-json"],
+    file: "Caddyfile",
+    snippet:
+      esc(`(log_settings) {
+  log {
+    output file /var/log/caddy/access.log
+    format json
+    level INFO
+  }
+  log_append upstream_duration_ms {rp.upstream.duration_ms}
+}
+
+app.example.com {
+  import log_settings
+  reverse_proxy app:8000
+}`),
+    env: ["ACCESS_LOG_DIR=/var/log/caddy", "LOGPARSER_LOG_PATHS=/var/log/access/access.log"],
+    notes: [
+      "Caddy logs to stderr by default. The log directive writes the file.",
+      "The log_append line fills the upstream response time column. Without it the column shows a dash.",
+      "Behind a CDN, set trusted_proxies in the global options so client_ip is the visitor.",
+    ],
+    docs: "/docs/sources/caddy/",
+  },
+];
+---
+
+<section class="sources" id="sources">
+  <div class="wrap">
+    <p class="kicker">Sources</p>
+    <h2 class="section-title">Point it at the log file your proxy already writes.</h2>
+    <p class="sub">
+      The format is detected per file. Rotated files are followed. Archives, plain or gzipped, can be backfilled
+      through the same pipeline with one command.
+    </p>
+    <div class="tabs" role="tablist" aria-label="Reverse proxy">
+      {
+        proxies.map((p, i) => (
+          <button
+            role="tab"
+            id={`tab-${p.id}`}
+            aria-selected={i === 0 ? "true" : "false"}
+            aria-controls={`panel-${p.id}`}
+            tabindex={i === 0 ? 0 : -1}
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d={p.icon} />
+            </svg>
+            {p.name}
+          </button>
+        ))
+      }
+    </div>
+    {
+      proxies.map((p, i) => (
+        <div class="panel card" role="tabpanel" id={`panel-${p.id}`} aria-labelledby={`tab-${p.id}`} hidden={i !== 0}>
+          <div class="conf">
+            <div class="head">
+              <span class="file mono">{p.file}</span>
+              <span class="formats">
+                {p.formats.map((f) => (
+                  <code>{f}</code>
+                ))}
+              </span>
+            </div>
+            <pre class="block" set:html={p.snippet} />
+          </div>
+          <div class="side">
+            <h3>In .env</h3>
+            <pre class="block env" set:html={p.env.map(esc).join("\n")} />
+            <h3>Worth knowing</h3>
+            <ul>
+              {p.notes.map((n) => (
+                <li>{n}</li>
+              ))}
+            </ul>
+            <a class="more" href={p.docs}>
+              {p.name} setup in the docs
+            </a>
+          </div>
+        </div>
+      ))
+    }
+  </div>
+</section>
+
+<style>
+  .panel {
+    display: grid;
+    grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
+    gap: 32px;
+    padding: 24px;
+  }
+  .head {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin: 0 0 12px;
+  }
+  .file {
+    font-size: 13px;
+    color: var(--fg-dim);
+  }
+  .formats {
+    display: flex;
+    gap: 6px;
+    margin-left: auto;
+  }
+  .formats code {
+    font-size: 12px;
+    color: var(--accent);
+    background: var(--accent-wash);
+    padding: 2px 7px;
+    border-radius: 5px;
+  }
+  h3 {
+    margin: 0 0 10px;
+    font-size: 13px;
+    font-weight: 500;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--fg-dim);
+  }
+  .side pre.env {
+    margin-bottom: 24px;
+  }
+  ul {
+    list-style: disc;
+    margin: 0 0 20px;
+    padding: 0 0 0 18px;
+    color: var(--fg-dim);
+    font-size: 15px;
+  }
+  li {
+    margin: 0 0 8px;
+  }
+  .more {
+    color: var(--accent);
+    font-weight: 500;
+    font-size: 15px;
+  }
+  .more:hover {
+    text-decoration: underline;
+  }
+  @media (max-width: 900px) {
+    .panel {
+      grid-template-columns: minmax(0, 1fr);
+      padding: 16px;
+    }
+  }
+</style>
+
+<script>
+  import { wireTabs } from "../scripts/tabs";
+  wireTabs("#sources");
+</script>

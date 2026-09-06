@@ -1,0 +1,77 @@
+---
+// A scrolling strip of request lines under the hero. Illustrative values;
+// the track is doubled so the loop has no seam.
+const items = [
+  { status: 200, path: "/assets/app.js", where: "Cricklade, GB · traefik-01" },
+  { status: 403, path: "/wp-login.php", where: "Hanoi, VN · nginx-01" },
+  { status: 200, path: "/", where: "Toronto, CA · traefik-01" },
+  { status: 404, path: "/.env", where: "Ashburn, US · caddy-01" },
+  { status: 200, path: "/api/v1/status", where: "Oslo, NO · nginx-01" },
+  { status: 502, path: "/images/logo.png", where: "Charleroi, BE · traefik-01" },
+  { status: 101, path: "/ws/live", where: "Stockholm, SE · nginx-01" },
+  { status: 404, path: "/robots.txt", where: "São Paulo, BR · traefik-01" },
+];
+const klass = (s: number) => (s >= 500 ? "s5" : s >= 400 ? "s4" : "s2");
+---
+
+<div class="rail" aria-hidden="true">
+  <div class="track">
+    {
+      [...items, ...items].map((r) => (
+        <span>
+          <b class={klass(r.status)}>{r.status}</b> {r.path} <span class="city">{r.where}</span>
+        </span>
+      ))
+    }
+  </div>
+</div>
+
+<style>
+  .rail {
+    border-bottom: 1px solid var(--line);
+    background: var(--bg-deep);
+    overflow: hidden;
+  }
+  .track {
+    display: flex;
+    gap: 40px;
+    width: max-content;
+    padding: 12px 0;
+    animation: scroll 42s linear infinite;
+    font: 13px var(--mono);
+    color: var(--fg-dim);
+  }
+  .rail:hover .track {
+    animation-play-state: paused;
+  }
+  b {
+    font-weight: 500;
+    padding: 1px 6px;
+    border-radius: 4px;
+  }
+  .s2 {
+    background: oklch(0.76 0.17 155 / 15%);
+    color: var(--green);
+  }
+  .s4 {
+    background: oklch(0.8 0.14 85 / 15%);
+    color: var(--amber);
+  }
+  .s5 {
+    background: oklch(0.72 0.17 25 / 15%);
+    color: var(--red);
+  }
+  .city {
+    color: var(--fg-faint);
+  }
+  @keyframes scroll {
+    to {
+      transform: translateX(-50%);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .track {
+      animation: none;
+    }
+  }
+</style>
