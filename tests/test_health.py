@@ -688,6 +688,52 @@ def test_stale_geoip_database_without_credentials_when_scheduler_is_disabled(
     assert advisory.remedy == "MAXMINDDB_USER_ID and MAXMINDDB_LICENSE_KEY"
 
 
+@pytest.mark.parametrize(
+    ("scheduler_enabled", "credentials"),
+    [
+        (True, True),
+        (True, False),
+        (False, True),
+        (False, False),
+    ],
+)
+def test_long_geoip_refresh_cadence_has_complete_automatic_recovery(
+    monkeypatch,
+    scheduler_enabled,
+    credentials,
+):
+    [advisory] = _geoip_advisories(
+        monkeypatch,
+        city_age_days=31,
+        credentials=credentials,
+        scheduler_enabled=scheduler_enabled,
+        refresh_days=45,
+    )
+
+    assert advisory.detail is not None
+    automatic_start = advisory.detail.index("For automatic refresh")
+    automatic = advisory.detail[automatic_start:]
+    refresh_setting = automatic.index("GEOIP_REFRESH_DAYS to 30 or less")
+    restart = automatic.index("restart")
+    database_active = automatic.index("database services are active", restart)
+    run_now = automatic.index("Run now", database_active)
+    assert refresh_setting < restart < database_active < run_now
+    assert "Settings > Scheduler" in automatic
+    if not credentials:
+        assert automatic.index("configure the credentials") < restart
+    if not scheduler_enabled:
+        assert automatic.index("SCHEDULER_ENABLED=true") < restart
+        manual = advisory.detail[:automatic_start]
+        assert manual.index("replace") < manual.index("restart")
+    remedy = advisory.remedy or ""
+    assert "GEOIP_REFRESH_DAYS=30" in remedy
+    if not credentials:
+        assert "MAXMINDDB_USER_ID" in remedy
+        assert "MAXMINDDB_LICENSE_KEY" in remedy
+    if not scheduler_enabled:
+        assert "SCHEDULER_ENABLED=true" in remedy
+
+
 def test_geoip_database_without_age_metadata_emits_no_stale_advisory(monkeypatch):
     assert _geoip_advisories(
         monkeypatch,
