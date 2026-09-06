@@ -21,6 +21,7 @@ if TYPE_CHECKING:
     from apscheduler.schedulers.asyncio import AsyncIOScheduler
     from litestar import Litestar
 
+    from geometrikks.server.plugins import DegradedTolerantAsyncPgBackend
     from geometrikks.services.crowdsec import CrowdSecService
     from geometrikks.services.crowdsec.stream import CrowdSecStreamPoller
     from geometrikks.services.geoip.home import HomeLocation
@@ -94,3 +95,8 @@ def is_asn_available(app: Litestar, *, default: bool = False) -> bool:
 def is_db_available(app: Litestar, *, default: bool = True) -> bool:
     """Whether database-bound services were wired during startup."""
     return bool(getattr(app.state, "db_available", default))
+
+
+def get_channels_backend(app: Litestar) -> DegradedTolerantAsyncPgBackend | None:
+    """The live-events backend; None on hand-built test apps."""
+    return getattr(app.state, "channels_backend", None)

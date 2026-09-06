@@ -61,6 +61,7 @@ from geometrikks.server.scheduler_tracking import JobRunTracker
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator
 
+    from geometrikks.server.plugins import DegradedTolerantAsyncPgBackend
     from geometrikks.config.settings import Settings
     from litestar import Litestar
     from litestar.config.app import AppConfig
@@ -493,6 +494,11 @@ class LifecyclePlugin(InitPlugin):
     nest inside the plugin-owned ones (channels, database engine).
     """
 
+    def __init__(self, channels_backend: DegradedTolerantAsyncPgBackend | None = None) -> None:
+        self._channels_backend = channels_backend
+
     def on_app_init(self, app_config: "AppConfig") -> "AppConfig":
         app_config.lifespan.extend(LIFESPAN)
+        if self._channels_backend is not None:
+            app_config.state.channels_backend = self._channels_backend
         return app_config
