@@ -248,6 +248,106 @@ async def test_stop_drains_queue_before_exit(tmp_path: Path) -> None:
     assert any(s.commits for s in sessions)  # final flush on stop
 
 
+def _stop_failure_service() -> tuple[LogIngestionService, Any, Any]:
+    from unittest.mock import MagicMock
+
+    service, _repos, _sessions = make_service([])
+    city_reader = MagicMock()
+    asn_reader = MagicMock()
+    service._stop_event = asyncio.Event()
+    service._reader = city_reader
+    service._asn_reader = asn_reader
+    service.is_running = True
+    return service, city_reader, asn_reader
+
+
+async def test_stop_cleans_up_before_propagating_completed_consumer_error(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    service, city_reader, asn_reader = _stop_failure_service()
+    failure = RuntimeError("consumer failed")
+
+    async def fail() -> None:
+        raise failure
+
+    task = asyncio.create_task(fail(), name="failed-consumer")
+    service._ingestion_task = task
+    await asyncio.sleep(0)
+    assert task.done()
+
+    with pytest.raises(RuntimeError) as caught:
+        await service.stop(timeout=1.0)
+
+    assert caught.value is failure
+    city_reader.close.assert_called_once_with()
+    asn_reader.close.assert_called_once_with()
+    assert service._reader is None
+    assert service._asn_reader is None
+    assert service._ingestion_task is None
+    assert service.is_running is False
+    assert any(
+        "ingestion_consumer_failed_during_stop" in record.getMessage()
+        for record in caplog.records
+    )
+    await service.stop(timeout=1.0)
+
+
+async def test_stop_distinguishes_consumer_timeout_error_from_shutdown_timeout(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    service, city_reader, asn_reader = _stop_failure_service()
+    stop_event = service._stop_event
+    assert stop_event is not None
+    failure = asyncio.TimeoutError("consumer timed out")
+
+    async def fail_when_stopped() -> None:
+        await stop_event.wait()
+        raise failure
+
+    task = asyncio.create_task(fail_when_stopped(), name="timed-out-consumer")
+    service._ingestion_task = task
+
+    with pytest.raises(asyncio.TimeoutError) as caught:
+        await service.stop(timeout=1.0)
+
+    assert caught.value is failure
+    city_reader.close.assert_called_once_with()
+    asn_reader.close.assert_called_once_with()
+    assert service._reader is None
+    assert service._asn_reader is None
+    assert service._ingestion_task is None
+    assert service.is_running is False
+    assert not any(
+        "did not stop gracefully" in record.getMessage()
+        for record in caplog.records
+    )
+    assert any(
+        "ingestion_consumer_failed_during_stop" in record.getMessage()
+        for record in caplog.records
+    )
+    await service.stop(timeout=1.0)
+
+
+async def test_stop_cancels_consumer_after_actual_shutdown_timeout() -> None:
+    service, city_reader, asn_reader = _stop_failure_service()
+
+    async def wait_forever() -> None:
+        await asyncio.Event().wait()
+
+    task = asyncio.create_task(wait_forever(), name="stuck-consumer")
+    service._ingestion_task = task
+
+    await service.stop(timeout=0.01)
+
+    assert task.cancelled()
+    city_reader.close.assert_called_once_with()
+    asn_reader.close.assert_called_once_with()
+    assert service._reader is None
+    assert service._asn_reader is None
+    assert service._ingestion_task is None
+    assert service.is_running is False
+
+
 async def test_missing_file_does_not_block_other_tails(tmp_path: Path) -> None:
     """Waiting for a nonexistent log path does not block another file.
 

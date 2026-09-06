@@ -322,31 +322,58 @@ class LogIngestionService:
                 task.cancel()
             await asyncio.gather(*pending, return_exceptions=True)
 
-        try:
-            await asyncio.wait_for(self._ingestion_task, timeout=timeout)
-        except asyncio.TimeoutError:
+        consumer_task = self._ingestion_task
+        _done, pending = await asyncio.wait({consumer_task}, timeout=timeout)
+        if pending:
             logger.warning("Ingestion did not stop gracefully, cancelling")
-            self._ingestion_task.cancel()
-            try:
-                await self._ingestion_task
-            except asyncio.CancelledError:
-                pass
+            consumer_task.cancel()
+
+        consumer_failure: BaseException | None = None
+        try:
+            await consumer_task
         except asyncio.CancelledError:
             pass
+        except BaseException as e:
+            consumer_failure = e
+            logger.error(
+                "ingestion_consumer_failed_during_stop",
+                error=str(e),
+                error_type=type(e).__name__,
+            )
         finally:
             self.is_running = False
 
         # Every task that used the readers is done; release their mmaps.
-        if self._reader is not None:
-            self._reader.close()
-            self._reader = None
-        if self._asn_reader is not None:
-            self._asn_reader.close()
-            self._asn_reader = None
+        cleanup_failure: BaseException | None = None
+        for attribute, reader_name in (
+            ("_reader", "city"),
+            ("_asn_reader", "asn"),
+        ):
+            reader = getattr(self, attribute)
+            if reader is None:
+                continue
+            try:
+                reader.close()
+            except BaseException as e:
+                if cleanup_failure is None:
+                    cleanup_failure = e
+                logger.exception(
+                    "ingestion_reader_close_failed",
+                    reader=reader_name,
+                    error=str(e),
+                )
+            finally:
+                setattr(self, attribute, None)
+
+        self._ingestion_task = None
 
         logger.info(
             "Stopped log ingestion service. Total processed: %d", self.total_processed
         )
+        if consumer_failure is not None:
+            raise consumer_failure
+        if cleanup_failure is not None:
+            raise cleanup_failure
 
     def readers_stale(self) -> bool:
         """True when a database file on disk differs from what the readers opened.
