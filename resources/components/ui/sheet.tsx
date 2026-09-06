@@ -40,12 +40,27 @@ function SheetOverlay({
   )
 }
 
+/** Radix only renders its overlay in modal mode. Detail sheets use a
+ * contained modal mode below to avoid hiding a large table subtree. */
+function ContainedSheetOverlay({ className, ...props }: React.ComponentProps<"div">) {
+  return (
+    <div
+      data-slot="sheet-overlay"
+      data-state="open"
+      className={cn("data-open:animate-in fade-in-0 bg-black/50 duration-100 fixed inset-0 z-50 motion-reduce:animate-none", className)}
+      {...props}
+    />
+  )
+}
+
 function SheetContent({
   className,
   children,
   side = "right",
   size = "default",
   showCloseButton = true,
+  containedModal = false,
+  ref,
   ...props
 }: React.ComponentProps<typeof SheetPrimitive.Content> & {
   side?: "top" | "right" | "bottom" | "left"
@@ -53,14 +68,48 @@ function SheetContent({
    * with a rounded outer edge from `sm` up. */
   size?: "default" | "full-mobile"
   showCloseButton?: boolean
+  /** Pair with `<Sheet modal={false}>`. Preserves modal semantics without
+   * applying `aria-hidden` to the application subtree. */
+  containedModal?: boolean
 }) {
+  const contentRef = React.useRef<HTMLDivElement | null>(null)
+  const composedRef = React.useCallback(
+    (node: HTMLDivElement | null) => {
+      contentRef.current = node
+      if (typeof ref === "function") ref(node)
+      else if (ref) ref.current = node
+    },
+    [ref],
+  )
+
+  React.useEffect(() => {
+    if (!containedModal) return
+    const app = document.getElementById("app")
+    const content = contentRef.current
+    if (!app || !content) return
+
+    const keepFocusInSheet = (event: FocusEvent) => {
+      const target = event.target
+      if (!(target instanceof Node) || !app.contains(target)) return
+      const fallback = content.querySelector<HTMLElement>(
+        'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      )
+      ;(fallback ?? content).focus({ preventScroll: true })
+    }
+
+    document.addEventListener("focusin", keepFocusInSheet, true)
+    return () => document.removeEventListener("focusin", keepFocusInSheet, true)
+  }, [containedModal])
+
   return (
     <SheetPortal>
-      <SheetOverlay />
+      {containedModal ? <ContainedSheetOverlay /> : <SheetOverlay />}
       <SheetPrimitive.Content
+        ref={composedRef}
         data-slot="sheet-content"
         data-side={side}
         data-size={size}
+        aria-modal={containedModal || undefined}
         className={cn(
           "bg-background data-open:animate-in data-closed:animate-out data-[side=right]:data-closed:slide-out-to-right-10 data-[side=right]:data-open:slide-in-from-right-10 data-[side=left]:data-closed:slide-out-to-left-10 data-[side=left]:data-open:slide-in-from-left-10 data-[side=top]:data-closed:slide-out-to-top-10 data-[side=top]:data-open:slide-in-from-top-10 data-closed:fade-out-0 data-open:fade-in-0 data-[side=bottom]:data-closed:slide-out-to-bottom-10 data-[side=bottom]:data-open:slide-in-from-bottom-10 fixed z-50 flex flex-col gap-4 bg-clip-padding text-sm shadow-lg transition duration-200 ease-in-out motion-reduce:animate-none motion-reduce:transition-none",
           size === "default" &&

@@ -96,7 +96,10 @@ function encode(filters: GeoLogFilterState): Partial<GeoLogsSearch> {
 const RESET_ON_CHANGE: Partial<GeoLogsSearch> = { page: undefined }
 
 function GeoLogsPage() {
-  const search = Route.useSearch()
+  const search = Route.useSearch({
+    select: ({ inspect: _inspect, ...routeSearch }) => routeSearch,
+    structuralSharing: true,
+  })
   const navigate = Route.useNavigate()
   // Keep banned badges (Top IPs card + geo-logs table) in sync with external
   // cscli/console decisions; one subscription for the whole page.

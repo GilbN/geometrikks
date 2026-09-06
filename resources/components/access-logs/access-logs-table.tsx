@@ -6,7 +6,7 @@
  * (search, IP, host, hostname, source format, status, method, country and
  * city live in access-logs-filter-bar.tsx). Pairs with GET /api/v1/access-logs/.
  */
-import { useState } from "react"
+import { memo, useState } from "react"
 import { ArrowDown, ArrowUp, ChevronsUpDown, Columns3 } from "lucide-react"
 import {
   Table,
@@ -133,6 +133,41 @@ function renderCell(column: AccessLogColumn, r: AccessLog): React.ReactNode {
       )
   }
 }
+
+const AccessLogTableBody = memo(function AccessLogTableBody({
+  rows,
+  shownColumns,
+  onSelect,
+}: {
+  rows: AccessLog[]
+  shownColumns: AccessLogColumn[]
+  onSelect: (row: AccessLog) => void
+}) {
+  return (
+    <TableBody>
+      {rows.map((row) => (
+        <TableRow
+          key={row.id}
+          aria-label={`Request ${row.id}, ${row.method ?? ""} ${row.url ?? ""}, HTTP ${row.statusCode}`}
+          {...rowActivation<HTMLTableRowElement>(() => onSelect(row))}
+        >
+          {shownColumns.map((c) => (
+            <TableCell key={c.key} className={cn(c.align === "right" && "text-right")}>
+              {renderCell(c, row)}
+              {c.key === "ipAddress" && (
+                <span {...stopRowActivation}>
+                  <IpBanControls ip={row.ipAddress}>
+                    <InspectIpButton ip={row.ipAddress} className="ml-1" />
+                  </IpBanControls>
+                </span>
+              )}
+            </TableCell>
+          ))}
+        </TableRow>
+      ))}
+    </TableBody>
+  )
+})
 
 interface AccessLogsTableProps {
   page: number
@@ -280,28 +315,7 @@ export function AccessLogsTable({
               })}
             </TableRow>
           </TableHeader>
-          <TableBody>
-            {rows.map((row) => (
-              <TableRow
-                key={row.id}
-                aria-label={`Request ${row.id}, ${row.method ?? ""} ${row.url ?? ""}, HTTP ${row.statusCode}`}
-                {...rowActivation<HTMLTableRowElement>(() => setSelected(row))}
-              >
-                {shownColumns.map((c) => (
-                  <TableCell key={c.key} className={cn(c.align === "right" && "text-right")}>
-                    {renderCell(c, row)}
-                    {c.key === "ipAddress" && (
-                      <span {...stopRowActivation}>
-                        <IpBanControls ip={row.ipAddress}>
-                          <InspectIpButton ip={row.ipAddress} className="ml-1" />
-                        </IpBanControls>
-                      </span>
-                    )}
-                  </TableCell>
-                ))}
-              </TableRow>
-            ))}
-          </TableBody>
+          <AccessLogTableBody rows={rows} shownColumns={shownColumns} onSelect={setSelected} />
         </Table>
       </DataTableFrame>
 

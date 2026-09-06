@@ -4,7 +4,7 @@
  * city, malformed tri-state. Clicking a row opens the raw-line detail
  * dialog. Pairs with GET /api/v1/access-log-debug/.
  */
-import { useEffect, useState } from "react"
+import { memo, useEffect, useState } from "react"
 import { useSearch } from "@tanstack/react-router"
 import {
   ArrowDown,
@@ -213,13 +213,52 @@ const COLUMNS: ColumnDef[] = [
   },
 ]
 
+const DebugLogTableBody = memo(function DebugLogTableBody({
+  rows,
+  shownColumns,
+  onSelect,
+}: {
+  rows: AccessLogDebugEntry[]
+  shownColumns: ColumnDef[]
+  onSelect: (row: AccessLogDebugEntry) => void
+}) {
+  return (
+    <TableBody>
+      {rows.map((row) => (
+        <TableRow
+          key={row.id}
+          aria-label={`Debug line ${row.id}, ${row.isMalformed ? "malformed" : "parsed"}`}
+          {...rowActivation<HTMLTableRowElement>(() => onSelect(row))}
+        >
+          {shownColumns.map((c) => (
+            <TableCell key={c.key}>
+              {c.render(row)}
+              {c.key === "ipAddress" && row.ipAddress && (
+                <span {...stopRowActivation}>
+                  <IpBanControls ip={row.ipAddress}>
+                    <InspectIpButton ip={row.ipAddress} />
+                  </IpBanControls>
+                </span>
+              )}
+            </TableCell>
+          ))}
+        </TableRow>
+      ))}
+    </TableBody>
+  )
+})
+
 export function DebugLogsTable() {
   const isMobile = useIsMobile()
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(20)
 
   // Filters (raw input; text inputs are debounced before hitting the query).
-  const initial = useSearch({ from: "/debug-logs" })
+  const initial = useSearch({
+    from: "/debug-logs",
+    select: ({ ip, malformed }) => ({ ip, malformed }),
+    structuralSharing: true,
+  })
   const [searchInput, setSearchInput] = useState("")
   const [ipInput, setIpInput] = useState(initial.ip ?? "")
   const [cities, setCities] = useState<string[]>([])
@@ -487,28 +526,7 @@ export function DebugLogsTable() {
               })}
             </TableRow>
           </TableHeader>
-          <TableBody>
-            {rows.map((row) => (
-              <TableRow
-                key={row.id}
-                aria-label={`Debug line ${row.id}, ${row.isMalformed ? "malformed" : "parsed"}`}
-                {...rowActivation<HTMLTableRowElement>(() => setSelected(row))}
-              >
-                {shownColumns.map((c) => (
-                  <TableCell key={c.key}>
-                    {c.render(row)}
-                    {c.key === "ipAddress" && row.ipAddress && (
-                      <span {...stopRowActivation}>
-                        <IpBanControls ip={row.ipAddress}>
-                          <InspectIpButton ip={row.ipAddress} />
-                        </IpBanControls>
-                      </span>
-                    )}
-                  </TableCell>
-                ))}
-              </TableRow>
-            ))}
-          </TableBody>
+          <DebugLogTableBody rows={rows} shownColumns={shownColumns} onSelect={setSelected} />
         </Table>
       </DataTableFrame>
 
