@@ -5,6 +5,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, cast
 
+import pytest
 from litestar import Litestar
 from litestar.testing import TestClient
 
@@ -13,6 +14,13 @@ from geometrikks.domain.system.controllers.health import health, health_ready
 from geometrikks.services.ingestion import LogIngestionService
 from geometrikks.services.logparser.logparser import LogParser
 from tests.support import ambient_settings_dependency
+
+
+@pytest.fixture(autouse=True)
+def isolate_policy_failures(monkeypatch: pytest.MonkeyPatch) -> None:
+    from geometrikks.server import timescale
+
+    monkeypatch.setattr(timescale, "_policy_failures", [], raising=False)
 
 
 def make_app() -> Litestar:
@@ -300,6 +308,45 @@ def test_health_has_no_advisories_when_clean(monkeypatch):
     with TestClient(app=make_app()) as client:
         body = client.get("/health").json()
     assert body["advisories"] == []
+
+
+def test_health_reports_policy_update_failures(monkeypatch):
+    async def db_up(app, timeout: float = 2.0) -> bool:
+        return True
+    monkeypatch.setattr(health_module, "_database_reachable", db_up)
+
+    from geometrikks.server import timescale
+    monkeypatch.setattr(timescale, "_hostname_pollution", None)
+    monkeypatch.setattr(
+        timescale,
+        "_policy_failures",
+        [
+            timescale.PolicyFailure("retention", "geo_events", "boom"),
+            timescale.PolicyFailure("compression", "access_logs", "boom"),
+        ],
+    )
+
+    with TestClient(app=make_app()) as client:
+        advisories = client.get("/health").json()["advisories"]
+
+    [advisory] = [
+        item for item in advisories if item["id"] == "timescale-policy-update-failed"
+    ]
+    assert advisory == {
+        "id": "timescale-policy-update-failed",
+        "severity": "warning",
+        "summary": (
+            "2 TimescaleDB policies could not be updated to match the current settings: "
+            "retention on geo_events, compression on access_logs; the previous intervals "
+            "stay in force."
+        ),
+        "detail": (
+            "The app retries the updates at the next startup; check the app log for "
+            "policy_update_failed before restarting."
+        ),
+        "remedy": None,
+        "docsUrl": None,
+    }
 
 
 def test_health_reports_hostname_pollution_advisory(monkeypatch):

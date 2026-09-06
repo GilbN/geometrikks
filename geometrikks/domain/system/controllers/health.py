@@ -178,6 +178,25 @@ def _collect_advisories(app: Litestar, settings: Settings) -> list[Advisory]:
             f for f in proxy_scan.get_scan_findings() if f.hostname not in covered
         ]
         advisories.extend(proxy_advisories(findings))
+    policy_failures = timescale.get_policy_failures()
+    if policy_failures:
+        listed = ", ".join(
+            f"{failure.policy} on {failure.target}" for failure in policy_failures
+        )
+        noun = "policy" if len(policy_failures) == 1 else "policies"
+        advisories.append(Advisory(
+            id="timescale-policy-update-failed",
+            severity="warning",
+            summary=(
+                f"{len(policy_failures)} TimescaleDB {noun} could not be updated to "
+                f"match the current settings: {listed}; the previous intervals stay "
+                "in force."
+            ),
+            detail=(
+                "The app retries the updates at the next startup; check the app log "
+                "for policy_update_failed before restarting."
+            ),
+        ))
     return advisories
 
 

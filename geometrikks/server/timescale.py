@@ -118,6 +118,29 @@ def _set_hostname_pollution(value: HostnamePollution | None) -> None:
     _hostname_pollution = value
 
 
+@dataclass(frozen=True)
+class PolicyFailure:
+    policy: str
+    target: str
+    error: str
+
+
+_policy_failures: list[PolicyFailure] = []
+
+
+def get_policy_failures() -> list[PolicyFailure]:
+    """Return policy intervals that could not be synced during the last setup run."""
+    return list(_policy_failures)
+
+
+def _record_policy_failure(policy: str, target: str, error: str) -> None:
+    _policy_failures.append(PolicyFailure(policy, target, error))
+
+
+def _reset_policy_failures() -> None:
+    _policy_failures.clear()
+
+
 # =============================================================================
 # Hypertable Configuration
 # =============================================================================
@@ -689,6 +712,7 @@ async def _add_refresh_policies(
             )
         except Exception as e:
             logger.warning("policy_update_failed", policy="refresh", target=cagg, error=str(e))
+            _record_policy_failure("refresh", cagg, str(e))
 
 
 async def _add_retention_policies(
@@ -725,6 +749,7 @@ async def _add_retention_policies(
             )
         except Exception as e:
             logger.warning("policy_update_failed", policy="retention", target=target, error=str(e))
+            _record_policy_failure("retention", target, str(e))
 
 
 _POLICY_JOB_FOR_TARGET = """
@@ -821,6 +846,7 @@ async def _add_compression_policies(
             )
         except Exception as e:
             logger.warning("policy_update_failed", policy="compression", target=table, error=str(e))
+            _record_policy_failure("compression", table, str(e))
 
 
 async def _enable_realtime_aggregation(conn: "AsyncConnection") -> None:
@@ -1234,6 +1260,7 @@ async def setup_timescaledb(
             (see ``check_refresh_offsets``).
     """
     check_refresh_offsets(raw_retention_days=analytics.raw_retention_days)
+    _reset_policy_failures()
 
     async with engine.begin() as conn:
         # Enable extensions
