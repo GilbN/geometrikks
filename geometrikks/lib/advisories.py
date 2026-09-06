@@ -50,7 +50,7 @@ DATABASE_UNAVAILABLE = Advisory(
     id="database-unavailable",
     severity="critical",
     summary=(
-        "The database was unreachable when the app started. Background jobs, "
+        "The database was unreachable when the app started; background jobs, "
         "ingestion and the live feeds are paused."
     ),
     detail=(
@@ -65,7 +65,10 @@ DATABASE_RECOVERY_FAILED = Advisory(
     id="database-recovery-failed",
     severity="critical",
     summary="The database is reachable again but the startup migration failed.",
-    detail="Restart the container. If it fails again, check the app log for the migration error.",
+    detail=(
+        "Automatic recovery has stopped. Restart the container. If it fails "
+        "again, check the app log for the migration error."
+    ),
 )
 
 MAP_HOME_UNDETECTED = Advisory(
