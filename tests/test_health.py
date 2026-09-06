@@ -634,9 +634,10 @@ def test_stale_geoip_database_with_credentials_reports_configured_cadence(
     assert advisory.summary.count(".") == 1
     assert advisory.detail is not None and "every 45 days" in advisory.detail
     assert "geoip-refresh" in advisory.detail
-    assert "Scheduler" in advisory.detail
-    assert "next run" in advisory.detail and "last result" in advisory.detail
-    assert advisory.remedy is None
+    assert "Settings > Scheduler" in advisory.detail
+    assert "Run now" in advisory.detail
+    assert "GEOIP_REFRESH_DAYS" in advisory.detail
+    assert advisory.remedy == "GEOIP_REFRESH_DAYS=30"
 
 
 def test_stale_geoip_database_with_credentials_when_scheduler_is_disabled(
@@ -671,7 +672,18 @@ def test_stale_geoip_database_without_credentials_when_scheduler_is_disabled(
         advisory.detail is not None
         and "automatic refresh is disabled" in advisory.detail.lower()
     )
-    assert "configure the credentials below and restart the app" in advisory.detail
+    manual_replace = advisory.detail.index("replace")
+    manual_restart = advisory.detail.index("restart", manual_replace)
+    assert manual_replace < manual_restart
+    assert "credentials are not required" in advisory.detail.lower()
+    automatic = advisory.detail.index("For automatic refresh")
+    configure = advisory.detail.index("configure the credentials", automatic)
+    enable = advisory.detail.index("SCHEDULER_ENABLED=true", configure)
+    restart = advisory.detail.index("restart", enable)
+    trigger = advisory.detail.index("Run now", restart)
+    assert configure < enable < restart < trigger
+    assert "Settings > Scheduler" in advisory.detail
+    assert "next run" in advisory.detail
     assert "geoip-refresh job" not in advisory.detail
     assert advisory.remedy == "MAXMINDDB_USER_ID and MAXMINDDB_LICENSE_KEY"
 

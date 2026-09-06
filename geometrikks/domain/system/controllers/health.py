@@ -130,17 +130,27 @@ def _stale_geoip_advisories(settings: Settings) -> list[Advisory]:
         ):
             continue
         if credentials_available:
+            remedy = None
             if settings.scheduler.enabled:
                 summary = (
                     f"The GeoLite2 {edition} database is {info.age_days} days old and "
                     "is outside MaxMind's 30-day refresh window."
                 )
-                detail = (
-                    "The app keeps using the stale database. The geoip-refresh job "
-                    f"attempts a replacement every {refresh_interval}; inspect its next "
-                    "run and last result in Scheduler, then check the app logs for any "
-                    "reported error."
-                )
+                if refresh_days > MAXMIND_REFRESH_WINDOW_DAYS:
+                    detail = (
+                        "The app keeps using the stale database. The geoip-refresh job "
+                        f"runs every {refresh_interval}, which exceeds MaxMind's 30-day "
+                        "window. In Settings > Scheduler, find geoip-refresh and select "
+                        "Run now, then set GEOIP_REFRESH_DAYS to 30 or less and restart "
+                        "the app. Check Last run and the app logs if the manual run fails."
+                    )
+                    remedy = "GEOIP_REFRESH_DAYS=30"
+                else:
+                    detail = (
+                        "The app keeps using the stale database. In Settings > Scheduler, "
+                        "find geoip-refresh and select Run now. If it fails, check Last run "
+                        "and the app logs for the error."
+                    )
             else:
                 summary = (
                     f"The GeoLite2 {edition} database is {info.age_days} days old and "
@@ -157,6 +167,7 @@ def _stale_geoip_advisories(settings: Settings) -> list[Advisory]:
                 severity="warning",
                 summary=summary,
                 detail=detail,
+                remedy=remedy,
             ))
         else:
             if settings.scheduler.enabled:
@@ -171,9 +182,13 @@ def _stale_geoip_advisories(settings: Settings) -> list[Advisory]:
             else:
                 detail = (
                     "The app keeps using the stale database even though MaxMind requires "
-                    "a fresh copy within 30 days. Automatic refresh is disabled; "
-                    "configure the credentials below and restart the app so it loads "
-                    f"them, then replace {path} manually or set SCHEDULER_ENABLED=true."
+                    "a fresh copy within 30 days. Automatic refresh is disabled. To "
+                    f"update manually, replace {path}, then restart the app so the active "
+                    "reader loads it; MaxMind credentials are not required for manual "
+                    "replacement. For automatic refresh, configure the credentials "
+                    "below, set SCHEDULER_ENABLED=true, restart the app, then find "
+                    "geoip-refresh in Settings > Scheduler and select Run now or wait "
+                    "for its next run."
                 )
             advisories.append(Advisory(
                 id=advisory_id,
