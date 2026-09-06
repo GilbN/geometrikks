@@ -742,6 +742,10 @@ export const CrowdSecStatusResponseSchema = {
     lapiReachable: {
       type: "boolean",
     },
+    liveUpdates: {
+      default: false,
+      type: "boolean",
+    },
     writeEnabled: {
       type: "boolean",
     },
@@ -3241,6 +3245,11 @@ export const SchedulerJobsResponseSchema = {
     },
     schedulerRunning: {
       type: "boolean",
+    },
+    status: {
+      default: "running",
+      enum: ["running", "disabled", "unavailable"],
+      type: "string",
     },
   },
   required: ["jobs", "schedulerEnabled", "schedulerRunning"],

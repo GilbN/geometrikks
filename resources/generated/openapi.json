@@ -797,6 +797,10 @@
           "lapiReachable": {
             "type": "boolean"
           },
+          "liveUpdates": {
+            "default": false,
+            "type": "boolean"
+          },
           "writeEnabled": {
             "type": "boolean"
           }
@@ -3432,6 +3436,15 @@
           },
           "schedulerRunning": {
             "type": "boolean"
+          },
+          "status": {
+            "default": "running",
+            "enum": [
+              "running",
+              "disabled",
+              "unavailable"
+            ],
+            "type": "string"
           }
         },
         "required": [

@@ -83,7 +83,9 @@ async def test_lists_jobs_with_run_info():
     assert job["lastStatus"] is None
 
 
-async def test_no_scheduler_reports_disabled():
+async def test_no_scheduler_reports_unavailable():
+    """DB-degraded mode never starts the scheduler; the page must not blame
+    SCHEDULER_ENABLED=false for that."""
     async with AsyncTestClient(app=make_app(with_scheduler=False)) as client:
         resp = await client.get("/api/v1/system/scheduler/jobs")
     assert resp.status_code == 200
@@ -91,7 +93,29 @@ async def test_no_scheduler_reports_disabled():
         "schedulerEnabled": False,
         "schedulerRunning": False,
         "jobs": [],
+        "status": "unavailable",
     }
+
+
+async def test_no_scheduler_reports_unavailable_when_configured_disabled(monkeypatch):
+    monkeypatch.setenv("SCHEDULER_ENABLED", "false")
+    async with AsyncTestClient(app=make_app(with_scheduler=False)) as client:
+        body = (await client.get("/api/v1/system/scheduler/jobs")).json()
+    assert body["status"] == "unavailable"
+
+
+async def test_running_scheduler_reports_status_running():
+    async with AsyncTestClient(app=make_app()) as client:
+        body = (await client.get("/api/v1/system/scheduler/jobs")).json()
+    assert body["status"] == "running"
+
+
+async def test_scheduler_disabled_by_settings_reports_status_disabled(monkeypatch):
+    monkeypatch.setenv("SCHEDULER_ENABLED", "false")
+    async with AsyncTestClient(app=make_app()) as client:
+        body = (await client.get("/api/v1/system/scheduler/jobs")).json()
+    assert body["status"] == "disabled"
+    assert body["schedulerEnabled"] is False
 
 
 async def test_run_now_moves_next_run_time():

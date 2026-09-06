@@ -54,6 +54,8 @@ class CrowdSecStatusResponse(msgspec.Struct, rename="camel"):
     enabled: bool
     write_enabled: bool
     lapi_reachable: bool
+    # False while DB-degraded mode pauses the decision-stream poller.
+    live_updates: bool = False
 
 
 class DecisionView(msgspec.Struct, rename="camel"):
@@ -201,6 +203,7 @@ class CrowdSecController(Controller):
             enabled=True,
             write_enabled=settings.crowdsec.write_enabled,
             lapi_reachable=cached if cached is not None else await crowdsec.ping(),
+            live_updates=crowdsec_poller is not None,
         )
 
     @get("/decisions")

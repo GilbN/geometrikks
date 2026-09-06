@@ -231,6 +231,7 @@ export type CrowdSecStatsResponse = {
 export type CrowdSecStatusResponse = {
   enabled: boolean;
   lapiReachable: boolean;
+  liveUpdates?: boolean;
   writeEnabled: boolean;
 };
 
@@ -937,6 +938,7 @@ export type SchedulerJobsResponse = {
   jobs: Array<SchedulerJobView>;
   schedulerEnabled: boolean;
   schedulerRunning: boolean;
+  status?: "running" | "disabled" | "unavailable";
 };
 
 /**

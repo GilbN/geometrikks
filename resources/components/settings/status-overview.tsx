@@ -426,6 +426,9 @@ export function StatusOverview() {
           </CardHeader>
           <CardContent className="space-y-2">
             <StateLine state={crowdsecState(crowdsec, crowdsecError)} />
+            {crowdsec?.enabled && !crowdsec.liveUpdates && (
+              <p className="text-xs text-muted-foreground">Live updates paused</p>
+            )}
             <div className="flex items-center gap-2">
               {crowdsec?.enabled && (
                 <Badge variant="outline">
