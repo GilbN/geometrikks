@@ -1118,6 +1118,27 @@ export const ErrorEnvelopeSchema = {
   type: "object",
 } as const;
 
+export const GeoAsnFacetSchema = {
+  properties: {
+    asn: {
+      type: "integer",
+    },
+    organization: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+  },
+  required: ["asn", "organization"],
+  title: "GeoAsnFacet",
+  type: "object",
+} as const;
+
 export const GeoCountryFacetSchema = {
   properties: {
     code: {
@@ -1134,6 +1155,12 @@ export const GeoCountryFacetSchema = {
 
 export const GeoEventFacetsSchema = {
   properties: {
+    asns: {
+      items: {
+        $ref: "#/components/schemas/GeoAsnFacet",
+      },
+      type: "array",
+    },
     cities: {
       items: {
         type: "string",
@@ -1153,7 +1180,7 @@ export const GeoEventFacetsSchema = {
       type: "array",
     },
   },
-  required: ["cities", "countries", "hostnames"],
+  required: ["asns", "cities", "countries", "hostnames"],
   title: "GeoEventFacets",
   type: "object",
 } as const;
@@ -1463,6 +1490,26 @@ export const GeoJSONPointGeometrySchema = {
 
 export const GeoLogEntrySchema = {
   properties: {
+    asOrganization: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    asn: {
+      oneOf: [
+        {
+          type: "integer",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
     city: {
       oneOf: [
         {
@@ -1543,6 +1590,8 @@ export const GeoLogEntrySchema = {
     },
   },
   required: [
+    "asOrganization",
+    "asn",
     "city",
     "countryCode",
     "countryName",
@@ -2534,6 +2583,26 @@ export const ListGeoEventsGeoEventGeoLocationResponseBodySchema = {
 
 export const ListGeoEventsGeoEventResponseBodySchema = {
   properties: {
+    autonomousSystemNumber: {
+      oneOf: [
+        {
+          type: "integer",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    autonomousSystemOrganization: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
     hostname: {
       type: "string",
     },
@@ -3798,6 +3867,51 @@ export const TopCountryStatsDTOSchema = {
   type: "object",
 } as const;
 
+export const TopGeoAsnSchema = {
+  properties: {
+    asn: {
+      type: "integer",
+    },
+    category: {
+      enum: ["hosting", "other"],
+      type: "string",
+    },
+    eventCount: {
+      type: "integer",
+    },
+    organization: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    uniqueIps: {
+      type: "integer",
+    },
+  },
+  required: ["asn", "category", "eventCount", "organization", "uniqueIps"],
+  title: "TopGeoAsn",
+  type: "object",
+} as const;
+
+export const TopGeoAsnsResponseSchema = {
+  properties: {
+    items: {
+      items: {
+        $ref: "#/components/schemas/TopGeoAsn",
+      },
+      type: "array",
+    },
+  },
+  required: ["items"],
+  title: "TopGeoAsnsResponse",
+  type: "object",
+} as const;
+
 export const TopGeoCitiesResponseSchema = {
   properties: {
     items: {
@@ -3882,6 +3996,26 @@ export const TopGeoCountrySchema = {
 
 export const TopGeoIpSchema = {
   properties: {
+    asOrganization: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    asn: {
+      oneOf: [
+        {
+          type: "integer",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
     city: {
       oneOf: [
         {
@@ -3909,7 +4043,14 @@ export const TopGeoIpSchema = {
       type: "string",
     },
   },
-  required: ["city", "countryCode", "eventCount", "ipAddress"],
+  required: [
+    "asOrganization",
+    "asn",
+    "city",
+    "countryCode",
+    "eventCount",
+    "ipAddress",
+  ],
   title: "TopGeoIp",
   type: "object",
 } as const;

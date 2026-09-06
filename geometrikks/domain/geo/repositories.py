@@ -70,7 +70,8 @@ def resolve_locations_granularity(
     has_ip_filter: bool,
     has_hostname_filter: bool,
 ) -> StatsGranularity:
-    """Routing with filters: IP filters always force RAW; hostname filters
+    """Routing with filters: ``has_ip_filter`` covers any filter that needs
+    per-event columns (IP or ASN) and always forces RAW; hostname filters
     force RAW only until the location CAGGs carry the hostname dimension."""
     from geometrikks.server import timescale
 
@@ -225,6 +226,8 @@ class GeoLocationRepository(SQLAlchemyAsyncRepository[GeoLocation]):
         ip_addresses: list[str] | None = None,
         ip_addresses_exclude: list[str] | None = None,
         hostnames: list[str] | None = None,
+        asns: list[int] | None = None,
+        asns_exclude: list[int] | None = None,
     ) -> list[LocationWithEventCount]:
         """Retrieve all GeoLocations with their associated event counts.
 
@@ -233,12 +236,13 @@ class GeoLocationRepository(SQLAlchemyAsyncRepository[GeoLocation]):
         - > 24 hours, ≤ 30 days: location_hourly_stats CAGG
         - > 30 days: location_daily_stats CAGG
 
-        An IP filter always forces the RAW branch regardless of range: the
-        location CAGGs carry no IP dimension, and such queries are bounded
-        by raw retention (default 180d). A hostname filter forces RAW only
-        until the location CAGGs carry the hostname dimension (see
-        ``timescale.location_caggs_have_hostname``); once they do, hostname
-        filters read the CAGGs like any other range-only query.
+        An IP or ASN filter always forces the RAW branch regardless of
+        range: the location CAGGs carry neither dimension, and such queries
+        are bounded by raw retention (default 180d). A hostname filter
+        forces RAW only until the location CAGGs carry the hostname
+        dimension (see ``timescale.location_caggs_have_hostname``); once
+        they do, hostname filters read the CAGGs like any other range-only
+        query.
 
         Args:
             from_timestamp: Start datetime for filtering events.
@@ -248,6 +252,8 @@ class GeoLocationRepository(SQLAlchemyAsyncRepository[GeoLocation]):
             ip_addresses: Optional IPs to include (caller must validate).
             ip_addresses_exclude: Optional IPs to exclude (caller must validate).
             hostnames: Optional recording hostnames to filter to.
+            asns: Optional autonomous system numbers to filter to.
+            asns_exclude: Optional autonomous system numbers to exclude.
 
         Returns:
             list[LocationWithEventCount]: List containing location and event count.
@@ -263,7 +269,7 @@ class GeoLocationRepository(SQLAlchemyAsyncRepository[GeoLocation]):
         granularity = resolve_locations_granularity(
             from_timestamp,
             to_timestamp,
-            has_ip_filter=bool(ip_addresses or ip_addresses_exclude),
+            has_ip_filter=bool(ip_addresses or ip_addresses_exclude or asns or asns_exclude),
             has_hostname_filter=bool(hostnames),
         )
 
@@ -290,6 +296,15 @@ class GeoLocationRepository(SQLAlchemyAsyncRepository[GeoLocation]):
         if ip_addresses_exclude:
             filters_sql += " AND NOT (ge.ip_address = ANY(CAST(:filter_ips_excl AS inet[])))"
             params["filter_ips_excl"] = list(ip_addresses_exclude)
+        if asns:
+            filters_sql += " AND ge.autonomous_system_number = ANY(CAST(:filter_asns AS bigint[]))"
+            params["filter_asns"] = [int(a) for a in asns]
+        if asns_exclude:
+            filters_sql += (
+                " AND (ge.autonomous_system_number IS NULL OR NOT "
+                "(ge.autonomous_system_number = ANY(CAST(:filter_asns_excl AS bigint[]))))"
+            )
+            params["filter_asns_excl"] = [int(a) for a in asns_exclude]
 
         # Hostname is aliased per branch: ge in RAW, ls in the CAGGs (only
         # reachable there once the hostname dimension exists).

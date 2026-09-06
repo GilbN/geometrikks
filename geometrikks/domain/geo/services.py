@@ -698,6 +698,8 @@ class GeoLocationService(SQLAlchemyAsyncRepositoryService[GeoLocation]):
         ip_addresses: list[str] | None = None,
         ip_addresses_exclude: list[str] | None = None,
         hostnames: list[str] | None = None,
+        asns: list[int] | None = None,
+        asns_exclude: list[int] | None = None,
     ) -> list[LocationWithEventCount]:
         """Locations with event counts for the GeoJSON map layer."""
         return await self.repository.get_all_with_event_counts(
@@ -708,6 +710,8 @@ class GeoLocationService(SQLAlchemyAsyncRepositoryService[GeoLocation]):
             ip_addresses=ip_addresses,
             ip_addresses_exclude=ip_addresses_exclude,
             hostnames=hostnames,
+            asns=asns,
+            asns_exclude=asns_exclude,
         )
 
     async def get_global_top_ips(

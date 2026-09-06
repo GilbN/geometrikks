@@ -1187,6 +1187,29 @@
         "title": "ErrorEnvelope",
         "type": "object"
       },
+      "GeoAsnFacet": {
+        "properties": {
+          "asn": {
+            "type": "integer"
+          },
+          "organization": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "asn",
+          "organization"
+        ],
+        "title": "GeoAsnFacet",
+        "type": "object"
+      },
       "GeoCountryFacet": {
         "properties": {
           "code": {
@@ -1205,6 +1228,12 @@
       },
       "GeoEventFacets": {
         "properties": {
+          "asns": {
+            "items": {
+              "$ref": "#/components/schemas/GeoAsnFacet"
+            },
+            "type": "array"
+          },
           "cities": {
             "items": {
               "type": "string"
@@ -1225,6 +1254,7 @@
           }
         },
         "required": [
+          "asns",
           "cities",
           "countries",
           "hostnames"
@@ -1557,6 +1587,26 @@
       },
       "GeoLogEntry": {
         "properties": {
+          "asOrganization": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "asn": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "city": {
             "oneOf": [
               {
@@ -1637,6 +1687,8 @@
           }
         },
         "required": [
+          "asOrganization",
+          "asn",
           "city",
           "countryCode",
           "countryName",
@@ -2677,6 +2729,26 @@
       },
       "ListGeoEventsGeoEventResponseBody": {
         "properties": {
+          "autonomousSystemNumber": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "autonomousSystemOrganization": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "hostname": {
             "type": "string"
           },
@@ -4042,6 +4114,60 @@
         "title": "TopCountryStatsDTO",
         "type": "object"
       },
+      "TopGeoAsn": {
+        "properties": {
+          "asn": {
+            "type": "integer"
+          },
+          "category": {
+            "enum": [
+              "hosting",
+              "other"
+            ],
+            "type": "string"
+          },
+          "eventCount": {
+            "type": "integer"
+          },
+          "organization": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "uniqueIps": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "asn",
+          "category",
+          "eventCount",
+          "organization",
+          "uniqueIps"
+        ],
+        "title": "TopGeoAsn",
+        "type": "object"
+      },
+      "TopGeoAsnsResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/TopGeoAsn"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "TopGeoAsnsResponse",
+        "type": "object"
+      },
       "TopGeoCitiesResponse": {
         "properties": {
           "items": {
@@ -4136,6 +4262,26 @@
       },
       "TopGeoIp": {
         "properties": {
+          "asOrganization": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "asn": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "city": {
             "oneOf": [
               {
@@ -4164,6 +4310,8 @@
           }
         },
         "required": [
+          "asOrganization",
+          "asn",
           "city",
           "countryCode",
           "eventCount",
@@ -8699,6 +8847,52 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
+            "description": "Filter to these autonomous system numbers (repeatable)",
+            "in": "query",
+            "name": "asnIn",
+            "required": false,
+            "schema": {
+              "description": "Filter to these autonomous system numbers (repeatable)",
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "integer"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Exclude these autonomous system numbers (repeatable); rows without ASN data are kept",
+            "in": "query",
+            "name": "asnNotIn",
+            "required": false,
+            "schema": {
+              "description": "Exclude these autonomous system numbers (repeatable); rows without ASN data are kept",
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "integer"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
             "description": "Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)",
             "examples": {
               "from_timestamp-example-1": {
@@ -8997,6 +9191,52 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
+            "description": "Filter to these autonomous system numbers (repeatable)",
+            "in": "query",
+            "name": "asnIn",
+            "required": false,
+            "schema": {
+              "description": "Filter to these autonomous system numbers (repeatable)",
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "integer"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Exclude these autonomous system numbers (repeatable); rows without ASN data are kept",
+            "in": "query",
+            "name": "asnNotIn",
+            "required": false,
+            "schema": {
+              "description": "Exclude these autonomous system numbers (repeatable); rows without ASN data are kept",
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "integer"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
             "description": "Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)",
             "examples": {
               "from_timestamp-example-1": {
@@ -9230,6 +9470,52 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
+            "description": "Filter to these autonomous system numbers (repeatable)",
+            "in": "query",
+            "name": "asnIn",
+            "required": false,
+            "schema": {
+              "description": "Filter to these autonomous system numbers (repeatable)",
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "integer"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Exclude these autonomous system numbers (repeatable); rows without ASN data are kept",
+            "in": "query",
+            "name": "asnNotIn",
+            "required": false,
+            "schema": {
+              "description": "Exclude these autonomous system numbers (repeatable); rows without ASN data are kept",
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "integer"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
             "description": "Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)",
             "examples": {
               "from_timestamp-example-1": {
@@ -9377,6 +9663,287 @@
         ]
       }
     },
+    "/api/v1/geo-events/top-asns": {
+      "get": {
+        "deprecated": false,
+        "description": "Top autonomous systems by geo-event count.",
+        "operationId": "ApiV1GeoEventsTopAsnsGetGeoLogTopAsns",
+        "parameters": [
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "countryCodeIn",
+            "required": false,
+            "schema": {
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "cityIn",
+            "required": false,
+            "schema": {
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Filter to these IPs (repeatable)",
+            "in": "query",
+            "name": "ipAddressIn",
+            "required": false,
+            "schema": {
+              "description": "Filter to these IPs (repeatable)",
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Exclude these IPs (repeatable)",
+            "in": "query",
+            "name": "ipAddressNotIn",
+            "required": false,
+            "schema": {
+              "description": "Exclude these IPs (repeatable)",
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Filter to these recording hostnames (repeatable)",
+            "in": "query",
+            "name": "hostnameIn",
+            "required": false,
+            "schema": {
+              "description": "Filter to these recording hostnames (repeatable)",
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Filter to these autonomous system numbers (repeatable)",
+            "in": "query",
+            "name": "asnIn",
+            "required": false,
+            "schema": {
+              "description": "Filter to these autonomous system numbers (repeatable)",
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "integer"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Exclude these autonomous system numbers (repeatable); rows without ASN data are kept",
+            "in": "query",
+            "name": "asnNotIn",
+            "required": false,
+            "schema": {
+              "description": "Exclude these autonomous system numbers (repeatable); rows without ASN data are kept",
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "integer"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)",
+            "examples": {
+              "from_timestamp-example-1": {
+                "value": "2024-01-01T00:00:00Z"
+              }
+            },
+            "in": "query",
+            "name": "fromTimestamp",
+            "required": true,
+            "schema": {
+              "description": "Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)",
+              "examples": [
+                "2024-01-01T00:00:00Z"
+              ],
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)",
+            "examples": {
+              "to_timestamp-example-1": {
+                "value": "2024-12-31T23:59:59Z"
+              }
+            },
+            "in": "query",
+            "name": "toTimestamp",
+            "required": true,
+            "schema": {
+              "description": "End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)",
+              "examples": [
+                "2024-12-31T23:59:59Z"
+              ],
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Maximum number of ASNs",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 10,
+              "description": "Maximum number of ASNs",
+              "maximum": 50.0,
+              "minimum": 1.0,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TopGeoAsnsResponse"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "GetGeoLogTopAsns",
+        "tags": [
+          "Geo Events"
+        ]
+      }
+    },
     "/api/v1/geo-events/top-cities": {
       "get": {
         "deprecated": false,
@@ -9485,6 +10052,52 @@
                 {
                   "items": {
                     "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Filter to these autonomous system numbers (repeatable)",
+            "in": "query",
+            "name": "asnIn",
+            "required": false,
+            "schema": {
+              "description": "Filter to these autonomous system numbers (repeatable)",
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "integer"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Exclude these autonomous system numbers (repeatable); rows without ASN data are kept",
+            "in": "query",
+            "name": "asnNotIn",
+            "required": false,
+            "schema": {
+              "description": "Exclude these autonomous system numbers (repeatable); rows without ASN data are kept",
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "integer"
                   },
                   "type": "array"
                 },
@@ -9733,6 +10346,52 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
+            "description": "Filter to these autonomous system numbers (repeatable)",
+            "in": "query",
+            "name": "asnIn",
+            "required": false,
+            "schema": {
+              "description": "Filter to these autonomous system numbers (repeatable)",
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "integer"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Exclude these autonomous system numbers (repeatable); rows without ASN data are kept",
+            "in": "query",
+            "name": "asnNotIn",
+            "required": false,
+            "schema": {
+              "description": "Exclude these autonomous system numbers (repeatable); rows without ASN data are kept",
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "integer"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
             "description": "Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)",
             "examples": {
               "from_timestamp-example-1": {
@@ -9955,6 +10614,52 @@
                 {
                   "items": {
                     "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Filter to these autonomous system numbers (repeatable)",
+            "in": "query",
+            "name": "asnIn",
+            "required": false,
+            "schema": {
+              "description": "Filter to these autonomous system numbers (repeatable)",
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "integer"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Exclude these autonomous system numbers (repeatable); rows without ASN data are kept",
+            "in": "query",
+            "name": "asnNotIn",
+            "required": false,
+            "schema": {
+              "description": "Exclude these autonomous system numbers (repeatable); rows without ASN data are kept",
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "integer"
                   },
                   "type": "array"
                 },
@@ -10347,6 +11052,52 @@
                 {
                   "items": {
                     "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Filter to these autonomous system numbers (repeatable)",
+            "in": "query",
+            "name": "asnIn",
+            "required": false,
+            "schema": {
+              "description": "Filter to these autonomous system numbers (repeatable)",
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "integer"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Exclude these autonomous system numbers (repeatable); rows without ASN data are kept",
+            "in": "query",
+            "name": "asnNotIn",
+            "required": false,
+            "schema": {
+              "description": "Exclude these autonomous system numbers (repeatable); rows without ASN data are kept",
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "integer"
                   },
                   "type": "array"
                 },

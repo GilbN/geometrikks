@@ -334,6 +334,14 @@ export type ErrorEnvelope = {
 };
 
 /**
+ * GeoAsnFacet
+ */
+export type GeoAsnFacet = {
+  asn: number;
+  organization: string | null;
+};
+
+/**
  * GeoCountryFacet
  */
 export type GeoCountryFacet = {
@@ -345,6 +353,7 @@ export type GeoCountryFacet = {
  * GeoEventFacets
  */
 export type GeoEventFacets = {
+  asns: Array<GeoAsnFacet>;
   cities: Array<string>;
   countries: Array<GeoCountryFacet>;
   hostnames: Array<string>;
@@ -449,6 +458,8 @@ export type GeoJsonPointGeometry = {
  * GeoLogEntry
  */
 export type GeoLogEntry = {
+  asOrganization: string | null;
+  asn: number | null;
   city: string | null;
   countryCode: string;
   countryName: string;
@@ -714,6 +725,8 @@ export type ListGeoEventsGeoEventGeoLocationResponseBody = {
  * ListGeoEventsGeoEventResponseBody
  */
 export type ListGeoEventsGeoEventResponseBody = {
+  autonomousSystemNumber?: number | null;
+  autonomousSystemOrganization?: string | null;
   hostname: string;
   id: number;
   ipAddress: string;
@@ -1121,6 +1134,24 @@ export type TopCountryStatsDto = {
 };
 
 /**
+ * TopGeoAsn
+ */
+export type TopGeoAsn = {
+  asn: number;
+  category: "hosting" | "other";
+  eventCount: number;
+  organization: string | null;
+  uniqueIps: number;
+};
+
+/**
+ * TopGeoAsnsResponse
+ */
+export type TopGeoAsnsResponse = {
+  items: Array<TopGeoAsn>;
+};
+
+/**
  * TopGeoCitiesResponse
  */
 export type TopGeoCitiesResponse = {
@@ -1158,6 +1189,8 @@ export type TopGeoCountry = {
  * TopGeoIp
  */
 export type TopGeoIp = {
+  asOrganization: string | null;
+  asn: number | null;
   city: string | null;
   countryCode: string | null;
   eventCount: number;
@@ -2652,6 +2685,14 @@ export type ApiV1GeoEventsLogsGetGeoLogsData = {
      */
     hostnameIn?: Array<string> | null;
     /**
+     * Filter to these autonomous system numbers (repeatable)
+     */
+    asnIn?: Array<number> | null;
+    /**
+     * Exclude these autonomous system numbers (repeatable); rows without ASN data are kept
+     */
+    asnNotIn?: Array<number> | null;
+    /**
      * Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)
      */
     fromTimestamp: string;
@@ -2735,6 +2776,14 @@ export type ApiV1GeoEventsSummaryGetGeoLogSummaryData = {
      */
     hostnameIn?: Array<string> | null;
     /**
+     * Filter to these autonomous system numbers (repeatable)
+     */
+    asnIn?: Array<number> | null;
+    /**
+     * Exclude these autonomous system numbers (repeatable); rows without ASN data are kept
+     */
+    asnNotIn?: Array<number> | null;
+    /**
      * Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)
      */
     fromTimestamp: string;
@@ -2798,6 +2847,14 @@ export type ApiV1GeoEventsTimeSeriesGetGeoLogTimeSeriesData = {
      */
     hostnameIn?: Array<string> | null;
     /**
+     * Filter to these autonomous system numbers (repeatable)
+     */
+    asnIn?: Array<number> | null;
+    /**
+     * Exclude these autonomous system numbers (repeatable); rows without ASN data are kept
+     */
+    asnNotIn?: Array<number> | null;
+    /**
      * Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)
      */
     fromTimestamp: string;
@@ -2846,6 +2903,77 @@ export type ApiV1GeoEventsTimeSeriesGetGeoLogTimeSeriesResponses = {
 export type ApiV1GeoEventsTimeSeriesGetGeoLogTimeSeriesResponse =
   ApiV1GeoEventsTimeSeriesGetGeoLogTimeSeriesResponses[keyof ApiV1GeoEventsTimeSeriesGetGeoLogTimeSeriesResponses];
 
+export type ApiV1GeoEventsTopAsnsGetGeoLogTopAsnsData = {
+  body?: never;
+  path?: never;
+  query: {
+    countryCodeIn?: Array<string> | null;
+    cityIn?: Array<string> | null;
+    /**
+     * Filter to these IPs (repeatable)
+     */
+    ipAddressIn?: Array<string> | null;
+    /**
+     * Exclude these IPs (repeatable)
+     */
+    ipAddressNotIn?: Array<string> | null;
+    /**
+     * Filter to these recording hostnames (repeatable)
+     */
+    hostnameIn?: Array<string> | null;
+    /**
+     * Filter to these autonomous system numbers (repeatable)
+     */
+    asnIn?: Array<number> | null;
+    /**
+     * Exclude these autonomous system numbers (repeatable); rows without ASN data are kept
+     */
+    asnNotIn?: Array<number> | null;
+    /**
+     * Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)
+     */
+    fromTimestamp: string;
+    /**
+     * End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)
+     */
+    toTimestamp: string;
+    /**
+     * Maximum number of ASNs
+     */
+    limit?: number;
+  };
+  url: "/api/v1/geo-events/top-asns";
+};
+
+export type ApiV1GeoEventsTopAsnsGetGeoLogTopAsnsErrors = {
+  /**
+   * Validation Exception
+   */
+  400: {
+    detail: string;
+    extra?:
+      | null
+      | {
+          [key: string]: unknown;
+        }
+      | Array<unknown>;
+    status_code: number;
+  };
+};
+
+export type ApiV1GeoEventsTopAsnsGetGeoLogTopAsnsError =
+  ApiV1GeoEventsTopAsnsGetGeoLogTopAsnsErrors[keyof ApiV1GeoEventsTopAsnsGetGeoLogTopAsnsErrors];
+
+export type ApiV1GeoEventsTopAsnsGetGeoLogTopAsnsResponses = {
+  /**
+   * Request fulfilled, document follows
+   */
+  200: TopGeoAsnsResponse;
+};
+
+export type ApiV1GeoEventsTopAsnsGetGeoLogTopAsnsResponse =
+  ApiV1GeoEventsTopAsnsGetGeoLogTopAsnsResponses[keyof ApiV1GeoEventsTopAsnsGetGeoLogTopAsnsResponses];
+
 export type ApiV1GeoEventsTopCitiesGetGeoLogTopCitiesData = {
   body?: never;
   path?: never;
@@ -2864,6 +2992,14 @@ export type ApiV1GeoEventsTopCitiesGetGeoLogTopCitiesData = {
      * Filter to these recording hostnames (repeatable)
      */
     hostnameIn?: Array<string> | null;
+    /**
+     * Filter to these autonomous system numbers (repeatable)
+     */
+    asnIn?: Array<number> | null;
+    /**
+     * Exclude these autonomous system numbers (repeatable); rows without ASN data are kept
+     */
+    asnNotIn?: Array<number> | null;
     /**
      * Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)
      */
@@ -2928,6 +3064,14 @@ export type ApiV1GeoEventsTopCountriesGetGeoLogTopCountriesData = {
      */
     hostnameIn?: Array<string> | null;
     /**
+     * Filter to these autonomous system numbers (repeatable)
+     */
+    asnIn?: Array<number> | null;
+    /**
+     * Exclude these autonomous system numbers (repeatable); rows without ASN data are kept
+     */
+    asnNotIn?: Array<number> | null;
+    /**
      * Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)
      */
     fromTimestamp: string;
@@ -2990,6 +3134,14 @@ export type ApiV1GeoEventsTopIpsGetGeoLogTopIpsData = {
      * Filter to these recording hostnames (repeatable)
      */
     hostnameIn?: Array<string> | null;
+    /**
+     * Filter to these autonomous system numbers (repeatable)
+     */
+    asnIn?: Array<number> | null;
+    /**
+     * Exclude these autonomous system numbers (repeatable); rows without ASN data are kept
+     */
+    asnNotIn?: Array<number> | null;
     /**
      * Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)
      */
@@ -3120,6 +3272,14 @@ export type ApiV1GeoLocationsGeojsonGetGeojsonData = {
      * Filter to these recording hostnames (repeatable)
      */
     hostnameIn?: Array<string> | null;
+    /**
+     * Filter to these autonomous system numbers (repeatable)
+     */
+    asnIn?: Array<number> | null;
+    /**
+     * Exclude these autonomous system numbers (repeatable); rows without ASN data are kept
+     */
+    asnNotIn?: Array<number> | null;
   };
   url: "/api/v1/geo-locations/geojson";
 };

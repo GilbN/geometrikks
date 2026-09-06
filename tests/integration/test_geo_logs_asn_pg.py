@@ -230,3 +230,30 @@ class TestAsnFacet:
         assert [(f.asn, f.organization) for f in facets.asns] == [
             (24940, "Hetzner Online GmbH"), (1221, "Telstra Pty Ltd"),
         ]
+
+
+class TestGeojsonAsnFilters:
+    async def test_include_and_exclude_shrink_results(self, pg_session_maker, clean_tables):
+        from geometrikks.domain.geo.repositories import GeoLocationRepository
+
+        loc = await seed_asn_raw(pg_session_maker)
+        async with pg_session_maker() as session:
+            repo = GeoLocationRepository(session=session)
+            only_hetzner = await repo.get_all_with_event_counts(RAW_START, NOW, asns=[24940])
+            without_telstra = await repo.get_all_with_event_counts(RAW_START, NOW, asns_exclude=[1221])
+            none = await repo.get_all_with_event_counts(RAW_START, NOW, asns=[65000])
+        assert [(r.location.id, r.event_count) for r in only_hetzner] == [(loc, 2)]
+        assert [(r.location.id, r.event_count) for r in without_telstra] == [(loc, 3)], "the no-ASN row survives an exclude"
+        assert none == []
+
+    async def test_asn_filter_forces_raw_on_long_range(self, pg_engine, pg_session_maker, clean_tables):
+        """The location CAGGs carry no ASN, so a filtered long range must read geo_events."""
+        from geometrikks.domain.geo.repositories import GeoLocationRepository
+
+        loc = await seed_asn_multiday(pg_session_maker)
+        # No CAGG refresh on purpose: a CAGG read would see nothing.
+        async with pg_session_maker() as session:
+            rows = await GeoLocationRepository(session=session).get_all_with_event_counts(
+                MULTIDAY_START, NOW, asns=[1221]
+            )
+        assert [(r.location.id, r.event_count) for r in rows] == [(loc, 6)]

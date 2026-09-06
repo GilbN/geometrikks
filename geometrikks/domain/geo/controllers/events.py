@@ -26,6 +26,7 @@ from geometrikks.domain.geo.schemas import (
     GeoLogPercentChange,
     GeoLogSummaryResponse,
     GeoLogTimeSeriesResponse,
+    TopGeoAsnsResponse,
     TopGeoCitiesResponse,
     TopGeoCountriesResponse,
     TopGeoIpsResponse,
@@ -352,6 +353,21 @@ class GeoEventController(Controller):
             ensure_utc(from_timestamp), ensure_utc(to_timestamp), geo_filters, limit=limit
         )
         return TopGeoCitiesResponse(items=rows)
+
+    @get("/top-asns", return_dto=None, description="Top autonomous systems by geo-event count.")
+    async def get_geo_log_top_asns(
+        self,
+        geo_event_service: NamedDependency[GeoEventService],
+        geo_filters: NamedDependency[SkipValidation[GeoEventFilters]],
+        from_timestamp: FromTimestamp,
+        to_timestamp: ToTimestamp,
+        limit: Annotated[int, QueryParameter(description="Maximum number of ASNs", ge=1, le=50)] = 10,
+    ) -> TopGeoAsnsResponse:
+        """Top ASNs with exact unique-IP counts; rows without ASN data are excluded."""
+        rows = await geo_event_service.get_top_asns(
+            ensure_utc(from_timestamp), ensure_utc(to_timestamp), geo_filters, limit=limit
+        )
+        return TopGeoAsnsResponse(items=rows)
 
     @get("/facets", return_dto=None, description="Distinct filterable values for dropdowns.")
     async def get_geo_log_facets(
