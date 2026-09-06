@@ -143,6 +143,9 @@ async def test_ingestion_start_failure_still_stops_service(monkeypatch):
             pass
 
     ingestion.stop.assert_awaited_once()
+    assert not hasattr(app.state, "ingestion_service")
+    await lc.stop_ingestion(cast("Any", app))
+    ingestion.stop.assert_awaited_once()
 
 
 async def test_db_degraded_mode_skips_scheduler_and_ingestion(monkeypatch):
@@ -161,6 +164,63 @@ async def test_db_degraded_mode_skips_scheduler_and_ingestion(monkeypatch):
 
     cast("AsyncMock", lc.create_scheduler).assert_not_awaited()
     cast("MagicMock", lc.LogIngestionService).assert_not_called()
+
+
+async def test_degraded_start_registers_advisory_and_defers_the_poller(monkeypatch):
+    from geometrikks.server import lifecycle as lc
+    from geometrikks.server import runtime
+
+    _enable_crowdsec(monkeypatch)
+    _patch_startup_collaborators(
+        monkeypatch, lc, db_available=False, ensure=AsyncMock(return_value=True)
+    )
+    _patch_crowdsec_service(monkeypatch, lc)
+    poller = cast("MagicMock", lc.CrowdSecStreamPoller).return_value
+
+    app = SimpleNamespace(state=SimpleNamespace())
+    async with enter_lifespan(app):
+        assert app.state.db_available is False
+        assert app.state.db_degraded_since is not None
+        assert app.state.crowdsec_stream_poller is None
+        assert app.state.crowdsec_stream_poller_deferred is poller
+        ids = [a.id for a in runtime.get_advisories(cast("Any", app)).snapshot()]
+        # Membership, not equality: geoip_lifespan may register the
+        # map-home advisory too (Task 16).
+        assert "database-unavailable" in ids
+
+
+async def test_stop_functions_are_no_ops_without_state():
+    from geometrikks.server import lifecycle as lc
+
+    app = SimpleNamespace(state=SimpleNamespace())
+    await lc.stop_scheduler(cast("Any", app))
+    await lc.stop_ingestion(cast("Any", app))
+    await lc.stop_scheduler(cast("Any", app))
+    await lc.stop_ingestion(cast("Any", app))
+
+
+async def test_start_scheduler_attaches_state_before_start(monkeypatch):
+    """A start() that raises after activating the scheduler must leave it on
+    state so stop_scheduler can shut it down."""
+    from geometrikks.server import lifecycle as lc
+
+    _patch_startup_collaborators(
+        monkeypatch, lc, db_available=True, ensure=AsyncMock(return_value=True)
+    )
+    scheduler = cast("AsyncMock", lc.create_scheduler).return_value
+    scheduler.start = MagicMock(side_effect=RuntimeError("job store down"))
+    scheduler.running = True
+
+    app = SimpleNamespace(state=SimpleNamespace())
+    with pytest.raises(RuntimeError, match="job store down"):
+        await lc.start_scheduler(cast("Any", app))
+    assert app.state.scheduler is scheduler
+    await lc.stop_scheduler(cast("Any", app))
+    scheduler.shutdown.assert_called_once_with(wait=True)
+    assert not hasattr(app.state, "scheduler")
+    assert not hasattr(app.state, "scheduler_tracker")
+    await lc.stop_scheduler(cast("Any", app))
+    scheduler.shutdown.assert_called_once_with(wait=True)
 
 
 async def test_agent_mode_waits_for_schema_and_skips_crowdsec(monkeypatch):
