@@ -27,8 +27,13 @@ from geometrikks.domain.system.proxy_detection import proxy_advisories, proxy_fi
 from geometrikks.lib.utils import geoip_info
 from geometrikks.lib.advisories import Advisory
 from geometrikks.server import runtime
+from geometrikks.services.geoip.downloader import has_credentials
 from geometrikks.services.ingestion import LogIngestionService
 from geometrikks.domain.system.dependencies import provide_ingestion_service as pis
+
+
+# This license window is independent of the configured refresh schedule.
+MAXMIND_REFRESH_WINDOW_DAYS = 30
 
 
 class IngestionHealth(msgspec.Struct, rename="camel"):
@@ -98,6 +103,61 @@ async def _database_reachable(app: Litestar, timeout: float = 2.0) -> bool:
         return True
     except Exception:
         return False
+
+
+def _stale_geoip_advisories(settings: Settings) -> list[Advisory]:
+    editions = [
+        ("City", settings.geoip.db_path, True, "geoip-database-stale"),
+        (
+            "ASN",
+            settings.geoip.asn_db_path,
+            settings.geoip.asn_enabled,
+            "asn-database-stale",
+        ),
+    ]
+    advisories: list[Advisory] = []
+    credentials_available = has_credentials(settings.geoip)
+    for edition, path, enabled, advisory_id in editions:
+        if not enabled:
+            continue
+        info = geoip_info(path)
+        if (
+            not info.available
+            or info.age_days is None
+            or info.age_days <= MAXMIND_REFRESH_WINDOW_DAYS
+        ):
+            continue
+        if credentials_available:
+            advisories.append(Advisory(
+                id=advisory_id,
+                severity="warning",
+                summary=(
+                    f"The GeoLite2 {edition} database is {info.age_days} days old; "
+                    "the weekly refresh is not succeeding."
+                ),
+                detail=(
+                    "The app keeps using the stale database and retries through the "
+                    "weekly geoip-refresh job; check that job in Scheduler and the app "
+                    "logs for the last error."
+                ),
+            ))
+        else:
+            advisories.append(Advisory(
+                id=advisory_id,
+                severity="warning",
+                summary=(
+                    f"The GeoLite2 {edition} database is {info.age_days} days old and "
+                    "cannot refresh because no MaxMind credentials are configured, "
+                    "which is outside MaxMind's 30-day refresh window."
+                ),
+                detail=(
+                    "The app keeps using the stale database even though MaxMind requires "
+                    "a fresh copy within 30 days; configure the credentials below so the "
+                    "weekly geoip-refresh job can replace it."
+                ),
+                remedy="MAXMINDDB_USER_ID and MAXMINDDB_LICENSE_KEY",
+            ))
+    return advisories
 
 
 def _collect_advisories(app: Litestar, settings: Settings) -> list[Advisory]:
@@ -194,6 +254,7 @@ def _collect_advisories(app: Litestar, settings: Settings) -> list[Advisory]:
                     "logs for the cause."
                 ),
             ))
+    advisories.extend(_stale_geoip_advisories(settings))
     policy_failures = timescale.get_policy_failures()
     if policy_failures:
         listed = ", ".join(

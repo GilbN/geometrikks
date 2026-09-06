@@ -17,10 +17,21 @@ from tests.support import ambient_settings_dependency
 
 
 @pytest.fixture(autouse=True)
-def isolate_policy_failures(monkeypatch: pytest.MonkeyPatch) -> None:
+def isolate_computed_advisories(monkeypatch: pytest.MonkeyPatch) -> None:
+    from geometrikks.lib.utils import GeoIPInfoView
     from geometrikks.server import timescale
 
     monkeypatch.setattr(timescale, "_policy_failures", [], raising=False)
+    monkeypatch.setattr(
+        health_module,
+        "geoip_info",
+        lambda path: GeoIPInfoView(
+            available=False,
+            db_path=str(path),
+            build_date=None,
+            age_days=None,
+        ),
+    )
 
 
 def make_app() -> Litestar:
@@ -520,3 +531,124 @@ def test_health_reports_a_failing_proxy_scan(monkeypatch):
     assert "proxy-peer-scan" in detail
     assert "Scheduler" in detail
     assert "app logs" in detail
+
+
+def _stale_view(age_days: int | None):
+    from geometrikks.lib.utils import GeoIPInfoView
+
+    return GeoIPInfoView(
+        available=age_days is not None,
+        db_path="x",
+        build_date=None,
+        age_days=age_days,
+    )
+
+
+def _geoip_advisories(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    city_age_days: int | None,
+    credentials: bool,
+    asn_enabled: bool = False,
+    asn_age_days: int | None = None,
+):
+    from geometrikks.config.settings import Settings
+    from geometrikks.domain.system.controllers.health import _collect_advisories
+    from geometrikks.server import timescale
+
+    monkeypatch.setattr(timescale, "_hostname_pollution", None)
+    monkeypatch.setattr(
+        health_module,
+        "geoip_info",
+        lambda path: _stale_view(
+            asn_age_days if path == settings.geoip.asn_db_path else city_age_days
+        ),
+    )
+    monkeypatch.setattr(
+        health_module,
+        "has_credentials",
+        lambda geoip_settings: credentials,
+    )
+    settings = Settings()
+    settings.geoip.asn_enabled = asn_enabled
+    settings.app.proxy_advisory = False
+    app = SimpleNamespace(
+        state=SimpleNamespace(geoip_available=True, asn_available=asn_enabled)
+    )
+    return [
+        advisory
+        for advisory in _collect_advisories(cast("Any", app), settings)
+        if advisory.id.endswith("-database-stale")
+    ]
+
+
+def test_geoip_database_is_fresh_at_exact_refresh_window(monkeypatch):
+    assert _geoip_advisories(
+        monkeypatch,
+        city_age_days=30,
+        credentials=False,
+    ) == []
+
+
+def test_geoip_database_is_stale_after_refresh_window_without_credentials(
+    monkeypatch,
+):
+    [advisory] = _geoip_advisories(
+        monkeypatch,
+        city_age_days=31,
+        credentials=False,
+    )
+
+    assert advisory.id == "geoip-database-stale"
+    assert advisory.severity == "warning"
+    assert "31 days old" in advisory.summary
+    assert "no MaxMind credentials" in advisory.summary
+    assert advisory.summary.count(".") == 1
+    assert advisory.detail is not None and "30 days" in advisory.detail
+    assert advisory.remedy == "MAXMINDDB_USER_ID and MAXMINDDB_LICENSE_KEY"
+
+
+def test_stale_geoip_database_with_credentials_points_at_refresh_job(monkeypatch):
+    [advisory] = _geoip_advisories(
+        monkeypatch,
+        city_age_days=45,
+        credentials=True,
+    )
+
+    assert "weekly refresh is not succeeding" in advisory.summary
+    assert advisory.summary.count(".") == 1
+    assert advisory.detail is not None and "geoip-refresh" in advisory.detail
+    assert advisory.remedy is None
+
+
+def test_geoip_database_without_age_metadata_emits_no_stale_advisory(monkeypatch):
+    assert _geoip_advisories(
+        monkeypatch,
+        city_age_days=None,
+        credentials=False,
+    ) == []
+
+
+def test_stale_asn_database_gets_its_own_advisory_when_enabled(monkeypatch):
+    advisories = _geoip_advisories(
+        monkeypatch,
+        city_age_days=31,
+        credentials=True,
+        asn_enabled=True,
+        asn_age_days=31,
+    )
+
+    assert sorted(advisory.id for advisory in advisories) == [
+        "asn-database-stale",
+        "geoip-database-stale",
+    ]
+
+
+def test_stale_asn_database_is_ignored_when_disabled(monkeypatch):
+    assert _geoip_advisories(
+        monkeypatch,
+        city_age_days=20,
+        credentials=True,
+        asn_enabled=False,
+        asn_age_days=31,
+    ) == []
