@@ -6,18 +6,62 @@
 @import "@fontsource-variable/schibsted-grotesk";
 @import "@fontsource/fragment-mono";
 
+@font-face {
+  font-family: "runr";
+  src: url("/fonts/runr-Regular.woff2") format("woff2");
+  font-display: swap;
+  /* Same coverage as the app: A-Z, ÅÆØ, digits, hyphen-minus, space. */
+  unicode-range: U+0020, U+002D, U+0030-0039, U+0041-005A, U+00C5, U+00C6, U+00D8;
+}
+
 :root {
+  /* The wordmark's ligature strokes with --accent, as on the landing page. */
+  --accent: var(--sl-color-accent);
   --sl-font: "Schibsted Grotesk Variable", system-ui, sans-serif;
   --sl-font-mono: "Fragment Mono", ui-monospace, monospace;
-  --sl-color-accent-low: oklch(0.9 0.04 178);
-  --sl-color-accent: oklch(0.52 0.115 178);
-  --sl-color-accent-high: oklch(0.35 0.08 178);
+  /* Fjord mist: the app's light theme, teal accent. */
+  --sl-color-accent-low: oklch(0.9 0.05 178);
+  --sl-color-accent: oklch(0.5 0.11 178);
+  --sl-color-accent-high: oklch(0.34 0.08 178);
+  --sl-color-white: oklch(0.2 0.03 245);
+  --sl-color-gray-1: oklch(0.28 0.03 245);
+  --sl-color-gray-2: oklch(0.36 0.03 245);
+  --sl-color-gray-3: oklch(0.5 0.025 245);
+  --sl-color-gray-4: oklch(0.68 0.02 245);
+  --sl-color-gray-5: oklch(0.85 0.015 245);
+  --sl-color-gray-6: oklch(0.94 0.01 245);
+  --sl-color-gray-7: oklch(0.975 0.006 245);
+  --sl-color-black: oklch(1 0 0);
 }
 :root[data-theme="dark"] {
-  --sl-color-accent-low: oklch(0.25 0.06 178);
+  /* Aurora night, the landing page's tokens. */
+  --sl-color-accent-low: oklch(0.28 0.06 178);
   --sl-color-accent: oklch(0.78 0.15 178);
   --sl-color-accent-high: oklch(0.9 0.08 178);
-  --sl-color-bg: oklch(0.14 0.02 200);
-  --sl-color-bg-nav: oklch(0.12 0.02 200);
-  --sl-color-bg-sidebar: oklch(0.12 0.02 200);
+  --sl-color-white: oklch(0.97 0.01 220);
+  --sl-color-gray-1: oklch(0.93 0.012 220);
+  --sl-color-gray-2: oklch(0.8 0.015 230);
+  --sl-color-gray-3: oklch(0.62 0.02 240);
+  --sl-color-gray-4: oklch(0.42 0.025 245);
+  --sl-color-gray-5: oklch(0.26 0.03 245);
+  --sl-color-gray-6: oklch(0.17 0.028 245);
+  --sl-color-black: oklch(0.13 0.025 245);
+  --sl-color-bg-nav: oklch(0.12 0.025 245);
+  --sl-color-bg-sidebar: oklch(0.12 0.025 245);
+}
+
+/* The wordmark in the header: GEOMETRI + the hagall ligature + S, in runr. */
+.wordmark {
+  font-family: "runr", sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.13em;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
+}
+.wordmark .lig {
+  height: 0.78em;
+  width: auto;
+  margin: 0 0.19em 0 0.06em;
 }

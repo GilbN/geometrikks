@@ -14,10 +14,11 @@ export default defineConfig({
       description:
         "Your reverse proxy's access log on a live map. nginx, Traefik and Caddy. Self-hosted, one Docker image.",
       customCss: ["./src/styles/docs.css"],
+      components: { SiteTitle: "./src/components/docs/SiteTitle.astro" },
       social: [{ icon: "github", label: "GitHub", href: github }],
       // Pages are generated from the README and docs/, so edits belong there.
       editLink: { baseUrl: `${github}/edit/develop/` },
-      expressiveCode: { shiki: { langAlias: { env: "dotenv" } } },
+      expressiveCode: { shiki: { langAlias: { env: "dotenv", caddyfile: "txt" } } },
       sidebar: [
         { label: "Get started", items: [{ autogenerate: { directory: "docs/get-started" } }] },
         { label: "Log sources", items: [{ autogenerate: { directory: "docs/sources" } }] },
