@@ -25,8 +25,8 @@ export function DetailSheet({
   className?: string
 }) {
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" size="full-mobile" className={cn("gap-0", className)}>
+    <Sheet open={open} onOpenChange={onOpenChange} modal={false}>
+      <SheetContent side="right" size="full-mobile" containedModal className={cn("gap-0", className)}>
         <SheetHeader className="shrink-0 border-b border-border/50 pr-16">
           <SheetTitle>{title}</SheetTitle>
           <SheetDescription className={cn(!description && "sr-only")}>

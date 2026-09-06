@@ -4,10 +4,10 @@
  * reason IpBanControls exists twice.
  */
 import { ScanSearch } from "lucide-react"
-import { useIpInspector } from "@/lib/ip-inspector"
+import { useIpInspectorActions } from "@/lib/ip-inspector"
 
 export function InspectIpButton({ ip, fromLocationId }: { ip: string; fromLocationId?: number }) {
-  const { open } = useIpInspector()
+  const { open } = useIpInspectorActions()
   return (
     <button
       type="button"

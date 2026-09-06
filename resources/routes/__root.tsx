@@ -59,8 +59,7 @@ const routeLabels: Record<string, string> = {
 }
 
 function AppBreadcrumb() {
-  const routerState = useRouterState()
-  const pathname = routerState.location.pathname
+  const pathname = useRouterState({ select: (state) => state.location.pathname })
   const currentLabel = routeLabels[pathname] || "Page"
   const isSettingsChild = pathname.startsWith("/settings/")
 
@@ -120,8 +119,7 @@ function GeoDegradedBanner() {
 }
 
 function RootLayout() {
-  const routerState = useRouterState()
-  const isLogin = routerState.location.pathname === "/login"
+  const isLogin = useRouterState({ select: (state) => state.location.pathname === "/login" })
 
   // The login page renders without the app chrome (sidebar, toolbar).
   if (isLogin) {

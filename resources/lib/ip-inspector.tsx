@@ -6,26 +6,17 @@
 import { createContext, useCallback, useContext, useMemo, useState } from "react"
 import { useNavigate, useSearch } from "@tanstack/react-router"
 
-interface OriginState {
-  originLocationId: number | null
-  setOrigin: (id: number | null) => void
+interface ActionsState {
+  open: (ip: string, fromLocationId?: number) => void
+  close: () => void
 }
 
-const OriginContext = createContext<OriginState | null>(null)
+const ActionsContext = createContext<ActionsState | null>(null)
+const OriginContext = createContext<number | null | undefined>(undefined)
 
 export function IpInspectorProvider({ children }: { children: React.ReactNode }) {
-  const [originLocationId, setOrigin] = useState<number | null>(null)
-  const value = useMemo(() => ({ originLocationId, setOrigin }), [originLocationId])
-  return <OriginContext.Provider value={value}>{children}</OriginContext.Provider>
-}
-
-export function useIpInspector() {
   const navigate = useNavigate()
-  const search = useSearch({ strict: false })
-  const origin = useContext(OriginContext)
-  if (!origin) throw new Error("useIpInspector must be used within an IpInspectorProvider")
-  const { originLocationId, setOrigin } = origin
-  const ip = typeof search.inspect === "string" && search.inspect ? search.inspect : undefined
+  const [originLocationId, setOrigin] = useState<number | null>(null)
 
   const open = useCallback(
     (nextIp: string, fromLocationId?: number) => {
@@ -45,5 +36,33 @@ export function useIpInspector() {
     })
   }, [navigate, setOrigin])
 
-  return { ip, originLocationId, open, close }
+  const actions = useMemo(() => ({ open, close }), [open, close])
+  return (
+    <ActionsContext.Provider value={actions}>
+      <OriginContext.Provider value={originLocationId}>{children}</OriginContext.Provider>
+    </ActionsContext.Provider>
+  )
+}
+
+export function useIpInspectorActions() {
+  const actions = useContext(ActionsContext)
+  if (!actions) throw new Error("useIpInspectorActions must be used within an IpInspectorProvider")
+  return actions
+}
+
+export function useIpInspectorOrigin() {
+  const originLocationId = useContext(OriginContext)
+  if (originLocationId === undefined) {
+    throw new Error("useIpInspectorOrigin must be used within an IpInspectorProvider")
+  }
+  return originLocationId
+}
+
+export function useIpInspector() {
+  const inspect = useSearch({ strict: false, select: (search) => search.inspect })
+  const actions = useIpInspectorActions()
+  const originLocationId = useIpInspectorOrigin()
+  const ip = typeof inspect === "string" && inspect ? inspect : undefined
+
+  return { ip, originLocationId, ...actions }
 }

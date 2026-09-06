@@ -5,7 +5,7 @@
  * arrives here as props; the filter set comes from GeoLogFiltersContext like
  * everything else on the page. Selecting a row opens GeoLogDetailSheet.
  */
-import { useState } from "react"
+import { memo, useState } from "react"
 import { ArrowDown, ArrowUp, ChevronsUpDown, Columns3 } from "lucide-react"
 import {
   Table,
@@ -76,6 +76,41 @@ function renderCell(column: GeoLogColumn, r: GeoLogEntry): React.ReactNode {
       )
   }
 }
+
+const GeoLogTableBody = memo(function GeoLogTableBody({
+  rows,
+  shownColumns,
+  onSelect,
+}: {
+  rows: GeoLogEntry[]
+  shownColumns: GeoLogColumn[]
+  onSelect: (row: GeoLogEntry) => void
+}) {
+  return (
+    <TableBody>
+      {rows.map((row) => (
+        <TableRow
+          key={`${row.locationId}-${row.ipAddress}`}
+          aria-label={`${row.city ?? row.countryName}, ${row.ipAddress}, ${formatNumber(row.eventCount)} events`}
+          {...rowActivation<HTMLTableRowElement>(() => onSelect(row))}
+        >
+          {shownColumns.map((c) => (
+            <TableCell key={c.key} className={cn(c.align === "right" && "text-right")}>
+              {renderCell(c, row)}
+              {c.key === "ipAddress" && (
+                <span {...stopRowActivation}>
+                  <IpBanControls ip={row.ipAddress}>
+                    <InspectIpButton ip={row.ipAddress} className="ml-1" />
+                  </IpBanControls>
+                </span>
+              )}
+            </TableCell>
+          ))}
+        </TableRow>
+      ))}
+    </TableBody>
+  )
+})
 
 export function GeoLogsTable({
   page,
@@ -206,28 +241,7 @@ export function GeoLogsTable({
               })}
             </TableRow>
           </TableHeader>
-          <TableBody>
-            {rows.map((row) => (
-              <TableRow
-                key={`${row.locationId}-${row.ipAddress}`}
-                aria-label={`${row.city ?? row.countryName}, ${row.ipAddress}, ${formatNumber(row.eventCount)} events`}
-                {...rowActivation<HTMLTableRowElement>(() => setSelected(row))}
-              >
-                {shownColumns.map((c) => (
-                  <TableCell key={c.key} className={cn(c.align === "right" && "text-right")}>
-                    {renderCell(c, row)}
-                    {c.key === "ipAddress" && (
-                      <span {...stopRowActivation}>
-                        <IpBanControls ip={row.ipAddress}>
-                          <InspectIpButton ip={row.ipAddress} className="ml-1" />
-                        </IpBanControls>
-                      </span>
-                    )}
-                  </TableCell>
-                ))}
-              </TableRow>
-            ))}
-          </TableBody>
+          <GeoLogTableBody rows={rows} shownColumns={shownColumns} onSelect={setSelected} />
         </Table>
       </DataTableFrame>
 
