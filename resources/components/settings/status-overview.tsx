@@ -288,6 +288,12 @@ export function StatusOverview() {
                 <Counter label="Skipped lines" value={stats?.totalSkippedLines} />
                 <Counter label="Ignored lines" value={stats?.totalIgnoredLines} />
                 <Counter label="Pending records" value={stats?.totalPendingRecords} />
+                {(health?.ingestion.failedBatches ?? 0) > 0 && (
+                  <Counter label="Failed batches" value={health?.ingestion.failedBatches} />
+                )}
+                {(health?.ingestion.failedRecords ?? 0) > 0 && (
+                  <Counter label="Dropped records" value={health?.ingestion.failedRecords} />
+                )}
               </div>
             )}
             {health && (

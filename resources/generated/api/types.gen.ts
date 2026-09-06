@@ -560,6 +560,8 @@ export type HypertableStatsView = {
  * IngestionHealth
  */
 export type IngestionHealth = {
+  failedBatches?: number;
+  failedRecords?: number;
   lastRecordAt: string | null;
   missingFiles: Array<string>;
   parsedLines: number;

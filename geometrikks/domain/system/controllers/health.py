@@ -45,6 +45,8 @@ class IngestionHealth(msgspec.Struct, rename="camel"):
     # Additive: kept alongside `running` for wire compatibility.
     status: Literal["running", "degraded", "disabled"] = "running"
     publish_dropped: int = 0
+    failed_batches: int = 0
+    failed_records: int = 0
 
 
 class DatabaseHealth(msgspec.Struct, rename="camel"):
@@ -256,6 +258,21 @@ def _collect_advisories(app: Litestar, settings: Settings) -> list[Advisory]:
     from geometrikks.server import timescale
 
     advisories: list[Advisory] = runtime.get_advisories(app).snapshot()
+    service = runtime.get_ingestion_service(app)
+    if service is not None and service.failed_batches > 0:
+        advisories.append(Advisory(
+            id="ingestion-write-failures",
+            severity="warning",
+            summary=(
+                f"{service.failed_batches} batches ({service.failed_records} records) "
+                "could not be written to the database since startup."
+            ),
+            detail=(
+                "The app drops the affected records and continues ingestion. "
+                "Check the app log for ingestion_batch_failed; persistent failures "
+                "usually mean a schema mismatch or a full disk."
+            ),
+        ))
     pollution = timescale.get_hostname_pollution()
     # No early return: the pollution gate must not swallow the ASN advisory.
     hostname_pollution_active = bool(
@@ -322,7 +339,6 @@ def _collect_advisories(app: Litestar, settings: Settings) -> list[Advisory]:
     if settings.app.proxy_advisory:
         from geometrikks.domain.system import proxy_scan
 
-        service = runtime.get_ingestion_service(app)
         parsers = service.parsers if service is not None else []
         local = proxy_findings(parsers)
         covered = {f.hostname for f in local} | {p.hostname for p in parsers}
@@ -444,6 +460,12 @@ async def health(
             status=ingestion_status,
             publish_dropped=(
                 ingestion_service.publish_dropped if ingestion_service else 0
+            ),
+            failed_batches=(
+                ingestion_service.failed_batches if ingestion_service else 0
+            ),
+            failed_records=(
+                ingestion_service.failed_records if ingestion_service else 0
             ),
         ),
         database=DatabaseHealth(

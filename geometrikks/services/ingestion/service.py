@@ -157,6 +157,8 @@ class LogIngestionService:
         self._queue_maxsize: int = queue_maxsize
         self._channels: "ChannelsPlugin | None" = channels
         self.publish_dropped: int = 0
+        self.failed_batches: int = 0
+        self.failed_records: int = 0
 
         # In-memory cache: geohash -> committed (or pending-commit) GeoLocation id.
         # Ids cached since the last successful commit are tracked so a rollback
@@ -584,47 +586,65 @@ class LogIngestionService:
         # post-commit. A per-record failure rolls back earlier records of this
         # batch (matching existing semantics), so reset the list on failure too.
         committed_candidates: list[ParsedLogRecord] = []
+        batch_failed = False
+        lost_records = 0
 
-        async with self._session_maker() as session:
-            repos = self._repos_factory(session)
-            for record in batch:
-                try:
-                    await self._process_record(record, repos, flushed)
-                    committed_candidates.append(record)
-                except Exception as e:
-                    logger.error(
-                        "Failed to process record (rolling back batch): %s - raw_line preview: %.100s",
-                        e,
-                        record.raw_line[:100] if record.raw_line else "N/A",
-                    )
-                    committed_candidates = []
-                    try:
-                        await session.rollback()
-                    except Exception as rollback_err:
-                        logger.error("Rollback failed: %s", rollback_err)
-                    self._evict_uncommitted_locations()
-                    # The failing record may have hit a poisoned cache entry
-                    # (an id cached before this service run whose row does not
-                    # exist, e.g. after a crashed commit). Uncommitted-tracking
-                    # can't see those, so drop the record's own geohash too.
-                    if record.geo_data:
-                        self._location_cache.pop(record.geo_data.geohash, None)
-
-            try:
-                await session.commit()
-            except Exception as e:
-                logger.error("Batch commit failed (rolling back): %s", e)
-                await session.rollback()
-                self._evict_uncommitted_locations()
-                # Same poisoned-entry hazard as above, but here we don't know
-                # which record broke the commit — evict every geohash the
-                # batch touched so the next flush re-resolves them from the DB.
+        try:
+            async with self._session_maker() as session:
+                repos = self._repos_factory(session)
                 for record in batch:
-                    if record.geo_data:
-                        self._location_cache.pop(record.geo_data.geohash, None)
-            else:
-                self._uncommitted_geohashes.clear()
-                self._publish(committed_candidates)
+                    try:
+                        await self._process_record(record, repos, flushed)
+                        committed_candidates.append(record)
+                    except Exception as e:
+                        rolled_back_records = len(committed_candidates) + 1
+                        logger.error(
+                            "ingestion_batch_failed",
+                            records=rolled_back_records,
+                            error=str(e),
+                            raw_line=(record.raw_line or "")[:100],
+                        )
+                        batch_failed = True
+                        lost_records += rolled_back_records
+                        committed_candidates = []
+                        try:
+                            await session.rollback()
+                        except Exception as rollback_err:
+                            logger.error("Rollback failed: %s", rollback_err)
+                        self._evict_uncommitted_locations()
+                        # The failing record may have hit a poisoned cache entry
+                        # (an id cached before this service run whose row does not
+                        # exist, e.g. after a crashed commit). Uncommitted-tracking
+                        # can't see those, so drop the record's own geohash too.
+                        if record.geo_data:
+                            self._location_cache.pop(record.geo_data.geohash, None)
+
+                try:
+                    await session.commit()
+                except Exception as e:
+                    commit_lost_records = len(committed_candidates)
+                    logger.error(
+                        "ingestion_batch_failed",
+                        records=commit_lost_records,
+                        error=str(e),
+                    )
+                    batch_failed = True
+                    lost_records += commit_lost_records
+                    await session.rollback()
+                    self._evict_uncommitted_locations()
+                    # Same poisoned-entry hazard as above, but here we don't know
+                    # which record broke the commit, so evict every geohash the
+                    # batch touched so the next flush re-resolves it from the DB.
+                    for record in batch:
+                        if record.geo_data:
+                            self._location_cache.pop(record.geo_data.geohash, None)
+                else:
+                    self._uncommitted_geohashes.clear()
+                    self._publish(committed_candidates)
+        finally:
+            if batch_failed:
+                self.failed_batches += 1
+                self.failed_records += lost_records
 
         logger.debug(
             "Committed batch of %d records. (Geo: %d | Log: %d | Debug: %d)",

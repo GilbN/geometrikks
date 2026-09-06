@@ -114,6 +114,8 @@ export interface HealthIngestionStatus {
   /** Tri-state: "disabled" is a deliberate LOGPARSER_ENABLED=false setting,
    *  not a fault. Optional: absent on pre-tri-state backends. */
   status?: "running" | "degraded" | "disabled"
+  failedBatches?: number
+  failedRecords?: number
 }
 
 export interface Advisory {

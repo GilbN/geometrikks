@@ -474,6 +474,34 @@ def test_health_publish_dropped_present(monkeypatch):
     assert body["ingestion"]["publishDropped"] == 0
 
 
+def test_health_exposes_write_failures_and_advises(monkeypatch):
+    async def db_up(app, timeout: float = 2.0) -> bool:
+        return True
+
+    monkeypatch.setattr(health_module, "_database_reachable", db_up)
+    from geometrikks.server import timescale
+
+    monkeypatch.setattr(timescale, "_hostname_pollution", None)
+
+    app = make_app()
+    service = _running_service(file_missing=False)
+    service.failed_batches = 2
+    service.failed_records = 37
+    app.state.ingestion_service = service
+    with TestClient(app=app) as client:
+        body = client.get("/health").json()
+
+    assert body["ingestion"]["failedBatches"] == 2
+    assert body["ingestion"]["failedRecords"] == 37
+    [advisory] = [
+        item for item in body["advisories"]
+        if item["id"] == "ingestion-write-failures"
+    ]
+    assert "2 batches (37 records)" in advisory["summary"]
+    assert "continues ingestion" in advisory["detail"]
+    assert "ingestion_batch_failed" in advisory["detail"]
+
+
 def _asn_advisories(app_state_asn: bool, asn_enabled: bool) -> list:
     from geometrikks.config.settings import Settings
     from geometrikks.domain.system.controllers.health import _collect_advisories

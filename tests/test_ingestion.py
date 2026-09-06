@@ -83,6 +83,9 @@ class FakeSession:
 
     async def rollback(self) -> None:
         self.rollbacks += 1
+        if self.repos.fail_next_rollbacks:
+            self.repos.fail_next_rollbacks -= 1
+            raise RuntimeError("simulated rollback error")
         self.pending.clear()
 
     async def flush(self) -> None:
@@ -132,6 +135,7 @@ class FakeRepos:
         self.access_log_debug = FakeRepo(None)
         # failure injection: consumed by FakeSession
         self.fail_next_commits = 0
+        self.fail_next_rollbacks = 0
         self.fail_flush_calls: set[int] = set()  # 1-based flush call numbers
         self.flush_calls = 0
 
@@ -656,6 +660,108 @@ def make_parsed_record(ip: str) -> ParsedLogRecord:
         ),
         raw_line=make_log_line(ip),
     )
+
+
+def _geo_record(ip: str, longitude: float) -> ParsedLogRecord:
+    geo = ParsedGeoData(
+        latitude=51.5,
+        longitude=longitude,
+        geohash=encode(51.5, longitude, precision=5),
+        country_code="GB",
+        country_name="UK",
+        timestamp=datetime.now(timezone.utc),
+        city="London",
+    )
+    return ParsedLogRecord(
+        ip_address=ip,
+        geo_data=geo,
+        access_log=None,
+        raw_line="x",
+    )
+
+
+async def test_commit_failure_counts_lost_records_once_and_success_does_not_increment(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    service, repos, _sessions = make_service([])
+    repos.fail_next_commits = 1
+
+    with caplog.at_level("ERROR"):
+        await service.flush_records([
+            _geo_record(TEST_DB_IPS[0], -0.09),
+            _geo_record(TEST_DB_IPS[1], -0.19),
+        ])
+
+    assert service.failed_batches == 1
+    assert service.failed_records == 2
+    assert any(
+        "ingestion_batch_failed" in record.getMessage()
+        for record in caplog.records
+    )
+
+    await service.flush_records([_geo_record(TEST_DB_IPS[0], -0.29)])
+
+    assert service.failed_batches == 1
+    assert service.failed_records == 2
+
+
+async def test_later_record_failure_counts_earlier_rolled_back_candidates() -> None:
+    service, repos, _sessions = make_service([])
+    repos.fail_flush_calls = {2}
+
+    await service.flush_records([
+        _geo_record(TEST_DB_IPS[0], -0.09),
+        _geo_record(TEST_DB_IPS[1], -0.19),
+        _geo_record(TEST_DB_IPS[0], -0.29),
+    ])
+
+    assert service.failed_batches == 1
+    assert service.failed_records == 2
+    assert len(repos.geo_event.added) == 1
+
+
+async def test_record_and_commit_failures_do_not_double_count_records() -> None:
+    service, repos, _sessions = make_service([])
+    repos.fail_flush_calls = {2}
+    repos.fail_next_commits = 1
+
+    await service.flush_records([
+        _geo_record(TEST_DB_IPS[0], -0.09),
+        _geo_record(TEST_DB_IPS[1], -0.19),
+        _geo_record(TEST_DB_IPS[0], -0.29),
+    ])
+
+    assert service.failed_batches == 1
+    assert service.failed_records == 3
+
+
+async def test_multiple_record_failures_count_each_lost_record_once() -> None:
+    service, repos, _sessions = make_service([])
+    repos.fail_flush_calls = {2, 4}
+
+    await service.flush_records([
+        _geo_record(TEST_DB_IPS[0], -0.09),
+        _geo_record(TEST_DB_IPS[1], -0.19),
+        _geo_record(TEST_DB_IPS[0], -0.29),
+        _geo_record(TEST_DB_IPS[1], -0.39),
+        _geo_record(TEST_DB_IPS[0], -0.49),
+    ])
+
+    assert service.failed_batches == 1
+    assert service.failed_records == 4
+    assert len(repos.geo_event.added) == 1
+
+
+async def test_counters_finalize_when_commit_rollback_raises() -> None:
+    service, repos, _sessions = make_service([])
+    repos.fail_next_commits = 1
+    repos.fail_next_rollbacks = 1
+
+    with pytest.raises(RuntimeError, match="simulated rollback error"):
+        await service.flush_records([_geo_record(TEST_DB_IPS[0], -0.09)])
+
+    assert service.failed_batches == 1
+    assert service.failed_records == 1
 
 
 def test_service_has_no_inprocess_subscriber_api() -> None:

@@ -1866,6 +1866,14 @@ export const HypertableStatsViewSchema = {
 
 export const IngestionHealthSchema = {
   properties: {
+    failedBatches: {
+      default: 0,
+      type: "integer",
+    },
+    failedRecords: {
+      default: 0,
+      type: "integer",
+    },
     lastRecordAt: {
       oneOf: [
         {
