@@ -72,7 +72,7 @@ export function ingestionState(health: HealthResponse | undefined, isError: bool
     return {
       tone: "amber",
       label: "Running, log file missing",
-      detail: "A tailed log file has disappeared. Ingestion is waiting for it to reappear.",
+      detail: "A configured log file is missing. Ingestion is waiting for it to appear.",
     }
   }
   return { tone: "emerald", label: "Running" }

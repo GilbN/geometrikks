@@ -20,6 +20,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+import aiofiles.os
 from geoip2.database import Reader
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -33,7 +34,7 @@ from geometrikks.domain.realtime.events import LIVE_EVENTS_CHANNEL, encode_guard
 from geometrikks.services.logparser.schemas import ParsedLogRecord, ParsedGeoData, ParsedAccessLog
 from geometrikks.services.logparser.constants import ALLOWED_GEOIP_LOCALES, GEOIP_LOCALES_DEFAULT
 from geometrikks.services.logparser.logparser import LogParser
-from geometrikks.lib.utils import wait_for_path
+from geometrikks.lib.utils import sleep_unless_stopped, wait_for_path
 from geometrikks.server.logging import get_logger
 
 if TYPE_CHECKING:
@@ -41,6 +42,8 @@ if TYPE_CHECKING:
 
 
 logger = get_logger(__name__)
+
+MISSING_FILE_GRACE_SECONDS = 60.0
 
 
 @dataclass
@@ -280,12 +283,19 @@ class LogIngestionService:
         """Tail a single log file, pushing parsed records onto the shared queue."""
         logger.debug("Waiting for log file: %s", parser.log_path)
         if not await wait_for_path(
-            parser.log_path, timeout_seconds=60.0, stop_event=self._stop_event
+            parser.log_path,
+            timeout_seconds=MISSING_FILE_GRACE_SECONDS,
+            stop_event=self._stop_event,
         ):
             if self._stop_event and self._stop_event.is_set():
                 return  # shutting down, not a missing-file problem
-            logger.error("Skipping ingestion for missing log file: %s", parser.log_path)
-            return
+            parser.mark_missing()
+            while not await aiofiles.os.path.exists(parser.log_path):
+                if await sleep_unless_stopped(
+                    parser.poll_interval, self._stop_event
+                ):
+                    return
+            parser.mark_present()
         assert self._queue is not None
         async for record in parser.iter_parsed_records(
             reader, asn_reader, skip_validation=skip_validation
@@ -380,7 +390,7 @@ class LogIngestionService:
             while True:
                 # Exit once every producer is done and the queue is drained.
                 # This covers graceful stop() and the case where all tail
-                # tasks died on their own (e.g. every log file missing);
+                # tasks died on their own after unexpected failures;
                 # without the latter, is_running would stay True forever and
                 # /health would keep reporting a healthy ingestion.
                 if self._queue.empty() and all(

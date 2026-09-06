@@ -94,7 +94,7 @@ describe("ingestionState", () => {
     expect(state.label).toBe("Not running")
     expect(state.detail).toBeTruthy()
   })
-  it("is amber when running but a tailed file is missing", () => {
+  it("is amber when a configured log file is missing", () => {
     const state = ingestionState(
       makeHealth({
         ingestion: {
@@ -109,7 +109,9 @@ describe("ingestionState", () => {
     )
     expect(state.tone).toBe("amber")
     expect(state.label).toBe("Running, log file missing")
-    expect(state.detail).toBeTruthy()
+    expect(state.detail).toBe(
+      "A configured log file is missing. Ingestion is waiting for it to appear.",
+    )
   })
   it("is muted when health failed or is loading", () => {
     expect(ingestionState(undefined, true).tone).toBe("muted")

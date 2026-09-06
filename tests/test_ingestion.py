@@ -249,7 +249,7 @@ async def test_stop_drains_queue_before_exit(tmp_path: Path) -> None:
 
 
 async def test_missing_file_does_not_block_other_tails(tmp_path: Path) -> None:
-    """A nonexistent log path is skipped (with an error log); other files still ingest.
+    """Waiting for a nonexistent log path does not block another file.
 
     DISABLE_WAIT=true (conftest) makes wait_for_path return immediately."""
     good = tmp_path / "good.log"
@@ -294,18 +294,51 @@ async def test_stop_ends_the_wait_for_a_missing_log_file(
     assert all(task.done() and not task.cancelled() for task in service._tail_tasks)
 
 
-async def test_all_tails_dead_stops_service_and_clears_is_running(tmp_path: Path) -> None:
-    """When every tail task exits (all log files missing), the consumer must
-    shut down and is_running must flip to False so /health reports degraded.
+async def test_never_appeared_file_is_reported_missing_and_tailed_once_it_appears(
+    tmp_path: Path,
+) -> None:
+    """A path absent at start stays in the tail loop and begins tailing later.
 
-    DISABLE_WAIT=true (conftest) makes wait_for_path return immediately."""
+    DISABLE_WAIT=true (conftest) makes the grace wait return immediately.
+    """
     missing = tmp_path / "missing.log"
-    service, _repos, _sessions = make_service([make_parser(missing)])
+    parser = make_parser(missing)
+    service, _repos, _sessions = make_service([parser])
+
+    await service.start(skip_validation=True)
+    try:
+        await wait_until(lambda: parser.file_missing)
+        assert service.is_running
+        assert service.missing_files == [str(missing)]
+
+        missing.write_text("", encoding="utf-8")
+        await wait_until(lambda: not parser.file_missing)
+        await asyncio.sleep(0.1)
+        append_line(missing, make_log_line(TEST_DB_IPS[0]))
+        await wait_until(lambda: service.total_processed >= 1)
+    finally:
+        await service.stop(timeout=5.0)
+
+
+async def test_failed_tail_task_stops_service_and_clears_is_running(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """The consumer stops when its only tail task fails."""
+    log_file = tmp_path / "a.log"
+    log_file.write_text("", encoding="utf-8")
+    service, _repos, _sessions = make_service([make_parser(log_file)])
+
+    async def fail_tail(*_args: object) -> None:
+        raise RuntimeError("simulated tail failure")
+
+    monkeypatch.setattr(service, "_tail_file", fail_tail)
 
     await service.start(skip_validation=True)
     try:
         await wait_until(lambda: not service.is_running)
         assert not service.is_task_running
+        with pytest.raises(RuntimeError, match="simulated tail failure"):
+            await service._tail_tasks[0]
     finally:
         await service.stop(timeout=5.0)
 
