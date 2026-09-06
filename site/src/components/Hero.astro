@@ -1,0 +1,120 @@
+---
+// Headline beside the pipeline terminal, over a faint dot-grid world
+// (Natural Earth 110m land, equirectangular, 1000x500).
+import dots from "../data/land-dots.json";
+import Terminal from "./Terminal.astro";
+---
+
+<header class="hero">
+  <svg class="dotmap" viewBox="0 0 1000 500" aria-hidden="true">
+    {dots.map(([x, y]) => <circle cx={x} cy={y} r="1.5" />)}
+  </svg>
+  <div class="wrap">
+    <div class="copy">
+      <h1>Your access logs, <em>on a live map.</em></h1>
+      <p class="lede">
+        GeoMetrikks tails your reverse proxy's access log, looks every request up in GeoLite2, and draws it on a
+        world map within seconds. Traffic analytics, a searchable history, and CrowdSec bans next to the traffic
+        that caused them. On your own hardware.
+      </p>
+      <div class="cta">
+        <a class="btn primary" href="#install">Install with Docker</a>
+        <a class="btn" href="#screens">See the screens</a>
+      </div>
+      <ul class="facts">
+        <li>MIT</li>
+        <li>ghcr.io/gilbn/geometrikks</li>
+        <li>amd64 + arm64</li>
+        <li>no telemetry</li>
+      </ul>
+    </div>
+    <Terminal />
+  </div>
+</header>
+
+<style>
+  .hero {
+    position: relative;
+    overflow: hidden;
+    padding: 88px 0 72px;
+    border-bottom: 1px solid var(--line);
+  }
+  .hero::before {
+    content: "";
+    position: absolute;
+    inset: -20% -10% auto;
+    height: 80%;
+    background:
+      radial-gradient(60% 50% at 30% 20%, oklch(0.78 0.15 178 / 16%), transparent 70%),
+      radial-gradient(40% 40% at 80% 10%, oklch(0.72 0.16 300 / 12%), transparent 70%);
+    pointer-events: none;
+  }
+  .dotmap {
+    position: absolute;
+    left: 50%;
+    top: 20px;
+    width: 1500px;
+    transform: translateX(-50%);
+    fill: var(--fg);
+    opacity: 0.08;
+    pointer-events: none;
+  }
+  .hero .wrap {
+    position: relative;
+    max-width: 1320px;
+    display: grid;
+    grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+    gap: 48px;
+    align-items: center;
+  }
+  h1 {
+    font-size: clamp(40px, 5vw, 64px);
+    line-height: 1.02;
+    letter-spacing: -0.035em;
+    font-weight: 650;
+    margin: 0 0 20px;
+    max-width: 14ch;
+  }
+  h1 em {
+    font-style: normal;
+    color: var(--accent);
+  }
+  .lede {
+    font-size: 18px;
+    color: var(--fg-dim);
+    max-width: 46ch;
+    margin: 0 0 28px;
+  }
+  .cta {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .cta .btn {
+    padding: 13px 20px;
+    font-size: 15px;
+  }
+  .facts {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+    margin: 28px 0 0;
+    padding: 0;
+    list-style: none;
+    font: 13px var(--mono);
+    color: var(--fg-faint);
+  }
+  .facts li::before {
+    content: "· ";
+    color: var(--accent-dim);
+  }
+  @media (max-width: 900px) {
+    .hero {
+      padding: 48px 0 56px;
+    }
+    .hero .wrap {
+      grid-template-columns: minmax(0, 1fr);
+      gap: 40px;
+    }
+  }
+</style>

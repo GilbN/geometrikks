@@ -1,0 +1,103 @@
+---
+// The quickstart block is the README's, verbatim.
+---
+
+<section class="install" id="install">
+  <div class="wrap">
+    <p class="kicker">Install</p>
+    <p class="sub">Docker on amd64 or arm64. Two files, one command, and the app is on port 8000.</p>
+    <div class="cols">
+      <pre class="block"><span class="c"># Docker. Images for amd64 and arm64.</span>
+mkdir geometrikks &amp;&amp; cd geometrikks
+curl -LO https://raw.githubusercontent.com/GilbN/geometrikks/main/docker-compose.yml
+curl -Lo .env https://raw.githubusercontent.com/GilbN/geometrikks/main/.env.example
+$EDITOR .env      <span class="c"># set APP_ADMIN_PASSWORD, MaxMind key, CARTO key, log path</span>
+docker compose up -d
+<span class="c"># open http://localhost:8000</span></pre>
+      <ul class="check">
+        <li><b>Docker.</b> The compose file brings TimescaleDB along.</li>
+        <li>
+          <b>A free MaxMind account.</b> GeoLite2 City and ASN download at startup under your key and refresh
+          weekly. You never touch .mmdb files.
+        </li>
+        <li>
+          <b>A free CARTO key.</b> The basemap comes from CARTO, and their terms want a key per deployment. Optional
+          today; keyless tiles may stop working at any time.
+        </li>
+        <li><b>A log file.</b> Not stdout. Traefik and Caddy need one directive to write one.</li>
+        <li>
+          <b>One admin password.</b> Single-user session login. An authenticating proxy or a tailnet can take over,
+          and the built-in login switches off.
+        </li>
+        <li class="no"><b>No CrowdSec needed.</b> Optional. Add a LAPI key later and the Security page lights up.</li>
+        <li class="no">
+          <b>No telemetry.</b> Outbound traffic is the GeoLite2 download and, unless disabled, one public-IP lookup
+          for the map's home.
+        </li>
+      </ul>
+    </div>
+    <p class="links">
+      <a href="/docs/get-started/quickstart/">Quickstart</a>
+      <a href="/docs/operate/geolite2/">GeoLite2 and the CARTO key</a>
+      <a href="/docs/sources/proxy-setup/">Behind a CDN or tunnel</a>
+    </p>
+  </div>
+</section>
+
+<style>
+  .install {
+    border-top: 1px solid var(--line);
+  }
+  .cols {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 40px;
+    align-items: start;
+  }
+  .check {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    font-size: 15px;
+    color: var(--fg-dim);
+  }
+  .check li {
+    padding: 10px 0 10px 34px;
+    position: relative;
+    border-top: 1px solid var(--line);
+  }
+  .check li::before {
+    content: "[x]";
+    position: absolute;
+    left: 0;
+    top: 11px;
+    font: 13px var(--mono);
+    color: var(--green);
+  }
+  .check li.no::before {
+    content: "[ ]";
+    color: var(--fg-faint);
+  }
+  .check b {
+    color: var(--fg);
+    font-weight: 600;
+  }
+  .links {
+    display: flex;
+    gap: 22px;
+    flex-wrap: wrap;
+    margin: 32px 0 0;
+  }
+  .links a {
+    color: var(--accent);
+    font-weight: 500;
+  }
+  .links a:hover {
+    text-decoration: underline;
+  }
+  @media (max-width: 900px) {
+    .cols {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+</style>

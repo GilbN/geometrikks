@@ -1,0 +1,224 @@
+/* Landing page only. Starlight pages load docs.css instead. */
+@import "tailwindcss";
+@import "@fontsource-variable/schibsted-grotesk";
+@import "@fontsource/fragment-mono";
+
+@font-face {
+  font-family: "runr";
+  src: url("/fonts/runr-Regular.woff2") format("woff2");
+  font-display: swap;
+  /* Same coverage as the app: A-Z, ÅÆØ, digits, hyphen-minus, space. */
+  unicode-range: U+0020, U+002D, U+0030-0039, U+0041-005A, U+00C5, U+00C6, U+00D8;
+}
+
+:root {
+  /* Aurora night, the app's dark theme, with the default teal accent. */
+  --bg: oklch(0.13 0.025 245);
+  --bg-deep: oklch(0.105 0.024 245);
+  --card: oklch(0.17 0.028 245);
+  --card-2: oklch(0.2 0.03 245);
+  --fg: oklch(0.95 0.01 220);
+  --fg-dim: oklch(0.66 0.02 240);
+  --fg-faint: oklch(0.45 0.02 240);
+  --line: oklch(1 0 0 / 8%);
+  --line-strong: oklch(1 0 0 / 14%);
+  --accent: oklch(0.78 0.15 178);
+  --accent-dim: oklch(0.6 0.12 178);
+  --accent-wash: oklch(0.78 0.15 178 / 12%);
+  --green: oklch(0.76 0.17 155);
+  --violet: oklch(0.72 0.16 300);
+  --red: oklch(0.72 0.17 25);
+  --amber: oklch(0.8 0.14 85);
+  --sans: "Schibsted Grotesk Variable", system-ui, sans-serif;
+  --mono: "Fragment Mono", ui-monospace, monospace;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--sans);
+  font-size: 16px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+a {
+  color: inherit;
+  text-decoration: none;
+}
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+.wrap {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 24px;
+}
+.mono,
+code,
+pre,
+kbd {
+  font-family: var(--mono);
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border-radius: 8px;
+  font-weight: 500;
+  font-size: 14px;
+  border: 1px solid var(--line-strong);
+  color: var(--fg);
+  transition:
+    background 0.15s,
+    border-color 0.15s;
+}
+.btn:hover {
+  background: var(--card);
+  border-color: var(--fg-faint);
+}
+.btn.primary {
+  background: var(--accent);
+  color: var(--bg);
+  border-color: transparent;
+}
+.btn.primary:hover {
+  background: oklch(0.84 0.14 178);
+}
+.btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+section {
+  padding: 96px 0;
+}
+.kicker {
+  font: 500 12px/1 var(--mono);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin: 0 0 14px;
+}
+.section-title {
+  font-size: clamp(28px, 3.6vw, 42px);
+  letter-spacing: -0.025em;
+  line-height: 1.1;
+  font-weight: 600;
+  margin: 0 0 14px;
+  max-width: 22ch;
+}
+.sub {
+  color: var(--fg-dim);
+  font-size: 17px;
+  max-width: 60ch;
+  margin: 0 0 40px;
+}
+.card {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--card);
+}
+
+pre.block {
+  margin: 0;
+  background: var(--bg-deep);
+  border: 1px solid var(--line-strong);
+  border-radius: 12px;
+  padding: 18px 20px;
+  font: 13px/1.7 var(--mono);
+  overflow-x: auto;
+  color: var(--fg);
+}
+pre.block .c {
+  color: var(--fg-faint);
+}
+pre.block .k {
+  color: var(--accent);
+}
+
+/* Tab strips (sources, screens). Panels stack when scripting is off. */
+.tabs {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  margin: 0 0 16px;
+  padding: 0;
+  list-style: none;
+}
+.tabs button {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  color: var(--fg-dim);
+  font: 500 14px var(--sans);
+  padding: 10px 14px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.tabs button:hover {
+  color: var(--fg);
+  background: var(--card);
+}
+.tabs button[aria-selected="true"] {
+  color: var(--fg);
+  background: var(--card);
+  border-color: var(--line-strong);
+}
+.tabs button svg {
+  width: 18px;
+  height: 18px;
+  fill: currentColor;
+}
+@media (scripting: none) {
+  .tabs {
+    display: none;
+  }
+  [role="tabpanel"][hidden] {
+    display: block;
+  }
+}
+
+.wordmark {
+  font-family: "runr", sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.13em;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
+}
+.wordmark .lig {
+  height: 0.78em;
+  width: auto;
+  margin: 0 0.19em 0 0.06em;
+}
+
+@media (max-width: 900px) {
+  section {
+    padding: 64px 0;
+  }
+  .tabs {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    margin-left: -24px;
+    margin-right: -24px;
+    padding: 0 24px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+}

@@ -1,0 +1,71 @@
+---
+const cells = [
+  { title: "Live tail", body: "A WebSocket-backed tail on the access-logs page. New rows prepend and pause while you hover.", icon: "M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zm0 4v5l3 2" },
+  { title: "Access logs", body: "Every request, server-paginated, with free-text search and filters for status, method, IP, host, country and source.", icon: "M4 6h16M4 12h16M4 18h10" },
+  { title: "IP inspector", body: "One panel per address: counts, bytes, hosts and paths hit, other locations it resolved to, and scanner tells like a hosting ASN or a wide path spread.", icon: "M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14zm9 16-4-4" },
+  { title: "Geo logs", body: "Traffic grouped by place: which locations send requests, how that changes over time, and which clients keep coming back.", icon: "M12 21s7-6 7-11a7 7 0 0 0-14 0c0 5 7 11 7 11zm0-8.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z" },
+  { title: "Batch import", body: "Rotated archives, plain or gzipped, through the same pipeline with one command. Checksum-deduped, so re-running is safe.", icon: "M12 4v10m0 0 4-4m-4 4-4-4M4 17v3h16v-3" },
+  { title: "Debug logs", body: "The raw source lines behind every request, with parse failures called out and linked to their request.", icon: "M8 9l-4 3 4 3m8-6 4 3-4 3m-3-9-2 12" },
+];
+---
+
+<section class="features" id="features">
+  <div class="wrap">
+    <p class="kicker">And the rest</p>
+    <h2 class="section-title">The map is the front door. The tables are where you find out what happened.</h2>
+    <div class="grid">
+      {
+        cells.map((c) => (
+          <div class="cell card">
+            <h3>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d={c.icon} />
+              </svg>
+              {c.title}
+            </h3>
+            <p>{c.body}</p>
+          </div>
+        ))
+      }
+    </div>
+  </div>
+</section>
+
+<style>
+  .features {
+    border-top: 1px solid var(--line);
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 16px;
+    margin-top: 40px;
+  }
+  .cell {
+    padding: 22px;
+  }
+  h3 {
+    margin: 0 0 8px;
+    font-size: 16px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  h3 svg {
+    width: 18px;
+    height: 18px;
+    color: var(--accent);
+    flex: none;
+  }
+  p {
+    margin: 0;
+    color: var(--fg-dim);
+    font-size: 14px;
+  }
+  @media (max-width: 900px) {
+    .grid {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+</style>

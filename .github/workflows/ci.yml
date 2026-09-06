@@ -288,3 +288,21 @@ jobs:
       - name: Stop production image
         if: always()
         run: docker rm --force geometrikks-smoke 2>/dev/null || true
+
+  site:
+    # geometrikks.dev is built from site/ plus the README and docs/. A bad
+    # README split or a dead docs link must fail here, not on Cloudflare.
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: site
+    steps:
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+      - name: Install site dependencies
+        run: bun install --frozen-lockfile
+      - name: Content sync tests
+        run: bun run test
+      - name: Build site
+        run: bun run build

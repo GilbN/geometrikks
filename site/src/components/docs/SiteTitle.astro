@@ -1,0 +1,23 @@
+---
+// Starlight's SiteTitle, replaced by the mark and the wordmark. The link
+// target comes from Starlight so locale prefixes keep working.
+import Mark from "../Mark.astro";
+import Wordmark from "../Wordmark.astro";
+const { siteTitleHref } = Astro.locals.starlightRoute;
+---
+
+<a href={siteTitleHref} class="site-title sl-flex" aria-label="GeoMetrikks">
+  <Mark size={26} />
+  <Wordmark class="text-[15px]" />
+</a>
+
+<style>
+  .site-title {
+    align-items: center;
+    gap: 10px;
+    color: var(--sl-color-white);
+    text-decoration: none;
+    white-space: nowrap;
+    min-width: 0;
+  }
+</style>

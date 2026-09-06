@@ -1,0 +1,192 @@
+---
+// The hero's terminal: one log line through the pipeline, then a
+// geometrikks-json line. Every line renders server-side; the script only
+// paces the reveal. Values are illustrative, not real traffic.
+type Segment = { cls?: string; text: string };
+type Line = Segment[] | null;
+const lines: Line[] = [
+  [
+    { cls: "t-in", text: "access.log" },
+    { text: '  203.0.113.7 - - [02/Sep/2026:23:41:07 +0000] "GET /wp-login.php HTTP/1.1" 403 153 "-" home.example.org "Mozilla/5.0 zgrab/0.x" "0.001" "-"' },
+  ],
+  [{ cls: "t-tag", text: "detect " }, { text: " format=" }, { cls: "t-val", text: "nginx" }, { text: "  (positional, $time_local)" }],
+  [
+    { cls: "t-tag", text: "parse  " },
+    { text: " method=GET path=/wp-login.php status=" },
+    { cls: "t-red", text: "403" },
+    { text: " host=home.example.org bytes=153 rt=1ms" },
+  ],
+  [
+    { cls: "t-tag", text: "geoip  " },
+    { text: " 203.0.113.7 → " },
+    { cls: "t-val", text: "Hanoi, VN" },
+    { text: "  21.03, 105.85  AS135905 " },
+    { cls: "t-dim", text: "(hosting)" },
+  ],
+  [{ cls: "t-tag", text: "store  " }, { text: " access_logs +1  geo_events +1  " }, { cls: "t-dim", text: "hypertable chunk 2026-09-02" }],
+  [{ cls: "t-tag", text: "notify " }, { text: " /ws/live → 1 client  " }, { cls: "t-ok", text: "map: +1 marker, route → home" }],
+  [
+    { cls: "t-tag", text: "crowdsec" },
+    { text: " decision for 203.0.113.7: " },
+    { cls: "t-red", text: "ban" },
+    { text: " (http-probing, 4h)  " },
+    { cls: "t-dim", text: "still knocking: yes" },
+  ],
+  null,
+  [
+    { cls: "t-in", text: "access.log" },
+    { text: '  {"client_ip":"198.51.100.24","timestamp":"2026-09-02T23:41:09+00:00","method":"GET","path":"/","status":"200","host":"blog.example.org","request_time":"0.018"}' },
+  ],
+  [{ cls: "t-tag", text: "detect " }, { text: " format=" }, { cls: "t-val", text: "geometrikks-json" }],
+  [{ cls: "t-tag", text: "geoip  " }, { text: " 198.51.100.24 → " }, { cls: "t-val", text: "Toronto, CA" }, { text: "  43.65, -79.38  AS812" }],
+  [{ cls: "t-tag", text: "notify " }, { text: " /ws/live → 1 client  " }, { cls: "t-ok", text: "map: +1 marker" }],
+];
+---
+
+<div class="term" aria-label="One log line moving through the ingestion pipeline">
+  <div class="bar"><i></i><i></i><i></i><span>geometrikks · ingestion</span></div>
+  <div class="body" id="term">
+    {
+      lines.map((line) =>
+        line ? (
+          <span class="l">{line.map((s) => (s.cls ? <span class={s.cls}>{s.text}</span> : s.text))}</span>
+        ) : (
+          <span class="l" data-blank>
+            &nbsp;
+          </span>
+        ),
+      )
+    }
+  </div>
+</div>
+
+<style>
+  .term {
+    background: var(--bg-deep);
+    border: 1px solid var(--line-strong);
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow:
+      0 30px 80px oklch(0 0 0 / 45%),
+      0 0 0 1px oklch(0 0 0 / 30%);
+  }
+  .bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    height: 38px;
+    padding: 0 14px;
+    border-bottom: 1px solid var(--line);
+    background: oklch(0.15 0.026 245);
+    font: 12px var(--mono);
+    color: var(--fg-faint);
+  }
+  .bar i {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--fg-faint);
+    opacity: 0.5;
+  }
+  .bar span {
+    margin-left: 8px;
+  }
+  .body {
+    padding: 18px 20px;
+    font: 12.5px/1.75 var(--mono);
+    min-height: 420px;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+  .l {
+    display: block;
+    opacity: 0;
+    transform: translateY(4px);
+    transition:
+      opacity 0.25s,
+      transform 0.25s;
+  }
+  .l.on {
+    opacity: 1;
+    transform: none;
+  }
+  .t-in {
+    color: var(--fg-faint);
+  }
+  .t-tag {
+    color: var(--accent);
+  }
+  .t-val {
+    color: var(--amber);
+  }
+  .t-ok {
+    color: var(--green);
+  }
+  .t-red {
+    color: var(--red);
+  }
+  .t-dim {
+    color: var(--fg-dim);
+  }
+  .body :global(.caret) {
+    display: inline-block;
+    width: 8px;
+    height: 15px;
+    background: var(--fg);
+    vertical-align: -2px;
+    animation: blink 1s steps(1) infinite;
+  }
+  @keyframes blink {
+    50% {
+      opacity: 0;
+    }
+  }
+  /* Without JavaScript every line is visible. */
+  @media (scripting: none) {
+    .l {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  /* On phones the box grows line by line instead of reserving the full height. */
+  @media (max-width: 900px) {
+    .body {
+      min-height: 0;
+      font-size: 12px;
+    }
+    .l:not(.on) {
+      display: none;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .l {
+      transition: none;
+    }
+    .body :global(.caret) {
+      animation: none;
+    }
+  }
+</style>
+
+<script>
+  const term = document.getElementById("term")!;
+  const lines = Array.from(term.querySelectorAll<HTMLElement>(".l"));
+  if (matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    lines.forEach((l) => l.classList.add("on"));
+  } else {
+    const caret = document.createElement("span");
+    caret.className = "caret";
+    let i = 0;
+    const step = () => {
+      if (i === lines.length) {
+        lines.forEach((l) => l.classList.remove("on"));
+        i = 0;
+      }
+      const line = lines[i++];
+      line.classList.add("on");
+      line.after(caret);
+      setTimeout(step, "blank" in line.dataset ? 1400 : 650);
+    };
+    step();
+  }
+</script>

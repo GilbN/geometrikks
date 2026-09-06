@@ -1,0 +1,130 @@
+---
+// CrowdSec gets its own section: decisions joined with the traffic, ban and
+// unban from the UI, and the two-line setup. The picture is the IP inspector
+// screenshot cropped to its right edge, where the sheet with the ban badge
+// sits; the whole screenshot is in the screens section. The llama symbol is
+// CrowdSec's own, unaltered; see the trademark line in the footer.
+import { Image } from "astro:assets";
+import shot from "../assets/screenshots/ip-inspector.png";
+import Llama from "../assets/logos/crowdsec.svg";
+---
+
+<section class="crowdsec" id="crowdsec">
+  <div class="wrap">
+    <div class="shot">
+      <Image
+        src={shot}
+        widths={[720, 1200, 1912]}
+        sizes="(max-width: 900px) 250vw, 1400px"
+        format="webp"
+        alt="The IP inspector for a banned address: the ban badge with time left, a still-seen-after-ban warning, request counts, status mix over time and the latest requests"
+        loading="lazy"
+      />
+    </div>
+    <div class="copy">
+      <p class="kicker"><Llama width={22} height={22} aria-hidden="true" /> CrowdSec</p>
+      <h2 class="section-title">Bans next to the traffic that earned them.</h2>
+      <p class="sub">
+        Connect the Local API and the Security page joins active decisions with your own logs: the country, city and
+        request count for every banned IP, a Banned badge in the tables, and a map overlay for banned addresses still
+        showing up in the selected range.
+      </p>
+      <dl>
+        <div>
+          <dt>Ban and unban from the UI</dt>
+          <dd>
+            With machine credentials, a shield button appears next to IPs on the map, in the tables and in the IP
+            inspector, with a duration picker from an hour to forever. Every ban and unban is audit-logged with the
+            acting user.
+          </dd>
+        </div>
+        <div>
+          <dt>Live within seconds</dt>
+          <dd>
+            The app follows the LAPI decision stream and pushes changes over a WebSocket, so badges react when
+            CrowdSec bans or unbans an IP anywhere, not only from this UI.
+          </dd>
+        </div>
+        <div>
+          <dt>Two lines to connect</dt>
+          <dd>
+            <pre class="block"><span class="c"># prints the API key</span>
+docker exec crowdsec cscli bouncers add geometrikks
+
+CROWDSEC_LAPI_URL=http://crowdsec:8080
+CROWDSEC_BOUNCER_API_KEY=&lt;key&gt;</pre>
+            CrowdSec decides; a bouncer in front of your stack still does the blocking. GeoMetrikks shows and manages
+            decisions, it does not block traffic. <a href="/docs/features/crowdsec/">CrowdSec setup in the docs</a>
+          </dd>
+        </div>
+      </dl>
+    </div>
+  </div>
+</section>
+
+<style>
+  .crowdsec {
+    border-top: 1px solid var(--line);
+  }
+  .crowdsec .wrap {
+    display: grid;
+    grid-template-columns: minmax(0, 6fr) minmax(0, 6fr);
+    gap: 56px;
+    align-items: center;
+  }
+  .shot {
+    aspect-ratio: 4 / 5;
+    border-radius: 12px;
+    border: 1px solid var(--line-strong);
+    overflow: hidden;
+    background: var(--bg-deep);
+    box-shadow: 0 30px 80px oklch(0 0 0 / 40%);
+  }
+  .shot img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: 100% 0;
+  }
+  .kicker {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .sub {
+    margin-bottom: 24px;
+  }
+  dl {
+    margin: 0;
+  }
+  dl > div {
+    padding: 16px 0;
+    border-top: 1px solid var(--line);
+  }
+  dt {
+    font-weight: 600;
+    margin: 0 0 6px;
+  }
+  dd {
+    margin: 0;
+    color: var(--fg-dim);
+    font-size: 15px;
+  }
+  dd pre.block {
+    margin: 0 0 12px;
+  }
+  dd a {
+    color: var(--accent);
+    font-weight: 500;
+  }
+  dd a:hover {
+    text-decoration: underline;
+  }
+  @media (max-width: 900px) {
+    .crowdsec .wrap {
+      grid-template-columns: minmax(0, 1fr);
+      gap: 32px;
+    }
+  }
+</style>

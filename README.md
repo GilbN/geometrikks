@@ -96,7 +96,7 @@ You need Docker. The image is published to GHCR for `amd64` and `arm64`.
 mkdir geometrikks && cd geometrikks
 curl -LO https://raw.githubusercontent.com/GilbN/geometrikks/main/docker-compose.yml
 curl -Lo .env https://raw.githubusercontent.com/GilbN/geometrikks/main/.env.example
-$EDITOR .env      # set APP_ADMIN_PASSWORD, MaxMind key, log path
+$EDITOR .env      # set APP_ADMIN_PASSWORD, MaxMind key, CARTO key, log path
 docker compose up -d
 ```
 
