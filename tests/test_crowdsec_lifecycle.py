@@ -131,3 +131,26 @@ async def test_startup_creates_stream_poller_when_enabled(monkeypatch):
             create_scheduler_mock.await_args.kwargs["crowdsec_poller"]
             is app.state.crowdsec_stream_poller
         )
+
+
+async def test_scheduler_disabled_keeps_service_without_stream_poller(monkeypatch):
+    from geometrikks.server import lifecycle as lc
+
+    monkeypatch.setenv("CROWDSEC_LAPI_URL", "http://crowdsec:8080")
+    monkeypatch.setenv("CROWDSEC_BOUNCER_API_KEY", "key")
+    monkeypatch.setenv("SCHEDULER_ENABLED", "false")
+    _patch_startup_collaborators(
+        monkeypatch, lc, db_available=True, ensure=AsyncMock(return_value=True)
+    )
+    poller_factory = MagicMock()
+    monkeypatch.setattr(lc, "CrowdSecStreamPoller", poller_factory)
+
+    app = make_app()
+    async with enter_lifespan(app):
+        assert isinstance(app.state.crowdsec_service, CrowdSecService)
+        assert app.state.crowdsec_stream_poller is None
+        create_scheduler_mock = cast("AsyncMock", lc.create_scheduler)
+        assert create_scheduler_mock.await_args is not None
+        assert create_scheduler_mock.await_args.kwargs["crowdsec_poller"] is None
+
+    poller_factory.assert_not_called()

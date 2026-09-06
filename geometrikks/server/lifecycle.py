@@ -207,8 +207,8 @@ async def crowdsec_lifespan(app: "Litestar") -> "AsyncGenerator[None]":
 
     The LAPI client needs no database, so this runs before the DB gate;
     missing config degrades the feature instead of failing startup. The
-    database manager may later null the poller in DB-degraded mode (the poll
-    job runs on the scheduler, which never starts without a database).
+    stream poller is active only when its scheduler job can run. The database
+    manager may later defer that poller when startup cannot reach the database.
 
     Teardown closes the LAPI client; it exits after the scheduler and
     ingestion managers, so nothing that could still use the client outlives it.
@@ -230,7 +230,13 @@ async def crowdsec_lifespan(app: "Litestar") -> "AsyncGenerator[None]":
         if settings.crowdsec.enabled:
             service = CrowdSecService(settings.crowdsec)
             app.state.crowdsec_service = service
-            app.state.crowdsec_stream_poller = CrowdSecStreamPoller(service)
+            if settings.scheduler.enabled:
+                app.state.crowdsec_stream_poller = CrowdSecStreamPoller(service)
+            else:
+                app.state.crowdsec_stream_poller = None
+                logger.info(
+                    "crowdsec_stream_poller_disabled", reason="scheduler_disabled"
+                )
             logger.info(
                 "CrowdSec integration enabled (write=%s)", settings.crowdsec.write_enabled
             )

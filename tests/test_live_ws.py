@@ -113,6 +113,24 @@ def test_crowdsec_ws_closes_1013_when_poller_is_deferred():
     assert exc_info.value.detail == "crowdsec stream not running"
 
 
+def test_crowdsec_ws_closes_1013_when_scheduler_disabled(monkeypatch, tmp_path):
+    from geometrikks.domain.realtime.controllers import crowdsec_feed
+    from geometrikks.server import lifecycle
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("CROWDSEC_LAPI_URL", "http://crowdsec:8080")
+    monkeypatch.setenv("CROWDSEC_BOUNCER_API_KEY", "key")
+    monkeypatch.setenv("SCHEDULER_ENABLED", "false")
+    app = Litestar(route_handlers=[crowdsec_feed], lifespan=[lifecycle.crowdsec_lifespan])
+    with TestClient(app) as client:
+        assert app.state.crowdsec_service is not None
+        with pytest.raises(WebSocketDisconnect) as exc_info:
+            with client.websocket_connect("/ws/crowdsec") as ws:
+                ws.receive_json(timeout=2)
+    assert exc_info.value.code == 1013
+    assert exc_info.value.detail == "crowdsec stream not running"
+
+
 def test_ws_counts_dropped_events_beyond_frame_cap():
     """Overflow beyond MAX_EVENTS_PER_FRAME is counted, not silently lost."""
     app, channels = _live_app()

@@ -17,7 +17,10 @@ pytestmark = pytest.mark.anyio
 
 
 class StubCrowdSecService(CrowdSecService):
-    def __init__(self) -> None:
+    def __init__(self, _settings: object | None = None) -> None:
+        pass
+
+    async def aclose(self) -> None:
         pass
 
     async def ping(self) -> bool:
@@ -51,5 +54,31 @@ async def test_status_reports_live_updates_paused_without_poller():
     """DB-degraded mode defers the poller; the LAPI can still be reachable."""
     async with AsyncTestClient(app=make_app(with_poller=False)) as client:
         body = (await client.get("/api/v1/crowdsec/status")).json()
+    assert body["lapiReachable"] is True
+    assert body["liveUpdates"] is False
+
+
+async def test_status_reports_live_updates_paused_when_scheduler_disabled(
+    monkeypatch, tmp_path
+):
+    from geometrikks.server import lifecycle as lc
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("CROWDSEC_LAPI_URL", "http://crowdsec:8080")
+    monkeypatch.setenv("CROWDSEC_BOUNCER_API_KEY", "key")
+    monkeypatch.setenv("SCHEDULER_ENABLED", "false")
+    monkeypatch.setattr(lc, "CrowdSecService", StubCrowdSecService)
+
+    app = Litestar(
+        route_handlers=[create_api_v1_router([CrowdSecController])],
+        lifespan=[lc.crowdsec_lifespan],
+        dependencies={
+            **ambient_settings_dependency(),
+            "db_session": Provide(lambda: None, sync_to_thread=False),
+        },
+    )
+    async with AsyncTestClient(app=app) as client:
+        body = (await client.get("/api/v1/crowdsec/status")).json()
+    assert body["enabled"] is True
     assert body["lapiReachable"] is True
     assert body["liveUpdates"] is False

@@ -691,6 +691,33 @@ async def test_recovery_runs_deferred_startup_with_capped_backoff(monkeypatch):
     ingestion.stop.assert_awaited_once()
 
 
+async def test_scheduler_disabled_recovery_never_activates_crowdsec_poller(monkeypatch):
+    from geometrikks.server import lifecycle as lc
+
+    _enable_crowdsec(monkeypatch)
+    monkeypatch.setenv("SCHEDULER_ENABLED", "false")
+    _patch_startup_collaborators(
+        monkeypatch, lc, db_available=False, ensure=AsyncMock(return_value=True)
+    )
+    _patch_crowdsec_service(monkeypatch, lc)
+    backend = MagicMock(recover=AsyncMock())
+    clock = _patch_recovery(monkeypatch, lc, [True])
+    app = SimpleNamespace(state=SimpleNamespace(channels_backend=backend))
+
+    async with enter_lifespan(app):
+        assert app.state.crowdsec_stream_poller is None
+        assert getattr(app.state, "crowdsec_stream_poller_deferred", None) is None
+        await clock.tick(10.0)
+        await asyncio.wait_for(app.state.db_recovery_task, timeout=1.0)
+        assert app.state.crowdsec_stream_poller is None
+        assert getattr(app.state, "crowdsec_stream_poller_deferred", None) is None
+        create_scheduler_mock = cast("AsyncMock", lc.create_scheduler)
+        assert create_scheduler_mock.await_args is not None
+        assert create_scheduler_mock.await_args.kwargs["crowdsec_poller"] is None
+
+    cast("MagicMock", lc.CrowdSecStreamPoller).assert_not_called()
+
+
 @pytest.mark.parametrize("stage", ["migration", "database setup", "scheduler", "ingestion"])
 async def test_recovery_failure_is_terminal_and_unwinds_partial_services(monkeypatch, stage):
     from geometrikks.lib.advisories import DATABASE_RECOVERY_FAILED
