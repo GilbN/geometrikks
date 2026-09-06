@@ -4,11 +4,10 @@ Same question as the parser's PeerWindow, answered from the database so
 agent-tailed sources appear on the head's Status page. Private peers are
 out of reach here: those lines are dropped before storage.
 
-State is module-level like timescale._hostname_pollution: the scheduler
-job writes it, /health reads it synchronously. A failed run clears both
-cache and hysteresis state so a down database drops the cards within one
-job interval instead of serving stale ones; the re-detect log line after
-an outage is the accepted cost.
+State is module-level like timescale._hostname_pollution: the scheduler job
+writes it, /health reads it synchronously. A failed run keeps the last good
+findings and records the error so /health can say the scan is broken rather
+than silently dropping the cards.
 """
 from __future__ import annotations
 
@@ -53,16 +52,24 @@ class ScanProvider:
 
 _findings: list[ProxyFinding] = []
 _active: dict[str, bool] = {}
+_last_error: str | None = None
 
 
 def get_scan_findings() -> list[ProxyFinding]:
-    """Findings from the last successful run; [] before it or after a failure."""
+    """Findings from the last successful run; [] before it."""
     return list(_findings)
 
 
+def get_scan_error() -> str | None:
+    """Error text from the last run when it failed; None after a success."""
+    return _last_error
+
+
 def reset_scan_state() -> None:
+    global _last_error
     _findings.clear()
     _active.clear()
+    _last_error = None
 
 
 def apply_scan_results(groups: list[ScanGroup], providers: list[ScanProvider]) -> None:
@@ -179,11 +186,13 @@ async def _query_scan_rows(
 async def run_proxy_scan(
     session_factory: "Callable[[], AsyncSession]", exclude_hostnames: set[str]
 ) -> None:
+    global _last_error
     try:
         async with session_factory() as session:
             groups, providers = await _query_scan_rows(session, exclude_hostnames)
     except Exception as exc:
         logger.warning("proxy_scan_failed", error=str(exc))
-        reset_scan_state()
+        _last_error = str(exc)
         return
+    _last_error = None
     apply_scan_results(groups, providers)

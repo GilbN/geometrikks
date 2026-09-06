@@ -499,3 +499,18 @@ def test_health_reports_asn_state(monkeypatch):
         body = client.get("/health").json()
         assert isinstance(body["geoip"]["asnAvailable"], bool)
         assert "asnDbBuildDate" in body["geoip"]
+
+
+def test_health_reports_a_failing_proxy_scan(monkeypatch):
+    async def db_up(app, timeout: float = 2.0) -> bool:
+        return True
+    monkeypatch.setattr(health_module, "_database_reachable", db_up)
+    monkeypatch.setenv("APP_PROXY_ADVISORY", "true")
+    from geometrikks.domain.system import proxy_scan
+    from geometrikks.server import timescale
+    monkeypatch.setattr(timescale, "_hostname_pollution", None)
+    monkeypatch.setattr(proxy_scan, "_last_error", "db down")
+
+    with TestClient(app=make_app()) as client:
+        [a] = [x for x in client.get("/health").json()["advisories"] if x["id"] == "proxy-scan-failed"]
+    assert a["detail"] == "db down"

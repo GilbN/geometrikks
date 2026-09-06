@@ -178,6 +178,17 @@ def _collect_advisories(app: Litestar, settings: Settings) -> list[Advisory]:
             f for f in proxy_scan.get_scan_findings() if f.hostname not in covered
         ]
         advisories.extend(proxy_advisories(findings))
+        scan_error = proxy_scan.get_scan_error()
+        if scan_error is not None:
+            advisories.append(Advisory(
+                id="proxy-scan-failed",
+                severity="warning",
+                summary=(
+                    "The CDN peer scan is failing; the proxy advisories above "
+                    "may be stale."
+                ),
+                detail=scan_error,
+            ))
     policy_failures = timescale.get_policy_failures()
     if policy_failures:
         listed = ", ".join(

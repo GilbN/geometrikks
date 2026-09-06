@@ -7,8 +7,8 @@ import pytest
 import structlog
 
 from geometrikks.domain.system.proxy_scan import (
-    ScanGroup, ScanProvider, apply_scan_results, get_scan_findings,
-    reset_scan_state, run_proxy_scan,
+    ScanGroup, ScanProvider, apply_scan_results, get_scan_error,
+    get_scan_findings, reset_scan_state, run_proxy_scan,
 )
 
 
@@ -89,7 +89,9 @@ def test_vanished_source_clears() -> None:
 
 
 @pytest.mark.anyio
-async def test_failed_run_clears_cache_and_state() -> None:
+async def test_failed_run_keeps_findings_and_records_the_error() -> None:
+    """A down database must not read as "problem resolved": the last good
+    findings stay and the failure is exposed for /health."""
     apply_scan_results([groups_for("web", 1000, 800)], [ScanProvider("web", 13335, 800)])
     assert len(get_scan_findings()) == 1
 
@@ -98,12 +100,35 @@ async def test_failed_run_clears_cache_and_state() -> None:
 
     with structlog.testing.capture_logs() as logs:
         await run_proxy_scan(broken_factory, set())
-    assert get_scan_findings() == []
+    assert len(get_scan_findings()) == 1
+    assert get_scan_error() == "db down"
     assert any(e["event"] == "proxy_scan_failed" for e in logs)
-    # State is gone too: the next successful run re-detects from scratch.
-    with structlog.testing.capture_logs() as logs:
-        apply_scan_results([groups_for("web", 1000, 800)], [ScanProvider("web", 13335, 800)])
-    assert any(e["event"] == "proxy_peer_detected" for e in logs)
+
+
+@pytest.mark.anyio
+async def test_successful_run_clears_the_error(monkeypatch) -> None:
+    def broken_factory():
+        raise RuntimeError("db down")
+
+    await run_proxy_scan(broken_factory, set())
+    assert get_scan_error() == "db down"
+
+    from geometrikks.domain.system import proxy_scan
+
+    async def fake_query(session, exclude):
+        return [], []
+
+    monkeypatch.setattr(proxy_scan, "_query_scan_rows", fake_query)
+
+    class _Session:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *exc):
+            return False
+
+    await run_proxy_scan(cast(Any, lambda: _Session()), set())
+    assert get_scan_error() is None
 
 
 @pytest.mark.anyio
