@@ -498,8 +498,42 @@ def test_health_exposes_write_failures_and_advises(monkeypatch):
         if item["id"] == "ingestion-write-failures"
     ]
     assert "2 batches (37 records)" in advisory["summary"]
-    assert "continues ingestion" in advisory["detail"]
+    assert "dropped the affected records and will not retry them" in advisory["detail"]
+    assert "continues processing new records" in advisory["detail"]
     assert "ingestion_batch_failed" in advisory["detail"]
+
+
+def test_health_write_failure_advisory_reports_stopped_ingestion(monkeypatch):
+    async def db_up(app, timeout: float = 2.0) -> bool:
+        return True
+
+    monkeypatch.setattr(health_module, "_database_reachable", db_up)
+    from geometrikks.server import timescale
+
+    monkeypatch.setattr(timescale, "_hostname_pollution", None)
+
+    app = make_app()
+    service = _running_service(file_missing=False)
+    service.is_running = False
+    service.failed_batches = 2
+    service.failed_records = 37
+    app.state.ingestion_service = service
+    with TestClient(app=app) as client:
+        body = client.get("/health").json()
+
+    assert body["ingestion"]["failedBatches"] == 2
+    assert body["ingestion"]["failedRecords"] == 37
+    [advisory] = [
+        item for item in body["advisories"]
+        if item["id"] == "ingestion-write-failures"
+    ]
+    assert "2 batches (37 records)" in advisory["summary"]
+    assert "dropped the affected records and will not retry them" in advisory["detail"]
+    assert "Ingestion is not running" in advisory["detail"]
+    assert "ingestion_batch_failed" in advisory["detail"]
+    assert "schema mismatch" in advisory["detail"]
+    assert "full disk" in advisory["detail"]
+    assert "restart the app" in advisory["detail"]
 
 
 def _asn_advisories(app_state_asn: bool, asn_enabled: bool) -> list:

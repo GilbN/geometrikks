@@ -260,6 +260,11 @@ def _collect_advisories(app: Litestar, settings: Settings) -> list[Advisory]:
     advisories: list[Advisory] = runtime.get_advisories(app).snapshot()
     service = runtime.get_ingestion_service(app)
     if service is not None and service.failed_batches > 0:
+        ingestion_state = (
+            "Ingestion continues processing new records."
+            if service.is_running
+            else "Ingestion is not running. Fix the problem, then restart the app."
+        )
         advisories.append(Advisory(
             id="ingestion-write-failures",
             severity="warning",
@@ -268,9 +273,9 @@ def _collect_advisories(app: Litestar, settings: Settings) -> list[Advisory]:
                 "could not be written to the database since startup."
             ),
             detail=(
-                "The app drops the affected records and continues ingestion. "
-                "Check the app log for ingestion_batch_failed; persistent failures "
-                "usually mean a schema mismatch or a full disk."
+                "The app dropped the affected records and will not retry them. "
+                f"{ingestion_state} Check the app log for ingestion_batch_failed. "
+                "Persistent failures usually mean a schema mismatch or a full disk."
             ),
         ))
     pollution = timescale.get_hostname_pollution()
