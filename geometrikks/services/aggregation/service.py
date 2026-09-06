@@ -81,9 +81,9 @@ class AggregationService:
                 self.total_location_refreshes += updated
                 logger.info("Refreshed last_hit for %d locations", updated)
             return updated
-        except Exception as e:
-            logger.exception("Failed to refresh location last_hits: %s", e)
-            return 0
+        except Exception as exc:
+            logger.exception("location_last_hits_refresh_failed", error=str(exc))
+            raise
 
     async def force_refresh_continuous_aggregates(self) -> None:
         """Force refresh of TimescaleDB continuous aggregates.

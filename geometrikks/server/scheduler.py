@@ -124,17 +124,26 @@ async def refresh_all_caggs_job(
     Args:
         session_factory: SQLAlchemy async session factory.
     """
+    failed: list[str] = []
     for cagg_name in ALL_CAGGS:
         try:
             await _execute_call_outside_transaction(
                 session_factory,
                 f"CALL refresh_continuous_aggregate('{cagg_name}', NULL, NULL)",
             )
-            logger.info("Refreshed %s", cagg_name)
-        except Exception as e:
-            logger.warning("Failed to refresh %s: %s", cagg_name, e)
+            logger.info("cagg_refreshed", cagg_name=cagg_name)
+        except Exception as exc:
+            logger.warning(
+                "cagg_refresh_failed", cagg_name=cagg_name, error=str(exc)
+            )
+            failed.append(cagg_name)
 
-    logger.info("All CAGGs refresh complete")
+    if failed:
+        raise RuntimeError(
+            f"{len(failed)} of {len(ALL_CAGGS)} aggregates failed to refresh: "
+            + ", ".join(failed)
+        )
+    logger.info("all_caggs_refresh_complete", count=len(ALL_CAGGS))
 
 
 async def refresh_site_home_job(
@@ -191,24 +200,24 @@ async def refresh_geoip_job(settings: "Settings", app: "Litestar | None") -> Non
     # Module lookup, not a captured reference: tests monkeypatch this.
     # force: a run of this job (scheduled or the Settings Run button) means
     # "fetch a fresh copy now"; the staleness gate stays for startup only.
-    await downloader.refresh_geoip_databases(settings.geoip, force=True)
+    result = await downloader.refresh_geoip_databases(settings.geoip, force=True)
 
-    if app is None:
-        return
+    if app is not None:
+        from geometrikks.lib.utils import geoip_info
+        from geometrikks.server import runtime
 
-    from geometrikks.lib.utils import geoip_info
-    from geometrikks.server import runtime
+        # /health and the settings overlay read these; a successful download after
+        # a degraded start must flip them without a restart.
+        app.state.geoip_available = geoip_info(settings.geoip.db_path).available
+        if settings.geoip.asn_enabled:
+            app.state.asn_available = geoip_info(settings.geoip.asn_db_path).available
 
-    # /health and the settings overlay read these; a successful download after
-    # a degraded start must flip them without a restart.
-    app.state.geoip_available = geoip_info(settings.geoip.db_path).available
-    if settings.geoip.asn_enabled:
-        app.state.asn_available = geoip_info(settings.geoip.asn_db_path).available
+        service = runtime.get_ingestion_service(app)
+        if service is not None and service.readers_stale():
+            await service.reload_readers()
 
-    service = runtime.get_ingestion_service(app)
-    if service is None or not service.readers_stale():
-        return
-    await service.reload_readers()
+    if result.errors:
+        raise RuntimeError("GeoLite2 refresh failed: " + "; ".join(result.errors))
 
 
 async def create_scheduler(
