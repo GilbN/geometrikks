@@ -13,6 +13,8 @@ from typing import Sequence
 
 import msgspec
 
+from geometrikks.domain.analytics.asn_classification import AsnCategory
+
 
 class GeoLogEntry(msgspec.Struct, rename="camel"):
     """One grouped (location, IP) row for the geo-logs table."""
@@ -29,6 +31,8 @@ class GeoLogEntry(msgspec.Struct, rename="camel"):
     longitude: float
     event_count: int
     last_seen: datetime | None
+    asn: int | None
+    as_organization: str | None
     hostnames: list[str]
     """Distinct hostnames seen for this group; [] on the CAGG path (the
     daily CAGG carries no hostname dimension)."""
@@ -86,6 +90,8 @@ class TopGeoIp(msgspec.Struct, rename="camel"):
     event_count: int
     country_code: str | None
     city: str | None
+    asn: int | None
+    as_organization: str | None
 
 
 class TopGeoIpsResponse(msgspec.Struct, rename="camel"):
@@ -118,6 +124,27 @@ class TopGeoCitiesResponse(msgspec.Struct, rename="camel"):
     items: list[TopGeoCity]
 
 
+class TopGeoAsn(msgspec.Struct, rename="camel"):
+    """Top autonomous system by geo-event count (rows without ASN data excluded)."""
+
+    asn: int
+    organization: str | None
+    category: AsnCategory
+    event_count: int
+    unique_ips: int
+
+
+class TopGeoAsnsResponse(msgspec.Struct, rename="camel"):
+    items: list[TopGeoAsn]
+
+
+class GeoAsnFacet(msgspec.Struct, rename="camel"):
+    """One autonomous system present in the data."""
+
+    asn: int
+    organization: str | None
+
+
 class GeoCountryFacet(msgspec.Struct, rename="camel"):
     """One country present in the geo data."""
 
@@ -131,6 +158,7 @@ class GeoEventFacets(msgspec.Struct, rename="camel"):
     countries: list[GeoCountryFacet]
     cities: list[str]
     hostnames: list[str]
+    asns: list[GeoAsnFacet]
 
 
 @dataclass

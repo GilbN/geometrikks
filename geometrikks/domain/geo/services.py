@@ -19,6 +19,7 @@ from advanced_alchemy.repository import SQLAlchemyAsyncRepository
 from advanced_alchemy.service import SQLAlchemyAsyncRepositoryService
 from sqlalchemy import func, select, text
 
+from geometrikks.domain.analytics.asn_classification import classify_asn
 from geometrikks.domain.exceptions import DomainValidationError
 
 from geometrikks.domain.geo.models import GeoEvent, GeoLocation
@@ -33,12 +34,14 @@ from geometrikks.domain.geo.repositories import (
     use_local_days,
 )
 from geometrikks.domain.geo.schemas import (
+    GeoAsnFacet,
     GeoCountryFacet,
     GeoEventFacets,
     GeoEventFilters,
     GeoLogEntry,
     GeoLogPeriod,
     GeoLogTimeSeriesPoint,
+    TopGeoAsn,
     TopGeoCity,
     TopGeoCountry,
     TopGeoIp,
@@ -55,6 +58,8 @@ logger = get_logger(__name__)
 # is deliberately absent: it is an aggregated array on the raw path and NULL on
 # the CAGG path. ``last_seen`` is bucket-granular on the CAGG path, so on
 # ranges > 24h it only orders to day precision (raw edge rows stay exact).
+# ``as_organization`` is deliberately absent too: it is free-text and
+# MAX-aggregated, so it has no stable sort meaning.
 GEO_LOG_SORT_COLUMNS = {
     "city": "city",
     "postal_code": "postal_code",
@@ -66,6 +71,7 @@ GEO_LOG_SORT_COLUMNS = {
     "longitude": "longitude",
     "event_count": "event_count",
     "last_seen": "last_seen",
+    "asn": "asn",
 }
 
 
@@ -126,6 +132,8 @@ class GeoEventService(SQLAlchemyAsyncRepositoryService[GeoEvent]):
                     ge.ip_address AS ip_sort,
                     CAST(COUNT(*) AS BIGINT) AS event_count,
                     MAX(ge.timestamp) AS last_seen,
+                    MAX(ge.autonomous_system_number) AS asn,
+                    MAX(ge.autonomous_system_organization) AS as_organization,
                     array_agg(DISTINCT ge.hostname) AS hostnames
                 FROM geo_events ge
                 JOIN geo_locations gl ON ge.location_id = gl.id
@@ -143,6 +151,8 @@ class GeoEventService(SQLAlchemyAsyncRepositoryService[GeoEvent]):
                     c.ip_address AS ip_sort,
                     CAST(SUM(c.event_count) AS BIGINT) AS event_count,
                     MAX(c.last_seen) AS last_seen,
+                    MAX(c.asn) AS asn,
+                    MAX(c.as_org) AS as_organization,
                     NULL AS hostnames
                 FROM combined c
                 JOIN geo_locations gl ON c.location_id = gl.id
@@ -180,6 +190,8 @@ class GeoEventService(SQLAlchemyAsyncRepositoryService[GeoEvent]):
                 longitude=row.longitude,
                 event_count=row.event_count,
                 last_seen=row.last_seen,
+                asn=row.asn,
+                as_organization=row.as_organization,
                 hostnames=sorted(row.hostnames) if row.hostnames else [],
             )
             for row in rows
@@ -398,7 +410,9 @@ class GeoEventService(SQLAlchemyAsyncRepositoryService[GeoEvent]):
                     host(ge.ip_address) AS ip_address,
                     CAST(COUNT(*) AS BIGINT) AS event_count,
                     MAX(gl.country_code) AS country_code,
-                    MAX(gl.city) AS city
+                    MAX(gl.city) AS city,
+                    MAX(ge.autonomous_system_number) AS asn,
+                    MAX(ge.autonomous_system_organization) AS as_organization
                 FROM geo_events ge
                 JOIN geo_locations gl ON ge.location_id = gl.id
                 WHERE ge.timestamp >= :start AND ge.timestamp < :end
@@ -415,7 +429,9 @@ class GeoEventService(SQLAlchemyAsyncRepositoryService[GeoEvent]):
                     host(c.ip_address) AS ip_address,
                     CAST(SUM(c.event_count) AS BIGINT) AS event_count,
                     MAX(gl.country_code) AS country_code,
-                    MAX(gl.city) AS city
+                    MAX(gl.city) AS city,
+                    MAX(c.asn) AS asn,
+                    MAX(c.as_org) AS as_organization
                 FROM combined c
                 JOIN geo_locations gl ON c.location_id = gl.id
                 WHERE TRUE
@@ -437,6 +453,8 @@ class GeoEventService(SQLAlchemyAsyncRepositoryService[GeoEvent]):
                 event_count=row.event_count,
                 country_code=row.country_code,
                 city=row.city,
+                asn=row.asn,
+                as_organization=row.as_organization,
             )
             for row in result.fetchall()
         ]
@@ -553,8 +571,66 @@ class GeoEventService(SQLAlchemyAsyncRepositoryService[GeoEvent]):
             for row in result.fetchall()
         ]
 
+    async def get_top_asns(
+        self, start: datetime, end: datetime, filters: GeoEventFilters, *, limit: int = 10
+    ) -> list[TopGeoAsn]:
+        """Top autonomous systems by event count; rows without ASN data excluded."""
+        granularity = get_stats_granularity(start, end)
+        if granularity == StatsGranularity.RAW or filters.forces_raw:
+            filter_sql, filter_params = filters.sql_conditions("ge", "gl")
+            stmt = text(f"""
+                SELECT
+                    ge.autonomous_system_number AS asn,
+                    MAX(ge.autonomous_system_organization) AS organization,
+                    CAST(COUNT(*) AS BIGINT) AS event_count,
+                    CAST(COUNT(DISTINCT ge.ip_address) AS BIGINT) AS unique_ips
+                FROM geo_events ge
+                JOIN geo_locations gl ON ge.location_id = gl.id
+                WHERE ge.timestamp >= :start AND ge.timestamp < :end
+                  AND ge.autonomous_system_number IS NOT NULL
+                {filter_sql}
+                GROUP BY ge.autonomous_system_number
+                ORDER BY event_count DESC, asn
+                LIMIT :limit
+            """)
+        else:
+            # Keyed by IP on every leg, so COUNT(DISTINCT) stays exact.
+            filter_sql, filter_params = filters.sql_conditions("c", "gl", asn_column="asn")
+            stmt = text(f"""
+                {stitched_ip_location_cte(granularity)}
+                SELECT
+                    c.asn,
+                    MAX(c.as_org) AS organization,
+                    CAST(SUM(c.event_count) AS BIGINT) AS event_count,
+                    CAST(COUNT(DISTINCT c.ip_address) AS BIGINT) AS unique_ips
+                FROM combined c
+                JOIN geo_locations gl ON c.location_id = gl.id
+                WHERE c.asn IS NOT NULL
+                {filter_sql}
+                GROUP BY c.asn
+                ORDER BY event_count DESC, asn
+                LIMIT :limit
+            """)
+        if granularity == StatsGranularity.RAW or filters.forces_raw:
+            window_params: dict = {"start": start, "end": end}
+        else:
+            window_params = stitch_params(start, end, granularity)
+        result = await self._session.execute(
+            stmt, {**window_params, "limit": limit, **filter_params}
+        )
+        return [
+            TopGeoAsn(
+                asn=int(row.asn),
+                organization=row.organization,
+                category=classify_asn(int(row.asn)),
+                event_count=row.event_count,
+                unique_ips=row.unique_ips,
+            )
+            for row in result.fetchall()
+        ]
+
     async def get_facets(self) -> GeoEventFacets:
-        """Distinct country/city/hostname values, for filter dropdowns.
+        """Distinct country/city/hostname/ASN values, for filter dropdowns.
 
         Countries are deduped by code (a non-null name wins) and sorted by
         the displayed name, mirroring AccessLogService.get_facets. Hostnames
@@ -584,10 +660,20 @@ class GeoEventService(SQLAlchemyAsyncRepositoryService[GeoEvent]):
                 "SELECT DISTINCT hostname FROM hostname_daily_stats ORDER BY hostname"
             ))
         ).scalars().all()
+        # The access-log ASN rollup already holds every ASN and organization
+        # the same log lines produced; a distinct scan over the geo per-IP
+        # views would cost far more for the same list.
+        asn_rows = (
+            await session.execute(text(
+                "SELECT asn, MAX(as_org) AS organization FROM asn_daily_stats "
+                "GROUP BY asn ORDER BY MAX(as_org) NULLS LAST, asn"
+            ))
+        ).all()
         return GeoEventFacets(
             countries=[GeoCountryFacet(code=code, name=name or code) for code, name in country_rows],
             cities=list(cities),
             hostnames=list(hostnames),
+            asns=[GeoAsnFacet(asn=int(row.asn), organization=row.organization) for row in asn_rows],
         )
 
 
