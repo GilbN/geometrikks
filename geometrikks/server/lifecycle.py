@@ -26,15 +26,17 @@ when it is False. Missing GeoLite2 puts the app in geo-degraded mode
 from __future__ import annotations
 
 import asyncio
+import time
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Protocol
 
 from sqlalchemy import text
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from litestar.plugins import InitPlugin
 
 from geometrikks.config.settings import get_settings
+from geometrikks.lib.utils import retries_disabled
 from geometrikks.server.logging import get_logger
 from geometrikks.server.migrations import migrate_database
 from geometrikks.server import runtime
@@ -62,6 +64,27 @@ if TYPE_CHECKING:
 
 logger = get_logger(__name__)
 
+_PROBE_RETRY_DELAY = 2.0
+
+
+class _Clock(Protocol):
+    def monotonic(self) -> float: ...
+
+    async def sleep(self, seconds: float) -> None: ...
+
+
+class _SystemClock:
+    @staticmethod
+    def monotonic() -> float:
+        return time.monotonic()
+
+    @staticmethod
+    async def sleep(seconds: float) -> None:
+        await asyncio.sleep(seconds)
+
+
+_SYSTEM_CLOCK = _SystemClock()
+
 
 def _resolve_settings(app: "Litestar") -> "Settings":
     """The settings the app was composed with.
@@ -73,7 +96,7 @@ def _resolve_settings(app: "Litestar") -> "Settings":
 
 
 async def _db_available(app: "Litestar", timeout: float = 10.0) -> bool:
-    """Return True if the app's database accepts connections; False otherwise."""
+    """Run one bounded database connection probe."""
     try:
         async def _probe():
             async with get_app_db_config(app).get_engine().connect() as conn:
@@ -82,8 +105,45 @@ async def _db_available(app: "Litestar", timeout: float = 10.0) -> bool:
         await asyncio.wait_for(_probe(), timeout=timeout)
         return True
     except Exception as e:
-        logger.warning("Database unavailable at startup: %s", e)
+        logger.debug("database_probe_failed", error=str(e))
         return False
+
+
+async def _wait_for_database(
+    app: "Litestar", wait_seconds: float, *, _clock: _Clock = _SYSTEM_CLOCK
+) -> bool:
+    """Probe until the database answers or the startup window expires."""
+    if wait_seconds == 0 or retries_disabled():
+        available = await _db_available(app)
+        if not available:
+            logger.warning(
+                "database_startup_wait_expired",
+                wait_seconds=wait_seconds,
+                retrying_in_background=True,
+            )
+        return available
+
+    deadline = _clock.monotonic() + wait_seconds
+    while True:
+        remaining = deadline - _clock.monotonic()
+        if remaining <= 0:
+            logger.warning(
+                "database_startup_wait_expired",
+                wait_seconds=wait_seconds,
+                retrying_in_background=True,
+            )
+            return False
+        if await _db_available(app, timeout=min(10.0, remaining)):
+            return True
+        remaining = deadline - _clock.monotonic()
+        if remaining <= 0:
+            logger.warning(
+                "database_startup_wait_expired",
+                wait_seconds=wait_seconds,
+                retrying_in_background=True,
+            )
+            return False
+        await _clock.sleep(min(_PROBE_RETRY_DELAY, remaining))
 
 
 @asynccontextmanager
@@ -227,8 +287,7 @@ async def database_lifespan(app: "Litestar") -> "AsyncGenerator[None]":
         yield
         return
 
-    if not await _db_available(app):
-        logger.warning("Starting without database: skipping migrations and ingestion.")
+    if not await _wait_for_database(app, settings.database.startup_wait_seconds):
         app.state.db_available = False
         if runtime.get_crowdsec_poller(app) is not None:
             # The poll job runs on the scheduler, which never starts without a

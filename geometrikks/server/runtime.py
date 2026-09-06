@@ -89,3 +89,8 @@ def is_asn_available(app: Litestar, *, default: bool = False) -> bool:
     ingest without ASN columns. ``default`` mirrors is_geoip_available.
     """
     return bool(getattr(app.state, "asn_available", default))
+
+
+def is_db_available(app: Litestar, *, default: bool = True) -> bool:
+    """Whether database-bound services were wired during startup."""
+    return bool(getattr(app.state, "db_available", default))

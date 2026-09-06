@@ -1,6 +1,7 @@
 """Lifespan managers: teardown ordering, partial-failure unwind, degraded mode."""
 from __future__ import annotations
 
+import asyncio
 from types import SimpleNamespace
 from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock
@@ -368,3 +369,132 @@ async def test_ingestion_wires_per_file_hostnames(monkeypatch):
     ]
     assert hostnames == ["vps-1", "vps-2"]
     assert cast("MagicMock", lc.LogIngestionService).call_args.kwargs["hostname"] == "vps-1"
+
+
+class _StartupWaitClock:
+    def __init__(self) -> None:
+        self.now = 0.0
+        self.sleeps: list[float] = []
+
+    def monotonic(self) -> float:
+        return self.now
+
+    async def sleep(self, seconds: float) -> None:
+        self.sleeps.append(seconds)
+        self.now += seconds
+
+
+async def test_wait_for_database_clamps_probe_timeout_to_remaining_budget(monkeypatch):
+    from geometrikks.server import lifecycle as lc
+
+    monkeypatch.setenv("DISABLE_WAIT", "false")
+    clock = _StartupWaitClock()
+    timeouts: list[float] = []
+
+    async def refused(app, timeout: float = 10.0) -> bool:
+        timeouts.append(timeout)
+        clock.now += 7.0
+        return False
+
+    monkeypatch.setattr(lc, "_db_available", refused)
+
+    app = SimpleNamespace(state=SimpleNamespace())
+    assert await lc._wait_for_database(cast("Any", app), 12.0, _clock=clock) is False
+    assert timeouts == [10.0, 3.0]
+    assert clock.sleeps == [2.0]
+
+
+async def test_wait_for_database_does_not_probe_at_deadline(monkeypatch):
+    from geometrikks.server import lifecycle as lc
+
+    monkeypatch.setenv("DISABLE_WAIT", "false")
+    clock = _StartupWaitClock()
+    probes = 0
+
+    async def refused(app, timeout: float = 10.0) -> bool:
+        nonlocal probes
+        probes += 1
+        clock.now += 5.0
+        return False
+
+    monkeypatch.setattr(lc, "_db_available", refused)
+
+    app = SimpleNamespace(state=SimpleNamespace())
+    assert await lc._wait_for_database(cast("Any", app), 5.0, _clock=clock) is False
+    assert probes == 1
+    assert clock.sleeps == []
+
+
+async def test_wait_for_database_returns_on_success(monkeypatch):
+    from geometrikks.server import lifecycle as lc
+
+    monkeypatch.setenv("DISABLE_WAIT", "false")
+    clock = _StartupWaitClock()
+    answers = iter([False, True])
+
+    async def probe(app, timeout: float = 10.0) -> bool:
+        return next(answers)
+
+    monkeypatch.setattr(lc, "_db_available", probe)
+
+    app = SimpleNamespace(state=SimpleNamespace())
+    assert await lc._wait_for_database(cast("Any", app), 30.0, _clock=clock) is True
+    assert clock.sleeps == [lc._PROBE_RETRY_DELAY]
+
+
+@pytest.mark.parametrize("disable_wait", [False, True])
+async def test_wait_for_database_zero_or_disabled_probes_once(
+    monkeypatch, disable_wait: bool
+):
+    from geometrikks.server import lifecycle as lc
+
+    monkeypatch.setenv("DISABLE_WAIT", str(disable_wait).lower())
+    timeouts: list[float] = []
+
+    async def refused(app, timeout: float = 10.0) -> bool:
+        timeouts.append(timeout)
+        return False
+
+    monkeypatch.setattr(lc, "_db_available", refused)
+
+    app = SimpleNamespace(state=SimpleNamespace())
+    wait_seconds = 30.0 if disable_wait else 0.0
+    assert await lc._wait_for_database(cast("Any", app), wait_seconds) is False
+    assert timeouts == [10.0]
+
+
+async def test_wait_for_database_propagates_cancellation(monkeypatch):
+    from geometrikks.server import lifecycle as lc
+
+    monkeypatch.setenv("DISABLE_WAIT", "false")
+
+    async def cancelled(app, timeout: float = 10.0) -> bool:
+        raise asyncio.CancelledError
+
+    monkeypatch.setattr(lc, "_db_available", cancelled)
+
+    app = SimpleNamespace(state=SimpleNamespace())
+    with pytest.raises(asyncio.CancelledError):
+        await lc._wait_for_database(
+            cast("Any", app), 30.0, _clock=_StartupWaitClock()
+        )
+
+
+async def test_startup_wait_setting_defaults_and_rejects_negative_values():
+    from pydantic import ValidationError
+
+    from geometrikks.config.settings import DatabaseSettings
+
+    assert DatabaseSettings(_env_file=None).startup_wait_seconds == 30
+    with pytest.raises(ValidationError):
+        DatabaseSettings(_env_file=None, startup_wait_seconds=-1)
+
+
+async def test_db_availability_accessor_honors_default_and_recorded_state():
+    from geometrikks.server.runtime import is_db_available
+
+    app = SimpleNamespace(state=SimpleNamespace())
+    assert is_db_available(cast("Any", app)) is True
+    assert is_db_available(cast("Any", app), default=False) is False
+    app.state.db_available = False
+    assert is_db_available(cast("Any", app)) is False
