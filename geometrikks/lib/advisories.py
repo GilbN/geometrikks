@@ -81,7 +81,9 @@ MAP_HOME_UNDETECTED = Advisory(
     detail=(
         "The app keeps map traffic visible without route origins or a home "
         "marker. Check outbound access to the public-IP service and that the "
-        "City database can locate its result, or configure the home coordinates."
+        "City database can locate its result, or configure the home coordinates. "
+        "When scheduling and background jobs are active, the site-home refresh "
+        "job retries detection."
     ),
     remedy="MAP_HOME_LATITUDE and MAP_HOME_LONGITUDE",
 )

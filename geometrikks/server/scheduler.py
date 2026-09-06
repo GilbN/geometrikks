@@ -319,10 +319,12 @@ async def create_scheduler(
     )
     logger.info("Scheduled GeoLite2 refresh every %d day(s)", settings.geoip.refresh_days)
 
-    # A composed UI head needs this job to refresh its process-local map home.
-    # Hand-built schedulers without an app still skip the job when they ingest
-    # nothing because neither app state nor site_homes can change.
-    if settings.logparser.enabled or app is not None:
+    # A composed UI head needs this job only when automatic detection can
+    # refresh its process-local map home. Ingesting instances also persist the
+    # result to site_homes.
+    if settings.logparser.enabled or (
+        app is not None and settings.map.auto_detect_home
+    ):
         scheduler.add_job(
             refresh_site_home_job,
             IntervalTrigger(hours=settings.map.home_refresh_hours),

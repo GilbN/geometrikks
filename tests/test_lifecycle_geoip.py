@@ -153,7 +153,7 @@ async def test_no_home_advisory_when_geoip_is_missing(monkeypatch):
         assert "map-home-undetected" not in ids
 
 
-async def test_home_advisory_does_not_promise_a_disabled_scheduler_retry(monkeypatch):
+async def test_home_advisory_qualifies_the_scheduler_retry(monkeypatch):
     from geometrikks.server import lifecycle as lc
     from geometrikks.server import runtime
 
@@ -168,7 +168,11 @@ async def test_home_advisory_does_not_promise_a_disabled_scheduler_retry(monkeyp
         advisories = runtime.get_advisories(cast("Any", app)).snapshot()
         advisory = next(a for a in advisories if a.id == "map-home-undetected")
         assert advisory.detail is not None
-        assert "site-home-refresh" not in advisory.detail
+        assert (
+            "When scheduling and background jobs are active, the site-home refresh "
+            "job retries detection."
+            in advisory.detail
+        )
 
 
 async def test_scheduler_receives_the_app_for_reader_reloads(monkeypatch):
@@ -278,6 +282,21 @@ async def test_scheduler_registers_site_home_refresh_for_a_ui_head(monkeypatch):
     assert job is not None
     assert job.func is refresh_site_home_job
     assert job.args == (session_factory, settings, app)
+
+
+async def test_scheduler_skips_site_home_refresh_for_a_ui_head_without_detection(
+    monkeypatch,
+):
+    from geometrikks.config.settings import MapSettings, Settings
+    from geometrikks.server.scheduler import create_scheduler
+
+    monkeypatch.setenv("LOGPARSER_ENABLED", "false")
+    settings = Settings(map=MapSettings(auto_detect_home=False, _env_file=None))
+    app = SimpleNamespace(state=SimpleNamespace())
+
+    scheduler = await create_scheduler(MagicMock(), settings, app=cast("Any", app))
+
+    assert scheduler.get_job("site-home-refresh") is None
 
 
 async def test_site_home_refresh_uses_its_own_cadence(monkeypatch):
