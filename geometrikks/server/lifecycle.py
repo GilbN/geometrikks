@@ -266,7 +266,10 @@ def _enter_db_degraded(app: "Litestar", *, detail: str | None = None) -> None:
 
 
 async def bring_up_database(
-    app: "Litestar", *, _on_stage: Callable[[str], None] | None = None
+    app: "Litestar",
+    *,
+    _on_stage: Callable[[str], None] | None = None,
+    _shield_migration: bool = False,
 ) -> None:
     """Prepare a reachable database for startup or in-process recovery."""
     settings = _resolve_settings(app)
@@ -274,7 +277,27 @@ async def bring_up_database(
     if settings.database.migrate_on_startup:
         if _on_stage is not None:
             _on_stage("migration")
-        await migrate_database(engine, settings)
+        if _shield_migration:
+            migration = asyncio.create_task(
+                migrate_database(engine, settings), name="db-recovery-migration"
+            )
+            try:
+                await asyncio.shield(migration)
+            except asyncio.CancelledError:
+                # Cancelling to_thread cannot stop Alembic's worker thread.
+                logger.info("db_recovery_waiting_for_migration")
+                while not migration.done():
+                    try:
+                        await asyncio.shield(migration)
+                    except asyncio.CancelledError:
+                        continue
+                    except Exception:
+                        break
+                if not migration.cancelled() and (error := migration.exception()) is not None:
+                    logger.error("db_recovery_migration_failed_after_cancel", error=str(error))
+                raise
+        else:
+            await migrate_database(engine, settings)
     else:
         logger.info("database_startup_migrations_disabled")
 
@@ -532,7 +555,7 @@ async def _recover_database(app: "Litestar") -> None:
 
         logger.info("db_recovery_started", degraded_seconds=degraded_seconds())
         stage = "database setup"
-        await bring_up_database(app, _on_stage=set_stage)
+        await bring_up_database(app, _on_stage=set_stage, _shield_migration=True)
 
         deferred = getattr(app.state, "crowdsec_stream_poller_deferred", None)
         if deferred is not None:

@@ -781,7 +781,7 @@ async def test_shutdown_cancels_a_pending_recovery(monkeypatch):
     cast("AsyncMock", lc.migrate_database).assert_not_awaited()
 
 
-@pytest.mark.parametrize("stage", ["migration", "channels", "scheduler", "ingestion"])
+@pytest.mark.parametrize("stage", ["channels", "scheduler", "ingestion"])
 @pytest.mark.parametrize("cancel_before_shutdown", [False, True])
 async def test_shutdown_during_recovery_unwinds_before_client_closes(
     monkeypatch, stage, cancel_before_shutdown
@@ -813,9 +813,7 @@ async def test_shutdown_during_recovery_unwinds_before_client_closes(
     ingestion.stop.side_effect = lambda timeout=None: order.append("ingestion")
     service.aclose.side_effect = lambda: order.append("client")
     backend = MagicMock(recover=AsyncMock())
-    if stage == "migration":
-        cast("AsyncMock", lc.migrate_database).side_effect = blocked
-    elif stage == "channels":
+    if stage == "channels":
         backend.recover.side_effect = blocked
     elif stage == "scheduler":
         original = lc.start_scheduler
@@ -844,7 +842,6 @@ async def test_shutdown_during_recovery_unwinds_before_client_closes(
     assert task.cancelled()
     assert cancelled.is_set()
     assert order == {
-        "migration": ["cancelled", "client"],
         "channels": ["cancelled", "client"],
         "scheduler": ["cancelled", "scheduler", "client"],
         "ingestion": ["cancelled", "ingestion", "scheduler", "client"],
@@ -976,3 +973,77 @@ async def test_recovery_elapsed_time_includes_bringup_and_service_start(monkeypa
         assert app.state.db_available is True
         log.info.assert_any_call("db_recovery_started", degraded_seconds=10.0)
         log.info.assert_any_call("db_recovered", degraded_seconds=20.0)
+
+
+@pytest.mark.parametrize("worker_fails", [False, True])
+async def test_recovery_shutdown_waits_for_migration_worker(monkeypatch, worker_fails):
+    import threading
+
+    from geometrikks.server import lifecycle as lc
+    from geometrikks.server import migrations
+
+    _enable_crowdsec(monkeypatch)
+    _patch_startup_collaborators(
+        monkeypatch, lc, db_available=False, ensure=AsyncMock(return_value=True)
+    )
+    service = _patch_crowdsec_service(monkeypatch, lc)
+    clock = _patch_recovery(monkeypatch, lc, [True])
+    monkeypatch.setattr(lc, "migrate_database", migrations.migrate_database)
+    worker_started = asyncio.Event()
+    waiting_for_worker = asyncio.Event()
+    release_worker = threading.Event()
+    worker_finished = threading.Event()
+    loop = asyncio.get_running_loop()
+
+    def upgrade(database_url):
+        loop.call_soon_threadsafe(worker_started.set)
+        try:
+            release_worker.wait()
+            if worker_fails:
+                raise RuntimeError("worker upgrade failed")
+        finally:
+            worker_finished.set()
+
+    monkeypatch.setattr(migrations, "upgrade_to_head", upgrade)
+    original_info = lc.logger.info
+
+    def info(event, *args, **kwargs):
+        if event == "db_recovery_waiting_for_migration":
+            waiting_for_worker.set()
+        original_info(event, *args, **kwargs)
+
+    monkeypatch.setattr(lc.logger, "info", info)
+    app = SimpleNamespace(state=SimpleNamespace())
+    lifespan = enter_lifespan(app)
+    await lifespan.__aenter__()
+    close_task = None
+    waiting_task = asyncio.create_task(waiting_for_worker.wait())
+    try:
+        await clock.tick(10.0)
+        await asyncio.wait_for(worker_started.wait(), timeout=1.0)
+        close_task = asyncio.create_task(lifespan.__aexit__(None, None, None))
+        done, _ = await asyncio.wait(
+            {close_task, waiting_task}, timeout=1.0, return_when=asyncio.FIRST_COMPLETED
+        )
+        assert waiting_task in done
+        assert not close_task.done()
+        assert not app.state.db_recovery_task.done()
+        assert not worker_finished.is_set()
+        assert app.state.db_available is False
+        service.aclose.assert_not_awaited()
+        cast("AsyncMock", lc.setup_timescaledb).assert_not_awaited()
+        cast("AsyncMock", lc.create_scheduler).assert_not_awaited()
+    finally:
+        release_worker.set()
+        if close_task is None:
+            await lifespan.__aexit__(None, None, None)
+        else:
+            await asyncio.wait_for(close_task, timeout=2.0)
+        waiting_task.cancel()
+        await asyncio.gather(waiting_task, return_exceptions=True)
+
+    assert worker_finished.is_set()
+    assert app.state.db_recovery_task.cancelled()
+    service.aclose.assert_awaited_once()
+    cast("AsyncMock", lc.setup_timescaledb).assert_not_awaited()
+    cast("AsyncMock", lc.create_scheduler).assert_not_awaited()
