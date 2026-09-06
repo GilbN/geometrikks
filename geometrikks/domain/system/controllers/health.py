@@ -255,6 +255,24 @@ def _collect_advisories(app: Litestar, settings: Settings) -> list[Advisory]:
                 ),
             ))
     advisories.extend(_stale_geoip_advisories(settings))
+    backend = runtime.get_channels_backend(app)
+    if (
+        backend is not None
+        and backend.state in {"degraded", "reconnecting"}
+        and runtime.is_db_available(app, default=True)
+    ):
+        advisories.append(Advisory(
+            id="live-feed-listener-down",
+            severity="warning",
+            summary=(
+                "The live feed's database listener is disconnected; the map and "
+                "live tail receive no events until it reconnects."
+            ),
+            detail=(
+                "The app reconnects on its own with backoff. If this lasts more than "
+                "a minute, check the database container and its connection limit."
+            ),
+        ))
     policy_failures = timescale.get_policy_failures()
     if policy_failures:
         listed = ", ".join(

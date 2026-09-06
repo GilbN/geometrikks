@@ -652,3 +652,58 @@ def test_stale_asn_database_is_ignored_when_disabled(monkeypatch):
         asn_enabled=False,
         asn_age_days=31,
     ) == []
+
+
+def _listener_advisories(
+    monkeypatch: pytest.MonkeyPatch,
+    state: str | None,
+    *,
+    db_available: bool = True,
+):
+    from geometrikks.config.settings import Settings
+    from geometrikks.domain.system.controllers.health import _collect_advisories
+    from geometrikks.server import timescale
+
+    monkeypatch.setattr(timescale, "_hostname_pollution", None)
+    settings = Settings()
+    settings.app.proxy_advisory = False
+    app_state = SimpleNamespace(
+        geoip_available=True,
+        asn_available=True,
+        db_available=db_available,
+    )
+    if state is not None:
+        app_state.channels_backend = SimpleNamespace(state=state)
+    app = SimpleNamespace(state=app_state)
+    return [
+        advisory
+        for advisory in _collect_advisories(cast("Any", app), settings)
+        if advisory.id == "live-feed-listener-down"
+    ]
+
+
+def test_listener_reconnecting_emits_advisory(monkeypatch):
+    [advisory] = _listener_advisories(monkeypatch, "reconnecting")
+
+    assert advisory.severity == "warning"
+    assert advisory.summary.count(".") == 1
+    assert "reconnects on its own" in (advisory.detail or "")
+
+
+def test_listener_degraded_with_database_active_emits_advisory(monkeypatch):
+    [advisory] = _listener_advisories(monkeypatch, "degraded")
+
+    assert "receive no events" in advisory.summary
+
+
+def test_listener_ok_or_absent_emits_no_advisory(monkeypatch):
+    assert _listener_advisories(monkeypatch, "ok") == []
+    assert _listener_advisories(monkeypatch, None) == []
+
+
+def test_listener_advisory_is_suppressed_while_database_is_unavailable(monkeypatch):
+    assert _listener_advisories(
+        monkeypatch,
+        "degraded",
+        db_available=False,
+    ) == []
