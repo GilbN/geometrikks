@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- `.env.example` and the quickstart now list `MAP_CARTO_API_KEY` next to the MaxMind credentials.
+
 ### Fixed
 
 - The live rail on the map stops short of the bottom-left corner, so it no longer covers the basemap attribution pill.
