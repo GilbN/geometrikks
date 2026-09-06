@@ -1,11 +1,11 @@
 {
-  "name": "geometrikks-dev",
+  "name": "geometrikks",
   "compatibility_date": "2026-09-03",
   "assets": { "directory": "./dist" },
   // Environments do not inherit assets, so the block repeats.
   "env": {
     "develop": {
-      "name": "geometrikks-dev-develop",
+      "name": "geometrikks-develop",
       "assets": { "directory": "./dist" }
     }
   }

@@ -46,8 +46,10 @@ branch and pull request gets a preview URL. The custom domain is attached
 to the worker under Settings, Domains & Routes, once the domain's
 nameservers point at Cloudflare.
 
-A second worker, connected to the same repository, serves `develop` at
-develop.geometrikks.dev. It uses the `develop` environment from
+The worker is named `geometrikks`; Workers Builds refuses a config whose
+name differs from the worker it is attached to. A second worker,
+`geometrikks-develop`, connected to the same repository, serves `develop`
+at develop.geometrikks.dev. It uses the `develop` environment from
 `wrangler.jsonc` and differs from the table above in two settings:
 
 | Setting | Value |
