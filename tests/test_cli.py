@@ -317,18 +317,25 @@ def test_cli_plugin_registers_backfill_asn() -> None:
 
 
 def _make_asn_engine(
-    *, null_rows: int, distinct_ips: list[str], rowcount: int
+    *, null_rows: int, distinct_ips: list[str], rowcount: int,
+    geo_distinct_ips: list[str] | None = None,
 ) -> MagicMock:
     """Engine for the backfill-asn flow, dispatching on SQL substrings.
 
     connect() answers the EXISTS probe, the count/bounds scan, and the
-    keyset-paginated distinct-IP stream (one page, then empty, so the
-    pagination loop terminates); begin() serves the temp-table writes and
-    reports ``rowcount`` on the join UPDATE.
+    keyset-paginated distinct-IP stream (one page per table, then empty, so
+    the pagination loop terminates); begin() serves the temp-table writes
+    and reports ``rowcount`` on the join UPDATE.
     """
     from datetime import datetime, timezone
 
-    ip_pages = [[SimpleNamespace(ip_text=ip) for ip in distinct_ips], []]
+    pages = {
+        "access_logs": [[SimpleNamespace(ip_text=ip) for ip in distinct_ips], []],
+        "geo_events": [[SimpleNamespace(ip_text=ip) for ip in (geo_distinct_ips or distinct_ips)], []],
+    }
+
+    def _table(sql: str) -> str:
+        return "geo_events" if "geo_events" in sql else "access_logs"
 
     def _result_for(sql: str) -> MagicMock:
         result = MagicMock()
@@ -345,7 +352,8 @@ def _make_asn_engine(
                 datetime(2026, 1, 2, tzinfo=timezone.utc),
             )
         elif "DISTINCT ip_address" in sql:
-            result.all.return_value = ip_pages.pop(0) if ip_pages else []
+            stream = pages[_table(sql)]
+            result.all.return_value = stream.pop(0) if stream else []
         return result
 
     async def _execute(stmt, params=None):
@@ -393,17 +401,21 @@ def _invoke_backfill_asn(
 
 
 def test_backfill_asn_stamps_and_refreshes(monkeypatch) -> None:
-    """1.128.0.0 resolves via the test db; the run updates and refreshes."""
+    """1.128.0.0 resolves via the test db; both tables update and refresh."""
     engine = _make_asn_engine(null_rows=7, distinct_ips=["1.128.0.0"], rowcount=7)
     refresh = AsyncMock(return_value=[])
 
     result = _invoke_backfill_asn(monkeypatch, engine, ["--yes"], refresh)
 
     assert result.exit_code == 0, result.output
-    assert "rows updated: 7" in result.output
-    refresh.assert_awaited_once()
-    assert refresh.await_args is not None
-    assert refresh.await_args.kwargs["caggs"] == ["asn_hourly_stats", "asn_daily_stats"]
+    assert "access_logs rows updated: 7" in result.output
+    assert "geo_events rows updated: 7" in result.output
+    assert refresh.await_count == 2
+    caggs = [call.kwargs["caggs"] for call in refresh.await_args_list]
+    assert caggs == [
+        ["asn_hourly_stats", "asn_daily_stats"],
+        ["ip_location_hourly_stats", "ip_location_daily_stats"],
+    ]
 
 
 def test_backfill_asn_nothing_to_do(monkeypatch) -> None:
@@ -447,13 +459,13 @@ def test_backfill_asn_exits_nonzero_when_cagg_refresh_fails(monkeypatch) -> None
     """Rows are stamped but the aggregates stayed stale: the run must not
     report success, or long-range analytics silently miss the backfill."""
     engine = _make_asn_engine(null_rows=7, distinct_ips=["1.128.0.0"], rowcount=7)
-    refresh = AsyncMock(return_value=["asn_daily_stats"])
+    refresh = AsyncMock(side_effect=[[], ["ip_location_daily_stats"]])
 
     result = _invoke_backfill_asn(monkeypatch, engine, ["--yes"], refresh)
 
     assert result.exit_code != 0
     assert "rows updated: 7" in result.output
-    assert "asn_daily_stats" in result.output
+    assert "ip_location_daily_stats" in result.output
 
 
 def _make_timings_engine(count: int, *, rowcount: int) -> MagicMock:
