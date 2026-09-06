@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from types import SimpleNamespace
-from typing import cast
+from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -114,6 +114,63 @@ async def test_asn_failure_does_not_flip_geoip_available(monkeypatch):
     assert app.state.asn_available is False
 
 
+async def test_undetected_home_registers_advisory_when_detection_was_possible(
+    monkeypatch,
+):
+    from geometrikks.server import lifecycle as lc
+    from geometrikks.server import runtime
+
+    monkeypatch.setenv("MAP_AUTO_DETECT_HOME", "true")
+    _patch_startup_collaborators(
+        monkeypatch, lc, db_available=True, ensure=AsyncMock(return_value=True)
+    )
+
+    app = SimpleNamespace(state=SimpleNamespace())
+    async with enter_lifespan(app):
+        ids = [
+            advisory.id
+            for advisory in runtime.get_advisories(cast("Any", app)).snapshot()
+        ]
+        assert "map-home-undetected" in ids
+
+
+async def test_no_home_advisory_when_geoip_is_missing(monkeypatch):
+    """Geo-degraded mode has its own warning because detection never ran."""
+    from geometrikks.server import lifecycle as lc
+    from geometrikks.server import runtime
+
+    monkeypatch.setenv("MAP_AUTO_DETECT_HOME", "true")
+    _patch_startup_collaborators(
+        monkeypatch, lc, db_available=True, ensure=AsyncMock(return_value=False)
+    )
+
+    app = SimpleNamespace(state=SimpleNamespace())
+    async with enter_lifespan(app):
+        ids = [
+            advisory.id
+            for advisory in runtime.get_advisories(cast("Any", app)).snapshot()
+        ]
+        assert "map-home-undetected" not in ids
+
+
+async def test_home_advisory_does_not_promise_a_disabled_scheduler_retry(monkeypatch):
+    from geometrikks.server import lifecycle as lc
+    from geometrikks.server import runtime
+
+    monkeypatch.setenv("MAP_AUTO_DETECT_HOME", "true")
+    monkeypatch.setenv("SCHEDULER_ENABLED", "false")
+    _patch_startup_collaborators(
+        monkeypatch, lc, db_available=True, ensure=AsyncMock(return_value=True)
+    )
+
+    app = SimpleNamespace(state=SimpleNamespace())
+    async with enter_lifespan(app):
+        advisories = runtime.get_advisories(cast("Any", app)).snapshot()
+        advisory = next(a for a in advisories if a.id == "map-home-undetected")
+        assert advisory.detail is not None
+        assert "site-home-refresh" not in advisory.detail
+
+
 async def test_scheduler_receives_the_app_for_reader_reloads(monkeypatch):
     """The geoip-refresh job resolves the ingestion service through the app
     at run time; the lifecycle must hand the app to create_scheduler."""
@@ -194,8 +251,7 @@ async def test_scheduler_registers_site_home_refresh_in_full_mode(monkeypatch):
 
 
 async def test_scheduler_skips_site_home_refresh_when_parser_disabled(monkeypatch):
-    """A UI head never writes site homes; the job must not appear in its
-    (user-visible) scheduler jobs list at all."""
+    """A scheduler without an app cannot refresh app state or site homes."""
     from geometrikks.config.settings import Settings
     from geometrikks.server.scheduler import create_scheduler
 
@@ -203,6 +259,25 @@ async def test_scheduler_skips_site_home_refresh_when_parser_disabled(monkeypatc
     scheduler = await create_scheduler(MagicMock(), Settings())
     job_ids = {job.id for job in scheduler.get_jobs()}
     assert "site-home-refresh" not in job_ids
+
+
+async def test_scheduler_registers_site_home_refresh_for_a_ui_head(monkeypatch):
+    from geometrikks.config.settings import MapSettings, Settings
+    from geometrikks.server.scheduler import create_scheduler, refresh_site_home_job
+
+    monkeypatch.setenv("LOGPARSER_ENABLED", "false")
+    settings = Settings(map=MapSettings(auto_detect_home=True, _env_file=None))
+    app = SimpleNamespace(state=SimpleNamespace())
+    session_factory = MagicMock()
+
+    scheduler = await create_scheduler(
+        session_factory, settings, app=cast("Any", app)
+    )
+    job = scheduler.get_job("site-home-refresh")
+
+    assert job is not None
+    assert job.func is refresh_site_home_job
+    assert job.args == (session_factory, settings, app)
 
 
 async def test_site_home_refresh_uses_its_own_cadence(monkeypatch):

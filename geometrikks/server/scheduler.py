@@ -147,15 +147,19 @@ async def refresh_all_caggs_job(
 
 
 async def refresh_site_home_job(
-    session_factory: "Callable[[], AsyncSession]", settings: "Settings"
+    session_factory: "Callable[[], AsyncSession]",
+    settings: "Settings",
+    app: "Litestar | None" = None,
 ) -> None:
     """Re-detect this process's home and refresh its site_homes rows.
 
     Homelab IPs change; agents run for weeks. A UI head tails nothing and
     records no events under its own hostname, so it has nothing to write.
+    A successful detection updates this process's map state and clears its
+    undetected-home advisory. Database writes remain ingestion-only.
     """
-    if not settings.logparser.enabled:
-        return
+    from geometrikks.lib.advisories import MAP_HOME_UNDETECTED
+    from geometrikks.server import runtime
     from geometrikks.services.geoip.home import resolve_home_location
     from geometrikks.services.geoip.site_homes import upsert_auto_homes
 
@@ -164,7 +168,13 @@ async def refresh_site_home_job(
         settings.geoip,
         geoip_available=settings.geoip.db_path.exists(),
     )
-    await upsert_auto_homes(session_factory, settings.logparser.resolved_hostnames(), home)
+    if app is not None and home is not None:
+        app.state.map_home_location = home
+        runtime.get_advisories(app).clear(MAP_HOME_UNDETECTED.id)
+    if settings.logparser.enabled:
+        await upsert_auto_homes(
+            session_factory, settings.logparser.resolved_hostnames(), home
+        )
 
 
 async def proxy_scan_job(
@@ -309,17 +319,16 @@ async def create_scheduler(
     )
     logger.info("Scheduled GeoLite2 refresh every %d day(s)", settings.geoip.refresh_days)
 
-    # Registered only when this process ingests (both modes qualify for
-    # agents; a UI head does not): the jobs list is user-visible on the
-    # Settings page, so a permanently no-op job must not appear there. The
-    # job keeps its own parser-enabled guard as cheap defense.
-    if settings.logparser.enabled:
+    # A composed UI head needs this job to refresh its process-local map home.
+    # Hand-built schedulers without an app still skip the job when they ingest
+    # nothing because neither app state nor site_homes can change.
+    if settings.logparser.enabled or app is not None:
         scheduler.add_job(
             refresh_site_home_job,
             IntervalTrigger(hours=settings.map.home_refresh_hours),
             id="site-home-refresh",
             name="Re-detect this instance's site home location",
-            args=[session_factory, settings],
+            args=[session_factory, settings, app],
             replace_existing=True,
         )
         logger.info(

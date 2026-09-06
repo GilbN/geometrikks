@@ -39,7 +39,12 @@ from apscheduler.events import EVENT_SCHEDULER_SHUTDOWN
 from litestar.plugins import InitPlugin
 
 from geometrikks.config.settings import get_settings
-from geometrikks.lib.advisories import DATABASE_RECOVERY_FAILED, DATABASE_UNAVAILABLE, Advisory
+from geometrikks.lib.advisories import (
+    DATABASE_RECOVERY_FAILED,
+    DATABASE_UNAVAILABLE,
+    MAP_HOME_UNDETECTED,
+    Advisory,
+)
 from geometrikks.lib.utils import retries_disabled
 from geometrikks.server.logging import get_logger
 from geometrikks.server.migrations import migrate_database
@@ -191,6 +196,17 @@ async def geoip_lifespan(app: "Litestar") -> "AsyncGenerator[None]":
         settings.geoip,
         geoip_available=geoip_available,
     )
+    home_configured = (
+        settings.map.home_latitude is not None
+        and settings.map.home_longitude is not None
+    )
+    if (
+        app.state.map_home_location is None
+        and geoip_available
+        and settings.map.auto_detect_home
+        and not home_configured
+    ):
+        runtime.get_advisories(app).set(MAP_HOME_UNDETECTED)
     if not geoip_available:
         logger.warning(
             "Geo-degraded mode: no usable GeoLite2 database. With MaxMind "

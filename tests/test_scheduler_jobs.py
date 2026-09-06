@@ -79,3 +79,99 @@ async def test_refresh_location_last_hits_reraises_after_logging():
 
     with pytest.raises(RuntimeError, match="deadlock"):
         await AggregationService(session=session).refresh_location_last_hits()
+
+
+async def test_site_home_job_updates_app_state_and_clears_the_advisory(
+    monkeypatch,
+):
+    from types import SimpleNamespace
+
+    from geometrikks.config.settings import MapSettings, Settings
+    from geometrikks.lib.advisories import MAP_HOME_UNDETECTED
+    from geometrikks.server import runtime
+    from geometrikks.services.geoip import home as home_mod
+    from geometrikks.services.geoip import site_homes
+
+    resolved = home_mod.HomeLocation(
+        latitude=59.9, longitude=10.7, source="external_ip"
+    )
+    monkeypatch.setattr(
+        home_mod, "resolve_home_location", AsyncMock(return_value=resolved)
+    )
+    upsert = AsyncMock()
+    monkeypatch.setattr(site_homes, "upsert_auto_homes", upsert)
+
+    settings = Settings(map=MapSettings(auto_detect_home=True, _env_file=None))
+    app = SimpleNamespace(state=SimpleNamespace(map_home_location=None))
+    runtime.get_advisories(cast("Any", app)).set(MAP_HOME_UNDETECTED)
+
+    await sched.refresh_site_home_job(
+        cast("Any", object()), settings, cast("Any", app)
+    )
+
+    assert app.state.map_home_location is resolved
+    assert runtime.get_advisories(cast("Any", app)).snapshot() == []
+    upsert.assert_awaited_once()
+
+
+async def test_site_home_job_updates_a_ui_head_without_writing_the_database(
+    monkeypatch,
+):
+    from types import SimpleNamespace
+
+    from geometrikks.config.settings import LogParserSettings, MapSettings, Settings
+    from geometrikks.lib.advisories import MAP_HOME_UNDETECTED
+    from geometrikks.server import runtime
+    from geometrikks.services.geoip import home as home_mod
+    from geometrikks.services.geoip import site_homes
+
+    resolved = home_mod.HomeLocation(
+        latitude=59.9, longitude=10.7, source="external_ip"
+    )
+    monkeypatch.setattr(
+        home_mod, "resolve_home_location", AsyncMock(return_value=resolved)
+    )
+    upsert = AsyncMock()
+    monkeypatch.setattr(site_homes, "upsert_auto_homes", upsert)
+
+    settings = Settings(
+        logparser=LogParserSettings(enabled=False, _env_file=None),
+        map=MapSettings(auto_detect_home=True, _env_file=None),
+    )
+    app = SimpleNamespace(state=SimpleNamespace(map_home_location=None))
+    runtime.get_advisories(cast("Any", app)).set(MAP_HOME_UNDETECTED)
+
+    await sched.refresh_site_home_job(
+        cast("Any", object()), settings, cast("Any", app)
+    )
+
+    assert app.state.map_home_location is resolved
+    assert runtime.get_advisories(cast("Any", app)).snapshot() == []
+    upsert.assert_not_awaited()
+
+
+async def test_site_home_job_keeps_state_when_detection_fails(monkeypatch):
+    from types import SimpleNamespace
+
+    from geometrikks.config.settings import MapSettings, Settings
+    from geometrikks.services.geoip import home as home_mod
+    from geometrikks.services.geoip import site_homes
+
+    previous = home_mod.HomeLocation(
+        latitude=1.0, longitude=2.0, source="external_ip"
+    )
+    monkeypatch.setattr(
+        home_mod, "resolve_home_location", AsyncMock(return_value=None)
+    )
+    upsert = AsyncMock()
+    monkeypatch.setattr(site_homes, "upsert_auto_homes", upsert)
+
+    settings = Settings(map=MapSettings(auto_detect_home=True, _env_file=None))
+    app = SimpleNamespace(state=SimpleNamespace(map_home_location=previous))
+
+    await sched.refresh_site_home_job(
+        cast("Any", object()), settings, cast("Any", app)
+    )
+
+    assert app.state.map_home_location is previous
+    upsert.assert_awaited_once()
