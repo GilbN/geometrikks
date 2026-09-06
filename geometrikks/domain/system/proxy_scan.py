@@ -194,5 +194,9 @@ async def run_proxy_scan(
         logger.warning("proxy_scan_failed", error=str(exc))
         _last_error = str(exc)
         return
+    had_error = _last_error is not None
+    previous_error = _last_error
     _last_error = None
+    if had_error:
+        logger.info("proxy_scan_recovered", previous_error=previous_error)
     apply_scan_results(groups, providers)

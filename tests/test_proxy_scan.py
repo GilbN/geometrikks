@@ -127,8 +127,10 @@ async def test_successful_run_clears_the_error(monkeypatch) -> None:
         async def __aexit__(self, *exc):
             return False
 
-    await run_proxy_scan(cast(Any, lambda: _Session()), set())
+    with structlog.testing.capture_logs() as logs:
+        await run_proxy_scan(cast(Any, lambda: _Session()), set())
     assert get_scan_error() is None
+    assert any(e["event"] == "proxy_scan_recovered" for e in logs)
 
 
 @pytest.mark.anyio

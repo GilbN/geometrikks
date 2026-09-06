@@ -187,7 +187,12 @@ def _collect_advisories(app: Litestar, settings: Settings) -> list[Advisory]:
                     "The CDN peer scan is failing; the proxy advisories above "
                     "may be stale."
                 ),
-                detail=scan_error,
+                detail=(
+                    "The previous proxy findings remain visible while scheduled "
+                    f"scans retry. The latest scan failed with: {scan_error}. "
+                    "Inspect the proxy-peer-scan job in Scheduler and the app "
+                    "logs for the cause."
+                ),
             ))
     policy_failures = timescale.get_policy_failures()
     if policy_failures:

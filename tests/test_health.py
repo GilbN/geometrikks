@@ -513,4 +513,10 @@ def test_health_reports_a_failing_proxy_scan(monkeypatch):
 
     with TestClient(app=make_app()) as client:
         [a] = [x for x in client.get("/health").json()["advisories"] if x["id"] == "proxy-scan-failed"]
-    assert a["detail"] == "db down"
+    detail = a["detail"]
+    assert "db down" in detail
+    assert "previous proxy findings remain visible" in detail
+    assert "scheduled scans retry" in detail
+    assert "proxy-peer-scan" in detail
+    assert "Scheduler" in detail
+    assert "app logs" in detail
