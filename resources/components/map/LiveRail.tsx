@@ -5,7 +5,8 @@
  *
  * It floats rather than docks so the map still runs edge to edge behind it,
  * matching the controls panel and the popups. It grows with the feed up to
- * the map's height; the summary stays put and the feed scrolls inside.
+ * the map's height minus the attribution pill in the bottom-left corner; the
+ * summary stays put and the feed scrolls inside.
  */
 import { useState } from "react"
 import { useLiveWindow } from "@/lib/live-traffic/context"
@@ -25,7 +26,7 @@ export function LiveRail({ onSelect }: { onSelect: (request: LiveRequest) => voi
       placement="top-left"
       role="complementary"
       aria-label="Live traffic"
-      className="w-60 max-h-[calc(100%-2rem)]"
+      className="w-60 max-h-[calc(100%-4.25rem)]"
     >
       <div className="px-3 pt-3">
         <LiveSummary summary={summary} />
