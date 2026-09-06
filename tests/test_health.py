@@ -533,11 +533,11 @@ def test_health_reports_a_failing_proxy_scan(monkeypatch):
     assert "app logs" in detail
 
 
-def _stale_view(age_days: int | None):
+def _stale_view(age_days: int | None, *, available: bool | None = None):
     from geometrikks.lib.utils import GeoIPInfoView
 
     return GeoIPInfoView(
-        available=age_days is not None,
+        available=age_days is not None if available is None else available,
         db_path="x",
         build_date=None,
         age_days=age_days,
@@ -551,6 +551,9 @@ def _geoip_advisories(
     credentials: bool,
     asn_enabled: bool = False,
     asn_age_days: int | None = None,
+    scheduler_enabled: bool = True,
+    refresh_days: int = 7,
+    city_available: bool | None = None,
 ):
     from geometrikks.config.settings import Settings
     from geometrikks.domain.system.controllers.health import _collect_advisories
@@ -561,7 +564,10 @@ def _geoip_advisories(
         health_module,
         "geoip_info",
         lambda path: _stale_view(
-            asn_age_days if path == settings.geoip.asn_db_path else city_age_days
+            asn_age_days if path == settings.geoip.asn_db_path else city_age_days,
+            available=(
+                None if path == settings.geoip.asn_db_path else city_available
+            ),
         ),
     )
     monkeypatch.setattr(
@@ -571,6 +577,8 @@ def _geoip_advisories(
     )
     settings = Settings()
     settings.geoip.asn_enabled = asn_enabled
+    settings.geoip.refresh_days = refresh_days
+    settings.scheduler.enabled = scheduler_enabled
     settings.app.proxy_advisory = False
     app = SimpleNamespace(
         state=SimpleNamespace(geoip_available=True, asn_available=asn_enabled)
@@ -605,20 +613,67 @@ def test_geoip_database_is_stale_after_refresh_window_without_credentials(
     assert "no MaxMind credentials" in advisory.summary
     assert advisory.summary.count(".") == 1
     assert advisory.detail is not None and "30 days" in advisory.detail
+    assert "every 7 days" in advisory.detail
+    assert "geoip-refresh" in advisory.detail
+    assert "restart" in advisory.detail
     assert advisory.remedy == "MAXMINDDB_USER_ID and MAXMINDDB_LICENSE_KEY"
 
 
-def test_stale_geoip_database_with_credentials_points_at_refresh_job(monkeypatch):
+def test_stale_geoip_database_with_credentials_reports_configured_cadence(
+    monkeypatch,
+):
+    [advisory] = _geoip_advisories(
+        monkeypatch,
+        city_age_days=31,
+        credentials=True,
+        refresh_days=45,
+    )
+
+    assert "outside MaxMind's 30-day refresh window" in advisory.summary
+    assert "not succeeding" not in advisory.summary
+    assert advisory.summary.count(".") == 1
+    assert advisory.detail is not None and "every 45 days" in advisory.detail
+    assert "geoip-refresh" in advisory.detail
+    assert "Scheduler" in advisory.detail
+    assert "next run" in advisory.detail and "last result" in advisory.detail
+    assert advisory.remedy is None
+
+
+def test_stale_geoip_database_with_credentials_when_scheduler_is_disabled(
+    monkeypatch,
+):
     [advisory] = _geoip_advisories(
         monkeypatch,
         city_age_days=45,
         credentials=True,
+        scheduler_enabled=False,
+        refresh_days=3,
     )
 
-    assert "weekly refresh is not succeeding" in advisory.summary
+    assert "automatic refresh is disabled" in advisory.summary
     assert advisory.summary.count(".") == 1
-    assert advisory.detail is not None and "geoip-refresh" in advisory.detail
-    assert advisory.remedy is None
+    assert advisory.detail is not None and "restart" in advisory.detail
+    assert "SCHEDULER_ENABLED=true" in advisory.detail
+    assert "geoip-refresh job" not in advisory.detail
+
+
+def test_stale_geoip_database_without_credentials_when_scheduler_is_disabled(
+    monkeypatch,
+):
+    [advisory] = _geoip_advisories(
+        monkeypatch,
+        city_age_days=45,
+        credentials=False,
+        scheduler_enabled=False,
+    )
+
+    assert (
+        advisory.detail is not None
+        and "automatic refresh is disabled" in advisory.detail.lower()
+    )
+    assert "configure the credentials below and restart the app" in advisory.detail
+    assert "geoip-refresh job" not in advisory.detail
+    assert advisory.remedy == "MAXMINDDB_USER_ID and MAXMINDDB_LICENSE_KEY"
 
 
 def test_geoip_database_without_age_metadata_emits_no_stale_advisory(monkeypatch):
@@ -626,6 +681,7 @@ def test_geoip_database_without_age_metadata_emits_no_stale_advisory(monkeypatch
         monkeypatch,
         city_age_days=None,
         credentials=False,
+        city_available=True,
     ) == []
 
 

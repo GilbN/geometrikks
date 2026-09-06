@@ -117,6 +117,8 @@ def _stale_geoip_advisories(settings: Settings) -> list[Advisory]:
     ]
     advisories: list[Advisory] = []
     credentials_available = has_credentials(settings.geoip)
+    refresh_days = settings.geoip.refresh_days
+    refresh_interval = f"{refresh_days} {'day' if refresh_days == 1 else 'days'}"
     for edition, path, enabled, advisory_id in editions:
         if not enabled:
             continue
@@ -128,20 +130,51 @@ def _stale_geoip_advisories(settings: Settings) -> list[Advisory]:
         ):
             continue
         if credentials_available:
+            if settings.scheduler.enabled:
+                summary = (
+                    f"The GeoLite2 {edition} database is {info.age_days} days old and "
+                    "is outside MaxMind's 30-day refresh window."
+                )
+                detail = (
+                    "The app keeps using the stale database. The geoip-refresh job "
+                    f"attempts a replacement every {refresh_interval}; inspect its next "
+                    "run and last result in Scheduler, then check the app logs for any "
+                    "reported error."
+                )
+            else:
+                summary = (
+                    f"The GeoLite2 {edition} database is {info.age_days} days old and "
+                    "automatic refresh is disabled."
+                )
+                detail = (
+                    "The app keeps using the stale database and automatic refresh is "
+                    f"disabled. Download a current GeoLite2 {edition} database to {path} "
+                    "and restart the app, or set SCHEDULER_ENABLED=true and restart to "
+                    f"schedule automatic refresh every {refresh_interval}."
+                )
             advisories.append(Advisory(
                 id=advisory_id,
                 severity="warning",
-                summary=(
-                    f"The GeoLite2 {edition} database is {info.age_days} days old; "
-                    "the weekly refresh is not succeeding."
-                ),
-                detail=(
-                    "The app keeps using the stale database and retries through the "
-                    "weekly geoip-refresh job; check that job in Scheduler and the app "
-                    "logs for the last error."
-                ),
+                summary=summary,
+                detail=detail,
             ))
         else:
+            if settings.scheduler.enabled:
+                detail = (
+                    "The app keeps using the stale database even though MaxMind requires "
+                    "a fresh copy within 30 days. The geoip-refresh job checks for a "
+                    f"replacement every {refresh_interval}, but it cannot download one "
+                    "without credentials. Configure the credentials below and restart "
+                    "the app so it loads them; inspect the job in Scheduler and the app "
+                    "logs if a later refresh fails."
+                )
+            else:
+                detail = (
+                    "The app keeps using the stale database even though MaxMind requires "
+                    "a fresh copy within 30 days. Automatic refresh is disabled; "
+                    "configure the credentials below and restart the app so it loads "
+                    f"them, then replace {path} manually or set SCHEDULER_ENABLED=true."
+                )
             advisories.append(Advisory(
                 id=advisory_id,
                 severity="warning",
@@ -150,11 +183,7 @@ def _stale_geoip_advisories(settings: Settings) -> list[Advisory]:
                     "cannot refresh because no MaxMind credentials are configured, "
                     "which is outside MaxMind's 30-day refresh window."
                 ),
-                detail=(
-                    "The app keeps using the stale database even though MaxMind requires "
-                    "a fresh copy within 30 days; configure the credentials below so the "
-                    "weekly geoip-refresh job can replace it."
-                ),
+                detail=detail,
                 remedy="MAXMINDDB_USER_ID and MAXMINDDB_LICENSE_KEY",
             ))
     return advisories
