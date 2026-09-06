@@ -223,6 +223,74 @@ async def test_start_scheduler_attaches_state_before_start(monkeypatch):
     scheduler.shutdown.assert_called_once_with(wait=True)
 
 
+async def test_stop_scheduler_waits_for_real_shutdown_before_detaching():
+    from apscheduler.schedulers.asyncio import AsyncIOScheduler
+
+    from geometrikks.server import lifecycle as lc
+
+    scheduler = AsyncIOScheduler()
+    scheduler.start()
+    app = SimpleNamespace(
+        state=SimpleNamespace(scheduler=scheduler, scheduler_tracker=object())
+    )
+
+    await asyncio.wait_for(lc.stop_scheduler(cast("Any", app)), timeout=2.0)
+
+    assert scheduler.running is False
+    assert not hasattr(app.state, "scheduler")
+    assert not hasattr(app.state, "scheduler_tracker")
+
+
+async def test_cancelled_ingestion_stop_retains_handle_for_later_cleanup(
+    monkeypatch, tmp_path
+):
+    from geometrikks.server import lifecycle as lc
+    from geometrikks.services.ingestion import service as ingestion_module
+    from tests.test_ingestion import make_parser, make_service
+
+    log_path = tmp_path / "stuck.log"
+    log_path.write_text("", encoding="utf-8")
+    parser = make_parser(log_path)
+    tail_started = asyncio.Event()
+    release_tail = asyncio.Event()
+
+    async def stuck_records(*args, **kwargs):
+        tail_started.set()
+        await release_tail.wait()
+        if False:
+            yield None
+
+    monkeypatch.setattr(parser, "iter_parsed_records", stuck_records)
+    service, _repos, _sessions = make_service([parser])
+    await service.start(skip_validation=True)
+    await asyncio.wait_for(tail_started.wait(), timeout=1.0)
+
+    wait_entered = asyncio.Event()
+    real_wait = asyncio.wait
+
+    async def observed_wait(*args, **kwargs):
+        wait_entered.set()
+        return await real_wait(*args, **kwargs)
+
+    monkeypatch.setattr(ingestion_module.asyncio, "wait", observed_wait)
+    app = SimpleNamespace(state=SimpleNamespace(ingestion_service=service))
+    first_stop = asyncio.create_task(lc.stop_ingestion(cast("Any", app)))
+    await asyncio.wait_for(wait_entered.wait(), timeout=1.0)
+    first_stop.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await first_stop
+
+    assert app.state.ingestion_service is service
+    assert any(not task.done() for task in service._tail_tasks)
+
+    release_tail.set()
+    await asyncio.wait_for(lc.stop_ingestion(cast("Any", app)), timeout=1.0)
+
+    assert all(task.done() for task in service._tail_tasks)
+    assert not service.is_task_running
+    assert not hasattr(app.state, "ingestion_service")
+
+
 async def test_agent_mode_waits_for_schema_and_skips_crowdsec(monkeypatch):
     """Agent mode never migrates or manages TimescaleDB objects -- it waits
     for the primary instance's schema instead -- and never wires CrowdSec."""

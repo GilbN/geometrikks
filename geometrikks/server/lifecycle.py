@@ -350,6 +350,7 @@ async def start_scheduler(app: "Litestar") -> None:
 async def stop_scheduler(app: "Litestar") -> None:
     """Stop and detach the current scheduler, if any."""
     scheduler = runtime.get_scheduler(app)
+    stopped_cleanly = scheduler is None or not scheduler.running
     try:
         if scheduler is not None and scheduler.running:
             if isinstance(scheduler, AsyncIOScheduler):
@@ -366,11 +367,15 @@ async def stop_scheduler(app: "Litestar") -> None:
                     scheduler.remove_listener(on_shutdown)
             else:
                 scheduler.shutdown(wait=True)
+            stopped_cleanly = True
             logger.info("scheduler_stopped")
     finally:
-        if hasattr(app.state, "scheduler") and app.state.scheduler is scheduler:
+        owns_scheduler = (
+            hasattr(app.state, "scheduler") and app.state.scheduler is scheduler
+        )
+        if stopped_cleanly and owns_scheduler:
             delattr(app.state, "scheduler")
-        if hasattr(app.state, "scheduler_tracker"):
+        if stopped_cleanly and owns_scheduler and hasattr(app.state, "scheduler_tracker"):
             delattr(app.state, "scheduler_tracker")
 
 
@@ -437,14 +442,17 @@ async def start_ingestion(app: "Litestar") -> None:
 async def stop_ingestion(app: "Litestar") -> None:
     """Stop and detach the current ingestion service, if any."""
     service = runtime.get_ingestion_service(app)
+    stopped_cleanly = service is None
     try:
         if service is not None:
             service.disable_reloads()
             await service.stop(timeout=5.0)
+            stopped_cleanly = True
             logger.info("ingestion_stopped")
     finally:
         if (
-            hasattr(app.state, "ingestion_service")
+            stopped_cleanly
+            and hasattr(app.state, "ingestion_service")
             and app.state.ingestion_service is service
         ):
             delattr(app.state, "ingestion_service")
