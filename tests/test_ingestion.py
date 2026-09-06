@@ -762,6 +762,33 @@ async def test_counters_finalize_when_commit_rollback_raises() -> None:
 
     assert service.failed_batches == 1
     assert service.failed_records == 1
+    assert service._location_cache == {}
+    assert service._uncommitted_geohashes == set()
+
+
+async def test_record_rollback_failure_drops_remainder_and_stops_session() -> None:
+    channels = _channels_stub()
+    service, repos, sessions = make_service([], channels=channels)
+    repos.fail_flush_calls = {2}
+    repos.fail_next_rollbacks = 1
+    records = [
+        _geo_record(TEST_DB_IPS[0], -0.09),
+        _geo_record(TEST_DB_IPS[1], -0.19),
+        _geo_record(TEST_DB_IPS[0], -0.29),
+    ]
+
+    await service.flush_records(records)
+
+    assert service.failed_batches == 1
+    assert service.failed_records == len(records)
+    assert repos.flush_calls == 2
+    assert sessions[0].commits == 0
+    assert repos.geo_event.added == []
+    assert len(repos.geo_event.added) + service.failed_records == len(records)
+    assert sessions[0].closed is True
+    channels.publish.assert_not_called()
+    assert service._location_cache == {}
+    assert service._uncommitted_geohashes == set()
 
 
 def test_service_has_no_inprocess_subscriber_api() -> None:

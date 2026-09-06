@@ -524,6 +524,13 @@ class LogIngestionService:
             self._location_cache.pop(geohash, None)
         self._uncommitted_geohashes.clear()
 
+    def _evict_batch_locations(self, batch: list[ParsedLogRecord]) -> None:
+        """Drop all cached locations associated with a failed transaction."""
+        self._evict_uncommitted_locations()
+        for record in batch:
+            if record.geo_data:
+                self._location_cache.pop(record.geo_data.geohash, None)
+
     def _sanitize_for_postgres(self, value: str | None) -> str | None:
         """Remove null bytes from strings for PostgreSQL compatibility.
 
@@ -610,7 +617,14 @@ class LogIngestionService:
                         try:
                             await session.rollback()
                         except Exception as rollback_err:
-                            logger.error("Rollback failed: %s", rollback_err)
+                            logger.error(
+                                "ingestion_batch_rollback_failed",
+                                records=len(batch),
+                                error=str(rollback_err),
+                            )
+                            lost_records = len(batch)
+                            self._evict_batch_locations(batch)
+                            return
                         self._evict_uncommitted_locations()
                         # The failing record may have hit a poisoned cache entry
                         # (an id cached before this service run whose row does not
@@ -630,14 +644,12 @@ class LogIngestionService:
                     )
                     batch_failed = True
                     lost_records += commit_lost_records
-                    await session.rollback()
-                    self._evict_uncommitted_locations()
-                    # Same poisoned-entry hazard as above, but here we don't know
-                    # which record broke the commit, so evict every geohash the
-                    # batch touched so the next flush re-resolves it from the DB.
-                    for record in batch:
-                        if record.geo_data:
-                            self._location_cache.pop(record.geo_data.geohash, None)
+                    try:
+                        await session.rollback()
+                    finally:
+                        # The failed commit does not identify which cached
+                        # location poisoned the transaction.
+                        self._evict_batch_locations(batch)
                 else:
                     self._uncommitted_geohashes.clear()
                     self._publish(committed_candidates)
