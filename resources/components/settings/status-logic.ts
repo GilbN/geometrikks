@@ -78,11 +78,17 @@ export function ingestionState(health: HealthResponse | undefined, isError: bool
   return { tone: "emerald", label: "Running" }
 }
 
-export type SidebarIngestionVariant = "offline" | "degraded" | "disabled" | "running" | "inactive"
+export type SidebarIngestionVariant =
+  | "offline"
+  | "degraded"
+  | "attention"
+  | "disabled"
+  | "running"
+  | "inactive"
 
 /** Semantics of the sidebar's ingestion-health dot; the component maps the
- *  variant to colors/labels. Degraded wins over running: the backend can
- *  report running=true while a tailed log file is missing. */
+ * variant to colors/labels. Degraded wins over advisories, which win over the
+ * configured-off state. */
 export function sidebarIngestionVariant(
   health: HealthResponse | undefined,
   isError: boolean,
@@ -90,9 +96,18 @@ export function sidebarIngestionVariant(
   if (isError) return "offline"
   if (!health) return "inactive"
   if (health.status === "degraded") return "degraded"
+  if ((health.advisories ?? []).length > 0) return "attention"
   if (health.ingestion.status === "disabled") return "disabled"
   if (health.ingestion.running) return "running"
   return "inactive"
+}
+
+export function sidebarStatusTooltip(base: string, advisoryCount: number): string {
+  if (advisoryCount === 0) return base
+  const separator = /[.!?]$/.test(base) ? " " : ". "
+  const noun = advisoryCount === 1 ? "advisory needs" : "advisories need"
+  const statusLink = base.includes("Settings > Status") ? "" : " See Settings > Status."
+  return `${base}${separator}${advisoryCount} ${noun} attention.${statusLink}`
 }
 
 export function databaseState(health: HealthResponse | undefined): CardState {
@@ -294,6 +309,14 @@ export function filterErrorRecords(
 export function liveFeedState(status: LiveFeedStatus): CardState {
   if (status === "connected") return { tone: "emerald", label: "Connected" }
   if (status === "connecting") return { tone: "amber", label: "Connecting" }
+  if (status === "unavailable") {
+    return {
+      tone: "amber",
+      label: "Paused by server",
+      detail:
+        "The server accepted the connection and closed it because the database or ingestion is not available. It reconnects on its own.",
+    }
+  }
   return {
     tone: "amber",
     label: "Not connected",

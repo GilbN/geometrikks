@@ -21,7 +21,7 @@ import type { LiveRequest, Vitals } from "./types"
  * feeding this" rather than "the socket is open" - the distinction the
  * disconnected states downstream (the rail and the pill) depend on.
  */
-export type LiveFeedState = "connected" | "reconnecting"
+export type LiveFeedState = "connected" | "reconnecting" | "paused"
 
 const EMPTY_VITALS: Vitals = {
   rpm: 0,
@@ -58,7 +58,11 @@ export function LiveTrafficProvider({
   // Demo mode is a feed in its own right: it never opens the socket, so the
   // socket's status alone would read as permanently disconnected.
   const feedState: LiveFeedState =
-    demoMode !== "off" || socketStatus === "connected" ? "connected" : "reconnecting"
+    demoMode !== "off" || socketStatus === "connected"
+      ? "connected"
+      : socketStatus === "unavailable"
+        ? "paused"
+        : "reconnecting"
 
   // Read through a ref so a changed selection does not resubscribe the socket;
   // the reset effect below is what actually applies a new filter to the window.

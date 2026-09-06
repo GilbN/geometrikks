@@ -85,6 +85,7 @@ import { useTimeRange } from "./time-range-context"
 import { currentBuildKey, hasUnseenChanges, saveSeenBuild, useSeenBuild } from "./changelog-seen"
 import { useAnalyticsFilters } from "./analytics-filters-context"
 import { useGeoLogFilters } from "./geo-log-filters-context"
+import { CLOSE_TRY_AGAIN_LATER } from "./websocket"
 
 // ============================================================================
 // Query Keys
@@ -477,8 +478,9 @@ export function useCrowdsecLiveUpdates() {
           (ips) => applyBannedIpsDelta(ips, frame),
         )
       }
-      ws.onclose = () => {
+      ws.onclose = (event) => {
         if (closed) return
+        if (event.code === CLOSE_TRY_AGAIN_LATER) retryMs = 30_000
         timer = setTimeout(connect, retryMs)
         retryMs = Math.min(retryMs * 2, 30_000)
       }
@@ -729,7 +731,7 @@ export function useCumulativeTimeSeries(options: UseCumulativeTimeSeriesOptions 
 
 // ============================================================================
 // Analytics page hooks (generated-SDK fetchers; types infer from the fetcher
-// so the generated shapes — percentiles, unique_cities — flow to the charts)
+// so the generated shapes, including percentiles and unique_cities, flow to the charts)
 // ============================================================================
 
 export interface UseAnalyticsQueryOptions {

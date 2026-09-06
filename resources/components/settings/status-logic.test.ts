@@ -27,6 +27,7 @@ import {
   relativeTime,
   schedulerJobState,
   sidebarIngestionVariant,
+  sidebarStatusTooltip,
   siteHomeRows,
 } from "./status-logic"
 
@@ -159,6 +160,34 @@ describe("sidebarIngestionVariant", () => {
   })
   it("is inactive while health is still loading", () => {
     expect(sidebarIngestionVariant(undefined, false)).toBe("inactive")
+  })
+
+  it("is attention when healthy but an advisory is open", () => {
+    const health = makeHealth({
+      ingestion: disabledIngestion,
+      advisories: [{ id: "x", severity: "warning", summary: "x" }],
+    })
+    expect(sidebarIngestionVariant(health, false)).toBe("attention")
+  })
+
+  it("degraded still wins over attention", () => {
+    const health = makeHealth({
+      status: "degraded",
+      advisories: [{ id: "x", severity: "critical", summary: "x" }],
+    })
+    expect(sidebarIngestionVariant(health, false)).toBe("degraded")
+  })
+})
+
+describe("sidebarStatusTooltip", () => {
+  it("keeps the base text and appends the advisory count", () => {
+    expect(sidebarStatusTooltip("base", 0)).toBe("base")
+    expect(sidebarStatusTooltip("Service degraded - see Settings > Status", 1)).toBe(
+      "Service degraded - see Settings > Status. 1 advisory needs attention.",
+    )
+    expect(sidebarStatusTooltip("base.", 3)).toBe(
+      "base. 3 advisories need attention. See Settings > Status.",
+    )
   })
 })
 
@@ -349,6 +378,12 @@ describe("liveFeedState", () => {
     expect(down.tone).toBe("amber")
     expect(down.label).toBe("Not connected")
     expect(down.detail).toBeTruthy()
+  })
+
+  it("shows a server pause as an amber unavailable state", () => {
+    const paused = liveFeedState("unavailable")
+    expect(paused.tone).toBe("amber")
+    expect(paused.label).toBe("Paused by server")
   })
 })
 
