@@ -13,22 +13,22 @@ const shot = (name: string) => {
 };
 
 const screens = [
-  { id: "map", label: "Map", img: "live.png", video: "/media/map", cap: "Live map. Markers, clusters or a heatmap; flat or globe. Routes fly to your home beacon.", alt: "The live map with markers across Europe, a live request feed and a home beacon in Norway" },
-  { id: "overview", label: "Overview", img: "dashboard.png", cap: "Overview. Requests, visitors, bandwidth and errors for the range, with trends against the previous one.", alt: "Overview dashboard with summary cards and trend charts" },
-  { id: "analytics", label: "Analytics", img: "analytics.png", cap: "Analytics. Volume, status mix, latency percentiles, bytes, top URLs per host, top user agents, top ASNs.", alt: "Analytics page with request, status, bandwidth and latency charts" },
-  { id: "access-logs", label: "Access logs", img: "access-logs.png", cap: "Access logs. Every request, server-paginated, with free-text search and filters for status, method, IP, host, country and source.", alt: "Access logs table with filters and a selected request" },
+  { id: "map", label: "Map", img: "live.png", video: "/media/map", cap: "Live map. Show requests as markers, clusters or a heatmap on a flat map or globe. Live routes end at the server location you configure.", alt: "The live map with markers across Europe, a live request feed and the configured server location in Norway" },
+  { id: "overview", label: "Overview", img: "dashboard.png", cap: "Overview. Requests, visitors, bandwidth and errors for the chosen time period, compared with the previous period.", alt: "Overview dashboard with summary cards and trend charts" },
+  { id: "analytics", label: "Analytics", img: "analytics.png", cap: "Analytics. Request volume, response codes, latency percentiles, bandwidth, top URLs by host, user agents and ASNs.", alt: "Analytics page with request, status, bandwidth and latency charts" },
+  { id: "access-logs", label: "Access logs", img: "access-logs.png", cap: "Access logs. Search every request and filter by status, method, IP, host, country or source.", alt: "Access logs table with filters and a selected request" },
   { id: "geo-logs", label: "Geo logs", img: "geo-logs.png", cap: "Geo logs. Traffic grouped by place: which locations send requests and how that changes over time.", alt: "Geo logs table grouped by country and city" },
-  { id: "ip-inspector", label: "IP inspector", img: "ip-inspector.png", cap: "IP inspector. One panel per address: counts, bytes, status mix over time, hosts and paths hit, user agents, the latest requests, and its CrowdSec status with a ban button.", alt: "IP inspector sheet open over the map for a banned address, with request counts, targets, paths, user agents and latest requests" },
-  { id: "security", label: "Security", img: "crowdsec.png", cap: "Security. Active CrowdSec decisions cross-referenced with your own traffic.", alt: "Security page listing active CrowdSec decisions" },
+  { id: "ip-inspector", label: "IP inspector", img: "ip-inspector.png", cap: "IP inspector. Select an address to see request counts, bandwidth, response codes over time, hosts, paths, user agents, recent requests and CrowdSec status. You can ban it here too.", alt: "IP inspector open over the map for a banned address, with request counts, targets, paths, user agents and recent requests" },
+  { id: "security", label: "Security", img: "crowdsec.png", cap: "Security. CrowdSec bans shown with matching requests from your logs.", alt: "Security page listing active CrowdSec bans" },
   { id: "debug-logs", label: "Debug logs", img: "debug-logs.png", cap: "Debug logs. The raw source lines behind every request, with parse failures called out.", alt: "Debug logs page showing raw log lines and parse failures" },
 ];
 ---
 
 <section class="screens" id="screens">
   <div class="wrap">
-    <p class="kicker">Screens</p>
-    <h2 class="section-title">What it looks like once the log is flowing.</h2>
-    <div class="tabs" role="tablist" aria-label="Screens">
+    <p class="kicker">Inside GeoMetrikks</p>
+    <h2 class="section-title">The logs must flow.</h2>
+    <div class="tabs" role="tablist" aria-label="GeoMetrikks interface">
       {
         screens.map((s, i) => (
           <button

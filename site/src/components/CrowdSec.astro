@@ -17,17 +17,16 @@ import Llama from "../assets/logos/crowdsec.svg";
         widths={[720, 1200, 1912]}
         sizes="(max-width: 900px) 250vw, 1400px"
         format="webp"
-        alt="The IP inspector for a banned address: the ban badge with time left, a still-seen-after-ban warning, request counts, status mix over time and the latest requests"
+        alt="The IP inspector for a banned address, showing when the ban expires, a warning for requests seen after the ban, request counts, response codes over time and recent requests"
         loading="lazy"
       />
     </div>
     <div class="copy">
       <p class="kicker"><Llama width={22} height={22} aria-hidden="true" /> CrowdSec</p>
-      <h2 class="section-title">Bans next to the traffic that earned them.</h2>
+      <h2 class="section-title">Watch hostile traffic fuck around and find out.</h2>
       <p class="sub">
-        Connect the Local API and the Security page joins active decisions with your own logs: the country, city and
-        request count for every banned IP, a Banned badge in the tables, and a map overlay for banned addresses still
-        showing up in the selected range.
+        Connect the Local API to see every CrowdSec ban with its matching requests, country, city and request count.
+        Banned IPs are marked in the tables and on the map.
       </p>
       <dl>
         <div>
@@ -39,10 +38,9 @@ import Llama from "../assets/logos/crowdsec.svg";
           </dd>
         </div>
         <div>
-          <dt>Live within seconds</dt>
+          <dt>Ban changes appear within seconds</dt>
           <dd>
-            The app follows the LAPI decision stream and pushes changes over a WebSocket, so badges react when
-            CrowdSec bans or unbans an IP anywhere, not only from this UI.
+            GeoMetrikks follows CrowdSec's live updates, including bans and unbans made outside GeoMetrikks.
           </dd>
         </div>
         <div>
