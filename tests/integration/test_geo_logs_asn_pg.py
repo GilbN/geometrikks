@@ -6,6 +6,9 @@ from datetime import datetime, timedelta, timezone
 import pytest
 from sqlalchemy import text
 
+from geometrikks.domain.geo.schemas import GeoEventFilters
+from geometrikks.domain.geo.services import GeoEventService
+from geometrikks.server.timescale import refresh_caggs_range
 from tests.integration.test_geo_logs_pg import _insert_location
 
 pytestmark = pytest.mark.anyio
@@ -63,11 +66,6 @@ async def test_apply_asn_mapping_on_geo_events_fills_only_null_rows(pg_engine, p
         ("10.0.0.1", 24940, "Hetzner Online GmbH"),
         ("10.9.9.9", None, None),
     ]
-
-
-from geometrikks.domain.geo.schemas import GeoEventFilters
-from geometrikks.domain.geo.services import GeoEventService
-from geometrikks.server.timescale import refresh_caggs_range
 
 
 async def seed_asn_raw(session_maker) -> int:
