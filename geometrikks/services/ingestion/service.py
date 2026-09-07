@@ -186,6 +186,13 @@ class LogIngestionService:
         self._queue: asyncio.Queue[ParsedLogRecord] | None = None
         self._tail_tasks: list[asyncio.Task[None]] = []
         self.is_running: bool = False
+        # A service can be constructed successfully while its asynchronous
+        # consumer later stops because every tailer exited or a persistence
+        # error escaped. Keep that signal separate from ``is_running`` so
+        # health can distinguish an unexpected runtime stop from a deliberate
+        # disabled/DB-degraded startup or normal teardown.
+        self.unexpected_stop: bool = False
+        self.start_failure: str | None = None
 
         # Statistics
         self.total_processed: int = 0
@@ -213,8 +220,11 @@ class LogIngestionService:
             return
 
         self._skip_validation = skip_validation
+        self.unexpected_stop = False
+        self.start_failure = None
 
         if not (reader := create_reader(self.geoip_path, self.locales)):
+            self.start_failure = "geoip"
             logger.error(
                 "Cannot start ingestion: failed to create GeoIP2 reader with database at %s",
                 self.geoip_path,
@@ -462,6 +472,11 @@ class LogIngestionService:
                     await self._flush_batch()
                 except Exception as e:
                     logger.exception("Final flush failed: %s", e)
+            # ``stop()`` sets the event before waiting for this task. If the
+            # consumer reaches this point without that signal, the service
+            # died on its own and health should expose an operator advisory.
+            if not self._stop_event.is_set():
+                self.unexpected_stop = True
             self.is_running = False
 
     async def _process_record(self, record: ParsedLogRecord, repos: IngestionRepos, flushed: dict[str, int]) -> None:

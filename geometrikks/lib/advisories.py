@@ -87,3 +87,30 @@ MAP_HOME_UNDETECTED = Advisory(
     ),
     remedy="MAP_HOME_LATITUDE and MAP_HOME_LONGITUDE",
 )
+
+CITY_DATABASE_MISSING = Advisory(
+    id="geoip-database-missing",
+    severity="warning",
+    summary=(
+        "The GeoLite2 City database is missing or unreadable, so log ingestion "
+        "cannot start."
+    ),
+    detail=(
+        "The app keeps serving the UI, but ingestion stays stopped until a usable "
+        "City database is available. If MaxMind credentials and scheduled jobs are "
+        "enabled, the geoip-refresh job retries the download; otherwise replace the "
+        "database file or configure credentials and restart the app."
+    ),
+    remedy="MAXMINDDB_USER_ID and MAXMINDDB_LICENSE_KEY",
+)
+
+INGESTION_STOPPED = Advisory(
+    id="ingestion-stopped",
+    severity="critical",
+    summary="Log ingestion stopped unexpectedly; new records are not being processed.",
+    detail=(
+        "The app detected that its log-tail and database-write task exited while "
+        "ingestion was enabled. Check the app log for the ingestion error and "
+        "restart the app after fixing the cause."
+    ),
+)

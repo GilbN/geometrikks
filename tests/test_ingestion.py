@@ -437,10 +437,41 @@ async def test_failed_tail_task_stops_service_and_clears_is_running(
     try:
         await wait_until(lambda: not service.is_running)
         assert not service.is_task_running
+        assert service.unexpected_stop is True
         with pytest.raises(RuntimeError, match="simulated tail failure"):
             await service._tail_tasks[0]
     finally:
         await service.stop(timeout=5.0)
+
+
+async def test_graceful_stop_does_not_mark_ingestion_as_unexpectedly_stopped(
+    tmp_path: Path,
+) -> None:
+    log_file = tmp_path / "a.log"
+    log_file.write_text("", encoding="utf-8")
+    service, _repos, _sessions = make_service([make_parser(log_file)])
+
+    await service.start(skip_validation=True)
+    await service.stop(timeout=5.0)
+
+    assert service.is_running is False
+    assert service.unexpected_stop is False
+    assert service.start_failure is None
+
+
+async def test_missing_city_database_is_recorded_as_start_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import geometrikks.services.ingestion.service as service_module
+
+    monkeypatch.setattr(service_module, "create_reader", lambda *_args, **_kwargs: None)
+    service, _repos, _sessions = make_service([])
+
+    await service.start(skip_validation=True)
+
+    assert service.is_running is False
+    assert service.unexpected_stop is False
+    assert service.start_failure == "geoip"
 
 
 async def test_last_record_at_tracks_ingestion_activity(tmp_path: Path) -> None:

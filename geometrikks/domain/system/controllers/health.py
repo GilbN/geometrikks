@@ -25,7 +25,7 @@ from sqlalchemy import text
 from geometrikks.config.settings import Settings
 from geometrikks.domain.system.proxy_detection import proxy_advisories, proxy_findings
 from geometrikks.lib.utils import geoip_info
-from geometrikks.lib.advisories import Advisory
+from geometrikks.lib.advisories import Advisory, CITY_DATABASE_MISSING, INGESTION_STOPPED
 from geometrikks.server import runtime
 from geometrikks.services.geoip.downloader import has_credentials
 from geometrikks.services.ingestion import LogIngestionService
@@ -259,6 +259,17 @@ def _collect_advisories(app: Litestar, settings: Settings) -> list[Advisory]:
 
     advisories: list[Advisory] = runtime.get_advisories(app).snapshot()
     service = runtime.get_ingestion_service(app)
+    logparser_settings = getattr(settings, "logparser", None)
+    if (
+        getattr(logparser_settings, "enabled", True)
+        and (
+            not runtime.is_geoip_available(app, default=True)
+            or getattr(service, "start_failure", None) == "geoip"
+        )
+    ):
+        advisories.append(CITY_DATABASE_MISSING)
+    if service is not None and getattr(service, "unexpected_stop", False):
+        advisories.append(INGESTION_STOPPED)
     if service is not None and service.failed_batches > 0:
         ingestion_state = (
             "Ingestion continues processing new records."
