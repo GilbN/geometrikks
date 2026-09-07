@@ -122,7 +122,7 @@ function Rate({ dense }: { dense: boolean }) {
           )}
         />
         <span className="text-[9px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
-          {disconnected ? "Reconnecting" : "Last 5 minutes"}
+          {disconnected ? (feedState === "paused" ? "Live feed paused" : "Reconnecting") : "Last 5 minutes"}
         </span>
       </div>
 

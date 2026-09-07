@@ -118,6 +118,33 @@ def _set_hostname_pollution(value: HostnamePollution | None) -> None:
     _hostname_pollution = value
 
 
+@dataclass(frozen=True)
+class PolicyFailure:
+    policy: str
+    target: str
+    error: str
+
+
+_policy_failures: list[PolicyFailure] = []
+
+
+def get_policy_failures() -> list[PolicyFailure]:
+    """Return policy intervals that could not be synced during the last setup run."""
+    return list(_policy_failures)
+
+
+def _record_policy_failure(policy: str, target: str, error: str) -> None:
+    _policy_failures.append(PolicyFailure(policy, target, error))
+
+
+def _reset_policy_failures() -> None:
+    count = len(_policy_failures)
+    if count == 0:
+        return
+    _policy_failures.clear()
+    logger.info("policy_failures_cleared", count=count)
+
+
 # =============================================================================
 # Hypertable Configuration
 # =============================================================================
@@ -670,25 +697,27 @@ async def _add_refresh_policies(
 
     for cagg, start_offset, end_offset in CAGG_REFRESH_CONFIG:
         try:
-            await conn.execute(text(f"""
-                SELECT add_continuous_aggregate_policy(
-                    '{cagg}',
-                    start_offset => INTERVAL '{start_offset}',
-                    end_offset => INTERVAL '{end_offset}',
-                    schedule_interval => INTERVAL '{refresh_interval}',
-                    if_not_exists => TRUE
+            async with conn.begin_nested():
+                await conn.execute(text(f"""
+                    SELECT add_continuous_aggregate_policy(
+                        '{cagg}',
+                        start_offset => INTERVAL '{start_offset}',
+                        end_offset => INTERVAL '{end_offset}',
+                        schedule_interval => INTERVAL '{refresh_interval}',
+                        if_not_exists => TRUE
+                    )
+                """))
+                await _sync_policy_schedule(
+                    conn,
+                    policy="refresh",
+                    proc="policy_refresh_continuous_aggregate",
+                    target=cagg,
+                    interval=timedelta(minutes=refresh_interval_minutes),
                 )
-            """))
             logger.info("Refresh policy added/verified: %s (every %s)", cagg, refresh_interval)
         except Exception as e:
-            logger.debug("Refresh policy for %s: %s", cagg, e)
-        try:
-            await _sync_policy_schedule(
-                conn, policy="refresh", proc="policy_refresh_continuous_aggregate", target=cagg,
-                interval=timedelta(minutes=refresh_interval_minutes),
-            )
-        except Exception as e:
             logger.warning("policy_update_failed", policy="refresh", target=cagg, error=str(e))
+            _record_policy_failure("refresh", cagg, str(e))
 
 
 async def _add_retention_policies(
@@ -708,23 +737,26 @@ async def _add_retention_policies(
 
     for target, days in retention_configs:
         try:
-            await conn.execute(text(f"""
-                SELECT add_retention_policy(
-                    '{target}',
-                    drop_after => INTERVAL '{days} days',
-                    if_not_exists => TRUE
+            async with conn.begin_nested():
+                await conn.execute(text(f"""
+                    SELECT add_retention_policy(
+                        '{target}',
+                        drop_after => INTERVAL '{days} days',
+                        if_not_exists => TRUE
+                    )
+                """))
+                await _sync_policy_config(
+                    conn,
+                    policy="retention",
+                    proc="policy_retention",
+                    target=target,
+                    key="drop_after",
+                    interval=timedelta(days=days),
                 )
-            """))
             logger.info("Retention policy added/verified: %s (%d days)", target, days)
         except Exception as e:
-            logger.debug("Retention policy for %s: %s", target, e)
-        try:
-            await _sync_policy_config(
-                conn, policy="retention", proc="policy_retention", target=target,
-                key="drop_after", interval=timedelta(days=days),
-            )
-        except Exception as e:
             logger.warning("policy_update_failed", policy="retention", target=target, error=str(e))
+            _record_policy_failure("retention", target, str(e))
 
 
 _POLICY_JOB_FOR_TARGET = """
@@ -792,35 +824,38 @@ async def _add_compression_policies(
         ("access_log_debug", "created_at"),
     ]:
         try:
-            # Enable compression on the hypertable
-            await conn.execute(text(f"""
-                ALTER TABLE {table} SET (
-                    timescaledb.compress,
-                    timescaledb.compress_orderby = '{time_col} DESC'
+            async with conn.begin_nested():
+                # Enable compression on the hypertable
+                await conn.execute(text(f"""
+                    ALTER TABLE {table} SET (
+                        timescaledb.compress,
+                        timescaledb.compress_orderby = '{time_col} DESC'
+                    )
+                """))
+                # Add compression policy
+                await conn.execute(text(f"""
+                    SELECT add_compression_policy(
+                        '{table}',
+                        compress_after => INTERVAL '{compression_after_days} days',
+                        if_not_exists => TRUE
+                    )
+                """))
+                await _sync_policy_config(
+                    conn,
+                    policy="compression",
+                    proc="policy_compression",
+                    target=table,
+                    key="compress_after",
+                    interval=timedelta(days=compression_after_days),
                 )
-            """))
-            # Add compression policy
-            await conn.execute(text(f"""
-                SELECT add_compression_policy(
-                    '{table}',
-                    compress_after => INTERVAL '{compression_after_days} days',
-                    if_not_exists => TRUE
-                )
-            """))
             logger.info(
                 "Compression policy added/verified: %s (after %d days)",
                 table,
                 compression_after_days,
             )
         except Exception as e:
-            logger.debug("Compression policy for %s: %s", table, e)
-        try:
-            await _sync_policy_config(
-                conn, policy="compression", proc="policy_compression", target=table,
-                key="compress_after", interval=timedelta(days=compression_after_days),
-            )
-        except Exception as e:
             logger.warning("policy_update_failed", policy="compression", target=table, error=str(e))
+            _record_policy_failure("compression", table, str(e))
 
 
 async def _enable_realtime_aggregation(conn: "AsyncConnection") -> None:
@@ -1234,6 +1269,7 @@ async def setup_timescaledb(
             (see ``check_refresh_offsets``).
     """
     check_refresh_offsets(raw_retention_days=analytics.raw_retention_days)
+    _reset_policy_failures()
 
     async with engine.begin() as conn:
         # Enable extensions

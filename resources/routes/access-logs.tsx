@@ -117,7 +117,10 @@ const RESET_ON_CHANGE: Partial<AccessLogsSearch> = { page: undefined }
 type Mode = "history" | "live"
 
 function AccessLogsPage() {
-  const search = Route.useSearch()
+  const search = Route.useSearch({
+    select: ({ inspect: _inspect, ...routeSearch }) => routeSearch,
+    structuralSharing: true,
+  })
   const navigate = Route.useNavigate()
   const [mode, setMode] = useState<Mode>("history")
 

@@ -1,0 +1,214 @@
+---
+// APP_MODE=agent: a diagram of three proxies, each with its own agent,
+// writing to one database that one full instance serves from.
+import { siCaddy, siNginx, siTraefikproxy } from "simple-icons";
+
+const sites = [
+  { name: "nginx", host: "edge-01", icon: siNginx.path },
+  { name: "Traefik", host: "edge-02", icon: siTraefikproxy.path },
+  { name: "Caddy", host: "edge-03", icon: siCaddy.path },
+];
+---
+
+<section class="agents" id="agents">
+  <div class="wrap">
+    <div class="copy">
+      <p class="kicker">Agent mode</p>
+      <h2 class="section-title">Several proxies, one map.</h2>
+      <p class="sub">
+        When traffic comes in through more than one proxy or host, run one full instance plus an agent next to each
+        log file. The agent tails, parses, geolocates and writes locally. The full instance owns everything else: the
+        UI, the API, migrations, the scheduler and CrowdSec.
+      </p>
+      <p>
+        Every writer publishes committed events over PostgreSQL LISTEN/NOTIFY, so the live map shows a request the
+        moment any agent stores it. Each source gets its own home beacon, and every page filters by recording
+        hostname.
+      </p>
+      <p>
+        An agent needs four things: the mode, database credentials for the shared instance, MaxMind credentials, and
+        its log mount. No admin password, no UI, no migrations.
+      </p>
+      <pre class="block">APP_MODE=agent
+DB_HOST=timescale.example.internal
+LOGPARSER_LOG_PATHS=/var/log/access/access.log
+LOGPARSER_HOST_NAME=edge-01</pre>
+      <a class="more" href="/docs/features/multi-source/">Multi-source setup in the docs</a>
+    </div>
+    <div class="diagram" role="img" aria-label="Three proxies, each with an agent, write to one TimescaleDB that one full GeoMetrikks instance serves the UI from">
+      <div class="sites">
+        {
+          sites.map((s) => (
+            <div class="site">
+              <div class="proxy card">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d={s.icon} />
+                </svg>
+                <span>{s.name}</span>
+                <span class="host mono">{s.host}</span>
+              </div>
+              <div class="agent">
+                <span class="mono">APP_MODE=agent</span>
+                <small>tail · parse · geoip · write</small>
+              </div>
+            </div>
+          ))
+        }
+      </div>
+      <div class="bus"></div>
+      <div class="stem"></div>
+      <div class="db card">
+        <span>TimescaleDB</span>
+        <small>one shared database · LISTEN/NOTIFY</small>
+      </div>
+      <div class="stem"></div>
+      <div class="head card">
+        <span>GeoMetrikks</span>
+        <small>UI · API · migrations · scheduler · CrowdSec</small>
+      </div>
+    </div>
+  </div>
+</section>
+
+<style>
+  .agents {
+    border-top: 1px solid var(--line);
+  }
+  .agents .wrap {
+    display: grid;
+    grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+    gap: 56px;
+    align-items: center;
+  }
+  .copy p {
+    color: var(--fg-dim);
+    margin: 0 0 14px;
+  }
+  .copy .sub {
+    margin-bottom: 14px;
+  }
+  .copy pre.block {
+    margin: 20px 0;
+  }
+  .more {
+    color: var(--accent);
+    font-weight: 500;
+  }
+  .more:hover {
+    text-decoration: underline;
+  }
+
+  .diagram {
+    --link: var(--line-strong);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .sites {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 16px;
+    width: 100%;
+  }
+  .site {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .proxy {
+    width: 100%;
+    padding: 14px 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: 600;
+  }
+  .proxy svg {
+    width: 20px;
+    height: 20px;
+    fill: var(--fg-dim);
+    flex: none;
+  }
+  .host {
+    margin-left: auto;
+    font-size: 12px;
+    color: var(--fg-faint);
+    font-weight: 400;
+  }
+  .agent {
+    width: 100%;
+    margin-top: 8px;
+    padding: 10px 16px;
+    border: 1px dashed var(--accent-dim);
+    border-radius: 10px;
+    background: var(--accent-wash);
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .agent .mono {
+    font-size: 12px;
+    color: var(--accent);
+  }
+  .agent small,
+  .db small,
+  .head small {
+    font-size: 12px;
+    color: var(--fg-dim);
+  }
+  .agent::after {
+    content: "";
+    align-self: center;
+    width: 1px;
+    height: 24px;
+    background: var(--link);
+    margin-bottom: -10px;
+  }
+  .bus {
+    width: calc(100% / 3 * 2);
+    height: 1px;
+    background: var(--link);
+    margin-top: 10px;
+  }
+  .stem {
+    width: 1px;
+    height: 24px;
+    background: var(--link);
+  }
+  .db,
+  .head {
+    width: 100%;
+    padding: 14px 18px;
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    font-weight: 600;
+  }
+  .head {
+    border-color: var(--accent-dim);
+  }
+  @media (max-width: 900px) {
+    .agents .wrap {
+      grid-template-columns: minmax(0, 1fr);
+      gap: 40px;
+    }
+    .sites {
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .agent::after,
+    .bus {
+      display: none;
+    }
+    .site + .site {
+      margin-top: 8px;
+    }
+    .stem:first-of-type {
+      margin-top: 8px;
+    }
+    .db,
+    .head {
+      flex-direction: column;
+      gap: 2px;
+    }
+  }
+</style>

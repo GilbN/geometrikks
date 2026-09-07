@@ -1,7 +1,7 @@
 import { ScanSearch } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { stopRowActivation } from "@/components/data/row-activation"
-import { useIpInspector } from "@/lib/ip-inspector"
+import { useIpInspectorActions } from "@/lib/ip-inspector"
 import { cn } from "@/lib/utils"
 
 /** Opens the IP inspector. Safe inside activatable table rows: it stops
@@ -20,7 +20,7 @@ export function InspectIpButton({
   className?: string
   onOpen?: () => void
 }) {
-  const { open } = useIpInspector()
+  const { open } = useIpInspectorActions()
   return (
     <Button
       variant="ghost"

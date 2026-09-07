@@ -10,7 +10,7 @@ import { Pause, Play } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { useMediaQuery } from "@/hooks/use-media-query"
-import { useLiveEvents } from "@/lib/live-feed-context"
+import { useLiveEvents, useLiveFeedStatus } from "@/lib/live-feed-context"
 import { formatBytes } from "@/lib/api"
 import { statusBadgeClass } from "@/lib/status-badge"
 import { formatDurationOrNa } from "@/lib/timing"
@@ -36,6 +36,7 @@ export function LiveTail({ enabled }: { enabled: boolean }) {
   const pausedBufferRef = useRef<AccessLogData[]>([])
   const [pausedCount, setPausedCount] = useState(0)
   const parentRef = useRef<HTMLDivElement>(null)
+  const feedStatus = useLiveFeedStatus()
 
   useLiveEvents((events, droppedCount) => {
     const logs = events.flatMap((e) => (e.log ? [e.log] : []))
@@ -70,11 +71,13 @@ export function LiveTail({ enabled }: { enabled: boolean }) {
     <div className="rounded-md border">
       <div className="flex items-center justify-between gap-2 px-3 py-1.5 text-xs text-muted-foreground border-b">
         <span>
-          {paused
-            ? manuallyPaused
-              ? "Paused"
-              : "Paused (pointer over list)"
-            : "Streaming"}
+          {feedStatus === "unavailable"
+            ? "Live feed paused"
+            : paused
+              ? manuallyPaused
+                ? "Paused"
+                : "Paused (pointer over list)"
+              : "Streaming"}
           {" - "}
           {rows.length} rows
           {pausedCount > 0 && `, +${pausedCount} while paused`}

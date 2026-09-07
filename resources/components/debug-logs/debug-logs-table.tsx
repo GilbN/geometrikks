@@ -4,7 +4,7 @@
  * city, malformed tri-state. Clicking a row opens the raw-line detail
  * dialog. Pairs with GET /api/v1/access-log-debug/.
  */
-import { useEffect, useState } from "react"
+import { memo, useEffect, useState } from "react"
 import { useSearch } from "@tanstack/react-router"
 import {
   ArrowDown,
@@ -14,13 +14,13 @@ import {
   Search,
 } from "lucide-react"
 import {
-  Table,
-  TableBody,
   TableCell,
   TableHead,
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { VirtualTable, VirtualTableBody } from "@/components/data/virtual-table"
+import { useTimeRange } from "@/lib/time-range-context"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -65,6 +65,7 @@ type MalformedFilter = "all" | "malformed" | "wellformed"
 
 interface ColumnDef {
   key: string
+  grow?: boolean
   label: string
   sortField?: AccessLogDebugSortField
   defaultVisible: boolean
@@ -101,22 +102,24 @@ const COLUMNS: ColumnDef[] = [
   },
   {
     key: "parseError",
+    grow: true,
     label: "Parse error",
     sortField: "parseError",
     defaultVisible: true,
     mobileHidden: true,
     render: (r) => (
-      <span className="block max-w-[220px] truncate" title={r.parseError ?? undefined}>
+      <span className="block truncate" title={r.parseError ?? undefined}>
         {r.parseError ?? "-"}
       </span>
     ),
   },
   {
     key: "rawLine",
+    grow: true,
     label: "Raw line",
     defaultVisible: true,
     render: (r) => (
-      <span className="block max-w-[360px] truncate font-mono" title={r.rawLine}>
+      <span className="block truncate font-mono" title={r.rawLine}>
         {r.rawLine}
       </span>
     ),
@@ -153,21 +156,23 @@ const COLUMNS: ColumnDef[] = [
   },
   {
     key: "url",
+    grow: true,
     label: "URL",
     defaultVisible: false,
     render: (r) => (
-      <span className="block max-w-[320px] truncate font-mono" title={r.url ?? undefined}>
+      <span className="block truncate font-mono" title={r.url ?? undefined}>
         {r.url ?? "-"}
       </span>
     ),
   },
   {
     key: "host",
+    grow: true,
     label: "Host",
     sortField: "host",
     defaultVisible: false,
     render: (r) => (
-      <span className="block max-w-[200px] truncate font-mono" title={r.host ?? undefined}>
+      <span className="block truncate font-mono" title={r.host ?? undefined}>
         {r.host ?? "-"}
       </span>
     ),
@@ -196,6 +201,7 @@ const COLUMNS: ColumnDef[] = [
   },
   {
     key: "city",
+    grow: true,
     label: "City",
     sortField: "city",
     defaultVisible: false,
@@ -203,23 +209,66 @@ const COLUMNS: ColumnDef[] = [
   },
   {
     key: "userAgent",
+    grow: true,
     label: "User agent",
     defaultVisible: false,
     render: (r) => (
-      <span className="block max-w-[280px] truncate font-mono" title={r.userAgent ?? undefined}>
+      <span className="block truncate font-mono" title={r.userAgent ?? undefined}>
         {r.userAgent ?? "-"}
       </span>
     ),
   },
 ]
 
+const getRowKey = (row: AccessLogDebugEntry) => row.id
+
+const DebugLogTableBody = memo(function DebugLogTableBody({
+  rows,
+  shownColumns,
+  onSelect,
+}: {
+  rows: AccessLogDebugEntry[]
+  shownColumns: ColumnDef[]
+  onSelect: (row: AccessLogDebugEntry) => void
+}) {
+  return (
+    <VirtualTableBody rows={rows} columnCount={shownColumns.length} getRowKey={getRowKey}>
+      {(row) => (
+        <TableRow
+          key={row.id}
+          aria-label={`Debug line ${row.id}, ${row.isMalformed ? "malformed" : "parsed"}`}
+          {...rowActivation<HTMLTableRowElement>(() => onSelect(row))}
+        >
+          {shownColumns.map((c) => (
+            <TableCell key={c.key} className={cn(c.grow && "max-w-0 truncate")}>
+              {c.render(row)}
+              {c.key === "ipAddress" && row.ipAddress && (
+                <span {...stopRowActivation}>
+                  <IpBanControls ip={row.ipAddress}>
+                    <InspectIpButton ip={row.ipAddress} />
+                  </IpBanControls>
+                </span>
+              )}
+            </TableCell>
+          ))}
+        </TableRow>
+      )}
+    </VirtualTableBody>
+  )
+})
+
 export function DebugLogsTable() {
+  const { range, customRange } = useTimeRange()
   const isMobile = useIsMobile()
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(20)
 
   // Filters (raw input; text inputs are debounced before hitting the query).
-  const initial = useSearch({ from: "/debug-logs" })
+  const initial = useSearch({
+    from: "/debug-logs",
+    select: ({ ip, malformed }) => ({ ip, malformed }),
+    structuralSharing: true,
+  })
   const [searchInput, setSearchInput] = useState("")
   const [ipInput, setIpInput] = useState(initial.ip ?? "")
   const [cities, setCities] = useState<string[]>([])
@@ -452,7 +501,7 @@ export function DebugLogsTable() {
           />
         }
       >
-        <Table>
+        <VirtualTable columns={shownColumns} rowCount={rows.length} resetKey={JSON.stringify([page, pageSize, sortField, sortOrder, search, ip, cities, countries, malformedFilter, range, customRange])}>
           <TableHeader>
             <TableRow>
               {shownColumns.map((c) => {
@@ -487,29 +536,8 @@ export function DebugLogsTable() {
               })}
             </TableRow>
           </TableHeader>
-          <TableBody>
-            {rows.map((row) => (
-              <TableRow
-                key={row.id}
-                aria-label={`Debug line ${row.id}, ${row.isMalformed ? "malformed" : "parsed"}`}
-                {...rowActivation<HTMLTableRowElement>(() => setSelected(row))}
-              >
-                {shownColumns.map((c) => (
-                  <TableCell key={c.key}>
-                    {c.render(row)}
-                    {c.key === "ipAddress" && row.ipAddress && (
-                      <span {...stopRowActivation}>
-                        <IpBanControls ip={row.ipAddress}>
-                          <InspectIpButton ip={row.ipAddress} />
-                        </IpBanControls>
-                      </span>
-                    )}
-                  </TableCell>
-                ))}
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+          <DebugLogTableBody rows={rows} shownColumns={shownColumns} onSelect={setSelected} />
+        </VirtualTable>
       </DataTableFrame>
 
       <DebugLogDetailSheet entry={selected} onOpenChange={(open) => !open && setSelected(null)} />

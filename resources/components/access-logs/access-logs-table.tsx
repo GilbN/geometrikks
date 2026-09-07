@@ -6,16 +6,16 @@
  * (search, IP, host, hostname, source format, status, method, country and
  * city live in access-logs-filter-bar.tsx). Pairs with GET /api/v1/access-logs/.
  */
-import { useState } from "react"
+import { memo, useState } from "react"
 import { ArrowDown, ArrowUp, ChevronsUpDown, Columns3 } from "lucide-react"
 import {
-  Table,
-  TableBody,
   TableCell,
   TableHead,
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { VirtualTable, VirtualTableBody } from "@/components/data/virtual-table"
+import { useTimeRange } from "@/lib/time-range-context"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { DataTableFrame } from "@/components/data/data-table-frame"
@@ -69,13 +69,13 @@ function renderCell(column: AccessLogColumn, r: AccessLog): React.ReactNode {
       return <span className="font-mono">{r.method ?? "-"}</span>
     case "url":
       return (
-        <span className="block max-w-[320px] truncate font-mono" title={r.url ?? undefined}>
+        <span className="block truncate font-mono" title={r.url ?? undefined}>
           {r.url ?? "-"}
         </span>
       )
     case "host":
       return (
-        <span className="block max-w-[200px] truncate font-mono" title={r.host ?? undefined}>
+        <span className="block truncate font-mono" title={r.host ?? undefined}>
           {r.host ?? "-"}
         </span>
       )
@@ -91,7 +91,7 @@ function renderCell(column: AccessLogColumn, r: AccessLog): React.ReactNode {
       return <span className="font-mono">{r.httpVersion ?? "-"}</span>
     case "referrer":
       return (
-        <span className="block max-w-[240px] truncate font-mono" title={r.referrer ?? undefined}>
+        <span className="block truncate font-mono" title={r.referrer ?? undefined}>
           {r.referrer ?? "-"}
         </span>
       )
@@ -101,7 +101,7 @@ function renderCell(column: AccessLogColumn, r: AccessLog): React.ReactNode {
       return <span className="font-mono">{r.logFormat ?? "-"}</span>
     case "userAgent":
       return (
-        <span className="block max-w-[280px] truncate font-mono" title={r.userAgent ?? undefined}>
+        <span className="block truncate font-mono" title={r.userAgent ?? undefined}>
           {r.userAgent ?? "-"}
         </span>
       )
@@ -127,12 +127,49 @@ function renderCell(column: AccessLogColumn, r: AccessLog): React.ReactNode {
       )
     case "asnOrganization":
       return (
-        <span className="block max-w-[220px] truncate" title={r.autonomousSystemOrganization ?? undefined}>
+        <span className="block truncate" title={r.autonomousSystemOrganization ?? undefined}>
           {r.autonomousSystemOrganization ?? "-"}
         </span>
       )
   }
 }
+
+const getRowKey = (row: AccessLog) => row.id
+
+const AccessLogTableBody = memo(function AccessLogTableBody({
+  rows,
+  shownColumns,
+  onSelect,
+}: {
+  rows: AccessLog[]
+  shownColumns: AccessLogColumn[]
+  onSelect: (row: AccessLog) => void
+}) {
+  return (
+    <VirtualTableBody rows={rows} columnCount={shownColumns.length} getRowKey={getRowKey}>
+      {(row) => (
+        <TableRow
+          key={row.id}
+          aria-label={`Request ${row.id}, ${row.method ?? ""} ${row.url ?? ""}, HTTP ${row.statusCode}`}
+          {...rowActivation<HTMLTableRowElement>(() => onSelect(row))}
+        >
+          {shownColumns.map((c) => (
+            <TableCell key={c.key} className={cn(c.grow && "max-w-0 truncate", c.align === "right" && "text-right")}>
+              {renderCell(c, row)}
+              {c.key === "ipAddress" && (
+                <span {...stopRowActivation}>
+                  <IpBanControls ip={row.ipAddress}>
+                    <InspectIpButton ip={row.ipAddress} className="ml-1" />
+                  </IpBanControls>
+                </span>
+              )}
+            </TableCell>
+          ))}
+        </TableRow>
+      )}
+    </VirtualTableBody>
+  )
+})
 
 interface AccessLogsTableProps {
   page: number
@@ -154,6 +191,7 @@ export function AccessLogsTable({
   onSortChange,
 }: AccessLogsTableProps) {
   const { filters } = useAccessLogFilters()
+  const { range, customRange } = useTimeRange()
   useCrowdsecLiveUpdates()
   const [selected, setSelected] = useState<AccessLog | null>(null)
 
@@ -244,7 +282,7 @@ export function AccessLogsTable({
           />
         }
       >
-        <Table>
+        <VirtualTable columns={shownColumns} rowCount={rows.length} resetKey={JSON.stringify([page, pageSize, sortField, sortOrder, filters, range, customRange])}>
           <TableHeader>
             <TableRow>
               {shownColumns.map((c) => {
@@ -280,29 +318,8 @@ export function AccessLogsTable({
               })}
             </TableRow>
           </TableHeader>
-          <TableBody>
-            {rows.map((row) => (
-              <TableRow
-                key={row.id}
-                aria-label={`Request ${row.id}, ${row.method ?? ""} ${row.url ?? ""}, HTTP ${row.statusCode}`}
-                {...rowActivation<HTMLTableRowElement>(() => setSelected(row))}
-              >
-                {shownColumns.map((c) => (
-                  <TableCell key={c.key} className={cn(c.align === "right" && "text-right")}>
-                    {renderCell(c, row)}
-                    {c.key === "ipAddress" && (
-                      <span {...stopRowActivation}>
-                        <IpBanControls ip={row.ipAddress}>
-                          <InspectIpButton ip={row.ipAddress} className="ml-1" />
-                        </IpBanControls>
-                      </span>
-                    )}
-                  </TableCell>
-                ))}
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+          <AccessLogTableBody rows={rows} shownColumns={shownColumns} onSelect={setSelected} />
+        </VirtualTable>
       </DataTableFrame>
 
       <AccessLogDetailSheet entry={selected} onOpenChange={(open) => !open && setSelected(null)} />

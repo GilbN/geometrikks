@@ -5,16 +5,17 @@
  * arrives here as props; the filter set comes from GeoLogFiltersContext like
  * everything else on the page. Selecting a row opens GeoLogDetailSheet.
  */
-import { useState } from "react"
+import { memo, useState } from "react"
 import { ArrowDown, ArrowUp, ChevronsUpDown, Columns3 } from "lucide-react"
 import {
-  Table,
-  TableBody,
   TableCell,
   TableHead,
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { VirtualTable, VirtualTableBody } from "@/components/data/virtual-table"
+import { useTimeRange } from "@/lib/time-range-context"
+import { useGeoLogFilters } from "@/lib/geo-log-filters-context"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -70,12 +71,49 @@ function renderCell(column: GeoLogColumn, r: GeoLogEntry): React.ReactNode {
       )
     case "hostnames":
       return (
-        <span className="block max-w-[240px] truncate font-mono" title={r.hostnames.join(", ") || undefined}>
+        <span className="block truncate font-mono" title={r.hostnames.join(", ") || undefined}>
           {r.hostnames.length ? r.hostnames.join(", ") : "-"}
         </span>
       )
   }
 }
+
+const getRowKey = (row: GeoLogEntry) => `${row.locationId}-${row.ipAddress}`
+
+const GeoLogTableBody = memo(function GeoLogTableBody({
+  rows,
+  shownColumns,
+  onSelect,
+}: {
+  rows: GeoLogEntry[]
+  shownColumns: GeoLogColumn[]
+  onSelect: (row: GeoLogEntry) => void
+}) {
+  return (
+    <VirtualTableBody rows={rows} columnCount={shownColumns.length} getRowKey={getRowKey}>
+      {(row) => (
+        <TableRow
+          key={`${row.locationId}-${row.ipAddress}`}
+          aria-label={`${row.city ?? row.countryName}, ${row.ipAddress}, ${formatNumber(row.eventCount)} events`}
+          {...rowActivation<HTMLTableRowElement>(() => onSelect(row))}
+        >
+          {shownColumns.map((c) => (
+            <TableCell key={c.key} className={cn(c.grow && "max-w-0 truncate", c.align === "right" && "text-right")}>
+              {renderCell(c, row)}
+              {c.key === "ipAddress" && (
+                <span {...stopRowActivation}>
+                  <IpBanControls ip={row.ipAddress}>
+                    <InspectIpButton ip={row.ipAddress} className="ml-1" />
+                  </IpBanControls>
+                </span>
+              )}
+            </TableCell>
+          ))}
+        </TableRow>
+      )}
+    </VirtualTableBody>
+  )
+})
 
 export function GeoLogsTable({
   page,
@@ -95,6 +133,8 @@ export function GeoLogsTable({
   onSortChange: (sortField: GeoLogSortField, sortOrder: GeoLogSortOrder) => void
 }) {
   const [selected, setSelected] = useState<GeoLogEntry | null>(null)
+  const { range, customRange } = useTimeRange()
+  const { filters } = useGeoLogFilters()
   const { visible, shownColumns, toggleColumn, resetColumns, hasOverrides } =
     useColumnVisibility("geometrikks-columns-geo-logs", GEO_LOG_COLUMNS)
 
@@ -170,7 +210,7 @@ export function GeoLogsTable({
           />
         }
       >
-        <Table>
+        <VirtualTable columns={shownColumns} rowCount={rows.length} resetKey={JSON.stringify([page, pageSize, sortField, sortOrder, filters, range, customRange])}>
           <TableHeader>
             <TableRow>
               {shownColumns.map((c) => {
@@ -206,29 +246,8 @@ export function GeoLogsTable({
               })}
             </TableRow>
           </TableHeader>
-          <TableBody>
-            {rows.map((row) => (
-              <TableRow
-                key={`${row.locationId}-${row.ipAddress}`}
-                aria-label={`${row.city ?? row.countryName}, ${row.ipAddress}, ${formatNumber(row.eventCount)} events`}
-                {...rowActivation<HTMLTableRowElement>(() => setSelected(row))}
-              >
-                {shownColumns.map((c) => (
-                  <TableCell key={c.key} className={cn(c.align === "right" && "text-right")}>
-                    {renderCell(c, row)}
-                    {c.key === "ipAddress" && (
-                      <span {...stopRowActivation}>
-                        <IpBanControls ip={row.ipAddress}>
-                          <InspectIpButton ip={row.ipAddress} className="ml-1" />
-                        </IpBanControls>
-                      </span>
-                    )}
-                  </TableCell>
-                ))}
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+          <GeoLogTableBody rows={rows} shownColumns={shownColumns} onSelect={setSelected} />
+        </VirtualTable>
       </DataTableFrame>
 
       <GeoLogDetailSheet entry={selected} onOpenChange={(open) => !open && setSelected(null)} />

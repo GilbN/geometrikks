@@ -124,29 +124,42 @@ async def refresh_all_caggs_job(
     Args:
         session_factory: SQLAlchemy async session factory.
     """
+    failed: list[str] = []
     for cagg_name in ALL_CAGGS:
         try:
             await _execute_call_outside_transaction(
                 session_factory,
                 f"CALL refresh_continuous_aggregate('{cagg_name}', NULL, NULL)",
             )
-            logger.info("Refreshed %s", cagg_name)
-        except Exception as e:
-            logger.warning("Failed to refresh %s: %s", cagg_name, e)
+            logger.info("cagg_refreshed", cagg_name=cagg_name)
+        except Exception as exc:
+            logger.warning(
+                "cagg_refresh_failed", cagg_name=cagg_name, error=str(exc)
+            )
+            failed.append(cagg_name)
 
-    logger.info("All CAGGs refresh complete")
+    if failed:
+        raise RuntimeError(
+            f"{len(failed)} of {len(ALL_CAGGS)} aggregates failed to refresh: "
+            + ", ".join(failed)
+        )
+    logger.info("all_caggs_refresh_complete", count=len(ALL_CAGGS))
 
 
 async def refresh_site_home_job(
-    session_factory: "Callable[[], AsyncSession]", settings: "Settings"
+    session_factory: "Callable[[], AsyncSession]",
+    settings: "Settings",
+    app: "Litestar | None" = None,
 ) -> None:
     """Re-detect this process's home and refresh its site_homes rows.
 
     Homelab IPs change; agents run for weeks. A UI head tails nothing and
     records no events under its own hostname, so it has nothing to write.
+    A successful detection updates this process's map state and clears its
+    undetected-home advisory. Database writes remain ingestion-only.
     """
-    if not settings.logparser.enabled:
-        return
+    from geometrikks.lib.advisories import MAP_HOME_UNDETECTED
+    from geometrikks.server import runtime
     from geometrikks.services.geoip.home import resolve_home_location
     from geometrikks.services.geoip.site_homes import upsert_auto_homes
 
@@ -155,7 +168,13 @@ async def refresh_site_home_job(
         settings.geoip,
         geoip_available=settings.geoip.db_path.exists(),
     )
-    await upsert_auto_homes(session_factory, settings.logparser.resolved_hostnames(), home)
+    if app is not None and home is not None:
+        app.state.map_home_location = home
+        runtime.get_advisories(app).clear(MAP_HOME_UNDETECTED.id)
+    if settings.logparser.enabled:
+        await upsert_auto_homes(
+            session_factory, settings.logparser.resolved_hostnames(), home
+        )
 
 
 async def proxy_scan_job(
@@ -191,24 +210,24 @@ async def refresh_geoip_job(settings: "Settings", app: "Litestar | None") -> Non
     # Module lookup, not a captured reference: tests monkeypatch this.
     # force: a run of this job (scheduled or the Settings Run button) means
     # "fetch a fresh copy now"; the staleness gate stays for startup only.
-    await downloader.refresh_geoip_databases(settings.geoip, force=True)
+    result = await downloader.refresh_geoip_databases(settings.geoip, force=True)
 
-    if app is None:
-        return
+    if app is not None:
+        from geometrikks.lib.utils import geoip_info
+        from geometrikks.server import runtime
 
-    from geometrikks.lib.utils import geoip_info
-    from geometrikks.server import runtime
+        # /health and the settings overlay read these; a successful download after
+        # a degraded start must flip them without a restart.
+        app.state.geoip_available = geoip_info(settings.geoip.db_path).available
+        if settings.geoip.asn_enabled:
+            app.state.asn_available = geoip_info(settings.geoip.asn_db_path).available
 
-    # /health and the settings overlay read these; a successful download after
-    # a degraded start must flip them without a restart.
-    app.state.geoip_available = geoip_info(settings.geoip.db_path).available
-    if settings.geoip.asn_enabled:
-        app.state.asn_available = geoip_info(settings.geoip.asn_db_path).available
+        service = runtime.get_ingestion_service(app)
+        if service is not None and service.readers_stale():
+            await service.reload_readers()
 
-    service = runtime.get_ingestion_service(app)
-    if service is None or not service.readers_stale():
-        return
-    await service.reload_readers()
+    if result.errors:
+        raise RuntimeError("GeoLite2 refresh failed: " + "; ".join(result.errors))
 
 
 async def create_scheduler(
@@ -300,17 +319,18 @@ async def create_scheduler(
     )
     logger.info("Scheduled GeoLite2 refresh every %d day(s)", settings.geoip.refresh_days)
 
-    # Registered only when this process ingests (both modes qualify for
-    # agents; a UI head does not): the jobs list is user-visible on the
-    # Settings page, so a permanently no-op job must not appear there. The
-    # job keeps its own parser-enabled guard as cheap defense.
-    if settings.logparser.enabled:
+    # A composed UI head needs this job only when automatic detection can
+    # refresh its process-local map home. Ingesting instances also persist the
+    # result to site_homes.
+    if settings.logparser.enabled or (
+        app is not None and settings.map.auto_detect_home
+    ):
         scheduler.add_job(
             refresh_site_home_job,
             IntervalTrigger(hours=settings.map.home_refresh_hours),
             id="site-home-refresh",
             name="Re-detect this instance's site home location",
-            args=[session_factory, settings],
+            args=[session_factory, settings, app],
             replace_existing=True,
         )
         logger.info(

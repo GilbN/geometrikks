@@ -92,6 +92,9 @@ class FakeConnection:
         for cb in list(self._listeners):
             cb(self)
 
+    def is_closed(self) -> bool:
+        return self.close_called
+
     async def close(self) -> None:
         self.close_called = True
         self._call_termination_listeners()
@@ -539,3 +542,273 @@ async def test_stale_unsubscribe_after_winning_subscribe_keeps_listening() -> No
 
     assert "live_events" in conn._listened_channels
     assert "live_events" in backend._subscribed_channels
+
+
+@pytest.fixture(autouse=True)
+async def shutdown_backends(monkeypatch):
+    backends = []
+    original_init = DegradedTolerantAsyncPgBackend.__init__
+
+    def tracked_init(self, *args, **kwargs):
+        original_init(self, *args, **kwargs)
+        backends.append(self)
+
+    monkeypatch.setattr(DegradedTolerantAsyncPgBackend, "__init__", tracked_init)
+    yield
+    for backend in backends:
+        await backend.on_shutdown()
+
+
+async def test_state_reflects_degraded_and_reconnecting() -> None:
+    conn = FakeConnection()
+
+    async def connect():
+        return conn
+
+    backend = DegradedTolerantAsyncPgBackend(make_connection=connect)
+    await backend.on_startup()
+    assert backend.state == "ok"
+    conn._call_termination_listeners()
+    assert backend.state == "reconnecting"
+
+
+async def test_degraded_state_and_recover_relistens_tracked_channels() -> None:
+    conn = FakeConnection()
+    calls = 0
+
+    async def connect():
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            raise OSError("connection refused")
+        return conn
+
+    backend = DegradedTolerantAsyncPgBackend(make_connection=connect)
+    await backend.on_startup()
+    assert backend.state == "degraded"
+    await backend.subscribe(["live_events"])
+    queue = backend._queue
+    stream = backend.stream_events()
+    waiter = asyncio.create_task(anext(stream))
+    try:
+        await asyncio.sleep(0)
+        await backend.recover()
+        assert backend.state == "ok"
+        assert conn._listened_channels == {"live_events"}
+        assert backend._on_listener_terminated in conn._listeners
+        assert backend._queue is queue
+        backend._listener(conn, 1, "live_events", "{}")
+        assert await asyncio.wait_for(waiter, 1) == ("live_events", b"{}")
+    finally:
+        waiter.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await waiter
+        await stream.aclose()
+
+
+async def test_recover_failure_keeps_backend_degraded() -> None:
+    async def connect():
+        raise OSError("connection refused")
+
+    backend = DegradedTolerantAsyncPgBackend(make_connection=connect)
+    await backend.on_startup()
+    with pytest.raises(OSError, match="connection refused"):
+        await backend.recover()
+    assert backend.state == "degraded"
+    assert backend._reconnect_task is not None
+    assert not backend._reconnect_task.done()
+
+
+async def test_recover_is_a_no_op_when_not_degraded() -> None:
+    conn = FakeConnection()
+    calls = 0
+
+    async def connect():
+        nonlocal calls
+        calls += 1
+        return conn
+
+    backend = DegradedTolerantAsyncPgBackend(make_connection=connect)
+    await backend.on_startup()
+    await backend.recover()
+    assert backend._listener_conn is conn
+    assert calls == 1
+
+
+@pytest.mark.parametrize("explicit_failure", [False, True])
+async def test_backend_retries_without_database_recovery(explicit_failure, monkeypatch) -> None:
+    conn = FakeConnection()
+    attempts = 0
+    retry_waiting = asyncio.Event()
+    retry_allowed = asyncio.Event()
+
+    async def gated_sleep(delay):
+        retry_waiting.set()
+        await retry_allowed.wait()
+
+    async def connect():
+        nonlocal attempts
+        attempts += 1
+        if attempts <= (2 if explicit_failure else 1):
+            raise OSError("connection refused")
+        return conn
+
+    monkeypatch.setattr(asyncio, "sleep", gated_sleep)
+    backend = DegradedTolerantAsyncPgBackend(make_connection=connect)
+    await backend.on_startup()
+    await backend.subscribe(["live_events"])
+    assert backend._reconnect_task is not None
+    await asyncio.wait_for(retry_waiting.wait(), 1)
+    if explicit_failure:
+        with pytest.raises(OSError):
+            await backend.recover()
+    retry_allowed.set()
+    await asyncio.wait_for(backend._reconnect_task, 1)
+    assert backend.state == "ok"
+    assert conn._listened_channels == {"live_events"}
+
+
+class GatedListenerConnection(FakeConnection):
+    def __init__(self):
+        super().__init__()
+        self.registering = asyncio.Event()
+        self.release = asyncio.Event()
+        self.registrations = []
+
+    async def add_listener(self, channel, callback):
+        self.registrations.append(channel)
+        self.registering.set()
+        await self.release.wait()
+        await super().add_listener(channel, callback)
+
+
+async def degraded_with_candidate(candidate):
+    attempts = 0
+
+    async def connect():
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            raise OSError("connection refused")
+        return candidate
+
+    backend = DegradedTolerantAsyncPgBackend(make_connection=connect)
+    await backend.on_startup()
+    await backend.subscribe(["existing"])
+    return backend
+
+
+async def test_concurrent_recover_and_subscribe_install_once() -> None:
+    conn = GatedListenerConnection()
+    backend = await degraded_with_candidate(conn)
+    recover = asyncio.create_task(backend.recover())
+    await asyncio.wait_for(conn.registering.wait(), 1)
+    second_recover = asyncio.create_task(backend.recover())
+    subscribe = asyncio.create_task(backend.subscribe(["late"]))
+    await asyncio.sleep(0)
+    assert not subscribe.done()
+    conn.release.set()
+    await asyncio.wait_for(asyncio.gather(recover, second_recover, subscribe), 1)
+    assert backend.state == "ok"
+    assert conn._listened_channels == {"existing", "late"}
+    assert conn.registrations == ["existing", "late"]
+    assert not conn.close_called
+
+
+@pytest.mark.parametrize("shutdown", [False, True])
+async def test_recover_cancellation_closes_unpublished_candidate(shutdown) -> None:
+    conn = GatedListenerConnection()
+    backend = await degraded_with_candidate(conn)
+    recover = asyncio.create_task(backend.recover())
+    await asyncio.wait_for(conn.registering.wait(), 1)
+    if shutdown:
+        await asyncio.wait_for(backend.on_shutdown(), 1)
+    else:
+        recover.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await recover
+    assert conn.close_called
+    assert not conn._listeners
+    assert getattr(backend, "_listener_conn", None) is not conn
+    assert backend.state == "degraded"
+    if shutdown:
+        assert backend._reconnect_task is None
+        with pytest.raises(RuntimeError, match="shutting down"):
+            await backend.recover()
+
+
+async def test_shutdown_cancels_retry_during_listener_registration(monkeypatch) -> None:
+    conn = GatedListenerConnection()
+    backend = await degraded_with_candidate(conn)
+    monkeypatch.setattr(backend, "_RECONNECT_INITIAL_DELAY", 0)
+    assert backend._reconnect_task is not None
+    retry = backend._reconnect_task
+    await asyncio.wait_for(conn.registering.wait(), 1)
+    await asyncio.wait_for(backend.on_shutdown(), 1)
+    assert retry.cancelled()
+    assert conn.close_called
+    assert not conn._listeners
+    assert getattr(backend, "_listener_conn", None) is not conn
+
+
+async def test_channels_backend_app_state_wiring() -> None:
+    from litestar import Litestar
+    from geometrikks.config.settings import Settings
+    from geometrikks.server.lifecycle import LifecyclePlugin
+    from geometrikks.server.plugins import create_channels_plugin
+    from geometrikks.server.runtime import get_channels_backend
+
+    backend = DegradedTolerantAsyncPgBackend(make_connection=lambda: None)
+    channels = create_channels_plugin(Settings(), backend)
+    app = Litestar(plugins=[channels, LifecyclePlugin(channels_backend=backend)])
+    assert get_channels_backend(app) is backend
+    assert channels._backend is backend
+    assert get_channels_backend(Litestar()) is None
+
+
+async def test_shutdown_awaits_cleanup_already_started_by_cancellation() -> None:
+    class SlowCloseConnection(GatedListenerConnection):
+        def __init__(self):
+            super().__init__()
+            self.closing = asyncio.Event()
+            self.close_allowed = asyncio.Event()
+
+        async def close(self):
+            self.closing.set()
+            await self.close_allowed.wait()
+            await super().close()
+
+    conn = SlowCloseConnection()
+    backend = await degraded_with_candidate(conn)
+    recover = asyncio.create_task(backend.recover())
+    await asyncio.wait_for(conn.registering.wait(), 1)
+    recover.cancel()
+    await asyncio.wait_for(conn.closing.wait(), 1)
+    shutdown = asyncio.create_task(backend.on_shutdown())
+    await asyncio.sleep(0)
+    await asyncio.sleep(0)
+    conn.close_allowed.set()
+    await asyncio.wait_for(shutdown, 1)
+    with pytest.raises(asyncio.CancelledError):
+        await recover
+    assert conn.close_called
+    assert backend._reconnect_task is None
+
+
+async def test_recover_rejects_candidate_that_dies_during_registration() -> None:
+    class DyingConnection(FakeConnection):
+        async def add_listener(self, channel, callback):
+            await super().add_listener(channel, callback)
+            self._call_termination_listeners()
+
+        def is_closed(self):
+            return True
+
+    conn = DyingConnection()
+    backend = await degraded_with_candidate(conn)
+    with pytest.raises(OSError, match="closed during registration"):
+        await backend.recover()
+    assert backend.state == "degraded"
+    assert conn.close_called
+    assert not conn._listeners
+    assert getattr(backend, "_listener_conn", None) is not conn

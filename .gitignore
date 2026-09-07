@@ -177,7 +177,6 @@ venv.bak/
 .ropeproject
 
 # mkdocs documentation
-/site
 
 # mypy
 .mypy_cache/
@@ -395,3 +394,10 @@ openapi-ts-error-*.log
 
 # dev/inject-logs.sh stop signal
 dev/inject-logs.stop
+
+# geometrikks.dev site: generated at build time by site/scripts/sync-content.mjs
+site/src/content/docs/
+site/src/assets/screenshots/
+site/public/fonts/
+site/.astro/
+site/src/data/meta.json

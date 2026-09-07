@@ -53,7 +53,12 @@ interface BatchFrame {
   dropped: number
 }
 
-export type LiveFeedStatus = "connecting" | "connected" | "disconnected"
+export type LiveFeedStatus = "connecting" | "connected" | "disconnected" | "unavailable"
+
+/** RFC 6455 "try again later": the server accepted the socket and closed it
+ * because the service behind it is paused. */
+export const CLOSE_TRY_AGAIN_LATER = 1013
+const MAX_BACKOFF_MS = 30_000
 
 type EventsListener = (events: LiveEvent[], dropped: number) => void
 type StatusListener = (status: LiveFeedStatus) => void
@@ -66,6 +71,7 @@ export class LiveFeedClient {
   private backoffMs = 1000
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null
   private shouldRun = false
+  private paused = false
 
   private url(): string {
     const proto = window.location.protocol === "https:" ? "wss:" : "ws:"
@@ -98,11 +104,12 @@ export class LiveFeedClient {
     if (this.reconnectTimer) clearTimeout(this.reconnectTimer)
     this.ws?.close()
     this.ws = null
+    this.paused = false
     this.setStatus("disconnected")
   }
 
   private open(): void {
-    this.setStatus("connecting")
+    if (!this.paused) this.setStatus("connecting")
     // Every callback checks `this.ws === ws` so a superseded socket (closed
     // by disconnect() while its close handshake was still in flight) can
     // neither deliver frames nor schedule a reconnect. Without the guard, a
@@ -111,7 +118,7 @@ export class LiveFeedClient {
     const ws = new WebSocket(this.url())
     this.ws = ws
     ws.onopen = () => {
-      if (this.ws === ws) this.setStatus("connected")
+      if (this.ws === ws && !this.paused) this.setStatus("connected")
     }
     ws.onmessage = (msg) => {
       if (this.ws !== ws) return
@@ -127,18 +134,24 @@ export class LiveFeedClient {
       }
       if (frame.type === "batch") {
         // Reset backoff only on a valid frame, not onopen: the server accepts
-        // and immediately closes 1013 while ingestion is down, so an onopen
+        // and immediately closes 1013 while streaming is paused, so an onopen
         // reset would pin the reconnect loop at the 1s floor.
         this.backoffMs = 1000
+        if (this.paused) {
+          this.paused = false
+          this.setStatus("connected")
+        }
         this.eventsListeners.forEach((cb) => cb(frame.events, frame.dropped))
       }
     }
-    ws.onclose = () => {
+    ws.onclose = (event) => {
       if (this.ws !== ws) return
-      this.setStatus("disconnected")
+      this.paused = event.code === CLOSE_TRY_AGAIN_LATER
+      this.setStatus(this.paused ? "unavailable" : "disconnected")
       if (this.shouldRun) {
+        if (this.paused) this.backoffMs = MAX_BACKOFF_MS
         this.reconnectTimer = setTimeout(() => this.open(), this.backoffMs)
-        this.backoffMs = Math.min(this.backoffMs * 2, 30000)
+        this.backoffMs = Math.min(this.backoffMs * 2, MAX_BACKOFF_MS)
       }
     }
     ws.onerror = () => ws.close()

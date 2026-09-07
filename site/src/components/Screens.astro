@@ -1,0 +1,151 @@
+---
+// One screenshot at a time behind a tab strip. All panels render; the script
+// only toggles hidden and starts or stops the map clip. Screenshots come from
+// data/screenshots via sync-content; the clip lives in public/media.
+import { Image } from "astro:assets";
+import type { ImageMetadata } from "astro";
+
+const shots = import.meta.glob<{ default: ImageMetadata }>("../assets/screenshots/*.png", { eager: true });
+const shot = (name: string) => {
+  const hit = shots[`../assets/screenshots/${name}`];
+  if (!hit) throw new Error(`Missing screenshot ${name}; run sync-content`);
+  return hit.default;
+};
+
+const screens = [
+  { id: "map", label: "Map", img: "live.png", video: "/media/map", cap: "Live map. Show requests as markers, clusters or a heatmap on a flat map or globe. Live routes end at the server location you configure.", alt: "The live map with markers across Europe, a live request feed and the configured server location in Norway" },
+  { id: "overview", label: "Overview", img: "dashboard.png", cap: "Overview. Requests, visitors, bandwidth and errors for the chosen time period, compared with the previous period.", alt: "Overview dashboard with summary cards and trend charts" },
+  { id: "analytics", label: "Analytics", img: "analytics.png", cap: "Analytics. Request volume, response codes, latency percentiles, bandwidth, top URLs by host, user agents and ASNs.", alt: "Analytics page with request, status, bandwidth and latency charts" },
+  { id: "access-logs", label: "Access logs", img: "access-logs.png", cap: "Access logs. Search every request and filter by status, method, IP, host, country or source.", alt: "Access logs table with filters and a selected request" },
+  { id: "geo-logs", label: "Geo logs", img: "geo-logs.png", cap: "Geo logs. Traffic grouped by place: which locations send requests and how that changes over time.", alt: "Geo logs table grouped by country and city" },
+  { id: "ip-inspector", label: "IP inspector", img: "ip-inspector.png", cap: "IP inspector. Select an address to see request counts, bandwidth, response codes over time, hosts, paths, user agents, recent requests and CrowdSec status. You can ban it here too.", alt: "IP inspector open over the map for a banned address, with request counts, targets, paths, user agents and recent requests" },
+  { id: "security", label: "Security", img: "crowdsec.png", cap: "Security. CrowdSec bans shown with matching requests from your logs.", alt: "Security page listing active CrowdSec bans" },
+  { id: "debug-logs", label: "Debug logs", img: "debug-logs.png", cap: "Debug logs. The raw source lines behind every request, with parse failures called out.", alt: "Debug logs page showing raw log lines and parse failures" },
+];
+---
+
+<section class="screens" id="screens">
+  <div class="wrap">
+    <p class="kicker">Inside GeoMetrikks</p>
+    <h2 class="section-title">The logs must flow.</h2>
+    <div class="tabs" role="tablist" aria-label="GeoMetrikks interface">
+      {
+        screens.map((s, i) => (
+          <button
+            role="tab"
+            id={`tab-screen-${s.id}`}
+            aria-selected={i === 0 ? "true" : "false"}
+            aria-controls={`panel-screen-${s.id}`}
+            tabindex={i === 0 ? 0 : -1}
+          >
+            {s.label}
+          </button>
+        ))
+      }
+    </div>
+    {
+      screens.map((s, i) => (
+        <div class="panel" role="tabpanel" id={`panel-screen-${s.id}`} aria-labelledby={`tab-screen-${s.id}`} hidden={i !== 0}>
+          <div class="frame">
+            <div class="bar">
+              <i />
+              <i />
+              <i />
+              <span>geometrikks.home.lan/{s.id === "map" || s.id === "ip-inspector" ? "map" : s.id}</span>
+            </div>
+            {s.video ? (
+              <video
+                muted
+                loop
+                playsinline
+                preload="metadata"
+                poster={`${s.video}-poster.jpg`}
+                width={1912}
+                height={1034}
+                aria-label={s.alt}
+              >
+                <source src={`${s.video}.webm`} type="video/webm" />
+                <source src={`${s.video}.mp4`} type="video/mp4" />
+              </video>
+            ) : (
+              <Image
+                src={shot(s.img)}
+                widths={[720, 1200, 1912]}
+                sizes="(max-width: 1200px) 100vw, 1152px"
+                format="webp"
+                alt={s.alt}
+                loading={i === 0 ? "eager" : "lazy"}
+              />
+            )}
+          </div>
+          <p class="cap">{s.cap}</p>
+        </div>
+      ))
+    }
+  </div>
+</section>
+
+<style>
+  .screens {
+    border-top: 1px solid var(--line);
+    background: linear-gradient(var(--bg), var(--bg-deep));
+  }
+  .frame {
+    border-radius: 12px;
+    border: 1px solid var(--line-strong);
+    background: var(--bg-deep);
+    overflow: hidden;
+    box-shadow:
+      0 30px 80px oklch(0 0 0 / 45%),
+      0 0 0 1px oklch(0 0 0 / 30%);
+  }
+  .bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    height: 36px;
+    padding: 0 14px;
+    border-bottom: 1px solid var(--line);
+    background: oklch(0.15 0.026 245);
+  }
+  .bar i {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--fg-faint);
+    opacity: 0.5;
+  }
+  .bar span {
+    margin-left: 10px;
+    font: 12px var(--mono);
+    color: var(--fg-faint);
+  }
+  .frame img,
+  .frame video {
+    display: block;
+    width: 100%;
+    height: auto;
+  }
+  .cap {
+    margin: 16px 4px 0;
+    color: var(--fg-dim);
+    font-size: 15px;
+    max-width: 80ch;
+  }
+</style>
+
+<script>
+  import { wireTabs } from "../scripts/tabs";
+  wireTabs("#screens");
+
+  // The clip plays only while its panel is on screen, and never under
+  // reduced motion, where the poster stands in for it.
+  const video = document.querySelector<HTMLVideoElement>("#screens video");
+  if (video && !matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    const io = new IntersectionObserver(
+      ([e]) => (e.isIntersecting ? video.play().catch(() => {}) : video.pause()),
+      { threshold: 0.25 },
+    );
+    io.observe(video);
+  }
+</script>
