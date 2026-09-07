@@ -14,13 +14,13 @@ import {
   Search,
 } from "lucide-react"
 import {
-  Table,
-  TableBody,
   TableCell,
   TableHead,
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { VirtualTable, VirtualTableBody } from "@/components/data/virtual-table"
+import { useTimeRange } from "@/lib/time-range-context"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -65,6 +65,7 @@ type MalformedFilter = "all" | "malformed" | "wellformed"
 
 interface ColumnDef {
   key: string
+  width?: number
   label: string
   sortField?: AccessLogDebugSortField
   defaultVisible: boolean
@@ -76,6 +77,7 @@ interface ColumnDef {
 const COLUMNS: ColumnDef[] = [
   {
     key: "createdAt",
+    width: 205,
     label: "Captured",
     sortField: "createdAt",
     defaultVisible: true,
@@ -101,6 +103,7 @@ const COLUMNS: ColumnDef[] = [
   },
   {
     key: "parseError",
+    width: 240,
     label: "Parse error",
     sortField: "parseError",
     defaultVisible: true,
@@ -113,6 +116,7 @@ const COLUMNS: ColumnDef[] = [
   },
   {
     key: "rawLine",
+    width: 380,
     label: "Raw line",
     defaultVisible: true,
     render: (r) => (
@@ -145,6 +149,7 @@ const COLUMNS: ColumnDef[] = [
   },
   {
     key: "ipAddress",
+    width: 250,
     label: "IP",
     sortField: "ipAddress",
     defaultVisible: true,
@@ -153,6 +158,7 @@ const COLUMNS: ColumnDef[] = [
   },
   {
     key: "url",
+    width: 340,
     label: "URL",
     defaultVisible: false,
     render: (r) => (
@@ -203,6 +209,7 @@ const COLUMNS: ColumnDef[] = [
   },
   {
     key: "userAgent",
+    width: 300,
     label: "User agent",
     defaultVisible: false,
     render: (r) => (
@@ -212,6 +219,8 @@ const COLUMNS: ColumnDef[] = [
     ),
   },
 ]
+
+const getRowKey = (row: AccessLogDebugEntry) => row.id
 
 const DebugLogTableBody = memo(function DebugLogTableBody({
   rows,
@@ -223,15 +232,15 @@ const DebugLogTableBody = memo(function DebugLogTableBody({
   onSelect: (row: AccessLogDebugEntry) => void
 }) {
   return (
-    <TableBody>
-      {rows.map((row) => (
+    <VirtualTableBody rows={rows} columnCount={shownColumns.length} getRowKey={getRowKey}>
+      {(row) => (
         <TableRow
           key={row.id}
           aria-label={`Debug line ${row.id}, ${row.isMalformed ? "malformed" : "parsed"}`}
           {...rowActivation<HTMLTableRowElement>(() => onSelect(row))}
         >
           {shownColumns.map((c) => (
-            <TableCell key={c.key}>
+            <TableCell key={c.key} className={cn(c.key === "ipAddress" && "whitespace-normal break-all")}>
               {c.render(row)}
               {c.key === "ipAddress" && row.ipAddress && (
                 <span {...stopRowActivation}>
@@ -243,12 +252,13 @@ const DebugLogTableBody = memo(function DebugLogTableBody({
             </TableCell>
           ))}
         </TableRow>
-      ))}
-    </TableBody>
+      )}
+    </VirtualTableBody>
   )
 })
 
 export function DebugLogsTable() {
+  const { range, customRange } = useTimeRange()
   const isMobile = useIsMobile()
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(20)
@@ -491,7 +501,7 @@ export function DebugLogsTable() {
           />
         }
       >
-        <Table>
+        <VirtualTable columns={shownColumns} rowCount={rows.length} resetKey={JSON.stringify([page, pageSize, sortField, sortOrder, search, ip, cities, countries, malformedFilter, range, customRange])}>
           <TableHeader>
             <TableRow>
               {shownColumns.map((c) => {
@@ -527,7 +537,7 @@ export function DebugLogsTable() {
             </TableRow>
           </TableHeader>
           <DebugLogTableBody rows={rows} shownColumns={shownColumns} onSelect={setSelected} />
-        </Table>
+        </VirtualTable>
       </DataTableFrame>
 
       <DebugLogDetailSheet entry={selected} onOpenChange={(open) => !open && setSelected(null)} />

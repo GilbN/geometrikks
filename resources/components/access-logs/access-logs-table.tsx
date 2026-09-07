@@ -9,13 +9,13 @@
 import { memo, useState } from "react"
 import { ArrowDown, ArrowUp, ChevronsUpDown, Columns3 } from "lucide-react"
 import {
-  Table,
-  TableBody,
   TableCell,
   TableHead,
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { VirtualTable, VirtualTableBody } from "@/components/data/virtual-table"
+import { useTimeRange } from "@/lib/time-range-context"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { DataTableFrame } from "@/components/data/data-table-frame"
@@ -134,6 +134,8 @@ function renderCell(column: AccessLogColumn, r: AccessLog): React.ReactNode {
   }
 }
 
+const getRowKey = (row: AccessLog) => row.id
+
 const AccessLogTableBody = memo(function AccessLogTableBody({
   rows,
   shownColumns,
@@ -144,15 +146,15 @@ const AccessLogTableBody = memo(function AccessLogTableBody({
   onSelect: (row: AccessLog) => void
 }) {
   return (
-    <TableBody>
-      {rows.map((row) => (
+    <VirtualTableBody rows={rows} columnCount={shownColumns.length} getRowKey={getRowKey}>
+      {(row) => (
         <TableRow
           key={row.id}
           aria-label={`Request ${row.id}, ${row.method ?? ""} ${row.url ?? ""}, HTTP ${row.statusCode}`}
           {...rowActivation<HTMLTableRowElement>(() => onSelect(row))}
         >
           {shownColumns.map((c) => (
-            <TableCell key={c.key} className={cn(c.align === "right" && "text-right")}>
+            <TableCell key={c.key} className={cn(c.align === "right" && "text-right", c.key === "ipAddress" && "whitespace-normal break-all")}>
               {renderCell(c, row)}
               {c.key === "ipAddress" && (
                 <span {...stopRowActivation}>
@@ -164,8 +166,8 @@ const AccessLogTableBody = memo(function AccessLogTableBody({
             </TableCell>
           ))}
         </TableRow>
-      ))}
-    </TableBody>
+      )}
+    </VirtualTableBody>
   )
 })
 
@@ -189,6 +191,7 @@ export function AccessLogsTable({
   onSortChange,
 }: AccessLogsTableProps) {
   const { filters } = useAccessLogFilters()
+  const { range, customRange } = useTimeRange()
   useCrowdsecLiveUpdates()
   const [selected, setSelected] = useState<AccessLog | null>(null)
 
@@ -279,7 +282,7 @@ export function AccessLogsTable({
           />
         }
       >
-        <Table>
+        <VirtualTable columns={shownColumns} rowCount={rows.length} resetKey={JSON.stringify([page, pageSize, sortField, sortOrder, filters, range, customRange])}>
           <TableHeader>
             <TableRow>
               {shownColumns.map((c) => {
@@ -316,7 +319,7 @@ export function AccessLogsTable({
             </TableRow>
           </TableHeader>
           <AccessLogTableBody rows={rows} shownColumns={shownColumns} onSelect={setSelected} />
-        </Table>
+        </VirtualTable>
       </DataTableFrame>
 
       <AccessLogDetailSheet entry={selected} onOpenChange={(open) => !open && setSelected(null)} />

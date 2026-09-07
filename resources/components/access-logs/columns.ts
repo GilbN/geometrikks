@@ -31,28 +31,29 @@ export type AccessLogColumnKey =
 export interface AccessLogColumn extends VisibilityColumn {
   key: AccessLogColumnKey
   label: string
+  width: number
   sortField?: AccessLogSortField
   align?: "right"
 }
 
 export const ACCESS_LOG_COLUMNS = [
-  { key: "timestamp", label: "Time", sortField: "timestamp", defaultVisible: true },
-  { key: "statusCode", label: "Status", sortField: "statusCode", defaultVisible: true },
-  { key: "method", label: "Method", sortField: "method", defaultVisible: true },
-  { key: "url", label: "URL", sortField: "url", defaultVisible: true },
-  { key: "host", label: "Host", sortField: "host", defaultVisible: true, mobileHidden: true },
-  { key: "ipAddress", label: "IP", sortField: "ipAddress", defaultVisible: true },
-  { key: "bytesSent", label: "Bytes", sortField: "bytesSent", defaultVisible: true, align: "right", mobileHidden: true },
-  { key: "requestTime", label: "Req time", sortField: "requestTime", defaultVisible: true, align: "right", mobileHidden: true },
-  { key: "remoteUser", label: "Remote user", defaultVisible: false },
-  { key: "httpVersion", label: "HTTP ver", defaultVisible: false },
-  { key: "referrer", label: "Referrer", defaultVisible: true, mobileHidden: true },
-  { key: "hostname", label: "Recorded by", defaultVisible: false, mobileHidden: true },
-  { key: "logFormat", label: "Source format", defaultVisible: false, mobileHidden: true },
-  { key: "userAgent", label: "User agent", defaultVisible: false },
-  { key: "upstreamResponseTime", label: "Upstream res time", defaultVisible: false, align: "right" },
-  { key: "country", label: "Country", defaultVisible: true, mobileHidden: true },
-  { key: "city", label: "City", defaultVisible: true, mobileHidden: true },
-  { key: "asn", label: "ASN", defaultVisible: false, mobileHidden: true },
-  { key: "asnOrganization", label: "AS organization", defaultVisible: false, mobileHidden: true },
+  { key: "timestamp", width: 205, label: "Time", sortField: "timestamp", defaultVisible: true },
+  { key: "statusCode", width: 90, label: "Status", sortField: "statusCode", defaultVisible: true },
+  { key: "method", width: 100, label: "Method", sortField: "method", defaultVisible: true },
+  { key: "url", width: 320, label: "URL", sortField: "url", defaultVisible: true },
+  { key: "host", width: 220, label: "Host", sortField: "host", defaultVisible: true, mobileHidden: true },
+  { key: "ipAddress", width: 250, label: "IP", sortField: "ipAddress", defaultVisible: true },
+  { key: "bytesSent", width: 105, label: "Bytes", sortField: "bytesSent", defaultVisible: true, align: "right", mobileHidden: true },
+  { key: "requestTime", width: 105, label: "Req time", sortField: "requestTime", defaultVisible: true, align: "right", mobileHidden: true },
+  { key: "remoteUser", width: 160, label: "Remote user", defaultVisible: false },
+  { key: "httpVersion", width: 100, label: "HTTP ver", defaultVisible: false },
+  { key: "referrer", width: 280, label: "Referrer", defaultVisible: true, mobileHidden: true },
+  { key: "hostname", width: 180, label: "Recorded by", defaultVisible: false, mobileHidden: true },
+  { key: "logFormat", width: 180, label: "Source format", defaultVisible: false, mobileHidden: true },
+  { key: "userAgent", width: 300, label: "User agent", defaultVisible: false },
+  { key: "upstreamResponseTime", width: 155, label: "Upstream res time", defaultVisible: false, align: "right" },
+  { key: "country", width: 120, label: "Country", defaultVisible: true, mobileHidden: true },
+  { key: "city", width: 160, label: "City", defaultVisible: true, mobileHidden: true },
+  { key: "asn", width: 120, label: "ASN", defaultVisible: false, mobileHidden: true },
+  { key: "asnOrganization", width: 240, label: "AS organization", defaultVisible: false, mobileHidden: true },
 ] satisfies readonly AccessLogColumn[] as readonly AccessLogColumn[]

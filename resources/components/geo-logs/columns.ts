@@ -23,21 +23,22 @@ export type GeoLogColumnKey =
 export interface GeoLogColumn extends VisibilityColumn {
   key: GeoLogColumnKey
   label: string
+  width: number
   /** Present when the column is server-sortable; absent for hostnames. */
   sortField?: GeoLogSortField
   align?: "right"
 }
 
 export const GEO_LOG_COLUMNS = [
-  { key: "city", label: "City", sortField: "city", defaultVisible: true },
-  { key: "postalCode", label: "Postal Code", sortField: "postalCode", defaultVisible: true, mobileHidden: true },
-  { key: "state", label: "State", sortField: "state", defaultVisible: true, mobileHidden: true },
-  { key: "countryCode", label: "Country Code", sortField: "countryCode", defaultVisible: true, mobileHidden: true },
-  { key: "countryName", label: "Country", sortField: "countryName", defaultVisible: true },
-  { key: "ipAddress", label: "IP", sortField: "ipAddress", defaultVisible: true },
-  { key: "latitude", label: "Lat", sortField: "latitude", defaultVisible: true, align: "right", mobileHidden: true },
-  { key: "longitude", label: "Long", sortField: "longitude", defaultVisible: true, align: "right", mobileHidden: true },
-  { key: "eventCount", label: "Count", sortField: "eventCount", defaultVisible: true, align: "right" },
-  { key: "lastSeen", label: "Last seen", sortField: "lastSeen", defaultVisible: true, mobileHidden: true },
-  { key: "hostnames", label: "Hostnames", defaultVisible: false },
+  { key: "city", width: 160, label: "City", sortField: "city", defaultVisible: true },
+  { key: "postalCode", width: 130, label: "Postal Code", sortField: "postalCode", defaultVisible: true, mobileHidden: true },
+  { key: "state", width: 160, label: "State", sortField: "state", defaultVisible: true, mobileHidden: true },
+  { key: "countryCode", width: 140, label: "Country Code", sortField: "countryCode", defaultVisible: true, mobileHidden: true },
+  { key: "countryName", width: 180, label: "Country", sortField: "countryName", defaultVisible: true },
+  { key: "ipAddress", width: 250, label: "IP", sortField: "ipAddress", defaultVisible: true },
+  { key: "latitude", width: 110, label: "Lat", sortField: "latitude", defaultVisible: true, align: "right", mobileHidden: true },
+  { key: "longitude", width: 110, label: "Long", sortField: "longitude", defaultVisible: true, align: "right", mobileHidden: true },
+  { key: "eventCount", width: 115, label: "Count", sortField: "eventCount", defaultVisible: true, align: "right" },
+  { key: "lastSeen", width: 205, label: "Last seen", sortField: "lastSeen", defaultVisible: true, mobileHidden: true },
+  { key: "hostnames", width: 260, label: "Hostnames", defaultVisible: false },
 ] satisfies readonly GeoLogColumn[] as readonly GeoLogColumn[]

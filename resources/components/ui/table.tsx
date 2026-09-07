@@ -7,10 +7,12 @@ import { cn } from "@/lib/utils"
 function Table({
   className,
   containerClassName,
+  containerRef,
   ...props
-}: React.ComponentProps<"table"> & { containerClassName?: string }) {
+}: React.ComponentProps<"table"> & { containerClassName?: string; containerRef?: React.Ref<HTMLDivElement> }) {
   return (
     <div
+      ref={containerRef}
       data-slot="table-container"
       className={cn("relative w-full overflow-x-auto", containerClassName)}
     >

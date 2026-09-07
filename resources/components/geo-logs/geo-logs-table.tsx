@@ -8,13 +8,14 @@
 import { memo, useState } from "react"
 import { ArrowDown, ArrowUp, ChevronsUpDown, Columns3 } from "lucide-react"
 import {
-  Table,
-  TableBody,
   TableCell,
   TableHead,
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { VirtualTable, VirtualTableBody } from "@/components/data/virtual-table"
+import { useTimeRange } from "@/lib/time-range-context"
+import { useGeoLogFilters } from "@/lib/geo-log-filters-context"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -77,6 +78,8 @@ function renderCell(column: GeoLogColumn, r: GeoLogEntry): React.ReactNode {
   }
 }
 
+const getRowKey = (row: GeoLogEntry) => `${row.locationId}-${row.ipAddress}`
+
 const GeoLogTableBody = memo(function GeoLogTableBody({
   rows,
   shownColumns,
@@ -87,15 +90,15 @@ const GeoLogTableBody = memo(function GeoLogTableBody({
   onSelect: (row: GeoLogEntry) => void
 }) {
   return (
-    <TableBody>
-      {rows.map((row) => (
+    <VirtualTableBody rows={rows} columnCount={shownColumns.length} getRowKey={getRowKey}>
+      {(row) => (
         <TableRow
           key={`${row.locationId}-${row.ipAddress}`}
           aria-label={`${row.city ?? row.countryName}, ${row.ipAddress}, ${formatNumber(row.eventCount)} events`}
           {...rowActivation<HTMLTableRowElement>(() => onSelect(row))}
         >
           {shownColumns.map((c) => (
-            <TableCell key={c.key} className={cn(c.align === "right" && "text-right")}>
+            <TableCell key={c.key} className={cn(c.align === "right" && "text-right", c.key === "ipAddress" && "whitespace-normal break-all")}>
               {renderCell(c, row)}
               {c.key === "ipAddress" && (
                 <span {...stopRowActivation}>
@@ -107,8 +110,8 @@ const GeoLogTableBody = memo(function GeoLogTableBody({
             </TableCell>
           ))}
         </TableRow>
-      ))}
-    </TableBody>
+      )}
+    </VirtualTableBody>
   )
 })
 
@@ -130,6 +133,8 @@ export function GeoLogsTable({
   onSortChange: (sortField: GeoLogSortField, sortOrder: GeoLogSortOrder) => void
 }) {
   const [selected, setSelected] = useState<GeoLogEntry | null>(null)
+  const { range, customRange } = useTimeRange()
+  const { filters } = useGeoLogFilters()
   const { visible, shownColumns, toggleColumn, resetColumns, hasOverrides } =
     useColumnVisibility("geometrikks-columns-geo-logs", GEO_LOG_COLUMNS)
 
@@ -205,7 +210,7 @@ export function GeoLogsTable({
           />
         }
       >
-        <Table>
+        <VirtualTable columns={shownColumns} rowCount={rows.length} resetKey={JSON.stringify([page, pageSize, sortField, sortOrder, filters, range, customRange])}>
           <TableHeader>
             <TableRow>
               {shownColumns.map((c) => {
@@ -242,7 +247,7 @@ export function GeoLogsTable({
             </TableRow>
           </TableHeader>
           <GeoLogTableBody rows={rows} shownColumns={shownColumns} onSelect={setSelected} />
-        </Table>
+        </VirtualTable>
       </DataTableFrame>
 
       <GeoLogDetailSheet entry={selected} onOpenChange={(open) => !open && setSelected(null)} />
