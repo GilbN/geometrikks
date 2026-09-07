@@ -90,14 +90,31 @@ test("production image serves the authenticated dashboard without browser errors
   // Wait for the dashboard to render before reloading: reloading straight
   // after the URL change races the router's post-login navigation and the
   // reload gets aborted (net::ERR_ABORTED).
-  await expect(page.getByText("Live ingestion", { exact: true })).toBeVisible()
+  await expect(page.getByRole("heading", { name: "Summary" })).toBeVisible()
+
+  const healthResponse = await page.request.get("/health")
+  expect(healthResponse.ok()).toBe(true)
+  const health = (await healthResponse.json()) as {
+    status: string
+    advisories?: unknown[]
+    database: { reachable: boolean; servicesActive?: boolean }
+    ingestion: { running: boolean; status?: string }
+  }
+  expect(health.status).toBe("healthy")
+  expect(health.database).toMatchObject({ reachable: true, servicesActive: true })
+  expect(health.ingestion).toMatchObject({ running: true, status: "running" })
+  const expectedSidebarStatus = (health.advisories?.length ?? 0) > 0
+    ? "Attention"
+    : "Live ingestion"
+  const serviceStatus = page.getByRole("link", { name: "Service status" })
+  await expect(serviceStatus).toContainText(expectedSidebarStatus)
   // Reload to prove the session cookie survives a fresh page load. The
   // element assertions below do the waiting; "networkidle" would race the
   // dashboard's live polling.
   await page.reload()
 
-  await expect(page.getByText("Live ingestion", { exact: true })).toBeVisible()
   await expect(page.getByRole("heading", { name: "Summary" })).toBeVisible()
+  await expect(serviceStatus).toContainText(expectedSidebarStatus)
   await expect(page.getByRole("heading", { name: "Traffic Overview" })).toBeVisible()
   await expect(page.getByText("Access Log Records", { exact: true })).toBeVisible()
   await expect(page.getByText(/Failed to load analytics data/)).toHaveCount(0)

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 from datetime import datetime, timezone
+from threading import Event
 from types import SimpleNamespace
 from typing import TYPE_CHECKING, cast
 
@@ -97,6 +98,38 @@ def test_ws_closes_1013_when_db_unavailable():
                 ws.receive_json(timeout=2)
     assert exc_info.value.code == 1013
     assert exc_info.value.detail == "live feed unavailable (database down)"
+
+
+def test_crowdsec_ws_closes_1013_when_poller_is_deferred():
+    from geometrikks.domain.realtime.controllers import crowdsec_feed
+
+    app = Litestar(route_handlers=[crowdsec_feed])
+    app.state.crowdsec_stream_poller = None
+    app.state.crowdsec_stream_poller_deferred = object()
+    with TestClient(app) as client:
+        with pytest.raises(WebSocketDisconnect) as exc_info:
+            with client.websocket_connect("/ws/crowdsec") as ws:
+                ws.receive_json(timeout=2)
+    assert exc_info.value.code == 1013
+    assert exc_info.value.detail == "crowdsec stream not running"
+
+
+def test_crowdsec_ws_closes_1013_when_scheduler_disabled(monkeypatch, tmp_path):
+    from geometrikks.domain.realtime.controllers import crowdsec_feed
+    from geometrikks.server import lifecycle
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("CROWDSEC_LAPI_URL", "http://crowdsec:8080")
+    monkeypatch.setenv("CROWDSEC_BOUNCER_API_KEY", "key")
+    monkeypatch.setenv("SCHEDULER_ENABLED", "false")
+    app = Litestar(route_handlers=[crowdsec_feed], lifespan=[lifecycle.crowdsec_lifespan])
+    with TestClient(app) as client:
+        assert app.state.crowdsec_service is not None
+        with pytest.raises(WebSocketDisconnect) as exc_info:
+            with client.websocket_connect("/ws/crowdsec") as ws:
+                ws.receive_json(timeout=2)
+    assert exc_info.value.code == 1013
+    assert exc_info.value.detail == "crowdsec stream not running"
 
 
 def test_ws_counts_dropped_events_beyond_frame_cap():
@@ -245,107 +278,82 @@ class TestLogsFeed:
         from geometrikks.domain.realtime.controllers import logs_feed
         return Litestar(route_handlers=[logs_feed])
 
-    def _receive_data_frame(self, ws, publish, timeout: float = 5.0):
-        """Publish repeatedly until a non-heartbeat frame arrives.
+    def _isolated_broadcaster(self, monkeypatch):
+        from geometrikks.domain.realtime import controllers as live_controller
+        from geometrikks.server.logging import LogBroadcaster
 
-        The handler subscribes shortly AFTER the handshake completes, so a
-        single publish can race the subscribe and be missed; heartbeat frames
-        (empty records, dropped=0) are skipped.
-        """
-        import time
-        deadline = time.time() + timeout
-        while time.time() < deadline:
-            publish()
-            frame = ws.receive_json(timeout=2)
-            if frame["records"]:
-                return frame
-        raise AssertionError("no data frame received")
+        broadcaster = LogBroadcaster()
+        subscribed = Event()
+        subscribe = broadcaster.subscribe
 
-    def test_streams_published_events(self):
-        from geometrikks.server.logging import log_broadcaster
+        def subscribe_and_signal():
+            queue = subscribe()
+            subscribed.set()
+            return queue
+
+        monkeypatch.setattr(broadcaster, "subscribe", subscribe_and_signal)
+        monkeypatch.setattr(live_controller, "log_broadcaster", broadcaster)
+        return broadcaster, subscribed
+
+    def test_streams_published_events(self, monkeypatch):
+        broadcaster, subscribed = self._isolated_broadcaster(monkeypatch)
         with TestClient(app=self._make_app()) as client:
             with client.websocket_connect("/ws/logs") as ws:
-                frame = self._receive_data_frame(
-                    ws,
-                    lambda: log_broadcaster.publish_threadsafe(
-                        {"timestamp": "t", "level": "info", "event": "hello_ws"}
-                    ),
+                assert subscribed.wait(timeout=2)
+                broadcaster.publish_threadsafe(
+                    {"timestamp": "t", "level": "info", "event": "hello_ws"}
                 )
+                frame = ws.receive_json(timeout=2)
                 assert frame["type"] == "log_batch"
                 assert any(r.get("event") == "hello_ws" for r in frame["records"])
 
-    def test_level_filter_drops_lower_levels(self):
-        """log_broadcaster is a process-wide singleton, so under full-suite
-        load unrelated concurrent log records can share frames with this
-        test's own publishes. A single frame's worth of records is not
-        reliable evidence either way (a frame full of other tests' >=warning
-        noise can crowd out our own "boom" record before it's ever seen), so
-        this collects records across frames using unique per-run sentinel
-        event names and keeps going until its own "boom" sentinel is seen
-        rather than trusting whatever showed up in the first frame.
-        """
-        import time
-        import uuid
-
-        from geometrikks.server.logging import log_broadcaster
-
-        marker = uuid.uuid4().hex
-        noise_event = f"noise-{marker}"
-        boom_event = f"boom-{marker}"
+    def test_level_filter_drops_lower_levels(self, monkeypatch):
+        broadcaster, subscribed = self._isolated_broadcaster(monkeypatch)
         with TestClient(app=self._make_app()) as client:
             with client.websocket_connect("/ws/logs?level=warning") as ws:
-                def publish():
-                    log_broadcaster.publish_threadsafe({"level": "debug", "event": noise_event})
-                    log_broadcaster.publish_threadsafe({"level": "error", "event": boom_event})
-
-                seen_events: set[str] = set()
-                deadline = time.time() + 5
-                while time.time() < deadline and boom_event not in seen_events:
-                    publish()
-                    frame = ws.receive_json(timeout=2)
-                    seen_events.update(r.get("event", "") for r in frame["records"])
-                assert boom_event in seen_events
-                assert noise_event not in seen_events
+                assert subscribed.wait(timeout=2)
+                broadcaster.publish_threadsafe({"level": "debug", "event": "noise"})
+                broadcaster.publish_threadsafe({"level": "error", "event": "boom"})
+                frame = ws.receive_json(timeout=2)
+                events = {record.get("event") for record in frame["records"]}
+                assert "boom" in events
+                assert "noise" not in events
 
     def test_sends_empty_log_batch_heartbeat_when_idle(self, monkeypatch):
         from geometrikks.domain.realtime import controllers as live_controller
 
         monkeypatch.setattr(live_controller, "HEARTBEAT_INTERVAL", 0.3, raising=False)
+        _broadcaster, subscribed = self._isolated_broadcaster(monkeypatch)
         with TestClient(app=self._make_app()) as client:
             with client.websocket_connect("/ws/logs") as ws:
+                assert subscribed.wait(timeout=2)
                 frame = ws.receive_json(timeout=5)
         assert frame == {"type": "log_batch", "records": [], "dropped": 0}
 
     def test_counts_dropped_records_beyond_frame_cap(self, monkeypatch):
         from geometrikks.domain.realtime import controllers as live_controller
-        from geometrikks.server.logging import log_broadcaster
 
         monkeypatch.setattr(live_controller, "MAX_RECORDS_PER_FRAME", 3, raising=False)
-        import time
+        broadcaster, subscribed = self._isolated_broadcaster(monkeypatch)
 
         with TestClient(app=self._make_app()) as client:
             with client.websocket_connect("/ws/logs") as ws:
-                deadline = time.time() + 5
-                while time.time() < deadline:
-                    # A burst larger than the frame cap; retried because a
-                    # publish can race the handler's subscribe.
+                assert subscribed.wait(timeout=2)
+
+                def publish_burst() -> None:
                     for i in range(10):
-                        log_broadcaster.publish_threadsafe(
+                        broadcaster.publish_threadsafe(
                             {"level": "info", "event": f"burst{i}"}
                         )
-                    frame = ws.receive_json(timeout=2)
-                    if frame["dropped"]:
-                        break
-                else:
-                    raise AssertionError("no frame with dropped records received")
+
+                client.blocking_portal.call(publish_burst)
+                frame = ws.receive_json(timeout=2)
         assert len(frame["records"]) == 3
         assert frame["dropped"] > 0
 
-    def test_unsubscribes_on_disconnect(self):
-        from geometrikks.server.logging import log_broadcaster
-
-        baseline = len(log_broadcaster._subscribers)
+    def test_unsubscribes_on_disconnect(self, monkeypatch):
+        broadcaster, subscribed = self._isolated_broadcaster(monkeypatch)
         with TestClient(app=self._make_app()) as client:
             with client.websocket_connect("/ws/logs"):
-                pass
-        assert len(log_broadcaster._subscribers) == baseline
+                assert subscribed.wait(timeout=2)
+        assert broadcaster._subscribers == set()

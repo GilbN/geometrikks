@@ -239,7 +239,7 @@ jobs:
           fi
 
           docker logs geometrikks-smoke > smoke-artifacts/shutdown.log 2>&1
-          for marker in "Stopped log ingestion service" "Stopped APScheduler" "Granian shutdown completed"; do
+          for marker in "ingestion_stopped" "scheduler_stopped" "Granian shutdown completed"; do
             if ! grep --quiet "${marker}" smoke-artifacts/shutdown.log; then
               echo "Missing graceful-shutdown marker: ${marker}"
               tail -50 smoke-artifacts/shutdown.log

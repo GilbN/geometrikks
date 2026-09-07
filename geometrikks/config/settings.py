@@ -71,6 +71,15 @@ class DatabaseSettings(BaseSettings):
             "and fails startup if it is not usable"
         ),
     )
+    startup_wait_seconds: int = Field(
+        default=30,
+        ge=0,
+        description=(
+            "How long startup waits for the database before serving in degraded "
+            "mode. 0 probes once. The app keeps re-probing in the background after "
+            "this window and recovers on its own when the database answers."
+        ),
+    )
     
     @property
     def url(self) -> str:

@@ -27,6 +27,7 @@ import {
   relativeTime,
   schedulerJobState,
   sidebarIngestionVariant,
+  sidebarStatusTooltip,
   siteHomeRows,
 } from "./status-logic"
 
@@ -93,7 +94,7 @@ describe("ingestionState", () => {
     expect(state.label).toBe("Not running")
     expect(state.detail).toBeTruthy()
   })
-  it("is amber when running but a tailed file is missing", () => {
+  it("is amber when a configured log file is missing", () => {
     const state = ingestionState(
       makeHealth({
         ingestion: {
@@ -108,7 +109,9 @@ describe("ingestionState", () => {
     )
     expect(state.tone).toBe("amber")
     expect(state.label).toBe("Running, log file missing")
-    expect(state.detail).toBeTruthy()
+    expect(state.detail).toBe(
+      "A configured log file is missing. Ingestion is waiting for it to appear.",
+    )
   })
   it("is muted when health failed or is loading", () => {
     expect(ingestionState(undefined, true).tone).toBe("muted")
@@ -160,6 +163,44 @@ describe("sidebarIngestionVariant", () => {
   it("is inactive while health is still loading", () => {
     expect(sidebarIngestionVariant(undefined, false)).toBe("inactive")
   })
+
+  it("is attention when healthy but an advisory is open", () => {
+    const health = makeHealth({
+      ingestion: disabledIngestion,
+      advisories: [{ id: "x", severity: "warning", summary: "x" }],
+    })
+    expect(sidebarIngestionVariant(health, false)).toBe("attention")
+  })
+
+  it("degraded still wins over attention", () => {
+    const health = makeHealth({
+      status: "degraded",
+      advisories: [{ id: "x", severity: "critical", summary: "x" }],
+    })
+    expect(sidebarIngestionVariant(health, false)).toBe("degraded")
+  })
+})
+
+describe("sidebarStatusTooltip", () => {
+  it("keeps the base text and appends the advisory count", () => {
+    expect(sidebarStatusTooltip("base", 0, "degraded")).toBe("base")
+    expect(
+      sidebarStatusTooltip("Service degraded - see Settings > Status", 1, "degraded"),
+    ).toBe("Service degraded - see Settings > Status. 1 advisory needs attention.")
+    expect(sidebarStatusTooltip("base.", 3, "degraded")).toBe(
+      "base. 3 advisories need attention. See Settings > Status.",
+    )
+  })
+
+  it("counts the actual attention tooltip without repeating its message", () => {
+    expect(
+      sidebarStatusTooltip(
+        "Advisories need attention - see Settings > Status",
+        2,
+        "attention",
+      ),
+    ).toBe("2 advisories need attention. See Settings > Status.")
+  })
 })
 
 describe("databaseState / geoipState", () => {
@@ -168,7 +209,15 @@ describe("databaseState / geoipState", () => {
       tone: "red",
       label: "Unreachable",
     })
-    expect(databaseState(makeHealth())).toMatchObject({ tone: "emerald", label: "Reachable" })
+    expect(databaseState(makeHealth())).toMatchObject({ tone: "emerald", label: "Connected" })
+  })
+  it("database reachable but services paused is amber", () => {
+    const state = databaseState(
+      makeHealth({ database: { reachable: true, servicesActive: false } }),
+    )
+    expect(state.tone).toBe("amber")
+    expect(state.label).toBe("Reachable, services paused")
+    expect(state.detail).toContain("recovery")
   })
   it("geoip missing is amber", () => {
     expect(geoipState(makeHealth({ geoip: { available: false, dbBuildDate: null, asnAvailable: false, asnDbBuildDate: null } }))).toMatchObject({
@@ -341,6 +390,12 @@ describe("liveFeedState", () => {
     expect(down.tone).toBe("amber")
     expect(down.label).toBe("Not connected")
     expect(down.detail).toBeTruthy()
+  })
+
+  it("shows a server pause as an amber unavailable state", () => {
+    const paused = liveFeedState("unavailable")
+    expect(paused.tone).toBe("amber")
+    expect(paused.label).toBe("Paused by server")
   })
 })
 

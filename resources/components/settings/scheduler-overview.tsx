@@ -150,7 +150,8 @@ export function SchedulerOverview() {
     return <Skeleton className="h-64 w-full" />
   }
 
-  if (!data.schedulerEnabled) {
+  if (data.status !== "running") {
+    const unavailable = data.status === "unavailable"
     return (
       <Card>
         <CardHeader>
@@ -161,13 +162,14 @@ export function SchedulerOverview() {
             <div>
               <CardTitle className="text-base">
                 <span className="inline-flex items-center gap-2">
-                  <StatusLed tone="red" />
-                  Scheduler disabled
+                  <StatusLed tone={unavailable ? "amber" : "red"} />
+                  {unavailable ? "Background jobs not started" : "Scheduler disabled"}
                 </span>
               </CardTitle>
               <CardDescription>
-                Background tasks are turned off (SCHEDULER_ENABLED=false) or the scheduler did
-                not start. Enable it and restart to see jobs here.
+                {unavailable
+                  ? "The database was unreachable when the app started. Jobs start on their own once it answers; see Settings > Status."
+                  : "Background tasks are turned off (SCHEDULER_ENABLED=false)."}
               </CardDescription>
             </div>
           </div>

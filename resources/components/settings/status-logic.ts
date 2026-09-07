@@ -72,17 +72,23 @@ export function ingestionState(health: HealthResponse | undefined, isError: bool
     return {
       tone: "amber",
       label: "Running, log file missing",
-      detail: "A tailed log file has disappeared. Ingestion is waiting for it to reappear.",
+      detail: "A configured log file is missing. Ingestion is waiting for it to appear.",
     }
   }
   return { tone: "emerald", label: "Running" }
 }
 
-export type SidebarIngestionVariant = "offline" | "degraded" | "disabled" | "running" | "inactive"
+export type SidebarIngestionVariant =
+  | "offline"
+  | "degraded"
+  | "attention"
+  | "disabled"
+  | "running"
+  | "inactive"
 
 /** Semantics of the sidebar's ingestion-health dot; the component maps the
- *  variant to colors/labels. Degraded wins over running: the backend can
- *  report running=true while a tailed log file is missing. */
+ * variant to colors/labels. Degraded wins over advisories, which win over the
+ * configured-off state. */
 export function sidebarIngestionVariant(
   health: HealthResponse | undefined,
   isError: boolean,
@@ -90,16 +96,41 @@ export function sidebarIngestionVariant(
   if (isError) return "offline"
   if (!health) return "inactive"
   if (health.status === "degraded") return "degraded"
+  if ((health.advisories ?? []).length > 0) return "attention"
   if (health.ingestion.status === "disabled") return "disabled"
   if (health.ingestion.running) return "running"
   return "inactive"
 }
 
+export function sidebarStatusTooltip(
+  base: string,
+  advisoryCount: number,
+  variant: "degraded" | "attention",
+): string {
+  if (advisoryCount === 0) return base
+  const noun = advisoryCount === 1 ? "advisory needs" : "advisories need"
+  const countedAdvisories = `${advisoryCount} ${noun} attention.`
+  if (variant === "attention") {
+    return `${countedAdvisories} See Settings > Status.`
+  }
+  const separator = /[.!?]$/.test(base) ? " " : ". "
+  const statusLink = base.includes("Settings > Status") ? "" : " See Settings > Status."
+  return `${base}${separator}${countedAdvisories}${statusLink}`
+}
+
 export function databaseState(health: HealthResponse | undefined): CardState {
   if (!health) return { tone: "muted", label: "Unknown" }
-  return health.database.reachable
-    ? { tone: "emerald", label: "Reachable" }
-    : { tone: "red", label: "Unreachable", detail: "Running in degraded mode without a database." }
+  if (!health.database.reachable) {
+    return { tone: "red", label: "Unreachable", detail: "Running in degraded mode without a database." }
+  }
+  if (health.database.servicesActive === false) {
+    return {
+      tone: "amber",
+      label: "Reachable, services paused",
+      detail: "Background jobs and ingestion are waiting for recovery. See the advisory above.",
+    }
+  }
+  return { tone: "emerald", label: "Connected" }
 }
 
 export function geoipState(health: HealthResponse | undefined): CardState {
@@ -286,6 +317,14 @@ export function filterErrorRecords(
 export function liveFeedState(status: LiveFeedStatus): CardState {
   if (status === "connected") return { tone: "emerald", label: "Connected" }
   if (status === "connecting") return { tone: "amber", label: "Connecting" }
+  if (status === "unavailable") {
+    return {
+      tone: "amber",
+      label: "Paused by server",
+      detail:
+        "The server accepted the connection and closed it because the database or ingestion is not available. It reconnects on its own.",
+    }
+  }
   return {
     tone: "amber",
     label: "Not connected",

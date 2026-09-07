@@ -288,6 +288,12 @@ export function StatusOverview() {
                 <Counter label="Skipped lines" value={stats?.totalSkippedLines} />
                 <Counter label="Ignored lines" value={stats?.totalIgnoredLines} />
                 <Counter label="Pending records" value={stats?.totalPendingRecords} />
+                {(health?.ingestion.failedBatches ?? 0) > 0 && (
+                  <Counter label="Failed batches" value={health?.ingestion.failedBatches} />
+                )}
+                {(health?.ingestion.failedRecords ?? 0) > 0 && (
+                  <Counter label="Dropped records" value={health?.ingestion.failedRecords} />
+                )}
               </div>
             )}
             {health && (
@@ -426,6 +432,9 @@ export function StatusOverview() {
           </CardHeader>
           <CardContent className="space-y-2">
             <StateLine state={crowdsecState(crowdsec, crowdsecError)} />
+            {crowdsec?.enabled && !crowdsec.liveUpdates && (
+              <p className="text-xs text-muted-foreground">Live updates paused</p>
+            )}
             <div className="flex items-center gap-2">
               {crowdsec?.enabled && (
                 <Badge variant="outline">

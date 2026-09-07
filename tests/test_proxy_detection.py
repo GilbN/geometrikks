@@ -114,15 +114,21 @@ def test_collect_advisories_includes_proxy_cards(monkeypatch) -> None:
     from geometrikks.server import runtime, timescale
 
     s = summary(private_share=0.9, private_active=True)
-    service = SimpleNamespace(parsers=[fake_parser(summary=s)])
+    service = SimpleNamespace(
+        parsers=[fake_parser(summary=s)],
+        failed_batches=0,
+        failed_records=0,
+    )
     monkeypatch.setattr(runtime, "get_ingestion_service", lambda app: service)
     monkeypatch.setattr(timescale, "get_hostname_pollution", lambda: None)
+    monkeypatch.setattr(health, "_stale_geoip_advisories", lambda settings: [])
 
     settings = SimpleNamespace(
         app=SimpleNamespace(proxy_advisory=True),
         geoip=SimpleNamespace(asn_enabled=False),
     )
-    cards = health._collect_advisories(app=cast(Any, object()), settings=cast(Any, settings))
+    app = SimpleNamespace(state=SimpleNamespace())
+    cards = health._collect_advisories(app=cast(Any, app), settings=cast(Any, settings))
     assert [c.id for c in cards] == ["proxy-peer-private"]
 
 
@@ -131,16 +137,15 @@ def test_collect_advisories_respects_off_switch(monkeypatch) -> None:
     from geometrikks.domain.system.controllers import health
     from geometrikks.server import runtime, timescale
 
-    monkeypatch.setattr(
-        runtime, "get_ingestion_service",
-        lambda app: (_ for _ in ()).throw(AssertionError("must not be called")),
-    )
+    monkeypatch.setattr(runtime, "get_ingestion_service", lambda app: None)
     monkeypatch.setattr(timescale, "get_hostname_pollution", lambda: None)
+    monkeypatch.setattr(health, "_stale_geoip_advisories", lambda settings: [])
     settings = SimpleNamespace(
         app=SimpleNamespace(proxy_advisory=False),
         geoip=SimpleNamespace(asn_enabled=False),
     )
-    assert health._collect_advisories(app=cast(Any, object()), settings=cast(Any, settings)) == []
+    app = SimpleNamespace(state=SimpleNamespace())
+    assert health._collect_advisories(app=cast(Any, app), settings=cast(Any, settings)) == []
 
 
 def test_collect_advisories_survives_no_ingestion_service(monkeypatch) -> None:
@@ -150,11 +155,13 @@ def test_collect_advisories_survives_no_ingestion_service(monkeypatch) -> None:
 
     monkeypatch.setattr(runtime, "get_ingestion_service", lambda app: None)
     monkeypatch.setattr(timescale, "get_hostname_pollution", lambda: None)
+    monkeypatch.setattr(health, "_stale_geoip_advisories", lambda settings: [])
     settings = SimpleNamespace(
         app=SimpleNamespace(proxy_advisory=True),
         geoip=SimpleNamespace(asn_enabled=False),
     )
-    assert health._collect_advisories(app=cast(Any, object()), settings=cast(Any, settings)) == []
+    app = SimpleNamespace(state=SimpleNamespace())
+    assert health._collect_advisories(app=cast(Any, app), settings=cast(Any, settings)) == []
 
 
 def test_collect_advisories_merges_scan_findings(monkeypatch) -> None:
@@ -167,9 +174,14 @@ def test_collect_advisories_merges_scan_findings(monkeypatch) -> None:
 
     s = summary(cdn_share=0.9, cdn_active=True, top_provider="Fastly")
     local = fake_parser(hostname="web-01", summary=s)
-    service = SimpleNamespace(parsers=[local])
+    service = SimpleNamespace(
+        parsers=[local],
+        failed_batches=0,
+        failed_records=0,
+    )
     monkeypatch.setattr(runtime, "get_ingestion_service", lambda app: service)
     monkeypatch.setattr(timescale, "get_hostname_pollution", lambda: None)
+    monkeypatch.setattr(health, "_stale_geoip_advisories", lambda settings: [])
     scan = [
         ProxyFinding("traefik-01", "", "traefik-json", "cdn", 0.94, 1200, "Cloudflare"),
         ProxyFinding("web-01", "", "nginx", "cdn", 0.8, 999, "Fastly"),  # deduped
@@ -180,7 +192,8 @@ def test_collect_advisories_merges_scan_findings(monkeypatch) -> None:
         app=SimpleNamespace(proxy_advisory=True),
         geoip=SimpleNamespace(asn_enabled=False),
     )
-    [card] = health._collect_advisories(app=cast(Any, object()), settings=cast(Any, settings))
+    app = SimpleNamespace(state=SimpleNamespace())
+    [card] = health._collect_advisories(app=cast(Any, app), settings=cast(Any, settings))
     assert card.id == "proxy-peer-cdn"
     assert "web-01" in card.summary and "traefik-01" in card.summary
     assert card.summary.count("web-01") == 1
@@ -196,6 +209,7 @@ def test_collect_advisories_scan_only_when_no_ingestion_service(monkeypatch) -> 
 
     monkeypatch.setattr(runtime, "get_ingestion_service", lambda app: None)
     monkeypatch.setattr(timescale, "get_hostname_pollution", lambda: None)
+    monkeypatch.setattr(health, "_stale_geoip_advisories", lambda settings: [])
     scan = [ProxyFinding("traefik-01", "", "traefik-json", "cdn", 0.94, 1200, "Cloudflare")]
     monkeypatch.setattr(proxy_scan, "get_scan_findings", lambda: scan)
 
@@ -203,5 +217,6 @@ def test_collect_advisories_scan_only_when_no_ingestion_service(monkeypatch) -> 
         app=SimpleNamespace(proxy_advisory=True),
         geoip=SimpleNamespace(asn_enabled=False),
     )
-    cards = health._collect_advisories(app=cast(Any, object()), settings=cast(Any, settings))
+    app = SimpleNamespace(state=SimpleNamespace())
+    cards = health._collect_advisories(app=cast(Any, app), settings=cast(Any, settings))
     assert [c.id for c in cards] == ["proxy-peer-cdn"]

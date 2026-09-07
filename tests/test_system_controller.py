@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from types import SimpleNamespace
 
 import pytest
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -10,6 +11,7 @@ from litestar import Litestar
 from litestar.di import Provide
 from litestar.testing import AsyncTestClient
 
+from geometrikks.config.settings import Settings
 from geometrikks.domain.analytics.asn_classification import hosting_asn_count
 from geometrikks.domain.system import commit
 from geometrikks.domain.system.controllers.system import SystemController
@@ -83,7 +85,9 @@ async def test_lists_jobs_with_run_info():
     assert job["lastStatus"] is None
 
 
-async def test_no_scheduler_reports_disabled():
+async def test_no_scheduler_reports_unavailable():
+    """DB-degraded mode never starts the scheduler; the page must not blame
+    SCHEDULER_ENABLED=false for that."""
     async with AsyncTestClient(app=make_app(with_scheduler=False)) as client:
         resp = await client.get("/api/v1/system/scheduler/jobs")
     assert resp.status_code == 200
@@ -91,7 +95,73 @@ async def test_no_scheduler_reports_disabled():
         "schedulerEnabled": False,
         "schedulerRunning": False,
         "jobs": [],
+        "status": "unavailable",
     }
+
+
+async def test_no_scheduler_reports_unavailable_when_configured_disabled(monkeypatch):
+    monkeypatch.setenv("SCHEDULER_ENABLED", "false")
+    async with AsyncTestClient(app=make_app(with_scheduler=False)) as client:
+        body = (await client.get("/api/v1/system/scheduler/jobs")).json()
+    assert body["status"] == "unavailable"
+
+
+async def test_running_scheduler_reports_status_running():
+    async with AsyncTestClient(app=make_app()) as client:
+        body = (await client.get("/api/v1/system/scheduler/jobs")).json()
+    assert body["status"] == "running"
+
+
+async def test_scheduler_disabled_by_settings_reports_status_disabled(monkeypatch):
+    monkeypatch.setenv("SCHEDULER_ENABLED", "false")
+    async with AsyncTestClient(app=make_app()) as client:
+        body = (await client.get("/api/v1/system/scheduler/jobs")).json()
+    assert body["status"] == "disabled"
+    assert body["schedulerEnabled"] is False
+
+
+async def test_disabled_scheduler_stays_unstarted_and_detaches_on_shutdown(monkeypatch):
+    from geometrikks.server import lifecycle as lc
+
+    settings = Settings(scheduler={"enabled": False})
+    monkeypatch.setattr(
+        lc,
+        "get_app_db_config",
+        lambda _app: SimpleNamespace(create_session_maker=lambda: object()),
+    )
+
+    async def startup(app: Litestar) -> None:
+        app.state.settings = settings
+        await lc.start_scheduler(app)
+
+    async def shutdown(app: Litestar) -> None:
+        await lc.stop_scheduler(app)
+
+    app = Litestar(
+        route_handlers=[create_api_v1_router([SystemController])],
+        on_startup=[startup],
+        on_shutdown=[shutdown],
+        dependencies={
+            "settings": Provide(lambda: settings, sync_to_thread=False),
+            "db_engine": Provide(UnreachableEngine, sync_to_thread=False),
+        },
+    )
+
+    async with AsyncTestClient(app=app) as client:
+        scheduler = app.state.scheduler
+        body = (await client.get("/api/v1/system/scheduler/jobs")).json()
+        assert scheduler.running is False
+        assert scheduler.get_jobs() == []
+        assert not hasattr(app.state, "scheduler_tracker")
+        assert body == {
+            "schedulerEnabled": False,
+            "schedulerRunning": False,
+            "jobs": [],
+            "status": "disabled",
+        }
+
+    assert not hasattr(app.state, "scheduler")
+    assert not hasattr(app.state, "scheduler_tracker")
 
 
 async def test_run_now_moves_next_run_time():

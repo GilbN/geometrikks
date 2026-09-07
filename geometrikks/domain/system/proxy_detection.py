@@ -1,15 +1,13 @@
 """Turn parser peer windows into Settings > Status advisories.
 
 Pure functions; /health calls them per request, so no I/O and no state.
-Advisory is imported lazily: controllers.health imports this module.
 """
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Iterable, Literal
+from typing import Any, Iterable, Literal
 
-if TYPE_CHECKING:
-    from geometrikks.domain.system.controllers.health import Advisory
+from geometrikks.lib.advisories import Advisory
 
 PROXY_SETUP_DOCS_URL = "https://github.com/GilbN/geometrikks/blob/main/docs/proxy-setup.md"
 
@@ -81,9 +79,7 @@ def _remedy(findings: list[ProxyFinding], nginx_remedy: str) -> str:
     return " ".join(parts)
 
 
-def _cdn_card(findings: list[ProxyFinding], docs_url: str) -> "Advisory":
-    from geometrikks.domain.system.controllers.health import Advisory
-
+def _cdn_card(findings: list[ProxyFinding], docs_url: str) -> Advisory:
     if len(findings) == 1:
         f = findings[0]
         summary = (
@@ -114,9 +110,7 @@ def _cdn_card(findings: list[ProxyFinding], docs_url: str) -> "Advisory":
     )
 
 
-def _private_card(findings: list[ProxyFinding], docs_url: str) -> "Advisory":
-    from geometrikks.domain.system.controllers.health import Advisory
-
+def _private_card(findings: list[ProxyFinding], docs_url: str) -> Advisory:
     if len(findings) == 1:
         f = findings[0]
         summary = (
@@ -149,7 +143,7 @@ def _private_card(findings: list[ProxyFinding], docs_url: str) -> "Advisory":
 
 def proxy_advisories(
     findings: list[ProxyFinding], *, docs_url: str = PROXY_SETUP_DOCS_URL
-) -> "list[Advisory]":
+) -> list[Advisory]:
     cards: list[Advisory] = []
     cdn = [f for f in findings if f.kind == "cdn"]
     private = [f for f in findings if f.kind == "private"]
