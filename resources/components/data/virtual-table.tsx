@@ -11,11 +11,11 @@ const ScrollContext = createContext<{
   resetKey: string
 } | null>(null)
 
-/** One viewport for both axes, with column widths independent of mounted rows. */
+/** Short fields take their natural width; text columns share the remaining space. */
 export function VirtualTable({
   columns, rowCount, resetKey, children, ...props
 }: ComponentProps<"table"> & {
-  columns: readonly { key: string; width?: number }[]
+  columns: readonly { key: string; grow?: boolean }[]
   rowCount: number
   resetKey: string
 }) {
@@ -26,13 +26,14 @@ export function VirtualTable({
       <Table
         {...props}
         containerRef={setScrollElement}
-        containerClassName="max-h-[65dvh] overflow-auto overscroll-contain"
-        className="table-fixed [&_thead]:sticky [&_thead]:top-0 [&_thead]:z-10 [&_thead]:bg-card [&_td]:overflow-hidden [&_td]:text-ellipsis"
-        style={{ minWidth: columns.reduce((sum, column) => sum + (column.width ?? 160), 0) }}
+        containerClassName="max-h-[65dvh] overflow-auto overscroll-x-contain"
+        className="table-auto [&_thead]:sticky [&_thead]:top-0 [&_thead]:z-10 [&_thead]:bg-card"
         aria-rowcount={rowCount + 1}
       >
         <colgroup>
-          {columns.map((column) => <col key={column.key} style={{ width: column.width ?? 160 }} />)}
+          {/* In auto layout, 1% keeps short fields at their content width.
+              Unconstrained text columns get the remaining space. */}
+          {columns.map((column) => <col key={column.key} style={{ width: column.grow ? undefined : "1%" }} />)}
         </colgroup>
         {children}
       </Table>

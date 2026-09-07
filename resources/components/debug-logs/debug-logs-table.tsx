@@ -65,7 +65,7 @@ type MalformedFilter = "all" | "malformed" | "wellformed"
 
 interface ColumnDef {
   key: string
-  width?: number
+  grow?: boolean
   label: string
   sortField?: AccessLogDebugSortField
   defaultVisible: boolean
@@ -77,7 +77,6 @@ interface ColumnDef {
 const COLUMNS: ColumnDef[] = [
   {
     key: "createdAt",
-    width: 205,
     label: "Captured",
     sortField: "createdAt",
     defaultVisible: true,
@@ -103,24 +102,24 @@ const COLUMNS: ColumnDef[] = [
   },
   {
     key: "parseError",
-    width: 240,
+    grow: true,
     label: "Parse error",
     sortField: "parseError",
     defaultVisible: true,
     mobileHidden: true,
     render: (r) => (
-      <span className="block max-w-[220px] truncate" title={r.parseError ?? undefined}>
+      <span className="block truncate" title={r.parseError ?? undefined}>
         {r.parseError ?? "-"}
       </span>
     ),
   },
   {
     key: "rawLine",
-    width: 380,
+    grow: true,
     label: "Raw line",
     defaultVisible: true,
     render: (r) => (
-      <span className="block max-w-[360px] truncate font-mono" title={r.rawLine}>
+      <span className="block truncate font-mono" title={r.rawLine}>
         {r.rawLine}
       </span>
     ),
@@ -149,7 +148,6 @@ const COLUMNS: ColumnDef[] = [
   },
   {
     key: "ipAddress",
-    width: 250,
     label: "IP",
     sortField: "ipAddress",
     defaultVisible: true,
@@ -158,22 +156,23 @@ const COLUMNS: ColumnDef[] = [
   },
   {
     key: "url",
-    width: 340,
+    grow: true,
     label: "URL",
     defaultVisible: false,
     render: (r) => (
-      <span className="block max-w-[320px] truncate font-mono" title={r.url ?? undefined}>
+      <span className="block truncate font-mono" title={r.url ?? undefined}>
         {r.url ?? "-"}
       </span>
     ),
   },
   {
     key: "host",
+    grow: true,
     label: "Host",
     sortField: "host",
     defaultVisible: false,
     render: (r) => (
-      <span className="block max-w-[200px] truncate font-mono" title={r.host ?? undefined}>
+      <span className="block truncate font-mono" title={r.host ?? undefined}>
         {r.host ?? "-"}
       </span>
     ),
@@ -202,6 +201,7 @@ const COLUMNS: ColumnDef[] = [
   },
   {
     key: "city",
+    grow: true,
     label: "City",
     sortField: "city",
     defaultVisible: false,
@@ -209,11 +209,11 @@ const COLUMNS: ColumnDef[] = [
   },
   {
     key: "userAgent",
-    width: 300,
+    grow: true,
     label: "User agent",
     defaultVisible: false,
     render: (r) => (
-      <span className="block max-w-[280px] truncate font-mono" title={r.userAgent ?? undefined}>
+      <span className="block truncate font-mono" title={r.userAgent ?? undefined}>
         {r.userAgent ?? "-"}
       </span>
     ),
@@ -240,7 +240,7 @@ const DebugLogTableBody = memo(function DebugLogTableBody({
           {...rowActivation<HTMLTableRowElement>(() => onSelect(row))}
         >
           {shownColumns.map((c) => (
-            <TableCell key={c.key} className={cn(c.key === "ipAddress" && "whitespace-normal break-all")}>
+            <TableCell key={c.key} className={cn(c.grow && "max-w-0 truncate")}>
               {c.render(row)}
               {c.key === "ipAddress" && row.ipAddress && (
                 <span {...stopRowActivation}>

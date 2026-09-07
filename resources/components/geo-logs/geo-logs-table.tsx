@@ -71,7 +71,7 @@ function renderCell(column: GeoLogColumn, r: GeoLogEntry): React.ReactNode {
       )
     case "hostnames":
       return (
-        <span className="block max-w-[240px] truncate font-mono" title={r.hostnames.join(", ") || undefined}>
+        <span className="block truncate font-mono" title={r.hostnames.join(", ") || undefined}>
           {r.hostnames.length ? r.hostnames.join(", ") : "-"}
         </span>
       )
@@ -98,7 +98,7 @@ const GeoLogTableBody = memo(function GeoLogTableBody({
           {...rowActivation<HTMLTableRowElement>(() => onSelect(row))}
         >
           {shownColumns.map((c) => (
-            <TableCell key={c.key} className={cn(c.align === "right" && "text-right", c.key === "ipAddress" && "whitespace-normal break-all")}>
+            <TableCell key={c.key} className={cn(c.grow && "max-w-0 truncate", c.align === "right" && "text-right")}>
               {renderCell(c, row)}
               {c.key === "ipAddress" && (
                 <span {...stopRowActivation}>

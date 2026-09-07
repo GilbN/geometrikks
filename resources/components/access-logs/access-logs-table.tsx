@@ -69,13 +69,13 @@ function renderCell(column: AccessLogColumn, r: AccessLog): React.ReactNode {
       return <span className="font-mono">{r.method ?? "-"}</span>
     case "url":
       return (
-        <span className="block max-w-[320px] truncate font-mono" title={r.url ?? undefined}>
+        <span className="block truncate font-mono" title={r.url ?? undefined}>
           {r.url ?? "-"}
         </span>
       )
     case "host":
       return (
-        <span className="block max-w-[200px] truncate font-mono" title={r.host ?? undefined}>
+        <span className="block truncate font-mono" title={r.host ?? undefined}>
           {r.host ?? "-"}
         </span>
       )
@@ -91,7 +91,7 @@ function renderCell(column: AccessLogColumn, r: AccessLog): React.ReactNode {
       return <span className="font-mono">{r.httpVersion ?? "-"}</span>
     case "referrer":
       return (
-        <span className="block max-w-[240px] truncate font-mono" title={r.referrer ?? undefined}>
+        <span className="block truncate font-mono" title={r.referrer ?? undefined}>
           {r.referrer ?? "-"}
         </span>
       )
@@ -101,7 +101,7 @@ function renderCell(column: AccessLogColumn, r: AccessLog): React.ReactNode {
       return <span className="font-mono">{r.logFormat ?? "-"}</span>
     case "userAgent":
       return (
-        <span className="block max-w-[280px] truncate font-mono" title={r.userAgent ?? undefined}>
+        <span className="block truncate font-mono" title={r.userAgent ?? undefined}>
           {r.userAgent ?? "-"}
         </span>
       )
@@ -127,7 +127,7 @@ function renderCell(column: AccessLogColumn, r: AccessLog): React.ReactNode {
       )
     case "asnOrganization":
       return (
-        <span className="block max-w-[220px] truncate" title={r.autonomousSystemOrganization ?? undefined}>
+        <span className="block truncate" title={r.autonomousSystemOrganization ?? undefined}>
           {r.autonomousSystemOrganization ?? "-"}
         </span>
       )
@@ -154,7 +154,7 @@ const AccessLogTableBody = memo(function AccessLogTableBody({
           {...rowActivation<HTMLTableRowElement>(() => onSelect(row))}
         >
           {shownColumns.map((c) => (
-            <TableCell key={c.key} className={cn(c.align === "right" && "text-right", c.key === "ipAddress" && "whitespace-normal break-all")}>
+            <TableCell key={c.key} className={cn(c.grow && "max-w-0 truncate", c.align === "right" && "text-right")}>
               {renderCell(c, row)}
               {c.key === "ipAddress" && (
                 <span {...stopRowActivation}>
