@@ -148,11 +148,15 @@ const lines: Line[] = [
       transform: none;
     }
   }
-  /* On phones the box grows line by line instead of reserving the full height. */
+  /* Keep the terminal from moving the page as wrapped lines are revealed. */
   @media (max-width: 900px) {
     .body {
+      height: clamp(300px, 55svh, 420px);
       min-height: 0;
       font-size: 12px;
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      scrollbar-width: thin;
     }
     .l:not(.on) {
       display: none;
@@ -175,16 +179,19 @@ const lines: Line[] = [
     lines.forEach((l) => l.classList.add("on"));
   } else {
     const caret = document.createElement("span");
+    const mobile = matchMedia("(max-width: 900px)");
     caret.className = "caret";
     let i = 0;
     const step = () => {
       if (i === lines.length) {
         lines.forEach((l) => l.classList.remove("on"));
+        if (mobile.matches) term.scrollTop = 0;
         i = 0;
       }
       const line = lines[i++];
       line.classList.add("on");
       line.after(caret);
+      if (mobile.matches) term.scrollTop = term.scrollHeight;
       setTimeout(step, "blank" in line.dataset ? 1400 : 650);
     };
     step();
