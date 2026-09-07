@@ -10,8 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Startup waits for the database for up to `DB_STARTUP_WAIT_SECONDS`, which defaults to 30 seconds. If it remains unreachable, the app serves in degraded mode with a critical Status advisory and keeps checking. When the database returns, recovery runs the deferred migrations and starts the paused services.
-- Status page advisories for a disconnected live-feed listener, a GeoLite2 database past MaxMind's 30-day window, an undetected map home, failed TimescaleDB policy updates, dropped ingestion batches, and a failing CDN peer scan. The sidebar dot turns amber while any advisory is open.
-- Status page advisories now call out a missing City database and ingestion that stops unexpectedly, so a stopped data path is visible without opening the logs.
+- Status page advisories for a disconnected live-feed listener, a missing or stale GeoLite2 database, an undetected map home, failed TimescaleDB policy updates, dropped ingestion batches, stopped ingestion, and a failing CDN peer scan. The sidebar dot turns amber while any advisory is open.
 
 ### Changed
 
