@@ -392,9 +392,11 @@ async def start_scheduler(app: "Litestar") -> None:
     scheduler: AsyncIOScheduler = await create_scheduler(
         session_maker, settings, crowdsec_poller=crowdsec_poller, app=app, **kwargs
     )
+    app.state.scheduler = scheduler
+    if not settings.scheduler.enabled:
+        return
     scheduler_tracker = JobRunTracker()
     scheduler_tracker.attach(scheduler)
-    app.state.scheduler = scheduler
     app.state.scheduler_tracker = scheduler_tracker
     scheduler.start()
     logger.info("scheduler_started")

@@ -696,9 +696,12 @@ async def test_scheduler_disabled_recovery_never_activates_crowdsec_poller(monke
 
     _enable_crowdsec(monkeypatch)
     monkeypatch.setenv("SCHEDULER_ENABLED", "false")
+    real_create_scheduler = lc.create_scheduler
     _patch_startup_collaborators(
         monkeypatch, lc, db_available=False, ensure=AsyncMock(return_value=True)
     )
+    create_scheduler = AsyncMock(wraps=real_create_scheduler)
+    monkeypatch.setattr(lc, "create_scheduler", create_scheduler)
     _patch_crowdsec_service(monkeypatch, lc)
     backend = MagicMock(recover=AsyncMock())
     clock = _patch_recovery(monkeypatch, lc, [True])
@@ -711,11 +714,15 @@ async def test_scheduler_disabled_recovery_never_activates_crowdsec_poller(monke
         await asyncio.wait_for(app.state.db_recovery_task, timeout=1.0)
         assert app.state.crowdsec_stream_poller is None
         assert getattr(app.state, "crowdsec_stream_poller_deferred", None) is None
-        create_scheduler_mock = cast("AsyncMock", lc.create_scheduler)
-        assert create_scheduler_mock.await_args is not None
-        assert create_scheduler_mock.await_args.kwargs["crowdsec_poller"] is None
+        assert create_scheduler.await_args is not None
+        assert create_scheduler.await_args.kwargs["crowdsec_poller"] is None
+        assert app.state.scheduler.running is False
+        assert app.state.scheduler.get_jobs() == []
+        assert not hasattr(app.state, "scheduler_tracker")
 
     cast("MagicMock", lc.CrowdSecStreamPoller).assert_not_called()
+    assert not hasattr(app.state, "scheduler")
+    assert not hasattr(app.state, "scheduler_tracker")
 
 
 @pytest.mark.parametrize("stage", ["migration", "database setup", "scheduler", "ingestion"])
