@@ -26,7 +26,9 @@ export function GeoLogsFilterBar() {
   const isMobile = useIsMobile()
   const { filters, setFilters } = useGeoLogFilters()
   const [facetsEnabled, setFacetsEnabled] = useState(false)
-  const { data: facets } = useGeoEventFacets({ enabled: facetsEnabled })
+  const { data: facets } = useGeoEventFacets({
+    enabled: facetsEnabled || filters.asns.length > 0 || filters.asnsExclude.length > 0,
+  })
 
   const addIp = (key: IpKey) => (value: string) => {
     if (filters[key].includes(value)) return
