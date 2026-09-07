@@ -261,6 +261,52 @@ def _stop_failure_service() -> tuple[LogIngestionService, Any, Any]:
     return service, city_reader, asn_reader
 
 
+@pytest.mark.parametrize("failure_type", [OSError, asyncio.CancelledError])
+@pytest.mark.parametrize("shutting_down", [False, True])
+async def test_reload_cleanup_failure_marks_stopped_ingestion_unless_shutting_down(
+    failure_type, shutting_down: bool,
+) -> None:
+    service, city_reader, _ = _stop_failure_service()
+    stop_event = service._stop_event
+    assert stop_event is not None
+    async def consume_until_stopped() -> None:
+        await stop_event.wait()
+
+    service._ingestion_task = asyncio.create_task(consume_until_stopped())
+
+    def fail_close() -> None:
+        if shutting_down:
+            service.disable_reloads()
+        raise failure_type("reader cleanup failed")
+
+    city_reader.close.side_effect = fail_close
+    with pytest.raises(failure_type):
+        await service.reload_readers()
+
+    assert service.is_running is False
+    assert service._ingestion_task is None
+    assert service.unexpected_stop is (not shutting_down)
+
+
+async def test_reload_restart_failure_marks_stopped_ingestion(monkeypatch) -> None:
+    from unittest.mock import AsyncMock
+
+    service, _, _ = _stop_failure_service()
+    stop_event = service._stop_event
+    assert stop_event is not None
+    async def consume_until_stopped() -> None:
+        await stop_event.wait()
+
+    service._ingestion_task = asyncio.create_task(consume_until_stopped())
+    monkeypatch.setattr(service, "start", AsyncMock(side_effect=RuntimeError("restart failed")))
+
+    with pytest.raises(RuntimeError, match="restart failed"):
+        await service.reload_readers()
+
+    assert service.is_running is False
+    assert service.unexpected_stop is True
+
+
 async def test_stop_cleans_up_before_propagating_completed_consumer_error(
     caplog: pytest.LogCaptureFixture,
 ) -> None:

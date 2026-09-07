@@ -408,10 +408,17 @@ class LogIngestionService:
         a replaced database file."""
         if not self._reloads_enabled:
             return
-        await self.stop()
-        if not self._reloads_enabled:  # shutdown began while draining
-            return
-        await self.start(skip_validation=self._skip_validation)
+        try:
+            await self.stop()
+            if not self._reloads_enabled:  # shutdown began while draining
+                return
+            await self.start(skip_validation=self._skip_validation)
+        except (Exception, asyncio.CancelledError):
+            # Reload stops the consumer intentionally, but a failed reload can
+            # leave ingestion stopped for the rest of this process's lifetime.
+            if self._reloads_enabled and not self.is_running:
+                self.unexpected_stop = True
+            raise
         if self._reader is not None:  # start() logs its own failure path
             logger.info(
                 "geoip_readers_reloaded",

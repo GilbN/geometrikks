@@ -416,7 +416,9 @@ def _collect_advisories(app: Litestar, settings: Settings) -> list[Advisory]:
                 "for policy_update_failed before restarting."
             ),
         ))
-    return advisories
+    # Registry and computed advisories share one severity order. Python's
+    # stable sort preserves producer order within each severity.
+    return sorted(advisories, key=lambda advisory: advisory.severity != "critical")
 
 
 @get(
