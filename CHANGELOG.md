@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - The live rail on the map stops short of the bottom-left corner, so it no longer covers the basemap attribution pill.
+- Access, geo, and debug log tables render only visible rows, reducing the delay when opening record details or the IP Inspector on large pages.
 
 ## [0.14.2] - 2026-09-05
 

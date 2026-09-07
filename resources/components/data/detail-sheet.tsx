@@ -1,3 +1,4 @@
+import { useRef } from "react"
 import {
   Sheet,
   SheetContent,
@@ -6,6 +7,10 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet"
 import { cn } from "@/lib/utils"
+
+// An IP inspector can replace a record sheet. Keep the original row as a
+// fallback when the inspector's immediate opener unmounts with that sheet.
+const sheetOpeners = new WeakMap<EventTarget, HTMLElement[]>()
 
 /** Right-side record viewer: full-screen on phones, a bounded panel from
  * `sm` up. The body scrolls; the header stays. */
@@ -24,9 +29,30 @@ export function DetailSheet({
   children: React.ReactNode
   className?: string
 }) {
+  const openerRef = useRef<HTMLElement[]>([])
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" size="full-mobile" className={cn("gap-0", className)}>
+      <SheetContent
+        side="right"
+        size="full-mobile"
+        aria-modal="true"
+        className={cn("gap-0", className)}
+        onOpenAutoFocus={(event) => {
+          const opener = document.activeElement
+          const previousSheet = opener?.closest('[data-slot="sheet-content"]')
+            ?? document.querySelector('[data-slot="sheet-content"][data-state="closed"]')
+          const previousOpeners = previousSheet ? sheetOpeners.get(previousSheet) ?? [] : []
+          openerRef.current = opener instanceof HTMLElement && opener !== document.body
+            ? [opener, ...previousOpeners]
+            : previousOpeners
+          if (event.target) sheetOpeners.set(event.target, openerRef.current)
+        }}
+        onCloseAutoFocus={(event) => {
+          event.preventDefault()
+          if (document.querySelector('[data-slot="sheet-content"][data-state="open"]')) return
+          openerRef.current.find((element) => element.isConnected)?.focus({ preventScroll: true })
+        }}
+      >
         <SheetHeader className="shrink-0 border-b border-border/50 pr-16">
           <SheetTitle>{title}</SheetTitle>
           <SheetDescription className={cn(!description && "sr-only")}>

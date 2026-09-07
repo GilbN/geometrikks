@@ -3,13 +3,13 @@ import { LocateFixed } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { formatNumber } from "@/lib/api"
-import { useIpInspector } from "@/lib/ip-inspector"
+import { useIpInspectorOrigin } from "@/lib/ip-inspector"
 import { useIpLocations } from "@/lib/queries"
 
 /** Every location this IP resolved to, minus the one the sheet was opened
  *  from. "Fly to" lands on the map with that location's popup open. */
 export function IpLocationsBlock({ ip }: { ip: string }) {
-  const { originLocationId } = useIpInspector()
+  const originLocationId = useIpInspectorOrigin()
   const navigate = useNavigate()
   const { data, isLoading, isError } = useIpLocations(ip)
   const rows = (data?.items ?? []).filter((r) => r.locationId !== originLocationId)
