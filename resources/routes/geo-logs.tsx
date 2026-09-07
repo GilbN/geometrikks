@@ -4,14 +4,12 @@
  * honoring one shared filter set.
  *
  * The filter/pagination state lives in the URL search params so filtered
- * views are shareable links; this route validates the params (zod, with
- * .catch() fallbacks so mangled URLs degrade to defaults instead of erroring)
- * and feeds them to GeoLogFiltersContext. The date range stays global via
- * TimeRangeProvider and is deliberately not in the URL.
+ * views are shareable links; the search schema and the codec that maps it to
+ * GeoLogFiltersContext live in lib/geo-logs-search.ts. The date range stays
+ * global via TimeRangeProvider and is deliberately not in the URL.
  */
 import { lazy, Suspense } from "react"
 import { createFileRoute } from "@tanstack/react-router"
-import { z } from "zod"
 import { PageHeader } from "@/components/page-header"
 import { SignalPanel } from "@/components/data/signal-panel"
 import { GeoLogsFilterBar } from "@/components/geo-logs/geo-logs-filter-bar"
@@ -19,81 +17,27 @@ import { GeoLogsStats } from "@/components/geo-logs/geo-logs-stats"
 import { GeoLogsChart } from "@/components/geo-logs/geo-logs-chart"
 import { GeoTopIpsTable } from "@/components/geo-logs/geo-top-ips-table"
 import { GeoTopCountriesCities } from "@/components/geo-logs/geo-top-countries-cities"
-import { GeoLogsTable, GEO_LOGS_PAGE_SIZES } from "@/components/geo-logs/geo-logs-table"
-import {
-  GeoLogFiltersProvider,
-  type GeoLogFilterState,
-} from "@/lib/geo-log-filters-context"
+import { GeoLogsTable } from "@/components/geo-logs/geo-logs-table"
+import { GeoLogFiltersProvider } from "@/lib/geo-log-filters-context"
 import { useUrlFilters } from "@/hooks/use-url-filters"
-import { arrayParam, dropDefault } from "@/lib/url-filters"
+import { dropDefault } from "@/lib/url-filters"
+import {
+  decodeGeoLogsSearch,
+  encodeGeoLogFilters,
+  GEO_LOGS_RESET_ON_CHANGE,
+  geoLogsSearchSchema,
+  type GeoLogsSearch,
+} from "@/lib/geo-logs-search"
 import { useCrowdsecLiveUpdates } from "@/lib/queries"
 import type { GeoLogSortField, GeoLogSortOrder } from "@/lib/api"
 
 const GeoLogsMap = lazy(() => import("@/components/geo-logs/geo-logs-map"))
-
-// Absent keys mean "default"; navigate() writes undefined for defaults so
-// clean states produce clean URLs.
-const geoLogsSearchSchema = z.object({
-  country: z.array(z.string()).optional().catch(undefined),
-  city: z.array(z.string()).optional().catch(undefined),
-  ip: z.array(z.string()).optional().catch(undefined),
-  ipx: z.array(z.string()).optional().catch(undefined),
-  host: z.array(z.string()).optional().catch(undefined),
-  page: z.number().int().min(1).optional().catch(undefined),
-  pageSize: z
-    .number()
-    .refine((v) => GEO_LOGS_PAGE_SIZES.includes(v as (typeof GEO_LOGS_PAGE_SIZES)[number]))
-    .optional()
-    .catch(undefined),
-  sortBy: z
-    .enum([
-      "city",
-      "postalCode",
-      "state",
-      "countryCode",
-      "countryName",
-      "ipAddress",
-      "latitude",
-      "longitude",
-      "eventCount",
-      "lastSeen",
-    ])
-    .optional()
-    .catch(undefined),
-  sort: z.enum(["asc", "desc"]).optional().catch(undefined),
-})
-
-type GeoLogsSearch = z.infer<typeof geoLogsSearchSchema>
 
 export const Route = createFileRoute("/geo-logs")({
   validateSearch: (search: Record<string, unknown>): GeoLogsSearch =>
     geoLogsSearchSchema.parse(search),
   component: GeoLogsPage,
 })
-
-// Module-level so their identity is stable across renders.
-function decode(search: GeoLogsSearch): GeoLogFilterState {
-  return {
-    countryCodes: search.country ?? [],
-    cities: search.city ?? [],
-    ips: search.ip ?? [],
-    ipsExclude: search.ipx ?? [],
-    hostnames: search.host ?? [],
-  }
-}
-
-function encode(filters: GeoLogFilterState): Partial<GeoLogsSearch> {
-  return {
-    country: arrayParam(filters.countryCodes),
-    city: arrayParam(filters.cities),
-    ip: arrayParam(filters.ips),
-    ipx: arrayParam(filters.ipsExclude),
-    host: arrayParam(filters.hostnames),
-  }
-}
-
-// Filter changes always return to page 1.
-const RESET_ON_CHANGE: Partial<GeoLogsSearch> = { page: undefined }
 
 function GeoLogsPage() {
   const search = Route.useSearch({
@@ -108,9 +52,9 @@ function GeoLogsPage() {
   const { filters, setFilters, patchSearch } = useUrlFilters({
     search,
     navigate,
-    decode,
-    encode,
-    resetOnChange: RESET_ON_CHANGE,
+    decode: decodeGeoLogsSearch,
+    encode: encodeGeoLogFilters,
+    resetOnChange: GEO_LOGS_RESET_ON_CHANGE,
   })
 
   const page = search.page ?? 1

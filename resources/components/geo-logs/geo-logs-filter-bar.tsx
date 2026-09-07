@@ -1,9 +1,10 @@
 /**
- * Filter bar for the geo-logs page: IP include/exclude plus country, city
- * and hostname multiselects (lazy-loaded facets). Renders in a FilterRail on
- * desktop and inside a FiltersDrawer on mobile. Everything on the page (map,
- * stats, chart, top lists, table) reshapes through GeoLogFiltersContext,
- * whose state lives in the URL search params.
+ * Filter bar for the geo-logs page: IP include/exclude, country, city and
+ * hostname multiselects, and an ASN include/exclude combobox pair
+ * (lazy-loaded facets). Renders in a FilterRail on desktop and inside a
+ * FiltersDrawer on mobile. Everything on the page (map, stats, chart, top
+ * lists, table) reshapes through GeoLogFiltersContext, whose state lives in
+ * the URL search params.
  */
 import { useState } from "react"
 import { FilterField, FilterPair, FilterRail, FilterRow } from "@/components/data/filter-rail"
@@ -33,6 +34,16 @@ export function GeoLogsFilterBar() {
   }
   const removeIp = (key: IpKey, ip: string) =>
     setFilters((prev) => ({ ...prev, [key]: prev[key].filter((v) => v !== ip) }))
+
+  const asnLabel = (asn: number) => {
+    const org = facets?.asns.find((a) => a.asn === asn)?.organization
+    return org ? `AS${asn} ${org}` : `AS${asn}`
+  }
+  type AsnKey = "asns" | "asnsExclude"
+  const setAsns = (key: AsnKey) => (values: number[]) =>
+    setFilters((prev) => ({ ...prev, [key]: values }))
+  const removeAsn = (key: AsnKey, asn: number) =>
+    setFilters((prev) => ({ ...prev, [key]: prev[key].filter((v) => v !== asn) }))
 
   const ipPair = (inDrawer: boolean) => (
     <FilterPair
@@ -105,14 +116,50 @@ export function GeoLogsFilterBar() {
     </FilterField>
   )
 
+  const asnPair = (inDrawer: boolean) => (
+    <FilterPair
+      label="ASN"
+      excludeLabel="Exclude ASN"
+      stacked={inDrawer}
+      include={
+        <FilterCombobox<number>
+          label="ASN"
+          options={facets?.asns.map((a) => a.asn) ?? []}
+          selected={filters.asns}
+          onChange={setAsns("asns")}
+          labelFor={asnLabel}
+          loading={!facets}
+          emptyText="No ASN data"
+          onOpenChange={(open) => open && setFacetsEnabled(true)}
+          forceInline={inDrawer}
+        />
+      }
+      exclude={
+        <FilterCombobox<number>
+          label="Exclude ASN"
+          options={facets?.asns.map((a) => a.asn) ?? []}
+          selected={filters.asnsExclude}
+          onChange={setAsns("asnsExclude")}
+          labelFor={asnLabel}
+          loading={!facets}
+          emptyText="No ASN data"
+          onOpenChange={(open) => open && setFacetsEnabled(true)}
+          forceInline={inDrawer}
+        />
+      }
+    />
+  )
+
   const chips = [
-    ...filters.ips.map((v) => ({ key: "ips" as const, v, exclude: false })),
-    ...filters.ipsExclude.map((v) => ({ key: "ipsExclude" as const, v, exclude: true })),
+    ...filters.ips.map((v) => ({ key: "ips" as const, label: v, exclude: false, remove: () => removeIp("ips", v) })),
+    ...filters.ipsExclude.map((v) => ({ key: "ipsExclude" as const, label: v, exclude: true, remove: () => removeIp("ipsExclude", v) })),
+    ...filters.asns.map((v) => ({ key: "asns" as const, label: asnLabel(v), exclude: false, remove: () => removeAsn("asns", v) })),
+    ...filters.asnsExclude.map((v) => ({ key: "asnsExclude" as const, label: asnLabel(v), exclude: true, remove: () => removeAsn("asnsExclude", v) })),
   ]
   const chipRow = chips.length > 0 && (
     <FilterRow>
       {chips.map((c) => (
-        <FilterChip key={`${c.key}:${c.v}`} value={c.v} exclude={c.exclude} onRemove={() => removeIp(c.key, c.v)} />
+        <FilterChip key={`${c.key}:${c.label}`} value={c.label} exclude={c.exclude} onRemove={c.remove} />
       ))}
     </FilterRow>
   )
@@ -128,6 +175,7 @@ export function GeoLogsFilterBar() {
           {country(true)}
           {city(true)}
           {hostname(true)}
+          {asnPair(true)}
           {chipRow}
         </FiltersDrawer>
       </div>
@@ -141,6 +189,7 @@ export function GeoLogsFilterBar() {
         {country(false)}
         {city(false)}
         {hostname(false)}
+        {asnPair(false)}
       </FilterRow>
       {chipRow}
     </FilterRail>
