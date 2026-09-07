@@ -231,6 +231,25 @@ class TestAsnFacet:
             (24940, "Hetzner Online GmbH"), (1221, "Telstra Pty Ltd"),
         ]
 
+    async def test_falls_back_to_the_geo_rollup_on_geo_only_installs(self, pg_engine, pg_session_maker, clean_tables):
+        """No access_logs rows at all: the primary rollup stays empty, so the
+        facet must fall back to ip_location_daily_stats."""
+        ts = NOW - timedelta(hours=2)
+        async with pg_session_maker() as session:
+            loc = await _one_location(session)
+            await _insert_event(session, ts=ts, ip="1.1.1.1", location_id=loc, asn=1221, org="Telstra Pty Ltd")
+            await _insert_event(session, ts=ts, ip="2.2.2.2", location_id=loc, asn=24940, org="Hetzner Online GmbH")
+            await session.commit()
+        await refresh_caggs_range(
+            pg_engine, start=NOW - timedelta(days=1), end=NOW + timedelta(hours=1),
+            caggs=["ip_location_daily_stats", "asn_daily_stats"],
+        )
+        async with pg_session_maker() as session:
+            facets = await GeoEventService(session=session).get_facets()
+        assert [(f.asn, f.organization) for f in facets.asns] == [
+            (24940, "Hetzner Online GmbH"), (1221, "Telstra Pty Ltd"),
+        ]
+
 
 class TestGeojsonAsnFilters:
     async def test_include_and_exclude_shrink_results(self, pg_session_maker, clean_tables):

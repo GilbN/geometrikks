@@ -636,7 +636,10 @@ class GeoEventService(SQLAlchemyAsyncRepositoryService[GeoEvent]):
         the displayed name, mirroring AccessLogService.get_facets. Hostnames
         come from hostname_daily_stats (real-time aggregated) rather than a
         DISTINCT over raw geo_events, whose cost scales with total volume;
-        values persist beyond raw retention like the access-log facets.
+        values persist beyond raw retention like the access-log facets. The
+        ASN list falls back to the geo per-IP rollup because an install with
+        LOGPARSER_SEND_LOGS=false never writes access_logs, leaving the
+        primary rollup permanently empty.
         """
         session = self._session
         country_name = func.max(GeoLocation.country_name)
@@ -669,6 +672,16 @@ class GeoEventService(SQLAlchemyAsyncRepositoryService[GeoEvent]):
                 "GROUP BY asn ORDER BY MAX(as_org) NULLS LAST, asn"
             ))
         ).all()
+        if not asn_rows:
+            # Geo-only installs (LOGPARSER_SEND_LOGS=false) never populate
+            # access_logs, so asn_daily_stats stays empty forever; fall back
+            # to the geo per-IP rollup so the filter still has values.
+            asn_rows = (
+                await session.execute(text(
+                    "SELECT asn, MAX(as_org) AS organization FROM ip_location_daily_stats "
+                    "WHERE asn IS NOT NULL GROUP BY asn ORDER BY MAX(as_org) NULLS LAST, asn"
+                ))
+            ).all()
         return GeoEventFacets(
             countries=[GeoCountryFacet(code=code, name=name or code) for code, name in country_rows],
             cities=list(cities),
