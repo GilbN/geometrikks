@@ -6,7 +6,7 @@
  * lists, table) reshapes through GeoLogFiltersContext, whose state lives in
  * the URL search params.
  */
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import { FilterField, FilterPair, FilterRail, FilterRow } from "@/components/data/filter-rail"
 import { FilterChip, TagInput } from "@/components/data/tag-input"
 import { FilterCombobox } from "@/components/ui/filter-combobox"
@@ -37,8 +37,14 @@ export function GeoLogsFilterBar() {
   const removeIp = (key: IpKey, ip: string) =>
     setFilters((prev) => ({ ...prev, [key]: prev[key].filter((v) => v !== ip) }))
 
+  // FilterCombobox calls labelFor per option per keystroke; a linear find
+  // over an unbounded ASN facet list would make that quadratic.
+  const asnOrgs = useMemo(
+    () => new Map(facets?.asns.map((a) => [a.asn, a.organization]) ?? []),
+    [facets],
+  )
   const asnLabel = (asn: number) => {
-    const org = facets?.asns.find((a) => a.asn === asn)?.organization
+    const org = asnOrgs.get(asn)
     return org ? `AS${asn} ${org}` : `AS${asn}`
   }
   type AsnKey = "asns" | "asnsExclude"
