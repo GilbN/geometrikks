@@ -19,6 +19,8 @@ export type GeoLogColumnKey =
   | "eventCount"
   | "lastSeen"
   | "hostnames"
+  | "asn"
+  | "asOrganization"
 
 export interface GeoLogColumn extends VisibilityColumn {
   key: GeoLogColumnKey
@@ -41,4 +43,6 @@ export const GEO_LOG_COLUMNS = [
   { key: "eventCount", label: "Count", sortField: "eventCount", defaultVisible: true, align: "right" },
   { key: "lastSeen", label: "Last seen", sortField: "lastSeen", defaultVisible: true, mobileHidden: true },
   { key: "hostnames", grow: true, label: "Hostnames", defaultVisible: false },
+  { key: "asn", label: "ASN", sortField: "asn", defaultVisible: false, mobileHidden: true },
+  { key: "asOrganization", label: "Organization", defaultVisible: false, mobileHidden: true },
 ] satisfies readonly GeoLogColumn[] as readonly GeoLogColumn[]

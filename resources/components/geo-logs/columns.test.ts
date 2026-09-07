@@ -24,4 +24,15 @@ describe("geo log columns", () => {
   it("leaves hostnames unsortable", () => {
     expect(GEO_LOG_COLUMNS.find((c) => c.key === "hostnames")?.sortField).toBeUndefined()
   })
+
+  it("hides the ASN columns by default on every viewport", () => {
+    expect(defaults(false)).not.toContain("asn")
+    expect(defaults(false)).not.toContain("asOrganization")
+    expect(defaults(true)).not.toContain("asn")
+  })
+
+  it("sorts by ASN number but not by organization", () => {
+    expect(GEO_LOG_COLUMNS.find((c) => c.key === "asn")?.sortField).toBe("asn")
+    expect(GEO_LOG_COLUMNS.find((c) => c.key === "asOrganization")?.sortField).toBeUndefined()
+  })
 })
