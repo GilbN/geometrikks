@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.14.3] - 2026-09-07
+
 ### Added
 
 - Startup waits for the database for up to `DB_STARTUP_WAIT_SECONDS`, which defaults to 30 seconds. If it remains unreachable, the app serves in degraded mode with a critical Status advisory and keeps checking. When the database returns, recovery runs the deferred migrations and starts the paused services.
@@ -999,7 +1001,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Settings endpoint no longer exposes the full settings tree (database credentials leaked via `model_dump()`); response is now an explicit whitelist.
 - Timestamps in `CALL refresh_continuous_aggregate` are bound as asyncpg parameters instead of interpolated into SQL.
 
-[Unreleased]: https://github.com/GilbN/geometrikks/compare/v0.14.2...develop
+[Unreleased]: https://github.com/GilbN/geometrikks/compare/v0.14.3...develop
+[0.14.3]: https://github.com/GilbN/geometrikks/compare/v0.14.2...v0.14.3
 [0.14.2]: https://github.com/GilbN/geometrikks/compare/v0.14.1...v0.14.2
 [0.14.1]: https://github.com/GilbN/geometrikks/compare/v0.14.0...v0.14.1
 [0.14.0]: https://github.com/GilbN/geometrikks/compare/v0.13.0...v0.14.0
