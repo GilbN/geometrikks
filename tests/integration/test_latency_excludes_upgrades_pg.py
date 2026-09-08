@@ -226,8 +226,8 @@ async def test_setup_adds_and_fills_the_latency_columns_in_place(pg_engine, pg_s
     await setup_timescaledb(pg_engine, get_settings().analytics)
 
     after = await _columns(pg_engine)
-    for view, columns in CAGG_COLUMNS.items():
-        for column in columns:
+    for view in LATENCY_VIEWS:
+        for column in CAGG_COLUMNS[view]:
             assert (view, column.name) in after, (view, column.name)
     async with pg_engine.connect() as conn:
         row = (await conn.execute(text("""

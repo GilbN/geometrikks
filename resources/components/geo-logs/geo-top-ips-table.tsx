@@ -1,11 +1,13 @@
 /**
- * Top IPs by geo-event count for the geo-logs page, across all locations.
+ * Top IPs by geo-event count for the geo-logs page, across all locations,
+ * with the organization behind each IP.
  */
 import { DataTableFrame } from "@/components/data/data-table-frame"
 import { dataState } from "@/components/data/types"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { formatNumber } from "@/lib/api"
 import { useGeoLogTopIps } from "@/lib/queries"
+import { AsnCell } from "@/components/geo-logs/asn-cell"
 import { IpBanControls } from "@/components/crowdsec/ip-ban-controls"
 import { InspectIpButton } from "@/components/ip-inspector/inspect-ip-button"
 import { TablePaginationFooter, usePagedRows } from "@/components/analytics/table-pagination"
@@ -35,6 +37,7 @@ export function GeoTopIpsTable() {
             <TableHead>IP</TableHead>
             <TableHead>Country</TableHead>
             <TableHead>City</TableHead>
+            <TableHead>Organization</TableHead>
             <TableHead className="text-right">Events</TableHead>
           </TableRow>
         </TableHeader>
@@ -49,6 +52,9 @@ export function GeoTopIpsTable() {
               </TableCell>
               <TableCell>{row.countryCode ?? "-"}</TableCell>
               <TableCell>{row.city ?? "-"}</TableCell>
+              <TableCell className="max-w-[220px]">
+                <AsnCell asn={row.asn} organization={row.asOrganization} />
+              </TableCell>
               <TableCell className="text-right tabular-nums">{formatNumber(row.eventCount)}</TableCell>
             </TableRow>
           ))}

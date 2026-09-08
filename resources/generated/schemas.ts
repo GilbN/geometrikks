@@ -98,6 +98,9 @@ import type {
   ApiV1GeoEventsTimeSeriesGetGeoLogTimeSeriesData,
   ApiV1GeoEventsTimeSeriesGetGeoLogTimeSeriesErrors,
   ApiV1GeoEventsTimeSeriesGetGeoLogTimeSeriesResponses,
+  ApiV1GeoEventsTopAsnsGetGeoLogTopAsnsData,
+  ApiV1GeoEventsTopAsnsGetGeoLogTopAsnsErrors,
+  ApiV1GeoEventsTopAsnsGetGeoLogTopAsnsResponses,
   ApiV1GeoEventsTopCitiesGetGeoLogTopCitiesData,
   ApiV1GeoEventsTopCitiesGetGeoLogTopCitiesErrors,
   ApiV1GeoEventsTopCitiesGetGeoLogTopCitiesResponses,
@@ -189,6 +192,7 @@ export type OperationName =
   | 'get_geo_log_facets'
   | 'get_geo_log_summary'
   | 'get_geo_log_time_series'
+  | 'get_geo_log_top_asns'
   | 'get_geo_log_top_cities'
   | 'get_geo_log_top_countries'
   | 'get_geo_log_top_ips'
@@ -253,6 +257,7 @@ export interface OperationDataTypes {
   'get_geo_log_facets': ApiV1GeoEventsFacetsGetGeoLogFacetsData
   'get_geo_log_summary': ApiV1GeoEventsSummaryGetGeoLogSummaryData
   'get_geo_log_time_series': ApiV1GeoEventsTimeSeriesGetGeoLogTimeSeriesData
+  'get_geo_log_top_asns': ApiV1GeoEventsTopAsnsGetGeoLogTopAsnsData
   'get_geo_log_top_cities': ApiV1GeoEventsTopCitiesGetGeoLogTopCitiesData
   'get_geo_log_top_countries': ApiV1GeoEventsTopCountriesGetGeoLogTopCountriesData
   'get_geo_log_top_ips': ApiV1GeoEventsTopIpsGetGeoLogTopIpsData
@@ -318,6 +323,7 @@ export interface OperationResponseTypes {
   'get_geo_log_facets': ApiV1GeoEventsFacetsGetGeoLogFacetsResponses
   'get_geo_log_summary': ApiV1GeoEventsSummaryGetGeoLogSummaryResponses
   'get_geo_log_time_series': ApiV1GeoEventsTimeSeriesGetGeoLogTimeSeriesResponses
+  'get_geo_log_top_asns': ApiV1GeoEventsTopAsnsGetGeoLogTopAsnsResponses
   'get_geo_log_top_cities': ApiV1GeoEventsTopCitiesGetGeoLogTopCitiesResponses
   'get_geo_log_top_countries': ApiV1GeoEventsTopCountriesGetGeoLogTopCountriesResponses
   'get_geo_log_top_ips': ApiV1GeoEventsTopIpsGetGeoLogTopIpsResponses
@@ -383,6 +389,7 @@ export interface OperationErrorTypes {
   'get_geo_log_facets': never
   'get_geo_log_summary': ApiV1GeoEventsSummaryGetGeoLogSummaryErrors
   'get_geo_log_time_series': ApiV1GeoEventsTimeSeriesGetGeoLogTimeSeriesErrors
+  'get_geo_log_top_asns': ApiV1GeoEventsTopAsnsGetGeoLogTopAsnsErrors
   'get_geo_log_top_cities': ApiV1GeoEventsTopCitiesGetGeoLogTopCitiesErrors
   'get_geo_log_top_countries': ApiV1GeoEventsTopCountriesGetGeoLogTopCountriesErrors
   'get_geo_log_top_ips': ApiV1GeoEventsTopIpsGetGeoLogTopIpsErrors

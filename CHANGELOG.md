@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Geo Logs now records the autonomous system number and organization for every geo event using the GeoLite2 ASN database, including on geo-only installs (`LOGPARSER_SEND_LOGS=false`). Top IPs shows each IP's organization. Top locations has an ASNs tab with hosting classification and exact unique-IP counts. The grouped table adds optional ASN and Organization columns, the detail panel shows the ASN, and ASN include and exclude filters apply to both the table and embedded map. The API adds `GET /api/v1/geo-events/top-asns` and the `asnIn` and `asnNotIn` parameters to the geo-events and geojson endpoints.
+- `litestar backfill-asn` fills missing ASN data in historical geo events and refreshes the per-IP aggregates. On first start, Geometrikks adds the new aggregate columns and refreshes the raw-retention window. This can make startup slow on large installs. Buckets older than raw retention remain without ASN data.
+
 ## [0.14.3] - 2026-09-07
 
 ### Added

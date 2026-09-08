@@ -77,8 +77,8 @@ async def test_fresh_views_have_every_upgrade_column(pg_engine) -> None:
     async with pg_engine.connect() as conn:
         rows = await conn.execute(text("""
             SELECT table_name, column_name FROM information_schema.columns
-            WHERE table_name IN ('summary_hourly_stats', 'summary_daily_stats', 'url_hourly_stats', 'url_daily_stats')
-        """))
+            WHERE table_name = ANY(:views)
+        """), {"views": list(timescale.CAGG_COLUMNS)})
         cols = {(r.table_name, r.column_name) for r in rows}
     for view, columns in timescale.CAGG_COLUMNS.items():
         for column in columns:

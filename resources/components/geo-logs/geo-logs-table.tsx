@@ -1,9 +1,10 @@
 /**
  * Grouped geo-events table: one row per (location, IP) pair with an event
  * count, server-paginated and server-sorted by any visible column except
- * hostnames. Page/size/sort state lives in the route's URL search params and
- * arrives here as props; the filter set comes from GeoLogFiltersContext like
- * everything else on the page. Selecting a row opens GeoLogDetailSheet.
+ * hostnames and organization. Page/size/sort state lives in the route's URL
+ * search params and arrives here as props; the filter set comes from
+ * GeoLogFiltersContext like everything else on the page. Selecting a row
+ * opens GeoLogDetailSheet.
  */
 import { memo, useState } from "react"
 import { ArrowDown, ArrowUp, ChevronsUpDown, Columns3 } from "lucide-react"
@@ -73,6 +74,14 @@ function renderCell(column: GeoLogColumn, r: GeoLogEntry): React.ReactNode {
       return (
         <span className="block truncate font-mono" title={r.hostnames.join(", ") || undefined}>
           {r.hostnames.length ? r.hostnames.join(", ") : "-"}
+        </span>
+      )
+    case "asn":
+      return <span className="font-mono text-xs">{r.asn != null ? `AS${r.asn}` : "-"}</span>
+    case "asOrganization":
+      return (
+        <span className="block max-w-[240px] truncate" title={r.asOrganization ?? undefined}>
+          {r.asOrganization ?? "-"}
         </span>
       )
   }

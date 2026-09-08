@@ -26,6 +26,7 @@ from geometrikks.domain.geo.schemas import (
     GeoLogPercentChange,
     GeoLogSummaryResponse,
     GeoLogTimeSeriesResponse,
+    TopGeoAsnsResponse,
     TopGeoCitiesResponse,
     TopGeoCountriesResponse,
     TopGeoIpsResponse,
@@ -33,6 +34,8 @@ from geometrikks.domain.geo.schemas import (
 from geometrikks.domain.geo.services import GeoEventService
 from geometrikks.lib.parameters import (
     ToTimestamp,
+    AsnIn,
+    AsnNotIn,
     HostnameIn,
     IpAddressIn,
     IpAddressNotIn,
@@ -100,6 +103,8 @@ def provide_geo_event_filters(
     ip_address_in: IpAddressIn = None,
     ip_address_not_in: IpAddressNotIn = None,
     hostname_in: HostnameIn = None,
+    asn_in: AsnIn = None,
+    asn_not_in: AsnNotIn = None,
 ) -> GeoEventFilters:
     """Dimension filters consumed by the aggregate endpoints."""
     if ip_address_in:
@@ -112,6 +117,8 @@ def provide_geo_event_filters(
         ip_include=ip_address_in or None,
         ip_exclude=ip_address_not_in or None,
         hostnames=hostname_in or None,
+        asn_include=asn_in or None,
+        asn_exclude=asn_not_in or None,
     )
 
 
@@ -346,6 +353,21 @@ class GeoEventController(Controller):
             ensure_utc(from_timestamp), ensure_utc(to_timestamp), geo_filters, limit=limit
         )
         return TopGeoCitiesResponse(items=rows)
+
+    @get("/top-asns", return_dto=None, description="Top autonomous systems by geo-event count.")
+    async def get_geo_log_top_asns(
+        self,
+        geo_event_service: NamedDependency[GeoEventService],
+        geo_filters: NamedDependency[SkipValidation[GeoEventFilters]],
+        from_timestamp: FromTimestamp,
+        to_timestamp: ToTimestamp,
+        limit: Annotated[int, QueryParameter(description="Maximum number of ASNs", ge=1, le=50)] = 10,
+    ) -> TopGeoAsnsResponse:
+        """Top ASNs with exact unique-IP counts; rows without ASN data are excluded."""
+        rows = await geo_event_service.get_top_asns(
+            ensure_utc(from_timestamp), ensure_utc(to_timestamp), geo_filters, limit=limit
+        )
+        return TopGeoAsnsResponse(items=rows)
 
     @get("/facets", return_dto=None, description="Distinct filterable values for dropdowns.")
     async def get_geo_log_facets(

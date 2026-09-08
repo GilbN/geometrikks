@@ -71,3 +71,44 @@ async def test_process_record_stamps_record_hostname_on_geo_event() -> None:
     added = repos.geo_event.session.add.call_args[0][0]
     assert added.hostname == "vps-2"
     assert added.location_id == 42
+
+
+@pytest.mark.anyio
+async def test_process_record_stamps_asn_on_geo_event() -> None:
+    service = LogIngestionService(
+        parsers=[], session_maker=cast("Any", None), geoip_path="unused", hostname="myserver",
+    )
+    geo = ParsedGeoData(
+        latitude=51.5, longitude=-0.1, geohash="gcpvj0", country_code="GB",
+        country_name="United Kingdom", timestamp=datetime.now(timezone.utc),
+        autonomous_system_number=1221, autonomous_system_organization="Telstra Pty Ltd",
+    )
+    record = ParsedLogRecord(ip_address="1.128.0.0", geo_data=geo, access_log=None, raw_line="raw")
+    service._location_cache[geo.geohash] = 42
+    repos = MagicMock()
+
+    await service._process_record(record, repos, {"geo": 0, "log": 0, "debug": 0})
+
+    added = repos.geo_event.session.add.call_args[0][0]
+    assert added.autonomous_system_number == 1221
+    assert added.autonomous_system_organization == "Telstra Pty Ltd"
+
+
+@pytest.mark.anyio
+async def test_process_record_leaves_asn_null_when_unresolved() -> None:
+    service = LogIngestionService(
+        parsers=[], session_maker=cast("Any", None), geoip_path="unused", hostname="myserver",
+    )
+    geo = ParsedGeoData(
+        latitude=51.5, longitude=-0.1, geohash="gcpvj0", country_code="GB",
+        country_name="United Kingdom", timestamp=datetime.now(timezone.utc),
+    )
+    record = ParsedLogRecord(ip_address="203.0.113.7", geo_data=geo, access_log=None, raw_line="raw")
+    service._location_cache[geo.geohash] = 42
+    repos = MagicMock()
+
+    await service._process_record(record, repos, {"geo": 0, "log": 0, "debug": 0})
+
+    added = repos.geo_event.session.add.call_args[0][0]
+    assert added.autonomous_system_number is None
+    assert added.autonomous_system_organization is None

@@ -498,6 +498,8 @@ class LogIngestionService:
                     ip_address=record.ip_address,
                     hostname=record.hostname or self.hostname,
                     location_id=location_id,
+                    autonomous_system_number=record.geo_data.autonomous_system_number,
+                    autonomous_system_organization=record.geo_data.autonomous_system_organization,
                 )
                 # Plain session.add: repo.add() flushes + refreshes per call
                 # (2 DB round trips per record), which caps throughput at a few

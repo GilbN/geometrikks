@@ -106,6 +106,8 @@
         "GET"
       ],
       "queryParameters": {
+        "asnIn": "number[] | undefined",
+        "asnNotIn": "number[] | undefined",
         "cityIn": "string[] | undefined",
         "comparePrevious": "boolean | undefined",
         "countryCodeIn": "string[] | undefined",
@@ -123,6 +125,8 @@
         "GET"
       ],
       "queryParameters": {
+        "asnIn": "number[] | undefined",
+        "asnNotIn": "number[] | undefined",
         "cityIn": "string[] | undefined",
         "countryCodeIn": "string[] | undefined",
         "fromTimestamp": "DateTime",
@@ -135,12 +139,33 @@
       },
       "uri": "/api/v1/geo-events/time-series"
     },
+    "get_geo_log_top_asns": {
+      "method": "get",
+      "methods": [
+        "GET"
+      ],
+      "queryParameters": {
+        "asnIn": "number[] | undefined",
+        "asnNotIn": "number[] | undefined",
+        "cityIn": "string[] | undefined",
+        "countryCodeIn": "string[] | undefined",
+        "fromTimestamp": "DateTime",
+        "hostnameIn": "string[] | undefined",
+        "ipAddressIn": "string[] | undefined",
+        "ipAddressNotIn": "string[] | undefined",
+        "limit": "number | undefined",
+        "toTimestamp": "DateTime"
+      },
+      "uri": "/api/v1/geo-events/top-asns"
+    },
     "get_geo_log_top_cities": {
       "method": "get",
       "methods": [
         "GET"
       ],
       "queryParameters": {
+        "asnIn": "number[] | undefined",
+        "asnNotIn": "number[] | undefined",
         "cityIn": "string[] | undefined",
         "countryCodeIn": "string[] | undefined",
         "fromTimestamp": "DateTime",
@@ -158,6 +183,8 @@
         "GET"
       ],
       "queryParameters": {
+        "asnIn": "number[] | undefined",
+        "asnNotIn": "number[] | undefined",
         "cityIn": "string[] | undefined",
         "countryCodeIn": "string[] | undefined",
         "fromTimestamp": "DateTime",
@@ -175,6 +202,8 @@
         "GET"
       ],
       "queryParameters": {
+        "asnIn": "number[] | undefined",
+        "asnNotIn": "number[] | undefined",
         "cityIn": "string[] | undefined",
         "countryCodeIn": "string[] | undefined",
         "fromTimestamp": "DateTime",
@@ -192,6 +221,8 @@
         "GET"
       ],
       "queryParameters": {
+        "asnIn": "number[] | undefined",
+        "asnNotIn": "number[] | undefined",
         "cityIn": "string[] | undefined",
         "countryCodeIn": "string[] | undefined",
         "currentPage": "number | undefined",
@@ -225,6 +256,8 @@
         "GET"
       ],
       "queryParameters": {
+        "asnIn": "number[] | undefined",
+        "asnNotIn": "number[] | undefined",
         "city": "string[] | undefined",
         "countryCode": "string[] | undefined",
         "fromTimestamp": "DateTime",

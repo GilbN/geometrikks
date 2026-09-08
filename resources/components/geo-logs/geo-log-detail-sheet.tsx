@@ -40,6 +40,11 @@ export function GeoLogDetailSheet({
               </span>
             }
           />
+          <DetailField
+            label="ASN"
+            value={entry.asn != null ? `AS${entry.asn}${entry.asOrganization ? ` ${entry.asOrganization}` : ""}` : null}
+            mono
+          />
           <DetailField label="Request count" value={formatNumber(entry.eventCount)} />
           <DetailField label="Last seen" value={entry.lastSeen ? new Date(entry.lastSeen).toLocaleString() : null} />
           <DetailField label="Latitude" value={entry.latitude.toFixed(4)} mono />

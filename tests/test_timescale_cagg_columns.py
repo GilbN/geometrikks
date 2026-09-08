@@ -48,7 +48,9 @@ def test_cagg_column_ddl() -> None:
 
 def test_column_table_covers_every_upgraded_view() -> None:
     assert set(timescale.CAGG_GENERATIONS) == {
-        "summary_hourly_stats", "summary_daily_stats", "url_hourly_stats", "url_daily_stats",
+        "summary_hourly_stats", "summary_daily_stats",
+        "url_hourly_stats", "url_daily_stats",
+        "ip_location_hourly_stats", "ip_location_daily_stats",
     }
     assert set(timescale.CAGG_COLUMNS) == set(timescale.CAGG_GENERATIONS)
     for view, generations in timescale.CAGG_GENERATIONS.items():
@@ -68,12 +70,24 @@ def test_column_table_covers_every_upgraded_view() -> None:
     ]
 
 
+def test_ip_location_generation_rolls_the_asn_up_per_ip() -> None:
+    names = [c.name for c in timescale.CAGG_COLUMNS["ip_location_hourly_stats"]]
+    assert names == ["asn", "as_org", "asn_hits"]
+    by_name = {c.name: c for c in timescale.CAGG_COLUMNS["ip_location_hourly_stats"]}
+    assert by_name["asn"].expression == "MAX(autonomous_system_number)"
+    assert by_name["as_org"].expression == "MAX(autonomous_system_organization)"
+    assert by_name["asn_hits"].expression == "COUNT(autonomous_system_number)"
+    assert timescale.CAGG_COLUMNS["ip_location_daily_stats"] == timescale.CAGG_COLUMNS["ip_location_hourly_stats"]
+    assert timescale.IP_LOCATION_CAGGS_NAMES == ["ip_location_hourly_stats", "ip_location_daily_stats"]
+
+
 async def test_create_statements_define_every_upgrade_column() -> None:
     """Fresh installs get the columns from CREATE with the same expression
     the in-place upgrade uses, so both shapes stay identical."""
     conn = RecordingConn()
     await timescale._create_summary_caggs(cast("Any", conn))
     await timescale._create_url_caggs(cast("Any", conn))
+    await timescale._create_ip_location_cagg(cast("Any", conn))
     creates = [s for s in conn.statements if "CREATE MATERIALIZED VIEW" in s]
     for view, columns in timescale.CAGG_COLUMNS.items():
         create = next(s for s in creates if f"IF NOT EXISTS {view}\n" in s or f"IF NOT EXISTS {view} " in s)

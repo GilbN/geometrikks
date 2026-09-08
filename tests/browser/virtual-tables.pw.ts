@@ -17,6 +17,7 @@ const geoRows: GeoLogEntry[] = accessRows.slice(0, 500).map((row) => ({
   countryCode: "NO", countryName: "Norway", eventCount: row.id,
   hostnames: ["example.test"], lastSeen: timestamp, latitude: 59.9,
   longitude: 10.7, postalCode: null, state: null, stateCode: null,
+  asn: null, asOrganization: null,
 }))
 const debugRows: AccessLogDebugEntry[] = accessRows.map((row) => ({
   ...row, createdAt: timestamp, isMalformed: false,

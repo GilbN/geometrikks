@@ -34,6 +34,8 @@ from geometrikks.domain.geo.dtos import (
 )
 
 from geometrikks.lib.parameters import (
+    AsnIn,
+    AsnNotIn,
     CityFilter,
     CountryCodeFilter,
     ToTimestamp,
@@ -92,13 +94,15 @@ class GeoLocationController(Controller):
         ip_address_in: IpAddressIn = None,
         ip_address_not_in: IpAddressNotIn = None,
         hostname_in: HostnameIn = None,
+        asn_in: AsnIn = None,
+        asn_not_in: AsnNotIn = None,
     ) -> GeoJSONFeatureCollection:
         """Get all locations with event counts as GeoJSON FeatureCollection.
 
         Returns a GeoJSON FeatureCollection where each feature represents a
         location with its coordinates and properties including the event count.
-        An IP filter always forces a raw geo_events scan, bounded by raw
-        retention. A hostname filter forces the raw scan only until the
+        An IP or ASN filter always forces a raw geo_events scan, bounded by
+        raw retention. A hostname filter forces the raw scan only until the
         location CAGGs carry the hostname dimension (pre-upgrade or
         pollution-skipped installs); once they do, it reads the CAGGs.
         Args:
@@ -117,7 +121,7 @@ class GeoLocationController(Controller):
         locations_with_counts = await geo_location_service.get_all_with_event_counts(
             from_timestamp, to_timestamp, country_codes=country_code, cities=city,
             ip_addresses=ip_address_in, ip_addresses_exclude=ip_address_not_in,
-            hostnames=hostname_in,
+            hostnames=hostname_in, asns=asn_in, asns_exclude=asn_not_in,
         )
         
         events: int = sum(loc.event_count for loc in locations_with_counts)

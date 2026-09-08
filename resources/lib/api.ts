@@ -10,6 +10,7 @@ import {
   apiV1GeoLocationsSiteHomesSiteHomes,
   apiV1GeoEventsSummaryGetGeoLogSummary,
   apiV1GeoEventsTimeSeriesGetGeoLogTimeSeries,
+  apiV1GeoEventsTopAsnsGetGeoLogTopAsns,
   apiV1GeoEventsTopCitiesGetGeoLogTopCities,
   apiV1GeoEventsTopCountriesGetGeoLogTopCountries,
   apiV1GeoEventsTopIpsGetGeoLogTopIps,
@@ -451,6 +452,10 @@ export interface GeoJSONParams {
    * falling back to a raw geo_events scan on installs that have not
    * migrated. */
   hostnames?: string[]
+  /** ASNs to include; forces a raw geo_events scan on the backend. */
+  asns?: number[]
+  /** ASNs to exclude (rows without ASN data are kept); forces a raw scan. */
+  asnsExclude?: number[]
 }
 
 export async function fetchGeoJSON(params: GeoJSONParams): Promise<GeoJSONFeatureCollection> {
@@ -463,6 +468,8 @@ export async function fetchGeoJSON(params: GeoJSONParams): Promise<GeoJSONFeatur
       ipAddressIn: params.ips?.length ? params.ips : undefined,
       ipAddressNotIn: params.ipsExclude?.length ? params.ipsExclude : undefined,
       hostnameIn: params.hostnames?.length ? params.hostnames : undefined,
+      asnIn: params.asns?.length ? params.asns : undefined,
+      asnNotIn: params.asnsExclude?.length ? params.asnsExclude : undefined,
     },
     // Litestar expects repeated keys (?countryCode=NO&countryCode=SE),
     // not axios' default bracket form (countryCode[]=NO).
@@ -749,6 +756,8 @@ export interface GeoLogFilterParams {
   ips?: string[]
   ipsExclude?: string[]
   hostnames?: string[]
+  asns?: number[]
+  asnsExclude?: number[]
 }
 
 /** Shared query fragment; empty arrays are dropped from the query string. */
@@ -759,6 +768,8 @@ function geoLogFilterQuery(params: GeoLogFilterParams) {
     ipAddressIn: params.ips?.length ? params.ips : undefined,
     ipAddressNotIn: params.ipsExclude?.length ? params.ipsExclude : undefined,
     hostnameIn: params.hostnames?.length ? params.hostnames : undefined,
+    asnIn: params.asns?.length ? params.asns : undefined,
+    asnNotIn: params.asnsExclude?.length ? params.asnsExclude : undefined,
   }
 }
 
@@ -780,6 +791,7 @@ export type GeoLogSortField =
   | "longitude"
   | "eventCount"
   | "lastSeen"
+  | "asn"
 
 /** camelCase sort key -> backend snake_case column name for `orderBy`. */
 const GEO_LOG_SORT_FIELD_TO_COLUMN: Record<GeoLogSortField, string> = {
@@ -793,6 +805,7 @@ const GEO_LOG_SORT_FIELD_TO_COLUMN: Record<GeoLogSortField, string> = {
   longitude: "longitude",
   eventCount: "event_count",
   lastSeen: "last_seen",
+  asn: "asn",
 }
 
 export async function fetchGeoLogs(
@@ -894,7 +907,22 @@ export async function fetchGeoLogTopCities(
   return data
 }
 
-/** Distinct country/city/hostname values present in the geo data. */
+export async function fetchGeoLogTopAsns(
+  params: GeoLogsWindowParams & GeoLogFilterParams & { limit?: number },
+) {
+  const { data } = await apiV1GeoEventsTopAsnsGetGeoLogTopAsns({
+    query: {
+      fromTimestamp: params.fromTimestamp,
+      toTimestamp: params.toTimestamp,
+      limit: params.limit ?? 10,
+      ...geoLogFilterQuery(params),
+    },
+    throwOnError: true,
+  })
+  return data
+}
+
+/** Distinct country/city/hostname/ASN values present in the data. */
 export async function fetchGeoEventFacets() {
   const { data } = await apiV1GeoEventsFacetsGetGeoLogFacets({ throwOnError: true })
   return data

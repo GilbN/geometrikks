@@ -102,3 +102,21 @@ HostnameIn = Annotated[
         required=False,
     ),
 ]
+
+AsnIn = Annotated[
+    list[int] | None,
+    QueryParameter(
+        name="asnIn",
+        description="Filter to these autonomous system numbers (repeatable)",
+        required=False,
+    ),
+]
+
+AsnNotIn = Annotated[
+    list[int] | None,
+    QueryParameter(
+        name="asnNotIn",
+        description="Exclude these autonomous system numbers (repeatable); rows without ASN data are kept",
+        required=False,
+    ),
+]

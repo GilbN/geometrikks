@@ -16,7 +16,7 @@ from geometrikks.services.logparser.logparser import (
     get_ip_type,
     make_cached_city_lookup,
 )
-from geometrikks.services.logparser.schemas import ParsedAccessLog
+from geometrikks.services.logparser.schemas import ParsedAccessLog, ParsedGeoData
 
 pytestmark = pytest.mark.anyio
 
@@ -801,6 +801,24 @@ class TestAutoFormatSniffing:
         assert record.log_format == "traefik-json"
 
 
+def _fake_city_au():
+    from types import SimpleNamespace
+
+    return SimpleNamespace(
+        country=SimpleNamespace(iso_code="AU", name="Australia"),
+        city=SimpleNamespace(name=None),
+        location=SimpleNamespace(latitude=-33.5, longitude=143.2, time_zone="Australia/Sydney"),
+        subdivisions=SimpleNamespace(most_specific=SimpleNamespace(name=None, iso_code=None)),
+        postal=SimpleNamespace(code=None),
+    )
+
+
+ASN_TEST_LINE = (
+    '1.128.0.0 - - [07/Aug/2026:10:34:56 +0000] "GET / HTTP/1.1" 200 42 '
+    '"-" example.com "curl/8.0" "0.001" "-"'
+)
+
+
 class TestAsnEnrichment:
     def test_make_cached_asn_lookup_returns_asn(self):
         from geometrikks.services.logparser.logparser import make_cached_asn_lookup
@@ -830,35 +848,66 @@ class TestAsnEnrichment:
         """1.128.0.0 is only in the ASN test db, so the City side is faked:
         access-log rows require a City hit, and the assertion must not turn
         vacuous on a City-test-db miss."""
-        from types import SimpleNamespace
-
         from geometrikks.services.logparser.logparser import make_cached_asn_lookup
 
-        fake_city = SimpleNamespace(
-            country=SimpleNamespace(iso_code="AU", name="Australia"),
-            city=SimpleNamespace(name=None),
-            location=SimpleNamespace(
-                latitude=-33.5, longitude=143.2, time_zone="Australia/Sydney"
-            ),
-            subdivisions=SimpleNamespace(
-                most_specific=SimpleNamespace(name=None, iso_code=None)
-            ),
-            postal=SimpleNamespace(code=None),
-        )
-
-        line = (
-            '1.128.0.0 - - [07/Aug/2026:10:34:56 +0000] "GET / HTTP/1.1" 200 42 '
-            '"-" example.com "curl/8.0" "0.001" "-"'
-        )
         parser = LogParser(log_path=Path("/dev/null"), send_logs=True, log_format="nginx")
         with Reader("tests/GeoLite2-ASN-Test.mmdb") as asn_reader:
             asn_lookup = make_cached_asn_lookup(asn_reader)
-            record = parser.parse_line(line, cast(Any, lambda ip: fake_city), asn_lookup)
+            record = parser.parse_line(
+                ASN_TEST_LINE, cast(Any, lambda ip: _fake_city_au()), asn_lookup
+            )
 
         assert record is not None
         assert record.access_log is not None
         assert record.access_log.autonomous_system_number == 1221
         assert record.access_log.autonomous_system_organization == "Telstra Pty Ltd"
+
+    def test_parse_line_attaches_asn_to_geo_data_in_geo_only_mode(self):
+        """send_logs=False writes no access log, so the geo record must carry
+        the ASN itself or geo-only installs never get one."""
+        from geometrikks.services.logparser.logparser import make_cached_asn_lookup
+
+        parser = LogParser(log_path=Path("/dev/null"), send_logs=False, log_format="nginx")
+        with Reader("tests/GeoLite2-ASN-Test.mmdb") as asn_reader:
+            record = parser.parse_line(
+                ASN_TEST_LINE, cast(Any, lambda ip: _fake_city_au()),
+                make_cached_asn_lookup(asn_reader),
+            )
+
+        assert record is not None
+        assert record.access_log is None
+        assert record.geo_data is not None
+        assert record.geo_data.autonomous_system_number == 1221
+        assert record.geo_data.autonomous_system_organization == "Telstra Pty Ltd"
+
+    def test_parse_line_resolves_the_asn_once_for_both_records(self):
+        calls: list[str] = []
+
+        def counting_lookup(ip: str):
+            calls.append(ip)
+            with Reader("tests/GeoLite2-ASN-Test.mmdb") as reader:
+                return reader.asn(ip)
+
+        parser = LogParser(log_path=Path("/dev/null"), send_logs=True, log_format="nginx")
+        record = parser.parse_line(
+            ASN_TEST_LINE, cast(Any, lambda ip: _fake_city_au()), cast(Any, counting_lookup)
+        )
+
+        assert record is not None
+        assert record.geo_data is not None and record.access_log is not None
+        assert record.geo_data.autonomous_system_number == 1221
+        assert record.access_log.autonomous_system_number == 1221
+        assert calls == ["1.128.0.0"]
+
+    def test_parsed_geo_data_asn_fields_default_none(self):
+        from datetime import datetime, timezone
+
+        geo = ParsedGeoData(
+            latitude=1.0, longitude=2.0, geohash="s00", country_code="AU",
+            country_name="Australia", timestamp=datetime.now(timezone.utc),
+        )
+        assert geo.autonomous_system_number is None
+        assert geo.autonomous_system_organization is None
 
 
 def make_gjson_line(ip: str) -> str:

@@ -101,6 +101,9 @@ import type {
   ApiV1GeoEventsTimeSeriesGetGeoLogTimeSeriesData,
   ApiV1GeoEventsTimeSeriesGetGeoLogTimeSeriesErrors,
   ApiV1GeoEventsTimeSeriesGetGeoLogTimeSeriesResponses,
+  ApiV1GeoEventsTopAsnsGetGeoLogTopAsnsData,
+  ApiV1GeoEventsTopAsnsGetGeoLogTopAsnsErrors,
+  ApiV1GeoEventsTopAsnsGetGeoLogTopAsnsResponses,
   ApiV1GeoEventsTopCitiesGetGeoLogTopCitiesData,
   ApiV1GeoEventsTopCitiesGetGeoLogTopCitiesErrors,
   ApiV1GeoEventsTopCitiesGetGeoLogTopCitiesResponses,
@@ -1150,6 +1153,36 @@ export const apiV1GeoEventsTimeSeriesGetGeoLogTimeSeries = <
       },
     ],
     url: "/api/v1/geo-events/time-series",
+    ...options,
+  });
+
+/**
+ * GetGeoLogTopAsns
+ *
+ * Top autonomous systems by geo-event count.
+ */
+export const apiV1GeoEventsTopAsnsGetGeoLogTopAsns = <
+  ThrowOnError extends boolean = false,
+>(
+  options: Options<ApiV1GeoEventsTopAsnsGetGeoLogTopAsnsData, ThrowOnError>,
+): RequestResult<
+  ApiV1GeoEventsTopAsnsGetGeoLogTopAsnsResponses,
+  ApiV1GeoEventsTopAsnsGetGeoLogTopAsnsErrors,
+  ThrowOnError
+> =>
+  (options.client ?? client).get<
+    ApiV1GeoEventsTopAsnsGetGeoLogTopAsnsResponses,
+    ApiV1GeoEventsTopAsnsGetGeoLogTopAsnsErrors,
+    ThrowOnError
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+    ],
+    url: "/api/v1/geo-events/top-asns",
     ...options,
   });
 
