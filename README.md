@@ -862,20 +862,29 @@ for minutes on a large database.
 
 Rows ingested before the ASN feature (or while the ASN database was
 missing) have no ASN data. `backfill-asn` resolves their IPs against the
-local GeoLite2 ASN database and stamps them retroactively:
+local GeoLite2 ASN database and stamps them retroactively. Choose the table
+explicitly. To backfill Access Logs:
 
 ```bash
-docker compose exec -u geometrikks app litestar backfill-asn
+docker compose exec -u geometrikks app litestar backfill-asn --table access-logs
 ```
+
+Backfill Geo Logs without touching the Access Logs table:
+
+```bash
+docker compose exec -u geometrikks app litestar backfill-asn --table geo-events
+```
+
+Use `--table all` when both tables need a backfill.
 
 It fills **only** rows with no ASN data (idempotent, never overwrites
 stamped values) and asks for confirmation after reporting how many rows and
 distinct IPs are affected (`--yes` skips the prompt). IPs the database
-cannot resolve stay empty. Like `backfill-hostname`, it decompresses
-compressed history chunks first (disk usage grows until the compression
-policy recompresses them) and refreshes the ASN continuous aggregates
-afterwards so the Top ASNs view picks up the history. It may run for
-minutes on a large database.
+cannot resolve stay empty. Like `backfill-hostname`, it decompresses the
+selected table's compressed history first (disk usage grows until the
+compression policy recompresses it) and refreshes the corresponding
+continuous aggregates afterwards. It may run for minutes on a large
+database.
 
 If the aggregate refresh fails, the command exits non-zero and names the
 stale aggregates: the rows are stamped, but the Top ASNs view will not show

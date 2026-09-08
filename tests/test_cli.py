@@ -318,7 +318,7 @@ def test_cli_plugin_registers_backfill_asn() -> None:
 
 def _make_asn_engine(
     *, null_rows: int, distinct_ips: list[str], rowcount: int,
-    geo_distinct_ips: list[str] | None = None,
+    geo_distinct_ips: list[str] | None = None, timescale: bool = False,
 ) -> MagicMock:
     """Engine for the backfill-asn flow, dispatching on SQL substrings.
 
@@ -341,11 +341,11 @@ def _make_asn_engine(
         result = MagicMock()
         result.rowcount = rowcount
         if "EXISTS" in sql and "pg_extension" in sql:
-            result.scalar.return_value = False  # no timescale: skip decompress
+            result.scalar.return_value = timescale
         elif "EXISTS" in sql:
             result.scalar.return_value = null_rows > 0
         elif "COUNT(DISTINCT" in sql:
-            result.one.return_value = (null_rows, len(distinct_ips))
+            result.one.return_value = (null_rows, len(pages[_table(sql)][0]))
         elif "MIN(timestamp)" in sql:
             result.one.return_value = (
                 datetime(2026, 1, 1, tzinfo=timezone.utc),
@@ -400,21 +400,66 @@ def _invoke_backfill_asn(
         get_settings.cache_clear()
 
 
-def test_backfill_asn_stamps_and_refreshes(monkeypatch) -> None:
-    """1.128.0.0 resolves via the test db; both tables update and refresh."""
+def test_backfill_asn_access_logs_stamps_and_refreshes(monkeypatch) -> None:
+    """The access-logs target retains the original command's behavior."""
+    engine = _make_asn_engine(null_rows=7, distinct_ips=["1.128.0.0"], rowcount=7)
+    refresh = AsyncMock(return_value=[])
+
+    result = _invoke_backfill_asn(
+        monkeypatch, engine, ["--table", "access-logs", "--yes"], refresh
+    )
+
+    assert result.exit_code == 0, result.output
+    assert "access_logs rows updated: 7" in result.output
+    assert "geo_events" not in result.output
+    refresh.assert_awaited_once()
+    assert refresh.await_args is not None
+    assert refresh.await_args.kwargs["caggs"] == ["asn_hourly_stats", "asn_daily_stats"]
+
+
+def test_backfill_asn_requires_table(monkeypatch) -> None:
     engine = _make_asn_engine(null_rows=7, distinct_ips=["1.128.0.0"], rowcount=7)
     refresh = AsyncMock(return_value=[])
 
     result = _invoke_backfill_asn(monkeypatch, engine, ["--yes"], refresh)
 
+    assert result.exit_code == 2
+    assert "Missing option '--table'" in result.output
+    engine.connect.assert_not_called()
+    refresh.assert_not_awaited()
+
+
+def test_backfill_asn_geo_events_does_not_touch_access_logs(monkeypatch) -> None:
+    """The Geo Logs backfill must not scan, decompress, or update access_logs."""
+    engine = _make_asn_engine(
+        null_rows=7,
+        distinct_ips=["8.8.8.8"],
+        geo_distinct_ips=["1.128.0.0"],
+        rowcount=7,
+        timescale=True,
+    )
+    refresh = AsyncMock(return_value=[])
+
+    result = _invoke_backfill_asn(
+        monkeypatch, engine, ["--table", "geo-events", "--yes"], refresh
+    )
+
     assert result.exit_code == 0, result.output
-    assert "access_logs rows updated: 7" in result.output
     assert "geo_events rows updated: 7" in result.output
-    assert refresh.await_count == 2
-    caggs = [call.kwargs["caggs"] for call in refresh.await_args_list]
-    assert caggs == [
-        ["asn_hourly_stats", "asn_daily_stats"],
-        ["ip_location_hourly_stats", "ip_location_daily_stats"],
+    assert "access_logs" not in result.output
+    sql = [str(call.args[0]) for call in engine.connect.return_value.execute.await_args_list]
+    assert all("access_logs" not in statement for statement in sql)
+    table_params = [
+        call.args[1]["table"]
+        for call in engine.connect.return_value.execute.await_args_list
+        if len(call.args) > 1 and isinstance(call.args[1], dict) and "table" in call.args[1]
+    ]
+    assert table_params == ["geo_events"]
+    refresh.assert_awaited_once()
+    assert refresh.await_args is not None
+    assert refresh.await_args.kwargs["caggs"] == [
+        "ip_location_hourly_stats",
+        "ip_location_daily_stats",
     ]
 
 
@@ -422,7 +467,9 @@ def test_backfill_asn_nothing_to_do(monkeypatch) -> None:
     engine = _make_asn_engine(null_rows=0, distinct_ips=[], rowcount=0)
     refresh = AsyncMock(return_value=[])
 
-    result = _invoke_backfill_asn(monkeypatch, engine, ["--yes"], refresh)
+    result = _invoke_backfill_asn(
+        monkeypatch, engine, ["--table", "access-logs", "--yes"], refresh
+    )
 
     assert result.exit_code == 0, result.output
     assert "Nothing to do" in result.output
@@ -435,7 +482,9 @@ def test_backfill_asn_aborts_without_confirmation(monkeypatch) -> None:
     engine.begin = MagicMock(side_effect=AssertionError("begin() must not run when aborted"))
     refresh = AsyncMock(return_value=[])
 
-    result = _invoke_backfill_asn(monkeypatch, engine, [], refresh, cli_input="n\n")
+    result = _invoke_backfill_asn(
+        monkeypatch, engine, ["--table", "access-logs"], refresh, cli_input="n\n"
+    )
 
     assert result.exit_code == 0, result.output
     assert "Aborted" in result.output
@@ -447,7 +496,7 @@ def test_backfill_asn_fails_without_asn_database(monkeypatch) -> None:
     refresh = AsyncMock(return_value=[])
 
     result = _invoke_backfill_asn(
-        monkeypatch, engine, ["--yes"], refresh,
+        monkeypatch, engine, ["--table", "access-logs", "--yes"], refresh,
         asn_db_path="/nonexistent/GeoLite2-ASN.mmdb",
     )
 
@@ -459,9 +508,11 @@ def test_backfill_asn_exits_nonzero_when_cagg_refresh_fails(monkeypatch) -> None
     """Rows are stamped but the aggregates stayed stale: the run must not
     report success, or long-range analytics silently miss the backfill."""
     engine = _make_asn_engine(null_rows=7, distinct_ips=["1.128.0.0"], rowcount=7)
-    refresh = AsyncMock(side_effect=[[], ["ip_location_daily_stats"]])
+    refresh = AsyncMock(return_value=["ip_location_daily_stats"])
 
-    result = _invoke_backfill_asn(monkeypatch, engine, ["--yes"], refresh)
+    result = _invoke_backfill_asn(
+        monkeypatch, engine, ["--table", "geo-events", "--yes"], refresh
+    )
 
     assert result.exit_code != 0
     assert "rows updated: 7" in result.output

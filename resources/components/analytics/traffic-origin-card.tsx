@@ -46,7 +46,8 @@ export function TrafficOriginCard() {
           <p className="text-sm text-muted-foreground">
             None of the {formatNumber(totalRequests)} requests in this range
             have ASN data; requests are enriched from the time the ASN
-            database is first loaded. Run <code className="font-mono">litestar backfill-asn</code>{" "}
+            database is first loaded. Run{" "}
+            <code className="font-mono">litestar backfill-asn --table access-logs</code>{" "}
             to fill in history.
           </p>
         ) : (
