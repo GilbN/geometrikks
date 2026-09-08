@@ -329,26 +329,38 @@ async def _run_backfill_hostname(name: str, *, consolidate: bool, yes: bool) -> 
         await engine.dispose()
 
 
+ASN_BACKFILL_CHUNK_SIZE = 10_000
+ASN_BACKFILL_TABLES = ("access_logs", "geo_events")
+ASN_BACKFILL_TARGETS = {
+    "access-logs": ("access_logs",),
+    "geo-events": ("geo_events",),
+    "all": ASN_BACKFILL_TABLES,
+}
+
+
 @click.command(name="backfill-asn")
+@click.option(
+    "--table",
+    "target",
+    type=click.Choice(tuple(ASN_BACKFILL_TARGETS)),
+    required=True,
+    help="Table to backfill. Use geo-events for historical Geo Logs.",
+)
 @click.option("--yes", is_flag=True, help="Skip the confirmation prompt.")
-def backfill_asn_command(yes: bool) -> None:
+def backfill_asn_command(target: str, yes: bool) -> None:
     """Stamp ASN data onto historical rows from the current ASN database.
 
-    Fills only access_logs and geo_events rows with NULL
-    autonomous_system_number (idempotent, cannot overwrite stamped values)
-    by resolving each distinct IP through the local GeoLite2-ASN database.
-    IPs the database cannot resolve stay NULL. Refreshes the ASN and per-IP
-    continuous aggregates for the affected ranges when rows changed.
+    Use --table access-logs for Access Logs, --table geo-events for historical
+    Geo Logs, or --table all to process both tables. Only rows with a NULL
+    autonomous_system_number are updated. IPs the database cannot resolve stay
+    NULL. The command refreshes the affected continuous aggregates when rows
+    changed.
     Compressed hypertable chunks are decompressed first (a full-table
     UPDATE would trip the TimescaleDB tuple decompression limit); the
     compression policy recompresses them later. May run for minutes on
     large databases.
     """
-    asyncio.run(_run_backfill_asn(yes=yes))
-
-
-ASN_BACKFILL_CHUNK_SIZE = 10_000
-ASN_BACKFILL_TABLES = ("access_logs", "geo_events")
+    asyncio.run(_run_backfill_asn(yes=yes, tables=ASN_BACKFILL_TARGETS[target]))
 
 
 async def _iter_null_asn_ips(
@@ -427,7 +439,7 @@ async def _apply_asn_mapping(engine, chunks, *, table: str = "access_logs") -> i
         ))).rowcount
 
 
-async def _run_backfill_asn(*, yes: bool) -> None:
+async def _run_backfill_asn(*, yes: bool, tables: tuple[str, ...]) -> None:
     from sqlalchemy import text
 
     from geometrikks.config.settings import get_settings
@@ -435,6 +447,9 @@ async def _run_backfill_asn(*, yes: bool) -> None:
     from geometrikks.server.plugins import get_sqlalchemy_config
     from geometrikks.server.timescale import IP_LOCATION_CAGGS_NAMES, refresh_caggs_range
     from geometrikks.services.ingestion.service import create_reader
+
+    if not tables or any(table not in ASN_BACKFILL_TABLES for table in tables):
+        raise ValueError(f"Unsupported backfill tables: {tables!r}")
 
     logger = get_logger(__name__)
     settings = get_settings()
@@ -457,7 +472,7 @@ async def _run_backfill_asn(*, yes: bool) -> None:
         # nothing left to fill exits before the expensive scans below.
         async with engine.connect() as conn:
             needs_fill = [
-                table for table in ASN_BACKFILL_TABLES
+                table for table in tables
                 if bool((await conn.execute(text(
                     f"SELECT EXISTS (SELECT 1 FROM {table} "  # noqa: S608
                     "WHERE autonomous_system_number IS NULL)"
