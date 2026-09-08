@@ -9,8 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Geo Logs knows the network behind each request. Every geo event now records the autonomous system number and organization from the GeoLite2 ASN database, including on geo-only installs (`LOGPARSER_SEND_LOGS=false`). On the page, Top IPs shows the organization behind each IP, Top locations gains an ASNs tab with hosting-vs-other tagging and exact unique-IP counts, the table gets ASN and Organization columns in the column picker plus an ASN line in the detail panel, and the filter bar gets ASN include and exclude filters that also apply to the embedded map. Backed by `GET /api/v1/geo-events/top-asns` and `asnIn`/`asnNotIn` on the geo-events and geojson endpoints.
-- `litestar backfill-asn` now also stamps historical geo events and refreshes the per-IP aggregates. Existing databases get the new aggregate columns in place on first start, followed by a one-time refresh over the raw retention window; expect a slow start on large installs. Buckets older than raw retention show no ASN.
+- Geo Logs now records the autonomous system number and organization for every geo event using the GeoLite2 ASN database, including on geo-only installs (`LOGPARSER_SEND_LOGS=false`). Top IPs shows each IP's organization. Top locations has an ASNs tab with hosting classification and exact unique-IP counts. The grouped table adds optional ASN and Organization columns, the detail panel shows the ASN, and ASN include and exclude filters apply to both the table and embedded map. The API adds `GET /api/v1/geo-events/top-asns` and the `asnIn` and `asnNotIn` parameters to the geo-events and geojson endpoints.
+- `litestar backfill-asn` fills missing ASN data in historical geo events and refreshes the per-IP aggregates. On first start, Geometrikks adds the new aggregate columns and refreshes the raw-retention window. This can make startup slow on large installs. Buckets older than raw retention remain without ASN data.
 
 ## [0.14.3] - 2026-09-07
 
