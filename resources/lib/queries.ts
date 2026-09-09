@@ -28,6 +28,7 @@ import {
   fetchGeoLogTopIps,
   fetchGeoLogTopCountries,
   fetchGeoLogTopCities,
+  fetchGeoLogTopAsns,
   fetchGeoEventFacets,
   deleteSiteHome,
   fetchSiteHomes,
@@ -184,6 +185,8 @@ export const queryKeys = {
       [...queryKeys.geoLogs.all, "top-countries", params, refreshKey] as const,
     topCities: (params: Record<string, unknown>, refreshKey?: number) =>
       [...queryKeys.geoLogs.all, "top-cities", params, refreshKey] as const,
+    topAsns: (params: Record<string, unknown>, refreshKey?: number) =>
+      [...queryKeys.geoLogs.all, "top-asns", params, refreshKey] as const,
     geojson: (params: Record<string, unknown>, refreshKey?: number) =>
       [...queryKeys.geoLogs.all, "geojson", params, refreshKey] as const,
     facets: () => [...queryKeys.geoLogs.all, "facets"] as const,
@@ -1287,6 +1290,24 @@ export function useGeoLogTopCities(options: UseTopListOptions = {}) {
     queryFn: () => {
       const { startDate, endDate } = parseTimeRange(range, Date.now(), customRange)
       return fetchGeoLogTopCities({ fromTimestamp: startDate, toTimestamp: endDate, limit, ...filters })
+    },
+    enabled,
+    staleTime: 60 * 1000,
+    refetchInterval: pollInterval || false,
+  })
+}
+
+/** Top ASNs by geo-event count with exact unique-IP counts (rows without ASN data excluded). */
+export function useGeoLogTopAsns(options: UseTopListOptions = {}) {
+  const { enabled = true, limit = 10 } = options
+  const { range, customRange, pollInterval, lastRefresh } = useTimeRange()
+  const { filters } = useGeoLogFilters()
+
+  return useQuery({
+    queryKey: queryKeys.geoLogs.topAsns({ range, customRange, limit, filters }, lastRefresh),
+    queryFn: () => {
+      const { startDate, endDate } = parseTimeRange(range, Date.now(), customRange)
+      return fetchGeoLogTopAsns({ fromTimestamp: startDate, toTimestamp: endDate, limit, ...filters })
     },
     enabled,
     staleTime: 60 * 1000,

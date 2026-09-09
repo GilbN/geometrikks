@@ -402,9 +402,15 @@ class LogParser:
         if self.format is None:
             raise RuntimeError("Parsed a line without a locked log format")
 
-        geo_data: ParsedGeoData | None = self._parse_geo_data(ip, norm, lookup)
+        # One ASN read per line, shared by both records: geo-only installs
+        # (send_logs=False) never build an access log, so the lookup cannot
+        # live inside _parse_access_log.
+        asn_data: ASN | None = (
+            asn_lookup(ip) if asn_lookup is not None and check_ip_type(ip) else None
+        )
+        geo_data: ParsedGeoData | None = self._parse_geo_data(ip, norm, lookup, asn_data)
         access_log: ParsedAccessLog | None = (
-            self._parse_access_log(norm, ip, lookup, asn_lookup) if self.send_logs else None
+            self._parse_access_log(norm, ip, lookup, asn_data) if self.send_logs else None
         )
         is_malformed, parse_error = (
             self.format.detect_malformed(norm) if self.send_logs else (False, None)
@@ -467,7 +473,11 @@ class LogParser:
         return False
 
     def _parse_geo_data(
-        self, ip: str, norm: NormalizedLine, lookup: Callable[[str], City | None]
+        self,
+        ip: str,
+        norm: NormalizedLine,
+        lookup: Callable[[str], City | None],
+        asn_data: ASN | None = None,
     ) -> ParsedGeoData | None:
         """Extract geographic data from IP address.
 
@@ -519,7 +529,13 @@ class LogParser:
             city=ip_data.city.name,
             postal_code=ip_data.postal.code,
             timezone=ip_data.location.time_zone,
-            timestamp=ts
+            timestamp=ts,
+            autonomous_system_number=(
+                asn_data.autonomous_system_number if asn_data else None
+            ),
+            autonomous_system_organization=(
+                asn_data.autonomous_system_organization if asn_data else None
+            ),
         )
 
     def _parse_access_log(
@@ -527,7 +543,7 @@ class LogParser:
         norm: NormalizedLine,
         ip: str,
         lookup: Callable[[str], City | None],
-        asn_lookup: Callable[[str], ASN | None] | None = None,
+        asn_data: ASN | None = None,
     ) -> ParsedAccessLog | None:
         """Build the ParsedAccessLog for a normalized line, enriched with GeoIP.
 
@@ -535,6 +551,7 @@ class LogParser:
             norm: Normalized line from the format adapter.
             ip: IP address string.
             lookup: Callable to look up City data for an IP address.
+            asn_data: Resolved ASN record for the IP, or None.
 
         Returns:
             ParsedAccessLog if the IP is monitored and has GeoIP data, None otherwise.
@@ -544,7 +561,6 @@ class LogParser:
         ip_data: City | None = lookup(ip)
         if not ip_data:
             return None
-        asn_data: ASN | None = asn_lookup(ip) if asn_lookup is not None else None
         return ParsedAccessLog(
             timestamp=norm.timestamp,
             ip_address=ip,

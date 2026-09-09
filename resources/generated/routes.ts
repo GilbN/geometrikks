@@ -31,6 +31,7 @@ export type RouteName =
   | 'get_geo_log_facets'
   | 'get_geo_log_summary'
   | 'get_geo_log_time_series'
+  | 'get_geo_log_top_asns'
   | 'get_geo_log_top_cities'
   | 'get_geo_log_top_countries'
   | 'get_geo_log_top_ips'
@@ -99,6 +100,7 @@ export interface RoutePathParams {
   'get_geo_log_facets': Record<string, never>;
   'get_geo_log_summary': Record<string, never>;
   'get_geo_log_time_series': Record<string, never>;
+  'get_geo_log_top_asns': Record<string, never>;
   'get_geo_log_top_cities': Record<string, never>;
   'get_geo_log_top_countries': Record<string, never>;
   'get_geo_log_top_ips': Record<string, never>;
@@ -172,6 +174,8 @@ export interface RouteQueryParams {
   'get_database_info': Record<string, never>;
   'get_geo_log_facets': Record<string, never>;
   'get_geo_log_summary': {
+    asnIn?: number[];
+    asnNotIn?: number[];
     cityIn?: string[];
     comparePrevious?: boolean;
     countryCodeIn?: string[];
@@ -182,6 +186,8 @@ export interface RouteQueryParams {
     toTimestamp: DateTime;
   };
   'get_geo_log_time_series': {
+    asnIn?: number[];
+    asnNotIn?: number[];
     cityIn?: string[];
     countryCodeIn?: string[];
     fromTimestamp: DateTime;
@@ -192,7 +198,21 @@ export interface RouteQueryParams {
     toTimestamp: DateTime;
     tz?: string;
   };
+  'get_geo_log_top_asns': {
+    asnIn?: number[];
+    asnNotIn?: number[];
+    cityIn?: string[];
+    countryCodeIn?: string[];
+    fromTimestamp: DateTime;
+    hostnameIn?: string[];
+    ipAddressIn?: string[];
+    ipAddressNotIn?: string[];
+    limit?: number;
+    toTimestamp: DateTime;
+  };
   'get_geo_log_top_cities': {
+    asnIn?: number[];
+    asnNotIn?: number[];
     cityIn?: string[];
     countryCodeIn?: string[];
     fromTimestamp: DateTime;
@@ -203,6 +223,8 @@ export interface RouteQueryParams {
     toTimestamp: DateTime;
   };
   'get_geo_log_top_countries': {
+    asnIn?: number[];
+    asnNotIn?: number[];
     cityIn?: string[];
     countryCodeIn?: string[];
     fromTimestamp: DateTime;
@@ -213,6 +235,8 @@ export interface RouteQueryParams {
     toTimestamp: DateTime;
   };
   'get_geo_log_top_ips': {
+    asnIn?: number[];
+    asnNotIn?: number[];
     cityIn?: string[];
     countryCodeIn?: string[];
     fromTimestamp: DateTime;
@@ -223,6 +247,8 @@ export interface RouteQueryParams {
     toTimestamp: DateTime;
   };
   'get_geo_logs': {
+    asnIn?: number[];
+    asnNotIn?: number[];
     cityIn?: string[];
     countryCodeIn?: string[];
     currentPage?: number;
@@ -242,6 +268,8 @@ export interface RouteQueryParams {
     tz?: string;
   };
   'get_geojson': {
+    asnIn?: number[];
+    asnNotIn?: number[];
     city?: string[];
     countryCode?: string[];
     fromTimestamp: DateTime;
@@ -529,42 +557,49 @@ export const routeDefinitions = {
     methods: ['GET'] as const,
     method: 'get',
     pathParams: [] as const,
-    queryParams: ['cityIn', 'comparePrevious', 'countryCodeIn', 'fromTimestamp', 'hostnameIn', 'ipAddressIn', 'ipAddressNotIn', 'toTimestamp'] as const,
+    queryParams: ['asnIn', 'asnNotIn', 'cityIn', 'comparePrevious', 'countryCodeIn', 'fromTimestamp', 'hostnameIn', 'ipAddressIn', 'ipAddressNotIn', 'toTimestamp'] as const,
   },
   'get_geo_log_time_series': {
     path: '/api/v1/geo-events/time-series',
     methods: ['GET'] as const,
     method: 'get',
     pathParams: [] as const,
-    queryParams: ['cityIn', 'countryCodeIn', 'fromTimestamp', 'granularity', 'hostnameIn', 'ipAddressIn', 'ipAddressNotIn', 'toTimestamp', 'tz'] as const,
+    queryParams: ['asnIn', 'asnNotIn', 'cityIn', 'countryCodeIn', 'fromTimestamp', 'granularity', 'hostnameIn', 'ipAddressIn', 'ipAddressNotIn', 'toTimestamp', 'tz'] as const,
+  },
+  'get_geo_log_top_asns': {
+    path: '/api/v1/geo-events/top-asns',
+    methods: ['GET'] as const,
+    method: 'get',
+    pathParams: [] as const,
+    queryParams: ['asnIn', 'asnNotIn', 'cityIn', 'countryCodeIn', 'fromTimestamp', 'hostnameIn', 'ipAddressIn', 'ipAddressNotIn', 'limit', 'toTimestamp'] as const,
   },
   'get_geo_log_top_cities': {
     path: '/api/v1/geo-events/top-cities',
     methods: ['GET'] as const,
     method: 'get',
     pathParams: [] as const,
-    queryParams: ['cityIn', 'countryCodeIn', 'fromTimestamp', 'hostnameIn', 'ipAddressIn', 'ipAddressNotIn', 'limit', 'toTimestamp'] as const,
+    queryParams: ['asnIn', 'asnNotIn', 'cityIn', 'countryCodeIn', 'fromTimestamp', 'hostnameIn', 'ipAddressIn', 'ipAddressNotIn', 'limit', 'toTimestamp'] as const,
   },
   'get_geo_log_top_countries': {
     path: '/api/v1/geo-events/top-countries',
     methods: ['GET'] as const,
     method: 'get',
     pathParams: [] as const,
-    queryParams: ['cityIn', 'countryCodeIn', 'fromTimestamp', 'hostnameIn', 'ipAddressIn', 'ipAddressNotIn', 'limit', 'toTimestamp'] as const,
+    queryParams: ['asnIn', 'asnNotIn', 'cityIn', 'countryCodeIn', 'fromTimestamp', 'hostnameIn', 'ipAddressIn', 'ipAddressNotIn', 'limit', 'toTimestamp'] as const,
   },
   'get_geo_log_top_ips': {
     path: '/api/v1/geo-events/top-ips',
     methods: ['GET'] as const,
     method: 'get',
     pathParams: [] as const,
-    queryParams: ['cityIn', 'countryCodeIn', 'fromTimestamp', 'hostnameIn', 'ipAddressIn', 'ipAddressNotIn', 'limit', 'toTimestamp'] as const,
+    queryParams: ['asnIn', 'asnNotIn', 'cityIn', 'countryCodeIn', 'fromTimestamp', 'hostnameIn', 'ipAddressIn', 'ipAddressNotIn', 'limit', 'toTimestamp'] as const,
   },
   'get_geo_logs': {
     path: '/api/v1/geo-events/logs',
     methods: ['GET'] as const,
     method: 'get',
     pathParams: [] as const,
-    queryParams: ['cityIn', 'countryCodeIn', 'currentPage', 'fromTimestamp', 'hostnameIn', 'ipAddressIn', 'ipAddressNotIn', 'orderBy', 'pageSize', 'sortOrder', 'toTimestamp'] as const,
+    queryParams: ['asnIn', 'asnNotIn', 'cityIn', 'countryCodeIn', 'currentPage', 'fromTimestamp', 'hostnameIn', 'ipAddressIn', 'ipAddressNotIn', 'orderBy', 'pageSize', 'sortOrder', 'toTimestamp'] as const,
   },
   'get_geo_time_series': {
     path: '/api/v1/analytics/geo-time-series',
@@ -578,7 +613,7 @@ export const routeDefinitions = {
     methods: ['GET'] as const,
     method: 'get',
     pathParams: [] as const,
-    queryParams: ['city', 'countryCode', 'fromTimestamp', 'hostnameIn', 'ipAddressIn', 'ipAddressNotIn', 'toTimestamp'] as const,
+    queryParams: ['asnIn', 'asnNotIn', 'city', 'countryCode', 'fromTimestamp', 'hostnameIn', 'ipAddressIn', 'ipAddressNotIn', 'toTimestamp'] as const,
   },
   'get_global_top_ips': {
     path: '/api/v1/geo-locations/top-ips',

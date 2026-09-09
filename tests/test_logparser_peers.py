@@ -2,9 +2,11 @@
 from __future__ import annotations
 
 import json
+import logging
 import time
 from pathlib import Path
 
+import pytest
 import structlog
 
 from geometrikks.services.logparser.logparser import LogParser, is_private_peer
@@ -145,11 +147,16 @@ def test_detected_and_cleared_logged_once() -> None:
     assert len(cleared) == 1
 
 
-def test_per_line_budget() -> None:
+def test_per_line_budget(caplog: pytest.LogCaptureFixture) -> None:
     """Classification must not measurably slow the parser. Generous bound:
     the same 10k lines with the window on may take at most 1.25x the
     no-window time (best of 3 runs each, same parser construction)."""
+    caplog.set_level(
+        logging.WARNING,
+        logger="geometrikks.services.logparser.logparser",
+    )
     lines = [make_line("203.0.113.7")] * 10_000
+    city = FakeCity()
 
     def run(window: PeerWindow | None) -> float:
         best = float("inf")
@@ -157,7 +164,11 @@ def test_per_line_budget() -> None:
             parser = make_parser(window=window)
             start = time.perf_counter()
             for line in lines:
-                parser.parse_line(line, lambda _ip: None, asn_lookup=lambda _ip: None)
+                parser.parse_line(
+                    line,
+                    lambda _ip: city,  # ty: ignore[invalid-argument-type]
+                    asn_lookup=lambda _ip: None,
+                )
             best = min(best, time.perf_counter() - start)
         return best
 

@@ -26,8 +26,10 @@ describe("active filter group counts", () => {
         ...EMPTY_GEO_LOG_FILTERS,
         countryCodes: ["NO", "SE", "DK"],
         hostnames: ["edge-01"],
+        asns: [13335, 24940],
+        asnsExclude: [16509],
       }),
-    ).toBe(2)
+    ).toBe(4)
   })
 
   it("analytics", () => {

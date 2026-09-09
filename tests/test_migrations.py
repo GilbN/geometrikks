@@ -35,6 +35,7 @@ def test_single_head() -> None:
 SWAP_REVISION = "59dc39684c1f"
 CAGG_REFRESH_REVISION = "5f1c8a7d24b3"
 METHOD_WIDTH_REVISION = "8b7884d1daaf"
+GEO_ASN_REVISION = "e7a1c3b5d904"
 VERSIONS_DIR = REPO_ROOT / "migrations" / "versions"
 
 
@@ -78,6 +79,20 @@ def test_method_width_revision_handles_compressed_hypertables() -> None:
     assert "decompression progress" in source
     assert "TYPE VARCHAR(32)" in source
     assert "char_length(method) > 10" in source
+
+
+def test_geo_event_asn_revision_follows_previous_head() -> None:
+    revision = _script_directory().get_revision(GEO_ASN_REVISION)
+    assert revision.down_revision == "8b7884d1daaf"
+
+
+def test_geo_event_asn_revision_is_rerun_safe() -> None:
+    source = _revision_source(GEO_ASN_REVISION)
+    assert "ADD COLUMN IF NOT EXISTS autonomous_system_number BIGINT" in source
+    assert "ADD COLUMN IF NOT EXISTS autonomous_system_organization VARCHAR(255)" in source
+    assert "CREATE INDEX IF NOT EXISTS ix_geo_events_asn" in source
+    assert "timescaledb.transaction_per_chunk" in source
+    assert "DROP MATERIALIZED VIEW IF EXISTS ip_location_hourly_stats CASCADE" in source
 
 
 def test_revisions_parse_and_chain() -> None:

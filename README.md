@@ -116,13 +116,13 @@ Images are published as `ghcr.io/gilbn/geometrikks`.
 | `latest` | `latest` | The newest stable release. |
 | Exact stable version | `X.Y.Z` | A specific stable release; use this for reproducible deployments. |
 | Major/minor stable version | `X.Y` | The newest stable patch release in a major/minor series. |
-| Exact development version | `0.14.2-dev.3` | A specific prerelease build for testing upcoming changes. |
+| Exact development version | `0.15.0-dev.3` | A specific prerelease build for testing upcoming changes. |
 | `develop` | `develop` | The newest development release; a moving tag. |
 
 Use `latest` to follow stable releases, or pin an exact version:
 
 ```yaml
-image: ghcr.io/gilbn/geometrikks:0.14.2
+image: ghcr.io/gilbn/geometrikks:0.15.0
 ```
 
 `docker-compose.yml` mounts `ACCESS_LOG_DIR` (default `/var/log/nginx`)
@@ -659,7 +659,7 @@ instance, GeoIP credentials, and its own log mount:
 ```yaml
 services:
   agent:
-    image: ghcr.io/gilbn/geometrikks:0.14.2   # same tag as the full instance
+    image: ghcr.io/gilbn/geometrikks:0.15.0   # same tag as the full instance
     restart: unless-stopped
     stop_grace_period: 20s
     environment:
@@ -858,24 +858,60 @@ grows until the compression policy recompresses them. It then refreshes the
 affected continuous aggregates so the filter dropdowns update. It may run
 for minutes on a large database.
 
+### backfill-geo-hostnames: fill historical Geo Logs hostnames
+
+Existing installations may show an empty Hostnames column for Geo Logs ranges
+over 24 hours. To fill in the missing hostnames from retained events, run:
+
+```bash
+docker compose exec -u geometrikks app litestar backfill-geo-hostnames
+```
+
+The command prints the pending ranges and asks for confirmation. It refreshes
+one day at a time and resumes with the next unfinished day if you rerun it.
+Use `--yes` to skip confirmation. The app can stay running, but the refresh
+uses database CPU and I/O and may take minutes on a large database.
+
+The aggregate rows record which buckets are complete. If the command stops or
+a batch fails, rerun it to process the remaining buckets. A second simultaneous
+run is rejected. Hourly backfills respect hourly retention, and both views only
+refresh complete buckets within raw retention. Counts remain available while
+hostname history is incomplete. This command cannot recover hostnames after
+their raw events have expired.
+
+The command reads `geo_events` and refreshes the aggregates. It does not rewrite
+source hostnames or explicitly decompress every raw chunk. In-place column
+upgrades require TimescaleDB 2.28 or later. If adding the columns fails, the app
+keeps the existing aggregate and logs `hostname_cagg_columns_unavailable`.
+Fix the database error and restart before running the command.
+
 ### backfill-asn: fill in ASN data for historical rows
 
 Rows ingested before the ASN feature (or while the ASN database was
 missing) have no ASN data. `backfill-asn` resolves their IPs against the
-local GeoLite2 ASN database and stamps them retroactively:
+local GeoLite2 ASN database and stamps them retroactively. Choose the table
+explicitly. To backfill Access Logs:
 
 ```bash
-docker compose exec -u geometrikks app litestar backfill-asn
+docker compose exec -u geometrikks app litestar backfill-asn --table access-logs
 ```
+
+Backfill Geo Logs without touching the Access Logs table:
+
+```bash
+docker compose exec -u geometrikks app litestar backfill-asn --table geo-events
+```
+
+Use `--table all` when both tables need a backfill.
 
 It fills **only** rows with no ASN data (idempotent, never overwrites
 stamped values) and asks for confirmation after reporting how many rows and
 distinct IPs are affected (`--yes` skips the prompt). IPs the database
-cannot resolve stay empty. Like `backfill-hostname`, it decompresses
-compressed history chunks first (disk usage grows until the compression
-policy recompresses them) and refreshes the ASN continuous aggregates
-afterwards so the Top ASNs view picks up the history. It may run for
-minutes on a large database.
+cannot resolve stay empty. Like `backfill-hostname`, it decompresses the
+selected table's compressed history first (disk usage grows until the
+compression policy recompresses it) and refreshes the corresponding
+continuous aggregates afterwards. It may run for minutes on a large
+database.
 
 If the aggregate refresh fails, the command exits non-zero and names the
 stale aggregates: the rows are stamped, but the Top ASNs view will not show
