@@ -662,7 +662,7 @@ def test_backfill_timings_logs_audit_before_raising_on_refresh_failure(monkeypat
     assert logger.info.call_args.kwargs["cagg_refresh_failed"] == ["url_daily_stats"]
 
 
-def test_geo_hostname_backfill_cli_registration_and_help():
+def test_geo_hostname_backfill_cli_registration_and_help() -> None:
     import click
     from geometrikks.cli import ImportLogsCLIPlugin
 
@@ -676,7 +676,7 @@ def test_geo_hostname_backfill_cli_registration_and_help():
     assert "--batch-days" not in result.output
 
 
-def test_geo_hostname_backfill_options(monkeypatch):
+def test_geo_hostname_backfill_options(monkeypatch) -> None:
     import geometrikks.cli as module
 
     run = AsyncMock()
