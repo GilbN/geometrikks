@@ -858,6 +858,33 @@ grows until the compression policy recompresses them. It then refreshes the
 affected continuous aggregates so the filter dropdowns update. It may run
 for minutes on a large database.
 
+### backfill-geo-hostnames: fill historical Geo Logs hostnames
+
+Existing installations may show an empty Hostnames column for Geo Logs ranges
+over 24 hours. To fill in the missing hostnames from retained events, run:
+
+```bash
+docker compose exec -u geometrikks app litestar backfill-geo-hostnames
+```
+
+The command prints the pending ranges and asks for confirmation. It refreshes
+one day at a time and resumes with the next unfinished day if you rerun it.
+Use `--yes` to skip confirmation. The app can stay running, but the refresh
+uses database CPU and I/O and may take minutes on a large database.
+
+The aggregate rows record which buckets are complete. If the command stops or
+a batch fails, rerun it to process the remaining buckets. A second simultaneous
+run is rejected. Hourly backfills respect hourly retention, and both views only
+refresh complete buckets within raw retention. Counts remain available while
+hostname history is incomplete. This command cannot recover hostnames after
+their raw events have expired.
+
+The command reads `geo_events` and refreshes the aggregates. It does not rewrite
+source hostnames or explicitly decompress every raw chunk. In-place column
+upgrades require TimescaleDB 2.28 or later. If adding the columns fails, the app
+keeps the existing aggregate and logs `hostname_cagg_columns_unavailable`.
+Fix the database error and restart before running the command.
+
 ### backfill-asn: fill in ASN data for historical rows
 
 Rows ingested before the ASN feature (or while the ASN database was

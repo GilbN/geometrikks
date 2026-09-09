@@ -383,7 +383,9 @@ async def _create_ip_location_cagg(conn: "AsyncConnection") -> None:
                 COUNT(*) AS event_count,
                 MAX(autonomous_system_number) AS asn,
                 MAX(autonomous_system_organization) AS as_org,
-                COUNT(autonomous_system_number) AS asn_hits
+                COUNT(autonomous_system_number) AS asn_hits,
+                array_agg(DISTINCT hostname) AS hostnames,
+                COUNT(hostname) AS hostname_hits
             FROM geo_events
             GROUP BY bucket, location_id, ip_address
             WITH NO DATA
@@ -1007,10 +1009,14 @@ class CaggGeneration:
     generation carries its own count so the probe can check each one; a
     refresh interrupted while backfilling an older generation is caught
     even after a newer generation's refresh completed.
+
+    Manual generations add their columns at startup but leave historical
+    refreshes to an operator command.
     """
 
     count: str
     columns: tuple[CaggColumn, ...]
+    manual_backfill: bool = False
 
 
 _SUMMARY_GENERATIONS: tuple[CaggGeneration, ...] = (
@@ -1042,6 +1048,10 @@ _IP_LOCATION_GENERATIONS: tuple[CaggGeneration, ...] = (
         CaggColumn("as_org", "varchar(255)", "MAX(autonomous_system_organization)"),
         CaggColumn("asn_hits", "bigint", "COUNT(autonomous_system_number)"),
     )),
+    CaggGeneration("hostname_hits", (
+        CaggColumn("hostnames", "varchar(255)[]", "array_agg(DISTINCT hostname)"),
+        CaggColumn("hostname_hits", "bigint", "COUNT(hostname)"),
+    ), manual_backfill=True),
 )
 
 IP_LOCATION_CAGGS_NAMES = ["ip_location_hourly_stats", "ip_location_daily_stats"]
@@ -1065,7 +1075,8 @@ CAGG_COLUMNS: dict[str, tuple[CaggColumn, ...]] = {
 
 
 async def _cagg_columns_need_upgrade(
-    conn: "AsyncConnection", *, raw_retention_days: int
+    conn: "AsyncConnection", *, raw_retention_days: int, include_manual: bool = True,
+    columns_only: bool = False,
 ) -> list[str]:
     """Views missing an upgrade column, or not yet backfilled after one.
 
@@ -1084,6 +1095,8 @@ async def _cagg_columns_need_upgrade(
     Args:
         conn: Open connection inside the setup transaction.
         raw_retention_days: Window the forced refresh covers.
+        include_manual: Include generations whose history is filled by a CLI.
+        columns_only: Check schema shape without scanning aggregate history.
     """
     result = await conn.execute(text("""
         SELECT table_name, column_name FROM information_schema.columns
@@ -1093,10 +1106,13 @@ async def _cagg_columns_need_upgrade(
     existing_views = {name for name, _ in columns}
     pending: list[str] = []
     for view, generations in CAGG_GENERATIONS.items():
-        if view not in existing_views:
+        generations = tuple(g for g in generations if include_manual or not g.manual_backfill)
+        if not generations or view not in existing_views:
             continue
-        if any((view, column.name) not in columns for column in CAGG_COLUMNS[view]):
+        if any((view, column.name) not in columns for g in generations for column in g.columns):
             pending.append(view)
+            continue
+        if columns_only:
             continue
         null_counts = " OR ".join(f"{generation.count} IS NULL" for generation in generations)
         has_null = (await conn.execute(
@@ -1111,15 +1127,28 @@ async def _cagg_columns_need_upgrade(
     return pending
 
 
+# A server without in-place ADD COLUMN keeps its old per-IP aggregates.
+# Readers omit hostnames instead of referencing a column that could not be added.
+_hostname_columns_unavailable: set[str] = set()
+
+
+def hostname_cagg_available(view: str) -> bool:
+    return view not in _hostname_columns_unavailable
+
+
 async def _add_cagg_columns(conn: "AsyncConnection", views: list[str]) -> list[str]:
     """Add every missing upgrade column of ``views`` in place.
 
     The in-place ALTER keeps every existing bucket; only the new columns are
-    filled by the forced refresh the caller runs afterwards. TimescaleDB
+    filled by a forced refresh, at startup or through a manual backfill. TimescaleDB
     versions without in-place CAGG columns raise here, and for those the
     old percentile-upgrade route applies: drop the view (setup recreates it
     with the columns) and accept that daily history older than raw retention
     cannot be rebuilt.
+
+    Manual generations preserve the old view if ALTER fails. Their readers
+    omit the unavailable fields and an operator can fix the database version
+    or DDL error before restarting.
 
     Returns:
         Views that were dropped and will be recreated by the CREATE step.
@@ -1134,8 +1163,14 @@ async def _add_cagg_columns(conn: "AsyncConnection", views: list[str]) -> list[s
             """), {"view": view})
         }
         missing = [column for column in CAGG_COLUMNS[view] if column.name not in existing]
+        manual_columns = {
+            column.name for generation in CAGG_GENERATIONS[view] if generation.manual_backfill
+            for column in generation.columns
+        }
+        adding_manual = False
         try:
             for column in missing:
+                adding_manual = column.name in manual_columns
                 # Savepoint: a failed DDL poisons the whole setup transaction, so
                 # without one the fallback DROP below would hit "current
                 # transaction is aborted" and take startup down with it.
@@ -1145,6 +1180,14 @@ async def _add_cagg_columns(conn: "AsyncConnection", views: list[str]) -> list[s
                     ))
                 logger.info("cagg_column_added", view=view, column=column.name)
         except Exception as exc:
+            if adding_manual:
+                _hostname_columns_unavailable.add(view)
+                logger.warning(
+                    "hostname_cagg_columns_unavailable", view=view, error=str(exc),
+                    detail="Existing counts preserved. In-place aggregate columns require "
+                    "TimescaleDB 2.28 or later. Check the database error and restart after fixing it.",
+                )
+                continue
             logger.warning(
                 "In-place column add failed on %s (%s); recreating the view. "
                 "History older than the raw retention window cannot be rebuilt "
@@ -1288,6 +1331,7 @@ async def setup_timescaledb(
     """
     check_refresh_offsets(raw_retention_days=analytics.raw_retention_days)
     _reset_policy_failures()
+    _hostname_columns_unavailable.clear()
 
     async with engine.begin() as conn:
         # Enable extensions
@@ -1314,16 +1358,20 @@ async def setup_timescaledb(
                 "raw retention window cannot be rebuilt and is discarded",
             )
 
-        # Add the upgrade columns (timed-row counts, latency figures) to
-        # pre-existing summary/URL CAGGs. Probed before the CREATE step:
+        # Add upgrade columns before CREATE IF NOT EXISTS. Detect automatic
+        # refreshes separately so hostname history stays a manual backfill.
+        # Probed before the CREATE step:
         # CREATE IF NOT EXISTS never alters an existing view. The forced
         # refresh runs after policies, outside the transaction (CALL cannot
         # run inside one).
         pending_views = await _cagg_columns_need_upgrade(
-            conn, raw_retention_days=analytics.raw_retention_days
+            conn, raw_retention_days=analytics.raw_retention_days, include_manual=False
         )
-        if pending_views:
-            recreated = await _add_cagg_columns(conn, pending_views)
+        column_views = await _cagg_columns_need_upgrade(
+            conn, raw_retention_days=analytics.raw_retention_days, columns_only=True
+        )
+        if column_views:
+            recreated = await _add_cagg_columns(conn, column_views)
             if recreated:
                 logger.info("cagg_views_recreated", views=recreated)
 

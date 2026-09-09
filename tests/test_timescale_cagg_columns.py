@@ -72,7 +72,7 @@ def test_column_table_covers_every_upgraded_view() -> None:
 
 def test_ip_location_generation_rolls_the_asn_up_per_ip() -> None:
     names = [c.name for c in timescale.CAGG_COLUMNS["ip_location_hourly_stats"]]
-    assert names == ["asn", "as_org", "asn_hits"]
+    assert names == ["asn", "as_org", "asn_hits", "hostnames", "hostname_hits"]
     by_name = {c.name: c for c in timescale.CAGG_COLUMNS["ip_location_hourly_stats"]}
     assert by_name["asn"].expression == "MAX(autonomous_system_number)"
     assert by_name["as_org"].expression == "MAX(autonomous_system_organization)"
@@ -346,6 +346,7 @@ async def _run_setup(
     dropped: list[str] | None = None,
     url_upgrade: bool = False,
     order: list[str] | None = None,
+    manual_views: list[str] | None = None,
 ) -> tuple[MagicMock, MagicMock]:
     """Run setup_timescaledb with every DDL step stubbed; return (logger, conn).
 
@@ -375,10 +376,12 @@ async def _run_setup(
             order.append("url")
         return url_upgrade
 
-    async def column_probe(_conn: Any, *, raw_retention_days: int) -> list[str]:
+    async def column_probe(
+        _conn: Any, *, raw_retention_days: int, include_manual: bool = True, columns_only: bool = False,
+    ) -> list[str]:
         if order is not None:
             order.append("columns")
-        return pending_views
+        return pending_views + ((manual_views or []) if include_manual else [])
 
     monkeypatch.setattr(timescale, "_url_caggs_need_upgrade", url_probe)
     monkeypatch.setattr(timescale, "_cagg_columns_need_upgrade", AsyncMock(side_effect=column_probe))
@@ -460,7 +463,7 @@ async def test_setup_rebuilds_the_url_views_before_probing_columns(
         monkeypatch, pending_views=[], refresh_failed=[], url_upgrade=True, order=order
     )
 
-    assert order == ["url", "columns"], "the drop must precede the in-place column probe"
+    assert order == ["url", "columns", "columns"], "the drop must precede the in-place column probe"
     drops = [
         str(call.args[0]) for call in conn.execute.call_args_list
         if "DROP MATERIALIZED VIEW" in str(call.args[0])
@@ -497,3 +500,52 @@ async def test_setup_leaves_the_url_views_alone_when_they_carry_host(
     assert "url_caggs_recreated" not in _events(logger.warning)
     refresh = cast("Any", timescale.refresh_caggs_range)
     assert all(c.kwargs.get("caggs") != timescale.URL_CAGGS for c in refresh.await_args_list)
+
+
+async def test_hostname_only_upgrade_does_not_refresh_on_startup(monkeypatch):
+    await _run_setup(
+        monkeypatch, pending_views=[], manual_views=timescale.IP_LOCATION_CAGGS_NAMES,
+        refresh_failed=[],
+    )
+    cast("Any", timescale._add_cagg_columns).assert_awaited_once()
+    assert cast("Any", timescale._add_cagg_columns).await_args.args[1] == timescale.IP_LOCATION_CAGGS_NAMES
+    cast("Any", timescale.refresh_caggs_range).assert_not_awaited()
+
+
+async def test_automatic_probe_ignores_unfilled_hostname_generation():
+    class ProbeConn:
+        async def execute(self, statement, params=None):
+            sql = str(statement)
+            if "information_schema.columns" in sql:
+                return _all_columns()
+            return _Scalar(1 if "hostname_hits IS NULL" in sql else None)
+
+    assert await timescale._cagg_columns_need_upgrade(
+        cast("Any", ProbeConn()), raw_retention_days=180,
+    ) == timescale.IP_LOCATION_CAGGS_NAMES
+    assert await timescale._cagg_columns_need_upgrade(
+        cast("Any", ProbeConn()), raw_retention_days=180, include_manual=False,
+    ) == []
+
+
+async def test_unsupported_hostname_column_preserves_existing_aggregate(monkeypatch):
+    view = "ip_location_daily_stats"
+    monkeypatch.setattr(timescale, "_hostname_columns_unavailable", set())
+    conn = FakeConn(
+        fail_alter_on={view}, existing={view: {"asn", "as_org", "asn_hits"}},
+    )
+    assert await timescale._add_cagg_columns(cast("Any", conn), [view]) == []
+    assert not any("DROP MATERIALIZED VIEW" in sql for sql in conn.statements)
+    assert not timescale.hostname_cagg_available(view)
+    assert not conn.aborted
+
+
+async def test_schema_only_probe_does_not_scan_aggregate_history():
+    class ProbeConn:
+        async def execute(self, statement, params=None):
+            assert "information_schema.columns" in str(statement)
+            return _all_columns()
+
+    assert await timescale._cagg_columns_need_upgrade(
+        cast("Any", ProbeConn()), raw_retention_days=180, columns_only=True,
+    ) == []

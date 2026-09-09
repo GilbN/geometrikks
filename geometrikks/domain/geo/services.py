@@ -2,7 +2,7 @@
 
 Query routing follows the repository convention:
 - RAW geo_events for ranges ≤ 24h, and whenever a hostname filter is set
-  (no CAGG carries a hostname dimension).
+  (per-IP CAGGs store hostname sets, not per-hostname counts).
 - ip_location_{hourly,daily}_stats for grouped/top-IP queries and for
   country/city/IP-filtered summary/time-series queries on longer ranges
   (keyed by location + IP, so those filters still apply there).
@@ -102,7 +102,9 @@ class GeoEventService(SQLAlchemyAsyncRepositoryService[GeoEvent]):
 
         Raw path (≤ 24h or hostname filter): exact counts, last event time and
         distinct hostnames. CAGG path: per-IP CAGG sums stitched with the raw
-        edge buckets — exact counts, bucket-granular last_seen, no hostnames.
+        edge buckets: exact counts and hostnames, bucket-granular last_seen.
+        Pre-upgrade buckets have no hostname history until the CLI backfill;
+        buckets outside raw retention cannot recover it.
 
         NULLs sink on both sort directions, and (location_id, ip_sort) always
         tie-breaks so pagination stays deterministic within equal sort keys.
@@ -152,8 +154,7 @@ class GeoEventService(SQLAlchemyAsyncRepositoryService[GeoEvent]):
                     CAST(SUM(c.event_count) AS BIGINT) AS event_count,
                     MAX(c.last_seen) AS last_seen,
                     MAX(c.asn) AS asn,
-                    MAX(c.as_org) AS as_organization,
-                    NULL AS hostnames
+                    MAX(c.as_org) AS as_organization
                 FROM combined c
                 JOIN geo_locations gl ON c.location_id = gl.id
                 WHERE TRUE
@@ -176,6 +177,39 @@ class GeoEventService(SQLAlchemyAsyncRepositoryService[GeoEvent]):
         count_stmt = text(f"SELECT COUNT(*) FROM ({source}) grouped")
         total = (await self._session.execute(count_stmt, params)).scalar_one()
 
+        hostnames_by_group: dict[tuple[int, str], list[str]] = {
+            (row.location_id, row.ip_address): sorted(row.hostnames) if row.hostnames else []
+            for row in rows
+        } if use_raw else {}
+        from geometrikks.server.timescale import hostname_cagg_available
+
+        if not use_raw and rows and hostname_cagg_available(f"ip_location_{granularity.value}_stats"):
+            # Expand arrays only for the displayed groups, separately from
+            # counts so multiple hostnames cannot multiply event_count.
+            hostname_stmt = text(f"""
+                {stitched_ip_location_cte(granularity, include_hostnames=True)}
+                SELECT c.location_id, host(c.ip_address) AS ip_address,
+                       array_agg(DISTINCT h.hostname ORDER BY h.hostname) AS hostnames
+                FROM combined c
+                JOIN unnest(CAST(:location_ids AS bigint[]), CAST(:ip_addresses AS inet[]))
+                     AS requested(location_id, ip_address)
+                  ON c.location_id = requested.location_id AND c.ip_address = requested.ip_address
+                JOIN geo_locations gl ON c.location_id = gl.id
+                CROSS JOIN LATERAL unnest(c.hostnames) AS h(hostname)
+                WHERE h.hostname IS NOT NULL
+                {filter_sql}
+                GROUP BY c.location_id, c.ip_address
+            """)
+            hostname_rows = await self._session.execute(hostname_stmt, {
+                **params,
+                "location_ids": [row.location_id for row in rows],
+                "ip_addresses": [row.ip_address for row in rows],
+            })
+            hostnames_by_group = {
+                (row.location_id, row.ip_address): list(row.hostnames)
+                for row in hostname_rows
+            }
+
         return [
             GeoLogEntry(
                 location_id=row.location_id,
@@ -192,7 +226,7 @@ class GeoEventService(SQLAlchemyAsyncRepositoryService[GeoEvent]):
                 last_seen=row.last_seen,
                 asn=row.asn,
                 as_organization=row.as_organization,
-                hostnames=sorted(row.hostnames) if row.hostnames else [],
+                hostnames=hostnames_by_group.get((row.location_id, row.ip_address), []),
             )
             for row in rows
         ], total
