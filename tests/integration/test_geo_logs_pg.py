@@ -187,8 +187,7 @@ class TestGroupedLogs:
         assert {r.ip_address for r in by_host} == {"2.2.2.2", "3.3.3.3"}
 
     async def test_cagg_path_parity(self, pg_engine, pg_session_maker, clean_tables):
-        """>24h unfiltered range routes to ip_location_daily_stats: same groups
-        and counts as raw seeding, hostnames unavailable ([])."""
+        """>24h unfiltered range keeps groups, counts and recording hostnames."""
         locs = await seed_multiday(pg_session_maker)
         await refresh_caggs_range(
             pg_engine, start=NOW - timedelta(days=4), end=NOW + timedelta(hours=1)
@@ -203,7 +202,7 @@ class TestGroupedLogs:
             (locs["no"], "1.1.1.1", 6),
             (locs["se"], "2.2.2.2", 3),
         ]
-        assert all(r.hostnames == [] for r in rows)
+        assert [r.hostnames for r in rows] == [["web1"], ["web2"]]
 
     async def test_order_by_city_sinks_nulls_both_directions(self, pg_session_maker, clean_tables):
         locs = await seed_raw(pg_session_maker)

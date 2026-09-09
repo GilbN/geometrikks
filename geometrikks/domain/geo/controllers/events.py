@@ -143,7 +143,7 @@ class GeoEventController(Controller):
     """Geo-event endpoints: raw event listing and geo-logs page aggregates.
 
     Perf note: only hostname filters force raw geo_events scans for
-    summary/time-series now (no CAGG carries a hostname dimension); those
+    summary/time-series (per-IP CAGGs have no per-hostname counts); those
     queries are bounded by raw_retention_days (default 180d). Country/city/IP
     filters ride the stitched per-IP CAGGs instead.
     """
@@ -209,7 +209,7 @@ class GeoEventController(Controller):
         """One row per (location, IP) pair, sorted by event count by default.
 
         Ranges > 24h are served from the daily per-IP CAGG (day-floored
-        buckets, no hostnames); a hostname filter forces the raw path.
+        buckets, distinct hostnames); a hostname filter forces the raw path.
         """
         from_timestamp = ensure_utc(from_timestamp)
         to_timestamp = ensure_utc(to_timestamp)

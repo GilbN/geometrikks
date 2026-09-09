@@ -1,4 +1,4 @@
-"""Litestar CLI plugin: `litestar import-logs <paths...>`, `litestar backfill-hostname NAME`, `litestar backfill-asn`, `litestar backfill-timings`.
+"""Litestar CLI commands for log imports and historical data backfills.
 
 Import-time safe: settings, engine, reader are constructed inside the
 command callback, never at module import. The format registry import
@@ -719,11 +719,95 @@ async def _run_backfill_timings(*, hostname: str | None, before: datetime | None
         await engine.dispose()
 
 
+GEO_HOSTNAME_BACKFILL_BATCH_DAYS = 1
+
+
+@click.command(name="backfill-geo-hostnames")
+@click.option("--yes", is_flag=True, help="Skip the confirmation prompt.")
+def backfill_geo_hostnames_command(yes: bool) -> None:
+    """Fill historical hostname sets in the Geo Logs aggregates.
+
+    Run after starting the updated app. Refreshes hourly and daily aggregates
+    from retained geo_events, without rewriting source hostnames. Prints the
+    pending ranges and asks for confirmation. May run for minutes on large
+    databases; the app can stay running. Rerun after interruption to resume
+    unfinished batches. History whose raw events expired cannot be recovered.
+    """
+    asyncio.run(_run_backfill_geo_hostnames(yes=yes))
+
+
+async def _run_backfill_geo_hostnames(*, yes: bool) -> None:
+    from sqlalchemy import text
+
+    from geometrikks.config.settings import get_settings
+    from geometrikks.server.hostname_backfill import hostname_backfill_ranges, pending_hostname_range
+    from geometrikks.server.plugins import get_sqlalchemy_config
+    from geometrikks.server.timescale import refresh_caggs_range
+
+    engine = get_sqlalchemy_config().get_engine()
+    analytics = get_settings().analytics
+    try:
+        # Keep a dedicated session for the advisory lock while refresh CALLs
+        # use their own connections outside transactions.
+        async with engine.connect() as lock_conn:
+            locked = (await lock_conn.execute(text(
+                "SELECT pg_try_advisory_lock(714023, 1)"
+            ))).scalar_one()
+            if not locked:
+                raise click.ClickException("Another Geo Logs hostname backfill is already running.")
+            try:
+                await lock_conn.commit()
+                ranges = await hostname_backfill_ranges(
+                    lock_conn, now=datetime.now(timezone.utc),
+                    raw_retention_days=analytics.raw_retention_days,
+                    hourly_retention_days=analytics.hourly_retention_days,
+                )
+                await lock_conn.commit()
+                if not ranges:
+                    click.echo("Nothing to do: no complete retained hostname buckets need backfilling.")
+                    return
+                for item in ranges:
+                    click.echo(f"{item.view}: {item.start.isoformat()} to {item.end.isoformat()}")
+                click.echo("Only complete retained buckets are refreshed. Expired raw history cannot be recovered.")
+                if not yes and not click.confirm("Backfill these hostname aggregates?"):
+                    click.echo("Aborted.")
+                    return
+                for item in ranges:
+                    start = item.start
+                    while start < item.end:
+                        end = min(
+                            start + timedelta(days=GEO_HOSTNAME_BACKFILL_BATCH_DAYS),
+                            item.end,
+                        )
+                        async with engine.connect() as conn:
+                            pending = await pending_hostname_range(conn, item.view, start, end)
+                        if pending is not None:
+                            click.echo(f"Refreshing {item.view}: {pending.start.isoformat()} to {pending.end.isoformat()} ...")
+                            failed = await refresh_caggs_range(
+                                engine, start=pending.start, end=pending.end, caggs=[item.view], force=True,
+                            )
+                            if failed:
+                                raise click.ClickException(
+                                    f"Refresh failed for {item.view}. Rerun this command to resume."
+                                )
+                        start = end
+                click.echo("Geo Logs hostname backfill complete.")
+            finally:
+                await lock_conn.rollback()
+                await lock_conn.execute(text("SELECT pg_advisory_unlock(714023, 1)"))
+                await lock_conn.commit()
+    except ValueError as exc:
+        raise click.ClickException(str(exc)) from exc
+    finally:
+        await engine.dispose()
+
+
 class ImportLogsCLIPlugin(CLIPlugin):
-    """Registers import-logs, backfill-hostname, backfill-asn and backfill-timings on the litestar CLI group."""
+    """Register log import and backfill commands on the Litestar CLI group."""
 
     def on_cli_init(self, cli: click.Group) -> None:
         cli.add_command(import_logs_command)
         cli.add_command(backfill_hostname_command)
         cli.add_command(backfill_asn_command)
         cli.add_command(backfill_timings_command)
+        cli.add_command(backfill_geo_hostnames_command)

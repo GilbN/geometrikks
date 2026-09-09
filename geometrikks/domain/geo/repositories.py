@@ -138,7 +138,9 @@ def stitch_params(
     return {"start": start, "end": end, "a_start": a_start, "a_end": a_end}
 
 
-def stitched_ip_location_cte(granularity: StatsGranularity) -> str:
+def stitched_ip_location_cte(
+    granularity: StatsGranularity, *, include_hostnames: bool = False
+) -> str:
     """WITH clause exposing ``combined`` for a per-IP CAGG read.
 
     Reading a CAGG requires whole buckets, so a window that starts mid-bucket
@@ -152,22 +154,26 @@ def stitched_ip_location_cte(granularity: StatsGranularity) -> str:
     keyed by IP on all legs, so ``COUNT(DISTINCT ip_address)`` over it stays
     exact rather than summing per-bucket counts. ``last_seen`` is bucket-granular
     for CAGG rows and exact for the raw edge rows.
+
+    Hostname arrays are optional so count-only readers do not fetch them.
     """
     table, _ = IP_LOCATION_CAGGS[granularity]
     return f"""
         WITH combined AS (
             SELECT s.location_id, s.ip_address, s.event_count, s.bucket AS last_seen,
-                   s.asn, s.as_org
+                   s.asn, s.as_org{", s.hostnames" if include_hostnames else ""}
             FROM {table} s
             WHERE s.bucket >= :a_start AND s.bucket < :a_end
             UNION ALL
             SELECT ge.location_id, ge.ip_address, CAST(1 AS BIGINT), ge.timestamp,
                    ge.autonomous_system_number, ge.autonomous_system_organization
+                   {", ARRAY[ge.hostname] AS hostnames" if include_hostnames else ""}
             FROM geo_events ge
             WHERE ge.timestamp >= :start AND ge.timestamp < :a_start
             UNION ALL
             SELECT ge.location_id, ge.ip_address, CAST(1 AS BIGINT), ge.timestamp,
                    ge.autonomous_system_number, ge.autonomous_system_organization
+                   {", ARRAY[ge.hostname] AS hostnames" if include_hostnames else ""}
             FROM geo_events ge
             WHERE ge.timestamp >= :a_end AND ge.timestamp < :end
         )

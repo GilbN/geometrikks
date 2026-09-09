@@ -34,8 +34,10 @@ class GeoLogEntry(msgspec.Struct, rename="camel"):
     asn: int | None
     as_organization: str | None
     hostnames: list[str]
-    """Distinct hostnames seen for this group; [] on the CAGG path (the
-    daily CAGG carries no hostname dimension)."""
+    """Distinct recording hostnames seen for this group in the selected range.
+    Pre-upgrade aggregate history is incomplete until the CLI backfill;
+    history beyond raw retention cannot recover its hostname data.
+    """
 
 
 class GeoLogPeriod(msgspec.Struct, rename="camel"):
@@ -165,8 +167,8 @@ class GeoEventFacets(msgspec.Struct, rename="camel"):
 class GeoEventFilters:
     """Optional dimension filters for geo-event aggregate queries.
 
-    Hostname filtering forces the raw geo_events path: no CAGG carries a
-    hostname dimension. Every other filter, ASN included, works on the CAGG
+    Hostname filtering forces the raw geo_events path: per-IP CAGGs store
+    hostname sets, not per-hostname counts. Every other filter, ASN included, works on the CAGG
     paths too (the per-IP CAGGs are keyed by location + IP and carry the
     IP's ASN).
     """
