@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.15.0] - 2026-09-09
+
 ### Added
 
 - Geo Logs now records the autonomous system number and organization for every geo event using the GeoLite2 ASN database, including on geo-only installs (`LOGPARSER_SEND_LOGS=false`). Top IPs shows each IP's organization. Top locations has an ASNs tab with hosting classification and exact unique-IP counts. The grouped table adds optional ASN and Organization columns, the detail panel shows the ASN, and ASN include and exclude filters apply to both the table and embedded map. The API adds `GET /api/v1/geo-events/top-asns` and the `asnIn` and `asnNotIn` parameters to the geo-events and geojson endpoints.
@@ -1010,7 +1012,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Settings endpoint no longer exposes the full settings tree (database credentials leaked via `model_dump()`); response is now an explicit whitelist.
 - Timestamps in `CALL refresh_continuous_aggregate` are bound as asyncpg parameters instead of interpolated into SQL.
 
-[Unreleased]: https://github.com/GilbN/geometrikks/compare/v0.14.3...develop
+[Unreleased]: https://github.com/GilbN/geometrikks/compare/v0.15.0...develop
+[0.15.0]: https://github.com/GilbN/geometrikks/compare/v0.14.3...v0.15.0
 [0.14.3]: https://github.com/GilbN/geometrikks/compare/v0.14.2...v0.14.3
 [0.14.2]: https://github.com/GilbN/geometrikks/compare/v0.14.1...v0.14.2
 [0.14.1]: https://github.com/GilbN/geometrikks/compare/v0.14.0...v0.14.1
