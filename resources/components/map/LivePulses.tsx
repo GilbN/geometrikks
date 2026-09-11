@@ -40,6 +40,10 @@ const MAX_VISIBLE_LANES = 8
 const MAX_ACTIVE_TRANSMISSIONS = MAX_VISIBLE_LANES
 const ROUTE_SAMPLES = 48
 const ARRIVAL_LINGER_MS = 900
+// GeoJSON updates rebuild worker-side geometry. Keep this independent of
+// display refresh rate (including 120/144 Hz screens); motion remains timed
+// against the clock rather than the number of animation frames.
+const FRAME_INTERVAL_MS = 1000 / 30
 const EARTH_RADIUS_KM = 6371
 
 function clamp(value: number, min = 0, max = 1): number {
@@ -347,23 +351,20 @@ export function LivePulses({
     const now = performance.now()
     for (const request of requests) {
       const destination = resolveDestination(request.hostname)
-      if (!destination) continue
-      const transmission = createTransmission(
-        request,
-        destination,
-        now,
-        prefersReducedMotion.current,
-      )
-      if (!transmission) continue
+      if (!destination || !request.coordinates) continue
+      const lane = routeLane(request.coordinates)
 
       const laneIsActive = transmissions.current.some(
-        (activeTransmission) => activeTransmission.lane === transmission.lane,
+        (activeTransmission) => activeTransmission.lane === lane,
       )
 
       if (laneIsActive || transmissions.current.length >= MAX_ACTIVE_TRANSMISSIONS) {
-        queuedRequests.current.set(transmission.lane, request)
+        queuedRequests.current.set(lane, request)
       } else {
-        transmissions.current.push(transmission)
+        const transmission = createTransmission(
+          request, destination, now, prefersReducedMotion.current,
+        )
+        if (transmission) transmissions.current.push(transmission)
       }
     }
   }, [resolveDestination])
@@ -387,8 +388,16 @@ export function LivePulses({
       return
     }
     sourceIsEmpty.current = true
-    const tick = () => {
-      const now = performance.now()
+    let lastFrame = -Infinity
+    const tick = (now: number) => {
+      raf.current = requestAnimationFrame(tick)
+      const elapsed = now - lastFrame
+      if (elapsed < FRAME_INTERVAL_MS) return
+      // Preserve the remainder to avoid dropping to 20 Hz when a 60 Hz
+      // frame arrives just before the next 30 Hz deadline.
+      lastFrame = Number.isFinite(lastFrame)
+        ? now - elapsed % FRAME_INTERVAL_MS
+        : now
       transmissions.current = transmissions.current.filter(
         ({ born, duration }) => now - born < duration + ARRIVAL_LINGER_MS,
       )
@@ -422,7 +431,6 @@ export function LivePulses({
         source?.setData(buildFrame(transmissions.current, now))
         sourceIsEmpty.current = idle
       }
-      raf.current = requestAnimationFrame(tick)
     }
     raf.current = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(raf.current)

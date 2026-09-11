@@ -1,6 +1,7 @@
 /**
  * Map control overlay: one bounded panel with labeled sections, in this
- * order: Visualization, Live (with the rail switch), Filters, Summary, Top IPs.
+ * order on desktop: Visualization, Live, Filters, Summary, Top IPs.
+ * The mobile drawer puts Filters last.
  * Toggles are switch rows rather than buttons so it fits without scrolling.
  * Desktop: a collapsible MapOverlay docked top-right.
  * Mobile: a trigger button portaled into the top header bar (next to the
@@ -12,6 +13,14 @@ import { createPortal } from "react-dom"
 import { MapOverlay } from "./MapOverlay"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import {
   Drawer,
   DrawerContent,
@@ -33,6 +42,7 @@ import {
   Loader2,
   MapPin,
   Maximize2,
+  MoreHorizontal,
   Radio,
   SlidersHorizontal,
   Sparkles,
@@ -58,6 +68,8 @@ interface MapControlsProps {
   liveOverlays: LiveOverlayPreferences
   onLiveOverlayChange: (key: keyof LiveOverlayPreferences, enabled: boolean) => void
   routeEffectsEnabled: boolean
+  frameRateEnabled: boolean
+  onFrameRateChange: (enabled: boolean) => void
   onRouteEffectsChange: (enabled: boolean) => void
   routeHomeAvailable: boolean
   homeMarkerEnabled: boolean
@@ -159,6 +171,8 @@ export function MapControls({
   liveOverlays,
   onLiveOverlayChange,
   routeEffectsEnabled,
+  frameRateEnabled,
+  onFrameRateChange,
   onRouteEffectsChange,
   routeHomeAvailable,
   homeMarkerEnabled,
@@ -200,6 +214,37 @@ export function MapControls({
     setHeaderSlot(document.getElementById("header-actions-slot"))
   }, [])
 
+  const toolsMenu = (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="ghost" size="icon-sm" title="Map tools" aria-label="Map tools">
+          <MoreHorizontal className="h-4 w-4" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-auto min-w-44">
+        {isMobile && (
+          <DropdownMenuItem onSelect={onFitBounds} disabled={isLoading || events === 0}>
+            <Maximize2 className="h-4 w-4" />
+            Fit to data bounds
+          </DropdownMenuItem>
+        )}
+        {routeHomeAvailable && onGoHome && (
+          <DropdownMenuItem onSelect={onGoHome}>
+            <Home className="h-4 w-4" />
+            Go to home location
+          </DropdownMenuItem>
+        )}
+        {(isMobile || (routeHomeAvailable && onGoHome)) && <DropdownMenuSeparator />}
+        <DropdownMenuCheckboxItem
+          checked={frameRateEnabled}
+          onCheckedChange={onFrameRateChange}
+        >
+          Show frame rate
+        </DropdownMenuCheckboxItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+
   const viewActions = (
     <div className="flex gap-1">
       <Button
@@ -213,19 +258,55 @@ export function MapControls({
         <Maximize2 className="h-4 w-4" />
         <span className="sr-only">Fit to data bounds</span>
       </Button>
-      {routeHomeAvailable && onGoHome && (
+    </div>
+  )
+
+  const filtersSection = (
+    <Section label="Filters">
+      <FilterCombobox
+        label="Country"
+        options={countryOptions}
+        selected={selectedCountries}
+        onChange={onCountriesChange}
+        labelFor={(code) => countryLabels?.[code] ?? code}
+        forceInline={isMobile}
+        className="w-full justify-between"
+      />
+      <FilterCombobox
+        label="City"
+        options={cityOptions}
+        selected={selectedCities}
+        onChange={onCitiesChange}
+        forceInline={isMobile}
+        className="w-full justify-between"
+      />
+      {(sourceOptions.length >= 2 || selectedSources.length > 0) && (
+        <FilterCombobox
+          label="Source"
+          options={sourceOptions}
+          selected={selectedSources}
+          onChange={onSourcesChange}
+          loading={sourcesLoading}
+          emptyText="No sources recorded"
+          forceInline={isMobile}
+          className="w-full justify-between"
+        />
+      )}
+      {activeFilterCount > 0 && (
         <Button
           variant="ghost"
-          size="icon-sm"
-          onClick={onGoHome}
-          title="Go to home location"
-          className="cursor-pointer pointer-coarse:size-10"
+          size="sm"
+          className="h-8 w-full justify-start px-2 pointer-coarse:h-10"
+          onClick={() => {
+            onCountriesChange([])
+            onCitiesChange([])
+            onSourcesChange([])
+          }}
         >
-          <Home className="h-4 w-4" />
-          <span className="sr-only">Go to home location</span>
+          Clear filters
         </Button>
       )}
-    </div>
+    </Section>
   )
 
   // The control sections are shared between the desktop top-right panel and the
@@ -305,54 +386,7 @@ export function MapControls({
         )}
       </Section>
 
-      {/* Country / city / source filters, one per row. */}
-      <Section label="Filters">
-        <FilterCombobox
-          label="Country"
-          options={countryOptions}
-          selected={selectedCountries}
-          onChange={onCountriesChange}
-          labelFor={(code) => countryLabels?.[code] ?? code}
-          forceInline={isMobile}
-          className="w-full justify-between"
-        />
-        <FilterCombobox
-          label="City"
-          options={cityOptions}
-          selected={selectedCities}
-          onChange={onCitiesChange}
-          forceInline={isMobile}
-          className="w-full justify-between"
-        />
-        {(sourceOptions.length >= 2 || selectedSources.length > 0) && (
-          <FilterCombobox
-            label="Source"
-            options={sourceOptions}
-            selected={selectedSources}
-            onChange={onSourcesChange}
-            loading={sourcesLoading}
-            emptyText="No sources recorded"
-            forceInline={isMobile}
-            className="w-full justify-between"
-          />
-        )}
-        {activeFilterCount > 0 && (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-8 w-full justify-start px-2 pointer-coarse:h-10"
-            onClick={() => {
-              onCountriesChange([])
-              onCitiesChange([])
-              onSourcesChange([])
-            }}
-          >
-            Clear filters
-          </Button>
-        )}
-      </Section>
-
-      {isMobile && <Section>{viewActions}</Section>}
+      {!isMobile && filtersSection}
 
       <Section>
         <div className="flex flex-col gap-0.5 text-xs text-muted-foreground">
@@ -404,6 +438,7 @@ export function MapControls({
           </div>
         </Section>
       )}
+      {isMobile && filtersSection}
     </>
   )
 
@@ -429,7 +464,10 @@ export function MapControls({
         )}
         <DrawerContent>
           <DrawerHeader>
-            <DrawerTitle>Map controls</DrawerTitle>
+            <div className="flex items-center justify-between gap-2">
+              <DrawerTitle>Map controls</DrawerTitle>
+              {toolsMenu}
+            </div>
             <DrawerDescription className="sr-only">
               Switch map layers, filter by country and city, and view statistics.
             </DrawerDescription>
@@ -482,6 +520,7 @@ export function MapControls({
         <h2 className={FRAME_LABEL}>Map controls</h2>
         <div className="flex items-center gap-0.5">
           {viewActions}
+          {toolsMenu}
           <Button
             size="icon-sm"
             variant="ghost"
