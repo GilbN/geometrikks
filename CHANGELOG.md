@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Optional frame rate counter in the Map tools menu for manual performance testing. It counts map renders without forcing idle maps to repaint.
+
+### Changed
+
+- Live route effects update at most 30 times per second, regardless of display refresh rate, and calculate queued routes only when a packet can start.
+- Map tools contains Go to home location and, on mobile, Fit to data bounds. Mobile filters now appear at the bottom of the drawer.
+
 ## [0.15.0] - 2026-09-09
 
 ### Added

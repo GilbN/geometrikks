@@ -4,6 +4,23 @@
 export const MAP_LAYER_STORAGE_KEY = "geometrikks-map-layer"
 export const MAP_LIVE_STORAGE_KEY = "geometrikks-map-live"
 export const MAP_ATTRIBUTION_STORAGE_KEY = "geometrikks-map-attribution"
+export const MAP_FRAME_RATE_STORAGE_KEY = "geometrikks-map-frame-rate"
+
+export function loadFrameRatePreference(): boolean {
+  try {
+    return localStorage.getItem(MAP_FRAME_RATE_STORAGE_KEY) === "true"
+  } catch {
+    return false
+  }
+}
+
+export function saveFrameRatePreference(enabled: boolean): void {
+  try {
+    localStorage.setItem(MAP_FRAME_RATE_STORAGE_KEY, String(enabled))
+  } catch {
+    // Keep the in-memory preference when storage is unavailable.
+  }
+}
 
 export type MapLayer = "heatmap" | "markers"
 

@@ -37,6 +37,7 @@ import {
   unclusteredPointLayer,
 } from "./layers"
 import { MapControls } from "./MapControls"
+import { MapFrameRate } from "./MapFrameRate"
 import { LivePulses } from "./LivePulses"
 import { HomeMarker } from "./HomeMarker"
 import { MapPopup, type PopupInfo } from "./MapPopup"
@@ -52,6 +53,8 @@ import { useUrlFilters } from "@/hooks/use-url-filters"
 import { loadLiveOverlays, saveLiveOverlays, type LiveOverlayPreferences } from "@/lib/live-overlays"
 import {
   loadLayerPreference,
+  loadFrameRatePreference,
+  saveFrameRatePreference,
   loadLivePreference,
   saveLayerPreference,
   saveLivePreference,
@@ -174,6 +177,8 @@ function GeoMapInner({
   const [activeLayer, setActiveLayer] = useState<LayerType>(loadLayerPreference)
   const [projection, setProjection] = useState<MapProjection>(loadMapProjectionPreference)
   const [routeEffectsEnabled, setRouteEffectsEnabled] = useState(loadRouteEffectsPreference)
+  const [frameRateEnabled, setFrameRateEnabled] = useState(loadFrameRatePreference)
+  useEffect(() => saveFrameRatePreference(frameRateEnabled), [frameRateEnabled])
   const [homeMarkerEnabled, setHomeMarkerEnabled] = useState(loadHomeMarkerPreference)
   const [liveOverlays, setLiveOverlays] = useState<LiveOverlayPreferences>(loadLiveOverlays)
   const [showBanned, setShowBanned] = useState(false)
@@ -520,6 +525,7 @@ function GeoMapInner({
       >
         {/* Navigation controls */}
         <NavigationControl position="bottom-right" showCompass={true} />
+        {frameRateEnabled && <MapFrameRate />}
         <MapAttribution />
 
         {/* GeoJSON data source */}
@@ -632,6 +638,8 @@ function GeoMapInner({
         liveOverlays={liveOverlays}
         onLiveOverlayChange={changeLiveOverlay}
         routeEffectsEnabled={routeEffectsEnabled}
+        frameRateEnabled={frameRateEnabled}
+        onFrameRateChange={setFrameRateEnabled}
         onRouteEffectsChange={setRouteEffectsEnabled}
         routeHomeAvailable={goHomeDestination !== null}
         homeMarkerEnabled={homeMarkerEnabled}
