@@ -5,20 +5,16 @@
  */
 import { useState } from "react"
 import { Popup } from "react-map-gl/maplibre"
-import { ChevronLeft, ChevronRight, Loader2, ShieldBan } from "lucide-react"
+import { ChevronLeft, ChevronRight, Globe, Loader2, MapPin, Network, ShieldBan } from "lucide-react"
 import { useIpDecisions } from "@/lib/queries"
 import { formatNumber } from "@/lib/api"
 import { crowdsecErrorMessage } from "@/lib/crowdsec"
 import type { BannedMapIp } from "@/generated/api/types.gen"
 import { IpBanControls } from "./IpBanControls"
 import { InspectIpButton } from "@/components/ip-inspector/inspect-ip-button"
-import { POPUP_OFFSET, POPUP_CODE_STYLE, POPUP_LINK_BUTTON_STYLE, PopupCard, PopupRow } from "./PopupCard"
+import { POPUP_OFFSET, POPUP_CODE_STYLE, POPUP_LINK_BUTTON_STYLE, POPUP_ROW_ICON_STYLE, PopupBadge, PopupCard, PopupRow } from "./PopupCard"
 
 const PAGE_SIZE = 20
-
-function locationLabel(ip: BannedMapIp): string {
-  return [ip.city, ip.countryCode].filter(Boolean).join(", ") || "Unknown"
-}
 
 /** Remediation pill: bans red, captcha amber, anything a bouncer defines itself grey. */
 function DecisionType({ type }: { type: string }) {
@@ -55,15 +51,19 @@ function IpDetails({ member, onBack }: { member: BannedMapIp; onBack?: () => voi
       )}
       <PopupRow
         label="IP"
+        icon={<Network style={POPUP_ROW_ICON_STYLE} />}
         value={
           <span style={{ display: "inline-flex", alignItems: "center", gap: "4px" }}>
             <code style={{ ...POPUP_CODE_STYLE, whiteSpace: "normal", overflowWrap: "anywhere" }}>{member.ip}</code>
-            <InspectIpButton ip={member.ip} fromLocationId={member.locationId} />
+            <IpBanControls ip={member.ip} initialBanned showBadge={false}>
+              <InspectIpButton ip={member.ip} fromLocationId={member.locationId} />
+            </IpBanControls>
           </span>
         }
       />
-      <PopupRow label="Location" value={locationLabel(member)} />
-      <PopupRow label="Events" value={formatNumber(member.eventCount)} />
+      <PopupRow label="Events" value={<PopupBadge>{formatNumber(member.eventCount)}</PopupBadge>} />
+      <PopupRow label="Location" icon={<MapPin style={POPUP_ROW_ICON_STYLE} />} value={member.city ?? "Unknown"} />
+      {member.countryCode && <PopupRow label="Country" icon={<Globe style={POPUP_ROW_ICON_STYLE} />} value={member.countryCode} />}
 
       <div style={{ paddingTop: "8px", marginTop: "8px", borderTop: "1px solid var(--popup-border)" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "4px", marginBottom: "6px", fontSize: "12px", color: "var(--popup-muted)" }}>
@@ -91,8 +91,6 @@ function IpDetails({ member, onBack }: { member: BannedMapIp; onBack?: () => voi
           </div>
         ))}
       </div>
-
-      <IpBanControls ip={member.ip} initialBanned variant="footer" />
     </>
   )
 }

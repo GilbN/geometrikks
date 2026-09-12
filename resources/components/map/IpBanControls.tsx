@@ -1,7 +1,7 @@
 /**
  * Ban badge + ban/unban dropdown for one IP. Renders nothing unless the IP is
  * already banned or CrowdSec write access is enabled. Shared by MapPopup's
- * top-IPs rows and the banned/live popup footers - the call sites differ
+ * top-IPs rows, the banned popup's IP row and the live popup footer - the call sites differ
  * only in layout (an inline icon-only button in a list row vs a bordered
  * footer row with a text label) and in whether a known banned state is
  * available before the banned-IP query resolves.
@@ -25,6 +25,7 @@ export function IpBanControls({
   ip,
   initialBanned = false,
   variant = "inline",
+  showBadge = true,
   children,
 }: {
   ip: string
@@ -36,6 +37,9 @@ export function IpBanControls({
   /** "inline": icon-only button for a list row (MapPopup's top-IPs).
    *  "footer": bordered footer row with an icon + Ban/Unban label (LiveRequestPopup). */
   variant?: "inline" | "footer"
+  /** Drop the banned pill where the surrounding UI already says so, as the
+   *  banned-IPs popup does in its header. */
+  showBadge?: boolean
 }) {
   const { data: status } = useCrowdsecStatus()
   const { data: bannedIps } = useBannedIps()
@@ -64,7 +68,7 @@ export function IpBanControls({
           : { display: "inline-flex", alignItems: "center", gap: "4px" }
       }
     >
-      {banned && (
+      {banned && showBadge && (
         <span
           style={{
             fontSize: "9px",

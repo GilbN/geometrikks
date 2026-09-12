@@ -10,7 +10,7 @@ import type { GeoJSONFeatureProperties } from "@/lib/api"
 import { useLocationTopIPs } from "@/lib/queries"
 import { IpBanControls } from "./IpBanControls"
 import { InspectIpButton } from "@/components/ip-inspector/inspect-ip-button"
-import { POPUP_OFFSET, POPUP_CODE_STYLE as IP_CODE_STYLE, PopupCard } from "./PopupCard"
+import { POPUP_OFFSET, POPUP_CODE_STYLE as IP_CODE_STYLE, POPUP_ROW_ICON_STYLE as ROW_ICON_STYLE, PopupBadge, PopupCard, PopupRow } from "./PopupCard"
 
 import {
   Tooltip,
@@ -108,61 +108,10 @@ export function MapPopup({
           </>
         }
       >
-        {/* Event count */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
-          <span style={{ fontSize: "12px", color: "var(--popup-muted)" }}>Events</span>
-          <span
-            style={{
-              background: "var(--popup-badge-bg)",
-              color: "var(--popup-badge-text)",
-              padding: "2px 8px",
-              borderRadius: "9999px",
-              fontSize: "12px",
-              fontWeight: 500,
-            }}
-          >
-            {formatNumber(eventCount)}
-          </span>
-        </div>
-
-        {/* Country */}
-        {countryCode && (
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "12px", marginBottom: "6px" }}>
-            <span style={{ color: "var(--popup-muted)", display: "flex", alignItems: "center", gap: "4px" }}>
-              <Globe style={{ width: 12, height: 12 }} />
-              Country
-            </span>
-            <span style={{ fontWeight: 500 }}>{countryCode}</span>
-          </div>
-        )}
-
-        {/* Last hit */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "12px", marginBottom: "6px" }}>
-          <span style={{ color: "var(--popup-muted)", display: "flex", alignItems: "center", gap: "4px" }}>
-            <Clock style={{ width: 12, height: 12 }} />
-            Last hit
-          </span>
-          <LastHitToolTip lastHit={formattedLastHit} />
-        </div>
-
-        {/* Geohash */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "12px", marginBottom: "6px" }}>
-          <span style={{ color: "var(--popup-muted)", display: "flex", alignItems: "center", gap: "4px" }}>
-            <Hash style={{ width: 12, height: 12 }} />
-            Geohash
-          </span>
-          <code
-            style={{
-              fontSize: "10px",
-              background: "var(--popup-code-bg)",
-              padding: "2px 6px",
-              borderRadius: "4px",
-              fontFamily: "monospace",
-            }}
-          >
-            {geohash}
-          </code>
-        </div>
+        <PopupRow label="Events" value={<PopupBadge>{formatNumber(eventCount)}</PopupBadge>} />
+        {countryCode && <PopupRow label="Country" icon={<Globe style={ROW_ICON_STYLE} />} value={countryCode} />}
+        <PopupRow label="Last hit" icon={<Clock style={ROW_ICON_STYLE} />} value={<LastHitToolTip lastHit={formattedLastHit} />} />
+        <PopupRow label="Geohash" icon={<Hash style={ROW_ICON_STYLE} />} value={<code style={IP_CODE_STYLE}>{geohash}</code>} />
 
         {/* Top IPs */}
         {(isLoadingTopIPs || top_ips.length > 0) && (

@@ -44,12 +44,37 @@ export const POPUP_LINK_BUTTON_STYLE: CSSProperties = {
   fontSize: "10px",
 }
 
-export function PopupRow({ label, value }: { label: string; value: ReactNode }) {
+/** Size for the lucide icon leading a PopupRow label. */
+export const POPUP_ROW_ICON_STYLE: CSSProperties = { width: 12, height: 12 }
+
+/** Label on the left, value on the right; `icon` leads the label. */
+export function PopupRow({ label, value, icon }: { label: string; value: ReactNode; icon?: ReactNode }) {
   return (
-    <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", fontSize: "11px", marginBottom: "4px" }}>
-      <span style={{ color: "var(--popup-muted)" }}>{label}</span>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px", fontSize: "12px", marginBottom: "6px" }}>
+      <span style={{ color: "var(--popup-muted)", display: "flex", alignItems: "center", gap: "4px", flexShrink: 0 }}>
+        {icon}
+        {label}
+      </span>
       <span style={{ fontWeight: 500, textAlign: "right", wordBreak: "break-all" }}>{value}</span>
     </div>
+  )
+}
+
+/** Count pill in the accent tone, for a popup's headline number. */
+export function PopupBadge({ children }: { children: ReactNode }) {
+  return (
+    <span
+      style={{
+        background: "var(--popup-badge-bg)",
+        color: "var(--popup-badge-text)",
+        padding: "2px 8px",
+        borderRadius: "9999px",
+        fontSize: "12px",
+        fontWeight: 500,
+      }}
+    >
+      {children}
+    </span>
   )
 }
 
