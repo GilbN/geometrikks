@@ -32,7 +32,9 @@ from geometrikks.config.settings import Settings
 from geometrikks.domain.exceptions import DomainValidationError
 from geometrikks.lib.validation import validate_ip_address
 from geometrikks.domain.security.repositories import SecurityEnrichmentRepository
-from geometrikks.domain.security.schemas import IpEnrichment, IpLocation
+from geometrikks.domain.security.schemas import IpEnrichment, BannedMapCollection, BannedIp
+from geometrikks.domain.security.map_data import active_decision_ips, banned_map_collection, canonical_ip, decision_winner
+from geometrikks.lib.parameters import CountryCodeFilter, CityFilter, HostnameIn
 from geometrikks.server.logging import get_logger
 from geometrikks.services.crowdsec import CrowdSecService, Decision
 from geometrikks.services.crowdsec.stream import CrowdSecStreamPoller
@@ -251,17 +253,25 @@ class CrowdSecController(Controller):
     @get("/banned-ips")
     async def list_banned_ips(
         self, crowdsec: NamedDependency[CrowdSecService | None]
-    ) -> list[str]:
-        """All actively banned IPs across every origin, values only.
+    ) -> list[BannedIp]:
+        """Every IP under an active decision, with the type to badge it as.
 
-        Feeds the frontend badge set: compact enough to ship even when a
+        Feeds the frontend badge map: compact enough to ship even when a
         subscribed CAPI blocklist holds tens of thousands of decisions.
         """
         service = _require_service(crowdsec)
         decisions = await service.get_decisions()
-        # An IP can hold several decisions (e.g. a local scenario plus a
-        # CAPI list); dict.fromkeys dedupes while keeping LAPI order.
-        return list(dict.fromkeys(d.value for d in decisions if d.scope == "Ip"))
+        # An IP can hold several decisions (e.g. a local captcha plus a CAPI
+        # ban); the dict keeps LAPI order and the strongest type wins.
+        winners: dict[str, str] = {}
+        for decision in decisions:
+            if decision.scope != "Ip":
+                continue
+            ip = canonical_ip(decision.value)
+            if ip is None:
+                continue
+            winners[ip] = decision_winner(winners.get(ip), decision.type)
+        return [BannedIp(ip=ip, type=kind) for ip, kind in winners.items()]
 
     @get("/banned-locations")
     async def list_banned_locations(
@@ -270,20 +280,23 @@ class CrowdSecController(Controller):
         enrichment_repo: NamedDependency[SecurityEnrichmentRepository],
         from_timestamp: Annotated[datetime | None, QueryParameter(name="fromTimestamp", required=False)] = None,
         to_timestamp: Annotated[datetime | None, QueryParameter(name="toTimestamp", required=False)] = None,
-    ) -> list[IpLocation]:
-        """Coordinates of banned IPs that appear in this server's own traffic.
+        country_code: CountryCodeFilter = None,
+        city: CityFilter = None,
+        hostname_in: HostnameIn = None,
+    ) -> BannedMapCollection:
+        """GeoJSON of IPs under a current decision, seen in the traffic window.
 
-        Feeds the map's banned overlay: the decision list (all origins) is
-        joined against stored geo events, so only attackers actually seen
-        here get a marker. The optional window keeps the overlay in step
-        with the map's time range; it defaults to the 30d geo lookback.
+        Every origin and remediation type counts, the same membership as the
+        badge set. IPs at identical coordinates share one feature that lists
+        all of them. This is current decision state, not ban history.
         """
         service = _require_service(crowdsec)
         decisions = await service.get_decisions()
-        banned_ips = list(dict.fromkeys(d.value for d in decisions if d.scope == "Ip"))
-        return await enrichment_repo.locations(
-            banned_ips, start=from_timestamp, end=to_timestamp
+        locations = await enrichment_repo.locations(
+            active_decision_ips(decisions), start=from_timestamp, end=to_timestamp,
+            country_codes=country_code, cities=city, hostnames=hostname_in,
         )
+        return banned_map_collection(locations)
 
     @get("/alerts")
     async def list_alerts(

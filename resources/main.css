@@ -296,6 +296,17 @@
   border-left-color: color-mix(in oklab, var(--background) 85%, transparent) !important;
 }
 
+/* Corner anchors, where the popup flipped on both axes to stay inside the
+   map. MapLibre's corner tip is a right triangle sitting on the card's
+   rounded corner, so hide it; POPUP_OFFSET keeps the card off the marker
+   instead. */
+.maplibregl-popup-anchor-top-left > .maplibregl-popup-tip,
+.maplibregl-popup-anchor-top-right > .maplibregl-popup-tip,
+.maplibregl-popup-anchor-bottom-left > .maplibregl-popup-tip,
+.maplibregl-popup-anchor-bottom-right > .maplibregl-popup-tip {
+  display: none;
+}
+
 /* MapLibre GL Control Styles - Light Mode */
 .maplibregl-ctrl-group {
   background: color-mix(in oklab, var(--background) 85%, transparent) !important;

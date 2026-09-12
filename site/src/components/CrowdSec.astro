@@ -1,34 +1,84 @@
 ---
-// CrowdSec gets its own section: decisions joined with the traffic, ban and
-// unban from the UI, and the two-line setup. The picture is the IP inspector
-// screenshot cropped to its right edge, where the sheet with the ban badge
-// sits; the whole screenshot is in the screens section. The llama symbol is
-// CrowdSec's own, unaltered; see the trademark line in the footer.
-import { Image } from "astro:assets";
-import shot from "../assets/screenshots/ip-inspector.png";
+// CrowdSec gets its own section: the Banned IPs map view across the top,
+// then the IP inspector beside the copy and the two-line setup. The inspector
+// picture is the screenshot cropped to its right edge, where the sheet with
+// the ban badge sits; the zoom link opens the whole thing. The llama symbol
+// is CrowdSec's own, unaltered; see the trademark line in the footer.
+import { Image, getImage } from "astro:assets";
+import inspector from "../assets/screenshots/ip-inspector.png";
+import bannedMap from "../assets/screenshots/banned-map.png";
 import Llama from "../assets/logos/crowdsec.svg";
+
+const inspectorAlt =
+  "The IP inspector for a banned address, showing when the ban expires, a warning for requests seen after the ban, request counts, response codes over time and recent requests";
+const bannedMapAlt =
+  "The map in its Banned IPs view: red markers count banned addresses per location across Europe, a popup shows one address with its CrowdSec decision, and the controls list the top banned IPs";
+const [inspectorFull, bannedMapFull] = await Promise.all([
+  getImage({ src: inspector, format: "webp", width: 1912 }),
+  getImage({ src: bannedMap, format: "webp", width: 1912 }),
+]);
 ---
 
 <section class="crowdsec" id="crowdsec">
   <div class="wrap">
-    <div class="shot">
+    <p class="kicker"><Llama width={22} height={22} aria-hidden="true" /> CrowdSec</p>
+    <h2 class="section-title">Watch hostile traffic fuck around and find out.</h2>
+    <p class="sub">
+      Connect the Local API and the map's Banned IPs view shows where the bans come from. Open any of them in the IP
+      inspector to see what that address did to earn it.
+    </p>
+    <a
+      class="zoom map"
+      href={bannedMapFull.src}
+      data-zoom
+      data-zoom-alt={bannedMapAlt}
+      data-zoom-caption="Banned IPs map view. Each marker counts the banned addresses seen at that location in the selected range."
+      aria-label="View the Banned IPs map larger"
+    >
       <Image
-        src={shot}
+        src={bannedMap}
         widths={[720, 1200, 1912]}
-        sizes="(max-width: 900px) 250vw, 1400px"
+        sizes="(max-width: 1200px) 100vw, 1152px"
         format="webp"
-        alt="The IP inspector for a banned address, showing when the ban expires, a warning for requests seen after the ban, request counts, response codes over time and recent requests"
+        alt={bannedMapAlt}
         loading="lazy"
       />
-    </div>
-    <div class="copy">
-      <p class="kicker"><Llama width={22} height={22} aria-hidden="true" /> CrowdSec</p>
-      <h2 class="section-title">Watch hostile traffic fuck around and find out.</h2>
-      <p class="sub">
-        Connect the Local API to see every CrowdSec ban with its matching requests, country, city and request count.
-        Banned IPs are marked in the tables and on the map.
-      </p>
+      <span class="hint" aria-hidden="true">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M2 6V2h4M14 6V2h-4M2 10v4h4M14 10v4h-4" /></svg>
+        Enlarge
+      </span>
+    </a>
+    <div class="detail">
+      <a
+        class="zoom shot"
+        href={inspectorFull.src}
+        data-zoom
+        data-zoom-alt={inspectorAlt}
+        data-zoom-caption="IP inspector over the map for a banned address."
+        aria-label="View the IP inspector larger"
+      >
+        <Image
+          src={inspector}
+          widths={[720, 1200, 1912]}
+          sizes="(max-width: 900px) 250vw, 1400px"
+          format="webp"
+          alt={inspectorAlt}
+          loading="lazy"
+        />
+        <span class="hint" aria-hidden="true">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M2 6V2h4M14 6V2h-4M2 10v4h4M14 10v4h-4" /></svg>
+          Enlarge
+        </span>
+      </a>
       <dl>
+        <div>
+          <dt>Every ban with the traffic behind it</dt>
+          <dd>
+            The IP inspector shows an address's request counts, bandwidth, response codes over time, hosts, paths,
+            user agents and recent requests, with its CrowdSec decision and how long is left on it. Requests that
+            arrive after the ban are called out.
+          </dd>
+        </div>
         <div>
           <dt>Ban and unban from the UI</dt>
           <dd>
@@ -40,7 +90,8 @@ import Llama from "../assets/logos/crowdsec.svg";
         <div>
           <dt>Ban changes appear within seconds</dt>
           <dd>
-            GeoMetrikks follows CrowdSec's live updates, including bans and unbans made outside GeoMetrikks.
+            GeoMetrikks follows CrowdSec's live updates, including bans and unbans made outside GeoMetrikks. The map
+            and the badges refresh together.
           </dd>
         </div>
         <div>
@@ -64,11 +115,34 @@ CROWDSEC_BOUNCER_API_KEY=&lt;key&gt;</pre>
   .crowdsec {
     border-top: 1px solid var(--line);
   }
-  .crowdsec .wrap {
+  .kicker {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .sub {
+    margin-bottom: 36px;
+  }
+  .map {
+    border-radius: 12px;
+    border: 1px solid var(--line-strong);
+    overflow: hidden;
+    background: var(--bg-deep);
+    box-shadow:
+      0 30px 80px oklch(0 0 0 / 45%),
+      0 0 0 1px oklch(0 0 0 / 30%);
+  }
+  .map img {
+    display: block;
+    width: 100%;
+    height: auto;
+  }
+  .detail {
     display: grid;
-    grid-template-columns: minmax(0, 6fr) minmax(0, 6fr);
+    grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
     gap: 56px;
     align-items: center;
+    margin-top: 64px;
   }
   .shot {
     aspect-ratio: 4 / 5;
@@ -84,14 +158,6 @@ CROWDSEC_BOUNCER_API_KEY=&lt;key&gt;</pre>
     height: 100%;
     object-fit: cover;
     object-position: 100% 0;
-  }
-  .kicker {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-  }
-  .sub {
-    margin-bottom: 24px;
   }
   dl {
     margin: 0;
@@ -120,9 +186,10 @@ CROWDSEC_BOUNCER_API_KEY=&lt;key&gt;</pre>
     text-decoration: underline;
   }
   @media (max-width: 900px) {
-    .crowdsec .wrap {
+    .detail {
       grid-template-columns: minmax(0, 1fr);
       gap: 32px;
+      margin-top: 40px;
     }
   }
 </style>

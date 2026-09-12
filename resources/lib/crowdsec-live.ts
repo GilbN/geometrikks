@@ -3,13 +3,15 @@
  * Kept free of React/query imports so vitest can cover the frame handling
  * that useCrowdsecLiveUpdates wires into the query cache.
  */
-import type { CrowdSecStatusResponse } from "@/generated/api/types.gen"
+import type { BannedIp, CrowdSecStatusResponse } from "@/generated/api/types.gen"
+import { decisionWinner } from "@/lib/crowdsec"
 
-/** Ban/unban delta pushed by the decision-stream poller. */
+/** Decision delta pushed by the decision-stream poller; every entry carries
+ *  its decision type. */
 export interface CrowdsecDecisionsFrame {
   type: "crowdsec_decisions"
-  added: { ip: string; origin: string; scenario: string; duration: string }[]
-  deleted: { ip: string; origin: string }[]
+  added: { ip: string; type: string; origin: string; scenario: string; duration: string }[]
+  deleted: { ip: string; type: string; origin: string }[]
 }
 
 /** LAPI reachability transition; also sent once as a snapshot on connect. */
@@ -37,16 +39,22 @@ export function parseCrowdsecFrame(data: unknown): CrowdsecFrame | null {
   return null
 }
 
-/** Apply a decisions delta to the cached banned-IP list. */
+/** Apply a decisions delta to the cached banned-IP entries. Deletions run before
+ *  additions, so a frame that deletes an IP's expiring decision and adds its
+ *  replacement in the same delta still keeps the IP badged; add-first would let
+ *  the add absorb into the stored decision and the delete would then remove it.
+ *  An added decision never weakens the shown type; a deleted one only clears
+ *  the IP when it is the type shown. The burst refetch settles anything this
+ *  cannot know, such as a second ban surviving the deleted one. */
 export function applyBannedIpsDelta(
-  ips: string[] | undefined,
+  ips: BannedIp[] | undefined,
   frame: CrowdsecDecisionsFrame,
-): string[] | undefined {
+): BannedIp[] | undefined {
   if (!ips) return ips
-  const next = new Set(ips)
-  for (const d of frame.added) next.add(d.ip)
-  for (const d of frame.deleted) next.delete(d.ip)
-  return [...next]
+  const next = new Map(ips.map((entry) => [entry.ip, entry.type]))
+  for (const d of frame.deleted) if (next.get(d.ip) === d.type) next.delete(d.ip)
+  for (const d of frame.added) next.set(d.ip, decisionWinner(next.get(d.ip), d.type))
+  return [...next].map(([ip, type]) => ({ ip, type }))
 }
 
 /** Patch the cached /crowdsec/status query with a pushed reachability change. */

@@ -65,6 +65,7 @@ import {
   type AccessLogSortField,
   type SortOrder,
   type CrowdSecStatusResponse,
+  type BannedIp,
   fetchAccessLogDebug,
   fetchAccessLogDebugStats,
   type AccessLogDebugPage,
@@ -335,8 +336,9 @@ export function useCrowdsecStatus() {
   })
 }
 
-/** Set of currently banned IPs (all origins, CAPI included) for badge
- *  rendering; empty until the integration is enabled and loaded. */
+/** IP to decision type for every IP under a current decision (all origins,
+ *  CAPI included), for badge rendering; empty until the integration is
+ *  enabled and loaded. */
 export function useBannedIps() {
   const { data: status } = useCrowdsecStatus()
   return useQuery({
@@ -344,24 +346,25 @@ export function useBannedIps() {
     queryFn: fetchCrowdsecBannedIps,
     enabled: status?.enabled === true,
     refetchInterval: 60_000,
-    select: (ips) => new Set(ips),
+    select: (ips) => new Map(ips.map((entry) => [entry.ip, entry.type])),
   })
 }
 
-/** Coordinates for the map's banned-IP overlay; fetched only while the
- *  overlay is switched on and the integration is enabled. Follows the
- *  global time range so every red marker has a matching traffic circle. */
-export function useBannedLocations(active: boolean) {
+/** GeoJSON for the Banned IPs layer, under every map filter. */
+export function useBannedLocations(active: boolean, filters: {
+  countryCodes?: string[]; cities?: string[]; hostnames?: string[]
+} = {}) {
   const { data: status } = useCrowdsecStatus()
   const { range, customRange, lastRefresh } = useTimeRange()
   return useQuery({
-    queryKey: queryKeys.crowdsec.bannedLocations({ range, customRange }, lastRefresh),
+    queryKey: queryKeys.crowdsec.bannedLocations({ range, customRange, ...filters }, lastRefresh),
     // Compute the date range at fetch time so refetches get fresh bounds
     queryFn: () => {
       const { startDate, endDate } = parseTimeRange(range, Date.now(), customRange)
       return fetchCrowdsecBannedLocations({
         fromTimestamp: startDate,
         toTimestamp: endDate,
+        ...filters,
       })
     },
     enabled: active && status?.enabled === true,
@@ -439,10 +442,10 @@ export function useUnbanIp() {
  *  and patches cached /crowdsec/status on reachability frames (invalidating
  *  all CrowdSec queries on recovery). Reconnects with capped exponential
  *  backoff, same policy as /ws/live. */
-export function useCrowdsecLiveUpdates() {
+export function useCrowdsecLiveUpdates(active = true) {
   const { data: status } = useCrowdsecStatus()
   const queryClient = useQueryClient()
-  const enabled = status?.enabled === true
+  const enabled = active && status?.enabled === true
 
   useEffect(() => {
     if (!enabled) return
@@ -450,6 +453,7 @@ export function useCrowdsecLiveUpdates() {
     let closed = false
     let retryMs = 1000
     let timer: ReturnType<typeof setTimeout> | null = null
+    let refreshTimer: ReturnType<typeof setTimeout> | null = null
 
     const connect = () => {
       const proto = window.location.protocol === "https:" ? "wss" : "ws"
@@ -476,10 +480,23 @@ export function useCrowdsecLiveUpdates() {
           }
           return
         }
-        queryClient.setQueryData<string[]>(
+        // Keepalives are empty decision frames; they carry no news.
+        if (frame.added.length === 0 && frame.deleted.length === 0) return
+        queryClient.setQueryData<BannedIp[]>(
           queryKeys.crowdsec.bannedIps,
           (ips) => applyBannedIpsDelta(ips, frame),
         )
+        // The delta cannot tell whether another decision survives a deleted
+        // one. Refetch the authoritative badge, map and selected-IP queries
+        // once per burst.
+        if (refreshTimer === null) {
+          refreshTimer = setTimeout(() => {
+            refreshTimer = null
+            queryClient.invalidateQueries({ queryKey: queryKeys.crowdsec.bannedIps })
+            queryClient.invalidateQueries({ queryKey: ["crowdsec", "banned-locations"] })
+            queryClient.invalidateQueries({ queryKey: ["crowdsec", "lookup"] })
+          }, 500)
+        }
       }
       ws.onclose = (event) => {
         if (closed) return
@@ -493,6 +510,7 @@ export function useCrowdsecLiveUpdates() {
     return () => {
       closed = true
       if (timer) clearTimeout(timer)
+      if (refreshTimer) clearTimeout(refreshTimer)
       ws?.close()
     }
   }, [enabled, queryClient])

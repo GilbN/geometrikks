@@ -45,3 +45,62 @@ export function crowdsecErrorMessage(err: unknown, fallback: string): string {
     : null
   return detail ?? fallback
 }
+
+const DECISION_RANK = new Map<string, number>([["ban", 0], ["captcha", 1]])
+
+function decisionRank(type: string): [number, string] {
+  return [DECISION_RANK.get(type) ?? 2, type]
+}
+
+/** The type to show when an IP holds several decisions: ban, then captcha,
+ *  then any bouncer-defined name in sorted order. Mirrors decision_winner
+ *  in the backend. */
+export function decisionWinner(current: string | null | undefined, candidate: string): string {
+  if (current == null) return candidate
+  const [currentRank, currentName] = decisionRank(current)
+  const [candidateRank, candidateName] = decisionRank(candidate)
+  if (currentRank !== candidateRank) return currentRank < candidateRank ? current : candidate
+  return currentName <= candidateName ? current : candidate
+}
+
+/** The decision whose type wins under decisionWinner, or null when empty.
+ *  On equal types the earlier decision stays, so the inspector header keeps
+ *  showing the same scenario and expiry across refetches. */
+export function winningDecision<T extends { type: string }>(decisions: readonly T[] | undefined): T | null {
+  let winner: T | null = null
+  for (const decision of decisions ?? []) {
+    if (winner === null) {
+      winner = decision
+    } else if (decision.type !== winner.type && decisionWinner(winner.type, decision.type) === decision.type) {
+      winner = decision
+    }
+  }
+  return winner
+}
+
+/** The type to badge an IP with. A loaded map is authoritative: a missing
+ *  entry means no decision, even when the caller knew one before, so an
+ *  unban clears the badge. The caller's type only fills the gap while the
+ *  map is still loading. */
+export function resolveDecision(
+  bannedIps: ReadonlyMap<string, string> | undefined,
+  ip: string,
+  initial: string | null,
+): string | null {
+  if (bannedIps === undefined) return initial
+  return bannedIps.get(ip) ?? null
+}
+
+/** Badge text for a decision type; bouncer-defined names show as sent. */
+export function decisionLabel(type: string): string {
+  if (type === "ban") return "Banned"
+  if (type === "captcha") return "Captcha"
+  return type
+}
+
+/** Pill color inside the map popups, which render outside the stylesheet. */
+export function decisionPopupColor(type: string): string {
+  if (type === "ban") return "var(--destructive)"
+  if (type === "captcha") return "#f59e0b"
+  return "var(--popup-muted)"
+}

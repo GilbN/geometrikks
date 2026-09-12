@@ -14,6 +14,7 @@ function request(overrides: Partial<LiveRequest> = {}): LiveRequest {
     log: null,
     statusClass: "2xx",
     banned: false,
+    decisionType: null,
     threat: false,
     hostname: null,
     ...overrides,

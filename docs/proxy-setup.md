@@ -144,7 +144,12 @@ entryPoints:
       trustedIPs:
         - "173.245.48.0/20"
         - "103.21.244.0/22"
+        # ... the rest of Cloudflare's published IPv4 and IPv6 ranges
 ```
+
+The two ranges shown are examples. Add the rest of Cloudflare's published
+IPv4 and IPv6 ranges from <https://www.cloudflare.com/ips/>. If a different
+proxy connects to Traefik, list that proxy's ranges instead.
 
 Never set `forwardedHeaders.insecure`. It trusts the header from any peer,
 which means any client can put whatever address it wants in
@@ -163,20 +168,39 @@ collapse the chain to a single address before forwarding.
 ## Caddy
 
 Caddy resolves the visitor into the logged `client_ip` itself, so no
-realip module and no header choice applies. Set `trusted_proxies` under
-`servers` in Caddy's global options, with the ranges in front of it:
+realip module applies. Set `trusted_proxies` under `servers` in Caddy's
+global options. The global options block must be at the very top of the
+Caddyfile.
+
+For a site behind Cloudflare, add all of Cloudflare's published ranges to
+`trusted_proxies`. The two ranges below are examples. Add the rest of the
+IPv4 and IPv6 ranges to the same directive. Put your existing site blocks
+and `reverse_proxy` directives after the global options block.
 
 ```caddyfile
 {
     servers {
         trusted_proxies static 173.245.48.0/20 103.21.244.0/22
+        # ... the rest of Cloudflare's published IPv4 and IPv6 ranges
+        trusted_proxies_strict
+        client_ip_headers CF-Connecting-IP X-Forwarded-For
     }
 }
 ```
 
-`client_ip` in the access log is already the visitor's address once that
-range is correct; the realip advice elsewhere in this guide is nginx- and
-Traefik-specific and does not apply here.
+Trust only the network that can actually connect to this Caddy instance. Do
+not trust every private range just because Caddy runs in Docker. If you
+allow direct traffic from the public internet, `trusted_proxies` does not
+block it. Use a firewall or an equivalent access rule as well.
+
+`CF-Connecting-IP` is first so Caddy uses Cloudflare's single-value header
+for normal Cloudflare requests. Keep `X-Forwarded-For` only if another
+trusted proxy can be in the chain. Otherwise, omit it from
+`client_ip_headers`.
+
+`client_ip` in the access log is the visitor's address once the ranges and
+headers match the real connection path. The realip advice elsewhere in
+this guide is nginx- and Traefik-specific and does not apply here.
 
 ## Tailscale-only
 

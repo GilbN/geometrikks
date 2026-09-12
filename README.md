@@ -18,10 +18,11 @@ traffic that caused them.
 ## Features
 
 **Live map.** Every ingested request lands on a MapLibre world map within
-seconds. Click a marker for the request, city, and ASN behind it. With
-several sources, filter the map by source hostname and watch live routes
-fly to each site's own home beacon (see
-[Multi-source setup](#multi-source-setup)).
+seconds. Click a marker for the request, city, and ASN behind it. Switch
+between Heatmap, Markers and, with CrowdSec connected, a Banned IPs view
+that counts banned addresses per location. With several sources, filter
+the map by source hostname and watch live routes fly to each site's own
+home beacon (see [Multi-source setup](#multi-source-setup)).
 
 ![Map](/data/screenshots/map.png)
 
@@ -78,10 +79,13 @@ live services on one page, with advisories when something needs attention
 
 **CrowdSec integration.** Point the app at your CrowdSec Local API for a
 Security page that cross-references active bans with your own traffic (who
-is banned, and whether they are still knocking), a banned-IP overlay on the
-map, and ban/unban actions on any IP across the app. Badges update live
-from the decision stream. See
+is banned, and whether they are still knocking), a Banned IPs map view
+with the top banned addresses by requests, and ban/unban actions on any IP
+across the app. Badges and the map update live from the decision stream.
+See
 [CrowdSec integration](#crowdsec-integration-optional).
+
+![Banned IPs map view](/data/screenshots/banned-map.png)
 
 ![CrowdSec](/data/screenshots/crowdsec.png)
 
@@ -116,13 +120,13 @@ Images are published as `ghcr.io/gilbn/geometrikks`.
 | `latest` | `latest` | The newest stable release. |
 | Exact stable version | `X.Y.Z` | A specific stable release; use this for reproducible deployments. |
 | Major/minor stable version | `X.Y` | The newest stable patch release in a major/minor series. |
-| Exact development version | `0.15.0-dev.3` | A specific prerelease build for testing upcoming changes. |
+| Exact development version | `0.16.0-dev.1` | A specific prerelease build for testing upcoming changes. |
 | `develop` | `develop` | The newest development release; a moving tag. |
 
 Use `latest` to follow stable releases, or pin an exact version:
 
 ```yaml
-image: ghcr.io/gilbn/geometrikks:0.15.0
+image: ghcr.io/gilbn/geometrikks:0.16.0
 ```
 
 `docker-compose.yml` mounts `ACCESS_LOG_DIR` (default `/var/log/nginx`)
@@ -588,8 +592,11 @@ CROWDSEC_BOUNCER_API_KEY=<key from cscli bouncers add>
 
 That gives read-only access: a Security page (ban stats and the active
 decision list cross-referenced with your traffic), a "Banned" badge on
-matching IPs in the access-logs and top-IP tables, and a map overlay
-marking banned IPs seen in your traffic within the selected time range.
+matching IPs in the access-logs and top-IP tables, and a Banned IPs map
+view. Its red markers count the banned addresses seen at each location
+within the selected time range, the popup lists every IP there with its
+current decisions, and the map controls show banned traffic totals and the
+top five banned IPs by requests.
 
 To also ban and unban from the UI, add machine credentials:
 
@@ -659,7 +666,7 @@ instance, GeoIP credentials, and its own log mount:
 ```yaml
 services:
   agent:
-    image: ghcr.io/gilbn/geometrikks:0.15.0   # same tag as the full instance
+    image: ghcr.io/gilbn/geometrikks:0.16.0   # same tag as the full instance
     restart: unless-stopped
     stop_grace_period: 20s
     environment:

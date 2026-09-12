@@ -100,10 +100,37 @@ async def test_later_polls_broadcast_ip_deltas():
     assert frame["type"] == "crowdsec_decisions"
     # Range-scope decisions are not badgeable; only Ip values broadcast
     assert frame["added"] == [
-        {"ip": "1.2.3.4", "origin": "cscli", "scenario": "manual ban", "duration": "3h59m"}
+        {"ip": "1.2.3.4", "type": "ban", "origin": "cscli", "scenario": "manual ban", "duration": "3h59m"}
     ]
-    assert frame["deleted"] == [{"ip": "5.6.7.8", "origin": "cscli"}]
+    assert frame["deleted"] == [{"ip": "5.6.7.8", "type": "ban", "origin": "cscli"}]
     assert queue.empty()
+    await service.aclose()
+
+
+async def test_stream_frames_carry_canonical_addresses():
+    respond = stream_responder(
+        [
+            {"new": None, "deleted": None},  # startup poll
+            {
+                "new": [{**DECISION_JSON, "id": 46, "value": "2001:0db8::1", "type": "captcha"}],
+                "deleted": [
+                    {**DECISION_JSON, "id": 47, "value": "0001:0002::0003"},
+                    {**DECISION_JSON, "id": 48, "value": "not-an-ip"},
+                ],
+            },
+        ]
+    )
+    service = make_service(respond)
+    poller = make_poller(service)
+    queue = poller.subscribe()
+
+    await poller.poll()
+    await poller.poll()
+
+    assert queue.get_nowait()["type"] == "crowdsec_status"
+    frame = queue.get_nowait()
+    assert [d["ip"] for d in frame["added"]] == ["2001:db8::1"]
+    assert [d["ip"] for d in frame["deleted"]] == ["1:2::3"]
     await service.aclose()
 
 

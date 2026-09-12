@@ -13,8 +13,10 @@ export const PACKET_COLORS: Record<StatusClass, string> = {
   unknown: "#22d3ee",
 }
 
-/** The cage ring drawn over a banned IP's packet, matching the banned overlay. */
+/** Cage rings drawn over a flagged IP's packet: red for a ban (matching the
+ *  banned overlay), amber for a captcha. Other decision types use the red ring. */
 export const BANNED_RING_COLOR = "#ef4444"
+export const CAPTCHA_RING_COLOR = "#f59e0b"
 
 const MIN_RADIUS = 3
 const MAX_RADIUS = 7

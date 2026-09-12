@@ -6,6 +6,7 @@ import asyncio
 from datetime import datetime, timezone
 from typing import Any
 
+from geometrikks.lib.validation import canonical_ip
 from geometrikks.server.logging import get_logger
 from geometrikks.services.crowdsec.exceptions import CrowdSecError
 from geometrikks.services.crowdsec.service import CrowdSecService
@@ -94,13 +95,17 @@ class CrowdSecStreamPoller:
         if first_poll:
             return
 
+        # Same canonical spelling as /banned-ips, so a delta patches the
+        # cached entry instead of adding a second one for an IPv6 alias.
         added = [
-            {"ip": d.value, "origin": d.origin, "scenario": d.scenario, "duration": d.duration}
+            {"ip": ip, "type": d.type, "origin": d.origin, "scenario": d.scenario, "duration": d.duration}
             for d in delta.new
-            if d.scope == "Ip"
+            if d.scope == "Ip" and (ip := canonical_ip(d.value)) is not None
         ]
         deleted = [
-            {"ip": d.value, "origin": d.origin} for d in delta.deleted if d.scope == "Ip"
+            {"ip": ip, "type": d.type, "origin": d.origin}
+            for d in delta.deleted
+            if d.scope == "Ip" and (ip := canonical_ip(d.value)) is not None
         ]
         if not added and not deleted:
             return

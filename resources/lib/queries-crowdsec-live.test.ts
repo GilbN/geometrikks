@@ -41,6 +41,7 @@ class FakeSocket {
 
 describe("useCrowdsecLiveUpdates close handling", () => {
   beforeEach(() => {
+    vi.clearAllMocks()
     vi.useFakeTimers()
     FakeSocket.instances = []
     mocks.cleanup = undefined
@@ -65,4 +66,36 @@ describe("useCrowdsecLiveUpdates close handling", () => {
     vi.advanceTimersByTime(1_000)
     expect(FakeSocket.instances).toHaveLength(2)
   })
+  it("coalesces decision bursts into authoritative map and popup refreshes", () => {
+    useCrowdsecLiveUpdates()
+    const socket = FakeSocket.instances[0]
+    const frame = JSON.stringify({ type: "crowdsec_decisions", added: [], deleted: [{ ip: "192.0.2.1", type: "ban", origin: "cscli" }] })
+    socket.onmessage?.({ data: frame })
+    socket.onmessage?.({ data: frame })
+    expect(mocks.queryClient.invalidateQueries).not.toHaveBeenCalled()
+    vi.advanceTimersByTime(500)
+    expect(mocks.queryClient.invalidateQueries).toHaveBeenCalledTimes(3)
+    expect(mocks.queryClient.invalidateQueries).toHaveBeenCalledWith({ queryKey: ["crowdsec", "banned-ips"] })
+    expect(mocks.queryClient.invalidateQueries).toHaveBeenCalledWith({ queryKey: ["crowdsec", "banned-locations"] })
+    expect(mocks.queryClient.invalidateQueries).toHaveBeenCalledWith({ queryKey: ["crowdsec", "lookup"] })
+  })
+
+  it("cancels a pending refresh on unmount", () => {
+    useCrowdsecLiveUpdates()
+    FakeSocket.instances[0].onmessage?.({
+      data: JSON.stringify({ type: "crowdsec_decisions", added: [], deleted: [{ ip: "192.0.2.1", type: "ban", origin: "cscli" }] }),
+    })
+    mocks.cleanup?.()
+    vi.advanceTimersByTime(500)
+    expect(mocks.queryClient.invalidateQueries).not.toHaveBeenCalled()
+  })
+
+  it("ignores empty keepalive frames", () => {
+    useCrowdsecLiveUpdates()
+    FakeSocket.instances[0].onmessage?.({ data: JSON.stringify({ type: "crowdsec_decisions", added: [], deleted: [] }) })
+    vi.advanceTimersByTime(500)
+    expect(mocks.queryClient.setQueryData).not.toHaveBeenCalled()
+    expect(mocks.queryClient.invalidateQueries).not.toHaveBeenCalled()
+  })
+
 })

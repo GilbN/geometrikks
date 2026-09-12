@@ -60,8 +60,16 @@ async def _drop_view(conn, view: str, *, attempts: int = 3) -> None:
 
 
 async def _seed(session_maker) -> int:
-    """One location; 1.1.1.1 has three ASN-stamped events, 2.2.2.2 two without."""
-    ts = NOW - timedelta(hours=3)
+    """One location; 1.1.1.1 has three ASN-stamped events, 2.2.2.2 two without.
+
+    Seeded a day back so both the hourly and the daily bucket are complete.
+    A refresh only materializes buckets that lie whole inside its window, and
+    production never materializes the current day; a seed inside today would
+    make the daily case either skip materialization (and pass without testing
+    the in-place fill) or, in the last UTC hour of the day, materialize the
+    old shape where the forced refresh at now() cannot recount it.
+    """
+    ts = NOW - timedelta(days=1, hours=3)
     async with session_maker() as session:
         loc = await _insert_location(
             session, geohash="asn01", latitude=59.91, longitude=10.75,
@@ -102,7 +110,7 @@ async def test_old_shape_view_upgrades_in_place(pg_engine, pg_session_maker, cle
         await _drop_view(conn, view)
         await conn.execute(text(OLD_SHAPE[view]))
     await refresh_caggs_range(
-        pg_engine, start=NOW - timedelta(days=2), end=NOW + timedelta(hours=1), caggs=[view],
+        pg_engine, start=NOW - timedelta(days=2), end=NOW, caggs=[view],
     )
     async with pg_engine.begin() as conn:
         needs = await timescale._cagg_columns_need_upgrade(conn, raw_retention_days=RETENTION_DAYS)

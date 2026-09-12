@@ -10,7 +10,7 @@
  */
 import { useState } from "react"
 import { useLiveWindow } from "@/lib/live-traffic/context"
-import { formatNumber } from "@/lib/api"
+import { describeDecisions } from "@/lib/live-traffic/summary"
 import { LiveSummary } from "./LiveSummary"
 import { LiveFeedList, LiveFeedTabs, type FeedLane } from "./LiveFeedList"
 import type { LiveRequest } from "@/lib/live-traffic/types"
@@ -20,6 +20,7 @@ export function LiveRail({ onSelect }: { onSelect: (request: LiveRequest) => voi
   const { requests, summary } = useLiveWindow()
   const [lane, setLane] = useState<FeedLane>("all")
   const rows = lane === "threats" ? requests.filter((request) => request.threat) : requests
+  const decisions = describeDecisions(summary.decisions)
 
   return (
     <MapOverlay
@@ -48,10 +49,9 @@ export function LiveRail({ onSelect }: { onSelect: (request: LiveRequest) => voi
         className="min-h-0 flex-1 px-2"
       />
 
-      {summary.bannedIps > 0 && (
+      {decisions && (
         <div className="border-t px-3 py-1.5 text-[10px] text-red-400">
-          Banned, {formatNumber(summary.bannedIps)}{" "}
-          {summary.bannedIps === 1 ? "IP" : "IPs"} in this window
+          {decisions} in this window
         </div>
       )}
     </MapOverlay>

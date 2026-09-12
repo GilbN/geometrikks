@@ -9,7 +9,7 @@ import Wordmark from "./Wordmark.astro";
       <Mark size={28} class="mark" />
       <Wordmark class="text-[16px]" />
     </a>
-    <ul>
+    <ul id="site-menu">
       <li><a href="#sources">Sources</a></li>
       <li><a href="#screens">Map and logs</a></li>
       <li><a href="#crowdsec">CrowdSec</a></li>
@@ -25,6 +25,12 @@ import Wordmark from "./Wordmark.astro";
       >
       GitHub
     </a>
+    <button class="menu" type="button" aria-expanded="false" aria-controls="site-menu" aria-label="Menu">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true">
+        <path class="bars" d="M2 4h12M2 8h12M2 12h12" />
+        <path class="cross" d="M3 3l10 10M13 3L3 13" />
+      </svg>
+    </button>
   </div>
 </nav>
 
@@ -61,12 +67,99 @@ import Wordmark from "./Wordmark.astro";
   ul a:hover {
     color: var(--fg);
   }
+  .menu {
+    display: none;
+    width: 40px;
+    height: 40px;
+    place-items: center;
+    border-radius: 8px;
+    border: 1px solid var(--line-strong);
+    background: transparent;
+    color: var(--fg);
+    cursor: pointer;
+  }
+  .menu svg {
+    width: 18px;
+    height: 18px;
+  }
+  .menu .cross,
+  .menu[aria-expanded="true"] .bars {
+    display: none;
+  }
+  .menu[aria-expanded="true"] .cross {
+    display: block;
+  }
   @media (max-width: 900px) {
+    nav .wrap {
+      gap: 12px;
+    }
     ul {
       display: none;
+    }
+    nav[data-open] ul {
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+      position: absolute;
+      top: 100%;
+      left: 0;
+      right: 0;
+      margin: 0;
+      padding: 8px 24px 16px;
+      font-size: 16px;
+      background: oklch(0.13 0.025 245 / 96%);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--line);
+    }
+    nav[data-open] ul a {
+      display: block;
+      padding: 12px 0;
+      border-top: 1px solid var(--line);
     }
     .btn {
       margin-left: auto;
     }
+    .menu {
+      display: grid;
+    }
+  }
+  /* Without scripting the toggle is inert, so the links wrap under the bar. */
+  @media (max-width: 900px) and (scripting: none) {
+    nav .wrap {
+      flex-wrap: wrap;
+      height: auto;
+      padding-top: 12px;
+      padding-bottom: 12px;
+    }
+    ul {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px 18px;
+      width: 100%;
+      margin: 0;
+      order: 1;
+    }
+    .menu {
+      display: none;
+    }
   }
 </style>
+
+<script>
+  const nav = document.querySelector("nav");
+  const button = nav?.querySelector<HTMLButtonElement>("button.menu");
+  if (nav && button) {
+    const set = (open: boolean) => {
+      nav.toggleAttribute("data-open", open);
+      button.setAttribute("aria-expanded", String(open));
+    };
+    button.addEventListener("click", () => set(!nav.hasAttribute("data-open")));
+    nav.querySelectorAll("#site-menu a").forEach((a) => a.addEventListener("click", () => set(false)));
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") set(false);
+    });
+    matchMedia("(min-width: 901px)").addEventListener("change", (e) => {
+      if (e.matches) set(false);
+    });
+  }
+</script>

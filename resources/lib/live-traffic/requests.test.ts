@@ -49,7 +49,7 @@ describe("toLiveRequests", () => {
   it("flattens a full envelope into one request", () => {
     const requests = toLiveRequests(
       [envelope(geoData("1.1.1.1"), logData("1.1.1.1", 200))],
-      new Set(),
+      new Map(),
       1000,
     )
 
@@ -60,7 +60,7 @@ describe("toLiveRequests", () => {
   })
 
   it("keeps a geo-only envelope, with no detail", () => {
-    const requests = toLiveRequests([envelope(geoData("1.1.1.1"), null)], new Set(), 1000)
+    const requests = toLiveRequests([envelope(geoData("1.1.1.1"), null)], new Map(), 1000)
 
     expect(requests).toHaveLength(1)
     expect(requests[0].log).toBeNull()
@@ -69,7 +69,7 @@ describe("toLiveRequests", () => {
   })
 
   it("keeps a log-only envelope, with no coordinates", () => {
-    const requests = toLiveRequests([envelope(null, logData("1.1.1.1", 404))], new Set(), 1000)
+    const requests = toLiveRequests([envelope(null, logData("1.1.1.1", 404))], new Map(), 1000)
 
     expect(requests).toHaveLength(1)
     expect(requests[0].coordinates).toBeNull()
@@ -78,7 +78,7 @@ describe("toLiveRequests", () => {
   })
 
   it("skips an empty envelope", () => {
-    expect(toLiveRequests([envelope(null, null)], new Set(), 1000)).toEqual([])
+    expect(toLiveRequests([envelope(null, null)], new Map(), 1000)).toEqual([])
   })
 
   it("keeps records from different sites sharing an IP and second distinct", () => {
@@ -89,7 +89,7 @@ describe("toLiveRequests", () => {
         envelope(geoData("1.1.1.1", "nginx-01"), logData("1.1.1.1", 200, "nginx-01")),
         envelope(geoData("1.1.1.1", "traefik-01"), logData("1.1.1.1", 404, "traefik-01")),
       ],
-      new Set(),
+      new Map(),
       1000,
     )
 
@@ -106,28 +106,29 @@ describe("toLiveRequests", () => {
         envelope(geoData("1.1.1.1"), logData("1.1.1.1", 200)),
         envelope(geoData("1.1.1.1"), logData("1.1.1.1", 404)),
       ],
-      new Set(),
+      new Map(),
       1000,
     )
 
     expect(new Set(requests.map((r) => r.id)).size).toBe(2)
   })
 
-  it("marks banned IPs and makes them threats whatever their status", () => {
+  it("marks IPs under a decision, keeps the type, and makes them threats whatever their status", () => {
     const requests = toLiveRequests(
       [envelope(geoData("9.9.9.9"), logData("9.9.9.9", 200))],
-      new Set(["9.9.9.9"]),
+      new Map([["9.9.9.9", "captcha"]]),
       1000,
     )
 
     expect(requests[0].banned).toBe(true)
+    expect(requests[0].decisionType).toBe("captcha")
     expect(requests[0].threat).toBe(true)
   })
 
   it("marks a 5xx as an error but not a threat", () => {
     const requests = toLiveRequests(
       [envelope(geoData("1.1.1.1"), logData("1.1.1.1", 502))],
-      new Set(),
+      new Map(),
       1000,
     )
 
@@ -141,7 +142,7 @@ describe("toLiveRequests", () => {
         envelope(geoData("1.1.1.1"), logData("1.1.1.1", 403)),
         envelope(geoData("2.2.2.2"), logData("2.2.2.2", 404)),
       ],
-      new Set(),
+      new Map(),
       1000,
     )
 
@@ -152,12 +153,12 @@ describe("toLiveRequests", () => {
   })
 
   it("returns nothing for an empty heartbeat frame", () => {
-    expect(toLiveRequests([], new Set(), 1000)).toEqual([])
+    expect(toLiveRequests([], new Map(), 1000)).toEqual([])
   })
 
   it("carries the recording hostname from either side of the envelope", () => {
-    const geoOnly = toLiveRequests([envelope(geoData("1.1.1.1"), null)], new Set(), 1000)
-    const logOnly = toLiveRequests([envelope(null, logData("2.2.2.2", 200))], new Set(), 1000)
+    const geoOnly = toLiveRequests([envelope(geoData("1.1.1.1"), null)], new Map(), 1000)
+    const logOnly = toLiveRequests([envelope(null, logData("2.2.2.2", 200))], new Map(), 1000)
 
     expect(geoOnly[0].hostname).toBe("vps-1")
     expect(logOnly[0].hostname).toBe("vps-1")
@@ -176,6 +177,7 @@ function requestWithHostname(hostname: string | null): LiveRequest {
     log: null,
     statusClass: "unknown",
     banned: false,
+    decisionType: null,
     threat: false,
     hostname,
   }

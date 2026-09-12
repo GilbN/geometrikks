@@ -39,11 +39,13 @@ describe("makeDemoRequests", () => {
     expect(ok).toBeGreaterThan(60)
   })
 
-  it("includes some banned IPs, and they are threats", () => {
-    const banned = makeDemoRequests(0, 100, 1000).filter((r) => r.banned)
+  it("includes banned and captcha IPs, and they are threats", () => {
+    const flagged = makeDemoRequests(0, 100, 1000).filter((r) => r.banned)
 
-    expect(banned.length).toBeGreaterThan(0)
-    expect(banned.every((r) => r.threat)).toBe(true)
+    expect(flagged.length).toBeGreaterThan(0)
+    expect(flagged.every((r) => r.threat)).toBe(true)
+    expect(flagged.some((r) => r.decisionType === "ban")).toBe(true)
+    expect(flagged.some((r) => r.decisionType === "captcha")).toBe(true)
   })
 
   it("gives every request an id, coordinates, and a log line", () => {

@@ -222,3 +222,41 @@ pre.block .k {
     scroll-behavior: auto;
   }
 }
+
+/* Screenshot zoom links. The lightbox script opens them in place; without
+   it they open the full image. */
+.zoom {
+  display: block;
+  position: relative;
+  cursor: zoom-in;
+}
+.zoom .hint {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--line-strong);
+  background: oklch(0.13 0.025 245 / 85%);
+  backdrop-filter: blur(8px);
+  color: var(--fg);
+  font: 500 12px/1 var(--sans);
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.zoom .hint svg {
+  width: 14px;
+  height: 14px;
+}
+.zoom:hover .hint,
+.zoom:focus-visible .hint {
+  opacity: 1;
+}
+@media (hover: none) {
+  .zoom .hint {
+    opacity: 1;
+  }
+}

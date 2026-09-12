@@ -217,18 +217,51 @@ export const unclusteredPointLabelLayer: LayerSpecification = {
   },
 }
 
-// Banned-IP overlay: red markers for actively banned IPs seen in this
-// server's own traffic. Reads from the separate "banned-data" source so it
-// stacks on top of either the heatmap or the marker layers.
+// Banned IPs layer. The "banned-data" source holds one feature per coordinate
+// group with its distinct IP count; clusters sum ipCount, so one label layer
+// serves points and clusters alike.
+const BANNED_FILL = "rgba(239, 68, 68, 0.45)"
+const BANNED_STROKE = "rgba(239, 68, 68, 0.95)"
+
 export const bannedPointLayer: LayerSpecification = {
   id: "banned-points",
   type: "circle",
   source: "banned-data",
+  filter: ["!", ["has", "point_count"]],
   paint: {
-    "circle-color": "#ef4444",
-    "circle-radius": ["interpolate", ["linear"], ["zoom"], 0, 3, 6, 5, 10, 8, 14, 11],
-    "circle-opacity": 0.85,
-    "circle-stroke-width": 1.5,
-    "circle-stroke-color": "rgba(255, 255, 255, 0.75)",
+    "circle-radius": ["interpolate", ["linear"], ["get", "ipCount"], 1, 8, 10, 12, 100, 16],
+    "circle-color": BANNED_FILL,
+    "circle-stroke-width": 3,
+    "circle-stroke-color": BANNED_STROKE,
+  },
+}
+
+export const bannedClusterLayer: LayerSpecification = {
+  id: "banned-clusters",
+  type: "circle",
+  source: "banned-data",
+  filter: ["has", "point_count"],
+  paint: {
+    "circle-radius": ["step", ["get", "ipCount"], 15, 10, 18, 100, 22, 1000, 26, 5000, 32],
+    "circle-color": BANNED_FILL,
+    "circle-stroke-width": 3,
+    "circle-stroke-color": BANNED_STROKE,
+  },
+}
+
+export const bannedCountLayer: LayerSpecification = {
+  id: "banned-count",
+  type: "symbol",
+  source: "banned-data",
+  layout: {
+    "text-field": ["to-string", ["get", "ipCount"]],
+    "text-font": ["Open Sans Bold", "Arial Unicode MS Bold"],
+    "text-size": 11,
+    "text-allow-overlap": true,
+  },
+  paint: {
+    "text-color": "#ffffff",
+    "text-halo-color": "rgba(0, 0, 0, 0.25)",
+    "text-halo-width": 1,
   },
 }

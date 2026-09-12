@@ -422,7 +422,10 @@ export interface RouteQueryParams {
   };
   'list_banned_ips': Record<string, never>;
   'list_banned_locations': {
+    city?: string[];
+    countryCode?: string[];
     fromTimestamp?: DateTime;
+    hostnameIn?: string[];
     toTimestamp?: DateTime;
   };
   'list_decisions': {
@@ -781,7 +784,7 @@ export const routeDefinitions = {
     methods: ['GET'] as const,
     method: 'get',
     pathParams: [] as const,
-    queryParams: ['fromTimestamp', 'toTimestamp'] as const,
+    queryParams: ['city', 'countryCode', 'fromTimestamp', 'hostnameIn', 'toTimestamp'] as const,
   },
   'list_decisions': {
     path: '/api/v1/crowdsec/decisions',

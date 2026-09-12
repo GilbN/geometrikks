@@ -3,14 +3,14 @@
  * Uses CSS variables for theming - defined in main.css as --popup-* variables.
  */
 
-import type { CSSProperties } from "react"
 import { Popup } from "react-map-gl/maplibre"
 import { MapPin, Globe, Clock, Hash, Users, ChevronsUpDown, Loader2 } from "lucide-react"
 import { formatNumber } from "@/lib/api"
 import type { GeoJSONFeatureProperties } from "@/lib/api"
 import { useLocationTopIPs } from "@/lib/queries"
 import { IpBanControls } from "./IpBanControls"
-import { InspectIpButton } from "./InspectIpButton"
+import { InspectIpButton } from "@/components/ip-inspector/inspect-ip-button"
+import { POPUP_OFFSET, POPUP_CODE_STYLE as IP_CODE_STYLE, POPUP_ROW_ICON_STYLE as ROW_ICON_STYLE, PopupBadge, PopupCard, PopupRow } from "./PopupCard"
 
 import {
   Tooltip,
@@ -24,16 +24,8 @@ import {
 } from "@/components/ui/collapsible"
 
 // One line per IP: the rank is glued to the address with a non-breaking
-// space and the box never wraps. A full IPv6 address needs the wider popup
-// below to fit beside the icons and the count.
-const IP_CODE_STYLE: CSSProperties = {
-  fontSize: "10px",
-  background: "var(--popup-code-bg)",
-  padding: "2px 6px",
-  borderRadius: "4px",
-  fontFamily: "monospace",
-  whiteSpace: "nowrap",
-}
+// space and the code box never wraps. A full IPv6 address needs the wider
+// popup below to fit beside the icons and the count.
 
 function LastHitToolTip({ lastHit }: { lastHit: string }) {
   return (
@@ -93,7 +85,7 @@ export function MapPopup({
     <Popup
       longitude={longitude}
       latitude={latitude}
-      anchor="bottom"
+      offset={POPUP_OFFSET}
       onClose={onClose}
       closeButton={false}
       closeOnClick={false}
@@ -104,115 +96,22 @@ export function MapPopup({
         background: "transparent",
       }}
     >
-      <div
-        style={{
-          // Positioned so the close button anchors to this card rather than
-          // to whichever ancestor MapLibre happens to have positioned.
-          position: "relative",
-          background: "color-mix(in oklab, var(--background) 85%, transparent)",
-          backdropFilter: "blur(8px)",
-          color: "var(--popup-fg)",
-          borderRadius: "8px",
-          padding: "12px",
-          boxShadow: "0 4px 12px rgba(0, 0, 0, 0.3)",
-          border: "1px solid var(--popup-border)",
-          minWidth: "200px",
-        }}
-      >
-        {/* Close button */}
-        <button
-          onClick={onClose}
-          style={{
-            position: "absolute",
-            top: "8px",
-            right: "8px",
-            background: "transparent",
-            border: "none",
-            color: "var(--popup-muted)",
-            cursor: "pointer",
-            fontSize: "18px",
-            lineHeight: 1,
-            padding: "2px 6px",
-          }}
-          aria-label="Close popup"
-        >
-          ×
-        </button>
-
-        {/* Header. paddingRight clears the absolutely positioned close
-            button, which otherwise sits on top of the location name. */}
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "8px",
-            paddingBottom: "8px",
-            paddingRight: "24px",
-            marginBottom: "8px",
-            borderBottom: "1px solid var(--popup-border)",
-          }}
-        >
-          <MapPin style={{ width: 16, height: 16, color: "var(--primary)", flexShrink: 0 }} />
-          <span style={{ fontSize: "14px", fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-            {locationString}
-          </span>
-        </div>
-
-        {/* Event count */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
-          <span style={{ fontSize: "12px", color: "var(--popup-muted)" }}>Events</span>
-          <span
-            style={{
-              background: "var(--popup-badge-bg)",
-              color: "var(--popup-badge-text)",
-              padding: "2px 8px",
-              borderRadius: "9999px",
-              fontSize: "12px",
-              fontWeight: 500,
-            }}
-          >
-            {formatNumber(eventCount)}
-          </span>
-        </div>
-
-        {/* Country */}
-        {countryCode && (
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "12px", marginBottom: "6px" }}>
-            <span style={{ color: "var(--popup-muted)", display: "flex", alignItems: "center", gap: "4px" }}>
-              <Globe style={{ width: 12, height: 12 }} />
-              Country
+      <PopupCard
+        onClose={onClose}
+        minWidth="200px"
+        header={
+          <>
+            <MapPin style={{ width: 16, height: 16, color: "var(--primary)", flexShrink: 0 }} />
+            <span style={{ fontSize: "14px", fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {locationString}
             </span>
-            <span style={{ fontWeight: 500 }}>{countryCode}</span>
-          </div>
-        )}
-
-        {/* Last hit */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "12px", marginBottom: "6px" }}>
-          <span style={{ color: "var(--popup-muted)", display: "flex", alignItems: "center", gap: "4px" }}>
-            <Clock style={{ width: 12, height: 12 }} />
-            Last hit
-          </span>
-          <LastHitToolTip lastHit={formattedLastHit} />
-        </div>
-
-        {/* Geohash */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "12px", marginBottom: "6px" }}>
-          <span style={{ color: "var(--popup-muted)", display: "flex", alignItems: "center", gap: "4px" }}>
-            <Hash style={{ width: 12, height: 12 }} />
-            Geohash
-          </span>
-          <code
-            style={{
-              fontSize: "10px",
-              background: "var(--popup-code-bg)",
-              padding: "2px 6px",
-              borderRadius: "4px",
-              fontFamily: "monospace",
-            }}
-          >
-            {geohash}
-          </code>
-        </div>
+          </>
+        }
+      >
+        <PopupRow label="Events" value={<PopupBadge>{formatNumber(eventCount)}</PopupBadge>} />
+        {countryCode && <PopupRow label="Country" icon={<Globe style={ROW_ICON_STYLE} />} value={countryCode} />}
+        <PopupRow label="Last hit" icon={<Clock style={ROW_ICON_STYLE} />} value={<LastHitToolTip lastHit={formattedLastHit} />} />
+        <PopupRow label="Geohash" icon={<Hash style={ROW_ICON_STYLE} />} value={<code style={IP_CODE_STYLE}>{geohash}</code>} />
 
         {/* Top IPs */}
         {(isLoadingTopIPs || top_ips.length > 0) && (
@@ -334,7 +233,7 @@ export function MapPopup({
         >
           {latitude.toFixed(4)}, {longitude.toFixed(4)}
         </div>
-      </div>
+      </PopupCard>
     </Popup>
   )
 }

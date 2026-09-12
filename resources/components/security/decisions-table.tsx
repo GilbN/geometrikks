@@ -23,6 +23,7 @@ import {
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useCrowdsecDecisions, useCrowdsecStatus, useUnbanIp } from "@/lib/queries"
 import { InspectIpButton } from "@/components/ip-inspector/inspect-ip-button"
+import { DecisionBadge } from "@/components/crowdsec/decision-badge"
 import { crowdsecErrorMessage } from "@/lib/crowdsec"
 import { cn } from "@/lib/utils"
 import { BanIpDialog } from "./ban-ip-dialog"
@@ -54,7 +55,7 @@ export function DecisionsTable() {
 
   const total = data?.total ?? 0
   const pageCount = Math.max(1, Math.ceil(total / pageSize))
-  const colCount = status?.writeEnabled ? 8 : 7
+  const colCount = status?.writeEnabled ? 9 : 8
 
   return (
     <Card className="py-4">
@@ -85,6 +86,7 @@ export function DecisionsTable() {
             <TableHeader>
               <TableRow>
                 <TableHead>IP / value</TableHead>
+                <TableHead>Type</TableHead>
                 <TableHead>Country</TableHead>
                 <TableHead>City</TableHead>
                 <TableHead>Origin</TableHead>
@@ -118,6 +120,9 @@ export function DecisionsTable() {
                             {d.scope}
                           </Badge>
                         )}
+                      </TableCell>
+                      <TableCell>
+                        <DecisionBadge type={d.type} />
                       </TableCell>
                       <TableCell>{d.countryName ?? d.countryCode ?? "-"}</TableCell>
                       <TableCell>{d.city ?? "-"}</TableCell>
