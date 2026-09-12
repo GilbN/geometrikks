@@ -1,0 +1,124 @@
+---
+// One dialog for every screenshot on the page. Any <a data-zoom> opens its
+// href in here; without scripting the link opens the full image instead.
+---
+
+<dialog class="lightbox" aria-label="Screenshot">
+  <button class="close" type="button" aria-label="Close">
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true">
+      <path d="M3 3l10 10M13 3L3 13" />
+    </svg>
+  </button>
+  <figure>
+    <img alt="" decoding="async" />
+    <figcaption></figcaption>
+  </figure>
+</dialog>
+
+<style>
+  .lightbox {
+    inset: 0;
+    width: 100vw;
+    height: 100dvh;
+    max-width: none;
+    max-height: none;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--fg);
+  }
+  .lightbox[open] {
+    display: grid;
+    place-items: center;
+  }
+  .lightbox::backdrop {
+    background: oklch(0.08 0.02 245 / 88%);
+    backdrop-filter: blur(10px);
+  }
+  figure {
+    margin: 0;
+    display: grid;
+    gap: 14px;
+    justify-items: center;
+    max-width: min(96vw, 1912px);
+  }
+  img {
+    display: block;
+    max-width: 100%;
+    max-height: 86dvh;
+    width: auto;
+    height: auto;
+    border-radius: 12px;
+    border: 1px solid var(--line-strong);
+    background: var(--bg-deep);
+    box-shadow: 0 40px 120px oklch(0 0 0 / 60%);
+    cursor: zoom-out;
+  }
+  figcaption {
+    color: var(--fg-dim);
+    font-size: 14px;
+    text-align: center;
+    max-width: 70ch;
+    padding: 0 16px;
+  }
+  figcaption:empty {
+    display: none;
+  }
+  .close {
+    position: fixed;
+    top: 16px;
+    right: 16px;
+    width: 40px;
+    height: 40px;
+    display: grid;
+    place-items: center;
+    border-radius: 999px;
+    border: 1px solid var(--line-strong);
+    background: var(--card);
+    color: var(--fg);
+    cursor: pointer;
+  }
+  .close:hover {
+    background: var(--card-2);
+  }
+  .close svg {
+    width: 16px;
+    height: 16px;
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .lightbox[open] img {
+      animation: lb-in 0.18s ease-out;
+    }
+    @keyframes lb-in {
+      from {
+        opacity: 0;
+        transform: scale(0.96);
+      }
+    }
+  }
+</style>
+
+<script>
+  const dialog = document.querySelector<HTMLDialogElement>("dialog.lightbox");
+  const img = dialog?.querySelector("img");
+  const cap = dialog?.querySelector("figcaption");
+  if (dialog && img && cap && typeof dialog.showModal === "function") {
+    for (const link of document.querySelectorAll<HTMLAnchorElement>("a[data-zoom]")) {
+      link.addEventListener("click", (e) => {
+        e.preventDefault();
+        img.src = link.href;
+        img.alt = link.dataset.zoomAlt ?? "";
+        cap.textContent = link.dataset.zoomCaption ?? "";
+        dialog.showModal();
+      });
+    }
+    // The figure fills only the image's box, so any click outside it, on
+    // the backdrop or the image itself, closes.
+    dialog.addEventListener("click", (e) => {
+      if (e.target === dialog || e.target === img) dialog.close();
+    });
+    dialog.querySelector(".close")?.addEventListener("click", () => dialog.close());
+    dialog.addEventListener("close", () => img.removeAttribute("src"));
+  }
+</script>
