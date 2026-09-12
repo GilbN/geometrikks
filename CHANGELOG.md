@@ -7,16 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.16.0] - 2026-09-12
+
 ### Added
 
-- Banned IPs map view, a third visualization beside Heatmap and Markers. Red markers count distinct IPs under a CrowdSec decision, the popup lists every IP at a location with its current decisions and their type, and each one opens the IP inspector. The map controls show the banned traffic totals and the top five banned IPs by requests. The view follows the selected time range and map filters and refreshes when CrowdSec decisions change. It replaces the Banned IPs overlay switch, which drew the same markers on top of the other layers. `/api/v1/crowdsec/banned-locations` now returns a GeoJSON FeatureCollection instead of an array, carries an event count per IP, and treats `toTimestamp` as exclusive.
-- Optional frame rate counter in the Map tools menu for manual performance testing. It counts map renders without forcing idle maps to repaint.
+- Banned IPs map view, a third visualization beside Heatmap and Markers. Red markers count the distinct IPs under a CrowdSec decision at each location. The popup lists those IPs with their current decisions and opens the IP inspector for any of them. The map controls show banned traffic totals and the top five banned IPs by requests. The view follows the time range and map filters and refreshes when decisions change. It replaces the Banned IPs overlay switch.
+- Optional frame rate counter in the Map tools menu for manual performance testing. It counts map renders and does not force idle maps to repaint.
 
 ### Changed
 
-- Map popups open on whichever side keeps them inside the map instead of always opening upward, so a marker near the top edge no longer hides its popup under the header.
-- Live route effects update at most 30 times per second, regardless of display refresh rate, and calculate queued routes only when a packet can start.
-- Map tools contains Go to home location and, on mobile, Fit to data bounds. Mobile filters now appear at the bottom of the drawer.
+- `/api/v1/crowdsec/banned-locations` returns a GeoJSON FeatureCollection instead of an array, carries an event count per IP, and treats `toTimestamp` as exclusive.
+- Map popups open on whichever side keeps them inside the map. A marker near the top edge no longer hides its popup under the header.
+- Live route effects update at most 30 times per second regardless of display refresh rate, and compute queued routes only when a packet can start.
+- Go to home location and, on mobile, Fit to data bounds moved into a new Map tools menu. The mobile drawer lists Filters last.
 
 ## [0.15.0] - 2026-09-09
 
@@ -1023,7 +1026,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Settings endpoint no longer exposes the full settings tree (database credentials leaked via `model_dump()`); response is now an explicit whitelist.
 - Timestamps in `CALL refresh_continuous_aggregate` are bound as asyncpg parameters instead of interpolated into SQL.
 
-[Unreleased]: https://github.com/GilbN/geometrikks/compare/v0.15.0...develop
+[Unreleased]: https://github.com/GilbN/geometrikks/compare/v0.16.0...develop
+[0.16.0]: https://github.com/GilbN/geometrikks/compare/v0.15.0...v0.16.0
 [0.15.0]: https://github.com/GilbN/geometrikks/compare/v0.14.3...v0.15.0
 [0.14.3]: https://github.com/GilbN/geometrikks/compare/v0.14.2...v0.14.3
 [0.14.2]: https://github.com/GilbN/geometrikks/compare/v0.14.1...v0.14.2
