@@ -107,6 +107,33 @@ async def test_later_polls_broadcast_ip_deltas():
     await service.aclose()
 
 
+async def test_stream_frames_carry_canonical_addresses():
+    respond = stream_responder(
+        [
+            {"new": None, "deleted": None},  # startup poll
+            {
+                "new": [{**DECISION_JSON, "id": 46, "value": "2001:0db8::1", "type": "captcha"}],
+                "deleted": [
+                    {**DECISION_JSON, "id": 47, "value": "0001:0002::0003"},
+                    {**DECISION_JSON, "id": 48, "value": "not-an-ip"},
+                ],
+            },
+        ]
+    )
+    service = make_service(respond)
+    poller = make_poller(service)
+    queue = poller.subscribe()
+
+    await poller.poll()
+    await poller.poll()
+
+    assert queue.get_nowait()["type"] == "crowdsec_status"
+    frame = queue.get_nowait()
+    assert [d["ip"] for d in frame["added"]] == ["2001:db8::1"]
+    assert [d["ip"] for d in frame["deleted"]] == ["1:2::3"]
+    await service.aclose()
+
+
 async def test_empty_delta_broadcasts_nothing():
     respond = stream_responder([{"new": None, "deleted": None}])
     service = make_service(respond)

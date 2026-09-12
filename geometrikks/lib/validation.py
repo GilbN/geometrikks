@@ -25,6 +25,15 @@ def validate_ip_address(value: str) -> str:
     return value
 
 
+def canonical_ip(value: str) -> str | None:
+    """``value`` in the text form Postgres INET and the log tables use; None
+    when it is not an address (LAPI can carry ranges under other scopes)."""
+    try:
+        return str(ipaddress.ip_address(value))
+    except ValueError:
+        return None
+
+
 def validate_ip_addresses(values: Iterable[str]) -> None:
     """Validate every value with :func:`validate_ip_address`."""
     for raw in values:

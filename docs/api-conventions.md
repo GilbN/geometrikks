@@ -111,5 +111,5 @@ the IP with: `ban` when any of the IP's decisions is a ban, else `captcha`
 when any is a captcha, else the first other name in sorted order.
 
 `/ws/crowdsec` decision frames carry `type` on every `added` and `deleted`
-entry. A deleted entry does not say whether the IP still holds another
+entry, with addresses in the same canonical form. A deleted entry does not say whether the IP still holds another
 decision; clients refetch `banned-ips` after a delta to settle that.

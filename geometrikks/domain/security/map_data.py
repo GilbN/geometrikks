@@ -1,7 +1,6 @@
 """Builds the banned-IP map response from one location per IP, grouped by exact coordinates."""
 from __future__ import annotations
 
-from ipaddress import ip_address
 from math import isfinite
 
 from geometrikks.domain.geo.dtos import GeoJSONPointGeometry
@@ -13,16 +12,8 @@ from geometrikks.domain.security.schemas import (
     BannedMapStats,
     IpLocation,
 )
+from geometrikks.lib.validation import canonical_ip
 from geometrikks.services.crowdsec import Decision
-
-
-def canonical_ip(value: str) -> str | None:
-    """``value`` in the text form Postgres INET and the log tables use; None
-    when it is not an address (LAPI can carry ranges under other scopes)."""
-    try:
-        return str(ip_address(value))
-    except ValueError:
-        return None
 
 
 def active_decision_ips(decisions: list[Decision]) -> list[str]:
