@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { EMPTY_SUMMARY, smooth, summarize, trendPercent } from "./summary"
+import { describeDecisions, EMPTY_SUMMARY, smooth, summarize, trendPercent } from "./summary"
 import type { LiveRequest } from "./types"
 
 function request(overrides: Partial<LiveRequest> = {}): LiveRequest {
@@ -15,6 +15,7 @@ function request(overrides: Partial<LiveRequest> = {}): LiveRequest {
     hostname: null,
     statusClass: "2xx",
     banned: false,
+    decisionType: null,
     threat: false,
     ...overrides,
   }
@@ -86,16 +87,34 @@ describe("summarize", () => {
     expect(summary.origins).toHaveLength(2)
   })
 
-  it("counts threats as requests but banned IPs as distinct addresses", () => {
+  it("counts threats as requests but decisions as distinct addresses per type", () => {
     const summary = summarize([
-      request({ ip: "9.9.9.9", banned: true, threat: true }),
-      request({ ip: "9.9.9.9", banned: true, threat: true }),
+      request({ ip: "9.9.9.9", banned: true, decisionType: "ban", threat: true }),
+      request({ ip: "9.9.9.9", banned: true, decisionType: "ban", threat: true }),
+      request({ ip: "7.7.7.7", banned: true, decisionType: "captcha", threat: true }),
+      request({ ip: "6.6.6.6", banned: true, decisionType: "throttle", threat: true }),
       request({ ip: "8.8.8.8", threat: true }),
     ])
 
-    // Three threatening requests, from two addresses, one of which is banned.
-    expect(summary.threats).toBe(3)
-    expect(summary.bannedIps).toBe(1)
+    expect(summary.threats).toBe(5)
+    expect(summary.decisions).toEqual({ ban: 1, captcha: 1, other: 1 })
+  })
+
+  it("counts an IP under the type on its most recent request, whatever the buffer order", () => {
+    // The store keeps requests newest first; the rule must not depend on that.
+    const newerBan = request({ ip: "9.9.9.9", banned: true, decisionType: "ban", threat: true, receivedAt: 2000 })
+    const olderCaptcha = request({ ip: "9.9.9.9", banned: true, decisionType: "captcha", threat: true, receivedAt: 1000 })
+
+    expect(summarize([newerBan, olderCaptcha]).decisions).toEqual({ ban: 1, captcha: 0, other: 0 })
+    expect(summarize([olderCaptcha, newerBan]).decisions).toEqual({ ban: 1, captcha: 0, other: 0 })
+  })
+})
+
+describe("describeDecisions", () => {
+  it("lists the non-zero types in order and returns null for none", () => {
+    expect(describeDecisions({ ban: 3, captcha: 1, other: 0 })).toBe("Banned 3 IPs · Captcha 1 IP")
+    expect(describeDecisions({ ban: 0, captcha: 0, other: 2 })).toBe("Other decisions 2 IPs")
+    expect(describeDecisions({ ban: 0, captcha: 0, other: 0 })).toBeNull()
   })
 })
 

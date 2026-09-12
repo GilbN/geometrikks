@@ -1,14 +1,14 @@
 import { useEffect, useState } from "react"
 import { Link } from "@tanstack/react-router"
 import { ChevronDown, RotateCcw, RotateCw } from "lucide-react"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { DetailSheet } from "@/components/data/detail-sheet"
+import { DecisionBadge } from "@/components/crowdsec/decision-badge"
 import { IpBanAction } from "@/components/crowdsec/ip-ban-controls"
 import { TimeRangePicker } from "@/components/time-range-picker"
 import type { CustomTimeRange, TimeRangeValue } from "@/lib/api"
-import { isValidIp } from "@/lib/crowdsec"
+import { decisionLabel, isValidIp, winningDecision } from "@/lib/crowdsec"
 import { cn } from "@/lib/utils"
 import { formatTs } from "@/lib/datetime"
 import { useIpInspector } from "@/lib/ip-inspector"
@@ -113,7 +113,7 @@ function IpInspectorBody({ ip, onZoom }: { ip: string; onZoom: (from: string, to
   const locations = useIpLocations(ip)
 
   const profile = profileQuery.data
-  const decision = decisions.data?.[0] ?? null
+  const decision = winningDecision(decisions.data)
   const banned = decision !== null
   const banCreatedAt = latestAlert.data?.createdAt ?? null
   const primary = locations.data?.items?.[0]
@@ -128,13 +128,13 @@ function IpInspectorBody({ ip, onZoom }: { ip: string; onZoom: (from: string, to
           {profile?.asn != null && `AS${profile.asn}${profile.asnOrganization ? ` ${profile.asnOrganization}` : ""}`}
         </p>
         {decision && (
-          <Badge
-            variant="destructive"
+          <DecisionBadge
+            type={decision.type}
             className="h-auto max-w-full whitespace-normal break-words text-left"
             title={`Origin: ${decision.origin}`}
           >
-            Banned · {decision.scenario} · {decision.duration} left
-          </Badge>
+            {decisionLabel(decision.type)} · {decision.scenario} · {decision.duration} left
+          </DecisionBadge>
         )}
       </header>
 

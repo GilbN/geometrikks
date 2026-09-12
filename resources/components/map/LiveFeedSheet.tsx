@@ -12,7 +12,7 @@ import {
   DrawerTitle,
 } from "@/components/ui/drawer"
 import { useLiveWindow } from "@/lib/live-traffic/context"
-import { formatNumber } from "@/lib/api"
+import { describeDecisions } from "@/lib/live-traffic/summary"
 import { LiveSummary } from "./LiveSummary"
 import { LiveFeedList, LiveFeedTabs, type FeedLane } from "./LiveFeedList"
 import type { LiveRequest } from "@/lib/live-traffic/types"
@@ -30,6 +30,7 @@ export function LiveFeedSheet({
   const { requests, summary } = useLiveWindow(open)
   const [lane, setLane] = useState<FeedLane>("all")
   const rows = lane === "threats" ? requests.filter((request) => request.threat) : requests
+  const decisions = describeDecisions(summary.decisions)
 
   return (
     <Drawer open={open} onOpenChange={onOpenChange}>
@@ -69,10 +70,9 @@ export function LiveFeedSheet({
           className="min-h-0 flex-1 px-4"
         />
 
-        {summary.bannedIps > 0 && (
+        {decisions && (
           <div className="shrink-0 border-t px-4 py-2 text-[11px] text-red-400">
-            Banned, {formatNumber(summary.bannedIps)}{" "}
-            {summary.bannedIps === 1 ? "IP" : "IPs"} in this window
+            {decisions} in this window
           </div>
         )}
       </DrawerContent>

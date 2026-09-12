@@ -30,6 +30,8 @@ export interface LiveRequest {
   hostname: string | null
   statusClass: StatusClass
   banned: boolean
+  /** Winning decision type for this IP, null when it holds none. */
+  decisionType: string | null
   threat: boolean
 }
 

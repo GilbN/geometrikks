@@ -32,8 +32,8 @@ from geometrikks.config.settings import Settings
 from geometrikks.domain.exceptions import DomainValidationError
 from geometrikks.lib.validation import validate_ip_address
 from geometrikks.domain.security.repositories import SecurityEnrichmentRepository
-from geometrikks.domain.security.schemas import IpEnrichment, BannedMapCollection
-from geometrikks.domain.security.map_data import active_decision_ips, banned_map_collection
+from geometrikks.domain.security.schemas import IpEnrichment, BannedMapCollection, BannedIp
+from geometrikks.domain.security.map_data import active_decision_ips, banned_map_collection, canonical_ip, decision_winner
 from geometrikks.lib.parameters import CountryCodeFilter, CityFilter, HostnameIn
 from geometrikks.server.logging import get_logger
 from geometrikks.services.crowdsec import CrowdSecService, Decision
@@ -253,17 +253,25 @@ class CrowdSecController(Controller):
     @get("/banned-ips")
     async def list_banned_ips(
         self, crowdsec: NamedDependency[CrowdSecService | None]
-    ) -> list[str]:
-        """All actively banned IPs across every origin, values only.
+    ) -> list[BannedIp]:
+        """Every IP under an active decision, with the type to badge it as.
 
-        Feeds the frontend badge set: compact enough to ship even when a
+        Feeds the frontend badge map: compact enough to ship even when a
         subscribed CAPI blocklist holds tens of thousands of decisions.
         """
         service = _require_service(crowdsec)
         decisions = await service.get_decisions()
-        # An IP can hold several decisions (e.g. a local scenario plus a
-        # CAPI list); dict.fromkeys dedupes while keeping LAPI order.
-        return list(dict.fromkeys(d.value for d in decisions if d.scope == "Ip"))
+        # An IP can hold several decisions (e.g. a local captcha plus a CAPI
+        # ban); the dict keeps LAPI order and the strongest type wins.
+        winners: dict[str, str] = {}
+        for decision in decisions:
+            if decision.scope != "Ip":
+                continue
+            ip = canonical_ip(decision.value)
+            if ip is None:
+                continue
+            winners[ip] = decision_winner(winners.get(ip), decision.type)
+        return [BannedIp(ip=ip, type=kind) for ip, kind in winners.items()]
 
     @get("/banned-locations")
     async def list_banned_locations(

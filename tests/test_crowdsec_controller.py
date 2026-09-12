@@ -344,17 +344,20 @@ async def test_ban_is_audit_logged(monkeypatch):
     assert audit and "scanner" in audit[0]
 
 
-async def test_banned_ips_returns_ip_scope_values_across_origins():
+async def test_banned_ips_returns_ip_scope_entries_with_type_across_origins():
     decisions = [
         make_decision(id=1, value="1.2.3.4", origin="CAPI"),
-        make_decision(id=2, value="5.6.7.8", origin="cscli"),
+        make_decision(id=2, value="5.6.7.8", origin="crowdsec", type="captcha"),
         make_decision(id=3, value="10.0.0.0/24", scope="Range", origin="crowdsec"),
     ]
     service = FakeCrowdSec(decisions)
     async with AsyncTestClient(app=make_app(service)) as client:
         resp = await client.get("/api/v1/crowdsec/banned-ips")
     assert resp.status_code == 200
-    assert resp.json() == ["1.2.3.4", "5.6.7.8"]
+    assert resp.json() == [
+        {"ip": "1.2.3.4", "type": "ban"},
+        {"ip": "5.6.7.8", "type": "captcha"},
+    ]
     # one unfiltered fetch: all origins, so CAPI bans badge too
     assert service.calls == [{}]
 
@@ -370,15 +373,30 @@ async def test_lookup_rejects_invalid_ip():
     assert service.calls == []
 
 
-async def test_banned_ips_deduplicates_repeat_offenders():
+async def test_banned_ips_keeps_one_entry_per_ip_and_ban_wins():
     decisions = [
-        make_decision(id=1, value="1.2.3.4", origin="CAPI"),
-        make_decision(id=2, value="1.2.3.4", origin="crowdsec", scenario="ssh-bf"),
-        make_decision(id=3, value="5.6.7.8", origin="cscli"),
+        make_decision(id=1, value="1.2.3.4", origin="crowdsec", type="captcha"),
+        make_decision(id=2, value="1.2.3.4", origin="CAPI", type="ban"),
+        make_decision(id=3, value="5.6.7.8", origin="cscli", type="throttle"),
+        make_decision(id=4, value="5.6.7.8", origin="crowdsec", type="captcha"),
     ]
     async with AsyncTestClient(app=make_app(FakeCrowdSec(decisions))) as client:
         resp = await client.get("/api/v1/crowdsec/banned-ips")
-    assert resp.json() == ["1.2.3.4", "5.6.7.8"]
+    assert resp.json() == [
+        {"ip": "1.2.3.4", "type": "ban"},
+        {"ip": "5.6.7.8", "type": "captcha"},
+    ]
+
+
+async def test_banned_ips_canonicalizes_addresses_and_skips_non_ips():
+    decisions = [
+        make_decision(id=1, value="2001:0db8::1", origin="crowdsec", type="captcha"),
+        make_decision(id=2, value="2001:db8::1", origin="CAPI", type="ban"),
+        make_decision(id=3, value="not-an-ip", origin="cscli"),
+    ]
+    async with AsyncTestClient(app=make_app(FakeCrowdSec(decisions))) as client:
+        resp = await client.get("/api/v1/crowdsec/banned-ips")
+    assert resp.json() == [{"ip": "2001:db8::1", "type": "ban"}]
 
 
 # -- alert history ---------------------------------------------------------

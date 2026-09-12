@@ -12,13 +12,14 @@ import type { AccessLogData, GeoEventData, LiveRequest } from "./types"
 function build(
   geo: GeoEventData | null,
   log: AccessLogData | null,
-  bannedIps: ReadonlySet<string>,
+  bannedIps: ReadonlyMap<string, string>,
   receivedAt: number,
   index: number,
 ): LiveRequest {
   const ip = geo?.ip_address ?? log?.ip_address ?? ""
   const status = statusClass(log?.status_code)
-  const banned = bannedIps.has(ip)
+  const decisionType = bannedIps.get(ip) ?? null
+  const banned = decisionType !== null
   return {
     // receivedAt is the batch's arrival time and batches are at least
     // FLUSH_INTERVAL apart, so arrival plus position is unique.
@@ -33,6 +34,7 @@ function build(
     hostname: geo?.hostname ?? log?.hostname ?? null,
     statusClass: status,
     banned,
+    decisionType,
     threat: isThreat(log?.status_code, banned),
   }
 }
@@ -45,7 +47,7 @@ export function matchesSources(request: LiveRequest, sources: string[]): boolean
 
 export function toLiveRequests(
   events: LiveEvent[],
-  bannedIps: ReadonlySet<string>,
+  bannedIps: ReadonlyMap<string, string>,
   receivedAt: number,
 ): LiveRequest[] {
   const requests: LiveRequest[] = []

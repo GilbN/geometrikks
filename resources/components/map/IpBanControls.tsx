@@ -1,9 +1,9 @@
 /**
- * Ban badge + ban/unban dropdown for one IP. Renders nothing unless the IP is
- * already banned or CrowdSec write access is enabled. Shared by MapPopup's
+ * Decision badge + ban/unban dropdown for one IP. Renders nothing unless the IP is
+ * already under a decision or CrowdSec write access is enabled. Shared by MapPopup's
  * top-IPs rows, the banned popup's IP row and the live popup footer - the call sites differ
  * only in layout (an inline icon-only button in a list row vs a bordered
- * footer row with a text label) and in whether a known banned state is
+ * footer row with a text label) and in whether a known decision type is
  * available before the banned-IP query resolves.
  *
  * Inline styles keep it visually matched to the popup content. Tailwind does
@@ -19,25 +19,26 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { useBanIp, useBannedIps, useCrowdsecStatus, useUnbanIp } from "@/lib/queries"
-import { BAN_DURATIONS, crowdsecErrorMessage } from "@/lib/crowdsec"
+import { BAN_DURATIONS, crowdsecErrorMessage, resolveDecision } from "@/lib/crowdsec"
+import { DecisionBadge } from "@/components/crowdsec/decision-badge"
 
 export function IpBanControls({
   ip,
-  initialBanned = false,
+  initialDecision = null,
   variant = "inline",
   showBadge = true,
   children,
 }: {
   ip: string
-  /** Rendered between the banned pill and the shield (the inspect button). */
+  /** Rendered between the decision pill and the shield (the inspect button). */
   children?: React.ReactNode
-  /** Known banned state before the banned-IP query has loaded; only the
-   *  live popup has this from its own event data. */
-  initialBanned?: boolean
+  /** Known decision type before the banned-IP query has loaded; the live
+   *  popup has it from its own event data, the banned popup from its lookup. */
+  initialDecision?: string | null
   /** "inline": icon-only button for a list row (MapPopup's top-IPs).
    *  "footer": bordered footer row with an icon + Ban/Unban label (LiveRequestPopup). */
   variant?: "inline" | "footer"
-  /** Drop the banned pill where the surrounding UI already says so, as the
+  /** Drop the decision pill where the surrounding UI already says so, as the
    *  banned-IPs popup does in its header. */
   showBadge?: boolean
 }) {
@@ -45,7 +46,8 @@ export function IpBanControls({
   const { data: bannedIps } = useBannedIps()
   const ban = useBanIp()
   const unban = useUnbanIp()
-  const banned = bannedIps?.has(ip) ?? initialBanned
+  const decision = resolveDecision(bannedIps, ip, initialDecision)
+  const banned = decision !== null
   const isPending = ban.isPending || unban.isPending
 
   if (!banned && !status?.writeEnabled) return <>{children}</>
@@ -68,21 +70,7 @@ export function IpBanControls({
           : { display: "inline-flex", alignItems: "center", gap: "4px" }
       }
     >
-      {banned && showBadge && (
-        <span
-          style={{
-            fontSize: "9px",
-            fontWeight: 600,
-            textTransform: "uppercase",
-            color: "var(--destructive)",
-            background: "color-mix(in oklab, var(--destructive) 15%, transparent)",
-            padding: isFooter ? "1px 6px" : "1px 5px",
-            borderRadius: "9999px",
-          }}
-        >
-          banned
-        </span>
-      )}
+      {decision !== null && showBadge && <DecisionBadge type={decision} variant="popup" />}
       {children}
       {status?.writeEnabled && (
         <DropdownMenu>

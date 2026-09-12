@@ -78,7 +78,7 @@ function LiveRequestDetail({
       {log?.referrer && <Row label="Referrer" value={log.referrer} />}
       {log?.user_agent && <Row label="Agent" value={log.user_agent} />}
 
-      <IpBanControls ip={request.ip} initialBanned={request.banned} variant="footer" />
+      <IpBanControls ip={request.ip} initialDecision={request.decisionType} variant="footer" />
     </PopupCard>
   )
 }

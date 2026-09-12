@@ -1,5 +1,5 @@
 """Complete map membership and stable coordinate groups."""
-from geometrikks.domain.security.map_data import banned_map_collection
+from geometrikks.domain.security.map_data import banned_map_collection, canonical_ip, decision_winner
 from geometrikks.domain.security.schemas import IpLocation
 
 
@@ -38,3 +38,18 @@ def test_valid_coordinates_and_distinct_groups():
     assert collection.stats.countries == 2
     assert collection.stats.cities == 1
     assert collection.features[0].geometry.coordinates == (-79.9746, 32.8608)
+
+
+def test_decision_winner_prefers_ban_then_captcha_then_sorted_name():
+    assert decision_winner(None, "captcha") == "captcha"
+    assert decision_winner("captcha", "ban") == "ban"
+    assert decision_winner("ban", "captcha") == "ban"
+    assert decision_winner("throttle", "captcha") == "captcha"
+    assert decision_winner("throttle", "allow") == "allow"
+    assert decision_winner("ban", "ban") == "ban"
+
+
+def test_canonical_ip_compresses_ipv6_and_rejects_non_addresses():
+    assert canonical_ip("2001:0db8:0000::0001") == "2001:db8::1"
+    assert canonical_ip("1.2.3.4") == "1.2.3.4"
+    assert canonical_ip("10.0.0.0/24") is None

@@ -8,34 +8,14 @@ import { Popup } from "react-map-gl/maplibre"
 import { ChevronLeft, ChevronRight, Globe, Loader2, MapPin, Network, ShieldBan } from "lucide-react"
 import { useIpDecisions } from "@/lib/queries"
 import { formatNumber } from "@/lib/api"
-import { crowdsecErrorMessage } from "@/lib/crowdsec"
+import { crowdsecErrorMessage, winningDecision } from "@/lib/crowdsec"
 import type { BannedMapIp } from "@/generated/api/types.gen"
 import { IpBanControls } from "./IpBanControls"
 import { InspectIpButton } from "@/components/ip-inspector/inspect-ip-button"
+import { DecisionBadge } from "@/components/crowdsec/decision-badge"
 import { POPUP_OFFSET, POPUP_CODE_STYLE, POPUP_LINK_BUTTON_STYLE, POPUP_ROW_ICON_STYLE, PopupBadge, PopupCard, PopupRow } from "./PopupCard"
 
 const PAGE_SIZE = 20
-
-/** Remediation pill: bans red, captcha amber, anything a bouncer defines itself grey. */
-function DecisionType({ type }: { type: string }) {
-  const color = type === "ban" ? "var(--destructive)" : type === "captcha" ? "#f59e0b" : "var(--popup-muted)"
-  return (
-    <span
-      style={{
-        fontSize: "9px",
-        fontWeight: 600,
-        textTransform: "uppercase",
-        color,
-        background: `color-mix(in oklab, ${color} 15%, transparent)`,
-        padding: "1px 5px",
-        borderRadius: "9999px",
-        flexShrink: 0,
-      }}
-    >
-      {type}
-    </span>
-  )
-}
 
 function IpDetails({ member, onBack }: { member: BannedMapIp; onBack?: () => void }) {
   const decisions = useIpDecisions(member.ip)
@@ -55,7 +35,11 @@ function IpDetails({ member, onBack }: { member: BannedMapIp; onBack?: () => voi
         value={
           <span style={{ display: "inline-flex", alignItems: "center", gap: "4px" }}>
             <code style={{ ...POPUP_CODE_STYLE, whiteSpace: "normal", overflowWrap: "anywhere" }}>{member.ip}</code>
-            <IpBanControls ip={member.ip} initialBanned showBadge={false}>
+            <IpBanControls
+              ip={member.ip}
+              initialDecision={decisions.data === undefined ? "ban" : winningDecision(active)?.type ?? null}
+              showBadge={false}
+            >
               <InspectIpButton ip={member.ip} fromLocationId={member.locationId} />
             </IpBanControls>
           </span>
@@ -84,7 +68,7 @@ function IpDetails({ member, onBack }: { member: BannedMapIp; onBack?: () => voi
         {active.map((decision) => (
           <div key={decision.id ?? `${decision.origin}:${decision.scenario}:${decision.duration}`} style={{ fontSize: "11px", marginBottom: "4px" }}>
             <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-              <DecisionType type={decision.type} />
+              <DecisionBadge type={decision.type} variant="popup" />
               <span style={{ fontWeight: 500, overflowWrap: "anywhere" }}>{decision.scenario || "No scenario given"}</span>
             </div>
             <div style={{ fontSize: "10px", color: "var(--popup-muted)" }}>{decision.origin} · {decision.duration} left</div>

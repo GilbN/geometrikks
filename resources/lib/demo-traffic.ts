@@ -36,7 +36,7 @@ export function getDemoTrafficMode(): DemoTrafficMode {
  * A 100-entry status cycle: roughly 74 percent 2xx, 8 percent 3xx, 15 percent
  * 4xx, 3 percent 5xx. The 4xx share is mostly 404, the way real traffic is,
  * with a few refusals so the threat lane has something in it that is not just
- * a banned IP.
+ * an IP under a ban or captcha decision.
  */
 const DEMO_STATUS_CYCLE: readonly number[] = Array.from({ length: 100 }, (_, index) => {
   if (index % 33 === 32) return 502
@@ -88,7 +88,8 @@ export function makeDemoRequests(cursor: number, count: number, now: number): Li
     const step = cursor + offset
     const origin = DEMO_TRAFFIC_ORIGINS[step % DEMO_TRAFFIC_ORIGINS.length]
     const code = DEMO_STATUS_CYCLE[step % DEMO_STATUS_CYCLE.length]
-    const banned = step % 17 === 3
+    const decisionType = step % 17 === 3 ? (step % 34 === 3 ? "captcha" : "ban") : null
+    const banned = decisionType !== null
     const probing = banned || (code >= 400 && code < 500)
     const url = probing
       ? DEMO_PROBE_PATHS[step % DEMO_PROBE_PATHS.length]
@@ -108,6 +109,7 @@ export function makeDemoRequests(cursor: number, count: number, now: number): Li
       hostname: "demo",
       statusClass: status,
       banned,
+      decisionType,
       threat: isThreat(code, banned),
       log: {
         timestamp,

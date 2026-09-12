@@ -13,7 +13,7 @@ import type { Feature, FeatureCollection } from "geojson"
 import { packetColor, packetRadius, worseStatus } from "@/lib/live-traffic/classify"
 import type { LiveRequest, StatusClass } from "@/lib/live-traffic/types"
 import { useLiveTrafficStore } from "@/lib/live-traffic/context"
-import { BANNED_RING_IMAGE_ID, ensureBannedRingImage } from "./bannedRingImage"
+import { BANNED_RING_IMAGE_ID, CAPTCHA_RING_IMAGE_ID, ensureDecisionRingImages } from "./bannedRingImage"
 
 type Coordinate = [longitude: number, latitude: number]
 
@@ -27,6 +27,7 @@ interface Transmission {
   color: string
   radius: number
   banned: boolean
+  decisionType: string | null
   statusClass: StatusClass
 }
 
@@ -192,6 +193,7 @@ function createTransmission(
     color: packetColor(request.statusClass),
     radius: packetRadius(request.log?.bytes_sent),
     banned: request.banned,
+    decisionType: request.decisionType,
     statusClass: request.statusClass,
   }
 }
@@ -261,6 +263,7 @@ function buildFrame(transmissions: Transmission[], now: number): FeatureCollecti
             color: transmission.color,
             radius: transmission.radius,
             banned: transmission.banned ? 1 : 0,
+            decision: transmission.decisionType ?? "",
             requestId: transmission.requestId,
           },
         },
@@ -282,6 +285,7 @@ function buildFrame(transmissions: Transmission[], now: number): FeatureCollecti
           color: transmission.color,
           radius: transmission.radius,
           banned: transmission.banned ? 1 : 0,
+          decision: transmission.decisionType ?? "",
           requestId: transmission.requestId,
         },
       })
@@ -338,9 +342,9 @@ export function LivePulses({
   useEffect(() => {
     const instance = map?.getMap()
     if (!instance) return
-    ensureBannedRingImage(instance)
+    ensureDecisionRingImages(instance)
     // A style change drops registered images, so re-register on styledata.
-    const reregister = () => ensureBannedRingImage(instance)
+    const reregister = () => ensureDecisionRingImages(instance)
     instance.on("styledata", reregister)
     return () => {
       instance.off("styledata", reregister)
@@ -564,7 +568,7 @@ export function LivePulses({
         type="symbol"
         filter={["==", ["get", "banned"], 1]}
         layout={{
-          "icon-image": BANNED_RING_IMAGE_ID,
+          "icon-image": ["case", ["==", ["get", "decision"], "captcha"], CAPTCHA_RING_IMAGE_ID, BANNED_RING_IMAGE_ID],
           "icon-size": 0.5,
           "icon-allow-overlap": true,
           "icon-ignore-placement": true,

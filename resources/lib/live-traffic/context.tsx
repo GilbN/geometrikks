@@ -51,8 +51,8 @@ export function LiveTrafficProvider({
   const store = useMemo(() => new LiveTrafficStore(), [])
   const { data: bannedIps } = useBannedIps()
   // Read through a ref so a refetched ban list does not resubscribe the socket.
-  const bannedRef = useRef<ReadonlySet<string>>(new Set())
-  bannedRef.current = bannedIps ?? new Set()
+  const bannedRef = useRef<ReadonlyMap<string, string>>(new Map())
+  bannedRef.current = bannedIps ?? new Map()
   const demoMode = getDemoTrafficMode()
   const socketStatus = useLiveFeedStatus()
   // Demo mode is a feed in its own right: it never opens the socket, so the

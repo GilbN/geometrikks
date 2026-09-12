@@ -26,13 +26,21 @@ export interface OriginSlice {
   share: number
 }
 
+export interface DecisionCounts {
+  ban: number
+  captcha: number
+  /** Bouncer-defined remediation names, folded together. */
+  other: number
+}
+
 export interface LiveSummary {
   total: number
   mix: MixSlice[]
   origins: OriginSlice[]
   threats: number
-  /** Distinct banned IPs seen in the window, not the number of requests. */
-  bannedIps: number
+  /** Distinct IPs under a decision seen in the window, per type; not the
+   *  number of requests. */
+  decisions: DecisionCounts
 }
 
 export const EMPTY_SUMMARY: LiveSummary = {
@@ -40,7 +48,7 @@ export const EMPTY_SUMMARY: LiveSummary = {
   mix: [],
   origins: [],
   threats: 0,
-  bannedIps: 0,
+  decisions: { ban: 0, captcha: 0, other: 0 },
 }
 
 export function summarize(
@@ -51,7 +59,7 @@ export function summarize(
 
   const byStatus = new Map<StatusClass, number>()
   const byCountry = new Map<string, number>()
-  const banned = new Set<string>()
+  const decided = new Map<string, { type: string; receivedAt: number }>()
   let threats = 0
 
   for (const request of requests) {
@@ -59,7 +67,15 @@ export function summarize(
     const country = request.countryCode ?? "??"
     byCountry.set(country, (byCountry.get(country) ?? 0) + 1)
     if (request.threat) threats += 1
-    if (request.banned) banned.add(request.ip)
+    if (request.decisionType !== null) {
+      // Each request carries the badge map as it stood on arrival, so an
+      // IP whose decision changed inside the window counts under the type
+      // on its newest request, whichever order the buffer holds them in.
+      const known = decided.get(request.ip)
+      if (known === undefined || request.receivedAt > known.receivedAt) {
+        decided.set(request.ip, { type: request.decisionType, receivedAt: request.receivedAt })
+      }
+    }
   }
 
   const total = requests.length
@@ -80,7 +96,28 @@ export function summarize(
     share: count / peak,
   }))
 
-  return { total, mix, origins, threats, bannedIps: banned.size }
+  const decisions: DecisionCounts = { ban: 0, captcha: 0, other: 0 }
+  for (const { type } of decided.values()) {
+    if (type === "ban") decisions.ban += 1
+    else if (type === "captcha") decisions.captcha += 1
+    else decisions.other += 1
+  }
+
+  return { total, mix, origins, threats, decisions }
+}
+
+/** "Banned 3 IPs · Captcha 1 IP", non-zero types only; null when none. */
+export function describeDecisions(counts: DecisionCounts): string | null {
+  const parts = (
+    [
+      ["Banned", counts.ban],
+      ["Captcha", counts.captcha],
+      ["Other decisions", counts.other],
+    ] as const
+  )
+    .filter(([, count]) => count > 0)
+    .map(([label, count]) => `${label} ${count.toLocaleString()} ${count === 1 ? "IP" : "IPs"}`)
+  return parts.length ? parts.join(" · ") : null
 }
 
 /**

@@ -587,6 +587,20 @@ export const BanRequestSchema = {
   type: "object",
 } as const;
 
+export const BannedIpSchema = {
+  properties: {
+    ip: {
+      type: "string",
+    },
+    type: {
+      type: "string",
+    },
+  },
+  required: ["ip", "type"],
+  title: "BannedIp",
+  type: "object",
+} as const;
+
 export const BannedMapCollectionSchema = {
   properties: {
     features: {
