@@ -174,6 +174,7 @@ export function BannedMapPopup({
   const [selectedIp, setSelectedIp] = useState<string | null>(ips.length === 1 ? ips[0].ip : null)
   const selected = selectedIp === null ? null : ips.find((ip) => ip.ip === selectedIp) ?? null
   const hasIpv6 = ips.some((ip) => ip.ip.includes(":"))
+  const title = selected ? "Banned IP" : `${ips.length.toLocaleString()} banned IP${ips.length === 1 ? "" : "s"}`
 
   return (
     <Popup
@@ -187,6 +188,8 @@ export function BannedMapPopup({
       maxWidth={hasIpv6 ? "380px" : "300px"}
       style={{ background: "transparent" }}
     >
+      {/* The accessible name stays fixed while the visible header changes;
+          tests/browser/banned-map.pw.ts locates this popup by that name. */}
       <div role="dialog" aria-label="Banned IPs">
         <PopupCard
           onClose={onClose}
@@ -194,9 +197,7 @@ export function BannedMapPopup({
           header={
             <>
               <ShieldBan style={{ width: 16, height: 16, color: "var(--destructive)", flexShrink: 0 }} />
-              <span style={{ fontSize: "14px", fontWeight: 600 }}>
-                {ips.length === 1 ? "Banned IP" : `${ips.length.toLocaleString()} banned IPs`}
-              </span>
+              <span style={{ fontSize: "14px", fontWeight: 600 }}>{title}</span>
             </>
           }
         >
