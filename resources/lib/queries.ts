@@ -65,6 +65,7 @@ import {
   type AccessLogSortField,
   type SortOrder,
   type CrowdSecStatusResponse,
+  type BannedIp,
   fetchAccessLogDebug,
   fetchAccessLogDebugStats,
   type AccessLogDebugPage,
@@ -335,8 +336,9 @@ export function useCrowdsecStatus() {
   })
 }
 
-/** Set of currently banned IPs (all origins, CAPI included) for badge
- *  rendering; empty until the integration is enabled and loaded. */
+/** IP to decision type for every IP under a current decision (all origins,
+ *  CAPI included), for badge rendering; empty until the integration is
+ *  enabled and loaded. */
 export function useBannedIps() {
   const { data: status } = useCrowdsecStatus()
   return useQuery({
@@ -344,7 +346,7 @@ export function useBannedIps() {
     queryFn: fetchCrowdsecBannedIps,
     enabled: status?.enabled === true,
     refetchInterval: 60_000,
-    select: (ips) => new Set(ips),
+    select: (ips) => new Map(ips.map((entry) => [entry.ip, entry.type])),
   })
 }
 
@@ -478,15 +480,17 @@ export function useCrowdsecLiveUpdates(active = true) {
           }
           return
         }
-        queryClient.setQueryData<string[]>(
+        queryClient.setQueryData<BannedIp[]>(
           queryKeys.crowdsec.bannedIps,
           (ips) => applyBannedIpsDelta(ips, frame),
         )
-        // Frames have no decision type or surviving-ban count. Refetch the
-        // authoritative map and selected-IP queries once per burst instead.
+        // The delta cannot tell whether another decision survives a deleted
+        // one. Refetch the authoritative badge, map and selected-IP queries
+        // once per burst.
         if (refreshTimer === null) {
           refreshTimer = setTimeout(() => {
             refreshTimer = null
+            queryClient.invalidateQueries({ queryKey: queryKeys.crowdsec.bannedIps })
             queryClient.invalidateQueries({ queryKey: ["crowdsec", "banned-locations"] })
             queryClient.invalidateQueries({ queryKey: ["crowdsec", "lookup"] })
           }, 500)

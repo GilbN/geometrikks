@@ -38,6 +38,7 @@ import type {
   CrowdSecStatsResponse,
   AlertView,
   DecisionView,
+  BannedIp,
   BannedMapCollection,
   SessionUser,
   AuthDisabled,
@@ -49,6 +50,7 @@ export type {
   CrowdSecStatsResponse,
   AlertView,
   DecisionView,
+  BannedIp,
   BannedMapCollection,
 }
 
@@ -337,10 +339,9 @@ export async function fetchCrowdsecDecisions(params?: {
   return data
 }
 
-/** Every actively banned IP across all origins (CAPI included), values only.
- *  Compact enough for the badge set even with a community blocklist. */
-export async function fetchCrowdsecBannedIps(): Promise<string[]> {
-  const { data } = await api.get<string[]>("/crowdsec/banned-ips")
+/** IPs under a current decision with the type to badge them as. */
+export async function fetchCrowdsecBannedIps(): Promise<BannedIp[]> {
+  const { data } = await api.get<BannedIp[]>("/crowdsec/banned-ips")
   return data
 }
 
