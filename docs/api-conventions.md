@@ -100,3 +100,15 @@ that requests were blocked, or expand range, country, or AS decisions. Each IP h
 one representative observed location; inside an aggregate bucket the busiest
 location wins. The response skips IPs without coordinates, and retained
 history bounds how far back it can see.
+
+## CrowdSec badge data
+
+`GET /api/v1/crowdsec/banned-ips` returns one `{ "ip", "type" }` object per
+IP under an active IP-scoped decision, every origin included. This replaces
+its earlier array of bare addresses. `type` is the decision the UI badges
+the IP with: `ban` when any of the IP's decisions is a ban, else `captcha`
+when any is a captcha, else the first other name in sorted order.
+
+`/ws/crowdsec` decision frames carry `type` on every `added` and `deleted`
+entry. A deleted entry does not say whether the IP still holds another
+decision; clients refetch `banned-ips` after a delta to settle that.

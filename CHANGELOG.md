@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Badges say which CrowdSec decision an IP holds. A ban stays the red Banned badge, a captcha decision shows an amber Captcha badge, and a bouncer-defined remediation shows its own name in grey, in the log tables, detail sheets, alerts, map popups and the IP inspector. The Security page's decisions table gains a Type column. Live traffic draws an amber cage ring over captcha'd packets and the live rail counts banned and captcha IPs separately.
+
+### Changed
+
+- `/api/v1/crowdsec/banned-ips` returns `{ip, type}` objects instead of bare addresses, and `/ws/crowdsec` decision frames carry the decision `type`.
+
 ## [0.16.0] - 2026-09-12
 
 ### Added
