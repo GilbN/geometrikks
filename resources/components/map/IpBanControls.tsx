@@ -1,9 +1,9 @@
 /**
- * Ban badge + ban/unban dropdown for one IP. Renders nothing unless the IP is
+ * Decision badge + ban/unban dropdown for one IP. Renders nothing unless the IP is
  * already under a decision or CrowdSec write access is enabled. Shared by MapPopup's
  * top-IPs rows, the banned popup's IP row and the live popup footer - the call sites differ
  * only in layout (an inline icon-only button in a list row vs a bordered
- * footer row with a text label) and in whether a known banned state is
+ * footer row with a text label) and in whether a known decision type is
  * available before the banned-IP query resolves.
  *
  * Inline styles keep it visually matched to the popup content. Tailwind does

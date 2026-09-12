@@ -41,7 +41,7 @@ export function DecisionBadge({
           flexShrink: 0,
         }}
       >
-        {children ?? type}
+        {children ?? decisionLabel(type)}
       </span>
     )
   }

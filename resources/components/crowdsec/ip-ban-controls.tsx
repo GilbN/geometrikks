@@ -1,6 +1,6 @@
 /**
  * Decision badge + ban/unban dropdown for an IP rendered in a table cell.
- * Self-contained: subscribes to the shared banned-IP set and CrowdSec
+ * Self-contained: subscribes to the shared banned-IP map and CrowdSec
  * status (TanStack Query dedupes per-row subscriptions), so callers just
  * pass the IP. Renders nothing when the integration is off, and only the
  * badge when it is read-only (no machine credentials).

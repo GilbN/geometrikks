@@ -55,6 +55,24 @@ describe("applyBannedIpsDelta", () => {
   it("passes undefined through (cache not populated yet)", () => {
     expect(applyBannedIpsDelta(undefined, decisionsFrame)).toBeUndefined()
   })
+
+  it("upgrades the stored type when a stronger decision is added", () => {
+    const frame: CrowdsecDecisionsFrame = {
+      type: "crowdsec_decisions",
+      added: [{ ip: "1.2.3.4", type: "ban", origin: "CAPI", scenario: "ssh-bf", duration: "4h" }],
+      deleted: [],
+    }
+    expect(applyBannedIpsDelta([{ ip: "1.2.3.4", type: "captcha" }], frame)).toEqual([{ ip: "1.2.3.4", type: "ban" }])
+  })
+
+  it("keeps an IP whose ban is deleted and re-added in the same frame", () => {
+    const frame: CrowdsecDecisionsFrame = {
+      type: "crowdsec_decisions",
+      added: [{ ip: "1.2.3.4", type: "ban", origin: "crowdsec", scenario: "ssh-bf", duration: "4h" }],
+      deleted: [{ ip: "1.2.3.4", type: "ban", origin: "crowdsec" }],
+    }
+    expect(applyBannedIpsDelta([{ ip: "1.2.3.4", type: "ban" }], frame)).toEqual([{ ip: "1.2.3.4", type: "ban" }])
+  })
 })
 
 describe("applyStatusFrame", () => {

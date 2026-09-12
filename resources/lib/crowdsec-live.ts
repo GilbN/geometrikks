@@ -39,18 +39,21 @@ export function parseCrowdsecFrame(data: unknown): CrowdsecFrame | null {
   return null
 }
 
-/** Apply a decisions delta to the cached banned-IP entries. An added decision
- *  never weakens the shown type; a deleted one only clears the IP when it
- *  is the type shown. The burst refetch settles anything this cannot know,
- *  such as a second ban surviving the deleted one. */
+/** Apply a decisions delta to the cached banned-IP entries. Deletions run before
+ *  additions, so a frame that deletes an IP's expiring decision and adds its
+ *  replacement in the same delta still keeps the IP badged; add-first would let
+ *  the add absorb into the stored decision and the delete would then remove it.
+ *  An added decision never weakens the shown type; a deleted one only clears
+ *  the IP when it is the type shown. The burst refetch settles anything this
+ *  cannot know, such as a second ban surviving the deleted one. */
 export function applyBannedIpsDelta(
   ips: BannedIp[] | undefined,
   frame: CrowdsecDecisionsFrame,
 ): BannedIp[] | undefined {
   if (!ips) return ips
   const next = new Map(ips.map((entry) => [entry.ip, entry.type]))
-  for (const d of frame.added) next.set(d.ip, decisionWinner(next.get(d.ip), d.type))
   for (const d of frame.deleted) if (next.get(d.ip) === d.type) next.delete(d.ip)
+  for (const d of frame.added) next.set(d.ip, decisionWinner(next.get(d.ip), d.type))
   return [...next].map(([ip, type]) => ({ ip, type }))
 }
 
