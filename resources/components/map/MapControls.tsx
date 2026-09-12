@@ -169,6 +169,7 @@ const LAYER_TAB = "gap-1 px-1.5 text-[11px]"
  */
 function BannedSummaryRows({ banned }: { banned: BannedSummary }) {
   const { stats, error, unreachable, onRetry } = banned
+  const lastResult = stats && stats.ips > 0 ? " Showing the last result." : ""
   return (
     <div className="flex flex-col gap-1" aria-live="polite">
       {stats && stats.ips > 0 ? (
@@ -182,19 +183,19 @@ function BannedSummaryRows({ banned }: { banned: BannedSummary }) {
             <span>{line}</span>
           </div>
         ))
-      ) : stats && !error ? (
+      ) : stats && !error && !unreachable ? (
         <span>No banned IPs with mapped traffic in this range.</span>
       ) : null}
       {error ? (
         <div role="alert" className="flex flex-col gap-0.5">
-          <span className="text-destructive">Could not load banned IPs.{stats ? " Showing the last result." : ""}</span>
+          <span className="text-destructive">Could not load banned IPs.{lastResult}</span>
           <span>{error}</span>
           <Button variant="link" size="sm" className="h-auto w-fit p-0 text-xs" onClick={onRetry}>
             Retry
           </Button>
         </div>
       ) : unreachable ? (
-        <span role="alert" className="text-destructive">CrowdSec is unreachable.{stats ? " Showing the last result." : ""}</span>
+        <span role="alert" className="text-destructive">CrowdSec is unreachable.{lastResult}</span>
       ) : null}
     </div>
   )

@@ -116,6 +116,26 @@ test("decision changes refresh counts and dismiss removed IPs", async ({ page })
   await expect(page.getByText("No banned IPs with mapped traffic in this range.")).toBeVisible()
 })
 
+test("a shrinking location keeps the pager and the selection on the map", async ({ page }) => {
+  const { state, delta } = await setup(page, collection([group("2", 21)]))
+  await openCenterPopup(page)
+  const popup = page.getByRole("dialog", { name: "Banned IPs", exact: true })
+  await popup.getByRole("button", { name: "Next", exact: true }).click()
+  await expect(popup.getByRole("button", { name: /^192\./ })).toHaveCount(1)
+  // Page 2 no longer exists once the busiest IP is unbanned; the pager clamps.
+  state.data = collection([group("2", 20)])
+  delta()
+  await expect(popup.getByRole("button", { name: /^192\./ })).toHaveCount(20)
+  await expect(popup.getByRole("button", { name: "Next", exact: true })).toHaveCount(0)
+  await popup.getByRole("button", { name: /^192\.0\.2\.20 / }).click()
+  await expect(popup.getByRole("button", { name: /^Inspect 192\.0\.2\.20$/ })).toBeVisible()
+  // The selected IP drops out of the data; the popup returns to the list.
+  state.data = collection([group("2", 19)])
+  delta()
+  await expect(popup.getByRole("button", { name: /^Inspect / })).toHaveCount(0)
+  await expect(popup.getByRole("button", { name: /^192\./ })).toHaveCount(19)
+})
+
 test("errors remain distinct from empty data and retry recovers", async ({ page }) => {
   const { state, delta } = await setup(page)
   state.failed = true

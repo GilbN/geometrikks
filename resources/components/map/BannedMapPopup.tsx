@@ -98,8 +98,11 @@ function IpDetails({ member, onBack }: { member: BannedMapIp; onBack?: () => voi
 }
 
 function IpList({ ips, onSelect }: { ips: BannedMapIp[]; onSelect: (ip: BannedMapIp) => void }) {
-  const [page, setPage] = useState(0)
+  const [requestedPage, setPage] = useState(0)
   const pageCount = Math.ceil(ips.length / PAGE_SIZE)
+  // A refetch can shrink the list under an open pager; clamp rather than
+  // render an empty page with no way back.
+  const page = Math.min(requestedPage, pageCount - 1)
   const start = page * PAGE_SIZE
   const rows = ips.slice(start, start + PAGE_SIZE)
 
@@ -165,7 +168,11 @@ export function BannedMapPopup({
   ips: BannedMapIp[]
   onClose: () => void
 }) {
-  const [selected, setSelected] = useState<BannedMapIp | null>(ips.length === 1 ? ips[0] : null)
+  // Only the address is state; the member resolves against the current list
+  // so a refetch updates its count, and one that removes the IP falls back
+  // to the list instead of showing details for an IP no longer mapped.
+  const [selectedIp, setSelectedIp] = useState<string | null>(ips.length === 1 ? ips[0].ip : null)
+  const selected = selectedIp === null ? null : ips.find((ip) => ip.ip === selectedIp) ?? null
   const hasIpv6 = ips.some((ip) => ip.ip.includes(":"))
 
   return (
@@ -196,8 +203,8 @@ export function BannedMapPopup({
           {/* Bounded so a crowded location scrolls inside the card on phones. */}
           <div style={{ maxHeight: "min(320px, 40dvh)", overflowY: "auto", overscrollBehavior: "contain" }}>
             {selected
-              ? <IpDetails member={selected} onBack={ips.length > 1 ? () => setSelected(null) : undefined} />
-              : <IpList ips={ips} onSelect={setSelected} />}
+              ? <IpDetails member={selected} onBack={ips.length > 1 ? () => setSelectedIp(null) : undefined} />
+              : <IpList ips={ips} onSelect={(ip) => setSelectedIp(ip.ip)} />}
           </div>
           <div style={{ paddingTop: "6px", marginTop: "6px", borderTop: "1px solid var(--popup-border)", fontSize: "10px", color: "var(--popup-muted)" }}>
             Current CrowdSec decisions seen in the selected traffic range.
