@@ -136,6 +136,20 @@ test("a shrinking location keeps the pager and the selection on the map", async 
   await expect(popup.getByRole("button", { name: /^192\./ })).toHaveCount(19)
 })
 
+test("the popup title follows the list and detail views", async ({ page }) => {
+  const { state, delta } = await setup(page, collection([group("2", 3)]))
+  await openCenterPopup(page)
+  const popup = page.getByRole("dialog", { name: "Banned IPs", exact: true })
+  await expect(popup.getByText("3 banned IPs", { exact: true })).toBeVisible()
+  await popup.getByRole("button", { name: /^192\.0\.2\.3 / }).click()
+  await expect(popup.getByText("Banned IP", { exact: true })).toBeVisible()
+  // The selected IP drops out and the popup returns to the list, where the one
+  // remaining IP still reads as a count.
+  state.data = collection([group("2", 1)])
+  delta()
+  await expect(popup.getByText("1 banned IP", { exact: true })).toBeVisible()
+})
+
 test("errors remain distinct from empty data and retry recovers", async ({ page }) => {
   const { state, delta } = await setup(page)
   state.failed = true
