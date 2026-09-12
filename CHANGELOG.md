@@ -7,23 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added
-
-- Badges say which CrowdSec decision an IP holds. A ban stays the red Banned badge, a captcha decision shows an amber Captcha badge, and a bouncer-defined remediation shows its own name in grey, in the log tables, detail sheets, alerts, map popups and the IP inspector. The Security page's decisions table gains a Type column. Live traffic draws an amber cage ring over captcha'd packets and the live rail counts banned and captcha IPs separately.
-
-### Changed
-
-- `/api/v1/crowdsec/banned-ips` returns `{ip, type}` objects instead of bare addresses, and `/ws/crowdsec` decision frames carry the decision `type`.
-
 ## [0.16.0] - 2026-09-12
 
 ### Added
 
 - Banned IPs map view, a third visualization beside Heatmap and Markers. Red markers count the distinct IPs under a CrowdSec decision at each location. The popup lists those IPs with their current decisions and opens the IP inspector for any of them. The map controls show banned traffic totals and the top five banned IPs by requests. The view follows the time range and map filters and refreshes when decisions change. It replaces the Banned IPs overlay switch.
 - Optional frame rate counter in the Map tools menu for manual performance testing. It counts map renders and does not force idle maps to repaint.
+- Badges say which CrowdSec decision an IP holds. A ban stays the red Banned badge, a captcha decision shows an amber Captcha badge, and a bouncer-defined remediation shows its own name in grey, in the log tables, detail sheets, alerts, map popups and the IP inspector. The Security page's decisions table gains a Type column. Live traffic draws an amber cage ring over captcha'd packets and the live rail counts banned and captcha IPs separately.
 
 ### Changed
 
+- `/api/v1/crowdsec/banned-ips` returns `{ip, type}` objects instead of bare addresses, and `/ws/crowdsec` decision frames carry the decision `type`.
 - `/api/v1/crowdsec/banned-locations` returns a GeoJSON FeatureCollection instead of an array, carries an event count per IP, and treats `toTimestamp` as exclusive.
 - Map popups open on whichever side keeps them inside the map. A marker near the top edge no longer hides its popup under the header.
 - Live route effects update at most 30 times per second regardless of display refresh rate, and compute queued routes only when a packet can start.
