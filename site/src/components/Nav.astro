@@ -123,6 +123,26 @@ import Wordmark from "./Wordmark.astro";
       display: grid;
     }
   }
+  /* Without scripting the toggle is inert, so the links wrap under the bar. */
+  @media (max-width: 900px) and (scripting: none) {
+    nav .wrap {
+      flex-wrap: wrap;
+      height: auto;
+      padding-top: 12px;
+      padding-bottom: 12px;
+    }
+    ul {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px 18px;
+      width: 100%;
+      margin: 0;
+      order: 1;
+    }
+    .menu {
+      display: none;
+    }
+  }
 </style>
 
 <script>
