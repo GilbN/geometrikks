@@ -1,10 +1,13 @@
 /**
  * Ban badge + ban/unban dropdown for one IP. Renders nothing unless the IP is
  * already banned or CrowdSec write access is enabled. Shared by MapPopup's
- * top-IPs rows and LiveRequestPopup's request footer - the two call sites
- * differ only in layout (an inline icon-only button in a list row vs a
- * bordered footer row with a text label) and in whether a known banned
- * state is available before the banned-IP query resolves.
+ * top-IPs rows and the banned/live popup footers - the call sites differ
+ * only in layout (an inline icon-only button in a list row vs a bordered
+ * footer row with a text label) and in whether a known banned state is
+ * available before the banned-IP query resolves.
+ *
+ * Inline styles keep it visually matched to the popup content. Tailwind does
+ * work inside the popups, as the shadcn InspectIpButton next to it shows.
  */
 import { Loader2, ShieldBan, ShieldOff } from "lucide-react"
 import { toast } from "sonner"

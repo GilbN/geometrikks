@@ -13,17 +13,9 @@ import { formatBytes } from "@/lib/api"
 import { PACKET_COLORS } from "@/lib/live-traffic/classify"
 import { formatDurationOrNa } from "@/lib/timing"
 import { IpBanControls } from "./IpBanControls"
-import { InspectIpButton } from "./InspectIpButton"
+import { InspectIpButton } from "@/components/ip-inspector/inspect-ip-button"
+import { POPUP_OFFSET, PopupCard, PopupRow as Row } from "./PopupCard"
 import type { LiveRequest } from "@/lib/live-traffic/types"
-
-function Row({ label, value }: { label: string; value: React.ReactNode }) {
-  return (
-    <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", fontSize: "11px", marginBottom: "4px" }}>
-      <span style={{ color: "var(--popup-muted)" }}>{label}</span>
-      <span style={{ fontWeight: 500, textAlign: "right", wordBreak: "break-all" }}>{value}</span>
-    </div>
-  )
-}
 
 function LiveRequestDetail({
   request,
@@ -35,59 +27,29 @@ function LiveRequestDetail({
   const log = request.log
 
   return (
-    <div
-      style={{
-        position: "relative",
-        background: "color-mix(in oklab, var(--background) 85%, transparent)",
-        backdropFilter: "blur(8px)",
-        color: "var(--popup-fg)",
-        borderRadius: "8px",
-        padding: "12px",
-        border: "1px solid var(--popup-border)",
-        boxShadow: "0 4px 12px rgba(0, 0, 0, 0.3)",
-        minWidth: "220px",
-      }}
+    <PopupCard
+      onClose={onClose}
+      header={
+        <>
+          <span
+            style={{
+              background: PACKET_COLORS[request.statusClass],
+              color: "#04121a",
+              borderRadius: "4px",
+              padding: "1px 6px",
+              fontSize: "11px",
+              fontWeight: 700,
+            }}
+          >
+            {log?.status_code ?? "?"}
+          </span>
+          <span style={{ fontSize: "12px", fontWeight: 600 }}>{log?.method ?? "-"}</span>
+          <span style={{ marginLeft: "auto", fontSize: "10px", color: "var(--popup-muted)" }}>
+            {new Date(request.timestamp).toLocaleTimeString()}
+          </span>
+        </>
+      }
     >
-      <button
-        onClick={onClose}
-        aria-label="Close popup"
-        style={{
-          position: "absolute",
-          top: "8px",
-          right: "8px",
-          background: "transparent",
-          border: "none",
-          color: "var(--popup-muted)",
-          cursor: "pointer",
-          fontSize: "18px",
-          lineHeight: 1,
-          padding: "2px 6px",
-        }}
-      >
-        ×
-      </button>
-
-      {/* paddingRight clears the absolutely positioned close button, which
-          otherwise sits on top of the timestamp at the end of this row. */}
-      <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px", paddingBottom: "8px", paddingRight: "24px", borderBottom: "1px solid var(--popup-border)" }}>
-        <span
-          style={{
-            background: PACKET_COLORS[request.statusClass],
-            color: "#04121a",
-            borderRadius: "4px",
-            padding: "1px 6px",
-            fontSize: "11px",
-            fontWeight: 700,
-          }}
-        >
-          {log?.status_code ?? "?"}
-        </span>
-        <span style={{ fontSize: "12px", fontWeight: 600 }}>{log?.method ?? "-"}</span>
-        <span style={{ marginLeft: "auto", fontSize: "10px", color: "var(--popup-muted)" }}>
-          {new Date(request.timestamp).toLocaleTimeString()}
-        </span>
-      </div>
-
       <div style={{ fontSize: "11px", marginBottom: "8px", wordBreak: "break-all" }}>
         {log?.url ?? "No access log url data for this event"}
       </div>
@@ -117,7 +79,7 @@ function LiveRequestDetail({
       {log?.user_agent && <Row label="Agent" value={log.user_agent} />}
 
       <IpBanControls ip={request.ip} initialBanned={request.banned} variant="footer" />
-    </div>
+    </PopupCard>
   )
 }
 
@@ -138,7 +100,7 @@ export function LiveRequestPopup({
     <Popup
       longitude={longitude}
       latitude={latitude}
-      anchor="bottom"
+      offset={POPUP_OFFSET}
       onClose={onClose}
       closeButton={false}
       closeOnClick={false}

@@ -38,7 +38,7 @@ import type {
   CrowdSecStatsResponse,
   AlertView,
   DecisionView,
-  IpLocation,
+  BannedMapCollection,
   SessionUser,
   AuthDisabled,
   SiteHomesResponse,
@@ -49,7 +49,7 @@ export type {
   CrowdSecStatsResponse,
   AlertView,
   DecisionView,
-  IpLocation,
+  BannedMapCollection,
 }
 
 // Create axios instance with base configuration
@@ -58,6 +58,9 @@ export const api = axios.create({
   headers: {
     "Content-Type": "application/json",
   },
+  // Litestar expects repeated keys (?countryCode=NO&countryCode=SE), not
+  // axios' default bracket form (countryCode[]=NO).
+  paramsSerializer: { indexes: null },
 })
 
 // Redirect to the login page on any 401 from the API (session expired or
@@ -341,17 +344,21 @@ export async function fetchCrowdsecBannedIps(): Promise<string[]> {
   return data
 }
 
-/** Coordinates of banned IPs seen in this server's own traffic (map overlay).
- *  The window keeps the overlay in step with the map's time range; omitted
- *  bounds fall back to the server's 30d geo lookback. */
-export async function fetchCrowdsecBannedLocations(params?: {
+/** IPs under a current CrowdSec decision, seen in the selected traffic window, grouped as GeoJSON. */
+export async function fetchCrowdsecBannedLocations(params: {
   fromTimestamp?: string
   toTimestamp?: string
-}): Promise<IpLocation[]> {
-  const { data } = await api.get<IpLocation[]>("/crowdsec/banned-locations", {
+  countryCodes?: string[]
+  cities?: string[]
+  hostnames?: string[]
+} = {}): Promise<BannedMapCollection> {
+  const { data } = await api.get<BannedMapCollection>("/crowdsec/banned-locations", {
     params: {
-      fromTimestamp: params?.fromTimestamp,
-      toTimestamp: params?.toTimestamp,
+      fromTimestamp: params.fromTimestamp,
+      toTimestamp: params.toTimestamp,
+      countryCode: params.countryCodes?.length ? params.countryCodes : undefined,
+      city: params.cities?.length ? params.cities : undefined,
+      hostnameIn: params.hostnames?.length ? params.hostnames : undefined,
     },
   })
   return data
@@ -471,9 +478,6 @@ export async function fetchGeoJSON(params: GeoJSONParams): Promise<GeoJSONFeatur
       asnIn: params.asns?.length ? params.asns : undefined,
       asnNotIn: params.asnsExclude?.length ? params.asnsExclude : undefined,
     },
-    // Litestar expects repeated keys (?countryCode=NO&countryCode=SE),
-    // not axios' default bracket form (countryCode[]=NO).
-    paramsSerializer: { indexes: null },
   })
   return data
 }
@@ -1045,9 +1049,6 @@ export async function fetchAccessLogs(params: AccessLogsParams): Promise<AccessL
       orderBy: params.sortField ? SORT_FIELD_TO_COLUMN[params.sortField] : undefined,
       sortOrder: params.sortField ? params.sortOrder ?? "desc" : undefined,
     },
-    // Litestar expects repeated keys (?methodIn=GET&methodIn=POST),
-    // not axios' default bracket form (methodIn[]=GET).
-    paramsSerializer: { indexes: null },
   })
   return data
 }
@@ -1163,8 +1164,6 @@ export async function fetchAccessLogDebug(
       orderBy: params.sortField ? DEBUG_SORT_FIELD_TO_COLUMN[params.sortField] : undefined,
       sortOrder: params.sortField ? params.sortOrder ?? "desc" : undefined,
     },
-    // Litestar expects repeated keys (?cityIn=a&cityIn=b), not bracket form.
-    paramsSerializer: { indexes: null },
   })
   return data
 }

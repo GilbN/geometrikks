@@ -8,7 +8,14 @@ from sqlalchemy import bindparam, text
 from sqlalchemy.dialects import postgresql
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from geometrikks.domain.geo.repositories import StatsGranularity, get_stats_granularity
+from geometrikks.domain.geo.repositories import (
+    StatsGranularity,
+    get_stats_granularity,
+    stitch_params,
+    stitched_ip_location_cte,
+)
+from geometrikks.domain.geo.schemas import GeoEventFilters
+from geometrikks.lib.time import ensure_utc
 from geometrikks.domain.security.schemas import IpEnrichment, IpLocation
 from geometrikks.server.logging import get_logger
 
@@ -83,100 +90,82 @@ class SecurityEnrichmentRepository:
         *,
         start: datetime | None = None,
         end: datetime | None = None,
+        country_codes: list[str] | None = None,
+        cities: list[str] | None = None,
+        hostnames: list[str] | None = None,
     ) -> list[IpLocation]:
-        """Latest known coordinates per IP, from stored geo events.
+        """One observed location per IP, with its event total, in the
+        filtered ``[start, end)`` window.
 
-        Same input rules as :meth:`enrich`; IPs never seen in the stored
-        traffic are absent from the result. ``start`` defaults to the
-        ``GEO_LOOKBACK`` window and ``end`` to now.
+        Same input rules as :meth:`enrich`; IPs never seen in the matching
+        traffic are absent. ``start`` defaults to the ``GEO_LOOKBACK`` window
+        and ``end`` to now.
 
-        Routing follows the geo query layer: raw ``geo_events`` for windows
-        up to 24h (uncompressed chunks, indexed), the ip_location CAGGs
-        beyond that. Filtering thousands of banned IPs against raw chunks
-        older than the compression threshold decompresses them row by row;
-        the CAGGs stay small and uncompressed. Presence on the CAGG paths
-        is bucket-resolution, matching the map circles.
+        Routing follows the geo query layer. Windows up to 24h read raw
+        ``geo_events``; longer ones read the per-IP CAGGs stitched with raw
+        edge slices. On the CAGG path the newest bucket wins and ties inside
+        it go to the busiest location, so the result is an observed location,
+        not an exact last hit. A hostname filter forces the raw path like
+        every other per-IP query, because the CAGGs carry hostname sets, not
+        counts, and buckets older than the hostname backfill carry none at all.
         """
         valid_ips = [ip for ip in ips if _is_ip(ip)]
-        if not valid_ips:
+        now = datetime.now(timezone.utc)
+        start_ts = ensure_utc(start) if start is not None else now - GEO_LOOKBACK
+        end_ts = ensure_utc(end) if end is not None else now
+        if not valid_ips or start_ts >= end_ts:
             return []
 
-        now = datetime.now(timezone.utc)
-        start_ts = start if start is not None else now - GEO_LOOKBACK
-        end_ts = end if end is not None else now
+        filters = GeoEventFilters(country_codes=country_codes, cities=cities, hostnames=hostnames)
         granularity = get_stats_granularity(start_ts, end_ts)
-        if granularity == StatsGranularity.RAW:
-            stmt = LOCATIONS_STMT
-        elif granularity == StatsGranularity.HOURLY:
-            stmt = HOURLY_LOCATIONS_STMT
-            start_ts = start_ts.replace(minute=0, second=0, microsecond=0)
+        if granularity == StatsGranularity.RAW or filters.forces_raw:
+            granularity = StatsGranularity.RAW
+            filter_sql, params = filters.sql_conditions("ge", "gl")
+            params.update(start=start_ts, end=end_ts)
+            stmt = text(f"""
+                SELECT DISTINCT ON (ge.ip_address)
+                    host(ge.ip_address) AS ip, gl.id AS location_id,
+                    gl.latitude, gl.longitude, gl.city, gl.country_code,
+                    COUNT(*) OVER (PARTITION BY ge.ip_address) AS event_count
+                FROM geo_events ge
+                JOIN geo_locations gl ON gl.id = ge.location_id
+                WHERE ge.ip_address = ANY(:ips)
+                  AND ge.timestamp >= :start AND ge.timestamp < :end
+                  {filter_sql}
+                ORDER BY ge.ip_address, ge.timestamp DESC, gl.id
+            """)
         else:
-            stmt = DAILY_LOCATIONS_STMT
-            start_ts = start_ts.replace(hour=0, minute=0, second=0, microsecond=0)
+            filter_sql, params = filters.sql_conditions("c", "gl", asn_column="asn")
+            params.update(stitch_params(start_ts, end_ts, granularity))
+            stmt = text(f"""
+                {stitched_ip_location_cte(granularity)}
+                SELECT DISTINCT ON (c.ip_address)
+                    host(c.ip_address) AS ip, gl.id AS location_id,
+                    gl.latitude, gl.longitude, gl.city, gl.country_code,
+                    SUM(c.event_count) OVER (PARTITION BY c.ip_address) AS event_count
+                FROM combined c
+                JOIN geo_locations gl ON gl.id = c.location_id
+                WHERE c.ip_address = ANY(:ips)
+                  {filter_sql}
+                ORDER BY c.ip_address, c.last_seen DESC, c.event_count DESC, gl.id
+            """)
+        params["ips"] = valid_ips
         logger.debug(
             "Banned-IP locations via %s source: %d IPs, window %s..%s",
-            granularity.value,
-            len(valid_ips),
-            start_ts,
-            end_ts,
+            granularity.value, len(valid_ips), start_ts, end_ts,
         )
         rows = await self.session.execute(
-            stmt,
-            {"ips": valid_ips, "lookback": start_ts, "until": end_ts},
+            stmt.bindparams(bindparam("ips", type_=postgresql.ARRAY(postgresql.INET))), params,
         )
         return [
             IpLocation(
-                ip=row.ip,
-                latitude=row.latitude,
-                longitude=row.longitude,
-                city=row.city,
-                country_code=row.country_code,
+                ip=row.ip, location_id=row.location_id,
+                latitude=row.latitude, longitude=row.longitude,
+                city=row.city, country_code=row.country_code,
+                event_count=int(row.event_count),
             )
             for row in rows
         ]
-
-
-LOCATIONS_STMT = text(
-    """
-    SELECT DISTINCT ON (ge.ip_address)
-        host(ge.ip_address) AS ip,
-        gl.latitude,
-        gl.longitude,
-        gl.city,
-        gl.country_code
-    FROM geo_events ge
-    JOIN geo_locations gl ON gl.id = ge.location_id
-    WHERE ge.ip_address = ANY(:ips)
-      AND ge.timestamp >= :lookback
-      AND ge.timestamp <= :until
-    ORDER BY ge.ip_address, ge.timestamp DESC
-    """
-).bindparams(bindparam("ips", type_=postgresql.ARRAY(postgresql.INET)))
-
-
-def _cagg_locations_stmt(suffix: str):
-    """DISTINCT ON the ip_location CAGG; ties in the latest bucket resolve
-    to the most active location."""
-    return text(
-        f"""
-        SELECT DISTINCT ON (s.ip_address)
-            host(s.ip_address) AS ip,
-            gl.latitude,
-            gl.longitude,
-            gl.city,
-            gl.country_code
-        FROM ip_location_{suffix}_stats s
-        JOIN geo_locations gl ON gl.id = s.location_id
-        WHERE s.ip_address = ANY(:ips)
-          AND s.bucket >= :lookback
-          AND s.bucket <= :until
-        ORDER BY s.ip_address, s.bucket DESC, s.event_count DESC
-        """
-    ).bindparams(bindparam("ips", type_=postgresql.ARRAY(postgresql.INET)))
-
-
-HOURLY_LOCATIONS_STMT = _cagg_locations_stmt("hourly")
-DAILY_LOCATIONS_STMT = _cagg_locations_stmt("daily")
 
 
 def _is_ip(value: str) -> bool:

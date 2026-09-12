@@ -167,6 +167,56 @@ export type BanRequest = {
 };
 
 /**
+ * BannedMapCollection
+ */
+export type BannedMapCollection = {
+  features: Array<BannedMapFeature>;
+  stats: BannedMapStats;
+  type: "FeatureCollection";
+};
+
+/**
+ * BannedMapFeature
+ */
+export type BannedMapFeature = {
+  geometry: GeoJsonPointGeometry;
+  id: string;
+  properties: BannedMapProperties;
+  type: "Feature";
+};
+
+/**
+ * BannedMapIp
+ */
+export type BannedMapIp = {
+  city: string | null;
+  countryCode: string | null;
+  eventCount: number;
+  ip: string;
+  locationId: number;
+};
+
+/**
+ * BannedMapProperties
+ */
+export type BannedMapProperties = {
+  bannedIps: Array<BannedMapIp>;
+  groupId: string;
+  ipCount: number;
+};
+
+/**
+ * BannedMapStats
+ */
+export type BannedMapStats = {
+  cities: number;
+  countries: number;
+  events: number;
+  ips: number;
+  locations: number;
+};
+
+/**
  * ChangelogEntry
  */
 export type ChangelogEntry = {
@@ -451,7 +501,7 @@ export type GeoJsonFeatureStats = {
  */
 export type GeoJsonPointGeometry = {
   coordinates: [number, number];
-  type: string;
+  type: "Point";
 };
 
 /**
@@ -592,17 +642,6 @@ export type IngestionStatsResponse = {
   totalPendingRecords: number;
   totalProcessed: number;
   totalSkippedLines: number;
-};
-
-/**
- * IpLocation
- */
-export type IpLocation = {
-  city: string | null;
-  countryCode: string | null;
-  ip: string;
-  latitude: number;
-  longitude: number;
 };
 
 /**
@@ -2376,6 +2415,18 @@ export type ApiV1CrowdsecBannedLocationsListBannedLocationsData = {
   query?: {
     fromTimestamp?: string | null;
     toTimestamp?: string | null;
+    /**
+     * Filter to these ISO country codes (repeatable)
+     */
+    countryCode?: Array<string> | null;
+    /**
+     * Filter to these city names (repeatable)
+     */
+    city?: Array<string> | null;
+    /**
+     * Filter to these recording hostnames (repeatable)
+     */
+    hostnameIn?: Array<string> | null;
   };
   url: "/api/v1/crowdsec/banned-locations";
 };
@@ -2403,7 +2454,7 @@ export type ApiV1CrowdsecBannedLocationsListBannedLocationsResponses = {
   /**
    * Request fulfilled, document follows
    */
-  200: Array<IpLocation>;
+  200: BannedMapCollection;
 };
 
 export type ApiV1CrowdsecBannedLocationsListBannedLocationsResponse =
