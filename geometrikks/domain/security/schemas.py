@@ -31,6 +31,13 @@ class IpLocation(msgspec.Struct, rename="camel"):
     event_count: int
 
 
+class BannedIp(msgspec.Struct, rename="camel"):
+    """One badge entry: an IP under a decision and the type worth showing."""
+
+    ip: str
+    type: str
+
+
 class BannedMapIp(msgspec.Struct, rename="camel", kw_only=True):
     ip: str
     location_id: int

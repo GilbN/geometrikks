@@ -100,9 +100,9 @@ async def test_later_polls_broadcast_ip_deltas():
     assert frame["type"] == "crowdsec_decisions"
     # Range-scope decisions are not badgeable; only Ip values broadcast
     assert frame["added"] == [
-        {"ip": "1.2.3.4", "origin": "cscli", "scenario": "manual ban", "duration": "3h59m"}
+        {"ip": "1.2.3.4", "type": "ban", "origin": "cscli", "scenario": "manual ban", "duration": "3h59m"}
     ]
-    assert frame["deleted"] == [{"ip": "5.6.7.8", "origin": "cscli"}]
+    assert frame["deleted"] == [{"ip": "5.6.7.8", "type": "ban", "origin": "cscli"}]
     assert queue.empty()
     await service.aclose()
 

@@ -34,6 +34,17 @@ def active_decision_ips(decisions: list[Decision]) -> list[str]:
     return list(ips)
 
 
+_DECISION_RANK = {"ban": 0, "captcha": 1}
+
+
+def decision_winner(current: str | None, candidate: str) -> str:
+    """The type to show when an IP holds several decisions: ban, then captcha,
+    then any bouncer-defined name in sorted order."""
+    if current is None:
+        return candidate
+    return min(current, candidate, key=lambda kind: (_DECISION_RANK.get(kind, 2), kind))
+
+
 def banned_map_collection(locations: list[IpLocation]) -> BannedMapCollection:
     """Group one row per IP by exact coordinates; MapLibre clusters nearby groups."""
     groups: dict[tuple[float, float], list[BannedMapIp]] = {}

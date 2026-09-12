@@ -95,12 +95,12 @@ class CrowdSecStreamPoller:
             return
 
         added = [
-            {"ip": d.value, "origin": d.origin, "scenario": d.scenario, "duration": d.duration}
+            {"ip": d.value, "type": d.type, "origin": d.origin, "scenario": d.scenario, "duration": d.duration}
             for d in delta.new
             if d.scope == "Ip"
         ]
         deleted = [
-            {"ip": d.value, "origin": d.origin} for d in delta.deleted if d.scope == "Ip"
+            {"ip": d.value, "type": d.type, "origin": d.origin} for d in delta.deleted if d.scope == "Ip"
         ]
         if not added and not deleted:
             return

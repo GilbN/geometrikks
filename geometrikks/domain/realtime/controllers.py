@@ -61,9 +61,10 @@ LIVE_QUEUE_MAXSIZE = 1000
 
 @websocket("/ws/crowdsec", tags=["Live Feed"])
 async def crowdsec_feed(socket: WebSocket) -> None:
-    """Stream CrowdSec ban/unban deltas from the decision-stream poller.
+    """Stream CrowdSec decision deltas from the decision-stream poller.
 
-    One JSON frame per delta:
+    One JSON frame per delta; every entry carries the decision ``type``
+    (ban, captcha, or a bouncer-defined name):
       {"type": "crowdsec_decisions", "added": [...], "deleted": [...]}
     LAPI reachability transitions (and one snapshot on connect):
       {"type": "crowdsec_status", "lapi_reachable": bool}

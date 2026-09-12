@@ -325,6 +325,7 @@ export type {
   AsnClassificationListResponse,
   AsnClassificationView,
   AuthDisabled,
+  BannedIp,
   BannedMapCollection,
   BannedMapFeature,
   BannedMapIp,

@@ -167,6 +167,14 @@ export type BanRequest = {
 };
 
 /**
+ * BannedIp
+ */
+export type BannedIp = {
+  ip: string;
+  type: string;
+};
+
+/**
  * BannedMapCollection
  */
 export type BannedMapCollection = {
@@ -2403,7 +2411,7 @@ export type ApiV1CrowdsecBannedIpsListBannedIpsResponses = {
   /**
    * Request fulfilled, document follows
    */
-  200: Array<string>;
+  200: Array<BannedIp>;
 };
 
 export type ApiV1CrowdsecBannedIpsListBannedIpsResponse =
