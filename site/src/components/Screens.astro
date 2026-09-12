@@ -2,7 +2,7 @@
 // One screenshot at a time behind a tab strip. All panels render; the script
 // only toggles hidden and starts or stops the map clip. Screenshots come from
 // data/screenshots via sync-content; the clip lives in public/media.
-import { Image } from "astro:assets";
+import { Image, getImage } from "astro:assets";
 import type { ImageMetadata } from "astro";
 
 const shots = import.meta.glob<{ default: ImageMetadata }>("../assets/screenshots/*.png", { eager: true });
@@ -13,7 +13,7 @@ const shot = (name: string) => {
 };
 
 const screens = [
-  { id: "map", label: "Map", img: "live.png", video: "/media/map", cap: "Live map. Show requests as markers, clusters or a heatmap on a flat map or globe. Live routes end at the server location you configure.", alt: "The live map with markers across Europe, a live request feed and the configured server location in Norway" },
+  { id: "map", label: "Map", img: "live.png", video: "/media/map", cap: "Live map. Show requests as markers, clusters or a heatmap on a flat map or globe, or switch to the Banned IPs view to see where CrowdSec bans come from. Live routes end at the server location you configure.", alt: "The live map with marker clusters, a live request feed, a live route to the home location, and map controls offering the Heatmap, Markers and Banned views" },
   { id: "overview", label: "Overview", img: "dashboard.png", cap: "Overview. Requests, visitors, bandwidth and errors for the chosen time period, compared with the previous period.", alt: "Overview dashboard with summary cards and trend charts" },
   { id: "analytics", label: "Analytics", img: "analytics.png", cap: "Analytics. Request volume, response codes, latency percentiles, bandwidth, top URLs by host, user agents and ASNs.", alt: "Analytics page with request, status, bandwidth and latency charts" },
   { id: "access-logs", label: "Access logs", img: "access-logs.png", cap: "Access logs. Search every request and filter by status, method, IP, host, country or source.", alt: "Access logs table with filters and a selected request" },
@@ -22,6 +22,11 @@ const screens = [
   { id: "security", label: "Security", img: "crowdsec.png", cap: "Security. CrowdSec bans shown with matching requests from your logs.", alt: "Security page listing active CrowdSec bans" },
   { id: "debug-logs", label: "Debug logs", img: "debug-logs.png", cap: "Debug logs. The raw source lines behind every request, with parse failures called out.", alt: "Debug logs page showing raw log lines and parse failures" },
 ];
+const full = Object.fromEntries(
+  await Promise.all(
+    screens.filter((s) => !s.video).map(async (s) => [s.id, (await getImage({ src: shot(s.img), format: "webp", width: 1912 })).src]),
+  ),
+);
 ---
 
 <section class="screens" id="screens">
@@ -68,14 +73,20 @@ const screens = [
                 <source src={`${s.video}.mp4`} type="video/mp4" />
               </video>
             ) : (
-              <Image
-                src={shot(s.img)}
-                widths={[720, 1200, 1912]}
-                sizes="(max-width: 1200px) 100vw, 1152px"
-                format="webp"
-                alt={s.alt}
-                loading={i === 0 ? "eager" : "lazy"}
-              />
+              <a class="zoom" href={full[s.id]} data-zoom data-zoom-alt={s.alt} data-zoom-caption={s.cap} aria-label={`View the ${s.label} screenshot larger`}>
+                <Image
+                  src={shot(s.img)}
+                  widths={[720, 1200, 1912]}
+                  sizes="(max-width: 1200px) 100vw, 1152px"
+                  format="webp"
+                  alt={s.alt}
+                  loading={i === 0 ? "eager" : "lazy"}
+                />
+                <span class="hint" aria-hidden="true">
+                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M2 6V2h4M14 6V2h-4M2 10v4h4M14 10v4h-4" /></svg>
+                  Enlarge
+                </span>
+              </a>
             )}
           </div>
           <p class="cap">{s.cap}</p>

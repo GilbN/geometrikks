@@ -2,6 +2,7 @@
 import "../styles/landing.css";
 import Nav from "../components/Nav.astro";
 import Footer from "../components/Footer.astro";
+import Lightbox from "../components/Lightbox.astro";
 
 interface Props {
   title: string;
@@ -49,5 +50,6 @@ const jsonLd = {
     <Nav />
     <slot />
     <Footer />
+    <Lightbox />
   </body>
 </html>
