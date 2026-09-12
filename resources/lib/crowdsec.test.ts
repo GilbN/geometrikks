@@ -37,6 +37,12 @@ describe("decisionWinner", () => {
     expect(decisionWinner("throttle", "captcha")).toBe("captcha")
     expect(decisionWinner("throttle", "allow")).toBe("allow")
   })
+
+  it("treats prototype property names as ordinary custom types", () => {
+    expect(decisionWinner("ban", "toString")).toBe("ban")
+    expect(decisionWinner("constructor", "captcha")).toBe("captcha")
+    expect(decisionWinner("__proto__", "hasOwnProperty")).toBe("__proto__")
+  })
 })
 
 describe("winningDecision", () => {

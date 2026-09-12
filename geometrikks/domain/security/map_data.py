@@ -16,6 +16,15 @@ from geometrikks.domain.security.schemas import (
 from geometrikks.services.crowdsec import Decision
 
 
+def canonical_ip(value: str) -> str | None:
+    """``value`` in the text form Postgres INET and the log tables use; None
+    when it is not an address (LAPI can carry ranges under other scopes)."""
+    try:
+        return str(ip_address(value))
+    except ValueError:
+        return None
+
+
 def active_decision_ips(decisions: list[Decision]) -> list[str]:
     """Distinct addresses under any IP-scoped decision, in canonical text form.
 
@@ -27,10 +36,9 @@ def active_decision_ips(decisions: list[Decision]) -> list[str]:
     for decision in decisions:
         if decision.scope != "Ip":
             continue
-        try:
-            ips[str(ip_address(decision.value))] = None
-        except ValueError:
-            continue
+        ip = canonical_ip(decision.value)
+        if ip is not None:
+            ips[ip] = None
     return list(ips)
 
 

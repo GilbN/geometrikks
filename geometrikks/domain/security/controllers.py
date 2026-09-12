@@ -33,7 +33,7 @@ from geometrikks.domain.exceptions import DomainValidationError
 from geometrikks.lib.validation import validate_ip_address
 from geometrikks.domain.security.repositories import SecurityEnrichmentRepository
 from geometrikks.domain.security.schemas import IpEnrichment, BannedMapCollection, BannedIp
-from geometrikks.domain.security.map_data import active_decision_ips, banned_map_collection, decision_winner
+from geometrikks.domain.security.map_data import active_decision_ips, banned_map_collection, canonical_ip, decision_winner
 from geometrikks.lib.parameters import CountryCodeFilter, CityFilter, HostnameIn
 from geometrikks.server.logging import get_logger
 from geometrikks.services.crowdsec import CrowdSecService, Decision
@@ -265,8 +265,12 @@ class CrowdSecController(Controller):
         # ban); the dict keeps LAPI order and the strongest type wins.
         winners: dict[str, str] = {}
         for decision in decisions:
-            if decision.scope == "Ip":
-                winners[decision.value] = decision_winner(winners.get(decision.value), decision.type)
+            if decision.scope != "Ip":
+                continue
+            ip = canonical_ip(decision.value)
+            if ip is None:
+                continue
+            winners[ip] = decision_winner(winners.get(ip), decision.type)
         return [BannedIp(ip=ip, type=kind) for ip, kind in winners.items()]
 
     @get("/banned-locations")

@@ -104,8 +104,9 @@ history bounds how far back it can see.
 ## CrowdSec badge data
 
 `GET /api/v1/crowdsec/banned-ips` returns one `{ "ip", "type" }` object per
-IP under an active IP-scoped decision, every origin included. This replaces
-its earlier array of bare addresses. `type` is the decision the UI badges
+IP under an active IP-scoped decision, every origin included. Addresses are
+in canonical form, so two spellings of one IPv6 address collapse into one
+entry. This replaces its earlier array of bare addresses. `type` is the decision the UI badges
 the IP with: `ban` when any of the IP's decisions is a ban, else `captcha`
 when any is a captcha, else the first other name in sorted order.
 

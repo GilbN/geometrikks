@@ -480,6 +480,8 @@ export function useCrowdsecLiveUpdates(active = true) {
           }
           return
         }
+        // Keepalives are empty decision frames; they carry no news.
+        if (frame.added.length === 0 && frame.deleted.length === 0) return
         queryClient.setQueryData<BannedIp[]>(
           queryKeys.crowdsec.bannedIps,
           (ips) => applyBannedIpsDelta(ips, frame),

@@ -388,6 +388,17 @@ async def test_banned_ips_keeps_one_entry_per_ip_and_ban_wins():
     ]
 
 
+async def test_banned_ips_canonicalizes_addresses_and_skips_non_ips():
+    decisions = [
+        make_decision(id=1, value="2001:0db8::1", origin="crowdsec", type="captcha"),
+        make_decision(id=2, value="2001:db8::1", origin="CAPI", type="ban"),
+        make_decision(id=3, value="not-an-ip", origin="cscli"),
+    ]
+    async with AsyncTestClient(app=make_app(FakeCrowdSec(decisions))) as client:
+        resp = await client.get("/api/v1/crowdsec/banned-ips")
+    assert resp.json() == [{"ip": "2001:db8::1", "type": "ban"}]
+
+
 # -- alert history ---------------------------------------------------------
 
 

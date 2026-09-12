@@ -46,10 +46,10 @@ export function crowdsecErrorMessage(err: unknown, fallback: string): string {
   return detail ?? fallback
 }
 
-const DECISION_RANK: Record<string, number> = { ban: 0, captcha: 1 }
+const DECISION_RANK = new Map<string, number>([["ban", 0], ["captcha", 1]])
 
 function decisionRank(type: string): [number, string] {
-  return [DECISION_RANK[type] ?? 2, type]
+  return [DECISION_RANK.get(type) ?? 2, type]
 }
 
 /** The type to show when an IP holds several decisions: ban, then captcha,

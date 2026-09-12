@@ -82,9 +82,19 @@ describe("useCrowdsecLiveUpdates close handling", () => {
 
   it("cancels a pending refresh on unmount", () => {
     useCrowdsecLiveUpdates()
-    FakeSocket.instances[0].onmessage?.({ data: JSON.stringify({ type: "crowdsec_decisions", added: [], deleted: [] }) })
+    FakeSocket.instances[0].onmessage?.({
+      data: JSON.stringify({ type: "crowdsec_decisions", added: [], deleted: [{ ip: "192.0.2.1", type: "ban", origin: "cscli" }] }),
+    })
     mocks.cleanup?.()
     vi.advanceTimersByTime(500)
+    expect(mocks.queryClient.invalidateQueries).not.toHaveBeenCalled()
+  })
+
+  it("ignores empty keepalive frames", () => {
+    useCrowdsecLiveUpdates()
+    FakeSocket.instances[0].onmessage?.({ data: JSON.stringify({ type: "crowdsec_decisions", added: [], deleted: [] }) })
+    vi.advanceTimersByTime(500)
+    expect(mocks.queryClient.setQueryData).not.toHaveBeenCalled()
     expect(mocks.queryClient.invalidateQueries).not.toHaveBeenCalled()
   })
 

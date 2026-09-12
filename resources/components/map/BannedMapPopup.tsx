@@ -35,7 +35,11 @@ function IpDetails({ member, onBack }: { member: BannedMapIp; onBack?: () => voi
         value={
           <span style={{ display: "inline-flex", alignItems: "center", gap: "4px" }}>
             <code style={{ ...POPUP_CODE_STYLE, whiteSpace: "normal", overflowWrap: "anywhere" }}>{member.ip}</code>
-            <IpBanControls ip={member.ip} initialDecision={winningDecision(active)?.type ?? "ban"} showBadge={false}>
+            <IpBanControls
+              ip={member.ip}
+              initialDecision={decisions.data === undefined ? "ban" : winningDecision(active)?.type ?? null}
+              showBadge={false}
+            >
               <InspectIpButton ip={member.ip} fromLocationId={member.locationId} />
             </IpBanControls>
           </span>

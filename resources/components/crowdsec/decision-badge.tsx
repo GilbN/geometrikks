@@ -24,7 +24,7 @@ export function DecisionBadge({
   /** Replaces the label; the inspector header appends scenario and expiry. */
   children?: ReactNode
 }) {
-  const badgeTitle = title ?? `Active CrowdSec ${type} decision for this IP`
+  const badgeTitle = title ?? `Active CrowdSec ${type} decision`
   if (variant === "popup") {
     const color = decisionPopupColor(type)
     return (
