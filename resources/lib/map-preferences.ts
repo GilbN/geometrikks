@@ -22,11 +22,12 @@ export function saveFrameRatePreference(enabled: boolean): void {
   }
 }
 
-export type MapLayer = "heatmap" | "markers"
+export type MapLayer = "heatmap" | "markers" | "banned"
 
 export function loadLayerPreference(): MapLayer {
   try {
-    return localStorage.getItem(MAP_LAYER_STORAGE_KEY) === "heatmap" ? "heatmap" : "markers"
+    const value = localStorage.getItem(MAP_LAYER_STORAGE_KEY)
+    return value === "heatmap" || value === "banned" ? value : "markers"
   } catch {
     return "markers"
   }

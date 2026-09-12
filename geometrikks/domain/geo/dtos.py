@@ -52,7 +52,7 @@ class GeoJSONPointGeometry(msgspec.Struct, rename="camel"):
     generated TS client. The controller always constructs them explicitly.
     """
 
-    type: str
+    type: Literal["Point"]
     coordinates: tuple[float, float]
 
 
@@ -148,4 +148,3 @@ class SiteHomesResponse(msgspec.Struct, rename="camel"):
 
     homes: list[SiteHomeView]
     default: DefaultHomeView | None
-

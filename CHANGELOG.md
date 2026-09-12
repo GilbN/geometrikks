@@ -9,10 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Banned IPs map view, a third visualization beside Heatmap and Markers. Red markers count distinct IPs under a CrowdSec decision, the popup lists every IP at a location with its current decisions and their type, and each one opens the IP inspector. The map controls show the banned traffic totals and the top five banned IPs by requests. The view follows the selected time range and map filters and refreshes when CrowdSec decisions change. It replaces the Banned IPs overlay switch, which drew the same markers on top of the other layers. `/api/v1/crowdsec/banned-locations` now returns a GeoJSON FeatureCollection instead of an array, carries an event count per IP, and treats `toTimestamp` as exclusive.
 - Optional frame rate counter in the Map tools menu for manual performance testing. It counts map renders without forcing idle maps to repaint.
 
 ### Changed
 
+- Map popups open on whichever side keeps them inside the map instead of always opening upward, so a marker near the top edge no longer hides its popup under the header.
 - Live route effects update at most 30 times per second, regardless of display refresh rate, and calculate queued routes only when a packet can start.
 - Map tools contains Go to home location and, on mobile, Fit to data bounds. Mobile filters now appear at the bottom of the drawer.
 

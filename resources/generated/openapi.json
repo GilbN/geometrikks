@@ -625,6 +625,148 @@
         "title": "BanRequest",
         "type": "object"
       },
+      "BannedMapCollection": {
+        "properties": {
+          "features": {
+            "items": {
+              "$ref": "#/components/schemas/BannedMapFeature"
+            },
+            "type": "array"
+          },
+          "stats": {
+            "$ref": "#/components/schemas/BannedMapStats"
+          },
+          "type": {
+            "const": "FeatureCollection",
+            "type": "string"
+          }
+        },
+        "required": [
+          "features",
+          "stats",
+          "type"
+        ],
+        "title": "BannedMapCollection",
+        "type": "object"
+      },
+      "BannedMapFeature": {
+        "properties": {
+          "geometry": {
+            "$ref": "#/components/schemas/GeoJSONPointGeometry"
+          },
+          "id": {
+            "type": "string"
+          },
+          "properties": {
+            "$ref": "#/components/schemas/BannedMapProperties"
+          },
+          "type": {
+            "const": "Feature",
+            "type": "string"
+          }
+        },
+        "required": [
+          "geometry",
+          "id",
+          "properties",
+          "type"
+        ],
+        "title": "BannedMapFeature",
+        "type": "object"
+      },
+      "BannedMapIp": {
+        "properties": {
+          "city": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "countryCode": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "eventCount": {
+            "type": "integer"
+          },
+          "ip": {
+            "type": "string"
+          },
+          "locationId": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "city",
+          "countryCode",
+          "eventCount",
+          "ip",
+          "locationId"
+        ],
+        "title": "BannedMapIp",
+        "type": "object"
+      },
+      "BannedMapProperties": {
+        "properties": {
+          "bannedIps": {
+            "items": {
+              "$ref": "#/components/schemas/BannedMapIp"
+            },
+            "type": "array"
+          },
+          "groupId": {
+            "type": "string"
+          },
+          "ipCount": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "bannedIps",
+          "groupId",
+          "ipCount"
+        ],
+        "title": "BannedMapProperties",
+        "type": "object"
+      },
+      "BannedMapStats": {
+        "properties": {
+          "cities": {
+            "type": "integer"
+          },
+          "countries": {
+            "type": "integer"
+          },
+          "events": {
+            "type": "integer"
+          },
+          "ips": {
+            "type": "integer"
+          },
+          "locations": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "cities",
+          "countries",
+          "events",
+          "ips",
+          "locations"
+        ],
+        "title": "BannedMapStats",
+        "type": "object"
+      },
       "ChangelogEntry": {
         "properties": {
           "children": {
@@ -1575,6 +1717,7 @@
             "type": "array"
           },
           "type": {
+            "const": "Point",
             "type": "string"
           }
         },
@@ -2117,48 +2260,6 @@
           "totalSkippedLines"
         ],
         "title": "IngestionStatsResponse",
-        "type": "object"
-      },
-      "IpLocation": {
-        "properties": {
-          "city": {
-            "oneOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "countryCode": {
-            "oneOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "ip": {
-            "type": "string"
-          },
-          "latitude": {
-            "type": "number"
-          },
-          "longitude": {
-            "type": "number"
-          }
-        },
-        "required": [
-          "city",
-          "countryCode",
-          "ip",
-          "latitude",
-          "longitude"
-        ],
-        "title": "IpLocation",
         "type": "object"
       },
       "IpProfileBucketDTO": {
@@ -8059,6 +8160,75 @@
                 }
               ]
             }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Filter to these ISO country codes (repeatable)",
+            "in": "query",
+            "name": "countryCode",
+            "required": false,
+            "schema": {
+              "description": "Filter to these ISO country codes (repeatable)",
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Filter to these city names (repeatable)",
+            "in": "query",
+            "name": "city",
+            "required": false,
+            "schema": {
+              "description": "Filter to these city names (repeatable)",
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Filter to these recording hostnames (repeatable)",
+            "in": "query",
+            "name": "hostnameIn",
+            "required": false,
+            "schema": {
+              "description": "Filter to these recording hostnames (repeatable)",
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
           }
         ],
         "responses": {
@@ -8066,10 +8236,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/IpLocation"
-                  },
-                  "type": "array"
+                  "$ref": "#/components/schemas/BannedMapCollection"
                 }
               }
             },

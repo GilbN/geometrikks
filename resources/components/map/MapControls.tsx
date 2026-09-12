@@ -53,9 +53,21 @@ import { cn } from "@/lib/utils"
 import { FRAME_LABEL } from "@/components/data/frame"
 import type { LayerType, MapProjection } from "./GeoMap"
 import { GeoJSONFeatureStats, TopIPDTO, formatNumber } from "@/lib/api"
+import type { BannedMapStats } from "@/generated/api/types.gen"
 import type { DemoTrafficMode } from "@/lib/demo-traffic"
 import type { LiveOverlayPreferences } from "@/lib/live-overlays"
 
+
+/** State of the Banned IPs layer, rendered in the summary section. */
+export interface BannedSummary {
+  stats?: BannedMapStats
+  loading: boolean
+  /** Detail for a failed map or status request; stats then hold the last result, if any. */
+  error?: string
+  /** CrowdSec status says the LAPI is down; the last result stays on the map. */
+  unreachable: boolean
+  onRetry: () => void
+}
 
 interface MapControlsProps {
   activeLayer: LayerType
@@ -74,13 +86,9 @@ interface MapControlsProps {
   routeHomeAvailable: boolean
   homeMarkerEnabled: boolean
   onHomeMarkerChange: (enabled: boolean) => void
-  /** CrowdSec integration configured; hides the overlay toggle when false. */
-  bannedOverlayAvailable: boolean
-  bannedOverlayEnabled: boolean
-  onBannedOverlayChange: (enabled: boolean) => void
-  bannedCount: number
-  /** Banned-locations fetch in flight; shows a spinner on the toggle. */
-  bannedOverlayLoading?: boolean
+  /** True until the status query says CrowdSec is disabled; hides the Banned tab when false. */
+  bannedAvailable: boolean
+  banned: BannedSummary
   onFitBounds: () => void
   /** Fly to the resolved map home location; button hidden when routeHomeAvailable is false. */
   onGoHome?: () => void
@@ -151,6 +159,48 @@ function SwitchRow({
   )
 }
 
+// Three icon-and-label tabs share the panel width, so each sits tight.
+const LAYER_TAB = "gap-1 px-1.5 text-[11px]"
+
+/**
+ * The banned layer's counterpart to the traffic totals. Errors keep the
+ * last result on the map and say so; a CrowdSec outage must never read as
+ * "no bans".
+ */
+function BannedSummaryRows({ banned }: { banned: BannedSummary }) {
+  const { stats, error, unreachable, onRetry } = banned
+  const lastResult = stats && stats.ips > 0 ? " Showing the last result." : ""
+  return (
+    <div className="flex flex-col gap-1" aria-live="polite">
+      {stats && stats.ips > 0 ? (
+        [
+          `${formatNumber(stats.ips)} banned ${stats.ips === 1 ? "IP" : "IPs"} · ${formatNumber(stats.locations)} ${stats.locations === 1 ? "location" : "locations"}`,
+          `${formatNumber(stats.events)} ${stats.events === 1 ? "event" : "events"}`,
+          `${formatNumber(stats.countries)} ${stats.countries === 1 ? "country" : "countries"} · ${formatNumber(stats.cities)} ${stats.cities === 1 ? "city" : "cities"}`,
+        ].map((line) => (
+          <div key={line} className="flex items-center gap-2">
+            <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-red-500" />
+            <span>{line}</span>
+          </div>
+        ))
+      ) : stats && !error && !unreachable ? (
+        <span>No banned IPs with mapped traffic in this range.</span>
+      ) : null}
+      {error ? (
+        <div role="alert" className="flex flex-col gap-0.5">
+          <span className="text-destructive">Could not load banned IPs.{lastResult}</span>
+          <span>{error}</span>
+          <Button variant="link" size="sm" className="h-auto w-fit p-0 text-xs" onClick={onRetry}>
+            Retry
+          </Button>
+        </div>
+      ) : unreachable ? (
+        <span role="alert" className="text-destructive">CrowdSec is unreachable.{lastResult}</span>
+      ) : null}
+    </div>
+  )
+}
+
 function Section({ label, children }: { label?: string; children: React.ReactNode }) {
   return (
     <section className="space-y-1 border-b border-border/50 pb-2.5 last:border-0 last:pb-0">
@@ -177,11 +227,8 @@ export function MapControls({
   routeHomeAvailable,
   homeMarkerEnabled,
   onHomeMarkerChange,
-  bannedOverlayAvailable,
-  bannedOverlayEnabled,
-  onBannedOverlayChange,
-  bannedCount,
-  bannedOverlayLoading = false,
+  bannedAvailable,
+  banned,
   onFitBounds,
   onGoHome,
   isLoading = false,
@@ -201,6 +248,7 @@ export function MapControls({
   sourcesLoading = false,
 }: MapControlsProps) {
   const { events, countries, cities, locations } = featureStats
+  const hasMapData = activeLayer === "banned" ? (banned.stats?.ips ?? 0) > 0 : events > 0
   const [isExpanded, setIsExpanded] = useState(true)
   const activeFilterCount =
     (selectedCountries.length ? 1 : 0) + (selectedCities.length ? 1 : 0) + (selectedSources.length ? 1 : 0)
@@ -223,7 +271,7 @@ export function MapControls({
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-auto min-w-44">
         {isMobile && (
-          <DropdownMenuItem onSelect={onFitBounds} disabled={isLoading || events === 0}>
+          <DropdownMenuItem onSelect={onFitBounds} disabled={isLoading || !hasMapData}>
             <Maximize2 className="h-4 w-4" />
             Fit to data bounds
           </DropdownMenuItem>
@@ -251,7 +299,7 @@ export function MapControls({
         variant="ghost"
         size="icon-sm"
         onClick={onFitBounds}
-        disabled={isLoading || events === 0}
+        disabled={isLoading || !hasMapData}
         title="Fit to data bounds"
         className="cursor-pointer pointer-coarse:size-10"
       >
@@ -315,17 +363,28 @@ export function MapControls({
     <>
       <Section label="Visualization">
         <Tabs value={activeLayer} onValueChange={(value) => onLayerChange(value as LayerType)}>
-          <TabsList className="grid h-8 w-full grid-cols-2 pointer-coarse:h-10">
-            <TabsTrigger value="heatmap" className="gap-1.5 text-xs data-active:bg-primary/15 data-active:text-primary data-active:border-primary/30 dark:data-active:bg-primary/15 dark:data-active:text-primary dark:data-active:border-primary/30">
+          <TabsList className={cn("grid h-8 w-full pointer-coarse:h-10", bannedAvailable ? "grid-cols-3" : "grid-cols-2")}>
+            <TabsTrigger value="heatmap" className={cn(LAYER_TAB, "data-active:bg-primary/15 data-active:text-primary data-active:border-primary/30 dark:data-active:bg-primary/15 dark:data-active:text-primary dark:data-active:border-primary/30")}>
               <Flame className="h-3.5 w-3.5" />
               Heatmap
             </TabsTrigger>
-            <TabsTrigger value="markers" className="gap-1.5 text-xs data-active:bg-primary/15 data-active:text-primary data-active:border-primary/30 dark:data-active:bg-primary/15 dark:data-active:text-primary dark:data-active:border-primary/30">
+            <TabsTrigger value="markers" className={cn(LAYER_TAB, "data-active:bg-primary/15 data-active:text-primary data-active:border-primary/30 dark:data-active:bg-primary/15 dark:data-active:text-primary dark:data-active:border-primary/30")}>
               <MapPin className="h-3.5 w-3.5" />
               Markers
             </TabsTrigger>
+            {bannedAvailable && (
+              <TabsTrigger value="banned" className={cn(LAYER_TAB, "data-active:bg-red-500/15 data-active:text-red-400 data-active:border-red-500/30 dark:data-active:bg-red-500/15 dark:data-active:text-red-400 dark:data-active:border-red-500/30")}>
+                <ShieldBan className="h-3.5 w-3.5" />
+                Banned
+              </TabsTrigger>
+            )}
           </TabsList>
         </Tabs>
+        {activeLayer === "banned" && (
+          <p className="pt-1 text-[10px] leading-snug text-muted-foreground">
+            IPs under a current CrowdSec decision, seen in your traffic for the selected range.
+          </p>
+        )}
         <SwitchRow
           icon={Globe2}
           label="Globe"
@@ -361,18 +420,6 @@ export function MapControls({
             title="Show a beacon at the server home location"
           />
         )}
-        {bannedOverlayAvailable && (
-          <SwitchRow
-            icon={bannedOverlayLoading ? Loader2 : ShieldBan}
-            iconClassName={bannedOverlayLoading ? "animate-spin" : undefined}
-            label="Banned IPs"
-            meta={bannedOverlayEnabled && !bannedOverlayLoading ? bannedCount.toLocaleString() : undefined}
-            checked={bannedOverlayEnabled}
-            onCheckedChange={onBannedOverlayChange}
-            tone="danger"
-            title="Show banned IPs seen in your traffic within the selected time range as red markers"
-          />
-        )}
         {/* The rail only mounts at md and up; below that the vitals pill is the
             sole entry point into live data, so this switch would control
             nothing. */}
@@ -395,6 +442,8 @@ export function MapControls({
               <Loader2 className="h-3 w-3 animate-spin" />
               <span>Loading...</span>
             </div>
+          ) : activeLayer === "banned" ? (
+            <BannedSummaryRows banned={banned} />
           ) : (
             <>
               <div className="flex items-center gap-2">
@@ -415,7 +464,7 @@ export function MapControls({
       </Section>
 
       {topIPs && topIPs.length > 0 && (
-        <Section label="Top IPs">
+        <Section label={activeLayer === "banned" ? "Top banned IPs" : "Top IPs"}>
           <div className="flex flex-col gap-1">
             {topIPs.map((ip) => (
               <div key={ip.ipAddress} className="flex items-center gap-1 -mx-1">
@@ -514,7 +563,7 @@ export function MapControls({
       placement="top-right"
       role="complementary"
       aria-label="Map controls"
-      className="w-[min(220px,calc(100vw-4rem))] max-h-[calc(100%-9rem)]"
+      className="w-[min(240px,calc(100vw-4rem))] max-h-[calc(100%-9rem)]"
     >
       <div className="flex shrink-0 items-center justify-between gap-1 border-b border-border/50 py-1.5 pl-3 pr-1.5">
         <h2 className={FRAME_LABEL}>Map controls</h2>

@@ -31,6 +31,8 @@ describe("map preferences", () => {
     saveLivePreference(true)
     expect(data.get("geometrikks-map-layer")).toBe("heatmap")
     expect(loadLayerPreference()).toBe("heatmap")
+    saveLayerPreference("banned")
+    expect(loadLayerPreference()).toBe("banned")
     expect(loadLivePreference()).toBe(true)
   })
   it("defaults the attribution to expanded and round-trips a collapse", () => {

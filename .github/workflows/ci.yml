@@ -156,7 +156,7 @@ jobs:
             --add-host host.docker.internal:host-gateway \
             --health-interval 2s \
             --volume "${SMOKE_GEOIP_DIR}:/app/data/geoip" \
-            --volume "${SMOKE_NGINX_DIR}:/var/log/nginx:ro" \
+            --volume "${SMOKE_NGINX_DIR}:/var/log/access:ro" \
             --env DB_HOST=host.docker.internal \
             --env DB_PORT=5432 \
             --env DB_USER=geouser \

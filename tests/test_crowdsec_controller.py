@@ -469,9 +469,10 @@ class LocationsFakeEnrichment(FakeEnrichment):
         self.location_calls: list[list[str]] = []
         self.location_windows: list[tuple] = []
 
-    async def locations(self, ips, *, start=None, end=None):
+    async def locations(self, ips, *, start=None, end=None, **filters):
         self.location_calls.append(ips)
         self.location_windows.append((start, end))
+        self.location_filters = filters
         return [loc for loc in self._locations if loc.ip in ips]
 
 
@@ -483,16 +484,21 @@ async def test_banned_locations_join_banned_ips_with_geo():
         make_decision(id=2, value="9.9.9.9", origin="cscli"),
         make_decision(id=3, value="10.0.0.0/24", scope="Range"),
     ]
-    oslo = IpLocation(ip="1.2.3.4", latitude=59.91, longitude=10.79, city="Oslo", country_code="NO")
+    oslo = IpLocation(ip="1.2.3.4", location_id=130, latitude=59.91, longitude=10.79, city="Oslo", country_code="NO", event_count=7)
     enrichment = LocationsFakeEnrichment([oslo])
     service = FakeCrowdSec(decisions)
     async with AsyncTestClient(app=make_app(service, enrichment)) as client:
         resp = await client.get("/api/v1/crowdsec/banned-locations")
 
     assert resp.status_code == 200
-    (loc,) = resp.json()
-    assert loc == {"ip": "1.2.3.4", "latitude": 59.91, "longitude": 10.79,
-                   "city": "Oslo", "countryCode": "NO"}
+    body = resp.json()
+    assert body["type"] == "FeatureCollection"
+    assert body["stats"] == {"ips": 1, "locations": 1, "events": 7, "countries": 1, "cities": 1}
+    (feature,) = body["features"]
+    assert feature["geometry"] == {"type": "Point", "coordinates": [10.79, 59.91]}
+    assert feature["properties"]["bannedIps"] == [
+        {"ip": "1.2.3.4", "locationId": 130, "city": "Oslo", "countryCode": "NO", "eventCount": 7}
+    ]
     # All origins queried; only Ip-scope values reach the geo join
     assert service.calls == [{}]
     assert enrichment.location_calls == [["1.2.3.4", "9.9.9.9"]]
@@ -579,3 +585,22 @@ async def test_status_falls_back_to_ping_before_first_poll(monkeypatch, tmp_path
     async with AsyncTestClient(app=app) as client:
         resp = await client.get("/api/v1/crowdsec/status")
     assert resp.json()["lapiReachable"] is True
+
+
+async def test_banned_map_keeps_every_ip_decision_normalizes_ips_and_forwards_filters():
+    enrichment = LocationsFakeEnrichment([])
+    service = FakeCrowdSec([
+        make_decision(value="2001:0db8::1"), make_decision(value="2001:db8::1"),
+        make_decision(value="1.2.3.4", type="captcha"),
+        make_decision(value="not-an-ip"), make_decision(value="10.0.0.0/24", scope="Range"),
+    ])
+    async with AsyncTestClient(app=make_app(service, enrichment)) as client:
+        response = await client.get("/api/v1/crowdsec/banned-locations", params={
+            "countryCode": ["NO", "SE"], "city": ["Oslo"], "hostnameIn": ["a.test", "b.test"],
+        })
+    assert response.status_code == 200
+    assert enrichment.location_calls == [["2001:db8::1", "1.2.3.4"]]
+    assert enrichment.location_filters == {
+        "country_codes": ["NO", "SE"], "cities": ["Oslo"], "hostnames": ["a.test", "b.test"],
+    }
+    assert response.json()["stats"] == {"ips": 0, "locations": 0, "events": 0, "countries": 0, "cities": 0}

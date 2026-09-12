@@ -577,7 +577,10 @@
         "GET"
       ],
       "queryParameters": {
+        "city": "string[] | undefined",
+        "countryCode": "string[] | undefined",
         "fromTimestamp": "DateTime | undefined",
+        "hostnameIn": "string[] | undefined",
         "toTimestamp": "DateTime | undefined"
       },
       "uri": "/api/v1/crowdsec/banned-locations"

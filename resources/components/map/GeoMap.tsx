@@ -22,6 +22,7 @@ import {
   useRuntimeSettings,
   useBannedLocations,
   useCrowdsecStatus,
+  useCrowdsecLiveUpdates,
   useGeoEventFacets,
   useSiteHomes,
 } from "@/lib/queries"
@@ -30,16 +31,21 @@ import { useMapStyle } from "./hooks/useMapStyle"
 import { MapAttribution } from "./MapAttribution"
 import {
   bannedPointLayer,
+  bannedClusterLayer,
+  bannedCountLayer,
   clusterCountLayer,
   clusterLayer,
   heatmapLayer,
   unclusteredPointLabelLayer,
   unclusteredPointLayer,
 } from "./layers"
-import { MapControls } from "./MapControls"
+import { MapControls, type BannedSummary } from "./MapControls"
 import { MapFrameRate } from "./MapFrameRate"
 import { LivePulses } from "./LivePulses"
 import { HomeMarker } from "./HomeMarker"
+import { BannedMapPopup } from "./BannedMapPopup"
+import { bannedClusterGroupIds, bannedGroupMembers, indexBannedFeatures, topBannedIps, type BannedPopupInfo } from "@/lib/banned-map"
+import { crowdsecErrorMessage } from "@/lib/crowdsec"
 import { MapPopup, type PopupInfo } from "./MapPopup"
 import { LiveRequestCard, LiveRequestPopup } from "./LiveRequestPopup"
 import { LiveVitalsPill } from "./LiveVitalsPill"
@@ -64,7 +70,7 @@ import type { LiveRequest } from "@/lib/live-traffic/types"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { MAPLIBRE_WORKER_URL } from "@/lib/maplibre-worker"
 
-export type LayerType = "heatmap" | "markers"
+export type LayerType = "heatmap" | "markers" | "banned"
 export type MapProjection = "mercator" | "globe"
 
 // Initial viewport centered on Europe
@@ -140,14 +146,28 @@ function GeoMapInner({
     (values: string[]) => setFilters((prev) => ({ ...prev, cities: values })),
     [setFilters],
   )
+  // The saved choice survives a disabled integration, but the map falls back
+  // to markers until the status query confirms CrowdSec is enabled. A loading
+  // or failed status request is not the same as disabled.
+  const [layerPreference, setLayerPreference] = useState<LayerType>(loadLayerPreference)
+  const {
+    data: crowdsecStatus,
+    isError: statusError,
+    error: statusErrorDetail,
+    refetch: refetchStatus,
+  } = useCrowdsecStatus()
+  const activeLayer: LayerType =
+    layerPreference === "banned" && crowdsecStatus?.enabled === false ? "markers" : layerPreference
+  useCrowdsecLiveUpdates(activeLayer === "banned")
   const { data: geojson, isLoading: isLoadingGeoJSON, isError, error } = useGeoJSON({
+    enabled: activeLayer !== "banned",
     countryCodes: selectedCountries,
     cities: selectedCities,
     hostnames: selectedSources,
   })
   const { data: facets, isLoading: facetsLoading } = useGeoEventFacets()
   const sourceOptions = facets?.hostnames ?? []
-  const { data: globalTopIPs, isLoading: isLoadingTopIPs } = useGlobalTopIPs()
+  const { data: globalTopIPs, isLoading: isLoadingTopIPs } = useGlobalTopIPs({ enabled: activeLayer !== "banned" })
   const { data: runtimeSettings } = useRuntimeSettings()
   const homeDestination = useMemo<Coordinate | null>(() => {
     const latitude = runtimeSettings?.map.homeLatitude
@@ -174,14 +194,12 @@ function GeoMapInner({
   const isLoading = isLoadingGeoJSON || isLoadingTopIPs
 
   const [viewState, setViewState] = useState(INITIAL_VIEW_STATE)
-  const [activeLayer, setActiveLayer] = useState<LayerType>(loadLayerPreference)
   const [projection, setProjection] = useState<MapProjection>(loadMapProjectionPreference)
   const [routeEffectsEnabled, setRouteEffectsEnabled] = useState(loadRouteEffectsPreference)
   const [frameRateEnabled, setFrameRateEnabled] = useState(loadFrameRatePreference)
   useEffect(() => saveFrameRatePreference(frameRateEnabled), [frameRateEnabled])
   const [homeMarkerEnabled, setHomeMarkerEnabled] = useState(loadHomeMarkerPreference)
   const [liveOverlays, setLiveOverlays] = useState<LiveOverlayPreferences>(loadLiveOverlays)
-  const [showBanned, setShowBanned] = useState(false)
   const [popup, setPopup] = useState<PopupInfo | null>(null)
 
   const liveStore = useLiveTrafficStore()
@@ -193,7 +211,51 @@ function GeoMapInner({
   // the fly-to also waits for the map's load event.
   const [mapLoaded, setMapLoaded] = useState(false)
   const focusId = search.focus
+
+  const bannedQuery = useBannedLocations(activeLayer === "banned", {
+    countryCodes: selectedCountries, cities: selectedCities, hostnames: selectedSources,
+  })
+  const bannedLocations = bannedQuery.data
+  const bannedIndex = useMemo(() => indexBannedFeatures(bannedLocations), [bannedLocations])
+  const bannedTopIps = useMemo(() => topBannedIps(bannedLocations), [bannedLocations])
+  // The selection stores group ids, not IPs, so the popup follows the current
+  // data. A refetch that unbans one IP drops it from the list, and a group
+  // that disappears closes the popup, with no effect per data change.
+  const [bannedPopup, setBannedPopup] = useState<BannedPopupInfo | null>(null)
+  const bannedPopupIps = useMemo(
+    () => (bannedPopup ? bannedGroupMembers(bannedPopup.groupIds, bannedIndex) : []),
+    [bannedPopup, bannedIndex],
+  )
+  // Bumped by every selection change so an async cluster expansion started
+  // before it cannot reopen a popup the user has since dismissed.
+  const clickGeneration = useRef(0)
+  const closeBannedPopup = useCallback(() => {
+    clickGeneration.current++
+    setBannedPopup(null)
+  }, [])
+  const changeLayer = useCallback((layer: LayerType) => {
+    setLayerPreference(layer)
+    closeBannedPopup()
+  }, [closeBannedPopup])
+  const bannedSummary: BannedSummary = {
+    stats: bannedLocations?.stats,
+    loading: bannedQuery.isPending && !statusError,
+    error: bannedQuery.isError || statusError
+      ? crowdsecErrorMessage(bannedQuery.error ?? statusErrorDetail, "Try again in a moment.")
+      : undefined,
+    unreachable: crowdsecStatus?.lapiReachable === false,
+    onRetry: () => {
+      void refetchStatus()
+      void bannedQuery.refetch()
+    },
+  }
   useEffect(() => {
+    // The inspector's fly-to lands on a traffic marker, which only exists
+    // on the markers layer.
+    if (focusId !== undefined && activeLayer === "banned") {
+      setLayerPreference("markers")
+      return
+    }
     if (focusId === undefined || !mapLoaded || isLoadingGeoJSON || !geojson) return
     const feature = geojson.features.find((f) => f.properties?.id === focusId)
     if (feature) {
@@ -207,28 +269,8 @@ function GeoMapInner({
       })
     }
     void navigate({ search: (prev) => ({ ...prev, focus: undefined }), replace: true })
-  }, [focusId, geojson, isLoadingGeoJSON, mapLoaded, navigate])
-
-  // Banned-IP overlay: attackers with an active CrowdSec decision that also
-  // appear in this server's own traffic.
-  const { data: crowdsecStatus } = useCrowdsecStatus()
-  const { data: bannedLocations, isFetching: isFetchingBanned } =
-    useBannedLocations(showBanned)
-  const bannedGeoJSON = useMemo<FeatureCollection>(
-    () => ({
-      type: "FeatureCollection",
-      features: (bannedLocations ?? []).map((loc) => ({
-        type: "Feature",
-        geometry: { type: "Point", coordinates: [loc.longitude, loc.latitude] },
-        properties: {
-          ip: loc.ip,
-          city: loc.city,
-          countryCode: loc.countryCode,
-        },
-      })),
-    }),
-    [bannedLocations],
-  )
+  }, [focusId, activeLayer, geojson, isLoadingGeoJSON, mapLoaded, navigate])
+  const fitData = activeLayer === "banned" ? bannedLocations : geojson
   const mercatorZoomRef = useRef(INITIAL_VIEW_STATE.zoom)
 
   useEffect(() => {
@@ -260,8 +302,8 @@ function GeoMapInner({
   }, [liveOverlays])
 
   useEffect(() => {
-    saveLayerPreference(activeLayer)
-  }, [activeLayer])
+    saveLayerPreference(layerPreference)
+  }, [layerPreference])
 
   // Live off tears down the store; any live-only UI referencing it must go
   // too, or a popup stays pinned to the map after the request it describes
@@ -303,12 +345,12 @@ function GeoMapInner({
 
   // Fit map to data bounds
   const fitToBounds = useCallback(() => {
-    if (!geojson?.features.length || !mapRef.current) return
+    if (!fitData?.features.length || !mapRef.current) return
 
     // Single pass: spreading thousands of coordinates into Math.min/max
     // can blow the call stack.
     let minLng = Infinity, minLat = Infinity, maxLng = -Infinity, maxLat = -Infinity
-    for (const f of geojson.features) {
+    for (const f of fitData.features) {
       const [lng, lat] = f.geometry.coordinates as [number, number]
       if (lng < minLng) minLng = lng
       if (lng > maxLng) maxLng = lng
@@ -326,7 +368,7 @@ function GeoMapInner({
       maxZoom: 12,
       duration: 1000,
     })
-  }, [geojson])
+  }, [fitData])
 
   // Fly to a specific location (for top IPs click)
   const flyToLocation = useCallback((lat: number, lng: number) => {
@@ -392,6 +434,8 @@ function GeoMapInner({
   // Handle map click: live packets first, then the markers layer
   const onClick = useCallback(
     (event: MapLayerMouseEvent) => {
+      const generation = ++clickGeneration.current
+      setBannedPopup(null)
       const liveFeature = event.features?.find((feature) =>
         feature.layer.id === "live-origin-core" || feature.layer.id === "live-packet-core",
       )
@@ -409,6 +453,46 @@ function GeoMapInner({
       // live popup is open, regardless of the active layer - including the
       // heatmap, which has no marker click handling of its own below.
       setLivePopup(null)
+
+      if (activeLayer === "banned") {
+        setPopup(null)
+        const feature = event.features?.find((item) => item.layer.id === "banned-clusters" || item.layer.id === "banned-points")
+        if (!feature) return
+        const geometry = feature.geometry as Point
+        const [longitude, latitude] = geometry.coordinates
+        const source = mapRef.current?.getSource("banned-data") as GeoJSONSource | undefined
+        if (feature.properties?.cluster && source) {
+          // A layer switch recreates the source, so a stale expansion also
+          // fails the identity check.
+          const isCurrent = () =>
+            generation === clickGeneration.current && source === mapRef.current?.getSource("banned-data")
+          const clusterId = Number(feature.properties.cluster_id)
+          void (async () => {
+            try {
+              const zoom = await source.getClusterExpansionZoom(clusterId)
+              if (!isCurrent()) return
+              const map = mapRef.current
+              // Expansion past clusterMaxZoom would just stack the leaves.
+              // Browse that terminal cluster instead of hiding its members.
+              if (map && zoom > map.getZoom() && zoom <= Math.min(14, map.getMaxZoom())) {
+                map.easeTo({ center: [longitude, latitude], zoom, duration: 500 })
+                return
+              }
+              const groupIds = await bannedClusterGroupIds(source, clusterId, Number(feature.properties.point_count))
+              if (isCurrent() && groupIds.length) setBannedPopup({ longitude, latitude, groupIds })
+            } catch {
+              if (isCurrent()) toast.error("Could not open this cluster. Try again.")
+            }
+          })()
+          return
+        }
+        // At high zoom, several distinct groups can still overlap on screen.
+        const groupIds = event.features
+          ?.filter((item) => item.layer.id === "banned-points")
+          .map((item) => String(item.properties.groupId)) ?? []
+        if (groupIds.length) setBannedPopup({ longitude, latitude, groupIds })
+        return
+      }
 
       if (activeLayer !== "markers") {
         setPopup(null)
@@ -450,12 +534,13 @@ function GeoMapInner({
         properties: feature.properties as PopupInfo["properties"],
       })
     },
-    [activeLayer, liveStore]
+    [activeLayer, liveStore, bannedIndex]
   )
 
   const handleLiveSelect = useCallback((request: LiveRequest) => {
     // Only one popup at a time: selecting a live request dismisses any open
     // location popup, matching what a direct packet click does.
+    closeBannedPopup()
     setPopup(null)
     setLivePopup(request)
     if (request.coordinates) {
@@ -468,32 +553,19 @@ function GeoMapInner({
         duration: 1200,
       })
     }
-  }, [liveStore])
+  }, [liveStore, closeBannedPopup])
 
   // Row tap from the mobile sheet: just the popup and a fly-to, deliberately
   // not handleLiveSelect - replaying an arc under a sheet about to close is
   // noise, and the fly-to is the feedback that matters here.
   const selectFromFeed = useCallback((request: LiveRequest) => {
+    closeBannedPopup()
     setPopup(null)
     setLivePopup(request)
     if (request.coordinates) {
       mapRef.current?.flyTo({ center: request.coordinates, zoom: 6, duration: 1200 })
     }
-  }, [])
-
-  // Show error state
-  if (isError) {
-    return (
-      <div className="relative h-full w-full flex items-center justify-center overflow-hidden bg-background p-4">
-        <MapBackdrop tone="quiet" />
-        <ErrorBanner
-          className="relative w-full max-w-md backdrop-blur-[2px]"
-          title="Failed to load map data"
-          detail={`${(error?.message ?? "Unknown error occurred").replace(/\.$/, "")}. Make sure the backend server is running.`}
-        />
-      </div>
-    )
-  }
+  }, [closeBannedPopup])
 
   if (!mapReady) {
     return (
@@ -518,9 +590,10 @@ function GeoMapInner({
         renderWorldCopies={projection === "mercator"}
         interactiveLayerIds={[
           ...(activeLayer === "markers" ? ["clusters", "unclustered-point"] : []),
+          ...(activeLayer === "banned" && bannedLocations ? ["banned-clusters", "banned-points"] : []),
           ...(liveMode && routeEffectsEnabled ? ["live-origin-core", "live-packet-core"] : []),
         ]}
-        cursor={activeLayer === "markers" ? "pointer" : "grab"}
+        cursor={activeLayer !== "heatmap" ? "pointer" : "grab"}
         attributionControl={false}
       >
         {/* Navigation controls */}
@@ -536,7 +609,7 @@ function GeoMapInner({
             markers never regroups the points. Within a single layer the key is
             stable, so data refreshes still diff via setData without remounting
             (which would tear down and re-add every layer). */}
-        {geojson && (
+        {geojson && activeLayer !== "banned" && (
           <Source
             key={activeLayer === "markers" ? "clustered" : "plain"}
             id="geo-data"
@@ -565,10 +638,19 @@ function GeoMapInner({
           </Source>
         )}
 
-        {/* Banned-IP overlay: stacks on top of either base layer */}
-        {showBanned && crowdsecStatus?.enabled && (
-          <Source id="banned-data" type="geojson" data={bannedGeoJSON}>
+        {activeLayer === "banned" && bannedLocations && (
+          <Source
+            id="banned-data"
+            type="geojson"
+            data={bannedLocations}
+            cluster
+            clusterMaxZoom={14}
+            clusterRadius={50}
+            clusterProperties={{ ipCount: ["+", ["get", "ipCount"]] }}
+          >
+            <Layer {...bannedClusterLayer} />
             <Layer {...bannedPointLayer} />
+            <Layer {...bannedCountLayer} />
           </Source>
         )}
 
@@ -587,6 +669,16 @@ function GeoMapInner({
             onClick={() => flyToCoordinate(beacon.coordinate)}
           />
         ))}
+
+        {activeLayer === "banned" && bannedPopup && bannedPopupIps.length > 0 && (
+          <BannedMapPopup
+            key={bannedPopup.groupIds.join("|")}
+            longitude={bannedPopup.longitude}
+            latitude={bannedPopup.latitude}
+            ips={bannedPopupIps}
+            onClose={closeBannedPopup}
+          />
+        )}
 
         {/* Popup */}
         {popup && activeLayer === "markers" && (
@@ -626,10 +718,23 @@ function GeoMapInner({
         <LiveFeedSheet open={feedOpen} onOpenChange={setFeedOpen} onSelect={selectFromFeed} />
       )}
 
+      {/* Centered like LiveRequestCard so it never collides with the rail,
+          the controls panel or the zoom buttons, and the controls stay
+          reachable for switching to a layer that still has data. */}
+      {isError && activeLayer !== "banned" && (
+        <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center p-4">
+          <ErrorBanner
+            className="pointer-events-auto w-full max-w-md backdrop-blur-[2px]"
+            title="Failed to load map data"
+            detail={`${(error?.message ?? "Unknown error occurred").replace(/\.$/, "")}. Make sure the backend server is running.`}
+          />
+        </div>
+      )}
+
       {/* Controls overlay */}
       <MapControls
         activeLayer={activeLayer}
-        onLayerChange={setActiveLayer}
+        onLayerChange={changeLayer}
         projection={projection}
         onProjectionChange={changeProjection}
         liveMode={liveMode}
@@ -644,16 +749,13 @@ function GeoMapInner({
         routeHomeAvailable={goHomeDestination !== null}
         homeMarkerEnabled={homeMarkerEnabled}
         onHomeMarkerChange={setHomeMarkerEnabled}
-        bannedOverlayAvailable={crowdsecStatus?.enabled === true}
-        bannedOverlayEnabled={showBanned}
-        onBannedOverlayChange={setShowBanned}
-        bannedCount={bannedLocations?.length ?? 0}
-        bannedOverlayLoading={showBanned && isFetchingBanned}
+        bannedAvailable={crowdsecStatus?.enabled !== false}
+        banned={bannedSummary}
         onFitBounds={fitToBounds}
         onGoHome={goToHome}
-        isLoading={isLoading}
+        isLoading={activeLayer === "banned" ? bannedSummary.loading : isLoading}
         featureStats={geojson?.stats ?? { events: 0, countries: 0, cities: 0, locations: 0 }}
-        topIPs={globalTopIPs?.topIps ?? []}
+        topIPs={activeLayer === "banned" ? bannedTopIps : globalTopIPs?.topIps ?? []}
         onFlyToLocation={flyToLocation}
         countryOptions={filterOptions.countries}
         countryLabels={filterOptions.countryLabels}

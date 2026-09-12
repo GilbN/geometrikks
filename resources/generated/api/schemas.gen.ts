@@ -587,6 +587,128 @@ export const BanRequestSchema = {
   type: "object",
 } as const;
 
+export const BannedMapCollectionSchema = {
+  properties: {
+    features: {
+      items: {
+        $ref: "#/components/schemas/BannedMapFeature",
+      },
+      type: "array",
+    },
+    stats: {
+      $ref: "#/components/schemas/BannedMapStats",
+    },
+    type: {
+      const: "FeatureCollection",
+      type: "string",
+    },
+  },
+  required: ["features", "stats", "type"],
+  title: "BannedMapCollection",
+  type: "object",
+} as const;
+
+export const BannedMapFeatureSchema = {
+  properties: {
+    geometry: {
+      $ref: "#/components/schemas/GeoJSONPointGeometry",
+    },
+    id: {
+      type: "string",
+    },
+    properties: {
+      $ref: "#/components/schemas/BannedMapProperties",
+    },
+    type: {
+      const: "Feature",
+      type: "string",
+    },
+  },
+  required: ["geometry", "id", "properties", "type"],
+  title: "BannedMapFeature",
+  type: "object",
+} as const;
+
+export const BannedMapIpSchema = {
+  properties: {
+    city: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    countryCode: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    eventCount: {
+      type: "integer",
+    },
+    ip: {
+      type: "string",
+    },
+    locationId: {
+      type: "integer",
+    },
+  },
+  required: ["city", "countryCode", "eventCount", "ip", "locationId"],
+  title: "BannedMapIp",
+  type: "object",
+} as const;
+
+export const BannedMapPropertiesSchema = {
+  properties: {
+    bannedIps: {
+      items: {
+        $ref: "#/components/schemas/BannedMapIp",
+      },
+      type: "array",
+    },
+    groupId: {
+      type: "string",
+    },
+    ipCount: {
+      type: "integer",
+    },
+  },
+  required: ["bannedIps", "groupId", "ipCount"],
+  title: "BannedMapProperties",
+  type: "object",
+} as const;
+
+export const BannedMapStatsSchema = {
+  properties: {
+    cities: {
+      type: "integer",
+    },
+    countries: {
+      type: "integer",
+    },
+    events: {
+      type: "integer",
+    },
+    ips: {
+      type: "integer",
+    },
+    locations: {
+      type: "integer",
+    },
+  },
+  required: ["cities", "countries", "events", "ips", "locations"],
+  title: "BannedMapStats",
+  type: "object",
+} as const;
+
 export const ChangelogEntrySchema = {
   properties: {
     children: {
@@ -1480,6 +1602,7 @@ export const GeoJSONPointGeometrySchema = {
       type: "array",
     },
     type: {
+      const: "Point",
       type: "string",
     },
   },
@@ -1999,43 +2122,6 @@ export const IngestionStatsResponseSchema = {
     "totalSkippedLines",
   ],
   title: "IngestionStatsResponse",
-  type: "object",
-} as const;
-
-export const IpLocationSchema = {
-  properties: {
-    city: {
-      oneOf: [
-        {
-          type: "string",
-        },
-        {
-          type: "null",
-        },
-      ],
-    },
-    countryCode: {
-      oneOf: [
-        {
-          type: "string",
-        },
-        {
-          type: "null",
-        },
-      ],
-    },
-    ip: {
-      type: "string",
-    },
-    latitude: {
-      type: "number",
-    },
-    longitude: {
-      type: "number",
-    },
-  },
-  required: ["city", "countryCode", "ip", "latitude", "longitude"],
-  title: "IpLocation",
   type: "object",
 } as const;
 

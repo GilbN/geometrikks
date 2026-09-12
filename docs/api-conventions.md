@@ -75,3 +75,28 @@ OpenAPI operation IDs use Litestar's default path-derived naming
 (`ApiV1AnalyticsSummaryGetSummary`). Generated TypeScript client method names
 hang off them, so route moves must keep full paths stable or accept a
 client-wide rename.
+
+
+## CrowdSec map data
+
+`GET /api/v1/crowdsec/banned-locations` returns a GeoJSON FeatureCollection.
+This replaces its earlier array response. `fromTimestamp` is inclusive and
+`toTimestamp` exclusive; omitted bounds keep the 30-day default. Repeat
+`countryCode`, `city`, and `hostnameIn` to apply the same filters as the map.
+
+Each Point feature groups identical coordinates in longitude, latitude order.
+Its `id` matches `properties.groupId`; `properties.ipCount` is the number of
+distinct addresses in the complete `properties.bannedIps` list. Each entry
+includes `ip`, `locationId`, `city`, `countryCode`, and `eventCount`, the
+IP's request total in the filtered window; the list runs from the highest
+`eventCount` down, ties by address. Collection `stats` totals the
+mapped IPs, coordinate groups, events, distinct countries, and distinct
+cities. Decision details come from `/api/v1/crowdsec/decisions/lookup?ip=...`.
+
+The response covers IPs under any current IP-scoped decision, of every origin
+and remediation type, that have matching retained traffic; this is the same
+membership as `/banned-ips`. It does not describe expired decisions, prove
+that requests were blocked, or expand range, country, or AS decisions. Each IP has
+one representative observed location; inside an aggregate bucket the busiest
+location wins. The response skips IPs without coordinates, and retained
+history bounds how far back it can see.
