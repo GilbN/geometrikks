@@ -114,3 +114,17 @@ def test_no_overlay_leaves_fields_uncomputed():
     lat = _field(_section(overview, "map"), "home_latitude")
     assert lat.computed_value is None
     assert lat.computed_source is None
+
+
+def test_oidc_client_secret_is_redacted(monkeypatch):
+    monkeypatch.setenv("OIDC_ISSUER", "https://auth.example.com")
+    monkeypatch.setenv("OIDC_CLIENT_ID", "geo")
+    monkeypatch.setenv("OIDC_CLIENT_SECRET", "oidc-secret-value")
+    monkeypatch.setenv("OIDC_REDIRECT_URI", "https://geo.example.com/api/v1/auth/oidc/callback")
+    monkeypatch.setenv("OIDC_ALLOWED_GROUPS", "admins")
+    monkeypatch.setenv("APP_SESSION_SECURE", "true")
+    overview = build_settings_overview(Settings())
+    assert "oidc-secret-value" not in str(overview)
+    secret = _field(_section(overview, "oidc"), "client_secret")
+    assert secret.is_secret is True
+    assert secret.value == SECRET_PLACEHOLDER

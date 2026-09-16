@@ -14,7 +14,7 @@ os.environ["GEOMETRIKKS_ENV_FILE"] = ""
 # baseline_settings_env below; tests needing others use monkeypatch.setenv.
 _SETTINGS_ENV_PREFIXES = (
     "APP_", "API_", "DB_", "GEOIP_", "LOG_", "LOGPARSER_", "ANALYTICS_",
-    "SCHEDULER_", "MAP_", "CROWDSEC_", "VITE_", "MAXMINDDB_",
+    "SCHEDULER_", "MAP_", "CROWDSEC_", "OIDC_", "VITE_", "MAXMINDDB_",
 )
 for _key in [k for k in os.environ if k.startswith(_SETTINGS_ENV_PREFIXES)]:
     del os.environ[_key]
