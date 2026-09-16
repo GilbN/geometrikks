@@ -113,7 +113,7 @@ def mint_id_token(config: FakeIdpConfig, *, nonce: str | None) -> str:
     if nonce is not None:
         payload["nonce"] = nonce
     payload.update(config.claims)
-    headers = {"kid": config.token_kid or config.kid}
+    headers = {"kid": config.token_kid if config.token_kid is not None else config.kid}
     primary, other = _rsa_keys()
     if config.signing == "none":
         return jwt.encode(payload, key=None, algorithm="none", headers=headers)  # ty: ignore[invalid-argument-type]
@@ -166,7 +166,7 @@ def create_fake_idp(config: FakeIdpConfig) -> Litestar:
             return failure
         return Redirect(_issue(config, dict(request.query_params)))
 
-    @post("/token", sync_to_thread=False)
+    @post("/token", status_code=200, sync_to_thread=False)
     def token(
         request: Request,
         data: Annotated[dict[str, str], Body(media_type=RequestEncodingType.URL_ENCODED)],
