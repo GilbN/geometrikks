@@ -7,20 +7,24 @@ the plaintext from env is never kept on the state object.
 
 from __future__ import annotations
 
+import copy
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal, cast
 
 from litestar.middleware.session.server_side import (
     ServerSideSessionBackend,
     ServerSideSessionConfig,
 )
 from litestar.security.session_auth import SessionAuth
+from litestar.types import Empty
 from pwdlib import PasswordHash
 
 from geometrikks.server.logging import get_logger
 
 if TYPE_CHECKING:
+    from litestar import Request
     from litestar.connection import ASGIConnection
+    from litestar.types import Message, ScopeSession
 
     from geometrikks.config.settings import Settings
 
@@ -33,7 +37,7 @@ logger = get_logger(__name__)
 #   the exclusion* so the live-feed handshake is authenticated like an API
 #   request. The (/|$) boundary keeps bare "/ws" and "/api" authenticated too,
 #   not just their slash-suffixed children.
-# - the login endpoint itself.
+# - the login endpoints and the pre-login options endpoint.
 # Everything that is not /api or /ws: the SPA shell, static assets, /health,
 # /schema. Shared by the auth middleware and the session middleware below.
 NON_API_PATTERN = "^/(?!api(/|$)|ws(/|$))"
@@ -41,7 +45,17 @@ NON_API_PATTERN = "^/(?!api(/|$)|ws(/|$))"
 AUTH_EXCLUDE_PATTERNS: list[str] = [
     NON_API_PATTERN,
     "^/api/v1/auth/login$",
+    "^/api/v1/auth/options$",
+    "^/api/v1/auth/oidc/(start|callback)$",
 ]
+
+SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 7
+
+Provider = Literal["password", "oidc"]
+
+_ROTATE_KEY = "geometrikks.session.rotate"
+_LOADED_KEY = "geometrikks.session.loaded"
+_NEW_ID_KEY = "geometrikks.session.new_id"
 
 
 @dataclass(frozen=True)
@@ -49,6 +63,7 @@ class AdminUser:
     """The one and only user. Litestar exposes it as request.user."""
 
     username: str
+    provider: Provider = "password"
 
 
 _hasher = PasswordHash.recommended()  # argon2id
@@ -71,18 +86,23 @@ class AuthState:
         return _hasher.verify(password, self.password_hash)
 
 
-def build_auth_state(settings: "Settings") -> AuthState:
-    """Hash the env-provided admin password once per process."""
-    if settings.admin_password is None or not settings.admin_password.get_secret_value():
+def build_auth_state(settings: "Settings") -> AuthState | None:
+    """Hash the env-provided admin password once per process.
+
+    None means password login is off: OIDC is configured and no password is
+    set. Neither configured is a startup error.
+    """
+    if not settings.password_login_enabled:
+        if settings.oidc.enabled:
+            logger.info("password_login_disabled", reason="APP_ADMIN_PASSWORD unset, OIDC enabled")
+            return None
         raise RuntimeError(
-            "Auth is enabled but APP_ADMIN_PASSWORD is not set. "
-            "Set APP_ADMIN_PASSWORD, or set APP_AUTH_DISABLED=true if an "
+            "Auth is enabled but APP_ADMIN_PASSWORD is not set. Set APP_ADMIN_PASSWORD, "
+            "configure OIDC_* for single sign-on, or set APP_AUTH_DISABLED=true if an "
             "authenticating reverse proxy fronts this app."
         )
-    auth_state = AuthState(
-        username=settings.admin_user,
-        password_hash=_hasher.hash(settings.admin_password.get_secret_value()),
-    )
+    password = cast("Any", settings.admin_password).get_secret_value()
+    auth_state = AuthState(username=settings.admin_user, password_hash=_hasher.hash(password))
     logger.info("auth_state_built", user=settings.admin_user)
     return auth_state
 
@@ -102,7 +122,75 @@ async def retrieve_user_handler(
 ) -> AdminUser | None:
     """Rehydrate request.user from the session dict on every request."""
     username = session.get("username")
-    return AdminUser(username=username) if username else None
+    if not username:
+        return None
+    provider: Provider = "oidc" if session.get("provider") == "oidc" else "password"
+    return AdminUser(username=username, provider=provider)
+
+
+def _scope_dict(connection: "ASGIConnection") -> dict[str, Any]:
+    # Scope is a TypedDict; the backend keeps its bookkeeping under
+    # namespaced keys that no Litestar code reads.
+    return cast("dict[str, Any]", connection.scope)
+
+
+def rotate_session(request: "Request") -> None:
+    """Issue a fresh session id on this response.
+
+    Call before set_session() on every successful login. The id the browser
+    arrived with is deleted from the store and never reused, so a cookie
+    planted before login cannot survive it.
+    """
+    _scope_dict(request)[_ROTATE_KEY] = True
+
+
+class RotatingServerSideSessionBackend(ServerSideSessionBackend):
+    """Server-side sessions that rotate on login and write only on change.
+
+    Stock Litestar reuses the incoming session id forever and writes the
+    session back on every response, renewing its expiry each time. The
+    first is session fixation. The second lets a request that was in flight
+    during logout write the deleted session straight back, and keeps active
+    sessions alive indefinitely. Writing only on change makes the expiry
+    set at login absolute.
+    """
+
+    async def load_from_connection(self, connection: "ASGIConnection") -> dict[str, Any]:
+        data = await super().load_from_connection(connection)
+        _scope_dict(connection)[_LOADED_KEY] = copy.deepcopy(data)
+        return data
+
+    def get_session_id(self, connection: "ASGIConnection") -> str:
+        forced = _scope_dict(connection).get(_NEW_ID_KEY)
+        if isinstance(forced, str):
+            return forced
+        return super().get_session_id(connection)
+
+    async def store_in_message(
+        self, scope_session: "ScopeSession", message: "Message", connection: "ASGIConnection"
+    ) -> None:
+        scope = _scope_dict(connection)
+        loaded = scope.get(_LOADED_KEY)
+        if scope.pop(_ROTATE_KEY, False):
+            old_id = connection.cookies.get(self.config.key)
+            if old_id and old_id != "null":
+                store = self.config.get_store_from_app(scope["app"])
+                await self.delete(old_id, store=store)
+            scope[_NEW_ID_KEY] = self.generate_session_id()
+        elif scope_session is Empty and not loaded:
+            # Asked to clear a session that never existed: the auth middleware
+            # sets Empty on every anonymous failure. Nothing to delete, no
+            # cookie to send.
+            return
+        elif scope_session is not Empty and scope_session == loaded:
+            return
+        await super().store_in_message(scope_session, message, connection)
+
+
+class RotatingServerSideSessionConfig(ServerSideSessionConfig):
+    """ServerSideSessionConfig whose middleware builds the rotating backend."""
+
+    _backend_class = RotatingServerSideSessionBackend
 
 
 def create_session_auth(settings: "Settings") -> SessionAuth[AdminUser, ServerSideSessionBackend]:
@@ -114,8 +202,8 @@ def create_session_auth(settings: "Settings") -> SessionAuth[AdminUser, ServerSi
     """
     session_auth = SessionAuth[AdminUser, ServerSideSessionBackend](
         retrieve_user_handler=retrieve_user_handler,
-        session_backend_config=ServerSideSessionConfig(
-            max_age=60 * 60 * 24 * 7,
+        session_backend_config=RotatingServerSideSessionConfig(
+            max_age=SESSION_MAX_AGE_SECONDS,
             secure=settings.session_secure,
             # Sessions exist only for /api and /ws. Without this exclusion the
             # session middleware runs on the SPA shell and every static asset,
