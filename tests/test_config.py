@@ -433,6 +433,7 @@ def test_admin_password_is_secret_and_auth_still_verifies(monkeypatch):
     s = Settings()
     assert "admin-secret-pass" not in repr(s)
     state = build_auth_state(s)
+    assert state is not None
     assert state.verify("admin", "admin-secret-pass")
 
 

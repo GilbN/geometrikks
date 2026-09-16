@@ -16,17 +16,20 @@ class TestBuildAuthState:
     def test_password_is_hashed_not_stored_plain(self):
         from geometrikks.server.auth import build_auth_state
         state = build_auth_state(_settings(admin_password="bestpasswordintheworldnojoke"))
+        assert state is not None
         assert "bestpasswordintheworldnojoke" not in state.password_hash
         assert state.password_hash.startswith("$argon2")
 
     def test_verify_accepts_correct_credentials(self):
         from geometrikks.server.auth import build_auth_state
         state = build_auth_state(_settings(admin_user="gil", admin_password="bestpasswordintheworldnojoke"))
+        assert state is not None
         assert state.verify("gil", "bestpasswordintheworldnojoke") is True
 
     def test_verify_rejects_wrong_password_and_wrong_user(self):
         from geometrikks.server.auth import build_auth_state
         state = build_auth_state(_settings(admin_user="gil", admin_password="bestpasswordintheworldnojoke"))
+        assert state is not None
         assert state.verify("gil", "wrong") is False
         assert state.verify("other", "bestpasswordintheworldnojoke") is False
 
@@ -34,6 +37,20 @@ class TestBuildAuthState:
         from geometrikks.server.auth import build_auth_state
         with pytest.raises(RuntimeError, match="APP_ADMIN_PASSWORD"):
             build_auth_state(_settings(admin_password=None))
+
+    def test_returns_none_when_oidc_is_enabled_and_no_password_is_set(self):
+        from geometrikks.config.settings import OidcSettings
+        from geometrikks.server.auth import build_auth_state
+
+        oidc = OidcSettings(
+            _env_file=None,
+            issuer="http://127.0.0.1:9",
+            client_id="geo",
+            client_secret="s3cret",
+            redirect_uri="http://localhost/api/v1/auth/oidc/callback",
+            allowed_groups=["admins"],
+        )
+        assert build_auth_state(_settings(admin_password=None, oidc=oidc)) is None
 
 
 class TestRetrieveUserHandler:
@@ -45,3 +62,10 @@ class TestRetrieveUserHandler:
     async def test_returns_none_for_empty_session(self):
         from geometrikks.server.auth import retrieve_user_handler
         assert await retrieve_user_handler({}, None) is None
+
+    async def test_carries_the_provider(self):
+        from geometrikks.server.auth import AdminUser, retrieve_user_handler
+        user = await retrieve_user_handler({"username": "gil", "provider": "oidc"}, None)
+        assert user == AdminUser(username="gil", provider="oidc")
+        legacy = await retrieve_user_handler({"username": "gil"}, None)
+        assert legacy is not None and legacy.provider == "password"
