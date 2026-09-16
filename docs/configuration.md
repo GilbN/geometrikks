@@ -147,6 +147,22 @@ from real environment variables. It is read once at import time.
 | `CROWDSEC_VERIFY_TLS` | `true` | Verify TLS when LAPI uses https |
 | `CROWDSEC_STREAM_POLL_INTERVAL` | `15.0` | Seconds between decision-stream polls feeding live ban/unban updates |
 
+## OpenID Connect
+
+| Variable | Default | Description |
+|---|---|---|
+| `OIDC_ISSUER` | - | Issuer URL of the identity provider, e.g. https://auth.example.com. Discovery is read from {issuer}/.well-known/openid-configuration and the iss claim must equal this value exactly. Must be https unless the host is localhost. |
+| `OIDC_CLIENT_ID` | - | Client id registered at the identity provider. |
+| `OIDC_CLIENT_SECRET` | - | Client secret registered at the identity provider. |
+| `OIDC_REDIRECT_URI` | - | The exact callback URL registered at the identity provider: the public https address of this app plus /api/v1/auth/oidc/callback. Plain http is only allowed on localhost. |
+| `OIDC_ALLOWED_USERS` | *(computed)* | People allowed to sign in, each a verified email address or a subject identifier. One value, comma-separated values, or a JSON list. At least one of OIDC_ALLOWED_USERS and OIDC_ALLOWED_GROUPS is required. |
+| `OIDC_ALLOWED_GROUPS` | *(computed)* | Groups allowed to sign in; membership in any one is enough. Same formats as OIDC_ALLOWED_USERS. |
+| `OIDC_GROUPS_CLAIM` | `groups` | Claim that carries group membership, read from the ID token and the userinfo endpoint. |
+| `OIDC_SCOPES` | `openid profile email groups` | Space-separated scopes requested at login. Must include openid. |
+| `OIDC_PROVIDER_NAME` | `SSO` | Label on the login button: "Sign in with {name}". |
+| `OIDC_LOGOUT_IDP` | `false` | On logout, also end the identity provider session through its end session endpoint. Register {app origin}/signed-out as the post-logout redirect URI at the provider when enabling this. |
+| `OIDC_CA_BUNDLE` | - | PEM file with the CA that signed the identity provider's certificate, for providers behind an internal CA. There is no switch to turn verification off. |
+
 ## Vite (development only)
 
 | Variable | Default | Description |
