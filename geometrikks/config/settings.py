@@ -929,7 +929,10 @@ class Settings(BaseSettings):
     admin_user: str = Field(default="admin", description="Admin login username")
     admin_password: SecretStr | None = Field(
         default=None,
-        description="Admin login password (required unless auth_disabled=true)",
+        description=(
+            "Admin login password (required unless APP_AUTH_DISABLED=true or "
+            "OpenID Connect (OIDC_*) is configured)"
+        ),
     )
     session_secure: bool = Field(
         default=False,

@@ -23,7 +23,7 @@ from real environment variables. It is read once at import time.
 | `APP_IMAGE_TAG` | - | Optional container image tag embedded at build time. |
 | `APP_AUTH_DISABLED` | `false` | Disable the built-in session auth entirely. Set true only when an authenticating reverse proxy (Authelia, Tailscale, ...) fronts the app. |
 | `APP_ADMIN_USER` | `admin` | Admin login username |
-| `APP_ADMIN_PASSWORD` | - | Admin login password (required unless auth_disabled=true) |
+| `APP_ADMIN_PASSWORD` | - | Admin login password (required unless APP_AUTH_DISABLED=true or OpenID Connect (OIDC_*) is configured) |
 | `APP_SESSION_SECURE` | `false` | Mark the session cookie Secure so browsers only send it over HTTPS. Recommended when serving behind a TLS reverse proxy. |
 | `APP_TRUSTED_PROXIES` | *(computed)* | Reverse-proxy IPs/CIDRs allowed to supply X-Forwarded-For. Env accepts one value, comma-separated values, or a JSON list. Empty (default): forwarded headers are never trusted. |
 
