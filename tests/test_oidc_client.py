@@ -236,6 +236,8 @@ async def test_client_secret_post_when_the_provider_only_supports_it(fake):
         ({"claims": {"sub": ""}}, "id_token_invalid"),
         ({"expires_in": -120}, "id_token_invalid"),
         ({"iat_offset": 120}, "id_token_invalid"),
+        ({"claims": {"exp": []}}, "id_token_invalid"),
+        ({"claims": {"iat": {}}}, "id_token_invalid"),
         ({"claims": {"nonce": "not-the-one-we-sent"}}, "nonce_mismatch"),
         ({"signing": "none"}, "id_token_invalid"),
         ({"signing": "hs256"}, "id_token_invalid"),
@@ -280,6 +282,31 @@ async def test_missing_kid_is_rejected_before_any_jwks_fetch(fake):
     with pytest.raises(OidcProtocolError, match="kid"):
         await login(client, fake)
     assert fake.config.jwks_fetches == 0
+
+
+@pytest.mark.parametrize(
+    ("signing", "algorithm"), [("rsa", "RS256"), ("ps256", "PS256"), ("rsa384", "RS384")]
+)
+async def test_alg_less_jwk_verifies_any_advertised_algorithm(fake, signing, algorithm):
+    # JWK alg is optional per RFC 7517 4.4; PyJWT defaults an alg-less RSA
+    # JWK's algorithm_name to RS256, so passing the PyJWK object itself
+    # (rather than its raw key) to jwt.decode used to reject PS256/RS384.
+    fake.config.jwks_alg = None
+    fake.config.signing = signing
+    fake.config.advertised_algorithms = [algorithm]
+    client = OidcClient(oidc_settings(), fake.http_client())
+    completion = await login(client, fake)
+    assert completion.identity.subject == "user-1"
+
+
+async def test_jwk_alg_mismatched_with_the_token_is_rejected(fake):
+    fake.config.jwks_alg = "RS256"
+    fake.config.signing = "ps256"
+    fake.config.advertised_algorithms = ["RS256", "PS256"]
+    client = OidcClient(oidc_settings(), fake.http_client())
+    with pytest.raises(OidcProtocolError) as excinfo:
+        await login(client, fake)
+    assert excinfo.value.reason == "id_token_invalid"
 
 
 async def test_pending_expiry_follows_the_module_clock(client, monkeypatch):
