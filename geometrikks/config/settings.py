@@ -806,8 +806,17 @@ class OidcSettings(BaseSettings):
             )
         if "openid" not in self.scope_list:
             raise ValueError("OIDC_SCOPES must include openid")
-        if self.ca_bundle is not None and not self.ca_bundle.is_file():
-            raise ValueError(f"OIDC_CA_BUNDLE does not exist or is not a file: {self.ca_bundle}")
+        if self.ca_bundle is not None:
+            if not self.ca_bundle.is_file():
+                raise ValueError(f"OIDC_CA_BUNDLE does not exist or is not a file: {self.ca_bundle}")
+            try:
+                with open(self.ca_bundle, "rb"):
+                    pass
+            except OSError as exc:
+                # Caught here and named, or the same unreadable file surfaces
+                # much later as an unlabelled ssl error from create_app's own
+                # ssl.create_default_context(cafile=...) call.
+                raise ValueError(f"OIDC_CA_BUNDLE is not readable: {self.ca_bundle}: {exc}") from exc
         return self
 
 
