@@ -22,8 +22,8 @@ from litestar.types import Empty
 from litestar.utils.dataclass import extract_dataclass_items
 from pwdlib import PasswordHash
 
+from geometrikks.lib.session import PENDING_LIFETIME_SECONDS
 from geometrikks.server.logging import get_logger
-from geometrikks.services.oidc.client import PENDING_LIFETIME_SECONDS
 
 if TYPE_CHECKING:
     from litestar import Request
@@ -36,15 +36,16 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 # Paths that never require a session:
-# - "^/(?!api(/|$)|ws(/|$))" — everything that is not /api, /ws, or under them
+# - NON_API_PATTERN matches everything that is not /api, /ws, or under them
 #   (the SPA shell, its assets, /health, /schema, /favicon...). The SPA must
-#   load unauthenticated so it can render the login page; /ws is *excluded from
-#   the exclusion* so the live-feed handshake is authenticated like an API
-#   request. The (/|$) boundary keeps bare "/ws" and "/api" authenticated too,
-#   not just their slash-suffixed children.
-# - the login endpoints and the pre-login options endpoint.
-# Everything that is not /api or /ws: the SPA shell, static assets, /health,
-# /schema. Shared by the auth middleware and the session middleware below.
+#   load unauthenticated so it can render the login page; /ws is *excluded
+#   from the exclusion* so the live-feed handshake is authenticated like an
+#   API request. The (/|$) boundary keeps bare "/ws" and "/api" authenticated
+#   too, not just their slash-suffixed children. Shared by the auth
+#   middleware and the session middleware below.
+# - /auth/login, /auth/options, and the OIDC routes /auth/oidc/start and
+#   /auth/oidc/callback: the pre-login endpoints, reachable before anyone
+#   has a session.
 NON_API_PATTERN = "^/(?!api(/|$)|ws(/|$))"
 
 AUTH_EXCLUDE_PATTERNS: list[str] = [
@@ -55,6 +56,13 @@ AUTH_EXCLUDE_PATTERNS: list[str] = [
 ]
 
 SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 7
+
+# Headroom added on top of PENDING_LIFETIME_SECONDS for the pending session's
+# store TTL and cookie max-age. Without it, the store entry expires at the
+# exact instant PendingLogin.expired() starts returning True, so a callback
+# that lands right around that boundary finds no session at all and is
+# logged as state_mismatch instead of the more accurate pending_expired.
+PENDING_SESSION_HEADROOM_SECONDS = 60
 
 Provider = Literal["password", "oidc"]
 
@@ -156,14 +164,18 @@ class RotatingServerSideSessionBackend(ServerSideSessionBackend):
     session back on every response, renewing its expiry each time. The
     first is session fixation. The second lets a request that was in flight
     during logout write the deleted session straight back, and keeps active
-    sessions alive indefinitely. Writing only on change makes the expiry
-    set at login absolute.
+    sessions alive indefinitely. Writing only on change stops most of that,
+    but a write of a session that legitimately changed (an authenticated
+    request that touches request.session) still reaches set(); the override
+    below keeps the store's remaining lifetime instead of resetting it, so
+    the expiry set at login stays absolute even then. A rotated or brand-new
+    session id, which has nothing stored yet, still gets the full max_age.
 
     A third change: a session with no "username" key is a pre-login session
     (currently only the OIDC PendingLogin planted by /oidc/start, which is
-    unauthenticated and reachable by anyone). Those get PENDING_LIFETIME_SECONDS
-    instead of the configured max_age, both in the store and on the cookie; see
-    _store_pending_session for why.
+    unauthenticated and reachable by anyone). Those get a short lifetime
+    instead of the configured max_age, both in the store and on the cookie;
+    see _store_pending_session for why.
     """
 
     def __init__(self, config: ServerSideSessionConfig) -> None:
@@ -204,6 +216,23 @@ class RotatingServerSideSessionBackend(ServerSideSessionBackend):
             return
         await super().store_in_message(scope_session, message, connection)
 
+    async def set(self, session_id: str, data: bytes, store: "Store") -> None:
+        """Write a session's data without renewing its store expiry.
+
+        Stock ServerSideSessionBackend.set() always writes with
+        expires_in=config.max_age, so any write of a session that was
+        loaded from the store under the same id (an authenticated request
+        that mutates request.session, for example /oidc/start merging
+        oidc_pending into an already-logged-in session) would silently
+        push its absolute expiry another max_age into the future. Reusing
+        the store's own remaining lifetime instead makes the expiry set at
+        login stick. A session with nothing stored yet, or whose entry has
+        already expired, gets the full max_age like a fresh login.
+        """
+        remaining = await store.expires_in(session_id)
+        expires_in = remaining if isinstance(remaining, int) and remaining > 0 else self.config.max_age
+        await store.set(session_id, data, expires_in=expires_in)
+
     async def _store_pending_session(
         self, scope_session: dict[str, Any], message: "Message", connection: "ASGIConnection"
     ) -> None:
@@ -217,11 +246,18 @@ class RotatingServerSideSessionBackend(ServerSideSessionBackend):
         holds is worthless after PENDING_LIFETIME_SECONDS. MemoryStore (and
         FileStore) only drop expired rows when read, never on a schedule, so
         a loop of anonymous starts would grow the store without bound
-        between accesses. Writing the short lifetime bounds each entry's
-        own cost; the sweep below, thrown in on the same path since it is
-        the one place every pending write passes through in every app mode
+        between accesses. Writing a short lifetime bounds each entry's own
+        cost; the sweep below, thrown in on the same path since it is the
+        one place every pending write passes through in every app mode
         (including DB-degraded, where the scheduler never starts), clears
         out rows nobody comes back to read.
+
+        The store TTL and cookie max-age get PENDING_SESSION_HEADROOM_SECONDS
+        on top of PENDING_LIFETIME_SECONDS: PendingLogin.expired() still uses
+        the shorter figure, so without the headroom the store entry would
+        vanish at the exact moment expired() starts returning True, and the
+        callback would report state_mismatch instead of pending_expired for
+        a user who was simply slow.
         """
         scope = connection.scope
         store = self.config.get_store_from_app(scope["app"])
@@ -230,9 +266,10 @@ class RotatingServerSideSessionBackend(ServerSideSessionBackend):
         cookie_params = dict(
             extract_dataclass_items(self.config, exclude_none=True, include=Cookie.__dict__.keys())
         )
-        cookie_params["max_age"] = PENDING_LIFETIME_SECONDS
+        pending_ttl = PENDING_LIFETIME_SECONDS + PENDING_SESSION_HEADROOM_SECONDS
+        cookie_params["max_age"] = pending_ttl
         serialised_data = self.serialize_data(scope_session, scope)
-        await store.set(session_id, serialised_data, expires_in=PENDING_LIFETIME_SECONDS)
+        await store.set(session_id, serialised_data, expires_in=pending_ttl)
         headers.add(
             "Set-Cookie",
             Cookie(value=session_id, key=self.config.key, **cookie_params).to_header(header=""),

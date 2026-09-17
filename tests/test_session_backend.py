@@ -14,7 +14,7 @@ import pytest
 from litestar import Request, get
 from litestar.testing import AsyncTestClient, TestClient
 
-from geometrikks.server.auth import SESSION_MAX_AGE_SECONDS
+from geometrikks.server.auth import PENDING_SESSION_HEADROOM_SECONDS, SESSION_MAX_AGE_SECONDS
 from geometrikks.services.oidc.client import PENDING_LIFETIME_SECONDS
 from tests.test_auth_endpoints import make_app
 
@@ -82,6 +82,40 @@ async def test_session_expires_absolutely():
         assert (await client.get("/api/v1/protected")).status_code == 401
 
 
+@get("/api/v1/touch-session", exclude_from_auth=True)
+async def touch_session(request: Request) -> dict[str, bool]:
+    """A session-mutating authenticated request, the shape of /oidc/start
+    merging oidc_pending into an already-logged-in session."""
+    session = dict(request.session or {})
+    session["touched"] = True
+    request.set_session(session)
+    return {"ok": True}
+
+
+async def test_writing_a_loaded_session_does_not_renew_its_absolute_expiry():
+    """A write of a session that was loaded from the store under its own id
+    must keep the store's remaining lifetime, not reset it to a fresh
+    max_age. Otherwise an authenticated request that merely touches the
+    session, like /oidc/start does for a logged-in caller, would silently
+    push the absolute 7-day expiry out again on every visit.
+    """
+    app = make_app(extra_handlers=[touch_session], session_max_age=100)
+    async with AsyncTestClient(app=app) as client:
+        sid = (await client.post("/api/v1/auth/login", json=CREDS)).cookies["session"]
+        store = app.stores.get("sessions")
+        login_remaining = await store.expires_in(sid)
+        # The rotation path (a fresh login) still gets the full max_age.
+        assert login_remaining is not None and login_remaining > 95
+
+        await anyio.sleep(2.2)
+        res = await client.get("/api/v1/touch-session")
+        assert res.status_code == 200
+        assert res.cookies["session"] == sid  # no rotation, same store entry
+
+        remaining = await store.expires_in(sid)
+        assert remaining is not None and remaining <= 98
+
+
 def test_logout_is_not_undone_by_an_in_flight_request():
     events: dict[str, asyncio.Event] = {}
 
@@ -143,9 +177,10 @@ def test_pending_session_gets_a_short_lifetime_not_the_configured_one():
     """/oidc/start plants a pending session before anyone is authenticated, so
     every anonymous caller can trigger a write. Giving it the full 7-day
     max_age like a real login would let a loop of anonymous starts grow the
-    store without bound; PENDING_LIFETIME_SECONDS is all the PendingLogin it
-    holds is ever good for.
+    store without bound; PENDING_LIFETIME_SECONDS plus a headroom margin is
+    all the PendingLogin it holds is ever good for.
     """
+    pending_ttl = PENDING_LIFETIME_SECONDS + PENDING_SESSION_HEADROOM_SECONDS
     app = make_app(extra_handlers=[seed])
     with TestClient(app=app) as client, client.portal() as portal:
         store = app.stores.get("sessions")
@@ -153,8 +188,8 @@ def test_pending_session_gets_a_short_lifetime_not_the_configured_one():
         pending = client.get("/api/v1/seed")
         pending_sid = pending.cookies["session"]
         remaining = portal.call(store.expires_in, pending_sid)
-        assert remaining is not None and remaining <= PENDING_LIFETIME_SECONDS
-        assert f"Max-Age={PENDING_LIFETIME_SECONDS}" in pending.headers["set-cookie"]
+        assert remaining is not None and remaining <= pending_ttl
+        assert f"Max-Age={pending_ttl}" in pending.headers["set-cookie"]
 
         login = client.post("/api/v1/auth/login", json=CREDS)
         assert login.status_code == 200
