@@ -166,10 +166,14 @@ class RotatingServerSideSessionBackend(ServerSideSessionBackend):
     during logout write the deleted session straight back, and keeps active
     sessions alive indefinitely. Writing only on change stops most of that,
     but a write of a session that legitimately changed (an authenticated
-    request that touches request.session) still reaches set(); the override
-    below keeps the store's remaining lifetime instead of resetting it, so
-    the expiry set at login stays absolute even then. A rotated or brand-new
-    session id, which has nothing stored yet, still gets the full max_age.
+    request that touches request.session, such as /oidc/start merging
+    oidc_pending) still needs handling: _store_loaded_session keeps the
+    store's remaining lifetime instead of resetting it, so the expiry set at
+    login stays absolute, and if the entry vanished or is effectively
+    expired (a concurrent logout, or under a second left) it clears the
+    session instead of writing a fresh one back under the old id. A rotated
+    or brand-new session id, which has nothing stored yet, still gets the
+    full max_age.
 
     A third change: a session with no "username" key is a pre-login session
     (currently only the OIDC PendingLogin planted by /oidc/start, which is
@@ -198,7 +202,8 @@ class RotatingServerSideSessionBackend(ServerSideSessionBackend):
     ) -> None:
         scope = _scope_dict(connection)
         loaded = scope.get(_LOADED_KEY)
-        if scope.pop(_ROTATE_KEY, False):
+        rotated = scope.pop(_ROTATE_KEY, False)
+        if rotated:
             old_id = connection.cookies.get(self.config.key)
             if old_id and old_id != "null":
                 store = self.config.get_store_from_app(scope["app"])
@@ -211,27 +216,54 @@ class RotatingServerSideSessionBackend(ServerSideSessionBackend):
             return
         elif scope_session is not Empty and scope_session == loaded:
             return
+
         if isinstance(scope_session, dict) and "username" not in scope_session:
             await self._store_pending_session(scope_session, message, connection)
             return
+
+        if loaded and not rotated:
+            # A write under the id this request loaded its session from
+            # (not a fresh login, which rotates first): go through the
+            # store-lifetime-preserving path rather than the stock set(),
+            # which would hand it a fresh max_age.
+            await self._store_loaded_session(scope_session, message, connection)
+            return
+
         await super().store_in_message(scope_session, message, connection)
 
-    async def set(self, session_id: str, data: bytes, store: "Store") -> None:
-        """Write a session's data without renewing its store expiry.
+    async def _store_loaded_session(
+        self, scope_session: "ScopeSession", message: "Message", connection: "ASGIConnection"
+    ) -> None:
+        """Write back a session that was loaded from the store under this id.
 
-        Stock ServerSideSessionBackend.set() always writes with
-        expires_in=config.max_age, so any write of a session that was
-        loaded from the store under the same id (an authenticated request
-        that mutates request.session, for example /oidc/start merging
-        oidc_pending into an already-logged-in session) would silently
-        push its absolute expiry another max_age into the future. Reusing
-        the store's own remaining lifetime instead makes the expiry set at
-        login stick. A session with nothing stored yet, or whose entry has
-        already expired, gets the full max_age like a fresh login.
+        Keeps the store's remaining lifetime exactly, so a write triggered by
+        an authenticated request that merely touches request.session (like
+        /oidc/start merging oidc_pending into an already-logged-in session)
+        cannot push the absolute expiry set at login back out to a fresh
+        max_age. If the entry disappeared since it was loaded (logout raced
+        this request) or its remaining lifetime is at or below zero
+        (MemoryStore.expires_in truncates fractions, so under a second left
+        reads as 0), the session is gone either way: clear it the same way
+        the anonymous-failure path does, instead of writing a new entry back
+        under an id that logout, or expiry, already invalidated.
         """
+        scope = connection.scope
+        store = self.config.get_store_from_app(scope["app"])
+        session_id = self.get_session_id(connection)
         remaining = await store.expires_in(session_id)
-        expires_in = remaining if isinstance(remaining, int) and remaining > 0 else self.config.max_age
-        await store.set(session_id, data, expires_in=expires_in)
+        if scope_session is Empty or remaining is None or remaining <= 0:
+            await super().store_in_message(Empty, message, connection)
+            return
+        headers = MutableScopeHeaders.from_message(message)
+        cookie_params = dict(
+            extract_dataclass_items(self.config, exclude_none=True, include=Cookie.__dict__.keys())
+        )
+        serialised_data = self.serialize_data(scope_session, scope)
+        await store.set(session_id, serialised_data, expires_in=remaining)
+        headers.add(
+            "Set-Cookie",
+            Cookie(value=session_id, key=self.config.key, **cookie_params).to_header(header=""),
+        )
 
     async def _store_pending_session(
         self, scope_session: dict[str, Any], message: "Message", connection: "ASGIConnection"
