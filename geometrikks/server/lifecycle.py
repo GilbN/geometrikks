@@ -29,7 +29,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import time
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Protocol
 
@@ -264,6 +264,28 @@ async def crowdsec_lifespan(app: "Litestar") -> "AsyncGenerator[None]":
         crowdsec_service = runtime.get_crowdsec_service(app) or service
         if crowdsec_service:
             await crowdsec_service.aclose()
+
+
+@asynccontextmanager
+async def oidc_lifespan(app: "Litestar") -> "AsyncGenerator[None]":
+    """Background discovery warm-up and client shutdown.
+
+    Discovery runs as a task rather than inline so an identity provider that
+    is still starting (compose brings both up together) never delays or
+    fails boot. The outcome shows on Settings > Status; every login retries.
+    """
+    client = runtime.get_oidc_client(app)
+    if client is None:
+        yield
+        return
+    warm_up = asyncio.create_task(client.warm_up(), name="oidc-discovery")
+    try:
+        yield
+    finally:
+        warm_up.cancel()
+        with suppress(asyncio.CancelledError):
+            await warm_up
+        await client.aclose()
 
 
 def _enter_db_degraded(app: "Litestar", *, detail: str | None = None) -> None:
@@ -654,6 +676,7 @@ LIFESPAN = [
     core_state_lifespan,
     geoip_lifespan,
     crowdsec_lifespan,
+    oidc_lifespan,
     database_lifespan,
     scheduler_lifespan,
     ingestion_lifespan,

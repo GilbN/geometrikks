@@ -361,3 +361,37 @@ def test_password_login_is_401_when_no_password_and_oidc_enabled():
         )
         assert res.status_code == 401
         assert "set-cookie" not in res.headers
+
+
+def _set_oidc_env(monkeypatch):
+    monkeypatch.setenv("OIDC_ISSUER", "http://127.0.0.1:9")
+    monkeypatch.setenv("OIDC_CLIENT_ID", "geo")
+    monkeypatch.setenv("OIDC_CLIENT_SECRET", "s3cret")
+    monkeypatch.setenv("OIDC_REDIRECT_URI", "http://localhost:8000/api/v1/auth/oidc/callback")
+    monkeypatch.setenv("OIDC_ALLOWED_GROUPS", "admins")
+
+
+def test_create_app_builds_the_oidc_client_without_a_password(monkeypatch):
+    _set_oidc_env(monkeypatch)
+    monkeypatch.setenv("APP_ADMIN_PASSWORD", "")
+    from geometrikks.server.core import create_app
+    from geometrikks.services.oidc import OidcClient
+
+    app = create_app()
+    assert app.state.auth_state is None
+    assert isinstance(app.state.oidc_client, OidcClient)
+
+
+def test_create_app_leaves_the_oidc_client_unset_without_config(monkeypatch):
+    monkeypatch.setenv("APP_ADMIN_PASSWORD", "bestpasswordintheworldnojoke")
+    from geometrikks.server.core import create_app
+
+    assert create_app().state.oidc_client is None
+
+
+def test_create_app_in_agent_mode_ignores_oidc(monkeypatch):
+    _set_oidc_env(monkeypatch)
+    monkeypatch.setenv("APP_MODE", "agent")
+    from geometrikks.server.core import create_app
+
+    assert create_app().state.oidc_client is None

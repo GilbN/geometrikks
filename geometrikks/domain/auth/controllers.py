@@ -14,6 +14,7 @@ from litestar.status_codes import HTTP_200_OK, HTTP_204_NO_CONTENT
 
 from geometrikks.config.settings import Settings
 from geometrikks.lib.client_ip import resolve_client_ip
+from geometrikks.server import runtime
 from geometrikks.server.auth import AdminUser, AuthState, rotate_session
 from geometrikks.server.logging import LOGIN_LOGGER_NAME, get_logger
 
@@ -41,6 +42,29 @@ class AuthDisabled(msgspec.Struct, tag_field="mode", tag="disabled", rename="cam
 # generated TypeScript a discriminated union, so the UI cannot read username
 # without first narrowing on mode.
 MeResponse = SessionUser | AuthDisabled
+
+
+class OidcOption(msgspec.Struct, rename="camel"):
+    provider_name: str
+
+
+class AuthOptions(msgspec.Struct, rename="camel"):
+    """Which login methods exist, readable before anyone is logged in."""
+
+    password: bool
+    oidc: OidcOption | None
+
+
+class OidcStatus(msgspec.Struct, rename="camel"):
+    """Discovery outcome for Settings > Status."""
+
+    configured: bool
+    provider_name: str | None
+    issuer: str | None
+    discovery: Literal["ok", "failed", "pending"]
+    detail: str | None
+    password_login: bool
+    idp_logout: bool
 
 
 class AuthController(Controller):
@@ -113,3 +137,47 @@ class AuthController(Controller):
         # still get 401 so the axios interceptor redirects to /login.
         user: AdminUser = request.user
         return SessionUser(username=user.username, provider=user.provider)
+
+    @get("/options", exclude_from_auth=True)
+    async def options(
+        self,
+        settings: NamedDependency[SkipValidation[Settings]],
+    ) -> AuthOptions:
+        if settings.auth_disabled:
+            return AuthOptions(password=False, oidc=None)
+        oidc = OidcOption(provider_name=settings.oidc.provider_name) if settings.oidc.enabled else None
+        return AuthOptions(password=settings.password_login_enabled, oidc=oidc)
+
+    @get("/oidc/status")
+    async def oidc_status(
+        self,
+        request: Request,
+        settings: NamedDependency[SkipValidation[Settings]],
+    ) -> OidcStatus:
+        client = runtime.get_oidc_client(request.app)
+        password_login = settings.password_login_enabled and not settings.auth_disabled
+        if client is None:
+            return OidcStatus(
+                configured=False,
+                provider_name=None,
+                issuer=None,
+                discovery="pending",
+                detail=None,
+                password_login=password_login,
+                idp_logout=False,
+            )
+        if client.metadata_cached is not None:
+            discovery: Literal["ok", "failed", "pending"] = "ok"
+        elif client.last_error is not None:
+            discovery = "failed"
+        else:
+            discovery = "pending"
+        return OidcStatus(
+            configured=True,
+            provider_name=settings.oidc.provider_name,
+            issuer=settings.oidc.issuer,
+            discovery=discovery,
+            detail=client.last_error,
+            password_login=password_login,
+            idp_logout=settings.oidc.logout_idp,
+        )
