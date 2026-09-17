@@ -11,7 +11,7 @@ from litestar.di import NamedDependency
 from litestar.exceptions import NotAuthorizedException, NotFoundException
 from litestar.params import QueryParameter, SkipValidation
 from litestar.response import Redirect
-from litestar.status_codes import HTTP_200_OK, HTTP_204_NO_CONTENT
+from litestar.status_codes import HTTP_200_OK
 
 from geometrikks.config.settings import Settings
 from geometrikks.lib.client_ip import resolve_client_ip
@@ -60,6 +60,12 @@ class AuthOptions(msgspec.Struct, rename="camel"):
 
     password: bool
     oidc: OidcOption | None
+
+
+class LogoutResponse(msgspec.Struct, rename="camel"):
+    """Where the browser should go next; null means the login page."""
+
+    redirect_to: str | None
 
 
 class OidcStatus(msgspec.Struct, rename="camel"):
@@ -119,18 +125,33 @@ class AuthController(Controller):
         login_logger.info("login_success", provider="password", user=data.username, ip=client_ip)
         return SessionUser(username=data.username, provider="password")
 
-    @post("/logout", status_code=HTTP_204_NO_CONTENT)
+    @post("/logout", status_code=HTTP_200_OK)
     async def logout(
         self,
         request: Request,
         settings: NamedDependency[SkipValidation[Settings]],
-    ) -> None:
+    ) -> LogoutResponse:
         if settings.auth_disabled:
             # request.session would raise without the session middleware.
-            return
-        username = (request.session or {}).get("username", "")
-        login_logger.info("logout", user=username, ip=resolve_client_ip(request))
+            return LogoutResponse(redirect_to=None)
+        session = request.session or {}
+        username = session.get("username", "")
+        provider = session.get("provider", "password")
+        id_token = session.get("id_token")
+        redirect_to: str | None = None
+        if provider == "oidc" and settings.oidc.logout_idp and isinstance(id_token, str):
+            client = runtime.get_oidc_client(request.app)
+            if client is not None:
+                redirect_to = client.end_session_url(id_token, settings.oidc.signed_out_url)
+        login_logger.info(
+            "logout",
+            user=username,
+            provider=provider,
+            idp_logout=redirect_to is not None,
+            ip=resolve_client_ip(request),
+        )
         request.clear_session()
+        return LogoutResponse(redirect_to=redirect_to)
 
     @get("/me")
     async def me(
