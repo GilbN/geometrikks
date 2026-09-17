@@ -191,18 +191,17 @@ def test_logout_during_a_parked_session_write_clears_the_session():
 
 def test_write_lock_blocks_a_racing_logout_until_the_parked_write_finishes(monkeypatch):
     """_store_loaded_session reads store.expires_in and then writes in two
-    separate awaits; anyio's asyncio Lock.acquire yields a checkpoint right
-    after taking ownership, so without a lock spanning both, a logout's
-    delete could land in that gap and get overwritten right back to life by
-    the write that resumes after it. Forcing the interleaving directly (via
-    a patched expires_in) proves the racing logout now blocks on the same
+    separate awaits, so without a lock spanning both, a logout's delete
+    could land in that gap and get overwritten right back to life by the
+    write that resumes after it. Forcing the interleaving directly (via a
+    patched expires_in) proves the racing logout now blocks on the same
     lock instead of slipping its delete in between.
 
-    Litestar builds a fresh session backend for every request (SessionAuth's
-    session_backend is a plain property), so this only reproduces the race
-    at all because the lock lives on the shared session config, not on the
-    backend; a lock scoped to the backend instance would never see the
-    second request's delete attempt in the first place.
+    Litestar builds a session backend per route handler (SessionAuth's
+    session_backend is a plain property, evaluated once per middleware
+    stack), so this only reproduces the race at all because the lock lives
+    on the shared session config, not on the backend; a lock scoped to the
+    backend instance would never see the logout handler's delete attempt.
     """
     from litestar.stores.memory import MemoryStore
 

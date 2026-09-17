@@ -191,13 +191,13 @@ class RotatingServerSideSessionBackend(ServerSideSessionBackend):
     def _write_lock(self) -> asyncio.Lock:
         """The write lock, kept on the config rather than on self.
 
-        SessionAuth.session_backend is a plain property, so Litestar builds a
-        fresh RotatingServerSideSessionBackend for every single request (see
-        MiddlewareWrapper.__call__ in litestar.security.session_auth.middleware);
-        a lock created in this backend's __init__ would never be shared
-        between the two concurrent requests it exists to serialize. The
-        config object is the one thing every per-request backend is handed
-        that outlives a single request, so the lock lives there instead.
+        SessionAuth.session_backend is a plain property and Litestar builds a
+        middleware stack per route handler (see MiddlewareWrapper.__call__ in
+        litestar.security.session_auth.middleware), so each handler gets its
+        own RotatingServerSideSessionBackend instance. A lock created in this
+        backend's __init__ would never be shared between the logout handler
+        and the handler whose write it exists to serialize. The config object
+        is the one thing every backend is handed, so the lock lives there.
         """
         return cast("RotatingServerSideSessionConfig", self.config).write_lock
 
