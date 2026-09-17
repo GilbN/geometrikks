@@ -7,12 +7,15 @@ from __future__ import annotations
 
 import asyncio
 import threading
+import time
 
 import anyio
 import pytest
 from litestar import Request, get
 from litestar.testing import AsyncTestClient, TestClient
 
+from geometrikks.server.auth import SESSION_MAX_AGE_SECONDS
+from geometrikks.services.oidc.client import PENDING_LIFETIME_SECONDS
 from tests.test_auth_endpoints import make_app
 
 pytestmark = pytest.mark.anyio
@@ -134,3 +137,47 @@ def test_in_flight_request_cannot_restore_the_pre_rotation_session():
         assert results == [200]
         assert portal.call(store.get, pre) is None
         assert client.get("/api/v1/protected").status_code == 200
+
+
+def test_pending_session_gets_a_short_lifetime_not_the_configured_one():
+    """/oidc/start plants a pending session before anyone is authenticated, so
+    every anonymous caller can trigger a write. Giving it the full 7-day
+    max_age like a real login would let a loop of anonymous starts grow the
+    store without bound; PENDING_LIFETIME_SECONDS is all the PendingLogin it
+    holds is ever good for.
+    """
+    app = make_app(extra_handlers=[seed])
+    with TestClient(app=app) as client, client.portal() as portal:
+        store = app.stores.get("sessions")
+
+        pending = client.get("/api/v1/seed")
+        pending_sid = pending.cookies["session"]
+        remaining = portal.call(store.expires_in, pending_sid)
+        assert remaining is not None and remaining <= PENDING_LIFETIME_SECONDS
+        assert f"Max-Age={PENDING_LIFETIME_SECONDS}" in pending.headers["set-cookie"]
+
+        login = client.post("/api/v1/auth/login", json=CREDS)
+        assert login.status_code == 200
+        login_sid = login.cookies["session"]
+        login_remaining = portal.call(store.expires_in, login_sid)
+        assert login_remaining is not None and login_remaining > PENDING_LIFETIME_SECONDS
+        assert f"Max-Age={SESSION_MAX_AGE_SECONDS}" in login.headers["set-cookie"]
+
+
+def test_a_pending_write_sweeps_expired_entries_once_the_throttle_allows_it():
+    """MemoryStore only drops an expired row when something reads it; nothing
+    else sweeps it on a schedule. The very first pending write is always due
+    (the sweep throttle starts at zero), so it must clear out rows that
+    expired before anyone came back to read them.
+    """
+    app = make_app(extra_handlers=[seed])
+    with TestClient(app=app) as client, client.portal() as portal:
+        store = app.stores.get("sessions")
+        portal.call(store.set, "stale-pending", b"{}", 0.01)
+        time.sleep(0.05)
+        # Not swept yet: exists() doesn't check expiry, only get() and delete_expired() do.
+        assert portal.call(store.exists, "stale-pending") is True
+
+        client.get("/api/v1/seed")
+
+        assert portal.call(store.exists, "stale-pending") is False
