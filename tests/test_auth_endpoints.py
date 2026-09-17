@@ -111,7 +111,9 @@ def test_login_logout_flow():
         assert me.status_code == 200
         assert me.json() == {"mode": "session", "username": "admin", "provider": "password"}
 
-        assert client.post("/api/v1/auth/logout").status_code == 204
+        logout = client.post("/api/v1/auth/logout")
+        assert logout.status_code == 200
+        assert logout.json() == {"redirectTo": None}
         assert client.get("/api/v1/protected").status_code == 401
 
 
@@ -212,7 +214,9 @@ def test_login_still_validates_its_body_when_auth_disabled():
 
 def test_logout_is_a_no_op_when_auth_disabled():
     with TestClient(app=make_disabled_app()) as client:
-        assert client.post("/api/v1/auth/logout").status_code == 204
+        logout = client.post("/api/v1/auth/logout")
+        assert logout.status_code == 200
+        assert logout.json() == {"redirectTo": None}
 
 
 def test_disabled_login_writes_no_audit_event():

@@ -302,3 +302,45 @@ def test_password_login_still_works_beside_oidc(fake):
         res = client.post("/api/v1/auth/login", json=CREDS)
         assert res.status_code == 200
         assert res.json()["provider"] == "password"
+
+
+def test_logout_is_local_by_default(fake):
+    with structlog.testing.capture_logs() as captured:
+        with TestClient(app=make_oidc_app(fake)) as client:
+            oidc_login(client, fake)
+            res = client.post("/api/v1/auth/logout")
+            assert res.status_code == 200
+            assert res.json() == {"redirectTo": None}
+            assert client.get("/api/v1/auth/me").status_code == 401
+    logout = next(e for e in captured if e["event"] == "logout")
+    assert logout["provider"] == "oidc"
+    assert logout["idp_logout"] is False
+    assert logout["user"] == "gil"
+
+
+def test_logout_redirects_to_the_provider_when_enabled(fake):
+    with TestClient(app=make_oidc_app(fake, logout_idp=True)) as client:
+        oidc_login(client, fake)
+        res = client.post("/api/v1/auth/logout")
+        redirect_to = res.json()["redirectTo"]
+        assert redirect_to is not None
+        parts = urlsplit(redirect_to)
+        assert f"{parts.scheme}://{parts.netloc}{parts.path}" == fake.config.url("/end-session")
+        query = parse_qs(parts.query)
+        assert query["client_id"] == [CLIENT_ID]
+        assert query["post_logout_redirect_uri"] == ["http://localhost/signed-out"]
+        assert query["id_token_hint"][0].count(".") == 2
+        assert client.get("/api/v1/auth/me").status_code == 401
+
+
+def test_logout_stays_local_when_the_provider_has_no_end_session_endpoint(fake):
+    fake.config.advertise_end_session = False
+    with TestClient(app=make_oidc_app(fake, logout_idp=True)) as client:
+        oidc_login(client, fake)
+        assert client.post("/api/v1/auth/logout").json() == {"redirectTo": None}
+
+
+def test_logout_never_redirects_a_password_session(fake):
+    with TestClient(app=make_oidc_app(fake, logout_idp=True)) as client:
+        client.post("/api/v1/auth/login", json=CREDS)
+        assert client.post("/api/v1/auth/logout").json() == {"redirectTo": None}
