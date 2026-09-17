@@ -27,6 +27,7 @@ from urllib.parse import quote, urlencode
 import httpx2
 import jwt
 
+from geometrikks.lib.session import PENDING_LIFETIME_SECONDS
 from geometrikks.lib.urls import validate_https_url
 from geometrikks.server.logging import get_logger
 from geometrikks.services.oidc.errors import OidcForbidden, OidcProtocolError, OidcUnavailable
@@ -41,7 +42,6 @@ MAX_BODY_BYTES = 64 * 1024
 CONNECT_TIMEOUT = 5.0
 READ_TIMEOUT = 10.0
 LEEWAY_SECONDS = 60
-PENDING_LIFETIME_SECONDS = 10 * 60
 ALLOWED_ALGORITHMS = frozenset(
     {"RS256", "RS384", "RS512", "PS256", "PS384", "PS512", "ES256", "ES384", "ES512"}
 )
