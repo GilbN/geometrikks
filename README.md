@@ -497,8 +497,23 @@ Recommended settings when proxied over HTTPS:
 # The session cookie is only ever sent over HTTPS.
 APP_SESSION_SECURE=true
 # Trust X-Forwarded-For from your proxy so login logging records the real
-# client IP. Use the narrowest range that covers the proxy.
+# client IP. Use the narrowest range that covers the proxy. With Docker
+# that is the network the proxy and GeoMetrikks share; docker network
+# inspect <name> shows its subnet.
 APP_TRUSTED_PROXIES=172.18.0.0/16
+```
+
+Docker picks that subnet when it creates the network, so a `docker compose
+down` followed by `up` can land on a different one and the login log goes
+back to showing the proxy's container address. Pin it in your compose file
+if you do not want to chase it:
+
+```yaml
+networks:
+  default:
+    ipam:
+      config:
+        - subnet: 172.18.0.0/16
 ```
 
 With OpenID Connect, `OIDC_REDIRECT_URI` is the public https address of the
