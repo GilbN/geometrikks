@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest"
-import { LOGIN_ERROR_MESSAGES, planLoginForm, planLoginRoute, planLogoutRoute, toMeResult } from "@/lib/auth-redirect"
+import {
+  LOGIN_ERROR_MESSAGES,
+  isChromelessRoute,
+  planLoginForm,
+  planLoginRoute,
+  planLogoutRoute,
+  toMeResult,
+} from "@/lib/auth-redirect"
 
 /** Sentinel: the plan must carry this exact object through to the route. */
 const boom = new Error("kaboom")
@@ -141,5 +148,24 @@ describe("planLoginForm", () => {
 
   it("ignores an unknown error code rather than echoing it", () => {
     expect(planLoginForm(both, "<script>").message).toBeNull()
+    for (const code of ["__proto__", "constructor", "toString"]) {
+      expect(planLoginForm(both, code).message).toBeNull()
+    }
+  })
+})
+
+describe("isChromelessRoute", () => {
+  it("is true for the login page", () => {
+    expect(isChromelessRoute("/login")).toBe(true)
+  })
+
+  it("is true for the post-logout page", () => {
+    expect(isChromelessRoute("/signed-out")).toBe(true)
+  })
+
+  it("is false for the app shell and lookalike paths", () => {
+    expect(isChromelessRoute("/")).toBe(false)
+    expect(isChromelessRoute("/login/x")).toBe(false)
+    expect(isChromelessRoute("/signed-out/")).toBe(false)
   })
 })
