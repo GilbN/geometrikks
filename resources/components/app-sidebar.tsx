@@ -380,13 +380,14 @@ function LogoutButton() {
   if (me?.mode !== "session") return null
 
   async function onLogout() {
+    let redirectTo: string | null = null
     try {
-      await logout()
+      redirectTo = (await logout()).redirectTo
     } finally {
       // Hard navigation is deliberate, not a leftover: it discards the
       // TanStack Query cache holding the previous session's data, which a
       // client-side redirect would not. The /logout route does the same.
-      window.location.href = "/login"
+      window.location.href = redirectTo ?? "/login"
     }
   }
 
