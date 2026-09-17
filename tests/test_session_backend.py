@@ -6,6 +6,7 @@ every response, renewing its expiry. The subclass under test changes both.
 from __future__ import annotations
 
 import asyncio
+import re
 import threading
 import time
 
@@ -114,6 +115,11 @@ async def test_writing_a_loaded_session_does_not_renew_its_absolute_expiry():
 
         remaining = await store.expires_in(sid)
         assert remaining is not None and remaining <= 98
+
+        # The cookie must not outlive or undercut the store entry it names.
+        match = re.search(r"Max-Age=(\d+)", res.headers["set-cookie"])
+        assert match is not None
+        assert abs(int(match.group(1)) - remaining) <= 1
 
 
 async def test_final_second_session_write_clears_rather_than_renews():
