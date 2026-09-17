@@ -1,8 +1,8 @@
 """Session-lifetime constants shared by the OIDC client and the session backend.
 
-Import-time safe: standard library only. Kept dependency-free so the session
-backend (geometrikks/server/auth.py) does not have to import the OIDC client
-module, which pulls in httpx2, jwt and cryptography, just for this constant.
+Standard library only: geometrikks/server/auth.py imports this, and importing
+the OIDC client module instead would pull httpx2, jwt and cryptography into
+every process.
 """
 
 from __future__ import annotations

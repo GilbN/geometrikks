@@ -33,10 +33,9 @@ ISSUER = "http://127.0.0.1:9"
 CLIENT_ID = "geometrikks"
 CLIENT_SECRET = "test-client-secret"
 REDIRECT_URI = "http://localhost/api/v1/auth/oidc/callback"
-# 32 bytes: PyJWT warns (InsecureKeyLengthWarning) below that length for
-# HS256, and pyproject.toml turns warnings into test failures. HS256 is
-# never in ALLOWED_ALGORITHMS, so this signs a token the client must
-# reject; only the length matters, not the value.
+# PyJWT warns (InsecureKeyLengthWarning) on HS256 keys under 32 bytes and
+# pyproject.toml turns warnings into failures. The client must reject HS256
+# anyway; only the length matters.
 HS256_SHARED_SECRET = "shared-secret-at-least-32-bytes!"
 
 

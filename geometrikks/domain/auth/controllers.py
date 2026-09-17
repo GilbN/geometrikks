@@ -251,9 +251,8 @@ class AuthController(Controller):
         if pending.expired():
             return self._oidc_failure(request, "oidc_failed", reason="pending_expired")
         if error is not None:
-            # Only the standard error code, never error_description; truncated
-            # since it comes verbatim off the query string of a request
-            # nobody has authenticated yet.
+            # Only the error code, never error_description, and truncated:
+            # it comes straight off an unauthenticated query string.
             return self._oidc_failure(
                 request, "oidc_denied", reason="idp_error", error=error[:64]
             )

@@ -1098,10 +1098,8 @@ async def test_oidc_lifespan_warms_up_discovery_and_closes_the_client():
 
 
 async def test_oidc_lifespan_survives_a_warm_up_failure_during_shutdown():
-    """A warm-up that is still failing when shutdown cancels it must not
-    stop the client from closing: the finally block used to re-raise
-    whatever warm_up() raised, so an identity provider that never comes up
-    would take down the rest of the shutdown sequence with it.
+    """A warm-up still failing at shutdown must not stop the client from
+    closing or propagate out of the lifespan.
     """
     from geometrikks.server import lifecycle as lc
 
