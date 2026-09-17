@@ -293,6 +293,21 @@ def test_callback_failures(fake, monkeypatch, setup, code, reason):
         assert denied["error"] == "access_denied"
 
 
+def test_callback_truncates_a_long_idp_error_before_logging_it(fake):
+    with structlog.testing.capture_logs() as captured:
+        with TestClient(app=make_oidc_app(fake)) as client:
+            start = client.get("/api/v1/auth/oidc/start", follow_redirects=False)
+            query = parse_qs(urlsplit(start.headers["location"]).query)
+            state = query["state"][0]
+            long_error = "x" * 500
+            callback = f"/api/v1/auth/oidc/callback?error={long_error}&state={state}"
+            res = client.get(callback, follow_redirects=False)
+            assert res.status_code == 302
+            assert res.headers["location"] == "/login?error=oidc_denied"
+    denied = next(e for e in captured if e["event"] == "login_failed")
+    assert denied["error"] == "x" * 64
+
+
 def test_callback_consumes_the_pending_login_on_failure(fake):
     fake.config.fail["token"] = 500
     with TestClient(app=make_oidc_app(fake)) as client:

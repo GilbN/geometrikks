@@ -714,6 +714,21 @@ def test_oidc_ca_bundle_must_exist(tmp_path):
     assert _oidc(ca_bundle=bundle).ca_bundle == bundle
 
 
+def test_oidc_ca_bundle_must_be_readable(tmp_path):
+    import os
+
+    if os.geteuid() == 0:
+        pytest.skip("root ignores file mode bits")
+    bundle = tmp_path / "ca.pem"
+    bundle.write_text("not really a certificate")
+    bundle.chmod(0o000)
+    try:
+        with pytest.raises(ValidationError, match="OIDC_CA_BUNDLE is not readable"):
+            _oidc(ca_bundle=bundle)
+    finally:
+        bundle.chmod(0o644)
+
+
 def test_oidc_allow_lists_accept_every_env_form(monkeypatch):
     from geometrikks.config.settings import OidcSettings
 
