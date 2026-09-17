@@ -231,6 +231,38 @@ class RotatingServerSideSessionBackend(ServerSideSessionBackend):
 
         await super().store_in_message(scope_session, message, connection)
 
+    async def _write_session(
+        self,
+        session_id: str,
+        scope_session: "ScopeSession",
+        message: "Message",
+        connection: "ASGIConnection",
+        *,
+        expires_in: int,
+    ) -> None:
+        """Write scope_session to the store under session_id, with a cookie that matches exactly.
+
+        Shared by the pending-session and loaded-and-changed paths so the
+        cookie's advertised Max-Age can never drift from the store's actual
+        expiry: a browser holding a cookie that outlives its store entry is
+        harmless (the next request just 401s), but the reverse, a cookie
+        that expires before the session does, would log someone out early
+        for no reason.
+        """
+        scope = connection.scope
+        store = self.config.get_store_from_app(scope["app"])
+        headers = MutableScopeHeaders.from_message(message)
+        cookie_params = dict(
+            extract_dataclass_items(self.config, exclude_none=True, include=Cookie.__dict__.keys())
+        )
+        cookie_params["max_age"] = expires_in
+        serialised_data = self.serialize_data(scope_session, scope)
+        await store.set(session_id, serialised_data, expires_in=expires_in)
+        headers.add(
+            "Set-Cookie",
+            Cookie(value=session_id, key=self.config.key, **cookie_params).to_header(header=""),
+        )
+
     async def _store_loaded_session(
         self, scope_session: "ScopeSession", message: "Message", connection: "ASGIConnection"
     ) -> None:
@@ -247,23 +279,13 @@ class RotatingServerSideSessionBackend(ServerSideSessionBackend):
         the anonymous-failure path does, instead of writing a new entry back
         under an id that logout, or expiry, already invalidated.
         """
-        scope = connection.scope
-        store = self.config.get_store_from_app(scope["app"])
+        store = self.config.get_store_from_app(connection.scope["app"])
         session_id = self.get_session_id(connection)
         remaining = await store.expires_in(session_id)
         if scope_session is Empty or remaining is None or remaining <= 0:
             await super().store_in_message(Empty, message, connection)
             return
-        headers = MutableScopeHeaders.from_message(message)
-        cookie_params = dict(
-            extract_dataclass_items(self.config, exclude_none=True, include=Cookie.__dict__.keys())
-        )
-        serialised_data = self.serialize_data(scope_session, scope)
-        await store.set(session_id, serialised_data, expires_in=remaining)
-        headers.add(
-            "Set-Cookie",
-            Cookie(value=session_id, key=self.config.key, **cookie_params).to_header(header=""),
-        )
+        await self._write_session(session_id, scope_session, message, connection, expires_in=remaining)
 
     async def _store_pending_session(
         self, scope_session: dict[str, Any], message: "Message", connection: "ASGIConnection"
@@ -291,21 +313,10 @@ class RotatingServerSideSessionBackend(ServerSideSessionBackend):
         callback would report state_mismatch instead of pending_expired for
         a user who was simply slow.
         """
-        scope = connection.scope
-        store = self.config.get_store_from_app(scope["app"])
-        headers = MutableScopeHeaders.from_message(message)
         session_id = self.get_session_id(connection)
-        cookie_params = dict(
-            extract_dataclass_items(self.config, exclude_none=True, include=Cookie.__dict__.keys())
-        )
         pending_ttl = PENDING_LIFETIME_SECONDS + PENDING_SESSION_HEADROOM_SECONDS
-        cookie_params["max_age"] = pending_ttl
-        serialised_data = self.serialize_data(scope_session, scope)
-        await store.set(session_id, serialised_data, expires_in=pending_ttl)
-        headers.add(
-            "Set-Cookie",
-            Cookie(value=session_id, key=self.config.key, **cookie_params).to_header(header=""),
-        )
+        await self._write_session(session_id, scope_session, message, connection, expires_in=pending_ttl)
+        store = self.config.get_store_from_app(connection.scope["app"])
         await self._sweep_expired_if_due(store)
 
     async def _sweep_expired_if_due(self, store: "Store") -> None:
