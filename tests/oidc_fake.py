@@ -69,6 +69,7 @@ class FakeIdpConfig:
     token_kid: str | None = None
     signing: str = "rsa"  # rsa | none | hs256 | rsa-other | rsa384 | ps256
     jwks_alg: str | None = "RS256"  # the JWK's own alg field; None omits it
+    jwks_document: dict[str, Any] | None = None  # overrides the served JWKS verbatim
     claims: dict[str, Any] = field(default_factory=dict)
     expires_in: int = 300
     iat_offset: int = 0
@@ -211,6 +212,8 @@ def create_fake_idp(config: FakeIdpConfig) -> Litestar:
         config.jwks_fetches += 1
         if (failure := _failure(config, "jwks")) is not None:
             return failure
+        if config.jwks_document is not None:
+            return Response(content=config.jwks_document)
         primary, _ = _rsa_keys()
         key = RSAAlgorithm.to_jwk(primary.public_key(), as_dict=True)
         jwk: dict[str, Any] = {**key, "kid": config.kid, "use": "sig"}

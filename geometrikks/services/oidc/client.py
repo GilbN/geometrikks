@@ -404,7 +404,11 @@ class OidcClient:
                 leeway=LEEWAY_SECONDS,
                 options={"require": ["iss", "sub", "aud", "exp", "iat"]},
             )
-        except (jwt.PyJWTError, TypeError, ValueError) as exc:
+        except Exception as exc:
+            # PyJWT's own exp/iat comparison does int(claim), which raises a
+            # plain OverflowError (not PyJWTError) on a claim that decoded to
+            # inf; catching broadly is the only way to turn every malformed
+            # claim into a protocol error instead of a 500.
             raise OidcProtocolError("id_token_invalid", type(exc).__name__) from exc
         if not _text(claims, "sub"):
             raise OidcProtocolError("id_token_invalid", "empty sub")
@@ -497,7 +501,11 @@ class OidcClient:
         document = await self._get_json(metadata.jwks_uri, source="JWKS")
         try:
             self._jwks = jwt.PyJWKSet.from_dict(document)
-        except jwt.PyJWTError as exc:
+        except Exception as exc:
+            # PyJWKSet.from_dict raises whatever the malformed key trips over
+            # first (AttributeError on a non-dict entry, TypeError on a
+            # non-string n/e, ValueError on non-base64url n), never only
+            # PyJWTError, so this must catch broadly too.
             raise OidcUnavailable(f"JWKS is malformed: {type(exc).__name__}") from exc
         return self._jwks
 
