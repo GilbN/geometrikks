@@ -248,6 +248,7 @@ def test_callback_keeps_the_id_token_only_for_idp_logout(fake):
         ("malformed_exp", "oidc_failed", "id_token_invalid"),
         ("not_allowed", "oidc_forbidden", "not_allowed"),
         ("expired", "oidc_failed", "pending_expired"),
+        ("jwks_malformed", "oidc_unavailable", "discovery"),
     ],
 )
 def test_callback_failures(fake, monkeypatch, setup, code, reason):
@@ -259,6 +260,8 @@ def test_callback_failures(fake, monkeypatch, setup, code, reason):
         fake.config.claims = {"exp": []}
     if setup == "not_allowed":
         fake.config.userinfo["groups"] = ["guests"]
+    if setup == "jwks_malformed":
+        fake.config.jwks_document = {"keys": [1]}
     with structlog.testing.capture_logs() as captured:
         with TestClient(app=make_oidc_app(fake)) as client:
             if setup == "no_pending":

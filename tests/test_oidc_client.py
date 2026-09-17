@@ -238,6 +238,8 @@ async def test_client_secret_post_when_the_provider_only_supports_it(fake):
         ({"iat_offset": 120}, "id_token_invalid"),
         ({"claims": {"exp": []}}, "id_token_invalid"),
         ({"claims": {"iat": {}}}, "id_token_invalid"),
+        ({"claims": {"exp": 1e400}}, "id_token_invalid"),
+        ({"claims": {"iat": 1e400}}, "id_token_invalid"),
         ({"claims": {"nonce": "not-the-one-we-sent"}}, "nonce_mismatch"),
         ({"signing": "none"}, "id_token_invalid"),
         ({"signing": "hs256"}, "id_token_invalid"),
@@ -282,6 +284,13 @@ async def test_missing_kid_is_rejected_before_any_jwks_fetch(fake):
     with pytest.raises(OidcProtocolError, match="kid"):
         await login(client, fake)
     assert fake.config.jwks_fetches == 0
+
+
+async def test_malformed_jwks_is_unavailable_not_a_crash(fake):
+    fake.config.jwks_document = {"keys": [1]}
+    client = OidcClient(oidc_settings(), fake.http_client())
+    with pytest.raises(OidcUnavailable, match="JWKS is malformed"):
+        await login(client, fake)
 
 
 @pytest.mark.parametrize(
