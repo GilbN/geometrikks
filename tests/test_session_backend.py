@@ -116,6 +116,73 @@ async def test_writing_a_loaded_session_does_not_renew_its_absolute_expiry():
         assert remaining is not None and remaining <= 98
 
 
+async def test_final_second_session_write_clears_rather_than_renews():
+    """A session with under a second left must not be revived.
+
+    MemoryStore.expires_in truncates to whole seconds, so a session with
+    e.g. 0.4s left reads as 0. A naive "0 means unset, fall back to
+    max_age" write would take that live-but-nearly-gone session and hand it
+    a fresh 7-day lifetime under the same id.
+    """
+    app = make_app(extra_handlers=[touch_session], session_max_age=2)
+    async with AsyncTestClient(app=app) as client:
+        sid = (await client.post("/api/v1/auth/login", json=CREDS)).cookies["session"]
+        store = app.stores.get("sessions")
+        for _ in range(100):
+            remaining = await store.expires_in(sid)
+            if remaining is not None and remaining <= 0:
+                break
+            await anyio.sleep(0.05)
+        else:
+            pytest.fail("session never reached its final second")
+
+        res = await client.get("/api/v1/touch-session")
+        assert res.status_code == 200
+        assert await store.get(sid) is None
+
+        assert (await client.get("/api/v1/protected")).status_code == 401
+
+
+def test_logout_during_a_parked_session_write_clears_the_session():
+    """A session-mutating write that outlives its own logout must not win.
+
+    /oidc/start merging oidc_pending into an already-logged-in session is
+    the real shape of this: an authenticated write that reaches the store
+    after logout already deleted the entry must not plant it right back.
+    """
+    events: dict[str, asyncio.Event] = {}
+
+    @get("/api/v1/slow-touch", exclude_from_auth=True)
+    async def slow_touch(request: Request) -> dict[str, bool]:
+        events["entered"].set()
+        await events["gate"].wait()
+        session = dict(request.session or {})
+        session["touched"] = True
+        request.set_session(session)
+        return {"ok": True}
+
+    app = make_app(extra_handlers=[slow_touch])
+    with TestClient(app=app) as client, client.portal() as portal:
+        events["entered"], events["gate"] = portal.call(asyncio.Event), portal.call(asyncio.Event)
+        sid = client.post("/api/v1/auth/login", json=CREDS).cookies["session"]
+        store = app.stores.get("sessions")
+        results: list = []
+        worker = threading.Thread(
+            target=lambda: results.append(client.get("/api/v1/slow-touch"))
+        )
+        worker.start()
+        portal.call(events["entered"].wait)
+        assert client.post("/api/v1/auth/logout").status_code in (200, 204)
+        portal.call(events["gate"].set)
+        worker.join(timeout=5)
+
+        response = results[0]
+        assert response.status_code == 200
+        assert response.headers["set-cookie"].startswith("session=null")
+        assert portal.call(store.get, sid) is None
+        assert client.get("/api/v1/protected").status_code == 401
+
+
 def test_logout_is_not_undone_by_an_in_flight_request():
     events: dict[str, asyncio.Event] = {}
 
