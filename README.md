@@ -510,6 +510,18 @@ only honors it when the request arrives from an address listed in
 the range tight: everything inside it can put arbitrary addresses in the
 header.
 
+The list has to cover every hop that adds to `X-Forwarded-For` before the
+request reaches the app, not just the last one, because the app reads the
+chain from the right and stops at the first address it does not trust.
+Behind Cloudflare with Traefik that is the Docker network Traefik shares
+with the app plus Cloudflare's published ranges
+(<https://www.cloudflare.com/ips/>), and Cloudflare's ranges must also be
+on Traefik's entrypoint (`forwardedHeaders.trustedIPs`, see
+`docs/proxy-setup.md`) or the visitor never enters the chain. nginx and
+SWAG with `real_ip` configured rewrite the peer at the proxy and hand the
+app a chain that already ends in the visitor, so there the Docker range
+alone is enough.
+
 `APP_TRUSTED_PROXIES` only affects the app's own login logging; it has no
 effect on how the log parser reads your proxy's access log files. For
 getting the real visitor address into those log files, see

@@ -165,6 +165,13 @@ past the immediate peer for an earlier trusted hop. The fix belongs at
 that earlier hop, not at Traefik. Resolve the real IP there, or have it
 collapse the chain to a single address before forwarding.
 
+The same applies to the app's own login log, which reads the chain Traefik
+forwards. Because Traefik never rewrites the peer, that chain still ends
+in the Cloudflare node that connected, and the app stops there unless
+Cloudflare's ranges are in `APP_TRUSTED_PROXIES` next to Traefik's own
+network. With nginx or SWAG and `real_ip` this is not needed: the proxy
+has already replaced the peer with the visitor.
+
 ## Caddy
 
 Caddy resolves the visitor into the logged `client_ip` itself, so no
@@ -219,7 +226,10 @@ controls how the app itself resolves the client address on its own
 inbound requests, the ones logged for login auditing (`lib/client_ip.py`).
 It has no effect on how the log parser reads your proxy's access log
 files; that path is governed entirely by what your proxy chooses to write,
-which is what the rest of this document covers.
+which is what the rest of this document covers. The same trusted-hop rule
+applies to it, though: behind a CDN, list the CDN's ranges in
+`APP_TRUSTED_PROXIES` as well unless the proxy rewrites the peer with
+`real_ip`. The Traefik section above has the details.
 
 ## History
 
