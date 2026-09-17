@@ -8,22 +8,27 @@ the plaintext from env is never kept on the state object.
 from __future__ import annotations
 
 import copy
+import time
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Literal, cast
 
+from litestar.datastructures import Cookie, MutableScopeHeaders
 from litestar.middleware.session.server_side import (
     ServerSideSessionBackend,
     ServerSideSessionConfig,
 )
 from litestar.security.session_auth import SessionAuth
 from litestar.types import Empty
+from litestar.utils.dataclass import extract_dataclass_items
 from pwdlib import PasswordHash
 
 from geometrikks.server.logging import get_logger
+from geometrikks.services.oidc.client import PENDING_LIFETIME_SECONDS
 
 if TYPE_CHECKING:
     from litestar import Request
     from litestar.connection import ASGIConnection
+    from litestar.stores.base import Store
     from litestar.types import Message, ScopeSession
 
     from geometrikks.config.settings import Settings
@@ -153,7 +158,17 @@ class RotatingServerSideSessionBackend(ServerSideSessionBackend):
     during logout write the deleted session straight back, and keeps active
     sessions alive indefinitely. Writing only on change makes the expiry
     set at login absolute.
+
+    A third change: a session with no "username" key is a pre-login session
+    (currently only the OIDC PendingLogin planted by /oidc/start, which is
+    unauthenticated and reachable by anyone). Those get PENDING_LIFETIME_SECONDS
+    instead of the configured max_age, both in the store and on the cookie; see
+    _store_pending_session for why.
     """
+
+    def __init__(self, config: ServerSideSessionConfig) -> None:
+        super().__init__(config)
+        self._next_sweep_at = 0.0
 
     async def load_from_connection(self, connection: "ASGIConnection") -> dict[str, Any]:
         data = await super().load_from_connection(connection)
@@ -184,7 +199,61 @@ class RotatingServerSideSessionBackend(ServerSideSessionBackend):
             return
         elif scope_session is not Empty and scope_session == loaded:
             return
+        if isinstance(scope_session, dict) and "username" not in scope_session:
+            await self._store_pending_session(scope_session, message, connection)
+            return
         await super().store_in_message(scope_session, message, connection)
+
+    async def _store_pending_session(
+        self, scope_session: dict[str, Any], message: "Message", connection: "ASGIConnection"
+    ) -> None:
+        """Write a pre-login session with a short lifetime, and sweep the store.
+
+        /oidc/start is the only unauthenticated route that writes a session,
+        and it runs before the auth middleware has anything to check, so
+        every anonymous hit reaches here. Left on the stock code path it
+        would get the full config max_age (SESSION_MAX_AGE_SECONDS, 7 days)
+        in both the store and the cookie, even though the PendingLogin it
+        holds is worthless after PENDING_LIFETIME_SECONDS. MemoryStore (and
+        FileStore) only drop expired rows when read, never on a schedule, so
+        a loop of anonymous starts would grow the store without bound
+        between accesses. Writing the short lifetime bounds each entry's
+        own cost; the sweep below, thrown in on the same path since it is
+        the one place every pending write passes through in every app mode
+        (including DB-degraded, where the scheduler never starts), clears
+        out rows nobody comes back to read.
+        """
+        scope = connection.scope
+        store = self.config.get_store_from_app(scope["app"])
+        headers = MutableScopeHeaders.from_message(message)
+        session_id = self.get_session_id(connection)
+        cookie_params = dict(
+            extract_dataclass_items(self.config, exclude_none=True, include=Cookie.__dict__.keys())
+        )
+        cookie_params["max_age"] = PENDING_LIFETIME_SECONDS
+        serialised_data = self.serialize_data(scope_session, scope)
+        await store.set(session_id, serialised_data, expires_in=PENDING_LIFETIME_SECONDS)
+        headers.add(
+            "Set-Cookie",
+            Cookie(value=session_id, key=self.config.key, **cookie_params).to_header(header=""),
+        )
+        await self._sweep_expired_if_due(store)
+
+    async def _sweep_expired_if_due(self, store: "Store") -> None:
+        """At most once per PENDING_LIFETIME_SECONDS, drop expired store rows.
+
+        Two requests racing past the throttle and both sweeping is harmless,
+        just redundant; the throttle only exists to keep this off the hot
+        path on every single request.
+        """
+        sweep = getattr(store, "delete_expired", None)
+        if not callable(sweep):
+            return
+        now = time.monotonic()
+        if now < self._next_sweep_at:
+            return
+        self._next_sweep_at = now + PENDING_LIFETIME_SECONDS
+        await sweep()
 
 
 class RotatingServerSideSessionConfig(ServerSideSessionConfig):
