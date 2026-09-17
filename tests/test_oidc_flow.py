@@ -200,6 +200,7 @@ def test_callback_happy_path(fake):
             res = client.get(fake.issue_code(start.headers["location"]), follow_redirects=False)
             assert res.status_code == 302
             assert res.headers["location"] == "/"
+            assert res.headers["cache-control"] == "no-store"
             assert res.cookies["session"] != pre_login
             assert client.get("/api/v1/auth/me").json() == {
                 "mode": "session",

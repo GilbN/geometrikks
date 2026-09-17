@@ -270,7 +270,11 @@ class AuthController(Controller):
             return self._oidc_failure(request, "oidc_failed", reason=exc.reason, detail=exc.detail)
         except OidcUnavailable as exc:
             return self._oidc_failure(
-                request, "oidc_unavailable", reason="discovery", error=type(exc).__name__
+                request,
+                "oidc_unavailable",
+                reason="discovery",
+                error=type(exc).__name__,
+                detail=str(exc),
             )
         identity = completion.identity
         rotate_session(request)
@@ -285,7 +289,7 @@ class AuthController(Controller):
             subject=identity.subject,
             ip=resolve_client_ip(request),
         )
-        return Redirect("/")
+        return Redirect("/", headers={"Cache-Control": "no-store"})
 
     @staticmethod
     def _oidc_failure(request: Request, code: str, **fields: object) -> Redirect:

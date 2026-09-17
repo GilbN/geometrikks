@@ -29,7 +29,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import time
-from contextlib import asynccontextmanager, suppress
+from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Protocol
 
@@ -283,8 +283,14 @@ async def oidc_lifespan(app: "Litestar") -> "AsyncGenerator[None]":
         yield
     finally:
         warm_up.cancel()
-        with suppress(asyncio.CancelledError):
-            await warm_up
+        # asyncio.wait(), unlike awaiting the task directly, never raises
+        # whatever warm_up() raised; shutdown must not fail because
+        # discovery did. Inspect the outcome instead of propagating it.
+        await asyncio.wait([warm_up])
+        if not warm_up.cancelled():
+            error = warm_up.exception()
+            if error is not None:
+                logger.warning("oidc_warm_up_failed", error=str(error))
         await client.aclose()
 
 
