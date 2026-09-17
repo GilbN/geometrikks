@@ -664,12 +664,45 @@
       ],
       "uri": "/api/v1/auth/me"
     },
+    "oidc_callback": {
+      "method": "get",
+      "methods": [
+        "GET"
+      ],
+      "queryParameters": {
+        "code": "string | undefined",
+        "error": "string | undefined",
+        "state": "string | undefined"
+      },
+      "uri": "/api/v1/auth/oidc/callback"
+    },
+    "oidc_start": {
+      "method": "get",
+      "methods": [
+        "GET"
+      ],
+      "uri": "/api/v1/auth/oidc/start"
+    },
+    "oidc_status": {
+      "method": "get",
+      "methods": [
+        "GET"
+      ],
+      "uri": "/api/v1/auth/oidc/status"
+    },
     "openapi.json": {
       "method": "get",
       "methods": [
         "GET"
       ],
       "uri": "/schema/openapi.json"
+    },
+    "options": {
+      "method": "get",
+      "methods": [
+        "GET"
+      ],
+      "uri": "/api/v1/auth/options"
     },
     "read_settings": {
       "method": "get",

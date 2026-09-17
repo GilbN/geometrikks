@@ -42,6 +42,9 @@ import type {
   BannedMapCollection,
   SessionUser,
   AuthDisabled,
+  AuthOptions,
+  OidcStatus,
+  LogoutResponse,
   SiteHomesResponse,
 } from "@/generated/api/types.gen"
 
@@ -52,6 +55,8 @@ export type {
   DecisionView,
   BannedIp,
   BannedMapCollection,
+  AuthOptions,
+  OidcStatus,
 }
 
 // Create axios instance with base configuration
@@ -96,8 +101,20 @@ export async function login(username: string, password: string): Promise<MeRespo
   return data
 }
 
-export async function logout(): Promise<void> {
-  await api.post("/auth/logout")
+export async function logout(): Promise<LogoutResponse> {
+  const { data } = await api.post<LogoutResponse>("/auth/logout")
+  return data
+}
+
+/** Which login methods exist. Unauthenticated: the login page needs it. */
+export async function fetchAuthOptions(): Promise<AuthOptions> {
+  const { data } = await api.get<AuthOptions>("/auth/options")
+  return data
+}
+
+export async function fetchOidcStatus(): Promise<OidcStatus> {
+  const { data } = await api.get<OidcStatus>("/auth/oidc/status")
+  return data
 }
 
 export async function fetchMe(): Promise<MeResponse> {

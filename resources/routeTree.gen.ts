@@ -19,6 +19,7 @@ import { Route as LogoutRouteImport } from './routes/logout'
 import { Route as MapRouteImport } from './routes/map'
 import { Route as SecurityRouteImport } from './routes/security'
 import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as SignedOutRouteImport } from './routes/signed-out'
 import { Route as SettingsIndexRouteImport } from './routes/settings/index'
 import { Route as SettingsAboutRouteImport } from './routes/settings/about'
 import { Route as SettingsAppearanceRouteImport } from './routes/settings/appearance'
@@ -78,6 +79,11 @@ const SettingsRoute = SettingsRouteImport.update({
   path: '/settings',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SignedOutRoute = SignedOutRouteImport.update({
+  id: '/signed-out',
+  path: '/signed-out',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SettingsIndexRoute = SettingsIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -130,6 +136,7 @@ export interface FileRoutesByFullPath {
   '/map': typeof MapRoute
   '/security': typeof SecurityRoute
   '/settings': typeof SettingsRouteWithChildren
+  '/signed-out': typeof SignedOutRoute
   '/settings/about': typeof SettingsAboutRoute
   '/settings/appearance': typeof SettingsAppearanceRoute
   '/settings/changelog': typeof SettingsChangelogRoute
@@ -149,6 +156,7 @@ export interface FileRoutesByTo {
   '/logout': typeof LogoutRoute
   '/map': typeof MapRoute
   '/security': typeof SecurityRoute
+  '/signed-out': typeof SignedOutRoute
   '/settings/about': typeof SettingsAboutRoute
   '/settings/appearance': typeof SettingsAppearanceRoute
   '/settings/changelog': typeof SettingsChangelogRoute
@@ -170,6 +178,7 @@ export interface FileRoutesById {
   '/map': typeof MapRoute
   '/security': typeof SecurityRoute
   '/settings': typeof SettingsRouteWithChildren
+  '/signed-out': typeof SignedOutRoute
   '/settings/about': typeof SettingsAboutRoute
   '/settings/appearance': typeof SettingsAppearanceRoute
   '/settings/changelog': typeof SettingsChangelogRoute
@@ -192,6 +201,7 @@ export interface FileRouteTypes {
     | '/map'
     | '/security'
     | '/settings'
+    | '/signed-out'
     | '/settings/about'
     | '/settings/appearance'
     | '/settings/changelog'
@@ -211,6 +221,7 @@ export interface FileRouteTypes {
     | '/logout'
     | '/map'
     | '/security'
+    | '/signed-out'
     | '/settings/about'
     | '/settings/appearance'
     | '/settings/changelog'
@@ -231,6 +242,7 @@ export interface FileRouteTypes {
     | '/map'
     | '/security'
     | '/settings'
+    | '/signed-out'
     | '/settings/about'
     | '/settings/appearance'
     | '/settings/changelog'
@@ -252,6 +264,7 @@ export interface RootRouteChildren {
   MapRoute: typeof MapRoute
   SecurityRoute: typeof SecurityRoute
   SettingsRoute: typeof SettingsRouteWithChildren
+  SignedOutRoute: typeof SignedOutRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -324,6 +337,13 @@ declare module '@tanstack/react-router' {
       path: '/settings'
       fullPath: '/settings'
       preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/signed-out': {
+      id: '/signed-out'
+      path: '/signed-out'
+      fullPath: '/signed-out'
+      preLoaderRoute: typeof SignedOutRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/settings/': {
@@ -422,6 +442,7 @@ const rootRouteChildren: RootRouteChildren = {
   MapRoute: MapRoute,
   SecurityRoute: SecurityRoute,
   SettingsRoute: SettingsRouteWithChildren,
+  SignedOutRoute: SignedOutRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

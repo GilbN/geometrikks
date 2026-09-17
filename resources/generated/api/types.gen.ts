@@ -158,6 +158,14 @@ export type AuthDisabled = {
 };
 
 /**
+ * AuthOptions
+ */
+export type AuthOptions = {
+  oidc: OidcOption | null;
+  password: boolean;
+};
+
+/**
  * BanRequest
  */
 export type BanRequest = {
@@ -865,6 +873,13 @@ export type LoginPayload = {
 };
 
 /**
+ * LogoutResponse
+ */
+export type LogoutResponse = {
+  redirectTo: string | null;
+};
+
+/**
  * LogparserSettingsView
  */
 export type LogparserSettingsView = {
@@ -881,6 +896,26 @@ export type MapSettingsView = {
   homeLatitude: number | null;
   homeLongitude: number | null;
   homeSource: "configured" | "external_ip" | null;
+};
+
+/**
+ * OidcOption
+ */
+export type OidcOption = {
+  providerName: string;
+};
+
+/**
+ * OidcStatus
+ */
+export type OidcStatus = {
+  configured: boolean;
+  detail: string | null;
+  discovery: "ok" | "failed" | "pending";
+  idpLogout: boolean;
+  issuer: string | null;
+  passwordLogin: boolean;
+  providerName: string | null;
 };
 
 /**
@@ -1008,6 +1043,7 @@ export type SchedulerJobsResponse = {
  */
 export type SessionUser = {
   mode: "session";
+  provider: "password" | "oidc";
   username: string;
 };
 
@@ -2295,9 +2331,9 @@ export type ApiV1AuthLogoutLogoutData = {
 
 export type ApiV1AuthLogoutLogoutResponses = {
   /**
-   * Request fulfilled, nothing follows
+   * Request fulfilled, document follows
    */
-  204: void;
+  200: LogoutResponse;
 };
 
 export type ApiV1AuthLogoutLogoutResponse =
@@ -2319,6 +2355,40 @@ export type ApiV1AuthMeMeResponses = {
 
 export type ApiV1AuthMeMeResponse =
   ApiV1AuthMeMeResponses[keyof ApiV1AuthMeMeResponses];
+
+export type ApiV1AuthOidcStatusOidcStatusData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: "/api/v1/auth/oidc/status";
+};
+
+export type ApiV1AuthOidcStatusOidcStatusResponses = {
+  /**
+   * Request fulfilled, document follows
+   */
+  200: OidcStatus;
+};
+
+export type ApiV1AuthOidcStatusOidcStatusResponse =
+  ApiV1AuthOidcStatusOidcStatusResponses[keyof ApiV1AuthOidcStatusOidcStatusResponses];
+
+export type ApiV1AuthOptionsOptionsData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: "/api/v1/auth/options";
+};
+
+export type ApiV1AuthOptionsOptionsResponses = {
+  /**
+   * Request fulfilled, document follows
+   */
+  200: AuthOptions;
+};
+
+export type ApiV1AuthOptionsOptionsResponse =
+  ApiV1AuthOptionsOptionsResponses[keyof ApiV1AuthOptionsOptionsResponses];
 
 export type ApiV1CrowdsecAlertsListAlertsData = {
   body?: never;
