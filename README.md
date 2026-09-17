@@ -398,8 +398,9 @@ APP_ADMIN_PASSWORD=           # required; the app refuses to start without it
 Log in through the web UI (`/login`) or `POST /api/v1/auth/login`. Everything
 under `/api/` and `/ws/` requires a session; the web app's static files
 (you need them to reach the login page), `/health`, `/health/ready` and
-`/schema` stay open. **Sessions are held in memory**, so
-restarting the app container logs everyone out.
+`/schema` stay open. **Sessions are held in memory**, so restarting the app
+container logs everyone out, and every session ends 7 days after login
+regardless of use.
 
 If something else already controls who reaches the app (an authenticating
 proxy such as Authelia or Tailscale, or a network only you can reach), you
@@ -411,6 +412,73 @@ APP_AUTH_DISABLED=true
 
 There is then no login and no session: anyone who can reach the app has full
 access to it and to the WebSocket feeds.
+
+### OpenID Connect
+
+GeoMetrikks can sign you in through an OpenID Connect identity provider
+such as Authelia, Authentik, Keycloak, Pocket ID or Google. It uses the
+authorization code flow with PKCE and needs a confidential client at the
+provider.
+
+```bash
+OIDC_ISSUER=https://auth.example.com          # the provider's issuer URL, https
+OIDC_CLIENT_ID=geometrikks
+OIDC_CLIENT_SECRET=
+OIDC_REDIRECT_URI=https://geo.example.com/api/v1/auth/oidc/callback
+OIDC_ALLOWED_GROUPS=admins                     # and/or OIDC_ALLOWED_USERS
+APP_SESSION_SECURE=true                        # required with an https redirect URI
+```
+
+Register two URLs at the provider: the redirect URI above, and, if you turn
+on `OIDC_LOGOUT_IDP`, `https://geo.example.com/signed-out` as the
+post-logout redirect URI.
+
+**Who gets in.** At least one of `OIDC_ALLOWED_USERS` (verified email
+addresses or subject identifiers) and `OIDC_ALLOWED_GROUPS` is required.
+Without an allow list, anyone the provider authenticates could sign in,
+which for a public provider such as Google means everyone. An email only
+matches when the provider marks it verified. The allow list is checked at
+login; removing someone at the provider takes effect the next time they
+sign in, which is at the latest 7 days later when their session ends.
+
+**Password login stays on** while `APP_ADMIN_PASSWORD` is set, so you can
+still get in through the password form when the provider is down. Unset it
+to make the provider the only way in.
+
+**Authelia.** Add a client under `identity_providers.oidc.clients`:
+
+```yaml
+- client_id: geometrikks
+  client_name: GeoMetrikks
+  client_secret: '$pbkdf2-sha512$...'   # authelia crypto hash generate pbkdf2
+  public: false
+  authorization_policy: two_factor
+  redirect_uris:
+    - https://geo.example.com/api/v1/auth/oidc/callback
+  post_logout_redirect_uris:
+    - https://geo.example.com/signed-out
+  scopes: [openid, profile, email, groups]
+  token_endpoint_auth_method: client_secret_basic
+```
+
+Authelia serves `groups` and `email` from the userinfo endpoint rather than
+the ID token; GeoMetrikks reads both, so nothing extra is needed. Keep the
+`groups` scope in `OIDC_SCOPES` (the default includes it).
+
+**Authentik.** Create an OAuth2/OpenID provider with client type
+Confidential, the redirect URI above, and the default `openid`, `email` and
+`profile` scope mappings; groups come through the default `profile`
+mapping. Set `OIDC_ISSUER` to the application's issuer URL shown on the
+provider page (it ends in the application slug) and
+`OIDC_SCOPES="openid profile email"` unless you add a `groups` scope.
+
+**Internal CA.** If the provider's certificate is signed by your own CA,
+point `OIDC_CA_BUNDLE` at its PEM file. There is no switch to turn
+verification off.
+
+The Settings > Status page shows whether the provider's discovery document
+could be fetched. Startup never waits for the provider; if it is still
+coming up, the first sign-in attempt retries.
 
 ## Running behind a reverse proxy
 
@@ -443,6 +511,9 @@ networks:
       config:
         - subnet: 172.18.0.0/16
 ```
+
+With OpenID Connect, `OIDC_REDIRECT_URI` is the public https address of the
+app, and `APP_SESSION_SECURE=true` is required alongside it.
 
 `X-Forwarded-For` is a plain header any client can send, so GeoMetrikks
 only honors it when the request arrives from an address listed in
