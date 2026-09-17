@@ -336,10 +336,11 @@ export function liveFeedState(status: LiveFeedStatus): CardState {
 export function authState(me: MeResponse | undefined, isError: boolean): CardState {
   if (isError) return { tone: "muted", label: "Unavailable" }
   if (!me) return { tone: "muted", label: "Unknown" }
-  // Neutral: the built-in auth being on is the expected baseline.
+  // Emerald, not muted: on this page the hollow dot marks things that are
+  // off (Ingestion "Disabled"), and a logged-in session is not off.
   if (me.mode === "session") {
     return {
-      tone: "muted",
+      tone: "emerald",
       label: me.provider === "oidc" ? "SSO login active" : "Session login active",
     }
   }
@@ -369,4 +370,14 @@ export function oidcState(status: OidcStatus | undefined, isError: boolean): Car
     }
   }
   return { tone: "muted", label: "Checking identity provider" }
+}
+
+/** Chips under the provider line: whether the password form is still offered
+ *  beside SSO, and whether logout also ends the provider session. */
+export function loginMethodBadges(status: OidcStatus | undefined): string[] {
+  if (!status?.configured) return []
+  return [
+    status.passwordLogin ? "password login on" : "password login off",
+    status.idpLogout ? "IdP logout on" : "IdP logout off",
+  ]
 }

@@ -23,6 +23,7 @@ import {
   ingestionState,
   lastEventState,
   liveFeedState,
+  loginMethodBadges,
   oidcState,
   overallState,
   relativeTime,
@@ -409,18 +410,17 @@ describe("authState", () => {
     expect(authState(undefined, true)).toEqual({ tone: "muted", label: "Unavailable" })
   })
 
-  it("reports an active session login neutrally", () => {
-    // Neutral, not emerald: session auth being on is the normal baseline,
-    // not an achievement. Only the disabled case is worth an operator's eye.
+  it("reports an active session login as healthy", () => {
+    // Emerald, not muted: the hollow dot marks disabled things on this page.
     expect(authState({ mode: "session", username: "admin", provider: "password" }, false)).toEqual({
-      tone: "muted",
+      tone: "emerald",
       label: "Session login active",
     })
   })
 
   it("names SSO when the session came from OIDC", () => {
     expect(authState({ mode: "session", username: "gil", provider: "oidc" }, false)).toEqual({
-      tone: "muted",
+      tone: "emerald",
       label: "SSO login active",
     })
   })
@@ -470,6 +470,31 @@ describe("oidcState", () => {
       tone: "muted",
       label: "Checking identity provider",
     })
+  })
+})
+
+describe("loginMethodBadges", () => {
+  const base: OidcStatus = {
+    configured: true,
+    providerName: "Authelia",
+    issuer: "https://auth.example.com",
+    discovery: "ok",
+    detail: null,
+    passwordLogin: true,
+    idpLogout: false,
+  }
+
+  it("is empty without OIDC", () => {
+    expect(loginMethodBadges(undefined)).toEqual([])
+    expect(loginMethodBadges({ ...base, configured: false })).toEqual([])
+  })
+
+  it("says whether the password form and IdP logout are on", () => {
+    expect(loginMethodBadges(base)).toEqual(["password login on", "IdP logout off"])
+    expect(loginMethodBadges({ ...base, passwordLogin: false, idpLogout: true })).toEqual([
+      "password login off",
+      "IdP logout on",
+    ])
   })
 })
 

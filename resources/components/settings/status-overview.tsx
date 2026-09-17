@@ -60,6 +60,7 @@ import {
   ingestionState,
   lastEventState,
   liveFeedState,
+  loginMethodBadges,
   oidcState,
   overallState,
   relativeTime,
@@ -271,6 +272,15 @@ export function StatusOverview() {
               <p className="text-xs text-muted-foreground">
                 {oidc.providerName} <MonoChip>{oidc.issuer}</MonoChip>
               </p>
+            )}
+            {oidc?.configured && (
+              <div className="flex items-center gap-2">
+                {loginMethodBadges(oidc).map((label) => (
+                  <Badge key={label} variant="outline">
+                    {label}
+                  </Badge>
+                ))}
+              </div>
             )}
           </CardContent>
         </Card>
