@@ -390,7 +390,7 @@ GeoMetrikks ships with single-admin session-cookie authentication:
 
 ```bash
 APP_ADMIN_USER=admin          # defaults to "admin"
-APP_ADMIN_PASSWORD=           # required; the app refuses to start without it
+APP_ADMIN_PASSWORD=           # required unless OpenID Connect is configured (see below)
 ```
 
 ![Login](/data/screenshots/login.png)
@@ -471,6 +471,10 @@ Confidential, the redirect URI above, and the default `openid`, `email` and
 mapping. Set `OIDC_ISSUER` to the application's issuer URL shown on the
 provider page (it ends in the application slug) and
 `OIDC_SCOPES="openid profile email"` unless you add a `groups` scope.
+
+**Google.** Google does not accept a `groups` scope, so set
+`OIDC_SCOPES="openid profile email"` and allow people by verified email
+with `OIDC_ALLOWED_USERS`.
 
 **Internal CA.** If the provider's certificate is signed by your own CA,
 point `OIDC_CA_BUNDLE` at its PEM file. There is no switch to turn

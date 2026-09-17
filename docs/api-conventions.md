@@ -13,7 +13,8 @@ registration point. Controllers live in their vertical domain packages
 (`geometrikks/domain/<domain>/controllers*`) and own only their domain
 segment (`/analytics`, `/crowdsec`, ...); the router supplies the version
 prefix. Everything under `/api/v1` requires the session cookie except
-`/api/v1/auth/login` (with `APP_AUTH_DISABLED=true` nothing requires a
+`/api/v1/auth/login`, `/api/v1/auth/options`, `/api/v1/auth/oidc/start` and
+`/api/v1/auth/oidc/callback` (with `APP_AUTH_DISABLED=true` nothing requires a
 session, and the auth endpoints stay registered as mode-appropriate no-ops:
 `/api/v1/auth/me` and a valid `/api/v1/auth/login` return
 `{"mode": "disabled"}`). `/api/v1/auth/logout` always answers 200 with
