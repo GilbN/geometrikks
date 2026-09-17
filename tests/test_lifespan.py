@@ -1081,3 +1081,24 @@ async def test_recovery_shutdown_waits_for_migration_worker(monkeypatch, worker_
     service.aclose.assert_awaited_once()
     cast("AsyncMock", lc.setup_timescaledb).assert_not_awaited()
     cast("AsyncMock", lc.create_scheduler).assert_not_awaited()
+
+
+async def test_oidc_lifespan_warms_up_discovery_and_closes_the_client():
+    from geometrikks.server import lifecycle as lc
+
+    client = SimpleNamespace(warm_up=AsyncMock(), aclose=AsyncMock())
+    app = SimpleNamespace(state=SimpleNamespace(oidc_client=client))
+    async with lc.oidc_lifespan(cast("Any", app)):
+        # The warm-up runs as a background task so a slow IdP never delays
+        # the rest of startup; give the loop one turn to schedule it.
+        await asyncio.sleep(0)
+    client.warm_up.assert_awaited_once()
+    client.aclose.assert_awaited_once()
+
+
+async def test_oidc_lifespan_is_a_no_op_without_a_client():
+    from geometrikks.server import lifecycle as lc
+
+    app = SimpleNamespace(state=SimpleNamespace())
+    async with lc.oidc_lifespan(cast("Any", app)):
+        pass
