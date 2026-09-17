@@ -425,8 +425,23 @@ Recommended settings when proxied over HTTPS:
 # The session cookie is only ever sent over HTTPS.
 APP_SESSION_SECURE=true
 # Trust X-Forwarded-For from your proxy so login logging records the real
-# client IP. Use the narrowest range that covers the proxy.
+# client IP. Use the narrowest range that covers the proxy. With Docker
+# that is the network the proxy and GeoMetrikks share; docker network
+# inspect <name> shows its subnet.
 APP_TRUSTED_PROXIES=172.18.0.0/16
+```
+
+Docker picks that subnet when it creates the network, so a `docker compose
+down` followed by `up` can land on a different one and the login log goes
+back to showing the proxy's container address. Pin it in your compose file
+if you do not want to chase it:
+
+```yaml
+networks:
+  default:
+    ipam:
+      config:
+        - subnet: 172.18.0.0/16
 ```
 
 `X-Forwarded-For` is a plain header any client can send, so GeoMetrikks
@@ -434,6 +449,22 @@ only honors it when the request arrives from an address listed in
 `APP_TRUSTED_PROXIES`; otherwise it uses the connection's own address. Keep
 the range tight: everything inside it can put arbitrary addresses in the
 header.
+
+The list has to cover every hop that adds to `X-Forwarded-For` before the
+request reaches the app, not just the last one, because the app reads the
+chain from the right and stops at the first address it does not trust.
+With Cloudflare connecting to Traefik directly (no Tunnel), that is the
+Docker network Traefik shares with the app plus Cloudflare's published
+ranges (<https://www.cloudflare.com/ips/>), and Cloudflare's ranges must
+also be on Traefik's entrypoint (`forwardedHeaders.trustedIPs`, see
+`docs/proxy-setup.md`) or the visitor never enters the chain. nginx and
+SWAG with `real_ip` configured rewrite the peer at the proxy and hand the
+app a chain that already ends in the visitor, so there the Docker range
+alone is enough. A Cloudflare Tunnel is different: the peer is
+`cloudflared`, and the visitor arrives only in `CF-Connecting-IP`, which
+the app does not read. There the login log shows the `cloudflared`
+address unless nginx rewrites the peer with `real_ip_header
+CF-Connecting-IP`, as the Tunnel section of `docs/proxy-setup.md` shows.
 
 `APP_TRUSTED_PROXIES` only affects the app's own login logging; it has no
 effect on how the log parser reads your proxy's access log files. For
