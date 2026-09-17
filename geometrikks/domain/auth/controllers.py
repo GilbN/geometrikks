@@ -2,14 +2,15 @@
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import Annotated, Literal
 
 import msgspec
 
 from litestar import Controller, Request, get, post
 from litestar.di import NamedDependency
-from litestar.exceptions import NotAuthorizedException
-from litestar.params import SkipValidation
+from litestar.exceptions import NotAuthorizedException, NotFoundException
+from litestar.params import QueryParameter, SkipValidation
+from litestar.response import Redirect
 from litestar.status_codes import HTTP_200_OK, HTTP_204_NO_CONTENT
 
 from geometrikks.config.settings import Settings
@@ -17,6 +18,12 @@ from geometrikks.lib.client_ip import resolve_client_ip
 from geometrikks.server import runtime
 from geometrikks.server.auth import AdminUser, AuthState, rotate_session
 from geometrikks.server.logging import LOGIN_LOGGER_NAME, get_logger
+from geometrikks.services.oidc import (
+    OidcForbidden,
+    OidcProtocolError,
+    OidcUnavailable,
+    PendingLogin,
+)
 
 
 login_logger = get_logger(LOGIN_LOGGER_NAME)
@@ -181,3 +188,88 @@ class AuthController(Controller):
             password_login=password_login,
             idp_logout=settings.oidc.logout_idp,
         )
+
+    @get("/oidc/start", exclude_from_auth=True, include_in_schema=False)
+    async def oidc_start(self, request: Request) -> Redirect:
+        """Browser navigation from the login button: send it to the provider."""
+        client = runtime.get_oidc_client(request.app)
+        if client is None:
+            raise NotFoundException()
+        try:
+            url, pending = await client.begin()
+        except OidcUnavailable as exc:
+            return self._oidc_failure(
+                request, "oidc_unavailable", reason="discovery", error=type(exc).__name__
+            )
+        session = dict(request.session or {})
+        session["oidc_pending"] = pending.to_session()
+        request.set_session(session)
+        return Redirect(url, headers={"Cache-Control": "no-store"})
+
+    @get("/oidc/callback", exclude_from_auth=True, include_in_schema=False)
+    async def oidc_callback(
+        self,
+        request: Request,
+        settings: NamedDependency[SkipValidation[Settings]],
+        code: Annotated[str | None, QueryParameter(required=False)] = None,
+        # "state" is a reserved kwarg name in Litestar (ASGI app state), so the
+        # query parameter is aliased to a differently named local parameter.
+        oidc_state: Annotated[str | None, QueryParameter(name="state", required=False)] = None,
+        error: Annotated[str | None, QueryParameter(required=False)] = None,
+    ) -> Redirect:
+        """The provider sends the browser back here with a one-time code."""
+        client = runtime.get_oidc_client(request.app)
+        if client is None:
+            raise NotFoundException()
+        session = dict(request.session or {})
+        pending = PendingLogin.from_session(session.pop("oidc_pending", None))
+        # Consumed either way: a replayed callback must find nothing.
+        request.set_session(session)
+        if pending is None or not pending.matches_state(oidc_state):
+            return self._oidc_failure(request, "oidc_failed", reason="state_mismatch")
+        if pending.expired():
+            return self._oidc_failure(request, "oidc_failed", reason="pending_expired")
+        if error is not None:
+            # Only the standard error code, never error_description.
+            return self._oidc_failure(request, "oidc_denied", reason="idp_error", error=error)
+        if not code:
+            return self._oidc_failure(request, "oidc_failed", reason="missing_code")
+        try:
+            completion = await client.complete(code, pending)
+        except OidcForbidden as exc:
+            return self._oidc_failure(
+                request,
+                "oidc_forbidden",
+                reason="not_allowed",
+                subject=exc.subject,
+                email=exc.email,
+                groups=list(exc.groups),
+            )
+        except OidcProtocolError as exc:
+            return self._oidc_failure(request, "oidc_failed", reason=exc.reason, detail=exc.detail)
+        except OidcUnavailable as exc:
+            return self._oidc_failure(
+                request, "oidc_unavailable", reason="discovery", error=type(exc).__name__
+            )
+        identity = completion.identity
+        rotate_session(request)
+        data: dict[str, object] = {"username": identity.username, "provider": "oidc"}
+        if settings.oidc.logout_idp:
+            data["id_token"] = completion.id_token
+        request.set_session(data)
+        login_logger.info(
+            "login_success",
+            provider="oidc",
+            user=identity.username,
+            subject=identity.subject,
+            ip=resolve_client_ip(request),
+        )
+        return Redirect("/")
+
+    @staticmethod
+    def _oidc_failure(request: Request, code: str, **fields: object) -> Redirect:
+        """Log the real reason, send the browser back with only a fixed code."""
+        login_logger.warning(
+            "login_failed", provider="oidc", ip=resolve_client_ip(request), **fields
+        )
+        return Redirect(f"/login?error={code}", headers={"Cache-Control": "no-store"})
