@@ -316,6 +316,7 @@ def test_logout_is_local_by_default(fake):
     assert logout["provider"] == "oidc"
     assert logout["idp_logout"] is False
     assert logout["user"] == "gil"
+    assert logout["ip"] == "testclient"
 
 
 def test_logout_redirects_to_the_provider_when_enabled(fake):
