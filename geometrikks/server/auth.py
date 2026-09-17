@@ -7,6 +7,7 @@ the plaintext from env is never kept on the state object.
 
 from __future__ import annotations
 
+import asyncio
 import copy
 import time
 from dataclasses import dataclass
@@ -186,6 +187,20 @@ class RotatingServerSideSessionBackend(ServerSideSessionBackend):
         super().__init__(config)
         self._next_sweep_at = 0.0
 
+    @property
+    def _write_lock(self) -> asyncio.Lock:
+        """The write lock, kept on the config rather than on self.
+
+        SessionAuth.session_backend is a plain property, so Litestar builds a
+        fresh RotatingServerSideSessionBackend for every single request (see
+        MiddlewareWrapper.__call__ in litestar.security.session_auth.middleware);
+        a lock created in this backend's __init__ would never be shared
+        between the two concurrent requests it exists to serialize. The
+        config object is the one thing every per-request backend is handed
+        that outlives a single request, so the lock lives there instead.
+        """
+        return cast("RotatingServerSideSessionConfig", self.config).write_lock
+
     async def load_from_connection(self, connection: "ASGIConnection") -> dict[str, Any]:
         data = await super().load_from_connection(connection)
         _scope_dict(connection)[_LOADED_KEY] = copy.deepcopy(data)
@@ -207,7 +222,8 @@ class RotatingServerSideSessionBackend(ServerSideSessionBackend):
             old_id = connection.cookies.get(self.config.key)
             if old_id and old_id != "null":
                 store = self.config.get_store_from_app(scope["app"])
-                await self.delete(old_id, store=store)
+                async with self._write_lock:
+                    await self.delete(old_id, store=store)
             scope[_NEW_ID_KEY] = self.generate_session_id()
         elif scope_session is Empty and not loaded:
             # Asked to clear a session that never existed: the auth middleware
@@ -215,6 +231,15 @@ class RotatingServerSideSessionBackend(ServerSideSessionBackend):
             # cookie to send.
             return
         elif scope_session is not Empty and scope_session == loaded:
+            return
+
+        if isinstance(scope_session, dict) and not scope_session:
+            # A failed OIDC callback pops oidc_pending and, for an anonymous
+            # caller, is left with nothing else: writing that empty dict down
+            # the pending path below would plant a live store entry that
+            # outlives the failure by eleven minutes for no reason. Treat it
+            # exactly like Empty instead: delete and send the null cookie.
+            await super().store_in_message(Empty, message, connection)
             return
 
         if isinstance(scope_session, dict) and "username" not in scope_session:
@@ -281,11 +306,14 @@ class RotatingServerSideSessionBackend(ServerSideSessionBackend):
         """
         store = self.config.get_store_from_app(connection.scope["app"])
         session_id = self.get_session_id(connection)
-        remaining = await store.expires_in(session_id)
-        if scope_session is Empty or remaining is None or remaining <= 0:
-            await super().store_in_message(Empty, message, connection)
-            return
-        await self._write_session(session_id, scope_session, message, connection, expires_in=remaining)
+        async with self._write_lock:
+            remaining = await store.expires_in(session_id)
+            if scope_session is Empty or remaining is None or remaining <= 0:
+                await super().store_in_message(Empty, message, connection)
+                return
+            await self._write_session(
+                session_id, scope_session, message, connection, expires_in=remaining
+            )
 
     async def _store_pending_session(
         self, scope_session: dict[str, Any], message: "Message", connection: "ASGIConnection"
@@ -337,9 +365,18 @@ class RotatingServerSideSessionBackend(ServerSideSessionBackend):
 
 
 class RotatingServerSideSessionConfig(ServerSideSessionConfig):
-    """ServerSideSessionConfig whose middleware builds the rotating backend."""
+    """ServerSideSessionConfig whose middleware builds the rotating backend.
+
+    Also owns write_lock: see RotatingServerSideSessionBackend._write_lock
+    for why the lock has to live here instead of on the backend.
+    """
 
     _backend_class = RotatingServerSideSessionBackend
+    write_lock: asyncio.Lock
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        self.write_lock = asyncio.Lock()
 
 
 def create_session_auth(settings: "Settings") -> SessionAuth[AdminUser, ServerSideSessionBackend]:

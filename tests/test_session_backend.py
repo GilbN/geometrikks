@@ -189,6 +189,75 @@ def test_logout_during_a_parked_session_write_clears_the_session():
         assert client.get("/api/v1/protected").status_code == 401
 
 
+def test_write_lock_blocks_a_racing_logout_until_the_parked_write_finishes(monkeypatch):
+    """_store_loaded_session reads store.expires_in and then writes in two
+    separate awaits; anyio's asyncio Lock.acquire yields a checkpoint right
+    after taking ownership, so without a lock spanning both, a logout's
+    delete could land in that gap and get overwritten right back to life by
+    the write that resumes after it. Forcing the interleaving directly (via
+    a patched expires_in) proves the racing logout now blocks on the same
+    lock instead of slipping its delete in between.
+
+    Litestar builds a fresh session backend for every request (SessionAuth's
+    session_backend is a plain property), so this only reproduces the race
+    at all because the lock lives on the shared session config, not on the
+    backend; a lock scoped to the backend instance would never see the
+    second request's delete attempt in the first place.
+    """
+    from litestar.stores.memory import MemoryStore
+
+    events: dict[str, asyncio.Event] = {}
+    calls = {"n": 0}
+    original_expires_in = MemoryStore.expires_in
+
+    async def patched_expires_in(store_self, session_id):
+        calls["n"] += 1
+        remaining = await original_expires_in(store_self, session_id)
+        if calls["n"] == 1:
+            events["paused"].set()
+            await events["resume"].wait()
+        return remaining
+
+    monkeypatch.setattr(MemoryStore, "expires_in", patched_expires_in)
+
+    app = make_app(extra_handlers=[touch_session])
+    with TestClient(app=app) as client, client.portal() as portal:
+        events["paused"], events["resume"] = portal.call(asyncio.Event), portal.call(asyncio.Event)
+        sid = client.post("/api/v1/auth/login", json=CREDS).cookies["session"]
+        store = app.stores.get("sessions")
+
+        touch_results: list = []
+        touch_worker = threading.Thread(
+            target=lambda: touch_results.append(client.get("/api/v1/touch-session"))
+        )
+        touch_worker.start()
+        portal.call(events["paused"].wait)
+
+        logout_results: list = []
+        logout_worker = threading.Thread(
+            target=lambda: logout_results.append(client.post("/api/v1/auth/logout"))
+        )
+        logout_worker.start()
+        try:
+            logout_worker.join(timeout=0.2)
+            still_blocked = logout_worker.is_alive()
+        finally:
+            # Release the parked write regardless of the outcome above: the
+            # touch worker is parked inside the app's event loop, and leaving
+            # it there would hang the portal's shutdown instead of failing
+            # the assertion cleanly.
+            portal.call(events["resume"].set)
+        assert still_blocked, "logout must block on the write lock, not run ahead of the parked write"
+
+        touch_worker.join(timeout=5)
+        logout_worker.join(timeout=5)
+
+        assert touch_results[0].status_code == 200
+        assert logout_results[0].status_code in (200, 204)
+        assert portal.call(store.get, sid) is None
+        assert client.get("/api/v1/protected").status_code == 401
+
+
 def test_logout_is_not_undone_by_an_in_flight_request():
     events: dict[str, asyncio.Event] = {}
 

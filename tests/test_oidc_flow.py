@@ -304,6 +304,19 @@ def test_callback_consumes_the_pending_login_on_failure(fake):
         assert client.get(callback, follow_redirects=False).headers["location"] == "/login?error=oidc_failed"
 
 
+def test_callback_failure_for_an_anonymous_caller_leaves_no_store_entry(fake):
+    fake.config.fail["token"] = 500
+    with TestClient(app=make_oidc_app(fake)) as client, client.portal() as portal:
+        start = client.get("/api/v1/auth/oidc/start", follow_redirects=False)
+        pending_sid = start.cookies["session"]
+        store = client.app.stores.get("sessions")
+        assert portal.call(store.get, pending_sid) is not None
+        res = client.get(fake.issue_code(start.headers["location"]), follow_redirects=False)
+        assert res.headers["location"] == "/login?error=oidc_failed"
+        assert res.headers["set-cookie"].startswith("session=null")
+        assert portal.call(store.get, pending_sid) is None
+
+
 def test_password_login_still_works_beside_oidc(fake):
     with TestClient(app=make_oidc_app(fake)) as client:
         res = client.post("/api/v1/auth/login", json=CREDS)
