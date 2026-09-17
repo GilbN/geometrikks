@@ -40,6 +40,19 @@ export function planLoginRoute(result: MeResult): AuthRoutePlan {
     : { action: "rethrow", error: result.error }
 }
 
+/** Routes that render without the app chrome (sidebar, providers, etc). */
+const CHROMELESS_ROUTES = new Set(["/login", "/signed-out"])
+
+/** True for a route the root layout must render bare, with no sidebar or
+ *  data providers mounted. /login has nothing to protect. /signed-out needs
+ *  the same treatment for a different reason: its protected requests would
+ *  401 the moment the chrome mounted, and the global redirect that follows
+ *  would send the visitor straight to /login, whose single SSO button would
+ *  sign them back in immediately, undoing the sign-out they just asked for. */
+export function isChromelessRoute(pathname: string): boolean {
+  return CHROMELESS_ROUTES.has(pathname)
+}
+
 export function planLogoutRoute(result: MeResult): AuthRoutePlan {
   if (result.ok) {
     return result.me.mode === "session"
@@ -77,6 +90,7 @@ export function planLoginForm(options: AuthOptions, errorCode: string | null): L
       : oidc
         ? `Sign in with your ${oidc.providerName} account.`
         : "Enter the administrator credentials configured for this installation."
-  const message = errorCode ? (LOGIN_ERROR_MESSAGES[errorCode] ?? null) : null
+  const message =
+    errorCode && Object.hasOwn(LOGIN_ERROR_MESSAGES, errorCode) ? LOGIN_ERROR_MESSAGES[errorCode] : null
   return { oidc, password, message, description }
 }
