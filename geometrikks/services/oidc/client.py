@@ -141,8 +141,12 @@ def build_identity(
     if email and other_email and email.lower() != other_email.lower():
         raise OidcProtocolError("claims", "email differs between the ID token and userinfo")
     email_verified = email is not None and email_source.get("email_verified") is True
-    groups_source = userinfo if groups_claim in userinfo else claims
-    raw_groups = groups_source.get(groups_claim)
+    # Userinfo wins only when it actually carries a usable value; a provider
+    # that sends "groups": null there (rather than omitting the key) must
+    # still fall back to the ID token, or its groups are silently discarded.
+    raw_groups = userinfo.get(groups_claim) if groups_claim in userinfo else None
+    if not isinstance(raw_groups, (list, str)):
+        raw_groups = claims.get(groups_claim)
     if isinstance(raw_groups, str):
         raw_groups = [raw_groups]
     groups = tuple(g for g in raw_groups if isinstance(g, str)) if isinstance(raw_groups, list) else ()

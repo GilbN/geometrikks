@@ -348,6 +348,17 @@ def test_groups_prefer_userinfo_then_id_token_and_accept_a_single_string():
     assert build_identity(_claims(roles="admin"), {"sub": "user-1"}, groups_claim="roles").groups == ("admin",)
 
 
+def test_groups_null_in_userinfo_falls_back_to_the_id_token():
+    identity = build_identity(
+        _claims(groups=["admins"]),
+        {"sub": "user-1", "groups": None},
+        groups_claim="groups",
+    )
+    assert identity.groups == ("admins",)
+    # The allow list check must see those groups, not an empty tuple.
+    check_allow_list(identity, allowed_users=[], allowed_groups=["admins"])
+
+
 def test_username_fallback_chain():
     assert build_identity(_claims(), {"sub": "user-1"}, groups_claim="groups").username == "user-1"
     assert build_identity(_claims(name="Gil B"), {"sub": "user-1"}, groups_claim="groups").username == "Gil B"
