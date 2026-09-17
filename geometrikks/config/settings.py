@@ -813,9 +813,8 @@ class OidcSettings(BaseSettings):
                 with open(self.ca_bundle, "rb"):
                     pass
             except OSError as exc:
-                # Caught here and named, or the same unreadable file surfaces
-                # much later as an unlabelled ssl error from create_app's own
-                # ssl.create_default_context(cafile=...) call.
+                # Otherwise an unreadable file fails later in create_app as an
+                # ssl error that does not name the setting.
                 raise ValueError(f"OIDC_CA_BUNDLE is not readable: {self.ca_bundle}: {exc}") from exc
         return self
 

@@ -4,9 +4,8 @@ Import-time safe: nothing here reads settings. The HTTP client is injected so
 tests route it into an in-process fake provider.
 
 The validation rules follow the OIDC provider in litestar-security
-(providers/oidc/_provider.py and providers/oauth/_provider.py). Its
-private-address pinning is deliberately not adopted: homelab identity
-providers live on private addresses.
+(providers/oidc/_provider.py and providers/oauth/_provider.py), minus its
+private-address check: homelab identity providers live on private addresses.
 """
 
 from __future__ import annotations
@@ -141,10 +140,9 @@ def build_identity(
     if email and other_email and email.lower() != other_email.lower():
         raise OidcProtocolError("claims", "email differs between the ID token and userinfo")
     email_verified = email is not None and email_source.get("email_verified") is True
-    # Userinfo wins only when it actually carries a usable value; a provider
-    # that sends "groups": null there (rather than omitting the key) must
-    # still fall back to the ID token, or its groups are silently discarded.
-    raw_groups = userinfo.get(groups_claim) if groups_claim in userinfo else None
+    # Some providers send "groups": null in userinfo when the scope was not
+    # granted; that must fall back to the ID token, not discard the groups.
+    raw_groups = userinfo.get(groups_claim)
     if not isinstance(raw_groups, (list, str)):
         raw_groups = claims.get(groups_claim)
     if isinstance(raw_groups, str):
@@ -405,10 +403,8 @@ class OidcClient:
                 options={"require": ["iss", "sub", "aud", "exp", "iat"]},
             )
         except Exception as exc:
-            # PyJWT's own exp/iat comparison does int(claim), which raises a
-            # plain OverflowError (not PyJWTError) on a claim that decoded to
-            # inf; catching broadly is the only way to turn every malformed
-            # claim into a protocol error instead of a 500.
+            # PyJWT calls int() on exp and iat, so a claim that decoded to inf
+            # raises OverflowError, not PyJWTError. Nothing here may escape.
             raise OidcProtocolError("id_token_invalid", type(exc).__name__) from exc
         if not _text(claims, "sub"):
             raise OidcProtocolError("id_token_invalid", "empty sub")
@@ -502,10 +498,8 @@ class OidcClient:
         try:
             self._jwks = jwt.PyJWKSet.from_dict(document)
         except Exception as exc:
-            # PyJWKSet.from_dict raises whatever the malformed key trips over
-            # first (AttributeError on a non-dict entry, TypeError on a
-            # non-string n/e, ValueError on non-base64url n), never only
-            # PyJWTError, so this must catch broadly too.
+            # A malformed key raises AttributeError, TypeError or ValueError
+            # from PyJWKSet.from_dict, not only PyJWTError.
             raise OidcUnavailable(f"JWKS is malformed: {type(exc).__name__}") from exc
         return self._jwks
 

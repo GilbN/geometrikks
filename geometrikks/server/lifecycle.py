@@ -283,9 +283,8 @@ async def oidc_lifespan(app: "Litestar") -> "AsyncGenerator[None]":
         yield
     finally:
         warm_up.cancel()
-        # asyncio.wait(), unlike awaiting the task directly, never raises
-        # whatever warm_up() raised; shutdown must not fail because
-        # discovery did. Inspect the outcome instead of propagating it.
+        # asyncio.wait() does not re-raise the task's exception; shutdown
+        # must not fail because discovery did.
         await asyncio.wait([warm_up])
         if not warm_up.cancelled():
             error = warm_up.exception()

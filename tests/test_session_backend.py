@@ -94,11 +94,10 @@ async def touch_session(request: Request) -> dict[str, bool]:
 
 
 async def test_writing_a_loaded_session_does_not_renew_its_absolute_expiry():
-    """A write of a session that was loaded from the store under its own id
-    must keep the store's remaining lifetime, not reset it to a fresh
-    max_age. Otherwise an authenticated request that merely touches the
-    session, like /oidc/start does for a logged-in caller, would silently
-    push the absolute 7-day expiry out again on every visit.
+    """A write of a loaded session keeps the store's remaining lifetime.
+
+    Otherwise every /oidc/start from a logged-in caller would extend the
+    7-day expiry set at login.
     """
     app = make_app(extra_handlers=[touch_session], session_max_age=100)
     async with AsyncTestClient(app=app) as client:
@@ -123,12 +122,11 @@ async def test_writing_a_loaded_session_does_not_renew_its_absolute_expiry():
 
 
 async def test_final_second_session_write_clears_rather_than_renews():
-    """A session with under a second left must not be revived.
+    """A session with under a second left is cleared, not revived.
 
-    MemoryStore.expires_in truncates to whole seconds, so a session with
-    e.g. 0.4s left reads as 0. A naive "0 means unset, fall back to
-    max_age" write would take that live-but-nearly-gone session and hand it
-    a fresh 7-day lifetime under the same id.
+    MemoryStore.expires_in truncates to whole seconds, so 0.4 s left reads
+    as 0; treating 0 as "nothing stored" would hand the session a fresh
+    7 days under the same id.
     """
     app = make_app(extra_handlers=[touch_session], session_max_age=2)
     async with AsyncTestClient(app=app) as client:
@@ -150,11 +148,10 @@ async def test_final_second_session_write_clears_rather_than_renews():
 
 
 def test_logout_during_a_parked_session_write_clears_the_session():
-    """A session-mutating write that outlives its own logout must not win.
+    """A session write that finishes after logout must not plant the entry back.
 
-    /oidc/start merging oidc_pending into an already-logged-in session is
-    the real shape of this: an authenticated write that reaches the store
-    after logout already deleted the entry must not plant it right back.
+    The real shape is /oidc/start merging oidc_pending into a logged-in
+    session while the same browser logs out.
     """
     events: dict[str, asyncio.Event] = {}
 
@@ -190,18 +187,15 @@ def test_logout_during_a_parked_session_write_clears_the_session():
 
 
 def test_write_lock_blocks_a_racing_logout_until_the_parked_write_finishes(monkeypatch):
-    """_store_loaded_session reads store.expires_in and then writes in two
-    separate awaits, so without a lock spanning both, a logout's delete
-    could land in that gap and get overwritten right back to life by the
-    write that resumes after it. Forcing the interleaving directly (via a
-    patched expires_in) proves the racing logout now blocks on the same
-    lock instead of slipping its delete in between.
+    """_store_loaded_session reads store.expires_in and then writes, in two
+    awaits. Without one lock across both, a logout's delete can land between
+    them and the resumed write puts the session back. A patched expires_in
+    forces that interleaving here.
 
-    Litestar builds a session backend per route handler (SessionAuth's
-    session_backend is a plain property, evaluated once per middleware
-    stack), so this only reproduces the race at all because the lock lives
-    on the shared session config, not on the backend; a lock scoped to the
-    backend instance would never see the logout handler's delete attempt.
+    Litestar builds one session backend per route handler (SessionAuth's
+    session_backend is a plain property), so the lock has to live on the
+    shared session config; a lock on the backend instance would never see
+    the logout handler's delete.
     """
     from litestar.stores.memory import MemoryStore
 
@@ -315,11 +309,11 @@ def test_in_flight_request_cannot_restore_the_pre_rotation_session():
 
 
 def test_pending_session_gets_a_short_lifetime_not_the_configured_one():
-    """/oidc/start plants a pending session before anyone is authenticated, so
-    every anonymous caller can trigger a write. Giving it the full 7-day
-    max_age like a real login would let a loop of anonymous starts grow the
-    store without bound; PENDING_LIFETIME_SECONDS plus a headroom margin is
-    all the PendingLogin it holds is ever good for.
+    """/oidc/start writes a pending session for anyone who asks.
+
+    With the 7-day max_age a loop of anonymous starts would grow the store
+    without bound; the PendingLogin is only good for PENDING_LIFETIME_SECONDS
+    plus the headroom.
     """
     pending_ttl = PENDING_LIFETIME_SECONDS + PENDING_SESSION_HEADROOM_SECONDS
     app = make_app(extra_handlers=[seed])

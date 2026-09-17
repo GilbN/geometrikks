@@ -297,9 +297,9 @@ async def test_malformed_jwks_is_unavailable_not_a_crash(fake):
     ("signing", "algorithm"), [("rsa", "RS256"), ("ps256", "PS256"), ("rsa384", "RS384")]
 )
 async def test_alg_less_jwk_verifies_any_advertised_algorithm(fake, signing, algorithm):
-    # JWK alg is optional per RFC 7517 4.4; PyJWT defaults an alg-less RSA
-    # JWK's algorithm_name to RS256, so passing the PyJWK object itself
-    # (rather than its raw key) to jwt.decode used to reject PS256/RS384.
+    # JWK alg is optional (RFC 7517 4.4). PyJWT gives an alg-less RSA JWK
+    # algorithm_name RS256, so decoding with the PyJWK object rejects PS256
+    # and RS384; the client passes the raw key instead.
     fake.config.jwks_alg = None
     fake.config.signing = signing
     fake.config.advertised_algorithms = [algorithm]

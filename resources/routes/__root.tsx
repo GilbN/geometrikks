@@ -124,10 +124,7 @@ function RootLayout() {
     select: (state) => isChromelessRoute(state.location.pathname),
   })
 
-  // The login page renders without the app chrome (sidebar, toolbar), and so
-  // does /signed-out: mounting the chrome there would fire protected
-  // requests, 401, and bounce straight back to /login, whose single SSO
-  // button would sign the visitor back in before they saw the page.
+  // No sidebar or data providers on these routes; see isChromelessRoute.
   if (isChromeless) {
     return (
       <ThemeProvider defaultTheme="dark" storageKey="geometrikks-theme">

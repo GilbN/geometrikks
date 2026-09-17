@@ -58,11 +58,10 @@ AUTH_EXCLUDE_PATTERNS: list[str] = [
 
 SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 7
 
-# Headroom added on top of PENDING_LIFETIME_SECONDS for the pending session's
-# store TTL and cookie max-age. Without it, the store entry expires at the
-# exact instant PendingLogin.expired() starts returning True, so a callback
-# that lands right around that boundary finds no session at all and is
-# logged as state_mismatch instead of the more accurate pending_expired.
+# Added to PENDING_LIFETIME_SECONDS for the pending session's store TTL and
+# cookie max-age. Without it the store entry vanishes at the instant
+# PendingLogin.expired() turns true, and a late callback is logged as
+# state_mismatch instead of pending_expired.
 PENDING_SESSION_HEADROOM_SECONDS = 60
 
 Provider = Literal["password", "oidc"]
@@ -161,26 +160,19 @@ def rotate_session(request: "Request") -> None:
 class RotatingServerSideSessionBackend(ServerSideSessionBackend):
     """Server-side sessions that rotate on login and write only on change.
 
-    Stock Litestar reuses the incoming session id forever and writes the
-    session back on every response, renewing its expiry each time. The
-    first is session fixation. The second lets a request that was in flight
-    during logout write the deleted session straight back, and keeps active
-    sessions alive indefinitely. Writing only on change stops most of that,
-    but a write of a session that legitimately changed (an authenticated
-    request that touches request.session, such as /oidc/start merging
-    oidc_pending) still needs handling: _store_loaded_session keeps the
-    store's remaining lifetime instead of resetting it, so the expiry set at
-    login stays absolute, and if the entry vanished or is effectively
-    expired (a concurrent logout, or under a second left) it clears the
-    session instead of writing a fresh one back under the old id. A rotated
-    or brand-new session id, which has nothing stored yet, still gets the
-    full max_age.
+    Stock Litestar reuses the incoming session id forever (session fixation)
+    and writes the session back on every response, renewing its expiry each
+    time (a request in flight during logout resurrects the deleted session,
+    and active sessions never expire). This subclass:
 
-    A third change: a session with no "username" key is a pre-login session
-    (currently only the OIDC PendingLogin planted by /oidc/start, which is
-    unauthenticated and reachable by anyone). Those get a short lifetime
-    instead of the configured max_age, both in the store and on the cookie;
-    see _store_pending_session for why.
+    - issues a new id on login (rotate_session) and deletes the old one;
+    - skips the write when the session did not change;
+    - keeps the store's remaining lifetime when a loaded session did change,
+      and clears the session instead if the entry is gone or has no time left
+      (_store_loaded_session), so the expiry set at login is absolute;
+    - gives a session without a "username" key, which is a pre-login session
+      planted by the unauthenticated /oidc/start, a short lifetime instead of
+      max_age (_store_pending_session).
     """
 
     def __init__(self, config: ServerSideSessionConfig) -> None:
@@ -189,15 +181,13 @@ class RotatingServerSideSessionBackend(ServerSideSessionBackend):
 
     @property
     def _write_lock(self) -> asyncio.Lock:
-        """The write lock, kept on the config rather than on self.
+        """The write lock lives on the config, not on the backend.
 
-        SessionAuth.session_backend is a plain property and Litestar builds a
-        middleware stack per route handler (see MiddlewareWrapper.__call__ in
-        litestar.security.session_auth.middleware), so each handler gets its
-        own RotatingServerSideSessionBackend instance. A lock created in this
-        backend's __init__ would never be shared between the logout handler
-        and the handler whose write it exists to serialize. The config object
-        is the one thing every backend is handed, so the lock lives there.
+        Litestar builds a middleware stack per route handler and
+        SessionAuth.session_backend is a plain property, so every handler
+        gets its own backend instance. A lock on the backend would never be
+        shared between the logout handler and the handler whose write it
+        serializes; the config is the one object all of them share.
         """
         return cast("RotatingServerSideSessionConfig", self.config).write_lock
 
@@ -234,11 +224,9 @@ class RotatingServerSideSessionBackend(ServerSideSessionBackend):
             return
 
         if isinstance(scope_session, dict) and not scope_session:
-            # A failed OIDC callback pops oidc_pending and, for an anonymous
-            # caller, is left with nothing else: writing that empty dict down
-            # the pending path below would plant a live store entry that
-            # outlives the failure by eleven minutes for no reason. Treat it
-            # exactly like Empty instead: delete and send the null cookie.
+            # A failed callback pops oidc_pending and leaves an anonymous
+            # caller with {}. Stored, that would be a live entry for eleven
+            # minutes; clear it like Empty instead.
             await super().store_in_message(Empty, message, connection)
             return
 
@@ -247,10 +235,6 @@ class RotatingServerSideSessionBackend(ServerSideSessionBackend):
             return
 
         if loaded and not rotated:
-            # A write under the id this request loaded its session from
-            # (not a fresh login, which rotates first): go through the
-            # store-lifetime-preserving path rather than the stock set(),
-            # which would hand it a fresh max_age.
             await self._store_loaded_session(scope_session, message, connection)
             return
 
@@ -265,14 +249,10 @@ class RotatingServerSideSessionBackend(ServerSideSessionBackend):
         *,
         expires_in: int,
     ) -> None:
-        """Write scope_session to the store under session_id, with a cookie that matches exactly.
+        """Store scope_session under session_id and set a cookie with the same lifetime.
 
-        Shared by the pending-session and loaded-and-changed paths so the
-        cookie's advertised Max-Age can never drift from the store's actual
-        expiry: a browser holding a cookie that outlives its store entry is
-        harmless (the next request just 401s), but the reverse, a cookie
-        that expires before the session does, would log someone out early
-        for no reason.
+        The one place the pending and loaded paths build a cookie, so its
+        Max-Age cannot drift from the store's expiry.
         """
         scope = connection.scope
         store = self.config.get_store_from_app(scope["app"])
@@ -293,16 +273,12 @@ class RotatingServerSideSessionBackend(ServerSideSessionBackend):
     ) -> None:
         """Write back a session that was loaded from the store under this id.
 
-        Keeps the store's remaining lifetime exactly, so a write triggered by
-        an authenticated request that merely touches request.session (like
-        /oidc/start merging oidc_pending into an already-logged-in session)
-        cannot push the absolute expiry set at login back out to a fresh
-        max_age. If the entry disappeared since it was loaded (logout raced
-        this request) or its remaining lifetime is at or below zero
-        (MemoryStore.expires_in truncates fractions, so under a second left
-        reads as 0), the session is gone either way: clear it the same way
-        the anonymous-failure path does, instead of writing a new entry back
-        under an id that logout, or expiry, already invalidated.
+        The write keeps the store's remaining lifetime, so an authenticated
+        request that touches request.session (such as /oidc/start merging
+        oidc_pending) cannot extend the expiry set at login. If the entry is
+        gone (a logout raced this request) or has no time left
+        (MemoryStore.expires_in truncates, so under a second reads as 0),
+        the session is cleared rather than written back under a dead id.
         """
         store = self.config.get_store_from_app(connection.scope["app"])
         session_id = self.get_session_id(connection)
@@ -318,28 +294,16 @@ class RotatingServerSideSessionBackend(ServerSideSessionBackend):
     async def _store_pending_session(
         self, scope_session: dict[str, Any], message: "Message", connection: "ASGIConnection"
     ) -> None:
-        """Write a pre-login session with a short lifetime, and sweep the store.
+        """Write a pre-login session with a short lifetime, then sweep the store.
 
-        /oidc/start is the only unauthenticated route that writes a session,
-        and it runs before the auth middleware has anything to check, so
-        every anonymous hit reaches here. Left on the stock code path it
-        would get the full config max_age (SESSION_MAX_AGE_SECONDS, 7 days)
-        in both the store and the cookie, even though the PendingLogin it
-        holds is worthless after PENDING_LIFETIME_SECONDS. MemoryStore (and
-        FileStore) only drop expired rows when read, never on a schedule, so
-        a loop of anonymous starts would grow the store without bound
-        between accesses. Writing a short lifetime bounds each entry's own
-        cost; the sweep below, thrown in on the same path since it is the
-        one place every pending write passes through in every app mode
-        (including DB-degraded, where the scheduler never starts), clears
-        out rows nobody comes back to read.
-
-        The store TTL and cookie max-age get PENDING_SESSION_HEADROOM_SECONDS
-        on top of PENDING_LIFETIME_SECONDS: PendingLogin.expired() still uses
-        the shorter figure, so without the headroom the store entry would
-        vanish at the exact moment expired() starts returning True, and the
-        callback would report state_mismatch instead of pending_expired for
-        a user who was simply slow.
+        /oidc/start is unauthenticated, so anyone can trigger this write. On
+        the stock path it would get the 7-day max_age in the store and the
+        cookie, although the PendingLogin is useless after
+        PENDING_LIFETIME_SECONDS, and MemoryStore and FileStore only drop
+        expired rows when something reads them. The short lifetime bounds
+        each entry; the sweep clears rows nobody reads again. It runs here
+        because every pending write passes through in every app mode,
+        including DB-degraded mode where the scheduler never starts.
         """
         session_id = self.get_session_id(connection)
         pending_ttl = PENDING_LIFETIME_SECONDS + PENDING_SESSION_HEADROOM_SECONDS
@@ -348,11 +312,10 @@ class RotatingServerSideSessionBackend(ServerSideSessionBackend):
         await self._sweep_expired_if_due(store)
 
     async def _sweep_expired_if_due(self, store: "Store") -> None:
-        """At most once per PENDING_LIFETIME_SECONDS, drop expired store rows.
+        """Drop expired store rows, at most once per PENDING_LIFETIME_SECONDS.
 
-        Two requests racing past the throttle and both sweeping is harmless,
-        just redundant; the throttle only exists to keep this off the hot
-        path on every single request.
+        Two requests passing the throttle together both sweep; that is
+        redundant, not wrong.
         """
         sweep = getattr(store, "delete_expired", None)
         if not callable(sweep):
