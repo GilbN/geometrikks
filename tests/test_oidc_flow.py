@@ -245,6 +245,7 @@ def test_callback_keeps_the_id_token_only_for_idp_logout(fake):
         ("no_code", "oidc_failed", "missing_code"),
         ("token_500", "oidc_failed", "token_exchange"),
         ("bad_audience", "oidc_failed", "id_token_invalid"),
+        ("malformed_exp", "oidc_failed", "id_token_invalid"),
         ("not_allowed", "oidc_forbidden", "not_allowed"),
         ("expired", "oidc_failed", "pending_expired"),
     ],
@@ -254,6 +255,8 @@ def test_callback_failures(fake, monkeypatch, setup, code, reason):
         fake.config.fail["token"] = 500
     if setup == "bad_audience":
         fake.config.claims = {"aud": "someone-else"}
+    if setup == "malformed_exp":
+        fake.config.claims = {"exp": []}
     if setup == "not_allowed":
         fake.config.userinfo["groups"] = ["guests"]
     with structlog.testing.capture_logs() as captured:

@@ -67,7 +67,8 @@ class FakeIdpConfig:
     token_auth_methods: list[str] | None = None
     kid: str = "key-1"
     token_kid: str | None = None
-    signing: str = "rsa"  # rsa | none | hs256 | rsa-other
+    signing: str = "rsa"  # rsa | none | hs256 | rsa-other | rsa384 | ps256
+    jwks_alg: str | None = "RS256"  # the JWK's own alg field; None omits it
     claims: dict[str, Any] = field(default_factory=dict)
     expires_in: int = 300
     iat_offset: int = 0
@@ -125,7 +126,8 @@ def mint_id_token(config: FakeIdpConfig, *, nonce: str | None) -> str:
     if config.signing == "hs256":
         return jwt.encode(payload, key=HS256_SHARED_SECRET, algorithm="HS256", headers=headers)
     key = other if config.signing == "rsa-other" else primary
-    return jwt.encode(payload, key=_pem(key), algorithm="RS256", headers=headers)
+    algorithm = {"rsa384": "RS384", "ps256": "PS256"}.get(config.signing, "RS256")
+    return jwt.encode(payload, key=_pem(key), algorithm=algorithm, headers=headers)
 
 
 def _issue(config: FakeIdpConfig, params: dict[str, str]) -> str:
@@ -211,7 +213,10 @@ def create_fake_idp(config: FakeIdpConfig) -> Litestar:
             return failure
         primary, _ = _rsa_keys()
         key = RSAAlgorithm.to_jwk(primary.public_key(), as_dict=True)
-        return Response(content={"keys": [{**key, "kid": config.kid, "use": "sig", "alg": "RS256"}]})
+        jwk: dict[str, Any] = {**key, "kid": config.kid, "use": "sig"}
+        if config.jwks_alg is not None:
+            jwk["alg"] = config.jwks_alg
+        return Response(content={"keys": [jwk]})
 
     @get("/userinfo", sync_to_thread=False)
     def userinfo(request: Request) -> Response:

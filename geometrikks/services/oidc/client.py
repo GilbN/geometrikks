@@ -386,17 +386,25 @@ class OidcClient:
         if not isinstance(algorithm, str) or algorithm not in metadata.algorithms:
             raise OidcProtocolError("id_token_invalid", f"algorithm {algorithm!r} is not allowed")
         key = await self._signing_key(kid)
+        # PyJWK exposes kty and kid as properties but not alg; _jwk_data is the
+        # only way at the raw JWK document without re-parsing the JWKS.
+        jwk_alg = key._jwk_data.get("alg")
+        if isinstance(jwk_alg, str) and jwk_alg and jwk_alg != algorithm:
+            raise OidcProtocolError("id_token_invalid", "key algorithm mismatch")
+        expected_kty = "RSA" if algorithm.startswith(("RS", "PS")) else "EC"
+        if key.key_type != expected_kty:
+            raise OidcProtocolError("id_token_invalid", "key type mismatch")
         try:
             claims = jwt.decode(
                 token,
-                key=key,
+                key=key.key,
                 algorithms=[algorithm],
                 audience=self._settings.client_id,
                 issuer=self._settings.issuer,
                 leeway=LEEWAY_SECONDS,
                 options={"require": ["iss", "sub", "aud", "exp", "iat"]},
             )
-        except jwt.PyJWTError as exc:
+        except (jwt.PyJWTError, TypeError, ValueError) as exc:
             raise OidcProtocolError("id_token_invalid", type(exc).__name__) from exc
         if not _text(claims, "sub"):
             raise OidcProtocolError("id_token_invalid", "empty sub")
