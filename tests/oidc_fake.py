@@ -33,6 +33,11 @@ ISSUER = "http://127.0.0.1:9"
 CLIENT_ID = "geometrikks"
 CLIENT_SECRET = "test-client-secret"
 REDIRECT_URI = "http://localhost/api/v1/auth/oidc/callback"
+# 32 bytes: PyJWT warns (InsecureKeyLengthWarning) below that length for
+# HS256, and pyproject.toml turns warnings into test failures. HS256 is
+# never in ALLOWED_ALGORITHMS, so this signs a token the client must
+# reject; only the length matters, not the value.
+HS256_SHARED_SECRET = "shared-secret-at-least-32-bytes!"
 
 
 @cache
@@ -118,7 +123,7 @@ def mint_id_token(config: FakeIdpConfig, *, nonce: str | None) -> str:
     if config.signing == "none":
         return jwt.encode(payload, key=None, algorithm="none", headers=headers)  # ty: ignore[invalid-argument-type]
     if config.signing == "hs256":
-        return jwt.encode(payload, key="shared-secret", algorithm="HS256", headers=headers)
+        return jwt.encode(payload, key=HS256_SHARED_SECRET, algorithm="HS256", headers=headers)
     key = other if config.signing == "rsa-other" else primary
     return jwt.encode(payload, key=_pem(key), algorithm="RS256", headers=headers)
 
