@@ -398,7 +398,7 @@ class OidcClient:
                 key=key.key,
                 algorithms=[algorithm],
                 audience=self._settings.client_id,
-                issuer=self._settings.issuer,
+                issuer=metadata.issuer,
                 leeway=LEEWAY_SECONDS,
                 options={"require": ["iss", "sub", "aud", "exp", "iat"]},
             )
@@ -437,7 +437,11 @@ class OidcClient:
         document = await self._get_json(
             f"{issuer}/.well-known/openid-configuration", source="discovery document"
         )
-        if document.get("issuer") != self._settings.issuer:
+        # Auth0 and Authentik issuers end in a slash, Authelia's does not, and
+        # either is easy to mistype in OIDC_ISSUER. The slash is forgiven here
+        # only: ID tokens are checked against the provider's own spelling.
+        discovered = document.get("issuer")
+        if not isinstance(discovered, str) or discovered.rstrip("/") != issuer:
             raise OidcUnavailable(
                 f"discovery issuer {document.get('issuer')!r} does not match OIDC_ISSUER"
             )
@@ -468,7 +472,7 @@ class OidcClient:
             and "client_secret_post" in methods
         )
         return ProviderMetadata(
-            issuer=self._settings.issuer or "",
+            issuer=discovered,
             authorization_endpoint=endpoints["authorization_endpoint"],
             token_endpoint=endpoints["token_endpoint"],
             jwks_uri=endpoints["jwks_uri"],

@@ -73,6 +73,20 @@ async def test_discovery_issuer_mismatch_is_rejected(fake):
         await client.metadata()
 
 
+@pytest.mark.parametrize(
+    ("configured", "advertised"),
+    [(f"{ISSUER}/", ISSUER), (ISSUER, f"{ISSUER}/")],
+    ids=["slash-in-config", "slash-at-provider"],
+)
+async def test_issuer_trailing_slash_is_forgiven_and_tokens_use_the_providers_spelling(
+    fake, configured, advertised
+):
+    fake.config.issuer = advertised
+    client = OidcClient(oidc_settings(issuer=configured), fake.http_client())
+    assert (await client.metadata()).issuer == advertised
+    assert (await login(client, fake)).identity.username == "gil"
+
+
 async def test_discovery_redirect_is_a_failure(client, fake):
     fake.config.fail["discovery"] = 302
     with pytest.raises(OidcUnavailable, match="HTTP 302"):
