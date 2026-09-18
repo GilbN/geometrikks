@@ -70,7 +70,11 @@ export type RouteName =
   | 'logout'
   | 'lookup_decisions'
   | 'me'
+  | 'oidc_callback'
+  | 'oidc_start'
+  | 'oidc_status'
   | 'openapi.json'
+  | 'options'
   | 'read_settings'
   | 'rotate'
   | 'run_scheduler_job'
@@ -141,7 +145,11 @@ export interface RoutePathParams {
   'logout': Record<string, never>;
   'lookup_decisions': Record<string, never>;
   'me': Record<string, never>;
+  'oidc_callback': Record<string, never>;
+  'oidc_start': Record<string, never>;
+  'oidc_status': Record<string, never>;
   'openapi.json': Record<string, never>;
+  'options': Record<string, never>;
   'read_settings': Record<string, never>;
   'rotate': Record<string, never>;
   'run_scheduler_job': {
@@ -455,7 +463,15 @@ export interface RouteQueryParams {
     ip: string;
   };
   'me': Record<string, never>;
+  'oidc_callback': {
+    code?: string;
+    error?: string;
+    state?: string;
+  };
+  'oidc_start': Record<string, never>;
+  'oidc_status': Record<string, never>;
   'openapi.json': Record<string, never>;
+  'options': Record<string, never>;
   'read_settings': Record<string, never>;
   'rotate': Record<string, never>;
   'run_scheduler_job': Record<string, never>;
@@ -842,8 +858,36 @@ export const routeDefinitions = {
     pathParams: [] as const,
     queryParams: [] as const,
   },
+  'oidc_callback': {
+    path: '/api/v1/auth/oidc/callback',
+    methods: ['GET'] as const,
+    method: 'get',
+    pathParams: [] as const,
+    queryParams: ['code', 'error', 'state'] as const,
+  },
+  'oidc_start': {
+    path: '/api/v1/auth/oidc/start',
+    methods: ['GET'] as const,
+    method: 'get',
+    pathParams: [] as const,
+    queryParams: [] as const,
+  },
+  'oidc_status': {
+    path: '/api/v1/auth/oidc/status',
+    methods: ['GET'] as const,
+    method: 'get',
+    pathParams: [] as const,
+    queryParams: [] as const,
+  },
   'openapi.json': {
     path: '/schema/openapi.json',
+    methods: ['GET'] as const,
+    method: 'get',
+    pathParams: [] as const,
+    queryParams: [] as const,
+  },
+  'options': {
+    path: '/api/v1/auth/options',
     methods: ['GET'] as const,
     method: 'get',
     pathParams: [] as const,

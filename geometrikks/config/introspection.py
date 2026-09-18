@@ -42,6 +42,7 @@ _SECTION_TITLES = {
     "api": "API",
     "geoip": "GeoIP",
     "logparser": "Log Parser",
+    "oidc": "OpenID Connect",
 }
 
 

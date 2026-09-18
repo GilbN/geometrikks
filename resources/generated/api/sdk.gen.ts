@@ -63,6 +63,10 @@ import type {
   ApiV1AuthLogoutLogoutResponses,
   ApiV1AuthMeMeData,
   ApiV1AuthMeMeResponses,
+  ApiV1AuthOidcStatusOidcStatusData,
+  ApiV1AuthOidcStatusOidcStatusResponses,
+  ApiV1AuthOptionsOptionsData,
+  ApiV1AuthOptionsOptionsResponses,
   ApiV1CrowdsecAlertsListAlertsData,
   ApiV1CrowdsecAlertsListAlertsErrors,
   ApiV1CrowdsecAlertsListAlertsResponses,
@@ -744,6 +748,56 @@ export const apiV1AuthMeMe = <ThrowOnError extends boolean = false>(
       },
     ],
     url: "/api/v1/auth/me",
+    ...options,
+  });
+
+/**
+ * OidcStatus
+ */
+export const apiV1AuthOidcStatusOidcStatus = <
+  ThrowOnError extends boolean = false,
+>(
+  options?: Options<ApiV1AuthOidcStatusOidcStatusData, ThrowOnError>,
+): RequestResult<
+  ApiV1AuthOidcStatusOidcStatusResponses,
+  unknown,
+  ThrowOnError
+> =>
+  (options?.client ?? client).get<
+    ApiV1AuthOidcStatusOidcStatusResponses,
+    unknown,
+    ThrowOnError
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+    ],
+    url: "/api/v1/auth/oidc/status",
+    ...options,
+  });
+
+/**
+ * Options
+ */
+export const apiV1AuthOptionsOptions = <ThrowOnError extends boolean = false>(
+  options?: Options<ApiV1AuthOptionsOptionsData, ThrowOnError>,
+): RequestResult<ApiV1AuthOptionsOptionsResponses, unknown, ThrowOnError> =>
+  (options?.client ?? client).get<
+    ApiV1AuthOptionsOptionsResponses,
+    unknown,
+    ThrowOnError
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+    ],
+    url: "/api/v1/auth/options",
     ...options,
   });
 

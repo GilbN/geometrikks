@@ -40,6 +40,7 @@ import {
   fetchAsnClassification,
   fetchHealth,
   fetchMe,
+  fetchOidcStatus,
   fetchStats,
   fetchCrowdsecStatus,
   fetchCrowdsecBannedIps,
@@ -97,6 +98,7 @@ export const queryKeys = {
   settings: ["settings"] as const,
   auth: {
     me: ["auth", "me"] as const,
+    oidcStatus: ["auth", "oidc-status"] as const,
   },
   system: {
     settings: ["system", "settings"] as const,
@@ -317,6 +319,15 @@ export function useMe() {
     // redirects; retrying would just repeat that.
     retry: false,
     staleTime: Infinity,
+  })
+}
+
+export function useOidcStatus() {
+  return useQuery({
+    queryKey: queryKeys.auth.oidcStatus,
+    queryFn: fetchOidcStatus,
+    staleTime: 60_000,
+    refetchInterval: 30_000,
   })
 }
 

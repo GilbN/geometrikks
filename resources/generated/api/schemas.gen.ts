@@ -562,6 +562,27 @@ export const AuthDisabledSchema = {
   type: "object",
 } as const;
 
+export const AuthOptionsSchema = {
+  properties: {
+    oidc: {
+      oneOf: [
+        {
+          $ref: "#/components/schemas/OidcOption",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    password: {
+      type: "boolean",
+    },
+  },
+  required: ["oidc", "password"],
+  title: "AuthOptions",
+  type: "object",
+} as const;
+
 export const BanRequestSchema = {
   properties: {
     duration: {
@@ -2968,6 +2989,24 @@ export const LoginPayloadSchema = {
   type: "object",
 } as const;
 
+export const LogoutResponseSchema = {
+  properties: {
+    redirectTo: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+  },
+  required: ["redirectTo"],
+  title: "LogoutResponse",
+  type: "object",
+} as const;
+
 export const LogparserSettingsViewSchema = {
   properties: {
     logPaths: {
@@ -3027,6 +3066,76 @@ export const MapSettingsViewSchema = {
   },
   required: ["cartoApiKey", "homeLatitude", "homeLongitude", "homeSource"],
   title: "MapSettingsView",
+  type: "object",
+} as const;
+
+export const OidcOptionSchema = {
+  properties: {
+    providerName: {
+      type: "string",
+    },
+  },
+  required: ["providerName"],
+  title: "OidcOption",
+  type: "object",
+} as const;
+
+export const OidcStatusSchema = {
+  properties: {
+    configured: {
+      type: "boolean",
+    },
+    detail: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    discovery: {
+      enum: ["ok", "failed", "pending"],
+      type: "string",
+    },
+    idpLogout: {
+      type: "boolean",
+    },
+    issuer: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    passwordLogin: {
+      type: "boolean",
+    },
+    providerName: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+  },
+  required: [
+    "configured",
+    "detail",
+    "discovery",
+    "idpLogout",
+    "issuer",
+    "passwordLogin",
+    "providerName",
+  ],
+  title: "OidcStatus",
   type: "object",
 } as const;
 
@@ -3440,11 +3549,15 @@ export const SessionUserSchema = {
       const: "session",
       type: "string",
     },
+    provider: {
+      enum: ["password", "oidc"],
+      type: "string",
+    },
     username: {
       type: "string",
     },
   },
-  required: ["mode", "username"],
+  required: ["mode", "provider", "username"],
   title: "SessionUser",
   type: "object",
 } as const;

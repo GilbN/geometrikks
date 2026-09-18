@@ -60,6 +60,10 @@ import type {
   ApiV1AuthLogoutLogoutResponses,
   ApiV1AuthMeMeData,
   ApiV1AuthMeMeResponses,
+  ApiV1AuthOidcStatusOidcStatusData,
+  ApiV1AuthOidcStatusOidcStatusResponses,
+  ApiV1AuthOptionsOptionsData,
+  ApiV1AuthOptionsOptionsResponses,
   ApiV1CrowdsecAlertsListAlertsData,
   ApiV1CrowdsecAlertsListAlertsErrors,
   ApiV1CrowdsecAlertsListAlertsResponses,
@@ -231,6 +235,8 @@ export type OperationName =
   | 'logout'
   | 'lookup_decisions'
   | 'me'
+  | 'oidc_status'
+  | 'options'
   | 'read_settings'
   | 'rotate'
   | 'run_scheduler_job'
@@ -296,6 +302,8 @@ export interface OperationDataTypes {
   'logout': ApiV1AuthLogoutLogoutData
   'lookup_decisions': ApiV1CrowdsecDecisionsLookupLookupDecisionsData
   'me': ApiV1AuthMeMeData
+  'oidc_status': ApiV1AuthOidcStatusOidcStatusData
+  'options': ApiV1AuthOptionsOptionsData
   'read_settings': ApiV1SettingsReadSettingsData
   'rotate': ApiV1LogsRotateRotateData
   'run_scheduler_job': ApiV1SystemSchedulerJobsJobIdRunRunSchedulerJobData
@@ -362,6 +370,8 @@ export interface OperationResponseTypes {
   'logout': ApiV1AuthLogoutLogoutResponses
   'lookup_decisions': ApiV1CrowdsecDecisionsLookupLookupDecisionsResponses
   'me': ApiV1AuthMeMeResponses
+  'oidc_status': ApiV1AuthOidcStatusOidcStatusResponses
+  'options': ApiV1AuthOptionsOptionsResponses
   'read_settings': ApiV1SettingsReadSettingsResponses
   'rotate': ApiV1LogsRotateRotateResponses
   'run_scheduler_job': ApiV1SystemSchedulerJobsJobIdRunRunSchedulerJobResponses
@@ -428,6 +438,8 @@ export interface OperationErrorTypes {
   'logout': never
   'lookup_decisions': ApiV1CrowdsecDecisionsLookupLookupDecisionsErrors
   'me': never
+  'oidc_status': never
+  'options': never
   'read_settings': never
   'rotate': never
   'run_scheduler_job': ApiV1SystemSchedulerJobsJobIdRunRunSchedulerJobErrors

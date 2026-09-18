@@ -599,6 +599,29 @@
         "title": "AuthDisabled",
         "type": "object"
       },
+      "AuthOptions": {
+        "properties": {
+          "oidc": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/OidcOption"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "password": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "oidc",
+          "password"
+        ],
+        "title": "AuthOptions",
+        "type": "object"
+      },
       "BanRequest": {
         "properties": {
           "duration": {
@@ -3149,6 +3172,25 @@
         "title": "LoginPayload",
         "type": "object"
       },
+      "LogoutResponse": {
+        "properties": {
+          "redirectTo": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "redirectTo"
+        ],
+        "title": "LogoutResponse",
+        "type": "object"
+      },
       "LogparserSettingsView": {
         "properties": {
           "logPaths": {
@@ -3223,6 +3265,80 @@
           "homeSource"
         ],
         "title": "MapSettingsView",
+        "type": "object"
+      },
+      "OidcOption": {
+        "properties": {
+          "providerName": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "providerName"
+        ],
+        "title": "OidcOption",
+        "type": "object"
+      },
+      "OidcStatus": {
+        "properties": {
+          "configured": {
+            "type": "boolean"
+          },
+          "detail": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "discovery": {
+            "enum": [
+              "ok",
+              "failed",
+              "pending"
+            ],
+            "type": "string"
+          },
+          "idpLogout": {
+            "type": "boolean"
+          },
+          "issuer": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "passwordLogin": {
+            "type": "boolean"
+          },
+          "providerName": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "configured",
+          "detail",
+          "discovery",
+          "idpLogout",
+          "issuer",
+          "passwordLogin",
+          "providerName"
+        ],
+        "title": "OidcStatus",
         "type": "object"
       },
       "OriginCount": {
@@ -3658,12 +3774,20 @@
             "const": "session",
             "type": "string"
           },
+          "provider": {
+            "enum": [
+              "password",
+              "oidc"
+            ],
+            "type": "string"
+          },
           "username": {
             "type": "string"
           }
         },
         "required": [
           "mode",
+          "provider",
           "username"
         ],
         "title": "SessionUser",
@@ -7867,8 +7991,15 @@
         "deprecated": false,
         "operationId": "ApiV1AuthLogoutLogout",
         "responses": {
-          "204": {
-            "description": "Request fulfilled, nothing follows",
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LogoutResponse"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
             "headers": {}
           }
         },
@@ -7903,6 +8034,52 @@
           }
         },
         "summary": "Me",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/v1/auth/oidc/status": {
+      "get": {
+        "deprecated": false,
+        "operationId": "ApiV1AuthOidcStatusOidcStatus",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OidcStatus"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          }
+        },
+        "summary": "OidcStatus",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/v1/auth/options": {
+      "get": {
+        "deprecated": false,
+        "operationId": "ApiV1AuthOptionsOptions",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthOptions"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          }
+        },
+        "summary": "Options",
         "tags": [
           "Auth"
         ]

@@ -1,6 +1,6 @@
 /** Pure presentation logic for the Settings > Status page. Kept free of React
  *  so state derivation is unit-testable without rendering. */
-import type { HealthResponse, MeResponse } from "@/lib/api"
+import type { HealthResponse, MeResponse, OidcStatus } from "@/lib/api"
 import type {
   CrowdSecStatusResponse,
   HypertableStatsView,
@@ -336,8 +336,14 @@ export function liveFeedState(status: LiveFeedStatus): CardState {
 export function authState(me: MeResponse | undefined, isError: boolean): CardState {
   if (isError) return { tone: "muted", label: "Unavailable" }
   if (!me) return { tone: "muted", label: "Unknown" }
-  // Neutral: the built-in auth being on is the expected baseline.
-  if (me.mode === "session") return { tone: "muted", label: "Session login active" }
+  // Emerald, not muted: on this page the hollow dot marks things that are
+  // off (Ingestion "Disabled"), and a logged-in session is not off.
+  if (me.mode === "session") {
+    return {
+      tone: "emerald",
+      label: me.provider === "oidc" ? "SSO login active" : "Session login active",
+    }
+  }
   // Amber, not muted: this is a deliberate setting, but an operator scanning
   // the status page should notice that the app is unauthenticated. Says only
   // what is observable; the app cannot tell whether a proxy is in front.
@@ -347,4 +353,31 @@ export function authState(me: MeResponse | undefined, isError: boolean): CardSta
     detail:
       "Built-in authentication is turned off (APP_AUTH_DISABLED=true). Anyone who can reach this app has full access.",
   }
+}
+
+/** Null when there is nothing to show: OIDC off, still loading, or the
+ *  status query itself failed (the Authentication line already says so). */
+export function oidcState(status: OidcStatus | undefined, isError: boolean): CardState | null {
+  if (isError || !status || !status.configured) return null
+  if (status.discovery === "ok") return { tone: "emerald", label: "IdP reachable" }
+  if (status.discovery === "failed") {
+    return {
+      tone: "red",
+      label: "Discovery failed",
+      detail:
+        status.detail ??
+        "The identity provider could not be reached. Sign-in will fail until it answers.",
+    }
+  }
+  return { tone: "muted", label: "Checking identity provider" }
+}
+
+/** Chips under the provider line: whether the password form is still offered
+ *  beside SSO, and whether logout also ends the provider session. */
+export function loginMethodBadges(status: OidcStatus | undefined): string[] {
+  if (!status?.configured) return []
+  return [
+    status.passwordLogin ? "password login on" : "password login off",
+    status.idpLogout ? "IdP logout on" : "IdP logout off",
+  ]
 }

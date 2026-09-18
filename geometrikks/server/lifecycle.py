@@ -266,6 +266,33 @@ async def crowdsec_lifespan(app: "Litestar") -> "AsyncGenerator[None]":
             await crowdsec_service.aclose()
 
 
+@asynccontextmanager
+async def oidc_lifespan(app: "Litestar") -> "AsyncGenerator[None]":
+    """Background discovery warm-up and client shutdown.
+
+    Discovery runs as a task rather than inline so an identity provider that
+    is still starting (compose brings both up together) never delays or
+    fails boot. The outcome shows on Settings > Status; every login retries.
+    """
+    client = runtime.get_oidc_client(app)
+    if client is None:
+        yield
+        return
+    warm_up = asyncio.create_task(client.warm_up(), name="oidc-discovery")
+    try:
+        yield
+    finally:
+        warm_up.cancel()
+        # asyncio.wait() does not re-raise the task's exception; shutdown
+        # must not fail because discovery did.
+        await asyncio.wait([warm_up])
+        if not warm_up.cancelled():
+            error = warm_up.exception()
+            if error is not None:
+                logger.warning("oidc_warm_up_failed", error=str(error))
+        await client.aclose()
+
+
 def _enter_db_degraded(app: "Litestar", *, detail: str | None = None) -> None:
     """Record DB-degraded mode and pause database-bound services."""
     app.state.db_available = False
@@ -654,6 +681,7 @@ LIFESPAN = [
     core_state_lifespan,
     geoip_lifespan,
     crowdsec_lifespan,
+    oidc_lifespan,
     database_lifespan,
     scheduler_lifespan,
     ingestion_lifespan,

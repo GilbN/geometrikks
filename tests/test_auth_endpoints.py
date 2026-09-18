@@ -1,6 +1,7 @@
 """Endpoint tests for login/logout/me and the auth middleware boundary."""
 from __future__ import annotations
 
+from collections.abc import Sequence
 from typing import Any
 
 import pytest
@@ -28,19 +29,25 @@ async def fake_health() -> dict[str, Any]:
     return {"status": "healthy"}
 
 
-def make_app(**settings_kwargs) -> Litestar:
-    settings = Settings(
-        admin_user="admin",
-        admin_password="bestpasswordintheworldnojoke",
-        _env_file=None,
-        **settings_kwargs,
-    )
+def make_app(
+    *,
+    extra_handlers: Sequence[Any] = (),
+    session_max_age: int | None = None,
+    **settings_kwargs,
+) -> Litestar:
+    kwargs: dict[str, Any] = {"admin_user": "admin", "admin_password": "bestpasswordintheworldnojoke"}
+    kwargs.update(settings_kwargs)
+    settings = Settings(**kwargs, _env_file=None)
     session_auth = create_session_auth(settings)
+    if session_max_age is not None:
+        # The backend is built lazily from this config, so the override takes.
+        session_auth.session_backend_config.max_age = session_max_age
     channels = ChannelsPlugin(backend=MemoryChannelsBackend(), channels=[LIVE_EVENTS_CHANNEL])
     app = Litestar(
         route_handlers=[
             create_api_v1_router([AuthController]),
             protected, fake_health, live_feed, crowdsec_feed, logs_feed,
+            *extra_handlers,
         ],
         dependencies={"settings": create_settings_provider(settings)},
         on_app_init=[session_auth.on_app_init],
@@ -96,15 +103,17 @@ def test_login_logout_flow():
             json={"username": "admin", "password": "bestpasswordintheworldnojoke"},
         )
         assert res.status_code == 200
-        assert res.json() == {"mode": "session", "username": "admin"}
+        assert res.json() == {"mode": "session", "username": "admin", "provider": "password"}
 
         # Session cookie now grants access
         assert client.get("/api/v1/protected").status_code == 200
         me = client.get("/api/v1/auth/me")
         assert me.status_code == 200
-        assert me.json() == {"mode": "session", "username": "admin"}
+        assert me.json() == {"mode": "session", "username": "admin", "provider": "password"}
 
-        assert client.post("/api/v1/auth/logout").status_code == 204
+        logout = client.post("/api/v1/auth/logout")
+        assert logout.status_code == 200
+        assert logout.json() == {"redirectTo": None}
         assert client.get("/api/v1/protected").status_code == 401
 
 
@@ -205,7 +214,9 @@ def test_login_still_validates_its_body_when_auth_disabled():
 
 def test_logout_is_a_no_op_when_auth_disabled():
     with TestClient(app=make_disabled_app()) as client:
-        assert client.post("/api/v1/auth/logout").status_code == 204
+        logout = client.post("/api/v1/auth/logout")
+        assert logout.status_code == 200
+        assert logout.json() == {"redirectTo": None}
 
 
 def test_disabled_login_writes_no_audit_event():
@@ -334,3 +345,57 @@ class TestLoginLogFile:
         assert [l.split(" ")[1] for l in lines] == ["login_failed", "login_success", "logout"]
         for line in lines:
             assert LOGIN_LINE_RE.match(line), line
+
+
+def test_password_login_is_401_when_no_password_and_oidc_enabled():
+    from geometrikks.config.settings import OidcSettings
+
+    oidc = OidcSettings(
+        _env_file=None,
+        issuer="http://127.0.0.1:9",
+        client_id="geo",
+        client_secret="s3cret",
+        redirect_uri="http://localhost/api/v1/auth/oidc/callback",
+        allowed_groups=["admins"],
+    )
+    with TestClient(app=make_app(admin_password=None, oidc=oidc)) as client:
+        res = client.post(
+            "/api/v1/auth/login",
+            json={"username": "admin", "password": "bestpasswordintheworldnojoke"},
+        )
+        assert res.status_code == 401
+        assert "set-cookie" not in res.headers
+
+
+def _set_oidc_env(monkeypatch):
+    monkeypatch.setenv("OIDC_ISSUER", "http://127.0.0.1:9")
+    monkeypatch.setenv("OIDC_CLIENT_ID", "geo")
+    monkeypatch.setenv("OIDC_CLIENT_SECRET", "s3cret")
+    monkeypatch.setenv("OIDC_REDIRECT_URI", "http://localhost:8000/api/v1/auth/oidc/callback")
+    monkeypatch.setenv("OIDC_ALLOWED_GROUPS", "admins")
+
+
+def test_create_app_builds_the_oidc_client_without_a_password(monkeypatch):
+    _set_oidc_env(monkeypatch)
+    monkeypatch.setenv("APP_ADMIN_PASSWORD", "")
+    from geometrikks.server.core import create_app
+    from geometrikks.services.oidc import OidcClient
+
+    app = create_app()
+    assert app.state.auth_state is None
+    assert isinstance(app.state.oidc_client, OidcClient)
+
+
+def test_create_app_leaves_the_oidc_client_unset_without_config(monkeypatch):
+    monkeypatch.setenv("APP_ADMIN_PASSWORD", "bestpasswordintheworldnojoke")
+    from geometrikks.server.core import create_app
+
+    assert create_app().state.oidc_client is None
+
+
+def test_create_app_in_agent_mode_ignores_oidc(monkeypatch):
+    _set_oidc_env(monkeypatch)
+    monkeypatch.setenv("APP_MODE", "agent")
+    from geometrikks.server.core import create_app
+
+    assert create_app().state.oidc_client is None
