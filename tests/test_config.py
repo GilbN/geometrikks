@@ -746,8 +746,8 @@ def test_oidc_derived_values():
     assert oidc.scope_list == ["openid", "profile", "email", "groups"]
     assert oidc.redirect_origin == "https://geo.example.com"
     assert oidc.signed_out_url == "https://geo.example.com/signed-out"
-    assert oidc.redirect_is_loopback is False
-    assert _oidc(redirect_uri="http://localhost:8000/api/v1/auth/oidc/callback").redirect_is_loopback is True
+    assert oidc.redirect_is_http is False
+    assert _oidc(redirect_uri="http://localhost:8000/api/v1/auth/oidc/callback").redirect_is_http is True
 
 
 def test_oidc_and_auth_disabled_contradict():
@@ -755,9 +755,12 @@ def test_oidc_and_auth_disabled_contradict():
         Settings(_env_file=None, auth_disabled=True, session_secure=True, oidc=_oidc())
 
 
-def test_oidc_off_loopback_requires_a_secure_session_cookie():
+def test_oidc_https_redirect_requires_a_secure_session_cookie():
     with pytest.raises(ValidationError, match="APP_SESSION_SECURE=true"):
         Settings(_env_file=None, oidc=_oidc())
+    https_loopback = _oidc(redirect_uri="https://localhost:8443/api/v1/auth/oidc/callback")
+    with pytest.raises(ValidationError, match="APP_SESSION_SECURE=true"):
+        Settings(_env_file=None, oidc=https_loopback)
     assert Settings(_env_file=None, session_secure=True, oidc=_oidc()).oidc.enabled is True
     loopback = _oidc(redirect_uri="http://localhost:8000/api/v1/auth/oidc/callback")
     assert Settings(_env_file=None, oidc=loopback).oidc.enabled is True

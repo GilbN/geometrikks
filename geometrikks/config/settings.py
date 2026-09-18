@@ -11,7 +11,7 @@ from urllib.parse import quote, urlsplit
 
 from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
-from geometrikks.lib.urls import is_loopback_host, validate_https_url
+from geometrikks.lib.urls import validate_https_url
 from geometrikks.services.logparser.constants import ALLOWED_GEOIP_LOCALES
 
 
@@ -778,8 +778,9 @@ class OidcSettings(BaseSettings):
         return f"{self.redirect_origin}/signed-out"
 
     @property
-    def redirect_is_loopback(self) -> bool:
-        return is_loopback_host(urlsplit(self.redirect_uri or "").hostname)
+    def redirect_is_http(self) -> bool:
+        """True only for a loopback redirect: validation rejects http anywhere else."""
+        return urlsplit(self.redirect_uri or "").scheme == "http"
 
     @model_validator(mode="after")
     def validate_configuration(self) -> "OidcSettings":
@@ -1026,14 +1027,14 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def validate_oidc_against_app_auth(self) -> "Settings":
-        """OIDC contradicts APP_AUTH_DISABLED and needs a Secure cookie off loopback."""
+        """OIDC contradicts APP_AUTH_DISABLED and needs a Secure cookie over https."""
         if not self.oidc.enabled:
             return self
         if self.auth_disabled:
             raise ValueError(
                 "APP_AUTH_DISABLED=true and OIDC_* settings contradict each other: remove one"
             )
-        if not self.session_secure and not self.oidc.redirect_is_loopback:
+        if not self.session_secure and not self.oidc.redirect_is_http:
             raise ValueError(
                 "OIDC_REDIRECT_URI is served over https; set APP_SESSION_SECURE=true so "
                 "the session cookie is only ever sent over https"
