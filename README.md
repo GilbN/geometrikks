@@ -429,9 +429,11 @@ OIDC_ALLOWED_GROUPS=admins                     # and/or OIDC_ALLOWED_USERS
 APP_SESSION_SECURE=true                        # required with an https redirect URI
 ```
 
-Register two URLs at the provider: the redirect URI above, and, if you turn
-on `OIDC_LOGOUT_IDP`, `https://geo.example.com/signed-out` as the
-post-logout redirect URI.
+Register the callback URL above at the provider. `OIDC_LOGOUT_IDP` works only
+when the provider's discovery document includes an `end_session_endpoint`.
+If it does, register `https://geo.example.com/signed-out` as the post-logout
+redirect URI before enabling the setting. Otherwise leave it false; logout
+still clears the GeoMetrikks session.
 
 **Who gets in.** At least one of `OIDC_ALLOWED_USERS` (verified email
 addresses or subject identifiers) and `OIDC_ALLOWED_GROUPS` is required.
@@ -455,15 +457,14 @@ to make the provider the only way in.
   authorization_policy: two_factor
   redirect_uris:
     - https://geo.example.com/api/v1/auth/oidc/callback
-  post_logout_redirect_uris:
-    - https://geo.example.com/signed-out
   scopes: [openid, profile, email, groups]
   token_endpoint_auth_method: client_secret_basic
 ```
 
 Authelia serves `groups` and `email` from the userinfo endpoint rather than
 the ID token; GeoMetrikks reads both, so nothing extra is needed. Keep the
-`groups` scope in `OIDC_SCOPES` (the default includes it).
+`groups` scope in `OIDC_SCOPES` (the default includes it). Authelia 4.39 does
+not advertise an OIDC end-session endpoint, so leave `OIDC_LOGOUT_IDP=false`.
 
 **Authentik.** Create an OAuth2/OpenID provider with client type
 Confidential, the redirect URI above, and the default `openid`, `email` and
@@ -474,7 +475,8 @@ provider page (it ends in the application slug) and
 
 **Google.** Google does not accept a `groups` scope, so set
 `OIDC_SCOPES="openid profile email"` and allow people by verified email
-with `OIDC_ALLOWED_USERS`.
+with `OIDC_ALLOWED_USERS`. Google's discovery document does not advertise an
+OIDC end-session endpoint, so leave `OIDC_LOGOUT_IDP=false`.
 
 **Internal CA.** If the provider's certificate is signed by your own CA,
 point `OIDC_CA_BUNDLE` at its PEM file. There is no switch to turn

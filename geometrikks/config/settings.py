@@ -726,9 +726,11 @@ class OidcSettings(BaseSettings):
     logout_idp: bool = Field(
         default=False,
         description=(
-            "On logout, also end the identity provider session through its end "
-            "session endpoint. Register {app origin}/signed-out as the "
-            "post-logout redirect URI at the provider when enabling this."
+            "On logout, also end the identity provider session when discovery "
+            "advertises an end_session_endpoint. Register {app origin}/signed-out "
+            "as the post-logout redirect URI before enabling it. When the endpoint "
+            "is absent, logout still clears the GeoMetrikks session but cannot end "
+            "the provider session."
         ),
     )
     ca_bundle: Path | None = Field(

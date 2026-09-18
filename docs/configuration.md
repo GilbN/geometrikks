@@ -160,7 +160,7 @@ from real environment variables. It is read once at import time.
 | `OIDC_GROUPS_CLAIM` | `groups` | Claim that carries group membership, read from the ID token and the userinfo endpoint. |
 | `OIDC_SCOPES` | `openid profile email groups` | Space-separated scopes requested at login. Must include openid. |
 | `OIDC_PROVIDER_NAME` | `SSO` | Label on the login button: "Sign in with {name}". |
-| `OIDC_LOGOUT_IDP` | `false` | On logout, also end the identity provider session through its end session endpoint. Register {app origin}/signed-out as the post-logout redirect URI at the provider when enabling this. |
+| `OIDC_LOGOUT_IDP` | `false` | On logout, also end the identity provider session when discovery advertises an end_session_endpoint. Register {app origin}/signed-out as the post-logout redirect URI before enabling it. When the endpoint is absent, logout still clears the GeoMetrikks session but cannot end the provider session. |
 | `OIDC_CA_BUNDLE` | - | PEM file with the CA that signed the identity provider's certificate, for providers behind an internal CA. There is no switch to turn verification off. |
 
 ## Vite (development only)
