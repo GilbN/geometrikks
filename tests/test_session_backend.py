@@ -147,7 +147,7 @@ async def test_final_second_session_write_clears_rather_than_renews():
         assert (await client.get("/api/v1/protected")).status_code == 401
 
 
-def test_logout_during_a_parked_session_write_clears_the_session():
+def test_logout_during_a_parked_session_write_is_not_undone():
     """A session write that finishes after logout must not plant the entry back.
 
     The real shape is /oidc/start merging oidc_pending into a logged-in
@@ -181,7 +181,7 @@ def test_logout_during_a_parked_session_write_clears_the_session():
 
         response = results[0]
         assert response.status_code == 200
-        assert response.headers["set-cookie"].startswith("session=null")
+        assert "set-cookie" not in response.headers
         assert portal.call(store.get, sid) is None
         assert client.get("/api/v1/protected").status_code == 401
 
@@ -278,6 +278,46 @@ def test_logout_is_not_undone_by_an_in_flight_request():
         assert results == [200]
         assert portal.call(store.get, sid) is None
         assert client.get("/api/v1/protected").status_code == 401
+
+
+def test_a_parked_write_on_a_rotated_session_leaves_the_new_cookie_alone():
+    """The parked write answers after the login that rotated its session away.
+
+    A deletion cookie on that late response would erase the cookie the login
+    just set, and the browser would be logged out again.
+    """
+    events: dict[str, asyncio.Event] = {}
+
+    @get("/api/v1/slow-touch", exclude_from_auth=True)
+    async def slow_touch(request: Request) -> dict[str, bool]:
+        events["entered"].set()
+        await events["gate"].wait()
+        session = dict(request.session or {})
+        session["touched"] = True
+        request.set_session(session)
+        return {"ok": True}
+
+    app = make_app(extra_handlers=[slow_touch])
+    with TestClient(app=app) as client, client.portal() as portal:
+        events["entered"], events["gate"] = portal.call(asyncio.Event), portal.call(asyncio.Event)
+        old = client.post("/api/v1/auth/login", json=CREDS).cookies["session"]
+        store = app.stores.get("sessions")
+        results: list = []
+        worker = threading.Thread(
+            target=lambda: results.append(client.get("/api/v1/slow-touch"))
+        )
+        worker.start()
+        portal.call(events["entered"].wait)
+        new = client.post("/api/v1/auth/login", json=CREDS).cookies["session"]
+        portal.call(events["gate"].set)
+        worker.join(timeout=5)
+
+        response = results[0]
+        assert response.status_code == 200
+        assert "set-cookie" not in response.headers
+        assert portal.call(store.get, old) is None
+        assert client.cookies["session"] == new
+        assert client.get("/api/v1/protected").status_code == 200
 
 
 def test_in_flight_request_cannot_restore_the_pre_rotation_session():

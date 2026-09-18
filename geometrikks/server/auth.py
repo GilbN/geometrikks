@@ -168,7 +168,7 @@ class RotatingServerSideSessionBackend(ServerSideSessionBackend):
     - issues a new id on login (rotate_session) and deletes the old one;
     - skips the write when the session did not change;
     - keeps the store's remaining lifetime when a loaded session did change,
-      and clears the session instead if the entry is gone or has no time left
+      clears it if no time is left, and writes nothing if the entry is gone
       (_store_loaded_session), so the expiry set at login is absolute;
     - gives a session without a "username" key, which is a pre-login session
       planted by the unauthenticated /oidc/start, a short lifetime instead of
@@ -275,15 +275,21 @@ class RotatingServerSideSessionBackend(ServerSideSessionBackend):
 
         The write keeps the store's remaining lifetime, so an authenticated
         request that touches request.session (such as /oidc/start merging
-        oidc_pending) cannot extend the expiry set at login. If the entry is
-        gone (a logout raced this request) or has no time left
-        (MemoryStore.expires_in truncates, so under a second reads as 0),
-        the session is cleared rather than written back under a dead id.
+        oidc_pending) cannot extend the expiry set at login. With no time left
+        (MemoryStore.expires_in truncates, so under a second reads as 0) the
+        session is cleared rather than written back.
+
+        If the entry is gone, a logout or a login's rotation raced this
+        request, and the response carries no cookie at all. After a rotation
+        the browser already holds the new id, and a deletion cookie arriving
+        late would erase it.
         """
         store = self.config.get_store_from_app(connection.scope["app"])
         session_id = self.get_session_id(connection)
         async with self._write_lock:
             remaining = await store.expires_in(session_id)
+            if scope_session is not Empty and remaining is None:
+                return
             if scope_session is Empty or remaining is None or remaining <= 0:
                 await super().store_in_message(Empty, message, connection)
                 return
