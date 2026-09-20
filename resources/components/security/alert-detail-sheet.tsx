@@ -131,13 +131,13 @@ function AlertBody({ alert, onNavigate }: { alert: AlertDetailView; onNavigate: 
               <DetailField
                 key={entry.key}
                 label={contextLabel(entry.key)}
-                value={
+                value={entry.values.length === 0 ? null : (
                   <ul className="flex flex-col gap-1">
                     {entry.values.map((value) => (
                       <li key={value} className="break-all font-mono text-xs">{value}</li>
                     ))}
                   </ul>
-                }
+                )}
               />
             ))}
           </dl>
