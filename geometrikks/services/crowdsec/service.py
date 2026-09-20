@@ -24,8 +24,16 @@ from geometrikks.services.crowdsec.schemas import Alert, Decision, DecisionStrea
 logger = get_logger(__name__)
 
 
+def _meta_pairs(meta: list[dict[str, str]] | None) -> list[tuple[str, str]]:
+    """``[{key, value}]`` as pairs. CrowdSec marshals both fields with
+    omitempty, so an empty value arrives as ``{"key": ...}`` alone."""
+    return [(pair["key"], pair.get("value", "")) for pair in meta or [] if pair.get("key")]
+
+
 def _context_values(value: str) -> list[str]:
     """Context values arrive as a JSON array encoded inside a string."""
+    if not value:
+        return []
     try:
         decoded = msgspec.json.decode(value)
     except msgspec.DecodeError:
@@ -43,7 +51,7 @@ def _normalize_alert(raw: dict[str, Any]) -> dict[str, Any]:
     """
     events = []
     for event in raw.get("events") or []:
-        meta = {pair["key"]: pair["value"] for pair in event.get("meta") or []}
+        meta = dict(_meta_pairs(event.get("meta")))
         # The event's own timestamp uses Go's default time format. The
         # parser also stores an RFC 3339 one in meta.
         events.append({"timestamp": meta.get("timestamp") or event.get("timestamp", ""), "meta": meta})
@@ -52,8 +60,8 @@ def _normalize_alert(raw: dict[str, Any]) -> dict[str, Any]:
         "decisions": raw.get("decisions") or [],
         "events": events,
         "context": [
-            {"key": pair["key"], "values": _context_values(pair["value"])}
-            for pair in raw.get("meta") or []
+            {"key": key, "values": _context_values(value)}
+            for key, value in _meta_pairs(raw.get("meta"))
         ],
     }
 

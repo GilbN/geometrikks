@@ -464,3 +464,42 @@ async def test_get_alerts_excludes_capi_blocklist_pulls():
     await service.get_alerts(limit=25)
     assert lapi.alert_params["include_capi"] == "false"
     await service.aclose()
+
+
+async def test_alert_meta_entries_without_a_value_or_key_do_not_break_parsing():
+    """CrowdSec marshals both meta fields with omitempty, so an empty user
+    agent arrives as ``{"key": "http_user_agent"}``."""
+    raw = {
+        **ALERT_DETAIL_JSON,
+        "meta": [{"key": "user_agent"}, {"value": "[\"orphan\"]"}, {"key": "status", "value": "[\"404\"]"}],
+        "events": [
+            {
+                "timestamp": "2026-09-20 05:43:18 +0000 UTC",
+                "meta": [{"key": "http_user_agent"}, {"value": "orphan"}, {"key": "http_path", "value": "/x"}],
+            }
+        ],
+    }
+    service = make_service(LapiAlertDetailFake(raw), **write_settings())
+    alert = await service.get_alert(10908)
+    assert alert is not None
+    assert alert.context == [
+        AlertContext(key="user_agent", values=[]),
+        AlertContext(key="status", values=["404"]),
+    ]
+    (event,) = alert.events
+    assert event.meta == {"http_user_agent": "", "http_path": "/x"}
+    assert event.timestamp == "2026-09-20 05:43:18 +0000 UTC"
+    await service.aclose()
+
+
+async def test_one_alert_with_valueless_meta_does_not_break_the_history_list():
+    class Fake(LapiAlertsFake):
+        def __call__(self, request: httpx2.Request) -> httpx2.Response:
+            if request.url.path == "/v1/alerts" and request.method == "GET":
+                broken = {**ALERT_JSON, "id": 9, "events": [{"timestamp": "t", "meta": [{"key": "http_user_agent"}]}]}
+                return httpx2.Response(200, json=[ALERT_JSON, broken])
+            return super().__call__(request)
+
+    service = make_service(Fake(), **write_settings())
+    assert [a.id for a in await service.get_alerts()] == [7, 9]
+    await service.aclose()
