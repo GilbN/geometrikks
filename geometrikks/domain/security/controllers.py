@@ -49,9 +49,6 @@ DEFAULT_ORIGINS = "crowdsec,cscli,geometrikks"
 
 TOP_SCENARIO_LIMIT = 10
 
-# How many of an IP's alerts to search for the one holding a decision. The
-# search covers alerts with a live decision only, about one per scenario.
-DECISION_ALERT_SEARCH_LIMIT = 100
 
 # Go duration string as the LAPI accepts it, e.g. "4h", "30m", "1h30m".
 GO_DURATION_RE = re.compile(r"^(\d+h)?(\d+m)?(\d+s)?$")
@@ -534,19 +531,22 @@ class CrowdSecController(Controller):
         """The alert that produced one decision.
 
         The LAPI cannot look an alert up by decision id, only by the IP its
-        decisions target, so the IP narrows the search to its alerts with a
-        live decision. Blocklist decisions have no alert of their own and
-        answer 404.
+        decisions target. The IP's alerts with a live decision are searched
+        first, about one per scenario. A decision can expire between the
+        table loading and the row being opened, so a miss falls back to
+        every alert the LAPI retains for the IP. Blocklist decisions have no
+        alert of their own and answer 404.
         """
         service = _require_write(crowdsec, settings)
         validate_ip_address(ip)
-        alerts = await service.get_alerts(
-            limit=DECISION_ALERT_SEARCH_LIMIT, ip=ip, scenario=None, since=None,
-            has_active_decision=True,
-        )
-        for alert in alerts:
-            if any(decision.id == decision_id for decision in alert.decisions):
-                return await _alert_detail(alert, enrichment_repo)
+        for live_only in (True, None):
+            # limit=0 lifts the LAPI's default cap of 100 alerts.
+            alerts = await service.get_alerts(
+                limit=0, ip=ip, scenario=None, since=None, has_active_decision=live_only
+            )
+            for alert in alerts:
+                if any(decision.id == decision_id for decision in alert.decisions):
+                    return await _alert_detail(alert, enrichment_repo)
         raise NotFoundException(detail=f"No CrowdSec alert holds decision {decision_id}")
 
     @post("/ban", status_code=HTTP_204_NO_CONTENT)

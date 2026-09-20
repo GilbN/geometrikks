@@ -619,10 +619,9 @@ async def test_decision_alert_returns_the_alert_holding_that_decision(monkeypatc
     assert resp.status_code == 200
     assert resp.json()["id"] == 6
     assert resp.json()["context"] == [{"key": "target_uri", "values": ["/wp-login.php", "/.env"]}]
-    # Only alerts with a live decision are searched, so the IP's older
-    # alerts cannot push the one we want past the limit.
+    # The common case is one call: the alert is among the IP's live ones.
     assert service.alert_calls == [
-        {"limit": 100, "ip": "1.2.3.4", "scenario": None, "since": None, "has_active_decision": True}
+        {"limit": 0, "ip": "1.2.3.4", "scenario": None, "since": None, "has_active_decision": True}
     ]
 
 
@@ -666,6 +665,52 @@ def test_alert_detail_documents_its_404():
     schema = make_app(None).openapi_schema.to_schema()
     responses = schema["paths"]["/api/v1/crowdsec/alerts/{alert_id}"]["get"]["responses"]
     assert "404" in responses
+
+
+class FilteringAlertFake(AlertFakeCrowdSec):
+    """Applies the LAPI's ``has_active_decision`` and ``limit`` filters."""
+
+    async def get_alerts(self, **filters):
+        self.alert_calls.append(filters)
+        alerts = self._alerts
+        if filters.get("has_active_decision"):
+            alerts = [a for a in alerts if any(not d.expired for d in a.decisions)]
+        limit = filters.get("limit")
+        return alerts[:limit] if limit else alerts
+
+
+async def test_decision_alert_survives_the_decision_expiring_after_the_table_loaded(monkeypatch):
+    enable_write(monkeypatch)
+    alert = make_detailed_alert()
+    alert.decisions = [make_decision(id=4, duration="-1s")]
+    service = FilteringAlertFake([alert])
+    async with AsyncTestClient(app=make_app(service)) as client:
+        resp = await client.get("/api/v1/crowdsec/decisions/4/alert", params={"ip": "1.2.3.4"})
+    assert resp.status_code == 200
+    assert [call.get("has_active_decision") for call in service.alert_calls] == [True, None]
+
+
+async def test_decision_alert_is_found_behind_a_hundred_other_live_alerts(monkeypatch):
+    enable_write(monkeypatch)
+    alerts = []
+    for number in range(101):
+        alert = make_alert()
+        alert.id = 1000 + number
+        alert.decisions = [make_decision(id=number, duration="4h")]
+        alerts.append(alert)
+    async with AsyncTestClient(app=make_app(FilteringAlertFake(alerts))) as client:
+        resp = await client.get("/api/v1/crowdsec/decisions/100/alert", params={"ip": "1.2.3.4"})
+    assert resp.status_code == 200
+    assert resp.json()["id"] == 1100
+
+
+async def test_decision_alert_searches_retained_alerts_before_answering_404(monkeypatch):
+    enable_write(monkeypatch)
+    service = FilteringAlertFake([make_alert()])
+    async with AsyncTestClient(app=make_app(service)) as client:
+        resp = await client.get("/api/v1/crowdsec/decisions/999/alert", params={"ip": "1.2.3.4"})
+    assert resp.status_code == 404
+    assert [call.get("has_active_decision") for call in service.alert_calls] == [True, None]
 
 
 def test_decision_alert_documents_its_404():
