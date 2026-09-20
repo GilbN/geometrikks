@@ -68,3 +68,10 @@ const BLOCKLIST_ORIGINS = new Set(["CAPI", "lists"])
 export function decisionHasAlert(scope: string, decision: { id: number | null; origin: string }): boolean {
   return scope === "Ip" && decision.id !== null && !BLOCKLIST_ORIGINS.has(decision.origin)
 }
+
+/** "Telenor (AS2119)", or whichever half the LAPI has. */
+export function asLabel(name: string | null, number: string | null): string | null {
+  const as = number ? `AS${number}` : null
+  if (name && as) return `${name} (${as})`
+  return name ?? as
+}

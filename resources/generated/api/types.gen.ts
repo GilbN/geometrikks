@@ -2546,6 +2546,10 @@ export type ApiV1CrowdsecAlertsAlertIdGetAlertErrors = {
       | Array<unknown>;
     status_code: number;
   };
+  /**
+   * The LAPI holds no alert with this id.
+   */
+  404: ErrorEnvelope;
 };
 
 export type ApiV1CrowdsecAlertsAlertIdGetAlertError =

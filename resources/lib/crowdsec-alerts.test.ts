@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { alertSummary, decisionHasAlert, contextLabel, eventExtras, formatGoDuration, hasHttpEvents } from "./crowdsec-alerts"
+import { alertSummary, asLabel, contextLabel, decisionHasAlert, eventExtras, formatGoDuration, hasHttpEvents } from "./crowdsec-alerts"
 
 const HTTP_META = {
   ASNNumber: "48090",
@@ -95,5 +95,17 @@ describe("decisionHasAlert", () => {
   it("is false without an id or for a non-IP scope", () => {
     expect(decisionHasAlert("Ip", { id: null, origin: "crowdsec" })).toBe(false)
     expect(decisionHasAlert("Range", { id: 7, origin: "crowdsec" })).toBe(false)
+  })
+})
+
+describe("asLabel", () => {
+  it("joins the name and the number", () => {
+    expect(asLabel("Telenor", "2119")).toBe("Telenor (AS2119)")
+  })
+
+  it("shows whichever one the LAPI has", () => {
+    expect(asLabel(null, "2119")).toBe("AS2119")
+    expect(asLabel("Telenor", null)).toBe("Telenor")
+    expect(asLabel(null, null)).toBeNull()
   })
 })

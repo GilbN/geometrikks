@@ -8663,6 +8663,16 @@
               }
             },
             "description": "Bad request syntax or unsupported method"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "The LAPI holds no alert with this id."
           }
         },
         "summary": "GetAlert",

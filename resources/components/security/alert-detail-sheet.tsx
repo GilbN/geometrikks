@@ -16,7 +16,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Skeleton } from "@/components/ui/skeleton"
 import type { AlertDetailView, AlertEventView, AlertView } from "@/generated/api/types.gen"
 import { crowdsecErrorMessage } from "@/lib/crowdsec"
-import { alertSummary, contextLabel, eventExtras, hasHttpEvents } from "@/lib/crowdsec-alerts"
+import { alertSummary, asLabel, contextLabel, eventExtras, hasHttpEvents } from "@/lib/crowdsec-alerts"
 import type { UseQueryResult } from "@tanstack/react-query"
 import { useCrowdsecAlert, useCrowdsecDecisionAlert } from "@/lib/queries"
 import { statusBadgeClass } from "@/lib/status-badge"
@@ -108,7 +108,7 @@ function AlertBody({ alert, onNavigate }: { alert: AlertDetailView; onNavigate: 
         <DetailField label="Country" value={alert.country} />
         <DetailField
           label="AS"
-          value={alert.asName ? `${alert.asName}${alert.asNumber ? ` (AS${alert.asNumber})` : ""}` : null}
+          value={asLabel(alert.asName, alert.asNumber)}
         />
         <DetailField label="Range" value={alert.range} mono />
         <DetailField label="First event" value={alert.startAt && new Date(alert.startAt).toLocaleString()} />

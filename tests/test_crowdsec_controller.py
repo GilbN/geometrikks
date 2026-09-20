@@ -643,6 +643,25 @@ async def test_decision_alert_403_without_machine_credentials(monkeypatch, tmp_p
     async with AsyncTestClient(app=make_app(AlertFakeCrowdSec())) as client:
         resp = await client.get("/api/v1/crowdsec/decisions/4/alert", params={"ip": "1.2.3.4"})
     assert resp.status_code == 403
+async def test_alert_geo_fallback_finds_a_non_canonical_ipv6_source(monkeypatch):
+    """Enrichment rows are keyed by the canonical address text."""
+    from geometrikks.services.crowdsec.schemas import AlertSource
+
+    enable_write(monkeypatch)
+    spelled_out = "2001:0db8:0000:0000:0000:0000:0000:0001"
+    bare = make_alert()
+    bare.source = AlertSource(scope="Ip", value=spelled_out, ip=spelled_out)
+    enrichment = FakeEnrichment({"2001:db8::1": OSLO})
+    async with AsyncTestClient(app=make_app(AlertFakeCrowdSec([bare]), enrichment)) as client:
+        (listed,) = (await client.get("/api/v1/crowdsec/alerts")).json()
+        detail = (await client.get("/api/v1/crowdsec/alerts/7")).json()
+    assert (listed["country"], detail["country"]) == ("Norway", "Norway")
+
+
+def test_alert_detail_documents_its_404():
+    schema = make_app(None).openapi_schema.to_schema()
+    responses = schema["paths"]["/api/v1/crowdsec/alerts/{alert_id}"]["get"]["responses"]
+    assert "404" in responses
 
 
 # -- banned locations (map overlay) ----------------------------------------
