@@ -60,3 +60,10 @@ export function alertSummary(message: string): string {
   const over = events > 1 ? formatGoDuration(duration) : null
   return `IP ${ip} triggered this scenario with ${events} ${events === 1 ? "event" : "events"}${over ? ` over ${over}` : ""}.`
 }
+
+/** "Telenor (AS2119)", or whichever half the LAPI has. */
+export function asLabel(name: string | null, number: string | null): string | null {
+  const as = number ? `AS${number}` : null
+  if (name && as) return `${name} (${as})`
+  return name ?? as
+}

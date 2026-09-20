@@ -567,6 +567,27 @@ async def test_alert_detail_without_lapi_geo_falls_back_to_own_enrichment(monkey
     assert detail["country"] == "Norway"
 
 
+async def test_alert_geo_fallback_finds_a_non_canonical_ipv6_source(monkeypatch):
+    """Enrichment rows are keyed by the canonical address text."""
+    from geometrikks.services.crowdsec.schemas import AlertSource
+
+    enable_write(monkeypatch)
+    spelled_out = "2001:0db8:0000:0000:0000:0000:0000:0001"
+    bare = make_alert()
+    bare.source = AlertSource(scope="Ip", value=spelled_out, ip=spelled_out)
+    enrichment = FakeEnrichment({"2001:db8::1": OSLO})
+    async with AsyncTestClient(app=make_app(AlertFakeCrowdSec([bare]), enrichment)) as client:
+        (listed,) = (await client.get("/api/v1/crowdsec/alerts")).json()
+        detail = (await client.get("/api/v1/crowdsec/alerts/7")).json()
+    assert (listed["country"], detail["country"]) == ("Norway", "Norway")
+
+
+def test_alert_detail_documents_its_404():
+    schema = make_app(None).openapi_schema.to_schema()
+    responses = schema["paths"]["/api/v1/crowdsec/alerts/{alert_id}"]["get"]["responses"]
+    assert "404" in responses
+
+
 # -- banned locations (map overlay) ----------------------------------------
 
 

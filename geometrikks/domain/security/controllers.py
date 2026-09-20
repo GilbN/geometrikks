@@ -20,7 +20,8 @@ from litestar import Controller, Request, get, post
 from litestar.di import NamedDependency, Provide
 from litestar.exceptions import NotFoundException, PermissionDeniedException
 from litestar.params import FromPath, QueryParameter, SkipValidation
-from litestar.status_codes import HTTP_200_OK, HTTP_204_NO_CONTENT
+from litestar.openapi.datastructures import ResponseSpec
+from litestar.status_codes import HTTP_200_OK, HTTP_204_NO_CONTENT, HTTP_404_NOT_FOUND
 
 from geometrikks.domain.security.dependencies import (
     provide_crowdsec_poller,
@@ -35,6 +36,7 @@ from geometrikks.domain.security.repositories import SecurityEnrichmentRepositor
 from geometrikks.domain.security.schemas import IpEnrichment, BannedMapCollection, BannedIp
 from geometrikks.domain.security.map_data import active_decision_ips, banned_map_collection, canonical_ip, decision_winner
 from geometrikks.lib.parameters import CountryCodeFilter, CityFilter, HostnameIn
+from geometrikks.server.exceptions import ErrorEnvelope
 from geometrikks.server.logging import get_logger
 from geometrikks.services.crowdsec import Alert, CrowdSecService, Decision
 from geometrikks.services.crowdsec.stream import CrowdSecStreamPoller
@@ -173,6 +175,12 @@ def _to_view(decision: Decision, enrichment: IpEnrichment | None) -> DecisionVie
             enrichment.request_count_24h if enrichment else (0 if is_ip_scope else None)
         ),
     )
+
+
+def _enrichment_key(alert: Alert) -> str:
+    """Enrichment rows are keyed by the canonical address, which the LAPI's
+    spelling of an IPv6 source need not match."""
+    return canonical_ip(alert.source.value) or alert.source.value
 
 
 def _alert_country(alert: Alert, enrichment: IpEnrichment | None) -> str | None:
@@ -388,16 +396,23 @@ class CrowdSecController(Controller):
         alerts = await service.get_alerts(limit=limit, ip=ip, scenario=scenario, since=since)
 
         bare_ips = [
-            a.source.value for a in alerts if a.source.scope == "Ip" and a.source.cn is None
+            _enrichment_key(a) for a in alerts if a.source.scope == "Ip" and a.source.cn is None
         ]
         enriched = await enrichment_repo.enrich(bare_ips) if bare_ips else {}
 
         return [
-            AlertView(**_alert_summary(alert, enriched.get(alert.source.value)))
+            AlertView(**_alert_summary(alert, enriched.get(_enrichment_key(alert))))
             for alert in alerts
         ]
 
-    @get("/alerts/{alert_id:int}")
+    @get(
+        "/alerts/{alert_id:int}",
+        responses={
+            HTTP_404_NOT_FOUND: ResponseSpec(
+                data_container=ErrorEnvelope, description="The LAPI holds no alert with this id."
+            ),
+        },
+    )
     async def get_alert(
         self,
         crowdsec: NamedDependency[CrowdSecService | None],
@@ -413,9 +428,10 @@ class CrowdSecController(Controller):
 
         source = alert.source
         needs_geo = source.scope == "Ip" and source.cn is None
-        enriched = await enrichment_repo.enrich([source.value]) if needs_geo else {}
+        key = _enrichment_key(alert)
+        enriched = await enrichment_repo.enrich([key]) if needs_geo else {}
         return AlertDetailView(
-            **_alert_summary(alert, enriched.get(source.value)),
+            **_alert_summary(alert, enriched.get(key)),
             kind=alert.kind,
             simulated=bool(alert.simulated),
             start_at=alert.start_at,

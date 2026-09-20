@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { alertSummary, contextLabel, eventExtras, formatGoDuration, hasHttpEvents } from "./crowdsec-alerts"
+import { alertSummary, asLabel, contextLabel, eventExtras, formatGoDuration, hasHttpEvents } from "./crowdsec-alerts"
 
 const HTTP_META = {
   ASNNumber: "48090",
@@ -78,5 +78,17 @@ describe("alertSummary", () => {
   it("keeps other messages, such as a manual ban reason, and fixes the Ip casing", () => {
     expect(alertSummary("manual ban from GeoMetrikks")).toBe("manual ban from GeoMetrikks")
     expect(alertSummary("Ip 1.2.3.4 was banned by hand")).toBe("IP 1.2.3.4 was banned by hand")
+  })
+})
+
+describe("asLabel", () => {
+  it("joins the name and the number", () => {
+    expect(asLabel("Telenor", "2119")).toBe("Telenor (AS2119)")
+  })
+
+  it("shows whichever one the LAPI has", () => {
+    expect(asLabel(null, "2119")).toBe("AS2119")
+    expect(asLabel("Telenor", null)).toBe("Telenor")
+    expect(asLabel(null, null)).toBeNull()
   })
 })
