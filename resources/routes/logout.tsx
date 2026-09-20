@@ -15,11 +15,12 @@ export const Route = createFileRoute("/logout")({
     }
     const plan = planLogoutRoute(result)
     if (plan.action === "endSessionThenRedirect") {
-      await logout()
+      const { redirectTo } = await logout()
       // Hard navigation, matching the sidebar's Log out button: it discards
       // the TanStack Query cache holding the previous session's data, which
-      // a client-side redirect would not.
-      window.location.href = plan.to
+      // a client-side redirect would not. With OIDC_LOGOUT_IDP the target is
+      // the identity provider's end session URL.
+      window.location.href = redirectTo ?? plan.to
       return
     }
     // Same rule as /login: the redirect is thrown outside the try, or the

@@ -26,6 +26,7 @@ if TYPE_CHECKING:
     from geometrikks.services.crowdsec.stream import CrowdSecStreamPoller
     from geometrikks.services.geoip.home import HomeLocation
     from geometrikks.services.ingestion import LogIngestionService
+    from geometrikks.services.oidc import OidcClient
 
 
 def get_ingestion_service(app: Litestar) -> LogIngestionService | None:
@@ -50,6 +51,11 @@ def get_crowdsec_service(app: Litestar) -> CrowdSecService | None:
 def get_crowdsec_poller(app: Litestar) -> CrowdSecStreamPoller | None:
     """None when CrowdSec is disabled or the app is DB-degraded or scheduler-disabled."""
     return getattr(app.state, "crowdsec_stream_poller", None)
+
+
+def get_oidc_client(app: Litestar) -> OidcClient | None:
+    """None unless OIDC_* is configured; create_app builds the client."""
+    return getattr(app.state, "oidc_client", None)
 
 
 def get_scheduler(app: Litestar) -> AsyncIOScheduler | None:

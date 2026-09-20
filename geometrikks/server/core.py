@@ -15,9 +15,12 @@ from geometrikks.server import plugins
 from geometrikks.server.exceptions import EXCEPTION_HANDLERS
 from geometrikks.server.routes import get_agent_route_handlers, get_route_handlers
 from geometrikks.server.dependencies import create_settings_provider
+from geometrikks.server.logging import get_logger
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
+
+logger = get_logger(__name__)
 
 
 def create_app(
@@ -57,6 +60,7 @@ def create_app(
 
     on_app_init = []
     auth_state = None
+    oidc_client = None
     openapi_config = None
     if settings.is_agent:
         # Headless log-tailing process: no API/UI surface to authenticate or
@@ -76,6 +80,19 @@ def create_app(
         else:
             auth_state = build_auth_state(settings)
             on_app_init.append(create_session_auth(settings).on_app_init)
+            if settings.oidc.enabled:
+                from geometrikks.services.oidc import OidcClient, create_oidc_http_client
+
+                oidc_client = OidcClient(settings.oidc, create_oidc_http_client(settings.oidc))
+                logger.info(
+                    "oidc_configured",
+                    issuer=settings.oidc.issuer,
+                    redirect_uri=settings.oidc.redirect_uri,
+                    password_login=settings.password_login_enabled,
+                    idp_logout=settings.oidc.logout_idp,
+                    allowed_users=len(settings.oidc.allowed_users),
+                    allowed_groups=len(settings.oidc.allowed_groups),
+                )
 
         route_handlers = get_route_handlers()
         openapi_config = OpenAPIConfig(
@@ -115,6 +132,7 @@ def create_app(
         on_app_init=on_app_init,
     )
     app.state.auth_state = auth_state
+    app.state.oidc_client = oidc_client
     # Lifecycle hooks and other non-request code read the composed settings
     # and database config from state instead of re-resolving the
     # process-cached factories.

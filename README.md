@@ -390,7 +390,7 @@ GeoMetrikks ships with single-admin session-cookie authentication:
 
 ```bash
 APP_ADMIN_USER=admin          # defaults to "admin"
-APP_ADMIN_PASSWORD=           # required; the app refuses to start without it
+APP_ADMIN_PASSWORD=           # required unless OpenID Connect is configured (see below)
 ```
 
 ![Login](/data/screenshots/login.png)
@@ -398,8 +398,9 @@ APP_ADMIN_PASSWORD=           # required; the app refuses to start without it
 Log in through the web UI (`/login`) or `POST /api/v1/auth/login`. Everything
 under `/api/` and `/ws/` requires a session; the web app's static files
 (you need them to reach the login page), `/health`, `/health/ready` and
-`/schema` stay open. **Sessions are held in memory**, so
-restarting the app container logs everyone out.
+`/schema` stay open. **Sessions are held in memory**, so restarting the app
+container logs everyone out, and every session ends 7 days after login
+regardless of use.
 
 If something else already controls who reaches the app (an authenticating
 proxy such as Authelia or Tailscale, or a network only you can reach), you
@@ -411,6 +412,79 @@ APP_AUTH_DISABLED=true
 
 There is then no login and no session: anyone who can reach the app has full
 access to it and to the WebSocket feeds.
+
+### OpenID Connect
+
+GeoMetrikks can sign you in through an OpenID Connect identity provider
+such as Authelia, Authentik, Keycloak, Pocket ID or Google. It uses the
+authorization code flow with PKCE and needs a confidential client at the
+provider.
+
+```bash
+OIDC_ISSUER=https://auth.example.com          # the provider's issuer URL, https
+OIDC_CLIENT_ID=geometrikks
+OIDC_CLIENT_SECRET=
+OIDC_REDIRECT_URI=https://geo.example.com/api/v1/auth/oidc/callback
+OIDC_ALLOWED_GROUPS=admins                     # and/or OIDC_ALLOWED_USERS
+APP_SESSION_SECURE=true                        # required with an https redirect URI
+```
+
+Register the callback URL above at the provider. `OIDC_LOGOUT_IDP` works only
+when the provider's discovery document includes an `end_session_endpoint`.
+If it does, register `https://geo.example.com/signed-out` as the post-logout
+redirect URI before enabling the setting. Otherwise leave it false; logout
+still clears the GeoMetrikks session.
+
+**Who gets in.** At least one of `OIDC_ALLOWED_USERS` (verified email
+addresses or subject identifiers) and `OIDC_ALLOWED_GROUPS` is required.
+Without an allow list, anyone the provider authenticates could sign in,
+which for a public provider such as Google means everyone. An email only
+matches when the provider marks it verified. The allow list is checked at
+login; removing someone at the provider takes effect the next time they
+sign in, which is at the latest 7 days later when their session ends.
+
+**Password login stays on** while `APP_ADMIN_PASSWORD` is set, so you can
+still get in through the password form when the provider is down. Unset it
+to make the provider the only way in.
+
+**Authelia.** Add a client under `identity_providers.oidc.clients`:
+
+```yaml
+- client_id: geometrikks
+  client_name: GeoMetrikks
+  client_secret: '$pbkdf2-sha512$...'   # authelia crypto hash generate pbkdf2
+  public: false
+  authorization_policy: two_factor
+  redirect_uris:
+    - https://geo.example.com/api/v1/auth/oidc/callback
+  scopes: [openid, profile, email, groups]
+  token_endpoint_auth_method: client_secret_basic
+```
+
+Authelia serves `groups` and `email` from the userinfo endpoint rather than
+the ID token; GeoMetrikks reads both, so nothing extra is needed. Keep the
+`groups` scope in `OIDC_SCOPES` (the default includes it). Authelia 4.39 does
+not advertise an OIDC end-session endpoint, so leave `OIDC_LOGOUT_IDP=false`.
+
+**Authentik.** Create an OAuth2/OpenID provider with client type
+Confidential, the redirect URI above, and the default `openid`, `email` and
+`profile` scope mappings; groups come through the default `profile`
+mapping. Set `OIDC_ISSUER` to the application's issuer URL shown on the
+provider page (it ends in the application slug) and
+`OIDC_SCOPES="openid profile email"` unless you add a `groups` scope.
+
+**Google.** Google does not accept a `groups` scope, so set
+`OIDC_SCOPES="openid profile email"` and allow people by verified email
+with `OIDC_ALLOWED_USERS`. Google's discovery document does not advertise an
+OIDC end-session endpoint, so leave `OIDC_LOGOUT_IDP=false`.
+
+**Internal CA.** If the provider's certificate is signed by your own CA,
+point `OIDC_CA_BUNDLE` at its PEM file. There is no switch to turn
+verification off.
+
+The Settings > Status page shows whether the provider's discovery document
+could be fetched. Startup never waits for the provider; if it is still
+coming up, the first sign-in attempt retries.
 
 ## Running behind a reverse proxy
 
@@ -425,15 +499,49 @@ Recommended settings when proxied over HTTPS:
 # The session cookie is only ever sent over HTTPS.
 APP_SESSION_SECURE=true
 # Trust X-Forwarded-For from your proxy so login logging records the real
-# client IP. Use the narrowest range that covers the proxy.
+# client IP. Use the narrowest range that covers the proxy. With Docker
+# that is the network the proxy and GeoMetrikks share; docker network
+# inspect <name> shows its subnet.
 APP_TRUSTED_PROXIES=172.18.0.0/16
 ```
+
+Docker picks that subnet when it creates the network, so a `docker compose
+down` followed by `up` can land on a different one and the login log goes
+back to showing the proxy's container address. Pin it in your compose file
+if you do not want to chase it:
+
+```yaml
+networks:
+  default:
+    ipam:
+      config:
+        - subnet: 172.18.0.0/16
+```
+
+With OpenID Connect, `OIDC_REDIRECT_URI` is the public https address of the
+app, and `APP_SESSION_SECURE=true` is required alongside it.
 
 `X-Forwarded-For` is a plain header any client can send, so GeoMetrikks
 only honors it when the request arrives from an address listed in
 `APP_TRUSTED_PROXIES`; otherwise it uses the connection's own address. Keep
 the range tight: everything inside it can put arbitrary addresses in the
 header.
+
+The list has to cover every hop that adds to `X-Forwarded-For` before the
+request reaches the app, not just the last one, because the app reads the
+chain from the right and stops at the first address it does not trust.
+With Cloudflare connecting to Traefik directly (no Tunnel), that is the
+Docker network Traefik shares with the app plus Cloudflare's published
+ranges (<https://www.cloudflare.com/ips/>), and Cloudflare's ranges must
+also be on Traefik's entrypoint (`forwardedHeaders.trustedIPs`, see
+`docs/proxy-setup.md`) or the visitor never enters the chain. nginx and
+SWAG with `real_ip` configured rewrite the peer at the proxy and hand the
+app a chain that already ends in the visitor, so there the Docker range
+alone is enough. A Cloudflare Tunnel is different: the peer is
+`cloudflared`, and the visitor arrives only in `CF-Connecting-IP`, which
+the app does not read. There the login log shows the `cloudflared`
+address unless nginx rewrites the peer with `real_ip_header
+CF-Connecting-IP`, as the Tunnel section of `docs/proxy-setup.md` shows.
 
 `APP_TRUSTED_PROXIES` only affects the app's own login logging; it has no
 effect on how the log parser reads your proxy's access log files. For

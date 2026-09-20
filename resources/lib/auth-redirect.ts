@@ -3,7 +3,7 @@
  *  every throw: a redirect thrown from inside a try block would be swallowed
  *  by that block's own catch. */
 import axios from "axios"
-import type { MeResponse } from "@/lib/api"
+import type { AuthOptions, MeResponse } from "@/lib/api"
 
 export type MeResult =
   | { ok: true; me: MeResponse }
@@ -40,6 +40,16 @@ export function planLoginRoute(result: MeResult): AuthRoutePlan {
     : { action: "rethrow", error: result.error }
 }
 
+const CHROMELESS_ROUTES = new Set(["/login", "/signed-out"])
+
+/** Routes the root layout renders without the sidebar or data providers.
+ *  /login has no session yet. /signed-out must not mount the chrome either:
+ *  its protected requests would 401 and the global redirect would land on
+ *  /login, where a lone SSO button signs the visitor straight back in. */
+export function isChromelessRoute(pathname: string): boolean {
+  return CHROMELESS_ROUTES.has(pathname)
+}
+
 export function planLogoutRoute(result: MeResult): AuthRoutePlan {
   if (result.ok) {
     return result.me.mode === "session"
@@ -49,4 +59,35 @@ export function planLogoutRoute(result: MeResult): AuthRoutePlan {
   return result.status === 401
     ? { action: "redirect", to: "/login" }
     : { action: "rethrow", error: result.error }
+}
+
+/** Fixed sentences for the fixed codes the callback puts in the URL. The
+ *  IdP's own error text never reaches the browser, so nothing here is
+ *  interpolated. */
+export const LOGIN_ERROR_MESSAGES: Record<string, string> = {
+  oidc_denied: "Sign-in was cancelled or refused by the identity provider.",
+  oidc_forbidden: "Your account is not allowed to use this app. Check the allowed users and groups.",
+  oidc_failed: "Sign-in could not be completed. Try again.",
+  oidc_unavailable: "The identity provider could not be reached. Try again in a moment.",
+}
+
+export type LoginFormPlan = {
+  oidc: { providerName: string } | null
+  password: boolean
+  message: string | null
+  description: string
+}
+
+export function planLoginForm(options: AuthOptions, errorCode: string | null): LoginFormPlan {
+  const oidc = options.oidc ? { providerName: options.oidc.providerName } : null
+  const password = options.password
+  const description =
+    oidc && password
+      ? "Sign in to continue."
+      : oidc
+        ? `Sign in with your ${oidc.providerName} account.`
+        : "Enter the administrator credentials configured for this installation."
+  const message =
+    errorCode && Object.hasOwn(LOGIN_ERROR_MESSAGES, errorCode) ? LOGIN_ERROR_MESSAGES[errorCode] : null
+  return { oidc, password, message, description }
 }

@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest"
-import { planLoginRoute, planLogoutRoute, toMeResult } from "@/lib/auth-redirect"
+import {
+  LOGIN_ERROR_MESSAGES,
+  isChromelessRoute,
+  planLoginForm,
+  planLoginRoute,
+  planLogoutRoute,
+  toMeResult,
+} from "@/lib/auth-redirect"
 
 /** Sentinel: the plan must carry this exact object through to the route. */
 const boom = new Error("kaboom")
@@ -13,7 +20,9 @@ describe("planLoginRoute", () => {
   })
 
   it("sends an already-authenticated visitor home", () => {
-    expect(planLoginRoute({ ok: true, me: { mode: "session", username: "admin" } })).toEqual({
+    expect(
+      planLoginRoute({ ok: true, me: { mode: "session", username: "admin", provider: "password" } }),
+    ).toEqual({
       action: "redirect",
       to: "/",
     })
@@ -47,7 +56,9 @@ describe("planLogoutRoute", () => {
   })
 
   it("ends the session then lands on the login page", () => {
-    expect(planLogoutRoute({ ok: true, me: { mode: "session", username: "admin" } })).toEqual({
+    expect(
+      planLogoutRoute({ ok: true, me: { mode: "session", username: "admin", provider: "password" } }),
+    ).toEqual({
       action: "endSessionThenRedirect",
       to: "/login",
     })
@@ -101,5 +112,60 @@ describe("toMeResult", () => {
     const result = toMeResult(boom)
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.error).toBe(boom)
+  })
+})
+
+describe("planLoginForm", () => {
+  const both = { password: true, oidc: { providerName: "Authelia" } }
+
+  it("shows only the password form when OIDC is off", () => {
+    expect(planLoginForm({ password: true, oidc: null }, null)).toEqual({
+      oidc: null,
+      password: true,
+      message: null,
+      description: "Enter the administrator credentials configured for this installation.",
+    })
+  })
+
+  it("shows only the provider button when the password is unset", () => {
+    expect(planLoginForm({ password: false, oidc: { providerName: "Authelia" } }, null)).toEqual({
+      oidc: { providerName: "Authelia" },
+      password: false,
+      message: null,
+      description: "Sign in with your Authelia account.",
+    })
+  })
+
+  it("shows both with a neutral description", () => {
+    expect(planLoginForm(both, null).description).toBe("Sign in to continue.")
+  })
+
+  it("maps every callback error code to its fixed sentence", () => {
+    for (const code of ["oidc_denied", "oidc_forbidden", "oidc_failed", "oidc_unavailable"]) {
+      expect(planLoginForm(both, code).message).toBe(LOGIN_ERROR_MESSAGES[code])
+    }
+  })
+
+  it("ignores an unknown error code rather than echoing it", () => {
+    expect(planLoginForm(both, "<script>").message).toBeNull()
+    for (const code of ["__proto__", "constructor", "toString"]) {
+      expect(planLoginForm(both, code).message).toBeNull()
+    }
+  })
+})
+
+describe("isChromelessRoute", () => {
+  it("is true for the login page", () => {
+    expect(isChromelessRoute("/login")).toBe(true)
+  })
+
+  it("is true for the post-logout page", () => {
+    expect(isChromelessRoute("/signed-out")).toBe(true)
+  })
+
+  it("is false for the app shell and lookalike paths", () => {
+    expect(isChromelessRoute("/")).toBe(false)
+    expect(isChromelessRoute("/login/x")).toBe(false)
+    expect(isChromelessRoute("/signed-out/")).toBe(false)
   })
 })

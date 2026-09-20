@@ -32,6 +32,7 @@ import { RefreshCw, Home } from "lucide-react"
 import { inspectSearchSchema } from "@/lib/ip-inspector-search"
 import { IpInspectorProvider } from "@/lib/ip-inspector"
 import { IpInspectorSheet } from "@/components/ip-inspector/ip-inspector-sheet"
+import { isChromelessRoute } from "@/lib/auth-redirect"
 
 export const Route = createRootRoute({
   validateSearch: (search: Record<string, unknown>) => inspectSearchSchema.parse(search),
@@ -119,10 +120,12 @@ function GeoDegradedBanner() {
 }
 
 function RootLayout() {
-  const isLogin = useRouterState({ select: (state) => state.location.pathname === "/login" })
+  const isChromeless = useRouterState({
+    select: (state) => isChromelessRoute(state.location.pathname),
+  })
 
-  // The login page renders without the app chrome (sidebar, toolbar).
-  if (isLogin) {
+  // No sidebar or data providers on these routes; see isChromelessRoute.
+  if (isChromeless) {
     return (
       <ThemeProvider defaultTheme="dark" storageKey="geometrikks-theme">
         <Outlet />

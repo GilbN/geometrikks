@@ -112,7 +112,15 @@ describe("page chrome", () => {
 
   it("puts every page route on PageHeader", () => {
     // settings.tsx is a layout; its children carry the H1 via SettingsPage.
-    const exempt = new Set(["__root.tsx", "index.tsx", "login.tsx", "logout.tsx", "map.tsx", "settings.tsx"])
+    const exempt = new Set([
+      "__root.tsx",
+      "index.tsx",
+      "login.tsx",
+      "logout.tsx",
+      "map.tsx",
+      "settings.tsx",
+      "signed-out.tsx",
+    ])
     const routes = readdirSync(new URL("routes/", resources)).filter(
       (f) => f.endsWith(".tsx") && !exempt.has(f),
     )

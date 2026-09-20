@@ -7,10 +7,11 @@ from importlib.metadata import PackageNotFoundError, version as distribution_ver
 from ipaddress import ip_network
 from pathlib import Path
 from typing import Annotated, Literal
-from urllib.parse import quote
+from urllib.parse import quote, urlsplit
 
 from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
+from geometrikks.lib.urls import validate_https_url
 from geometrikks.services.logparser.constants import ALLOWED_GEOIP_LOCALES
 
 
@@ -37,6 +38,21 @@ def get_installed_version() -> str:
         return distribution_version("geometrikks")
     except PackageNotFoundError:
         return "unknown"
+
+
+OIDC_CALLBACK_PATH = "/api/v1/auth/oidc/callback"
+
+
+def _parse_list(value: object) -> object:
+    """Accept one value, comma-separated values, or a JSON list."""
+    if isinstance(value, str):
+        stripped = value.strip()
+        if not stripped:
+            return []
+        if stripped.startswith("["):
+            return json.loads(stripped)
+        return [part.strip() for part in stripped.split(",") if part.strip()]
+    return value
 
 
 class DatabaseSettings(BaseSettings):
@@ -645,6 +661,167 @@ class CrowdSecSettings(BaseSettings):
         return self
 
 
+class OidcSettings(BaseSettings):
+    """OpenID Connect login against one identity provider.
+
+    Enabled when issuer, client id, client secret and redirect URI are all
+    set. Rules that also involve the APP_ auth fields live on Settings.
+    """
+
+    model_config = SettingsConfigDict(env_prefix="OIDC_", env_file=_env_file(), extra="ignore")
+
+    issuer: str | None = Field(
+        default=None,
+        description=(
+            "Issuer URL of the identity provider, e.g. https://auth.example.com. "
+            "Discovery is read from {issuer}/.well-known/openid-configuration "
+            "and the iss claim must equal this value exactly. Must be https "
+            "unless the host is localhost."
+        ),
+    )
+    client_id: str | None = Field(
+        default=None, description="Client id registered at the identity provider."
+    )
+    client_secret: SecretStr | None = Field(
+        default=None, description="Client secret registered at the identity provider."
+    )
+    redirect_uri: str | None = Field(
+        default=None,
+        description=(
+            "The exact callback URL registered at the identity provider: the "
+            f"public https address of this app plus {OIDC_CALLBACK_PATH}. "
+            "Plain http is only allowed on localhost."
+        ),
+    )
+    allowed_users: Annotated[list[str], NoDecode] = Field(
+        default_factory=list,
+        description=(
+            "People allowed to sign in, each a verified email address or a "
+            "subject identifier. One value, comma-separated values, or a JSON "
+            "list. At least one of OIDC_ALLOWED_USERS and OIDC_ALLOWED_GROUPS "
+            "is required."
+        ),
+    )
+    allowed_groups: Annotated[list[str], NoDecode] = Field(
+        default_factory=list,
+        description=(
+            "Groups allowed to sign in; membership in any one is enough. Same "
+            "formats as OIDC_ALLOWED_USERS."
+        ),
+    )
+    groups_claim: str = Field(
+        default="groups",
+        description=(
+            "Claim that carries group membership, read from the ID token and "
+            "the userinfo endpoint."
+        ),
+    )
+    scopes: str = Field(
+        default="openid profile email groups",
+        description="Space-separated scopes requested at login. Must include openid.",
+    )
+    provider_name: str = Field(
+        default="SSO", description='Label on the login button: "Sign in with {name}".'
+    )
+    logout_idp: bool = Field(
+        default=False,
+        description=(
+            "On logout, also end the identity provider session when discovery "
+            "advertises an end_session_endpoint. Register {app origin}/signed-out "
+            "as the post-logout redirect URI before enabling it. When the endpoint "
+            "is absent, logout still clears the GeoMetrikks session but cannot end "
+            "the provider session."
+        ),
+    )
+    ca_bundle: Path | None = Field(
+        default=None,
+        description=(
+            "PEM file with the CA that signed the identity provider's "
+            "certificate, for providers behind an internal CA. There is no "
+            "switch to turn verification off."
+        ),
+    )
+
+    @field_validator("allowed_users", "allowed_groups", mode="before")
+    @classmethod
+    def parse_lists(cls, value: object) -> object:
+        """Accept one value, comma-separated values, or a JSON list."""
+        return _parse_list(value)
+
+    def _present(self) -> dict[str, bool]:
+        return {
+            "OIDC_ISSUER": bool(self.issuer),
+            "OIDC_CLIENT_ID": bool(self.client_id),
+            "OIDC_CLIENT_SECRET": (
+                self.client_secret is not None and bool(self.client_secret.get_secret_value())
+            ),
+            "OIDC_REDIRECT_URI": bool(self.redirect_uri),
+        }
+
+    @property
+    def enabled(self) -> bool:
+        """Issuer, client id, client secret and redirect URI are all set."""
+        return all(self._present().values())
+
+    @property
+    def scope_list(self) -> list[str]:
+        return self.scopes.split()
+
+    @property
+    def redirect_origin(self) -> str:
+        parts = urlsplit(self.redirect_uri or "")
+        return f"{parts.scheme}://{parts.netloc}"
+
+    @property
+    def signed_out_url(self) -> str:
+        """Where the identity provider sends the browser after ending its session."""
+        return f"{self.redirect_origin}/signed-out"
+
+    @property
+    def redirect_is_http(self) -> bool:
+        """True only for a loopback redirect: validation rejects http anywhere else."""
+        return urlsplit(self.redirect_uri or "").scheme == "http"
+
+    @model_validator(mode="after")
+    def validate_configuration(self) -> "OidcSettings":
+        """Fail at startup on partial or unsafe configuration."""
+        present = self._present()
+        if not any(present.values()):
+            return self
+        missing = [name for name, ok in present.items() if not ok]
+        if missing:
+            raise ValueError(
+                "OIDC login needs OIDC_ISSUER, OIDC_CLIENT_ID, OIDC_CLIENT_SECRET "
+                "and OIDC_REDIRECT_URI; missing: " + ", ".join(missing)
+            )
+        issuer, redirect_uri = self.issuer or "", self.redirect_uri or ""
+        validate_https_url(issuer, name="OIDC_ISSUER")
+        parts = validate_https_url(redirect_uri, name="OIDC_REDIRECT_URI")
+        if parts.path != OIDC_CALLBACK_PATH:
+            raise ValueError(
+                f"OIDC_REDIRECT_URI must end in {OIDC_CALLBACK_PATH}, e.g. "
+                f"https://geo.example.com{OIDC_CALLBACK_PATH}; got {redirect_uri!r}"
+            )
+        if not self.allowed_users and not self.allowed_groups:
+            raise ValueError(
+                "Set OIDC_ALLOWED_USERS and/or OIDC_ALLOWED_GROUPS: without an allow "
+                "list anyone the identity provider authenticates could sign in"
+            )
+        if "openid" not in self.scope_list:
+            raise ValueError("OIDC_SCOPES must include openid")
+        if self.ca_bundle is not None:
+            if not self.ca_bundle.is_file():
+                raise ValueError(f"OIDC_CA_BUNDLE does not exist or is not a file: {self.ca_bundle}")
+            try:
+                with open(self.ca_bundle, "rb"):
+                    pass
+            except OSError as exc:
+                # Otherwise an unreadable file fails later in create_app as an
+                # ssl error that does not name the setting.
+                raise ValueError(f"OIDC_CA_BUNDLE is not readable: {self.ca_bundle}: {exc}") from exc
+        return self
+
+
 class ViteSettings(BaseSettings):
     """Vite server configuration settings."""
 
@@ -763,7 +940,10 @@ class Settings(BaseSettings):
     admin_user: str = Field(default="admin", description="Admin login username")
     admin_password: SecretStr | None = Field(
         default=None,
-        description="Admin login password (required unless auth_disabled=true)",
+        description=(
+            "Admin login password (required unless APP_AUTH_DISABLED=true or "
+            "OpenID Connect (OIDC_*) is configured)"
+        ),
     )
     session_secure: bool = Field(
         default=False,
@@ -785,14 +965,7 @@ class Settings(BaseSettings):
     @classmethod
     def parse_trusted_proxies(cls, value: object) -> object:
         """Accept one value, comma-separated values, or a JSON list."""
-        if isinstance(value, str):
-            stripped = value.strip()
-            if not stripped:
-                return []
-            if stripped.startswith("["):
-                return json.loads(stripped)
-            return [part.strip() for part in stripped.split(",") if part.strip()]
-        return value
+        return _parse_list(value)
 
     @field_validator("trusted_proxies")
     @classmethod
@@ -834,6 +1007,7 @@ class Settings(BaseSettings):
     scheduler: SchedulerSettings = Field(default_factory=SchedulerSettings)
     map: MapSettings = Field(default_factory=MapSettings)
     crowdsec: CrowdSecSettings = Field(default_factory=CrowdSecSettings)
+    oidc: OidcSettings = Field(default_factory=OidcSettings)
     vite: ViteSettings = Field(default_factory=ViteSettings)
 
     @model_validator(mode="after")
@@ -843,6 +1017,27 @@ class Settings(BaseSettings):
             raise ValueError(
                 "APP_MODE=agent requires LOGPARSER_ENABLED=true: an agent "
                 "that tails nothing does nothing"
+            )
+        return self
+
+    @property
+    def password_login_enabled(self) -> bool:
+        """APP_ADMIN_PASSWORD is set and non-empty."""
+        return self.admin_password is not None and bool(self.admin_password.get_secret_value())
+
+    @model_validator(mode="after")
+    def validate_oidc_against_app_auth(self) -> "Settings":
+        """OIDC contradicts APP_AUTH_DISABLED and needs a Secure cookie over https."""
+        if not self.oidc.enabled:
+            return self
+        if self.auth_disabled:
+            raise ValueError(
+                "APP_AUTH_DISABLED=true and OIDC_* settings contradict each other: remove one"
+            )
+        if not self.session_secure and not self.oidc.redirect_is_http:
+            raise ValueError(
+                "OIDC_REDIRECT_URI is served over https; set APP_SESSION_SECURE=true so "
+                "the session cookie is only ever sent over https"
             )
         return self
 

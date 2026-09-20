@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.17.0] - 2026-09-20
+
+### Added
+
+- Sign in through an OpenID Connect identity provider (Authelia, Authentik, Keycloak, Pocket ID, Google) with the authorization code flow and PKCE. Configure `OIDC_ISSUER`, `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET`, `OIDC_REDIRECT_URI` and an allow list (`OIDC_ALLOWED_USERS` by verified email or subject, `OIDC_ALLOWED_GROUPS`). The login page shows a provider button, the password form, or both. `OIDC_LOGOUT_IDP=true` also ends the provider session on logout and lands on a signed-out page. Settings > Status shows whether the provider's discovery document could be fetched. `GET /api/v1/auth/options` reports the available login methods and `GET /api/v1/auth/oidc/status` the discovery outcome.
+
+### Changed
+
+- Sessions end 7 days after login instead of 7 days after the last request, and every login issues a fresh session id.
+- `APP_ADMIN_PASSWORD` is optional when OpenID Connect is configured; without it the password form is hidden and `POST /api/v1/auth/login` answers 401.
+- `POST /api/v1/auth/logout` answers 200 with `{"redirectTo": null}` (or the identity provider's end session URL) instead of 204. `/auth/me` reports the login `provider`.
+- Anonymous API requests no longer receive a session cookie.
+
 ## [0.16.0] - 2026-09-13
 
 ### Added
@@ -1028,7 +1041,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Settings endpoint no longer exposes the full settings tree (database credentials leaked via `model_dump()`); response is now an explicit whitelist.
 - Timestamps in `CALL refresh_continuous_aggregate` are bound as asyncpg parameters instead of interpolated into SQL.
 
-[Unreleased]: https://github.com/GilbN/geometrikks/compare/v0.16.0...develop
+[Unreleased]: https://github.com/GilbN/geometrikks/compare/v0.17.0...develop
+[0.17.0]: https://github.com/GilbN/geometrikks/compare/v0.16.0...v0.17.0
 [0.16.0]: https://github.com/GilbN/geometrikks/compare/v0.15.0...v0.16.0
 [0.15.0]: https://github.com/GilbN/geometrikks/compare/v0.14.3...v0.15.0
 [0.14.3]: https://github.com/GilbN/geometrikks/compare/v0.14.2...v0.14.3

@@ -20,6 +20,7 @@ import {
   useLogFiles,
   useMe,
   useDeleteSiteHome,
+  useOidcStatus,
   useRecentErrors,
   useSchedulerJobs,
   useSiteHomes,
@@ -59,6 +60,8 @@ import {
   ingestionState,
   lastEventState,
   liveFeedState,
+  loginMethodBadges,
+  oidcState,
   overallState,
   relativeTime,
   schedulerJobState,
@@ -165,6 +168,7 @@ export function StatusOverview() {
   const { data: stats, isError: statsError } = useStats()
   const { data: crowdsec, isError: crowdsecError } = useCrowdsecStatus()
   const { data: me, isError: meError } = useMe()
+  const { data: oidc, isError: oidcError } = useOidcStatus()
   const { data: crowdsecStats } = useCrowdsecStats()
   const { data: files, isError: filesError } = useLogFiles()
   const { data: schedulerData, isError: jobsError } = useSchedulerJobs()
@@ -185,6 +189,7 @@ export function StatusOverview() {
   const geoipRefreshJob = jobs?.find((j) => j.id === "geoip-refresh")
   const recentErrors = filterErrorRecords(logRecords, 5)
   const homeRows = siteHomeRows(siteHomes, now)
+  const oidcLine = oidcState(oidc, oidcError)
 
   if (healthLoading) {
     return (
@@ -261,6 +266,21 @@ export function StatusOverview() {
               <p className="text-xs text-muted-foreground">
                 User <MonoChip>{me.username}</MonoChip>
               </p>
+            )}
+            {oidcLine && <StateLine state={oidcLine} />}
+            {oidc?.configured && (
+              <p className="text-xs text-muted-foreground">
+                {oidc.providerName} <MonoChip>{oidc.issuer}</MonoChip>
+              </p>
+            )}
+            {oidc?.configured && (
+              <div className="flex items-center gap-2">
+                {loginMethodBadges(oidc).map((label) => (
+                  <Badge key={label} variant="outline">
+                    {label}
+                  </Badge>
+                ))}
+              </div>
             )}
           </CardContent>
         </Card>

@@ -23,7 +23,7 @@ from real environment variables. It is read once at import time.
 | `APP_IMAGE_TAG` | - | Optional container image tag embedded at build time. |
 | `APP_AUTH_DISABLED` | `false` | Disable the built-in session auth entirely. Set true only when an authenticating reverse proxy (Authelia, Tailscale, ...) fronts the app. |
 | `APP_ADMIN_USER` | `admin` | Admin login username |
-| `APP_ADMIN_PASSWORD` | - | Admin login password (required unless auth_disabled=true) |
+| `APP_ADMIN_PASSWORD` | - | Admin login password (required unless APP_AUTH_DISABLED=true or OpenID Connect (OIDC_*) is configured) |
 | `APP_SESSION_SECURE` | `false` | Mark the session cookie Secure so browsers only send it over HTTPS. Recommended when serving behind a TLS reverse proxy. |
 | `APP_TRUSTED_PROXIES` | *(computed)* | Reverse-proxy IPs/CIDRs allowed to supply X-Forwarded-For. Env accepts one value, comma-separated values, or a JSON list. Empty (default): forwarded headers are never trusted. |
 
@@ -146,6 +146,22 @@ from real environment variables. It is read once at import time.
 | `CROWDSEC_REQUEST_TIMEOUT` | `10.0` | LAPI request timeout in seconds |
 | `CROWDSEC_VERIFY_TLS` | `true` | Verify TLS when LAPI uses https |
 | `CROWDSEC_STREAM_POLL_INTERVAL` | `15.0` | Seconds between decision-stream polls feeding live ban/unban updates |
+
+## OpenID Connect
+
+| Variable | Default | Description |
+|---|---|---|
+| `OIDC_ISSUER` | - | Issuer URL of the identity provider, e.g. https://auth.example.com. Discovery is read from {issuer}/.well-known/openid-configuration and the iss claim must equal this value exactly. Must be https unless the host is localhost. |
+| `OIDC_CLIENT_ID` | - | Client id registered at the identity provider. |
+| `OIDC_CLIENT_SECRET` | - | Client secret registered at the identity provider. |
+| `OIDC_REDIRECT_URI` | - | The exact callback URL registered at the identity provider: the public https address of this app plus /api/v1/auth/oidc/callback. Plain http is only allowed on localhost. |
+| `OIDC_ALLOWED_USERS` | *(computed)* | People allowed to sign in, each a verified email address or a subject identifier. One value, comma-separated values, or a JSON list. At least one of OIDC_ALLOWED_USERS and OIDC_ALLOWED_GROUPS is required. |
+| `OIDC_ALLOWED_GROUPS` | *(computed)* | Groups allowed to sign in; membership in any one is enough. Same formats as OIDC_ALLOWED_USERS. |
+| `OIDC_GROUPS_CLAIM` | `groups` | Claim that carries group membership, read from the ID token and the userinfo endpoint. |
+| `OIDC_SCOPES` | `openid profile email groups` | Space-separated scopes requested at login. Must include openid. |
+| `OIDC_PROVIDER_NAME` | `SSO` | Label on the login button: "Sign in with {name}". |
+| `OIDC_LOGOUT_IDP` | `false` | On logout, also end the identity provider session when discovery advertises an end_session_endpoint. Register {app origin}/signed-out as the post-logout redirect URI before enabling it. When the endpoint is absent, logout still clears the GeoMetrikks session but cannot end the provider session. |
+| `OIDC_CA_BUNDLE` | - | PEM file with the CA that signed the identity provider's certificate, for providers behind an internal CA. There is no switch to turn verification off. |
 
 ## Vite (development only)
 

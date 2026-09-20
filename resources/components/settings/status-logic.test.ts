@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import type { HealthIngestionStatus, HealthResponse } from "@/lib/api"
+import type { HealthIngestionStatus, HealthResponse, OidcStatus } from "@/lib/api"
 import type {
   CrowdSecStatusResponse,
   HypertableStatsView,
@@ -23,6 +23,8 @@ import {
   ingestionState,
   lastEventState,
   liveFeedState,
+  loginMethodBadges,
+  oidcState,
   overallState,
   relativeTime,
   schedulerJobState,
@@ -408,12 +410,18 @@ describe("authState", () => {
     expect(authState(undefined, true)).toEqual({ tone: "muted", label: "Unavailable" })
   })
 
-  it("reports an active session login neutrally", () => {
-    // Neutral, not emerald: session auth being on is the normal baseline,
-    // not an achievement. Only the disabled case is worth an operator's eye.
-    expect(authState({ mode: "session", username: "admin" }, false)).toEqual({
-      tone: "muted",
+  it("reports an active session login as healthy", () => {
+    // Emerald, not muted: the hollow dot marks disabled things on this page.
+    expect(authState({ mode: "session", username: "admin", provider: "password" }, false)).toEqual({
+      tone: "emerald",
       label: "Session login active",
+    })
+  })
+
+  it("names SSO when the session came from OIDC", () => {
+    expect(authState({ mode: "session", username: "gil", provider: "oidc" }, false)).toEqual({
+      tone: "emerald",
+      label: "SSO login active",
     })
   })
 
@@ -425,6 +433,68 @@ describe("authState", () => {
       "Built-in authentication is turned off (APP_AUTH_DISABLED=true). Anyone who can reach this app has full access.",
     )
     expect(state.detail).not.toMatch(/proxy/i)
+  })
+})
+
+describe("oidcState", () => {
+  const base: OidcStatus = {
+    configured: true,
+    providerName: "Authelia",
+    issuer: "https://auth.example.com",
+    discovery: "ok",
+    detail: null,
+    passwordLogin: true,
+    idpLogout: false,
+  }
+
+  it("is absent when OIDC is not configured, unknown, or the query failed", () => {
+    expect(oidcState(undefined, false)).toBeNull()
+    expect(oidcState(base, true)).toBeNull()
+    expect(oidcState({ ...base, configured: false }, false)).toBeNull()
+  })
+
+  it("is emerald when discovery succeeded", () => {
+    expect(oidcState(base, false)).toEqual({ tone: "emerald", label: "IdP reachable" })
+  })
+
+  it("is red with the detail when discovery failed", () => {
+    expect(oidcState({ ...base, discovery: "failed", detail: "discovery document answered HTTP 500" }, false)).toEqual({
+      tone: "red",
+      label: "Discovery failed",
+      detail: "discovery document answered HTTP 500",
+    })
+  })
+
+  it("is muted while discovery has not run yet", () => {
+    expect(oidcState({ ...base, discovery: "pending" }, false)).toEqual({
+      tone: "muted",
+      label: "Checking identity provider",
+    })
+  })
+})
+
+describe("loginMethodBadges", () => {
+  const base: OidcStatus = {
+    configured: true,
+    providerName: "Authelia",
+    issuer: "https://auth.example.com",
+    discovery: "ok",
+    detail: null,
+    passwordLogin: true,
+    idpLogout: false,
+  }
+
+  it("is empty without OIDC", () => {
+    expect(loginMethodBadges(undefined)).toEqual([])
+    expect(loginMethodBadges({ ...base, configured: false })).toEqual([])
+  })
+
+  it("says whether the password form and IdP logout are on", () => {
+    expect(loginMethodBadges(base)).toEqual(["password login on", "IdP logout off"])
+    expect(loginMethodBadges({ ...base, passwordLogin: false, idpLogout: true })).toEqual([
+      "password login off",
+      "IdP logout on",
+    ])
   })
 })
 

@@ -40,16 +40,20 @@ SECTIONS: list[tuple[str, type[BaseSettings], str]] = [
     ("Scheduler", settings_module.SchedulerSettings, "SCHEDULER_"),
     ("Map", settings_module.MapSettings, "MAP_"),
     ("CrowdSec", settings_module.CrowdSecSettings, "CROWDSEC_"),
+    ("OpenID Connect", settings_module.OidcSettings, "OIDC_"),
     ("Vite (development only)", settings_module.ViteSettings, "VITE_"),
 ]
 
 # Top-level Settings fields that are sub-models, not env vars.
 SKIP_FIELDS = {
     "app", "api", "database", "geoip", "log", "logparser", "analytics", "scheduler",
-    "map", "crowdsec", "vite",
+    "map", "crowdsec", "oidc", "vite",
 }
 # Never document secrets' defaults verbatim.
-REDACT = {"password", "license_key", "admin_password", "bouncer_api_key", "machine_password"}
+REDACT = {
+    "password", "license_key", "admin_password", "bouncer_api_key", "machine_password",
+    "client_secret",
+}
 
 
 def default_repr(name: str, field) -> str:

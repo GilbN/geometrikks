@@ -7,6 +7,7 @@ from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+import structlog
 
 from tests.support import enter_lifespan
 from tests.test_lifecycle_geoip import _patch_startup_collaborators
@@ -1081,3 +1082,46 @@ async def test_recovery_shutdown_waits_for_migration_worker(monkeypatch, worker_
     service.aclose.assert_awaited_once()
     cast("AsyncMock", lc.setup_timescaledb).assert_not_awaited()
     cast("AsyncMock", lc.create_scheduler).assert_not_awaited()
+
+
+async def test_oidc_lifespan_warms_up_discovery_and_closes_the_client():
+    from geometrikks.server import lifecycle as lc
+
+    client = SimpleNamespace(warm_up=AsyncMock(), aclose=AsyncMock())
+    app = SimpleNamespace(state=SimpleNamespace(oidc_client=client))
+    async with lc.oidc_lifespan(cast("Any", app)):
+        # The warm-up runs as a background task so a slow IdP never delays
+        # the rest of startup; give the loop one turn to schedule it.
+        await asyncio.sleep(0)
+    client.warm_up.assert_awaited_once()
+    client.aclose.assert_awaited_once()
+
+
+async def test_oidc_lifespan_survives_a_warm_up_failure_during_shutdown():
+    """A warm-up still failing at shutdown must not stop the client from
+    closing or propagate out of the lifespan.
+    """
+    from geometrikks.server import lifecycle as lc
+
+    async def failing_warm_up() -> None:
+        raise RuntimeError("discovery boom")
+
+    client = SimpleNamespace(warm_up=failing_warm_up, aclose=AsyncMock())
+    app = SimpleNamespace(state=SimpleNamespace(oidc_client=client))
+    with structlog.testing.capture_logs() as captured:
+        async with lc.oidc_lifespan(cast("Any", app)):
+            # Let the warm-up task run to completion (and raise) before the
+            # lifespan's finally block cancels it.
+            await asyncio.sleep(0)
+    client.aclose.assert_awaited_once()
+    warnings = [e for e in captured if e["event"] == "oidc_warm_up_failed"]
+    assert len(warnings) == 1
+    assert "discovery boom" in warnings[0]["error"]
+
+
+async def test_oidc_lifespan_is_a_no_op_without_a_client():
+    from geometrikks.server import lifecycle as lc
+
+    app = SimpleNamespace(state=SimpleNamespace())
+    async with lc.oidc_lifespan(cast("Any", app)):
+        pass

@@ -433,6 +433,7 @@ def test_admin_password_is_secret_and_auth_still_verifies(monkeypatch):
     s = Settings()
     assert "admin-secret-pass" not in repr(s)
     state = build_auth_state(s)
+    assert state is not None
     assert state.verify("admin", "admin-secret-pass")
 
 
@@ -645,3 +646,127 @@ def test_map_home_refresh_hours_parses_env(monkeypatch):
     monkeypatch.setenv("MAP_HOME_REFRESH_HOURS", "6")
     settings = MapSettings(_env_file=None)
     assert settings.home_refresh_hours == 6
+
+
+OIDC_VALID = dict(
+    issuer="https://auth.example.com",
+    client_id="geo",
+    client_secret="s3cret",
+    redirect_uri="https://geo.example.com/api/v1/auth/oidc/callback",
+    allowed_groups=["admins"],
+)
+
+
+def _oidc(**overrides):
+    from geometrikks.config.settings import OidcSettings
+
+    return OidcSettings(_env_file=None, **{**OIDC_VALID, **overrides})  # ty: ignore[invalid-argument-type]
+
+
+def test_oidc_is_disabled_by_default():
+    from geometrikks.config.settings import OidcSettings
+
+    assert OidcSettings(_env_file=None).enabled is False
+
+
+def test_oidc_is_enabled_when_the_four_core_fields_are_set():
+    assert _oidc().enabled is True
+
+
+def test_oidc_partial_config_names_the_missing_fields():
+    with pytest.raises(ValidationError, match="missing: OIDC_CLIENT_SECRET, OIDC_REDIRECT_URI"):
+        _oidc(client_secret=None, redirect_uri=None)
+
+
+def test_oidc_http_issuer_is_rejected_except_on_loopback():
+    with pytest.raises(ValidationError, match="OIDC_ISSUER must use https"):
+        _oidc(issuer="http://auth.example.com")
+    assert _oidc(issuer="http://127.0.0.1:9091").enabled is True
+
+
+def test_oidc_http_redirect_uri_is_rejected_except_on_loopback():
+    with pytest.raises(ValidationError, match="OIDC_REDIRECT_URI must use https"):
+        _oidc(redirect_uri="http://geo.example.com/api/v1/auth/oidc/callback")
+    assert _oidc(redirect_uri="http://localhost:8000/api/v1/auth/oidc/callback").enabled is True
+
+
+def test_oidc_redirect_uri_must_end_in_the_callback_path():
+    with pytest.raises(ValidationError, match="must end in /api/v1/auth/oidc/callback"):
+        _oidc(redirect_uri="https://geo.example.com/callback")
+
+
+def test_oidc_requires_an_allow_list():
+    with pytest.raises(ValidationError, match="OIDC_ALLOWED_USERS and/or OIDC_ALLOWED_GROUPS"):
+        _oidc(allowed_groups=[])
+    assert _oidc(allowed_groups=[], allowed_users=["gil@example.com"]).enabled is True
+
+
+def test_oidc_scopes_must_include_openid():
+    with pytest.raises(ValidationError, match="must include openid"):
+        _oidc(scopes="profile email")
+
+
+def test_oidc_ca_bundle_must_exist(tmp_path):
+    with pytest.raises(ValidationError, match="OIDC_CA_BUNDLE"):
+        _oidc(ca_bundle=tmp_path / "missing.pem")
+    bundle = tmp_path / "ca.pem"
+    bundle.write_text("not really a certificate")
+    assert _oidc(ca_bundle=bundle).ca_bundle == bundle
+
+
+def test_oidc_ca_bundle_must_be_readable(tmp_path):
+    import os
+
+    if os.geteuid() == 0:
+        pytest.skip("root ignores file mode bits")
+    bundle = tmp_path / "ca.pem"
+    bundle.write_text("not really a certificate")
+    bundle.chmod(0o000)
+    try:
+        with pytest.raises(ValidationError, match="OIDC_CA_BUNDLE is not readable"):
+            _oidc(ca_bundle=bundle)
+    finally:
+        bundle.chmod(0o644)
+
+
+def test_oidc_allow_lists_accept_every_env_form(monkeypatch):
+    from geometrikks.config.settings import OidcSettings
+
+    monkeypatch.setenv("OIDC_ALLOWED_USERS", "a@example.com, b@example.com")
+    monkeypatch.setenv("OIDC_ALLOWED_GROUPS", '["admins", "family"]')
+    parsed = OidcSettings(_env_file=None)
+    assert parsed.allowed_users == ["a@example.com", "b@example.com"]
+    assert parsed.allowed_groups == ["admins", "family"]
+    monkeypatch.setenv("OIDC_ALLOWED_GROUPS", "admins")
+    assert OidcSettings(_env_file=None).allowed_groups == ["admins"]
+
+
+def test_oidc_derived_values():
+    oidc = _oidc()
+    assert oidc.scope_list == ["openid", "profile", "email", "groups"]
+    assert oidc.redirect_origin == "https://geo.example.com"
+    assert oidc.signed_out_url == "https://geo.example.com/signed-out"
+    assert oidc.redirect_is_http is False
+    assert _oidc(redirect_uri="http://localhost:8000/api/v1/auth/oidc/callback").redirect_is_http is True
+
+
+def test_oidc_and_auth_disabled_contradict():
+    with pytest.raises(ValidationError, match="APP_AUTH_DISABLED=true and OIDC_"):
+        Settings(_env_file=None, auth_disabled=True, session_secure=True, oidc=_oidc())
+
+
+def test_oidc_https_redirect_requires_a_secure_session_cookie():
+    with pytest.raises(ValidationError, match="APP_SESSION_SECURE=true"):
+        Settings(_env_file=None, oidc=_oidc())
+    https_loopback = _oidc(redirect_uri="https://localhost:8443/api/v1/auth/oidc/callback")
+    with pytest.raises(ValidationError, match="APP_SESSION_SECURE=true"):
+        Settings(_env_file=None, oidc=https_loopback)
+    assert Settings(_env_file=None, session_secure=True, oidc=_oidc()).oidc.enabled is True
+    loopback = _oidc(redirect_uri="http://localhost:8000/api/v1/auth/oidc/callback")
+    assert Settings(_env_file=None, oidc=loopback).oidc.enabled is True
+
+
+def test_password_login_enabled_follows_the_admin_password():
+    assert Settings(_env_file=None, admin_password="pw").password_login_enabled is True
+    assert Settings(_env_file=None, admin_password=None).password_login_enabled is False
+    assert Settings(_env_file=None, admin_password="").password_login_enabled is False
