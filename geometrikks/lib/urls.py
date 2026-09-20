@@ -38,7 +38,12 @@ def validate_https_url(value: str, *, name: str) -> SplitResult:
         raise ValueError(
             f"{name} must use https (plain http is only allowed on localhost), got {value!r}"
         )
-    if parts.username is not None or parts.password is not None or parts.query or parts.fragment:
+    if (
+        parts.username is not None
+        or parts.password is not None
+        or "?" in value
+        or "#" in value
+    ):
         raise ValueError(
             f"{name} must not carry credentials, a query string or a fragment, got {value!r}"
         )

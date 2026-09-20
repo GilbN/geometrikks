@@ -31,8 +31,16 @@ def test_http_is_allowed_only_on_loopback():
 
 @pytest.mark.parametrize(
     "value",
-    ["auth.example.com", "ftp://auth.example.com", "https://", "https://user:pw@auth.example.com",
-     "https://auth.example.com/?x=1", "https://auth.example.com/#frag"],
+    [
+        "auth.example.com",
+        "ftp://auth.example.com",
+        "https://",
+        "https://user:pw@auth.example.com",
+        "https://auth.example.com/?",
+        "https://auth.example.com/#",
+        "https://auth.example.com/?x=1",
+        "https://auth.example.com/#frag",
+    ],
 )
 def test_rejects_non_absolute_credentialed_or_decorated_urls(value):
     with pytest.raises(ValueError, match="X "):
