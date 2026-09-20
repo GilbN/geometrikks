@@ -64,6 +64,9 @@ import type {
   ApiV1AuthOidcStatusOidcStatusResponses,
   ApiV1AuthOptionsOptionsData,
   ApiV1AuthOptionsOptionsResponses,
+  ApiV1CrowdsecAlertsAlertIdGetAlertData,
+  ApiV1CrowdsecAlertsAlertIdGetAlertErrors,
+  ApiV1CrowdsecAlertsAlertIdGetAlertResponses,
   ApiV1CrowdsecAlertsListAlertsData,
   ApiV1CrowdsecAlertsListAlertsErrors,
   ApiV1CrowdsecAlertsListAlertsResponses,
@@ -75,6 +78,9 @@ import type {
   ApiV1CrowdsecBannedLocationsListBannedLocationsData,
   ApiV1CrowdsecBannedLocationsListBannedLocationsErrors,
   ApiV1CrowdsecBannedLocationsListBannedLocationsResponses,
+  ApiV1CrowdsecDecisionsDecisionIdAlertGetDecisionAlertData,
+  ApiV1CrowdsecDecisionsDecisionIdAlertGetDecisionAlertErrors,
+  ApiV1CrowdsecDecisionsDecisionIdAlertGetDecisionAlertResponses,
   ApiV1CrowdsecDecisionsListDecisionsData,
   ApiV1CrowdsecDecisionsListDecisionsErrors,
   ApiV1CrowdsecDecisionsListDecisionsResponses,
@@ -189,10 +195,12 @@ export type OperationName =
   | 'get_about'
   | 'get_access_log_debug_stats'
   | 'get_access_log_facets'
+  | 'get_alert'
   | 'get_asn_classification'
   | 'get_changelog'
   | 'get_cumulative_time_series'
   | 'get_database_info'
+  | 'get_decision_alert'
   | 'get_geo_log_facets'
   | 'get_geo_log_summary'
   | 'get_geo_log_time_series'
@@ -256,10 +264,12 @@ export interface OperationDataTypes {
   'get_about': ApiV1SystemAboutGetAboutData
   'get_access_log_debug_stats': ApiV1AccessLogDebugStatsGetAccessLogDebugStatsData
   'get_access_log_facets': ApiV1AccessLogsFacetsGetAccessLogFacetsData
+  'get_alert': ApiV1CrowdsecAlertsAlertIdGetAlertData
   'get_asn_classification': ApiV1SystemAsnClassificationGetAsnClassificationData
   'get_changelog': ApiV1SystemChangelogGetChangelogData
   'get_cumulative_time_series': ApiV1AnalyticsTimeSeriesCumulativeGetCumulativeTimeSeriesData
   'get_database_info': ApiV1SystemDatabaseGetDatabaseInfoData
+  'get_decision_alert': ApiV1CrowdsecDecisionsDecisionIdAlertGetDecisionAlertData
   'get_geo_log_facets': ApiV1GeoEventsFacetsGetGeoLogFacetsData
   'get_geo_log_summary': ApiV1GeoEventsSummaryGetGeoLogSummaryData
   'get_geo_log_time_series': ApiV1GeoEventsTimeSeriesGetGeoLogTimeSeriesData
@@ -324,10 +334,12 @@ export interface OperationResponseTypes {
   'get_about': ApiV1SystemAboutGetAboutResponses
   'get_access_log_debug_stats': ApiV1AccessLogDebugStatsGetAccessLogDebugStatsResponses
   'get_access_log_facets': ApiV1AccessLogsFacetsGetAccessLogFacetsResponses
+  'get_alert': ApiV1CrowdsecAlertsAlertIdGetAlertResponses
   'get_asn_classification': ApiV1SystemAsnClassificationGetAsnClassificationResponses
   'get_changelog': ApiV1SystemChangelogGetChangelogResponses
   'get_cumulative_time_series': ApiV1AnalyticsTimeSeriesCumulativeGetCumulativeTimeSeriesResponses
   'get_database_info': ApiV1SystemDatabaseGetDatabaseInfoResponses
+  'get_decision_alert': ApiV1CrowdsecDecisionsDecisionIdAlertGetDecisionAlertResponses
   'get_geo_log_facets': ApiV1GeoEventsFacetsGetGeoLogFacetsResponses
   'get_geo_log_summary': ApiV1GeoEventsSummaryGetGeoLogSummaryResponses
   'get_geo_log_time_series': ApiV1GeoEventsTimeSeriesGetGeoLogTimeSeriesResponses
@@ -392,10 +404,12 @@ export interface OperationErrorTypes {
   'get_about': never
   'get_access_log_debug_stats': ApiV1AccessLogDebugStatsGetAccessLogDebugStatsErrors
   'get_access_log_facets': never
+  'get_alert': ApiV1CrowdsecAlertsAlertIdGetAlertErrors
   'get_asn_classification': never
   'get_changelog': never
   'get_cumulative_time_series': ApiV1AnalyticsTimeSeriesCumulativeGetCumulativeTimeSeriesErrors
   'get_database_info': never
+  'get_decision_alert': ApiV1CrowdsecDecisionsDecisionIdAlertGetDecisionAlertErrors
   'get_geo_log_facets': never
   'get_geo_log_summary': ApiV1GeoEventsSummaryGetGeoLogSummaryErrors
   'get_geo_log_time_series': ApiV1GeoEventsTimeSeriesGetGeoLogTimeSeriesErrors

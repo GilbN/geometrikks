@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Alert details on the Security page. Select a row in Alert history to open the alert. The sheet shows the context CrowdSec collected: targeted paths, user agents, methods, status codes and CVE. It lists the decisions the alert produced and marks the expired ones, then the stored events, the source AS number and the range. A link opens the IP in Access logs. `GET /api/v1/crowdsec/alerts/{id}` returns the same data.
+
+### Changed
+
+- Active decisions lists one row per IP. An IP that tripped several scenarios shows the scenario count and the longest time left. The row expands to every decision with its own scenario, origin and timer. Select a decision to open the alert that produced it. The page count follows IPs. `GET /api/v1/crowdsec/decisions` returns one item per target with a `decisions` array, `decisionCount` and `origins`, and `total` counts targets. `GET /api/v1/crowdsec/decisions/{id}/alert` returns the alert behind a decision.
+- Alert history leaves out blocklist pulls. It showed each pull as an `update : +N/-M IPs` alert that carried every decision in the blocklist.
+- Alert history greys out the decision count once every decision from that alert has expired. `GET /api/v1/crowdsec/alerts` reports the live count as `activeDecisionCount`.
+
 ## [0.17.0] - 2026-09-20
 
 ### Added

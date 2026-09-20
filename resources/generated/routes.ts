@@ -24,10 +24,12 @@ export type RouteName =
   | 'get_about'
   | 'get_access_log_debug_stats'
   | 'get_access_log_facets'
+  | 'get_alert'
   | 'get_asn_classification'
   | 'get_changelog'
   | 'get_cumulative_time_series'
   | 'get_database_info'
+  | 'get_decision_alert'
   | 'get_geo_log_facets'
   | 'get_geo_log_summary'
   | 'get_geo_log_time_series'
@@ -97,10 +99,16 @@ export interface RoutePathParams {
   'get_about': Record<string, never>;
   'get_access_log_debug_stats': Record<string, never>;
   'get_access_log_facets': Record<string, never>;
+  'get_alert': {
+    alert_id: number;
+  };
   'get_asn_classification': Record<string, never>;
   'get_changelog': Record<string, never>;
   'get_cumulative_time_series': Record<string, never>;
   'get_database_info': Record<string, never>;
+  'get_decision_alert': {
+    decision_id: number;
+  };
   'get_geo_log_facets': Record<string, never>;
   'get_geo_log_summary': Record<string, never>;
   'get_geo_log_time_series': Record<string, never>;
@@ -173,6 +181,7 @@ export interface RouteQueryParams {
     toTimestamp?: DateTime;
   };
   'get_access_log_facets': Record<string, never>;
+  'get_alert': Record<string, never>;
   'get_asn_classification': Record<string, never>;
   'get_changelog': Record<string, never>;
   'get_cumulative_time_series': {
@@ -180,6 +189,9 @@ export interface RouteQueryParams {
     startDate: DateTime;
   };
   'get_database_info': Record<string, never>;
+  'get_decision_alert': {
+    ip: string;
+  };
   'get_geo_log_facets': Record<string, never>;
   'get_geo_log_summary': {
     asnIn?: number[];
@@ -536,6 +548,13 @@ export const routeDefinitions = {
     pathParams: [] as const,
     queryParams: [] as const,
   },
+  'get_alert': {
+    path: '/api/v1/crowdsec/alerts/{alert_id}',
+    methods: ['GET'] as const,
+    method: 'get',
+    pathParams: ['alert_id'] as const,
+    queryParams: [] as const,
+  },
   'get_asn_classification': {
     path: '/api/v1/system/asn-classification',
     methods: ['GET'] as const,
@@ -563,6 +582,13 @@ export const routeDefinitions = {
     method: 'get',
     pathParams: [] as const,
     queryParams: [] as const,
+  },
+  'get_decision_alert': {
+    path: '/api/v1/crowdsec/decisions/{decision_id}/alert',
+    methods: ['GET'] as const,
+    method: 'get',
+    pathParams: ['decision_id'] as const,
+    queryParams: ['ip'] as const,
   },
   'get_geo_log_facets': {
     path: '/api/v1/geo-events/facets',

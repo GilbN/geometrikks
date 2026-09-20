@@ -24,6 +24,48 @@ from geometrikks.services.crowdsec.schemas import Alert, Decision, DecisionStrea
 logger = get_logger(__name__)
 
 
+def _meta_pairs(meta: list[dict[str, str]] | None) -> list[tuple[str, str]]:
+    """``[{key, value}]`` as pairs. CrowdSec marshals both fields with
+    omitempty, so an empty value arrives as ``{"key": ...}`` alone."""
+    return [(pair["key"], pair.get("value", "")) for pair in meta or [] if pair.get("key")]
+
+
+def _context_values(value: str) -> list[str]:
+    """Context values arrive as a JSON array encoded inside a string."""
+    if not value:
+        return []
+    try:
+        decoded = msgspec.json.decode(value)
+    except msgspec.DecodeError:
+        return [value]
+    if not isinstance(decoded, list):
+        return [value]
+    return [str(item) for item in decoded]
+
+
+def _normalize_alert(raw: dict[str, Any]) -> dict[str, Any]:
+    """Reshape a raw LAPI alert into what ``Alert`` decodes.
+
+    The LAPI sends JSON null for ``decisions``, ``events`` and ``meta`` when
+    they are empty, and both meta lists as ``[{key, value}]`` pairs.
+    """
+    events = []
+    for event in raw.get("events") or []:
+        meta = dict(_meta_pairs(event.get("meta")))
+        # The event's own timestamp uses Go's default time format. The
+        # parser also stores an RFC 3339 one in meta.
+        events.append({"timestamp": meta.get("timestamp") or event.get("timestamp", ""), "meta": meta})
+    return {
+        **raw,
+        "decisions": raw.get("decisions") or [],
+        "events": events,
+        "context": [
+            {"key": key, "values": _context_values(value)}
+            for key, value in _meta_pairs(raw.get("meta"))
+        ],
+    }
+
+
 class CrowdSecService:
     """Async client for the CrowdSec Local API.
 
@@ -165,7 +207,10 @@ class CrowdSecService:
         logger.info("Logged in to CrowdSec LAPI as machine %s", self._settings.machine_id)
         return self._machine_token
 
-    async def _machine_request(self, method: str, url: str, **kwargs: Any) -> httpx2.Response:
+    async def _machine_request(
+        self, method: str, url: str, *, missing_ok: bool = False, **kwargs: Any
+    ) -> httpx2.Response:
+        """Machine-authenticated request; ``missing_ok`` hands a 404 back to the caller."""
         token = self._machine_token or await self._login()
         try:
             resp = await self._client.request(
@@ -179,6 +224,8 @@ class CrowdSecService:
                 )
             if resp.status_code in (401, 403):
                 raise CrowdSecAuthError("LAPI rejected the machine token")
+            if missing_ok and resp.status_code == 404:
+                return resp
             resp.raise_for_status()
             return resp
         except httpx2.HTTPStatusError as exc:
@@ -237,10 +284,12 @@ class CrowdSecService:
         ip: str | None = None,
         scenario: str | None = None,
         since: str | None = None,
+        has_active_decision: bool | None = None,
     ) -> list[Alert]:
         """Recent alerts from the LAPI; requires machine credentials.
 
         ``since`` is a Go duration string (e.g. ``24h``) relative to now.
+        ``has_active_decision`` keeps only alerts with a decision still in force.
 
         Raises:
             CrowdSecAuthError: Machine credentials missing or rejected.
@@ -250,15 +299,32 @@ class CrowdSecService:
             key: value
             for key, value in {
                 "limit": limit, "ip": ip, "scenario": scenario, "since": since,
+                # A blocklist pull is one alert embedding up to tens of
+                # thousands of decisions.
+                "include_capi": "false",
+                "has_active_decision": (
+                    None if has_active_decision is None else str(has_active_decision).lower()
+                ),
             }.items()
             if value is not None
         }
         resp = await self._machine_request("GET", "/v1/alerts", params=params)
         alerts = msgspec.convert(resp.json() or [], list[dict], strict=False)
-        # decisions is JSON null on alerts whose decisions all expired
-        for alert in alerts:
-            alert["decisions"] = alert.get("decisions") or []
-        return msgspec.convert(alerts, list[Alert], strict=False)
+        return msgspec.convert(
+            [_normalize_alert(alert) for alert in alerts], list[Alert], strict=False
+        )
+
+    async def get_alert(self, alert_id: int) -> Alert | None:
+        """One alert with its events and context; ``None`` when the LAPI has none.
+
+        Raises:
+            CrowdSecAuthError: Machine credentials missing or rejected.
+            CrowdSecUnavailableError: The LAPI is unreachable or errored.
+        """
+        resp = await self._machine_request("GET", f"/v1/alerts/{alert_id}", missing_ok=True)
+        if resp.status_code == 404:
+            return None
+        return msgspec.convert(_normalize_alert(resp.json()), Alert, strict=False)
 
     async def unban_ip(self, ip: str) -> int:
         """Delete all active decisions for an IP; returns the number deleted.

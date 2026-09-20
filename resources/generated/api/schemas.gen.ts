@@ -383,8 +383,262 @@ export const AdvisorySchema = {
   type: "object",
 } as const;
 
+export const AlertContextViewSchema = {
+  properties: {
+    key: {
+      type: "string",
+    },
+    values: {
+      items: {
+        type: "string",
+      },
+      type: "array",
+    },
+  },
+  required: ["key", "values"],
+  title: "AlertContextView",
+  type: "object",
+} as const;
+
+export const AlertDecisionViewSchema = {
+  properties: {
+    duration: {
+      type: "string",
+    },
+    expired: {
+      type: "boolean",
+    },
+    id: {
+      oneOf: [
+        {
+          type: "integer",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    origin: {
+      type: "string",
+    },
+    scenario: {
+      type: "string",
+    },
+    scope: {
+      type: "string",
+    },
+    simulated: {
+      type: "boolean",
+    },
+    type: {
+      type: "string",
+    },
+    value: {
+      type: "string",
+    },
+  },
+  required: [
+    "duration",
+    "expired",
+    "id",
+    "origin",
+    "scenario",
+    "scope",
+    "simulated",
+    "type",
+    "value",
+  ],
+  title: "AlertDecisionView",
+  type: "object",
+} as const;
+
+export const AlertDetailViewSchema = {
+  properties: {
+    activeDecisionCount: {
+      type: "integer",
+    },
+    asName: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    asNumber: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    context: {
+      items: {
+        $ref: "#/components/schemas/AlertContextView",
+      },
+      type: "array",
+    },
+    country: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    createdAt: {
+      type: "string",
+    },
+    decisionCount: {
+      type: "integer",
+    },
+    decisions: {
+      items: {
+        $ref: "#/components/schemas/AlertDecisionView",
+      },
+      type: "array",
+    },
+    events: {
+      items: {
+        $ref: "#/components/schemas/AlertEventView",
+      },
+      type: "array",
+    },
+    eventsCount: {
+      type: "integer",
+    },
+    id: {
+      oneOf: [
+        {
+          type: "integer",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    kind: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    machineId: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    message: {
+      type: "string",
+    },
+    range: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    scenario: {
+      type: "string",
+    },
+    scope: {
+      type: "string",
+    },
+    simulated: {
+      type: "boolean",
+    },
+    startAt: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    stopAt: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    value: {
+      type: "string",
+    },
+  },
+  required: [
+    "activeDecisionCount",
+    "asName",
+    "asNumber",
+    "context",
+    "country",
+    "createdAt",
+    "decisionCount",
+    "decisions",
+    "events",
+    "eventsCount",
+    "id",
+    "kind",
+    "machineId",
+    "message",
+    "range",
+    "scenario",
+    "scope",
+    "simulated",
+    "startAt",
+    "stopAt",
+    "value",
+  ],
+  title: "AlertDetailView",
+  type: "object",
+} as const;
+
+export const AlertEventViewSchema = {
+  properties: {
+    meta: {
+      additionalProperties: {
+        type: "string",
+      },
+      type: "object",
+    },
+    timestamp: {
+      type: "string",
+    },
+  },
+  required: ["meta", "timestamp"],
+  title: "AlertEventView",
+  type: "object",
+} as const;
+
 export const AlertViewSchema = {
   properties: {
+    activeDecisionCount: {
+      type: "integer",
+    },
     asName: {
       oneOf: [
         {
@@ -448,6 +702,7 @@ export const AlertViewSchema = {
     },
   },
   required: [
+    "activeDecisionCount",
     "asName",
     "country",
     "createdAt",
@@ -1101,6 +1356,93 @@ export const DatabaseVersionsViewSchema = {
     "timescaledbVersion",
   ],
   title: "DatabaseVersionsView",
+  type: "object",
+} as const;
+
+export const DecisionGroupViewSchema = {
+  properties: {
+    city: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    countryCode: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    countryName: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    decisionCount: {
+      type: "integer",
+    },
+    decisions: {
+      items: {
+        $ref: "#/components/schemas/GroupedDecisionView",
+      },
+      type: "array",
+    },
+    duration: {
+      type: "string",
+    },
+    ip: {
+      type: "string",
+    },
+    origins: {
+      items: {
+        type: "string",
+      },
+      type: "array",
+    },
+    requestCount24h: {
+      oneOf: [
+        {
+          type: "integer",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    scope: {
+      type: "string",
+    },
+    type: {
+      type: "string",
+    },
+  },
+  required: [
+    "city",
+    "countryCode",
+    "countryName",
+    "decisionCount",
+    "decisions",
+    "duration",
+    "ip",
+    "origins",
+    "requestCount24h",
+    "scope",
+    "type",
+  ],
+  title: "DecisionGroupView",
   type: "object",
 } as const;
 
@@ -1931,6 +2273,36 @@ export const GlobalTopIPsResponseSchema = {
   },
   required: [],
   title: "GlobalTopIPsResponse",
+  type: "object",
+} as const;
+
+export const GroupedDecisionViewSchema = {
+  properties: {
+    duration: {
+      type: "string",
+    },
+    id: {
+      oneOf: [
+        {
+          type: "integer",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    origin: {
+      type: "string",
+    },
+    scenario: {
+      type: "string",
+    },
+    type: {
+      type: "string",
+    },
+  },
+  required: ["duration", "id", "origin", "scenario", "type"],
+  title: "GroupedDecisionView",
   type: "object",
 } as const;
 
