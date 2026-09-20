@@ -39,6 +39,7 @@ import type {
   AlertView,
   AlertDetailView,
   DecisionView,
+  DecisionGroupView,
   BannedIp,
   BannedMapCollection,
   SessionUser,
@@ -329,7 +330,7 @@ export async function fetchAsnClassification(): Promise<AsnClassificationListRes
 // ============================================================================
 
 export interface CrowdSecDecisionsPage {
-  items: DecisionView[]
+  items: DecisionGroupView[]
   total: number
   limit: number
   offset: number
@@ -409,6 +410,12 @@ export async function fetchCrowdsecAlerts(params?: {
 /** One alert with its context, stored events and decisions. */
 export async function fetchCrowdsecAlert(id: number): Promise<AlertDetailView> {
   const { data } = await api.get<AlertDetailView>(`/crowdsec/alerts/${id}`)
+  return data
+}
+
+/** The alert that produced one decision. Blocklist decisions answer 404. */
+export async function fetchCrowdsecDecisionAlert(decisionId: number, ip: string): Promise<AlertDetailView> {
+  const { data } = await api.get<AlertDetailView>(`/crowdsec/decisions/${decisionId}/alert`, { params: { ip } })
   return data
 }
 

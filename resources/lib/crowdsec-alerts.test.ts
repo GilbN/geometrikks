@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { alertSummary, contextLabel, eventExtras, formatGoDuration, hasHttpEvents } from "./crowdsec-alerts"
+import { alertSummary, decisionHasAlert, contextLabel, eventExtras, formatGoDuration, hasHttpEvents } from "./crowdsec-alerts"
 
 const HTTP_META = {
   ASNNumber: "48090",
@@ -78,5 +78,22 @@ describe("alertSummary", () => {
   it("keeps other messages, such as a manual ban reason, and fixes the Ip casing", () => {
     expect(alertSummary("manual ban from GeoMetrikks")).toBe("manual ban from GeoMetrikks")
     expect(alertSummary("Ip 1.2.3.4 was banned by hand")).toBe("IP 1.2.3.4 was banned by hand")
+  })
+})
+
+describe("decisionHasAlert", () => {
+  it("is true for a local IP decision with an id", () => {
+    expect(decisionHasAlert("Ip", { id: 7, origin: "crowdsec" })).toBe(true)
+    expect(decisionHasAlert("Ip", { id: 7, origin: "cscli" })).toBe(true)
+  })
+
+  it("is false for blocklist decisions, which share one alert per pull", () => {
+    expect(decisionHasAlert("Ip", { id: 7, origin: "CAPI" })).toBe(false)
+    expect(decisionHasAlert("Ip", { id: 7, origin: "lists" })).toBe(false)
+  })
+
+  it("is false without an id or for a non-IP scope", () => {
+    expect(decisionHasAlert("Ip", { id: null, origin: "crowdsec" })).toBe(false)
+    expect(decisionHasAlert("Range", { id: 7, origin: "crowdsec" })).toBe(false)
   })
 })

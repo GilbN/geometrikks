@@ -48,6 +48,7 @@ import {
   fetchCrowdsecDecisions,
   fetchCrowdsecAlerts,
   fetchCrowdsecAlert,
+  fetchCrowdsecDecisionAlert,
   fetchCrowdsecBannedLocations,
   fetchCrowdsecDecisionLookup,
   fetchIpProfile,
@@ -121,6 +122,7 @@ export const queryKeys = {
     alerts: (params: Record<string, unknown>) =>
       ["crowdsec", "alerts", params] as const,
     alert: (id: number) => ["crowdsec", "alert", id] as const,
+    decisionAlert: (decisionId: number) => ["crowdsec", "decision-alert", decisionId] as const,
     lookup: (ip: string, refreshKey?: number) => ["crowdsec", "lookup", ip, refreshKey] as const,
     latestAlert: (ip: string, refreshKey?: number) => ["crowdsec", "latest-alert", ip, refreshKey] as const,
   },
@@ -431,6 +433,17 @@ export function useCrowdsecAlert(id: number | null) {
     queryFn: () => fetchCrowdsecAlert(id!),
     enabled: id !== null,
     staleTime: 30 * 1000,
+  })
+}
+
+/** The alert behind a decision, for the sheet an Active decisions row opens. */
+export function useCrowdsecDecisionAlert(decision: { id: number; ip: string } | null) {
+  return useQuery({
+    queryKey: queryKeys.crowdsec.decisionAlert(decision?.id ?? 0),
+    queryFn: () => fetchCrowdsecDecisionAlert(decision!.id, decision!.ip),
+    enabled: decision !== null,
+    staleTime: 30 * 1000,
+    retry: false,
   })
 }
 

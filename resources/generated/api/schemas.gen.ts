@@ -1359,6 +1359,93 @@ export const DatabaseVersionsViewSchema = {
   type: "object",
 } as const;
 
+export const DecisionGroupViewSchema = {
+  properties: {
+    city: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    countryCode: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    countryName: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    decisionCount: {
+      type: "integer",
+    },
+    decisions: {
+      items: {
+        $ref: "#/components/schemas/GroupedDecisionView",
+      },
+      type: "array",
+    },
+    duration: {
+      type: "string",
+    },
+    ip: {
+      type: "string",
+    },
+    origins: {
+      items: {
+        type: "string",
+      },
+      type: "array",
+    },
+    requestCount24h: {
+      oneOf: [
+        {
+          type: "integer",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    scope: {
+      type: "string",
+    },
+    type: {
+      type: "string",
+    },
+  },
+  required: [
+    "city",
+    "countryCode",
+    "countryName",
+    "decisionCount",
+    "decisions",
+    "duration",
+    "ip",
+    "origins",
+    "requestCount24h",
+    "scope",
+    "type",
+  ],
+  title: "DecisionGroupView",
+  type: "object",
+} as const;
+
 export const DecisionViewSchema = {
   properties: {
     city: {
@@ -2186,6 +2273,36 @@ export const GlobalTopIPsResponseSchema = {
   },
   required: [],
   title: "GlobalTopIPsResponse",
+  type: "object",
+} as const;
+
+export const GroupedDecisionViewSchema = {
+  properties: {
+    duration: {
+      type: "string",
+    },
+    id: {
+      oneOf: [
+        {
+          type: "integer",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    origin: {
+      type: "string",
+    },
+    scenario: {
+      type: "string",
+    },
+    type: {
+      type: "string",
+    },
+  },
+  required: ["duration", "id", "origin", "scenario", "type"],
+  title: "GroupedDecisionView",
   type: "object",
 } as const;
 

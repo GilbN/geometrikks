@@ -196,6 +196,44 @@ async def test_decisions_pagination_slices_after_fetch():
     assert [item["ip"] for item in body["items"]] == ["10.0.0.2", "10.0.0.3"]
 
 
+async def test_decisions_group_by_ip_and_count_ips_in_total():
+    decisions = [
+        make_decision(id=1, value="1.2.3.4", duration="1h49m36s", scenario="crowdsecurity/http-sensitive-files"),
+        make_decision(id=2, value="1.2.3.4", duration="1h50m33s", scenario="crowdsecurity/http-probing", type="captcha"),
+        make_decision(id=3, value="5.6.7.8", duration="30m", origin="crowdsec"),
+    ]
+    enrichment = FakeEnrichment({"1.2.3.4": OSLO})
+    async with AsyncTestClient(app=make_app(FakeCrowdSec(decisions), enrichment)) as client:
+        body = (await client.get("/api/v1/crowdsec/decisions")).json()
+
+    assert body["total"] == 2
+    first, second = body["items"]
+    assert (first["ip"], first["decisionCount"], first["duration"]) == ("1.2.3.4", 2, "1h50m33s")
+    assert first["type"] == "ban"
+    assert first["countryCode"] == "NO"
+    assert [(d["id"], d["scenario"], d["duration"]) for d in first["decisions"]] == [
+        (2, "crowdsecurity/http-probing", "1h50m33s"),
+        (1, "crowdsecurity/http-sensitive-files", "1h49m36s"),
+    ]
+    assert (second["ip"], second["decisionCount"], second["origins"]) == ("5.6.7.8", 1, ["crowdsec"])
+    # One enrichment lookup per IP, not per decision
+    assert enrichment.calls == [["1.2.3.4", "5.6.7.8"]]
+
+
+async def test_decisions_pagination_pages_over_ips_not_decisions():
+    decisions = [
+        make_decision(id=i * 10 + n, value=f"10.0.0.{i}", duration=f"{n + 1}h")
+        for i in range(3)
+        for n in range(2)
+    ]
+    async with AsyncTestClient(app=make_app(FakeCrowdSec(decisions))) as client:
+        body = (
+            await client.get("/api/v1/crowdsec/decisions", params={"currentPage": 2, "pageSize": 2})
+        ).json()
+    assert body["total"] == 3
+    assert [item["ip"] for item in body["items"]] == ["10.0.0.2"]
+
+
 async def test_lookup_returns_decisions_for_ip():
     decisions = [
         make_decision(id=1, value="1.2.3.4"),
@@ -565,6 +603,46 @@ async def test_alert_detail_without_lapi_geo_falls_back_to_own_enrichment(monkey
     async with AsyncTestClient(app=make_app(service, FakeEnrichment({"1.2.3.4": OSLO}))) as client:
         detail = (await client.get("/api/v1/crowdsec/alerts/7")).json()
     assert detail["country"] == "Norway"
+
+
+# -- the alert behind a decision -------------------------------------------
+
+
+async def test_decision_alert_returns_the_alert_holding_that_decision(monkeypatch):
+    enable_write(monkeypatch)
+    older = make_detailed_alert()
+    older.id = 6
+    older.decisions = [make_decision(id=4, duration="-5h")]
+    service = AlertFakeCrowdSec([make_detailed_alert(), older])
+    async with AsyncTestClient(app=make_app(service)) as client:
+        resp = await client.get("/api/v1/crowdsec/decisions/4/alert", params={"ip": "1.2.3.4"})
+    assert resp.status_code == 200
+    assert resp.json()["id"] == 6
+    assert resp.json()["context"] == [{"key": "target_uri", "values": ["/wp-login.php", "/.env"]}]
+    assert service.alert_calls == [{"limit": 100, "ip": "1.2.3.4", "scenario": None, "since": None}]
+
+
+async def test_decision_alert_404_when_no_alert_holds_the_decision(monkeypatch):
+    enable_write(monkeypatch)
+    async with AsyncTestClient(app=make_app(AlertFakeCrowdSec([make_alert()]))) as client:
+        resp = await client.get("/api/v1/crowdsec/decisions/999/alert", params={"ip": "1.2.3.4"})
+    assert resp.status_code == 404
+
+
+async def test_decision_alert_rejects_invalid_ip(monkeypatch):
+    enable_write(monkeypatch)
+    async with AsyncTestClient(app=make_app(AlertFakeCrowdSec())) as client:
+        resp = await client.get("/api/v1/crowdsec/decisions/4/alert", params={"ip": "nope"})
+    assert resp.status_code == 400
+
+
+async def test_decision_alert_403_without_machine_credentials(monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("CROWDSEC_LAPI_URL", "http://crowdsec:8080")
+    monkeypatch.setenv("CROWDSEC_BOUNCER_API_KEY", "key")
+    async with AsyncTestClient(app=make_app(AlertFakeCrowdSec())) as client:
+        resp = await client.get("/api/v1/crowdsec/decisions/4/alert", params={"ip": "1.2.3.4"})
+    assert resp.status_code == 403
 
 
 # -- banned locations (map overlay) ----------------------------------------

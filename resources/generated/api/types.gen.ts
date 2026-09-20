@@ -416,6 +416,23 @@ export type DatabaseVersionsView = {
 };
 
 /**
+ * DecisionGroupView
+ */
+export type DecisionGroupView = {
+  city: string | null;
+  countryCode: string | null;
+  countryName: string | null;
+  decisionCount: number;
+  decisions: Array<GroupedDecisionView>;
+  duration: string;
+  ip: string;
+  origins: Array<string>;
+  requestCount24h: number | null;
+  scope: string;
+  type: string;
+};
+
+/**
  * DecisionView
  */
 export type DecisionView = {
@@ -657,6 +674,17 @@ export type GeoLogTimeSeriesResponse = {
  */
 export type GlobalTopIpsResponse = {
   topIps?: Array<TopIpdto>;
+};
+
+/**
+ * GroupedDecisionView
+ */
+export type GroupedDecisionView = {
+  duration: string;
+  id: number | null;
+  origin: string;
+  scenario: string;
+  type: string;
 };
 
 /**
@@ -2672,7 +2700,7 @@ export type ApiV1CrowdsecDecisionsListDecisionsResponses = {
    * Request fulfilled, document follows
    */
   200: {
-    items?: Array<DecisionView>;
+    items?: Array<DecisionGroupView>;
     /**
      * Maximal number of items to send.
      */
@@ -2731,6 +2759,49 @@ export type ApiV1CrowdsecDecisionsLookupLookupDecisionsResponses = {
 
 export type ApiV1CrowdsecDecisionsLookupLookupDecisionsResponse =
   ApiV1CrowdsecDecisionsLookupLookupDecisionsResponses[keyof ApiV1CrowdsecDecisionsLookupLookupDecisionsResponses];
+
+export type ApiV1CrowdsecDecisionsDecisionIdAlertGetDecisionAlertData = {
+  body?: never;
+  path: {
+    decision_id: number;
+  };
+  query: {
+    /**
+     * The decision's IP address
+     */
+    ip: string;
+  };
+  url: "/api/v1/crowdsec/decisions/{decision_id}/alert";
+};
+
+export type ApiV1CrowdsecDecisionsDecisionIdAlertGetDecisionAlertErrors = {
+  /**
+   * Validation Exception
+   */
+  400: {
+    detail: string;
+    extra?:
+      | null
+      | {
+          [key: string]: unknown;
+        }
+      | Array<unknown>;
+    status_code: number;
+  };
+};
+
+export type ApiV1CrowdsecDecisionsDecisionIdAlertGetDecisionAlertError =
+  ApiV1CrowdsecDecisionsDecisionIdAlertGetDecisionAlertErrors[keyof ApiV1CrowdsecDecisionsDecisionIdAlertGetDecisionAlertErrors];
+
+export type ApiV1CrowdsecDecisionsDecisionIdAlertGetDecisionAlertResponses = {
+  /**
+   * Request fulfilled, document follows
+   */
+  200: AlertDetailView;
+};
+
+export type ApiV1CrowdsecDecisionsDecisionIdAlertGetDecisionAlertResponse =
+  ApiV1CrowdsecDecisionsDecisionIdAlertGetDecisionAlertResponses[keyof ApiV1CrowdsecDecisionsDecisionIdAlertGetDecisionAlertResponses];
 
 export type ApiV1CrowdsecStatsGetStatsData = {
   body?: never;

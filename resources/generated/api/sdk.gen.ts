@@ -81,6 +81,9 @@ import type {
   ApiV1CrowdsecBannedLocationsListBannedLocationsData,
   ApiV1CrowdsecBannedLocationsListBannedLocationsErrors,
   ApiV1CrowdsecBannedLocationsListBannedLocationsResponses,
+  ApiV1CrowdsecDecisionsDecisionIdAlertGetDecisionAlertData,
+  ApiV1CrowdsecDecisionsDecisionIdAlertGetDecisionAlertErrors,
+  ApiV1CrowdsecDecisionsDecisionIdAlertGetDecisionAlertResponses,
   ApiV1CrowdsecDecisionsListDecisionsData,
   ApiV1CrowdsecDecisionsListDecisionsErrors,
   ApiV1CrowdsecDecisionsListDecisionsResponses,
@@ -1005,6 +1008,37 @@ export const apiV1CrowdsecDecisionsLookupLookupDecisions = <
       },
     ],
     url: "/api/v1/crowdsec/decisions/lookup",
+    ...options,
+  });
+
+/**
+ * GetDecisionAlert
+ */
+export const apiV1CrowdsecDecisionsDecisionIdAlertGetDecisionAlert = <
+  ThrowOnError extends boolean = false,
+>(
+  options: Options<
+    ApiV1CrowdsecDecisionsDecisionIdAlertGetDecisionAlertData,
+    ThrowOnError
+  >,
+): RequestResult<
+  ApiV1CrowdsecDecisionsDecisionIdAlertGetDecisionAlertResponses,
+  ApiV1CrowdsecDecisionsDecisionIdAlertGetDecisionAlertErrors,
+  ThrowOnError
+> =>
+  (options.client ?? client).get<
+    ApiV1CrowdsecDecisionsDecisionIdAlertGetDecisionAlertResponses,
+    ApiV1CrowdsecDecisionsDecisionIdAlertGetDecisionAlertErrors,
+    ThrowOnError
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+    ],
+    url: "/api/v1/crowdsec/decisions/{decision_id}/alert",
     ...options,
   });
 

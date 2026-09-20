@@ -1444,6 +1444,92 @@
         "title": "DatabaseVersionsView",
         "type": "object"
       },
+      "DecisionGroupView": {
+        "properties": {
+          "city": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "countryCode": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "countryName": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "decisionCount": {
+            "type": "integer"
+          },
+          "decisions": {
+            "items": {
+              "$ref": "#/components/schemas/GroupedDecisionView"
+            },
+            "type": "array"
+          },
+          "duration": {
+            "type": "string"
+          },
+          "ip": {
+            "type": "string"
+          },
+          "origins": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "requestCount24h": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "scope": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "city",
+          "countryCode",
+          "countryName",
+          "decisionCount",
+          "decisions",
+          "duration",
+          "ip",
+          "origins",
+          "requestCount24h",
+          "scope",
+          "type"
+        ],
+        "title": "DecisionGroupView",
+        "type": "object"
+      },
       "DecisionView": {
         "properties": {
           "city": {
@@ -2322,6 +2408,41 @@
         },
         "required": [],
         "title": "GlobalTopIPsResponse",
+        "type": "object"
+      },
+      "GroupedDecisionView": {
+        "properties": {
+          "duration": {
+            "type": "string"
+          },
+          "id": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "origin": {
+            "type": "string"
+          },
+          "scenario": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "duration",
+          "id",
+          "origin",
+          "scenario",
+          "type"
+        ],
+        "title": "GroupedDecisionView",
         "type": "object"
       },
       "HealthResponse": {
@@ -8868,7 +8989,7 @@
                   "properties": {
                     "items": {
                       "items": {
-                        "$ref": "#/components/schemas/DecisionView"
+                        "$ref": "#/components/schemas/DecisionGroupView"
                       },
                       "type": "array"
                     },
@@ -9011,6 +9132,91 @@
           }
         },
         "summary": "LookupDecisions",
+        "tags": [
+          "CrowdSec"
+        ]
+      }
+    },
+    "/api/v1/crowdsec/decisions/{decision_id}/alert": {
+      "get": {
+        "deprecated": false,
+        "operationId": "ApiV1CrowdsecDecisionsDecisionIdAlertGetDecisionAlert",
+        "parameters": [
+          {
+            "deprecated": false,
+            "in": "path",
+            "name": "decision_id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "The decision's IP address",
+            "in": "query",
+            "name": "ip",
+            "required": true,
+            "schema": {
+              "description": "The decision's IP address",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AlertDetailView"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "GetDecisionAlert",
         "tags": [
           "CrowdSec"
         ]

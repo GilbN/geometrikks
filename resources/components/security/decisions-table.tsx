@@ -2,13 +2,10 @@
  * Active-decisions table: who is banned, why, and, the part no generic
  * CrowdSec dashboard can show, whether that IP appears in this server's own
  * traffic ("Seen 24h" from the enrichment join). Server-paginated against
- * /crowdsec/decisions; origin scope toggles between local and crowd bans.
+ * /crowdsec/decisions, one row per target; origin scope toggles between
+ * local and crowd bans.
  */
 import { useState } from "react"
-import { toast } from "sonner"
-import { Loader2, ShieldOff } from "lucide-react"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { PaginationFooter } from "@/components/ui/pagination-footer"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -21,12 +18,10 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { useCrowdsecDecisions, useCrowdsecStatus, useUnbanIp } from "@/lib/queries"
-import { InspectIpButton } from "@/components/ip-inspector/inspect-ip-button"
-import { DecisionBadge } from "@/components/crowdsec/decision-badge"
-import { crowdsecErrorMessage } from "@/lib/crowdsec"
-import { cn } from "@/lib/utils"
+import { useCrowdsecDecisions, useCrowdsecStatus } from "@/lib/queries"
+import { DecisionAlertSheet, type DecisionRef } from "./alert-detail-sheet"
 import { BanIpDialog } from "./ban-ip-dialog"
+import { DecisionGroupRows } from "./decision-group-rows"
 
 const PAGE_SIZES = [10, 25, 50, 100] as const
 
@@ -51,7 +46,7 @@ export function DecisionsTable() {
     currentPage: page,
     pageSize,
   })
-  const unban = useUnbanIp()
+  const [selected, setSelected] = useState<DecisionRef | null>(null)
 
   const total = data?.total ?? 0
   const pageCount = Math.max(1, Math.ceil(total / pageSize))
@@ -107,73 +102,14 @@ export function DecisionsTable() {
                       ))}
                     </TableRow>
                   ))
-                : data?.items.map((d) => (
-                    <TableRow
-                      key={`${d.id}-${d.ip}`}
-                      className={cn(isPlaceholderData && "opacity-60")}
-                    >
-                      <TableCell className="font-mono">
-                        {d.ip}
-                        {d.scope === "Ip" && <InspectIpButton ip={d.ip} className="ml-1" />}
-                        {d.scope !== "Ip" && (
-                          <Badge variant="outline" className="ml-2 align-middle">
-                            {d.scope}
-                          </Badge>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <DecisionBadge type={d.type} />
-                      </TableCell>
-                      <TableCell>{d.countryName ?? d.countryCode ?? "-"}</TableCell>
-                      <TableCell>{d.city ?? "-"}</TableCell>
-                      <TableCell>
-                        <Badge variant="secondary">{d.origin}</Badge>
-                      </TableCell>
-                      <TableCell
-                        className="max-w-[260px] truncate font-mono text-xs"
-                        title={d.scenario}
-                      >
-                        {d.scenario}
-                      </TableCell>
-                      <TableCell className="whitespace-nowrap tabular-nums">
-                        {d.duration}
-                      </TableCell>
-                      <TableCell
-                        className={cn(
-                          "text-right tabular-nums",
-                          (d.requestCount24h ?? 0) > 0 && "font-semibold text-amber-500",
-                        )}
-                      >
-                        {d.requestCount24h ?? "-"}
-                      </TableCell>
-                      {status?.writeEnabled && (
-                        <TableCell>
-                          {d.scope === "Ip" && (
-                            <Button
-                              variant="ghost"
-                              size="icon-xs"
-                              className="text-muted-foreground"
-                              title={`Unban ${d.ip}`}
-                              disabled={unban.isPending}
-                              onClick={() =>
-                                unban.mutate(d.ip, {
-                                  onError: (err) =>
-                                    toast.error(
-                                      crowdsecErrorMessage(err, `Unban failed for ${d.ip}; the LAPI may be unreachable.`),
-                                    ),
-                                })
-                              }
-                            >
-                              {unban.isPending && unban.variables === d.ip ? (
-                                <Loader2 className="animate-spin" />
-                              ) : (
-                                <ShieldOff />
-                              )}
-                            </Button>
-                          )}
-                        </TableCell>
-                      )}
-                    </TableRow>
+                : data?.items.map((group) => (
+                    <DecisionGroupRows
+                      key={`${group.scope}:${group.ip}`}
+                      group={group}
+                      writeEnabled={status?.writeEnabled === true}
+                      dimmed={isPlaceholderData}
+                      onOpenAlert={setSelected}
+                    />
                   ))}
               {!isLoading && isError && !data && (
                 <TableRow>
@@ -211,6 +147,7 @@ export function DecisionsTable() {
           }}
         />
       </CardContent>
+      <DecisionAlertSheet decision={selected} onOpenChange={(open) => !open && setSelected(null)} />
     </Card>
   )
 }

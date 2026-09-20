@@ -106,6 +106,22 @@
       ],
       "uri": "/api/v1/system/database"
     },
+    "get_decision_alert": {
+      "method": "get",
+      "methods": [
+        "GET"
+      ],
+      "parameterTypes": {
+        "decision_id": "number"
+      },
+      "parameters": [
+        "decision_id"
+      ],
+      "queryParameters": {
+        "ip": "string"
+      },
+      "uri": "/api/v1/crowdsec/decisions/{decision_id}/alert"
+    },
     "get_geo_log_facets": {
       "method": "get",
       "methods": [

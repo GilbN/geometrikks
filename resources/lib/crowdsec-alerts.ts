@@ -60,3 +60,11 @@ export function alertSummary(message: string): string {
   const over = events > 1 ? formatGoDuration(duration) : null
   return `IP ${ip} triggered this scenario with ${events} ${events === 1 ? "event" : "events"}${over ? ` over ${over}` : ""}.`
 }
+
+const BLOCKLIST_ORIGINS = new Set(["CAPI", "lists"])
+
+/** Whether the decision has an alert of its own to open. Blocklist
+ *  decisions share one alert per pull, and the lookup goes by IP. */
+export function decisionHasAlert(scope: string, decision: { id: number | null; origin: string }): boolean {
+  return scope === "Ip" && decision.id !== null && !BLOCKLIST_ORIGINS.has(decision.origin)
+}

@@ -17,7 +17,8 @@ import { Skeleton } from "@/components/ui/skeleton"
 import type { AlertDetailView, AlertEventView, AlertView } from "@/generated/api/types.gen"
 import { crowdsecErrorMessage } from "@/lib/crowdsec"
 import { alertSummary, contextLabel, eventExtras, hasHttpEvents } from "@/lib/crowdsec-alerts"
-import { useCrowdsecAlert } from "@/lib/queries"
+import type { UseQueryResult } from "@tanstack/react-query"
+import { useCrowdsecAlert, useCrowdsecDecisionAlert } from "@/lib/queries"
 import { statusBadgeClass } from "@/lib/status-badge"
 import { cn } from "@/lib/utils"
 
@@ -188,6 +189,50 @@ function AlertBody({ alert, onNavigate }: { alert: AlertDetailView; onNavigate: 
   )
 }
 
+function alertDescription(alert: Pick<AlertView, "id" | "createdAt" | "eventsCount">) {
+  return `Alert #${alert.id} · ${new Date(alert.createdAt).toLocaleString()} · ${alert.eventsCount} events`
+}
+
+function AlertSheet({
+  open,
+  onOpenChange,
+  scenario,
+  description,
+  detail,
+  errorFallback,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  scenario: string | undefined
+  description: string | undefined
+  detail: UseQueryResult<AlertDetailView>
+  errorFallback: string
+}) {
+  return (
+    <DetailSheet
+      open={open}
+      onOpenChange={onOpenChange}
+      title={<span className="break-all font-mono text-sm">{scenario ?? "Alert details"}</span>}
+      description={description}
+    >
+      {open && detail.isPending && (
+        <div className="flex flex-col gap-3">
+          {Array.from({ length: 8 }).map((_, i) => (
+            <Skeleton key={i} className="h-5 w-full" />
+          ))}
+        </div>
+      )}
+      {detail.isError && (
+        <p role="alert" className="text-sm text-destructive">
+          {crowdsecErrorMessage(detail.error, errorFallback)}
+        </p>
+      )}
+      {detail.data && <AlertBody alert={detail.data} onNavigate={() => onOpenChange(false)} />}
+    </DetailSheet>
+  )
+}
+
+/** Opened from an Alert history row. */
 export function AlertDetailSheet({
   alert,
   onOpenChange,
@@ -197,27 +242,36 @@ export function AlertDetailSheet({
 }) {
   const detail = useCrowdsecAlert(alert?.id ?? null)
   return (
-    <DetailSheet
+    <AlertSheet
       open={alert !== null}
       onOpenChange={onOpenChange}
-      title={<span className="break-all font-mono text-sm">{alert?.scenario ?? "Alert details"}</span>}
-      description={
-        alert ? `Alert #${alert.id} · ${new Date(alert.createdAt).toLocaleString()} · ${alert.eventsCount} events` : undefined
-      }
-    >
-      {detail.isPending && (
-        <div className="flex flex-col gap-3">
-          {Array.from({ length: 8 }).map((_, i) => (
-            <Skeleton key={i} className="h-5 w-full" />
-          ))}
-        </div>
-      )}
-      {detail.isError && (
-        <p role="alert" className="text-sm text-destructive">
-          {crowdsecErrorMessage(detail.error, "Could not load this alert.")}
-        </p>
-      )}
-      {detail.data && <AlertBody alert={detail.data} onNavigate={() => onOpenChange(false)} />}
-    </DetailSheet>
+      scenario={alert?.scenario}
+      description={alert ? alertDescription(alert) : undefined}
+      detail={detail}
+      errorFallback="Could not load this alert."
+    />
+  )
+}
+
+export type DecisionRef = { id: number; ip: string; scenario: string }
+
+/** Opened from an Active decisions row. Shows the alert that produced the decision. */
+export function DecisionAlertSheet({
+  decision,
+  onOpenChange,
+}: {
+  decision: DecisionRef | null
+  onOpenChange: (open: boolean) => void
+}) {
+  const detail = useCrowdsecDecisionAlert(decision)
+  return (
+    <AlertSheet
+      open={decision !== null}
+      onOpenChange={onOpenChange}
+      scenario={detail.data?.scenario ?? decision?.scenario}
+      description={detail.data ? alertDescription(detail.data) : undefined}
+      detail={detail}
+      errorFallback="Could not load the alert behind this decision."
+    />
   )
 }
