@@ -37,6 +37,7 @@ import type {
   CrowdSecStatusResponse,
   CrowdSecStatsResponse,
   AlertView,
+  AlertDetailView,
   DecisionView,
   BannedIp,
   BannedMapCollection,
@@ -52,6 +53,7 @@ export type {
   CrowdSecStatusResponse,
   CrowdSecStatsResponse,
   AlertView,
+  AlertDetailView,
   DecisionView,
   BannedIp,
   BannedMapCollection,
@@ -401,6 +403,12 @@ export async function fetchCrowdsecAlerts(params?: {
       ip: params?.ip || undefined,
     },
   })
+  return data
+}
+
+/** One alert with its context, stored events and decisions. */
+export async function fetchCrowdsecAlert(id: number): Promise<AlertDetailView> {
+  const { data } = await api.get<AlertDetailView>(`/crowdsec/alerts/${id}`)
   return data
 }
 

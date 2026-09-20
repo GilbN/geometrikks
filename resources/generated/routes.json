@@ -61,6 +61,19 @@
       ],
       "uri": "/api/v1/access-logs/facets"
     },
+    "get_alert": {
+      "method": "get",
+      "methods": [
+        "GET"
+      ],
+      "parameterTypes": {
+        "alert_id": "number"
+      },
+      "parameters": [
+        "alert_id"
+      ],
+      "uri": "/api/v1/crowdsec/alerts/{alert_id}"
+    },
     "get_asn_classification": {
       "method": "get",
       "methods": [

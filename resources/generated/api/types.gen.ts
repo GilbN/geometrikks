@@ -95,9 +95,70 @@ export type Advisory = {
 };
 
 /**
+ * AlertContextView
+ */
+export type AlertContextView = {
+  key: string;
+  values: Array<string>;
+};
+
+/**
+ * AlertDecisionView
+ */
+export type AlertDecisionView = {
+  duration: string;
+  expired: boolean;
+  id: number | null;
+  origin: string;
+  scenario: string;
+  scope: string;
+  simulated: boolean;
+  type: string;
+  value: string;
+};
+
+/**
+ * AlertDetailView
+ */
+export type AlertDetailView = {
+  activeDecisionCount: number;
+  asName: string | null;
+  asNumber: string | null;
+  context: Array<AlertContextView>;
+  country: string | null;
+  createdAt: string;
+  decisionCount: number;
+  decisions: Array<AlertDecisionView>;
+  events: Array<AlertEventView>;
+  eventsCount: number;
+  id: number | null;
+  kind: string | null;
+  machineId: string | null;
+  message: string;
+  range: string | null;
+  scenario: string;
+  scope: string;
+  simulated: boolean;
+  startAt: string | null;
+  stopAt: string | null;
+  value: string;
+};
+
+/**
+ * AlertEventView
+ */
+export type AlertEventView = {
+  meta: {
+    [key: string]: string;
+  };
+  timestamp: string;
+};
+
+/**
  * AlertView
  */
 export type AlertView = {
+  activeDecisionCount: number;
   asName: string | null;
   country: string | null;
   createdAt: string;
@@ -2433,6 +2494,44 @@ export type ApiV1CrowdsecAlertsListAlertsResponses = {
 
 export type ApiV1CrowdsecAlertsListAlertsResponse =
   ApiV1CrowdsecAlertsListAlertsResponses[keyof ApiV1CrowdsecAlertsListAlertsResponses];
+
+export type ApiV1CrowdsecAlertsAlertIdGetAlertData = {
+  body?: never;
+  path: {
+    alert_id: number;
+  };
+  query?: never;
+  url: "/api/v1/crowdsec/alerts/{alert_id}";
+};
+
+export type ApiV1CrowdsecAlertsAlertIdGetAlertErrors = {
+  /**
+   * Validation Exception
+   */
+  400: {
+    detail: string;
+    extra?:
+      | null
+      | {
+          [key: string]: unknown;
+        }
+      | Array<unknown>;
+    status_code: number;
+  };
+};
+
+export type ApiV1CrowdsecAlertsAlertIdGetAlertError =
+  ApiV1CrowdsecAlertsAlertIdGetAlertErrors[keyof ApiV1CrowdsecAlertsAlertIdGetAlertErrors];
+
+export type ApiV1CrowdsecAlertsAlertIdGetAlertResponses = {
+  /**
+   * Request fulfilled, document follows
+   */
+  200: AlertDetailView;
+};
+
+export type ApiV1CrowdsecAlertsAlertIdGetAlertResponse =
+  ApiV1CrowdsecAlertsAlertIdGetAlertResponses[keyof ApiV1CrowdsecAlertsAlertIdGetAlertResponses];
 
 export type ApiV1CrowdsecBanBanData = {
   body: BanRequest;

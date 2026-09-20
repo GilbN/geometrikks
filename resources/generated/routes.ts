@@ -24,6 +24,7 @@ export type RouteName =
   | 'get_about'
   | 'get_access_log_debug_stats'
   | 'get_access_log_facets'
+  | 'get_alert'
   | 'get_asn_classification'
   | 'get_changelog'
   | 'get_cumulative_time_series'
@@ -97,6 +98,9 @@ export interface RoutePathParams {
   'get_about': Record<string, never>;
   'get_access_log_debug_stats': Record<string, never>;
   'get_access_log_facets': Record<string, never>;
+  'get_alert': {
+    alert_id: number;
+  };
   'get_asn_classification': Record<string, never>;
   'get_changelog': Record<string, never>;
   'get_cumulative_time_series': Record<string, never>;
@@ -173,6 +177,7 @@ export interface RouteQueryParams {
     toTimestamp?: DateTime;
   };
   'get_access_log_facets': Record<string, never>;
+  'get_alert': Record<string, never>;
   'get_asn_classification': Record<string, never>;
   'get_changelog': Record<string, never>;
   'get_cumulative_time_series': {
@@ -534,6 +539,13 @@ export const routeDefinitions = {
     methods: ['GET'] as const,
     method: 'get',
     pathParams: [] as const,
+    queryParams: [] as const,
+  },
+  'get_alert': {
+    path: '/api/v1/crowdsec/alerts/{alert_id}',
+    methods: ['GET'] as const,
+    method: 'get',
+    pathParams: ['alert_id'] as const,
     queryParams: [] as const,
   },
   'get_asn_classification': {

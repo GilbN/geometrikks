@@ -412,6 +412,9 @@ class AlertFakeCrowdSec(WritableFakeCrowdSec):
         self.alert_calls.append(filters)
         return self._alerts
 
+    async def get_alert(self, alert_id):
+        return next((a for a in self._alerts if a.id == alert_id), None)
+
 
 def make_alert():
     from geometrikks.services.crowdsec.schemas import Alert, AlertSource
@@ -475,6 +478,93 @@ async def test_alerts_without_lapi_geo_fall_back_to_own_enrichment(monkeypatch):
     (alert,) = resp.json()
     assert alert["country"] == "Norway"
     assert enrichment.calls == [["1.2.3.4"]]
+
+
+async def test_alerts_count_active_decisions_apart_from_expired(monkeypatch):
+    enable_write(monkeypatch)
+    alert = make_alert()
+    alert.decisions.append(make_decision(id=10, duration="-2h5m"))
+    async with AsyncTestClient(app=make_app(AlertFakeCrowdSec([alert]))) as client:
+        (view,) = (await client.get("/api/v1/crowdsec/alerts")).json()
+    assert (view["decisionCount"], view["activeDecisionCount"]) == (2, 1)
+
+
+# -- alert detail ----------------------------------------------------------
+
+
+def make_detailed_alert():
+    from geometrikks.services.crowdsec.schemas import AlertContext, AlertEvent
+
+    alert = make_alert()
+    alert.kind = "crowdsec"
+    alert.simulated = False
+    alert.start_at = "2026-07-20T09:59:50Z"
+    alert.stop_at = "2026-07-20T10:00:00Z"
+    alert.source.as_number = "2119"
+    alert.source.range = "1.2.3.0/24"
+    alert.context = [AlertContext(key="target_uri", values=["/wp-login.php", "/.env"])]
+    alert.events = [
+        AlertEvent(
+            timestamp="2026-07-20T09:59:50Z",
+            meta={"http_path": "/.env", "http_status": "404", "http_verb": "GET"},
+        )
+    ]
+    alert.decisions.append(make_decision(id=10, duration="-2h5m"))
+    return alert
+
+
+async def test_alert_detail_404_when_disabled():
+    async with AsyncTestClient(app=make_app(None)) as client:
+        assert (await client.get("/api/v1/crowdsec/alerts/7")).status_code == 404
+
+
+async def test_alert_detail_403_without_machine_credentials(monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("CROWDSEC_LAPI_URL", "http://crowdsec:8080")
+    monkeypatch.setenv("CROWDSEC_BOUNCER_API_KEY", "key")
+    async with AsyncTestClient(app=make_app(AlertFakeCrowdSec())) as client:
+        assert (await client.get("/api/v1/crowdsec/alerts/7")).status_code == 403
+
+
+async def test_alert_detail_404_for_unknown_alert(monkeypatch):
+    enable_write(monkeypatch)
+    async with AsyncTestClient(app=make_app(AlertFakeCrowdSec([make_alert()]))) as client:
+        assert (await client.get("/api/v1/crowdsec/alerts/999")).status_code == 404
+
+
+async def test_alert_detail_returns_context_events_and_decisions(monkeypatch):
+    enable_write(monkeypatch)
+    service = AlertFakeCrowdSec([make_detailed_alert()])
+    async with AsyncTestClient(app=make_app(service)) as client:
+        resp = await client.get("/api/v1/crowdsec/alerts/7")
+    assert resp.status_code == 200
+    detail = resp.json()
+    assert detail["kind"] == "crowdsec"
+    assert detail["simulated"] is False
+    assert (detail["startAt"], detail["stopAt"]) == ("2026-07-20T09:59:50Z", "2026-07-20T10:00:00Z")
+    assert (detail["country"], detail["asName"], detail["asNumber"]) == ("NO", "Telenor", "2119")
+    assert detail["range"] == "1.2.3.0/24"
+    assert detail["eventsCount"] == 6
+    assert detail["context"] == [{"key": "target_uri", "values": ["/wp-login.php", "/.env"]}]
+    assert detail["events"] == [
+        {
+            "timestamp": "2026-07-20T09:59:50Z",
+            "meta": {"http_path": "/.env", "http_status": "404", "http_verb": "GET"},
+        }
+    ]
+    assert [(d["id"], d["expired"]) for d in detail["decisions"]] == [(9, False), (10, True)]
+
+
+async def test_alert_detail_without_lapi_geo_falls_back_to_own_enrichment(monkeypatch):
+    from geometrikks.services.crowdsec.schemas import AlertSource
+
+    enable_write(monkeypatch)
+    bare = make_alert()
+    bare.source = AlertSource(scope="Ip", value="1.2.3.4", ip="1.2.3.4")
+    service = AlertFakeCrowdSec([bare])
+    async with AsyncTestClient(app=make_app(service, FakeEnrichment({"1.2.3.4": OSLO}))) as client:
+        detail = (await client.get("/api/v1/crowdsec/alerts/7")).json()
+    assert detail["country"] == "Norway"
 
 
 # -- banned locations (map overlay) ----------------------------------------

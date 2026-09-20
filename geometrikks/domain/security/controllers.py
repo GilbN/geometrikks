@@ -19,7 +19,7 @@ from advanced_alchemy.service import OffsetPagination
 from litestar import Controller, Request, get, post
 from litestar.di import NamedDependency, Provide
 from litestar.exceptions import NotFoundException, PermissionDeniedException
-from litestar.params import QueryParameter, SkipValidation
+from litestar.params import FromPath, QueryParameter, SkipValidation
 from litestar.status_codes import HTTP_200_OK, HTTP_204_NO_CONTENT
 
 from geometrikks.domain.security.dependencies import (
@@ -36,7 +36,7 @@ from geometrikks.domain.security.schemas import IpEnrichment, BannedMapCollectio
 from geometrikks.domain.security.map_data import active_decision_ips, banned_map_collection, canonical_ip, decision_winner
 from geometrikks.lib.parameters import CountryCodeFilter, CityFilter, HostnameIn
 from geometrikks.server.logging import get_logger
-from geometrikks.services.crowdsec import CrowdSecService, Decision
+from geometrikks.services.crowdsec import Alert, CrowdSecService, Decision
 from geometrikks.services.crowdsec.stream import CrowdSecStreamPoller
 
 # The CAPI community blocklist can hold tens of thousands of decisions; the
@@ -103,6 +103,43 @@ class AlertView(msgspec.Struct, rename="camel"):
     country: str | None
     as_name: str | None
     decision_count: int
+    # decision_count includes expired decisions, which alerts keep.
+    active_decision_count: int
+
+
+class AlertDecisionView(msgspec.Struct, rename="camel"):
+    id: int | None
+    type: str
+    scope: str
+    value: str
+    origin: str
+    scenario: str
+    duration: str
+    expired: bool
+    simulated: bool
+
+
+class AlertContextView(msgspec.Struct, rename="camel"):
+    key: str
+    values: list[str]
+
+
+class AlertEventView(msgspec.Struct, rename="camel"):
+    timestamp: str
+    meta: dict[str, str]
+
+
+class AlertDetailView(AlertView, rename="camel"):
+    kind: str | None
+    simulated: bool
+    start_at: str | None
+    stop_at: str | None
+    as_number: str | None
+    range: str | None
+    context: list[AlertContextView]
+    # The LAPI stores a capped sample, fewer events than events_count.
+    events: list[AlertEventView]
+    decisions: list[AlertDecisionView]
 
 
 class BanRequest(msgspec.Struct, rename="camel"):
@@ -136,6 +173,31 @@ def _to_view(decision: Decision, enrichment: IpEnrichment | None) -> DecisionVie
             enrichment.request_count_24h if enrichment else (0 if is_ip_scope else None)
         ),
     )
+
+
+def _alert_country(alert: Alert, enrichment: IpEnrichment | None) -> str | None:
+    if alert.source.cn is not None:
+        return alert.source.cn
+    if enrichment is None:
+        return None
+    return enrichment.country_name or enrichment.country_code
+
+
+def _alert_summary(alert: Alert, enrichment: IpEnrichment | None) -> dict:
+    return {
+        "id": alert.id,
+        "scenario": alert.scenario,
+        "message": alert.message,
+        "events_count": alert.events_count,
+        "created_at": alert.created_at,
+        "machine_id": alert.machine_id,
+        "scope": alert.source.scope,
+        "value": alert.source.value,
+        "country": _alert_country(alert, enrichment),
+        "as_name": alert.source.as_name,
+        "decision_count": len(alert.decisions),
+        "active_decision_count": sum(not d.expired for d in alert.decisions),
+    }
 
 
 def _require_service(crowdsec: CrowdSecService | None) -> CrowdSecService:
@@ -330,30 +392,47 @@ class CrowdSecController(Controller):
         ]
         enriched = await enrichment_repo.enrich(bare_ips) if bare_ips else {}
 
-        def country_for(alert) -> str | None:
-            if alert.source.cn is not None:
-                return alert.source.cn
-            enrichment = enriched.get(alert.source.value)
-            if enrichment is None:
-                return None
-            return enrichment.country_name or enrichment.country_code
-
         return [
-            AlertView(
-                id=alert.id,
-                scenario=alert.scenario,
-                message=alert.message,
-                events_count=alert.events_count,
-                created_at=alert.created_at,
-                machine_id=alert.machine_id,
-                scope=alert.source.scope,
-                value=alert.source.value,
-                country=country_for(alert),
-                as_name=alert.source.as_name,
-                decision_count=len(alert.decisions),
-            )
+            AlertView(**_alert_summary(alert, enriched.get(alert.source.value)))
             for alert in alerts
         ]
+
+    @get("/alerts/{alert_id:int}")
+    async def get_alert(
+        self,
+        crowdsec: NamedDependency[CrowdSecService | None],
+        enrichment_repo: NamedDependency[SecurityEnrichmentRepository],
+        settings: NamedDependency[SkipValidation[Settings]],
+        alert_id: FromPath[int],
+    ) -> AlertDetailView:
+        """One alert with its context, stored events and decisions."""
+        service = _require_write(crowdsec, settings)
+        alert = await service.get_alert(alert_id)
+        if alert is None:
+            raise NotFoundException(detail=f"No CrowdSec alert with id {alert_id}")
+
+        source = alert.source
+        needs_geo = source.scope == "Ip" and source.cn is None
+        enriched = await enrichment_repo.enrich([source.value]) if needs_geo else {}
+        return AlertDetailView(
+            **_alert_summary(alert, enriched.get(source.value)),
+            kind=alert.kind,
+            simulated=bool(alert.simulated),
+            start_at=alert.start_at,
+            stop_at=alert.stop_at,
+            as_number=source.as_number,
+            range=source.range,
+            context=[AlertContextView(key=c.key, values=c.values) for c in alert.context],
+            events=[AlertEventView(timestamp=e.timestamp, meta=e.meta) for e in alert.events],
+            decisions=[
+                AlertDecisionView(
+                    id=d.id, type=d.type, scope=d.scope, value=d.value, origin=d.origin,
+                    scenario=d.scenario, duration=d.duration, expired=d.expired,
+                    simulated=bool(d.simulated),
+                )
+                for d in alert.decisions
+            ],
+        )
 
     @post("/ban", status_code=HTTP_204_NO_CONTENT)
     async def ban(

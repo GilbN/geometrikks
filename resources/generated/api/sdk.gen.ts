@@ -67,6 +67,9 @@ import type {
   ApiV1AuthOidcStatusOidcStatusResponses,
   ApiV1AuthOptionsOptionsData,
   ApiV1AuthOptionsOptionsResponses,
+  ApiV1CrowdsecAlertsAlertIdGetAlertData,
+  ApiV1CrowdsecAlertsAlertIdGetAlertErrors,
+  ApiV1CrowdsecAlertsAlertIdGetAlertResponses,
   ApiV1CrowdsecAlertsListAlertsData,
   ApiV1CrowdsecAlertsListAlertsErrors,
   ApiV1CrowdsecAlertsListAlertsResponses,
@@ -826,6 +829,34 @@ export const apiV1CrowdsecAlertsListAlerts = <
       },
     ],
     url: "/api/v1/crowdsec/alerts",
+    ...options,
+  });
+
+/**
+ * GetAlert
+ */
+export const apiV1CrowdsecAlertsAlertIdGetAlert = <
+  ThrowOnError extends boolean = false,
+>(
+  options: Options<ApiV1CrowdsecAlertsAlertIdGetAlertData, ThrowOnError>,
+): RequestResult<
+  ApiV1CrowdsecAlertsAlertIdGetAlertResponses,
+  ApiV1CrowdsecAlertsAlertIdGetAlertErrors,
+  ThrowOnError
+> =>
+  (options.client ?? client).get<
+    ApiV1CrowdsecAlertsAlertIdGetAlertResponses,
+    ApiV1CrowdsecAlertsAlertIdGetAlertErrors,
+    ThrowOnError
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+    ],
+    url: "/api/v1/crowdsec/alerts/{alert_id}",
     ...options,
   });
 

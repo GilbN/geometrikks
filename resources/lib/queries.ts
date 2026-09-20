@@ -47,6 +47,7 @@ import {
   fetchCrowdsecStats,
   fetchCrowdsecDecisions,
   fetchCrowdsecAlerts,
+  fetchCrowdsecAlert,
   fetchCrowdsecBannedLocations,
   fetchCrowdsecDecisionLookup,
   fetchIpProfile,
@@ -119,6 +120,7 @@ export const queryKeys = {
       ["crowdsec", "decisions", params] as const,
     alerts: (params: Record<string, unknown>) =>
       ["crowdsec", "alerts", params] as const,
+    alert: (id: number) => ["crowdsec", "alert", id] as const,
     lookup: (ip: string, refreshKey?: number) => ["crowdsec", "lookup", ip, refreshKey] as const,
     latestAlert: (ip: string, refreshKey?: number) => ["crowdsec", "latest-alert", ip, refreshKey] as const,
   },
@@ -419,6 +421,16 @@ export function useCrowdsecAlerts(params: { since?: string; limit?: number }) {
     enabled: status?.writeEnabled === true,
     placeholderData: (previous) => previous,
     refetchInterval: 60_000,
+  })
+}
+
+/** Detail for the alert sheet. Fetches once a row opens it. */
+export function useCrowdsecAlert(id: number | null) {
+  return useQuery({
+    queryKey: queryKeys.crowdsec.alert(id ?? 0),
+    queryFn: () => fetchCrowdsecAlert(id!),
+    enabled: id !== null,
+    staleTime: 30 * 1000,
   })
 }
 

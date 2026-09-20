@@ -9,6 +9,7 @@ import pytest
 
 from geometrikks.config.settings import CrowdSecSettings
 from geometrikks.services.crowdsec import (
+    AlertContext,
     CrowdSecAuthError,
     CrowdSecService,
     CrowdSecUnavailableError,
@@ -304,7 +305,7 @@ async def test_get_alerts_uses_machine_auth_and_parses():
     alerts = await service.get_alerts(limit=25, since="24h")
 
     assert lapi.auth_headers == ["Bearer jwt-1"]
-    assert lapi.alert_params == {"limit": "25", "since": "24h"}
+    assert lapi.alert_params == {"limit": "25", "since": "24h", "include_capi": "false"}
     first, second = alerts
     assert first.scenario == "crowdsecurity/ssh-bf"
     assert first.source.value == "1.2.3.4"
@@ -319,4 +320,147 @@ async def test_get_alerts_without_machine_credentials_raises():
     service = make_service(LapiAlertsFake())
     with pytest.raises(CrowdSecAuthError):
         await service.get_alerts()
+    await service.aclose()
+
+
+# -- alert detail (machine JWT) --------------------------------------------
+
+# Trimmed from a real LAPI payload. Context values are JSON arrays encoded
+# as strings, event timestamps use Go's default format, and an expired
+# decision stays on the alert with a negative duration.
+ALERT_DETAIL_JSON = {
+    "id": 10908,
+    "kind": "crowdsec",
+    "scenario": "crowdsecurity/http-probing",
+    "message": "Ip 45.148.10.59 performed 'crowdsecurity/http-probing'",
+    "events_count": 11,
+    "created_at": "2026-09-20T05:43:23Z",
+    "start_at": "2026-09-20T05:43:18Z",
+    "stop_at": "2026-09-20T05:43:20Z",
+    "machine_id": "localhost",
+    "simulated": False,
+    "labels": None,
+    "source": {
+        "scope": "Ip", "value": "45.148.10.59", "ip": "45.148.10.59", "cn": "NL",
+        "as_name": "Techoff Srv Limited", "as_number": "48090",
+        "range": "45.148.10.0/24", "latitude": 52.3759, "longitude": 4.8975,
+    },
+    "meta": [
+        {"key": "status", "value": "[\"404\"]"},
+        {"key": "method", "value": "[\"GET\",\"POST\"]"},
+        {"key": "target_uri", "value": "[\"/wp-json/\",\"/index.php?rest_route=/batch/v1\"]"},
+    ],
+    "events": [
+        {
+            "timestamp": "2026-09-20 05:43:18 +0000 UTC",
+            "meta": [
+                {"key": "http_path", "value": "/wp-json/"},
+                {"key": "http_status", "value": "404"},
+                {"key": "http_verb", "value": "GET"},
+                {"key": "timestamp", "value": "2026-09-20T05:43:18Z"},
+            ],
+        },
+    ],
+    "decisions": [
+        {"id": 7509906, "origin": "crowdsec", "type": "ban", "scope": "Ip",
+         "value": "45.148.10.59", "duration": "-1h37m37s", "simulated": False,
+         "scenario": "crowdsecurity/http-probing"},
+    ],
+}
+
+
+class LapiAlertDetailFake(LapiWriteFake):
+    def __init__(self, alert: dict | None):
+        super().__init__()
+        self._alert = alert
+        self.paths: list[str] = []
+
+    def __call__(self, request: httpx2.Request) -> httpx2.Response:
+        if request.url.path.startswith("/v1/alerts/") and request.method == "GET":
+            self.paths.append(request.url.path)
+            if self._alert is None:
+                return httpx2.Response(404, json={"message": "object not found"})
+            return httpx2.Response(200, json=self._alert)
+        return super().__call__(request)
+
+
+async def test_get_alert_fetches_by_id_and_parses_detail_fields():
+    lapi = LapiAlertDetailFake(ALERT_DETAIL_JSON)
+    service = make_service(lapi, **write_settings())
+    alert = await service.get_alert(10908)
+
+    assert lapi.paths == ["/v1/alerts/10908"]
+    assert alert is not None
+    assert alert.kind == "crowdsec"
+    assert alert.start_at == "2026-09-20T05:43:18Z"
+    assert alert.stop_at == "2026-09-20T05:43:20Z"
+    assert alert.simulated is False
+    assert alert.source.as_number == "48090"
+    assert alert.source.range == "45.148.10.0/24"
+    await service.aclose()
+
+
+async def test_get_alert_decodes_context_values_from_json_strings():
+    service = make_service(LapiAlertDetailFake(ALERT_DETAIL_JSON), **write_settings())
+    alert = await service.get_alert(10908)
+    assert alert is not None
+    assert alert.context == [
+        AlertContext(key="status", values=["404"]),
+        AlertContext(key="method", values=["GET", "POST"]),
+        AlertContext(key="target_uri", values=["/wp-json/", "/index.php?rest_route=/batch/v1"]),
+    ]
+    await service.aclose()
+
+
+async def test_get_alert_keeps_undecodable_context_value_as_is():
+    raw = {**ALERT_DETAIL_JSON, "meta": [{"key": "note", "value": "not json"}]}
+    service = make_service(LapiAlertDetailFake(raw), **write_settings())
+    alert = await service.get_alert(10908)
+    assert alert is not None
+    assert alert.context == [AlertContext(key="note", values=["not json"])]
+    await service.aclose()
+
+
+async def test_get_alert_flattens_event_meta_and_prefers_its_rfc3339_timestamp():
+    service = make_service(LapiAlertDetailFake(ALERT_DETAIL_JSON), **write_settings())
+    alert = await service.get_alert(10908)
+    assert alert is not None
+    (event,) = alert.events
+    assert event.timestamp == "2026-09-20T05:43:18Z"
+    assert event.meta["http_path"] == "/wp-json/"
+    assert event.meta["http_verb"] == "GET"
+    await service.aclose()
+
+
+async def test_get_alert_tolerates_null_events_meta_and_decisions():
+    raw = {**ALERT_DETAIL_JSON, "events": None, "meta": None, "decisions": None}
+    service = make_service(LapiAlertDetailFake(raw), **write_settings())
+    alert = await service.get_alert(10908)
+    assert alert is not None
+    assert (alert.events, alert.context, alert.decisions) == ([], [], [])
+    await service.aclose()
+
+
+async def test_get_alert_returns_none_when_lapi_has_no_such_alert():
+    service = make_service(LapiAlertDetailFake(None), **write_settings())
+    assert await service.get_alert(999) is None
+    await service.aclose()
+
+
+async def test_decision_with_negative_duration_is_expired():
+    service = make_service(LapiAlertDetailFake(ALERT_DETAIL_JSON), **write_settings())
+    alert = await service.get_alert(10908)
+    assert alert is not None
+    assert [d.expired for d in alert.decisions] == [True]
+    live = Decision(id=1, origin="cscli", type="ban", scope="Ip", value="1.2.3.4",
+                    duration="3h59m", scenario="manual ban")
+    assert live.expired is False
+    await service.aclose()
+
+
+async def test_get_alerts_excludes_capi_blocklist_pulls():
+    lapi = LapiAlertsFake()
+    service = make_service(lapi, **write_settings())
+    await service.get_alerts(limit=25)
+    assert lapi.alert_params["include_capi"] == "false"
     await service.aclose()
