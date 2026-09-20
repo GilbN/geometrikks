@@ -2792,6 +2792,10 @@ export type ApiV1CrowdsecDecisionsDecisionIdAlertGetDecisionAlertErrors = {
       | Array<unknown>;
     status_code: number;
   };
+  /**
+   * No alert holds this decision, as with blocklist decisions.
+   */
+  404: ErrorEnvelope;
 };
 
 export type ApiV1CrowdsecDecisionsDecisionIdAlertGetDecisionAlertError =

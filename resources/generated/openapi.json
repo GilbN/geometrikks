@@ -9224,6 +9224,16 @@
               }
             },
             "description": "Bad request syntax or unsupported method"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "No alert holds this decision, as with blocklist decisions."
           }
         },
         "summary": "GetDecisionAlert",

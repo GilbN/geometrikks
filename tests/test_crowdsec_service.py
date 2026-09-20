@@ -464,3 +464,13 @@ async def test_get_alerts_excludes_capi_blocklist_pulls():
     await service.get_alerts(limit=25)
     assert lapi.alert_params["include_capi"] == "false"
     await service.aclose()
+
+
+async def test_get_alerts_can_ask_for_alerts_with_a_live_decision_only():
+    lapi = LapiAlertsFake()
+    service = make_service(lapi, **write_settings())
+    await service.get_alerts(ip="1.2.3.4", has_active_decision=True)
+    assert lapi.alert_params["has_active_decision"] == "true"
+    await service.get_alerts(ip="1.2.3.4")
+    assert "has_active_decision" not in lapi.alert_params
+    await service.aclose()

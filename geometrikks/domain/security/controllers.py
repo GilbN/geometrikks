@@ -49,8 +49,8 @@ DEFAULT_ORIGINS = "crowdsec,cscli,geometrikks"
 
 TOP_SCENARIO_LIMIT = 10
 
-# How many of an IP's alerts to search for the one holding a decision. An
-# IP rarely has more than a handful inside the LAPI's retention.
+# How many of an IP's alerts to search for the one holding a decision. The
+# search covers alerts with a live decision only, about one per scenario.
 DECISION_ALERT_SEARCH_LIMIT = 100
 
 # Go duration string as the LAPI accepts it, e.g. "4h", "30m", "1h30m".
@@ -514,7 +514,15 @@ class CrowdSecController(Controller):
 
         return await _alert_detail(alert, enrichment_repo)
 
-    @get("/decisions/{decision_id:int}/alert")
+    @get(
+        "/decisions/{decision_id:int}/alert",
+        responses={
+            HTTP_404_NOT_FOUND: ResponseSpec(
+                data_container=ErrorEnvelope,
+                description="No alert holds this decision, as with blocklist decisions.",
+            ),
+        },
+    )
     async def get_decision_alert(
         self,
         crowdsec: NamedDependency[CrowdSecService | None],
@@ -526,13 +534,15 @@ class CrowdSecController(Controller):
         """The alert that produced one decision.
 
         The LAPI cannot look an alert up by decision id, only by the IP its
-        decisions target, so the IP narrows the search. Blocklist decisions
-        have no alert of their own and answer 404.
+        decisions target, so the IP narrows the search to its alerts with a
+        live decision. Blocklist decisions have no alert of their own and
+        answer 404.
         """
         service = _require_write(crowdsec, settings)
         validate_ip_address(ip)
         alerts = await service.get_alerts(
-            limit=DECISION_ALERT_SEARCH_LIMIT, ip=ip, scenario=None, since=None
+            limit=DECISION_ALERT_SEARCH_LIMIT, ip=ip, scenario=None, since=None,
+            has_active_decision=True,
         )
         for alert in alerts:
             if any(decision.id == decision_id for decision in alert.decisions):

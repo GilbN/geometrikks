@@ -50,13 +50,13 @@ function ScenarioCell({ scenario }: { scenario: string }) {
 
 function UnbanButton({ group }: { group: DecisionGroupView }) {
   const unban = useUnbanIp()
-  const { ip, decisionCount } = group
+  const { ip } = group
   return (
     <Button
       variant="ghost"
       size="icon-xs"
       className="text-muted-foreground"
-      title={decisionCount > 1 ? `Unban ${ip}. Removes all ${decisionCount} decisions.` : `Unban ${ip}`}
+      title={`Unban ${ip}. Removes every active decision for this IP, from any origin.`}
       disabled={unban.isPending}
       onClick={() =>
         unban.mutate(ip, {

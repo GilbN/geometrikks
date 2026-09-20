@@ -612,14 +612,18 @@ async def test_decision_alert_returns_the_alert_holding_that_decision(monkeypatc
     enable_write(monkeypatch)
     older = make_detailed_alert()
     older.id = 6
-    older.decisions = [make_decision(id=4, duration="-5h")]
+    older.decisions = [make_decision(id=4, duration="5h")]
     service = AlertFakeCrowdSec([make_detailed_alert(), older])
     async with AsyncTestClient(app=make_app(service)) as client:
         resp = await client.get("/api/v1/crowdsec/decisions/4/alert", params={"ip": "1.2.3.4"})
     assert resp.status_code == 200
     assert resp.json()["id"] == 6
     assert resp.json()["context"] == [{"key": "target_uri", "values": ["/wp-login.php", "/.env"]}]
-    assert service.alert_calls == [{"limit": 100, "ip": "1.2.3.4", "scenario": None, "since": None}]
+    # Only alerts with a live decision are searched, so the IP's older
+    # alerts cannot push the one we want past the limit.
+    assert service.alert_calls == [
+        {"limit": 100, "ip": "1.2.3.4", "scenario": None, "since": None, "has_active_decision": True}
+    ]
 
 
 async def test_decision_alert_404_when_no_alert_holds_the_decision(monkeypatch):
@@ -662,6 +666,12 @@ def test_alert_detail_documents_its_404():
     schema = make_app(None).openapi_schema.to_schema()
     responses = schema["paths"]["/api/v1/crowdsec/alerts/{alert_id}"]["get"]["responses"]
     assert "404" in responses
+
+
+def test_decision_alert_documents_its_404():
+    schema = make_app(None).openapi_schema.to_schema()
+    path = schema["paths"]["/api/v1/crowdsec/decisions/{decision_id}/alert"]
+    assert "404" in path["get"]["responses"]
 
 
 # -- banned locations (map overlay) ----------------------------------------
