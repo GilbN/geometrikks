@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.18.0] - 2026-09-22
+
 ### Added
 
 - Fly to an IP on the map. Every IP with an inspect button also gets a crosshair button that opens the map on the location where the IP was seen. Rows that already know the location land on it. Other rows resolve the IP to the location with the most events in the selected time range. An IP with no geo events in that range shows a toast. The map reads the IP from `?focusIp=<ip>`.
@@ -1052,7 +1054,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Settings endpoint no longer exposes the full settings tree (database credentials leaked via `model_dump()`); response is now an explicit whitelist.
 - Timestamps in `CALL refresh_continuous_aggregate` are bound as asyncpg parameters instead of interpolated into SQL.
 
-[Unreleased]: https://github.com/GilbN/geometrikks/compare/v0.17.0...develop
+[Unreleased]: https://github.com/GilbN/geometrikks/compare/v0.18.0...develop
+[0.18.0]: https://github.com/GilbN/geometrikks/compare/v0.17.0...v0.18.0
 [0.17.0]: https://github.com/GilbN/geometrikks/compare/v0.16.0...v0.17.0
 [0.16.0]: https://github.com/GilbN/geometrikks/compare/v0.15.0...v0.16.0
 [0.15.0]: https://github.com/GilbN/geometrikks/compare/v0.14.3...v0.15.0
