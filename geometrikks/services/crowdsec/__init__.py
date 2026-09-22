@@ -5,10 +5,13 @@ from geometrikks.services.crowdsec.exceptions import (
     CrowdSecError,
     CrowdSecUnavailableError,
 )
-from geometrikks.services.crowdsec.schemas import Decision
+from geometrikks.services.crowdsec.schemas import Alert, AlertContext, AlertEvent, Decision
 from geometrikks.services.crowdsec.service import CrowdSecService
 
 __all__ = [
+    "Alert",
+    "AlertContext",
+    "AlertEvent",
     "CrowdSecAuthError",
     "CrowdSecError",
     "CrowdSecService",

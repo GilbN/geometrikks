@@ -407,8 +407,264 @@
         "title": "Advisory",
         "type": "object"
       },
+      "AlertContextView": {
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "values": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "key",
+          "values"
+        ],
+        "title": "AlertContextView",
+        "type": "object"
+      },
+      "AlertDecisionView": {
+        "properties": {
+          "duration": {
+            "type": "string"
+          },
+          "expired": {
+            "type": "boolean"
+          },
+          "id": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "origin": {
+            "type": "string"
+          },
+          "scenario": {
+            "type": "string"
+          },
+          "scope": {
+            "type": "string"
+          },
+          "simulated": {
+            "type": "boolean"
+          },
+          "type": {
+            "type": "string"
+          },
+          "value": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "duration",
+          "expired",
+          "id",
+          "origin",
+          "scenario",
+          "scope",
+          "simulated",
+          "type",
+          "value"
+        ],
+        "title": "AlertDecisionView",
+        "type": "object"
+      },
+      "AlertDetailView": {
+        "properties": {
+          "activeDecisionCount": {
+            "type": "integer"
+          },
+          "asName": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "asNumber": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "context": {
+            "items": {
+              "$ref": "#/components/schemas/AlertContextView"
+            },
+            "type": "array"
+          },
+          "country": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "decisionCount": {
+            "type": "integer"
+          },
+          "decisions": {
+            "items": {
+              "$ref": "#/components/schemas/AlertDecisionView"
+            },
+            "type": "array"
+          },
+          "events": {
+            "items": {
+              "$ref": "#/components/schemas/AlertEventView"
+            },
+            "type": "array"
+          },
+          "eventsCount": {
+            "type": "integer"
+          },
+          "id": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "kind": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "machineId": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "message": {
+            "type": "string"
+          },
+          "range": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "scenario": {
+            "type": "string"
+          },
+          "scope": {
+            "type": "string"
+          },
+          "simulated": {
+            "type": "boolean"
+          },
+          "startAt": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "stopAt": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "value": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "activeDecisionCount",
+          "asName",
+          "asNumber",
+          "context",
+          "country",
+          "createdAt",
+          "decisionCount",
+          "decisions",
+          "events",
+          "eventsCount",
+          "id",
+          "kind",
+          "machineId",
+          "message",
+          "range",
+          "scenario",
+          "scope",
+          "simulated",
+          "startAt",
+          "stopAt",
+          "value"
+        ],
+        "title": "AlertDetailView",
+        "type": "object"
+      },
+      "AlertEventView": {
+        "properties": {
+          "meta": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "timestamp": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "meta",
+          "timestamp"
+        ],
+        "title": "AlertEventView",
+        "type": "object"
+      },
       "AlertView": {
         "properties": {
+          "activeDecisionCount": {
+            "type": "integer"
+          },
           "asName": {
             "oneOf": [
               {
@@ -472,6 +728,7 @@
           }
         },
         "required": [
+          "activeDecisionCount",
           "asName",
           "country",
           "createdAt",
@@ -1185,6 +1442,92 @@
           "timescaledbVersion"
         ],
         "title": "DatabaseVersionsView",
+        "type": "object"
+      },
+      "DecisionGroupView": {
+        "properties": {
+          "city": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "countryCode": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "countryName": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "decisionCount": {
+            "type": "integer"
+          },
+          "decisions": {
+            "items": {
+              "$ref": "#/components/schemas/GroupedDecisionView"
+            },
+            "type": "array"
+          },
+          "duration": {
+            "type": "string"
+          },
+          "ip": {
+            "type": "string"
+          },
+          "origins": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "requestCount24h": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "scope": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "city",
+          "countryCode",
+          "countryName",
+          "decisionCount",
+          "decisions",
+          "duration",
+          "ip",
+          "origins",
+          "requestCount24h",
+          "scope",
+          "type"
+        ],
+        "title": "DecisionGroupView",
         "type": "object"
       },
       "DecisionView": {
@@ -2065,6 +2408,41 @@
         },
         "required": [],
         "title": "GlobalTopIPsResponse",
+        "type": "object"
+      },
+      "GroupedDecisionView": {
+        "properties": {
+          "duration": {
+            "type": "string"
+          },
+          "id": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "origin": {
+            "type": "string"
+          },
+          "scenario": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "duration",
+          "id",
+          "origin",
+          "scenario",
+          "type"
+        ],
+        "title": "GroupedDecisionView",
         "type": "object"
       },
       "HealthResponse": {
@@ -4820,7 +5198,7 @@
   "info": {
     "description": "Real-time GeoIP lookups and traffic analytics API",
     "title": "GeoMetrikks API",
-    "version": "0.17.0"
+    "version": "0.18.0"
   },
   "openapi": "3.1.0",
   "paths": {
@@ -8221,6 +8599,88 @@
         ]
       }
     },
+    "/api/v1/crowdsec/alerts/{alert_id}": {
+      "get": {
+        "deprecated": false,
+        "operationId": "ApiV1CrowdsecAlertsAlertIdGetAlert",
+        "parameters": [
+          {
+            "deprecated": false,
+            "in": "path",
+            "name": "alert_id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AlertDetailView"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "The LAPI holds no alert with this id."
+          }
+        },
+        "summary": "GetAlert",
+        "tags": [
+          "CrowdSec"
+        ]
+      }
+    },
     "/api/v1/crowdsec/ban": {
       "post": {
         "deprecated": false,
@@ -8539,7 +8999,7 @@
                   "properties": {
                     "items": {
                       "items": {
-                        "$ref": "#/components/schemas/DecisionView"
+                        "$ref": "#/components/schemas/DecisionGroupView"
                       },
                       "type": "array"
                     },
@@ -8682,6 +9142,101 @@
           }
         },
         "summary": "LookupDecisions",
+        "tags": [
+          "CrowdSec"
+        ]
+      }
+    },
+    "/api/v1/crowdsec/decisions/{decision_id}/alert": {
+      "get": {
+        "deprecated": false,
+        "operationId": "ApiV1CrowdsecDecisionsDecisionIdAlertGetDecisionAlert",
+        "parameters": [
+          {
+            "deprecated": false,
+            "in": "path",
+            "name": "decision_id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "The decision's IP address",
+            "in": "query",
+            "name": "ip",
+            "required": true,
+            "schema": {
+              "description": "The decision's IP address",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AlertDetailView"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "No alert holds this decision, as with blocklist decisions."
+          }
+        },
+        "summary": "GetDecisionAlert",
         "tags": [
           "CrowdSec"
         ]

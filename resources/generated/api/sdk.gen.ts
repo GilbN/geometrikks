@@ -67,6 +67,9 @@ import type {
   ApiV1AuthOidcStatusOidcStatusResponses,
   ApiV1AuthOptionsOptionsData,
   ApiV1AuthOptionsOptionsResponses,
+  ApiV1CrowdsecAlertsAlertIdGetAlertData,
+  ApiV1CrowdsecAlertsAlertIdGetAlertErrors,
+  ApiV1CrowdsecAlertsAlertIdGetAlertResponses,
   ApiV1CrowdsecAlertsListAlertsData,
   ApiV1CrowdsecAlertsListAlertsErrors,
   ApiV1CrowdsecAlertsListAlertsResponses,
@@ -78,6 +81,9 @@ import type {
   ApiV1CrowdsecBannedLocationsListBannedLocationsData,
   ApiV1CrowdsecBannedLocationsListBannedLocationsErrors,
   ApiV1CrowdsecBannedLocationsListBannedLocationsResponses,
+  ApiV1CrowdsecDecisionsDecisionIdAlertGetDecisionAlertData,
+  ApiV1CrowdsecDecisionsDecisionIdAlertGetDecisionAlertErrors,
+  ApiV1CrowdsecDecisionsDecisionIdAlertGetDecisionAlertResponses,
   ApiV1CrowdsecDecisionsListDecisionsData,
   ApiV1CrowdsecDecisionsListDecisionsErrors,
   ApiV1CrowdsecDecisionsListDecisionsResponses,
@@ -830,6 +836,34 @@ export const apiV1CrowdsecAlertsListAlerts = <
   });
 
 /**
+ * GetAlert
+ */
+export const apiV1CrowdsecAlertsAlertIdGetAlert = <
+  ThrowOnError extends boolean = false,
+>(
+  options: Options<ApiV1CrowdsecAlertsAlertIdGetAlertData, ThrowOnError>,
+): RequestResult<
+  ApiV1CrowdsecAlertsAlertIdGetAlertResponses,
+  ApiV1CrowdsecAlertsAlertIdGetAlertErrors,
+  ThrowOnError
+> =>
+  (options.client ?? client).get<
+    ApiV1CrowdsecAlertsAlertIdGetAlertResponses,
+    ApiV1CrowdsecAlertsAlertIdGetAlertErrors,
+    ThrowOnError
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+    ],
+    url: "/api/v1/crowdsec/alerts/{alert_id}",
+    ...options,
+  });
+
+/**
  * Ban
  */
 export const apiV1CrowdsecBanBan = <ThrowOnError extends boolean = false>(
@@ -974,6 +1008,37 @@ export const apiV1CrowdsecDecisionsLookupLookupDecisions = <
       },
     ],
     url: "/api/v1/crowdsec/decisions/lookup",
+    ...options,
+  });
+
+/**
+ * GetDecisionAlert
+ */
+export const apiV1CrowdsecDecisionsDecisionIdAlertGetDecisionAlert = <
+  ThrowOnError extends boolean = false,
+>(
+  options: Options<
+    ApiV1CrowdsecDecisionsDecisionIdAlertGetDecisionAlertData,
+    ThrowOnError
+  >,
+): RequestResult<
+  ApiV1CrowdsecDecisionsDecisionIdAlertGetDecisionAlertResponses,
+  ApiV1CrowdsecDecisionsDecisionIdAlertGetDecisionAlertErrors,
+  ThrowOnError
+> =>
+  (options.client ?? client).get<
+    ApiV1CrowdsecDecisionsDecisionIdAlertGetDecisionAlertResponses,
+    ApiV1CrowdsecDecisionsDecisionIdAlertGetDecisionAlertErrors,
+    ThrowOnError
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+    ],
+    url: "/api/v1/crowdsec/decisions/{decision_id}/alert",
     ...options,
   });
 

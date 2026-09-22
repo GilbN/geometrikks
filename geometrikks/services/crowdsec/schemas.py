@@ -29,6 +29,11 @@ class Decision:
     scenario: str
     simulated: bool | None = None
 
+    @property
+    def expired(self) -> bool:
+        """Alerts keep decisions past their expiry, with a negative duration."""
+        return self.duration.startswith("-")
+
 
 @dataclass
 class AlertSource:
@@ -39,6 +44,24 @@ class AlertSource:
     ip: str | None = None
     cn: str | None = None  # LAPI's own country enrichment (ISO alpha-2)
     as_name: str | None = None
+    as_number: str | None = None
+    range: str | None = None
+
+
+@dataclass
+class AlertContext:
+    """One alert-context key with the distinct values seen across the bucket."""
+
+    key: str
+    values: list[str]
+
+
+@dataclass
+class AlertEvent:
+    """One stored event. The LAPI keeps a capped sample of an alert's events."""
+
+    timestamp: str
+    meta: dict[str, str]
 
 
 @dataclass
@@ -52,4 +75,10 @@ class Alert:
     created_at: str
     source: AlertSource
     machine_id: str | None = None
+    kind: str | None = None
+    simulated: bool | None = None
+    start_at: str | None = None
+    stop_at: str | None = None
     decisions: list[Decision] = field(default_factory=list)
+    context: list[AlertContext] = field(default_factory=list)
+    events: list[AlertEvent] = field(default_factory=list)

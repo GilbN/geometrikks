@@ -5,6 +5,7 @@
 import { DetailField, DetailSheet } from "@/components/data/detail-sheet"
 import { IpBanControls } from "@/components/crowdsec/ip-ban-controls"
 import { InspectIpButton } from "@/components/ip-inspector/inspect-ip-button"
+import { FlyToIpButton } from "@/components/map/FlyToIpButton"
 import type { GeoLogEntry } from "@/generated/api/types.gen"
 import { formatNumber } from "@/lib/api"
 
@@ -36,6 +37,7 @@ export function GeoLogDetailSheet({
                 {entry.ipAddress}
                 <IpBanControls ip={entry.ipAddress}>
                   <InspectIpButton ip={entry.ipAddress} fromLocationId={entry.locationId} onOpen={() => onOpenChange(false)} />
+                  <FlyToIpButton ip={entry.ipAddress} locationId={entry.locationId} onOpen={() => onOpenChange(false)} />
                 </IpBanControls>
               </span>
             }

@@ -19,8 +19,9 @@ from advanced_alchemy.service import OffsetPagination
 from litestar import Controller, Request, get, post
 from litestar.di import NamedDependency, Provide
 from litestar.exceptions import NotFoundException, PermissionDeniedException
-from litestar.params import QueryParameter, SkipValidation
-from litestar.status_codes import HTTP_200_OK, HTTP_204_NO_CONTENT
+from litestar.params import FromPath, QueryParameter, SkipValidation
+from litestar.openapi.datastructures import ResponseSpec
+from litestar.status_codes import HTTP_200_OK, HTTP_204_NO_CONTENT, HTTP_404_NOT_FOUND
 
 from geometrikks.domain.security.dependencies import (
     provide_crowdsec_poller,
@@ -31,12 +32,14 @@ from geometrikks.domain.security.dependencies import (
 from geometrikks.config.settings import Settings
 from geometrikks.domain.exceptions import DomainValidationError
 from geometrikks.lib.validation import validate_ip_address
+from geometrikks.domain.security.grouping import DecisionGroup, group_decisions
 from geometrikks.domain.security.repositories import SecurityEnrichmentRepository
 from geometrikks.domain.security.schemas import IpEnrichment, BannedMapCollection, BannedIp
 from geometrikks.domain.security.map_data import active_decision_ips, banned_map_collection, canonical_ip, decision_winner
 from geometrikks.lib.parameters import CountryCodeFilter, CityFilter, HostnameIn
+from geometrikks.server.exceptions import ErrorEnvelope
 from geometrikks.server.logging import get_logger
-from geometrikks.services.crowdsec import CrowdSecService, Decision
+from geometrikks.services.crowdsec import Alert, CrowdSecService, Decision
 from geometrikks.services.crowdsec.stream import CrowdSecStreamPoller
 
 # The CAPI community blocklist can hold tens of thousands of decisions; the
@@ -45,6 +48,7 @@ from geometrikks.services.crowdsec.stream import CrowdSecStreamPoller
 DEFAULT_ORIGINS = "crowdsec,cscli,geometrikks"
 
 TOP_SCENARIO_LIMIT = 10
+
 
 # Go duration string as the LAPI accepts it, e.g. "4h", "30m", "1h30m".
 GO_DURATION_RE = re.compile(r"^(\d+h)?(\d+m)?(\d+s)?$")
@@ -69,6 +73,31 @@ class DecisionView(msgspec.Struct, rename="camel"):
     scenario: str
     duration: str
     # enrichment from GeoMetrikks' own data (None for non-Ip scopes):
+    country_code: str | None
+    country_name: str | None
+    city: str | None
+    request_count_24h: int | None = msgspec.field(name="requestCount24h")
+
+
+class GroupedDecisionView(msgspec.Struct, rename="camel"):
+    id: int | None
+    type: str
+    origin: str
+    scenario: str
+    duration: str
+
+
+class DecisionGroupView(msgspec.Struct, rename="camel"):
+    """Every active decision against one target, as one table row."""
+
+    ip: str  # Decision value; a CIDR/country/AS number for non-Ip scopes
+    scope: str
+    type: str  # strongest remediation in the group
+    duration: str  # longest time left in the group
+    origins: list[str]
+    decision_count: int
+    decisions: list[GroupedDecisionView]  # longest-lived first
+    # From GeoMetrikks' own traffic. None for non-Ip scopes.
     country_code: str | None
     country_name: str | None
     city: str | None
@@ -103,6 +132,43 @@ class AlertView(msgspec.Struct, rename="camel"):
     country: str | None
     as_name: str | None
     decision_count: int
+    # decision_count includes expired decisions, which alerts keep.
+    active_decision_count: int
+
+
+class AlertDecisionView(msgspec.Struct, rename="camel"):
+    id: int | None
+    type: str
+    scope: str
+    value: str
+    origin: str
+    scenario: str
+    duration: str
+    expired: bool
+    simulated: bool
+
+
+class AlertContextView(msgspec.Struct, rename="camel"):
+    key: str
+    values: list[str]
+
+
+class AlertEventView(msgspec.Struct, rename="camel"):
+    timestamp: str
+    meta: dict[str, str]
+
+
+class AlertDetailView(AlertView, rename="camel"):
+    kind: str | None
+    simulated: bool
+    start_at: str | None
+    stop_at: str | None
+    as_number: str | None
+    range: str | None
+    context: list[AlertContextView]
+    # The LAPI stores a capped sample, fewer events than events_count.
+    events: list[AlertEventView]
+    decisions: list[AlertDecisionView]
 
 
 class BanRequest(msgspec.Struct, rename="camel"):
@@ -135,6 +201,89 @@ def _to_view(decision: Decision, enrichment: IpEnrichment | None) -> DecisionVie
         request_count_24h=(
             enrichment.request_count_24h if enrichment else (0 if is_ip_scope else None)
         ),
+    )
+
+
+def _to_group_view(group: DecisionGroup, enrichment: IpEnrichment | None) -> DecisionGroupView:
+    is_ip_scope = group.scope == "Ip"
+    return DecisionGroupView(
+        ip=group.value,
+        scope=group.scope,
+        type=group.type,
+        duration=group.duration,
+        origins=group.origins,
+        decision_count=len(group.decisions),
+        decisions=[
+            GroupedDecisionView(
+                id=d.id, type=d.type, origin=d.origin, scenario=d.scenario, duration=d.duration
+            )
+            for d in group.decisions
+        ],
+        country_code=enrichment.country_code if enrichment else None,
+        country_name=enrichment.country_name if enrichment else None,
+        city=enrichment.city if enrichment else None,
+        request_count_24h=(
+            enrichment.request_count_24h if enrichment else (0 if is_ip_scope else None)
+        ),
+    )
+
+
+def _enrichment_key(alert: Alert) -> str:
+    """Enrichment rows are keyed by the canonical address, which the LAPI's
+    spelling of an IPv6 source need not match."""
+    return canonical_ip(alert.source.value) or alert.source.value
+
+
+def _alert_country(alert: Alert, enrichment: IpEnrichment | None) -> str | None:
+    if alert.source.cn is not None:
+        return alert.source.cn
+    if enrichment is None:
+        return None
+    return enrichment.country_name or enrichment.country_code
+
+
+def _alert_summary(alert: Alert, enrichment: IpEnrichment | None) -> dict:
+    return {
+        "id": alert.id,
+        "scenario": alert.scenario,
+        "message": alert.message,
+        "events_count": alert.events_count,
+        "created_at": alert.created_at,
+        "machine_id": alert.machine_id,
+        "scope": alert.source.scope,
+        "value": _enrichment_key(alert) if alert.source.scope == "Ip" else alert.source.value,
+        "country": _alert_country(alert, enrichment),
+        "as_name": alert.source.as_name,
+        "decision_count": len(alert.decisions),
+        "active_decision_count": sum(not d.expired for d in alert.decisions),
+    }
+
+
+async def _alert_detail(
+    alert: Alert, enrichment_repo: SecurityEnrichmentRepository
+) -> AlertDetailView:
+    source = alert.source
+    needs_geo = source.scope == "Ip" and source.cn is None
+    key = _enrichment_key(alert)
+    enriched = await enrichment_repo.enrich([key]) if needs_geo else {}
+    return AlertDetailView(
+        **_alert_summary(alert, enriched.get(key)),
+        kind=alert.kind,
+        simulated=bool(alert.simulated),
+        start_at=alert.start_at,
+        stop_at=alert.stop_at,
+        as_number=source.as_number,
+        range=source.range,
+        context=[AlertContextView(key=c.key, values=c.values) for c in alert.context],
+        events=[AlertEventView(timestamp=e.timestamp, meta=e.meta) for e in alert.events],
+        decisions=[
+            AlertDecisionView(
+                id=d.id, type=d.type, scope=d.scope, value=d.value, origin=d.origin,
+                scenario=d.scenario, duration=d.duration, expired=d.expired,
+                simulated=bool(d.simulated),
+            )
+            for d in alert.decisions
+        ],
     )
 
 
@@ -215,8 +364,11 @@ class CrowdSecController(Controller):
         enrichment_repo: NamedDependency[SecurityEnrichmentRepository],
         limit_offset: NamedDependency[filters.LimitOffset],
         origins: Annotated[str | None, QueryParameter(required=False)] = None,
-    ) -> OffsetPagination[DecisionView]:
-        """Active decisions, geo-enriched per displayed page.
+    ) -> OffsetPagination[DecisionGroupView]:
+        """Active decisions, one item per target, geo-enriched per displayed page.
+
+        An IP that tripped several scenarios holds one decision for each;
+        they are grouped before paging, so ``total`` counts targets.
 
         Pagination slices locally: the LAPI has no pagination of its own.
         Only the sliced page is enriched, so an opted-in CAPI blocklist
@@ -224,15 +376,16 @@ class CrowdSecController(Controller):
         """
         service = _require_service(crowdsec)
         decisions = await service.get_decisions(origins=origins or DEFAULT_ORIGINS)
-        page = decisions[limit_offset.offset : limit_offset.offset + limit_offset.limit]
+        groups = group_decisions(decisions)
+        page = groups[limit_offset.offset : limit_offset.offset + limit_offset.limit]
 
-        page_ips = [d.value for d in page if d.scope == "Ip"]
+        page_ips = [group.value for group in page if group.scope == "Ip"]
         enriched = await enrichment_repo.enrich(page_ips) if page_ips else {}
         return OffsetPagination(
-            items=[_to_view(d, enriched.get(d.value)) for d in page],
+            items=[_to_group_view(group, enriched.get(group.value)) for group in page],
             limit=limit_offset.limit,
             offset=limit_offset.offset,
-            total=len(decisions),
+            total=len(groups),
         )
 
     @get("/decisions/lookup")
@@ -326,34 +479,75 @@ class CrowdSecController(Controller):
         alerts = await service.get_alerts(limit=limit, ip=ip, scenario=scenario, since=since)
 
         bare_ips = [
-            a.source.value for a in alerts if a.source.scope == "Ip" and a.source.cn is None
+            _enrichment_key(a) for a in alerts if a.source.scope == "Ip" and a.source.cn is None
         ]
         enriched = await enrichment_repo.enrich(bare_ips) if bare_ips else {}
 
-        def country_for(alert) -> str | None:
-            if alert.source.cn is not None:
-                return alert.source.cn
-            enrichment = enriched.get(alert.source.value)
-            if enrichment is None:
-                return None
-            return enrichment.country_name or enrichment.country_code
-
         return [
-            AlertView(
-                id=alert.id,
-                scenario=alert.scenario,
-                message=alert.message,
-                events_count=alert.events_count,
-                created_at=alert.created_at,
-                machine_id=alert.machine_id,
-                scope=alert.source.scope,
-                value=alert.source.value,
-                country=country_for(alert),
-                as_name=alert.source.as_name,
-                decision_count=len(alert.decisions),
-            )
+            AlertView(**_alert_summary(alert, enriched.get(_enrichment_key(alert))))
             for alert in alerts
         ]
+
+    @get(
+        "/alerts/{alert_id:int}",
+        responses={
+            HTTP_404_NOT_FOUND: ResponseSpec(
+                data_container=ErrorEnvelope, description="The LAPI holds no alert with this id."
+            ),
+        },
+    )
+    async def get_alert(
+        self,
+        crowdsec: NamedDependency[CrowdSecService | None],
+        enrichment_repo: NamedDependency[SecurityEnrichmentRepository],
+        settings: NamedDependency[SkipValidation[Settings]],
+        alert_id: FromPath[int],
+    ) -> AlertDetailView:
+        """One alert with its context, stored events and decisions."""
+        service = _require_write(crowdsec, settings)
+        alert = await service.get_alert(alert_id)
+        if alert is None:
+            raise NotFoundException(detail=f"No CrowdSec alert with id {alert_id}")
+
+        return await _alert_detail(alert, enrichment_repo)
+
+    @get(
+        "/decisions/{decision_id:int}/alert",
+        responses={
+            HTTP_404_NOT_FOUND: ResponseSpec(
+                data_container=ErrorEnvelope,
+                description="No alert holds this decision, as with blocklist decisions.",
+            ),
+        },
+    )
+    async def get_decision_alert(
+        self,
+        crowdsec: NamedDependency[CrowdSecService | None],
+        enrichment_repo: NamedDependency[SecurityEnrichmentRepository],
+        settings: NamedDependency[SkipValidation[Settings]],
+        decision_id: FromPath[int],
+        ip: Annotated[str, QueryParameter(description="The decision's IP address")],
+    ) -> AlertDetailView:
+        """The alert that produced one decision.
+
+        The LAPI cannot look an alert up by decision id, only by the IP its
+        decisions target. The IP's alerts with a live decision are searched
+        first, about one per scenario. A decision can expire between the
+        table loading and the row being opened, so a miss falls back to
+        every alert the LAPI retains for the IP. Blocklist decisions have no
+        alert of their own and answer 404.
+        """
+        service = _require_write(crowdsec, settings)
+        validate_ip_address(ip)
+        for live_only in (True, None):
+            # limit=0 lifts the LAPI's default cap of 100 alerts.
+            alerts = await service.get_alerts(
+                limit=0, ip=ip, scenario=None, since=None, has_active_decision=live_only
+            )
+            for alert in alerts:
+                if any(decision.id == decision_id for decision in alert.decisions):
+                    return await _alert_detail(alert, enrichment_repo)
+        raise NotFoundException(detail=f"No CrowdSec alert holds decision {decision_id}")
 
     @post("/ban", status_code=HTTP_204_NO_CONTENT)
     async def ban(

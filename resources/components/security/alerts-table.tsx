@@ -1,6 +1,7 @@
 /**
  * Alert history: which scenarios fired, against whom, and what they decided.
  * Machine credentials required (the card only renders when writeEnabled).
+ * Selecting a row opens the alert's context, events and decisions.
  */
 import { useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -15,8 +16,14 @@ import {
 } from "@/components/ui/table"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useCrowdsecAlerts } from "@/lib/queries"
+import type { AlertView } from "@/lib/api"
+import { alertSummary } from "@/lib/crowdsec-alerts"
+import { rowActivation, stopRowActivation } from "@/components/data/row-activation"
+import { AlertDetailSheet } from "@/components/security/alert-detail-sheet"
 import { IpBanControls } from "@/components/crowdsec/ip-ban-controls"
 import { InspectIpButton } from "@/components/ip-inspector/inspect-ip-button"
+import { FlyToIpButton } from "@/components/map/FlyToIpButton"
+import { cn } from "@/lib/utils"
 
 const SINCE_OPTIONS = [
   { key: "24h", label: "Last 24h" },
@@ -29,6 +36,7 @@ type SinceKey = (typeof SINCE_OPTIONS)[number]["key"]
 export function AlertsTable() {
   const [since, setSince] = useState<SinceKey>("24h")
   const { data: alerts, isLoading, isError } = useCrowdsecAlerts({ since, limit: 50 })
+  const [selected, setSelected] = useState<AlertView | null>(null)
 
   return (
     <Card className="py-4">
@@ -71,22 +79,29 @@ export function AlertsTable() {
                     </TableRow>
                   ))
                 : alerts?.map((alert) => (
-                    <TableRow key={alert.id}>
+                    <TableRow
+                      key={alert.id}
+                      aria-label={`Alert ${alert.id}, ${alert.scenario}, ${alert.value}`}
+                      {...(alert.id !== null && rowActivation<HTMLTableRowElement>(() => setSelected(alert)))}
+                    >
                       <TableCell className="whitespace-nowrap text-muted-foreground">
                         {new Date(alert.createdAt).toLocaleString()}
                       </TableCell>
                       <TableCell
                         className="max-w-[240px] truncate font-mono text-xs"
-                        title={alert.message}
+                        title={alertSummary(alert.message)}
                       >
                         {alert.scenario}
                       </TableCell>
                       <TableCell className="font-mono">
                         {alert.value}
                         {alert.scope === "Ip" && (
-                          <IpBanControls ip={alert.value}>
-                            <InspectIpButton ip={alert.value} className="ml-1" />
-                          </IpBanControls>
+                          <span {...stopRowActivation}>
+                            <IpBanControls ip={alert.value}>
+                              <InspectIpButton ip={alert.value} className="ml-1" />
+                              <FlyToIpButton ip={alert.value} />
+                            </IpBanControls>
+                          </span>
                         )}
                       </TableCell>
                       <TableCell>{alert.country ?? "-"}</TableCell>
@@ -99,7 +114,10 @@ export function AlertsTable() {
                       <TableCell className="text-right tabular-nums">
                         {alert.eventsCount}
                       </TableCell>
-                      <TableCell className="text-right tabular-nums">
+                      <TableCell
+                        className={cn("text-right tabular-nums", alert.activeDecisionCount === 0 && "text-muted-foreground")}
+                        title={`${alert.activeDecisionCount} still active`}
+                      >
                         {alert.decisionCount}
                       </TableCell>
                     </TableRow>
@@ -122,6 +140,7 @@ export function AlertsTable() {
           </Table>
         </div>
       </CardContent>
+      <AlertDetailSheet alert={selected} onOpenChange={(open) => !open && setSelected(null)} />
     </Card>
   )
 }

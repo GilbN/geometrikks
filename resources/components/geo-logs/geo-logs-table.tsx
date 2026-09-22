@@ -37,6 +37,7 @@ import type { GeoLogEntry } from "@/generated/api/types.gen"
 import { formatNumber, type GeoLogSortField, type GeoLogSortOrder } from "@/lib/api"
 import { IpBanControls } from "@/components/crowdsec/ip-ban-controls"
 import { InspectIpButton } from "@/components/ip-inspector/inspect-ip-button"
+import { FlyToIpButton } from "@/components/map/FlyToIpButton"
 import { useGeoLogs } from "@/lib/queries"
 import { cn } from "@/lib/utils"
 import { useColumnVisibility } from "@/lib/column-visibility"
@@ -113,6 +114,7 @@ const GeoLogTableBody = memo(function GeoLogTableBody({
                 <span {...stopRowActivation}>
                   <IpBanControls ip={row.ipAddress}>
                     <InspectIpButton ip={row.ipAddress} className="ml-1" />
+                    <FlyToIpButton ip={row.ipAddress} locationId={row.locationId} />
                   </IpBanControls>
                 </span>
               )}
