@@ -13,6 +13,7 @@ import { TableCell, TableRow } from "@/components/ui/table"
 import { DecisionBadge } from "@/components/crowdsec/decision-badge"
 import { rowActivation, stopRowActivation } from "@/components/data/row-activation"
 import { InspectIpButton } from "@/components/ip-inspector/inspect-ip-button"
+import { FlyToIpButton } from "@/components/map/FlyToIpButton"
 import type { DecisionGroupView, GroupedDecisionView } from "@/generated/api/types.gen"
 import { crowdsecErrorMessage } from "@/lib/crowdsec"
 import { decisionHasAlert } from "@/lib/crowdsec-alerts"
@@ -98,6 +99,7 @@ export function DecisionGroupRows(props: Props) {
           {isIp ? (
             <span {...stopRowActivation}>
               <InspectIpButton ip={group.ip} className="ml-1" />
+              <FlyToIpButton ip={group.ip} />
             </span>
           ) : (
             <Badge variant="outline" className="ml-2 align-middle">{group.scope}</Badge>

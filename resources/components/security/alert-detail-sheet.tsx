@@ -10,6 +10,7 @@ import { DetailField, DetailSheet } from "@/components/data/detail-sheet"
 import { DecisionBadge } from "@/components/crowdsec/decision-badge"
 import { IpBanControls } from "@/components/crowdsec/ip-ban-controls"
 import { InspectIpButton } from "@/components/ip-inspector/inspect-ip-button"
+import { FlyToIpButton } from "@/components/map/FlyToIpButton"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
@@ -100,6 +101,7 @@ function AlertBody({ alert, onNavigate }: { alert: AlertDetailView; onNavigate: 
               {isIp && (
                 <IpBanControls ip={alert.value}>
                   <InspectIpButton ip={alert.value} onOpen={onNavigate} />
+                  <FlyToIpButton ip={alert.value} onOpen={onNavigate} />
                 </IpBanControls>
               )}
             </span>

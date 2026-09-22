@@ -10,6 +10,7 @@ import { useGeoLogTopIps } from "@/lib/queries"
 import { AsnCell } from "@/components/geo-logs/asn-cell"
 import { IpBanControls } from "@/components/crowdsec/ip-ban-controls"
 import { InspectIpButton } from "@/components/ip-inspector/inspect-ip-button"
+import { FlyToIpButton } from "@/components/map/FlyToIpButton"
 import { TablePaginationFooter, usePagedRows } from "@/components/analytics/table-pagination"
 
 export function GeoTopIpsTable() {
@@ -48,6 +49,7 @@ export function GeoTopIpsTable() {
                 {row.ipAddress}
                 <IpBanControls ip={row.ipAddress}>
                   <InspectIpButton ip={row.ipAddress} className="ml-1" />
+                  <FlyToIpButton ip={row.ipAddress} />
                 </IpBanControls>
               </TableCell>
               <TableCell>{row.countryCode ?? "-"}</TableCell>

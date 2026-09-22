@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Fly to an IP on the map. Every IP with an inspect button also gets a crosshair button that opens the map on the location where the IP was seen. Rows that already know the location land on it. Other rows resolve the IP to the location with the most events in the selected time range. An IP with no geo events in that range shows a toast. The map reads the IP from `?focusIp=<ip>`.
 - Alert details on the Security page. Select a row in Alert history to open the alert. The sheet shows the context CrowdSec collected: targeted paths, user agents, methods, status codes and CVE. It lists the decisions the alert produced and marks the expired ones, then the stored events, the source AS number and the range. A link opens the IP in Access logs. `GET /api/v1/crowdsec/alerts/{id}` returns the same data.
 
 ### Changed

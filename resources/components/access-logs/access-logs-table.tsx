@@ -36,6 +36,7 @@ import { PaginationFooter } from "@/components/ui/pagination-footer"
 import { useAccessLogs, useCrowdsecLiveUpdates } from "@/lib/queries"
 import { IpBanControls } from "@/components/crowdsec/ip-ban-controls"
 import { InspectIpButton } from "@/components/ip-inspector/inspect-ip-button"
+import { FlyToIpButton } from "@/components/map/FlyToIpButton"
 import {
   formatBytes,
   formatDuration,
@@ -160,6 +161,7 @@ const AccessLogTableBody = memo(function AccessLogTableBody({
                 <span {...stopRowActivation}>
                   <IpBanControls ip={row.ipAddress}>
                     <InspectIpButton ip={row.ipAddress} className="ml-1" />
+                    <FlyToIpButton ip={row.ipAddress} />
                   </IpBanControls>
                 </span>
               )}
