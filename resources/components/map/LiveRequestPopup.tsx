@@ -14,7 +14,6 @@ import { PACKET_COLORS } from "@/lib/live-traffic/classify"
 import { formatDurationOrNa } from "@/lib/timing"
 import { IpBanControls } from "./IpBanControls"
 import { InspectIpButton } from "@/components/ip-inspector/inspect-ip-button"
-import { FlyToIpButton } from "./FlyToIpButton"
 import { POPUP_OFFSET, PopupCard, PopupRow as Row } from "./PopupCard"
 import type { LiveRequest } from "@/lib/live-traffic/types"
 
@@ -61,7 +60,6 @@ function LiveRequestDetail({
           <span style={{ display: "inline-flex", alignItems: "center", gap: "4px" }}>
             {request.ip}
             <InspectIpButton ip={request.ip} />
-            <FlyToIpButton ip={request.ip} />
           </span>
         }
       />

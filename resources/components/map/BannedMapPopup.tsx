@@ -12,7 +12,6 @@ import { crowdsecErrorMessage, winningDecision } from "@/lib/crowdsec"
 import type { BannedMapIp } from "@/generated/api/types.gen"
 import { IpBanControls } from "./IpBanControls"
 import { InspectIpButton } from "@/components/ip-inspector/inspect-ip-button"
-import { FlyToIpButton } from "./FlyToIpButton"
 import { DecisionBadge } from "@/components/crowdsec/decision-badge"
 import { POPUP_OFFSET, POPUP_CODE_STYLE, POPUP_LINK_BUTTON_STYLE, POPUP_ROW_ICON_STYLE, PopupBadge, PopupCard, PopupRow } from "./PopupCard"
 
@@ -42,7 +41,6 @@ function IpDetails({ member, onBack }: { member: BannedMapIp; onBack?: () => voi
               showBadge={false}
             >
               <InspectIpButton ip={member.ip} fromLocationId={member.locationId} />
-              <FlyToIpButton ip={member.ip} locationId={member.locationId} />
             </IpBanControls>
           </span>
         }

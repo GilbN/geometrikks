@@ -10,7 +10,6 @@ import type { GeoJSONFeatureProperties } from "@/lib/api"
 import { useLocationTopIPs } from "@/lib/queries"
 import { IpBanControls } from "./IpBanControls"
 import { InspectIpButton } from "@/components/ip-inspector/inspect-ip-button"
-import { FlyToIpButton } from "./FlyToIpButton"
 import { POPUP_OFFSET, POPUP_CODE_STYLE as IP_CODE_STYLE, POPUP_ROW_ICON_STYLE as ROW_ICON_STYLE, PopupBadge, PopupCard, PopupRow } from "./PopupCard"
 
 import {
@@ -149,7 +148,6 @@ export function MapPopup({
                   <span style={{ display: "inline-flex", alignItems: "center", gap: "6px", flexShrink: 0 }}>
                     <IpBanControls ip={top_ips[0].ipAddress}>
                       <InspectIpButton ip={top_ips[0].ipAddress} fromLocationId={locationId} />
-                      <FlyToIpButton ip={top_ips[0].ipAddress} locationId={locationId} />
                     </IpBanControls>
                     <span
                       style={{
@@ -184,7 +182,6 @@ export function MapPopup({
                             <span style={{ display: "inline-flex", alignItems: "center", gap: "6px", flexShrink: 0 }}>
                               <IpBanControls ip={ip.ipAddress}>
                                 <InspectIpButton ip={ip.ipAddress} fromLocationId={locationId} />
-                                <FlyToIpButton ip={ip.ipAddress} locationId={locationId} />
                               </IpBanControls>
                               <span
                                 style={{
