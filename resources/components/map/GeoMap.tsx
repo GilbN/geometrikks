@@ -223,7 +223,7 @@ function GeoMapInner({
     if (focusIpQuery.isError) {
       toast.error("Could not look up the IP", { description: `The locations for ${focusIp} failed to load.` })
     } else if (locationId === undefined) {
-      toast.message("IP not on the map", {
+      toast.info("IP not on the map", {
         description: `${focusIp} has no geo events in the selected time range.`,
       })
     }
@@ -282,7 +282,7 @@ function GeoMapInner({
       setPopup({ longitude: lng, latitude: lat, properties: feature.properties as PopupInfo["properties"] })
       mapRef.current?.flyTo({ center: [lng, lat], zoom: 7, duration: 1500 })
     } else {
-      toast.message("Location not on the map", {
+      toast.info("Location not on the map", {
         description: "It has no geo events in the selected time range.",
       })
     }
