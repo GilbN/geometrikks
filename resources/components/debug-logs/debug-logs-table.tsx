@@ -50,6 +50,7 @@ import { rowActivation, stopRowActivation } from "@/components/data/row-activati
 import { dataState } from "@/components/data/types"
 import { IpBanControls } from "@/components/crowdsec/ip-ban-controls"
 import { InspectIpButton } from "@/components/ip-inspector/inspect-ip-button"
+import { FlyToIpButton } from "@/components/map/FlyToIpButton"
 import { useAccessLogDebug, useAccessLogFacets, useCrowdsecLiveUpdates } from "@/lib/queries"
 import { useDebouncedValue } from "@/hooks/use-debounced-value"
 import { isValidIp } from "@/lib/crowdsec"
@@ -246,6 +247,7 @@ const DebugLogTableBody = memo(function DebugLogTableBody({
                 <span {...stopRowActivation}>
                   <IpBanControls ip={row.ipAddress}>
                     <InspectIpButton ip={row.ipAddress} />
+                    <FlyToIpButton ip={row.ipAddress} />
                   </IpBanControls>
                 </span>
               )}

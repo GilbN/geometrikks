@@ -3,6 +3,7 @@ import { LocateFixed } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { formatNumber } from "@/lib/api"
+import { flyToSearch } from "@/lib/map-filters"
 import { useIpInspectorOrigin } from "@/lib/ip-inspector"
 import { useIpLocations } from "@/lib/queries"
 
@@ -34,7 +35,7 @@ export function IpLocationsBlock({ ip }: { ip: string }) {
                   onClick={() =>
                     void navigate({
                       to: "/map",
-                      search: { inspect: ip, focus: r.locationId, sources: undefined, countries: undefined, cities: undefined },
+                      search: { inspect: ip, ...flyToSearch(ip, r.locationId) },
                     })
                   }
                 >

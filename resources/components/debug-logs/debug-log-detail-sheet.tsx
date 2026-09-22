@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button"
 import { copyText } from "@/lib/clipboard"
 import { IpBanControls } from "@/components/crowdsec/ip-ban-controls"
 import { InspectIpButton } from "@/components/ip-inspector/inspect-ip-button"
+import { FlyToIpButton } from "@/components/map/FlyToIpButton"
 import type { AccessLogDebugEntry } from "@/lib/api"
 
 export function DebugLogDetailSheet({
@@ -116,6 +117,7 @@ export function DebugLogDetailSheet({
                         {entry.ipAddress}
                         <IpBanControls ip={entry.ipAddress}>
                           <InspectIpButton ip={entry.ipAddress} onOpen={() => onOpenChange(false)} />
+                          <FlyToIpButton ip={entry.ipAddress} onOpen={() => onOpenChange(false)} />
                         </IpBanControls>
                       </span>
                     ) : null

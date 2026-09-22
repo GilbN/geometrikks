@@ -25,6 +25,7 @@ import {
   useCrowdsecLiveUpdates,
   useGeoEventFacets,
   useSiteHomes,
+  useIpLocations,
 } from "@/lib/queries"
 import { beaconLabel, buildHomeResolver, homeBeacons, type Coordinate, type SiteHomesData } from "@/lib/site-homes"
 import { useMapStyle } from "./hooks/useMapStyle"
@@ -211,6 +212,23 @@ function GeoMapInner({
   // the fly-to also waits for the map's load event.
   const [mapLoaded, setMapLoaded] = useState(false)
   const focusId = search.focus
+  // Callers that only know an address arrive with ?focusIp=<ip>; resolve it
+  // to the IP's busiest location in range and rewrite it as ?focus so the
+  // fly-to below takes over. The rows come sorted by event count.
+  const focusIp = search.focusIp
+  const focusIpQuery = useIpLocations(focusIp)
+  useEffect(() => {
+    if (focusIp === undefined || focusIpQuery.isPending) return
+    const locationId = focusIpQuery.data?.items?.[0]?.locationId
+    if (focusIpQuery.isError) {
+      toast.error("Could not look up the IP", { description: `The locations for ${focusIp} failed to load.` })
+    } else if (locationId === undefined) {
+      toast.message("IP not on the map", {
+        description: `${focusIp} has no geo events in the selected time range.`,
+      })
+    }
+    void navigate({ search: (prev) => ({ ...prev, focusIp: undefined, focus: locationId }), replace: true })
+  }, [focusIp, focusIpQuery.isPending, focusIpQuery.isError, focusIpQuery.data, navigate])
 
   const bannedQuery = useBannedLocations(activeLayer === "banned", {
     countryCodes: selectedCountries, cities: selectedCities, hostnames: selectedSources,

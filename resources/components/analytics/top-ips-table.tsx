@@ -12,6 +12,7 @@ import { formatBytes, formatNumber } from "@/lib/api"
 import { useCrowdsecLiveUpdates, useTopIpStats } from "@/lib/queries"
 import { IpBanControls } from "@/components/crowdsec/ip-ban-controls"
 import { InspectIpButton } from "@/components/ip-inspector/inspect-ip-button"
+import { FlyToIpButton } from "@/components/map/FlyToIpButton"
 import { TablePaginationFooter, usePagedRows } from "./table-pagination"
 
 export function TopIpsTable() {
@@ -48,6 +49,7 @@ export function TopIpsTable() {
                       {row.ipAddress}
                       <IpBanControls ip={row.ipAddress}>
                         <InspectIpButton ip={row.ipAddress} className="ml-1" />
+                        <FlyToIpButton ip={row.ipAddress} />
                       </IpBanControls>
                     </TableCell>
                     <TableCell>{row.countryCode ?? "-"}</TableCell>

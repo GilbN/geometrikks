@@ -22,6 +22,7 @@ import { rowActivation, stopRowActivation } from "@/components/data/row-activati
 import { AlertDetailSheet } from "@/components/security/alert-detail-sheet"
 import { IpBanControls } from "@/components/crowdsec/ip-ban-controls"
 import { InspectIpButton } from "@/components/ip-inspector/inspect-ip-button"
+import { FlyToIpButton } from "@/components/map/FlyToIpButton"
 import { cn } from "@/lib/utils"
 
 const SINCE_OPTIONS = [
@@ -98,6 +99,7 @@ export function AlertsTable() {
                           <span {...stopRowActivation}>
                             <IpBanControls ip={alert.value}>
                               <InspectIpButton ip={alert.value} className="ml-1" />
+                              <FlyToIpButton ip={alert.value} />
                             </IpBanControls>
                           </span>
                         )}
