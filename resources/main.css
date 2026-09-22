@@ -445,3 +445,44 @@
 .mapboxgl-popup-close-button {
   color: #fff;
 }
+
+/* Toasts: the glass surface of the map controls and popups, the theme
+   radius and the brand accent on the icon. Sonner's own per-type colours
+   are off (no richColors), so this covers every variant; only the icon
+   tells them apart. The .toaster class outranks sonner's stylesheet. */
+.toaster [data-sonner-toast][data-styled='true'] {
+  background: color-mix(in oklab, var(--background) 85%, transparent);
+  backdrop-filter: blur(8px);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--foreground);
+  box-shadow: 0 4px 12px rgb(0 0 0 / 0.3);
+}
+
+.toaster [data-sonner-toast][data-styled='true'] [data-description] {
+  color: var(--muted-foreground);
+}
+
+.toaster [data-sonner-toast][data-styled='true'] [data-close-button] {
+  background: var(--card);
+  border-color: var(--border);
+  color: var(--muted-foreground);
+}
+
+.toaster [data-sonner-toast][data-styled='true']:hover [data-close-button]:hover {
+  background: var(--muted);
+  color: var(--foreground);
+}
+
+.toaster [data-sonner-toast][data-type='info'] [data-icon],
+.toaster [data-sonner-toast][data-type='success'] [data-icon] {
+  color: var(--primary);
+}
+
+.toaster [data-sonner-toast][data-type='error'] [data-icon] {
+  color: var(--destructive);
+}
+
+.toaster [data-sonner-toast][data-type='warning'] [data-icon] {
+  color: oklch(0.8 0.16 80);
+}
