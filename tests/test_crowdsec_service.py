@@ -498,7 +498,27 @@ async def test_alert_meta_entries_without_a_value_or_key_do_not_break_parsing():
     ]
     (event,) = alert.events
     assert event.meta == {"http_user_agent": "", "http_path": "/x"}
-    assert event.timestamp == "2026-09-20 05:43:18 +0000 UTC"
+    assert event.timestamp == "2026-09-20T05:43:18+00:00"
+    await service.aclose()
+
+
+@pytest.mark.parametrize(("timestamp", "expected"), [
+    ("2026-09-20 05:43:18 +0000 UTC", "2026-09-20T05:43:18+00:00"),
+    ("2026-09-20 05:43:18.123456789 +0200 CEST", "2026-09-20T05:43:18.123456+02:00"),
+    ("2026-09-20 05:43:18 -0430 -0430", "2026-09-20T05:43:18-04:30"),
+    ("2026-09-20T05:43:18Z", "2026-09-20T05:43:18Z"),
+    ("2026-99-20 05:43:18 +0000 UTC", "2026-99-20 05:43:18 +0000 UTC"),
+    ("", ""),
+])
+async def test_alert_fallback_event_timestamps(timestamp, expected):
+    raw = {
+        **ALERT_DETAIL_JSON,
+        "events": [{"timestamp": timestamp, "meta": [{"key": "service", "value": "ssh"}]}],
+    }
+    service = make_service(LapiAlertDetailFake(raw), **write_settings())
+    alert = await service.get_alert(10908)
+    assert alert is not None
+    assert alert.events[0].timestamp == expected
     await service.aclose()
 
 

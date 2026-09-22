@@ -659,6 +659,21 @@ async def test_alert_geo_fallback_finds_a_non_canonical_ipv6_source(monkeypatch)
         (listed,) = (await client.get("/api/v1/crowdsec/alerts")).json()
         detail = (await client.get("/api/v1/crowdsec/alerts/7")).json()
     assert (listed["country"], detail["country"]) == ("Norway", "Norway")
+    assert listed["value"] == detail["value"] == "2001:db8::1"
+
+
+@pytest.mark.parametrize("scope", ["Range", "Username"])
+async def test_alert_non_ip_source_value_is_preserved(monkeypatch, scope):
+    from geometrikks.services.crowdsec.schemas import AlertSource
+
+    enable_write(monkeypatch)
+    value = "2001:0db8::1"
+    alert = make_alert()
+    alert.source = AlertSource(scope=scope, value=value)
+    async with AsyncTestClient(app=make_app(AlertFakeCrowdSec([alert]))) as client:
+        (listed,) = (await client.get("/api/v1/crowdsec/alerts")).json()
+        detail = (await client.get("/api/v1/crowdsec/alerts/7")).json()
+    assert listed["value"] == detail["value"] == value
 
 
 def test_alert_detail_documents_its_404():

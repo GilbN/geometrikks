@@ -6,6 +6,7 @@ re-logging in once when it expires.
 """
 from __future__ import annotations
 
+import re
 from datetime import datetime, timezone
 from typing import Any
 
@@ -22,6 +23,18 @@ from geometrikks.services.crowdsec.exceptions import (
 from geometrikks.services.crowdsec.schemas import Alert, Decision, DecisionStreamDelta
 
 logger = get_logger(__name__)
+
+
+def _event_timestamp(value: str) -> str:
+    """Convert Go's time.String format to RFC 3339 for browser date parsing."""
+    match = re.fullmatch(r"(\d{4}-\d{2}-\d{2}) ([\d:.]+) ([+-]\d{4}) \S+", value)
+    if match is None:
+        return value
+    date, time, offset = match.groups()
+    try:
+        return datetime.fromisoformat(f"{date}T{time}{offset}").isoformat()
+    except ValueError:
+        return value
 
 
 def _meta_pairs(meta: list[dict[str, str]] | None) -> list[tuple[str, str]]:
@@ -54,7 +67,8 @@ def _normalize_alert(raw: dict[str, Any]) -> dict[str, Any]:
         meta = dict(_meta_pairs(event.get("meta")))
         # The event's own timestamp uses Go's default time format. The
         # parser also stores an RFC 3339 one in meta.
-        events.append({"timestamp": meta.get("timestamp") or event.get("timestamp", ""), "meta": meta})
+        timestamp = meta.get("timestamp") or _event_timestamp(event.get("timestamp", ""))
+        events.append({"timestamp": timestamp, "meta": meta})
     return {
         **raw,
         "decisions": raw.get("decisions") or [],

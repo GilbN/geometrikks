@@ -251,7 +251,7 @@ def _alert_summary(alert: Alert, enrichment: IpEnrichment | None) -> dict:
         "created_at": alert.created_at,
         "machine_id": alert.machine_id,
         "scope": alert.source.scope,
-        "value": alert.source.value,
+        "value": _enrichment_key(alert) if alert.source.scope == "Ip" else alert.source.value,
         "country": _alert_country(alert, enrichment),
         "as_name": alert.source.as_name,
         "decision_count": len(alert.decisions),
