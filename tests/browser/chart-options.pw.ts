@@ -217,12 +217,25 @@ test.describe("status chart", () => {
     await page.goto("/analytics")
     const card = panel(page, "Status classes")
     await choose(page, card, "Status classes", "Share of responses")
-    // Stacked areas use stroke="none", so Recharts renders only the fill path.
-    const fills = card.locator(".recharts-area-area")
-    await expect(fills).toHaveCount(4)
-    for (const fill of await fills.all()) expect(await moveCount(fill)).toBe(2)
+    // Share always draws stacked bars; an empty bucket draws none.
+    const success = card.locator(".recharts-bar").first().locator(".recharts-bar-rectangle")
+    await expect(success.nth(9).locator("path")).toHaveCount(1)
+    await expect(success.nth(10).locator("path")).toHaveCount(0)
     const tooltip = await hoverBucket(page, card, 10, BUCKETS)
     await expect(tooltip.getByText("n/a", { exact: true })).toHaveCount(4)
+  })
+
+  test("a lone bucket with traffic stays visible in error rate and share", async ({ page }) => {
+    // One busy hour among empty ones: a line through a single point draws nothing.
+    const sparse = Array.from({ length: BUCKETS }, (_, i) => timeSeriesPoint(i, i === 30 ? 50 : 0))
+    await mockTimeSeries(page, sparse)
+    await page.goto("/analytics")
+    const card = panel(page, "Status classes")
+    await choose(page, card, "Status classes", "Error rate")
+    await expect(card.locator(".recharts-line-dots circle")).toHaveCount(1)
+    await choose(page, card, "Status classes", "Share of responses")
+    const success = card.locator(".recharts-bar").first().locator(".recharts-bar-rectangle")
+    await expect(success.nth(30).locator("path")).toHaveCount(1)
   })
 })
 test.describe("latency chart", () => {

@@ -33,6 +33,14 @@ export function shareLabel(value: unknown, row: unknown): string {
   return total > 0 ? `${formatNumber(value)} (${formatRate(value / total)})` : "n/a"
 }
 
+/**
+ * A value whose neighbours are both missing. A line through it has a single
+ * point, which Recharts draws as nothing, so the chart marks it with a dot.
+ */
+export function isIsolated(values: ReadonlyArray<number | null | undefined>, index: number): boolean {
+  return values[index] != null && values[index - 1] == null && values[index + 1] == null
+}
+
 export type ErrorRateRow = Omit<TimeSeriesDataPoint, "errorRate"> & { errorRate: number | null }
 
 export function errorRateSeries(

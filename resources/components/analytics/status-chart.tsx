@@ -11,6 +11,7 @@ import { useTimeSeries } from "@/lib/queries"
 import { ChartLegendRow } from "./chart-legend-row"
 import { ChartOptionsMenu, ScaleNotes } from "./chart-options-menu"
 import {
+  barSpacer,
   DENSE_BUCKETS,
   formatLogCount,
   formatRate,
@@ -19,7 +20,7 @@ import {
   statusErrorRateChartConfig,
 } from "./chart-utils"
 import { GranularityBadge } from "./granularity-badge"
-import { errorRateSeries, SHARE_TICKS, shareLabel, shareRows, STATUS_KEYS, statusTotal } from "./status-series"
+import { errorRateSeries, isIsolated, SHARE_TICKS, shareLabel, shareRows, STATUS_KEYS, statusTotal } from "./status-series"
 import { TimeSeriesTooltip } from "./time-series-tooltip"
 
 const DESCRIPTIONS: Record<string, string> = {
@@ -33,7 +34,9 @@ export function StatusChart() {
   const options = useChartOptions("status", STATUS_OPTIONS)
   const buckets = useMemo(() => data?.data ?? [], [data])
   const view = options.view.id
-  const dense = buckets.length > DENSE_BUCKETS
+  // Stacked counts switch to areas when dense. Share always uses bars: a
+  // bucket between two empty ones would be a zero-width, invisible area.
+  const areas = view === "stacked" && buckets.length > DENSE_BUCKETS
   const stacked = useMemo(
     () => scaleSeries(buckets, STATUS_KEYS, options.scale, { integer: true, clipValues: buckets.map(statusTotal) }),
     [buckets, options.scale],
@@ -53,8 +56,9 @@ export function StatusChart() {
         ? { ...rate.axis, tickFormatter: formatRate }
         : { ...stacked.axis, tickFormatter: options.scale === "log" ? formatLogCount : (v: number) => formatNumber(v) }
 
+  const rates = rate.rows.map((row) => row.errorRate)
   const stackMarks = STATUS_KEYS.map((key, i) =>
-    dense ? (
+    areas ? (
       <Area
         key={key}
         dataKey={key}
@@ -66,14 +70,13 @@ export function StatusChart() {
         connectNulls={false}
       />
     ) : (
-      // stroke = card surface: the spacer between stacked segments
+      // stroke = card surface: the spacer between stacked segments, dropped when dense
       <Bar
         key={key}
         dataKey={key}
         stackId="s"
         fill={`var(--color-${key})`}
-        stroke="var(--card)"
-        strokeWidth={1}
+        {...barSpacer(buckets.length)}
         radius={i === STATUS_KEYS.length - 1 ? [2, 2, 0, 0] : undefined}
       />
     ),
@@ -96,7 +99,15 @@ export function StatusChart() {
         type="monotone"
         stroke="var(--color-errorRate)"
         strokeWidth={2}
-        dot={false}
+        // A rate with empty buckets on both sides is a one-point line, which
+        // draws nothing; mark it so a lone bad hour still shows.
+        dot={(props: { key?: string; index: number; cx?: number; cy?: number }) =>
+          isIsolated(rates, props.index) ? (
+            <circle key={props.key} cx={props.cx} cy={props.cy} r={2.5} fill="var(--color-errorRate)" />
+          ) : (
+            <g key={props.key} />
+          )
+        }
         connectNulls={false}
       />
     ) : view === "stacked" && options.scale === "log" ? (

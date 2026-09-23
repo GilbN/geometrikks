@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 import type { TimeSeriesDataPoint } from "@/generated/api/types.gen"
 import { formatNumber } from "@/lib/api"
-import { errorRateSeries, shareLabel, shareRows, statusTotal } from "./status-series"
+import { errorRateSeries, isIsolated, shareLabel, shareRows, statusTotal } from "./status-series"
 
 function point(overrides: Partial<TimeSeriesDataPoint>): TimeSeriesDataPoint {
   return {
@@ -29,6 +29,13 @@ describe("shareLabel", () => {
 
   it("returns n/a for null values and empty buckets", () => {
     expect(shareLabel(null, { status2xx: null, status3xx: null, status4xx: null, status5xx: null })).toBe("n/a")
+  })
+})
+
+describe("isIsolated", () => {
+  it("flags a value with no neighbours, which a line cannot draw", () => {
+    const values = [null, 0.5, null, 0.1, 0.2, null, 1]
+    expect(values.map((_, i) => isIsolated(values, i))).toEqual([false, true, false, false, false, false, true])
   })
 })
 
