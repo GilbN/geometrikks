@@ -9,6 +9,11 @@ describe("formatRate", () => {
     expect(formatRate(0.123)).toBe("12.3%")
     expect(formatRate(0.0042)).toBe("0.42%")
   })
+
+  it("keeps tick labels distinct at very low rates", () => {
+    const ticks = [0, 0.000025, 0.00005, 0.000075, 0.0001].map(formatRate)
+    expect(ticks).toEqual(["0%", "0.0025%", "0.005%", "0.0075%", "0.01%"])
+  })
 })
 
 describe("barSpacer", () => {

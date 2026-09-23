@@ -51,10 +51,14 @@ export function formatLogCount(value: number): string {
   return compactCount.format(value)
 }
 
-/** A 0..1 fraction as a percentage: 0.123 -> "12.3%", 0.0042 -> "0.42%". */
+/**
+ * A 0..1 fraction as a percentage: 0.123 -> "12.3%", 0.0042 -> "0.42%".
+ * Below 1% it keeps two significant digits, so ticks on a very low
+ * error-rate axis stay distinct ("0.0025%", "0.005%").
+ */
 export function formatRate(value: number): string {
   const pct = value * 100
-  if (pct !== 0 && Math.abs(pct) < 1) return `${pct.toFixed(2)}%`
+  if (pct !== 0 && Math.abs(pct) < 1) return `${Number(pct.toPrecision(2))}%`
   return `${pct.toFixed(1).replace(/\.0$/, "")}%`
 }
 
