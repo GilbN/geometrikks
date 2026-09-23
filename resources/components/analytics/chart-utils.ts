@@ -41,6 +41,16 @@ export function barSpacer(buckets: number): { stroke?: string; strokeWidth?: num
   return buckets > DENSE_BUCKETS ? {} : { stroke: "var(--card)", strokeWidth: 1 }
 }
 
+const compactCount = new Intl.NumberFormat(undefined, { notation: "compact", maximumFractionDigits: 1 })
+
+/**
+ * Log count ticks: log ceilings round up to the next power of ten, so full
+ * labels such as "100,000" overflow the 48px axis on narrow cards.
+ */
+export function formatLogCount(value: number): string {
+  return compactCount.format(value)
+}
+
 /** A 0..1 fraction as a percentage: 0.123 -> "12.3%", 0.0042 -> "0.42%". */
 export function formatRate(value: number): string {
   const pct = value * 100

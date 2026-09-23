@@ -12,6 +12,7 @@ import { ChartLegendRow } from "./chart-legend-row"
 import { ChartOptionsMenu, ScaleNotes } from "./chart-options-menu"
 import {
   DENSE_BUCKETS,
+  formatLogCount,
   formatRate,
   STATUS_OPTIONS,
   statusChartConfig,
@@ -50,7 +51,7 @@ export function StatusChart() {
       ? { domain: [0, 1] as [number, number], ticks: SHARE_TICKS, tickFormatter: formatRate }
       : view === "error-rate"
         ? { ...rate.axis, tickFormatter: formatRate }
-        : { ...stacked.axis, tickFormatter: (v: number) => formatNumber(v) }
+        : { ...stacked.axis, tickFormatter: options.scale === "log" ? formatLogCount : (v: number) => formatNumber(v) }
 
   const stackMarks = STATUS_KEYS.map((key, i) =>
     dense ? (

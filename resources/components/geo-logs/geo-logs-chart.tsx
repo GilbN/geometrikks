@@ -8,7 +8,7 @@ import { SignalPanel } from "@/components/data/signal-panel"
 import { dataState } from "@/components/data/types"
 import { ChartLegendRow } from "@/components/analytics/chart-legend-row"
 import { ChartOptionsMenu, ScaleNotes } from "@/components/analytics/chart-options-menu"
-import { AREA_BARS_OPTIONS, barSpacer } from "@/components/analytics/chart-utils"
+import { AREA_BARS_OPTIONS, barSpacer, formatLogCount } from "@/components/analytics/chart-utils"
 import { GranularityBadge } from "@/components/analytics/granularity-badge"
 import {
   ChartContainer,
@@ -86,7 +86,7 @@ export function GeoLogsChart() {
               tickLine={false}
               axisLine={false}
               width={48}
-              tickFormatter={(v: number) => formatNumber(v)}
+              tickFormatter={(v: number) => (options.scale === "log" ? formatLogCount(v) : formatNumber(v))}
               {...series.axis}
             />
             <ChartTooltip content={<TimeSeriesTooltip granularity={data.granularity} />} />

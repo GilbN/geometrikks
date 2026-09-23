@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { barSpacer, formatRate } from "./chart-utils"
+import { barSpacer, formatLogCount, formatRate } from "./chart-utils"
 
 describe("formatRate", () => {
   it("formats 0..1 fractions as percentages", () => {
@@ -18,3 +18,11 @@ describe("barSpacer", () => {
   })
 })
 
+describe("formatLogCount", () => {
+  it("keeps log tick labels short enough for the 48px axis", () => {
+    expect(formatLogCount(10)).toBe("10")
+    expect(formatLogCount(1000)).toBe("1K")
+    expect(formatLogCount(100000)).toBe("100K")
+    expect(formatLogCount(1e6)).toBe("1M")
+  })
+})

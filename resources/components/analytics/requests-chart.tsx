@@ -10,7 +10,7 @@ import { formatTs } from "@/lib/datetime"
 import { useTimeSeries } from "@/lib/queries"
 import { ChartLegendRow } from "./chart-legend-row"
 import { ChartOptionsMenu, ScaleNotes } from "./chart-options-menu"
-import { AREA_BARS_OPTIONS, barSpacer, requestsChartConfig } from "./chart-utils"
+import { AREA_BARS_OPTIONS, barSpacer, formatLogCount, requestsChartConfig } from "./chart-utils"
 import { GranularityBadge } from "./granularity-badge"
 import { TimeSeriesTooltip } from "./time-series-tooltip"
 
@@ -60,7 +60,7 @@ export function RequestsChart() {
               tickLine={false}
               axisLine={false}
               width={48}
-              tickFormatter={(v: number) => formatNumber(v)}
+              tickFormatter={(v: number) => (options.scale === "log" ? formatLogCount(v) : formatNumber(v))}
               {...series.axis}
             />
             <ChartTooltip content={<TimeSeriesTooltip granularity={data.granularity} />} />

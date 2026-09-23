@@ -105,9 +105,10 @@ test.describe("requests chart", () => {
     await expect(card.getByRole("button", { name: "Chart options: Requests, Log" })).toBeVisible()
     await expect(card.getByText("zeros drawn at the bottom edge")).toBeVisible()
     // Smallest value 1 is exactly a power: domain [0.1, 100000], thinned to
-    // every other power, and integer series drop the 0.1 tick.
+    // every other power, and integer series drop the 0.1 tick. Log count
+    // ticks use compact labels so they fit the 48px axis.
     await expect(card.locator(".recharts-yAxis .recharts-cartesian-axis-tick-value"))
-      .toHaveText(["10", "1,000", "100,000"])
+      .toHaveText(["10", "1K", "100K"])
     expect(await moveCount(card.locator(".recharts-area-curve").first())).toBe(1)
     const tooltip = await hoverBucket(page, card, 10, BUCKETS)
     await expect(tooltip.getByText("0", { exact: true })).toBeVisible()
