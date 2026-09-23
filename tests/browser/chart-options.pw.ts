@@ -188,3 +188,39 @@ test.describe("geo events chart", () => {
     }).toPass({ timeout: 5_000 })
   })
 })
+test.describe("status chart", () => {
+  const points = Array.from({ length: BUCKETS }, (_, i) => timeSeriesPoint(i))
+
+  test("log draws lines; share hides the scale; log returns after a reload", async ({ page }) => {
+    await mockTimeSeries(page, points)
+    await page.goto("/analytics")
+    const card = panel(page, "Status classes")
+    await choose(page, card, "Status classes", "Log")
+    await expect(card.locator(".recharts-line")).toHaveCount(4)
+
+    await choose(page, card, "Status classes", "Share of responses")
+    await openOptions(card, "Status classes")
+    await expect(page.getByText("Fixed 0 to 100% axis")).toBeVisible()
+    await expect(page.getByRole("menuitemradio", { name: /^Log/ })).toHaveCount(0)
+    await page.keyboard.press("Escape")
+
+    await page.reload()
+    const reloaded = panel(page, "Status classes")
+    await expect(reloaded.getByRole("button", { name: "Chart options: Status classes, Share" })).toBeVisible()
+    await choose(page, reloaded, "Status classes", "Stacked counts")
+    await expect(reloaded.getByRole("button", { name: "Chart options: Status classes, Log" })).toBeVisible()
+  })
+
+  test("share leaves a gap for buckets without responses", async ({ page }) => {
+    await mockTimeSeries(page, points)
+    await page.goto("/analytics")
+    const card = panel(page, "Status classes")
+    await choose(page, card, "Status classes", "Share of responses")
+    // Stacked areas use stroke="none", so Recharts renders only the fill path.
+    const fills = card.locator(".recharts-area-area")
+    await expect(fills).toHaveCount(4)
+    for (const fill of await fills.all()) expect(await moveCount(fill)).toBe(2)
+    const tooltip = await hoverBucket(page, card, 10, BUCKETS)
+    await expect(tooltip.getByText("n/a", { exact: true })).toHaveCount(4)
+  })
+})
