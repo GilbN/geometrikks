@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from "@playwright/test"
-import type { TimeSeriesDataPoint } from "../../resources/generated/api/types.gen"
+import type { GeoLogTimeSeriesPoint, TimeSeriesDataPoint } from "../../resources/generated/api/types.gen"
 
 const HOUR = 3_600_000
 const START = Date.parse("2026-08-14T00:00:00Z")
@@ -159,5 +159,32 @@ test.describe("requests chart", () => {
     await expect(page.getByRole("menu")).toBeHidden()
     await expect(card.getByRole("button", { name: /^Chart options: Requests, Bars/ })).toBeFocused()
     await expect(card.locator(".recharts-bar-rectangle").first()).toBeAttached()
+  })
+})
+
+test.describe("geo events chart", () => {
+  test("bars overlay a narrower, centred Unique IPs bar", async ({ page }) => {
+    const points: GeoLogTimeSeriesPoint[] = Array.from({ length: 24 }, (_, i) => ({
+      timestamp: new Date(START + i * HOUR).toISOString(),
+      totalEvents: 100 + i * 10,
+      uniqueIps: 40 + i,
+    }))
+    await page.route((url) => url.pathname.replace(/\/$/, "") === "/api/v1/geo-events/time-series",
+      (route) => route.fulfill({ json: {
+        data: points, granularity: "hourly",
+        startDate: points[0].timestamp, endDate: points.at(-1)!.timestamp,
+      } }))
+    await page.goto("/geo-logs")
+    const card = panel(page, "Geo events over time")
+    await choose(page, card, "Geo events over time", "Bars")
+
+    // Bars mount with a 400 ms height animation; re-measure until it settles.
+    await expect(async () => {
+      const events = await card.locator(".recharts-bar").nth(0).locator(".recharts-bar-rectangle path").nth(5).boundingBox()
+      const ips = await card.locator(".recharts-bar").nth(1).locator(".recharts-bar-rectangle path").nth(5).boundingBox()
+      expect(events && ips).toBeTruthy()
+      expect(ips!.width).toBeLessThan(events!.width)
+      expect(Math.abs((ips!.x + ips!.width / 2) - (events!.x + events!.width / 2))).toBeLessThanOrEqual(1)
+    }).toPass({ timeout: 5_000 })
   })
 })
