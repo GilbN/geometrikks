@@ -1439,7 +1439,7 @@ export function parseTimeRange(
   }
 }
 
-/** Auto = hourly up to 7 days, daily above (hourly buckets beyond 7d are noise). */
+/** Auto = hourly below 7 days, daily from 7 days (168 hourly buckets are noise). */
 export function resolveChartGranularity(
   granularity: ChartGranularity,
   range: TimeRangeValue,
@@ -1448,7 +1448,7 @@ export function resolveChartGranularity(
   if (granularity !== "auto") return granularity
   const { startDate, endDate } = parseTimeRange(range, Date.now(), customRange)
   const days = (new Date(endDate).getTime() - new Date(startDate).getTime()) / 86_400_000
-  return days > 7 ? "daily" : "hourly"
+  return days >= 7 ? "daily" : "hourly"
 }
 
 /**
