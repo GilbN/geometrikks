@@ -1441,8 +1441,9 @@ export function parseTimeRange(
 
 /**
  * Auto = hourly below 7 days, daily from 7 days (168 hourly buckets are noise).
- * A week counts from 167 hours: Last week ends at 23:59:59.999, a millisecond
- * short, and a week across the spring daylight-saving change has 167 hours.
+ * A week counts from 167 whole hours: a week across the spring daylight-saving
+ * change has 167, and Last week ends at 23:59:59.999, a millisecond short, so
+ * the span is rounded to the nearest hour first.
  */
 export function resolveChartGranularity(
   granularity: ChartGranularity,
@@ -1451,8 +1452,8 @@ export function resolveChartGranularity(
 ): "hourly" | "daily" {
   if (granularity !== "auto") return granularity
   const { startDate, endDate } = parseTimeRange(range, Date.now(), customRange)
-  const days = (new Date(endDate).getTime() - new Date(startDate).getTime()) / 86_400_000
-  return days >= 7 - 1 / 24 ? "daily" : "hourly"
+  const hours = Math.round((new Date(endDate).getTime() - new Date(startDate).getTime()) / 3_600_000)
+  return hours >= 7 * 24 - 1 ? "daily" : "hourly"
 }
 
 /**
