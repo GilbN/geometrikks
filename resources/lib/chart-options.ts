@@ -51,6 +51,8 @@ type StorageLike = Pick<Storage, "getItem" | "setItem">
 
 // Survives remounts when localStorage is blocked, for the rest of the page load.
 const memory = new Map<string, unknown>()
+// Charts whose last write failed; storage still holds an older choice for them.
+const unsaved = new Set<string>()
 
 export function chartOptionsStorageKey(chartId: string): string {
   return `geometrikks-chart-${chartId}`
@@ -65,6 +67,7 @@ function browserStorage(): StorageLike | undefined {
 }
 
 export function loadChartOptions(chartId: string, storage: StorageLike | undefined = browserStorage()): unknown {
+  if (unsaved.has(chartId)) return memory.get(chartId)
   try {
     const text = storage?.getItem(chartOptionsStorageKey(chartId))
     if (text != null) {
@@ -86,8 +89,10 @@ export function saveChartOptions(
   memory.set(chartId, options)
   try {
     storage?.setItem(chartOptionsStorageKey(chartId), JSON.stringify(options))
+    unsaved.delete(chartId)
   } catch {
-    // Storage may be blocked; the in-memory copy keeps the choice.
+    // Storage may be blocked or full; the in-memory copy keeps the choice.
+    unsaved.add(chartId)
   }
 }
 

@@ -77,6 +77,21 @@ describe("loadChartOptions / saveChartOptions", () => {
     expect(loadChartOptions("t-read", throwingStorage)).toEqual({ view: "share", scale: "full" })
   })
 
+  it("prefers the newer in-memory choice when a write fails but reads still work", () => {
+    const data = new Map([[chartOptionsStorageKey("t-quota"), '{"view":"stacked","scale":"clip"}']])
+    const quotaFull = {
+      getItem: (key: string) => data.get(key) ?? null,
+      setItem: () => { throw new Error("quota exceeded") },
+    }
+    saveChartOptions("t-quota", { view: "share", scale: "full" }, quotaFull)
+    expect(loadChartOptions("t-quota", quotaFull)).toEqual({ view: "share", scale: "full" })
+
+    const working = fakeStorage()
+    saveChartOptions("t-quota", { view: "error-rate", scale: "clip" }, working)
+    working.data.set(chartOptionsStorageKey("t-quota"), '{"view":"stacked","scale":"log"}')
+    expect(loadChartOptions("t-quota", working)).toEqual({ view: "stacked", scale: "log" })
+  })
+
   it("falls back to the in-memory copy when storage throws", () => {
     saveChartOptions("t-blocked", { view: "error-rate", scale: "full" }, throwingStorage)
     expect(loadChartOptions("t-blocked", throwingStorage)).toEqual({ view: "error-rate", scale: "full" })
