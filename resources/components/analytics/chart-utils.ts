@@ -64,14 +64,14 @@ export function formatRate(value: number): string {
 
 export const AREA_BARS_OPTIONS = {
   views: [
-    { id: "area", label: "Area", scales: ["clip", "full", "log"] },
-    { id: "bars", label: "Bars", scales: ["clip", "full", "log"] },
+    { id: "area", label: "Area", scales: ["log", "clip", "full"] },
+    { id: "bars", label: "Bars", scales: ["log", "clip", "full"] },
   ],
 } satisfies ChartOptionsSpec
 
 export const STATUS_OPTIONS = {
   views: [
-    { id: "stacked", label: "Stacked counts", scales: ["clip", "full", "log"], scaleHints: { log: "Shows as lines" } },
+    { id: "stacked", label: "Stacked counts", scales: ["log", "clip", "full"], scaleHints: { log: "Shows as lines" } },
     { id: "share", label: "Share of responses", chip: "Share", scales: ["full"], fixedScaleNote: "Fixed 0 to 100% axis" },
     { id: "error-rate", label: "Error rate", scales: ["clip", "full"] },
   ],
@@ -79,8 +79,8 @@ export const STATUS_OPTIONS = {
 
 export const LATENCY_OPTIONS = {
   views: [
-    { id: "lines", label: "Lines", scales: ["clip", "full", "log"] },
-    { id: "band", label: "Percentile band", chip: "Band", scales: ["clip", "full", "log"] },
+    { id: "band", label: "Percentile band", scales: ["log", "clip", "full"] },
+    { id: "lines", label: "Lines", scales: ["log", "clip", "full"] },
   ],
 } satisfies ChartOptionsSpec
 

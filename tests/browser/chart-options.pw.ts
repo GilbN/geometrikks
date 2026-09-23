@@ -96,13 +96,13 @@ test.beforeEach(async ({ page }) => {
 test.describe("requests chart", () => {
   const points = Array.from({ length: BUCKETS }, (_, i) => timeSeriesPoint(i))
 
-  test("log keeps zero buckets on one unbroken path and survives a reload", async ({ page }) => {
+  test("opens in log, keeps zero buckets on one unbroken path, and a linear pick survives a reload", async ({ page }) => {
     await mockTimeSeries(page, points)
     await page.goto("/analytics")
     const card = panel(page, "Requests")
-    await choose(page, card, "Requests", "Log")
 
-    await expect(card.getByRole("button", { name: "Chart options: Requests, Log" })).toBeVisible()
+    // Log is the default, so no chip.
+    await expect(card.getByRole("button", { name: "Chart options: Requests", exact: true })).toBeVisible()
     await expect(card.getByText("zeros drawn at the bottom edge")).toBeVisible()
     // Smallest value 1 is exactly a power: domain [0.1, 100000], thinned to
     // every other power, and integer series drop the 0.1 tick. Log count
@@ -113,8 +113,13 @@ test.describe("requests chart", () => {
     const tooltip = await hoverBucket(page, card, 10, BUCKETS)
     await expect(tooltip.getByText("0", { exact: true })).toBeVisible()
 
+    await choose(page, card, "Requests", "Linear, clip spikes")
+    await expect(card.getByRole("button", { name: "Chart options: Requests, Clip spikes" })).toBeVisible()
+    await expect(card.getByText(/^y-axis clipped at/)).toBeVisible()
+
+    await choose(page, card, "Requests", "Linear, full range")
     await page.reload()
-    await expect(panel(page, "Requests").getByRole("button", { name: "Chart options: Requests, Log" })).toBeVisible()
+    await expect(panel(page, "Requests").getByRole("button", { name: "Chart options: Requests, Full range" })).toBeVisible()
   })
 
   test("bars in log draw every positive bucket, including 1 and 101", async ({ page }) => {
@@ -122,7 +127,6 @@ test.describe("requests chart", () => {
     await page.goto("/analytics")
     const card = panel(page, "Requests")
     await choose(page, card, "Requests", "Bars")
-    await choose(page, card, "Requests", "Log")
     const positive = points.filter((p) => p.totalRequests > 0).length
     await expect(card.locator(".recharts-bar-rectangle path")).toHaveCount(positive)
   })
@@ -134,7 +138,6 @@ test.describe("requests chart", () => {
     await page.goto("/analytics")
     const card = panel(page, "Requests")
     await choose(page, card, "Requests", "Bars")
-    await choose(page, card, "Requests", "Log")
     // Domain [10, 10000]: 101 sits log10(101 / 10) / 3 = 0.335 of the plot
     // height above the floor. A linear axis would give about 0.035.
     // Recharts animates bar heights for 400 ms, so re-measure until it settles.
@@ -192,12 +195,15 @@ test.describe("geo events chart", () => {
 test.describe("status chart", () => {
   const points = Array.from({ length: BUCKETS }, (_, i) => timeSeriesPoint(i))
 
-  test("log draws lines; share hides the scale; log returns after a reload", async ({ page }) => {
+  test("opens as log lines; share hides the scale; a stacked scale returns after a reload", async ({ page }) => {
     await mockTimeSeries(page, points)
     await page.goto("/analytics")
     const card = panel(page, "Status classes")
-    await choose(page, card, "Status classes", "Log")
+    await expect(card.getByRole("button", { name: "Chart options: Status classes", exact: true })).toBeVisible()
     await expect(card.locator(".recharts-line")).toHaveCount(4)
+
+    await choose(page, card, "Status classes", "Linear, full range")
+    await expect(card.locator(".recharts-line")).toHaveCount(0)
 
     await choose(page, card, "Status classes", "Share of responses")
     await openOptions(card, "Status classes")
@@ -209,7 +215,7 @@ test.describe("status chart", () => {
     const reloaded = panel(page, "Status classes")
     await expect(reloaded.getByRole("button", { name: "Chart options: Status classes, Share" })).toBeVisible()
     await choose(page, reloaded, "Status classes", "Stacked counts")
-    await expect(reloaded.getByRole("button", { name: "Chart options: Status classes, Log" })).toBeVisible()
+    await expect(reloaded.getByRole("button", { name: "Chart options: Status classes, Full range" })).toBeVisible()
   })
 
   test("share leaves a gap for buckets without responses", async ({ page }) => {
@@ -245,7 +251,8 @@ test.describe("latency chart", () => {
     await mockTimeSeries(page, points)
     await page.goto("/analytics")
     const card = panel(page, "Request latency")
-    await choose(page, card, "Request latency", "Percentile band")
+    // The band in log is the default, so no chip.
+    await expect(card.getByRole("button", { name: "Chart options: Request latency", exact: true })).toBeVisible()
     // Buckets 10 to 12 have no latency data: one gap, two runs.
     // The band has stroke="none", so its fill path is the only one rendered.
     expect(await moveCount(card.locator(".recharts-area-area").first())).toBe(2)

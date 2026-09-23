@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Each time-series chart in Analytics and Geo Logs has a menu for view and scale. Scale can be linear with spike clipping (the default), linear full range, or log. Requests, Bandwidth and Geo events can show bars. Status classes can show each class's share of responses, or the error rate. Request latency can show a p50 to p95 band. Each chart keeps its choice after a reload.
+- Each time-series chart in Analytics and Geo Logs has a menu for view and scale. Scale can be log (the default), linear with spike clipping, or linear full range. Requests, Bandwidth and Geo events can show bars. Status classes can show each class's share of responses, or the error rate. Request latency now opens as a p50 to p95 band, and its old lines view is still in the menu. Each chart keeps its choice after a reload.
 
 ### Fixed
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { barSpacer, formatLogCount, formatRate } from "./chart-utils"
+import { AREA_BARS_OPTIONS, barSpacer, formatLogCount, formatRate, LATENCY_OPTIONS, STATUS_OPTIONS } from "./chart-utils"
 
 describe("formatRate", () => {
   it("formats 0..1 fractions as percentages", () => {
@@ -29,5 +29,17 @@ describe("formatLogCount", () => {
     expect(formatLogCount(1000)).toBe("1K")
     expect(formatLogCount(100000)).toBe("100K")
     expect(formatLogCount(1e6)).toBe("1M")
+  })
+})
+
+describe("default chart options", () => {
+  it("opens every chart in log where the view allows it", () => {
+    expect(AREA_BARS_OPTIONS.views.map((v) => v.scales[0])).toEqual(["log", "log"])
+    expect(STATUS_OPTIONS.views.map((v) => v.scales[0])).toEqual(["log", "full", "clip"])
+    expect(LATENCY_OPTIONS.views.map((v) => v.scales[0])).toEqual(["log", "log"])
+  })
+
+  it("opens request latency as the percentile band", () => {
+    expect(LATENCY_OPTIONS.views[0].id).toBe("band")
   })
 })
