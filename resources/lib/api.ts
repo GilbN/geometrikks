@@ -1242,8 +1242,8 @@ export function formatNumber(value: number): string {
 export function formatBytes(bytes: number): string {
   if (bytes === 0) return "0 B"
   const k = 1024
-  const sizes = ["B", "KB", "MB", "GB", "TB"]
-  const i = Math.floor(Math.log(bytes) / Math.log(k))
+  const sizes = ["B", "KB", "MB", "GB", "TB", "PB", "EB"]
+  const i = Math.min(Math.floor(Math.log(bytes) / Math.log(k)), sizes.length - 1)
   return `${(bytes / Math.pow(k, i)).toFixed(1)} ${sizes[i]}`
 }
 
@@ -1439,7 +1439,12 @@ export function parseTimeRange(
   }
 }
 
-/** Auto = hourly up to 7 days, daily above (hourly buckets beyond 7d are noise). */
+/**
+ * Auto = hourly below 7 days, daily from 7 days (168 hourly buckets are noise).
+ * A week counts from 167 whole hours: a week across the spring daylight-saving
+ * change has 167, and Last week ends at 23:59:59.999, a millisecond short, so
+ * the span is rounded to the nearest hour first.
+ */
 export function resolveChartGranularity(
   granularity: ChartGranularity,
   range: TimeRangeValue,
@@ -1447,8 +1452,8 @@ export function resolveChartGranularity(
 ): "hourly" | "daily" {
   if (granularity !== "auto") return granularity
   const { startDate, endDate } = parseTimeRange(range, Date.now(), customRange)
-  const days = (new Date(endDate).getTime() - new Date(startDate).getTime()) / 86_400_000
-  return days > 7 ? "daily" : "hourly"
+  const hours = Math.round((new Date(endDate).getTime() - new Date(startDate).getTime()) / 3_600_000)
+  return hours >= 7 * 24 - 1 ? "daily" : "hourly"
 }
 
 /**
