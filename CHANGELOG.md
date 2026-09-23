@@ -9,11 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- View and scale options on the time-series charts in Analytics and Geo Logs. A sliders button in each chart header opens a menu with a View and a Scale choice. Scale is linear with spike clipping (the default, as before), linear full range, or log. In log, zero buckets sit on the bottom edge and the header says so. Requests, Bandwidth and Geo events add a Bars view. Status classes adds Share of responses (each class as a share of 2xx to 5xx) and Error rate (4xx and 5xx as a share of all requests), and draws the four classes as lines in log. Request latency adds a Percentile band: p50 to p95 shaded, with p99 and the average as lines. The button shows a chip for each non-default choice, and every chart keeps its choice across reloads.
+- Each time-series chart in Analytics and Geo Logs has a menu for view and scale. Scale can be linear with spike clipping (the default), linear full range, or log. Requests, Bandwidth and Geo events can show bars. Status classes can show each class's share of responses, or the error rate. Request latency can show a p50 to p95 band. Each chart keeps its choice after a reload.
 
 ### Fixed
 
-- Chart tooltips show a value of 0 instead of leaving the value blank.
+- Chart tooltips show values of 0.
 
 ## [0.18.0] - 2026-09-22
 
