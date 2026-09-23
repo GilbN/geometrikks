@@ -224,3 +224,23 @@ test.describe("status chart", () => {
     await expect(tooltip.getByText("n/a", { exact: true })).toHaveCount(4)
   })
 })
+test.describe("latency chart", () => {
+  const points = Array.from({ length: BUCKETS }, (_, i) => timeSeriesPoint(i))
+
+  test("band draws one run per stretch of data and lists four tooltip rows", async ({ page }) => {
+    await mockTimeSeries(page, points)
+    await page.goto("/analytics")
+    const card = panel(page, "Request latency")
+    await choose(page, card, "Request latency", "Percentile band")
+    // Buckets 10 to 12 have no latency data: one gap, two runs.
+    // The band has stroke="none", so its fill path is the only one rendered.
+    expect(await moveCount(card.locator(".recharts-area-area").first())).toBe(2)
+
+    const tooltip = await hoverBucket(page, card, 30, BUCKETS)
+    for (const label of ["Average", "p50", "p95", "p99"]) {
+      await expect(tooltip.getByText(label, { exact: true })).toBeVisible()
+    }
+    const empty = await hoverBucket(page, card, 12, BUCKETS)
+    await expect(empty.getByText("n/a", { exact: true })).toHaveCount(4)
+  })
+})
