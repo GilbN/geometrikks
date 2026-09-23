@@ -4,6 +4,7 @@
  * slots are categorical and deliberately separate from the brand accent.
  */
 import type { ChartConfig } from "@/components/ui/chart"
+import type { ChartOptionsSpec } from "@/lib/chart-options"
 
 export const requestsChartConfig = {
   totalRequests: { label: "Requests", color: "var(--chart-1)" },
@@ -27,4 +28,56 @@ export const latencyChartConfig = {
   p50RequestTime: { label: "p50", color: "var(--chart-2)" },
   p95RequestTime: { label: "p95", color: "var(--chart-3)" },
   p99RequestTime: { label: "p99", color: "var(--chart-4)" },
+} satisfies ChartConfig
+
+/**
+ * Above this many buckets the card-colored bar spacers are wider than the
+ * bars (they erase the fill on 7d+ hourly views), so bar views drop them and
+ * the status stack switches to areas.
+ */
+export const DENSE_BUCKETS = 48
+
+export function barSpacer(buckets: number): { stroke?: string; strokeWidth?: number } {
+  return buckets > DENSE_BUCKETS ? {} : { stroke: "var(--card)", strokeWidth: 1 }
+}
+
+/** A 0..1 fraction as a percentage: 0.123 -> "12.3%", 0.0042 -> "0.42%". */
+export function formatRate(value: number): string {
+  const pct = value * 100
+  if (pct !== 0 && Math.abs(pct) < 1) return `${pct.toFixed(2)}%`
+  return `${pct.toFixed(1).replace(/\.0$/, "")}%`
+}
+
+export const AREA_BARS_OPTIONS = {
+  views: [
+    { id: "area", label: "Area", scales: ["clip", "full", "log"] },
+    { id: "bars", label: "Bars", scales: ["clip", "full", "log"] },
+  ],
+} satisfies ChartOptionsSpec
+
+export const STATUS_OPTIONS = {
+  views: [
+    { id: "stacked", label: "Stacked counts", scales: ["clip", "full", "log"], scaleHints: { log: "Shows as lines" } },
+    { id: "share", label: "Share of responses", chip: "Share", scales: ["full"], fixedScaleNote: "Fixed 0 to 100% axis" },
+    { id: "error-rate", label: "Error rate", scales: ["clip", "full"] },
+  ],
+} satisfies ChartOptionsSpec
+
+export const LATENCY_OPTIONS = {
+  views: [
+    { id: "lines", label: "Lines", scales: ["clip", "full", "log"] },
+    { id: "band", label: "Percentile band", chip: "Band", scales: ["clip", "full", "log"] },
+  ],
+} satisfies ChartOptionsSpec
+
+// Uses the 5xx slot: the rate is the share of client and server errors.
+export const statusErrorRateChartConfig = {
+  errorRate: { label: "Error rate (4xx + 5xx)", color: "var(--chart-4)" },
+} satisfies ChartConfig
+
+// Keys match the band view's dataKeys; labels and --color-* vars resolve by key.
+export const latencyBandChartConfig = {
+  band: { label: "p50 to p95", color: "var(--chart-3)" },
+  p99RequestTime: latencyChartConfig.p99RequestTime,
+  avgRequestTime: latencyChartConfig.avgRequestTime,
 } satisfies ChartConfig
