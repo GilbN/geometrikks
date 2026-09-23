@@ -1439,7 +1439,11 @@ export function parseTimeRange(
   }
 }
 
-/** Auto = hourly below 7 days, daily from 7 days (168 hourly buckets are noise). */
+/**
+ * Auto = hourly below 7 days, daily from 7 days (168 hourly buckets are noise).
+ * A week counts from 167 hours: Last week ends at 23:59:59.999, a millisecond
+ * short, and a week across the spring daylight-saving change has 167 hours.
+ */
 export function resolveChartGranularity(
   granularity: ChartGranularity,
   range: TimeRangeValue,
@@ -1448,7 +1452,7 @@ export function resolveChartGranularity(
   if (granularity !== "auto") return granularity
   const { startDate, endDate } = parseTimeRange(range, Date.now(), customRange)
   const days = (new Date(endDate).getTime() - new Date(startDate).getTime()) / 86_400_000
-  return days >= 7 ? "daily" : "hourly"
+  return days >= 7 - 1 / 24 ? "daily" : "hourly"
 }
 
 /**
