@@ -1,20 +1,29 @@
-import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts"
+import { useMemo } from "react"
+import { Area, Bar, CartesianGrid, ComposedChart, XAxis, YAxis } from "recharts"
 import { SignalPanel } from "@/components/data/signal-panel"
 import { dataState } from "@/components/data/types"
 import { ChartContainer, ChartTooltip } from "@/components/ui/chart"
 import { formatNumber } from "@/lib/api"
-import { clampedYMax } from "@/lib/chart-scale"
+import { useChartOptions } from "@/lib/chart-options"
+import { scaleSeries } from "@/lib/chart-scale"
 import { formatTs } from "@/lib/datetime"
 import { useTimeSeries } from "@/lib/queries"
 import { ChartLegendRow } from "./chart-legend-row"
-import { requestsChartConfig } from "./chart-utils"
+import { ChartOptionsMenu, ScaleNotes } from "./chart-options-menu"
+import { AREA_BARS_OPTIONS, barSpacer, requestsChartConfig } from "./chart-utils"
 import { GranularityBadge } from "./granularity-badge"
 import { TimeSeriesTooltip } from "./time-series-tooltip"
 
+const SERIES = ["totalRequests"] as const
+
 export function RequestsChart() {
   const { data, error, isLoading, isError, refetch } = useTimeSeries()
-  const points = data?.data ?? []
-  const clipMax = clampedYMax(points.map((d) => d.totalRequests))
+  const options = useChartOptions("requests", AREA_BARS_OPTIONS)
+  const points = useMemo(() => data?.data ?? [], [data])
+  const series = useMemo(
+    () => scaleSeries(points, SERIES, options.scale, { integer: true }),
+    [points, options.scale],
+  )
   const state = dataState(isLoading, isError, points.length)
 
   return (
@@ -27,15 +36,19 @@ export function RequestsChart() {
       bodyClassName="min-h-[240px]"
       actions={
         <>
-          {clipMax != null && <span>y-axis clipped at {formatNumber(clipMax)}</span>}
+          <ScaleNotes
+            clip={series.clipMax != null ? formatNumber(series.clipMax) : null}
+            zerosRaised={series.zerosRaised}
+          />
           <GranularityBadge granularity={data?.granularity} />
+          <ChartOptionsMenu title="Requests" spec={AREA_BARS_OPTIONS} options={options} />
         </>
       }
       legend={<ChartLegendRow config={requestsChartConfig} label="Requests chart legend" />}
     >
       {data && (
         <ChartContainer config={requestsChartConfig} className="h-[240px] w-full">
-          <AreaChart data={points}>
+          <ComposedChart data={series.rows}>
             <CartesianGrid vertical={false} />
             <XAxis
               dataKey="timestamp"
@@ -48,19 +61,27 @@ export function RequestsChart() {
               axisLine={false}
               width={48}
               tickFormatter={(v: number) => formatNumber(v)}
-              domain={clipMax != null ? [0, clipMax] : undefined}
-              allowDataOverflow={clipMax != null}
+              {...series.axis}
             />
             <ChartTooltip content={<TimeSeriesTooltip granularity={data.granularity} />} />
-            <Area
-              dataKey="totalRequests"
-              type="monotone"
-              fill="var(--color-totalRequests)"
-              fillOpacity={0.2}
-              stroke="var(--color-totalRequests)"
-              strokeWidth={2}
-            />
-          </AreaChart>
+            {options.view.id === "bars" ? (
+              <Bar
+                dataKey="totalRequests"
+                fill="var(--color-totalRequests)"
+                radius={[2, 2, 0, 0]}
+                {...barSpacer(points.length)}
+              />
+            ) : (
+              <Area
+                dataKey="totalRequests"
+                type="monotone"
+                fill="var(--color-totalRequests)"
+                fillOpacity={0.2}
+                stroke="var(--color-totalRequests)"
+                strokeWidth={2}
+              />
+            )}
+          </ComposedChart>
         </ChartContainer>
       )}
     </SignalPanel>
