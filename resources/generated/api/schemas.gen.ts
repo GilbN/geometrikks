@@ -483,7 +483,17 @@ export const AlertDetailViewSchema = {
       },
       type: "array",
     },
-    country: {
+    countryCode: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    countryName: {
       oneOf: [
         {
           type: "string",
@@ -595,7 +605,8 @@ export const AlertDetailViewSchema = {
     "asName",
     "asNumber",
     "context",
-    "country",
+    "countryCode",
+    "countryName",
     "createdAt",
     "decisionCount",
     "decisions",
@@ -649,7 +660,17 @@ export const AlertViewSchema = {
         },
       ],
     },
-    country: {
+    countryCode: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    countryName: {
       oneOf: [
         {
           type: "string",
@@ -714,7 +735,8 @@ export const AlertViewSchema = {
   required: [
     "activeDecisionCount",
     "asName",
-    "country",
+    "countryCode",
+    "countryName",
     "createdAt",
     "decisionCount",
     "eventsCount",

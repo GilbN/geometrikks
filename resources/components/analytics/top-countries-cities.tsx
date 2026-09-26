@@ -1,3 +1,4 @@
+import { CountryLabel } from "@/components/country-flag"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   Table,
@@ -46,7 +47,7 @@ export function TopCountriesCities() {
                   <TableBody>
                     {countryItems.map((row) => (
                       <TableRow key={row.countryCode}>
-                        <TableCell>{row.countryName ?? row.countryCode}</TableCell>
+                        <TableCell><CountryLabel code={row.countryCode} name={row.countryName} /></TableCell>
                         <TableCell className="text-right tabular-nums">{formatNumber(row.hits)}</TableCell>
                         <TableCell className="text-right tabular-nums">{formatNumber(row.uniqueIps)}</TableCell>
                       </TableRow>
@@ -73,7 +74,7 @@ export function TopCountriesCities() {
                   <TableBody>
                     {cityItems.map((row, index) => (
                       <TableRow key={`${row.city}-${row.countryCode}-${index}`}>
-                        <TableCell>{row.city}</TableCell>
+                        <TableCell><CountryLabel code={row.countryCode}>{row.city}</CountryLabel></TableCell>
                         <TableCell className="text-right tabular-nums">{formatNumber(row.hits)}</TableCell>
                         <TableCell className="text-right tabular-nums">{formatNumber(row.uniqueIps)}</TableCell>
                       </TableRow>

@@ -7,6 +7,7 @@
 import { useRef, useState } from "react"
 import { Link } from "@tanstack/react-router"
 import { Check, ChevronRight, Copy } from "lucide-react"
+import { CountryLabel } from "@/components/country-flag"
 import { DetailField, DetailSheet } from "@/components/data/detail-sheet"
 import { DecisionBadge } from "@/components/crowdsec/decision-badge"
 import { AlertKindBadge } from "@/components/security/alert-kind-badge"
@@ -221,7 +222,14 @@ function AlertBody({ alert, onNavigate }: { alert: AlertDetailView; onNavigate: 
             </span>
           }
         />
-        <DetailField label="Country" value={alert.country} />
+        <DetailField
+          label="Country"
+          value={
+            (alert.countryCode || alert.countryName) && (
+              <CountryLabel code={alert.countryCode} name={alert.countryName} />
+            )
+          }
+        />
         <DetailField
           label="AS"
           value={asLabel(alert.asName, alert.asNumber)}

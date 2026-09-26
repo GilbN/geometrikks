@@ -508,7 +508,17 @@
             },
             "type": "array"
           },
-          "country": {
+          "countryCode": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "countryName": {
             "oneOf": [
               {
                 "type": "string"
@@ -620,7 +630,8 @@
           "asName",
           "asNumber",
           "context",
-          "country",
+          "countryCode",
+          "countryName",
           "createdAt",
           "decisionCount",
           "decisions",
@@ -675,7 +686,17 @@
               }
             ]
           },
-          "country": {
+          "countryCode": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "countryName": {
             "oneOf": [
               {
                 "type": "string"
@@ -740,7 +761,8 @@
         "required": [
           "activeDecisionCount",
           "asName",
-          "country",
+          "countryCode",
+          "countryName",
           "createdAt",
           "decisionCount",
           "eventsCount",

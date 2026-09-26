@@ -135,7 +135,9 @@ class AlertView(msgspec.Struct, rename="camel"):
     machine_id: str | None
     scope: str
     value: str
-    country: str | None
+    country_code: str | None
+    # Only set from GeoMetrikks' own traffic; the LAPI supplies a bare code.
+    country_name: str | None
     as_name: str | None
     decision_count: int
     # decision_count includes expired decisions, which alerts keep.
@@ -239,15 +241,16 @@ def _enrichment_key(alert: Alert) -> str:
     return canonical_ip(alert.source.value) or alert.source.value
 
 
-def _alert_country(alert: Alert, enrichment: IpEnrichment | None) -> str | None:
+def _alert_country(alert: Alert, enrichment: IpEnrichment | None) -> tuple[str | None, str | None]:
     if alert.source.cn is not None:
-        return alert.source.cn
+        return alert.source.cn, None
     if enrichment is None:
-        return None
-    return enrichment.country_name or enrichment.country_code
+        return None, None
+    return enrichment.country_code, enrichment.country_name
 
 
 def _alert_summary(alert: Alert, enrichment: IpEnrichment | None) -> dict:
+    country_code, country_name = _alert_country(alert, enrichment)
     return {
         "id": alert.id,
         "scenario": alert.scenario,
@@ -258,7 +261,8 @@ def _alert_summary(alert: Alert, enrichment: IpEnrichment | None) -> dict:
         "machine_id": alert.machine_id,
         "scope": alert.source.scope,
         "value": _enrichment_key(alert) if alert.source.scope == "Ip" else alert.source.value,
-        "country": _alert_country(alert, enrichment),
+        "country_code": country_code,
+        "country_name": country_name,
         "as_name": alert.source.as_name,
         "decision_count": len(alert.decisions),
         "active_decision_count": sum(not d.expired for d in alert.decisions),

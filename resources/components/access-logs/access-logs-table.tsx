@@ -8,6 +8,7 @@
  */
 import { memo, useState } from "react"
 import { ArrowDown, ArrowUp, ChevronsUpDown, Columns3 } from "lucide-react"
+import { CountryLabel } from "@/components/country-flag"
 import {
   TableCell,
   TableHead,
@@ -115,7 +116,7 @@ function renderCell(column: AccessLogColumn, r: AccessLog): React.ReactNode {
     case "country":
       return (
         <span className="whitespace-nowrap" title={r.countryName ?? undefined}>
-          {r.countryCode ?? "-"}
+          {r.countryCode ? <CountryLabel code={r.countryCode} name={r.countryName}>{r.countryCode}</CountryLabel> : "-"}
         </span>
       )
     case "city":

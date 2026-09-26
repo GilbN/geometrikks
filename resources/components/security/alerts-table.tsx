@@ -4,6 +4,7 @@
  * Selecting a row opens the alert's context, events and decisions.
  */
 import { useState } from "react"
+import { CountryLabel } from "@/components/country-flag"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
@@ -137,7 +138,11 @@ export function AlertsTable() {
                           </span>
                         )}
                       </TableCell>
-                      <TableCell>{alert.country ?? "-"}</TableCell>
+                      <TableCell>
+                        {alert.countryCode || alert.countryName ? (
+                          <CountryLabel code={alert.countryCode} name={alert.countryName} />
+                        ) : "-"}
+                      </TableCell>
                       <TableCell className="max-w-[160px] truncate" title={alert.asName ?? undefined}>
                         {alert.asName ?? "-"}
                       </TableCell>

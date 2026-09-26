@@ -493,7 +493,7 @@ async def test_alerts_returns_flattened_views(monkeypatch):
     (alert,) = resp.json()
     assert alert["scenario"] == "crowdsecurity/ssh-bf"
     assert alert["value"] == "1.2.3.4"
-    assert alert["country"] == "NO"
+    assert (alert["countryCode"], alert["countryName"]) == ("NO", None)
     assert alert["asName"] == "Telenor"
     assert alert["machineId"] == "gateway"
     assert alert["eventsCount"] == 6
@@ -516,7 +516,7 @@ async def test_alerts_without_lapi_geo_fall_back_to_own_enrichment(monkeypatch):
     async with AsyncTestClient(app=make_app(service, enrichment)) as client:
         resp = await client.get("/api/v1/crowdsec/alerts")
     (alert,) = resp.json()
-    assert alert["country"] == "Norway"
+    assert (alert["countryCode"], alert["countryName"]) == ("NO", "Norway")
     assert enrichment.calls == [["1.2.3.4"]]
 
 
@@ -616,7 +616,7 @@ async def test_alert_detail_returns_context_events_and_decisions(monkeypatch):
     assert detail["kind"] == "crowdsec"
     assert detail["simulated"] is False
     assert (detail["startAt"], detail["stopAt"]) == ("2026-07-20T09:59:50Z", "2026-07-20T10:00:00Z")
-    assert (detail["country"], detail["asName"], detail["asNumber"]) == ("NO", "Telenor", "2119")
+    assert (detail["countryCode"], detail["asName"], detail["asNumber"]) == ("NO", "Telenor", "2119")
     assert detail["range"] == "1.2.3.0/24"
     assert detail["eventsCount"] == 6
     assert detail["context"] == [{"key": "target_uri", "values": ["/wp-login.php", "/.env"]}]
@@ -638,7 +638,7 @@ async def test_alert_detail_without_lapi_geo_falls_back_to_own_enrichment(monkey
     service = AlertFakeCrowdSec([bare])
     async with AsyncTestClient(app=make_app(service, FakeEnrichment({"1.2.3.4": OSLO}))) as client:
         detail = (await client.get("/api/v1/crowdsec/alerts/7")).json()
-    assert detail["country"] == "Norway"
+    assert (detail["countryCode"], detail["countryName"]) == ("NO", "Norway")
 
 
 # -- the alert behind a decision -------------------------------------------
@@ -694,7 +694,7 @@ async def test_alert_geo_fallback_finds_a_non_canonical_ipv6_source(monkeypatch)
     async with AsyncTestClient(app=make_app(AlertFakeCrowdSec([bare]), enrichment)) as client:
         (listed,) = (await client.get("/api/v1/crowdsec/alerts")).json()
         detail = (await client.get("/api/v1/crowdsec/alerts/7")).json()
-    assert (listed["country"], detail["country"]) == ("Norway", "Norway")
+    assert (listed["countryName"], detail["countryName"]) == ("Norway", "Norway")
     assert listed["value"] == detail["value"] == "2001:db8::1"
 
 

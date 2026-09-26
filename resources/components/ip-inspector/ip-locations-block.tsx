@@ -2,6 +2,7 @@ import { useNavigate } from "@tanstack/react-router"
 import { LocateFixed } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
+import { CountryFlag } from "@/components/country-flag"
 import { formatNumber } from "@/lib/api"
 import { flyToSearch } from "@/lib/map-filters"
 import { useIpInspectorOrigin } from "@/lib/ip-inspector"
@@ -24,7 +25,10 @@ export function IpLocationsBlock({ ip }: { ip: string }) {
         <ul className="space-y-0.5">
           {rows.map((r) => (
             <li key={r.locationId} className="flex items-center justify-between gap-2 text-xs">
-              <span className="min-w-0 truncate">{r.city ?? r.countryName}, {r.countryCode}</span>
+              <span className="min-w-0 truncate">
+                <CountryFlag code={r.countryCode} name={r.countryName} className="mr-1.5 inline-block align-[-1px]" />
+                {r.city ?? r.countryName}, {r.countryCode}
+              </span>
               <span className="flex shrink-0 items-center gap-1 tabular-nums text-muted-foreground">
                 {formatNumber(r.eventCount)}
                 <Button

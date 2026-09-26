@@ -5,6 +5,7 @@
  * lives in the URL via AccessLogFiltersContext, so every control is a
  * controlled input over the route's search params.
  */
+import { CountryFlag } from "@/components/country-flag"
 import { useEffect, useRef, useState } from "react"
 import { Search } from "lucide-react"
 import { FilterField, FilterPair, FilterRail, FilterRow } from "@/components/data/filter-rail"
@@ -192,6 +193,7 @@ export function AccessLogsFilterBar() {
     <FilterField label="Country" hideLabel={!inDrawer}>
       <FilterCombobox
         label="Country"
+        iconFor={(code) => <CountryFlag code={code} />}
         options={facets?.countries.map((c) => c.code) ?? []}
         selected={filters.countryCodes}
         onChange={(values) => setFilters((prev) => ({ ...prev, countryCodes: values }))}

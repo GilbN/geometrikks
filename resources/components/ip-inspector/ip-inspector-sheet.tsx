@@ -3,6 +3,7 @@ import { Link } from "@tanstack/react-router"
 import { ChevronDown, RotateCcw, RotateCw } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
+import { CountryFlag } from "@/components/country-flag"
 import { DetailSheet } from "@/components/data/detail-sheet"
 import { DecisionBadge } from "@/components/crowdsec/decision-badge"
 import { IpBanAction } from "@/components/crowdsec/ip-ban-controls"
@@ -123,6 +124,7 @@ function IpInspectorBody({ ip, onZoom }: { ip: string; onZoom: (from: string, to
     <div className="space-y-4">
       <header className="space-y-2">
         <p className="text-xs text-muted-foreground">
+          {primary && <CountryFlag code={primary.countryCode} name={primary.countryName} className="mr-1.5 inline-block align-[-1px]" />}
           {primary && `${primary.city ?? primary.countryName}, ${primary.countryCode}`}
           {primary && profile?.asn != null && " · "}
           {profile?.asn != null && `AS${profile.asn}${profile.asnOrganization ? ` ${profile.asnOrganization}` : ""}`}

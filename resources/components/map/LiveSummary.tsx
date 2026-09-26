@@ -9,6 +9,7 @@ import { PACKET_COLORS } from "@/lib/live-traffic/classify"
 import { smooth, trendPercent, type LiveSummary as Summary } from "@/lib/live-traffic/summary"
 import { formatNumber } from "@/lib/api"
 import { cn } from "@/lib/utils"
+import { CountryFlag } from "@/components/country-flag"
 
 const SPARKLINE_WIDTH = 200
 const SPARKLINE_HEIGHT = 28
@@ -201,8 +202,9 @@ function TopOrigins({ summary, dense }: { summary: Summary; dense: boolean }) {
         ) : (
           <div className="flex flex-wrap gap-x-3 gap-y-1 text-[11px]">
             {summary.origins.map(({ country, count }) => (
-              <span key={country} className="text-muted-foreground">
-                <span className="font-mono">{country}</span>{" "}
+              <span key={country} className="inline-flex items-center gap-1 text-muted-foreground">
+                <CountryFlag code={country} className="h-[9px] w-3" />
+                <span className="font-mono">{country}</span>
                 <b className="font-semibold tabular-nums text-foreground">{formatNumber(count)}</b>
               </span>
             ))}
@@ -221,6 +223,9 @@ function TopOrigins({ summary, dense }: { summary: Summary; dense: boolean }) {
         <div className="flex flex-col gap-1">
           {summary.origins.map(({ country, count, share }) => (
             <div key={country} className="flex items-center gap-2 text-[10px]">
+              <span className="flex w-3 shrink-0">
+                <CountryFlag code={country} className="h-[9px] w-3" />
+              </span>
               <span
                 className={cn(
                   "w-6 shrink-0 font-mono",
