@@ -887,7 +887,18 @@ export const BanRequestSchema = {
       type: "string",
     },
     reason: {
-      default: "manual ban from GeoMetrikks",
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    type: {
+      default: "ban",
+      enum: ["ban", "captcha"],
       type: "string",
     },
   },

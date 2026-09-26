@@ -11,6 +11,7 @@ import { CountryLabel } from "@/components/country-flag"
 import { DetailField, DetailSheet } from "@/components/data/detail-sheet"
 import { DecisionBadge } from "@/components/crowdsec/decision-badge"
 import { AlertKindBadge } from "@/components/security/alert-kind-badge"
+import { ExternalLink, ExternalLinkButton } from "@/components/crowdsec/external-link"
 import { IpBanControls } from "@/components/crowdsec/ip-ban-controls"
 import { InspectIpButton } from "@/components/ip-inspector/inspect-ip-button"
 import { FlyToIpButton } from "@/components/map/FlyToIpButton"
@@ -20,7 +21,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Skeleton } from "@/components/ui/skeleton"
 import type { AlertDetailView, AlertEventView, AlertView } from "@/generated/api/types.gen"
 import { copyText } from "@/lib/clipboard"
-import { crowdsecErrorMessage } from "@/lib/crowdsec"
+import { bgpAsUrl, crowdsecCtiUrl, crowdsecErrorMessage, crowdsecHubUrl } from "@/lib/crowdsec"
 import {
   CHALLENGE_EVENT_KEYS,
   HTTP_EVENT_KEYS,
@@ -190,6 +191,23 @@ function ChallengeSection({ challenge }: { challenge: ChallengeContext }) {
   )
 }
 
+function AsValue({ name, number }: { name: string | null; number: string | null }) {
+  const label = asLabel(name, number)
+  const href = bgpAsUrl(number)
+  if (!label || !href) return label
+  return <ExternalLink href={href}>{label}</ExternalLink>
+}
+
+function ScenarioTitle({ scenario }: { scenario: string }) {
+  const hubUrl = crowdsecHubUrl(scenario)
+  return (
+    <span className="break-all font-mono text-sm">
+      {scenario}
+      {hubUrl && <ExternalLinkButton href={hubUrl} label="Open in the CrowdSec Hub" className="ml-1" />}
+    </span>
+  )
+}
+
 function AlertBody({ alert, onNavigate }: { alert: AlertDetailView; onNavigate: () => void }) {
   const isIp = alert.scope === "Ip"
   const http = hasHttpEvents(alert.events)
@@ -217,6 +235,7 @@ function AlertBody({ alert, onNavigate }: { alert: AlertDetailView; onNavigate: 
                 <IpBanControls ip={alert.value}>
                   <InspectIpButton ip={alert.value} onOpen={onNavigate} />
                   <FlyToIpButton ip={alert.value} onOpen={onNavigate} />
+                  <ExternalLinkButton href={crowdsecCtiUrl(alert.value)} label="Look up in CrowdSec CTI" />
                 </IpBanControls>
               )}
             </span>
@@ -232,7 +251,7 @@ function AlertBody({ alert, onNavigate }: { alert: AlertDetailView; onNavigate: 
         />
         <DetailField
           label="AS"
-          value={asLabel(alert.asName, alert.asNumber)}
+          value={<AsValue name={alert.asName} number={alert.asNumber} />}
         />
         <DetailField label="Range" value={alert.range} mono />
         <DetailField label="First event" value={alert.startAt && new Date(alert.startAt).toLocaleString()} />
@@ -334,7 +353,7 @@ function AlertSheet({
     <DetailSheet
       open={open}
       onOpenChange={onOpenChange}
-      title={<span className="break-all font-mono text-sm">{scenario ?? "Alert details"}</span>}
+      title={scenario ? <ScenarioTitle scenario={scenario} /> : <span className="font-mono text-sm">Alert details</span>}
       description={description}
     >
       {open && detail.isPending && (

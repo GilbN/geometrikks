@@ -235,7 +235,8 @@ export type AuthOptions = {
 export type BanRequest = {
   duration?: string | null;
   ip: string;
-  reason?: string;
+  reason?: string | null;
+  type?: "ban" | "captcha";
 };
 
 /**

@@ -9,6 +9,7 @@
  * Inline styles keep it visually matched to the popup content. Tailwind does
  * work inside the popups, as the shadcn InspectIpButton next to it shows.
  */
+import { useState } from "react"
 import { Loader2, ShieldBan, ShieldOff } from "lucide-react"
 import { toast } from "sonner"
 import {
@@ -16,8 +17,10 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { BanIpDialog } from "@/components/security/ban-ip-dialog"
 import { useBanIp, useBannedIps, useCrowdsecStatus, useUnbanIp } from "@/lib/queries"
 import { BAN_DURATIONS, crowdsecErrorMessage, resolveDecision } from "@/lib/crowdsec"
 import { DecisionBadge } from "@/components/crowdsec/decision-badge"
@@ -46,6 +49,7 @@ export function IpBanControls({
   const { data: bannedIps } = useBannedIps()
   const ban = useBanIp()
   const unban = useUnbanIp()
+  const [dialogOpen, setDialogOpen] = useState(false)
   const decision = resolveDecision(bannedIps, ip, initialDecision)
   const banned = decision !== null
   const isPending = ban.isPending || unban.isPending
@@ -150,11 +154,14 @@ export function IpBanControls({
                     {d.label}
                   </DropdownMenuItem>
                 ))}
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onSelect={() => setDialogOpen(true)}>More options…</DropdownMenuItem>
               </>
             )}
           </DropdownMenuContent>
         </DropdownMenu>
       )}
+      {status?.writeEnabled && <BanIpDialog open={dialogOpen} onOpenChange={setDialogOpen} initialIp={ip} />}
     </Wrapper>
   )
 }

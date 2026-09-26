@@ -205,10 +205,10 @@ def write_settings() -> dict:
     return {"machine_id": "geometrikks", "machine_password": "machine-pass"}
 
 
-async def test_ban_ip_logs_in_and_posts_alert():
+async def test_ban_logs_in_and_posts_alert():
     lapi = LapiWriteFake()
     service = make_service(lapi, **write_settings())
-    await service.ban_ip("1.2.3.4", duration="24h", reason="test ban")
+    await service.ban("1.2.3.4", duration="24h", reason="test ban")
 
     assert lapi.login_calls == 1
     assert lapi.auth_headers == ["Bearer jwt-1"]
@@ -224,20 +224,53 @@ async def test_ban_ip_logs_in_and_posts_alert():
     await service.aclose()
 
 
-async def test_ban_ip_uses_default_duration():
+async def test_ban_uses_default_duration():
     lapi = LapiWriteFake()
     service = make_service(lapi, **write_settings())
-    await service.ban_ip("1.2.3.4")
+    await service.ban("1.2.3.4")
     (alerts,) = lapi.alert_payloads
     assert alerts[0]["decisions"][0]["duration"] == "4h"
+    await service.aclose()
+
+
+async def test_ban_range_posts_range_scope_decision():
+    lapi = LapiWriteFake()
+    service = make_service(lapi, **write_settings())
+    await service.ban("10.0.0.0/24", scope="Range")
+    ((alert,),) = lapi.alert_payloads
+    assert alert["source"] == {"scope": "Range", "value": "10.0.0.0/24", "range": "10.0.0.0/24"}
+    (decision,) = alert["decisions"]
+    assert decision["scope"] == "Range"
+    assert decision["value"] == "10.0.0.0/24"
+    await service.aclose()
+
+
+async def test_ban_captcha_sets_decision_type_and_scenario():
+    lapi = LapiWriteFake()
+    service = make_service(lapi, **write_settings())
+    await service.ban("1.2.3.4", decision_type="captcha", reason="odd")
+    ((alert,),) = lapi.alert_payloads
+    assert alert["scenario"] == "geometrikks/manual-captcha"
+    (decision,) = alert["decisions"]
+    assert decision["type"] == "captcha"
+    assert decision["scenario"] == "geometrikks/manual-captcha: odd"
+    await service.aclose()
+
+
+async def test_ban_default_reason_names_the_decision_type():
+    lapi = LapiWriteFake()
+    service = make_service(lapi, **write_settings())
+    await service.ban("1.2.3.4", decision_type="captcha")
+    ((alert,),) = lapi.alert_payloads
+    assert alert["message"] == "manual captcha from GeoMetrikks"
     await service.aclose()
 
 
 async def test_machine_token_is_cached_across_calls():
     lapi = LapiWriteFake()
     service = make_service(lapi, **write_settings())
-    await service.ban_ip("1.2.3.4")
-    await service.unban_ip("1.2.3.4")
+    await service.ban("1.2.3.4")
+    await service.unban("1.2.3.4")
     assert lapi.login_calls == 1
     await service.aclose()
 
@@ -245,32 +278,49 @@ async def test_machine_token_is_cached_across_calls():
 async def test_expired_token_triggers_single_relogin_retry():
     lapi = LapiWriteFake(expire_first_token=True)
     service = make_service(lapi, **write_settings())
-    deleted = await service.unban_ip("1.2.3.4")
+    deleted = await service.unban("1.2.3.4")
     assert deleted == 2
     assert lapi.login_calls == 2
     assert lapi.auth_headers == ["Bearer jwt-1", "Bearer jwt-2"]
     await service.aclose()
 
 
-async def test_unban_ip_parses_string_nb_deleted():
+async def test_unban_parses_string_nb_deleted():
     lapi = LapiWriteFake()
     service = make_service(lapi, **write_settings())
-    assert await service.unban_ip("5.6.7.8") == 2
-    assert lapi.delete_params == [{"ip": "5.6.7.8"}]
+    assert await service.unban("5.6.7.8") == 2
+    await service.aclose()
+
+
+async def test_unban_ip_leaves_covering_ranges_alone():
+    # The LAPI's delete defaults to contains=true, so ip= alone would also
+    # delete any Range decision covering the IP.
+    lapi = LapiWriteFake()
+    service = make_service(lapi, **write_settings())
+    await service.unban("5.6.7.8")
+    assert lapi.delete_params == [{"scopes": "Ip", "ip": "5.6.7.8"}]
+    await service.aclose()
+
+
+async def test_unban_range_deletes_that_range_only():
+    lapi = LapiWriteFake()
+    service = make_service(lapi, **write_settings())
+    await service.unban("10.0.0.0/24", scope="Range")
+    assert lapi.delete_params == [{"scopes": "Range", "value": "10.0.0.0/24"}]
     await service.aclose()
 
 
 async def test_write_without_machine_credentials_raises_auth_error():
     service = make_service(LapiWriteFake())  # bouncer key only
     with pytest.raises(CrowdSecAuthError):
-        await service.ban_ip("1.2.3.4")
+        await service.ban("1.2.3.4")
     await service.aclose()
 
 
 async def test_rejected_machine_login_raises_auth_error():
     service = make_service(LapiWriteFake(login_status=403), **write_settings())
     with pytest.raises(CrowdSecAuthError):
-        await service.ban_ip("1.2.3.4")
+        await service.ban("1.2.3.4")
     await service.aclose()
 
 

@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import re
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, Literal
 
 import httpx2
 import msgspec
@@ -24,6 +24,14 @@ from geometrikks.services.crowdsec.exceptions import (
 from geometrikks.services.crowdsec.schemas import Alert, Decision, DecisionStreamDelta
 
 logger = get_logger(__name__)
+
+DecisionScope = Literal["Ip", "Range"]
+DecisionType = Literal["ban", "captcha"]
+
+
+def manual_reason(decision_type: DecisionType) -> str:
+    """The reason a manual decision carries when the user gave none."""
+    return f"manual {decision_type} from GeoMetrikks"
 
 
 def _event_timestamp(value: str) -> str:
@@ -262,22 +270,30 @@ class CrowdSecService:
         except httpx2.HTTPError as exc:
             raise CrowdSecUnavailableError(f"LAPI unreachable: {exc}") from exc
 
-    async def ban_ip(
+    async def ban(
         self,
-        ip: str,
+        value: str,
         *,
+        scope: DecisionScope = "Ip",
+        decision_type: DecisionType = "ban",
         duration: str | None = None,
-        reason: str = "manual ban from GeoMetrikks",
+        reason: str | None = None,
     ) -> None:
-        """Create a manual ban decision via an alert on POST /v1/alerts.
+        """Create a manual decision on an IP or range via an alert on POST /v1/alerts.
+
+        ``value`` must already be canonical: an IP for ``Ip``, a network
+        address in CIDR form for ``Range``.
 
         Raises:
             CrowdSecAuthError: Machine credentials missing or rejected.
             CrowdSecUnavailableError: The LAPI is unreachable or errored.
         """
         now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        reason = reason or manual_reason(decision_type)
+        scenario = f"geometrikks/manual-{decision_type}"
+        source_key = "ip" if scope == "Ip" else "range"
         alert = {
-            "scenario": "geometrikks/manual-ban",
+            "scenario": scenario,
             "scenario_hash": "",
             "scenario_version": "",
             "message": reason,
@@ -289,15 +305,15 @@ class CrowdSecService:
             "simulated": False,
             "start_at": now,
             "stop_at": now,
-            "source": {"scope": "Ip", "value": ip, "ip": ip},
+            "source": {"scope": scope, "value": value, source_key: value},
             "decisions": [
                 {
-                    "type": "ban",
-                    "scope": "Ip",
-                    "value": ip,
+                    "type": decision_type,
+                    "scope": scope,
+                    "value": value,
                     "duration": duration or self._settings.default_ban_duration,
                     "origin": "geometrikks",
-                    "scenario": f"geometrikks/manual-ban: {reason}",
+                    "scenario": f"{scenario}: {reason}",
                     "simulated": False,
                 }
             ],
@@ -363,13 +379,20 @@ class CrowdSecService:
             return None
         return msgspec.convert(_normalize_alert(resp.json()), Alert, strict=False)
 
-    async def unban_ip(self, ip: str) -> int:
-        """Delete all active decisions for an IP; returns the number deleted.
+    async def unban(self, value: str, *, scope: DecisionScope = "Ip") -> int:
+        """Delete every active decision on an IP or range, from any origin;
+        returns the number deleted.
 
         Raises:
             CrowdSecAuthError: Machine credentials missing or rejected.
             CrowdSecUnavailableError: The LAPI is unreachable or errored.
         """
-        resp = await self._machine_request("DELETE", "/v1/decisions", params={"ip": ip})
+        # An ip= or range= filter defaults to contains=true, which also
+        # matches every wider Range decision covering the value.
+        params = (
+            {"scopes": "Ip", "ip": value} if scope == "Ip"
+            else {"scopes": "Range", "value": value}
+        )
+        resp = await self._machine_request("DELETE", "/v1/decisions", params=params)
         # The LAPI types nbDeleted as a string ("2"); int() handles both.
         return int(resp.json().get("nbDeleted", 0))
