@@ -15,7 +15,11 @@ from litestar.types import ExceptionHandlersMap
 
 from geometrikks.domain.exceptions import DomainConflictError, DomainNotFoundError, DomainValidationError
 from geometrikks.server.logging import get_logger
-from geometrikks.services.crowdsec import CrowdSecAuthError, CrowdSecUnavailableError
+from geometrikks.services.crowdsec import (
+    CrowdSecAuthError,
+    CrowdSecUnavailableError,
+    CrowdSecUnsupportedError,
+)
 
 logger = get_logger(__name__)
 
@@ -103,9 +107,20 @@ def handle_crowdsec_auth_error(request: Request, exc: Exception) -> Response:
     )
 
 
+def handle_crowdsec_unsupported(request: Request, exc: Exception) -> Response:
+    """400: the request needs a newer LAPI than the one configured. The
+    message is ours, not the LAPI's."""
+    return Response(
+        media_type=MediaType.JSON,
+        status_code=HTTP_400_BAD_REQUEST,
+        content={"status_code": HTTP_400_BAD_REQUEST, "detail": str(exc)},
+    )
+
+
 CROWDSEC_EXCEPTION_HANDLERS: ExceptionHandlersMap = {
     CrowdSecUnavailableError: handle_crowdsec_unavailable,
     CrowdSecAuthError: handle_crowdsec_auth_error,
+    CrowdSecUnsupportedError: handle_crowdsec_unsupported,
 }
 
 # The complete domain-to-HTTP translation map registered by create_app().

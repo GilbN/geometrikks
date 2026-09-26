@@ -498,7 +498,9 @@ async def test_alerts_returns_flattened_views(monkeypatch):
     assert alert["machineId"] == "gateway"
     assert alert["eventsCount"] == 6
     assert alert["decisionCount"] == 1
-    assert service.alert_calls == [{"limit": 25, "ip": None, "scenario": None, "since": "24h"}]
+    assert service.alert_calls == [
+        {"limit": 25, "ip": None, "scenario": None, "since": "24h", "kind": None, "has_active_decision": None}
+    ]
 
 
 async def test_alerts_without_lapi_geo_fall_back_to_own_enrichment(monkeypatch):
@@ -525,6 +527,40 @@ async def test_alerts_count_active_decisions_apart_from_expired(monkeypatch):
     async with AsyncTestClient(app=make_app(AlertFakeCrowdSec([alert]))) as client:
         (view,) = (await client.get("/api/v1/crowdsec/alerts")).json()
     assert (view["decisionCount"], view["activeDecisionCount"]) == (2, 1)
+
+
+
+async def test_alerts_report_their_kind(monkeypatch):
+    enable_write(monkeypatch)
+    rejection = make_alert()
+    rejection.id = 8
+    rejection.kind = "bot-detection"
+    rejection.decisions = []
+    async with AsyncTestClient(app=make_app(AlertFakeCrowdSec([make_alert(), rejection]))) as client:
+        views = (await client.get("/api/v1/crowdsec/alerts")).json()
+    assert [v["kind"] for v in views] == [None, "bot-detection"]
+
+
+async def test_alerts_forward_kind_and_live_decision_filters(monkeypatch):
+    enable_write(monkeypatch)
+    service = AlertFakeCrowdSec([])
+    async with AsyncTestClient(app=make_app(service)) as client:
+        resp = await client.get(
+            "/api/v1/crowdsec/alerts", params={"kind": "bot-detection", "hasActiveDecision": "true"}
+        )
+    assert resp.status_code == 200
+    (call,) = service.alert_calls
+    assert call["kind"] == "bot-detection"
+    assert call["has_active_decision"] is True
+
+
+async def test_alerts_reject_an_unknown_kind(monkeypatch):
+    enable_write(monkeypatch)
+    service = AlertFakeCrowdSec([])
+    async with AsyncTestClient(app=make_app(service)) as client:
+        resp = await client.get("/api/v1/crowdsec/alerts", params={"kind": "robot"})
+    assert resp.status_code == 400
+    assert service.alert_calls == []
 
 
 # -- alert detail ----------------------------------------------------------

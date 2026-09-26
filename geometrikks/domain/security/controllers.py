@@ -49,6 +49,9 @@ DEFAULT_ORIGINS = "crowdsec,cscli,geometrikks"
 
 TOP_SCENARIO_LIMIT = 10
 
+# Alert origins the engine stamps on ``kind`` (pkg/types/alert_kind.go).
+ALERT_KINDS = frozenset({"crowdsec", "waf", "bot-detection", "capi", "papi", "cscli"})
+
 
 # Go duration string as the LAPI accepts it, e.g. "4h", "30m", "1h30m".
 GO_DURATION_RE = re.compile(r"^(\d+h)?(\d+m)?(\d+s)?$")
@@ -123,6 +126,9 @@ class CrowdSecStatsResponse(msgspec.Struct, rename="camel"):
 class AlertView(msgspec.Struct, rename="camel"):
     id: int | None
     scenario: str
+    # Alert origin: crowdsec for log scenarios, waf, bot-detection, ...
+    # None from LAPIs that predate the field.
+    kind: str | None
     message: str
     events_count: int
     created_at: str
@@ -159,7 +165,6 @@ class AlertEventView(msgspec.Struct, rename="camel"):
 
 
 class AlertDetailView(AlertView, rename="camel"):
-    kind: str | None
     simulated: bool
     start_at: str | None
     stop_at: str | None
@@ -246,6 +251,7 @@ def _alert_summary(alert: Alert, enrichment: IpEnrichment | None) -> dict:
     return {
         "id": alert.id,
         "scenario": alert.scenario,
+        "kind": alert.kind,
         "message": alert.message,
         "events_count": alert.events_count,
         "created_at": alert.created_at,
@@ -268,7 +274,6 @@ async def _alert_detail(
     enriched = await enrichment_repo.enrich([key]) if needs_geo else {}
     return AlertDetailView(
         **_alert_summary(alert, enriched.get(key)),
-        kind=alert.kind,
         simulated=bool(alert.simulated),
         start_at=alert.start_at,
         stop_at=alert.stop_at,
@@ -464,19 +469,46 @@ class CrowdSecController(Controller):
             str | None,
             QueryParameter(required=False, description="Go duration lookback, e.g. 24h"),
         ] = None,
+        kind: Annotated[
+            str | None,
+            QueryParameter(
+                required=False,
+                description="Alert origin: crowdsec, waf, bot-detection, capi, papi or cscli",
+            ),
+        ] = None,
+        has_active_decision: Annotated[
+            bool | None,
+            QueryParameter(
+                name="hasActiveDecision",
+                required=False,
+                description=(
+                    "true keeps alerts with a decision still in force; "
+                    "false keeps alerts that never had one"
+                ),
+            ),
+        ] = None,
     ) -> list[AlertView]:
         """Recent alert history from the LAPI (machine credentials required).
 
         The LAPI only geo-enriches alerts from log-parsing scenarios; manual
         bans carry a bare IP. Ip-scope sources missing LAPI geo are filled
         from GeoMetrikks' own stored traffic instead.
+
+        ``kind`` needs CrowdSec 1.7 or newer; an older LAPI answers 400.
         """
         service = _require_write(crowdsec, settings)
         if ip is not None:
             validate_ip_address(ip)
         if since is not None:
             _validate_duration(since)
-        alerts = await service.get_alerts(limit=limit, ip=ip, scenario=scenario, since=since)
+        if kind is not None and kind not in ALERT_KINDS:
+            raise DomainValidationError(
+                f"Unknown alert kind: {kind!r} (expected one of {', '.join(sorted(ALERT_KINDS))})"
+            )
+        alerts = await service.get_alerts(
+            limit=limit, ip=ip, scenario=scenario, since=since, kind=kind,
+            has_active_decision=has_active_decision,
+        )
 
         bare_ips = [
             _enrichment_key(a) for a in alerts if a.source.scope == "Ip" and a.source.cn is None

@@ -13,6 +13,7 @@ from geometrikks.services.crowdsec import (
     CrowdSecAuthError,
     CrowdSecService,
     CrowdSecUnavailableError,
+    CrowdSecUnsupportedError,
     Decision,
 )
 
@@ -532,4 +533,199 @@ async def test_one_alert_with_valueless_meta_does_not_break_the_history_list():
 
     service = make_service(Fake(), **write_settings())
     assert [a.id for a in await service.get_alerts()] == [7, 9]
+    await service.aclose()
+
+
+async def test_get_alerts_forwards_kind():
+    lapi = LapiAlertsFake()
+    service = make_service(lapi, **write_settings())
+    await service.get_alerts(kind="bot-detection")
+    assert lapi.alert_params["kind"] == "bot-detection"
+    await service.get_alerts()
+    assert "kind" not in lapi.alert_params
+    await service.aclose()
+
+
+class OldLapiAlertsFake(LapiAlertsFake):
+    """A LAPI older than 1.7 answers 400 to the ``kind`` filter."""
+
+    def __call__(self, request: httpx2.Request) -> httpx2.Response:
+        if request.url.path == "/v1/alerts" and "kind" in request.url.params:
+            return httpx2.Response(400, json={"message": "filter parameter 'kind' is unknown"})
+        return super().__call__(request)
+
+
+async def test_get_alerts_kind_on_an_old_lapi_names_the_minimum_version():
+    service = make_service(OldLapiAlertsFake(), **write_settings())
+    with pytest.raises(CrowdSecUnsupportedError, match="1.7"):
+        await service.get_alerts(kind="bot-detection")
+    await service.aclose()
+
+
+async def test_get_alerts_other_400s_still_read_as_unavailable():
+    def respond(request: httpx2.Request) -> httpx2.Response:
+        if request.url.path == "/v1/watchers/login":
+            return httpx2.Response(200, json={"token": "jwt-1"})
+        return httpx2.Response(400, json={"message": "bad since"})
+
+    service = make_service(respond, **write_settings())
+    with pytest.raises(CrowdSecUnavailableError):
+        await service.get_alerts(since="nope")
+    await service.aclose()
+
+
+# A CrowdSec 1.8.1 bot-detection alert as the LAPI returned it on
+# 2026-09-26, with the IP replaced. The challenge writes one event per
+# rejection, sets no remediation, and GeoIP-enriches the source itself.
+BOT_DETECTION_ALERT_JSON = {
+    "created_at": "2026-09-26T12:33:42Z",
+    "decisions": None,
+    "events": [
+        {
+            "meta": [
+                {
+                    "key": "bot_signals",
+                    "value": "cdp"
+                },
+                {
+                    "key": "challenge_event",
+                    "value": "rejected"
+                },
+                {
+                    "key": "challenge_fail_reason",
+                    "value": "request score 100"
+                },
+                {
+                    "key": "fingerprint_bot",
+                    "value": "true"
+                },
+                {
+                    "key": "fsid",
+                    "value": "FS1_000010000000000000000_00010h02ba_1920x1200c20m32b00011h366c95_f10001111000101111000111111111e00000000p1100h-34daa_0h-3c7c2_1h6d8275_nb6tEurope-Oslo_h3af4_0100h63b845"
+                },
+                {
+                    "key": "http_user_agent",
+                    "value": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36"
+                },
+                {
+                    "key": "log_type",
+                    "value": "appsec-challenge"
+                },
+                {
+                    "key": "method",
+                    "value": "POST"
+                },
+                {
+                    "key": "os",
+                    "value": "Windows"
+                },
+                {
+                    "key": "request_score",
+                    "value": "100"
+                },
+                {
+                    "key": "request_score_reasons",
+                    "value": "cdp=100"
+                },
+                {
+                    "key": "request_uuid",
+                    "value": "b350f54c-2e79-4dc2-af3c-163134d71c47"
+                },
+                {
+                    "key": "service",
+                    "value": "appsec"
+                },
+                {
+                    "key": "source_ip",
+                    "value": "203.0.113.7"
+                },
+                {
+                    "key": "target_host",
+                    "value": "gflix.app"
+                },
+                {
+                    "key": "target_uri",
+                    "value": "/"
+                }
+            ],
+            "timestamp": "2026-09-26 12:33:41 +0000 UTC"
+        }
+    ],
+    "events_count": 1,
+    "id": 13087,
+    "kind": "bot-detection",
+    "machine_id": "localhost",
+    "message": "WAF bot-detection: 203.0.113.7 rejected by crowdsecurity/rejected-browser-submission (request score 100)",
+    "meta": [
+        {
+            "key": "bot_detected",
+            "value": "[\"true\"]"
+        },
+        {
+            "key": "challenge_event",
+            "value": "[\"rejected\"]"
+        },
+        {
+            "key": "fail_reason",
+            "value": "[\"request score 100\"]"
+        },
+        {
+            "key": "fingerprint_id",
+            "value": "[\"FS1_000010000000000000000_00010h02ba_1920x1200c20m32b00011h366c95_f10001111000101111000111111111e00000000p1100h-34daa_0h-3c7c2_1h6d8275_nb6tEurope-Oslo_h3af4_0100h63b845\"]"
+        },
+        {
+            "key": "request_score",
+            "value": "[\"100\"]"
+        },
+        {
+            "key": "score_reasons",
+            "value": "[\"cdp=100\"]"
+        },
+        {
+            "key": "user_agent",
+            "value": "[\"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36\"]"
+        },
+        {
+            "key": "target_uri",
+            "value": "[\"/\"]"
+        },
+        {
+            "key": "operating_system",
+            "value": "[\"Windows\"]"
+        }
+    ],
+    "scenario": "crowdsecurity/rejected-browser-submission",
+    "simulated": False,
+    "source": {
+        "scope": "Ip",
+        "value": "203.0.113.7",
+        "ip": "203.0.113.7",
+        "cn": "NO",
+        "as_name": "Telenor Norge AS",
+        "as_number": "2119",
+        "range": "203.0.113.0/24"
+    },
+    "start_at": "2026-09-26T12:33:41Z",
+    "stop_at": "2026-09-26T12:33:41Z"
+}
+
+
+async def test_get_alert_parses_a_bot_detection_alert():
+    service = make_service(LapiAlertDetailFake(BOT_DETECTION_ALERT_JSON), **write_settings())
+    alert = await service.get_alert(13087)
+    assert alert is not None
+    assert alert.kind == "bot-detection"
+    assert alert.scenario == "crowdsecurity/rejected-browser-submission"
+    assert alert.decisions == []
+    assert alert.source.cn == "NO"
+    assert alert.source.as_number == "2119"
+    context = {entry.key: entry.values for entry in alert.context}
+    assert context["request_score"] == ["100"]
+    assert context["score_reasons"] == ["cdp=100"]
+    assert context["challenge_event"] == ["rejected"]
+    (event,) = alert.events
+    assert event.timestamp == "2026-09-26T12:33:41+00:00"
+    assert event.meta["log_type"] == "appsec-challenge"
+    assert event.meta["request_score_reasons"] == "cdp=100"
+    assert event.meta["target_host"] == "gflix.app"
     await service.aclose()

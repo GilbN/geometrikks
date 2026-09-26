@@ -704,6 +704,16 @@
               }
             ]
           },
+          "kind": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "machineId": {
             "oneOf": [
               {
@@ -735,6 +745,7 @@
           "decisionCount",
           "eventsCount",
           "id",
+          "kind",
           "machineId",
           "message",
           "scenario",
@@ -8531,6 +8542,46 @@
               "oneOf": [
                 {
                   "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Alert origin: crowdsec, waf, bot-detection, capi, papi or cscli",
+            "in": "query",
+            "name": "kind",
+            "required": false,
+            "schema": {
+              "description": "Alert origin: crowdsec, waf, bot-detection, capi, papi or cscli",
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "true keeps alerts with a decision still in force; false keeps alerts that never had one",
+            "in": "query",
+            "name": "hasActiveDecision",
+            "required": false,
+            "schema": {
+              "description": "true keeps alerts with a decision still in force; false keeps alerts that never had one",
+              "oneOf": [
+                {
+                  "type": "boolean"
                 },
                 {
                   "type": "null"

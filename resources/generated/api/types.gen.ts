@@ -165,6 +165,7 @@ export type AlertView = {
   decisionCount: number;
   eventsCount: number;
   id: number | null;
+  kind: string | null;
   machineId: string | null;
   message: string;
   scenario: string;
@@ -2490,6 +2491,14 @@ export type ApiV1CrowdsecAlertsListAlertsData = {
      * Go duration lookback, e.g. 24h
      */
     since?: string | null;
+    /**
+     * Alert origin: crowdsec, waf, bot-detection, capi, papi or cscli
+     */
+    kind?: string | null;
+    /**
+     * true keeps alerts with a decision still in force; false keeps alerts that never had one
+     */
+    hasActiveDecision?: boolean | null;
   };
   url: "/api/v1/crowdsec/alerts";
 };
