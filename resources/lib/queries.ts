@@ -415,7 +415,7 @@ export function useCrowdsecDecisions(params: {
 }
 
 /** Recent alert history; only fetched when machine credentials are set. */
-export function useCrowdsecAlerts(params: { since?: string; limit?: number }) {
+export function useCrowdsecAlerts(params: { since?: string; limit?: number; kind?: string }) {
   const { data: status } = useCrowdsecStatus()
   return useQuery({
     queryKey: queryKeys.crowdsec.alerts(params),
@@ -1525,14 +1525,16 @@ export function useIpDecisions(ip: string | undefined) {
   })
 }
 
-/** Newest alert for the IP; its createdAt is the ban start. Alerts need
- *  machine credentials, hence the writeEnabled gate. */
+/** Newest alert for the IP that still holds a live decision; its createdAt
+ *  is the ban start. Alerts without a decision, such as a rejected browser
+ *  challenge, would otherwise pose as the ban. Alerts need machine
+ *  credentials, hence the writeEnabled gate. */
 export function useIpLatestAlert(ip: string | undefined) {
   const { data: status } = useCrowdsecStatus()
   const { lastRefresh } = useTimeRange()
   return useQuery({
     queryKey: queryKeys.crowdsec.latestAlert(ip ?? "", lastRefresh),
-    queryFn: () => fetchCrowdsecAlerts({ ip: ip!, limit: 1 }),
+    queryFn: () => fetchCrowdsecAlerts({ ip: ip!, limit: 1, hasActiveDecision: true }),
     enabled: Boolean(ip) && status?.writeEnabled === true,
     staleTime: 30 * 1000,
     select: (alerts) => alerts[0] ?? null,
