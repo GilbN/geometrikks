@@ -125,7 +125,8 @@ export type AlertDetailView = {
   asName: string | null;
   asNumber: string | null;
   context: Array<AlertContextView>;
-  country: string | null;
+  countryCode: string | null;
+  countryName: string | null;
   createdAt: string;
   decisionCount: number;
   decisions: Array<AlertDecisionView>;
@@ -160,7 +161,8 @@ export type AlertEventView = {
 export type AlertView = {
   activeDecisionCount: number;
   asName: string | null;
-  country: string | null;
+  countryCode: string | null;
+  countryName: string | null;
   createdAt: string;
   decisionCount: number;
   eventsCount: number;

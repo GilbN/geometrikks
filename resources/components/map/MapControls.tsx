@@ -30,6 +30,7 @@ import {
   DrawerTrigger,
 } from "@/components/ui/drawer"
 import { InspectIpButton } from "@/components/ip-inspector/inspect-ip-button"
+import { CountryFlag } from "@/components/country-flag"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { FilterCombobox } from "@/components/ui/filter-combobox"
 import { Switch } from "@/components/ui/switch"
@@ -313,6 +314,7 @@ export function MapControls({
     <Section label="Filters">
       <FilterCombobox
         label="Country"
+        iconFor={(code) => <CountryFlag code={code} />}
         options={countryOptions}
         selected={selectedCountries}
         onChange={onCountriesChange}
@@ -474,9 +476,11 @@ export function MapControls({
                   className="flex min-w-0 flex-1 items-center justify-between text-[10px] hover:bg-foreground/[0.07] rounded px-1 py-0.5 cursor-pointer disabled:cursor-default disabled:opacity-50 text-left"
                 >
                   <div className="font-mono truncate"><Badge variant="secondary" className="text-[10px] h-5 min-w-5 py-0 font-mono tabular-nums">{formatNumber(ip.eventCount)}</Badge> {ip.ipAddress}</div>
-                  <span className="text-muted-foreground ml-2 shrink-0">
-                    {ip.location?.city ?? ip.location?.countryCode ?? ""}
-                  </span>
+                  <CountryFlag
+                    code={ip.location?.countryCode}
+                    name={[ip.location?.city, ip.location?.countryName].filter(Boolean).join(", ") || null}
+                    className="ml-2"
+                  />
                 </button>
                 {/* Fly first, then let the button open the inspector: same landing as the row click. */}
                 <span onClickCapture={() => ip.location && onFlyToLocation?.(ip.location.latitude, ip.location.longitude)}>

@@ -11,6 +11,7 @@ import { formatNumber } from "@/lib/api"
 import { crowdsecErrorMessage, winningDecision } from "@/lib/crowdsec"
 import type { BannedMapIp } from "@/generated/api/types.gen"
 import { IpBanControls } from "./IpBanControls"
+import { CountryFlag, CountryLabel } from "@/components/country-flag"
 import { InspectIpButton } from "@/components/ip-inspector/inspect-ip-button"
 import { DecisionBadge } from "@/components/crowdsec/decision-badge"
 import { POPUP_OFFSET, POPUP_CODE_STYLE, POPUP_LINK_BUTTON_STYLE, POPUP_ROW_ICON_STYLE, PopupBadge, PopupCard, PopupRow } from "./PopupCard"
@@ -47,7 +48,13 @@ function IpDetails({ member, onBack }: { member: BannedMapIp; onBack?: () => voi
       />
       <PopupRow label="Events" value={<PopupBadge>{formatNumber(member.eventCount)}</PopupBadge>} />
       <PopupRow label="Location" icon={<MapPin style={POPUP_ROW_ICON_STYLE} />} value={member.city ?? "Unknown"} />
-      {member.countryCode && <PopupRow label="Country" icon={<Globe style={POPUP_ROW_ICON_STYLE} />} value={member.countryCode} />}
+      {member.countryCode && (
+        <PopupRow
+          label="Country"
+          icon={<Globe style={POPUP_ROW_ICON_STYLE} />}
+          value={<CountryLabel code={member.countryCode}>{member.countryCode}</CountryLabel>}
+        />
+      )}
 
       <div style={{ paddingTop: "8px", marginTop: "8px", borderTop: "1px solid var(--popup-border)" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "4px", marginBottom: "6px", fontSize: "12px", color: "var(--popup-muted)" }}>
@@ -114,7 +121,13 @@ function IpList({ ips, onSelect }: { ips: BannedMapIp[]; onSelect: (ip: BannedMa
             <code style={POPUP_CODE_STYLE}>{ip.ip}</code>
             <span style={{ fontSize: "10px", color: "var(--popup-muted)", flexShrink: 0 }}>
               <span style={{ fontWeight: 500, color: "var(--popup-fg)" }}>{formatNumber(ip.eventCount)}</span>
-              {(ip.city ?? ip.countryCode) && ` · ${ip.city ?? ip.countryCode}`}
+              {(ip.city ?? ip.countryCode) && (
+                <>
+                  {" · "}
+                  <CountryFlag code={ip.countryCode} className="mr-1 inline-block h-[9px] w-3 align-[-1px]" />
+                  {ip.city ?? ip.countryCode}
+                </>
+              )}
             </span>
           </button>
         ))}

@@ -4,6 +4,7 @@
  */
 import { useEffect, useRef, useState } from "react"
 import { AlertTriangle, Check, Copy } from "lucide-react"
+import { CountryLabel } from "@/components/country-flag"
 import { DetailField, DetailSheet } from "@/components/data/detail-sheet"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -129,7 +130,13 @@ export function DebugLogDetailSheet({
                 <DetailField label="Status" value={entry.statusCode} mono />
                 <DetailField
                   label="Country"
-                  value={entry.countryCode ? `${entry.countryName ?? entry.countryCode} (${entry.countryCode})` : null}
+                  value={
+                    entry.countryCode && (
+                      <CountryLabel code={entry.countryCode} name={entry.countryName}>
+                        {`${entry.countryName ?? entry.countryCode} (${entry.countryCode})`}
+                      </CountryLabel>
+                    )
+                  }
                 />
                 <DetailField label="City" value={entry.city} />
                 <DetailField label="User agent" value={entry.userAgent} mono />

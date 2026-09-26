@@ -6,6 +6,7 @@
  * lists, table) reshapes through GeoLogFiltersContext, whose state lives in
  * the URL search params.
  */
+import { CountryFlag } from "@/components/country-flag"
 import { useMemo, useState } from "react"
 import { FilterField, FilterPair, FilterRail, FilterRow } from "@/components/data/filter-rail"
 import { FilterChip, TagInput } from "@/components/data/tag-input"
@@ -81,6 +82,7 @@ export function GeoLogsFilterBar() {
     <FilterField label="Country" hideLabel={!inDrawer}>
       <FilterCombobox
         label="Country"
+        iconFor={(code) => <CountryFlag code={code} />}
         options={facets?.countries.map((c) => c.code) ?? []}
         selected={filters.countryCodes}
         onChange={(values) => setFilters((prev) => ({ ...prev, countryCodes: values }))}

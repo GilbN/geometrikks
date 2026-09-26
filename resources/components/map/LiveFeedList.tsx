@@ -9,6 +9,7 @@
 import { useEffect, useRef } from "react"
 import { useVirtualizer } from "@tanstack/react-virtual"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { CountryFlag } from "@/components/country-flag"
 import { PACKET_COLORS } from "@/lib/live-traffic/classify"
 import { formatNumber } from "@/lib/api"
 import { cn } from "@/lib/utils"
@@ -122,6 +123,7 @@ export function LiveFeedList({
                     touch ? "text-[10px]" : "text-[9px]",
                   )}
                 >
+                  <CountryFlag code={request.countryCode} className="mr-1 inline-block h-[9px] w-3 align-[-1px]" />
                   {[request.city, request.countryCode].filter(Boolean).join(", ") || request.ip}
                   {request.hostname ? ` · ${request.hostname}` : ""}
                 </span>

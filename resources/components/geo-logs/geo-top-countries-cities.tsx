@@ -3,6 +3,7 @@
  * with exact unique-IP counts. The switch lives in the frame's tools.
  */
 import { useState } from "react"
+import { CountryLabel } from "@/components/country-flag"
 import { DataTableFrame } from "@/components/data/data-table-frame"
 import { dataState } from "@/components/data/types"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -64,7 +65,7 @@ export function GeoTopCountriesCities() {
             <TableBody>
               {countryItems.map((row) => (
                 <TableRow key={row.countryCode}>
-                  <TableCell>{row.countryName ?? row.countryCode}</TableCell>
+                  <TableCell><CountryLabel code={row.countryCode} name={row.countryName} /></TableCell>
                   <TableCell className="text-right tabular-nums">{formatNumber(row.eventCount)}</TableCell>
                   <TableCell className="text-right tabular-nums">{formatNumber(row.uniqueIps)}</TableCell>
                 </TableRow>
@@ -83,7 +84,7 @@ export function GeoTopCountriesCities() {
             <TableBody>
               {cityItems.map((row, index) => (
                 <TableRow key={`${row.city}-${row.countryCode}-${index}`}>
-                  <TableCell>{row.city}</TableCell>
+                  <TableCell><CountryLabel code={row.countryCode}>{row.city}</CountryLabel></TableCell>
                   <TableCell className="text-right tabular-nums">{formatNumber(row.eventCount)}</TableCell>
                   <TableCell className="text-right tabular-nums">{formatNumber(row.uniqueIps)}</TableCell>
                 </TableRow>

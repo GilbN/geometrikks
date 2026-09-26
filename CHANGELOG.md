@@ -11,8 +11,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Each time-series chart in Analytics and Geo Logs has a menu for view and scale. Scale can be log (the default), linear with spike clipping, or linear full range. Requests, Bandwidth and Geo events can show bars. Status classes can show each class's share of responses, or the error rate. Request latency now opens as a p50 to p95 band, and its old lines view is still in the menu. Each chart keeps its choice after a reload.
 - CrowdSec 1.8 bot detection on the Security page. Alert history has a kind selector for all kinds, detections, WAF and bot detection, and labels WAF and bot-detection alerts. Opening a rejected browser challenge shows a Challenge section with the outcome, the score, each signal that added to it and what the signal means, the fingerprint id with a copy button, the operating system, the user agent and the target path. Challenge events show the method, the path and the outcome on the row. `GET /api/v1/crowdsec/alerts` accepts `kind` and `hasActiveDecision` and returns `kind` on every alert. Filtering by kind needs CrowdSec 1.7 or newer. An older LAPI answers 400 with a message saying so.
+- Country flags wherever the app shows a country, including the Country filter lists. Hover a flag for the country name. The map's Top IPs list shows the flag in place of the city, so the full IP fits, and hovering it shows the city. CrowdSec decisions with Country scope fill the Country column.
 
 ### Changed
+
+- The CrowdSec alert endpoints return `countryCode` and `countryName` in place of `country`, which held a code or a name depending on the source. `countryName` is null when the LAPI supplied the country.
 
 - Charts on a 7-day range, including the 7d preset and Last week, use daily buckets instead of hourly when granularity is Auto.
 

@@ -7,6 +7,7 @@
 import { useState } from "react"
 import { toast } from "sonner"
 import { ChevronRight, Loader2, ShieldOff } from "lucide-react"
+import { CountryLabel } from "@/components/country-flag"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { TableCell, TableRow } from "@/components/ui/table"
@@ -77,6 +78,8 @@ export function DecisionGroupRows(props: Props) {
   const alertActivation = alertActivationFor(props)
   const multiple = group.decisionCount > 1
   const isIp = group.scope === "Ip"
+  // Enrichment only covers Ip decisions; a Country decision's value is the code.
+  const countryCode = group.countryCode ?? (group.scope === "Country" ? group.ip : null)
   const summary = multiple
     ? {
         "aria-expanded": open,
@@ -108,7 +111,9 @@ export function DecisionGroupRows(props: Props) {
         <TableCell>
           <DecisionBadge type={group.type} />
         </TableCell>
-        <TableCell>{group.countryName ?? group.countryCode ?? "-"}</TableCell>
+        <TableCell>
+          {countryCode ? <CountryLabel code={countryCode} name={group.countryName} /> : "-"}
+        </TableCell>
         <TableCell>{group.city ?? "-"}</TableCell>
         <TableCell>
           <span className="inline-flex flex-wrap gap-1">
