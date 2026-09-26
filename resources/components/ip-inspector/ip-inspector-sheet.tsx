@@ -6,14 +6,15 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { CountryFlag } from "@/components/country-flag"
 import { DetailSheet } from "@/components/data/detail-sheet"
 import { DecisionBadge } from "@/components/crowdsec/decision-badge"
+import { ExternalLink } from "@/components/crowdsec/external-link"
 import { IpBanAction } from "@/components/crowdsec/ip-ban-controls"
 import { TimeRangePicker } from "@/components/time-range-picker"
 import type { CustomTimeRange, TimeRangeValue } from "@/lib/api"
-import { decisionLabel, isValidIp, winningDecision } from "@/lib/crowdsec"
+import { bgpAsUrl, crowdsecCtiUrl, decisionLabel, isValidIp, winningDecision } from "@/lib/crowdsec"
 import { cn } from "@/lib/utils"
 import { formatTs } from "@/lib/datetime"
 import { useIpInspector } from "@/lib/ip-inspector"
-import { useIpDecisions, useIpLatestAlert, useIpLocations, useIpProfile } from "@/lib/queries"
+import { useCrowdsecStatus, useIpDecisions, useIpLatestAlert, useIpLocations, useIpProfile } from "@/lib/queries"
 import { useTimeRange } from "@/lib/time-range-context"
 import { rangeSubtitle } from "@/lib/time-range-labels"
 import { IpLatestRequests } from "./ip-latest-requests"
@@ -109,6 +110,7 @@ function HeaderBanAction({ ip }: { ip: string }) {
 
 function IpInspectorBody({ ip, onZoom }: { ip: string; onZoom: (from: string, to: string) => void }) {
   const profileQuery = useIpProfile(ip)
+  const crowdsecEnabled = useCrowdsecStatus().data?.enabled ?? false
   const decisions = useIpDecisions(ip)
   const latestAlert = useIpLatestAlert(ip)
   const locations = useIpLocations(ip)
@@ -118,6 +120,7 @@ function IpInspectorBody({ ip, onZoom }: { ip: string; onZoom: (from: string, to
   const banned = decision !== null
   const banCreatedAt = latestAlert.data?.createdAt ?? null
   const primary = locations.data?.items?.[0]
+  const asUrl = bgpAsUrl(profile?.asn)
   const signals = profile ? computeSignals({ profile, banned, banCreatedAt }) : []
 
   return (
@@ -127,7 +130,17 @@ function IpInspectorBody({ ip, onZoom }: { ip: string; onZoom: (from: string, to
           {primary && <CountryFlag code={primary.countryCode} name={primary.countryName} className="mr-1.5 inline-block align-[-1px]" />}
           {primary && `${primary.city ?? primary.countryName}, ${primary.countryCode}`}
           {primary && profile?.asn != null && " · "}
-          {profile?.asn != null && `AS${profile.asn}${profile.asnOrganization ? ` ${profile.asnOrganization}` : ""}`}
+          {profile?.asn != null && asUrl && (
+            <ExternalLink href={asUrl}>
+              {`AS${profile.asn}${profile.asnOrganization ? ` ${profile.asnOrganization}` : ""}`}
+            </ExternalLink>
+          )}
+          {crowdsecEnabled && (
+            <>
+              {(primary || profile?.asn != null) && " · "}
+              <ExternalLink href={crowdsecCtiUrl(ip)}>CrowdSec CTI</ExternalLink>
+            </>
+          )}
         </p>
         {decision && (
           <DecisionBadge

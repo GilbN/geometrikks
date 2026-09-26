@@ -53,12 +53,15 @@ function ScenarioCell({ scenario }: { scenario: string }) {
 function UnbanButton({ group }: { group: DecisionGroupView }) {
   const unban = useUnbanIp()
   const { ip } = group
+  const title = group.scope === "Range"
+    ? `Unban ${ip}. Removes every active decision on this range, from any origin.`
+    : `Unban ${ip}. Removes every active decision on this IP, from any origin. A range decision covering it stays.`
   return (
     <Button
       variant="ghost"
       size="icon-xs"
       className="text-muted-foreground"
-      title={`Unban ${ip}. Removes every active decision for this IP, from any origin.`}
+      title={title}
       disabled={unban.isPending}
       onClick={() =>
         unban.mutate(ip, {
@@ -138,7 +141,7 @@ export function DecisionGroupRows(props: Props) {
         >
           {group.requestCount24h ?? "-"}
         </TableCell>
-        {writeEnabled && <TableCell {...stopRowActivation}>{isIp && <UnbanButton group={group} />}</TableCell>}
+        {writeEnabled && <TableCell {...stopRowActivation}>{(isIp || group.scope === "Range") && <UnbanButton group={group} />}</TableCell>}
       </TableRow>
       {open &&
         group.decisions.map((decision, index) => {

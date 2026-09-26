@@ -12,6 +12,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Each time-series chart in Analytics and Geo Logs has a menu for view and scale. Scale can be log (the default), linear with spike clipping, or linear full range. Requests, Bandwidth and Geo events can show bars. Status classes can show each class's share of responses, or the error rate. Request latency now opens as a p50 to p95 band, and its old lines view is still in the menu. Each chart keeps its choice after a reload.
 - CrowdSec 1.8 bot detection on the Security page. Alert history has a kind selector for all kinds, detections, WAF and bot detection, and labels WAF and bot-detection alerts. Opening a rejected browser challenge shows a Challenge section with the outcome, the score, each signal that added to it and what the signal means, the fingerprint id with a copy button, the operating system, the user agent and the target path. Challenge events show the method, the path and the outcome on the row. `GET /api/v1/crowdsec/alerts` accepts `kind` and `hasActiveDecision` and returns `kind` on every alert. Filtering by kind needs CrowdSec 1.7 or newer. An older LAPI answers 400 with a message saying so.
 - Country flags wherever the app shows a country, including the Country filter lists. Hover a flag for the country name. The map's Top IPs list shows the flag in place of the city, so the full IP fits, and hovering it shows the city. CrowdSec decisions with Country scope fill the Country column.
+- Ban a CIDR range, or require a captcha instead of a ban. The Ban IP dialog takes an IP or a range and shows how many addresses a range covers. It has a Ban or Captcha choice, a custom duration such as `90m`, `3d` or `1d12h`, and a reason. "More options…" in the shield menu next to every IP opens the same dialog with that IP filled in. Active decisions can unban a range. `POST /api/v1/crowdsec/ban` accepts a CIDR in `ip`, a `type` of `ban` or `captcha`, and durations in days. `POST /api/v1/crowdsec/unban` accepts a CIDR.
+- Links out to CrowdSec and bgp.he.net. The alert sheet links the source IP to CrowdSec CTI, the scenario to its CrowdSec Hub page and the AS to bgp.he.net. The IP inspector links its AS to bgp.he.net and, with CrowdSec configured, the IP to CrowdSec CTI. The Banned IPs map popup links each IP to CrowdSec CTI.
 
 ### Changed
 
@@ -24,6 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Chart tooltips show values of 0.
 - The IP inspector took the newest alert for an IP as the ban start. A rejected browser challenge after the ban carries no decision, yet it moved the ban start and the "still seen after ban" signal with it. The lookup now asks for alerts with a live decision.
 - The alert sheet said "1 events".
+- Unbanning an IP also deleted every range decision that covered it, because the LAPI's delete matches any decision containing the IP. Unban now removes only the IP's own decisions.
 
 
 ## [0.18.0] - 2026-09-22

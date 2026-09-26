@@ -7,6 +7,7 @@ key) the data endpoints return 404 and the frontend hides the page.
 
 from __future__ import annotations
 
+import ipaddress
 import re
 
 import msgspec
@@ -39,7 +40,9 @@ from geometrikks.domain.security.map_data import active_decision_ips, banned_map
 from geometrikks.lib.parameters import CountryCodeFilter, CityFilter, HostnameIn
 from geometrikks.server.exceptions import ErrorEnvelope
 from geometrikks.server.logging import get_logger
-from geometrikks.services.crowdsec import Alert, CrowdSecService, Decision
+from geometrikks.services.crowdsec import (
+    Alert, CrowdSecService, Decision, DecisionScope, DecisionType, manual_reason,
+)
 from geometrikks.services.crowdsec.stream import CrowdSecStreamPoller
 
 # The CAPI community blocklist can hold tens of thousands of decisions; the
@@ -55,6 +58,11 @@ ALERT_KINDS = frozenset({"crowdsec", "waf", "bot-detection", "capi", "papi", "cs
 
 # Go duration string as the LAPI accepts it, e.g. "4h", "30m", "1h30m".
 GO_DURATION_RE = re.compile(r"^(\d+h)?(\d+m)?(\d+s)?$")
+
+# Ban durations may start with days. Older LAPIs parse decision durations
+# with Go's time.ParseDuration, which has no "d" unit, so _ban_duration
+# folds days into hours.
+BAN_DURATION_RE = re.compile(r"^(?:(\d+)d)?(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?$")
 
 logger = get_logger(__name__)
 
@@ -179,12 +187,15 @@ class AlertDetailView(AlertView, rename="camel"):
 
 
 class BanRequest(msgspec.Struct, rename="camel"):
+    # An IP, or a range in CIDR form.
     ip: str
     duration: str | None = None
-    reason: str = "manual ban from GeoMetrikks"
+    reason: str | None = None
+    type: DecisionType = "ban"
 
 
 class UnbanRequest(msgspec.Struct, rename="camel"):
+    # An IP, or a range in CIDR form.
     ip: str
 
 
@@ -314,9 +325,49 @@ def _require_write(crowdsec: CrowdSecService | None, settings: Settings) -> Crow
 def _validate_duration(value: str) -> str:
     if not value or not GO_DURATION_RE.fullmatch(value):
         raise DomainValidationError(
-            f"Invalid ban duration: {value!r} (expected a Go duration like 4h, 30m, 168h)"
+            f"Invalid duration: {value!r} (expected a Go duration like 4h, 30m, 168h)"
         )
     return value
+
+
+def _ban_duration(value: str) -> str:
+    match = BAN_DURATION_RE.fullmatch(value)
+    if match is None or not any(match.groups()):
+        raise DomainValidationError(
+            f"Invalid ban duration: {value!r} (expected a duration like 4h, 30m, 7d, 1d12h)"
+        )
+    days, hours, minutes, seconds = (int(part or 0) for part in match.groups())
+    if not (days or hours or minutes or seconds):
+        raise DomainValidationError(f"Invalid ban duration: {value!r} (must be longer than zero)")
+    hours += days * 24
+    return "".join(
+        f"{amount}{unit}"
+        for amount, unit, given in (
+            (hours, "h", match[1] or match[2]),
+            (minutes, "m", match[3]),
+            (seconds, "s", match[4]),
+        )
+        if given
+    )
+
+
+def _decision_target(value: str) -> tuple[DecisionScope, str]:
+    """Scope and canonical value for a ban or unban target.
+
+    A CIDR becomes a Range on its network address; a single-address
+    network (/32, /128) is an Ip decision.
+    """
+    if "/" not in value:
+        return "Ip", validate_ip_address(value)
+    try:
+        network = ipaddress.ip_network(value, strict=False)
+    except ValueError as exc:
+        raise DomainValidationError(f"Invalid IP range: {value!r}") from exc
+    if network.prefixlen == 0:
+        raise DomainValidationError(f"Invalid IP range: {value!r} covers every address")
+    if network.num_addresses == 1:
+        return "Ip", str(network.network_address)
+    return "Range", str(network)
 
 
 def _actor(request: Request) -> str:
@@ -593,20 +644,25 @@ class CrowdSecController(Controller):
         request: Request,
         settings: NamedDependency[SkipValidation[Settings]],
     ) -> None:
-        """Create a manual ban decision for one IP.
+        """Create a manual ban or captcha decision for one IP or range.
 
         Enforcement still depends on a bouncer attached to the LAPI.
         """
         service = _require_write(crowdsec, settings)
-        validate_ip_address(data.ip)
-        duration = data.duration and _validate_duration(data.duration)
-        await service.ban_ip(data.ip, duration=duration, reason=data.reason)
+        scope, value = _decision_target(data.ip)
+        duration = data.duration and _ban_duration(data.duration)
+        reason = data.reason or manual_reason(data.type)
+        await service.ban(
+            value, scope=scope, decision_type=data.type, duration=duration, reason=reason
+        )
         logger.info(
-            "CrowdSec ban by %s: ip=%s duration=%s reason=%s",
+            "CrowdSec ban by %s: value=%s scope=%s type=%s duration=%s reason=%s",
             _actor(request),
-            data.ip,
+            value,
+            scope,
+            data.type,
             duration or settings.crowdsec.default_ban_duration,
-            data.reason,
+            reason,
         )
 
     @post("/unban", status_code=HTTP_200_OK)
@@ -617,12 +673,16 @@ class CrowdSecController(Controller):
         request: Request,
         settings: NamedDependency[SkipValidation[Settings]],
     ) -> UnbanResponse:
-        """Delete all active decisions for one IP."""
+        """Delete all active decisions on one IP or range.
+
+        An IP keeps any wider Range decision that covers it.
+        """
         service = _require_write(crowdsec, settings)
-        validate_ip_address(data.ip)
-        deleted = await service.unban_ip(data.ip)
+        scope, value = _decision_target(data.ip)
+        deleted = await service.unban(value, scope=scope)
         logger.info(
-            "CrowdSec unban by %s: ip=%s deleted=%d", _actor(request), data.ip, deleted
+            "CrowdSec unban by %s: value=%s scope=%s deleted=%d",
+            _actor(request), value, scope, deleted,
         )
         return UnbanResponse(deleted=deleted)
 

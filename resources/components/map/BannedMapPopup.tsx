@@ -8,12 +8,13 @@ import { Popup } from "react-map-gl/maplibre"
 import { ChevronLeft, ChevronRight, Globe, Loader2, MapPin, Network, ShieldBan } from "lucide-react"
 import { useIpDecisions } from "@/lib/queries"
 import { formatNumber } from "@/lib/api"
-import { crowdsecErrorMessage, winningDecision } from "@/lib/crowdsec"
+import { crowdsecCtiUrl, crowdsecErrorMessage, winningDecision } from "@/lib/crowdsec"
 import type { BannedMapIp } from "@/generated/api/types.gen"
 import { IpBanControls } from "./IpBanControls"
 import { CountryFlag, CountryLabel } from "@/components/country-flag"
 import { InspectIpButton } from "@/components/ip-inspector/inspect-ip-button"
 import { DecisionBadge } from "@/components/crowdsec/decision-badge"
+import { ExternalLinkButton } from "@/components/crowdsec/external-link"
 import { POPUP_OFFSET, POPUP_CODE_STYLE, POPUP_LINK_BUTTON_STYLE, POPUP_ROW_ICON_STYLE, PopupBadge, PopupCard, PopupRow } from "./PopupCard"
 
 const PAGE_SIZE = 20
@@ -42,6 +43,7 @@ function IpDetails({ member, onBack }: { member: BannedMapIp; onBack?: () => voi
               showBadge={false}
             >
               <InspectIpButton ip={member.ip} fromLocationId={member.locationId} />
+              <ExternalLinkButton href={crowdsecCtiUrl(member.ip)} label="Look up in CrowdSec CTI" />
             </IpBanControls>
           </span>
         }

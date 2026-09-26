@@ -25,6 +25,7 @@ import {
   apiV1AnalyticsIpProfileGetIpProfile,
 } from "@/generated/api/sdk.gen"
 import { BROWSER_TZ } from "@/lib/datetime"
+import type { BanDecisionType } from "@/lib/crowdsec"
 import type {
   GeoJsonFeatureCollection as GeoJSONFeatureCollection,
   SafeSettingsResponse,
@@ -429,18 +430,26 @@ export async function fetchCrowdsecDecisionLookup(ip: string): Promise<DecisionV
   return data
 }
 
-/** Ban one IP. `duration` is a Go duration string (4h, 24h, 168h); server
- *  defaults apply to omitted duration/reason. Requires writeEnabled. The
- *  reason ends up in the alert message and the audit log. */
-export async function banIp(
-  ip: string,
-  duration?: string,
-  reason?: string,
-): Promise<void> {
-  await api.post("/crowdsec/ban", { ip, duration, reason: reason || undefined })
+/** Ban one IP or CIDR range. `duration` takes days, hours, minutes and
+ *  seconds (7d, 1d12h, 4h); server defaults apply to omitted fields.
+ *  Requires writeEnabled. The reason ends up in the alert message and the
+ *  audit log. */
+export async function banIp({
+  ip,
+  duration,
+  reason,
+  type,
+}: {
+  ip: string
+  duration?: string
+  reason?: string
+  type?: BanDecisionType
+}): Promise<void> {
+  await api.post("/crowdsec/ban", { ip, duration, reason: reason || undefined, type })
 }
 
-/** Delete all active decisions for one IP; resolves to the number deleted. */
+/** Delete all active decisions on one IP or CIDR range; resolves to the
+ *  number deleted. An IP keeps any wider range decision covering it. */
 export async function unbanIp(ip: string): Promise<number> {
   const { data } = await api.post<{ deleted: number }>("/crowdsec/unban", { ip })
   return data.deleted

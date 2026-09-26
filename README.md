@@ -720,11 +720,14 @@ CROWDSEC_MACHINE_PASSWORD=<password from cscli machines add>
 ```
 
 With write access, a shield button appears next to IPs across the app
-(access logs, top-IP tables, map popups) with a ban-duration picker (1h to
-forever) and an unban action for banned IPs, and the Security page gains
-alert history and a manual "Ban IP" dialog with an optional reason. Manual
-bans carry origin `geometrikks`, and every ban and unban is audit-logged
-with the acting user.
+(access logs, top-IP tables, map popups). It bans for a preset duration
+(1h to forever) or unbans a banned IP, and "More options…" opens the ban
+dialog for that IP. The same dialog is the Security page's "Ban IP"
+button. It takes an IP or a CIDR range, a ban or a captcha, a preset or
+custom duration such as `90m` or `3d`, and an optional reason. Unbanning
+an IP leaves any range decision that covers it in place. The Security page
+also gains alert history. Manual decisions carry origin `geometrikks`, and
+every ban and unban is audit-logged with the acting user.
 
 CrowdSec 1.8 adds bot detection to its WAF. A browser challenge rejects
 clients whose fingerprint scores like an automation tool. Each rejection

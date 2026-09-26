@@ -451,15 +451,7 @@ export function useCrowdsecDecisionAlert(decision: { id: number; ip: string } | 
 export function useBanIp() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: ({
-      ip,
-      duration,
-      reason,
-    }: {
-      ip: string
-      duration?: string
-      reason?: string
-    }) => banIp(ip, duration, reason),
+    mutationFn: banIp,
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["crowdsec"] }),
   })
 }
