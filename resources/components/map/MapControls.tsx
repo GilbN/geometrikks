@@ -479,6 +479,7 @@ export function MapControls({
                   <CountryFlag
                     code={ip.location?.countryCode}
                     name={[ip.location?.city, ip.location?.countryName].filter(Boolean).join(", ") || null}
+                    standalone
                     className="ml-2"
                   />
                 </button>
