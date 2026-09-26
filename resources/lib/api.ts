@@ -396,12 +396,16 @@ export async function fetchCrowdsecAlerts(params?: {
   limit?: number
   since?: string
   ip?: string
+  kind?: string
+  hasActiveDecision?: boolean
 }): Promise<AlertView[]> {
   const { data } = await api.get<AlertView[]>("/crowdsec/alerts", {
     params: {
       limit: params?.limit ?? 50,
       since: params?.since || undefined,
       ip: params?.ip || undefined,
+      kind: params?.kind || undefined,
+      hasActiveDecision: params?.hasActiveDecision ?? undefined,
     },
   })
   return data

@@ -19,6 +19,7 @@ from geometrikks.services.crowdsec.exceptions import (
     CrowdSecAuthError,
     CrowdSecError,
     CrowdSecUnavailableError,
+    CrowdSecUnsupportedError,
 )
 from geometrikks.services.crowdsec.schemas import Alert, Decision, DecisionStreamDelta
 
@@ -222,9 +223,19 @@ class CrowdSecService:
         return self._machine_token
 
     async def _machine_request(
-        self, method: str, url: str, *, missing_ok: bool = False, **kwargs: Any
+        self,
+        method: str,
+        url: str,
+        *,
+        missing_ok: bool = False,
+        bad_request_ok: bool = False,
+        **kwargs: Any,
     ) -> httpx2.Response:
-        """Machine-authenticated request; ``missing_ok`` hands a 404 back to the caller."""
+        """Machine-authenticated request.
+
+        ``missing_ok`` hands a 404 back to the caller; ``bad_request_ok``
+        does the same for a 400.
+        """
         token = self._machine_token or await self._login()
         try:
             resp = await self._client.request(
@@ -239,6 +250,8 @@ class CrowdSecService:
             if resp.status_code in (401, 403):
                 raise CrowdSecAuthError("LAPI rejected the machine token")
             if missing_ok and resp.status_code == 404:
+                return resp
+            if bad_request_ok and resp.status_code == 400:
                 return resp
             resp.raise_for_status()
             return resp
@@ -299,20 +312,23 @@ class CrowdSecService:
         scenario: str | None = None,
         since: str | None = None,
         has_active_decision: bool | None = None,
+        kind: str | None = None,
     ) -> list[Alert]:
         """Recent alerts from the LAPI; requires machine credentials.
 
         ``since`` is a Go duration string (e.g. ``24h``) relative to now.
         ``has_active_decision`` keeps only alerts with a decision still in force.
+        ``kind`` is the alert origin (crowdsec, waf, bot-detection, ...).
 
         Raises:
             CrowdSecAuthError: Machine credentials missing or rejected.
             CrowdSecUnavailableError: The LAPI is unreachable or errored.
+            CrowdSecUnsupportedError: ``kind`` was set and the LAPI predates the filter.
         """
         params = {
             key: value
             for key, value in {
-                "limit": limit, "ip": ip, "scenario": scenario, "since": since,
+                "limit": limit, "ip": ip, "scenario": scenario, "since": since, "kind": kind,
                 # A blocklist pull is one alert embedding up to tens of
                 # thousands of decisions.
                 "include_capi": "false",
@@ -322,7 +338,14 @@ class CrowdSecService:
             }.items()
             if value is not None
         }
-        resp = await self._machine_request("GET", "/v1/alerts", params=params)
+        resp = await self._machine_request(
+            "GET", "/v1/alerts", params=params, bad_request_ok=kind is not None
+        )
+        if resp.status_code == 400:
+            # The LAPI rejects unknown filters with a 400; kind arrived in 1.7.
+            raise CrowdSecUnsupportedError(
+                "Filtering alerts by kind needs CrowdSec 1.7 or newer"
+            )
         alerts = msgspec.convert(resp.json() or [], list[dict], strict=False)
         return msgspec.convert(
             [_normalize_alert(alert) for alert in alerts], list[Alert], strict=False

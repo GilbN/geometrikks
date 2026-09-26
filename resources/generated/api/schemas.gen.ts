@@ -678,6 +678,16 @@ export const AlertViewSchema = {
         },
       ],
     },
+    kind: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
     machineId: {
       oneOf: [
         {
@@ -709,6 +719,7 @@ export const AlertViewSchema = {
     "decisionCount",
     "eventsCount",
     "id",
+    "kind",
     "machineId",
     "message",
     "scenario",

@@ -5,7 +5,7 @@ from litestar import Litestar, get
 from litestar.testing import AsyncTestClient
 
 from geometrikks.server.exceptions import CROWDSEC_EXCEPTION_HANDLERS
-from geometrikks.services.crowdsec import CrowdSecAuthError, CrowdSecUnavailableError
+from geometrikks.services.crowdsec import CrowdSecAuthError, CrowdSecUnavailableError, CrowdSecUnsupportedError
 
 import pytest
 
@@ -59,3 +59,16 @@ def test_handlers_registered_on_app(monkeypatch):
     app = create_app()
     assert CrowdSecUnavailableError in app.exception_handlers
     assert CrowdSecAuthError in app.exception_handlers
+
+
+@get("/boom-unsupported")
+async def raise_unsupported() -> None:
+    raise CrowdSecUnsupportedError("Filtering alerts by kind needs CrowdSec 1.7 or newer")
+
+
+async def test_unsupported_maps_to_400_with_its_own_message():
+    app = Litestar(route_handlers=[raise_unsupported], exception_handlers=CROWDSEC_EXCEPTION_HANDLERS)
+    async with AsyncTestClient(app=app) as client:
+        resp = await client.get("/boom-unsupported")
+    assert resp.status_code == 400
+    assert resp.json()["detail"] == "Filtering alerts by kind needs CrowdSec 1.7 or newer"

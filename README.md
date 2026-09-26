@@ -726,6 +726,17 @@ alert history and a manual "Ban IP" dialog with an optional reason. Manual
 bans carry origin `geometrikks`, and every ban and unban is audit-logged
 with the acting user.
 
+CrowdSec 1.8 adds bot detection to its WAF. A browser challenge rejects
+clients whose fingerprint scores like an automation tool. Each rejection
+is an alert of kind `bot-detection` with no decision of its own, so it
+never shows up as a ban. With machine credentials, the Security page lists
+these alerts and opens them with the challenge outcome, the score and the
+signals behind it. Filtering alert history by kind needs CrowdSec 1.7 or
+newer. The challenge itself needs the AppSec component and a bouncer that
+supports it. The
+[CrowdSec docs](https://docs.crowdsec.net/docs/appsec/bot_detection/intro/)
+cover that setup.
+
 Ban decisions stream live: the app polls the LAPI decision stream every
 `CROWDSEC_STREAM_POLL_INTERVAL` seconds (default 15) and pushes changes
 over a WebSocket, so badges react within seconds when CrowdSec bans or
