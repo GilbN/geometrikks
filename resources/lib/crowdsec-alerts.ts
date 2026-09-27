@@ -195,11 +195,17 @@ export function contextLabel(key: string): string {
 
 const GO_UNIT_MS: Record<string, number> = { h: 3_600_000, m: 60_000, s: 1000, ms: 1, "µs": 0.001, us: 0.001, ns: 0.000001 }
 
-/** "9.693947574s" -> "9.7 s". Go prints durations to the nanosecond. */
-export function formatGoDuration(value: string): string | null {
+/** A Go duration string in milliseconds, or null when it is not one. */
+export function goDurationMs(value: string): number | null {
   const parts = [...value.matchAll(/(\d+(?:\.\d+)?)(h|ms|µs|us|ns|m|s)/g)]
   if (parts.length === 0 || parts.map((part) => part[0]).join("") !== value) return null
-  const ms = parts.reduce((total, [, amount, unit]) => total + Number(amount) * GO_UNIT_MS[unit], 0)
+  return parts.reduce((total, [, amount, unit]) => total + Number(amount) * GO_UNIT_MS[unit], 0)
+}
+
+/** "9.693947574s" -> "9.7 s". Go prints durations to the nanosecond. */
+export function formatGoDuration(value: string): string | null {
+  const ms = goDurationMs(value)
+  if (ms === null) return null
   if (ms === 0) return "0 s"
   if (ms < 1) return "under 1 ms"
   if (ms < 1000) return `${Math.round(ms)} ms`

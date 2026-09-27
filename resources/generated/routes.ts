@@ -22,6 +22,8 @@ export type RouteName =
   | 'delete_site_home'
   | 'download'
   | 'get_about'
+  | 'get_abuse_contact'
+  | 'get_abuse_report'
   | 'get_access_log_debug_stats'
   | 'get_access_log_facets'
   | 'get_alert'
@@ -97,6 +99,8 @@ export interface RoutePathParams {
     name: string;
   };
   'get_about': Record<string, never>;
+  'get_abuse_contact': Record<string, never>;
+  'get_abuse_report': Record<string, never>;
   'get_access_log_debug_stats': Record<string, never>;
   'get_access_log_facets': Record<string, never>;
   'get_alert': {
@@ -176,6 +180,18 @@ export interface RouteQueryParams {
   'delete_site_home': Record<string, never>;
   'download': Record<string, never>;
   'get_about': Record<string, never>;
+  'get_abuse_contact': {
+    asn?: number;
+    ipAddress?: string;
+  };
+  'get_abuse_report': {
+    asn?: number;
+    endDate: DateTime;
+    ipAddress?: string;
+    linesPerIp?: number;
+    maxIps?: number;
+    startDate: DateTime;
+  };
   'get_access_log_debug_stats': {
     fromTimestamp?: DateTime;
     toTimestamp?: DateTime;
@@ -535,6 +551,20 @@ export const routeDefinitions = {
     method: 'get',
     pathParams: [] as const,
     queryParams: [] as const,
+  },
+  'get_abuse_contact': {
+    path: '/api/v1/reports/abuse-contact',
+    methods: ['GET'] as const,
+    method: 'get',
+    pathParams: [] as const,
+    queryParams: ['asn', 'ipAddress'] as const,
+  },
+  'get_abuse_report': {
+    path: '/api/v1/reports/abuse',
+    methods: ['GET'] as const,
+    method: 'get',
+    pathParams: [] as const,
+    queryParams: ['asn', 'endDate', 'ipAddress', 'linesPerIp', 'maxIps', 'startDate'] as const,
   },
   'get_access_log_debug_stats': {
     path: '/api/v1/access-log-debug/stats',

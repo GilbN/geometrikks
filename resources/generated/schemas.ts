@@ -150,6 +150,12 @@ import type {
   ApiV1LogsTailTailData,
   ApiV1LogsTailTailErrors,
   ApiV1LogsTailTailResponses,
+  ApiV1ReportsAbuseContactGetAbuseContactData,
+  ApiV1ReportsAbuseContactGetAbuseContactErrors,
+  ApiV1ReportsAbuseContactGetAbuseContactResponses,
+  ApiV1ReportsAbuseGetAbuseReportData,
+  ApiV1ReportsAbuseGetAbuseReportErrors,
+  ApiV1ReportsAbuseGetAbuseReportResponses,
   ApiV1SettingsReadSettingsData,
   ApiV1SettingsReadSettingsResponses,
   ApiV1StatsStatsData,
@@ -193,6 +199,8 @@ export type OperationName =
   | 'delete_site_home'
   | 'download'
   | 'get_about'
+  | 'get_abuse_contact'
+  | 'get_abuse_report'
   | 'get_access_log_debug_stats'
   | 'get_access_log_facets'
   | 'get_alert'
@@ -262,6 +270,8 @@ export interface OperationDataTypes {
   'delete_site_home': ApiV1GeoLocationsSiteHomesHostnameDeleteSiteHomeData
   'download': ApiV1LogsFilesKindNameDownloadData
   'get_about': ApiV1SystemAboutGetAboutData
+  'get_abuse_contact': ApiV1ReportsAbuseContactGetAbuseContactData
+  'get_abuse_report': ApiV1ReportsAbuseGetAbuseReportData
   'get_access_log_debug_stats': ApiV1AccessLogDebugStatsGetAccessLogDebugStatsData
   'get_access_log_facets': ApiV1AccessLogsFacetsGetAccessLogFacetsData
   'get_alert': ApiV1CrowdsecAlertsAlertIdGetAlertData
@@ -332,6 +342,8 @@ export interface OperationResponseTypes {
   'delete_site_home': ApiV1GeoLocationsSiteHomesHostnameDeleteSiteHomeResponses
   'download': ApiV1LogsFilesKindNameDownloadResponses
   'get_about': ApiV1SystemAboutGetAboutResponses
+  'get_abuse_contact': ApiV1ReportsAbuseContactGetAbuseContactResponses
+  'get_abuse_report': ApiV1ReportsAbuseGetAbuseReportResponses
   'get_access_log_debug_stats': ApiV1AccessLogDebugStatsGetAccessLogDebugStatsResponses
   'get_access_log_facets': ApiV1AccessLogsFacetsGetAccessLogFacetsResponses
   'get_alert': ApiV1CrowdsecAlertsAlertIdGetAlertResponses
@@ -402,6 +414,8 @@ export interface OperationErrorTypes {
   'delete_site_home': ApiV1GeoLocationsSiteHomesHostnameDeleteSiteHomeErrors
   'download': ApiV1LogsFilesKindNameDownloadErrors
   'get_about': never
+  'get_abuse_contact': ApiV1ReportsAbuseContactGetAbuseContactErrors
+  'get_abuse_report': ApiV1ReportsAbuseGetAbuseReportErrors
   'get_access_log_debug_stats': ApiV1AccessLogDebugStatsGetAccessLogDebugStatsErrors
   'get_access_log_facets': never
   'get_alert': ApiV1CrowdsecAlertsAlertIdGetAlertErrors

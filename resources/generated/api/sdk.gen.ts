@@ -153,6 +153,12 @@ import type {
   ApiV1LogsTailTailData,
   ApiV1LogsTailTailErrors,
   ApiV1LogsTailTailResponses,
+  ApiV1ReportsAbuseContactGetAbuseContactData,
+  ApiV1ReportsAbuseContactGetAbuseContactErrors,
+  ApiV1ReportsAbuseContactGetAbuseContactResponses,
+  ApiV1ReportsAbuseGetAbuseReportData,
+  ApiV1ReportsAbuseGetAbuseReportErrors,
+  ApiV1ReportsAbuseGetAbuseReportResponses,
   ApiV1SettingsReadSettingsData,
   ApiV1SettingsReadSettingsResponses,
   ApiV1StatsStatsData,
@@ -1710,6 +1716,66 @@ export const apiV1LogsTailTail = <ThrowOnError extends boolean = false>(
       },
     ],
     url: "/api/v1/logs/tail",
+    ...options,
+  });
+
+/**
+ * GetAbuseReport
+ *
+ * Evidence for an abuse report on one IP or the busiest IPs of an ASN (raw scan).
+ */
+export const apiV1ReportsAbuseGetAbuseReport = <
+  ThrowOnError extends boolean = false,
+>(
+  options: Options<ApiV1ReportsAbuseGetAbuseReportData, ThrowOnError>,
+): RequestResult<
+  ApiV1ReportsAbuseGetAbuseReportResponses,
+  ApiV1ReportsAbuseGetAbuseReportErrors,
+  ThrowOnError
+> =>
+  (options.client ?? client).get<
+    ApiV1ReportsAbuseGetAbuseReportResponses,
+    ApiV1ReportsAbuseGetAbuseReportErrors,
+    ThrowOnError
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+    ],
+    url: "/api/v1/reports/abuse",
+    ...options,
+  });
+
+/**
+ * GetAbuseContact
+ *
+ * RDAP lookup of the network or AS holding an address, with its abuse contact.
+ */
+export const apiV1ReportsAbuseContactGetAbuseContact = <
+  ThrowOnError extends boolean = false,
+>(
+  options?: Options<ApiV1ReportsAbuseContactGetAbuseContactData, ThrowOnError>,
+): RequestResult<
+  ApiV1ReportsAbuseContactGetAbuseContactResponses,
+  ApiV1ReportsAbuseContactGetAbuseContactErrors,
+  ThrowOnError
+> =>
+  (options?.client ?? client).get<
+    ApiV1ReportsAbuseContactGetAbuseContactResponses,
+    ApiV1ReportsAbuseContactGetAbuseContactErrors,
+    ThrowOnError
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+    ],
+    url: "/api/v1/reports/abuse-contact",
     ...options,
   });
 

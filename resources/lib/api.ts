@@ -23,6 +23,8 @@ import {
   apiV1AnalyticsTopAsnsGetTopAsns,
   apiV1AnalyticsTopUserAgentsGetTopUserAgents,
   apiV1AnalyticsIpProfileGetIpProfile,
+  apiV1ReportsAbuseGetAbuseReport,
+  apiV1ReportsAbuseContactGetAbuseContact,
 } from "@/generated/api/sdk.gen"
 import { BROWSER_TZ } from "@/lib/datetime"
 import type { BanDecisionType } from "@/lib/crowdsec"
@@ -774,6 +776,35 @@ export async function fetchTopCityStats(params: TimeSeriesParams & { limit?: num
 export async function fetchIpProfile(params: TimeSeriesParams & { ip: string }) {
   const { data } = await apiV1AnalyticsIpProfileGetIpProfile({
     query: { startDate: params.startDate, endDate: params.endDate, ipAddress: params.ip, tz: BROWSER_TZ },
+    throwOnError: true,
+  })
+  return data
+}
+
+/** What an abuse report or contact lookup is about. */
+export type AbuseReportTarget = { kind: "ip"; ip: string } | { kind: "asn"; asn: number }
+
+export async function fetchAbuseReport(
+  params: TimeSeriesParams & { target: AbuseReportTarget; maxIps: number; linesPerIp: number },
+) {
+  const { target } = params
+  const { data } = await apiV1ReportsAbuseGetAbuseReport({
+    query: {
+      startDate: params.startDate,
+      endDate: params.endDate,
+      ipAddress: target.kind === "ip" ? target.ip : undefined,
+      asn: target.kind === "asn" ? target.asn : undefined,
+      maxIps: params.maxIps,
+      linesPerIp: params.linesPerIp,
+    },
+    throwOnError: true,
+  })
+  return data
+}
+
+export async function fetchAbuseContact(target: AbuseReportTarget) {
+  const { data } = await apiV1ReportsAbuseContactGetAbuseContact({
+    query: target.kind === "ip" ? { ipAddress: target.ip } : { asn: target.asn },
     throwOnError: true,
   })
   return data
