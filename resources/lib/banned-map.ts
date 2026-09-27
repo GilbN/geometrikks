@@ -23,6 +23,15 @@ export function bannedGroupMembers(ids: Iterable<string>, index: Map<string, Ban
   return [...ips.values()].sort((a, b) => b.eventCount - a.eventCount || a.ip.localeCompare(b.ip))
 }
 
+/** The coordinate group that holds an address. The backend maps each IP to
+ *  one location, so at most one group matches. */
+export function bannedGroupOf(ip: string, index: Map<string, BannedMapFeature>): BannedMapFeature | undefined {
+  for (const feature of index.values()) {
+    if (feature.properties.bannedIps.some((member) => member.ip === ip)) return feature
+  }
+  return undefined
+}
+
 /** The busiest mapped IPs, in the shape the controls' Top IPs rows already
  *  render, so the list flies to the IP's coordinate group. */
 export function topBannedIps(data: BannedMapCollection | undefined, limit = 5): TopIPDTO[] {

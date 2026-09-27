@@ -96,7 +96,7 @@ interface MapControlsProps {
   isLoading?: boolean
   featureStats: GeoJSONFeatureStats
   topIPs: TopIPDTO[]
-  onFlyToLocation?: (lat: number, lng: number) => void
+  onSelectIp?: (ip: TopIPDTO) => void
   countryOptions: string[]
   countryLabels?: Record<string, string>
   cityOptions: string[]
@@ -235,7 +235,7 @@ export function MapControls({
   isLoading = false,
   featureStats,
   topIPs,
-  onFlyToLocation,
+  onSelectIp,
   countryOptions,
   countryLabels,
   cityOptions,
@@ -471,7 +471,10 @@ export function MapControls({
             {topIPs.map((ip) => (
               <div key={ip.ipAddress} className="flex items-center gap-1 -mx-1">
                 <button
-                  onClick={() => ip.location && onFlyToLocation?.(ip.location.latitude, ip.location.longitude)}
+                  onClick={() => {
+                    onSelectIp?.(ip)
+                    setDrawerOpen(false)
+                  }}
                   disabled={!ip.location}
                   className="flex min-w-0 flex-1 items-center justify-between text-[10px] hover:bg-foreground/[0.07] rounded px-1 py-0.5 cursor-pointer disabled:cursor-default disabled:opacity-50 text-left"
                 >
@@ -483,9 +486,9 @@ export function MapControls({
                     className="ml-2"
                   />
                 </button>
-                {/* Fly first, then let the button open the inspector: same landing as the row click. */}
-                <span onClickCapture={() => ip.location && onFlyToLocation?.(ip.location.latitude, ip.location.longitude)}>
-                  <InspectIpButton ip={ip.ipAddress} fromLocationId={ip.location?.id} />
+                {/* Selects before the button opens the inspector, so it lands like a row click. */}
+                <span onClickCapture={() => onSelectIp?.(ip)}>
+                  <InspectIpButton ip={ip.ipAddress} fromLocationId={ip.location?.id} onOpen={() => setDrawerOpen(false)} />
                 </span>
               </div>
             ))}

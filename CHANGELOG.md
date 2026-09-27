@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Clicking an IP in the map's Top IPs list opens its popup on the markers and Banned IPs layers. The map flies to the zoom where that location's marker leaves its cluster, and never zooms out. On a phone the controls drawer closes. If the current filters hide the location, the map flies there without a popup. Show on map in the IP inspector lands the same way.
 - The CrowdSec alert endpoints return `countryCode` and `countryName` in place of `country`, which held a code or a name depending on the source. `countryName` is null when the LAPI supplied the country.
 
 - Charts on a 7-day range, including the 7d preset and Last week, use daily buckets instead of hourly when granularity is Auto.

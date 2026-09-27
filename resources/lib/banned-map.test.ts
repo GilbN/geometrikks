@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest"
-import { bannedClusterGroupIds, bannedGroupMembers, indexBannedFeatures, topBannedIps } from "./banned-map"
+import { bannedClusterGroupIds, bannedGroupMembers, bannedGroupOf, indexBannedFeatures, topBannedIps } from "./banned-map"
 import type { BannedMapCollection, BannedMapFeature } from "@/generated/api/types.gen"
 
 function feature(id: string, count: number): BannedMapFeature {
@@ -21,6 +21,12 @@ describe("banned map membership", () => {
     expect(members).toHaveLength(27)
     expect(members.slice(0, 3).map((m) => [m.ip, m.eventCount])).toEqual([["192.0.1.24", 24], ["192.0.1.23", 23], ["192.0.1.22", 22]])
     expect(bannedGroupMembers(["missing"], index)).toEqual([])
+  })
+  it("finds the group that holds an address", () => {
+    const index = indexBannedFeatures(data)
+    expect(bannedGroupOf("192.0.2.1", index)?.properties.groupId).toBe("2")
+    expect(bannedGroupOf("192.0.1.24", index)?.properties.groupId).toBe("1")
+    expect(bannedGroupOf("203.0.113.1", index)).toBeUndefined()
   })
   it("ranks the busiest IPs across groups and points each at its own group", () => {
     const top = topBannedIps(data, 3)
