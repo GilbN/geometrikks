@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.19.0] - 2026-09-27
+
 ### Added
 
 - Each time-series chart in Analytics and Geo Logs has a menu for view and scale. Scale can be log (the default), linear with spike clipping, or linear full range. Requests, Bandwidth and Geo events can show bars. Status classes can show each class's share of responses, or the error rate. Request latency now opens as a p50 to p95 band, and its old lines view is still in the menu. Each chart keeps its choice after a reload.
@@ -20,7 +22,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Clicking an IP in the map's Top IPs list opens its popup on the markers and Banned IPs layers. The map flies to the zoom where that location's marker leaves its cluster, and never zooms out. On a phone the controls drawer closes. If the current filters hide the location, the map flies there without a popup. Show on map in the IP inspector lands the same way.
 - The CrowdSec alert endpoints return `countryCode` and `countryName` in place of `country`, which held a code or a name depending on the source. `countryName` is null when the LAPI supplied the country.
-
 - Charts on a 7-day range, including the 7d preset and Last week, use daily buckets instead of hourly when granularity is Auto.
 - The IP inspector's footer buttons stay at the bottom of the sheet while the rest scrolls. On a phone they show only the page's icon from the side menu.
 
@@ -30,7 +31,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The IP inspector took the newest alert for an IP as the ban start. A rejected browser challenge after the ban carries no decision, yet it moved the ban start and the "still seen after ban" signal with it. The lookup now asks for alerts with a live decision.
 - The alert sheet said "1 events".
 - Unbanning an IP also deleted every range decision that covered it, because the LAPI's delete matches any decision containing the IP. Unban now removes only the IP's own decisions.
-
 
 ## [0.18.0] - 2026-09-22
 
@@ -1079,7 +1079,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Settings endpoint no longer exposes the full settings tree (database credentials leaked via `model_dump()`); response is now an explicit whitelist.
 - Timestamps in `CALL refresh_continuous_aggregate` are bound as asyncpg parameters instead of interpolated into SQL.
 
-[Unreleased]: https://github.com/GilbN/geometrikks/compare/v0.18.0...develop
+[Unreleased]: https://github.com/GilbN/geometrikks/compare/v0.19.0...develop
+[0.19.0]: https://github.com/GilbN/geometrikks/compare/v0.18.0...v0.19.0
 [0.18.0]: https://github.com/GilbN/geometrikks/compare/v0.17.0...v0.18.0
 [0.17.0]: https://github.com/GilbN/geometrikks/compare/v0.16.0...v0.17.0
 [0.16.0]: https://github.com/GilbN/geometrikks/compare/v0.15.0...v0.16.0
