@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react"
 import { createRootRoute, Outlet, useRouterState, Link } from "@tanstack/react-router"
+import type { ErrorComponentProps } from "@tanstack/react-router"
 import { useQuery } from "@tanstack/react-query"
 import { fetchHealth } from "@/lib/api"
 import { ThemeProvider } from "@/components/theme-provider"
@@ -177,7 +178,13 @@ function RootLayout() {
   )
 }
 
-function RootErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
+function RootErrorComponent({ error, reset }: ErrorComponentProps) {
+  const message = error instanceof Error
+    ? error.message
+    : typeof error === "string"
+      ? error
+      : "An unexpected error occurred."
+
   return (
     <ThemeProvider defaultTheme="dark" storageKey="geometrikks-theme">
       <BrandScreen
@@ -187,7 +194,7 @@ function RootErrorComponent({ error, reset }: { error: Error; reset: () => void 
         className="max-w-lg"
       >
         <div className="space-y-4">
-          {error?.message && <ErrorBanner title={error.message} />}
+          {message && <ErrorBanner title={message} />}
           <div className="flex gap-2 justify-center">
             <Button variant="outline" onClick={reset}>
               <RefreshCw className="h-4 w-4 mr-2" />
