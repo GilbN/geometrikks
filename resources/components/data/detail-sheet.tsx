@@ -13,13 +13,14 @@ import { cn } from "@/lib/utils"
 const sheetOpeners = new WeakMap<EventTarget, HTMLElement[]>()
 
 /** Right-side record viewer: full-screen on phones, a bounded panel from
- * `sm` up. The body scrolls; the header stays. */
+ * `sm` up. The body scrolls; the header and the optional footer stay. */
 export function DetailSheet({
   open,
   onOpenChange,
   title,
   description,
   children,
+  footer,
   className,
 }: {
   open: boolean
@@ -27,6 +28,7 @@ export function DetailSheet({
   title: React.ReactNode
   description?: React.ReactNode
   children: React.ReactNode
+  footer?: React.ReactNode
   className?: string
 }) {
   const openerRef = useRef<HTMLElement[]>([])
@@ -62,6 +64,14 @@ export function DetailSheet({
         <div data-slot="detail-sheet-content" className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4">
           {children}
         </div>
+        {footer && (
+          <div
+            data-slot="detail-sheet-footer"
+            className="shrink-0 border-t border-border/50 px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]"
+          >
+            {footer}
+          </div>
+        )}
       </SheetContent>
     </Sheet>
   )

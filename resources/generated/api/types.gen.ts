@@ -41,6 +41,41 @@ export type AboutResponse = {
 };
 
 /**
+ * AbuseContactResponse
+ */
+export type AbuseContactResponse = {
+  abuseEmails: Array<string>;
+  abuseName: string | null;
+  cidrs: Array<string>;
+  country: string | null;
+  endAddress: string | null;
+  handle: string | null;
+  kind: "ip" | "asn";
+  name: string | null;
+  query: string;
+  rdapUrl: string;
+  registry: string;
+  startAddress: string | null;
+};
+
+/**
+ * AbuseReportResponse
+ */
+export type AbuseReportResponse = {
+  crowdsec: ReportCrowdSec;
+  endDate: string;
+  generatedAt: string;
+  granularity: "hourly" | "daily";
+  ipCount: number;
+  ips: Array<ReportIpDto>;
+  redactions: number;
+  startDate: string;
+  status4xx: number;
+  target: ReportTarget;
+  totalRequests: number;
+};
+
+/**
  * AccessLogDebugEntry
  */
 export type AccessLogDebugEntry = {
@@ -1066,6 +1101,124 @@ export type PeriodSummary = {
  */
 export type ReadinessResponse = {
   ready: boolean;
+};
+
+/**
+ * ReportAlertDTO
+ */
+export type ReportAlertDto = {
+  createdAt: string;
+  decisions: Array<ReportAlertDecisionDto>;
+  eventsCount: number;
+  kind: string | null;
+  scenario: string;
+  startAt: string | null;
+  stopAt: string | null;
+};
+
+/**
+ * ReportAlertDecisionDTO
+ */
+export type ReportAlertDecisionDto = {
+  duration: string;
+  expired: boolean;
+  type: string;
+};
+
+/**
+ * ReportCrowdSec
+ */
+export type ReportCrowdSec = {
+  message: string | null;
+  status: "disabled" | "ok" | "decisions-only" | "unavailable";
+};
+
+/**
+ * ReportDecisionDTO
+ */
+export type ReportDecisionDto = {
+  duration: string;
+  origin: string;
+  scenario: string;
+  scope: string;
+  type: string;
+  value: string;
+};
+
+/**
+ * ReportIpDTO
+ */
+export type ReportIpDto = {
+  alerts: Array<ReportAlertDto>;
+  alertsTruncated: boolean;
+  asn: number | null;
+  asnOrganization: string | null;
+  countryCode: string | null;
+  countryName: string | null;
+  decisions: Array<ReportDecisionDto>;
+  distinctPaths: number;
+  firstSeen: string | null;
+  ipAddress: string;
+  lastSeen: string | null;
+  lines: Array<ReportLineDto>;
+  malformedRequests: number;
+  paths: Array<ReportPathDto>;
+  peak: ReportPeakDto | null;
+  status2xx: number;
+  status3xx: number;
+  status4xx: number;
+  status5xx: number;
+  totalBytes: number;
+  totalRequests: number;
+  userAgents: Array<ReportUserAgentDto>;
+};
+
+/**
+ * ReportLineDTO
+ */
+export type ReportLineDto = {
+  bytesSent: number | null;
+  httpVersion: string | null;
+  method: string | null;
+  statusCode: number | null;
+  timestamp: string;
+  url: string | null;
+  userAgent: string | null;
+};
+
+/**
+ * ReportPathDTO
+ */
+export type ReportPathDto = {
+  errorHits: number;
+  hits: number;
+  url: string;
+};
+
+/**
+ * ReportPeakDTO
+ */
+export type ReportPeakDto = {
+  hits: number;
+  timestamp: string;
+};
+
+/**
+ * ReportTarget
+ */
+export type ReportTarget = {
+  asn: number | null;
+  asnOrganization: string | null;
+  ipAddress: string | null;
+  kind: "ip" | "asn";
+};
+
+/**
+ * ReportUserAgentDTO
+ */
+export type ReportUserAgentDto = {
+  hits: number;
+  userAgent: string;
 };
 
 /**
@@ -3964,6 +4117,102 @@ export type ApiV1LogsTailTailResponses = {
 
 export type ApiV1LogsTailTailResponse =
   ApiV1LogsTailTailResponses[keyof ApiV1LogsTailTailResponses];
+
+export type ApiV1ReportsAbuseGetAbuseReportData = {
+  body?: never;
+  path?: never;
+  query: {
+    /**
+     * Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)
+     */
+    startDate: string;
+    /**
+     * End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)
+     */
+    endDate: string;
+    /**
+     * The IP to report on
+     */
+    ipAddress?: string | null;
+    /**
+     * The AS number whose IPs to report on
+     */
+    asn?: number | null;
+    /**
+     * Busiest IPs to include for an ASN
+     */
+    maxIps?: number;
+    /**
+     * Newest log lines per IP
+     */
+    linesPerIp?: number;
+  };
+  url: "/api/v1/reports/abuse";
+};
+
+export type ApiV1ReportsAbuseGetAbuseReportErrors = {
+  /**
+   * Neither or both of ipAddress and asn.
+   */
+  400: ErrorEnvelope;
+};
+
+export type ApiV1ReportsAbuseGetAbuseReportError =
+  ApiV1ReportsAbuseGetAbuseReportErrors[keyof ApiV1ReportsAbuseGetAbuseReportErrors];
+
+export type ApiV1ReportsAbuseGetAbuseReportResponses = {
+  /**
+   * Request fulfilled, document follows
+   */
+  200: AbuseReportResponse;
+};
+
+export type ApiV1ReportsAbuseGetAbuseReportResponse =
+  ApiV1ReportsAbuseGetAbuseReportResponses[keyof ApiV1ReportsAbuseGetAbuseReportResponses];
+
+export type ApiV1ReportsAbuseContactGetAbuseContactData = {
+  body?: never;
+  path?: never;
+  query?: {
+    /**
+     * The IP to report on
+     */
+    ipAddress?: string | null;
+    /**
+     * The AS number whose IPs to report on
+     */
+    asn?: number | null;
+  };
+  url: "/api/v1/reports/abuse-contact";
+};
+
+export type ApiV1ReportsAbuseContactGetAbuseContactErrors = {
+  /**
+   * Neither or both of ipAddress and asn, or a private address.
+   */
+  400: ErrorEnvelope;
+  /**
+   * No registry covers or holds the query.
+   */
+  404: ErrorEnvelope;
+  /**
+   * The registry or IANA could not be reached.
+   */
+  502: ErrorEnvelope;
+};
+
+export type ApiV1ReportsAbuseContactGetAbuseContactError =
+  ApiV1ReportsAbuseContactGetAbuseContactErrors[keyof ApiV1ReportsAbuseContactGetAbuseContactErrors];
+
+export type ApiV1ReportsAbuseContactGetAbuseContactResponses = {
+  /**
+   * Request fulfilled, document follows
+   */
+  200: AbuseContactResponse;
+};
+
+export type ApiV1ReportsAbuseContactGetAbuseContactResponse =
+  ApiV1ReportsAbuseContactGetAbuseContactResponses[keyof ApiV1ReportsAbuseContactGetAbuseContactResponses];
 
 export type ApiV1SettingsReadSettingsData = {
   body?: never;

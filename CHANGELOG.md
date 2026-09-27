@@ -14,12 +14,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Country flags wherever the app shows a country, including the Country filter lists. Hover a flag for the country name. The map's Top IPs list shows the flag in place of the city, so the full IP fits, and hovering it shows the city. CrowdSec decisions with Country scope fill the Country column.
 - Ban a CIDR range, or require a captcha instead of a ban. The Ban IP dialog takes an IP or a range and shows how many addresses a range covers. It has a Ban or Captcha choice, a custom duration such as `90m`, `3d` or `1d12h`, and a reason. "More options…" in the shield menu next to every IP opens the same dialog with that IP filled in. Active decisions can unban a range. `POST /api/v1/crowdsec/ban` accepts a CIDR in `ip`, a `type` of `ban` or `captcha`, and durations in days. `POST /api/v1/crowdsec/unban` accepts a CIDR.
 - Links out to CrowdSec and bgp.he.net. The alert sheet links the source IP to CrowdSec CTI, the scenario to its CrowdSec Hub page and the AS to bgp.he.net. The IP inspector links its AS to bgp.he.net and, with CrowdSec configured, the IP to CrowdSec CTI. The Banned IPs map popup links each IP to CrowdSec CTI.
+- Abuse reports for a hosting provider's abuse desk. The Abuse report button in the IP inspector, and the mail icon on each Top ASNs row in Analytics and Geo Logs, build a report on one IP or on the busiest IPs of an ASN over the selected range. It comes as plain text for an email or abuse form, or as a CSV of log lines. Each address gets its request count and response mix, notes on its 4xx share, path count and bursts, its CrowdSec detections and active decisions, its top paths and user agents, and a log excerpt, all in UTC. The report leaves out your vhosts, GeoMetrikks instance names, referrers, CrowdSec machine names and manual ban reasons. It also scrubs your hostnames and server address from paths and user agents, and drops any query value that points at one of your apps or holds an API key, token or password. The scrubbing can miss things, so read a report before you send it. Find abuse contact looks up the network's abuse address over RDAP. Only the IP or AS number goes out, to IANA and the regional registry. `GET /api/v1/reports/abuse` and `GET /api/v1/reports/abuse-contact` return the same data.
 
 ### Changed
 
 - The CrowdSec alert endpoints return `countryCode` and `countryName` in place of `country`, which held a code or a name depending on the source. `countryName` is null when the LAPI supplied the country.
 
 - Charts on a 7-day range, including the 7d preset and Last week, use daily buckets instead of hourly when granularity is Auto.
+- The IP inspector's footer buttons stay at the bottom of the sheet while the rest scrolls. On a phone they show only the page's icon from the side menu.
 
 ### Fixed
 

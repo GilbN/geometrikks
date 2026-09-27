@@ -327,12 +327,14 @@ class CrowdSecService:
         ip: str | None = None,
         scenario: str | None = None,
         since: str | None = None,
+        until: str | None = None,
         has_active_decision: bool | None = None,
         kind: str | None = None,
     ) -> list[Alert]:
         """Recent alerts from the LAPI; requires machine credentials.
 
-        ``since`` is a Go duration string (e.g. ``24h``) relative to now.
+        ``since`` and ``until`` are Go duration strings (e.g. ``24h``)
+        counted back from now: ``until=72h`` keeps alerts older than 72 hours.
         ``has_active_decision`` keeps only alerts with a decision still in force.
         ``kind`` is the alert origin (crowdsec, waf, bot-detection, ...).
 
@@ -344,7 +346,8 @@ class CrowdSecService:
         params = {
             key: value
             for key, value in {
-                "limit": limit, "ip": ip, "scenario": scenario, "since": since, "kind": kind,
+                "limit": limit, "ip": ip, "scenario": scenario, "since": since, "until": until,
+                "kind": kind,
                 # A blocklist pull is one alert embedding up to tens of
                 # thousands of decisions.
                 "include_capi": "false",

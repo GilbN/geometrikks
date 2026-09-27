@@ -117,3 +117,63 @@ when any is a captcha, else the first other name in sorted order.
 `/ws/crowdsec` decision frames carry `type` on every `added` and `deleted`
 entry, with addresses in the same canonical form. A deleted entry does not say whether the IP still holds another
 decision; clients refetch `banned-ips` after a delta to settle that.
+
+## Abuse reports
+
+`GET /api/v1/reports/abuse` takes `startDate`, `endDate` and exactly one of
+`ipAddress` or `asn`. Anything else answers 400. For an ASN it returns the
+busiest `maxIps` addresses by request count, 25 by default and 100 at most.
+`ipCount`, `totalRequests` and `status4xx` still cover every address of the
+ASN in the window. `linesPerIp` sets how many of each address's newest log
+lines come back, oldest first. It defaults to 20 and allows up to 500, and
+0 leaves the excerpt out. All timestamps are UTC.
+
+The response goes to a third party, so it never carries `host`,
+`hostname`, `referrer` or `remote_user`. The operator's names and address
+become `[redacted]` in paths and user agents, and `redactions` counts the
+replacements. The scrubbing follows the rules below and can miss a name or
+secret it has no rule for, so the operator has to read a report before
+sending it.
+
+`host` holds whatever Host header the client sent, so a scanner can put
+any name there. A host counts as the operator's when it got a 2xx response,
+or when at least 5 distinct clients used it, in the 30 days up to the
+report end. A redirect does not count, because an HTTP to HTTPS redirect
+answers any Host. A scanner's spoofed `Host: www.google.com` passes neither
+test and stays in the evidence. Once a host counts, its registrable domain
+counts too, along with the chosen IPs' hosts under that domain. Public
+addresses count; private ones do not. Instance names count when they
+contain a dot.
+
+The match covers other spellings of an operator address, such as
+`195.000.194.210` or an IPv6 address written out in full, and names
+percent-encoded in a path. A query value is replaced whole when it names
+the operator, so a forward-auth redirect like
+`?rd=https://app.example.com/api?apikey=...` loses its key along with the
+host. So is any value whose parameter name ends in a credential word, such
+as `apikey`, `X-Plex-Token`, `password` or `session`, including inside a
+relative redirect.
+
+CrowdSec decisions and alerts from any origin other than `crowdsec`,
+`CAPI`, `lists` and `appsec` were made by a person. They report the
+scenario `manual` instead of that person's reason or machine name. `crowdsec.status` is one
+of:
+
+- `disabled`: no CrowdSec integration.
+- `ok`: decisions and alerts are included.
+- `decisions-only`: no machine credentials, so no alerts.
+- `unavailable`: the LAPI failed. The access-log evidence is still there.
+
+Alerts are fetched for the report window only, at most the newest 1000 for
+a single IP and the newest 100 for each IP of an ASN. `alertsTruncated`
+says when an IP hit the limit. The LAPI has no batch lookup, so an ASN
+report makes two requests per address, one after the other, for four
+addresses at a time.
+
+`GET /api/v1/reports/abuse-contact` takes `ipAddress` or `asn` and returns
+the RDAP record's holder, prefixes and abuse addresses. Only the query
+leaves the server, sent to IANA's bootstrap files and the registry they
+name. Every request and redirect must be https to a public DNS name.
+Private and reserved addresses answer 400. Space that no registry covers or
+holds answers 404, and a failed upstream request answers 502. Answers are
+cached for a day.

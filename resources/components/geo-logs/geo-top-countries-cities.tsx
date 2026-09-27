@@ -11,6 +11,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { AsnCategoryInfo } from "@/components/analytics/asn-category-info"
 import { CategoryBadge } from "@/components/analytics/top-asns-table"
 import { AsnCell } from "@/components/geo-logs/asn-cell"
+import { AsnReportButton, useAbuseReportDialog } from "@/components/abuse-report/abuse-report-dialog"
 import { formatNumber } from "@/lib/api"
 import { useGeoLogTopAsns, useGeoLogTopCities, useGeoLogTopCountries } from "@/lib/queries"
 import { TablePaginationFooter, usePagedRows } from "@/components/analytics/table-pagination"
@@ -25,6 +26,7 @@ export function GeoTopCountriesCities() {
   const { pageItems: countryItems, ...countryPagination } = usePagedRows(countries.data?.items)
   const { pageItems: cityItems, ...cityPagination } = usePagedRows(cities.data?.items)
   const { pageItems: asnItems, ...asnPagination } = usePagedRows(asns.data?.items)
+  const report = useAbuseReportDialog()
 
   const active = view === "countries" ? countries : view === "cities" ? cities : asns
   const pagination =
@@ -104,6 +106,7 @@ export function GeoTopCountriesCities() {
                 </TableHead>
                 <TableHead className="text-right">Events</TableHead>
                 <TableHead className="text-right">Unique IPs</TableHead>
+                <TableHead className="w-10"><span className="sr-only">Report</span></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -115,11 +118,15 @@ export function GeoTopCountriesCities() {
                   <TableCell><CategoryBadge category={row.category} /></TableCell>
                   <TableCell className="text-right tabular-nums">{formatNumber(row.eventCount)}</TableCell>
                   <TableCell className="text-right tabular-nums">{formatNumber(row.uniqueIps)}</TableCell>
+                  <TableCell className="py-0 text-right">
+                    <AsnReportButton asn={row.asn} organization={row.organization} onOpen={report.openFor} />
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
           </Table>
         )}
+        {report.dialog}
       </DataTableFrame>
     </Tabs>
   )

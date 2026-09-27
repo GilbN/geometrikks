@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react"
+import { cloneElement, useEffect, useState, type ReactElement, type ReactNode } from "react"
 import { Link } from "@tanstack/react-router"
-import { ChevronDown, RotateCcw, RotateCw } from "lucide-react"
+import { BarChart3, Bug, ChevronDown, FileText, RotateCcw, RotateCw, type LucideIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
+import { AbuseReportButton } from "@/components/abuse-report/abuse-report-dialog"
 import { CountryFlag } from "@/components/country-flag"
 import { DetailSheet } from "@/components/data/detail-sheet"
 import { DecisionBadge } from "@/components/crowdsec/decision-badge"
@@ -59,6 +60,7 @@ export function IpInspectorSheet() {
         </span>
       }
       description={valid ? undefined : "Not a valid IP address"}
+      footer={valid ? <IpInspectorFooter ip={ip} /> : undefined}
       className="sm:w-[min(36rem,100vw)] sm:max-w-xl"
     >
       {valid ? <IpInspectorBody ip={ip} onZoom={zoomTo} /> : <p className="text-sm text-muted-foreground">Not a valid IP address.</p>}
@@ -198,20 +200,52 @@ function IpInspectorBody({ ip, onZoom }: { ip: string; onZoom: (from: string, to
       <IpLocationsBlock ip={ip} />
 
       <IpLatestRequests ip={ip} />
-
-      <footer className="flex gap-2 border-t border-border/50 pt-3">
-        <Button asChild size="sm" variant="outline">
-          <Link to="/analytics" search={{ ip: [ip], inspect: ip }}>Analytics →</Link>
-        </Button>
-        <Button asChild size="sm" variant="outline">
-          <Link to="/access-logs" search={{ ip: [ip], inspect: ip }}>Access logs →</Link>
-        </Button>
-        {profile && profile.malformedRequests > 0 && (
-          <Button asChild size="sm" variant="outline">
-            <Link to="/debug-logs" search={{ ip, malformed: "malformed", inspect: ip }}>Debug logs →</Link>
-          </Button>
-        )}
-      </footer>
     </div>
+  )
+}
+
+// Reads the profile through the body's query key, so it adds no request.
+function IpInspectorFooter({ ip }: { ip: string }) {
+  const profile = useIpProfile(ip).data
+  return (
+    <footer className="flex flex-wrap gap-2">
+      <FooterLink icon={BarChart3} label="Analytics">
+        <Link to="/analytics" search={{ ip: [ip], inspect: ip }} />
+      </FooterLink>
+      <FooterLink icon={FileText} label="Access logs">
+        <Link to="/access-logs" search={{ ip: [ip], inspect: ip }} />
+      </FooterLink>
+      {profile && profile.malformedRequests > 0 && (
+        <FooterLink icon={Bug} label="Debug logs">
+          <Link to="/debug-logs" search={{ ip, malformed: "malformed", inspect: ip }} />
+        </FooterLink>
+      )}
+      <span className="ml-auto">
+        <AbuseReportButton subject={{ kind: "ip", ip, asn: profile?.asn, organization: profile?.asnOrganization }} />
+      </span>
+    </footer>
+  )
+}
+
+/** A footer link: the label on wider screens, the sidebar's icon for the page
+ *  on a phone, where the full-width sheet has no room for labeled buttons. */
+function FooterLink({
+  icon: Icon,
+  label,
+  children,
+}: {
+  icon: LucideIcon
+  label: string
+  children: ReactElement<{ children?: ReactNode; "aria-label"?: string }>
+}) {
+  return (
+    <Button asChild size="sm" variant="outline" className="max-sm:w-8 max-sm:px-0" title={label}>
+      {cloneElement(children, { "aria-label": label }, (
+        <>
+          <Icon className="sm:hidden" />
+          <span className="max-sm:hidden">{label} →</span>
+        </>
+      ))}
+    </Button>
   )
 }
