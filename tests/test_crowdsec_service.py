@@ -13,6 +13,7 @@ from geometrikks.services.crowdsec import (
     CrowdSecAuthError,
     CrowdSecService,
     CrowdSecUnavailableError,
+    CrowdSecUnsupportedError,
     Decision,
 )
 
@@ -204,10 +205,10 @@ def write_settings() -> dict:
     return {"machine_id": "geometrikks", "machine_password": "machine-pass"}
 
 
-async def test_ban_ip_logs_in_and_posts_alert():
+async def test_ban_logs_in_and_posts_alert():
     lapi = LapiWriteFake()
     service = make_service(lapi, **write_settings())
-    await service.ban_ip("1.2.3.4", duration="24h", reason="test ban")
+    await service.ban("1.2.3.4", duration="24h", reason="test ban")
 
     assert lapi.login_calls == 1
     assert lapi.auth_headers == ["Bearer jwt-1"]
@@ -223,20 +224,53 @@ async def test_ban_ip_logs_in_and_posts_alert():
     await service.aclose()
 
 
-async def test_ban_ip_uses_default_duration():
+async def test_ban_uses_default_duration():
     lapi = LapiWriteFake()
     service = make_service(lapi, **write_settings())
-    await service.ban_ip("1.2.3.4")
+    await service.ban("1.2.3.4")
     (alerts,) = lapi.alert_payloads
     assert alerts[0]["decisions"][0]["duration"] == "4h"
+    await service.aclose()
+
+
+async def test_ban_range_posts_range_scope_decision():
+    lapi = LapiWriteFake()
+    service = make_service(lapi, **write_settings())
+    await service.ban("10.0.0.0/24", scope="Range")
+    ((alert,),) = lapi.alert_payloads
+    assert alert["source"] == {"scope": "Range", "value": "10.0.0.0/24", "range": "10.0.0.0/24"}
+    (decision,) = alert["decisions"]
+    assert decision["scope"] == "Range"
+    assert decision["value"] == "10.0.0.0/24"
+    await service.aclose()
+
+
+async def test_ban_captcha_sets_decision_type_and_scenario():
+    lapi = LapiWriteFake()
+    service = make_service(lapi, **write_settings())
+    await service.ban("1.2.3.4", decision_type="captcha", reason="odd")
+    ((alert,),) = lapi.alert_payloads
+    assert alert["scenario"] == "geometrikks/manual-captcha"
+    (decision,) = alert["decisions"]
+    assert decision["type"] == "captcha"
+    assert decision["scenario"] == "geometrikks/manual-captcha: odd"
+    await service.aclose()
+
+
+async def test_ban_default_reason_names_the_decision_type():
+    lapi = LapiWriteFake()
+    service = make_service(lapi, **write_settings())
+    await service.ban("1.2.3.4", decision_type="captcha")
+    ((alert,),) = lapi.alert_payloads
+    assert alert["message"] == "manual captcha from GeoMetrikks"
     await service.aclose()
 
 
 async def test_machine_token_is_cached_across_calls():
     lapi = LapiWriteFake()
     service = make_service(lapi, **write_settings())
-    await service.ban_ip("1.2.3.4")
-    await service.unban_ip("1.2.3.4")
+    await service.ban("1.2.3.4")
+    await service.unban("1.2.3.4")
     assert lapi.login_calls == 1
     await service.aclose()
 
@@ -244,32 +278,49 @@ async def test_machine_token_is_cached_across_calls():
 async def test_expired_token_triggers_single_relogin_retry():
     lapi = LapiWriteFake(expire_first_token=True)
     service = make_service(lapi, **write_settings())
-    deleted = await service.unban_ip("1.2.3.4")
+    deleted = await service.unban("1.2.3.4")
     assert deleted == 2
     assert lapi.login_calls == 2
     assert lapi.auth_headers == ["Bearer jwt-1", "Bearer jwt-2"]
     await service.aclose()
 
 
-async def test_unban_ip_parses_string_nb_deleted():
+async def test_unban_parses_string_nb_deleted():
     lapi = LapiWriteFake()
     service = make_service(lapi, **write_settings())
-    assert await service.unban_ip("5.6.7.8") == 2
-    assert lapi.delete_params == [{"ip": "5.6.7.8"}]
+    assert await service.unban("5.6.7.8") == 2
+    await service.aclose()
+
+
+async def test_unban_ip_leaves_covering_ranges_alone():
+    # The LAPI's delete defaults to contains=true, so ip= alone would also
+    # delete any Range decision covering the IP.
+    lapi = LapiWriteFake()
+    service = make_service(lapi, **write_settings())
+    await service.unban("5.6.7.8")
+    assert lapi.delete_params == [{"scopes": "Ip", "ip": "5.6.7.8"}]
+    await service.aclose()
+
+
+async def test_unban_range_deletes_that_range_only():
+    lapi = LapiWriteFake()
+    service = make_service(lapi, **write_settings())
+    await service.unban("10.0.0.0/24", scope="Range")
+    assert lapi.delete_params == [{"scopes": "Range", "value": "10.0.0.0/24"}]
     await service.aclose()
 
 
 async def test_write_without_machine_credentials_raises_auth_error():
     service = make_service(LapiWriteFake())  # bouncer key only
     with pytest.raises(CrowdSecAuthError):
-        await service.ban_ip("1.2.3.4")
+        await service.ban("1.2.3.4")
     await service.aclose()
 
 
 async def test_rejected_machine_login_raises_auth_error():
     service = make_service(LapiWriteFake(login_status=403), **write_settings())
     with pytest.raises(CrowdSecAuthError):
-        await service.ban_ip("1.2.3.4")
+        await service.ban("1.2.3.4")
     await service.aclose()
 
 
@@ -532,4 +583,199 @@ async def test_one_alert_with_valueless_meta_does_not_break_the_history_list():
 
     service = make_service(Fake(), **write_settings())
     assert [a.id for a in await service.get_alerts()] == [7, 9]
+    await service.aclose()
+
+
+async def test_get_alerts_forwards_kind():
+    lapi = LapiAlertsFake()
+    service = make_service(lapi, **write_settings())
+    await service.get_alerts(kind="bot-detection")
+    assert lapi.alert_params["kind"] == "bot-detection"
+    await service.get_alerts()
+    assert "kind" not in lapi.alert_params
+    await service.aclose()
+
+
+class OldLapiAlertsFake(LapiAlertsFake):
+    """A LAPI older than 1.7 answers 400 to the ``kind`` filter."""
+
+    def __call__(self, request: httpx2.Request) -> httpx2.Response:
+        if request.url.path == "/v1/alerts" and "kind" in request.url.params:
+            return httpx2.Response(400, json={"message": "filter parameter 'kind' is unknown"})
+        return super().__call__(request)
+
+
+async def test_get_alerts_kind_on_an_old_lapi_names_the_minimum_version():
+    service = make_service(OldLapiAlertsFake(), **write_settings())
+    with pytest.raises(CrowdSecUnsupportedError, match="1.7"):
+        await service.get_alerts(kind="bot-detection")
+    await service.aclose()
+
+
+async def test_get_alerts_other_400s_still_read_as_unavailable():
+    def respond(request: httpx2.Request) -> httpx2.Response:
+        if request.url.path == "/v1/watchers/login":
+            return httpx2.Response(200, json={"token": "jwt-1"})
+        return httpx2.Response(400, json={"message": "bad since"})
+
+    service = make_service(respond, **write_settings())
+    with pytest.raises(CrowdSecUnavailableError):
+        await service.get_alerts(since="nope")
+    await service.aclose()
+
+
+# A CrowdSec 1.8.1 bot-detection alert as the LAPI returned it on
+# 2026-09-26, with the IP replaced. The challenge writes one event per
+# rejection, sets no remediation, and GeoIP-enriches the source itself.
+BOT_DETECTION_ALERT_JSON = {
+    "created_at": "2026-09-26T12:33:42Z",
+    "decisions": None,
+    "events": [
+        {
+            "meta": [
+                {
+                    "key": "bot_signals",
+                    "value": "cdp"
+                },
+                {
+                    "key": "challenge_event",
+                    "value": "rejected"
+                },
+                {
+                    "key": "challenge_fail_reason",
+                    "value": "request score 100"
+                },
+                {
+                    "key": "fingerprint_bot",
+                    "value": "true"
+                },
+                {
+                    "key": "fsid",
+                    "value": "FS1_000010000000000000000_00010h02ba_1920x1200c20m32b00011h366c95_f10001111000101111000111111111e00000000p1100h-34daa_0h-3c7c2_1h6d8275_nb6tEurope-Oslo_h3af4_0100h63b845"
+                },
+                {
+                    "key": "http_user_agent",
+                    "value": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36"
+                },
+                {
+                    "key": "log_type",
+                    "value": "appsec-challenge"
+                },
+                {
+                    "key": "method",
+                    "value": "POST"
+                },
+                {
+                    "key": "os",
+                    "value": "Windows"
+                },
+                {
+                    "key": "request_score",
+                    "value": "100"
+                },
+                {
+                    "key": "request_score_reasons",
+                    "value": "cdp=100"
+                },
+                {
+                    "key": "request_uuid",
+                    "value": "b350f54c-2e79-4dc2-af3c-163134d71c47"
+                },
+                {
+                    "key": "service",
+                    "value": "appsec"
+                },
+                {
+                    "key": "source_ip",
+                    "value": "203.0.113.7"
+                },
+                {
+                    "key": "target_host",
+                    "value": "gflix.app"
+                },
+                {
+                    "key": "target_uri",
+                    "value": "/"
+                }
+            ],
+            "timestamp": "2026-09-26 12:33:41 +0000 UTC"
+        }
+    ],
+    "events_count": 1,
+    "id": 13087,
+    "kind": "bot-detection",
+    "machine_id": "localhost",
+    "message": "WAF bot-detection: 203.0.113.7 rejected by crowdsecurity/rejected-browser-submission (request score 100)",
+    "meta": [
+        {
+            "key": "bot_detected",
+            "value": "[\"true\"]"
+        },
+        {
+            "key": "challenge_event",
+            "value": "[\"rejected\"]"
+        },
+        {
+            "key": "fail_reason",
+            "value": "[\"request score 100\"]"
+        },
+        {
+            "key": "fingerprint_id",
+            "value": "[\"FS1_000010000000000000000_00010h02ba_1920x1200c20m32b00011h366c95_f10001111000101111000111111111e00000000p1100h-34daa_0h-3c7c2_1h6d8275_nb6tEurope-Oslo_h3af4_0100h63b845\"]"
+        },
+        {
+            "key": "request_score",
+            "value": "[\"100\"]"
+        },
+        {
+            "key": "score_reasons",
+            "value": "[\"cdp=100\"]"
+        },
+        {
+            "key": "user_agent",
+            "value": "[\"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36\"]"
+        },
+        {
+            "key": "target_uri",
+            "value": "[\"/\"]"
+        },
+        {
+            "key": "operating_system",
+            "value": "[\"Windows\"]"
+        }
+    ],
+    "scenario": "crowdsecurity/rejected-browser-submission",
+    "simulated": False,
+    "source": {
+        "scope": "Ip",
+        "value": "203.0.113.7",
+        "ip": "203.0.113.7",
+        "cn": "NO",
+        "as_name": "Telenor Norge AS",
+        "as_number": "2119",
+        "range": "203.0.113.0/24"
+    },
+    "start_at": "2026-09-26T12:33:41Z",
+    "stop_at": "2026-09-26T12:33:41Z"
+}
+
+
+async def test_get_alert_parses_a_bot_detection_alert():
+    service = make_service(LapiAlertDetailFake(BOT_DETECTION_ALERT_JSON), **write_settings())
+    alert = await service.get_alert(13087)
+    assert alert is not None
+    assert alert.kind == "bot-detection"
+    assert alert.scenario == "crowdsecurity/rejected-browser-submission"
+    assert alert.decisions == []
+    assert alert.source.cn == "NO"
+    assert alert.source.as_number == "2119"
+    context = {entry.key: entry.values for entry in alert.context}
+    assert context["request_score"] == ["100"]
+    assert context["score_reasons"] == ["cdp=100"]
+    assert context["challenge_event"] == ["rejected"]
+    (event,) = alert.events
+    assert event.timestamp == "2026-09-26T12:33:41+00:00"
+    assert event.meta["log_type"] == "appsec-challenge"
+    assert event.meta["request_score_reasons"] == "cdp=100"
+    assert event.meta["target_host"] == "gflix.app"
     await service.aclose()

@@ -12,6 +12,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton"
 import { formatBytes, formatNumber } from "@/lib/api"
 import { useTopAsns } from "@/lib/queries"
+import { AsnReportButton, useAbuseReportDialog } from "@/components/abuse-report/abuse-report-dialog"
 import { TablePaginationFooter, usePagedRows } from "./table-pagination"
 
 export function CategoryBadge({ category }: { category: "hosting" | "other" }) {
@@ -30,6 +31,7 @@ export function CategoryBadge({ category }: { category: "hosting" | "other" }) {
 export function TopAsnsTable() {
   const { data, isError, error } = useTopAsns({ limit: 25 })
   const { pageItems, ...pagination } = usePagedRows(data?.items)
+  const report = useAbuseReportDialog()
 
   return (
     <Card>
@@ -58,6 +60,7 @@ export function TopAsnsTable() {
                   </TableHead>
                   <TableHead className="text-right">Hits</TableHead>
                   <TableHead className="text-right">Bytes</TableHead>
+                  <TableHead className="w-10"><span className="sr-only">Report</span></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -70,11 +73,15 @@ export function TopAsnsTable() {
                     <TableCell><CategoryBadge category={row.category} /></TableCell>
                     <TableCell className="text-right tabular-nums">{formatNumber(row.hits)}</TableCell>
                     <TableCell className="text-right tabular-nums">{formatBytes(row.totalBytes)}</TableCell>
+                    <TableCell className="py-0 text-right">
+                      <AsnReportButton asn={row.asn} organization={row.organization} onOpen={report.openFor} />
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
             <TablePaginationFooter {...pagination} onPageChange={pagination.setPage} />
+            {report.dialog}
           </>
         )}
       </CardContent>

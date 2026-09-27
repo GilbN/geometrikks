@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.19.0] - 2026-09-27
+
+### Added
+
+- Each time-series chart in Analytics and Geo Logs has a menu for view and scale. Scale can be log (the default), linear with spike clipping, or linear full range. Requests, Bandwidth and Geo events can show bars. Status classes can show each class's share of responses, or the error rate. Request latency now opens as a p50 to p95 band, and its old lines view is still in the menu. Each chart keeps its choice after a reload.
+- CrowdSec 1.8 bot detection on the Security page. Alert history has a kind selector for all kinds, detections, WAF and bot detection, and labels WAF and bot-detection alerts. Opening a rejected browser challenge shows a Challenge section with the outcome, the score, each signal that added to it and what the signal means, the fingerprint id with a copy button, the operating system, the user agent and the target path. Challenge events show the method, the path and the outcome on the row. `GET /api/v1/crowdsec/alerts` accepts `kind` and `hasActiveDecision` and returns `kind` on every alert. Filtering by kind needs CrowdSec 1.7 or newer. An older LAPI answers 400 with a message saying so.
+- Country flags wherever the app shows a country, including the Country filter lists. Hover a flag for the country name. The map's Top IPs list shows the flag in place of the city, so the full IP fits, and hovering it shows the city. CrowdSec decisions with Country scope fill the Country column.
+- Ban a CIDR range, or require a captcha instead of a ban. The Ban IP dialog takes an IP or a range and shows how many addresses a range covers. It has a Ban or Captcha choice, a custom duration such as `90m`, `3d` or `1d12h`, and a reason. "More options…" in the shield menu next to every IP opens the same dialog with that IP filled in. Active decisions can unban a range. `POST /api/v1/crowdsec/ban` accepts a CIDR in `ip`, a `type` of `ban` or `captcha`, and durations in days. `POST /api/v1/crowdsec/unban` accepts a CIDR.
+- Links out to CrowdSec and bgp.he.net. The alert sheet links the source IP to CrowdSec CTI, the scenario to its CrowdSec Hub page and the AS to bgp.he.net. The IP inspector links its AS to bgp.he.net and, with CrowdSec configured, the IP to CrowdSec CTI. The Banned IPs map popup links each IP to CrowdSec CTI.
+- Abuse reports for a hosting provider's abuse desk. The Abuse report button in the IP inspector, and the mail icon on each Top ASNs row in Analytics and Geo Logs, build a report on one IP or on the busiest IPs of an ASN over the selected range. It comes as plain text for an email or abuse form, or as a CSV of log lines. Each address gets its request count and response mix, notes on its 4xx share, path count and bursts, its CrowdSec detections and active decisions, its top paths and user agents, and a log excerpt, all in UTC. The report leaves out your vhosts, GeoMetrikks instance names, referrers, CrowdSec machine names and manual ban reasons. It also scrubs your hostnames and server address from paths and user agents, and drops any query value that points at one of your apps or holds an API key, token or password. The scrubbing can miss things, so read a report before you send it. Find abuse contact looks up the network's abuse address over RDAP. Only the IP or AS number goes out, to IANA and the regional registry. `GET /api/v1/reports/abuse` and `GET /api/v1/reports/abuse-contact` return the same data.
+
+### Changed
+
+- Clicking an IP in the map's Top IPs list opens its popup on the markers and Banned IPs layers. The map flies to the zoom where that location's marker leaves its cluster, and never zooms out. On a phone the controls drawer closes. If the current filters hide the location, the map flies there without a popup. Show on map in the IP inspector lands the same way.
+- The CrowdSec alert endpoints return `countryCode` and `countryName` in place of `country`, which held a code or a name depending on the source. `countryName` is null when the LAPI supplied the country.
+- Charts on a 7-day range, including the 7d preset and Last week, use daily buckets instead of hourly when granularity is Auto.
+- The IP inspector's footer buttons stay at the bottom of the sheet while the rest scrolls. On a phone they show only the page's icon from the side menu.
+
+### Fixed
+
+- Chart tooltips show values of 0.
+- The IP inspector took the newest alert for an IP as the ban start. A rejected browser challenge after the ban carries no decision, yet it moved the ban start and the "still seen after ban" signal with it. The lookup now asks for alerts with a live decision.
+- The alert sheet said "1 events".
+- Unbanning an IP also deleted every range decision that covered it, because the LAPI's delete matches any decision containing the IP. Unban now removes only the IP's own decisions.
+
 ## [0.18.0] - 2026-09-22
 
 ### Added
@@ -1054,7 +1079,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Settings endpoint no longer exposes the full settings tree (database credentials leaked via `model_dump()`); response is now an explicit whitelist.
 - Timestamps in `CALL refresh_continuous_aggregate` are bound as asyncpg parameters instead of interpolated into SQL.
 
-[Unreleased]: https://github.com/GilbN/geometrikks/compare/v0.18.0...develop
+[Unreleased]: https://github.com/GilbN/geometrikks/compare/v0.19.0...develop
+[0.19.0]: https://github.com/GilbN/geometrikks/compare/v0.18.0...v0.19.0
 [0.18.0]: https://github.com/GilbN/geometrikks/compare/v0.17.0...v0.18.0
 [0.17.0]: https://github.com/GilbN/geometrikks/compare/v0.16.0...v0.17.0
 [0.16.0]: https://github.com/GilbN/geometrikks/compare/v0.15.0...v0.16.0

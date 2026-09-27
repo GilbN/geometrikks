@@ -15,7 +15,12 @@ from litestar.types import ExceptionHandlersMap
 
 from geometrikks.domain.exceptions import DomainConflictError, DomainNotFoundError, DomainValidationError
 from geometrikks.server.logging import get_logger
-from geometrikks.services.crowdsec import CrowdSecAuthError, CrowdSecUnavailableError
+from geometrikks.services.crowdsec import (
+    CrowdSecAuthError,
+    CrowdSecUnavailableError,
+    CrowdSecUnsupportedError,
+)
+from geometrikks.services.rdap import RdapUnavailableError
 
 logger = get_logger(__name__)
 
@@ -103,14 +108,37 @@ def handle_crowdsec_auth_error(request: Request, exc: Exception) -> Response:
     )
 
 
+def handle_crowdsec_unsupported(request: Request, exc: Exception) -> Response:
+    """400: the request needs a newer LAPI than the one configured. The
+    message is ours, not the LAPI's."""
+    return Response(
+        media_type=MediaType.JSON,
+        status_code=HTTP_400_BAD_REQUEST,
+        content={"status_code": HTTP_400_BAD_REQUEST, "detail": str(exc)},
+    )
+
+
+def handle_rdap_unavailable(request: Request, exc: Exception) -> Response:
+    """502: IANA or the registry failed. The detail names the host and the
+    status or error class, never the upstream body."""
+    logger.warning("RDAP lookup failed: %s", exc)
+    return Response(
+        media_type=MediaType.JSON,
+        status_code=HTTP_502_BAD_GATEWAY,
+        content={"status_code": HTTP_502_BAD_GATEWAY, "detail": f"RDAP lookup failed ({exc})"},
+    )
+
+
 CROWDSEC_EXCEPTION_HANDLERS: ExceptionHandlersMap = {
     CrowdSecUnavailableError: handle_crowdsec_unavailable,
     CrowdSecAuthError: handle_crowdsec_auth_error,
+    CrowdSecUnsupportedError: handle_crowdsec_unsupported,
 }
 
 # The complete domain-to-HTTP translation map registered by create_app().
 EXCEPTION_HANDLERS: ExceptionHandlersMap = {
     **CROWDSEC_EXCEPTION_HANDLERS,
+    RdapUnavailableError: handle_rdap_unavailable,
     DomainValidationError: handle_domain_validation_error,
     DomainNotFoundError: handle_domain_not_found,
     DomainConflictError: handle_domain_conflict,

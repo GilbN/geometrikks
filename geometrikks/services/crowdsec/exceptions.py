@@ -15,3 +15,7 @@ class CrowdSecUnavailableError(CrowdSecError):
 
 class CrowdSecAuthError(CrowdSecError):
     """Bouncer key or machine credentials rejected, or missing configuration."""
+
+
+class CrowdSecUnsupportedError(CrowdSecError):
+    """The LAPI is too old for a feature the request relies on."""

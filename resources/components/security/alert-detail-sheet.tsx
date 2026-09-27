@@ -4,10 +4,14 @@
  * events the LAPI kept. The header renders from the table row while the
  * detail loads.
  */
+import { useRef, useState } from "react"
 import { Link } from "@tanstack/react-router"
-import { ChevronRight } from "lucide-react"
+import { Check, ChevronRight, Copy } from "lucide-react"
+import { CountryLabel } from "@/components/country-flag"
 import { DetailField, DetailSheet } from "@/components/data/detail-sheet"
 import { DecisionBadge } from "@/components/crowdsec/decision-badge"
+import { AlertKindBadge } from "@/components/security/alert-kind-badge"
+import { ExternalLink, ExternalLinkButton } from "@/components/crowdsec/external-link"
 import { IpBanControls } from "@/components/crowdsec/ip-ban-controls"
 import { InspectIpButton } from "@/components/ip-inspector/inspect-ip-button"
 import { FlyToIpButton } from "@/components/map/FlyToIpButton"
@@ -16,8 +20,23 @@ import { Button } from "@/components/ui/button"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Skeleton } from "@/components/ui/skeleton"
 import type { AlertDetailView, AlertEventView, AlertView } from "@/generated/api/types.gen"
-import { crowdsecErrorMessage } from "@/lib/crowdsec"
-import { alertSummary, asLabel, contextLabel, eventExtras, hasHttpEvents } from "@/lib/crowdsec-alerts"
+import { copyText } from "@/lib/clipboard"
+import { bgpAsUrl, crowdsecCtiUrl, crowdsecErrorMessage, crowdsecHubUrl } from "@/lib/crowdsec"
+import {
+  CHALLENGE_EVENT_KEYS,
+  HTTP_EVENT_KEYS,
+  alertDescription,
+  alertSummary,
+  asLabel,
+  challengeContext,
+  contextLabel,
+  eventExtras,
+  hasHttpEvents,
+  isChallengeEvent,
+  shortFingerprint,
+  signalNote,
+  type ChallengeContext,
+} from "@/lib/crowdsec-alerts"
 import type { UseQueryResult } from "@tanstack/react-query"
 import { useCrowdsecAlert, useCrowdsecDecisionAlert } from "@/lib/queries"
 import { statusBadgeClass } from "@/lib/status-badge"
@@ -31,25 +50,47 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
   )
 }
 
+// The challenge's own outcome words, colored like the decision badges:
+// rejected is the verdict, failed is a broken submission.
+function challengeEventClass(event: string | undefined): string {
+  if (event === "rejected") return "bg-destructive/10 text-destructive"
+  if (event === "failed") return "bg-amber-500/10 text-amber-500 dark:bg-amber-500/20"
+  return ""
+}
+
 function EventRow({ event, http }: { event: AlertEventView; http: boolean }) {
   const { meta } = event
   const status = Number(meta.http_status)
-  const extras = eventExtras(meta, http)
+  const challenge = isChallengeEvent(meta)
+  const extras = eventExtras(meta, challenge ? CHALLENGE_EVENT_KEYS : http ? HTTP_EVENT_KEYS : [])
+  const showHttp = http && !challenge
   return (
     <li className="border-b border-border/40 py-2 last:border-0">
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
         <time className="whitespace-nowrap tabular-nums text-muted-foreground">
           {new Date(event.timestamp).toLocaleTimeString()}
         </time>
-        {http && Number.isFinite(status) && (
+        {showHttp && Number.isFinite(status) && (
           <Badge className={cn("tabular-nums border-transparent", statusBadgeClass(status))}>{status}</Badge>
         )}
-        {http && <span className="font-mono font-medium">{meta.http_verb}</span>}
-        {http && <span className="min-w-0 break-all font-mono">{meta.http_path}</span>}
+        {challenge && meta.challenge_event && (
+          <Badge variant="secondary" className={cn("border-transparent", challengeEventClass(meta.challenge_event))}>
+            Challenge {meta.challenge_event}
+          </Badge>
+        )}
+        {(showHttp || challenge) && <span className="font-mono font-medium">{challenge ? meta.method : meta.http_verb}</span>}
+        {(showHttp || challenge) && (
+          <span className="min-w-0 break-all font-mono">{challenge ? meta.target_uri : meta.http_path}</span>
+        )}
       </div>
-      {http && (meta.target_fqdn || meta.http_user_agent) && (
+      {showHttp && (meta.target_fqdn || meta.http_user_agent) && (
         <p className="mt-0.5 break-words text-[11px] text-muted-foreground">
           {[meta.target_fqdn, meta.http_user_agent].filter(Boolean).join(" · ")}
+        </p>
+      )}
+      {challenge && (meta.target_host || meta.challenge_fail_reason || meta.http_user_agent) && (
+        <p className="mt-0.5 break-words text-[11px] text-muted-foreground">
+          {[meta.target_host, meta.challenge_fail_reason, meta.http_user_agent].filter(Boolean).join(" · ")}
         </p>
       )}
       {extras.length > 0 && (
@@ -74,15 +115,107 @@ function EventRow({ event, http }: { event: AlertEventView; http: boolean }) {
   )
 }
 
+function CopyFingerprint({ id }: { id: string }) {
+  const [copied, setCopied] = useState(false)
+  const anchor = useRef<HTMLSpanElement>(null)
+  async function copy() {
+    // The fallback textarea has to live inside the sheet, or its focus trap
+    // steals the selection before the copy runs.
+    const ok = await copyText(id, { container: anchor.current })
+    setCopied(ok)
+    if (ok) setTimeout(() => setCopied(false), 1500)
+  }
+  return (
+    <span ref={anchor} className="inline-flex items-center gap-1 font-mono text-xs">
+      <span title={id}>{shortFingerprint(id)}</span>
+      <Button variant="ghost" size="icon" className="size-6" onClick={copy} aria-label="Copy the full fingerprint id">
+        {copied ? <Check className="size-3" /> : <Copy className="size-3" />}
+      </Button>
+    </span>
+  )
+}
+
+/** What the browser challenge saw. Every field is optional: the hub's
+ *  context file decides which keys the LAPI stores. */
+function ChallengeSection({ challenge }: { challenge: ChallengeContext }) {
+  const outcome = challenge.event ? challenge.event[0].toUpperCase() + challenge.event.slice(1) : null
+  const scoreShown = challenge.score !== null
+  return (
+    <>
+      <SectionTitle>Challenge</SectionTitle>
+      <dl>
+        <DetailField
+          label="Outcome"
+          value={
+            outcome && (
+              <Badge variant="secondary" className={cn("border-transparent", challengeEventClass(challenge.event ?? undefined))}>
+                {outcome}
+              </Badge>
+            )
+          }
+        />
+        {scoreShown ? (
+          <DetailField
+            label="Score"
+            value={
+              <div className="space-y-1">
+                <span className="tabular-nums">{challenge.score}</span>
+                <p className="text-xs text-muted-foreground">The signals the fingerprint scanner saw, added up.</p>
+                {challenge.reasons.length > 0 && (
+                  <ul className="space-y-1">
+                    {challenge.reasons.map((reason) => (
+                      <li key={reason.signal} className="text-xs">
+                        <span className="font-mono">{reason.signal}</span>
+                        {reason.points !== null && (
+                          <span className="tabular-nums text-muted-foreground"> · {reason.points} points</span>
+                        )}
+                        {signalNote(reason.signal) && (
+                          <p className="text-muted-foreground">{signalNote(reason.signal)}</p>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            }
+          />
+        ) : (
+          <DetailField label="Reason" value={challenge.failReason} />
+        )}
+        <DetailField label="Fingerprint" value={challenge.fingerprintId && <CopyFingerprint id={challenge.fingerprintId} />} />
+        <DetailField label="Operating system" value={challenge.operatingSystem} />
+        <DetailField label="User agent" value={challenge.userAgent} mono />
+        <DetailField label="Target path" value={challenge.targetUri} mono />
+      </dl>
+    </>
+  )
+}
+
+function AsValue({ name, number }: { name: string | null; number: string | null }) {
+  const label = asLabel(name, number)
+  const href = bgpAsUrl(number)
+  if (!label || !href) return label
+  return <ExternalLink href={href}>{label}</ExternalLink>
+}
+
+function ScenarioTitle({ scenario }: { scenario: string }) {
+  const hubUrl = crowdsecHubUrl(scenario)
+  return (
+    <span className="break-all font-mono text-sm">
+      {scenario}
+      {hubUrl && <ExternalLinkButton href={hubUrl} label="Open in the CrowdSec Hub" className="ml-1" />}
+    </span>
+  )
+}
+
 function AlertBody({ alert, onNavigate }: { alert: AlertDetailView; onNavigate: () => void }) {
   const isIp = alert.scope === "Ip"
   const http = hasHttpEvents(alert.events)
+  const { challenge, rest: context } = challengeContext(alert.context)
   return (
     <>
       <div className="mb-2 flex flex-wrap items-center gap-1.5">
-        {alert.kind && alert.kind !== "crowdsec" && (
-          <Badge variant="secondary" className="uppercase">{alert.kind}</Badge>
-        )}
+        <AlertKindBadge kind={alert.kind} />
         {alert.simulated && (
           <Badge variant="outline" title="CrowdSec ran this scenario in simulation mode and enforced nothing">
             Simulated
@@ -102,15 +235,23 @@ function AlertBody({ alert, onNavigate }: { alert: AlertDetailView; onNavigate: 
                 <IpBanControls ip={alert.value}>
                   <InspectIpButton ip={alert.value} onOpen={onNavigate} />
                   <FlyToIpButton ip={alert.value} onOpen={onNavigate} />
+                  <ExternalLinkButton href={crowdsecCtiUrl(alert.value)} label="Look up in CrowdSec CTI" />
                 </IpBanControls>
               )}
             </span>
           }
         />
-        <DetailField label="Country" value={alert.country} />
+        <DetailField
+          label="Country"
+          value={
+            (alert.countryCode || alert.countryName) && (
+              <CountryLabel code={alert.countryCode} name={alert.countryName} />
+            )
+          }
+        />
         <DetailField
           label="AS"
-          value={asLabel(alert.asName, alert.asNumber)}
+          value={<AsValue name={alert.asName} number={alert.asNumber} />}
         />
         <DetailField label="Range" value={alert.range} mono />
         <DetailField label="First event" value={alert.startAt && new Date(alert.startAt).toLocaleString()} />
@@ -125,11 +266,13 @@ function AlertBody({ alert, onNavigate }: { alert: AlertDetailView; onNavigate: 
         </Button>
       )}
 
-      {alert.context.length > 0 && (
+      {challenge && <ChallengeSection challenge={challenge} />}
+
+      {context.length > 0 && (
         <>
           <SectionTitle>Context</SectionTitle>
           <dl>
-            {alert.context.map((entry) => (
+            {context.map((entry) => (
               <DetailField
                 key={entry.key}
                 label={contextLabel(entry.key)}
@@ -191,10 +334,6 @@ function AlertBody({ alert, onNavigate }: { alert: AlertDetailView; onNavigate: 
   )
 }
 
-function alertDescription(alert: Pick<AlertView, "id" | "createdAt" | "eventsCount">) {
-  return `Alert #${alert.id} · ${new Date(alert.createdAt).toLocaleString()} · ${alert.eventsCount} events`
-}
-
 function AlertSheet({
   open,
   onOpenChange,
@@ -214,7 +353,7 @@ function AlertSheet({
     <DetailSheet
       open={open}
       onOpenChange={onOpenChange}
-      title={<span className="break-all font-mono text-sm">{scenario ?? "Alert details"}</span>}
+      title={scenario ? <ScenarioTitle scenario={scenario} /> : <span className="font-mono text-sm">Alert details</span>}
       description={description}
     >
       {open && detail.isPending && (

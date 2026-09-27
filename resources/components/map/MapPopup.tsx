@@ -9,6 +9,7 @@ import { formatNumber } from "@/lib/api"
 import type { GeoJSONFeatureProperties } from "@/lib/api"
 import { useLocationTopIPs } from "@/lib/queries"
 import { IpBanControls } from "./IpBanControls"
+import { CountryLabel } from "@/components/country-flag"
 import { InspectIpButton } from "@/components/ip-inspector/inspect-ip-button"
 import { POPUP_OFFSET, POPUP_CODE_STYLE as IP_CODE_STYLE, POPUP_ROW_ICON_STYLE as ROW_ICON_STYLE, PopupBadge, PopupCard, PopupRow } from "./PopupCard"
 
@@ -109,7 +110,13 @@ export function MapPopup({
         }
       >
         <PopupRow label="Events" value={<PopupBadge>{formatNumber(eventCount)}</PopupBadge>} />
-        {countryCode && <PopupRow label="Country" icon={<Globe style={ROW_ICON_STYLE} />} value={countryCode} />}
+        {countryCode && (
+          <PopupRow
+            label="Country"
+            icon={<Globe style={ROW_ICON_STYLE} />}
+            value={<CountryLabel code={countryCode} name={countryName}>{countryCode}</CountryLabel>}
+          />
+        )}
         <PopupRow label="Last hit" icon={<Clock style={ROW_ICON_STYLE} />} value={<LastHitToolTip lastHit={formattedLastHit} />} />
         <PopupRow label="Geohash" icon={<Hash style={ROW_ICON_STYLE} />} value={<code style={IP_CODE_STYLE}>{geohash}</code>} />
 

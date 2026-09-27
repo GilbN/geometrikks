@@ -131,6 +131,169 @@ export const AboutResponseSchema = {
   type: "object",
 } as const;
 
+export const AbuseContactResponseSchema = {
+  properties: {
+    abuseEmails: {
+      items: {
+        type: "string",
+      },
+      type: "array",
+    },
+    abuseName: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    cidrs: {
+      items: {
+        type: "string",
+      },
+      type: "array",
+    },
+    country: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    endAddress: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    handle: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    kind: {
+      enum: ["ip", "asn"],
+      type: "string",
+    },
+    name: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    query: {
+      type: "string",
+    },
+    rdapUrl: {
+      type: "string",
+    },
+    registry: {
+      type: "string",
+    },
+    startAddress: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+  },
+  required: [
+    "abuseEmails",
+    "abuseName",
+    "cidrs",
+    "country",
+    "endAddress",
+    "handle",
+    "kind",
+    "name",
+    "query",
+    "rdapUrl",
+    "registry",
+    "startAddress",
+  ],
+  title: "AbuseContactResponse",
+  type: "object",
+} as const;
+
+export const AbuseReportResponseSchema = {
+  properties: {
+    crowdsec: {
+      $ref: "#/components/schemas/ReportCrowdSec",
+    },
+    endDate: {
+      type: "string",
+    },
+    generatedAt: {
+      type: "string",
+    },
+    granularity: {
+      enum: ["hourly", "daily"],
+      type: "string",
+    },
+    ipCount: {
+      type: "integer",
+    },
+    ips: {
+      items: {
+        $ref: "#/components/schemas/ReportIpDTO",
+      },
+      type: "array",
+    },
+    redactions: {
+      type: "integer",
+    },
+    startDate: {
+      type: "string",
+    },
+    status4xx: {
+      type: "integer",
+    },
+    target: {
+      $ref: "#/components/schemas/ReportTarget",
+    },
+    totalRequests: {
+      type: "integer",
+    },
+  },
+  required: [
+    "crowdsec",
+    "endDate",
+    "generatedAt",
+    "granularity",
+    "ipCount",
+    "ips",
+    "redactions",
+    "startDate",
+    "status4xx",
+    "target",
+    "totalRequests",
+  ],
+  title: "AbuseReportResponse",
+  type: "object",
+} as const;
+
 export const AccessLogDebugEntrySchema = {
   properties: {
     accessLogId: {
@@ -483,7 +646,17 @@ export const AlertDetailViewSchema = {
       },
       type: "array",
     },
-    country: {
+    countryCode: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    countryName: {
       oneOf: [
         {
           type: "string",
@@ -595,7 +768,8 @@ export const AlertDetailViewSchema = {
     "asName",
     "asNumber",
     "context",
-    "country",
+    "countryCode",
+    "countryName",
     "createdAt",
     "decisionCount",
     "decisions",
@@ -649,7 +823,17 @@ export const AlertViewSchema = {
         },
       ],
     },
-    country: {
+    countryCode: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    countryName: {
       oneOf: [
         {
           type: "string",
@@ -672,6 +856,16 @@ export const AlertViewSchema = {
       oneOf: [
         {
           type: "integer",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    kind: {
+      oneOf: [
+        {
+          type: "string",
         },
         {
           type: "null",
@@ -704,11 +898,13 @@ export const AlertViewSchema = {
   required: [
     "activeDecisionCount",
     "asName",
-    "country",
+    "countryCode",
+    "countryName",
     "createdAt",
     "decisionCount",
     "eventsCount",
     "id",
+    "kind",
     "machineId",
     "message",
     "scenario",
@@ -854,7 +1050,18 @@ export const BanRequestSchema = {
       type: "string",
     },
     reason: {
-      default: "manual ban from GeoMetrikks",
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    type: {
+      default: "ban",
+      enum: ["ban", "captcha"],
       type: "string",
     },
   },
@@ -3708,6 +3915,459 @@ export const ReadinessResponseSchema = {
   },
   required: ["ready"],
   title: "ReadinessResponse",
+  type: "object",
+} as const;
+
+export const ReportAlertDTOSchema = {
+  properties: {
+    createdAt: {
+      type: "string",
+    },
+    decisions: {
+      items: {
+        $ref: "#/components/schemas/ReportAlertDecisionDTO",
+      },
+      type: "array",
+    },
+    eventsCount: {
+      type: "integer",
+    },
+    kind: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    scenario: {
+      type: "string",
+    },
+    startAt: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    stopAt: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+  },
+  required: [
+    "createdAt",
+    "decisions",
+    "eventsCount",
+    "kind",
+    "scenario",
+    "startAt",
+    "stopAt",
+  ],
+  title: "ReportAlertDTO",
+  type: "object",
+} as const;
+
+export const ReportAlertDecisionDTOSchema = {
+  properties: {
+    duration: {
+      type: "string",
+    },
+    expired: {
+      type: "boolean",
+    },
+    type: {
+      type: "string",
+    },
+  },
+  required: ["duration", "expired", "type"],
+  title: "ReportAlertDecisionDTO",
+  type: "object",
+} as const;
+
+export const ReportCrowdSecSchema = {
+  properties: {
+    message: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    status: {
+      enum: ["disabled", "ok", "decisions-only", "unavailable"],
+      type: "string",
+    },
+  },
+  required: ["message", "status"],
+  title: "ReportCrowdSec",
+  type: "object",
+} as const;
+
+export const ReportDecisionDTOSchema = {
+  properties: {
+    duration: {
+      type: "string",
+    },
+    origin: {
+      type: "string",
+    },
+    scenario: {
+      type: "string",
+    },
+    scope: {
+      type: "string",
+    },
+    type: {
+      type: "string",
+    },
+    value: {
+      type: "string",
+    },
+  },
+  required: ["duration", "origin", "scenario", "scope", "type", "value"],
+  title: "ReportDecisionDTO",
+  type: "object",
+} as const;
+
+export const ReportIpDTOSchema = {
+  properties: {
+    alerts: {
+      items: {
+        $ref: "#/components/schemas/ReportAlertDTO",
+      },
+      type: "array",
+    },
+    alertsTruncated: {
+      type: "boolean",
+    },
+    asn: {
+      oneOf: [
+        {
+          type: "integer",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    asnOrganization: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    countryCode: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    countryName: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    decisions: {
+      items: {
+        $ref: "#/components/schemas/ReportDecisionDTO",
+      },
+      type: "array",
+    },
+    distinctPaths: {
+      type: "integer",
+    },
+    firstSeen: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    ipAddress: {
+      type: "string",
+    },
+    lastSeen: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    lines: {
+      items: {
+        $ref: "#/components/schemas/ReportLineDTO",
+      },
+      type: "array",
+    },
+    malformedRequests: {
+      type: "integer",
+    },
+    paths: {
+      items: {
+        $ref: "#/components/schemas/ReportPathDTO",
+      },
+      type: "array",
+    },
+    peak: {
+      oneOf: [
+        {
+          $ref: "#/components/schemas/ReportPeakDTO",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    status2xx: {
+      type: "integer",
+    },
+    status3xx: {
+      type: "integer",
+    },
+    status4xx: {
+      type: "integer",
+    },
+    status5xx: {
+      type: "integer",
+    },
+    totalBytes: {
+      type: "integer",
+    },
+    totalRequests: {
+      type: "integer",
+    },
+    userAgents: {
+      items: {
+        $ref: "#/components/schemas/ReportUserAgentDTO",
+      },
+      type: "array",
+    },
+  },
+  required: [
+    "alerts",
+    "alertsTruncated",
+    "asn",
+    "asnOrganization",
+    "countryCode",
+    "countryName",
+    "decisions",
+    "distinctPaths",
+    "firstSeen",
+    "ipAddress",
+    "lastSeen",
+    "lines",
+    "malformedRequests",
+    "paths",
+    "peak",
+    "status2xx",
+    "status3xx",
+    "status4xx",
+    "status5xx",
+    "totalBytes",
+    "totalRequests",
+    "userAgents",
+  ],
+  title: "ReportIpDTO",
+  type: "object",
+} as const;
+
+export const ReportLineDTOSchema = {
+  properties: {
+    bytesSent: {
+      oneOf: [
+        {
+          type: "integer",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    httpVersion: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    method: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    statusCode: {
+      oneOf: [
+        {
+          type: "integer",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    timestamp: {
+      type: "string",
+    },
+    url: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    userAgent: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+  },
+  required: [
+    "bytesSent",
+    "httpVersion",
+    "method",
+    "statusCode",
+    "timestamp",
+    "url",
+    "userAgent",
+  ],
+  title: "ReportLineDTO",
+  type: "object",
+} as const;
+
+export const ReportPathDTOSchema = {
+  properties: {
+    errorHits: {
+      type: "integer",
+    },
+    hits: {
+      type: "integer",
+    },
+    url: {
+      type: "string",
+    },
+  },
+  required: ["errorHits", "hits", "url"],
+  title: "ReportPathDTO",
+  type: "object",
+} as const;
+
+export const ReportPeakDTOSchema = {
+  properties: {
+    hits: {
+      type: "integer",
+    },
+    timestamp: {
+      type: "string",
+    },
+  },
+  required: ["hits", "timestamp"],
+  title: "ReportPeakDTO",
+  type: "object",
+} as const;
+
+export const ReportTargetSchema = {
+  properties: {
+    asn: {
+      oneOf: [
+        {
+          type: "integer",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    asnOrganization: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    ipAddress: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    kind: {
+      enum: ["ip", "asn"],
+      type: "string",
+    },
+  },
+  required: ["asn", "asnOrganization", "ipAddress", "kind"],
+  title: "ReportTarget",
+  type: "object",
+} as const;
+
+export const ReportUserAgentDTOSchema = {
+  properties: {
+    hits: {
+      type: "integer",
+    },
+    userAgent: {
+      type: "string",
+    },
+  },
+  required: ["hits", "userAgent"],
+  title: "ReportUserAgentDTO",
   type: "object",
 } as const;
 

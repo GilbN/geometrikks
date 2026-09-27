@@ -278,14 +278,17 @@ async def test_stats_counts_by_origin_and_scenario():
 class WritableFakeCrowdSec(FakeCrowdSec):
     def __init__(self, decisions: list[Decision] | None = None) -> None:
         super().__init__(decisions or [])
-        self.bans: list[tuple[str, str | None, str]] = []
-        self.unbans: list[str] = []
+        self.bans: list[dict] = []
+        self.unbans: list[tuple[str, str]] = []
 
-    async def ban_ip(self, ip, *, duration=None, reason="manual ban from GeoMetrikks"):
-        self.bans.append((ip, duration, reason))
+    async def ban(self, value, *, scope="Ip", decision_type="ban", duration=None, reason=None):
+        self.bans.append({
+            "value": value, "scope": scope, "type": decision_type,
+            "duration": duration, "reason": reason,
+        })
 
-    async def unban_ip(self, ip):
-        self.unbans.append(ip)
+    async def unban(self, value, *, scope="Ip"):
+        self.unbans.append((value, scope))
         return 2
 
 
@@ -324,7 +327,72 @@ async def test_ban_calls_service_with_duration_and_reason(monkeypatch):
             json={"ip": "1.2.3.4", "duration": "24h", "reason": "scanner"},
         )
     assert resp.status_code == 204
-    assert service.bans == [("1.2.3.4", "24h", "scanner")]
+    assert service.bans == [{
+        "value": "1.2.3.4", "scope": "Ip", "type": "ban", "duration": "24h", "reason": "scanner",
+    }]
+
+
+async def post_ban(monkeypatch, body: dict) -> tuple[int, WritableFakeCrowdSec]:
+    enable_write(monkeypatch)
+    service = WritableFakeCrowdSec()
+    async with AsyncTestClient(app=make_app(service)) as client:
+        resp = await client.post("/api/v1/crowdsec/ban", json=body)
+    return resp.status_code, service
+
+
+async def test_ban_cidr_becomes_normalized_range(monkeypatch):
+    status, service = await post_ban(monkeypatch, {"ip": "10.0.0.5/24"})
+    assert status == 204
+    assert (service.bans[0]["value"], service.bans[0]["scope"]) == ("10.0.0.0/24", "Range")
+
+
+@pytest.mark.parametrize(("cidr", "ip"), [("10.0.0.5/32", "10.0.0.5"), ("2001:db8::1/128", "2001:db8::1")])
+async def test_ban_single_address_cidr_is_an_ip_ban(monkeypatch, cidr, ip):
+    status, service = await post_ban(monkeypatch, {"ip": cidr})
+    assert status == 204
+    assert (service.bans[0]["value"], service.bans[0]["scope"]) == (ip, "Ip")
+
+
+@pytest.mark.parametrize("value", ["0.0.0.0/0", "::/0", "10.0.0.0/33", "10.0.0/8"])
+async def test_ban_rejects_bad_ranges(monkeypatch, value):
+    status, service = await post_ban(monkeypatch, {"ip": value})
+    assert status == 400
+    assert service.bans == []
+
+
+async def test_ban_passes_captcha_type(monkeypatch):
+    status, service = await post_ban(monkeypatch, {"ip": "1.2.3.4", "type": "captcha"})
+    assert status == 204
+    assert service.bans[0]["type"] == "captcha"
+
+
+async def test_ban_default_reason_names_the_decision_type(monkeypatch):
+    status, service = await post_ban(monkeypatch, {"ip": "1.2.3.4", "type": "captcha"})
+    assert status == 204
+    assert service.bans[0]["reason"] == "manual captcha from GeoMetrikks"
+
+
+async def test_ban_rejects_unknown_type(monkeypatch):
+    status, service = await post_ban(monkeypatch, {"ip": "1.2.3.4", "type": "throttle"})
+    assert status == 400
+    assert service.bans == []
+
+
+@pytest.mark.parametrize(
+    ("given", "sent"),
+    [("3d", "72h"), ("2d12h", "60h"), ("1d30m", "24h30m"), ("90m", "90m"), ("1h30m", "1h30m")],
+)
+async def test_ban_converts_days_to_hours(monkeypatch, given, sent):
+    status, service = await post_ban(monkeypatch, {"ip": "1.2.3.4", "duration": given})
+    assert status == 204
+    assert service.bans[0]["duration"] == sent
+
+
+@pytest.mark.parametrize("duration", ["0h", "0d0m", "d", "4 hours", "1w"])
+async def test_ban_rejects_empty_or_malformed_durations(monkeypatch, duration):
+    status, service = await post_ban(monkeypatch, {"ip": "1.2.3.4", "duration": duration})
+    assert status == 400
+    assert service.bans == []
 
 
 async def test_ban_rejects_invalid_ip(monkeypatch):
@@ -350,36 +418,31 @@ async def test_unban_returns_deleted_count(monkeypatch):
         resp = await client.post("/api/v1/crowdsec/unban", json={"ip": "5.6.7.8"})
     assert resp.status_code == 200
     assert resp.json() == {"deleted": 2}
-    assert service.unbans == ["5.6.7.8"]
+    assert service.unbans == [("5.6.7.8", "Ip")]
+
+
+async def test_unban_cidr_targets_the_normalized_range(monkeypatch):
+    enable_write(monkeypatch)
+    service = WritableFakeCrowdSec()
+    async with AsyncTestClient(app=make_app(service)) as client:
+        resp = await client.post("/api/v1/crowdsec/unban", json={"ip": "10.0.0.7/24"})
+    assert resp.status_code == 200
+    assert service.unbans == [("10.0.0.0/24", "Range")]
 
 
 async def test_ban_is_audit_logged(monkeypatch):
-    """A handler on the module logger, not caplog: Litestar's dictConfig
-    replaces root handlers at app construction, silently dropping pytest's
-    root-level capture handler."""
+    import structlog
+
     enable_write(monkeypatch)
-    import logging
-
-    records: list[logging.LogRecord] = []
-
-    class ListHandler(logging.Handler):
-        def emit(self, record: logging.LogRecord) -> None:
-            records.append(record)
-
-    audit_logger = logging.getLogger("geometrikks.domain.security.controllers")
-    handler = ListHandler(level=logging.INFO)
-    app = make_app(WritableFakeCrowdSec())
-    async with AsyncTestClient(app=app) as client:
-        audit_logger.addHandler(handler)
-        try:
+    async with AsyncTestClient(app=make_app(WritableFakeCrowdSec())) as client:
+        with structlog.testing.capture_logs() as captured:
             resp = await client.post(
-                "/api/v1/crowdsec/ban", json={"ip": "1.2.3.4", "reason": "scanner"}
+                "/api/v1/crowdsec/ban",
+                json={"ip": "1.2.3.4", "reason": "scanner", "type": "captcha"},
             )
-        finally:
-            audit_logger.removeHandler(handler)
     assert resp.status_code == 204, resp.text
-    audit = [r.getMessage() for r in records if "1.2.3.4" in r.getMessage()]
-    assert audit and "scanner" in audit[0]
+    (audit,) = [e for e in captured if e["event"].startswith("CrowdSec ban by")]
+    assert audit["positional_args"] == ("unknown", "1.2.3.4", "Ip", "captcha", "4h", "scanner")
 
 
 async def test_banned_ips_returns_ip_scope_entries_with_type_across_origins():
@@ -493,12 +556,14 @@ async def test_alerts_returns_flattened_views(monkeypatch):
     (alert,) = resp.json()
     assert alert["scenario"] == "crowdsecurity/ssh-bf"
     assert alert["value"] == "1.2.3.4"
-    assert alert["country"] == "NO"
+    assert (alert["countryCode"], alert["countryName"]) == ("NO", None)
     assert alert["asName"] == "Telenor"
     assert alert["machineId"] == "gateway"
     assert alert["eventsCount"] == 6
     assert alert["decisionCount"] == 1
-    assert service.alert_calls == [{"limit": 25, "ip": None, "scenario": None, "since": "24h"}]
+    assert service.alert_calls == [
+        {"limit": 25, "ip": None, "scenario": None, "since": "24h", "kind": None, "has_active_decision": None}
+    ]
 
 
 async def test_alerts_without_lapi_geo_fall_back_to_own_enrichment(monkeypatch):
@@ -514,7 +579,7 @@ async def test_alerts_without_lapi_geo_fall_back_to_own_enrichment(monkeypatch):
     async with AsyncTestClient(app=make_app(service, enrichment)) as client:
         resp = await client.get("/api/v1/crowdsec/alerts")
     (alert,) = resp.json()
-    assert alert["country"] == "Norway"
+    assert (alert["countryCode"], alert["countryName"]) == ("NO", "Norway")
     assert enrichment.calls == [["1.2.3.4"]]
 
 
@@ -525,6 +590,40 @@ async def test_alerts_count_active_decisions_apart_from_expired(monkeypatch):
     async with AsyncTestClient(app=make_app(AlertFakeCrowdSec([alert]))) as client:
         (view,) = (await client.get("/api/v1/crowdsec/alerts")).json()
     assert (view["decisionCount"], view["activeDecisionCount"]) == (2, 1)
+
+
+
+async def test_alerts_report_their_kind(monkeypatch):
+    enable_write(monkeypatch)
+    rejection = make_alert()
+    rejection.id = 8
+    rejection.kind = "bot-detection"
+    rejection.decisions = []
+    async with AsyncTestClient(app=make_app(AlertFakeCrowdSec([make_alert(), rejection]))) as client:
+        views = (await client.get("/api/v1/crowdsec/alerts")).json()
+    assert [v["kind"] for v in views] == [None, "bot-detection"]
+
+
+async def test_alerts_forward_kind_and_live_decision_filters(monkeypatch):
+    enable_write(monkeypatch)
+    service = AlertFakeCrowdSec([])
+    async with AsyncTestClient(app=make_app(service)) as client:
+        resp = await client.get(
+            "/api/v1/crowdsec/alerts", params={"kind": "bot-detection", "hasActiveDecision": "true"}
+        )
+    assert resp.status_code == 200
+    (call,) = service.alert_calls
+    assert call["kind"] == "bot-detection"
+    assert call["has_active_decision"] is True
+
+
+async def test_alerts_reject_an_unknown_kind(monkeypatch):
+    enable_write(monkeypatch)
+    service = AlertFakeCrowdSec([])
+    async with AsyncTestClient(app=make_app(service)) as client:
+        resp = await client.get("/api/v1/crowdsec/alerts", params={"kind": "robot"})
+    assert resp.status_code == 400
+    assert service.alert_calls == []
 
 
 # -- alert detail ----------------------------------------------------------
@@ -580,7 +679,7 @@ async def test_alert_detail_returns_context_events_and_decisions(monkeypatch):
     assert detail["kind"] == "crowdsec"
     assert detail["simulated"] is False
     assert (detail["startAt"], detail["stopAt"]) == ("2026-07-20T09:59:50Z", "2026-07-20T10:00:00Z")
-    assert (detail["country"], detail["asName"], detail["asNumber"]) == ("NO", "Telenor", "2119")
+    assert (detail["countryCode"], detail["asName"], detail["asNumber"]) == ("NO", "Telenor", "2119")
     assert detail["range"] == "1.2.3.0/24"
     assert detail["eventsCount"] == 6
     assert detail["context"] == [{"key": "target_uri", "values": ["/wp-login.php", "/.env"]}]
@@ -602,7 +701,7 @@ async def test_alert_detail_without_lapi_geo_falls_back_to_own_enrichment(monkey
     service = AlertFakeCrowdSec([bare])
     async with AsyncTestClient(app=make_app(service, FakeEnrichment({"1.2.3.4": OSLO}))) as client:
         detail = (await client.get("/api/v1/crowdsec/alerts/7")).json()
-    assert detail["country"] == "Norway"
+    assert (detail["countryCode"], detail["countryName"]) == ("NO", "Norway")
 
 
 # -- the alert behind a decision -------------------------------------------
@@ -658,7 +757,7 @@ async def test_alert_geo_fallback_finds_a_non_canonical_ipv6_source(monkeypatch)
     async with AsyncTestClient(app=make_app(AlertFakeCrowdSec([bare]), enrichment)) as client:
         (listed,) = (await client.get("/api/v1/crowdsec/alerts")).json()
         detail = (await client.get("/api/v1/crowdsec/alerts/7")).json()
-    assert (listed["country"], detail["country"]) == ("Norway", "Norway")
+    assert (listed["countryName"], detail["countryName"]) == ("Norway", "Norway")
     assert listed["value"] == detail["value"] == "2001:db8::1"
 
 

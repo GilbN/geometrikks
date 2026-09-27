@@ -13,6 +13,7 @@ import { formatBytes } from "@/lib/api"
 import { PACKET_COLORS } from "@/lib/live-traffic/classify"
 import { formatDurationOrNa } from "@/lib/timing"
 import { IpBanControls } from "./IpBanControls"
+import { CountryLabel } from "@/components/country-flag"
 import { InspectIpButton } from "@/components/ip-inspector/inspect-ip-button"
 import { POPUP_OFFSET, PopupCard, PopupRow as Row } from "./PopupCard"
 import type { LiveRequest } from "@/lib/live-traffic/types"
@@ -64,7 +65,14 @@ function LiveRequestDetail({
         }
       />
       {request.hostname && <Row label="Source" value={request.hostname} />}
-      <Row label="Location" value={[request.city, request.countryCode].filter(Boolean).join(", ") || "Unknown"} />
+      <Row
+        label="Location"
+        value={
+          <CountryLabel code={request.countryCode}>
+            {[request.city, request.countryCode].filter(Boolean).join(", ") || "Unknown"}
+          </CountryLabel>
+        }
+      />
       {log && log.autonomous_system_number != null && (
         <Row
           label="ASN"

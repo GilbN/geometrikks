@@ -2,6 +2,7 @@
  * Top IPs by geo-event count for the geo-logs page, across all locations,
  * with the organization behind each IP.
  */
+import { CountryLabel } from "@/components/country-flag"
 import { DataTableFrame } from "@/components/data/data-table-frame"
 import { dataState } from "@/components/data/types"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -52,7 +53,7 @@ export function GeoTopIpsTable() {
                   <FlyToIpButton ip={row.ipAddress} />
                 </IpBanControls>
               </TableCell>
-              <TableCell>{row.countryCode ?? "-"}</TableCell>
+              <TableCell>{row.countryCode ? <CountryLabel code={row.countryCode} /> : "-"}</TableCell>
               <TableCell>{row.city ?? "-"}</TableCell>
               <TableCell className="max-w-[220px]">
                 <AsnCell asn={row.asn} organization={row.asOrganization} />

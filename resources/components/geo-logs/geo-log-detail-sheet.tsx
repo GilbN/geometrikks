@@ -2,6 +2,7 @@
  * Complete record for one grouped geo-events row (a location plus an IP),
  * opened by selecting the row.
  */
+import { CountryLabel } from "@/components/country-flag"
 import { DetailField, DetailSheet } from "@/components/data/detail-sheet"
 import { IpBanControls } from "@/components/crowdsec/ip-ban-controls"
 import { InspectIpButton } from "@/components/ip-inspector/inspect-ip-button"
@@ -29,7 +30,14 @@ export function GeoLogDetailSheet({
           <DetailField label="Postal code" value={entry.postalCode} mono />
           <DetailField label="State" value={entry.state} />
           <DetailField label="State code" value={entry.stateCode} mono />
-          <DetailField label="Country" value={`${entry.countryName} (${entry.countryCode})`} />
+          <DetailField
+            label="Country"
+            value={
+              <CountryLabel code={entry.countryCode} name={entry.countryName}>
+                {`${entry.countryName} (${entry.countryCode})`}
+              </CountryLabel>
+            }
+          />
           <DetailField
             label="IP address"
             value={

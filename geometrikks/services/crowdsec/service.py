@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import re
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, Literal
 
 import httpx2
 import msgspec
@@ -19,10 +19,19 @@ from geometrikks.services.crowdsec.exceptions import (
     CrowdSecAuthError,
     CrowdSecError,
     CrowdSecUnavailableError,
+    CrowdSecUnsupportedError,
 )
 from geometrikks.services.crowdsec.schemas import Alert, Decision, DecisionStreamDelta
 
 logger = get_logger(__name__)
+
+DecisionScope = Literal["Ip", "Range"]
+DecisionType = Literal["ban", "captcha"]
+
+
+def manual_reason(decision_type: DecisionType) -> str:
+    """The reason a manual decision carries when the user gave none."""
+    return f"manual {decision_type} from GeoMetrikks"
 
 
 def _event_timestamp(value: str) -> str:
@@ -222,9 +231,19 @@ class CrowdSecService:
         return self._machine_token
 
     async def _machine_request(
-        self, method: str, url: str, *, missing_ok: bool = False, **kwargs: Any
+        self,
+        method: str,
+        url: str,
+        *,
+        missing_ok: bool = False,
+        bad_request_ok: bool = False,
+        **kwargs: Any,
     ) -> httpx2.Response:
-        """Machine-authenticated request; ``missing_ok`` hands a 404 back to the caller."""
+        """Machine-authenticated request.
+
+        ``missing_ok`` hands a 404 back to the caller; ``bad_request_ok``
+        does the same for a 400.
+        """
         token = self._machine_token or await self._login()
         try:
             resp = await self._client.request(
@@ -240,6 +259,8 @@ class CrowdSecService:
                 raise CrowdSecAuthError("LAPI rejected the machine token")
             if missing_ok and resp.status_code == 404:
                 return resp
+            if bad_request_ok and resp.status_code == 400:
+                return resp
             resp.raise_for_status()
             return resp
         except httpx2.HTTPStatusError as exc:
@@ -249,22 +270,30 @@ class CrowdSecService:
         except httpx2.HTTPError as exc:
             raise CrowdSecUnavailableError(f"LAPI unreachable: {exc}") from exc
 
-    async def ban_ip(
+    async def ban(
         self,
-        ip: str,
+        value: str,
         *,
+        scope: DecisionScope = "Ip",
+        decision_type: DecisionType = "ban",
         duration: str | None = None,
-        reason: str = "manual ban from GeoMetrikks",
+        reason: str | None = None,
     ) -> None:
-        """Create a manual ban decision via an alert on POST /v1/alerts.
+        """Create a manual decision on an IP or range via an alert on POST /v1/alerts.
+
+        ``value`` must already be canonical: an IP for ``Ip``, a network
+        address in CIDR form for ``Range``.
 
         Raises:
             CrowdSecAuthError: Machine credentials missing or rejected.
             CrowdSecUnavailableError: The LAPI is unreachable or errored.
         """
         now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        reason = reason or manual_reason(decision_type)
+        scenario = f"geometrikks/manual-{decision_type}"
+        source_key = "ip" if scope == "Ip" else "range"
         alert = {
-            "scenario": "geometrikks/manual-ban",
+            "scenario": scenario,
             "scenario_hash": "",
             "scenario_version": "",
             "message": reason,
@@ -276,15 +305,15 @@ class CrowdSecService:
             "simulated": False,
             "start_at": now,
             "stop_at": now,
-            "source": {"scope": "Ip", "value": ip, "ip": ip},
+            "source": {"scope": scope, "value": value, source_key: value},
             "decisions": [
                 {
-                    "type": "ban",
-                    "scope": "Ip",
-                    "value": ip,
+                    "type": decision_type,
+                    "scope": scope,
+                    "value": value,
                     "duration": duration or self._settings.default_ban_duration,
                     "origin": "geometrikks",
-                    "scenario": f"geometrikks/manual-ban: {reason}",
+                    "scenario": f"{scenario}: {reason}",
                     "simulated": False,
                 }
             ],
@@ -298,21 +327,27 @@ class CrowdSecService:
         ip: str | None = None,
         scenario: str | None = None,
         since: str | None = None,
+        until: str | None = None,
         has_active_decision: bool | None = None,
+        kind: str | None = None,
     ) -> list[Alert]:
         """Recent alerts from the LAPI; requires machine credentials.
 
-        ``since`` is a Go duration string (e.g. ``24h``) relative to now.
+        ``since`` and ``until`` are Go duration strings (e.g. ``24h``)
+        counted back from now: ``until=72h`` keeps alerts older than 72 hours.
         ``has_active_decision`` keeps only alerts with a decision still in force.
+        ``kind`` is the alert origin (crowdsec, waf, bot-detection, ...).
 
         Raises:
             CrowdSecAuthError: Machine credentials missing or rejected.
             CrowdSecUnavailableError: The LAPI is unreachable or errored.
+            CrowdSecUnsupportedError: ``kind`` was set and the LAPI predates the filter.
         """
         params = {
             key: value
             for key, value in {
-                "limit": limit, "ip": ip, "scenario": scenario, "since": since,
+                "limit": limit, "ip": ip, "scenario": scenario, "since": since, "until": until,
+                "kind": kind,
                 # A blocklist pull is one alert embedding up to tens of
                 # thousands of decisions.
                 "include_capi": "false",
@@ -322,7 +357,14 @@ class CrowdSecService:
             }.items()
             if value is not None
         }
-        resp = await self._machine_request("GET", "/v1/alerts", params=params)
+        resp = await self._machine_request(
+            "GET", "/v1/alerts", params=params, bad_request_ok=kind is not None
+        )
+        if resp.status_code == 400:
+            # The LAPI rejects unknown filters with a 400; kind arrived in 1.7.
+            raise CrowdSecUnsupportedError(
+                "Filtering alerts by kind needs CrowdSec 1.7 or newer"
+            )
         alerts = msgspec.convert(resp.json() or [], list[dict], strict=False)
         return msgspec.convert(
             [_normalize_alert(alert) for alert in alerts], list[Alert], strict=False
@@ -340,13 +382,20 @@ class CrowdSecService:
             return None
         return msgspec.convert(_normalize_alert(resp.json()), Alert, strict=False)
 
-    async def unban_ip(self, ip: str) -> int:
-        """Delete all active decisions for an IP; returns the number deleted.
+    async def unban(self, value: str, *, scope: DecisionScope = "Ip") -> int:
+        """Delete every active decision on an IP or range, from any origin;
+        returns the number deleted.
 
         Raises:
             CrowdSecAuthError: Machine credentials missing or rejected.
             CrowdSecUnavailableError: The LAPI is unreachable or errored.
         """
-        resp = await self._machine_request("DELETE", "/v1/decisions", params={"ip": ip})
+        # An ip= or range= filter defaults to contains=true, which also
+        # matches every wider Range decision covering the value.
+        params = (
+            {"scopes": "Ip", "ip": value} if scope == "Ip"
+            else {"scopes": "Range", "value": value}
+        )
+        resp = await self._machine_request("DELETE", "/v1/decisions", params=params)
         # The LAPI types nbDeleted as a string ("2"); int() handles both.
         return int(resp.json().get("nbDeleted", 0))

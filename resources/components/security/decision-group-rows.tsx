@@ -7,6 +7,7 @@
 import { useState } from "react"
 import { toast } from "sonner"
 import { ChevronRight, Loader2, ShieldOff } from "lucide-react"
+import { CountryLabel } from "@/components/country-flag"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { TableCell, TableRow } from "@/components/ui/table"
@@ -52,12 +53,15 @@ function ScenarioCell({ scenario }: { scenario: string }) {
 function UnbanButton({ group }: { group: DecisionGroupView }) {
   const unban = useUnbanIp()
   const { ip } = group
+  const title = group.scope === "Range"
+    ? `Unban ${ip}. Removes every active decision on this range, from any origin.`
+    : `Unban ${ip}. Removes every active decision on this IP, from any origin. A range decision covering it stays.`
   return (
     <Button
       variant="ghost"
       size="icon-xs"
       className="text-muted-foreground"
-      title={`Unban ${ip}. Removes every active decision for this IP, from any origin.`}
+      title={title}
       disabled={unban.isPending}
       onClick={() =>
         unban.mutate(ip, {
@@ -77,6 +81,8 @@ export function DecisionGroupRows(props: Props) {
   const alertActivation = alertActivationFor(props)
   const multiple = group.decisionCount > 1
   const isIp = group.scope === "Ip"
+  // Enrichment only covers Ip decisions; a Country decision's value is the code.
+  const countryCode = group.countryCode ?? (group.scope === "Country" ? group.ip : null)
   const summary = multiple
     ? {
         "aria-expanded": open,
@@ -108,7 +114,9 @@ export function DecisionGroupRows(props: Props) {
         <TableCell>
           <DecisionBadge type={group.type} />
         </TableCell>
-        <TableCell>{group.countryName ?? group.countryCode ?? "-"}</TableCell>
+        <TableCell>
+          {countryCode ? <CountryLabel code={countryCode} name={group.countryName} /> : "-"}
+        </TableCell>
         <TableCell>{group.city ?? "-"}</TableCell>
         <TableCell>
           <span className="inline-flex flex-wrap gap-1">
@@ -133,7 +141,7 @@ export function DecisionGroupRows(props: Props) {
         >
           {group.requestCount24h ?? "-"}
         </TableCell>
-        {writeEnabled && <TableCell {...stopRowActivation}>{isIp && <UnbanButton group={group} />}</TableCell>}
+        {writeEnabled && <TableCell {...stopRowActivation}>{(isIp || group.scope === "Range") && <UnbanButton group={group} />}</TableCell>}
       </TableRow>
       {open &&
         group.decisions.map((decision, index) => {

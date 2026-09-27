@@ -4,6 +4,7 @@
  * which stays unfiltered). Country/city options are lazy-loaded facets.
  * Renders in a FilterRail on desktop and inside a FiltersDrawer on mobile.
  */
+import { CountryFlag } from "@/components/country-flag"
 import { useState } from "react"
 import { FilterField, FilterPair, FilterRail, FilterRow } from "@/components/data/filter-rail"
 import { FilterChip, TagInput } from "@/components/data/tag-input"
@@ -61,6 +62,7 @@ export function AnalyticsFilterBar() {
     <FilterField label="Country" hideLabel={!inDrawer}>
       <FilterCombobox
         label="Country"
+        iconFor={(code) => <CountryFlag code={code} />}
         options={facets?.countries.map((c) => c.code) ?? []}
         selected={filters.countryCodes}
         onChange={(values) => setFilters((prev) => ({ ...prev, countryCodes: values }))}

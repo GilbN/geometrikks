@@ -3,6 +3,7 @@
  * Every field on the DTO is listed; missing values read "Not recorded" so
  * the list is the same shape for every request.
  */
+import { CountryLabel } from "@/components/country-flag"
 import { DetailField, DetailSheet } from "@/components/data/detail-sheet"
 import { IpBanControls } from "@/components/crowdsec/ip-ban-controls"
 import { InspectIpButton } from "@/components/ip-inspector/inspect-ip-button"
@@ -67,7 +68,13 @@ export function AccessLogDetailSheet({
           <DetailField label="User agent" value={entry.userAgent} mono />
           <DetailField
             label="Country"
-            value={entry.countryCode ? `${entry.countryName ?? entry.countryCode} (${entry.countryCode})` : null}
+            value={
+              entry.countryCode && (
+                <CountryLabel code={entry.countryCode} name={entry.countryName}>
+                  {`${entry.countryName ?? entry.countryCode} (${entry.countryCode})`}
+                </CountryLabel>
+              )
+            }
           />
           <DetailField label="City" value={entry.city} />
           <DetailField

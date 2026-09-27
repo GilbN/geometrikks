@@ -7,6 +7,7 @@
 import { useEffect, useRef, useState } from "react"
 import { useVirtualizer } from "@tanstack/react-virtual"
 import { Pause, Play } from "lucide-react"
+import { CountryFlag } from "@/components/country-flag"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { useMediaQuery } from "@/hooks/use-media-query"
@@ -160,8 +161,9 @@ export function LiveTail({ enabled }: { enabled: boolean }) {
                   <span className="w-16 shrink-0 text-right tabular-nums">{formatBytes(row.bytes_sent)}</span>
                   <span className="w-16 shrink-0 text-right tabular-nums">{formatDurationOrNa(row.request_time)}</span>
                   <span className="hidden w-16 shrink-0 text-muted-foreground md:block">{row.http_version ?? "-"}</span>
-                  <span className="w-16 shrink-0 truncate" title={row.country_code ?? undefined}>
-                    {row.country_name ?? row.country_code ?? "-"}
+                  <span className="flex w-16 shrink-0 items-center gap-1" title={row.country_code ?? undefined}>
+                    <CountryFlag code={row.country_code} name={row.country_name} />
+                    <span className="truncate">{row.country_name ?? row.country_code ?? "-"}</span>
                   </span>
                   <span className="w-16 shrink-0 truncate" title={row.city ?? undefined}>
                     {row.city ?? "-"}

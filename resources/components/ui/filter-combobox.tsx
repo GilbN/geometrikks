@@ -36,6 +36,8 @@ interface FilterComboboxProps<T extends string | number> {
   onChange: (values: T[]) => void
   /** Display text for an option; defaults to String(value). */
   labelFor?: (value: T) => string
+  /** Leading icon for an option; search still matches labelFor only. */
+  iconFor?: (value: T) => React.ReactNode
   /** Options are still being fetched (e.g. lazy-loaded facets). */
   loading?: boolean
   emptyText?: string
@@ -55,12 +57,13 @@ function FilterComboboxBody<T extends string | number>({
   selected,
   onChange,
   labelFor,
+  iconFor,
   loading,
   emptyText,
   label,
 }: Pick<
   FilterComboboxProps<T>,
-  "options" | "selected" | "onChange" | "labelFor" | "loading" | "emptyText" | "label"
+  "options" | "selected" | "onChange" | "labelFor" | "iconFor" | "loading" | "emptyText" | "label"
 > & { labelFor: (value: T) => string }) {
   const [query, setQuery] = useState("")
   const q = query.trim().toLowerCase()
@@ -112,6 +115,7 @@ function FilterComboboxBody<T extends string | number>({
                 >
                   {isSel && <Check className="h-3 w-3" />}
                 </span>
+                {iconFor?.(o)}
                 <span className="truncate">{labelFor(o)}</span>
               </button>
             )
@@ -128,6 +132,7 @@ export function FilterCombobox<T extends string | number>({
   selected,
   onChange,
   labelFor = (v) => String(v),
+  iconFor,
   loading = false,
   emptyText,
   className,
@@ -146,6 +151,7 @@ export function FilterCombobox<T extends string | number>({
         selected={selected}
         onChange={onChange}
         labelFor={labelFor}
+        iconFor={iconFor}
         loading={loading}
         emptyText={emptyText}
         label={label}
@@ -175,6 +181,7 @@ export function FilterCombobox<T extends string | number>({
               selected={selected}
               onChange={onChange}
               labelFor={labelFor}
+              iconFor={iconFor}
               loading={loading}
               emptyText={emptyText}
               label={label}
@@ -209,6 +216,7 @@ export function FilterCombobox<T extends string | number>({
         <ComboboxList>
           {(item: T) => (
             <ComboboxItem key={item} value={item} className="text-xs">
+              {iconFor?.(item)}
               {labelFor(item)}
             </ComboboxItem>
           )}

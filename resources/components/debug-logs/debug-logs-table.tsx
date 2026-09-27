@@ -6,6 +6,7 @@
  */
 import { memo, useEffect, useState } from "react"
 import { useSearch } from "@tanstack/react-router"
+import { CountryFlag, CountryLabel } from "@/components/country-flag"
 import {
   ArrowDown,
   ArrowUp,
@@ -196,7 +197,7 @@ const COLUMNS: ColumnDef[] = [
     defaultVisible: false,
     render: (r) => (
       <span className="whitespace-nowrap" title={r.countryName ?? undefined}>
-        {r.countryCode ?? "-"}
+        {r.countryCode ? <CountryLabel code={r.countryCode} name={r.countryName}>{r.countryCode}</CountryLabel> : "-"}
       </span>
     ),
   },
@@ -389,6 +390,7 @@ export function DebugLogsTable() {
       <FilterField label="Country" hideLabel={!inDrawer}>
         <FilterCombobox
           label="Country"
+          iconFor={(code) => <CountryFlag code={code} />}
           options={facets?.countries.map((c) => c.code) ?? []}
           selected={countries}
           onChange={setCountries}

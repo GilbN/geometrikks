@@ -5,6 +5,7 @@
  * pass the IP. Renders nothing when the integration is off, and only the
  * badge when it is read-only (no machine credentials).
  */
+import { useState } from "react"
 import { Loader2, ShieldBan } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
@@ -12,8 +13,10 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { BanIpDialog } from "@/components/security/ban-ip-dialog"
 import { toast } from "sonner"
 import {
   useBanIp,
@@ -30,60 +33,66 @@ export function IpBanAction({ ip, banned }: { ip: string; banned: boolean }) {
   const { data: status } = useCrowdsecStatus()
   const ban = useBanIp()
   const unban = useUnbanIp()
+  const [dialogOpen, setDialogOpen] = useState(false)
   const isPending = ban.isPending || unban.isPending
   if (!status?.writeEnabled) return null
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button
-          variant="ghost"
-          size="icon-xs"
-          className="ml-1 align-middle text-muted-foreground"
-          disabled={isPending}
-          title={banned ? "Unban this IP" : "Ban this IP"}
-        >
-          {isPending ? <Loader2 className="animate-spin" /> : <ShieldBan />}
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="start">
-        {banned ? (
-          <DropdownMenuItem
-            onClick={() =>
-              unban.mutate(ip, {
-                onError: (err) =>
-                  toast.error(
-                    crowdsecErrorMessage(err, `Unban failed for ${ip}; the LAPI may be unreachable.`),
-                  ),
-              })
-            }
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon-xs"
+            className="ml-1 align-middle text-muted-foreground"
+            disabled={isPending}
+            title={banned ? "Unban this IP" : "Ban this IP"}
           >
-            Unban {ip}
-          </DropdownMenuItem>
-        ) : (
-          <>
-            <DropdownMenuLabel>Ban {ip}</DropdownMenuLabel>
-            {BAN_DURATIONS.map((d) => (
-              <DropdownMenuItem
-                key={d.value}
-                onClick={() =>
-                  ban.mutate(
-                    { ip, duration: d.value },
-                    {
-                      onError: (err) =>
-                        toast.error(
-                          crowdsecErrorMessage(err, `Ban failed for ${ip}; the LAPI may be unreachable.`),
-                        ),
-                    },
-                  )
-                }
-              >
-                {d.label}
-              </DropdownMenuItem>
-            ))}
-          </>
-        )}
-      </DropdownMenuContent>
-    </DropdownMenu>
+            {isPending ? <Loader2 className="animate-spin" /> : <ShieldBan />}
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start">
+          {banned ? (
+            <DropdownMenuItem
+              onClick={() =>
+                unban.mutate(ip, {
+                  onError: (err) =>
+                    toast.error(
+                      crowdsecErrorMessage(err, `Unban failed for ${ip}; the LAPI may be unreachable.`),
+                    ),
+                })
+              }
+            >
+              Unban {ip}
+            </DropdownMenuItem>
+          ) : (
+            <>
+              <DropdownMenuLabel>Ban {ip}</DropdownMenuLabel>
+              {BAN_DURATIONS.map((d) => (
+                <DropdownMenuItem
+                  key={d.value}
+                  onClick={() =>
+                    ban.mutate(
+                      { ip, duration: d.value },
+                      {
+                        onError: (err) =>
+                          toast.error(
+                            crowdsecErrorMessage(err, `Ban failed for ${ip}; the LAPI may be unreachable.`),
+                          ),
+                      },
+                    )
+                  }
+                >
+                  {d.label}
+                </DropdownMenuItem>
+              ))}
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onSelect={() => setDialogOpen(true)}>More options…</DropdownMenuItem>
+            </>
+          )}
+        </DropdownMenuContent>
+      </DropdownMenu>
+      <BanIpDialog open={dialogOpen} onOpenChange={setDialogOpen} initialIp={ip} />
+    </>
   )
 }
 

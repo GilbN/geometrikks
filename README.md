@@ -120,13 +120,13 @@ Images are published as `ghcr.io/gilbn/geometrikks`.
 | `latest` | `latest` | The newest stable release. |
 | Exact stable version | `X.Y.Z` | A specific stable release; use this for reproducible deployments. |
 | Major/minor stable version | `X.Y` | The newest stable patch release in a major/minor series. |
-| Exact development version | `0.16.0-dev.1` | A specific prerelease build for testing upcoming changes. |
+| Exact development version | `0.19.0-dev.1` | A specific prerelease build for testing upcoming changes. |
 | `develop` | `develop` | The newest development release; a moving tag. |
 
 Use `latest` to follow stable releases, or pin an exact version:
 
 ```yaml
-image: ghcr.io/gilbn/geometrikks:0.16.0
+image: ghcr.io/gilbn/geometrikks:0.19.0
 ```
 
 `docker-compose.yml` mounts `ACCESS_LOG_DIR` (default `/var/log/nginx`)
@@ -720,11 +720,25 @@ CROWDSEC_MACHINE_PASSWORD=<password from cscli machines add>
 ```
 
 With write access, a shield button appears next to IPs across the app
-(access logs, top-IP tables, map popups) with a ban-duration picker (1h to
-forever) and an unban action for banned IPs, and the Security page gains
-alert history and a manual "Ban IP" dialog with an optional reason. Manual
-bans carry origin `geometrikks`, and every ban and unban is audit-logged
-with the acting user.
+(access logs, top-IP tables, map popups). It bans for a preset duration
+(1h to forever) or unbans a banned IP, and "More options…" opens the ban
+dialog for that IP. The same dialog is the Security page's "Ban IP"
+button. It takes an IP or a CIDR range, a ban or a captcha, a preset or
+custom duration such as `90m` or `3d`, and an optional reason. Unbanning
+an IP leaves any range decision that covers it in place. The Security page
+also gains alert history. Manual decisions carry origin `geometrikks`, and
+every ban and unban is audit-logged with the acting user.
+
+CrowdSec 1.8 adds bot detection to its WAF. A browser challenge rejects
+clients whose fingerprint scores like an automation tool. Each rejection
+is an alert of kind `bot-detection` with no decision of its own, so it
+never shows up as a ban. With machine credentials, the Security page lists
+these alerts and opens them with the challenge outcome, the score and the
+signals behind it. Filtering alert history by kind needs CrowdSec 1.7 or
+newer. The challenge itself needs the AppSec component and a bouncer that
+supports it. The
+[CrowdSec docs](https://docs.crowdsec.net/docs/appsec/bot_detection/intro/)
+cover that setup.
 
 Ban decisions stream live: the app polls the LAPI decision stream every
 `CROWDSEC_STREAM_POLL_INTERVAL` seconds (default 15) and pushes changes
@@ -774,7 +788,7 @@ instance, GeoIP credentials, and its own log mount:
 ```yaml
 services:
   agent:
-    image: ghcr.io/gilbn/geometrikks:0.16.0   # same tag as the full instance
+    image: ghcr.io/gilbn/geometrikks:0.19.0   # same tag as the full instance
     restart: unless-stopped
     stop_grace_period: 20s
     environment:

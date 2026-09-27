@@ -15,6 +15,16 @@ export default defineConfig({
     // lazy chunk behind the map route; the default 500 kB limit only ever
     // flagged it.
     chunkSizeWarningLimit: 1100,
+    rolldownOptions: {
+      output: {
+        // A folder of their own lets the service worker skip precaching all
+        // ~270 flags and fetch only the ones a page shows.
+        assetFileNames: ({ originalFileNames }) =>
+          originalFileNames.some((name) => name.includes("flag-icons/flags/"))
+            ? "assets/flags/[name]-[hash][extname]"
+            : "assets/[name]-[hash][extname]",
+      },
+    },
   },
   // No server block: Litestar is the single dev origin. litestar-vite runs
   // Vite as a sidecar on an ephemeral localhost port (written to the
@@ -47,6 +57,7 @@ export default defineConfig({
       workbox: {
         // Precache the built static assets; never live data or the API schema.
         globPatterns: ["**/*.{js,css,svg,png,ico,woff2}"],
+        globIgnores: ["assets/flags/**"],
         // The SW lives at /sw.js but the bundle is served under /static/.
         modifyURLPrefix: { "": "/static/" },
         // The Litestar shell at "/" is deliberately NOT precached: a precached
@@ -71,6 +82,15 @@ export default defineConfig({
               networkTimeoutSeconds: 10,
               cacheableResponse: { statuses: [200] },
               plugins: [{ cacheKeyWillBeUsed: async () => "/" }],
+            },
+          },
+          {
+            // Hashed filenames, so a cached flag never goes stale.
+            urlPattern: ({ url }) => url.pathname.startsWith("/static/assets/flags/"),
+            handler: "CacheFirst",
+            options: {
+              cacheName: "country-flags",
+              cacheableResponse: { statuses: [200] },
             },
           },
         ],

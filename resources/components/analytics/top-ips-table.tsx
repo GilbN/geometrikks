@@ -1,3 +1,4 @@
+import { CountryLabel } from "@/components/country-flag"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   Table,
@@ -52,7 +53,7 @@ export function TopIpsTable() {
                         <FlyToIpButton ip={row.ipAddress} />
                       </IpBanControls>
                     </TableCell>
-                    <TableCell>{row.countryCode ?? "-"}</TableCell>
+                    <TableCell>{row.countryCode ? <CountryLabel code={row.countryCode} /> : "-"}</TableCell>
                     <TableCell>{row.city ?? "-"}</TableCell>
                     <TableCell className="text-right tabular-nums">{formatNumber(row.hits)}</TableCell>
                     <TableCell className="text-right tabular-nums">{formatNumber(row.errorHits)}</TableCell>

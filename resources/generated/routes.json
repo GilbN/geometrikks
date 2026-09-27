@@ -43,6 +43,32 @@
       ],
       "uri": "/api/v1/system/about"
     },
+    "get_abuse_contact": {
+      "method": "get",
+      "methods": [
+        "GET"
+      ],
+      "queryParameters": {
+        "asn": "number | undefined",
+        "ipAddress": "string | undefined"
+      },
+      "uri": "/api/v1/reports/abuse-contact"
+    },
+    "get_abuse_report": {
+      "method": "get",
+      "methods": [
+        "GET"
+      ],
+      "queryParameters": {
+        "asn": "number | undefined",
+        "endDate": "DateTime",
+        "ipAddress": "string | undefined",
+        "linesPerIp": "number | undefined",
+        "maxIps": "number | undefined",
+        "startDate": "DateTime"
+      },
+      "uri": "/api/v1/reports/abuse"
+    },
     "get_access_log_debug_stats": {
       "method": "get",
       "methods": [
@@ -586,7 +612,9 @@
         "GET"
       ],
       "queryParameters": {
+        "hasActiveDecision": "boolean | undefined",
         "ip": "string | undefined",
+        "kind": "string | undefined",
         "limit": "number | undefined",
         "scenario": "string | undefined",
         "since": "string | undefined"

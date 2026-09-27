@@ -8,6 +8,7 @@
  */
 import { memo, useState } from "react"
 import { ArrowDown, ArrowUp, ChevronsUpDown, Columns3 } from "lucide-react"
+import { CountryLabel } from "@/components/country-flag"
 import {
   TableCell,
   TableHead,
@@ -53,7 +54,7 @@ function renderCell(column: GeoLogColumn, r: GeoLogEntry): React.ReactNode {
     case "state":
       return <span className="whitespace-nowrap">{r.state ?? "-"}</span>
     case "countryCode":
-      return <span>{r.countryCode}</span>
+      return <CountryLabel code={r.countryCode} name={r.countryName}>{r.countryCode}</CountryLabel>
     case "countryName":
       return <span className="whitespace-nowrap">{r.countryName}</span>
     case "ipAddress":

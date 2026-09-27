@@ -1,18 +1,21 @@
-import { useEffect, useState } from "react"
+import { cloneElement, useEffect, useState, type ReactElement, type ReactNode } from "react"
 import { Link } from "@tanstack/react-router"
-import { ChevronDown, RotateCcw, RotateCw } from "lucide-react"
+import { BarChart3, Bug, ChevronDown, FileText, RotateCcw, RotateCw, type LucideIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
+import { AbuseReportButton } from "@/components/abuse-report/abuse-report-dialog"
+import { CountryFlag } from "@/components/country-flag"
 import { DetailSheet } from "@/components/data/detail-sheet"
 import { DecisionBadge } from "@/components/crowdsec/decision-badge"
+import { ExternalLink } from "@/components/crowdsec/external-link"
 import { IpBanAction } from "@/components/crowdsec/ip-ban-controls"
 import { TimeRangePicker } from "@/components/time-range-picker"
 import type { CustomTimeRange, TimeRangeValue } from "@/lib/api"
-import { decisionLabel, isValidIp, winningDecision } from "@/lib/crowdsec"
+import { bgpAsUrl, crowdsecCtiUrl, decisionLabel, isValidIp, winningDecision } from "@/lib/crowdsec"
 import { cn } from "@/lib/utils"
 import { formatTs } from "@/lib/datetime"
 import { useIpInspector } from "@/lib/ip-inspector"
-import { useIpDecisions, useIpLatestAlert, useIpLocations, useIpProfile } from "@/lib/queries"
+import { useCrowdsecStatus, useIpDecisions, useIpLatestAlert, useIpLocations, useIpProfile } from "@/lib/queries"
 import { useTimeRange } from "@/lib/time-range-context"
 import { rangeSubtitle } from "@/lib/time-range-labels"
 import { IpLatestRequests } from "./ip-latest-requests"
@@ -57,6 +60,7 @@ export function IpInspectorSheet() {
         </span>
       }
       description={valid ? undefined : "Not a valid IP address"}
+      footer={valid ? <IpInspectorFooter ip={ip} /> : undefined}
       className="sm:w-[min(36rem,100vw)] sm:max-w-xl"
     >
       {valid ? <IpInspectorBody ip={ip} onZoom={zoomTo} /> : <p className="text-sm text-muted-foreground">Not a valid IP address.</p>}
@@ -108,6 +112,7 @@ function HeaderBanAction({ ip }: { ip: string }) {
 
 function IpInspectorBody({ ip, onZoom }: { ip: string; onZoom: (from: string, to: string) => void }) {
   const profileQuery = useIpProfile(ip)
+  const crowdsecEnabled = useCrowdsecStatus().data?.enabled ?? false
   const decisions = useIpDecisions(ip)
   const latestAlert = useIpLatestAlert(ip)
   const locations = useIpLocations(ip)
@@ -117,15 +122,27 @@ function IpInspectorBody({ ip, onZoom }: { ip: string; onZoom: (from: string, to
   const banned = decision !== null
   const banCreatedAt = latestAlert.data?.createdAt ?? null
   const primary = locations.data?.items?.[0]
+  const asUrl = bgpAsUrl(profile?.asn)
   const signals = profile ? computeSignals({ profile, banned, banCreatedAt }) : []
 
   return (
     <div className="space-y-4">
       <header className="space-y-2">
         <p className="text-xs text-muted-foreground">
+          {primary && <CountryFlag code={primary.countryCode} name={primary.countryName} className="mr-1.5 inline-block align-[-1px]" />}
           {primary && `${primary.city ?? primary.countryName}, ${primary.countryCode}`}
           {primary && profile?.asn != null && " · "}
-          {profile?.asn != null && `AS${profile.asn}${profile.asnOrganization ? ` ${profile.asnOrganization}` : ""}`}
+          {profile?.asn != null && asUrl && (
+            <ExternalLink href={asUrl}>
+              {`AS${profile.asn}${profile.asnOrganization ? ` ${profile.asnOrganization}` : ""}`}
+            </ExternalLink>
+          )}
+          {crowdsecEnabled && (
+            <>
+              {(primary || profile?.asn != null) && " · "}
+              <ExternalLink href={crowdsecCtiUrl(ip)}>CrowdSec CTI</ExternalLink>
+            </>
+          )}
         </p>
         {decision && (
           <DecisionBadge
@@ -183,20 +200,52 @@ function IpInspectorBody({ ip, onZoom }: { ip: string; onZoom: (from: string, to
       <IpLocationsBlock ip={ip} />
 
       <IpLatestRequests ip={ip} />
-
-      <footer className="flex gap-2 border-t border-border/50 pt-3">
-        <Button asChild size="sm" variant="outline">
-          <Link to="/analytics" search={{ ip: [ip], inspect: ip }}>Analytics →</Link>
-        </Button>
-        <Button asChild size="sm" variant="outline">
-          <Link to="/access-logs" search={{ ip: [ip], inspect: ip }}>Access logs →</Link>
-        </Button>
-        {profile && profile.malformedRequests > 0 && (
-          <Button asChild size="sm" variant="outline">
-            <Link to="/debug-logs" search={{ ip, malformed: "malformed", inspect: ip }}>Debug logs →</Link>
-          </Button>
-        )}
-      </footer>
     </div>
+  )
+}
+
+// Reads the profile through the body's query key, so it adds no request.
+function IpInspectorFooter({ ip }: { ip: string }) {
+  const profile = useIpProfile(ip).data
+  return (
+    <footer className="flex flex-wrap gap-2">
+      <FooterLink icon={BarChart3} label="Analytics">
+        <Link to="/analytics" search={{ ip: [ip], inspect: ip }} />
+      </FooterLink>
+      <FooterLink icon={FileText} label="Access logs">
+        <Link to="/access-logs" search={{ ip: [ip], inspect: ip }} />
+      </FooterLink>
+      {profile && profile.malformedRequests > 0 && (
+        <FooterLink icon={Bug} label="Debug logs">
+          <Link to="/debug-logs" search={{ ip, malformed: "malformed", inspect: ip }} />
+        </FooterLink>
+      )}
+      <span className="ml-auto">
+        <AbuseReportButton subject={{ kind: "ip", ip, asn: profile?.asn, organization: profile?.asnOrganization }} />
+      </span>
+    </footer>
+  )
+}
+
+/** A footer link: the label on wider screens, the sidebar's icon for the page
+ *  on a phone, where the full-width sheet has no room for labeled buttons. */
+function FooterLink({
+  icon: Icon,
+  label,
+  children,
+}: {
+  icon: LucideIcon
+  label: string
+  children: ReactElement<{ children?: ReactNode; "aria-label"?: string }>
+}) {
+  return (
+    <Button asChild size="sm" variant="outline" className="max-sm:w-8 max-sm:px-0" title={label}>
+      {cloneElement(children, { "aria-label": label }, (
+        <>
+          <Icon className="sm:hidden" />
+          <span className="max-sm:hidden">{label} →</span>
+        </>
+      ))}
+    </Button>
   )
 }

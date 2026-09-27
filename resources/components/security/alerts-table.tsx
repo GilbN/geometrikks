@@ -4,6 +4,7 @@
  * Selecting a row opens the alert's context, events and decisions.
  */
 import { useState } from "react"
+import { CountryLabel } from "@/components/country-flag"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
@@ -14,10 +15,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useCrowdsecAlerts } from "@/lib/queries"
 import type { AlertView } from "@/lib/api"
+import { crowdsecErrorMessage } from "@/lib/crowdsec"
 import { alertSummary } from "@/lib/crowdsec-alerts"
+import { AlertKindBadge } from "@/components/security/alert-kind-badge"
 import { rowActivation, stopRowActivation } from "@/components/data/row-activation"
 import { AlertDetailSheet } from "@/components/security/alert-detail-sheet"
 import { IpBanControls } from "@/components/crowdsec/ip-ban-controls"
@@ -33,24 +37,54 @@ const SINCE_OPTIONS = [
 
 type SinceKey = (typeof SINCE_OPTIONS)[number]["key"]
 
+// The kinds an engine produces on its own. Blocklist pulls are left out of
+// the history already, and Console orders are rare enough to live under All.
+const KIND_OPTIONS = [
+  { key: "all", label: "All kinds" },
+  { key: "crowdsec", label: "Detections" },
+  { key: "waf", label: "WAF" },
+  { key: "bot-detection", label: "Bot detection" },
+] as const
+
+type KindKey = (typeof KIND_OPTIONS)[number]["key"]
+
 export function AlertsTable() {
   const [since, setSince] = useState<SinceKey>("24h")
-  const { data: alerts, isLoading, isError } = useCrowdsecAlerts({ since, limit: 50 })
+  const [kind, setKind] = useState<KindKey>("all")
+  const { data: alerts, isLoading, isError, error } = useCrowdsecAlerts({
+    since,
+    limit: 50,
+    kind: kind === "all" ? undefined : kind,
+  })
   const [selected, setSelected] = useState<AlertView | null>(null)
 
   return (
     <Card className="py-4">
       <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 pb-2">
         <CardTitle className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Alert history</CardTitle>
-        <Tabs value={since} onValueChange={(value) => setSince(value as SinceKey)}>
-          <TabsList>
-            {SINCE_OPTIONS.map((option) => (
-              <TabsTrigger key={option.key} value={option.key}>
-                {option.label}
-              </TabsTrigger>
-            ))}
-          </TabsList>
-        </Tabs>
+        <div className="flex flex-wrap items-center gap-2">
+          <Select value={kind} onValueChange={(value) => setKind(value as KindKey)}>
+            <SelectTrigger aria-label="Alert kind" className="h-8 w-[150px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {KIND_OPTIONS.map((option) => (
+                <SelectItem key={option.key} value={option.key}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Tabs value={since} onValueChange={(value) => setSince(value as SinceKey)}>
+            <TabsList>
+              {SINCE_OPTIONS.map((option) => (
+                <TabsTrigger key={option.key} value={option.key}>
+                  {option.label}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </Tabs>
+        </div>
       </CardHeader>
       <CardContent className="px-0 pb-0">
         <div className="overflow-x-auto">
@@ -87,11 +121,11 @@ export function AlertsTable() {
                       <TableCell className="whitespace-nowrap text-muted-foreground">
                         {new Date(alert.createdAt).toLocaleString()}
                       </TableCell>
-                      <TableCell
-                        className="max-w-[240px] truncate font-mono text-xs"
-                        title={alertSummary(alert.message)}
-                      >
-                        {alert.scenario}
+                      <TableCell className="max-w-[280px]" title={alertSummary(alert.message)}>
+                        <span className="flex items-center gap-1.5">
+                          <span className="truncate font-mono text-xs">{alert.scenario}</span>
+                          <AlertKindBadge kind={alert.kind} className="shrink-0" />
+                        </span>
                       </TableCell>
                       <TableCell className="font-mono">
                         {alert.value}
@@ -104,7 +138,11 @@ export function AlertsTable() {
                           </span>
                         )}
                       </TableCell>
-                      <TableCell>{alert.country ?? "-"}</TableCell>
+                      <TableCell>
+                        {alert.countryCode || alert.countryName ? (
+                          <CountryLabel code={alert.countryCode} name={alert.countryName} />
+                        ) : "-"}
+                      </TableCell>
                       <TableCell className="max-w-[160px] truncate" title={alert.asName ?? undefined}>
                         {alert.asName ?? "-"}
                       </TableCell>
@@ -125,14 +163,14 @@ export function AlertsTable() {
               {!isLoading && isError && !alerts && (
                 <TableRow>
                   <TableCell colSpan={8} className="h-24 text-center text-destructive">
-                    Failed to load alerts; the CrowdSec LAPI may be unreachable.
+                    {crowdsecErrorMessage(error, "Failed to load alerts; the CrowdSec LAPI may be unreachable.")}
                   </TableCell>
                 </TableRow>
               )}
               {!isLoading && !isError && alerts?.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={8} className="h-24 text-center text-muted-foreground">
-                    No alerts in this window.
+                    {kind === "all" ? "No alerts in this window." : "No alerts of this kind in this window."}
                   </TableCell>
                 </TableRow>
               )}

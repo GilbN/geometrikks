@@ -20,7 +20,7 @@ import {
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useCrowdsecDecisions, useCrowdsecStatus } from "@/lib/queries"
 import { DecisionAlertSheet, type DecisionRef } from "./alert-detail-sheet"
-import { BanIpDialog } from "./ban-ip-dialog"
+import { BanIpButton } from "./ban-ip-dialog"
 import { DecisionGroupRows } from "./decision-group-rows"
 
 const PAGE_SIZES = [10, 25, 50, 100] as const
@@ -57,7 +57,7 @@ export function DecisionsTable() {
       <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 pb-2">
         <CardTitle className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Active decisions</CardTitle>
         <div className="flex flex-wrap items-center gap-2">
-          {status?.writeEnabled && <BanIpDialog />}
+          {status?.writeEnabled && <BanIpButton />}
           <Tabs
             value={scope}
             onValueChange={(value) => {

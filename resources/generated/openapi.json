@@ -138,6 +138,173 @@
         "title": "AboutResponse",
         "type": "object"
       },
+      "AbuseContactResponse": {
+        "properties": {
+          "abuseEmails": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "abuseName": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "cidrs": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "country": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "endAddress": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "handle": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "kind": {
+            "enum": [
+              "ip",
+              "asn"
+            ],
+            "type": "string"
+          },
+          "name": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "query": {
+            "type": "string"
+          },
+          "rdapUrl": {
+            "type": "string"
+          },
+          "registry": {
+            "type": "string"
+          },
+          "startAddress": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "abuseEmails",
+          "abuseName",
+          "cidrs",
+          "country",
+          "endAddress",
+          "handle",
+          "kind",
+          "name",
+          "query",
+          "rdapUrl",
+          "registry",
+          "startAddress"
+        ],
+        "title": "AbuseContactResponse",
+        "type": "object"
+      },
+      "AbuseReportResponse": {
+        "properties": {
+          "crowdsec": {
+            "$ref": "#/components/schemas/ReportCrowdSec"
+          },
+          "endDate": {
+            "type": "string"
+          },
+          "generatedAt": {
+            "type": "string"
+          },
+          "granularity": {
+            "enum": [
+              "hourly",
+              "daily"
+            ],
+            "type": "string"
+          },
+          "ipCount": {
+            "type": "integer"
+          },
+          "ips": {
+            "items": {
+              "$ref": "#/components/schemas/ReportIpDTO"
+            },
+            "type": "array"
+          },
+          "redactions": {
+            "type": "integer"
+          },
+          "startDate": {
+            "type": "string"
+          },
+          "status4xx": {
+            "type": "integer"
+          },
+          "target": {
+            "$ref": "#/components/schemas/ReportTarget"
+          },
+          "totalRequests": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "crowdsec",
+          "endDate",
+          "generatedAt",
+          "granularity",
+          "ipCount",
+          "ips",
+          "redactions",
+          "startDate",
+          "status4xx",
+          "target",
+          "totalRequests"
+        ],
+        "title": "AbuseReportResponse",
+        "type": "object"
+      },
       "AccessLogDebugEntry": {
         "properties": {
           "accessLogId": {
@@ -508,7 +675,17 @@
             },
             "type": "array"
           },
-          "country": {
+          "countryCode": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "countryName": {
             "oneOf": [
               {
                 "type": "string"
@@ -620,7 +797,8 @@
           "asName",
           "asNumber",
           "context",
-          "country",
+          "countryCode",
+          "countryName",
           "createdAt",
           "decisionCount",
           "decisions",
@@ -675,7 +853,17 @@
               }
             ]
           },
-          "country": {
+          "countryCode": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "countryName": {
             "oneOf": [
               {
                 "type": "string"
@@ -698,6 +886,16 @@
             "oneOf": [
               {
                 "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "kind": {
+            "oneOf": [
+              {
+                "type": "string"
               },
               {
                 "type": "null"
@@ -730,11 +928,13 @@
         "required": [
           "activeDecisionCount",
           "asName",
-          "country",
+          "countryCode",
+          "countryName",
           "createdAt",
           "decisionCount",
           "eventsCount",
           "id",
+          "kind",
           "machineId",
           "message",
           "scenario",
@@ -895,7 +1095,21 @@
             "type": "string"
           },
           "reason": {
-            "default": "manual ban from GeoMetrikks",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "type": {
+            "default": "ban",
+            "enum": [
+              "ban",
+              "captcha"
+            ],
             "type": "string"
           }
         },
@@ -3922,6 +4136,486 @@
         "title": "ReadinessResponse",
         "type": "object"
       },
+      "ReportAlertDTO": {
+        "properties": {
+          "createdAt": {
+            "type": "string"
+          },
+          "decisions": {
+            "items": {
+              "$ref": "#/components/schemas/ReportAlertDecisionDTO"
+            },
+            "type": "array"
+          },
+          "eventsCount": {
+            "type": "integer"
+          },
+          "kind": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "scenario": {
+            "type": "string"
+          },
+          "startAt": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "stopAt": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "createdAt",
+          "decisions",
+          "eventsCount",
+          "kind",
+          "scenario",
+          "startAt",
+          "stopAt"
+        ],
+        "title": "ReportAlertDTO",
+        "type": "object"
+      },
+      "ReportAlertDecisionDTO": {
+        "properties": {
+          "duration": {
+            "type": "string"
+          },
+          "expired": {
+            "type": "boolean"
+          },
+          "type": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "duration",
+          "expired",
+          "type"
+        ],
+        "title": "ReportAlertDecisionDTO",
+        "type": "object"
+      },
+      "ReportCrowdSec": {
+        "properties": {
+          "message": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "status": {
+            "enum": [
+              "disabled",
+              "ok",
+              "decisions-only",
+              "unavailable"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "message",
+          "status"
+        ],
+        "title": "ReportCrowdSec",
+        "type": "object"
+      },
+      "ReportDecisionDTO": {
+        "properties": {
+          "duration": {
+            "type": "string"
+          },
+          "origin": {
+            "type": "string"
+          },
+          "scenario": {
+            "type": "string"
+          },
+          "scope": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "value": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "duration",
+          "origin",
+          "scenario",
+          "scope",
+          "type",
+          "value"
+        ],
+        "title": "ReportDecisionDTO",
+        "type": "object"
+      },
+      "ReportIpDTO": {
+        "properties": {
+          "alerts": {
+            "items": {
+              "$ref": "#/components/schemas/ReportAlertDTO"
+            },
+            "type": "array"
+          },
+          "alertsTruncated": {
+            "type": "boolean"
+          },
+          "asn": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "asnOrganization": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "countryCode": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "countryName": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "decisions": {
+            "items": {
+              "$ref": "#/components/schemas/ReportDecisionDTO"
+            },
+            "type": "array"
+          },
+          "distinctPaths": {
+            "type": "integer"
+          },
+          "firstSeen": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "ipAddress": {
+            "type": "string"
+          },
+          "lastSeen": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/ReportLineDTO"
+            },
+            "type": "array"
+          },
+          "malformedRequests": {
+            "type": "integer"
+          },
+          "paths": {
+            "items": {
+              "$ref": "#/components/schemas/ReportPathDTO"
+            },
+            "type": "array"
+          },
+          "peak": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ReportPeakDTO"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "status2xx": {
+            "type": "integer"
+          },
+          "status3xx": {
+            "type": "integer"
+          },
+          "status4xx": {
+            "type": "integer"
+          },
+          "status5xx": {
+            "type": "integer"
+          },
+          "totalBytes": {
+            "type": "integer"
+          },
+          "totalRequests": {
+            "type": "integer"
+          },
+          "userAgents": {
+            "items": {
+              "$ref": "#/components/schemas/ReportUserAgentDTO"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "alerts",
+          "alertsTruncated",
+          "asn",
+          "asnOrganization",
+          "countryCode",
+          "countryName",
+          "decisions",
+          "distinctPaths",
+          "firstSeen",
+          "ipAddress",
+          "lastSeen",
+          "lines",
+          "malformedRequests",
+          "paths",
+          "peak",
+          "status2xx",
+          "status3xx",
+          "status4xx",
+          "status5xx",
+          "totalBytes",
+          "totalRequests",
+          "userAgents"
+        ],
+        "title": "ReportIpDTO",
+        "type": "object"
+      },
+      "ReportLineDTO": {
+        "properties": {
+          "bytesSent": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "httpVersion": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "method": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "statusCode": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "timestamp": {
+            "type": "string"
+          },
+          "url": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "userAgent": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "bytesSent",
+          "httpVersion",
+          "method",
+          "statusCode",
+          "timestamp",
+          "url",
+          "userAgent"
+        ],
+        "title": "ReportLineDTO",
+        "type": "object"
+      },
+      "ReportPathDTO": {
+        "properties": {
+          "errorHits": {
+            "type": "integer"
+          },
+          "hits": {
+            "type": "integer"
+          },
+          "url": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "errorHits",
+          "hits",
+          "url"
+        ],
+        "title": "ReportPathDTO",
+        "type": "object"
+      },
+      "ReportPeakDTO": {
+        "properties": {
+          "hits": {
+            "type": "integer"
+          },
+          "timestamp": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "hits",
+          "timestamp"
+        ],
+        "title": "ReportPeakDTO",
+        "type": "object"
+      },
+      "ReportTarget": {
+        "properties": {
+          "asn": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "asnOrganization": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "ipAddress": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "kind": {
+            "enum": [
+              "ip",
+              "asn"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "asn",
+          "asnOrganization",
+          "ipAddress",
+          "kind"
+        ],
+        "title": "ReportTarget",
+        "type": "object"
+      },
+      "ReportUserAgentDTO": {
+        "properties": {
+          "hits": {
+            "type": "integer"
+          },
+          "userAgent": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "hits",
+          "userAgent"
+        ],
+        "title": "ReportUserAgentDTO",
+        "type": "object"
+      },
       "RuntimeSettingsView": {
         "properties": {
           "container": {
@@ -5198,7 +5892,7 @@
   "info": {
     "description": "Real-time GeoIP lookups and traffic analytics API",
     "title": "GeoMetrikks API",
-    "version": "0.18.0"
+    "version": "0.19.0"
   },
   "openapi": "3.1.0",
   "paths": {
@@ -8531,6 +9225,46 @@
               "oneOf": [
                 {
                   "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Alert origin: crowdsec, waf, bot-detection, capi, papi or cscli",
+            "in": "query",
+            "name": "kind",
+            "required": false,
+            "schema": {
+              "description": "Alert origin: crowdsec, waf, bot-detection, capi, papi or cscli",
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "true keeps alerts with a decision still in force; false keeps alerts that never had one",
+            "in": "query",
+            "name": "hasActiveDecision",
+            "required": false,
+            "schema": {
+              "description": "true keeps alerts with a decision still in force; false keeps alerts that never had one",
+              "oneOf": [
+                {
+                  "type": "boolean"
                 },
                 {
                   "type": "null"
@@ -12819,6 +13553,256 @@
         "summary": "Tail",
         "tags": [
           "Logs"
+        ]
+      }
+    },
+    "/api/v1/reports/abuse": {
+      "get": {
+        "deprecated": false,
+        "description": "Evidence for an abuse report on one IP or the busiest IPs of an ASN (raw scan).",
+        "operationId": "ApiV1ReportsAbuseGetAbuseReport",
+        "parameters": [
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)",
+            "examples": {
+              "start_date-example-1": {
+                "value": "2024-01-01T00:00:00Z"
+              }
+            },
+            "in": "query",
+            "name": "startDate",
+            "required": true,
+            "schema": {
+              "description": "Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)",
+              "examples": [
+                "2024-01-01T00:00:00Z"
+              ],
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)",
+            "examples": {
+              "end_date-example-1": {
+                "value": "2024-12-31T23:59:59Z"
+              }
+            },
+            "in": "query",
+            "name": "endDate",
+            "required": true,
+            "schema": {
+              "description": "End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)",
+              "examples": [
+                "2024-12-31T23:59:59Z"
+              ],
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "The IP to report on",
+            "in": "query",
+            "name": "ipAddress",
+            "required": false,
+            "schema": {
+              "description": "The IP to report on",
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "The AS number whose IPs to report on",
+            "in": "query",
+            "name": "asn",
+            "required": false,
+            "schema": {
+              "description": "The AS number whose IPs to report on",
+              "maximum": 4294967295,
+              "oneOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Busiest IPs to include for an ASN",
+            "in": "query",
+            "name": "maxIps",
+            "required": false,
+            "schema": {
+              "default": 25,
+              "description": "Busiest IPs to include for an ASN",
+              "maximum": 100.0,
+              "minimum": 1.0,
+              "type": "integer"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Newest log lines per IP",
+            "in": "query",
+            "name": "linesPerIp",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "description": "Newest log lines per IP",
+              "maximum": 500.0,
+              "minimum": 0.0,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AbuseReportResponse"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Neither or both of ipAddress and asn."
+          }
+        },
+        "summary": "GetAbuseReport",
+        "tags": [
+          "Reports"
+        ]
+      }
+    },
+    "/api/v1/reports/abuse-contact": {
+      "get": {
+        "deprecated": false,
+        "description": "RDAP lookup of the network or AS holding an address, with its abuse contact.",
+        "operationId": "ApiV1ReportsAbuseContactGetAbuseContact",
+        "parameters": [
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "The IP to report on",
+            "in": "query",
+            "name": "ipAddress",
+            "required": false,
+            "schema": {
+              "description": "The IP to report on",
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "The AS number whose IPs to report on",
+            "in": "query",
+            "name": "asn",
+            "required": false,
+            "schema": {
+              "description": "The AS number whose IPs to report on",
+              "maximum": 4294967295,
+              "oneOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AbuseContactResponse"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Neither or both of ipAddress and asn, or a private address."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "No registry covers or holds the query."
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "The registry or IANA could not be reached."
+          }
+        },
+        "summary": "GetAbuseContact",
+        "tags": [
+          "Reports"
         ]
       }
     },

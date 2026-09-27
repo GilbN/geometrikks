@@ -23,8 +23,11 @@ import {
   apiV1AnalyticsTopAsnsGetTopAsns,
   apiV1AnalyticsTopUserAgentsGetTopUserAgents,
   apiV1AnalyticsIpProfileGetIpProfile,
+  apiV1ReportsAbuseGetAbuseReport,
+  apiV1ReportsAbuseContactGetAbuseContact,
 } from "@/generated/api/sdk.gen"
 import { BROWSER_TZ } from "@/lib/datetime"
+import type { BanDecisionType } from "@/lib/crowdsec"
 import type {
   GeoJsonFeatureCollection as GeoJSONFeatureCollection,
   SafeSettingsResponse,
@@ -396,12 +399,16 @@ export async function fetchCrowdsecAlerts(params?: {
   limit?: number
   since?: string
   ip?: string
+  kind?: string
+  hasActiveDecision?: boolean
 }): Promise<AlertView[]> {
   const { data } = await api.get<AlertView[]>("/crowdsec/alerts", {
     params: {
       limit: params?.limit ?? 50,
       since: params?.since || undefined,
       ip: params?.ip || undefined,
+      kind: params?.kind || undefined,
+      hasActiveDecision: params?.hasActiveDecision ?? undefined,
     },
   })
   return data
@@ -425,18 +432,26 @@ export async function fetchCrowdsecDecisionLookup(ip: string): Promise<DecisionV
   return data
 }
 
-/** Ban one IP. `duration` is a Go duration string (4h, 24h, 168h); server
- *  defaults apply to omitted duration/reason. Requires writeEnabled. The
- *  reason ends up in the alert message and the audit log. */
-export async function banIp(
-  ip: string,
-  duration?: string,
-  reason?: string,
-): Promise<void> {
-  await api.post("/crowdsec/ban", { ip, duration, reason: reason || undefined })
+/** Ban one IP or CIDR range. `duration` takes days, hours, minutes and
+ *  seconds (7d, 1d12h, 4h); server defaults apply to omitted fields.
+ *  Requires writeEnabled. The reason ends up in the alert message and the
+ *  audit log. */
+export async function banIp({
+  ip,
+  duration,
+  reason,
+  type,
+}: {
+  ip: string
+  duration?: string
+  reason?: string
+  type?: BanDecisionType
+}): Promise<void> {
+  await api.post("/crowdsec/ban", { ip, duration, reason: reason || undefined, type })
 }
 
-/** Delete all active decisions for one IP; resolves to the number deleted. */
+/** Delete all active decisions on one IP or CIDR range; resolves to the
+ *  number deleted. An IP keeps any wider range decision covering it. */
 export async function unbanIp(ip: string): Promise<number> {
   const { data } = await api.post<{ deleted: number }>("/crowdsec/unban", { ip })
   return data.deleted
@@ -761,6 +776,35 @@ export async function fetchTopCityStats(params: TimeSeriesParams & { limit?: num
 export async function fetchIpProfile(params: TimeSeriesParams & { ip: string }) {
   const { data } = await apiV1AnalyticsIpProfileGetIpProfile({
     query: { startDate: params.startDate, endDate: params.endDate, ipAddress: params.ip, tz: BROWSER_TZ },
+    throwOnError: true,
+  })
+  return data
+}
+
+/** What an abuse report or contact lookup is about. */
+export type AbuseReportTarget = { kind: "ip"; ip: string } | { kind: "asn"; asn: number }
+
+export async function fetchAbuseReport(
+  params: TimeSeriesParams & { target: AbuseReportTarget; maxIps: number; linesPerIp: number },
+) {
+  const { target } = params
+  const { data } = await apiV1ReportsAbuseGetAbuseReport({
+    query: {
+      startDate: params.startDate,
+      endDate: params.endDate,
+      ipAddress: target.kind === "ip" ? target.ip : undefined,
+      asn: target.kind === "asn" ? target.asn : undefined,
+      maxIps: params.maxIps,
+      linesPerIp: params.linesPerIp,
+    },
+    throwOnError: true,
+  })
+  return data
+}
+
+export async function fetchAbuseContact(target: AbuseReportTarget) {
+  const { data } = await apiV1ReportsAbuseContactGetAbuseContact({
+    query: target.kind === "ip" ? { ipAddress: target.ip } : { asn: target.asn },
     throwOnError: true,
   })
   return data
@@ -1242,8 +1286,8 @@ export function formatNumber(value: number): string {
 export function formatBytes(bytes: number): string {
   if (bytes === 0) return "0 B"
   const k = 1024
-  const sizes = ["B", "KB", "MB", "GB", "TB"]
-  const i = Math.floor(Math.log(bytes) / Math.log(k))
+  const sizes = ["B", "KB", "MB", "GB", "TB", "PB", "EB"]
+  const i = Math.min(Math.floor(Math.log(bytes) / Math.log(k)), sizes.length - 1)
   return `${(bytes / Math.pow(k, i)).toFixed(1)} ${sizes[i]}`
 }
 
@@ -1439,7 +1483,12 @@ export function parseTimeRange(
   }
 }
 
-/** Auto = hourly up to 7 days, daily above (hourly buckets beyond 7d are noise). */
+/**
+ * Auto = hourly below 7 days, daily from 7 days (168 hourly buckets are noise).
+ * A week counts from 167 whole hours: a week across the spring daylight-saving
+ * change has 167, and Last week ends at 23:59:59.999, a millisecond short, so
+ * the span is rounded to the nearest hour first.
+ */
 export function resolveChartGranularity(
   granularity: ChartGranularity,
   range: TimeRangeValue,
@@ -1447,8 +1496,8 @@ export function resolveChartGranularity(
 ): "hourly" | "daily" {
   if (granularity !== "auto") return granularity
   const { startDate, endDate } = parseTimeRange(range, Date.now(), customRange)
-  const days = (new Date(endDate).getTime() - new Date(startDate).getTime()) / 86_400_000
-  return days > 7 ? "daily" : "hourly"
+  const hours = Math.round((new Date(endDate).getTime() - new Date(startDate).getTime()) / 3_600_000)
+  return hours >= 7 * 24 - 1 ? "daily" : "hourly"
 }
 
 /**
