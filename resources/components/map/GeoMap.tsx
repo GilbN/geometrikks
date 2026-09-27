@@ -13,8 +13,8 @@ import Map, {
   type ViewStateChangeEvent,
 } from "react-map-gl/maplibre"
 import "maplibre-gl/dist/maplibre-gl.css"
-import type { FeatureCollection, Point } from "geojson"
-import type { GeoJSONSource, MapLayerMouseEvent } from "maplibre-gl"
+import type { Feature, FeatureCollection, GeoJsonProperties, Point } from "geojson"
+import type { GeoJSONSource, Map as MapLibreMap, MapLayerMouseEvent } from "maplibre-gl"
 
 import {
   useGeoJSON,
@@ -45,7 +45,9 @@ import { MapFrameRate } from "./MapFrameRate"
 import { LivePulses } from "./LivePulses"
 import { HomeMarker } from "./HomeMarker"
 import { BannedMapPopup } from "./BannedMapPopup"
-import { bannedClusterGroupIds, bannedGroupMembers, indexBannedFeatures, topBannedIps, type BannedPopupInfo } from "@/lib/banned-map"
+import { bannedClusterGroupIds, bannedGroupMembers, bannedGroupOf, indexBannedFeatures, topBannedIps, type BannedPopupInfo } from "@/lib/banned-map"
+import { clusterIndex, nearestFirst, predictUnclusteredZoom, unclusteredZoom } from "@/lib/map-clusters"
+import type { TopIPDTO } from "@/lib/api"
 import { crowdsecErrorMessage } from "@/lib/crowdsec"
 import { MapPopup, type PopupInfo } from "./MapPopup"
 import { LiveRequestCard, LiveRequestPopup } from "./LiveRequestPopup"
@@ -81,6 +83,38 @@ const INITIAL_VIEW_STATE = {
   zoom: 3,
   pitch: 0,
   bearing: 0,
+}
+
+const CLUSTER_MAX_ZOOM = 14
+const CLUSTER_RADIUS = 50
+// Past this many points, building the cluster index would stall the click,
+// and the landing check does the zooming instead.
+const PREDICT_MAX_FEATURES = 20_000
+
+/** The source and layers a focused point renders in, and how to recognise it. */
+interface ClusterTarget {
+  sourceId: string
+  /** The features the source was given, to predict its clustering. */
+  features: Feature<Point>[]
+  layerIds: string[]
+  matches: (properties: GeoJsonProperties) => boolean
+}
+
+/** Whether the camera centre is within `tolerance` pixels of `center`. */
+function isCentredOn(map: MapLibreMap, center: Coordinate, tolerance: number) {
+  // The camera may have crossed the antimeridian, so compare wrapped.
+  const here = map.project(map.getCenter().wrap())
+  const there = map.project(center)
+  return Math.hypot(here.x - there.x, here.y - there.y) < tolerance
+}
+
+function markerTarget(features: Feature<Point>[], locationId: number): ClusterTarget {
+  return {
+    sourceId: "geo-data",
+    features,
+    layerIds: ["clusters", "unclustered-point"],
+    matches: (properties) => properties?.id === locationId,
+  }
 }
 
 const ROUTE_EFFECTS_STORAGE_KEY = "geometrikks-route-effects-enabled"
@@ -203,6 +237,97 @@ function GeoMapInner({
   const [liveOverlays, setLiveOverlays] = useState<LiveOverlayPreferences>(loadLiveOverlays)
   const [popup, setPopup] = useState<PopupInfo | null>(null)
 
+  // Flies to a Top IPs row or the inspector's ?focus target at the zoom
+  // where it leaves its cluster, then checks the landing against the
+  // rendered clusters and zooms on if the map still clusters it. The camera
+  // moves carry the generation. Any other move start, a map click or a
+  // closed popup cancels the check.
+  const focusGeneration = useRef(0)
+  const stopFocusListeners = useRef<(() => void) | null>(null)
+  const cancelFocus = useCallback(() => {
+    focusGeneration.current++
+    stopFocusListeners.current?.()
+    stopFocusListeners.current = null
+  }, [])
+  useEffect(() => cancelFocus, [cancelFocus])
+  const focusOn = useCallback((center: Coordinate, target?: ClusterTarget) => {
+    const map = mapRef.current?.getMap()
+    if (!map) return
+    cancelFocus()
+    const generation = focusGeneration.current
+    const eventData = { focusGeneration: generation }
+    let landingZoom = Math.max(map.getZoom(), 7)
+    // Predicts the zoom where the target leaves its cluster from the index
+    // the source builds, so one flight lands there.
+    if (target && target.features.length <= PREDICT_MAX_FEATURES) {
+      const index = clusterIndex(target.features, CLUSTER_RADIUS, CLUSTER_MAX_ZOOM)
+      const maxZoom = Math.min(CLUSTER_MAX_ZOOM + 1, map.getMaxZoom())
+      landingZoom = predictUnclusteredZoom(index, center, target.matches, landingZoom, maxZoom)
+    }
+    const arrived = isCentredOn(map, center, 2) && Math.abs(map.getZoom() - landingZoom) < 0.01
+    if (target) {
+      let passes = 0
+      let timer: number | undefined
+      const stop = () => {
+        window.clearTimeout(timer)
+        map.off("moveend", onMoveEnd)
+        map.off("render", settle)
+      }
+      // Waits for the target source, not map idle. The live routes animate
+      // their own source, which can hold idle off indefinitely.
+      const settle = () => {
+        const source = map.getSource<GeoJSONSource>(target.sourceId)
+        const layers = target.layerIds.filter((id) => map.getLayer(id))
+        if (!source || layers.length === 0) return stop()
+        // react-map-gl holds the camera at the last rendered view state until
+        // React catches up, so wait for the landing to arrive. An ease comes
+        // in from below, so a lagging 6.998 still draws zoom 6 tiles. A
+        // flight a gesture cut short never arrives and runs into the timeout.
+        const zoom = map.getZoom()
+        const landed = isCentredOn(map, center, 2)
+          && Math.floor(zoom) === Math.floor(landingZoom)
+          && Math.abs(zoom - landingZoom) < 0.01
+        if (!landed || !map.isSourceLoaded(target.sourceId)) return
+        window.clearTimeout(timer)
+        map.off("render", settle)
+        // A cluster is drawn at its members' centroid, up to four radii away
+        // from a member.
+        const candidates = nearestFirst(map.queryRenderedFeatures({ layers }), center, zoom, CLUSTER_RADIUS * 4)
+        const maxZoom = Math.min(CLUSTER_MAX_ZOOM + 1, map.getMaxZoom())
+        unclusteredZoom(source, candidates, target.matches, zoom, maxZoom)
+          .then((next) => {
+            const current = generation === focusGeneration.current && source === map.getSource(target.sourceId)
+            // The landing is checked again after each zoom-in, in case the
+            // tiles at that zoom still cluster the target.
+            if (current && next !== undefined && next > zoom && passes++ < 3) {
+              landingZoom = next
+              map.easeTo({ center, zoom: next, duration: 800 }, eventData)
+            } else {
+              stop()
+            }
+          })
+          // A data refresh mid-descent retires the cluster ids. The camera
+          // stays where it landed.
+          .catch(stop)
+      }
+      const onMoveEnd = (event: unknown) => {
+        if ((event as { focusGeneration?: number }).focusGeneration !== generation) return
+        map.on("render", settle)
+        map.triggerRepaint()
+        window.clearTimeout(timer)
+        timer = window.setTimeout(stop, 3000)
+      }
+      // Registered before the flight: with reduced motion, flyTo jumps and
+      // fires moveend synchronously.
+      map.on("moveend", onMoveEnd)
+      stopFocusListeners.current = stop
+    }
+    map.flyTo({ center, zoom: landingZoom, duration: arrived ? 0 : 1500 }, eventData)
+  }, [cancelFocus])
+  const onMoveStart = useCallback((event: ViewStateChangeEvent) => {
+    if ((event as { focusGeneration?: number }).focusGeneration !== focusGeneration.current) cancelFocus()
+  }, [cancelFocus])
+
   const liveStore = useLiveTrafficStore()
   const [livePopup, setLivePopup] = useState<LiveRequest | null>(null)
   const [feedOpen, setFeedOpen] = useState(false)
@@ -249,8 +374,9 @@ function GeoMapInner({
   const clickGeneration = useRef(0)
   const closeBannedPopup = useCallback(() => {
     clickGeneration.current++
+    cancelFocus()
     setBannedPopup(null)
-  }, [])
+  }, [cancelFocus])
   const changeLayer = useCallback((layer: LayerType) => {
     setLayerPreference(layer)
     closeBannedPopup()
@@ -280,14 +406,14 @@ function GeoMapInner({
       const [lng, lat] = (feature.geometry as Point).coordinates
       setLivePopup(null)
       setPopup({ longitude: lng, latitude: lat, properties: feature.properties as PopupInfo["properties"] })
-      mapRef.current?.flyTo({ center: [lng, lat], zoom: 7, duration: 1500 })
+      focusOn([lng, lat], markerTarget(geojson.features as unknown as Feature<Point>[], focusId))
     } else {
       toast.info("Location not on the map", {
         description: "It has no geo events in the selected time range.",
       })
     }
     void navigate({ search: (prev) => ({ ...prev, focus: undefined }), replace: true })
-  }, [focusId, activeLayer, geojson, isLoadingGeoJSON, mapLoaded, navigate])
+  }, [focusId, activeLayer, geojson, isLoadingGeoJSON, mapLoaded, navigate, focusOn])
   const fitData = activeLayer === "banned" ? bannedLocations : geojson
   const mercatorZoomRef = useRef(INITIAL_VIEW_STATE.zoom)
 
@@ -388,15 +514,6 @@ function GeoMapInner({
     })
   }, [fitData])
 
-  // Fly to a specific location (for top IPs click)
-  const flyToLocation = useCallback((lat: number, lng: number) => {
-    mapRef.current?.flyTo({
-      center: [lng, lat],
-      zoom: 7,
-      duration: 1500,
-    })
-  }, [])
-
   const flyToCoordinate = useCallback((coordinates: Coordinate) => {
     mapRef.current?.flyTo({
       center: coordinates,
@@ -452,6 +569,7 @@ function GeoMapInner({
   // Handle map click: live packets first, then the markers layer
   const onClick = useCallback(
     (event: MapLayerMouseEvent) => {
+      cancelFocus()
       const generation = ++clickGeneration.current
       setBannedPopup(null)
       const liveFeature = event.features?.find((feature) =>
@@ -555,6 +673,40 @@ function GeoMapInner({
     [activeLayer, liveStore, bannedIndex]
   )
 
+  const selectTopIp = useCallback((ip: TopIPDTO) => {
+    const location = ip.location
+    if (!location) return
+    closeBannedPopup()
+    setLivePopup(null)
+    setPopup(null)
+    if (activeLayer === "markers") {
+      const features = geojson?.features ?? []
+      const feature = features.find((f) => f.properties?.id === location.id)
+      if (feature) {
+        const [lng, lat] = (feature.geometry as Point).coordinates
+        setPopup({ longitude: lng, latitude: lat, properties: feature.properties as PopupInfo["properties"] })
+        focusOn([lng, lat], markerTarget(features as unknown as Feature<Point>[], location.id))
+        return
+      }
+    } else if (activeLayer === "banned") {
+      const group = bannedGroupOf(ip.ipAddress, bannedIndex)
+      if (group) {
+        const [lng, lat] = group.geometry.coordinates
+        const groupId = group.properties.groupId
+        setBannedPopup({ longitude: lng, latitude: lat, groupIds: [groupId] })
+        focusOn([lng, lat], {
+          sourceId: "banned-data",
+          features: bannedLocations?.features ?? [],
+          layerIds: ["banned-clusters", "banned-points"],
+          matches: (properties) => properties?.groupId === groupId,
+        })
+        return
+      }
+    }
+    // Filters can hide the row's location, and the heatmap has no popup.
+    focusOn([location.longitude, location.latitude])
+  }, [activeLayer, geojson, bannedIndex, bannedLocations, closeBannedPopup, focusOn])
+
   const handleLiveSelect = useCallback((request: LiveRequest) => {
     // Only one popup at a time: selecting a live request dismisses any open
     // location popup, matching what a direct packet click does.
@@ -600,6 +752,7 @@ function GeoMapInner({
         workerUrl={MAPLIBRE_WORKER_URL}
         {...viewState}
         onLoad={() => setMapLoaded(true)}
+        onMoveStart={onMoveStart}
         onMove={onMove}
         onClick={onClick}
         mapStyle={mapStyle}
@@ -634,8 +787,8 @@ function GeoMapInner({
             type="geojson"
             data={geojson as unknown as FeatureCollection}
             cluster={activeLayer === "markers"}
-            clusterMaxZoom={14}
-            clusterRadius={50}
+            clusterMaxZoom={CLUSTER_MAX_ZOOM}
+            clusterRadius={CLUSTER_RADIUS}
             clusterProperties={{
               // Sum event_count for all points in the cluster
               sum_event_count: ["+", ["get", "eventCount"]],
@@ -662,8 +815,8 @@ function GeoMapInner({
             type="geojson"
             data={bannedLocations}
             cluster
-            clusterMaxZoom={14}
-            clusterRadius={50}
+            clusterMaxZoom={CLUSTER_MAX_ZOOM}
+            clusterRadius={CLUSTER_RADIUS}
             clusterProperties={{ ipCount: ["+", ["get", "ipCount"]] }}
           >
             <Layer {...bannedClusterLayer} />
@@ -704,7 +857,10 @@ function GeoMapInner({
             longitude={popup.longitude}
             latitude={popup.latitude}
             properties={popup.properties}
-            onClose={() => setPopup(null)}
+            onClose={() => {
+              cancelFocus()
+              setPopup(null)
+            }}
           />
         )}
 
@@ -774,7 +930,7 @@ function GeoMapInner({
         isLoading={activeLayer === "banned" ? bannedSummary.loading : isLoading}
         featureStats={geojson?.stats ?? { events: 0, countries: 0, cities: 0, locations: 0 }}
         topIPs={activeLayer === "banned" ? bannedTopIps : globalTopIPs?.topIps ?? []}
-        onFlyToLocation={flyToLocation}
+        onSelectIp={selectTopIp}
         countryOptions={filterOptions.countries}
         countryLabels={filterOptions.countryLabels}
         cityOptions={filterOptions.cities}
