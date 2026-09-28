@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- The Banned IPs map popup can open a decision's alert. Click the scenario name to see the same alert details as on the Security page.
+
 ## [0.19.0] - 2026-09-27
 
 ### Added

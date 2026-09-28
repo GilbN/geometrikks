@@ -45,6 +45,7 @@ import { MapFrameRate } from "./MapFrameRate"
 import { LivePulses } from "./LivePulses"
 import { HomeMarker } from "./HomeMarker"
 import { BannedMapPopup } from "./BannedMapPopup"
+import { DecisionAlertSheet, type DecisionRef } from "@/components/security/alert-detail-sheet"
 import { bannedClusterGroupIds, bannedGroupMembers, bannedGroupOf, indexBannedFeatures, topBannedIps, type BannedPopupInfo } from "@/lib/banned-map"
 import { clusterIndex, nearestFirst, predictUnclusteredZoom, unclusteredZoom } from "@/lib/map-clusters"
 import type { TopIPDTO } from "@/lib/api"
@@ -365,6 +366,8 @@ function GeoMapInner({
   // data. A refetch that unbans one IP drops it from the list, and a group
   // that disappears closes the popup, with no effect per data change.
   const [bannedPopup, setBannedPopup] = useState<BannedPopupInfo | null>(null)
+  // Outside the popup, which unmounts once an unban or expiry empties its location.
+  const [bannedAlert, setBannedAlert] = useState<DecisionRef | null>(null)
   const bannedPopupIps = useMemo(
     () => (bannedPopup ? bannedGroupMembers(bannedPopup.groupIds, bannedIndex) : []),
     [bannedPopup, bannedIndex],
@@ -848,6 +851,7 @@ function GeoMapInner({
             latitude={bannedPopup.latitude}
             ips={bannedPopupIps}
             onClose={closeBannedPopup}
+            onOpenAlert={setBannedAlert}
           />
         )}
 
@@ -875,6 +879,14 @@ function GeoMapInner({
       {livePopup && !livePopup.coordinates && (
         <LiveRequestCard request={livePopup} onClose={() => setLivePopup(null)} />
       )}
+
+      {/* Fly to would clear the map filters and switch off the Banned IPs
+          layer, only to land on the IP already in view. */}
+      <DecisionAlertSheet
+        decision={bannedAlert}
+        onOpenChange={(open) => !open && setBannedAlert(null)}
+        showFlyTo={false}
+      />
 
       {liveMode && !isMobile && liveOverlays.rail && (
         <LiveRail onSelect={handleLiveSelect} />
