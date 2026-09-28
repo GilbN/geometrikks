@@ -1,26 +1,75 @@
 /**
  * Popup for the Banned IPs layer. One IP opens its details directly; a
  * location shared by several IPs lists them all, paged, and drills into one.
- * Decisions load only for the IP being looked at.
+ * Decisions load only for the IP being looked at. A decision's scenario opens
+ * its alert through `onOpenAlert` when it has one.
  */
 import { useState } from "react"
 import { Popup } from "react-map-gl/maplibre"
 import { ChevronLeft, ChevronRight, Globe, Loader2, MapPin, Network, ShieldBan } from "lucide-react"
-import { useIpDecisions } from "@/lib/queries"
+import { useCrowdsecStatus, useIpDecisions } from "@/lib/queries"
 import { formatNumber } from "@/lib/api"
 import { crowdsecCtiUrl, crowdsecErrorMessage, winningDecision } from "@/lib/crowdsec"
-import type { BannedMapIp } from "@/generated/api/types.gen"
+import { decisionHasAlert, isBlocklistOrigin } from "@/lib/crowdsec-alerts"
+import type { BannedMapIp, DecisionView } from "@/generated/api/types.gen"
 import { IpBanControls } from "./IpBanControls"
 import { CountryFlag, CountryLabel } from "@/components/country-flag"
 import { InspectIpButton } from "@/components/ip-inspector/inspect-ip-button"
 import { DecisionBadge } from "@/components/crowdsec/decision-badge"
 import { ExternalLinkButton } from "@/components/crowdsec/external-link"
+import type { DecisionRef } from "@/components/security/alert-detail-sheet"
 import { POPUP_OFFSET, POPUP_CODE_STYLE, POPUP_LINK_BUTTON_STYLE, POPUP_ROW_ICON_STYLE, PopupBadge, PopupCard, PopupRow } from "./PopupCard"
 
 const PAGE_SIZE = 20
 
-function IpDetails({ member, onBack }: { member: BannedMapIp; onBack?: () => void }) {
+/** Why a scenario is plain text instead of a button that opens its alert. */
+function noAlertReason(decision: DecisionView, writeEnabled: boolean): string {
+  if (isBlocklistOrigin(decision.origin)) {
+    return "CrowdSec pulls blocklist decisions in bulk, so this one has no alert of its own to open."
+  }
+  if (!writeEnabled) return "Opening the alert behind a decision needs CrowdSec machine credentials."
+  return "CrowdSec has no alert for this decision."
+}
+
+/** With `onOpen` the scenario is a button that opens the decision's alert.
+ *  Without it, `note` says why not. */
+function DecisionLine({ decision, onOpen, note }: { decision: DecisionView; onOpen?: () => void; note?: string }) {
+  const scenario = decision.scenario || "No scenario given"
+  const scenarioStyle = { fontWeight: 500, overflowWrap: "anywhere" } as const
+  return (
+    <div style={{ fontSize: "11px", marginBottom: "4px" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+        <DecisionBadge type={decision.type} variant="popup" />
+        {onOpen ? (
+          <button
+            className="text-primary underline decoration-primary/40 decoration-dotted underline-offset-2 hover:decoration-primary hover:decoration-solid"
+            title="Open the alert behind this decision"
+            onClick={onOpen}
+            style={{ font: "inherit", ...scenarioStyle, background: "transparent", border: "none", padding: 0, cursor: "pointer", textAlign: "left" }}
+          >
+            {scenario}
+          </button>
+        ) : (
+          <span title={note} style={scenarioStyle}>{scenario}</span>
+        )}
+      </div>
+      <div style={{ fontSize: "10px", color: "var(--popup-muted)" }}>{decision.origin} · {decision.duration} left</div>
+    </div>
+  )
+}
+
+function IpDetails({
+  member,
+  onBack,
+  onOpenAlert,
+}: {
+  member: BannedMapIp
+  onBack?: () => void
+  onOpenAlert: (decision: DecisionRef) => void
+}) {
   const decisions = useIpDecisions(member.ip)
+  // Alerts need machine credentials, the same gate as Active decisions.
+  const writeEnabled = useCrowdsecStatus().data?.writeEnabled === true
   const active = decisions.data?.filter((d) => d.scope === "Ip") ?? []
 
   return (
@@ -74,15 +123,18 @@ function IpDetails({ member, onBack }: { member: BannedMapIp; onBack?: () => voi
         {decisions.isSuccess && active.length === 0 && (
           <p role="status" style={{ fontSize: "11px", color: "var(--popup-muted)", margin: 0 }}>No active decision remains for this IP.</p>
         )}
-        {active.map((decision) => (
-          <div key={decision.id ?? `${decision.origin}:${decision.scenario}:${decision.duration}`} style={{ fontSize: "11px", marginBottom: "4px" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-              <DecisionBadge type={decision.type} variant="popup" />
-              <span style={{ fontWeight: 500, overflowWrap: "anywhere" }}>{decision.scenario || "No scenario given"}</span>
-            </div>
-            <div style={{ fontSize: "10px", color: "var(--popup-muted)" }}>{decision.origin} · {decision.duration} left</div>
-          </div>
-        ))}
+        {active.map((decision) => {
+          const key = decision.id ?? `${decision.origin}:${decision.scenario}:${decision.duration}`
+          return writeEnabled && decisionHasAlert(decision.scope, decision) ? (
+            <DecisionLine
+              key={key}
+              decision={decision}
+              onOpen={() => onOpenAlert({ id: decision.id!, ip: member.ip, scenario: decision.scenario })}
+            />
+          ) : (
+            <DecisionLine key={key} decision={decision} note={noAlertReason(decision, writeEnabled)} />
+          )
+        })}
       </div>
     </>
   )
@@ -159,11 +211,13 @@ export function BannedMapPopup({
   latitude,
   ips,
   onClose,
+  onOpenAlert,
 }: {
   longitude: number
   latitude: number
   ips: BannedMapIp[]
   onClose: () => void
+  onOpenAlert: (decision: DecisionRef) => void
 }) {
   // Only the address is state; the member resolves against the current list
   // so a refetch updates its count, and one that removes the IP falls back
@@ -201,7 +255,13 @@ export function BannedMapPopup({
           {/* Bounded so a crowded location scrolls inside the card on phones. */}
           <div style={{ maxHeight: "min(320px, 40dvh)", overflowY: "auto", overscrollBehavior: "contain" }}>
             {selected
-              ? <IpDetails member={selected} onBack={ips.length > 1 ? () => setSelectedIp(null) : undefined} />
+              ? (
+                <IpDetails
+                  member={selected}
+                  onBack={ips.length > 1 ? () => setSelectedIp(null) : undefined}
+                  onOpenAlert={onOpenAlert}
+                />
+              )
               : <IpList ips={ips} onSelect={(ip) => setSelectedIp(ip.ip)} />}
           </div>
           <div style={{ paddingTop: "6px", marginTop: "6px", borderTop: "1px solid var(--popup-border)", fontSize: "10px", color: "var(--popup-muted)" }}>
