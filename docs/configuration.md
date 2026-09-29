@@ -93,7 +93,7 @@ from real environment variables. It is read once at import time.
 | Variable | Default | Description |
 |---|---|---|
 | `LOGPARSER_ENABLED` | `true` | Enable log parser ingestion service |
-| `LOGPARSER_LOG_PATHS` | *(computed)* | Access log files to tail. Env accepts a single path or a JSON list of paths. Default: /var/log/access/access.log |
+| `LOGPARSER_LOG_PATHS` | *(computed)* | Access log files to tail. Env accepts a single path or a JSON list of paths. Default: /var/log/access/access.log, or no file when LOGPARSER_LOKI_QUERIES is set. |
 | `LOGPARSER_LOG_FORMATS` | *(computed)* | Log format per tailed file: 'auto' (default, detected from the file's content), 'geometrikks-json', 'nginx', 'traefik-json', or 'caddy-json'. Env accepts a single value applied to every path, or a JSON list matching LOGPARSER_LOG_PATHS by position. |
 | `LOGPARSER_POLL_INTERVAL` | `1.0` | Interval in seconds to poll the log file for new entries |
 | `LOGPARSER_SEND_LOGS` | `true` | Send parsed logs to the database |
@@ -103,6 +103,15 @@ from real environment variables. It is read once at import time.
 | `LOGPARSER_SKIP_VALIDATION` | `false` | Skip validation of log lines. |
 | `LOGPARSER_STORE_DEBUG_LINES` | `false` | Store all raw log lines in AccessLogDebug table. When False, only malformed requests are stored. |
 | `LOGPARSER_IGNORE_IPS` | *(computed)* | IPs/CIDRs the parser drops entirely (no geo event, access log, or debug row). Use for your own traffic hitting the reverse proxy. Env accepts one value, comma-separated values, or a JSON list. Empty (default): nothing is ignored. |
+| `LOGPARSER_LOKI_URL` | - | Base URL of a Grafana Loki server to read access-log lines from instead of a file, e.g. http://loki:3100. Required with LOGPARSER_LOKI_QUERIES. |
+| `LOGPARSER_LOKI_QUERIES` | *(computed)* | LogQL stream selectors, one per source, e.g. {job="nginx"}. Each one is read like a tailed file. Env accepts a single query or a JSON list. Empty (default): no Loki source. |
+| `LOGPARSER_LOKI_FORMATS` | *(computed)* | Log format per Loki query, with the same values as LOGPARSER_LOG_FORMATS. Env accepts a single value applied to every query, or a JSON list matching LOGPARSER_LOKI_QUERIES by position. |
+| `LOGPARSER_LOKI_HOST_NAMES` | *(computed)* | Source hostname per Loki query. Env accepts a single value or a JSON list matching LOGPARSER_LOKI_QUERIES by position. Empty (default): the first LOGPARSER_HOST_NAME. |
+| `LOGPARSER_LOKI_TENANT_ID` | - | Sent as X-Scope-OrgID, for a multi-tenant Loki. Unset (default): no header. |
+| `LOGPARSER_LOKI_USERNAME` | - | Basic auth username for Loki, with LOGPARSER_LOKI_PASSWORD. |
+| `LOGPARSER_LOKI_PASSWORD` | - | Basic auth password for Loki, with LOGPARSER_LOKI_USERNAME. |
+| `LOGPARSER_LOKI_POLL_INTERVAL` | `5.0` | Seconds between two reads of each Loki query. |
+| `LOGPARSER_LOKI_LOOKBACK` | `60.0` | Seconds each read looks back, so lines that reach Loki late are still picked up. Lines already read are skipped. |
 
 ## Analytics & retention
 

@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - The Banned IPs map popup can open a decision's alert. Click the scenario name to see the same alert details as on the Security page.
+- Access logs can be read from Grafana Loki instead of a file. `LOGPARSER_LOKI_URL` and `LOGPARSER_LOKI_QUERIES` take a Loki server and one LogQL stream selector per source. Each selector is read like a tailed file, with the same format detection, parsing and GeoIP, and `LOGPARSER_LOKI_HOST_NAMES` names the sources. GeoMetrikks polls Loki every 5 seconds and looks back 60 seconds for lines that arrive late. With Loki queries set and `LOGPARSER_LOG_PATHS` unset, no file is tailed.
 - `MAP_DEFAULT_VIEW` sets where the map opens, as `latitude,longitude` or `latitude,longitude,zoom`. The zoom defaults to 3. For example, `MAP_DEFAULT_VIEW=71.129982,27.653369,15` opens on northern Norway at zoom 15. `GET /api/v1/settings` returns it as `map.defaultView`.
 
 ### Changed

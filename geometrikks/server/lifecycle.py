@@ -60,6 +60,7 @@ from geometrikks.services.geoip.home import resolve_home_location
 from geometrikks.services.geoip.site_homes import reconcile_override_homes, upsert_auto_homes
 from geometrikks.services.ingestion import LogIngestionService
 from geometrikks.services.logparser.logparser import LogParser
+from geometrikks.services.logparser.loki import LokiParser
 from geometrikks.services.logparser.peer_window import PeerWindow
 from geometrikks.server.scheduler import create_scheduler
 from geometrikks.server.scheduler_tracking import JobRunTracker
@@ -360,7 +361,7 @@ async def bring_up_database(
         if settings.logparser.enabled:
             await upsert_auto_homes(
                 session_maker,
-                settings.logparser.resolved_hostnames(),
+                settings.logparser.source_hostnames(),
                 runtime.get_map_home_location(app),
             )
     except Exception:
@@ -392,7 +393,7 @@ async def database_lifespan(app: "Litestar") -> "AsyncGenerator[None]":
             try:
                 await upsert_auto_homes(
                     session_maker,
-                    settings.logparser.resolved_hostnames(),
+                    settings.logparser.source_hostnames(),
                     runtime.get_map_home_location(app),
                 )
             except Exception:
@@ -503,6 +504,25 @@ async def start_ingestion(app: "Litestar") -> None:
             hostnames,
         )
     ]
+    lp = settings.logparser
+    loki_password = lp.loki_password.get_secret_value() if lp.loki_password else None
+    parsers += [
+        LokiParser(
+            url=lp.loki_url or "",
+            query=query,
+            tenant_id=lp.loki_tenant_id,
+            username=lp.loki_username,
+            password=loki_password,
+            lookback=lp.loki_lookback,
+            send_logs=lp.send_logs,
+            poll_interval=lp.loki_poll_interval,
+            hostname=host,
+            ignore_ips=lp.ignore_ips,
+            log_format=fmt,
+            peer_window=PeerWindow() if settings.app.proxy_advisory else None,
+        )
+        for query, fmt, host in lp.resolved_loki_sources()
+    ]
 
     ingestion_service = LogIngestionService(
         parsers=parsers,
@@ -510,7 +530,7 @@ async def start_ingestion(app: "Litestar") -> None:
         geoip_path=settings.geoip.db_path,
         locales=settings.geoip.locales,
         asn_db_path=settings.geoip.asn_db_path if settings.geoip.asn_enabled else None,
-        hostname=hostnames[0],
+        hostname=settings.logparser.host_name[0],
         batch_size=settings.logparser.batch_size,
         commit_interval=settings.logparser.commit_interval,
         store_debug_lines=settings.logparser.store_debug_lines,

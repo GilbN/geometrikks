@@ -782,6 +782,37 @@ Everything downstream (the access-logs hostname filter, the map's Source
 filter, per-site homes) treats those files like traffic from separate
 agents.
 
+### Reading from Loki
+
+If your access logs already go to [Grafana Loki](https://grafana.com/oss/loki/)
+(through Alloy, Promtail or any other shipper), GeoMetrikks can read them
+from there instead of from a file. Each LogQL stream selector is read like
+a tailed file: same format detection, parsing, GeoIP and hostname stamping.
+
+```bash
+LOGPARSER_LOKI_URL=http://loki:3100
+LOGPARSER_LOKI_QUERIES=["{job=\"nginx\"}", "{job=\"traefik\"}"]
+LOGPARSER_LOKI_HOST_NAMES=["edge-01", "edge-02"]
+```
+
+- Loki must hold the raw access-log line. A pipeline that rewrites the line
+  (for example into logfmt) leaves nothing a format adapter recognizes.
+  Labels and structured metadata are ignored.
+- One selector can match several streams, for example one per status-code
+  label; their lines are merged back in timestamp order. Keep one log
+  format per selector, or pin it with `LOGPARSER_LOKI_FORMATS`.
+- GeoMetrikks polls Loki every `LOGPARSER_LOKI_POLL_INTERVAL` seconds
+  (default 5) and reads `LOGPARSER_LOKI_LOOKBACK` seconds back (default 60)
+  to catch lines that reach Loki late. Reading starts when the app starts,
+  as with a tailed file: lines from while it was down are not replayed.
+- With Loki queries set and `LOGPARSER_LOG_PATHS` unset, no file is tailed.
+  Set both to read files and Loki side by side.
+- `LOGPARSER_LOKI_TENANT_ID` sets `X-Scope-OrgID` for a multi-tenant Loki,
+  and `LOGPARSER_LOKI_USERNAME` with `LOGPARSER_LOKI_PASSWORD` sends basic
+  auth.
+- A Loki that cannot be reached is listed under `missing_files` in
+  `/health`, like an absent log file, and reading resumes once it answers.
+
 An agent needs only `APP_MODE=agent`, database credentials for the shared
 instance, GeoIP credentials, and its own log mount:
 

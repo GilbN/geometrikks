@@ -290,9 +290,10 @@ class LogIngestionService:
         asn_reader: Reader | None,
         skip_validation: bool,
     ) -> None:
-        """Tail a single log file, pushing parsed records onto the shared queue."""
-        logger.debug("Waiting for log file: %s", parser.log_path)
-        if not await wait_for_path(
+        """Tail a single log source, pushing parsed records onto the shared queue."""
+        if parser.tails_file:
+            logger.debug("Waiting for log file: %s", parser.log_path)
+        if parser.tails_file and not await wait_for_path(
             parser.log_path,
             timeout_seconds=MISSING_FILE_GRACE_SECONDS,
             stop_event=self._stop_event,
