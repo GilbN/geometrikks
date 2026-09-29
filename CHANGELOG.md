@@ -15,6 +15,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - The map opens on the site homes instead of on Europe. It centers on a single home at zoom 3, and fits several homes into view, clear of the map controls. When the URL filters to one source, the map opens on that source's home. With no homes, it opens on the whole world. `MAP_DEFAULT_VIEW` overrides all of these.
+- Removed the recursive `chown` over `/app` in the Dockerfile. Freed up around 280 MB from the image and builds faster.
+- The image build runs `vite build` without the TypeScript typecheck that `bun run build` adds. CI still typechecks the frontend.
 
 ## [0.19.0] - 2026-09-27
 
