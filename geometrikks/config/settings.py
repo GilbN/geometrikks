@@ -283,9 +283,10 @@ class LogParserSettings(BaseSettings):
         default_factory=lambda: ["auto"],
         description=(
             "Log format per tailed file: 'auto' (default, detected from the "
-            "file's content), 'geometrikks-json', 'nginx', 'traefik-json', "
-            "or 'caddy-json'. Env accepts a single value applied to every "
-            "path, or a JSON list matching LOGPARSER_LOG_PATHS by position."
+            "file's content), 'geometrikks-json', 'nginx', 'npm', "
+            "'traefik-json', or 'caddy-json'. Env accepts a single value "
+            "applied to every path, or a JSON list matching "
+            "LOGPARSER_LOG_PATHS by position."
         ),
     )
     poll_interval: float = Field(

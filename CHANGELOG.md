@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - The Banned IPs map popup can open a decision's alert. Click the scenario name to see the same alert details as on the Security page.
+- Nginx Proxy Manager access logs parse as written, with no NPM config change. The new `npm` format reads NPM's `proxy` format (proxy hosts and the fallback log) and its `standard` format (redirection and 404 hosts), and is detected per file like the others. NPM does not log the protocol, remote user or timings, so response-time analytics stay empty for these rows. `LOGPARSER_LOG_FORMATS=npm` and `import-logs --format npm` pin it.
 - `MAP_DEFAULT_VIEW` sets where the map opens, as `latitude,longitude` or `latitude,longitude,zoom`. The zoom defaults to 3. For example, `MAP_DEFAULT_VIEW=71.129982,27.653369,15` opens on northern Norway at zoom 15. `GET /api/v1/settings` returns it as `map.defaultView`.
 
 ### Changed

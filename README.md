@@ -7,9 +7,10 @@
 
 ![Map](/data/screenshots/live.png)
 
-GeoMetrikks tails your reverse-proxy access logs (nginx, Traefik and Caddy),
-geolocates every request with MaxMind GeoLite2, and shows the result on a
-real-time map and a traffic analytics dashboard. It runs on your own
+GeoMetrikks tails your reverse-proxy access logs (nginx, Nginx Proxy
+Manager, Traefik and Caddy), geolocates every request with MaxMind
+GeoLite2, and shows the result on a real-time map and a traffic analytics
+dashboard. It runs on your own
 hardware from one Docker image. Outbound traffic is the GeoLite2 download
 and, unless you disable it, a public-IP lookup for the map's home location.
 If you run CrowdSec, connect its Local API and manage bans next to the
@@ -247,6 +248,36 @@ access_log /config/log/nginx/access.log geometrikks_json;
 ```bash
 LOGPARSER_LOG_PATHS=["/var/log/access/access.log", "/var/log/access/somepage/access.log"]
 ```
+
+### Nginx Proxy Manager
+
+Nginx Proxy Manager writes its own log format and has no per-host way to
+change it, so GeoMetrikks reads that format as it is. No NPM config change
+is needed. NPM writes one file per host in its `data/logs` directory:
+`proxy-host-<id>_access.log` for proxy hosts, `redirection-host-<id>_access.log`
+and `dead-host-<id>_access.log` for the other host types, and
+`fallback_http_access.log` (`fallback_access.log` on older versions) for
+requests that match no host. `default-host_access.log` uses nginx's
+`combined` format and parses as `nginx` (see above). Mount that directory
+and list the files you want:
+
+```env
+ACCESS_LOG_DIR=/path/to/npm/data/logs
+LOGPARSER_LOG_PATHS=["/var/log/access/proxy-host-1_access.log", "/var/log/access/proxy-host-2_access.log"]
+```
+
+The format is auto-detected per file; set `LOGPARSER_LOG_FORMATS=npm` to
+pin it. Notes:
+
+- NPM's format has no protocol, remote user or timings, so the
+  response-time analytics and the upstream timing column stay empty for
+  these rows. The map, hosts, status codes, URLs, referrers, user agents
+  and bytes are all there.
+- NPM's `fallback_stream_access.log` covers TCP/UDP streams, not HTTP
+  requests, and is not a supported format.
+- Behind a CDN or tunnel, NPM needs realip directives in a global custom
+  snippet so `[Client ...]` is the visitor. See
+  [docs/proxy-setup.md](docs/proxy-setup.md#nginx-proxy-manager).
 
 ## Traefik setup
 
@@ -908,8 +939,8 @@ Every command supports `--help`.
 ### import-logs: backfill history
 
 Live tailing only picks up lines written after the app starts. To backfill
-rotated or archived access logs (nginx, Traefik JSON or Caddy JSON, plain
-or gzip), use `import-logs`:
+rotated or archived access logs (nginx, Nginx Proxy Manager, Traefik JSON
+or Caddy JSON, plain or gzip), use `import-logs`:
 
 ```bash
 docker compose exec -u geometrikks app litestar import-logs /var/log/access/access.log.1.gz
@@ -919,8 +950,8 @@ It reuses the live ingestion pipeline (same parsing, GeoIP lookup and DB
 writes), uses the timestamps in each log line rather than wall-clock time,
 and refreshes the continuous aggregates for the imported range when done.
 The log format is auto-detected per file, as with live tailing; pass
-`--format geometrikks-json`, `--format nginx`, `--format traefik-json` or
-`--format caddy-json` to pin it. You can pass several
+`--format geometrikks-json`, `--format nginx`, `--format npm`,
+`--format traefik-json` or `--format caddy-json` to pin it. You can pass several
 files in one invocation. Paths are **container** paths, and the import runs
 as the non-root `geometrikks` user (`PUID`:`PGID`, default 1000:1000), so
 host files must be readable by it (`-u geometrikks` keeps `exec` from
@@ -1163,7 +1194,8 @@ Point `ACCESS_LOG_DIR` at the host directory where the proxy container
 writes its access logs (for Nginx Proxy Manager this is usually its
 `data/logs` volume), and set `LOGPARSER_LOG_PATHS` to the specific
 access-log file(s) inside it, using the *container* path
-(`/var/log/access/...`), not the host path.
+(`/var/log/access/...`), not the host path. Nginx Proxy Manager's own log
+format is read as is; see [Nginx Proxy Manager](#nginx-proxy-manager).
 
 **Permission denied reading my log files?**
 The app container runs as `PUID`:`PGID` (default 1000:1000), and log mounts
@@ -1180,7 +1212,7 @@ Check four things in order: (1) the geo-degraded banner; if it shows,
 MaxMind credentials or the GeoLite2 database are missing; (2) that
 `LOGPARSER_LOG_PATHS` points at a file receiving traffic in a supported
 format (the nginx JSON `log_format` above, the legacy nginx format,
-Traefik JSON, or Caddy JSON); (3) that some time has passed since you last
+Nginx Proxy Manager, Traefik JSON, or Caddy JSON); (3) that some time has passed since you last
 restarted. The map only shows events ingested after startup unless you
 have run a batch import. (4) that your proxy logs the visitor's address,
 not an upstream proxy or tunnel; Settings > Status shows an advisory when

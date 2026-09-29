@@ -131,6 +131,9 @@ real_ip_header X-Forwarded-For;
 real_ip_recursive on;
 ```
 
+NPM's log writes this address as `[Client ...]`, which is the field
+GeoMetrikks reads.
+
 ## Traefik
 
 Traefik strips `X-Forwarded-For` from anything it does not trust. The

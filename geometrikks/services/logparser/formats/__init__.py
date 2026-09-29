@@ -7,16 +7,19 @@ from .base import LogLineFormat, NormalizedLine
 from .caddy import CaddyJsonFormat
 from .geometrikks_json import GeometrikksJsonFormat
 from .nginx import NginxFormat
+from .npm import NpmFormat
 from .traefik import TraefikJsonFormat
 
 # Sniffing order: the recommended format first, then the other cheap '{'
-# prefix checks, then the regex. The JSON adapters decline each other's
+# prefix checks, then the regexes. The JSON adapters decline each other's
 # lines on required keys (client_ip vs ClientHost vs the nested request
-# object), so order is cost only.
+# object), and NPM lines start with '[' where nginx lines start with the
+# client IP, so order is cost only.
 FORMATS: dict[str, LogLineFormat] = {
     GeometrikksJsonFormat.name: GeometrikksJsonFormat(),
     TraefikJsonFormat.name: TraefikJsonFormat(),
     CaddyJsonFormat.name: CaddyJsonFormat(),
+    NpmFormat.name: NpmFormat(),
     NginxFormat.name: NginxFormat(),
 }
 
