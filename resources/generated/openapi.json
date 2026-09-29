@@ -1847,6 +1847,26 @@
         "title": "DefaultHomeView",
         "type": "object"
       },
+      "DefaultMapView": {
+        "properties": {
+          "latitude": {
+            "type": "number"
+          },
+          "longitude": {
+            "type": "number"
+          },
+          "zoom": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "latitude",
+          "longitude",
+          "zoom"
+        ],
+        "title": "DefaultMapView",
+        "type": "object"
+      },
       "EmbeddedLocationDTO": {
         "properties": {
           "city": {
@@ -3818,6 +3838,16 @@
               }
             ]
           },
+          "defaultView": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/DefaultMapView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "homeLatitude": {
             "oneOf": [
               {
@@ -3852,6 +3882,7 @@
         },
         "required": [
           "cartoApiKey",
+          "defaultView",
           "homeLatitude",
           "homeLongitude",
           "homeSource"

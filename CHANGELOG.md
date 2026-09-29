@@ -10,6 +10,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - The Banned IPs map popup can open a decision's alert. Click the scenario name to see the same alert details as on the Security page.
+- `MAP_DEFAULT_VIEW` sets where the map opens, as `latitude,longitude` or `latitude,longitude,zoom`. The zoom defaults to 3. For example, `MAP_DEFAULT_VIEW=71.129982,27.653369,15` opens on northern Norway at zoom 15. `GET /api/v1/settings` returns it as `map.defaultView`.
+
+### Changed
+
+- The map opens on the site homes instead of on Europe. It centers on a single home at zoom 3, and fits several homes into view, clear of the map controls. When the URL filters to one source, the map opens on that source's home. With no homes, it opens on the whole world. `MAP_DEFAULT_VIEW` overrides all of these.
 
 ## [0.19.0] - 2026-09-27
 

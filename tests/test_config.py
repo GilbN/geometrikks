@@ -133,6 +133,55 @@ def test_map_home_settings_require_coordinate_pair():
         MapSettings(home_latitude=40.7, _env_file=None)
 
 
+def test_map_default_view_unset_by_default(monkeypatch):
+    monkeypatch.delenv("MAP_DEFAULT_VIEW", raising=False)
+    assert MapSettings(_env_file=None).default_view is None
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        ("71.129982,27.653369,15", (71.129982, 27.653369, 15.0)),
+        ("-90,-180,22", (-90.0, -180.0, 22.0)),
+        (" 40.7128 , -74.006 ", (40.7128, -74.006, 3.0)),
+        ("0,0,0", (0.0, 0.0, 0.0)),
+    ],
+)
+def test_map_default_view_parses_lat_lng_and_optional_zoom(monkeypatch, value, expected):
+    monkeypatch.setenv("MAP_DEFAULT_VIEW", value)
+    assert MapSettings(_env_file=None).default_view == expected
+
+
+def test_map_default_view_empty_string_means_unset(monkeypatch):
+    monkeypatch.setenv("MAP_DEFAULT_VIEW", "")
+    assert MapSettings(_env_file=None).default_view is None
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        "91,0",
+        "-91,0",
+        "0,181",
+        "0,-181",
+        "0,0,23",
+        "0,0,-1",
+        "59.9",
+        "1,2,3,4",
+        "north,east",
+        "[59.9, 10.7]",
+        "nan,0",
+        "0,inf",
+        "0,0,nan",
+        "59.9,,10.7",
+    ],
+)
+def test_map_default_view_rejects_bad_values(monkeypatch, value):
+    monkeypatch.setenv("MAP_DEFAULT_VIEW", value)
+    with pytest.raises(ValidationError, match="MAP_DEFAULT_VIEW"):
+        MapSettings(_env_file=None)
+
+
 def test_environment_properties():
     """Test environment helper properties."""
     dev_settings = Settings(environment="development")
