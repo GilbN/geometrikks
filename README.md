@@ -1237,6 +1237,11 @@ overrides per source, and `MAP_AUTO_DETECT_HOME=false` disables the
 outbound lookup. The map's **Route effects** control can also hide the
 animation; that preference is kept in browser storage.
 
+The map opens on the site homes, or on the whole world when there are
+none. Set `MAP_DEFAULT_VIEW=latitude,longitude[,zoom]` to open it
+somewhere else, for example `MAP_DEFAULT_VIEW=71.129982,27.653369,15` for
+northern Norway at zoom 15.
+
 ### Testing
 
 ```bash

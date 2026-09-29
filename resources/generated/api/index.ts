@@ -388,6 +388,7 @@ export type {
   DecisionGroupView,
   DecisionView,
   DefaultHomeView,
+  DefaultMapView,
   EmbeddedLocationDto,
   ErrorEnvelope,
   GeoAsnFacet,

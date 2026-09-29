@@ -132,6 +132,7 @@ from real environment variables. It is read once at import time.
 | `MAP_PUBLIC_IP_TIMEOUT` | `3.0` | Timeout in seconds for public-IP discovery. |
 | `MAP_HOME_LOCATIONS` | *(computed)* | Per-hostname home overrides as a JSON object of {"hostname": [latitude, longitude]}. Overrides win over agent auto-detection in site_homes; removing an entry deletes its override row at the next startup. Use for sites whose public IP geolocates wrong (CGNAT, VPN) or for hostnames in logs shipped from other machines. |
 | `MAP_HOME_REFRESH_HOURS` | `24` | How often this instance re-detects its own public-IP home location and refreshes its site_homes rows (hours). |
+| `MAP_DEFAULT_VIEW` | - | Where the map opens, as latitude,longitude or latitude,longitude,zoom (zoom 0-22, default 3). Example: 71.129982,27.653369,15 opens on northern Norway at zoom 15. When unset, the map opens on the site homes, or on the whole world if there are none. |
 | `MAP_CARTO_API_KEY` | `` | CARTO basemaps API key, sent as ?key= on every basemap request the browser makes. CARTO's terms require one per deployment; keys are free at https://carto.com/basemaps/apikey. Not a secret: it is visible to anyone who can open the map. |
 
 ## CrowdSec

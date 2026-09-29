@@ -497,6 +497,15 @@ export type DefaultHomeView = {
 };
 
 /**
+ * DefaultMapView
+ */
+export type DefaultMapView = {
+  latitude: number;
+  longitude: number;
+  zoom: number;
+};
+
+/**
  * EmbeddedLocationDTO
  */
 export type EmbeddedLocationDto = {
@@ -1021,6 +1030,7 @@ export type LogparserSettingsView = {
  */
 export type MapSettingsView = {
   cartoApiKey: string | null;
+  defaultView: DefaultMapView | null;
   homeLatitude: number | null;
   homeLongitude: number | null;
   homeSource: "configured" | "external_ip" | null;
