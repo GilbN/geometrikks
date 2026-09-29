@@ -36,6 +36,13 @@ async function setup(page: Page, data = collection([group("2", 25)])) {
   await page.route("**/api/v1/crowdsec/decisions/lookup?*", (route) => route.fulfill({ json: Array.from({ length: state.decisions }, (_, i) => ({
     id: i + 1, ip: new URL(route.request().url()).searchParams.get("ip"), type: i ? "captcha" : "ban", scope: "Ip", origin: i ? "CAPI" : "crowdsec", scenario: i ? "community-list" : "http-probing", duration: "2h", countryCode: null, countryName: null, city: null, requestCount24h: null,
   })) }))
+  // clickCenter expects the fixtures (10E 50N) in the middle of the map, so
+  // pin the first view there instead of letting the server's homes pick it.
+  await page.route("**/api/v1/settings", async (route) => {
+    const settings = await (await route.fetch()).json()
+    settings.map.defaultView = { latitude: 50, longitude: 10, zoom: 3 }
+    return route.fulfill({ json: settings })
+  })
   await page.route("**/api/v1/geo-events/facets**", (route) => route.fulfill({ json: {
     hostnames: ["a.test", "b.test"], countries: [{ code: "NO", name: "Norway" }], cities: ["Oslo"],
   } }))
