@@ -1,6 +1,6 @@
 /** Pure presentation logic for the Settings > Status page. Kept free of React
  *  so state derivation is unit-testable without rendering. */
-import type { HealthResponse, MeResponse, OidcStatus } from "@/lib/api"
+import type { HealthResponse, LokiSourceStats, MeResponse, OidcStatus } from "@/lib/api"
 import type {
   CrowdSecStatusResponse,
   HypertableStatsView,
@@ -49,7 +49,12 @@ export function advisoryCards(health: HealthResponse | undefined): AdvisoryCard[
   }))
 }
 
-export function ingestionState(health: HealthResponse | undefined, isError: boolean): CardState {
+/** lokiSources comes from the authenticated /api/v1/stats, not /health. */
+export function ingestionState(
+  health: HealthResponse | undefined,
+  isError: boolean,
+  lokiSources: LokiSourceStats[] = [],
+): CardState {
   if (isError || !health) return { tone: "muted", label: "Unknown" }
   // Muted, not amber: a deliberate operator setting (UI-head deployments),
   // not a fault. Same treatment as authState's disabled branch.
@@ -66,6 +71,14 @@ export function ingestionState(health: HealthResponse | undefined, isError: bool
       tone: "amber",
       label: "Not running",
       detail: "No log files are being tailed. Check the Logs tab for ingestion errors.",
+    }
+  }
+  // An unreachable Loki source is also in missingFiles; name it for what it is.
+  if (lokiSources.some((s) => !s.reachable)) {
+    return {
+      tone: "amber",
+      label: "Running, Loki unreachable",
+      detail: "A Loki source cannot be reached. Ingestion retries until it answers.",
     }
   }
   if ((health.ingestion.missingFiles ?? []).length > 0) {

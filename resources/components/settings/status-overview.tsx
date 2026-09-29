@@ -185,6 +185,7 @@ export function StatusOverview() {
   const now = Date.now()
   const overall = overallState(health, healthError)
   const access = accessLogFiles(files)
+  const lokiSources = stats?.lokiSources ?? []
   const uptime = formatUptime(health?.startedAt, now)
   const geoipRefreshJob = jobs?.find((j) => j.id === "geoip-refresh")
   const recentErrors = filterErrorRecords(logRecords, 5)
@@ -298,7 +299,7 @@ export function StatusOverview() {
             </div>
           </CardHeader>
           <CardContent className="space-y-3">
-            <StateLine state={ingestionState(health, healthError)} />
+            <StateLine state={ingestionState(health, healthError, lokiSources)} />
             {statsError ? (
               <p className="text-xs text-muted-foreground">Statistics unavailable.</p>
             ) : (
@@ -343,7 +344,7 @@ export function StatusOverview() {
             <div className="space-y-2 border-t pt-3">
               <p className="text-xs font-medium text-muted-foreground">Tailed access logs</p>
               {filesError && <p className="text-xs text-muted-foreground">File list unavailable.</p>}
-              {!filesError && access.length === 0 && (
+              {!filesError && access.length === 0 && lokiSources.length === 0 && (
                 <p className="text-xs text-muted-foreground">No access logs configured.</p>
               )}
               {access.map((f) => (
@@ -357,6 +358,23 @@ export function StatusOverview() {
                     </span>
                   ) : (
                     <span className="ml-auto text-red-500">missing</span>
+                  )}
+                </div>
+              ))}
+              {lokiSources.map((s) => (
+                <div key={s.query} className="flex items-center gap-2 text-xs">
+                  <StatusLed tone={s.reachable ? "emerald" : "red"} />
+                  <MonoChip>{s.query}</MonoChip>
+                  <span className="text-muted-foreground">
+                    Loki · {s.hostname}
+                    {s.logFormat && ` · ${s.logFormat}`}
+                  </span>
+                  {s.reachable ? (
+                    <span className="ml-auto text-muted-foreground tabular-nums">
+                      {s.parsedLines.toLocaleString()} lines
+                    </span>
+                  ) : (
+                    <span className="ml-auto text-red-500">unreachable</span>
                   )}
                 </div>
               ))}

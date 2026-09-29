@@ -280,6 +280,19 @@ export interface StatsResponse {
   totalIgnoredLines: number
   totalProcessed: number
   isRunning: boolean
+  /** LOGPARSER_LOKI_QUERIES sources. Optional: absent on older backends. */
+  lokiSources?: LokiSourceStats[]
+}
+
+export interface LokiSourceStats {
+  /** LogQL stream selector. */
+  query: string
+  hostname: string
+  /** False after a failed read, until Loki answers again. */
+  reachable: boolean
+  /** Detected or pinned format; null until the first line is read. */
+  logFormat: string | null
+  parsedLines: number
 }
 
 export async function fetchStats(): Promise<StatsResponse> {

@@ -34,6 +34,7 @@ from geometrikks.domain.realtime.events import LIVE_EVENTS_CHANNEL, encode_guard
 from geometrikks.services.logparser.schemas import ParsedLogRecord, ParsedGeoData, ParsedAccessLog
 from geometrikks.services.logparser.constants import ALLOWED_GEOIP_LOCALES, GEOIP_LOCALES_DEFAULT
 from geometrikks.services.logparser.logparser import LogParser
+from geometrikks.services.logparser.loki import LokiParser
 from geometrikks.lib.utils import sleep_unless_stopped, wait_for_path
 from geometrikks.server.logging import get_logger
 
@@ -826,3 +827,8 @@ class LogIngestionService:
     def missing_files(self) -> list[str]:
         """Configured log files currently absent, since startup or after removal."""
         return [str(parser.log_path) for parser in self.parsers if parser.file_missing]
+
+    @property
+    def loki_sources(self) -> list[LokiParser]:
+        """Parsers that read from Loki instead of a file."""
+        return [parser for parser in self.parsers if isinstance(parser, LokiParser)]

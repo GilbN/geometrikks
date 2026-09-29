@@ -14,6 +14,8 @@ from geoip2.database import Reader
 from pydantic import ValidationError
 
 from geometrikks.config.settings import LogParserSettings
+from geometrikks.domain.system.controllers.health import IngestionHealth
+from geometrikks.domain.system.controllers.stats import LokiSourceStats, stats
 from geometrikks.services.ingestion import LogIngestionService
 from geometrikks.services.logparser import loki
 from geometrikks.services.logparser.loki import NS, LokiParser
@@ -233,6 +235,25 @@ async def test_ingestion_reads_loki_without_waiting_for_a_file(
         assert fake.requests
     finally:
         await service.stop(timeout=1.0)
+
+
+async def test_stats_lists_loki_sources_and_health_does_not(fake: FakeLoki) -> None:
+    """The query and hostname go to the authenticated stats, never the public /health."""
+    parser = make_parser(fake)
+    parser.parsed_lines = 3
+    parser.file_missing = True
+    service = LogIngestionService(
+        parsers=[parser], session_maker=cast(Any, lambda: None), geoip_path=GEOIP_DB_PATH
+    )
+
+    response = await stats.fn(ingestion_service=service)
+
+    assert response.loki_sources == [
+        LokiSourceStats(
+            query=QUERY, hostname="edge-01", reachable=False, log_format=None, parsed_lines=3
+        )
+    ]
+    assert "loki_sources" not in IngestionHealth.__struct_fields__
 
 
 def settings(**kwargs) -> LogParserSettings:

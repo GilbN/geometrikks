@@ -2728,6 +2728,12 @@ export const IngestionStatsResponseSchema = {
     isRunning: {
       type: "boolean",
     },
+    lokiSources: {
+      items: {
+        $ref: "#/components/schemas/LokiSourceStats",
+      },
+      type: "array",
+    },
     totalIgnoredLines: {
       type: "integer",
     },
@@ -3620,6 +3626,36 @@ export const LogparserSettingsViewSchema = {
   },
   required: ["logPaths", "sendLogs", "storeDebugLines"],
   title: "LogparserSettingsView",
+  type: "object",
+} as const;
+
+export const LokiSourceStatsSchema = {
+  properties: {
+    hostname: {
+      type: "string",
+    },
+    logFormat: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    parsedLines: {
+      type: "integer",
+    },
+    query: {
+      type: "string",
+    },
+    reachable: {
+      type: "boolean",
+    },
+  },
+  required: ["hostname", "logFormat", "parsedLines", "query", "reachable"],
+  title: "LokiSourceStats",
   type: "object",
 } as const;
 

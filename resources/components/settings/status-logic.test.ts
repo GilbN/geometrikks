@@ -115,6 +115,31 @@ describe("ingestionState", () => {
       "A configured log file is missing. Ingestion is waiting for it to appear.",
     )
   })
+  it("is amber and names Loki when a Loki source is unreachable", () => {
+    const state = ingestionState(
+      makeHealth({
+        ingestion: {
+          running: true,
+          parsedLines: 10,
+          pendingRecords: 0,
+          missingFiles: ['loki:{job="nginx"}'],
+          lastRecordAt: null,
+        },
+      }),
+      false,
+      [
+        {
+          query: '{job="nginx"}',
+          hostname: "edge-01",
+          reachable: false,
+          logFormat: "nginx",
+          parsedLines: 10,
+        },
+      ],
+    )
+    expect(state.tone).toBe("amber")
+    expect(state.label).toBe("Running, Loki unreachable")
+  })
   it("is muted when health failed or is loading", () => {
     expect(ingestionState(undefined, true).tone).toBe("muted")
     expect(ingestionState(undefined, false).tone).toBe("muted")
