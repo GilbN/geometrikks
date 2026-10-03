@@ -30,7 +30,9 @@ import {
 import { beaconLabel, buildHomeResolver, homeBeacons, type Coordinate, type SiteHomesData } from "@/lib/site-homes"
 import { FIT_PADDING, initialMapView, WORLD_VIEW } from "@/lib/map-initial-view"
 import { useMapStyle } from "./hooks/useMapStyle"
+import { useMapStartFailure } from "./hooks/useMapStartFailure"
 import { MapAttribution } from "./MapAttribution"
+import { MapStartFailureNotice } from "./MapStartFailureNotice"
 import {
   bannedPointLayer,
   bannedClusterLayer,
@@ -162,6 +164,7 @@ function GeoMapInner({
   const demoTrafficMode = getDemoTrafficMode()
   const mapRef = useRef<MapRef>(null)
   const { mapStyle, transformRequest, ready: mapReady } = useMapStyle()
+  const { failure: mapFailure, onError: onMapError } = useMapStartFailure()
   const isMobile = useIsMobile()
   const search = useSearch({ from: "/map" })
   const navigate = useNavigate({ from: "/map" })
@@ -792,6 +795,7 @@ function GeoMapInner({
         workerUrl={MAPLIBRE_WORKER_URL}
         {...viewState}
         onLoad={() => setMapLoaded(true)}
+        onError={onMapError}
         onMoveStart={onMoveStart}
         onMove={onMove}
         onClick={onClick}
@@ -944,7 +948,9 @@ function GeoMapInner({
       {/* Centered like LiveRequestCard so it never collides with the rail,
           the controls panel or the zoom buttons, and the controls stay
           reachable for switching to a layer that still has data. */}
-      {isError && activeLayer !== "banned" && (
+      {mapFailure ? (
+        <MapStartFailureNotice failure={mapFailure} />
+      ) : isError && activeLayer !== "banned" && (
         <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center p-4">
           <ErrorBanner
             className="pointer-events-auto w-full max-w-md backdrop-blur-[2px]"
