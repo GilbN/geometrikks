@@ -6,7 +6,8 @@ readme = "README.md"
 requires-python = ">=3.13,<3.14"
 dependencies = [
     "litestar[standard,brotli,jwt,structlog,pydantic]>=2.24.0,<3",
-    "litestar-vite>=0.31.0",
+    # Keep in step with litestar-vite-plugin in package.json.
+    "litestar-vite>=0.32.0",
     "litestar-granian>=0.16.0",
     "advanced-alchemy[argon2,passlib,pwdlib,cli]>=1.11.0",
     "litestar-geoalchemy>=0.3.0",

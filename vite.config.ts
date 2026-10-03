@@ -2,6 +2,7 @@ import path from "path"
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import { tanstackRouter } from '@tanstack/router-plugin/vite'
+// Keep litestar-vite-plugin in step with litestar-vite in pyproject.toml.
 import litestar from "litestar-vite-plugin";
 import tailwindcss from "@tailwindcss/vite";
 import { VitePWA } from "vite-plugin-pwa";
