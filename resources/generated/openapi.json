@@ -2886,6 +2886,12 @@
           "isRunning": {
             "type": "boolean"
           },
+          "lokiSources": {
+            "items": {
+              "$ref": "#/components/schemas/LokiSourceStats"
+            },
+            "type": "array"
+          },
           "totalIgnoredLines": {
             "type": "integer"
           },
@@ -3824,6 +3830,41 @@
           "storeDebugLines"
         ],
         "title": "LogparserSettingsView",
+        "type": "object"
+      },
+      "LokiSourceStats": {
+        "properties": {
+          "hostname": {
+            "type": "string"
+          },
+          "logFormat": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "parsedLines": {
+            "type": "integer"
+          },
+          "query": {
+            "type": "string"
+          },
+          "reachable": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "hostname",
+          "logFormat",
+          "parsedLines",
+          "query",
+          "reachable"
+        ],
+        "title": "LokiSourceStats",
         "type": "object"
       },
       "MapSettingsView": {

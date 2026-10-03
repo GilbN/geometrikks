@@ -128,9 +128,13 @@ class LogParser:
     - Detecting malformed requests (TLS probes, SSH scans, etc.)
     """
 
+    # False for sources that are not a file on disk (see loki.LokiParser):
+    # the ingestion service then skips waiting for the path to exist.
+    tails_file: bool = True
+
     def __init__(
         self,
-        log_path: Path,
+        log_path: Path | str,
         send_logs: bool = False,
         poll_interval: float = 1.0,
         hostname: str = "",
@@ -141,7 +145,8 @@ class LogParser:
         """I'm here to parse ass and kick logs, and I'm all out of logs...
 
         Args:
-            log_path (Path): The path to the log file.
+            log_path (Path | str): The path to the log file, or a source label
+                for sources that are not files.
             send_logs (bool, optional): If True, parse full access log data. Defaults to False.
             poll_interval (float, optional): How often to check for new log lines. Defaults to 1.0.
             hostname (str, optional): Source hostname stamped onto parsed
@@ -154,7 +159,7 @@ class LogParser:
                 the logged peer address (client vs. proxy upstream vs. CDN
                 edge). None: peer classification off (APP_PROXY_ADVISORY=false).
         """
-        self.log_path: Path = log_path
+        self.log_path: Path | str = log_path
         self.send_logs: bool = send_logs
         self.poll_interval: int | float = poll_interval
         self.hostname: str = hostname
@@ -273,7 +278,7 @@ class LogParser:
             return None
         return self.format.parse(log_line, geo_only=not self.send_logs)
 
-    def validate_log_format(self, log_path: Path) -> bool:  # regex tester
+    def validate_log_format(self, log_path: Path | str) -> bool:  # regex tester
         """Validate the log format once by checking the last 3 lines.
 
         Blocking (opens and reads the file); callers on the event loop go

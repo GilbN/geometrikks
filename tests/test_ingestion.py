@@ -1133,6 +1133,7 @@ class TestAsnWiring:
 
         class FakeParser:
             log_path = "fake.log"
+            tails_file = True
 
             def set_stop_event(self, ev):
                 pass

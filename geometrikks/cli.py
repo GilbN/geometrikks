@@ -95,7 +95,7 @@ async def _run_import(
     if settings.geoip.asn_enabled and asn_reader is None:
         click.echo("No GeoLite2 ASN database found; importing without ASN enrichment.")
 
-    effective_hostname = hostname or settings.logparser.resolved_hostnames()[0]
+    effective_hostname = hostname or settings.logparser.host_name[0]
     click.echo(f"Stamping hostname: {effective_hostname}")
     service = LogIngestionService(
         parsers=[],

@@ -790,6 +790,7 @@ export type IngestionHealth = {
  */
 export type IngestionStatsResponse = {
   isRunning: boolean;
+  lokiSources?: Array<LokiSourceStats>;
   totalIgnoredLines: number;
   totalParsedLines: number;
   totalPendingRecords: number;
@@ -1023,6 +1024,17 @@ export type LogparserSettingsView = {
   logPaths: Array<string>;
   sendLogs: boolean;
   storeDebugLines: boolean;
+};
+
+/**
+ * LokiSourceStats
+ */
+export type LokiSourceStats = {
+  hostname: string;
+  logFormat: string | null;
+  parsedLines: number;
+  query: string;
+  reachable: boolean;
 };
 
 /**

@@ -442,6 +442,7 @@ export type {
   LogRotateResponse,
   LogTailRecord,
   LogTailResponse,
+  LokiSourceStats,
   MapSettingsView,
   OidcOption,
   OidcStatus,

@@ -10,6 +10,22 @@ from geometrikks.services.ingestion import LogIngestionService
 from geometrikks.domain.system.dependencies import provide_ingestion_service as pis
 
 
+class LokiSourceStats(msgspec.Struct, rename="camel"):
+    """One LOGPARSER_LOKI_QUERIES entry as the ingestion service sees it.
+
+    Served here rather than on the unauthenticated /health: the LogQL query
+    and hostname describe the operator's log setup.
+    """
+
+    query: str
+    hostname: str
+    # False after a failed read, until Loki answers again.
+    reachable: bool
+    # Detected (auto) or pinned format; None until the first line is read.
+    log_format: str | None
+    parsed_lines: int
+
+
 class IngestionStatsResponse(msgspec.Struct, rename="camel"):
     total_parsed_lines: int
     total_skipped_lines: int
@@ -17,6 +33,7 @@ class IngestionStatsResponse(msgspec.Struct, rename="camel"):
     total_ignored_lines: int
     total_processed: int
     is_running: bool
+    loki_sources: list[LokiSourceStats] = msgspec.field(default_factory=list)
 
 
 @get(
@@ -48,4 +65,14 @@ async def stats(
         total_ignored_lines=ingestion_service.ignored_lines,
         total_processed=ingestion_service.total_processed,
         is_running=ingestion_service.is_running,
+        loki_sources=[
+            LokiSourceStats(
+                query=parser.query,
+                hostname=parser.hostname,
+                reachable=not parser.file_missing,
+                log_format=parser.format.name if parser.format else None,
+                parsed_lines=parser.parsed_lines,
+            )
+            for parser in ingestion_service.loki_sources
+        ],
     )

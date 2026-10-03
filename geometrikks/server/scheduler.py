@@ -173,7 +173,7 @@ async def refresh_site_home_job(
         runtime.get_advisories(app).clear(MAP_HOME_UNDETECTED.id)
     if settings.logparser.enabled:
         await upsert_auto_homes(
-            session_factory, settings.logparser.resolved_hostnames(), home
+            session_factory, settings.logparser.source_hostnames(), home
         )
 
 

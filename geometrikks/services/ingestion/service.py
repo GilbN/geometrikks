@@ -34,6 +34,7 @@ from geometrikks.domain.realtime.events import LIVE_EVENTS_CHANNEL, encode_guard
 from geometrikks.services.logparser.schemas import ParsedLogRecord, ParsedGeoData, ParsedAccessLog
 from geometrikks.services.logparser.constants import ALLOWED_GEOIP_LOCALES, GEOIP_LOCALES_DEFAULT
 from geometrikks.services.logparser.logparser import LogParser
+from geometrikks.services.logparser.loki import LokiParser
 from geometrikks.lib.utils import sleep_unless_stopped, wait_for_path
 from geometrikks.server.logging import get_logger
 
@@ -290,9 +291,10 @@ class LogIngestionService:
         asn_reader: Reader | None,
         skip_validation: bool,
     ) -> None:
-        """Tail a single log file, pushing parsed records onto the shared queue."""
-        logger.debug("Waiting for log file: %s", parser.log_path)
-        if not await wait_for_path(
+        """Tail a single log source, pushing parsed records onto the shared queue."""
+        if parser.tails_file:
+            logger.debug("Waiting for log file: %s", parser.log_path)
+        if parser.tails_file and not await wait_for_path(
             parser.log_path,
             timeout_seconds=MISSING_FILE_GRACE_SECONDS,
             stop_event=self._stop_event,
@@ -825,3 +827,8 @@ class LogIngestionService:
     def missing_files(self) -> list[str]:
         """Configured log files currently absent, since startup or after removal."""
         return [str(parser.log_path) for parser in self.parsers if parser.file_missing]
+
+    @property
+    def loki_sources(self) -> list[LokiParser]:
+        """Parsers that read from Loki instead of a file."""
+        return [parser for parser in self.parsers if isinstance(parser, LokiParser)]
