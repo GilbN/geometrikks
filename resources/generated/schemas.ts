@@ -496,8 +496,12 @@ export interface OperationErrorTypes {
  */
 export type FormInput<T extends OperationName> =
   T extends keyof OperationDataTypes
-    ? OperationDataTypes[T] extends { body: infer B }
-      ? B extends never ? never : B
+    ? 'body' extends keyof OperationDataTypes[T]
+      ? OperationDataTypes[T] extends { body?: infer B }
+        ? [NonNullable<B>] extends [never]
+          ? never
+          : NonNullable<B>
+        : never
       : never
     : never
 
@@ -509,8 +513,12 @@ export type FormInput<T extends OperationName> =
  */
 export type PathParams<T extends OperationName> =
   T extends keyof OperationDataTypes
-    ? OperationDataTypes[T] extends { path: infer P }
-      ? P extends never ? never : P
+    ? 'path' extends keyof OperationDataTypes[T]
+      ? OperationDataTypes[T] extends { path?: infer P }
+        ? [NonNullable<P>] extends [never]
+          ? never
+          : NonNullable<P>
+        : never
       : never
     : never
 
@@ -522,8 +530,12 @@ export type PathParams<T extends OperationName> =
  */
 export type QueryParams<T extends OperationName> =
   T extends keyof OperationDataTypes
-    ? OperationDataTypes[T] extends { query: infer Q }
-      ? Q extends never ? never : Q
+    ? 'query' extends keyof OperationDataTypes[T]
+      ? OperationDataTypes[T] extends { query?: infer Q }
+        ? [NonNullable<Q>] extends [never]
+          ? never
+          : NonNullable<Q>
+        : never
       : never
     : never
 
@@ -616,14 +628,14 @@ export interface FormState<T extends OperationName> {
 /**
  * Check if an operation has a request body.
  */
-export type HasBody<T extends OperationName> = FormInput<T> extends never ? false : true
+export type HasBody<T extends OperationName> = [FormInput<T>] extends [never] ? false : true
 
 /**
  * Check if an operation has path parameters.
  */
-export type HasPathParams<T extends OperationName> = PathParams<T> extends never ? false : true
+export type HasPathParams<T extends OperationName> = [PathParams<T>] extends [never] ? false : true
 
 /**
  * Check if an operation has query parameters.
  */
-export type HasQueryParams<T extends OperationName> = QueryParams<T> extends never ? false : true
+export type HasQueryParams<T extends OperationName> = [QueryParams<T>] extends [never] ? false : true
