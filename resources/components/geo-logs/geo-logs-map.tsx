@@ -19,9 +19,11 @@ import type { GeoJSONSource, MapLayerMouseEvent } from "maplibre-gl"
 import { FRAME_SURFACE } from "@/components/data/frame"
 import { SignalPanel } from "@/components/data/signal-panel"
 import { dataState } from "@/components/data/types"
+import { useMapStartFailure } from "@/components/map/hooks/useMapStartFailure"
 import { useMapStyle } from "@/components/map/hooks/useMapStyle"
 import { MapAttribution } from "@/components/map/MapAttribution"
 import { MapPopup, type PopupInfo } from "@/components/map/MapPopup"
+import { MapStartFailureNotice } from "@/components/map/MapStartFailureNotice"
 import {
   clusterCountLayer,
   clusterLayer,
@@ -44,6 +46,7 @@ const INITIAL_VIEW_STATE = {
 export default function GeoLogsMap() {
   const mapRef = useRef<MapRef>(null)
   const { mapStyle, transformRequest, ready: mapReady } = useMapStyle()
+  const { failure: mapFailure, onError: onMapError } = useMapStartFailure()
   const { data: geojson, error, isLoading, isError, refetch } = useGeoLogsGeoJSON()
   const [viewState, setViewState] = useState(INITIAL_VIEW_STATE)
   const [popup, setPopup] = useState<PopupInfo | null>(null)
@@ -148,6 +151,7 @@ export default function GeoLogsMap() {
           onMove={onMove}
           onClick={onClick}
           onLoad={fitOnce}
+          onError={onMapError}
           mapStyle={mapStyle}
           transformRequest={transformRequest}
           interactiveLayerIds={["clusters", "unclustered-point"]}
@@ -185,6 +189,7 @@ export default function GeoLogsMap() {
           )}
         </Map>
       </div>
+      {mapFailure && <MapStartFailureNotice failure={mapFailure} />}
     </section>
   )
 }
