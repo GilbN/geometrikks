@@ -124,6 +124,9 @@ def create_vite_config(settings: Settings) -> ViteConfig:
             generate_sdk=True,
             generate_routes=True,
             generate_page_props=True,
+            # Channel types need litestar-asyncapi, which this app does not use;
+            # left on, litestar-vite warns about it on every startup.
+            generate_channels=False,
         ),
         paths=PathConfig(
             resource_dir=Path("resources"),

@@ -537,7 +537,7 @@ requires-dist = [
     { name = "litestar", extras = ["standard", "brotli", "jwt", "structlog", "pydantic"], specifier = ">=2.24.0,<3" },
     { name = "litestar-geoalchemy", specifier = ">=0.3.0" },
     { name = "litestar-granian", specifier = ">=0.16.0" },
-    { name = "litestar-vite", specifier = ">=0.31.0" },
+    { name = "litestar-vite", specifier = ">=0.32.0" },
     { name = "pydantic-settings", specifier = ">=2.15.0" },
     { name = "python-dotenv", specifier = ">=1.2.3" },
 ]
