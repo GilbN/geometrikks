@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - The Banned IPs map popup can open a decision's alert. Click the scenario name to see the same alert details as on the Security page.
 - `MAP_DEFAULT_VIEW` sets where the map opens, as `latitude,longitude` or `latitude,longitude,zoom`. The zoom defaults to 3. For example, `MAP_DEFAULT_VIEW=71.129982,27.653369,15` opens on northern Norway at zoom 15. `GET /api/v1/settings` returns it as `map.defaultView`.
+- Setup guide for Nginx Proxy Manager in the README.
 
 ### Changed
 

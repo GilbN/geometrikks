@@ -248,6 +248,90 @@ access_log /config/log/nginx/access.log geometrikks_json;
 LOGPARSER_LOG_PATHS=["/var/log/access/access.log", "/var/log/access/somepage/access.log"]
 ```
 
+### Nginx Proxy Manager
+
+Nginx Proxy Manager writes each proxy host's log in its own `proxy`
+format. That format has no request time, upstream time, protocol, remote
+user or raw request line, and GeoMetrikks does not parse it. NPM can write
+a second log next to its own, though, through its
+[custom nginx configuration](https://nginxproxymanager.com/advanced-config/#custom-nginx-configurations)
+files. Point that second log at the JSON format above. NPM's own logs stay
+as they are.
+
+The `/data/...` paths below are inside the NPM container. With the usual
+`./data:/data` mount, `/data/nginx/custom/http_top.conf` is
+`./data/nginx/custom/http_top.conf` on the host.
+
+1. Copy the `log_format geometrikks_json` block from
+   [Nginx setup](#nginx-setup) into `/data/nginx/custom/http_top.conf`.
+   NPM includes this file at the top of the `http` block, before it loads
+   the proxy hosts. If the file already exists, for example with the
+   realip lines from [docs/proxy-setup.md](docs/proxy-setup.md#nginx-proxy-manager),
+   append the block. Define it once.
+
+2. Turn the log on. For every proxy host, put this line in
+   `/data/nginx/custom/server_proxy.conf`:
+
+   ```nginx
+   access_log /data/logs/geometrikks_access.log geometrikks_json;
+   ```
+
+   NPM includes that file in every proxy host's `server` block, so hosts
+   you add later log there too. To log only some hosts, leave
+   `server_proxy.conf` alone and paste the same line into each host's
+   Advanced tab, under Custom Nginx Configuration. Pick one of the two for
+   a given host. With both, nginx writes every request twice.
+
+   Keep the JSON in its own file. Pointing it at NPM's
+   `proxy-host-*_access.log` puts two formats in one file. Don't put
+   `access_log off;` in front of the line either: `off` cancels every
+   `access_log` at that level, this one included.
+
+3. Check the config and reload nginx inside the NPM container:
+
+   ```bash
+   docker exec <npm-container> sh -c 'nginx -t && nginx -s reload'
+   ```
+
+   Open one of your sites, and its requests show up in
+   `data/logs/geometrikks_access.log`.
+
+4. Point GeoMetrikks at the file in `.env`:
+
+   ```env
+   ACCESS_LOG_DIR=/path/to/npm/data/logs
+   LOGPARSER_LOG_PATHS=/var/log/access/geometrikks_access.log
+   LOGPARSER_LOG_FORMATS=geometrikks-json
+   ```
+
+   Run `docker compose up -d` to recreate the container with the new mount.
+   `docker compose restart` keeps the old one.
+
+Every proxy host shares the one file. Each line carries `host`, so the host
+filter still tells them apart. NPM's logrotate rule matches
+`/data/logs/*_access.log`, so this file rotates weekly along with NPM's
+own logs.
+
+What the log leaves out:
+
+- **Cache Assets.** On a host with Cache Assets on, NPM serves CSS, JS,
+  images and fonts from a location that sets
+  [`access_log off`](https://github.com/NginxProxyManager/nginx-proxy-manager/blob/develop/docker/rootfs/etc/nginx/conf.d/include/assets.conf#L28).
+  Those requests never reach any log, so GeoMetrikks never sees them. NPM
+  adds the same location inside each custom location on that host. Turn
+  Cache Assets off on the hosts where you want that traffic counted.
+- **Other host types.** `server_proxy.conf` covers proxy hosts only.
+  Redirection hosts, 404 hosts and the default site don't write to this
+  log. NPM has separate snippet files for redirection and 404 hosts
+  (`server_redirect.conf`, `server_dead.conf`), but this setup has only
+  been tested on proxy hosts. TCP and UDP streams are not HTTP and this
+  format doesn't apply to them.
+- **Visitor address.** Behind Cloudflare or another proxy, `$remote_addr`
+  is that proxy's address, and the map shows its datacenter. Add the
+  realip lines from
+  [docs/proxy-setup.md](docs/proxy-setup.md#nginx-proxy-manager) to the
+  same `http_top.conf`.
+
 ## Traefik setup
 
 GeoMetrikks parses Traefik JSON access logs. Traefik logs to stdout by
@@ -1163,7 +1247,9 @@ Point `ACCESS_LOG_DIR` at the host directory where the proxy container
 writes its access logs (for Nginx Proxy Manager this is usually its
 `data/logs` volume), and set `LOGPARSER_LOG_PATHS` to the specific
 access-log file(s) inside it, using the *container* path
-(`/var/log/access/...`), not the host path.
+(`/var/log/access/...`), not the host path. NPM's own per-host logs don't
+parse; set up the extra JSON log described under
+[Nginx Proxy Manager](#nginx-proxy-manager) and point at that.
 
 **Permission denied reading my log files?**
 The app container runs as `PUID`:`PGID` (default 1000:1000), and log mounts

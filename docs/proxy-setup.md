@@ -118,17 +118,23 @@ network, and a Tunnel never connects from it.
 
 ## Nginx Proxy Manager
 
-Nginx Proxy Manager has no per-host slot for realip directives, so they go
-in a global custom snippet. Create `/data/nginx/custom/http_top.conf` on
-the host running NPM (the file loads into the `http` block automatically;
-NPM does not need a restart flag, just a restart) with the same lines as
-above:
+Put the realip directives in `/data/nginx/custom/http_top.conf`, a path
+inside the NPM container. NPM includes that file at the top of the `http`
+block, so the lines apply to every host. It is the same file that holds
+the `geometrikks_json` format from the README's Nginx Proxy Manager
+section; append to it rather than replacing it.
 
 ```nginx
 set_real_ip_from 173.245.48.0/20;
 # ... the rest of your proxy's ranges
 real_ip_header X-Forwarded-For;
 real_ip_recursive on;
+```
+
+Then reload nginx inside the NPM container:
+
+```bash
+docker exec <npm-container> sh -c 'nginx -t && nginx -s reload'
 ```
 
 ## Traefik
