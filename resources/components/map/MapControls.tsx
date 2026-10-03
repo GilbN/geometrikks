@@ -4,8 +4,9 @@
  * The mobile drawer puts Filters last.
  * Toggles are switch rows rather than buttons so it fits without scrolling.
  * Desktop: a collapsible MapOverlay docked top-right.
- * Mobile: a trigger button portaled into the top header bar (next to the
- * time-range toolbar) that opens a bottom drawer with the same sections.
+ * Phone (portrait, or landscape up to 500px tall): a trigger button portaled
+ * into the top header bar (next to the time-range toolbar) that opens a
+ * drawer with the same sections, from the bottom or, in landscape, the side.
  */
 
 import { useEffect, useState } from "react"
@@ -31,7 +32,7 @@ import {
 } from "@/components/ui/drawer"
 import { InspectIpButton } from "@/components/ip-inspector/inspect-ip-button"
 import { CountryFlag } from "@/components/country-flag"
-import { useIsMobile } from "@/hooks/use-mobile"
+import { useIsPhone, usePhoneSheetDirection } from "@/hooks/use-mobile"
 import { FilterCombobox } from "@/components/ui/filter-combobox"
 import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -254,7 +255,8 @@ export function MapControls({
   const activeFilterCount =
     (selectedCountries.length ? 1 : 0) + (selectedCities.length ? 1 : 0) + (selectedSources.length ? 1 : 0)
   const [drawerOpen, setDrawerOpen] = useState(false)
-  const isMobile = useIsMobile()
+  const isPhone = useIsPhone()
+  const sheetDirection = usePhoneSheetDirection()
 
   // The header slot only exists after the root layout commits, so resolve it
   // post-mount rather than during render.
@@ -271,7 +273,7 @@ export function MapControls({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-auto min-w-44">
-        {isMobile && (
+        {isPhone && (
           <DropdownMenuItem onSelect={onFitBounds} disabled={isLoading || !hasMapData}>
             <Maximize2 className="h-4 w-4" />
             Fit to data bounds
@@ -283,7 +285,7 @@ export function MapControls({
             Go to home location
           </DropdownMenuItem>
         )}
-        {(isMobile || (routeHomeAvailable && onGoHome)) && <DropdownMenuSeparator />}
+        {(isPhone || (routeHomeAvailable && onGoHome)) && <DropdownMenuSeparator />}
         <DropdownMenuCheckboxItem
           checked={frameRateEnabled}
           onCheckedChange={onFrameRateChange}
@@ -319,7 +321,7 @@ export function MapControls({
         selected={selectedCountries}
         onChange={onCountriesChange}
         labelFor={(code) => countryLabels?.[code] ?? code}
-        forceInline={isMobile}
+        forceInline={isPhone}
         className="w-full justify-between"
       />
       <FilterCombobox
@@ -327,7 +329,7 @@ export function MapControls({
         options={cityOptions}
         selected={selectedCities}
         onChange={onCitiesChange}
-        forceInline={isMobile}
+        forceInline={isPhone}
         className="w-full justify-between"
       />
       {(sourceOptions.length >= 2 || selectedSources.length > 0) && (
@@ -338,7 +340,7 @@ export function MapControls({
           onChange={onSourcesChange}
           loading={sourcesLoading}
           emptyText="No sources recorded"
-          forceInline={isMobile}
+          forceInline={isPhone}
           className="w-full justify-between"
         />
       )}
@@ -360,7 +362,7 @@ export function MapControls({
   )
 
   // The control sections are shared between the desktop top-right panel and the
-  // mobile bottom drawer so there is a single source of truth for the controls.
+  // phone drawer so there is a single source of truth for the controls.
   const sections = (
     <>
       <Section label="Visualization">
@@ -422,10 +424,9 @@ export function MapControls({
             title="Show a beacon at the server home location"
           />
         )}
-        {/* The rail only mounts at md and up; below that the vitals pill is the
-            sole entry point into live data, so this switch would control
-            nothing. */}
-        {liveMode && !isMobile && (
+        {/* The rail never mounts on a phone, where the vitals pill is the sole
+            entry point into live data, so this switch would control nothing. */}
+        {liveMode && !isPhone && (
           <SwitchRow
             icon={Activity}
             label="Live rail"
@@ -435,7 +436,7 @@ export function MapControls({
         )}
       </Section>
 
-      {!isMobile && filtersSection}
+      {!isPhone && filtersSection}
 
       <Section>
         <div className="flex flex-col gap-0.5 text-xs text-muted-foreground">
@@ -495,16 +496,17 @@ export function MapControls({
           </div>
         </Section>
       )}
-      {isMobile && filtersSection}
+      {isPhone && filtersSection}
     </>
   )
 
-  // Mobile: a trigger in the top header bar (same icon as the desktop panel
-  // toggle) opens a bottom drawer. Portaled into the header's action slot so
-  // it sits with the toolbar buttons instead of floating over the map.
-  if (isMobile) {
+  // Phone: a trigger in the top header bar (same icon as the desktop panel
+  // toggle) opens a drawer, from the bottom or, in landscape, the side.
+  // Portaled into the header's action slot so it sits with the toolbar
+  // buttons instead of floating over the map.
+  if (isPhone) {
     return (
-      <Drawer open={drawerOpen} onOpenChange={setDrawerOpen}>
+      <Drawer open={drawerOpen} onOpenChange={setDrawerOpen} direction={sheetDirection}>
         {headerSlot && createPortal(
           <DrawerTrigger asChild>
             <Button

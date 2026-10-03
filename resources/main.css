@@ -14,6 +14,9 @@
 }
 
 @custom-variant dark (&:is(.dark *));
+/* A phone on its side: wider than md, too short for the desktop layout.
+   Keep in step with PHONE_LANDSCAPE_QUERY in hooks/use-mobile.ts. */
+@custom-variant phone-landscape (@media (max-height: 500px) and (pointer: coarse));
 
 @theme inline {
   --radius-sm: calc(var(--radius) - 4px);

@@ -72,7 +72,7 @@ import {
 } from "@/lib/map-preferences"
 import { LiveTrafficProvider, useLiveTrafficStore } from "@/lib/live-traffic/context"
 import type { LiveRequest } from "@/lib/live-traffic/types"
-import { isMobileViewport, useIsMobile } from "@/hooks/use-mobile"
+import { isPhoneViewport, useIsPhone } from "@/hooks/use-mobile"
 import { MAPLIBRE_WORKER_URL } from "@/lib/maplibre-worker"
 
 export type LayerType = "heatmap" | "markers" | "banned"
@@ -162,7 +162,7 @@ function GeoMapInner({
   const demoTrafficMode = getDemoTrafficMode()
   const mapRef = useRef<MapRef>(null)
   const { mapStyle, transformRequest, ready: mapReady } = useMapStyle()
-  const isMobile = useIsMobile()
+  const isPhone = useIsPhone()
   const search = useSearch({ from: "/map" })
   const navigate = useNavigate({ from: "/map" })
   const { filters, setFilters } = useUrlFilters({
@@ -438,9 +438,9 @@ function GeoMapInner({
       size: { width: rect?.width ?? 0, height: rect?.height ?? 0 },
       padding: {
         top: FIT_PADDING,
-        // Not useIsMobile, which reads false on the first render. With both
+        // Not useIsPhone, which reads false on the first render. With both
         // queries cached, this effect resolves the view in that same render.
-        right: FIT_PADDING + (isMobileViewport() ? 0 : DESKTOP_CONTROLS_INSET),
+        right: FIT_PADDING + (isPhoneViewport() ? 0 : DESKTOP_CONTROLS_INSET),
         bottom: FIT_PADDING,
         left: FIT_PADDING,
       },
@@ -925,19 +925,19 @@ function GeoMapInner({
         showFlyTo={false}
       />
 
-      {liveMode && !isMobile && liveOverlays.rail && (
+      {liveMode && !isPhone && liveOverlays.rail && (
         <LiveRail onSelect={handleLiveSelect} />
       )}
 
       {/* Mobile: the vitals pill is the only way into the feed, so it mounts
           whenever live mode is on regardless of the desktop overlay preference. */}
-      {liveMode && isMobile && (
-        <div className="pointer-events-none absolute left-4 top-4 z-10">
+      {liveMode && isPhone && (
+        <div className="pointer-events-none absolute left-[max(1rem,env(safe-area-inset-left))] top-[max(1rem,env(safe-area-inset-top))] z-10">
           <LiveVitalsPill onOpenFeed={() => setFeedOpen(true)} />
         </div>
       )}
 
-      {liveMode && isMobile && (
+      {liveMode && isPhone && (
         <LiveFeedSheet open={feedOpen} onOpenChange={setFeedOpen} onSelect={selectFromFeed} />
       )}
 

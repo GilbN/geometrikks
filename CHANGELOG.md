@@ -18,6 +18,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Removed the recursive `chown` over `/app` in the Dockerfile. Freed up around 280 MB from the image and builds faster.
 - The image build runs `vite build` without the TypeScript typecheck that `bun run build` adds. CI still typechecks the frontend.
 
+### Fixed
+
+- On a phone in landscape, the map showed the desktop controls panel and live rail, which covered most of the screen. It now uses the phone layout. Map controls open from the header button and the live feed opens from the live pill. In landscape both slide in from the side at full height and keep clear of the notch, and the live feed sits beside its summary so the list gets the full height. Tablets keep the desktop layout.
+
 ## [0.19.0] - 2026-09-27
 
 ### Added

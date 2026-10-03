@@ -68,16 +68,16 @@ function AppBreadcrumb() {
   return (
     <Breadcrumb className="min-w-0 flex-1">
       <BreadcrumbList className="min-w-0 flex-nowrap overflow-hidden">
-        <BreadcrumbItem className="hidden md:block">
+        <BreadcrumbItem className="hidden md:block phone-landscape:hidden">
           <BreadcrumbLink href="/">GeoMetrikks</BreadcrumbLink>
         </BreadcrumbItem>
-        <BreadcrumbSeparator className="hidden md:block" />
+        <BreadcrumbSeparator className="hidden md:block phone-landscape:hidden" />
         {isSettingsChild && (
           <>
-            <BreadcrumbItem className="hidden md:block">
+            <BreadcrumbItem className="hidden md:block phone-landscape:hidden">
               <BreadcrumbLink href="/settings">Settings</BreadcrumbLink>
             </BreadcrumbItem>
-            <BreadcrumbSeparator className="hidden md:block" />
+            <BreadcrumbSeparator className="hidden md:block phone-landscape:hidden" />
           </>
         )}
         <BreadcrumbItem className="min-w-0">
