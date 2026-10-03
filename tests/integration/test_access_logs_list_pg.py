@@ -59,6 +59,17 @@ async def _insert(
         await session.commit()
 
 
+async def _refresh_facets_cagg(engine, cagg: str) -> None:
+    # Facets read every bucket, not just the seeded day, so stale buckets an
+    # earlier test or a policy run materialized anywhere in history leak in.
+    # The window must also inscribe a whole daily bucket: a refresh of
+    # [NOW-1d, NOW+1h) is rejected as "refresh window too small" and wipes nothing.
+    failed = await refresh_caggs_range(
+        engine, start=NOW - timedelta(days=365), end=NOW, caggs=[cagg]
+    )
+    assert failed == []
+
+
 def _window() -> OnBeforeAfter:
     return OnBeforeAfter("timestamp", on_or_after=NOW - timedelta(hours=6), on_or_before=NOW)
 
@@ -201,15 +212,7 @@ async def test_get_facets_distinct_sorted_and_null_free(pg_session_maker, pg_eng
                   country_code="SE", country_name="Sweden", city="Stockholm")
     await _insert(pg_session_maker, ts, "10.0.0.4")
 
-    # Facets now read log_ip_daily_stats: refresh the window so stale
-    # materialized buckets from earlier tests are wiped (clean_tables only
-    # DELETEs raw rows) and the fresh seeds are materialized.
-    await refresh_caggs_range(
-        pg_engine,
-        start=NOW - timedelta(days=1),
-        end=NOW + timedelta(hours=1),
-        caggs=["log_ip_daily_stats"],
-    )
+    await _refresh_facets_cagg(pg_engine, "log_ip_daily_stats")
 
     async with pg_session_maker() as session:
         facets = await AccessLogService(session=session).get_facets()
@@ -224,15 +227,7 @@ async def test_get_facets_dedupes_by_code_preferring_non_null_name(pg_session_ma
     await _insert(pg_session_maker, ts, "10.0.0.1", country_code="NO")
     await _insert(pg_session_maker, ts, "10.0.0.2", country_code="NO", country_name="Norway")
 
-    # Facets now read log_ip_daily_stats: refresh the window so stale
-    # materialized buckets from earlier tests are wiped (clean_tables only
-    # DELETEs raw rows) and the fresh seeds are materialized.
-    await refresh_caggs_range(
-        pg_engine,
-        start=NOW - timedelta(days=1),
-        end=NOW + timedelta(hours=1),
-        caggs=["log_ip_daily_stats"],
-    )
+    await _refresh_facets_cagg(pg_engine, "log_ip_daily_stats")
 
     async with pg_session_maker() as session:
         facets = await AccessLogService(session=session).get_facets()
@@ -243,15 +238,7 @@ async def test_get_facets_dedupes_by_code_preferring_non_null_name(pg_session_ma
 async def test_get_facets_falls_back_to_code_when_name_missing(pg_session_maker, pg_engine, clean_tables) -> None:
     await _insert(pg_session_maker, NOW - timedelta(hours=1), "10.0.0.5", country_code="DE")
 
-    # Facets now read log_ip_daily_stats: refresh the window so stale
-    # materialized buckets from earlier tests are wiped (clean_tables only
-    # DELETEs raw rows) and the fresh seeds are materialized.
-    await refresh_caggs_range(
-        pg_engine,
-        start=NOW - timedelta(days=1),
-        end=NOW + timedelta(hours=1),
-        caggs=["log_ip_daily_stats"],
-    )
+    await _refresh_facets_cagg(pg_engine, "log_ip_daily_stats")
 
     async with pg_session_maker() as session:
         facets = await AccessLogService(session=session).get_facets()
@@ -284,14 +271,7 @@ async def test_facets_lists_distinct_hosts(pg_engine, pg_session_maker, clean_ta
     await _insert(pg_session_maker, NOW - timedelta(hours=1), "10.0.0.1", host="b.example.com")
     await _insert(pg_session_maker, NOW - timedelta(hours=1), "10.0.0.2", host="a.example.com")
     await _insert(pg_session_maker, NOW - timedelta(hours=1), "10.0.0.3", host="b.example.com")
-    # Hosts now read host_daily_stats: refresh the window so stale materialized
-    # buckets from earlier tests are wiped (clean_tables only DELETEs raw rows).
-    await refresh_caggs_range(
-        pg_engine,
-        start=NOW - timedelta(days=1),
-        end=NOW + timedelta(hours=1),
-        caggs=["host_daily_stats"],
-    )
+    await _refresh_facets_cagg(pg_engine, "host_daily_stats")
     async with pg_session_maker() as session:
         facets = await AccessLogService(session=session).get_facets()
     # Deduped and alphabetical.
@@ -310,15 +290,7 @@ async def test_facets_lists_distinct_hostnames_and_log_formats(
         hostname="otherserver", log_format="traefik-json",
     )
     await _insert(pg_session_maker, NOW - timedelta(hours=1), "10.0.0.3")
-    # Hostnames/log formats read log_source_daily_stats: refresh the window so
-    # stale materialized buckets from earlier tests are wiped (clean_tables
-    # only DELETEs raw rows).
-    await refresh_caggs_range(
-        pg_engine,
-        start=NOW - timedelta(days=1),
-        end=NOW + timedelta(hours=1),
-        caggs=["log_source_daily_stats"],
-    )
+    await _refresh_facets_cagg(pg_engine, "log_source_daily_stats")
     async with pg_session_maker() as session:
         facets = await AccessLogService(session=session).get_facets()
     # Deduped, alphabetical, NULLs excluded.
