@@ -20,7 +20,7 @@ def _parsed(ts: datetime) -> ParsedAccessLog:
 
 def test_to_access_log_model_stamps_hostname_and_format() -> None:
     service = LogIngestionService(
-        parsers=[], session_maker=cast("Any", None), geoip_path="unused", hostname="myserver",
+        inputs=[], session_maker=cast("Any", None), geoip_path="unused", hostname="myserver",
     )
     model = service._to_access_log_model(
         _parsed(datetime.now(timezone.utc)), log_format="traefik-json"
@@ -32,7 +32,7 @@ def test_to_access_log_model_stamps_hostname_and_format() -> None:
 
 def test_to_access_log_model_record_hostname_wins() -> None:
     service = LogIngestionService(
-        parsers=[], session_maker=cast("Any", None), geoip_path="unused", hostname="myserver",
+        inputs=[], session_maker=cast("Any", None), geoip_path="unused", hostname="myserver",
     )
     model = service._to_access_log_model(
         _parsed(datetime.now(timezone.utc)), log_format="nginx", hostname="vps-2"
@@ -42,7 +42,7 @@ def test_to_access_log_model_record_hostname_wins() -> None:
 
 def test_to_access_log_model_empty_hostname_falls_back() -> None:
     service = LogIngestionService(
-        parsers=[], session_maker=cast("Any", None), geoip_path="unused", hostname="myserver",
+        inputs=[], session_maker=cast("Any", None), geoip_path="unused", hostname="myserver",
     )
     model = service._to_access_log_model(
         _parsed(datetime.now(timezone.utc)), log_format="nginx", hostname=None
@@ -53,7 +53,7 @@ def test_to_access_log_model_empty_hostname_falls_back() -> None:
 @pytest.mark.anyio
 async def test_process_record_stamps_record_hostname_on_geo_event() -> None:
     service = LogIngestionService(
-        parsers=[], session_maker=cast("Any", None), geoip_path="unused", hostname="myserver",
+        inputs=[], session_maker=cast("Any", None), geoip_path="unused", hostname="myserver",
     )
     geo = ParsedGeoData(
         latitude=51.5, longitude=-0.1, geohash="gcpvj0", country_code="GB",
@@ -76,7 +76,7 @@ async def test_process_record_stamps_record_hostname_on_geo_event() -> None:
 @pytest.mark.anyio
 async def test_process_record_stamps_asn_on_geo_event() -> None:
     service = LogIngestionService(
-        parsers=[], session_maker=cast("Any", None), geoip_path="unused", hostname="myserver",
+        inputs=[], session_maker=cast("Any", None), geoip_path="unused", hostname="myserver",
     )
     geo = ParsedGeoData(
         latitude=51.5, longitude=-0.1, geohash="gcpvj0", country_code="GB",
@@ -97,7 +97,7 @@ async def test_process_record_stamps_asn_on_geo_event() -> None:
 @pytest.mark.anyio
 async def test_process_record_leaves_asn_null_when_unresolved() -> None:
     service = LogIngestionService(
-        parsers=[], session_maker=cast("Any", None), geoip_path="unused", hostname="myserver",
+        inputs=[], session_maker=cast("Any", None), geoip_path="unused", hostname="myserver",
     )
     geo = ParsedGeoData(
         latitude=51.5, longitude=-0.1, geohash="gcpvj0", country_code="GB",

@@ -1,13 +1,7 @@
-from collections.abc import AsyncGenerator, Callable
-import os
-import time
-import asyncio
+from collections.abc import Callable
 from functools import lru_cache
 from ipaddress import ip_address as parse_ip_address, ip_network
-from pathlib import Path
 
-import aiofiles.os
-import aiofiles
 from geoip2.database import Reader
 from geoip2.models import ASN, City
 from geohash2 import encode
@@ -19,7 +13,6 @@ from .formats.base import LogLineFormat, NormalizedLine
 from .peer_window import PeerSummary, PeerWindow
 from .schemas import ParsedLogRecord, ParsedGeoData, ParsedAccessLog
 from geometrikks.domain.analytics.cdn_asns import CDN_ASNS
-from geometrikks.lib.utils import retries_disabled, sleep_unless_stopped
 from geometrikks.server.logging import get_logger
 
 
@@ -117,22 +110,20 @@ def make_cached_ignore_check(ignore_ips: list[str]) -> Callable[[str], bool]:
 
 
 class LogParser:
-    """Tails access logs, parses lines via a pluggable format adapter, and performs GeoIP lookups.
+    """Parses access-log lines via a pluggable format adapter and performs GeoIP lookups.
 
-    Log parser module for tailing and parsing access logs.
-
-    This module handles:
-    - Tailing access logs asynchronously
+    This class handles:
     - Parsing log lines through a format adapter (nginx, traefik-json, ...)
     - Performing GeoIP lookups
     - Detecting malformed requests (TLS probes, SSH scans, etc.)
+
+    Where the lines come from is a LogSource's job (services/logsources).
     """
 
     def __init__(
         self,
-        log_path: Path,
+        source_label: str,
         send_logs: bool = False,
-        poll_interval: float = 1.0,
         hostname: str = "",
         ignore_ips: list[str] | None = None,
         log_format: str = "auto",
@@ -141,9 +132,9 @@ class LogParser:
         """I'm here to parse ass and kick logs, and I'm all out of logs...
 
         Args:
-            log_path (Path): The path to the log file.
+            source_label (str): Label of the source the lines come from (a file
+                path for a tailed file). Stamped onto records and log events.
             send_logs (bool, optional): If True, parse full access log data. Defaults to False.
-            poll_interval (float, optional): How often to check for new log lines. Defaults to 1.0.
             hostname (str, optional): Source hostname stamped onto parsed
                 records. Empty (default): the ingestion service's fallback
                 hostname applies.
@@ -154,9 +145,8 @@ class LogParser:
                 the logged peer address (client vs. proxy upstream vs. CDN
                 edge). None: peer classification off (APP_PROXY_ADVISORY=false).
         """
-        self.log_path: Path = log_path
+        self.source_label: str = source_label
         self.send_logs: bool = send_logs
-        self.poll_interval: int | float = poll_interval
         self.hostname: str = hostname
         self.ignore_ips: list[str] = ignore_ips or []
         self._is_ignored: Callable[[str], bool] = make_cached_ignore_check(self.ignore_ips)
@@ -174,50 +164,11 @@ class LogParser:
         self.skipped_lines: int = 0
         self.ignored_lines: int = 0
 
-        # True while the configured file is absent. This is surfaced through
-        # LogIngestionService.missing_files into /health.
-        self.file_missing: bool = False
-
-        # Stop event for graceful shutdown (set by ingestion service)
-        self._stop_event: asyncio.Event | None = None
-
-        logger.debug("Log file path: %s", self.log_path)
+        logger.debug("Log source: %s", self.source_label)
         logger.debug("Send access logs: %s", self.send_logs)
         logger.debug("Hostname: %s", self.hostname)
         if self.ignore_ips:
             logger.info("Ignoring traffic from: %s", ", ".join(self.ignore_ips))
-
-    def set_stop_event(self, event: asyncio.Event) -> None:
-        """Set the stop event for graceful shutdown."""
-        self._stop_event = event
-
-    def mark_missing(self) -> None:
-        """Flag the file as absent and expose it through health status."""
-        if not self.file_missing:
-            logger.error(
-                "Log file does not exist: %s - waiting for it to appear", self.log_path
-            )
-            self.file_missing = True
-
-    def mark_present(self) -> None:
-        """Clear the missing flag, logging the recovery once."""
-        if self.file_missing:
-            logger.info("Log file reappeared, resuming tail: %s", self.log_path)
-            self.file_missing = False
-
-    def _mark_file_missing(self, err: OSError) -> None:
-        """Record a mid-flight absence with the operating system error."""
-        if not self.file_missing:
-            logger.error(
-                "Log file no longer exists or cannot be read: %s - "
-                "waiting for it to reappear (%s)",
-                self.log_path,
-                err,
-            )
-            self.file_missing = True
-
-    def _mark_file_present(self) -> None:
-        self.mark_present()
 
     def parsed_lines_count(self) -> int:
         """Return the number of parsed lines."""
@@ -251,7 +202,7 @@ class LogParser:
             return
         self.format = sniffed.format
         logger.info(
-            "log_format_detected", path=str(self.log_path), format=sniffed.format.name
+            "log_format_detected", path=self.source_label, format=sniffed.format.name
         )
         if sniffed.geo_only and self.send_logs:
             # Only the relaxed ip+timestamp pattern matched, so a full parse
@@ -262,7 +213,7 @@ class LogParser:
             logger.warning(
                 "Log file %s matched %s only on its geo-only pattern. "
                 "Streaming without access log objects.",
-                self.log_path,
+                self.source_label,
                 sniffed.format.name,
             )
 
@@ -273,27 +224,8 @@ class LogParser:
             return None
         return self.format.parse(log_line, geo_only=not self.send_logs)
 
-    def validate_log_format(self, log_path: Path) -> bool:  # regex tester
-        """Validate the log format once by checking the last 3 lines.
-
-        Blocking (opens and reads the file); callers on the event loop go
-        through ``await_valid_log_format`` instead of calling this directly.
-        """
-        LAST_LINE_COUNT = 3
-        position = LAST_LINE_COUNT + 1
-        log_lines_capture: list[str] = []
-        lines = []
-        with open(log_path, "r", encoding="utf-8", errors="replace") as f:
-            while len(log_lines_capture) <= LAST_LINE_COUNT:
-                try:
-                    f.seek(-position, os.SEEK_END)  # Move to the last line
-                except (IOError, OSError):
-                    f.seek(os.SEEK_SET)  # Start of file
-                    break
-                finally:
-                    log_lines_capture = list(f)  # Read all lines from the current position
-                position *= 2  # Double the position to read more lines
-        lines = log_lines_capture[-LAST_LINE_COUNT:]  # Get the last 3 lines
+    def lock_format_from(self, lines: list[str]) -> bool:
+        """Lock the format from sample lines; True when one of them parses."""
         self._lock_format(lines)
         for line in lines:
             if self.validate_log_line(line):
@@ -301,50 +233,6 @@ class LogParser:
                 return True
         logger.debug("Testing log format")
         return False
-
-    async def await_valid_log_format(
-        self,
-        timeout_seconds: float = 60.0,
-        check_interval: float = 1.0,
-    ) -> bool:
-        """Retry the format check until it passes, times out, or a stop is requested.
-
-        Each attempt offloads the blocking file read to a worker thread, but
-        the waiting between attempts happens here on the event loop. A thread
-        handed to ``asyncio.to_thread`` cannot be cancelled, so retrying
-        inside the thread (the previous behaviour) kept the process busy for
-        the full timeout after shutdown had been requested: the awaiting task
-        raised ``CancelledError`` immediately while the thread kept sleeping,
-        and the interpreter could not finish exiting until it returned. This
-        is reachable whenever the configured log file exists but is empty or
-        in an unrecognised format, which is the normal state of a fresh
-        install before the web server writes its first line.
-
-        Args:
-            timeout_seconds: Maximum seconds to keep retrying.
-            check_interval: Seconds between attempts.
-
-        Returns:
-            True if the format validated, False on timeout or stop request.
-        """
-        if retries_disabled():
-            return await asyncio.to_thread(self.validate_log_format, self.log_path)
-
-        deadline = time.monotonic() + timeout_seconds
-        while True:
-            if self._stop_event and self._stop_event.is_set():
-                return False
-            if await asyncio.to_thread(self.validate_log_format, self.log_path):
-                return True
-            if time.monotonic() >= deadline:
-                logger.error(
-                    "Timeout of %.0f seconds reached validating the log format of %s",
-                    timeout_seconds,
-                    self.log_path,
-                )
-                return False
-            if await sleep_unless_stopped(check_interval, self._stop_event):
-                return False
 
     def parse_line(
         self,
@@ -381,7 +269,7 @@ class LogParser:
                 raw_line=raw_line,
                 is_malformed=True,
                 parse_error="Line did not match expected log format",
-                source=str(self.log_path),
+                source=self.source_label,
                 log_format=self.format.name if self.format else None,
                 hostname=self.hostname,
             )
@@ -426,51 +314,10 @@ class LogParser:
             raw_line=raw_line,
             is_malformed=is_malformed,
             parse_error=parse_error,
-            source=str(self.log_path),
+            source=self.source_label,
             log_format=self.format.name if self.format else None,
             hostname=self.hostname,
         )
-
-    async def _is_rotated_async(self, prev_stat: os.stat_result) -> bool:
-        """Check if the log file was rotated.
-
-        Detects rotation via:
-        - Inode change (file replaced)
-        - Size decrease of >=99% (file truncated)
-        """
-        if os.getenv("DISABLE_ROTATION_CHECK", "false").lower() == "true":
-            return False
-        try:
-            new_stat = await aiofiles.os.stat(self.log_path)
-        except OSError as e:
-            # Deleted/moved mid-tail: log once, keep polling. When the file
-            # reappears the inode-change branch below reopens it.
-            self._mark_file_missing(e)
-            return False
-        self._mark_file_present()
-
-        # Inode changed
-        if new_stat.st_ino != prev_stat.st_ino:
-            logger.info(
-                "Log file inode changed: %s -> %s", prev_stat.st_ino, new_stat.st_ino
-            )
-            return True
-
-        # Size decreased by >=99%
-        if new_stat.st_size < prev_stat.st_size and prev_stat.st_size > 0:
-            decrease_pct = (
-                (prev_stat.st_size - new_stat.st_size) / prev_stat.st_size
-            ) * 100.0
-            if decrease_pct >= 99.0:
-                logger.info(
-                    "Log file rotated (size: %d -> %d, decrease=%.1f%%)",
-                    prev_stat.st_size,
-                    new_stat.st_size,
-                    decrease_pct,
-                )
-                return True
-
-        return False
 
     def _parse_geo_data(
         self,
@@ -616,106 +463,10 @@ class LogParser:
             logger.warning(
                 "proxy_peer_detected" if t.active else "proxy_peer_cleared",
                 hostname=self.hostname,
-                path=str(self.log_path),
+                path=self.source_label,
                 kind=t.kind,
                 share=round(t.share, 3),
                 lines=t.lines,
                 provider=summary.top_provider if t.kind == "cdn" else None,
                 log_format=self.format.name if self.format else None,
             )
-
-    async def iter_parsed_records(
-        self,
-        reader: Reader,
-        asn_reader: Reader | None = None,
-        *,
-        skip_validation: bool = False,
-        start_at_end: bool = True,
-    ) -> AsyncGenerator[ParsedLogRecord | None, None]:
-        """Async generator that tails the log file and yields ParsedLogRecord objects.
-
-        This is a native async implementation using aiofiles for non-blocking I/O.
-        On log rotation, reopens the file in a loop instead of recursing.
-
-        Args:
-            skip_validation: Skip initial log format validation.
-            start_at_end: If True, seek to end of file (tail -f behavior).
-                          If False, read from beginning.
-
-        Yields:
-            ParsedLogRecord for each log line (matched or unmatched).
-            None when no new line is available (timeout/idle) or the line's
-            IP is on the ignore list.
-        """
-        if not skip_validation:
-            logger.debug("Validating log file format.")
-            valid = await self.await_valid_log_format()
-            if self._stop_event and self._stop_event.is_set():
-                # Stopped while waiting for a parseable line; say nothing about
-                # the format, the tail loop below would exit immediately anyway.
-                return
-            if not valid:
-                if self.log_format_setting == "auto" and self.format is None:
-                    logger.warning(
-                        "Log format not detected yet for %s; will sniff incoming lines",
-                        self.log_path,
-                    )
-                else:
-                    self.send_logs = False
-                    logger.warning(
-                        "Log file format invalid. Streaming without access log objects."
-                    )
-
-        lookup = make_cached_city_lookup(reader)
-        asn_lookup = (
-            make_cached_asn_lookup(asn_reader) if asn_reader is not None else None
-        )
-
-        seek_to_end = start_at_end
-        while not (self._stop_event and self._stop_event.is_set()):
-            # Stat before (re)opening: after a rotation break the new file may
-            # not exist yet, and crashing here would kill the tail task.
-            try:
-                stat_result = await aiofiles.os.stat(self.log_path)
-            except OSError as e:
-                self._mark_file_missing(e)
-                yield None
-                await asyncio.sleep(self.poll_interval)
-                continue
-            self._mark_file_present()
-
-            async with aiofiles.open(
-                self.log_path, "r", encoding="utf-8", errors="replace"
-            ) as file:
-                if seek_to_end:
-                    await file.seek(stat_result.st_size)
-                # After a rotation we always read the new file from the start
-                seek_to_end = False
-
-                logger.info("Streaming log file events (async): %s", self.log_path)
-
-                while not (self._stop_event and self._stop_event.is_set()):
-                    line = await file.readline()
-
-                    if not line:
-                        # No new data; yield None to signal idle
-                        yield None
-                        await asyncio.sleep(self.poll_interval)
-
-                        if await self._is_rotated_async(stat_result):
-                            logger.info(
-                                "Log rotation detected, reopening from start: %s",
-                                self.log_path,
-                            )
-                            break  # close this file; outer loop reopens
-                        continue
-
-                    # Update stat for next rotation check. The file can vanish
-                    # between the read and this stat; keep the previous stat
-                    # and let the idle-path rotation check flag the miss.
-                    try:
-                        stat_result = await aiofiles.os.stat(self.log_path)
-                    except OSError:
-                        pass
-
-                    yield self.parse_line(line, lookup, asn_lookup)

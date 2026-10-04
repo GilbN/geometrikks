@@ -81,7 +81,7 @@ async def test_import_file_parses_batches_and_reports(tmp_path, geoip_reader, mo
     service, FakeRepo, session_maker = _import_deps(tmp_path)
     monkeypatch.setattr(importer, "ImportJobRepository", FakeRepo)
 
-    parser = LogParser(log_path=log, send_logs=True)
+    parser = LogParser(source_label=str(log), send_logs=True)
     result = await importer.import_file(
         log, service=service, parser=parser, reader=geoip_reader,
         session_maker=session_maker, batch_size=2,
@@ -114,7 +114,7 @@ async def test_import_file_skips_known_checksum(tmp_path, geoip_reader, monkeypa
             return MagicMock()  # a prior ImportJob exists
 
     monkeypatch.setattr(importer, "ImportJobRepository", SeenRepo)
-    parser = LogParser(log_path=log, send_logs=True)
+    parser = LogParser(source_label=str(log), send_logs=True)
 
     result = await importer.import_file(
         log, service=service, parser=parser, reader=geoip_reader,
@@ -146,7 +146,7 @@ async def test_import_file_force_updates_existing_job(tmp_path, geoip_reader, mo
             return job
 
     monkeypatch.setattr(importer, "ImportJobRepository", SeenRepo)
-    parser = LogParser(log_path=log, send_logs=True)
+    parser = LogParser(source_label=str(log), send_logs=True)
 
     result = await importer.import_file(
         log, service=service, parser=parser, reader=geoip_reader,
@@ -174,7 +174,7 @@ async def test_import_file_counts_matched_records_only(tmp_path, geoip_reader, m
 
     service, FakeRepo, session_maker = _import_deps(tmp_path)
     monkeypatch.setattr(importer, "ImportJobRepository", FakeRepo)
-    parser = LogParser(log_path=log, send_logs=True)
+    parser = LogParser(source_label=str(log), send_logs=True)
 
     result = await importer.import_file(
         log, service=service, parser=parser, reader=geoip_reader,
@@ -200,7 +200,7 @@ async def test_import_file_ignored_ips_counted_as_skipped(tmp_path, geoip_reader
 
     service, FakeRepo, session_maker = _import_deps(tmp_path)
     monkeypatch.setattr(importer, "ImportJobRepository", FakeRepo)
-    parser = LogParser(log_path=log, send_logs=True, ignore_ips=[TEST_IP])
+    parser = LogParser(source_label=str(log), send_logs=True, ignore_ips=[TEST_IP])
 
     result = await importer.import_file(
         log, service=service, parser=parser, reader=geoip_reader,
@@ -225,7 +225,7 @@ async def test_import_file_aborts_on_unrecognized_format(tmp_path, geoip_reader,
 
     service, FakeRepo, session_maker = _import_deps(tmp_path)
     monkeypatch.setattr(importer, "ImportJobRepository", FakeRepo)
-    parser = LogParser(log_path=log, send_logs=True)
+    parser = LogParser(source_label=str(log), send_logs=True)
 
     with pytest.raises(importer.UnrecognizedLogFormatError):
         await importer.import_file(
@@ -252,7 +252,7 @@ async def test_import_file_geometrikks_json(tmp_path, geoip_reader, monkeypatch)
 
     service, FakeRepo, session_maker = _import_deps(tmp_path)
     monkeypatch.setattr(importer, "ImportJobRepository", FakeRepo)
-    parser = LogParser(log_path=log, send_logs=True, log_format="geometrikks-json")
+    parser = LogParser(source_label=str(log), send_logs=True, log_format="geometrikks-json")
 
     result = await importer.import_file(
         log, service=service, parser=parser, reader=geoip_reader,
@@ -285,7 +285,7 @@ async def test_import_file_caddy_json(tmp_path, geoip_reader, monkeypatch):
 
     service, FakeRepo, session_maker = _import_deps(tmp_path)
     monkeypatch.setattr(importer, "ImportJobRepository", FakeRepo)
-    parser = LogParser(log_path=log, send_logs=True, log_format="caddy-json")
+    parser = LogParser(source_label=str(log), send_logs=True, log_format="caddy-json")
 
     result = await importer.import_file(
         log, service=service, parser=parser, reader=geoip_reader,
@@ -313,7 +313,7 @@ async def test_import_file_traefik_pinned_to_caddy_json_is_rejected(tmp_path, ge
 
     service, FakeRepo, session_maker = _import_deps(tmp_path)
     monkeypatch.setattr(importer, "ImportJobRepository", FakeRepo)
-    parser = LogParser(log_path=log, send_logs=True, log_format="caddy-json")
+    parser = LogParser(source_label=str(log), send_logs=True, log_format="caddy-json")
 
     with pytest.raises(importer.UnrecognizedLogFormatError):
         await importer.import_file(
@@ -337,7 +337,7 @@ async def test_import_file_traefik_pinned_to_geometrikks_json_is_rejected(tmp_pa
 
     service, FakeRepo, session_maker = _import_deps(tmp_path)
     monkeypatch.setattr(importer, "ImportJobRepository", FakeRepo)
-    parser = LogParser(log_path=log, send_logs=True, log_format="geometrikks-json")
+    parser = LogParser(source_label=str(log), send_logs=True, log_format="geometrikks-json")
 
     with pytest.raises(importer.UnrecognizedLogFormatError):
         await importer.import_file(

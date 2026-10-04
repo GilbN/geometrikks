@@ -22,6 +22,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - The map and the Geo Logs spatial preview say so when the browser cannot start WebGL2, which the map needs. They used to stay blank and log the error only to the browser console. The message includes the browser's own reason when it gives one. The rest of the page keeps working.
+- A pinned log format (`LOGPARSER_LOG_FORMATS`) no longer turns off access-log storage when the log file is still empty 60 seconds after startup. This hit fresh installs before the proxy wrote its first line, and lasted until a restart.
+- Log lines written while a GeoLite2 database refresh is applied are no longer lost.
 
 ## [0.19.0] - 2026-09-27
 

@@ -12,6 +12,7 @@ Analytics aggregation is handled automatically by TimescaleDB continuous aggrega
 """
 from __future__ import annotations
 import asyncio
+import enum
 import os
 import time
 from collections.abc import Callable
@@ -20,7 +21,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-import aiofiles.os
 from geoip2.database import Reader
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -34,8 +34,10 @@ from geometrikks.domain.realtime.events import LIVE_EVENTS_CHANNEL, encode_guard
 from geometrikks.services.logparser.schemas import ParsedLogRecord, ParsedGeoData, ParsedAccessLog
 from geometrikks.services.logparser.constants import ALLOWED_GEOIP_LOCALES, GEOIP_LOCALES_DEFAULT
 from geometrikks.services.logparser.logparser import LogParser
-from geometrikks.lib.utils import sleep_unless_stopped, wait_for_path
+from geometrikks.services.logsources import LogSource
+from geometrikks.lib.utils import retries_disabled, sleep_unless_stopped
 from geometrikks.server.logging import get_logger
+from .lookups import GeoLookups
 
 if TYPE_CHECKING:
     from litestar.channels import ChannelsPlugin
@@ -43,7 +45,26 @@ if TYPE_CHECKING:
 
 logger = get_logger(__name__)
 
-MISSING_FILE_GRACE_SECONDS = 60.0
+
+class FormatValidation(enum.Enum):
+    """What sampling a source said about its log format."""
+
+    VALID = "valid"
+    INVALID = "invalid"
+    STOPPED = "stopped"
+    # The three below mean there was nothing to judge. Their values are the
+    # ``reason`` on the log_format_validation_skipped event.
+    NO_LINES = "no_lines"
+    SAMPLING_UNSUPPORTED = "sampling_unsupported"
+    SOURCE_UNAVAILABLE = "source_unavailable"
+
+
+@dataclass(slots=True)
+class LogInput:
+    """One source of raw lines and the parser that interprets them."""
+
+    source: LogSource
+    parser: LogParser
 
 
 @dataclass
@@ -102,7 +123,7 @@ class LogIngestionService:
 
     Example:
         service = LogIngestionService(
-            parsers=parsers,
+            inputs=inputs,
             session_maker=session_maker,
         )
         await service.start()
@@ -112,7 +133,7 @@ class LogIngestionService:
 
     def __init__(
         self,
-        parsers: list["LogParser"],
+        inputs: list["LogInput"],
         session_maker: Callable[[], AsyncSession],
         geoip_path: Path|str,
         locales: list[str] | None = None,
@@ -129,7 +150,7 @@ class LogIngestionService:
         """Initialize the log ingestion service.
 
         Args:
-            parsers: LogParser instances, one per tailed log file.
+            inputs: One LogInput per log source.
             session_maker: Callable producing a fresh AsyncSession per flush.
             geoip_path: Path|str, GeoIP2 database file path.
             locales: GeoIP2 locales to use for lookups.
@@ -146,7 +167,7 @@ class LogIngestionService:
                 to the live_events channel. None (the importer path) publishes
                 nothing.
         """
-        self.parsers: list[LogParser] = parsers
+        self.inputs: list[LogInput] = inputs
         self.hostname: str = hostname
         self._session_maker = session_maker
         self._repos_factory = repos_factory
@@ -171,10 +192,9 @@ class LogIngestionService:
         self._cache_maxsize = 10_000
 
         # Background task management. The readers are stored so stop() can
-        # release their mmaps; a restart opens fresh ones (which also picks
-        # up a refreshed database file).
-        self._reader: Reader | None = None
-        self._asn_reader: Reader | None = None
+        # release their mmaps; reload_readers() swaps in fresh ones for a
+        # refreshed database file.
+        self._lookups: GeoLookups | None = None
         # What the open readers actually have mmapped; readers_stale() compares
         # these against the files on disk. None means "no reader open".
         self._city_fingerprint: tuple[int, int, int] | None = None
@@ -236,22 +256,7 @@ class LogIngestionService:
             self._asn_fingerprint = None
             return
 
-        # ASN enrichment is optional: a missing or unreadable database means
-        # NULL ASN columns, never a failed start.
-        asn_reader: Reader | None = None
-        if self.asn_db_path:
-            asn_reader = create_reader(self.asn_db_path)
-            if asn_reader is None:
-                logger.warning(
-                    "ASN enrichment disabled: no usable GeoLite2-ASN database at %s",
-                    self.asn_db_path,
-                )
-        self._reader = reader
-        self._asn_reader = asn_reader
-        self._city_fingerprint = _stat_fingerprint(self.geoip_path)
-        self._asn_fingerprint = (
-            _stat_fingerprint(self.asn_db_path) if asn_reader is not None else None
-        )
+        self._install_lookups(reader)
 
         # Set synchronously (before any `await`/task scheduling) so a second
         # start() called back-to-back sees is_running=True immediately; it
@@ -264,12 +269,11 @@ class LogIngestionService:
         self._queue = asyncio.Queue(maxsize=self._queue_maxsize)
 
         self._tail_tasks = []
-        for parser in self.parsers:
-            parser.set_stop_event(self._stop_event)
+        for log_input in self.inputs:
             self._tail_tasks.append(
                 asyncio.create_task(
-                    self._tail_file(parser, reader, asn_reader, skip_validation),
-                    name=f"log-tail:{parser.log_path}",
+                    self._run_input(log_input, skip_validation),
+                    name=f"log-tail:{log_input.source.label}",
                 )
             )
 
@@ -278,41 +282,160 @@ class LogIngestionService:
         )
         logger.info(
             "Started log ingestion service (%d files, batch_size=%d, commit_interval=%.1fs)",
-            len(self.parsers),
+            len(self.inputs),
             self.batch_size,
             self.commit_interval,
         )
 
-    async def _tail_file(
-        self,
-        parser: LogParser,
-        reader: Reader,
-        asn_reader: Reader | None,
-        skip_validation: bool,
-    ) -> None:
-        """Tail a single log file, pushing parsed records onto the shared queue."""
-        logger.debug("Waiting for log file: %s", parser.log_path)
-        if not await wait_for_path(
-            parser.log_path,
-            timeout_seconds=MISSING_FILE_GRACE_SECONDS,
-            stop_event=self._stop_event,
-        ):
-            if self._stop_event and self._stop_event.is_set():
-                return  # shutting down, not a missing-file problem
-            parser.mark_missing()
-            while not await aiofiles.os.path.exists(parser.log_path):
-                if await sleep_unless_stopped(
-                    parser.poll_interval, self._stop_event
-                ):
+    async def _run_input(self, log_input: LogInput, skip_validation: bool) -> None:
+        """Read one source, pushing parsed records onto the shared queue."""
+        assert self._queue is not None and self._stop_event is not None
+        stop = self._stop_event
+        try:
+            if not await log_input.source.wait_ready(stop):
+                return
+            if not skip_validation:
+                await self._await_format(log_input)
+                if stop.is_set():
+                    # Stopped while waiting for a parseable line; say nothing about
+                    # the format, the loop below would exit immediately anyway.
                     return
-            parser.mark_present()
-        assert self._queue is not None
-        async for record in parser.iter_parsed_records(
-            reader, asn_reader, skip_validation=skip_validation
+            async for line in log_input.source.lines(stop):
+                lookups = self._lookups
+                if lookups is None:
+                    break  # stop() released the readers; this task is on its way out
+                record = log_input.parser.parse_line(line, lookups.city, lookups.asn)
+                if record is None:
+                    continue  # ignored IP
+                await self._queue.put(record)
+        except Exception:
+            logger.exception("ingestion_input_failed", source=log_input.source.label)
+            raise
+
+    async def _await_format(self, log_input: LogInput) -> None:
+        """Lock the parser's format from the source's newest lines, or degrade."""
+        assert self._stop_event is not None
+        logger.debug("Validating log file format.")
+        outcome = await self._format_validates(log_input)
+        if outcome is FormatValidation.VALID or self._stop_event.is_set():
+            return
+        if outcome is not FormatValidation.INVALID:
+            # Nothing was sampled, so there is nothing to hold against the
+            # configured format: an empty file on a fresh install would
+            # otherwise lose its access logs for the life of the process.
+            logger.info(
+                "log_format_validation_skipped",
+                source=log_input.source.label,
+                reason=outcome.value,
+            )
+            return
+        parser = log_input.parser
+        if parser.log_format_setting == "auto" and parser.format is None:
+            logger.warning(
+                "Log format not detected yet for %s; will sniff incoming lines",
+                log_input.source.label,
+            )
+        else:
+            parser.send_logs = False
+            logger.warning(
+                "Log file format invalid. Streaming without access log objects."
+            )
+
+    async def _format_validates(
+        self,
+        log_input: LogInput,
+        timeout_seconds: float = 60.0,
+        check_interval: float = 1.0,
+    ) -> FormatValidation:
+        """Retry the format check until it passes, times out, the source
+        reports itself unavailable, or a stop is requested.
+
+        Each attempt offloads the blocking file read to a worker thread
+        (``source.recent_lines``), but the waiting between attempts happens
+        here on the event loop. A thread handed to ``asyncio.to_thread``
+        cannot be cancelled, so retrying inside the thread (the previous
+        behaviour) kept the process busy for the full timeout after shutdown
+        had been requested: the awaiting task raised ``CancelledError``
+        immediately while the thread kept sleeping, and the interpreter could
+        not finish exiting until it returned. This is reachable whenever the
+        configured log file exists but is empty or in an unrecognised format,
+        which is the normal state of a fresh install before the web server
+        writes its first line.
+
+        Args:
+            log_input: The source to sample and the parser to lock.
+            timeout_seconds: Maximum seconds to keep retrying.
+            check_interval: Seconds between attempts.
+
+        Returns:
+            VALID once a sampled line parses. INVALID when the wait ran out
+            and lines were sampled but none parsed. STOPPED on a stop request.
+            NO_LINES, SAMPLING_UNSUPPORTED or SOURCE_UNAVAILABLE when there
+            was nothing to judge.
+        """
+        assert self._stop_event is not None
+        stop = self._stop_event
+
+        async def attempt() -> FormatValidation:
+            lines = await log_input.source.recent_lines(3)
+            if lines is None:
+                return FormatValidation.SAMPLING_UNSUPPORTED
+            if log_input.parser.lock_format_from(lines):
+                return FormatValidation.VALID
+            if not log_input.source.status().available:
+                return FormatValidation.SOURCE_UNAVAILABLE
+            return FormatValidation.INVALID if lines else FormatValidation.NO_LINES
+
+        if retries_disabled():
+            return await attempt()
+
+        deadline = time.monotonic() + timeout_seconds
+        saw_lines = False
+        while True:
+            if stop.is_set():
+                return FormatValidation.STOPPED
+            outcome = await attempt()
+            if outcome not in (FormatValidation.INVALID, FormatValidation.NO_LINES):
+                return outcome
+            saw_lines = saw_lines or outcome is FormatValidation.INVALID
+            if time.monotonic() >= deadline:
+                if not saw_lines:
+                    return FormatValidation.NO_LINES
+                logger.error(
+                    "Timeout of %.0f seconds reached validating the log format of %s",
+                    timeout_seconds,
+                    log_input.source.label,
+                )
+                return FormatValidation.INVALID
+            if await sleep_unless_stopped(check_interval, stop):
+                return FormatValidation.STOPPED
+
+    def _close_readers(self, lookups: GeoLookups) -> BaseException | None:
+        """Close both readers and log each failure.
+
+        Returns the failure to raise: a cancellation or interpreter exit wins
+        over an ordinary error, otherwise the first one.
+        """
+        failure: BaseException | None = None
+        for reader, reader_name in (
+            (lookups.reader, "city"),
+            (lookups.asn_reader, "asn"),
         ):
-            if record is None:
-                continue  # idle tick; the consumer handles interval commits via timeout
-            await self._queue.put(record)
+            if reader is None:
+                continue
+            try:
+                reader.close()
+            except BaseException as e:
+                if failure is None or (
+                    isinstance(failure, Exception) and not isinstance(e, Exception)
+                ):
+                    failure = e
+                logger.exception(
+                    "ingestion_reader_close_failed",
+                    reader=reader_name,
+                    error=str(e),
+                )
+        return failure
 
     async def stop(self, timeout: float = 10.0) -> None:
         """Stop the ingestion gracefully.
@@ -355,25 +478,9 @@ class LogIngestionService:
 
         # Every task that used the readers is done; release their mmaps.
         cleanup_failure: BaseException | None = None
-        for attribute, reader_name in (
-            ("_reader", "city"),
-            ("_asn_reader", "asn"),
-        ):
-            reader = getattr(self, attribute)
-            if reader is None:
-                continue
-            try:
-                reader.close()
-            except BaseException as e:
-                if cleanup_failure is None:
-                    cleanup_failure = e
-                logger.exception(
-                    "ingestion_reader_close_failed",
-                    reader=reader_name,
-                    error=str(e),
-                )
-            finally:
-                setattr(self, attribute, None)
+        if self._lookups is not None:
+            cleanup_failure = self._close_readers(self._lookups)
+            self._lookups = None
 
         self._ingestion_task = None
 
@@ -404,10 +511,60 @@ class LogIngestionService:
         self._reloads_enabled = False
 
     async def reload_readers(self) -> None:
-        """Restart the pipeline so fresh readers (and lookup caches) pick up
-        a replaced database file."""
+        """Open fresh readers (and lookup caches) for a replaced database
+        file and swap them in. The sources keep running."""
         if not self._reloads_enabled:
             return
+        if not self.is_running or self._lookups is None:
+            await self._restart_for_reload()
+            return
+
+        reader = create_reader(self.geoip_path, self.locales)
+        if reader is None:
+            # Fingerprints stay as they are, so the next refresh run retries.
+            logger.error("geoip_reader_reload_failed", path=str(self.geoip_path))
+            return
+        old = self._install_lookups(reader)
+        assert old is not None
+        # No await may sit between _install_lookups() and this close.
+        # parse_line is synchronous, so with none, no input task can be
+        # inside a lookup on the old readers.
+        close_failure = self._close_readers(old)
+        if close_failure is not None and not isinstance(close_failure, Exception):
+            raise close_failure  # cancellation or interpreter exit: not ours to swallow
+        self._log_readers_reloaded()
+
+    def _install_lookups(self, reader: Reader) -> GeoLookups | None:
+        """Open the optional ASN reader, make the bundle current and record
+        what is now open. Returns the bundle it replaced."""
+        # ASN enrichment is optional: a missing or unreadable database means
+        # NULL ASN columns, never a failed start.
+        asn_reader: Reader | None = None
+        if self.asn_db_path:
+            asn_reader = create_reader(self.asn_db_path)
+            if asn_reader is None:
+                logger.warning(
+                    "ASN enrichment disabled: no usable GeoLite2-ASN database at %s",
+                    self.asn_db_path,
+                )
+        old = self._lookups
+        self._lookups = GeoLookups.build(reader, asn_reader)
+        self._city_fingerprint = _stat_fingerprint(self.geoip_path)
+        self._asn_fingerprint = (
+            _stat_fingerprint(self.asn_db_path) if asn_reader is not None else None
+        )
+        return old
+
+    def _log_readers_reloaded(self) -> None:
+        logger.info(
+            "geoip_readers_reloaded",
+            path=str(self.geoip_path),
+            asn_path=str(self.asn_db_path) if self.asn_db_path else None,
+        )
+
+    async def _restart_for_reload(self) -> None:
+        """Ingestion is not running (no reader ever opened, or the consumer
+        died): bring the whole pipeline up on the current files."""
         try:
             await self.stop()
             if not self._reloads_enabled:  # shutdown began while draining
@@ -419,12 +576,8 @@ class LogIngestionService:
             if self._reloads_enabled and not self.is_running:
                 self.unexpected_stop = True
             raise
-        if self._reader is not None:  # start() logs its own failure path
-            logger.info(
-                "geoip_readers_reloaded",
-                path=str(self.geoip_path),
-                asn_path=str(self.asn_db_path) if self.asn_db_path else None,
-            )
+        if self._lookups is not None:  # start() logs its own failure path
+            self._log_readers_reloaded()
 
     async def _run_ingestion(self) -> None:
         """Consume parsed records from the shared queue, flushing batches to fresh sessions."""
@@ -822,6 +975,15 @@ class LogIngestionService:
         return sum(parser.ignored_lines for parser in self.parsers)
 
     @property
+    def parsers(self) -> list[LogParser]:
+        """The parser of every input, in input order."""
+        return [log_input.parser for log_input in self.inputs]
+
+    @property
     def missing_files(self) -> list[str]:
-        """Configured log files currently absent, since startup or after removal."""
-        return [str(parser.log_path) for parser in self.parsers if parser.file_missing]
+        """Labels of the sources currently unavailable, since startup or after removal."""
+        return [
+            log_input.source.label
+            for log_input in self.inputs
+            if not log_input.source.status().available
+        ]
