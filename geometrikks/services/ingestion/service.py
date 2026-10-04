@@ -241,7 +241,7 @@ class LogIngestionService:
         return self._ingestion_task is not None and not self._ingestion_task.done()
 
     async def start(self, *, skip_validation: bool = False) -> None:
-        """Start one tail task per log file and the ingestion consumer."""
+        """Start one task per log source and the ingestion consumer."""
         if self.is_running:
             logger.warning("Ingestion already running")
             return
@@ -288,7 +288,7 @@ class LogIngestionService:
             self._run_ingestion(), name="log-ingestion"
         )
         logger.info(
-            "Started log ingestion service (%d files, batch_size=%d, commit_interval=%.1fs)",
+            "Started log ingestion service (%d sources, batch_size=%d, commit_interval=%.1fs)",
             len(self.inputs),
             self.batch_size,
             self.commit_interval,
@@ -323,7 +323,7 @@ class LogIngestionService:
     async def _await_format(self, log_input: LogInput) -> None:
         """Lock the parser's format from the source's newest lines, or degrade."""
         assert self._stop_event is not None
-        logger.debug("Validating log file format.")
+        logger.debug("Validating log format of %s", log_input.source.label)
         outcome = await self._format_validates(log_input)
         if outcome is FormatValidation.VALID or self._stop_event.is_set():
             return
@@ -346,7 +346,8 @@ class LogIngestionService:
         else:
             parser.send_logs = False
             logger.warning(
-                "Log file format invalid. Streaming without access log objects."
+                "Log format of %s is invalid. Streaming without access log objects.",
+                log_input.source.label,
             )
 
     async def _format_validates(
@@ -358,15 +359,15 @@ class LogIngestionService:
         """Retry the format check until it passes, times out, the source
         reports itself unavailable, or a stop is requested.
 
-        Each attempt offloads the blocking file read to a worker thread
-        (``source.recent_lines``), but the waiting between attempts happens
-        here on the event loop. A thread handed to ``asyncio.to_thread``
+        For a ``FileSource`` each attempt offloads the blocking read to a
+        worker thread (``source.recent_lines``), but the waiting between
+        attempts happens here on the event loop. A thread handed to ``asyncio.to_thread``
         cannot be cancelled, so retrying inside the thread (the previous
         behaviour) kept the process busy for the full timeout after shutdown
         had been requested: the awaiting task raised ``CancelledError``
         immediately while the thread kept sleeping, and the interpreter could
         not finish exiting until it returned. This is reachable whenever the
-        configured log file exists but is empty or in an unrecognised format,
+        tailed file exists but is empty or in an unrecognised format,
         which is the normal state of a fresh install before the web server
         writes its first line.
 
@@ -603,8 +604,8 @@ class LogIngestionService:
                 ):
                     if not self._stop_event.is_set():
                         logger.error(
-                            "All log tail tasks have exited; stopping ingestion "
-                            "(no log files are being tailed)"
+                            "All log source tasks have exited; stopping ingestion "
+                            "(no sources are being read)"
                         )
                     break
 
@@ -969,17 +970,17 @@ class LogIngestionService:
     # Statistics properties for API endpoints
     @property
     def parsed_lines(self) -> int:
-        """Total parsed lines across all tailed files."""
+        """Total parsed lines across all sources."""
         return sum(parser.parsed_lines for parser in self.parsers)
 
     @property
     def skipped_lines(self) -> int:
-        """Total skipped lines across all tailed files."""
+        """Total skipped lines across all sources."""
         return sum(parser.skipped_lines for parser in self.parsers)
 
     @property
     def ignored_lines(self) -> int:
-        """Total ignore-list dropped lines across all tailed files."""
+        """Total ignore-list dropped lines across all sources."""
         return sum(parser.ignored_lines for parser in self.parsers)
 
     @property

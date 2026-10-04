@@ -50,7 +50,7 @@ class FileSource:
         self.poll_interval: int | float = poll_interval
         self.start_at_end: bool = start_at_end
         # True while the configured file is absent. This is surfaced through
-        # LogIngestionService.missing_files into /health.
+        # LogIngestionService.unavailable_sources into /health.
         self._missing: bool = False
         # (inode, size) of the file when wait_ready returned. The first open
         # in lines() starts there, so lines written while the service was

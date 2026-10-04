@@ -53,7 +53,7 @@ class IngestionHealth(msgspec.Struct, rename="camel"):
     publish_dropped: int = 0
     failed_batches: int = 0
     failed_records: int = 0
-    # Additive: missing_files carries the same labels for wire compatibility.
+    # Additive: richer than missing_files, which keeps the labels for older clients.
     unavailable_sources: list[UnavailableSourceHealth] = []
 
 
