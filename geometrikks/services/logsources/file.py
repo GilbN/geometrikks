@@ -119,10 +119,14 @@ class FileSource:
         if count <= 0:
             return []
         try:
-            return await asyncio.to_thread(self._read_recent, count)
+            lines = await asyncio.to_thread(self._read_recent, count)
         except OSError as e:
             self._mark_missing(e)
             return []
+        # A source restarted in-process can still carry the flag from before
+        # it stopped, and format validation trusts it.
+        self._mark_present()
+        return lines
 
     async def _is_rotated(self, prev_stat: os.stat_result) -> bool:
         """Check if the log file was rotated.

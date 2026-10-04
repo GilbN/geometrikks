@@ -282,6 +282,20 @@ async def test_recent_lines_returns_whole_lines_longer_than_a_block(tmp_path: Pa
     assert await make_source(log).recent_lines(2) == [long_line + "\n", "tail\n"]
 
 
+async def test_recent_lines_clears_a_stale_missing_flag(tmp_path: Path, caplog) -> None:
+    """A source restarted in-process can still carry the flag from before
+    it stopped; a read that works proves the file is readable."""
+    caplog.set_level("INFO")
+    log = tmp_path / "a.log"
+    log.write_text("one\n", encoding="utf-8")
+    source = make_source(log)
+    source._missing = True
+
+    assert await source.recent_lines(3) == ["one\n"]
+    assert source.status() == SourceStatus(available=True)
+    assert sum("reappeared" in r.getMessage() for r in caplog.records) == 1
+
+
 async def test_recent_lines_marks_the_source_missing_when_the_read_fails(tmp_path: Path, monkeypatch, caplog) -> None:
     log = tmp_path / "a.log"
     log.write_text("one\n", encoding="utf-8")
