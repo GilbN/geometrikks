@@ -658,6 +658,45 @@ async def test_an_empty_source_hostname_falls_back_to_the_service_default() -> N
     assert {geo_event.hostname for geo_event in added_geo_events(repos)} == {service.hostname}
 
 
+async def test_live_events_carry_the_service_hostname_when_the_source_has_none() -> None:
+    channels = _channels_stub()
+    log_input = stub_input([make_log_line(TEST_DB_IPS[0])], hostname="")
+    service, _repos, _sessions = make_service([log_input], channels=channels)
+
+    await service.start()
+    try:
+        await wait_until(lambda: channels.publish.call_count >= 1)
+    finally:
+        await service.stop(timeout=5.0)
+
+    event, _channel = channels.publish.call_args.args
+    assert event["geo"]["hostname"] == service.hostname
+    assert event["log"]["hostname"] == service.hostname
+
+
+async def test_a_malformed_line_carries_the_source_hostname() -> None:
+    log_input = stub_input(["total garbage\n"], hostname="vps-1")
+    records: list[ParsedLogRecord] = []
+    parse_line = log_input.parser.parse_line
+
+    def capturing_parse_line(*args, **kwargs):
+        record = parse_line(*args, **kwargs)
+        if record is not None:
+            records.append(record)
+        return record
+
+    cast("Any", log_input.parser).parse_line = capturing_parse_line
+    service, _repos, _sessions = make_service([log_input])
+
+    await service.start(skip_validation=True)
+    try:
+        await wait_until(lambda: len(records) >= 1)
+    finally:
+        await service.stop(timeout=5.0)
+
+    assert {record.hostname for record in records} == {"vps-1"}
+
+
 async def test_an_unknown_source_type_is_ingested() -> None:
     log_input = stub_input([make_log_line(ip) for ip in TEST_DB_IPS[:2]])
     service, _repos, _sessions = make_service([log_input])

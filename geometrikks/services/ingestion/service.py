@@ -307,7 +307,7 @@ class LogIngestionService:
                 record = log_input.parser.parse_line(line, lookups.city, lookups.asn)
                 if record is None:
                     continue  # ignored IP
-                record.hostname = log_input.source.hostname
+                record.hostname = log_input.source.hostname or self.hostname
                 await self._queue.put(record)
         except Exception:
             logger.exception("ingestion_input_failed", source=log_input.source.label)
