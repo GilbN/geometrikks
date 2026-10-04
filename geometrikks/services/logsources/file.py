@@ -92,6 +92,11 @@ class FileSource:
         return True
 
     def _read_recent(self, count: int) -> list[str]:
+        """Read the last ``count`` lines of the file.
+
+        Blocking (opens and reads the file); callers on the event loop go
+        through ``recent_lines`` instead of calling this directly.
+        """
         with open(self.path, "rb") as f:
             position = f.seek(0, os.SEEK_END)
             block = _TAIL_BLOCK_BYTES
@@ -161,9 +166,13 @@ class FileSource:
         return False
 
     async def lines(self, stop: asyncio.Event) -> AsyncGenerator[str, None]:
-        """Tail the file and yield each new line.
+        """Async generator that tails the log file and yields each new line.
 
+        This is a native async implementation using aiofiles for non-blocking I/O.
         On log rotation, reopens the file in a loop instead of recursing.
+
+        Yields:
+            Each raw line as it is written, line ending included.
         """
         seek_to_end = self.start_at_end
         while not stop.is_set():
@@ -199,6 +208,7 @@ class FileSource:
                     line = await file.readline()
 
                     if not line:
+                        # No new data
                         await asyncio.sleep(self.poll_interval)
 
                         if await self._is_rotated(stat_result):

@@ -229,7 +229,7 @@ async def test_multi_file_tailing_ingests_from_all_sources(tmp_path: Path) -> No
     assert service.total_geo_records == 2
     assert service.total_log_records == 2
     # each parser handled exactly its own file
-    assert [item.parser.parsed_lines for item in inputs] == [1, 1]
+    assert [log_input.parser.parsed_lines for log_input in inputs] == [1, 1]
     assert any(s.commits for s in sessions)
 
 
@@ -452,17 +452,17 @@ async def test_never_appeared_file_is_reported_missing_and_tailed_once_it_appear
     DISABLE_WAIT=true (conftest) makes the grace wait return immediately.
     """
     missing = tmp_path / "missing.log"
-    item = make_input(missing)
-    service, _repos, _sessions = make_service([item])
+    log_input = make_input(missing)
+    service, _repos, _sessions = make_service([log_input])
 
     await service.start(skip_validation=True)
     try:
-        await wait_until(lambda: not item.source.status().available)
+        await wait_until(lambda: not log_input.source.status().available)
         assert service.is_running
         assert service.missing_files == [str(missing)]
 
         missing.write_text("", encoding="utf-8")
-        await wait_until(lambda: item.source.status().available)
+        await wait_until(lambda: log_input.source.status().available)
         await asyncio.sleep(0.1)
         append_line(missing, make_log_line(TEST_DB_IPS[0]))
         await wait_until(lambda: service.total_processed >= 1)
@@ -554,8 +554,8 @@ async def test_mid_flight_file_deletion_flags_missing_and_recovers(tmp_path: Pat
     when the file reappears (new inode -> rotation reopen path)."""
     log_file = tmp_path / "a.log"
     log_file.write_text("", encoding="utf-8")
-    item = make_input(log_file)
-    service, _repos, _sessions = make_service([item])
+    log_input = make_input(log_file)
+    service, _repos, _sessions = make_service([log_input])
 
     await service.start(skip_validation=True)
     await asyncio.sleep(0.1)  # let the tailer open the file
@@ -564,7 +564,7 @@ async def test_mid_flight_file_deletion_flags_missing_and_recovers(tmp_path: Pat
         await wait_until(lambda: service.total_processed >= 1)
 
         log_file.unlink()
-        await wait_until(lambda: not item.source.status().available)
+        await wait_until(lambda: not log_input.source.status().available)
         assert service.missing_files == [str(log_file)]
         assert service.is_running  # waiting for the file, not dead
 
@@ -577,7 +577,7 @@ async def test_mid_flight_file_deletion_flags_missing_and_recovers(tmp_path: Pat
 
         # Reappearing file (new inode) resumes tailing and clears the flag.
         log_file.write_text("", encoding="utf-8")
-        await wait_until(lambda: item.source.status().available)
+        await wait_until(lambda: log_input.source.status().available)
         assert service.missing_files == []
         append_line(log_file, make_log_line(TEST_DB_IPS[1]))
         await wait_until(lambda: service.total_processed >= 2)
@@ -618,13 +618,13 @@ def stub_input(lines: list[str], label: str = "stub#0") -> LogInput:
 
 
 async def test_an_unknown_source_type_is_ingested() -> None:
-    item = stub_input([make_log_line(ip) for ip in TEST_DB_IPS[:2]])
-    service, _repos, _sessions = make_service([item])
+    log_input = stub_input([make_log_line(ip) for ip in TEST_DB_IPS[:2]])
+    service, _repos, _sessions = make_service([log_input])
 
     await service.start()
     try:
         await wait_until(lambda: service.total_processed >= 2)
-        assert item.parser.format is not None and item.parser.format.name == "nginx"
+        assert log_input.parser.format is not None and log_input.parser.format.name == "nginx"
     finally:
         await service.stop(timeout=5.0)
 
@@ -641,8 +641,8 @@ async def test_missing_files_lists_unavailable_source_labels() -> None:
 async def test_missing_file_is_reported_before_format_validation(tmp_path: Path) -> None:
     """Validation on (the production default): the file is still flagged."""
     missing = tmp_path / "missing.log"
-    item = make_input(missing)
-    service, _repos, _sessions = make_service([item])
+    log_input = make_input(missing)
+    service, _repos, _sessions = make_service([log_input])
 
     await service.start()
     try:
@@ -654,23 +654,28 @@ async def test_missing_file_is_reported_before_format_validation(tmp_path: Path)
 
 
 async def test_format_validation_returns_when_stop_requested(monkeypatch) -> None:
-    """A stop ends the retry loop instead of blocking for the whole timeout."""
+    """A stop ends the retry loop instead of blocking for the whole timeout.
+
+    The empty source never validates, so with retries enabled the old blocking
+    loop would have occupied a worker thread for the full timeout regardless
+    of the stop event.
+    """
     monkeypatch.setenv("DISABLE_WAIT", "false")
-    item = stub_input([])
-    service, _repos, _sessions = make_service([item])
+    log_input = stub_input([])
+    service, _repos, _sessions = make_service([log_input])
     service._stop_event = asyncio.Event()
     service._stop_event.set()
 
     started = time.monotonic()
-    assert await service._format_validates(item, timeout_seconds=60.0) is False
+    assert await service._format_validates(log_input, timeout_seconds=60.0) is False
     assert time.monotonic() - started < 1.0
 
 
 async def test_format_validation_wakes_on_stop_between_attempts(monkeypatch) -> None:
     """A stop arriving mid-wait ends the loop without sitting out the interval."""
     monkeypatch.setenv("DISABLE_WAIT", "false")
-    item = stub_input([])
-    service, _repos, _sessions = make_service([item])
+    log_input = stub_input([])
+    service, _repos, _sessions = make_service([log_input])
     stop_event = service._stop_event = asyncio.Event()
 
     async def stop_soon() -> None:
@@ -679,7 +684,7 @@ async def test_format_validation_wakes_on_stop_between_attempts(monkeypatch) -> 
 
     started = time.monotonic()
     result, _ = await asyncio.gather(
-        service._format_validates(item, timeout_seconds=60.0, check_interval=30.0),
+        service._format_validates(log_input, timeout_seconds=60.0, check_interval=30.0),
         stop_soon(),
     )
     assert result is False
@@ -690,8 +695,8 @@ async def test_format_validation_retries_until_a_line_parses(monkeypatch) -> Non
     """A source with no lines that gains a valid one mid-wait still validates."""
     monkeypatch.setenv("DISABLE_WAIT", "false")
     lines: list[str] = []
-    item = stub_input(lines)
-    service, _repos, _sessions = make_service([item])
+    log_input = stub_input(lines)
+    service, _repos, _sessions = make_service([log_input])
     service._stop_event = asyncio.Event()
 
     async def append_valid_line() -> None:
@@ -699,36 +704,36 @@ async def test_format_validation_retries_until_a_line_parses(monkeypatch) -> Non
         lines.append(make_log_line(TEST_DB_IPS[0]))
 
     result, _ = await asyncio.gather(
-        service._format_validates(item, timeout_seconds=10.0, check_interval=0.02),
+        service._format_validates(log_input, timeout_seconds=10.0, check_interval=0.02),
         append_valid_line(),
     )
     assert result is True
 
 
 async def test_pinned_format_that_fails_validation_drops_access_logs() -> None:
-    item = LogInput(
+    log_input = LogInput(
         source=ListSource(["not a log line\n"]),
         parser=LogParser(source_label="stub", send_logs=True, log_format="nginx"),
     )
-    service, _repos, _sessions = make_service([item])
+    service, _repos, _sessions = make_service([log_input])
 
     await service.start()
     try:
-        await wait_until(lambda: item.parser.send_logs is False)
+        await wait_until(lambda: log_input.parser.send_logs is False)
     finally:
         await service.stop(timeout=5.0)
 
 
 async def test_auto_format_that_is_not_detected_keeps_access_logs() -> None:
     """Auto mode with no parseable sample keeps sniffing; send_logs stays on."""
-    item = stub_input(["not a log line\n"])
-    service, _repos, _sessions = make_service([item])
+    log_input = stub_input(["not a log line\n"])
+    service, _repos, _sessions = make_service([log_input])
 
     await service.start()
     try:
-        await wait_until(lambda: item.parser.skipped_lines >= 1)
-        assert item.parser.send_logs is True
-        assert item.parser.format is None
+        await wait_until(lambda: log_input.parser.skipped_lines >= 1)
+        assert log_input.parser.send_logs is True
+        assert log_input.parser.format is None
     finally:
         await service.stop(timeout=5.0)
 
@@ -785,11 +790,11 @@ async def test_failed_input_is_logged_with_its_source() -> None:
             raise RuntimeError("source broke")
             yield ""  # generator marker
 
-    item = LogInput(
+    log_input = LogInput(
         source=ExplodingSource([], "stub#broken"),
         parser=LogParser(source_label="stub#broken", send_logs=True, hostname="test-host"),
     )
-    service, _repos, _sessions = make_service([item])
+    service, _repos, _sessions = make_service([log_input])
 
     with capture_logs() as logs:
         await service.start(skip_validation=True)

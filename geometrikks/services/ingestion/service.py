@@ -274,11 +274,11 @@ class LogIngestionService:
         self._queue = asyncio.Queue(maxsize=self._queue_maxsize)
 
         self._tail_tasks = []
-        for item in self.inputs:
+        for log_input in self.inputs:
             self._tail_tasks.append(
                 asyncio.create_task(
-                    self._run_input(item, reader, asn_reader, skip_validation),
-                    name=f"log-tail:{item.source.label}",
+                    self._run_input(log_input, reader, asn_reader, skip_validation),
+                    name=f"log-tail:{log_input.source.label}",
                 )
             )
 
@@ -294,7 +294,7 @@ class LogIngestionService:
 
     async def _run_input(
         self,
-        item: LogInput,
+        log_input: LogInput,
         reader: Reader,
         asn_reader: Reader | None,
         skip_validation: bool,
@@ -303,10 +303,10 @@ class LogIngestionService:
         assert self._queue is not None and self._stop_event is not None
         stop = self._stop_event
         try:
-            if not await item.source.wait_ready(stop):
+            if not await log_input.source.wait_ready(stop):
                 return
             if not skip_validation:
-                await self._await_format(item)
+                await self._await_format(log_input)
                 if stop.is_set():
                     # Stopped while waiting for a parseable line; say nothing about
                     # the format, the loop below would exit immediately anyway.
@@ -315,34 +315,34 @@ class LogIngestionService:
             asn_lookup = (
                 make_cached_asn_lookup(asn_reader) if asn_reader is not None else None
             )
-            async for line in item.source.lines(stop):
-                record = item.parser.parse_line(line, lookup, asn_lookup)
+            async for line in log_input.source.lines(stop):
+                record = log_input.parser.parse_line(line, lookup, asn_lookup)
                 if record is None:
                     continue  # ignored IP
                 await self._queue.put(record)
         except Exception:
-            logger.exception("ingestion_input_failed", source=item.source.label)
+            logger.exception("ingestion_input_failed", source=log_input.source.label)
             raise
 
-    async def _await_format(self, item: LogInput) -> None:
+    async def _await_format(self, log_input: LogInput) -> None:
         """Lock the parser's format from the source's newest lines, or degrade."""
         assert self._stop_event is not None
         logger.debug("Validating log file format.")
-        valid = await self._format_validates(item)
+        valid = await self._format_validates(log_input)
         if valid or self._stop_event.is_set():
             return
-        if not item.source.status().available:
+        if not log_input.source.status().available:
             logger.info(
                 "log_format_validation_skipped",
-                source=item.source.label,
+                source=log_input.source.label,
                 reason="source_unavailable",
             )
             return
-        parser = item.parser
+        parser = log_input.parser
         if parser.log_format_setting == "auto" and parser.format is None:
             logger.warning(
                 "Log format not detected yet for %s; will sniff incoming lines",
-                item.source.label,
+                log_input.source.label,
             )
         else:
             parser.send_logs = False
@@ -352,7 +352,7 @@ class LogIngestionService:
 
     async def _format_validates(
         self,
-        item: LogInput,
+        log_input: LogInput,
         timeout_seconds: float = 60.0,
         check_interval: float = 1.0,
     ) -> bool:
@@ -371,6 +371,11 @@ class LogIngestionService:
         which is the normal state of a fresh install before the web server
         writes its first line.
 
+        Args:
+            log_input: The source to sample and the parser to lock.
+            timeout_seconds: Maximum seconds to keep retrying.
+            check_interval: Seconds between attempts.
+
         Returns:
             True if the format validated, False on timeout, stop request or
             an unavailable source.
@@ -379,7 +384,7 @@ class LogIngestionService:
         stop = self._stop_event
 
         async def attempt() -> bool:
-            return item.parser.lock_format_from(await item.source.recent_lines(3))
+            return log_input.parser.lock_format_from(await log_input.source.recent_lines(3))
 
         if retries_disabled():
             return await attempt()
@@ -390,13 +395,13 @@ class LogIngestionService:
                 return False
             if await attempt():
                 return True
-            if not item.source.status().available:
+            if not log_input.source.status().available:
                 return False
             if time.monotonic() >= deadline:
                 logger.error(
                     "Timeout of %.0f seconds reached validating the log format of %s",
                     timeout_seconds,
-                    item.source.label,
+                    log_input.source.label,
                 )
                 return False
             if await sleep_unless_stopped(check_interval, stop):
@@ -912,9 +917,13 @@ class LogIngestionService:
     @property
     def parsers(self) -> list[LogParser]:
         """The parser of every input, in input order."""
-        return [item.parser for item in self.inputs]
+        return [log_input.parser for log_input in self.inputs]
 
     @property
     def missing_files(self) -> list[str]:
         """Labels of the sources currently unavailable, since startup or after removal."""
-        return [item.source.label for item in self.inputs if not item.source.status().available]
+        return [
+            log_input.source.label
+            for log_input in self.inputs
+            if not log_input.source.status().available
+        ]

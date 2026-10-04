@@ -46,12 +46,12 @@ def make_log_line(ip: str) -> str:
 
 
 def make_service(log_path: Path, session_maker, **kwargs) -> LogIngestionService:
-    item = LogInput(
+    log_input = LogInput(
         source=FileSource(log_path, poll_interval=0.05),
         parser=LogParser(source_label=str(log_path), send_logs=True),
     )
     return LogIngestionService(
-        inputs=[item],
+        inputs=[log_input],
         session_maker=session_maker,
         geoip_path=GEOIP_DB_PATH,
         locales=["en"],

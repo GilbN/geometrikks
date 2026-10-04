@@ -118,10 +118,12 @@ async def test_rotation_reopens_from_start_twice(tmp_path: Path) -> None:
 
 async def test_is_rotated_truncation_99pct(tmp_path: Path, monkeypatch) -> None:
     """Rotation detected when size shrinks by >=99%."""
+    # Create file and obtain real previous stat
     log = tmp_path / "access.log"
     log.write_bytes(b"x" * 1_000_000)
     prev = os.stat(log)
 
+    # Current stat: shrunk to 5_000 bytes (~99.5% drop) and same inode
     class Curr:
         st_size = 5_000
         st_ino = prev.st_ino
@@ -157,6 +159,7 @@ async def test_is_rotated_disabled(tmp_path: Path, monkeypatch) -> None:
     log.write_bytes(b"x" * 1_000_000)
     prev = os.stat(log)
 
+    # Even with drastic change, returns False when disabled
     class Curr:
         st_size = 100
         st_ino = prev.st_ino + 100
