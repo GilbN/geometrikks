@@ -80,6 +80,7 @@ class FileSource:
             self._missing = False
 
     async def _record_ready_position(self) -> None:
+        """Remember the file's identity and size for the first open in lines()."""
         try:
             stat_result = await aiofiles.os.stat(self.path)
         except OSError:
@@ -229,11 +230,12 @@ class FileSource:
             self._mark_present()
 
             try:
+                # Stat the descriptor, not the stat above: the path can be
+                # rotated between that stat and the open, and the rotation
+                # check must compare against the file being read.
+                stat_result = await aiofiles.os.stat(file.fileno())
                 if seek_to_end:
-                    # fstat, not the stat above: the path can be rotated
-                    # between that stat and the open.
-                    opened = os.fstat(file.fileno())
-                    await file.seek(self._start_offset(opened, self._ready_position))
+                    await file.seek(self._start_offset(stat_result, self._ready_position))
                 # After a rotation we always read the new file from the start
                 seek_to_end = False
                 self._ready_position = None

@@ -441,23 +441,32 @@ async def test_first_open_judges_the_file_it_opened(tmp_path: Path, monkeypatch)
     await gen.aclose()
 
 
-async def test_the_recorded_position_survives_a_failed_first_open(tmp_path: Path) -> None:
+async def test_the_recorded_position_survives_a_failed_first_open(
+    tmp_path: Path, monkeypatch
+) -> None:
     log = tmp_path / "a.log"
     log.write_text("one\n", encoding="utf-8")
     source = make_source(log)
     stop = asyncio.Event()
     assert await source.wait_ready(stop)
-
     with open(log, "a", encoding="utf-8") as fh:
         fh.write("two\n")
-    held = tmp_path / "held.log"
-    os.rename(log, held)
-    gen = source.lines(stop)
-    pending = asyncio.ensure_future(next_line(gen))
-    await asyncio.sleep(0.05)  # lines() is polling for the missing path
-    os.rename(held, log)
 
-    assert await pending == "two\n"
+    real_open = aiofiles.open
+    failed = False
+
+    def fail_once_then_open(*args, **kwargs):
+        nonlocal failed
+        if not failed:
+            failed = True
+            raise PermissionError("denied once")
+        return real_open(*args, **kwargs)
+
+    monkeypatch.setattr(aiofiles, "open", fail_once_then_open)
+    gen = source.lines(stop)
+
+    assert await next_line(gen) == "two\n"
+    assert failed
     await gen.aclose()
 
 
@@ -482,7 +491,7 @@ async def test_wait_ready_replaces_a_position_recorded_before_a_restart(
 
 
 async def test_a_second_lines_call_without_wait_ready_starts_at_the_end(
-    tmp_path: Path,
+    tmp_path: Path, monkeypatch
 ) -> None:
     log = tmp_path / "a.log"
     log.write_text("one\n", encoding="utf-8")
@@ -496,10 +505,65 @@ async def test_a_second_lines_call_without_wait_ready_starts_at_the_end(
     assert await next_line(first) == "two\n"
     await first.aclose()
 
+    real_open = aiofiles.open
+    seeked = asyncio.Event()
+
+    async def open_signalling_seek(*args, **kwargs):
+        file = await real_open(*args, **kwargs)
+        real_seek = file.seek
+
+        async def seek(*seek_args, **seek_kwargs):
+            position = await real_seek(*seek_args, **seek_kwargs)
+            seeked.set()
+            return position
+
+        file.seek = seek
+        return file
+
+    monkeypatch.setattr(aiofiles, "open", open_signalling_seek)
     second = source.lines(stop)
     pending = asyncio.ensure_future(next_line(second))
-    await asyncio.sleep(0.05)
+    await asyncio.wait_for(seeked.wait(), timeout=5.0)
     with open(log, "a", encoding="utf-8") as fh:
         fh.write("three\n")
     assert await pending == "three\n"
     await second.aclose()
+
+
+@pytest.mark.parametrize("recorded", [False, True])
+async def test_a_path_replaced_between_stat_and_open_is_not_read_twice(
+    tmp_path: Path, monkeypatch, recorded: bool
+) -> None:
+    log = tmp_path / "a.log"
+    log.write_text("old-one\nold-two\n", encoding="utf-8")
+    source = make_source(log)
+    stop = asyncio.Event()
+    if recorded:
+        assert await source.wait_ready(stop)
+
+    real_open = aiofiles.open
+    rotated = False
+
+    def rotate_then_open(*args, **kwargs):
+        nonlocal rotated
+        if not rotated:
+            rotated = True
+            os.rename(log, tmp_path / "a.log.1")
+            log.write_text("fresh\n", encoding="utf-8")
+        return real_open(*args, **kwargs)
+
+    monkeypatch.setattr(aiofiles, "open", rotate_then_open)
+    gen = source.lines(stop)
+    pending = asyncio.ensure_future(next_line(gen))
+    if recorded:
+        assert await pending == "fresh\n"
+        pending = asyncio.ensure_future(next_line(gen))
+
+    # A reopen from byte 0 would yield "fresh" again within a poll or two.
+    done, _ = await asyncio.wait({pending}, timeout=0.3)
+    assert not done
+    with open(log, "a", encoding="utf-8") as fh:
+        fh.write("later\n")
+
+    assert await pending == "later\n"
+    await gen.aclose()
