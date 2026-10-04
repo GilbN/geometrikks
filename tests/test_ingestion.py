@@ -15,6 +15,7 @@ from geometrikks.domain.geo.models import GeoEvent, GeoLocation
 from geometrikks.domain.logs.models import AccessLog, AccessLogDebug
 from geometrikks.services.logparser.logparser import LogParser
 from geometrikks.services.logparser.schemas import ParsedLogRecord, ParsedGeoData, ParsedAccessLog
+from geometrikks.services.ingestion.lookups import GeoLookups
 from geometrikks.services.ingestion.service import IngestionRepos, LogInput, LogIngestionService
 from geometrikks.services.logsources import FileSource, SourceStatus
 
@@ -259,8 +260,9 @@ def _stop_failure_service() -> tuple[LogIngestionService, Any, Any]:
     city_reader = MagicMock()
     asn_reader = MagicMock()
     service._stop_event = asyncio.Event()
-    service._reader = city_reader
-    service._asn_reader = asn_reader
+    service._lookups = GeoLookups(
+        reader=city_reader, asn_reader=asn_reader, city=lambda ip: None, asn=None
+    )
     service.is_running = True
     return service, city_reader, asn_reader
 
@@ -271,6 +273,7 @@ async def test_reload_cleanup_failure_marks_stopped_ingestion_unless_shutting_do
     failure_type, shutting_down: bool,
 ) -> None:
     service, city_reader, _ = _stop_failure_service()
+    service.is_running = False
     stop_event = service._stop_event
     assert stop_event is not None
     async def consume_until_stopped() -> None:
@@ -296,6 +299,7 @@ async def test_reload_restart_failure_marks_stopped_ingestion(monkeypatch) -> No
     from unittest.mock import AsyncMock
 
     service, _, _ = _stop_failure_service()
+    service.is_running = False
     stop_event = service._stop_event
     assert stop_event is not None
     async def consume_until_stopped() -> None:
@@ -331,8 +335,7 @@ async def test_stop_cleans_up_before_propagating_completed_consumer_error(
     assert caught.value is failure
     city_reader.close.assert_called_once_with()
     asn_reader.close.assert_called_once_with()
-    assert service._reader is None
-    assert service._asn_reader is None
+    assert service._lookups is None
     assert service._ingestion_task is None
     assert service.is_running is False
     assert any(
@@ -363,8 +366,7 @@ async def test_stop_distinguishes_consumer_timeout_error_from_shutdown_timeout(
     assert caught.value is failure
     city_reader.close.assert_called_once_with()
     asn_reader.close.assert_called_once_with()
-    assert service._reader is None
-    assert service._asn_reader is None
+    assert service._lookups is None
     assert service._ingestion_task is None
     assert service.is_running is False
     assert not any(
@@ -392,8 +394,7 @@ async def test_stop_cancels_consumer_after_actual_shutdown_timeout() -> None:
     assert task.cancelled()
     city_reader.close.assert_called_once_with()
     asn_reader.close.assert_called_once_with()
-    assert service._reader is None
-    assert service._asn_reader is None
+    assert service._lookups is None
     assert service._ingestion_task is None
     assert service.is_running is False
 
@@ -1381,8 +1382,6 @@ class TestAsnWiring:
             asn_db_path="tests/GeoLite2-ASN-Test.mmdb",
         )
         await service.start(skip_validation=True)
-        assert service._reader is not None
-        assert service._asn_reader is not None
+        assert service._lookups is not None and service._lookups.asn_reader is not None
         await service.stop(timeout=1.0)
-        assert service._reader is None
-        assert service._asn_reader is None
+        assert service._lookups is None

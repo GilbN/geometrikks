@@ -32,14 +32,11 @@ from geometrikks.domain.geo.utils import make_point
 from geometrikks.domain.realtime.events import LIVE_EVENTS_CHANNEL, encode_guard, record_to_event
 from geometrikks.services.logparser.schemas import ParsedLogRecord, ParsedGeoData, ParsedAccessLog
 from geometrikks.services.logparser.constants import ALLOWED_GEOIP_LOCALES, GEOIP_LOCALES_DEFAULT
-from geometrikks.services.logparser.logparser import (
-    LogParser,
-    make_cached_asn_lookup,
-    make_cached_city_lookup,
-)
+from geometrikks.services.logparser.logparser import LogParser
 from geometrikks.services.logsources import LogSource
 from geometrikks.lib.utils import retries_disabled, sleep_unless_stopped
 from geometrikks.server.logging import get_logger
+from .lookups import GeoLookups
 
 if TYPE_CHECKING:
     from litestar.channels import ChannelsPlugin
@@ -183,8 +180,7 @@ class LogIngestionService:
         # Background task management. The readers are stored so stop() can
         # release their mmaps; a restart opens fresh ones (which also picks
         # up a refreshed database file).
-        self._reader: Reader | None = None
-        self._asn_reader: Reader | None = None
+        self._lookups: GeoLookups | None = None
         # What the open readers actually have mmapped; readers_stale() compares
         # these against the files on disk. None means "no reader open".
         self._city_fingerprint: tuple[int, int, int] | None = None
@@ -256,8 +252,7 @@ class LogIngestionService:
                     "ASN enrichment disabled: no usable GeoLite2-ASN database at %s",
                     self.asn_db_path,
                 )
-        self._reader = reader
-        self._asn_reader = asn_reader
+        self._lookups = GeoLookups.build(reader, asn_reader)
         self._city_fingerprint = _stat_fingerprint(self.geoip_path)
         self._asn_fingerprint = (
             _stat_fingerprint(self.asn_db_path) if asn_reader is not None else None
@@ -277,7 +272,7 @@ class LogIngestionService:
         for log_input in self.inputs:
             self._tail_tasks.append(
                 asyncio.create_task(
-                    self._run_input(log_input, reader, asn_reader, skip_validation),
+                    self._run_input(log_input, skip_validation),
                     name=f"log-tail:{log_input.source.label}",
                 )
             )
@@ -292,13 +287,7 @@ class LogIngestionService:
             self.commit_interval,
         )
 
-    async def _run_input(
-        self,
-        log_input: LogInput,
-        reader: Reader,
-        asn_reader: Reader | None,
-        skip_validation: bool,
-    ) -> None:
+    async def _run_input(self, log_input: LogInput, skip_validation: bool) -> None:
         """Read one source, pushing parsed records onto the shared queue."""
         assert self._queue is not None and self._stop_event is not None
         stop = self._stop_event
@@ -311,12 +300,11 @@ class LogIngestionService:
                     # Stopped while waiting for a parseable line; say nothing about
                     # the format, the loop below would exit immediately anyway.
                     return
-            lookup = make_cached_city_lookup(reader)
-            asn_lookup = (
-                make_cached_asn_lookup(asn_reader) if asn_reader is not None else None
-            )
             async for line in log_input.source.lines(stop):
-                record = log_input.parser.parse_line(line, lookup, asn_lookup)
+                lookups = self._lookups
+                if lookups is None:
+                    break  # stop() released the readers; this task is on its way out
+                record = log_input.parser.parse_line(line, lookups.city, lookups.asn)
                 if record is None:
                     continue  # ignored IP
                 await self._queue.put(record)
@@ -407,6 +395,27 @@ class LogIngestionService:
             if await sleep_unless_stopped(check_interval, stop):
                 return False
 
+    def _close_readers(self, lookups: GeoLookups) -> BaseException | None:
+        """Close both readers; return the first failure after logging each."""
+        failure: BaseException | None = None
+        for reader, reader_name in (
+            (lookups.reader, "city"),
+            (lookups.asn_reader, "asn"),
+        ):
+            if reader is None:
+                continue
+            try:
+                reader.close()
+            except BaseException as e:
+                if failure is None:
+                    failure = e
+                logger.exception(
+                    "ingestion_reader_close_failed",
+                    reader=reader_name,
+                    error=str(e),
+                )
+        return failure
+
     async def stop(self, timeout: float = 10.0) -> None:
         """Stop the ingestion gracefully.
 
@@ -448,25 +457,9 @@ class LogIngestionService:
 
         # Every task that used the readers is done; release their mmaps.
         cleanup_failure: BaseException | None = None
-        for attribute, reader_name in (
-            ("_reader", "city"),
-            ("_asn_reader", "asn"),
-        ):
-            reader = getattr(self, attribute)
-            if reader is None:
-                continue
-            try:
-                reader.close()
-            except BaseException as e:
-                if cleanup_failure is None:
-                    cleanup_failure = e
-                logger.exception(
-                    "ingestion_reader_close_failed",
-                    reader=reader_name,
-                    error=str(e),
-                )
-            finally:
-                setattr(self, attribute, None)
+        if self._lookups is not None:
+            cleanup_failure = self._close_readers(self._lookups)
+            self._lookups = None
 
         self._ingestion_task = None
 
@@ -497,10 +490,49 @@ class LogIngestionService:
         self._reloads_enabled = False
 
     async def reload_readers(self) -> None:
-        """Restart the pipeline so fresh readers (and lookup caches) pick up
-        a replaced database file."""
+        """Open fresh readers (and lookup caches) for a replaced database
+        file and swap them in. The sources keep running."""
         if not self._reloads_enabled:
             return
+        if not self.is_running or self._lookups is None:
+            await self._restart_for_reload()
+            return
+
+        reader = create_reader(self.geoip_path, self.locales)
+        if reader is None:
+            # Fingerprints stay as they are, so the next refresh run retries.
+            logger.error("geoip_reader_reload_failed", path=str(self.geoip_path))
+            return
+        asn_reader: Reader | None = None
+        if self.asn_db_path:
+            asn_reader = create_reader(self.asn_db_path)
+            if asn_reader is None:
+                logger.warning(
+                    "ASN enrichment disabled: no usable GeoLite2-ASN database at %s",
+                    self.asn_db_path,
+                )
+
+        old = self._lookups
+        self._lookups = GeoLookups.build(reader, asn_reader)
+        self._city_fingerprint = _stat_fingerprint(self.geoip_path)
+        self._asn_fingerprint = (
+            _stat_fingerprint(self.asn_db_path) if asn_reader is not None else None
+        )
+        # No await may sit between the assignment above and this close.
+        # parse_line is synchronous, so with none, no input task can be
+        # inside a lookup on the old readers.
+        close_failure = self._close_readers(old)
+        if close_failure is not None and not isinstance(close_failure, Exception):
+            raise close_failure  # cancellation or interpreter exit: not ours to swallow
+        logger.info(
+            "geoip_readers_reloaded",
+            path=str(self.geoip_path),
+            asn_path=str(self.asn_db_path) if self.asn_db_path else None,
+        )
+
+    async def _restart_for_reload(self) -> None:
+        """Ingestion is not running (no reader ever opened, or the consumer
+        died): bring the whole pipeline up on the current files."""
         try:
             await self.stop()
             if not self._reloads_enabled:  # shutdown began while draining
@@ -512,7 +544,7 @@ class LogIngestionService:
             if self._reloads_enabled and not self.is_running:
                 self.unexpected_stop = True
             raise
-        if self._reader is not None:  # start() logs its own failure path
+        if self._lookups is not None:  # start() logs its own failure path
             logger.info(
                 "geoip_readers_reloaded",
                 path=str(self.geoip_path),

@@ -8,6 +8,7 @@ download-succeeded flag, is what also picks up files replaced out-of-band
 """
 from __future__ import annotations
 
+import asyncio
 import shutil
 from pathlib import Path
 from types import SimpleNamespace
@@ -16,12 +17,18 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from geometrikks.services.ingestion import LogInput
+from geometrikks.services.ingestion import service as service_module
 from geometrikks.services.ingestion.service import LogIngestionService
+from geometrikks.services.logparser.logparser import LogParser
+from geometrikks.services.logsources import FileSource
+from tests.test_ingestion import TEST_DB_IPS, FakeRepos, FakeSession, make_log_line, wait_until
 
 pytestmark = pytest.mark.anyio
 
 CITY_SRC = Path("tests/GeoLite2-City-Test.mmdb")
 ASN_SRC = Path("tests/GeoLite2-ASN-Test.mmdb")
+ASN_TEST_IP = "89.160.20.112"
 
 
 def replace_file(src: Path, dest: Path) -> None:
@@ -33,15 +40,43 @@ def replace_file(src: Path, dest: Path) -> None:
 
 
 def make_service(
-    city: Path | str, asn: Path | str | None = None
+    city: Path | str,
+    asn: Path | str | None = None,
+    inputs: list[LogInput] | None = None,
+    repos: FakeRepos | None = None,
 ) -> LogIngestionService:
+    repos = repos or FakeRepos()
     return LogIngestionService(
-        inputs=[],
-        session_maker=cast("Any", None),
+        inputs=inputs or [],
+        session_maker=cast("Any", lambda: FakeSession(repos)),
+        repos_factory=cast("Any", repos.factory),
         geoip_path=city,
         asn_db_path=asn,
         hostname="test-host",
+        commit_interval=0.1,
     )
+
+
+def numbered_line(n: int, ip: str = TEST_DB_IPS[0]) -> str:
+    """A valid line whose URL identifies it, so a lost line and a
+    duplicated one cannot cancel out in a count."""
+    return make_log_line(ip).replace("/index.php", f"/line-{n}")
+
+
+def urls(repos: FakeRepos) -> list[str]:
+    return sorted(cast("Any", row).url for row in repos.access_log.added)
+
+
+def file_input(path: Path) -> LogInput:
+    return LogInput(
+        source=FileSource(path, poll_interval=0.02),
+        parser=LogParser(source_label=str(path), send_logs=True, hostname="test-host"),
+    )
+
+
+def append_line(path: Path, line: str) -> None:
+    with open(path, "a", encoding="utf-8") as fh:
+        fh.write(line + "\n")
 
 
 # ---------------------------------------------------------------------------
@@ -124,11 +159,207 @@ async def test_reload_reopens_and_clears_staleness(tmp_path: Path) -> None:
         await service.stop()
 
 
-async def test_reload_reuses_the_original_skip_validation(tmp_path: Path) -> None:
+async def test_lines_written_during_a_reload_are_ingested_once(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A line the proxy writes while the reload opens the new database must
+    not fall between the old tailer and a new one."""
+    city = tmp_path / "city.mmdb"
+    shutil.copyfile(CITY_SRC, city)
+    log = tmp_path / "access.log"
+    log.write_text("", encoding="utf-8")
+    repos = FakeRepos()
+    service = make_service(city, inputs=[file_input(log)], repos=repos)
+    await service.start(skip_validation=True)
+    try:
+        await asyncio.sleep(0.1)  # let the tailer open the file
+        append_line(log, numbered_line(1))
+        await wait_until(lambda: urls(repos) == ["/line-1"])
+
+        real_create_reader = service_module.create_reader
+
+        def create_reader_while_traffic_arrives(*args, **kwargs):
+            append_line(log, numbered_line(2))
+            return real_create_reader(*args, **kwargs)
+
+        monkeypatch.setattr(service_module, "create_reader", create_reader_while_traffic_arrives)
+        replace_file(CITY_SRC, city)
+        await service.reload_readers()
+        monkeypatch.setattr(service_module, "create_reader", real_create_reader)
+
+        # Long enough for a restarted tailer to have reopened the file, so
+        # line 3 arrives either way and only line 2 separates the outcomes.
+        await asyncio.sleep(0.2)
+        append_line(log, numbered_line(3))
+        await wait_until(lambda: "/line-3" in urls(repos))
+        await asyncio.sleep(0.2)
+        assert urls(repos) == ["/line-1", "/line-2", "/line-3"]
+    finally:
+        await service.stop()
+
+
+async def test_running_input_is_enriched_by_the_new_readers(tmp_path: Path) -> None:
+    """The input task must pick up the swapped lookups. The IP is already in
+    the old lookup cache, and a cached lookup on a closed reader answers
+    None, so a task still holding the old closures would lose enrichment
+    without any error."""
+    city = tmp_path / "city.mmdb"
+    asn = tmp_path / "asn.mmdb"
+    shutil.copyfile(CITY_SRC, city)
+    log = tmp_path / "access.log"
+    log.write_text("", encoding="utf-8")
+    repos = FakeRepos()
+    service = make_service(city, asn, inputs=[file_input(log)], repos=repos)
+    await service.start(skip_validation=True)
+    try:
+        await asyncio.sleep(0.1)
+        append_line(log, numbered_line(1, ASN_TEST_IP))
+        await wait_until(lambda: urls(repos) == ["/line-1"])
+        before = cast("Any", repos.access_log.added[0])
+        assert before.country_code is not None
+        assert before.autonomous_system_number is None  # no ASN database yet
+
+        shutil.copyfile(ASN_SRC, asn)
+        replace_file(CITY_SRC, city)
+        await service.reload_readers()
+
+        append_line(log, numbered_line(2, ASN_TEST_IP))
+        await wait_until(lambda: urls(repos) == ["/line-1", "/line-2"])
+        after = cast("Any", repos.access_log.added[1])
+        assert after.country_code == before.country_code
+        assert after.autonomous_system_number is not None
+    finally:
+        await service.stop()
+
+
+async def test_swap_closes_both_old_readers_when_one_close_fails(tmp_path: Path) -> None:
+    from geometrikks.services.ingestion.lookups import GeoLookups
+
     city = tmp_path / "city.mmdb"
     shutil.copyfile(CITY_SRC, city)
     service = make_service(city)
     await service.start(skip_validation=True)
+    try:
+        real = service._lookups
+        assert real is not None
+        old_city, old_asn = MagicMock(), MagicMock()
+        old_city.close.side_effect = OSError("close failed")
+        service._lookups = GeoLookups(
+            reader=old_city, asn_reader=old_asn, city=real.city, asn=None
+        )
+        real.reader.close()
+
+        await service.reload_readers()
+
+        old_city.close.assert_called_once_with()
+        old_asn.close.assert_called_once_with()
+        assert service.is_running is True
+        assert service._lookups is not None and service._lookups.reader is not old_city
+    finally:
+        await service.stop()
+
+
+async def test_reload_closes_the_old_readers_and_uses_the_new(tmp_path: Path) -> None:
+    city = tmp_path / "city.mmdb"
+    shutil.copyfile(CITY_SRC, city)
+    service = make_service(city)
+    await service.start(skip_validation=True)
+    try:
+        old = service._lookups
+        assert old is not None
+        replace_file(CITY_SRC, city)
+        await service.reload_readers()
+
+        new = service._lookups
+        assert new is not None and new is not old
+        with pytest.raises(ValueError):
+            old.reader.city(TEST_DB_IPS[0])
+        assert new.city(TEST_DB_IPS[0]) is not None
+    finally:
+        await service.stop()
+
+
+async def test_reload_keeps_the_old_readers_when_the_new_file_will_not_open(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    city = tmp_path / "city.mmdb"
+    shutil.copyfile(CITY_SRC, city)
+    service = make_service(city)
+    await service.start(skip_validation=True)
+    try:
+        old = service._lookups
+        replace_file(CITY_SRC, city)
+        monkeypatch.setattr(service_module, "create_reader", lambda *_a, **_k: None)
+
+        await service.reload_readers()
+
+        assert service._lookups is old
+        assert old is not None and old.city(TEST_DB_IPS[0]) is not None
+        assert service.is_running is True
+        assert service.readers_stale() is True
+    finally:
+        await service.stop()
+
+
+async def test_reload_picks_up_an_asn_database_that_appeared(tmp_path: Path) -> None:
+    city = tmp_path / "city.mmdb"
+    asn = tmp_path / "asn.mmdb"
+    shutil.copyfile(CITY_SRC, city)
+    service = make_service(city, asn)
+    await service.start(skip_validation=True)
+    try:
+        assert service._lookups is not None and service._lookups.asn is None
+        shutil.copyfile(ASN_SRC, asn)
+        assert service.readers_stale() is True
+
+        await service.reload_readers()
+
+        assert service._lookups.asn is not None
+        assert service.readers_stale() is False
+    finally:
+        await service.stop()
+
+
+async def test_reload_drops_an_asn_database_that_disappeared(tmp_path: Path) -> None:
+    city = tmp_path / "city.mmdb"
+    asn = tmp_path / "asn.mmdb"
+    shutil.copyfile(CITY_SRC, city)
+    shutil.copyfile(ASN_SRC, asn)
+    service = make_service(city, asn)
+    await service.start(skip_validation=True)
+    try:
+        asn.unlink()
+        await service.reload_readers()
+
+        assert service._lookups is not None and service._lookups.asn is None
+        assert service.is_running is True
+    finally:
+        await service.stop()
+
+
+async def test_reload_leaves_source_status_alone(tmp_path: Path) -> None:
+    city = tmp_path / "city.mmdb"
+    shutil.copyfile(CITY_SRC, city)
+    missing = tmp_path / "missing.log"
+    service = make_service(city, inputs=[file_input(missing)])
+    await service.start(skip_validation=True)
+    try:
+        await wait_until(lambda: service.missing_files == [str(missing)])
+        replace_file(CITY_SRC, city)
+        await service.reload_readers()
+        assert service.missing_files == [str(missing)]
+    finally:
+        await service.stop()
+
+
+async def test_reload_of_a_stopped_service_takes_the_restart_path(tmp_path: Path) -> None:
+    """With is_running False the reload goes through stop() and start(), as
+    it always has, and hands start() the original skip_validation."""
+    city = tmp_path / "city.mmdb"
+    shutil.copyfile(CITY_SRC, city)
+    service = make_service(city)
+    await service.start(skip_validation=True)
+    service.is_running = False
 
     restart = AsyncMock()
     service.start = restart  # type: ignore[method-assign]
@@ -144,11 +375,13 @@ async def test_disable_reloads_makes_reload_inert(tmp_path: Path) -> None:
     service = make_service(city)
     await service.start(skip_validation=True)
     try:
+        before = service._lookups
         service.disable_reloads()
         restart = AsyncMock()
         service.start = restart  # type: ignore[method-assign]
         await service.reload_readers()
         restart.assert_not_awaited()
+        assert service._lookups is before
     finally:
         await service.stop()
 
