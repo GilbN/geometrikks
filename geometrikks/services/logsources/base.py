@@ -46,6 +46,9 @@ class LogSource(Protocol):
     def lines(self, stop: asyncio.Event) -> AsyncIterator[str]:
         """Yield each new raw line once, until stop is set.
 
+        Every line that arrives after wait_ready returned is yielded, however
+        long the caller waits before starting to read.
+
         Conditions the source can retry are recorded in status(), not raised.
         """
         ...

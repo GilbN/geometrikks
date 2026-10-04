@@ -635,6 +635,39 @@ async def test_an_unknown_source_type_is_ingested() -> None:
         await service.stop(timeout=5.0)
 
 
+class WritesDuringFormatCheck(FileSource):
+    """Appends one line just before the first format sample, the way a
+    web server writes its first request while the check is running."""
+
+    def __init__(self, path: Path, line: str) -> None:
+        super().__init__(path, poll_interval=0.01)
+        self._line: str | None = line
+
+    async def recent_lines(self, count: int) -> list[str]:
+        if self._line is not None:
+            with open(self.path, "a", encoding="utf-8") as fh:
+                fh.write(self._line)
+            self._line = None
+        return await super().recent_lines(count)
+
+
+async def test_the_line_that_ends_the_format_wait_is_ingested(tmp_path: Path) -> None:
+    log_file = tmp_path / "access.log"
+    log_file.write_text("", encoding="utf-8")
+    source = WritesDuringFormatCheck(log_file, make_log_line(TEST_DB_IPS[0]) + "\n")
+    log_input = LogInput(
+        source=source,
+        parser=LogParser(source_label=str(log_file), send_logs=True, hostname="test-host"),
+    )
+    service, _repos, _sessions = make_service([log_input])
+
+    await service.start()
+    try:
+        await wait_until(lambda: service.total_processed >= 1)
+    finally:
+        await service.stop(timeout=5.0)
+
+
 async def test_missing_files_lists_unavailable_source_labels() -> None:
     up, down = stub_input([], "stub#up"), stub_input([], "stub#down")
     cast(ListSource, down.source).available = False
