@@ -21,6 +21,7 @@ from geometrikks.services.ingestion.service import (
     IngestionRepos,
     LogInput,
     LogIngestionService,
+    UnavailableSource,
 )
 from geometrikks.services.logsources import FileSource, SourceStatus
 
@@ -190,6 +191,14 @@ def make_service(inputs: list[LogInput], **overrides) -> tuple[LogIngestionServi
     return LogIngestionService(**kwargs), repos, sessions
 
 
+def added_geo_events(repos: FakeRepos) -> list[GeoEvent]:
+    return [cast(GeoEvent, geo_event) for geo_event in repos.geo_event.added]
+
+
+def added_access_logs(repos: FakeRepos) -> list[AccessLog]:
+    return [cast(AccessLog, access_log) for access_log in repos.access_log.added]
+
+
 async def wait_until(predicate, timeout: float = 5.0) -> None:
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
@@ -202,7 +211,7 @@ async def wait_until(predicate, timeout: float = 5.0) -> None:
 def make_input(path: Path) -> LogInput:
     return LogInput(
         source=FileSource(path, poll_interval=0.02),
-        parser=LogParser(source_label=str(path), send_logs=True, hostname="test-host"),
+        parser=LogParser(source_label=str(path), send_logs=True),
     )
 
 
@@ -596,8 +605,9 @@ class ListSource:
 
     kind = "stub"
 
-    def __init__(self, lines: list[str], label: str = "stub#0") -> None:
+    def __init__(self, lines: list[str], label: str = "stub#0", hostname: str = "test-host") -> None:
         self.label = label
+        self.hostname = hostname
         self._lines = lines
         self.available = True
 
@@ -616,11 +626,76 @@ class ListSource:
         await stop.wait()
 
 
-def stub_input(lines: list[str], label: str = "stub#0") -> LogInput:
+def stub_input(lines: list[str], label: str = "stub#0", hostname: str = "test-host") -> LogInput:
     return LogInput(
-        source=ListSource(lines, label),
-        parser=LogParser(source_label=label, send_logs=True, hostname="test-host"),
+        source=ListSource(lines, label, hostname),
+        parser=LogParser(source_label=label, send_logs=True),
     )
+
+
+async def test_records_carry_the_source_hostname() -> None:
+    log_input = stub_input([make_log_line(TEST_DB_IPS[0])], hostname="vps-1")
+    service, repos, _sessions = make_service([log_input])
+
+    await service.start()
+    try:
+        await wait_until(lambda: service.total_processed >= 1)
+    finally:
+        await service.stop(timeout=5.0)
+
+    assert {geo_event.hostname for geo_event in added_geo_events(repos)} == {"vps-1"}
+
+
+async def test_an_empty_source_hostname_falls_back_to_the_service_default() -> None:
+    log_input = stub_input([make_log_line(TEST_DB_IPS[0])], hostname="")
+    service, repos, _sessions = make_service([log_input])
+
+    await service.start()
+    try:
+        await wait_until(lambda: service.total_processed >= 1)
+    finally:
+        await service.stop(timeout=5.0)
+
+    assert {geo_event.hostname for geo_event in added_geo_events(repos)} == {service.hostname}
+
+
+async def test_live_events_carry_the_service_hostname_when_the_source_has_none() -> None:
+    channels = _channels_stub()
+    log_input = stub_input([make_log_line(TEST_DB_IPS[0])], hostname="")
+    service, _repos, _sessions = make_service([log_input], channels=channels)
+
+    await service.start()
+    try:
+        await wait_until(lambda: channels.publish.call_count >= 1)
+    finally:
+        await service.stop(timeout=5.0)
+
+    event, _channel = channels.publish.call_args.args
+    assert event["geo"]["hostname"] == service.hostname
+    assert event["log"]["hostname"] == service.hostname
+
+
+async def test_a_malformed_line_carries_the_source_hostname() -> None:
+    log_input = stub_input(["total garbage\n"], hostname="vps-1")
+    records: list[ParsedLogRecord] = []
+    parse_line = log_input.parser.parse_line
+
+    def capturing_parse_line(*args, **kwargs):
+        record = parse_line(*args, **kwargs)
+        if record is not None:
+            records.append(record)
+        return record
+
+    cast("Any", log_input.parser).parse_line = capturing_parse_line
+    service, _repos, _sessions = make_service([log_input])
+
+    await service.start(skip_validation=True)
+    try:
+        await wait_until(lambda: len(records) >= 1)
+    finally:
+        await service.stop(timeout=5.0)
+
+    assert {record.hostname for record in records} == {"vps-1"}
 
 
 async def test_an_unknown_source_type_is_ingested() -> None:
@@ -635,6 +710,39 @@ async def test_an_unknown_source_type_is_ingested() -> None:
         await service.stop(timeout=5.0)
 
 
+class WritesDuringFormatCheck(FileSource):
+    """Appends one line just before the first format sample, the way a
+    web server writes its first request while the check is running."""
+
+    def __init__(self, path: Path, line: str) -> None:
+        super().__init__(path, poll_interval=0.01)
+        self._line: str | None = line
+
+    async def recent_lines(self, count: int) -> list[str]:
+        if self._line is not None:
+            with open(self.path, "a", encoding="utf-8") as fh:
+                fh.write(self._line)
+            self._line = None
+        return await super().recent_lines(count)
+
+
+async def test_the_line_that_ends_the_format_wait_is_ingested(tmp_path: Path) -> None:
+    log_file = tmp_path / "access.log"
+    log_file.write_text("", encoding="utf-8")
+    source = WritesDuringFormatCheck(log_file, make_log_line(TEST_DB_IPS[0]) + "\n")
+    log_input = LogInput(
+        source=source,
+        parser=LogParser(source_label=str(log_file), send_logs=True),
+    )
+    service, _repos, _sessions = make_service([log_input])
+
+    await service.start()
+    try:
+        await wait_until(lambda: service.total_processed >= 1)
+    finally:
+        await service.stop(timeout=5.0)
+
+
 async def test_missing_files_lists_unavailable_source_labels() -> None:
     up, down = stub_input([], "stub#up"), stub_input([], "stub#down")
     cast(ListSource, down.source).available = False
@@ -642,6 +750,18 @@ async def test_missing_files_lists_unavailable_source_labels() -> None:
 
     assert service.missing_files == ["stub#down"]
     assert service.parsers == [up.parser, down.parser]
+
+
+async def test_unavailable_sources_carry_kind_label_and_reason() -> None:
+    up = stub_input([], label="stub#up")
+    down = stub_input([], label="stub#down")
+    cast(ListSource, down.source).available = False
+    service, _repos, _sessions = make_service([up, down])
+
+    assert service.unavailable_sources == [
+        UnavailableSource(kind="stub", label="stub#down", reason="down")
+    ]
+    assert service.missing_files == ["stub#down"]
 
 
 async def test_missing_file_is_reported_before_format_validation(tmp_path: Path) -> None:
@@ -743,7 +863,7 @@ async def test_source_that_cannot_sample_keeps_access_logs_with_a_pinned_format(
     log_input = LogInput(
         source=NoSampleSource([make_log_line(TEST_DB_IPS[0])], "stub#nosample"),
         parser=LogParser(
-            source_label="stub#nosample", send_logs=True, hostname="test-host", log_format="nginx"
+            source_label="stub#nosample", send_logs=True, log_format="nginx"
         ),
     )
     service, repos, _sessions = make_service([log_input])
@@ -792,7 +912,7 @@ async def test_empty_source_with_a_pinned_format_keeps_access_logs() -> None:
     log_input = LogInput(
         source=EmptyThenBusySource([make_log_line(TEST_DB_IPS[0])], "stub#fresh"),
         parser=LogParser(
-            source_label="stub#fresh", send_logs=True, hostname="test-host", log_format="nginx"
+            source_label="stub#fresh", send_logs=True, log_format="nginx"
         ),
     )
     service, repos, _sessions = make_service([log_input])
@@ -828,7 +948,7 @@ async def test_unreadable_file_with_pinned_format_keeps_access_logs(tmp_path: Pa
     log_file = tmp_path / "a.log"
     log_file.write_text("", encoding="utf-8")
     source = FileSource(log_file, poll_interval=0.02)
-    parser = LogParser(source_label=str(log_file), send_logs=True, hostname="test-host", log_format="nginx")
+    parser = LogParser(source_label=str(log_file), send_logs=True, log_format="nginx")
     readable = {"yes": False}
     real_read_recent = source._read_recent
     real_open = aiofiles.open
@@ -873,7 +993,7 @@ async def test_failed_input_is_logged_with_its_source() -> None:
 
     log_input = LogInput(
         source=ExplodingSource([], "stub#broken"),
-        parser=LogParser(source_label="stub#broken", send_logs=True, hostname="test-host"),
+        parser=LogParser(source_label="stub#broken", send_logs=True),
     )
     service, _repos, _sessions = make_service([log_input])
 
@@ -1338,6 +1458,23 @@ def make_full_record(hostname: str) -> ParsedLogRecord:
         hostname=hostname,
     )
 
+async def test_flush_records_stamps_the_service_hostname_on_a_bare_parser_record() -> None:
+    """The import path: a LogParser with no source, flushed straight into the service."""
+    parser = LogParser(source_label="import.log", send_logs=True)
+    service, repos, _sessions = make_service([], hostname="import-host")
+    reader = Reader(GEOIP_DB_PATH)
+    try:
+        lookups = GeoLookups.build(reader, None)
+        record = parser.parse_line(make_log_line(TEST_DB_IPS[0]), lookups.city, lookups.asn)
+    finally:
+        reader.close()
+    assert record is not None and record.hostname == ""
+
+    await service.flush_records([record])
+
+    assert {geo_event.hostname for geo_event in added_geo_events(repos)} == {"import-host"}
+    assert {access_log.hostname for access_log in added_access_logs(repos)} == {"import-host"}
+
 
 def _channels_stub():
     from unittest.mock import MagicMock
@@ -1435,8 +1572,6 @@ class TestAsnWiring:
         captured: dict[str, Any] = {}
 
         class FakeParser:
-            hostname = "h"
-
             def parse_line(self, line, lookup, asn_lookup=None):
                 captured["asn_lookup"] = asn_lookup
                 return None

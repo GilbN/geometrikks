@@ -27,23 +27,35 @@ class FileSource:
     kind = "file"
 
     def __init__(
-        self, path: Path, poll_interval: float = 1.0, *, start_at_end: bool = True
+        self,
+        path: Path,
+        poll_interval: float = 1.0,
+        *,
+        hostname: str = "",
+        start_at_end: bool = True,
     ) -> None:
         """Set up the source.
 
         Args:
             path: The log file to tail.
             poll_interval: Seconds between checks for new lines.
-            start_at_end: If True, seek to end of file (tail -f behavior).
-                If False, read from beginning.
+            hostname: Stamped on every record read from this file.
+            start_at_end: If True, reading starts at the position recorded by
+                wait_ready, or at the current end when lines() is called
+                without it. If False, read from the beginning.
         """
         self.path: Path = path
         self.label: str = str(path)
+        self.hostname: str = hostname
         self.poll_interval: int | float = poll_interval
         self.start_at_end: bool = start_at_end
         # True while the configured file is absent. This is surfaced through
-        # LogIngestionService.missing_files into /health.
+        # LogIngestionService.unavailable_sources into /health.
         self._missing: bool = False
+        # (inode, size) of the file when wait_ready returned. The first open
+        # in lines() starts there, so lines written while the service was
+        # checking the format are not skipped. None means "start at the end".
+        self._ready_position: tuple[int, int] | None = None
 
     def status(self) -> SourceStatus:
         if self._missing:
@@ -75,8 +87,20 @@ class FileSource:
             logger.info("Log file reappeared, resuming tail: %s", self.path)
             self._missing = False
 
+    async def _record_ready_position(self) -> None:
+        """Remember the file's identity and size for the first open in lines()."""
+        try:
+            stat_result = await aiofiles.os.stat(self.path)
+        except OSError:
+            # Vanished since the existence check. No real inode matches this
+            # one, so whatever appears at the path is read from the start.
+            self._ready_position = (-1, 0)
+            return
+        self._ready_position = (stat_result.st_ino, stat_result.st_size)
+
     async def wait_ready(self, stop: asyncio.Event) -> bool:
         logger.debug("Waiting for log file: %s", self.path)
+        self._ready_position = None
         if not await wait_for_path(
             self.path,
             timeout_seconds=MISSING_FILE_GRACE_SECONDS,
@@ -89,6 +113,7 @@ class FileSource:
                 if await sleep_unless_stopped(self.poll_interval, stop):
                     return False
             self._mark_present()
+        await self._record_ready_position()
         return True
 
     def _read_recent(self, count: int) -> list[str]:
@@ -169,6 +194,21 @@ class FileSource:
 
         return False
 
+    @staticmethod
+    def _start_offset(
+        stat_result: os.stat_result, ready_position: tuple[int, int] | None
+    ) -> int:
+        """Where the first open starts reading."""
+        if ready_position is None:
+            return stat_result.st_size
+        inode, size = ready_position
+        # Rotated or truncated since wait_ready: the whole file is new. A
+        # file truncated and rewritten past the recorded size cannot be told
+        # from an append, and is read from the recorded offset.
+        if stat_result.st_ino != inode or stat_result.st_size < size:
+            return 0
+        return size
+
     async def lines(self, stop: asyncio.Event) -> AsyncGenerator[str, None]:
         """Async generator that tails the log file and yields each new line.
 
@@ -183,7 +223,7 @@ class FileSource:
             # Stat before (re)opening: after a rotation break the new file may
             # not exist yet, and crashing here would kill the tail task.
             try:
-                stat_result = await aiofiles.os.stat(self.path)
+                await aiofiles.os.stat(self.path)
             except OSError as e:
                 self._mark_missing(e)
                 await asyncio.sleep(self.poll_interval)
@@ -201,10 +241,15 @@ class FileSource:
             self._mark_present()
 
             try:
+                # Stat the descriptor, not the stat above: the path can be
+                # rotated between that stat and the open, and the rotation
+                # check must compare against the file being read.
+                stat_result = await aiofiles.os.stat(file.fileno())
                 if seek_to_end:
-                    await file.seek(stat_result.st_size)
+                    await file.seek(self._start_offset(stat_result, self._ready_position))
                 # After a rotation we always read the new file from the start
                 seek_to_end = False
+                self._ready_position = None
 
                 logger.info("Streaming log file events (async): %s", self.path)
 
@@ -223,11 +268,11 @@ class FileSource:
                             break  # close this file; outer loop reopens
                         continue
 
-                    # Update stat for next rotation check. The file can vanish
-                    # between the read and this stat; keep the previous stat
-                    # and let the idle-path rotation check flag the miss.
+                    # The baseline tracks the file being read, so its size keeps
+                    # up with growth and a replacement at the path is seen as a
+                    # rotation. If the stat fails, the previous baseline stays.
                     try:
-                        stat_result = await aiofiles.os.stat(self.path)
+                        stat_result = await aiofiles.os.stat(file.fileno())
                     except OSError:
                         pass
 

@@ -36,6 +36,12 @@ from geometrikks.domain.system.dependencies import provide_ingestion_service as 
 MAXMIND_REFRESH_WINDOW_DAYS = 30
 
 
+class UnavailableSourceHealth(msgspec.Struct, rename="camel"):
+    kind: str
+    label: str
+    reason: str | None
+
+
 class IngestionHealth(msgspec.Struct, rename="camel"):
     running: bool
     parsed_lines: int
@@ -47,6 +53,8 @@ class IngestionHealth(msgspec.Struct, rename="camel"):
     publish_dropped: int = 0
     failed_batches: int = 0
     failed_records: int = 0
+    # Additive: richer than missing_files, which keeps the labels for older clients.
+    unavailable_sources: list[UnavailableSourceHealth] = []
 
 
 class DatabaseHealth(msgspec.Struct, rename="camel"):
@@ -355,9 +363,14 @@ def _collect_advisories(app: Litestar, settings: Settings) -> list[Advisory]:
     if settings.app.proxy_advisory:
         from geometrikks.domain.system import proxy_scan
 
-        parsers = service.parsers if service is not None else []
-        local = proxy_findings(parsers)
-        covered = {f.hostname for f in local} | {p.hostname for p in parsers}
+        log_inputs = service.inputs if service is not None else []
+        local = proxy_findings(
+            log_inputs,
+            default_hostname=service.hostname if service is not None else "",
+        )
+        covered = {f.hostname for f in local}
+        if service is not None:
+            covered |= {service.hostname_for(log_input) for log_input in log_inputs}
         findings = local + [
             f for f in proxy_scan.get_scan_findings() if f.hostname not in covered
         ]
@@ -436,10 +449,13 @@ async def health(
         return dt.isoformat() if dt else None
 
     is_running = ingestion_service.is_running if ingestion_service else False
-    # Tailed files that disappeared mid-flight: the tailer keeps waiting for
+    # Sources that became unavailable mid-flight: the tailer keeps waiting for
     # them (log rotation resilience), so `running` stays true, but nothing is
-    # being ingested from those files and status must not read as healthy.
-    missing_files = ingestion_service.missing_files if ingestion_service else []
+    # being ingested from those sources and status must not read as healthy.
+    unavailable_sources = (
+        ingestion_service.unavailable_sources if ingestion_service else []
+    )
+    missing_files = [source.label for source in unavailable_sources]
     db_reachable = await _database_reachable(request.app)
     services_active = runtime.is_db_available(request.app, default=True)
 
@@ -472,6 +488,12 @@ async def health(
             parsed_lines=ingestion_service.parsed_lines if ingestion_service else 0,
             pending_records=ingestion_service.pending_records if ingestion_service else 0,
             missing_files=missing_files,
+            unavailable_sources=[
+                UnavailableSourceHealth(
+                    kind=source.kind, label=source.label, reason=source.reason
+                )
+                for source in unavailable_sources
+            ],
             last_record_at=_iso(
                 ingestion_service.last_record_at if ingestion_service else None
             ),

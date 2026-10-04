@@ -67,6 +67,13 @@ class LogInput:
     parser: LogParser
 
 
+@dataclass(frozen=True, slots=True)
+class UnavailableSource:
+    kind: str
+    label: str
+    reason: str | None
+
+
 @dataclass
 class IngestionRepos:
     """The four repositories used by one flush cycle, all bound to the same session."""
@@ -157,8 +164,9 @@ class LogIngestionService:
             asn_db_path: Optional GeoLite2-ASN database path; None or an
                 unreadable file means requests ingest without ASN enrichment.
             repos_factory: Builds the IngestionRepos bundle from a session.
-            hostname: Fallback hostname for records that carry none (the
-                importer path); tail-path records are stamped by their parser.
+            hostname: Fallback hostname for records whose source has none.
+                Records read from a source carry the source's hostname, and
+                imported records get this one when they are stored.
             batch_size: Maximum records before forced commit.
             commit_interval: Maximum seconds between commits.
             store_debug_lines: If True, store all raw lines in debug table.
@@ -234,7 +242,7 @@ class LogIngestionService:
         return self._ingestion_task is not None and not self._ingestion_task.done()
 
     async def start(self, *, skip_validation: bool = False) -> None:
-        """Start one tail task per log file and the ingestion consumer."""
+        """Start one task per log source and the ingestion consumer."""
         if self.is_running:
             logger.warning("Ingestion already running")
             return
@@ -281,11 +289,15 @@ class LogIngestionService:
             self._run_ingestion(), name="log-ingestion"
         )
         logger.info(
-            "Started log ingestion service (%d files, batch_size=%d, commit_interval=%.1fs)",
+            "Started log ingestion service (%d sources, batch_size=%d, commit_interval=%.1fs)",
             len(self.inputs),
             self.batch_size,
             self.commit_interval,
         )
+
+    def hostname_for(self, log_input: LogInput) -> str:
+        """The hostname stamped on records from this input: the source's own, or the service default."""
+        return log_input.source.hostname or self.hostname
 
     async def _run_input(self, log_input: LogInput, skip_validation: bool) -> None:
         """Read one source, pushing parsed records onto the shared queue."""
@@ -307,6 +319,7 @@ class LogIngestionService:
                 record = log_input.parser.parse_line(line, lookups.city, lookups.asn)
                 if record is None:
                     continue  # ignored IP
+                record.hostname = self.hostname_for(log_input)
                 await self._queue.put(record)
         except Exception:
             logger.exception("ingestion_input_failed", source=log_input.source.label)
@@ -315,7 +328,7 @@ class LogIngestionService:
     async def _await_format(self, log_input: LogInput) -> None:
         """Lock the parser's format from the source's newest lines, or degrade."""
         assert self._stop_event is not None
-        logger.debug("Validating log file format.")
+        logger.debug("Validating log format of %s", log_input.source.label)
         outcome = await self._format_validates(log_input)
         if outcome is FormatValidation.VALID or self._stop_event.is_set():
             return
@@ -338,7 +351,8 @@ class LogIngestionService:
         else:
             parser.send_logs = False
             logger.warning(
-                "Log file format invalid. Streaming without access log objects."
+                "Log format of %s is invalid. Streaming without access log objects.",
+                log_input.source.label,
             )
 
     async def _format_validates(
@@ -350,17 +364,17 @@ class LogIngestionService:
         """Retry the format check until it passes, times out, the source
         reports itself unavailable, or a stop is requested.
 
-        Each attempt offloads the blocking file read to a worker thread
-        (``source.recent_lines``), but the waiting between attempts happens
-        here on the event loop. A thread handed to ``asyncio.to_thread``
-        cannot be cancelled, so retrying inside the thread (the previous
-        behaviour) kept the process busy for the full timeout after shutdown
-        had been requested: the awaiting task raised ``CancelledError``
-        immediately while the thread kept sleeping, and the interpreter could
-        not finish exiting until it returned. This is reachable whenever the
-        configured log file exists but is empty or in an unrecognised format,
-        which is the normal state of a fresh install before the web server
-        writes its first line.
+        For a ``FileSource`` each attempt offloads the blocking read to a
+        worker thread (``source.recent_lines``), but the waiting between
+        attempts happens here on the event loop. A thread handed to
+        ``asyncio.to_thread`` cannot be cancelled, so retrying inside the
+        thread (the previous behaviour) kept the process busy for the full
+        timeout after shutdown had been requested: the awaiting task raised
+        ``CancelledError`` immediately while the thread kept sleeping, and the
+        interpreter could not finish exiting until it returned. This is
+        reachable whenever a tailed file exists but is empty or in an
+        unrecognised format, which is the normal state of a fresh install
+        before the web server writes its first line.
 
         Args:
             log_input: The source to sample and the parser to lock.
@@ -595,8 +609,8 @@ class LogIngestionService:
                 ):
                     if not self._stop_event.is_set():
                         logger.error(
-                            "All log tail tasks have exited; stopping ingestion "
-                            "(no log files are being tailed)"
+                            "All log source tasks have exited; stopping ingestion "
+                            "(no sources are being read)"
                         )
                     break
 
@@ -961,17 +975,17 @@ class LogIngestionService:
     # Statistics properties for API endpoints
     @property
     def parsed_lines(self) -> int:
-        """Total parsed lines across all tailed files."""
+        """Total parsed lines across all sources."""
         return sum(parser.parsed_lines for parser in self.parsers)
 
     @property
     def skipped_lines(self) -> int:
-        """Total skipped lines across all tailed files."""
+        """Total skipped lines across all sources."""
         return sum(parser.skipped_lines for parser in self.parsers)
 
     @property
     def ignored_lines(self) -> int:
-        """Total ignore-list dropped lines across all tailed files."""
+        """Total ignore-list dropped lines across all sources."""
         return sum(parser.ignored_lines for parser in self.parsers)
 
     @property
@@ -980,10 +994,19 @@ class LogIngestionService:
         return [log_input.parser for log_input in self.inputs]
 
     @property
+    def unavailable_sources(self) -> list[UnavailableSource]:
+        """The sources currently unavailable, since startup or after removal."""
+        unavailable: list[UnavailableSource] = []
+        for log_input in self.inputs:
+            source = log_input.source
+            status = source.status()
+            if not status.available:
+                unavailable.append(
+                    UnavailableSource(kind=source.kind, label=source.label, reason=status.reason)
+                )
+        return unavailable
+
+    @property
     def missing_files(self) -> list[str]:
-        """Labels of the sources currently unavailable, since startup or after removal."""
-        return [
-            log_input.source.label
-            for log_input in self.inputs
-            if not log_input.source.status().available
-        ]
+        """Labels of the unavailable sources. Kept for the /health field of the same name."""
+        return [source.label for source in self.unavailable_sources]

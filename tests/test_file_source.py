@@ -19,6 +19,11 @@ def make_source(path: Path, **kwargs) -> FileSource:
     return FileSource(path, **kwargs)
 
 
+def test_file_source_carries_its_hostname(tmp_path: Path) -> None:
+    assert make_source(tmp_path / "a.log", hostname="vps-1").hostname == "vps-1"
+    assert make_source(tmp_path / "a.log").hostname == ""
+
+
 async def next_line(gen) -> str:
     return await asyncio.wait_for(gen.__anext__(), timeout=5.0)
 
@@ -113,6 +118,19 @@ async def test_rotation_reopens_from_start_twice(tmp_path: Path) -> None:
         replacement.write_text(f"rotated {i}\n", encoding="utf-8")
         os.replace(replacement, log)  # atomically swaps in a new inode
         assert await next_line(gen) == f"rotated {i}\n"
+    await gen.aclose()
+
+
+async def test_a_rotation_while_old_lines_are_unread_is_still_detected(tmp_path: Path) -> None:
+    log = tmp_path / "access.log"
+    log.write_text("old-one\nold-two\n", encoding="utf-8")
+    gen = make_source(log, start_at_end=False).lines(asyncio.Event())
+
+    assert await next_line(gen) == "old-one\n"
+    os.rename(log, tmp_path / "access.log.1")
+    log.write_text("new-one\n", encoding="utf-8")
+    assert await next_line(gen) == "old-two\n"
+    assert await next_line(gen) == "new-one\n"
     await gen.aclose()
 
 
@@ -349,3 +367,233 @@ async def test_recent_lines_zero_or_negative_count(tmp_path: Path) -> None:
 
     assert await make_source(log).recent_lines(0) == []
     assert await make_source(log).recent_lines(-1) == []
+
+
+async def test_lines_yields_a_line_written_after_wait_ready(tmp_path: Path) -> None:
+    log = tmp_path / "a.log"
+    log.write_text("old\n", encoding="utf-8")
+    source = make_source(log)
+    stop = asyncio.Event()
+
+    assert await source.wait_ready(stop)
+    with open(log, "a", encoding="utf-8") as fh:
+        fh.write("during-wait\n")
+    gen = source.lines(stop)
+
+    assert await next_line(gen) == "during-wait\n"
+    await gen.aclose()
+
+
+async def test_lines_reads_from_start_when_rotated_after_wait_ready(tmp_path: Path) -> None:
+    log = tmp_path / "a.log"
+    log.write_text("old-one\nold-two\n", encoding="utf-8")
+    source = make_source(log)
+    stop = asyncio.Event()
+
+    assert await source.wait_ready(stop)
+    os.rename(log, tmp_path / "a.log.1")
+    log.write_text("fresh\n", encoding="utf-8")
+    gen = source.lines(stop)
+
+    assert await next_line(gen) == "fresh\n"
+    await gen.aclose()
+
+
+async def test_lines_reads_from_start_when_truncated_after_wait_ready(tmp_path: Path) -> None:
+    log = tmp_path / "a.log"
+    log.write_text("old-one\nold-two\n", encoding="utf-8")
+    source = make_source(log)
+    stop = asyncio.Event()
+
+    assert await source.wait_ready(stop)
+    with open(log, "w", encoding="utf-8") as fh:
+        fh.write("new\n")
+    gen = source.lines(stop)
+
+    assert await next_line(gen) == "new\n"
+    await gen.aclose()
+
+
+async def test_lines_survives_a_truncate_and_rewrite_past_the_recorded_size(
+    tmp_path: Path,
+) -> None:
+    """Indistinguishable from an append: the read starts mid-file and must not crash."""
+    log = tmp_path / "a.log"
+    log.write_text("old\n", encoding="utf-8")
+    source = make_source(log)
+    stop = asyncio.Event()
+
+    assert await source.wait_ready(stop)
+    with open(log, "w", encoding="utf-8") as fh:
+        fh.write("aaaa\nbbbb\n")
+    gen = source.lines(stop)
+
+    assert await next_line(gen) == "\n"
+    assert await next_line(gen) == "bbbb\n"
+    await gen.aclose()
+
+
+async def test_first_open_judges_the_file_it_opened(tmp_path: Path, monkeypatch) -> None:
+    """A rotation between the stat and the open must not seek into the new file."""
+    log = tmp_path / "a.log"
+    log.write_text("old-one\nold-two\n", encoding="utf-8")
+    source = make_source(log)
+    stop = asyncio.Event()
+    assert await source.wait_ready(stop)
+
+    real_open = aiofiles.open
+    rotated = False
+
+    def rotate_then_open(*args, **kwargs):
+        nonlocal rotated
+        if not rotated:
+            rotated = True
+            os.rename(log, tmp_path / "a.log.1")
+            log.write_text("fresh-one\nfresh-two-is-longer\n", encoding="utf-8")
+        return real_open(*args, **kwargs)
+
+    monkeypatch.setattr(aiofiles, "open", rotate_then_open)
+    gen = source.lines(stop)
+
+    assert await next_line(gen) == "fresh-one\n"
+    await gen.aclose()
+
+
+async def test_the_recorded_position_survives_a_failed_first_open(
+    tmp_path: Path, monkeypatch
+) -> None:
+    log = tmp_path / "a.log"
+    log.write_text("one\n", encoding="utf-8")
+    source = make_source(log)
+    stop = asyncio.Event()
+    assert await source.wait_ready(stop)
+    with open(log, "a", encoding="utf-8") as fh:
+        fh.write("two\n")
+
+    real_open = aiofiles.open
+    failed = False
+
+    def fail_once_then_open(*args, **kwargs):
+        nonlocal failed
+        if not failed:
+            failed = True
+            raise PermissionError("denied once")
+        return real_open(*args, **kwargs)
+
+    monkeypatch.setattr(aiofiles, "open", fail_once_then_open)
+    gen = source.lines(stop)
+
+    assert await next_line(gen) == "two\n"
+    assert failed
+    await gen.aclose()
+
+
+async def test_wait_ready_replaces_a_position_recorded_before_a_restart(
+    tmp_path: Path,
+) -> None:
+    log = tmp_path / "a.log"
+    log.write_text("one\n", encoding="utf-8")
+    source = make_source(log)
+    stop = asyncio.Event()
+
+    assert await source.wait_ready(stop)
+    with open(log, "a", encoding="utf-8") as fh:
+        fh.write("two\n")
+    assert await source.wait_ready(stop)
+    with open(log, "a", encoding="utf-8") as fh:
+        fh.write("three\n")
+    gen = source.lines(stop)
+
+    assert await next_line(gen) == "three\n"
+    await gen.aclose()
+
+
+async def test_a_second_lines_call_without_wait_ready_starts_at_the_end(
+    tmp_path: Path, monkeypatch
+) -> None:
+    log = tmp_path / "a.log"
+    log.write_text("one\n", encoding="utf-8")
+    source = make_source(log)
+    stop = asyncio.Event()
+
+    assert await source.wait_ready(stop)
+    with open(log, "a", encoding="utf-8") as fh:
+        fh.write("two\n")
+    first = source.lines(stop)
+    assert await next_line(first) == "two\n"
+    await first.aclose()
+
+    real_open = aiofiles.open
+    seeked = asyncio.Event()
+
+    async def open_signalling_seek(*args, **kwargs):
+        file = await real_open(*args, **kwargs)
+        real_seek = file.seek
+
+        async def seek(*seek_args, **seek_kwargs):
+            position = await real_seek(*seek_args, **seek_kwargs)
+            seeked.set()
+            return position
+
+        file.seek = seek
+        return file
+
+    monkeypatch.setattr(aiofiles, "open", open_signalling_seek)
+    second = source.lines(stop)
+    pending = asyncio.ensure_future(next_line(second))
+    await asyncio.wait_for(seeked.wait(), timeout=5.0)
+    with open(log, "a", encoding="utf-8") as fh:
+        fh.write("three\n")
+    assert await pending == "three\n"
+    await second.aclose()
+
+
+@pytest.mark.parametrize("recorded", [False, True])
+async def test_a_path_replaced_between_stat_and_open_is_not_read_twice(
+    tmp_path: Path, monkeypatch, recorded: bool
+) -> None:
+    log = tmp_path / "a.log"
+    log.write_text("old-one\nold-two\n", encoding="utf-8")
+    source = make_source(log)
+    stop = asyncio.Event()
+    if recorded:
+        assert await source.wait_ready(stop)
+
+    real_open = aiofiles.open
+    rotated = False
+
+    def rotate_then_open(*args, **kwargs):
+        nonlocal rotated
+        if not rotated:
+            rotated = True
+            os.rename(log, tmp_path / "a.log.1")
+            log.write_text("fresh\n", encoding="utf-8")
+        return real_open(*args, **kwargs)
+
+    monkeypatch.setattr(aiofiles, "open", rotate_then_open)
+    gen = source.lines(stop)
+    pending = asyncio.ensure_future(next_line(gen))
+    if recorded:
+        assert await pending == "fresh\n"
+        pending = asyncio.ensure_future(next_line(gen))
+
+    # A reopen from byte 0 would yield "fresh" again within a poll or two.
+    done, _ = await asyncio.wait({pending}, timeout=0.3)
+    assert not done
+    with open(log, "a", encoding="utf-8") as fh:
+        fh.write("later\n")
+
+    assert await pending == "later\n"
+    await gen.aclose()
+
+
+async def test_a_file_that_vanished_at_readiness_is_read_from_the_start(tmp_path: Path) -> None:
+    log = tmp_path / "a.log"
+    source = make_source(log)
+
+    await source._record_ready_position()
+    log.write_text("fresh\n", encoding="utf-8")
+    gen = source.lines(asyncio.Event())
+
+    assert await next_line(gen) == "fresh\n"
+    await gen.aclose()

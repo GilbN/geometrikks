@@ -136,8 +136,11 @@ export interface HealthIngestionStatus {
   running: boolean
   parsedLines: number
   pendingRecords: number
-  /** Tailed log files that disappeared mid-flight; ingestion waits for them. */
+  /** Labels of the unavailable sources. Kept for older clients. */
   missingFiles: string[]
+  /** Sources ingestion is waiting for. Optional: absent on older backends,
+   *  where missingFiles is the only signal. */
+  unavailableSources?: { kind: string; label: string; reason: string | null }[]
   /** Wall-clock of the most recent ingested record; null before the first. */
   lastRecordAt: string | null
   /** Tri-state: "disabled" is a deliberate LOGPARSER_ENABLED=false setting,

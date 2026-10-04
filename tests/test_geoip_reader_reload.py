@@ -70,7 +70,7 @@ def urls(repos: FakeRepos) -> list[str]:
 def file_input(path: Path) -> LogInput:
     return LogInput(
         source=FileSource(path, poll_interval=0.02),
-        parser=LogParser(source_label=str(path), send_logs=True, hostname="test-host"),
+        parser=LogParser(source_label=str(path), send_logs=True),
     )
 
 

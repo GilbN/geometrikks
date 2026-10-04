@@ -490,11 +490,14 @@ async def start_ingestion(app: "Litestar") -> None:
     hostnames = settings.logparser.resolved_hostnames()
     inputs = [
         LogInput(
-            source=FileSource(path, poll_interval=settings.logparser.poll_interval),
+            source=FileSource(
+                path,
+                poll_interval=settings.logparser.poll_interval,
+                hostname=host,
+            ),
             parser=LogParser(
                 source_label=str(path),
                 send_logs=settings.logparser.send_logs,
-                hostname=host,
                 ignore_ips=settings.logparser.ignore_ips,
                 log_format=fmt,
                 peer_window=PeerWindow() if settings.app.proxy_advisory else None,

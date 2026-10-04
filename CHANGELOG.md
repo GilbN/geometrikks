@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The Banned IPs map popup can open a decision's alert. Click the scenario name to see the same alert details as on the Security page.
 - `MAP_DEFAULT_VIEW` sets where the map opens, as `latitude,longitude` or `latitude,longitude,zoom`. The zoom defaults to 3. For example, `MAP_DEFAULT_VIEW=71.129982,27.653369,15` opens on northern Norway at zoom 15. `GET /api/v1/settings` returns it as `map.defaultView`.
 - Setup guide for Nginx Proxy Manager in the README.
+- `/health` lists each log source ingestion is waiting for under `ingestion.unavailableSources`, with its kind and the reason. `missingFiles` is unchanged.
 
 ### Changed
 
@@ -21,9 +22,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Requests logged while GeoMetrikks was still checking the log format at startup are no longer skipped. On a fresh install this was the first request written to an empty log file.
 - The map and the Geo Logs spatial preview say so when the browser cannot start WebGL2, which the map needs. They used to stay blank and log the error only to the browser console. The message includes the browser's own reason when it gives one. The rest of the page keeps working.
 - A pinned log format (`LOGPARSER_LOG_FORMATS`) no longer turns off access-log storage when the log file is still empty 60 seconds after startup. This hit fresh installs before the proxy wrote its first line, and lasted until a restart.
 - Log lines written while a GeoLite2 database refresh is applied are no longer lost.
+- A log rotation that happened while unread lines were still waiting in the old file is now detected. Before, GeoMetrikks could keep watching the renamed file and ingest nothing from that log until the next rotation.
 
 ## [0.19.0] - 2026-09-27
 

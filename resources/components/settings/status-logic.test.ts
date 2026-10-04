@@ -115,6 +115,60 @@ describe("ingestionState", () => {
       "A configured log file is missing. Ingestion is waiting for it to appear.",
     )
   })
+  it("keeps the log file wording when every unavailable source is a missing file", () => {
+    const state = ingestionState(
+      makeHealth({
+        ingestion: {
+          running: true,
+          parsedLines: 10,
+          pendingRecords: 0,
+          missingFiles: ["nginx_logs/access.log"],
+          unavailableSources: [
+            { kind: "file", label: "nginx_logs/access.log", reason: "missing" },
+          ],
+          lastRecordAt: null,
+        },
+      }),
+      false,
+    )
+    expect(state.label).toBe("Running, log file missing")
+  })
+  it("names a log source when an unavailable source is not a missing file", () => {
+    const state = ingestionState(
+      makeHealth({
+        ingestion: {
+          running: true,
+          parsedLines: 10,
+          pendingRecords: 0,
+          missingFiles: ["loki#0"],
+          unavailableSources: [{ kind: "loki", label: "loki#0", reason: "unreachable" }],
+          lastRecordAt: null,
+        },
+      }),
+      false,
+    )
+    expect(state.tone).toBe("amber")
+    expect(state.label).toBe("Running, log source unavailable")
+    expect(state.detail).toBe(
+      "A configured log source is unavailable. Ingestion is waiting for it to come back.",
+    )
+  })
+  it("is running when no source is unavailable", () => {
+    const state = ingestionState(
+      makeHealth({
+        ingestion: {
+          running: true,
+          parsedLines: 10,
+          pendingRecords: 0,
+          missingFiles: [],
+          unavailableSources: [],
+          lastRecordAt: null,
+        },
+      }),
+      false,
+    )
+    expect(state.label).toBe("Running")
+  })
   it("is muted when health failed or is loading", () => {
     expect(ingestionState(undefined, true).tone).toBe("muted")
     expect(ingestionState(undefined, false).tone).toBe("muted")

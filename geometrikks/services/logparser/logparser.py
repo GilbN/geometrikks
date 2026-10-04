@@ -124,7 +124,6 @@ class LogParser:
         self,
         source_label: str,
         send_logs: bool = False,
-        hostname: str = "",
         ignore_ips: list[str] | None = None,
         log_format: str = "auto",
         peer_window: PeerWindow | None = None,
@@ -135,9 +134,6 @@ class LogParser:
             source_label (str): Label of the source the lines come from (a file
                 path for a tailed file). Stamped onto records and log events.
             send_logs (bool, optional): If True, parse full access log data. Defaults to False.
-            hostname (str, optional): Source hostname stamped onto parsed
-                records. Empty (default): the ingestion service's fallback
-                hostname applies.
             ignore_ips (list[str] | None, optional): IPs/CIDRs whose lines are dropped entirely. Defaults to None.
             log_format (str, optional): A registry name from ``formats.FORMATS`` (e.g. "nginx"),
                 or "auto" to sniff the format from the first parseable line. Defaults to "auto".
@@ -147,7 +143,6 @@ class LogParser:
         """
         self.source_label: str = source_label
         self.send_logs: bool = send_logs
-        self.hostname: str = hostname
         self.ignore_ips: list[str] = ignore_ips or []
         self._is_ignored: Callable[[str], bool] = make_cached_ignore_check(self.ignore_ips)
         self.peer_window: PeerWindow | None = peer_window
@@ -166,7 +161,6 @@ class LogParser:
 
         logger.debug("Log source: %s", self.source_label)
         logger.debug("Send access logs: %s", self.send_logs)
-        logger.debug("Hostname: %s", self.hostname)
         if self.ignore_ips:
             logger.info("Ignoring traffic from: %s", ", ".join(self.ignore_ips))
 
@@ -271,7 +265,6 @@ class LogParser:
                 parse_error="Line did not match expected log format",
                 source=self.source_label,
                 log_format=self.format.name if self.format else None,
-                hostname=self.hostname,
             )
 
         ip = norm.ip_address
@@ -316,7 +309,6 @@ class LogParser:
             parse_error=parse_error,
             source=self.source_label,
             log_format=self.format.name if self.format else None,
-            hostname=self.hostname,
         )
 
     def _parse_geo_data(
@@ -462,7 +454,6 @@ class LogParser:
             summary = window.summary()
             logger.warning(
                 "proxy_peer_detected" if t.active else "proxy_peer_cleared",
-                hostname=self.hostname,
                 path=self.source_label,
                 kind=t.kind,
                 share=round(t.share, 3),

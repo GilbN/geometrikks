@@ -10,7 +10,9 @@ from typing import Protocol
 @dataclass(frozen=True, slots=True)
 class SourceStatus:
     available: bool
-    # Short machine-readable cause when unavailable, e.g. "missing".
+    # Short machine-readable cause when unavailable, e.g. "missing". Served on
+    # the unauthenticated /health, so it must be a short fixed word, never an
+    # exception message or a URL.
     reason: str | None = None
 
 
@@ -25,6 +27,9 @@ class LogSource(Protocol):
     # Served on the unauthenticated /health. A source whose configuration is
     # sensitive must use an opaque label here.
     label: str
+    # Stamped on every record read from this source. Empty means the source
+    # has none of its own and the ingestion service's default applies.
+    hostname: str
 
     def status(self) -> SourceStatus:
         """Current availability. Called on every /health request: no I/O."""
@@ -45,6 +50,10 @@ class LogSource(Protocol):
 
     def lines(self, stop: asyncio.Event) -> AsyncIterator[str]:
         """Yield each new raw line once, until stop is set.
+
+        Lines that arrive after wait_ready returned are yielded, however long
+        the caller waits before starting to read. If the underlying log is
+        replaced in that window, reading starts from the replacement.
 
         Conditions the source can retry are recorded in status(), not raised.
         """
