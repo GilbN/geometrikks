@@ -580,3 +580,15 @@ async def test_a_path_replaced_between_stat_and_open_is_not_read_twice(
 
     assert await pending == "later\n"
     await gen.aclose()
+
+
+async def test_a_file_that_vanished_at_readiness_is_read_from_the_start(tmp_path: Path) -> None:
+    log = tmp_path / "a.log"
+    source = make_source(log)
+
+    await source._record_ready_position()
+    log.write_text("fresh\n", encoding="utf-8")
+    gen = source.lines(asyncio.Event())
+
+    assert await next_line(gen) == "fresh\n"
+    await gen.aclose()

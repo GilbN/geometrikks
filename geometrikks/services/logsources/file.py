@@ -85,8 +85,9 @@ class FileSource:
         try:
             stat_result = await aiofiles.os.stat(self.path)
         except OSError:
-            # Vanished since the existence check: lines() starts at the end.
-            self._ready_position = None
+            # Vanished since the existence check. No real inode matches this
+            # one, so whatever appears at the path is read from the start.
+            self._ready_position = (-1, 0)
             return
         self._ready_position = (stat_result.st_ino, stat_result.st_size)
 
@@ -194,7 +195,9 @@ class FileSource:
         if ready_position is None:
             return stat_result.st_size
         inode, size = ready_position
-        # Rotated or truncated since wait_ready: the whole file is new.
+        # Rotated or truncated since wait_ready: the whole file is new. A
+        # file truncated and rewritten past the recorded size cannot be told
+        # from an append, and is read from the recorded offset.
         if stat_result.st_ino != inode or stat_result.st_size < size:
             return 0
         return size
