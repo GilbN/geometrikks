@@ -164,8 +164,9 @@ class LogIngestionService:
             asn_db_path: Optional GeoLite2-ASN database path; None or an
                 unreadable file means requests ingest without ASN enrichment.
             repos_factory: Builds the IngestionRepos bundle from a session.
-            hostname: Fallback hostname for records that carry none (the
-                importer path); tail-path records are stamped by their parser.
+            hostname: Fallback hostname for records whose source has none.
+                Records read from a source carry the source's hostname, and
+                imported records get this one when they are stored.
             batch_size: Maximum records before forced commit.
             commit_interval: Maximum seconds between commits.
             store_debug_lines: If True, store all raw lines in debug table.
@@ -294,6 +295,10 @@ class LogIngestionService:
             self.commit_interval,
         )
 
+    def hostname_for(self, log_input: LogInput) -> str:
+        """The hostname stamped on records from this input: the source's own, or the service default."""
+        return log_input.source.hostname or self.hostname
+
     async def _run_input(self, log_input: LogInput, skip_validation: bool) -> None:
         """Read one source, pushing parsed records onto the shared queue."""
         assert self._queue is not None and self._stop_event is not None
@@ -314,7 +319,7 @@ class LogIngestionService:
                 record = log_input.parser.parse_line(line, lookups.city, lookups.asn)
                 if record is None:
                     continue  # ignored IP
-                record.hostname = log_input.source.hostname or self.hostname
+                record.hostname = self.hostname_for(log_input)
                 await self._queue.put(record)
         except Exception:
             logger.exception("ingestion_input_failed", source=log_input.source.label)
@@ -361,15 +366,15 @@ class LogIngestionService:
 
         For a ``FileSource`` each attempt offloads the blocking read to a
         worker thread (``source.recent_lines``), but the waiting between
-        attempts happens here on the event loop. A thread handed to ``asyncio.to_thread``
-        cannot be cancelled, so retrying inside the thread (the previous
-        behaviour) kept the process busy for the full timeout after shutdown
-        had been requested: the awaiting task raised ``CancelledError``
-        immediately while the thread kept sleeping, and the interpreter could
-        not finish exiting until it returned. This is reachable whenever the
-        tailed file exists but is empty or in an unrecognised format,
-        which is the normal state of a fresh install before the web server
-        writes its first line.
+        attempts happens here on the event loop. A thread handed to
+        ``asyncio.to_thread`` cannot be cancelled, so retrying inside the
+        thread (the previous behaviour) kept the process busy for the full
+        timeout after shutdown had been requested: the awaiting task raised
+        ``CancelledError`` immediately while the thread kept sleeping, and the
+        interpreter could not finish exiting until it returned. This is
+        reachable whenever a tailed file exists but is empty or in an
+        unrecognised format, which is the normal state of a fresh install
+        before the web server writes its first line.
 
         Args:
             log_input: The source to sample and the parser to lock.

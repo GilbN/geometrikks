@@ -10,7 +10,9 @@ from typing import Protocol
 @dataclass(frozen=True, slots=True)
 class SourceStatus:
     available: bool
-    # Short machine-readable cause when unavailable, e.g. "missing".
+    # Short machine-readable cause when unavailable, e.g. "missing". Served on
+    # the unauthenticated /health, so it must be a short fixed word, never an
+    # exception message or a URL.
     reason: str | None = None
 
 

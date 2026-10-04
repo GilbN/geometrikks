@@ -364,10 +364,13 @@ def _collect_advisories(app: Litestar, settings: Settings) -> list[Advisory]:
         from geometrikks.domain.system import proxy_scan
 
         log_inputs = service.inputs if service is not None else []
-        local = proxy_findings(log_inputs)
-        covered = {f.hostname for f in local} | {
-            log_input.source.hostname for log_input in log_inputs
-        }
+        local = proxy_findings(
+            log_inputs,
+            default_hostname=service.hostname if service is not None else "",
+        )
+        covered = {f.hostname for f in local}
+        if service is not None:
+            covered |= {service.hostname_for(log_input) for log_input in log_inputs}
         findings = local + [
             f for f in proxy_scan.get_scan_findings() if f.hostname not in covered
         ]

@@ -450,14 +450,6 @@ class TestParseLine:
         assert matched is not None and matched.hostname == ""
         assert unmatched is not None and unmatched.hostname == ""
 
-    def test_parse_line_default_hostname_is_empty(self, geoip_reader):
-        from geometrikks.services.logparser.logparser import LogParser, make_cached_city_lookup
-        parser = LogParser(source_label="/dev/null", send_logs=True)
-        lookup = make_cached_city_lookup(geoip_reader)
-        record = parser.parse_line(make_log_line("2.125.160.216"), lookup)
-        assert record is not None
-        assert record.hostname == ""
-
 
 class TestAutoFormatSniffing:
     """log_format='auto' locks a format on the first line it recognizes."""

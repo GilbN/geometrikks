@@ -190,7 +190,7 @@ async def proxy_scan_job(
 
     service = runtime.get_ingestion_service(app) if app is not None else None
     exclude = (
-        {log_input.source.hostname for log_input in service.inputs}
+        {service.hostname_for(log_input) for log_input in service.inputs}
         if service is not None
         else set()
     )

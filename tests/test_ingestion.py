@@ -192,11 +192,11 @@ def make_service(inputs: list[LogInput], **overrides) -> tuple[LogIngestionServi
 
 
 def added_geo_events(repos: FakeRepos) -> list[GeoEvent]:
-    return [cast(GeoEvent, obj) for obj in repos.geo_event.added]
+    return [cast(GeoEvent, geo_event) for geo_event in repos.geo_event.added]
 
 
 def added_access_logs(repos: FakeRepos) -> list[AccessLog]:
-    return [cast(AccessLog, obj) for obj in repos.access_log.added]
+    return [cast(AccessLog, access_log) for access_log in repos.access_log.added]
 
 
 async def wait_until(predicate, timeout: float = 5.0) -> None:
