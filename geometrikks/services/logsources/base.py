@@ -34,10 +34,12 @@ class LogSource(Protocol):
         """Block until lines can be served; False when stop was set first."""
         ...
 
-    async def recent_lines(self, count: int) -> list[str]:
+    async def recent_lines(self, count: int) -> list[str] | None:
         """Up to ``count`` of the newest lines, without consuming them.
 
-        Used for format detection. A source that cannot answer returns [].
+        Used for format detection. [] means there are no lines yet. A source
+        that has no way to sample returns None, and its format is then not
+        validated before reading starts.
         """
         ...
 
