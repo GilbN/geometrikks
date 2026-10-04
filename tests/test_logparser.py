@@ -86,7 +86,7 @@ def geoip_reader() -> Reader:
 @pytest.fixture
 def log_parser() -> LogParser:
     """Return an instance of the LogParser class."""
-    return LogParser(source_label=VALID_LOG_PATH, send_logs=True, hostname="localhost")
+    return LogParser(source_label=VALID_LOG_PATH, send_logs=True)
 
 
 def test_regex_tester_ipv4(load_valid_ipv4_log: list[str], ipv4_log_pattern: re.Pattern[str]) -> None:
@@ -441,21 +441,14 @@ class TestParseLine:
         assert record is not None
         assert parser.ignored_lines == 0
 
-    def test_parse_line_stamps_parser_hostname(self, geoip_reader):
+    def test_parse_line_leaves_the_hostname_to_the_caller(self, geoip_reader):
         from geometrikks.services.logparser.logparser import LogParser, make_cached_city_lookup
-        parser = LogParser(source_label="/dev/null", send_logs=True, hostname="vps-1")
+        parser = LogParser(source_label="/dev/null", send_logs=True)
         lookup = make_cached_city_lookup(geoip_reader)
-        record = parser.parse_line(make_log_line("2.125.160.216"), lookup)
-        assert record is not None
-        assert record.hostname == "vps-1"
-
-    def test_parse_line_unmatched_line_still_stamps_hostname(self, geoip_reader):
-        from geometrikks.services.logparser.logparser import LogParser, make_cached_city_lookup
-        parser = LogParser(source_label="/dev/null", send_logs=True, hostname="vps-1")
-        lookup = make_cached_city_lookup(geoip_reader)
-        record = parser.parse_line("total garbage\n", lookup)
-        assert record is not None
-        assert record.hostname == "vps-1"
+        matched = parser.parse_line(make_log_line("2.125.160.216"), lookup)
+        unmatched = parser.parse_line("total garbage\n", lookup)
+        assert matched is not None and matched.hostname == ""
+        assert unmatched is not None and unmatched.hostname == ""
 
     def test_parse_line_default_hostname_is_empty(self, geoip_reader):
         from geometrikks.services.logparser.logparser import LogParser, make_cached_city_lookup

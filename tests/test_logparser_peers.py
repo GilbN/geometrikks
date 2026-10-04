@@ -25,7 +25,7 @@ def make_line(ip: str) -> str:
 def make_parser(*, window: PeerWindow | None, asn: int | None = None) -> LogParser:
     parser = LogParser(
         source_label="/dev/null", send_logs=True,
-        hostname="web-01", log_format="geometrikks-json",
+        log_format="geometrikks-json",
         peer_window=window,
     )
     parser._asn = asn  # ty: ignore[unresolved-attribute]  # captured by the stub lookups below
@@ -142,7 +142,8 @@ def test_detected_and_cleared_logged_once() -> None:
     detected = [e for e in logs if e["event"] == "proxy_peer_detected"]
     cleared = [e for e in logs if e["event"] == "proxy_peer_cleared"]
     assert len(detected) == 1 and detected[0]["kind"] == "private"
-    assert detected[0]["hostname"] == "web-01"
+    assert "hostname" not in detected[0]
+    assert detected[0]["path"] == parser.source_label
     assert len(cleared) == 1
 
 

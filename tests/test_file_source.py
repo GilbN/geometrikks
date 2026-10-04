@@ -19,6 +19,11 @@ def make_source(path: Path, **kwargs) -> FileSource:
     return FileSource(path, **kwargs)
 
 
+def test_file_source_carries_its_hostname(tmp_path: Path) -> None:
+    assert make_source(tmp_path / "a.log", hostname="vps-1").hostname == "vps-1"
+    assert make_source(tmp_path / "a.log").hostname == ""
+
+
 async def next_line(gen) -> str:
     return await asyncio.wait_for(gen.__anext__(), timeout=5.0)
 

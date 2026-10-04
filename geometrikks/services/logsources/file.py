@@ -27,19 +27,26 @@ class FileSource:
     kind = "file"
 
     def __init__(
-        self, path: Path, poll_interval: float = 1.0, *, start_at_end: bool = True
+        self,
+        path: Path,
+        poll_interval: float = 1.0,
+        *,
+        hostname: str = "",
+        start_at_end: bool = True,
     ) -> None:
         """Set up the source.
 
         Args:
             path: The log file to tail.
             poll_interval: Seconds between checks for new lines.
+            hostname: Stamped on every record read from this file.
             start_at_end: If True, reading starts at the position recorded by
                 wait_ready, or at the current end when lines() is called
                 without it. If False, read from the beginning.
         """
         self.path: Path = path
         self.label: str = str(path)
+        self.hostname: str = hostname
         self.poll_interval: int | float = poll_interval
         self.start_at_end: bool = start_at_end
         # True while the configured file is absent. This is surfaced through

@@ -10,12 +10,14 @@ from geometrikks.domain.system.proxy_detection import (
 from geometrikks.services.logparser.peer_window import PeerSummary
 
 
-def fake_parser(*, hostname="web-01", fmt="nginx", summary=None):
+def fake_input(*, hostname="web-01", fmt="nginx", summary=None):
     return SimpleNamespace(
-        hostname=hostname,
-        source_label=f"/logs/{hostname}.log",
-        format=SimpleNamespace(name=fmt) if fmt else None,
-        peer_summary=lambda: summary,
+        source=SimpleNamespace(hostname=hostname),
+        parser=SimpleNamespace(
+            source_label=f"/logs/{hostname}.log",
+            format=SimpleNamespace(name=fmt) if fmt else None,
+            peer_summary=lambda: summary,
+        ),
     )
 
 
@@ -39,17 +41,17 @@ def summary(
 
 
 def test_findings_skip_inactive_and_none() -> None:
-    parsers = [
-        fake_parser(summary=None),                       # window off
-        fake_parser(summary=summary()),                  # nothing active
+    inputs = [
+        fake_input(summary=None),                        # window off
+        fake_input(summary=summary()),                   # nothing active
     ]
-    assert proxy_findings(parsers) == []
+    assert proxy_findings(inputs) == []
 
 
 def test_findings_one_per_active_kind() -> None:
     s = summary(cdn_share=0.94, cdn_active=True, top_provider="Cloudflare",
                 private_share=0.8, private_active=True)
-    [cdn, private] = proxy_findings([fake_parser(summary=s)])
+    [cdn, private] = proxy_findings([fake_input(summary=s)])
     assert cdn.kind == "cdn" and cdn.provider == "Cloudflare" and cdn.share == 0.94
     assert private.kind == "private" and private.provider is None
     assert cdn.hostname == "web-01" and cdn.log_format == "nginx"
@@ -114,7 +116,7 @@ def test_collect_advisories_includes_proxy_cards(monkeypatch) -> None:
 
     s = summary(private_share=0.9, private_active=True)
     service = SimpleNamespace(
-        parsers=[fake_parser(summary=s)],
+        inputs=[fake_input(summary=s)],
         failed_batches=0,
         failed_records=0,
     )
@@ -172,9 +174,9 @@ def test_collect_advisories_merges_scan_findings(monkeypatch) -> None:
     from geometrikks.server import runtime, timescale
 
     s = summary(cdn_share=0.9, cdn_active=True, top_provider="Fastly")
-    local = fake_parser(hostname="web-01", summary=s)
+    local = fake_input(hostname="web-01", summary=s)
     service = SimpleNamespace(
-        parsers=[local],
+        inputs=[local],
         failed_batches=0,
         failed_records=0,
     )

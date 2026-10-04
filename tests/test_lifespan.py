@@ -477,7 +477,7 @@ async def test_full_startup_site_home_failure_does_not_block_startup(monkeypatch
 
 
 async def test_ingestion_wires_per_file_hostnames(monkeypatch):
-    """Each tailed file's parser gets its positional hostname; the service
+    """Each tailed file's source gets its positional hostname; the service
     fallback gets the first resolved hostname."""
     from geometrikks.server import lifecycle as lc
     from geometrikks.config.settings import Settings
@@ -487,6 +487,7 @@ async def test_ingestion_wires_per_file_hostnames(monkeypatch):
     _patch_startup_collaborators(
         monkeypatch, lc, db_available=True, ensure=AsyncMock(return_value=True)
     )
+    monkeypatch.setattr(lc, "FileSource", MagicMock())
 
     app = SimpleNamespace(state=SimpleNamespace())
     app.state.settings = Settings()
@@ -494,9 +495,12 @@ async def test_ingestion_wires_per_file_hostnames(monkeypatch):
         pass
 
     hostnames = [
-        call.kwargs["hostname"] for call in cast("MagicMock", lc.LogParser).call_args_list
+        call.kwargs["hostname"] for call in cast("MagicMock", lc.FileSource).call_args_list
     ]
     assert hostnames == ["vps-1", "vps-2"]
+    assert all(
+        "hostname" not in call.kwargs for call in cast("MagicMock", lc.LogParser).call_args_list
+    )
     assert cast("MagicMock", lc.LogIngestionService).call_args.kwargs["hostname"] == "vps-1"
 
 
