@@ -15,7 +15,8 @@ from geometrikks.domain.geo.models import GeoEvent, GeoLocation
 from geometrikks.domain.logs.models import AccessLog, AccessLogDebug
 from geometrikks.services.logparser.logparser import LogParser
 from geometrikks.services.logparser.schemas import ParsedLogRecord, ParsedGeoData, ParsedAccessLog
-from geometrikks.services.ingestion.service import IngestionRepos, LogIngestionService
+from geometrikks.services.ingestion.service import IngestionRepos, LogInput, LogIngestionService
+from geometrikks.services.logsources import FileSource, SourceStatus
 
 pytestmark = pytest.mark.anyio
 
@@ -161,7 +162,7 @@ class FakeRepos:
         return self
 
 
-def make_service(parsers: list[LogParser], **overrides) -> tuple[LogIngestionService, FakeRepos, list[FakeSession]]:
+def make_service(inputs: list[LogInput], **overrides) -> tuple[LogIngestionService, FakeRepos, list[FakeSession]]:
     repos = FakeRepos()
     sessions: list[FakeSession] = []
 
@@ -171,7 +172,7 @@ def make_service(parsers: list[LogParser], **overrides) -> tuple[LogIngestionSer
         return session
 
     kwargs: dict[str, Any] = dict(
-        parsers=parsers,
+        inputs=inputs,
         session_maker=session_maker,
         geoip_path=GEOIP_DB_PATH,
         repos_factory=repos.factory,
@@ -192,8 +193,11 @@ async def wait_until(predicate, timeout: float = 5.0) -> None:
     raise AssertionError("condition not met within timeout")
 
 
-def make_parser(path: Path) -> LogParser:
-    return LogParser(log_path=path, send_logs=True, poll_interval=0.02, hostname="test-host")
+def make_input(path: Path) -> LogInput:
+    return LogInput(
+        source=FileSource(path, poll_interval=0.02),
+        parser=LogParser(log_path=path, send_logs=True, hostname="test-host"),
+    )
 
 
 def append_line(path: Path, line: str) -> None:
@@ -210,8 +214,8 @@ async def test_multi_file_tailing_ingests_from_all_sources(tmp_path: Path) -> No
     for f in files:
         f.write_text("", encoding="utf-8")
 
-    parsers = [make_parser(f) for f in files]
-    service, repos, sessions = make_service(parsers)
+    inputs = [make_input(f) for f in files]
+    service, repos, sessions = make_service(inputs)
 
     await service.start(skip_validation=True)
     await asyncio.sleep(0.1)  # let tail tasks open the files
@@ -225,7 +229,7 @@ async def test_multi_file_tailing_ingests_from_all_sources(tmp_path: Path) -> No
     assert service.total_geo_records == 2
     assert service.total_log_records == 2
     # each parser handled exactly its own file
-    assert [p.parsed_lines for p in parsers] == [1, 1]
+    assert [item.parser.parsed_lines for item in inputs] == [1, 1]
     assert any(s.commits for s in sessions)
 
 
@@ -234,7 +238,7 @@ async def test_stop_drains_queue_before_exit(tmp_path: Path) -> None:
     log_file = tmp_path / "a.log"
     log_file.write_text("", encoding="utf-8")
 
-    service, repos, sessions = make_service([make_parser(log_file)], batch_size=1000, commit_interval=60.0)
+    service, repos, sessions = make_service([make_input(log_file)], batch_size=1000, commit_interval=60.0)
 
     await service.start(skip_validation=True)
     await asyncio.sleep(0.1)
@@ -402,8 +406,8 @@ async def test_missing_file_does_not_block_other_tails(tmp_path: Path) -> None:
     good.write_text("", encoding="utf-8")
     missing = tmp_path / "missing.log"
 
-    parsers = [make_parser(missing), make_parser(good)]
-    service, repos, sessions = make_service(parsers)
+    inputs = [make_input(missing), make_input(good)]
+    service, repos, sessions = make_service(inputs)
 
     await service.start(skip_validation=True)
     await asyncio.sleep(0.1)
@@ -427,7 +431,7 @@ async def test_stop_ends_the_wait_for_a_missing_log_file(
     """
     monkeypatch.setenv("DISABLE_WAIT", "false")
     missing = tmp_path / "missing.log"
-    service, _repos, _sessions = make_service([make_parser(missing)])
+    service, _repos, _sessions = make_service([make_input(missing)])
 
     await service.start(skip_validation=True)
     await asyncio.sleep(0.05)
@@ -448,17 +452,17 @@ async def test_never_appeared_file_is_reported_missing_and_tailed_once_it_appear
     DISABLE_WAIT=true (conftest) makes the grace wait return immediately.
     """
     missing = tmp_path / "missing.log"
-    parser = make_parser(missing)
-    service, _repos, _sessions = make_service([parser])
+    item = make_input(missing)
+    service, _repos, _sessions = make_service([item])
 
     await service.start(skip_validation=True)
     try:
-        await wait_until(lambda: parser.file_missing)
+        await wait_until(lambda: not item.source.status().available)
         assert service.is_running
         assert service.missing_files == [str(missing)]
 
         missing.write_text("", encoding="utf-8")
-        await wait_until(lambda: not parser.file_missing)
+        await wait_until(lambda: item.source.status().available)
         await asyncio.sleep(0.1)
         append_line(missing, make_log_line(TEST_DB_IPS[0]))
         await wait_until(lambda: service.total_processed >= 1)
@@ -472,12 +476,12 @@ async def test_failed_tail_task_stops_service_and_clears_is_running(
     """The consumer stops when its only tail task fails."""
     log_file = tmp_path / "a.log"
     log_file.write_text("", encoding="utf-8")
-    service, _repos, _sessions = make_service([make_parser(log_file)])
+    service, _repos, _sessions = make_service([make_input(log_file)])
 
     async def fail_tail(*_args: object) -> None:
         raise RuntimeError("simulated tail failure")
 
-    monkeypatch.setattr(service, "_tail_file", fail_tail)
+    monkeypatch.setattr(service, "_run_input", fail_tail)
 
     await service.start(skip_validation=True)
     try:
@@ -495,7 +499,7 @@ async def test_graceful_stop_does_not_mark_ingestion_as_unexpectedly_stopped(
 ) -> None:
     log_file = tmp_path / "a.log"
     log_file.write_text("", encoding="utf-8")
-    service, _repos, _sessions = make_service([make_parser(log_file)])
+    service, _repos, _sessions = make_service([make_input(log_file)])
 
     await service.start(skip_validation=True)
     await service.stop(timeout=5.0)
@@ -527,7 +531,7 @@ async def test_last_record_at_tracks_ingestion_activity(tmp_path: Path) -> None:
 
     log_file = tmp_path / "a.log"
     log_file.write_text("", encoding="utf-8")
-    service, _repos, _sessions = make_service([make_parser(log_file)])
+    service, _repos, _sessions = make_service([make_input(log_file)])
 
     assert service.last_record_at is None
     await service.start(skip_validation=True)
@@ -545,13 +549,13 @@ async def test_last_record_at_tracks_ingestion_activity(tmp_path: Path) -> None:
 
 async def test_mid_flight_file_deletion_flags_missing_and_recovers(tmp_path: Path, caplog) -> None:
     """Deleting a tailed file mid-flight must not spam warnings or kill the
-    tailer: the parser flags file_missing (surfaced as service.missing_files
+    tailer: the source reports itself unavailable (surfaced as service.missing_files
     for /health), logs the disappearance once, keeps waiting, and resumes
     when the file reappears (new inode -> rotation reopen path)."""
     log_file = tmp_path / "a.log"
     log_file.write_text("", encoding="utf-8")
-    parser = make_parser(log_file)
-    service, _repos, _sessions = make_service([parser])
+    item = make_input(log_file)
+    service, _repos, _sessions = make_service([item])
 
     await service.start(skip_validation=True)
     await asyncio.sleep(0.1)  # let the tailer open the file
@@ -560,7 +564,7 @@ async def test_mid_flight_file_deletion_flags_missing_and_recovers(tmp_path: Pat
         await wait_until(lambda: service.total_processed >= 1)
 
         log_file.unlink()
-        await wait_until(lambda: parser.file_missing)
+        await wait_until(lambda: not item.source.status().available)
         assert service.missing_files == [str(log_file)]
         assert service.is_running  # waiting for the file, not dead
 
@@ -573,10 +577,144 @@ async def test_mid_flight_file_deletion_flags_missing_and_recovers(tmp_path: Pat
 
         # Reappearing file (new inode) resumes tailing and clears the flag.
         log_file.write_text("", encoding="utf-8")
-        await wait_until(lambda: not parser.file_missing)
+        await wait_until(lambda: item.source.status().available)
         assert service.missing_files == []
         append_line(log_file, make_log_line(TEST_DB_IPS[1]))
         await wait_until(lambda: service.total_processed >= 2)
+    finally:
+        await service.stop(timeout=5.0)
+
+
+class ListSource:
+    """A source the service has never heard of: a fixed list of lines."""
+
+    kind = "stub"
+
+    def __init__(self, lines: list[str], label: str = "stub#0") -> None:
+        self.label = label
+        self._lines = lines
+        self.available = True
+
+    def status(self) -> SourceStatus:
+        return SourceStatus(self.available, None if self.available else "down")
+
+    async def wait_ready(self, stop: asyncio.Event) -> bool:
+        return True
+
+    async def recent_lines(self, count: int) -> list[str]:
+        return self._lines[-count:]
+
+    async def lines(self, stop: asyncio.Event):
+        for line in self._lines:
+            yield line
+        await stop.wait()
+
+
+def stub_input(lines: list[str], label: str = "stub#0") -> LogInput:
+    return LogInput(
+        source=ListSource(lines, label),
+        parser=LogParser(log_path=Path(label), send_logs=True, hostname="test-host"),
+    )
+
+
+async def test_an_unknown_source_type_is_ingested() -> None:
+    item = stub_input([make_log_line(ip) for ip in TEST_DB_IPS[:2]])
+    service, _repos, _sessions = make_service([item])
+
+    await service.start()
+    try:
+        await wait_until(lambda: service.total_processed >= 2)
+        assert item.parser.format is not None and item.parser.format.name == "nginx"
+    finally:
+        await service.stop(timeout=5.0)
+
+
+async def test_missing_files_lists_unavailable_source_labels() -> None:
+    up, down = stub_input([], "stub#up"), stub_input([], "stub#down")
+    cast(ListSource, down.source).available = False
+    service, _repos, _sessions = make_service([up, down])
+
+    assert service.missing_files == ["stub#down"]
+    assert service.parsers == [up.parser, down.parser]
+
+
+async def test_missing_file_is_reported_before_format_validation(tmp_path: Path) -> None:
+    """Validation on (the production default): the file is still flagged."""
+    missing = tmp_path / "missing.log"
+    item = make_input(missing)
+    service, _repos, _sessions = make_service([item])
+
+    await service.start()
+    try:
+        await wait_until(lambda: service.missing_files == [str(missing)])
+        missing.write_text("", encoding="utf-8")
+        await wait_until(lambda: service.missing_files == [])
+    finally:
+        await service.stop(timeout=5.0)
+
+
+async def test_format_validation_returns_when_stop_requested(monkeypatch) -> None:
+    """A stop ends the retry loop instead of blocking for the whole timeout."""
+    monkeypatch.setenv("DISABLE_WAIT", "false")
+    item = stub_input([])
+    service, _repos, _sessions = make_service([item])
+    service._stop_event = asyncio.Event()
+    service._stop_event.set()
+
+    started = time.monotonic()
+    assert await service._format_validates(item, timeout_seconds=60.0) is False
+    assert time.monotonic() - started < 1.0
+
+
+async def test_format_validation_wakes_on_stop_between_attempts(monkeypatch) -> None:
+    """A stop arriving mid-wait ends the loop without sitting out the interval."""
+    monkeypatch.setenv("DISABLE_WAIT", "false")
+    item = stub_input([])
+    service, _repos, _sessions = make_service([item])
+    stop_event = service._stop_event = asyncio.Event()
+
+    async def stop_soon() -> None:
+        await asyncio.sleep(0.05)
+        stop_event.set()
+
+    started = time.monotonic()
+    result, _ = await asyncio.gather(
+        service._format_validates(item, timeout_seconds=60.0, check_interval=30.0),
+        stop_soon(),
+    )
+    assert result is False
+    assert time.monotonic() - started < 5.0
+
+
+async def test_format_validation_retries_until_a_line_parses(monkeypatch) -> None:
+    """A source with no lines that gains a valid one mid-wait still validates."""
+    monkeypatch.setenv("DISABLE_WAIT", "false")
+    lines: list[str] = []
+    item = stub_input(lines)
+    service, _repos, _sessions = make_service([item])
+    service._stop_event = asyncio.Event()
+
+    async def append_valid_line() -> None:
+        await asyncio.sleep(0.05)
+        lines.append(make_log_line(TEST_DB_IPS[0]))
+
+    result, _ = await asyncio.gather(
+        service._format_validates(item, timeout_seconds=10.0, check_interval=0.02),
+        append_valid_line(),
+    )
+    assert result is True
+
+
+async def test_pinned_format_that_fails_validation_drops_access_logs() -> None:
+    item = LogInput(
+        source=ListSource(["not a log line\n"]),
+        parser=LogParser(log_path=Path("stub"), send_logs=True, log_format="nginx"),
+    )
+    service, _repos, _sessions = make_service([item])
+
+    await service.start()
+    try:
+        await wait_until(lambda: item.parser.send_logs is False)
     finally:
         await service.stop(timeout=5.0)
 
@@ -587,7 +725,7 @@ async def test_each_flush_uses_a_fresh_session(tmp_path: Path) -> None:
     log_file.write_text("", encoding="utf-8")
 
     service, repos, sessions = make_service(
-        [make_parser(log_file)], batch_size=1, commit_interval=60.0
+        [make_input(log_file)], batch_size=1, commit_interval=60.0
     )
     await service.start(skip_validation=True)
     await asyncio.sleep(0.1)
@@ -611,7 +749,7 @@ async def test_no_session_opened_while_idle(tmp_path: Path) -> None:
     log_file = tmp_path / "a.log"
     log_file.write_text("", encoding="utf-8")
 
-    service, _repos, sessions = make_service([make_parser(log_file)], commit_interval=0.05)
+    service, _repos, sessions = make_service([make_input(log_file)], commit_interval=0.05)
     await service.start(skip_validation=True)
     await asyncio.sleep(0.3)  # several commit intervals with nothing to write
     await service.stop(timeout=5.0)
@@ -625,7 +763,7 @@ async def test_start_twice_spawns_no_duplicate_tasks(tmp_path: Path) -> None:
     log_file = tmp_path / "a.log"
     log_file.write_text("", encoding="utf-8")
 
-    service, repos, sessions = make_service([make_parser(log_file)])
+    service, repos, sessions = make_service([make_input(log_file)])
 
     await service.start(skip_validation=True)
     await service.start(skip_validation=True)  # immediately again, no sleep in between
@@ -653,7 +791,7 @@ async def test_poison_record_evicts_uncommitted_location_from_cache(tmp_path: Pa
     log_file.write_text("", encoding="utf-8")
 
     service, repos, sessions = make_service(
-        [make_parser(log_file)], batch_size=1, commit_interval=60.0
+        [make_input(log_file)], batch_size=1, commit_interval=60.0
     )
 
     # First batch commit fails (simulates FK/integrity error); later ones succeed
@@ -695,7 +833,7 @@ async def test_rollback_evicts_all_uncommitted_geohashes_in_batch(tmp_path: Path
     log_file.write_text("", encoding="utf-8")
 
     service, repos, sessions = make_service(
-        [make_parser(log_file)], batch_size=2, commit_interval=60.0
+        [make_input(log_file)], batch_size=2, commit_interval=60.0
     )
 
     # Location flushes: record A's succeeds (call 1), record B's fails
@@ -739,7 +877,7 @@ async def test_committed_locations_survive_in_cache_as_ids(tmp_path: Path) -> No
     log_file.write_text("", encoding="utf-8")
 
     service, repos, sessions = make_service(
-        [make_parser(log_file)], batch_size=1, commit_interval=60.0
+        [make_input(log_file)], batch_size=1, commit_interval=60.0
     )
     await service.start(skip_validation=True)
     await asyncio.sleep(0.1)
@@ -1006,7 +1144,7 @@ def test_service_has_no_inprocess_subscriber_api() -> None:
     /ws/live now subscribes to the live_events channel instead. Post-commit
     delivery is covered by the channel-publish tests below."""
     service = LogIngestionService(
-        parsers=[], session_maker=cast("Any", None), geoip_path="unused", hostname="myserver",
+        inputs=[], session_maker=cast("Any", None), geoip_path="unused", hostname="myserver",
     )
     assert not hasattr(service, "subscribe")
     assert not hasattr(service, "unsubscribe")
@@ -1044,7 +1182,7 @@ def test_publish_sends_events_to_channel() -> None:
 
     channels = _channels_stub()
     service = LogIngestionService(
-        parsers=[], session_maker=cast("Any", None), geoip_path="unused",
+        inputs=[], session_maker=cast("Any", None), geoip_path="unused",
         hostname="myserver", channels=channels,
     )
     record = make_full_record(hostname="vps-1")
@@ -1059,7 +1197,7 @@ def test_publish_sends_events_to_channel() -> None:
 
 def test_publish_without_channels_is_silent_and_safe() -> None:
     service = LogIngestionService(
-        parsers=[], session_maker=cast("Any", None), geoip_path="unused", hostname="myserver",
+        inputs=[], session_maker=cast("Any", None), geoip_path="unused", hostname="myserver",
     )
     service._publish([make_full_record(hostname="vps-1")])  # must not raise
 
@@ -1068,7 +1206,7 @@ def test_publish_never_raises_into_ingestion() -> None:
     channels = _channels_stub()
     channels.publish.side_effect = RuntimeError("backend down")
     service = LogIngestionService(
-        parsers=[], session_maker=cast("Any", None), geoip_path="unused",
+        inputs=[], session_maker=cast("Any", None), geoip_path="unused",
         hostname="myserver", channels=channels,
     )
     service._publish([make_full_record(hostname="vps-1")])  # must not raise
@@ -1114,7 +1252,7 @@ class TestAsnWiring:
     async def test_start_without_asn_db_still_starts(self, tmp_path):
         """A missing/broken ASN db must not stop ingestion from starting."""
         service = LogIngestionService(
-            parsers=[],
+            inputs=[],
             session_maker=cast(Any, lambda: None),
             geoip_path=GEOIP_DB_PATH,
             asn_db_path=tmp_path / "missing-asn.mmdb",
@@ -1125,29 +1263,19 @@ class TestAsnWiring:
         finally:
             await service.stop(timeout=1.0)
 
-    async def test_tail_passes_asn_reader_to_parser(self, monkeypatch):
-        """start() must open an ASN reader and hand it to iter_parsed_records."""
-        from unittest.mock import AsyncMock
-
+    async def test_input_task_hands_an_asn_lookup_to_the_parser(self):
+        """start() must open an ASN reader and parse lines with its lookup."""
         captured: dict[str, Any] = {}
 
         class FakeParser:
-            log_path = "fake.log"
+            hostname = "h"
 
-            def set_stop_event(self, ev):
-                pass
+            def parse_line(self, line, lookup, asn_lookup=None):
+                captured["asn_lookup"] = asn_lookup
+                return None
 
-            async def iter_parsed_records(self, reader, asn_reader=None, *, skip_validation=False):
-                captured["asn_reader"] = asn_reader
-                return
-                yield  # generator function marker
-
-        monkeypatch.setattr(
-            "geometrikks.services.ingestion.service.wait_for_path",
-            AsyncMock(return_value=True),
-        )
         service = LogIngestionService(
-            parsers=cast(Any, [FakeParser()]),
+            inputs=[LogInput(source=ListSource(["x\n"]), parser=cast(Any, FakeParser()))],
             session_maker=cast(Any, lambda: None),
             geoip_path=GEOIP_DB_PATH,
             asn_db_path="tests/GeoLite2-ASN-Test.mmdb",
@@ -1155,13 +1283,13 @@ class TestAsnWiring:
         await service.start(skip_validation=True)
         try:
             await asyncio.sleep(0.05)
-            assert captured["asn_reader"] is not None
+            assert captured["asn_lookup"] is not None
         finally:
             await service.stop(timeout=1.0)
 
     async def test_stop_closes_readers(self):
         service = LogIngestionService(
-            parsers=[],
+            inputs=[],
             session_maker=cast(Any, lambda: None),
             geoip_path=GEOIP_DB_PATH,
             asn_db_path="tests/GeoLite2-ASN-Test.mmdb",

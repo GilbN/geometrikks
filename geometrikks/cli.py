@@ -98,7 +98,7 @@ async def _run_import(
     effective_hostname = hostname or settings.logparser.resolved_hostnames()[0]
     click.echo(f"Stamping hostname: {effective_hostname}")
     service = LogIngestionService(
-        parsers=[],
+        inputs=[],
         session_maker=session_maker,
         geoip_path=settings.geoip.db_path,
         locales=settings.geoip.locales,

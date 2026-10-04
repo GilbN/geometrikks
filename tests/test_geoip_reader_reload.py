@@ -36,7 +36,7 @@ def make_service(
     city: Path | str, asn: Path | str | None = None
 ) -> LogIngestionService:
     return LogIngestionService(
-        parsers=[],
+        inputs=[],
         session_maker=cast("Any", None),
         geoip_path=city,
         asn_db_path=asn,

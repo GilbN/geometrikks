@@ -18,8 +18,9 @@ from types import SimpleNamespace
 from sqlalchemy import text
 
 from geometrikks.domain.logs.models import AccessLog, AccessLogDebug
-from geometrikks.services.ingestion.service import LogIngestionService
+from geometrikks.services.ingestion.service import LogInput, LogIngestionService
 from geometrikks.services.logparser.logparser import LogParser
+from geometrikks.services.logsources import FileSource
 
 import pytest
 
@@ -45,9 +46,12 @@ def make_log_line(ip: str) -> str:
 
 
 def make_service(log_path: Path, session_maker, **kwargs) -> LogIngestionService:
-    parser = LogParser(log_path=log_path, send_logs=True, poll_interval=0.05)
+    item = LogInput(
+        source=FileSource(log_path, poll_interval=0.05),
+        parser=LogParser(log_path=log_path, send_logs=True),
+    )
     return LogIngestionService(
-        parsers=[parser],
+        inputs=[item],
         session_maker=session_maker,
         geoip_path=GEOIP_DB_PATH,
         locales=["en"],

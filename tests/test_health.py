@@ -11,8 +11,9 @@ from litestar.testing import TestClient
 
 from geometrikks.domain.system.controllers import health as health_module
 from geometrikks.domain.system.controllers.health import health, health_ready
-from geometrikks.services.ingestion import LogIngestionService
+from geometrikks.services.ingestion import LogInput, LogIngestionService
 from geometrikks.services.logparser.logparser import LogParser
+from geometrikks.services.logsources import FileSource
 from tests.support import ambient_settings_dependency
 
 
@@ -108,10 +109,12 @@ def test_ready_200_for_agent_past_schema_gate(monkeypatch):
 
 def _running_service(file_missing: bool) -> "LogIngestionService":
     """A real (never-started) service so Litestar DI type validation passes."""
-    parser = LogParser(log_path=Path("nginx_logs/access.log"))
-    parser.file_missing = file_missing
+    source = FileSource(Path("nginx_logs/access.log"))
+    source._missing = file_missing
     service = LogIngestionService(
-        parsers=[parser], session_maker=cast("Any", None), geoip_path="unused"
+        inputs=[LogInput(source=source, parser=LogParser(log_path=source.path))],
+        session_maker=cast("Any", None),
+        geoip_path="unused",
     )
     service.is_running = True
     return service

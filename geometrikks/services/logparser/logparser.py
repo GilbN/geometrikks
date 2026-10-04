@@ -273,6 +273,16 @@ class LogParser:
             return None
         return self.format.parse(log_line, geo_only=not self.send_logs)
 
+    def lock_format_from(self, lines: list[str]) -> bool:
+        """Lock the format from sample lines; True when one of them parses."""
+        self._lock_format(lines)
+        for line in lines:
+            if self.validate_log_line(line):
+                logger.info("Log file format is valid!")
+                return True
+        logger.debug("Testing log format")
+        return False
+
     def validate_log_format(self, log_path: Path) -> bool:  # regex tester
         """Validate the log format once by checking the last 3 lines.
 

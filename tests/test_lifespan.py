@@ -247,11 +247,11 @@ async def test_cancelled_ingestion_stop_retains_handle_for_later_cleanup(
 ):
     from geometrikks.server import lifecycle as lc
     from geometrikks.services.ingestion import service as ingestion_module
-    from tests.test_ingestion import make_parser, make_service
+    from tests.test_ingestion import make_input, make_service
 
     log_path = tmp_path / "stuck.log"
     log_path.write_text("", encoding="utf-8")
-    parser = make_parser(log_path)
+    parser = make_input(log_path)
     tail_started = asyncio.Event()
     release_tail = asyncio.Event()
 
@@ -259,9 +259,9 @@ async def test_cancelled_ingestion_stop_retains_handle_for_later_cleanup(
         tail_started.set()
         await release_tail.wait()
         if False:
-            yield None
+            yield ""
 
-    monkeypatch.setattr(parser, "iter_parsed_records", stuck_records)
+    monkeypatch.setattr(parser.source, "lines", stuck_records)
     service, _repos, _sessions = make_service([parser])
     await service.start(skip_validation=True)
     await asyncio.wait_for(tail_started.wait(), timeout=1.0)

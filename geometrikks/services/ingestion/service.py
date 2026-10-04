@@ -20,7 +20,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-import aiofiles.os
 from geoip2.database import Reader
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -33,8 +32,13 @@ from geometrikks.domain.geo.utils import make_point
 from geometrikks.domain.realtime.events import LIVE_EVENTS_CHANNEL, encode_guard, record_to_event
 from geometrikks.services.logparser.schemas import ParsedLogRecord, ParsedGeoData, ParsedAccessLog
 from geometrikks.services.logparser.constants import ALLOWED_GEOIP_LOCALES, GEOIP_LOCALES_DEFAULT
-from geometrikks.services.logparser.logparser import LogParser
-from geometrikks.lib.utils import sleep_unless_stopped, wait_for_path
+from geometrikks.services.logparser.logparser import (
+    LogParser,
+    make_cached_asn_lookup,
+    make_cached_city_lookup,
+)
+from geometrikks.services.logsources import LogSource
+from geometrikks.lib.utils import retries_disabled, sleep_unless_stopped
 from geometrikks.server.logging import get_logger
 
 if TYPE_CHECKING:
@@ -43,7 +47,13 @@ if TYPE_CHECKING:
 
 logger = get_logger(__name__)
 
-MISSING_FILE_GRACE_SECONDS = 60.0
+
+@dataclass(slots=True)
+class LogInput:
+    """One source of raw lines and the parser that interprets them."""
+
+    source: LogSource
+    parser: LogParser
 
 
 @dataclass
@@ -102,7 +112,7 @@ class LogIngestionService:
 
     Example:
         service = LogIngestionService(
-            parsers=parsers,
+            inputs=inputs,
             session_maker=session_maker,
         )
         await service.start()
@@ -112,7 +122,7 @@ class LogIngestionService:
 
     def __init__(
         self,
-        parsers: list["LogParser"],
+        inputs: list["LogInput"],
         session_maker: Callable[[], AsyncSession],
         geoip_path: Path|str,
         locales: list[str] | None = None,
@@ -129,7 +139,7 @@ class LogIngestionService:
         """Initialize the log ingestion service.
 
         Args:
-            parsers: LogParser instances, one per tailed log file.
+            inputs: One LogInput per log source.
             session_maker: Callable producing a fresh AsyncSession per flush.
             geoip_path: Path|str, GeoIP2 database file path.
             locales: GeoIP2 locales to use for lookups.
@@ -146,7 +156,7 @@ class LogIngestionService:
                 to the live_events channel. None (the importer path) publishes
                 nothing.
         """
-        self.parsers: list[LogParser] = parsers
+        self.inputs: list[LogInput] = inputs
         self.hostname: str = hostname
         self._session_maker = session_maker
         self._repos_factory = repos_factory
@@ -264,12 +274,11 @@ class LogIngestionService:
         self._queue = asyncio.Queue(maxsize=self._queue_maxsize)
 
         self._tail_tasks = []
-        for parser in self.parsers:
-            parser.set_stop_event(self._stop_event)
+        for item in self.inputs:
             self._tail_tasks.append(
                 asyncio.create_task(
-                    self._tail_file(parser, reader, asn_reader, skip_validation),
-                    name=f"log-tail:{parser.log_path}",
+                    self._run_input(item, reader, asn_reader, skip_validation),
+                    name=f"log-tail:{item.source.label}",
                 )
             )
 
@@ -278,41 +287,93 @@ class LogIngestionService:
         )
         logger.info(
             "Started log ingestion service (%d files, batch_size=%d, commit_interval=%.1fs)",
-            len(self.parsers),
+            len(self.inputs),
             self.batch_size,
             self.commit_interval,
         )
 
-    async def _tail_file(
+    async def _run_input(
         self,
-        parser: LogParser,
+        item: LogInput,
         reader: Reader,
         asn_reader: Reader | None,
         skip_validation: bool,
     ) -> None:
-        """Tail a single log file, pushing parsed records onto the shared queue."""
-        logger.debug("Waiting for log file: %s", parser.log_path)
-        if not await wait_for_path(
-            parser.log_path,
-            timeout_seconds=MISSING_FILE_GRACE_SECONDS,
-            stop_event=self._stop_event,
-        ):
-            if self._stop_event and self._stop_event.is_set():
-                return  # shutting down, not a missing-file problem
-            parser.mark_missing()
-            while not await aiofiles.os.path.exists(parser.log_path):
-                if await sleep_unless_stopped(
-                    parser.poll_interval, self._stop_event
-                ):
-                    return
-            parser.mark_present()
-        assert self._queue is not None
-        async for record in parser.iter_parsed_records(
-            reader, asn_reader, skip_validation=skip_validation
-        ):
+        """Read one source, pushing parsed records onto the shared queue."""
+        assert self._queue is not None and self._stop_event is not None
+        stop = self._stop_event
+        if not await item.source.wait_ready(stop):
+            return
+        if not skip_validation:
+            await self._await_format(item)
+            if stop.is_set():
+                # Stopped while waiting for a parseable line; say nothing about
+                # the format, the loop below would exit immediately anyway.
+                return
+        lookup = make_cached_city_lookup(reader)
+        asn_lookup = (
+            make_cached_asn_lookup(asn_reader) if asn_reader is not None else None
+        )
+        async for line in item.source.lines(stop):
+            record = item.parser.parse_line(line, lookup, asn_lookup)
             if record is None:
-                continue  # idle tick; the consumer handles interval commits via timeout
+                continue  # ignored IP
             await self._queue.put(record)
+
+    async def _await_format(self, item: LogInput) -> None:
+        """Lock the parser's format from the source's newest lines, or degrade."""
+        assert self._stop_event is not None
+        logger.debug("Validating log file format.")
+        valid = await self._format_validates(item)
+        if valid or self._stop_event.is_set():
+            return
+        parser = item.parser
+        if parser.log_format_setting == "auto" and parser.format is None:
+            logger.warning(
+                "Log format not detected yet for %s; will sniff incoming lines",
+                item.source.label,
+            )
+        else:
+            parser.send_logs = False
+            logger.warning(
+                "Log file format invalid. Streaming without access log objects."
+            )
+
+    async def _format_validates(
+        self,
+        item: LogInput,
+        timeout_seconds: float = 60.0,
+        check_interval: float = 1.0,
+    ) -> bool:
+        """Retry the format check until it passes, times out, or a stop is requested.
+
+        Returns:
+            True if the format validated, False on timeout or stop request.
+        """
+        assert self._stop_event is not None
+        stop = self._stop_event
+
+        async def attempt() -> bool:
+            return item.parser.lock_format_from(await item.source.recent_lines(3))
+
+        if retries_disabled():
+            return await attempt()
+
+        deadline = time.monotonic() + timeout_seconds
+        while True:
+            if stop.is_set():
+                return False
+            if await attempt():
+                return True
+            if time.monotonic() >= deadline:
+                logger.error(
+                    "Timeout of %.0f seconds reached validating the log format of %s",
+                    timeout_seconds,
+                    item.source.label,
+                )
+                return False
+            if await sleep_unless_stopped(check_interval, stop):
+                return False
 
     async def stop(self, timeout: float = 10.0) -> None:
         """Stop the ingestion gracefully.
@@ -822,6 +883,11 @@ class LogIngestionService:
         return sum(parser.ignored_lines for parser in self.parsers)
 
     @property
+    def parsers(self) -> list[LogParser]:
+        """The parser of every input, in input order."""
+        return [item.parser for item in self.inputs]
+
+    @property
     def missing_files(self) -> list[str]:
-        """Configured log files currently absent, since startup or after removal."""
-        return [str(parser.log_path) for parser in self.parsers if parser.file_missing]
+        """Labels of the sources currently unavailable, since startup or after removal."""
+        return [item.source.label for item in self.inputs if not item.source.status().available]

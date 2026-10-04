@@ -40,7 +40,7 @@ async def test_gz_import_lands_rows_and_records_job(tmp_path: Path, pg_session_m
             f.write(make_log_line(TEST_IP, ts) + "\n")
 
     service = LogIngestionService(
-        parsers=[], session_maker=pg_session_maker,
+        inputs=[], session_maker=pg_session_maker,
         geoip_path=GEOIP_DB_PATH, locales=["en"],
     )
     parser = LogParser(log_path=gz_file, send_logs=True)
