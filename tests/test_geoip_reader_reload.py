@@ -199,10 +199,10 @@ async def test_lines_written_during_a_reload_are_ingested_once(
 
 
 async def test_running_input_is_enriched_by_the_new_readers(tmp_path: Path) -> None:
-    """The input task must pick up the swapped lookups. The IP is already in
-    the old lookup cache, and a cached lookup on a closed reader answers
-    None, so a task still holding the old closures would lose enrichment
-    without any error."""
+    """The input task must pick up the swapped lookups. A cached lookup
+    survives a closed reader but a miss on one returns None, so the ASN
+    assertion on a known IP and the country assertion on an IP the old City
+    lookup never saw together show both lookups are the new ones."""
     city = tmp_path / "city.mmdb"
     asn = tmp_path / "asn.mmdb"
     shutil.copyfile(CITY_SRC, city)
@@ -210,29 +210,38 @@ async def test_running_input_is_enriched_by_the_new_readers(tmp_path: Path) -> N
     log.write_text("", encoding="utf-8")
     repos = FakeRepos()
     service = make_service(city, asn, inputs=[file_input(log)], repos=repos)
+
+    def row(n: int) -> Any:
+        return next(r for r in repos.access_log.added if cast("Any", r).url == f"/line-{n}")
+
     await service.start(skip_validation=True)
     try:
         await asyncio.sleep(0.1)
         append_line(log, numbered_line(1, ASN_TEST_IP))
-        await wait_until(lambda: urls(repos) == ["/line-1"])
-        before = cast("Any", repos.access_log.added[0])
-        assert before.country_code is not None
-        assert before.autonomous_system_number is None  # no ASN database yet
+        await wait_until(lambda: "/line-1" in urls(repos))
+        assert row(1).country_code is not None
+        assert row(1).autonomous_system_number is None  # no ASN database yet
 
         shutil.copyfile(ASN_SRC, asn)
         replace_file(CITY_SRC, city)
         await service.reload_readers()
 
         append_line(log, numbered_line(2, ASN_TEST_IP))
-        await wait_until(lambda: urls(repos) == ["/line-1", "/line-2"])
-        after = cast("Any", repos.access_log.added[1])
-        assert after.country_code == before.country_code
-        assert after.autonomous_system_number is not None
+        await wait_until(lambda: "/line-2" in urls(repos))
+        assert row(2).country_code == row(1).country_code
+        assert row(2).autonomous_system_number is not None
+
+        append_line(log, numbered_line(3, TEST_DB_IPS[0]))
+        await wait_until(lambda: "/line-3" in urls(repos))
+        assert row(3).country_code is not None
     finally:
         await service.stop()
 
 
-async def test_swap_closes_both_old_readers_when_one_close_fails(tmp_path: Path) -> None:
+@pytest.mark.parametrize("failure", [OSError, asyncio.CancelledError])
+async def test_swap_closes_both_old_readers_when_one_close_fails(
+    tmp_path: Path, failure: type[BaseException]
+) -> None:
     from geometrikks.services.ingestion.lookups import GeoLookups
 
     city = tmp_path / "city.mmdb"
@@ -243,18 +252,23 @@ async def test_swap_closes_both_old_readers_when_one_close_fails(tmp_path: Path)
         real = service._lookups
         assert real is not None
         old_city, old_asn = MagicMock(), MagicMock()
-        old_city.close.side_effect = OSError("close failed")
+        old_city.close.side_effect = failure("close failed")
         service._lookups = GeoLookups(
             reader=old_city, asn_reader=old_asn, city=real.city, asn=None
         )
         real.reader.close()
 
-        await service.reload_readers()
+        if failure is asyncio.CancelledError:
+            with pytest.raises(asyncio.CancelledError):
+                await service.reload_readers()
+        else:
+            await service.reload_readers()
 
         old_city.close.assert_called_once_with()
         old_asn.close.assert_called_once_with()
-        assert service.is_running is True
         assert service._lookups is not None and service._lookups.reader is not old_city
+        assert service.is_running is True
+        assert service.unexpected_stop is False
     finally:
         await service.stop()
 

@@ -178,8 +178,8 @@ class LogIngestionService:
         self._cache_maxsize = 10_000
 
         # Background task management. The readers are stored so stop() can
-        # release their mmaps; a restart opens fresh ones (which also picks
-        # up a refreshed database file).
+        # release their mmaps; reload_readers() swaps in fresh ones for a
+        # refreshed database file.
         self._lookups: GeoLookups | None = None
         # What the open readers actually have mmapped; readers_stale() compares
         # these against the files on disk. None means "no reader open".
@@ -242,21 +242,7 @@ class LogIngestionService:
             self._asn_fingerprint = None
             return
 
-        # ASN enrichment is optional: a missing or unreadable database means
-        # NULL ASN columns, never a failed start.
-        asn_reader: Reader | None = None
-        if self.asn_db_path:
-            asn_reader = create_reader(self.asn_db_path)
-            if asn_reader is None:
-                logger.warning(
-                    "ASN enrichment disabled: no usable GeoLite2-ASN database at %s",
-                    self.asn_db_path,
-                )
-        self._lookups = GeoLookups.build(reader, asn_reader)
-        self._city_fingerprint = _stat_fingerprint(self.geoip_path)
-        self._asn_fingerprint = (
-            _stat_fingerprint(self.asn_db_path) if asn_reader is not None else None
-        )
+        self._install_lookups(reader)
 
         # Set synchronously (before any `await`/task scheduling) so a second
         # start() called back-to-back sees is_running=True immediately; it
@@ -503,6 +489,21 @@ class LogIngestionService:
             # Fingerprints stay as they are, so the next refresh run retries.
             logger.error("geoip_reader_reload_failed", path=str(self.geoip_path))
             return
+        old = self._install_lookups(reader)
+        assert old is not None
+        # No await may sit between _install_lookups() and this close.
+        # parse_line is synchronous, so with none, no input task can be
+        # inside a lookup on the old readers.
+        close_failure = self._close_readers(old)
+        if close_failure is not None and not isinstance(close_failure, Exception):
+            raise close_failure  # cancellation or interpreter exit: not ours to swallow
+        self._log_readers_reloaded()
+
+    def _install_lookups(self, reader: Reader) -> GeoLookups | None:
+        """Open the optional ASN reader, make the bundle current and record
+        what is now open. Returns the bundle it replaced."""
+        # ASN enrichment is optional: a missing or unreadable database means
+        # NULL ASN columns, never a failed start.
         asn_reader: Reader | None = None
         if self.asn_db_path:
             asn_reader = create_reader(self.asn_db_path)
@@ -511,19 +512,15 @@ class LogIngestionService:
                     "ASN enrichment disabled: no usable GeoLite2-ASN database at %s",
                     self.asn_db_path,
                 )
-
         old = self._lookups
         self._lookups = GeoLookups.build(reader, asn_reader)
         self._city_fingerprint = _stat_fingerprint(self.geoip_path)
         self._asn_fingerprint = (
             _stat_fingerprint(self.asn_db_path) if asn_reader is not None else None
         )
-        # No await may sit between the assignment above and this close.
-        # parse_line is synchronous, so with none, no input task can be
-        # inside a lookup on the old readers.
-        close_failure = self._close_readers(old)
-        if close_failure is not None and not isinstance(close_failure, Exception):
-            raise close_failure  # cancellation or interpreter exit: not ours to swallow
+        return old
+
+    def _log_readers_reloaded(self) -> None:
         logger.info(
             "geoip_readers_reloaded",
             path=str(self.geoip_path),
@@ -545,11 +542,7 @@ class LogIngestionService:
                 self.unexpected_stop = True
             raise
         if self._lookups is not None:  # start() logs its own failure path
-            logger.info(
-                "geoip_readers_reloaded",
-                path=str(self.geoip_path),
-                asn_path=str(self.asn_db_path) if self.asn_db_path else None,
-            )
+            self._log_readers_reloaded()
 
     async def _run_ingestion(self) -> None:
         """Consume parsed records from the shared queue, flushing batches to fresh sessions."""
