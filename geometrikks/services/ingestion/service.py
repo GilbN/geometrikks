@@ -305,6 +305,13 @@ class LogIngestionService:
         valid = await self._format_validates(log_input)
         if valid or self._stop_event.is_set():
             return
+        if valid is None:
+            logger.info(
+                "log_format_validation_skipped",
+                source=log_input.source.label,
+                reason="sampling_unsupported",
+            )
+            return
         if not log_input.source.status().available:
             logger.info(
                 "log_format_validation_skipped",
@@ -329,7 +336,7 @@ class LogIngestionService:
         log_input: LogInput,
         timeout_seconds: float = 60.0,
         check_interval: float = 1.0,
-    ) -> bool:
+    ) -> bool | None:
         """Retry the format check until it passes, times out, the source
         reports itself unavailable, or a stop is requested.
 
@@ -352,13 +359,16 @@ class LogIngestionService:
 
         Returns:
             True if the format validated, False on timeout, stop request or
-            an unavailable source.
+            an unavailable source, None when the source cannot be sampled.
         """
         assert self._stop_event is not None
         stop = self._stop_event
 
-        async def attempt() -> bool:
-            return log_input.parser.lock_format_from(await log_input.source.recent_lines(3))
+        async def attempt() -> bool | None:
+            lines = await log_input.source.recent_lines(3)
+            if lines is None:
+                return None
+            return log_input.parser.lock_format_from(lines)
 
         if retries_disabled():
             return await attempt()
@@ -367,7 +377,10 @@ class LogIngestionService:
         while True:
             if stop.is_set():
                 return False
-            if await attempt():
+            validated = await attempt()
+            if validated is None:
+                return None
+            if validated:
                 return True
             if not log_input.source.status().available:
                 return False

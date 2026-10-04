@@ -602,7 +602,7 @@ class ListSource:
     async def wait_ready(self, stop: asyncio.Event) -> bool:
         return True
 
-    async def recent_lines(self, count: int) -> list[str]:
+    async def recent_lines(self, count: int) -> list[str] | None:
         return self._lines[-count:]
 
     async def lines(self, stop: asyncio.Event):
@@ -721,6 +721,33 @@ async def test_pinned_format_that_fails_validation_drops_access_logs() -> None:
     await service.start()
     try:
         await wait_until(lambda: log_input.parser.send_logs is False)
+    finally:
+        await service.stop(timeout=5.0)
+
+
+async def test_source_that_cannot_sample_keeps_access_logs_with_a_pinned_format(monkeypatch) -> None:
+    """A source with no way to show recent lines says nothing about the
+    format: validation is skipped at once and the pinned format is kept."""
+
+    class NoSampleSource(ListSource):
+        async def recent_lines(self, count: int) -> None:
+            return None
+
+    monkeypatch.setenv("DISABLE_WAIT", "false")
+    log_input = LogInput(
+        source=NoSampleSource([make_log_line(TEST_DB_IPS[0])], "stub#nosample"),
+        parser=LogParser(
+            source_label="stub#nosample", send_logs=True, hostname="test-host", log_format="nginx"
+        ),
+    )
+    service, repos, _sessions = make_service([log_input])
+
+    started = time.monotonic()
+    await service.start()
+    try:
+        await wait_until(lambda: len(repos.access_log.added) == 1)
+        assert time.monotonic() - started < 5.0  # not after the 60 s validation timeout
+        assert log_input.parser.send_logs is True
     finally:
         await service.stop(timeout=5.0)
 
