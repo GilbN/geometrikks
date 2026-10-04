@@ -783,6 +783,7 @@ export type IngestionHealth = {
   publishDropped?: number;
   running: boolean;
   status?: "running" | "degraded" | "disabled";
+  unavailableSources?: Array<UnavailableSourceHealth>;
 };
 
 /**
@@ -1610,6 +1611,15 @@ export type TopUserAgentsResponse = {
   endDate: string;
   items: Array<TopUserAgentDto>;
   startDate: string;
+};
+
+/**
+ * UnavailableSourceHealth
+ */
+export type UnavailableSourceHealth = {
+  kind: string;
+  label: string;
+  reason: string | null;
 };
 
 /**

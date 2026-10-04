@@ -498,6 +498,7 @@ export type {
   TopUrlsResponse,
   TopUserAgentDto,
   TopUserAgentsResponse,
+  UnavailableSourceHealth,
   UnbanRequest,
   UnbanResponse,
 } from "./types.gen";

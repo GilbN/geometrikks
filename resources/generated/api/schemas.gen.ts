@@ -2711,6 +2711,12 @@ export const IngestionHealthSchema = {
       enum: ["running", "degraded", "disabled"],
       type: "string",
     },
+    unavailableSources: {
+      items: {
+        $ref: "#/components/schemas/UnavailableSourceHealth",
+      },
+      type: "array",
+    },
   },
   required: [
     "lastRecordAt",
@@ -5540,6 +5546,30 @@ export const TopUserAgentsResponseSchema = {
   },
   required: ["endDate", "items", "startDate"],
   title: "TopUserAgentsResponse",
+  type: "object",
+} as const;
+
+export const UnavailableSourceHealthSchema = {
+  properties: {
+    kind: {
+      type: "string",
+    },
+    label: {
+      type: "string",
+    },
+    reason: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+  },
+  required: ["kind", "label", "reason"],
+  title: "UnavailableSourceHealth",
   type: "object",
 } as const;
 

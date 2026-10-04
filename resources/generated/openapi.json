@@ -2869,6 +2869,12 @@
               "disabled"
             ],
             "type": "string"
+          },
+          "unavailableSources": {
+            "items": {
+              "$ref": "#/components/schemas/UnavailableSourceHealth"
+            },
+            "type": "array"
           }
         },
         "required": [
@@ -5884,6 +5890,33 @@
           "startDate"
         ],
         "title": "TopUserAgentsResponse",
+        "type": "object"
+      },
+      "UnavailableSourceHealth": {
+        "properties": {
+          "kind": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "reason": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "kind",
+          "label",
+          "reason"
+        ],
+        "title": "UnavailableSourceHealth",
         "type": "object"
       },
       "UnbanRequest": {
