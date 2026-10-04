@@ -395,7 +395,11 @@ class LogIngestionService:
                 return False
 
     def _close_readers(self, lookups: GeoLookups) -> BaseException | None:
-        """Close both readers; return the first failure after logging each."""
+        """Close both readers and log each failure.
+
+        Returns the failure to raise: a cancellation or interpreter exit wins
+        over an ordinary error, otherwise the first one.
+        """
         failure: BaseException | None = None
         for reader, reader_name in (
             (lookups.reader, "city"),
@@ -406,7 +410,9 @@ class LogIngestionService:
             try:
                 reader.close()
             except BaseException as e:
-                if failure is None:
+                if failure is None or (
+                    isinstance(failure, Exception) and not isinstance(e, Exception)
+                ):
                     failure = e
                 logger.exception(
                     "ingestion_reader_close_failed",

@@ -275,6 +275,39 @@ async def test_swap_closes_both_old_readers_when_one_close_fails(
         await service.stop()
 
 
+async def test_swap_raises_a_cancellation_that_follows_an_ordinary_close_error(
+    tmp_path: Path,
+) -> None:
+    """The City close fails with an ordinary error and the ASN close is
+    cancelled: the cancellation must not be dropped in favour of the first
+    failure."""
+    from geometrikks.services.ingestion.lookups import GeoLookups
+
+    city = tmp_path / "city.mmdb"
+    shutil.copyfile(CITY_SRC, city)
+    service = make_service(city)
+    await service.start(skip_validation=True)
+    try:
+        real = service._lookups
+        assert real is not None
+        old_city, old_asn = MagicMock(), MagicMock()
+        old_city.close.side_effect = OSError("close failed")
+        old_asn.close.side_effect = asyncio.CancelledError("cancelled")
+        service._lookups = GeoLookups(
+            reader=old_city, asn_reader=old_asn, city=real.city, asn=None
+        )
+        real.reader.close()
+
+        with pytest.raises(asyncio.CancelledError):
+            await service.reload_readers()
+
+        old_city.close.assert_called_once_with()
+        old_asn.close.assert_called_once_with()
+        assert service._lookups is not None and service._lookups.reader is not old_city
+    finally:
+        await service.stop()
+
+
 async def test_reload_closes_the_old_readers_and_uses_the_new(tmp_path: Path) -> None:
     city = tmp_path / "city.mmdb"
     shutil.copyfile(CITY_SRC, city)
