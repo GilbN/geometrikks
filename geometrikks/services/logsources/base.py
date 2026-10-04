@@ -53,8 +53,7 @@ class LogSource(Protocol):
 
         Lines that arrive after wait_ready returned are yielded, however long
         the caller waits before starting to read. If the underlying log is
-        replaced or truncated in that window, reading starts from the
-        replacement.
+        replaced in that window, reading starts from the replacement.
 
         Conditions the source can retry are recorded in status(), not raised.
         """
