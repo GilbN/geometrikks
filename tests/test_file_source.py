@@ -279,6 +279,21 @@ async def test_recent_lines_returns_whole_lines_longer_than_a_block(tmp_path: Pa
     assert await make_source(log).recent_lines(2) == [long_line + "\n", "tail\n"]
 
 
+async def test_recent_lines_marks_the_source_missing_when_the_read_fails(tmp_path: Path, monkeypatch, caplog) -> None:
+    log = tmp_path / "a.log"
+    log.write_text("one\n", encoding="utf-8")
+    source = make_source(log)
+
+    def unreadable(count: int) -> list[str]:
+        raise PermissionError("not readable")
+
+    monkeypatch.setattr(source, "_read_recent", unreadable)
+
+    assert await source.recent_lines(3) == []
+    assert source.status() == SourceStatus(available=False, reason="missing")
+    assert sum("no longer exists or cannot be read" in r.getMessage() for r in caplog.records) == 1
+
+
 async def test_unopenable_file_stays_missing_and_logs_once(tmp_path: Path, monkeypatch, caplog) -> None:
     """A file that stats but cannot be opened must not flap between
     missing and present on every poll."""

@@ -51,6 +51,7 @@ class FileSource:
         return SourceStatus(available=True)
 
     def _mark_missing_at_start(self) -> None:
+        """Flag the file as absent and expose it through health status."""
         if not self._missing:
             logger.error(
                 "Log file does not exist: %s - waiting for it to appear", self.path
@@ -114,7 +115,8 @@ class FileSource:
             return []
         try:
             return await asyncio.to_thread(self._read_recent, count)
-        except OSError:
+        except OSError as e:
+            self._mark_missing(e)
             return []
 
     async def _is_rotated(self, prev_stat: os.stat_result) -> bool:

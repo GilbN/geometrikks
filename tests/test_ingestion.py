@@ -719,6 +719,87 @@ async def test_pinned_format_that_fails_validation_drops_access_logs() -> None:
         await service.stop(timeout=5.0)
 
 
+async def test_auto_format_that_is_not_detected_keeps_access_logs() -> None:
+    """Auto mode with no parseable sample keeps sniffing; send_logs stays on."""
+    item = stub_input(["not a log line\n"])
+    service, _repos, _sessions = make_service([item])
+
+    await service.start()
+    try:
+        await wait_until(lambda: item.parser.skipped_lines >= 1)
+        assert item.parser.send_logs is True
+        assert item.parser.format is None
+    finally:
+        await service.stop(timeout=5.0)
+
+
+async def test_unreadable_file_with_pinned_format_keeps_access_logs(tmp_path: Path, monkeypatch) -> None:
+    """A file that cannot be read at startup shows on /health at once and
+    does not cost the install its access logs once it becomes readable."""
+    import aiofiles
+
+    monkeypatch.setenv("DISABLE_WAIT", "false")
+    log_file = tmp_path / "a.log"
+    log_file.write_text("", encoding="utf-8")
+    source = FileSource(log_file, poll_interval=0.02)
+    parser = LogParser(source_label=str(log_file), send_logs=True, hostname="test-host", log_format="nginx")
+    readable = {"yes": False}
+    real_read_recent = source._read_recent
+    real_open = aiofiles.open
+
+    def read_recent(count: int) -> list[str]:
+        if not readable["yes"]:
+            raise PermissionError("not readable")
+        return real_read_recent(count)
+
+    def guarded_open(*args, **kwargs):
+        if not readable["yes"]:
+            raise PermissionError("not readable")
+        return real_open(*args, **kwargs)
+
+    monkeypatch.setattr(source, "_read_recent", read_recent)
+    monkeypatch.setattr(aiofiles, "open", guarded_open)
+    service, repos, _sessions = make_service([LogInput(source=source, parser=parser)])
+
+    started = time.monotonic()
+    await service.start()
+    try:
+        await wait_until(lambda: service.missing_files == [str(log_file)])
+        assert time.monotonic() - started < 5.0  # not after the 60 s validation timeout
+        assert parser.send_logs is True
+
+        readable["yes"] = True
+        await wait_until(lambda: service.missing_files == [])
+        await asyncio.sleep(0.1)
+        append_line(log_file, make_log_line(TEST_DB_IPS[0]))
+        await wait_until(lambda: len(repos.access_log.added) == 1)
+    finally:
+        await service.stop(timeout=5.0)
+
+
+async def test_failed_input_is_logged_with_its_source() -> None:
+    from structlog.testing import capture_logs
+
+    class ExplodingSource(ListSource):
+        async def lines(self, stop: asyncio.Event):
+            raise RuntimeError("source broke")
+            yield ""  # generator marker
+
+    item = LogInput(
+        source=ExplodingSource([], "stub#broken"),
+        parser=LogParser(source_label="stub#broken", send_logs=True, hostname="test-host"),
+    )
+    service, _repos, _sessions = make_service([item])
+
+    with capture_logs() as logs:
+        await service.start(skip_validation=True)
+        await wait_until(lambda: not service.is_running)
+
+    failures = [e for e in logs if e["event"] == "ingestion_input_failed"]
+    assert len(failures) == 1 and failures[0]["source"] == "stub#broken"
+    await service.stop(timeout=5.0)
+
+
 async def test_each_flush_uses_a_fresh_session(tmp_path: Path) -> None:
     """Two flush cycles → two distinct sessions, each committed and closed."""
     log_file = tmp_path / "a.log"
