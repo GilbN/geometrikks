@@ -200,9 +200,11 @@ async def test_lines_written_during_a_reload_are_ingested_once(
 
 async def test_running_input_is_enriched_by_the_new_readers(tmp_path: Path) -> None:
     """The input task must pick up the swapped lookups. A cached lookup
-    survives a closed reader but a miss on one returns None, so the ASN
-    assertion on a known IP and the country assertion on an IP the old City
-    lookup never saw together show both lookups are the new ones."""
+    survives a closed reader but a miss on one returns None. The ASN
+    assertion on a known IP shows the ASN lookup is the new one. Line 3
+    carries an IP the old City lookup never saw, so it only arrives when the
+    new City lookup answers: a stale one returns None and no access-log row
+    is written for that line."""
     city = tmp_path / "city.mmdb"
     asn = tmp_path / "asn.mmdb"
     shutil.copyfile(CITY_SRC, city)
