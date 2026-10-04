@@ -12,6 +12,7 @@ Analytics aggregation is handled automatically by TimescaleDB continuous aggrega
 """
 from __future__ import annotations
 import asyncio
+import enum
 import os
 import time
 from collections.abc import Callable
@@ -46,6 +47,19 @@ if TYPE_CHECKING:
 
 
 logger = get_logger(__name__)
+
+
+class FormatValidation(enum.Enum):
+    """What sampling a source said about its log format."""
+
+    VALID = "valid"
+    INVALID = "invalid"
+    STOPPED = "stopped"
+    # The three below mean there was nothing to judge. Their values are the
+    # ``reason`` on the log_format_validation_skipped event.
+    NO_LINES = "no_lines"
+    SAMPLING_UNSUPPORTED = "sampling_unsupported"
+    SOURCE_UNAVAILABLE = "source_unavailable"
 
 
 @dataclass(slots=True)
@@ -328,21 +342,17 @@ class LogIngestionService:
         """Lock the parser's format from the source's newest lines, or degrade."""
         assert self._stop_event is not None
         logger.debug("Validating log file format.")
-        valid = await self._format_validates(log_input)
-        if valid or self._stop_event.is_set():
+        outcome = await self._format_validates(log_input)
+        if outcome is FormatValidation.VALID or self._stop_event.is_set():
             return
-        if valid is None:
+        if outcome is not FormatValidation.INVALID:
+            # Nothing was sampled, so there is nothing to hold against the
+            # configured format: an empty file on a fresh install would
+            # otherwise lose its access logs for the life of the process.
             logger.info(
                 "log_format_validation_skipped",
                 source=log_input.source.label,
-                reason="sampling_unsupported",
-            )
-            return
-        if not log_input.source.status().available:
-            logger.info(
-                "log_format_validation_skipped",
-                source=log_input.source.label,
-                reason="source_unavailable",
+                reason=outcome.value,
             )
             return
         parser = log_input.parser
@@ -362,7 +372,7 @@ class LogIngestionService:
         log_input: LogInput,
         timeout_seconds: float = 60.0,
         check_interval: float = 1.0,
-    ) -> bool | None:
+    ) -> FormatValidation:
         """Retry the format check until it passes, times out, the source
         reports itself unavailable, or a stop is requested.
 
@@ -384,41 +394,47 @@ class LogIngestionService:
             check_interval: Seconds between attempts.
 
         Returns:
-            True if the format validated, False on timeout, stop request or
-            an unavailable source, None when the source cannot be sampled.
+            VALID once a sampled line parses. INVALID when the wait ran out
+            and lines were sampled but none parsed. STOPPED on a stop request.
+            NO_LINES, SAMPLING_UNSUPPORTED or SOURCE_UNAVAILABLE when there
+            was nothing to judge.
         """
         assert self._stop_event is not None
         stop = self._stop_event
 
-        async def attempt() -> bool | None:
+        async def attempt() -> FormatValidation:
             lines = await log_input.source.recent_lines(3)
             if lines is None:
-                return None
-            return log_input.parser.lock_format_from(lines)
+                return FormatValidation.SAMPLING_UNSUPPORTED
+            if log_input.parser.lock_format_from(lines):
+                return FormatValidation.VALID
+            if not log_input.source.status().available:
+                return FormatValidation.SOURCE_UNAVAILABLE
+            return FormatValidation.INVALID if lines else FormatValidation.NO_LINES
 
         if retries_disabled():
             return await attempt()
 
         deadline = time.monotonic() + timeout_seconds
+        saw_lines = False
         while True:
             if stop.is_set():
-                return False
-            validated = await attempt()
-            if validated is None:
-                return None
-            if validated:
-                return True
-            if not log_input.source.status().available:
-                return False
+                return FormatValidation.STOPPED
+            outcome = await attempt()
+            if outcome not in (FormatValidation.INVALID, FormatValidation.NO_LINES):
+                return outcome
+            saw_lines = saw_lines or outcome is FormatValidation.INVALID
             if time.monotonic() >= deadline:
+                if not saw_lines:
+                    return FormatValidation.NO_LINES
                 logger.error(
                     "Timeout of %.0f seconds reached validating the log format of %s",
                     timeout_seconds,
                     log_input.source.label,
                 )
-                return False
+                return FormatValidation.INVALID
             if await sleep_unless_stopped(check_interval, stop):
-                return False
+                return FormatValidation.STOPPED
 
     async def stop(self, timeout: float = 10.0) -> None:
         """Stop the ingestion gracefully.

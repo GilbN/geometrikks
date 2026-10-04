@@ -15,7 +15,12 @@ from geometrikks.domain.geo.models import GeoEvent, GeoLocation
 from geometrikks.domain.logs.models import AccessLog, AccessLogDebug
 from geometrikks.services.logparser.logparser import LogParser
 from geometrikks.services.logparser.schemas import ParsedLogRecord, ParsedGeoData, ParsedAccessLog
-from geometrikks.services.ingestion.service import IngestionRepos, LogInput, LogIngestionService
+from geometrikks.services.ingestion.service import (
+    FormatValidation,
+    IngestionRepos,
+    LogInput,
+    LogIngestionService,
+)
 from geometrikks.services.logsources import FileSource, SourceStatus
 
 pytestmark = pytest.mark.anyio
@@ -667,7 +672,8 @@ async def test_format_validation_returns_when_stop_requested(monkeypatch) -> Non
     service._stop_event.set()
 
     started = time.monotonic()
-    assert await service._format_validates(log_input, timeout_seconds=60.0) is False
+    outcome = await service._format_validates(log_input, timeout_seconds=60.0)
+    assert outcome is FormatValidation.STOPPED
     assert time.monotonic() - started < 1.0
 
 
@@ -687,7 +693,7 @@ async def test_format_validation_wakes_on_stop_between_attempts(monkeypatch) -> 
         service._format_validates(log_input, timeout_seconds=60.0, check_interval=30.0),
         stop_soon(),
     )
-    assert result is False
+    assert result is FormatValidation.STOPPED
     assert time.monotonic() - started < 5.0
 
 
@@ -707,7 +713,7 @@ async def test_format_validation_retries_until_a_line_parses(monkeypatch) -> Non
         service._format_validates(log_input, timeout_seconds=10.0, check_interval=0.02),
         append_valid_line(),
     )
-    assert result is True
+    assert result is FormatValidation.VALID
 
 
 async def test_pinned_format_that_fails_validation_drops_access_logs() -> None:
@@ -746,6 +752,53 @@ async def test_source_that_cannot_sample_keeps_access_logs_with_a_pinned_format(
     try:
         await wait_until(lambda: len(repos.access_log.added) == 1)
         assert time.monotonic() - started < 5.0  # not after the 60 s validation timeout
+        assert log_input.parser.send_logs is True
+    finally:
+        await service.stop(timeout=5.0)
+
+
+async def test_format_validation_with_no_lines_is_not_a_verdict(monkeypatch) -> None:
+    """A source that stays empty for the whole wait has shown nothing to judge."""
+    monkeypatch.setenv("DISABLE_WAIT", "false")
+    log_input = stub_input([])
+    service, _repos, _sessions = make_service([log_input])
+    service._stop_event = asyncio.Event()
+
+    outcome = await service._format_validates(log_input, timeout_seconds=0.1, check_interval=0.02)
+
+    assert outcome is FormatValidation.NO_LINES
+
+
+async def test_format_validation_with_unparseable_lines_is_invalid(monkeypatch) -> None:
+    monkeypatch.setenv("DISABLE_WAIT", "false")
+    log_input = stub_input(["not a log line\n"])
+    service, _repos, _sessions = make_service([log_input])
+    service._stop_event = asyncio.Event()
+
+    outcome = await service._format_validates(log_input, timeout_seconds=0.1, check_interval=0.02)
+
+    assert outcome is FormatValidation.INVALID
+
+
+async def test_empty_source_with_a_pinned_format_keeps_access_logs() -> None:
+    """A fresh install has an empty log file. Pinning the format must not
+    cost it its access logs once the first line arrives."""
+
+    class EmptyThenBusySource(ListSource):
+        async def recent_lines(self, count: int) -> list[str] | None:
+            return []
+
+    log_input = LogInput(
+        source=EmptyThenBusySource([make_log_line(TEST_DB_IPS[0])], "stub#fresh"),
+        parser=LogParser(
+            source_label="stub#fresh", send_logs=True, hostname="test-host", log_format="nginx"
+        ),
+    )
+    service, repos, _sessions = make_service([log_input])
+
+    await service.start()
+    try:
+        await wait_until(lambda: len(repos.access_log.added) == 1)
         assert log_input.parser.send_logs is True
     finally:
         await service.stop(timeout=5.0)
