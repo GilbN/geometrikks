@@ -110,6 +110,8 @@ class FileSource:
         return list(text)[-count:]
 
     async def recent_lines(self, count: int) -> list[str]:
+        if count <= 0:
+            return []
         try:
             return await asyncio.to_thread(self._read_recent, count)
         except OSError:
@@ -171,7 +173,6 @@ class FileSource:
                 self._mark_missing(e)
                 await asyncio.sleep(self.poll_interval)
                 continue
-            self._mark_present()
 
             # The file can vanish between the stat above and this open.
             try:
@@ -182,6 +183,7 @@ class FileSource:
                 self._mark_missing(e)
                 await asyncio.sleep(self.poll_interval)
                 continue
+            self._mark_present()
 
             try:
                 if seek_to_end:

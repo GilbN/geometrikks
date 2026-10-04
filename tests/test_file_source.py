@@ -277,3 +277,43 @@ async def test_recent_lines_returns_whole_lines_longer_than_a_block(tmp_path: Pa
     log.write_text(f"head\n{long_line}\ntail\n", encoding="utf-8")
 
     assert await make_source(log).recent_lines(2) == [long_line + "\n", "tail\n"]
+
+
+async def test_unopenable_file_stays_missing_and_logs_once(tmp_path: Path, monkeypatch, caplog) -> None:
+    """A file that stats but cannot be opened must not flap between
+    missing and present on every poll."""
+    caplog.set_level("INFO")
+    log = tmp_path / "a.log"
+    log.write_text("one\n", encoding="utf-8")
+    source = make_source(log, start_at_end=False)
+    real_open = aiofiles.open
+    allow = {"open": False}
+
+    def guarded_open(*args, **kwargs):
+        if not allow["open"]:
+            raise PermissionError("not readable")
+        return real_open(*args, **kwargs)
+
+    monkeypatch.setattr(aiofiles, "open", guarded_open)
+    gen = source.lines(asyncio.Event())
+    pending = asyncio.ensure_future(next_line(gen))
+
+    await asyncio.sleep(0.2)  # many poll intervals
+    assert source.status() == SourceStatus(available=False, reason="missing")
+    messages = [r.getMessage() for r in caplog.records]
+    assert sum("no longer exists or cannot be read" in m for m in messages) == 1
+    assert not any("reappeared" in m for m in messages)
+
+    allow["open"] = True
+    assert await pending == "one\n"
+    assert source.status() == SourceStatus(available=True)
+    assert sum("reappeared" in r.getMessage() for r in caplog.records) == 1
+    await gen.aclose()
+
+
+async def test_recent_lines_zero_or_negative_count(tmp_path: Path) -> None:
+    log = tmp_path / "a.log"
+    log.write_text("a\nb\n", encoding="utf-8")
+
+    assert await make_source(log).recent_lines(0) == []
+    assert await make_source(log).recent_lines(-1) == []
