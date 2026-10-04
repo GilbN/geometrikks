@@ -21,6 +21,7 @@ from geometrikks.services.ingestion.service import (
     IngestionRepos,
     LogInput,
     LogIngestionService,
+    UnavailableSource,
 )
 from geometrikks.services.logsources import FileSource, SourceStatus
 
@@ -749,6 +750,18 @@ async def test_missing_files_lists_unavailable_source_labels() -> None:
 
     assert service.missing_files == ["stub#down"]
     assert service.parsers == [up.parser, down.parser]
+
+
+async def test_unavailable_sources_carry_kind_label_and_reason() -> None:
+    up = stub_input([], label="stub#up")
+    down = stub_input([], label="stub#down")
+    cast(ListSource, down.source).available = False
+    service, _repos, _sessions = make_service([up, down])
+
+    assert service.unavailable_sources == [
+        UnavailableSource(kind="stub", label="stub#down", reason="down")
+    ]
+    assert service.missing_files == ["stub#down"]
 
 
 async def test_missing_file_is_reported_before_format_validation(tmp_path: Path) -> None:

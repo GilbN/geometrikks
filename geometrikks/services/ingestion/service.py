@@ -67,6 +67,13 @@ class LogInput:
     parser: LogParser
 
 
+@dataclass(frozen=True, slots=True)
+class UnavailableSource:
+    kind: str
+    label: str
+    reason: str | None
+
+
 @dataclass
 class IngestionRepos:
     """The four repositories used by one flush cycle, all bound to the same session."""
@@ -981,10 +988,19 @@ class LogIngestionService:
         return [log_input.parser for log_input in self.inputs]
 
     @property
+    def unavailable_sources(self) -> list[UnavailableSource]:
+        """The sources currently unavailable, since startup or after removal."""
+        unavailable: list[UnavailableSource] = []
+        for log_input in self.inputs:
+            source = log_input.source
+            status = source.status()
+            if not status.available:
+                unavailable.append(
+                    UnavailableSource(kind=source.kind, label=source.label, reason=status.reason)
+                )
+        return unavailable
+
+    @property
     def missing_files(self) -> list[str]:
-        """Labels of the sources currently unavailable, since startup or after removal."""
-        return [
-            log_input.source.label
-            for log_input in self.inputs
-            if not log_input.source.status().available
-        ]
+        """Labels of the unavailable sources. Kept for the /health field of the same name."""
+        return [source.label for source in self.unavailable_sources]
