@@ -34,8 +34,9 @@ class FileSource:
         Args:
             path: The log file to tail.
             poll_interval: Seconds between checks for new lines.
-            start_at_end: If True, seek to end of file (tail -f behavior).
-                If False, read from beginning.
+            start_at_end: If True, reading starts at the position recorded by
+                wait_ready, or at the current end when lines() is called
+                without it. If False, read from the beginning.
         """
         self.path: Path = path
         self.label: str = str(path)
@@ -212,7 +213,7 @@ class FileSource:
             # Stat before (re)opening: after a rotation break the new file may
             # not exist yet, and crashing here would kill the tail task.
             try:
-                stat_result = await aiofiles.os.stat(self.path)
+                await aiofiles.os.stat(self.path)
             except OSError as e:
                 self._mark_missing(e)
                 await asyncio.sleep(self.poll_interval)
@@ -257,11 +258,11 @@ class FileSource:
                             break  # close this file; outer loop reopens
                         continue
 
-                    # Update stat for next rotation check. The file can vanish
-                    # between the read and this stat; keep the previous stat
-                    # and let the idle-path rotation check flag the miss.
+                    # The baseline tracks the file being read, so its size keeps
+                    # up with growth and a replacement at the path is seen as a
+                    # rotation. If the stat fails, the previous baseline stays.
                     try:
-                        stat_result = await aiofiles.os.stat(self.path)
+                        stat_result = await aiofiles.os.stat(file.fileno())
                     except OSError:
                         pass
 

@@ -116,6 +116,19 @@ async def test_rotation_reopens_from_start_twice(tmp_path: Path) -> None:
     await gen.aclose()
 
 
+async def test_a_rotation_while_old_lines_are_unread_is_still_detected(tmp_path: Path) -> None:
+    log = tmp_path / "access.log"
+    log.write_text("old-one\nold-two\n", encoding="utf-8")
+    gen = make_source(log, start_at_end=False).lines(asyncio.Event())
+
+    assert await next_line(gen) == "old-one\n"
+    os.rename(log, tmp_path / "access.log.1")
+    log.write_text("new-one\n", encoding="utf-8")
+    assert await next_line(gen) == "old-two\n"
+    assert await next_line(gen) == "new-one\n"
+    await gen.aclose()
+
+
 async def test_is_rotated_truncation_99pct(tmp_path: Path, monkeypatch) -> None:
     """Rotation detected when size shrinks by >=99%."""
     # Create file and obtain real previous stat
