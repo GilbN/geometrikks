@@ -25,7 +25,7 @@ def make_line(ip: str) -> str:
 
 def make_parser(*, window: PeerWindow | None, asn: int | None = None) -> LogParser:
     parser = LogParser(
-        log_path=Path("/dev/null"), send_logs=True,
+        source_label="/dev/null", send_logs=True,
         hostname="web-01", log_format="geometrikks-json",
         peer_window=window,
     )

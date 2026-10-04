@@ -36,7 +36,7 @@ def proxy_findings(parsers: Iterable[Any]) -> list[ProxyFinding]:
             continue
         fmt = parser.format.name if parser.format else None
         hostname = parser.hostname
-        path = str(parser.log_path)
+        path = parser.source_label
         lines = summary.lines
 
         if summary.cdn_active:

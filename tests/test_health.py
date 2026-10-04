@@ -112,7 +112,7 @@ def _running_service(file_missing: bool) -> "LogIngestionService":
     source = FileSource(Path("nginx_logs/access.log"))
     source._missing = file_missing
     service = LogIngestionService(
-        inputs=[LogInput(source=source, parser=LogParser(log_path=source.path))],
+        inputs=[LogInput(source=source, parser=LogParser(source_label=str(source.path)))],
         session_maker=cast("Any", None),
         geoip_path="unused",
     )

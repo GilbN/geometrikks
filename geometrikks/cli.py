@@ -113,7 +113,7 @@ async def _run_import(
         for path in paths:
             click.echo(f"Importing {path} ...")
             parser = LogParser(
-                log_path=path,
+                source_label=str(path),
                 send_logs=settings.logparser.send_logs,
                 ignore_ips=settings.logparser.ignore_ips,
                 log_format=log_format,

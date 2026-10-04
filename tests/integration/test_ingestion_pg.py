@@ -48,7 +48,7 @@ def make_log_line(ip: str) -> str:
 def make_service(log_path: Path, session_maker, **kwargs) -> LogIngestionService:
     item = LogInput(
         source=FileSource(log_path, poll_interval=0.05),
-        parser=LogParser(log_path=log_path, send_logs=True),
+        parser=LogParser(source_label=str(log_path), send_logs=True),
     )
     return LogIngestionService(
         inputs=[item],

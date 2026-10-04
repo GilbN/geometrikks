@@ -1,7 +1,6 @@
 """Findings from parser windows, and the advisory cards built from them."""
 from __future__ import annotations
 
-from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, cast
 
@@ -14,7 +13,7 @@ from geometrikks.services.logparser.peer_window import PeerSummary
 def fake_parser(*, hostname="web-01", fmt="nginx", summary=None):
     return SimpleNamespace(
         hostname=hostname,
-        log_path=Path(f"/logs/{hostname}.log"),
+        source_label=f"/logs/{hostname}.log",
         format=SimpleNamespace(name=fmt) if fmt else None,
         peer_summary=lambda: summary,
     )

@@ -60,8 +60,8 @@ from geometrikks.services.geoip.home import resolve_home_location
 from geometrikks.services.geoip.site_homes import reconcile_override_homes, upsert_auto_homes
 from geometrikks.services.ingestion import LogInput, LogIngestionService
 from geometrikks.services.logparser.logparser import LogParser
-from geometrikks.services.logsources import FileSource
 from geometrikks.services.logparser.peer_window import PeerWindow
+from geometrikks.services.logsources import FileSource
 from geometrikks.server.scheduler import create_scheduler
 from geometrikks.server.scheduler_tracking import JobRunTracker
 
@@ -492,7 +492,7 @@ async def start_ingestion(app: "Litestar") -> None:
         LogInput(
             source=FileSource(path, poll_interval=settings.logparser.poll_interval),
             parser=LogParser(
-                log_path=path,
+                source_label=str(path),
                 send_logs=settings.logparser.send_logs,
                 hostname=host,
                 ignore_ips=settings.logparser.ignore_ips,

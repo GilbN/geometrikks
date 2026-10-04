@@ -196,7 +196,7 @@ async def wait_until(predicate, timeout: float = 5.0) -> None:
 def make_input(path: Path) -> LogInput:
     return LogInput(
         source=FileSource(path, poll_interval=0.02),
-        parser=LogParser(log_path=path, send_logs=True, hostname="test-host"),
+        parser=LogParser(source_label=str(path), send_logs=True, hostname="test-host"),
     )
 
 
@@ -613,7 +613,7 @@ class ListSource:
 def stub_input(lines: list[str], label: str = "stub#0") -> LogInput:
     return LogInput(
         source=ListSource(lines, label),
-        parser=LogParser(log_path=Path(label), send_logs=True, hostname="test-host"),
+        parser=LogParser(source_label=label, send_logs=True, hostname="test-host"),
     )
 
 
@@ -708,7 +708,7 @@ async def test_format_validation_retries_until_a_line_parses(monkeypatch) -> Non
 async def test_pinned_format_that_fails_validation_drops_access_logs() -> None:
     item = LogInput(
         source=ListSource(["not a log line\n"]),
-        parser=LogParser(log_path=Path("stub"), send_logs=True, log_format="nginx"),
+        parser=LogParser(source_label="stub", send_logs=True, log_format="nginx"),
     )
     service, _repos, _sessions = make_service([item])
 

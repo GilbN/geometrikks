@@ -251,7 +251,7 @@ async def test_cancelled_ingestion_stop_retains_handle_for_later_cleanup(
 
     log_path = tmp_path / "stuck.log"
     log_path.write_text("", encoding="utf-8")
-    parser = make_input(log_path)
+    item = make_input(log_path)
     tail_started = asyncio.Event()
     release_tail = asyncio.Event()
 
@@ -261,8 +261,8 @@ async def test_cancelled_ingestion_stop_retains_handle_for_later_cleanup(
         if False:
             yield ""
 
-    monkeypatch.setattr(parser.source, "lines", stuck_records)
-    service, _repos, _sessions = make_service([parser])
+    monkeypatch.setattr(item.source, "lines", stuck_records)
+    service, _repos, _sessions = make_service([item])
     await service.start(skip_validation=True)
     await asyncio.wait_for(tail_started.wait(), timeout=1.0)
 
