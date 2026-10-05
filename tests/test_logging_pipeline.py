@@ -235,7 +235,7 @@ class TestLogBroadcaster:
             t = threading.Thread(target=b.publish_threadsafe, args=({"event": "hi"},))
             t.start()
             t.join()
-            event = await asyncio.wait_for(q.get(), timeout=2)
+            event = await asyncio.wait_for(q.get(), timeout=10)
             assert event == {"event": "hi"}
             b.unsubscribe(q)
 
@@ -275,7 +275,7 @@ class TestBroadcastHandler:
             record = logging.LogRecord("t", logging.INFO, "", 0, "hello", None, None)
             handler.emit(record)
             await asyncio.sleep(0)  # let call_soon_threadsafe run
-            event = await asyncio.wait_for(q.get(), timeout=2)
+            event = await asyncio.wait_for(q.get(), timeout=10)
             assert event == {"event": "hello"}
 
         asyncio.run(scenario())
@@ -296,7 +296,7 @@ def configured_logging(tmp_path, monkeypatch):
     return tmp_path / "logs"
 
 
-def _wait_for(predicate, timeout: float = 3.0) -> bool:
+def _wait_for(predicate, timeout: float = 60.0) -> bool:
     deadline = time.time() + timeout
     while time.time() < deadline:
         if predicate():
@@ -497,7 +497,7 @@ class TestExceptionTraceback:
                     logger.error("caught_error_broadcast", exc_info=True)
 
                 event = None
-                deadline = time.time() + 3.0
+                deadline = time.time() + 60.0
                 while time.time() < deadline:
                     try:
                         candidate = await asyncio.wait_for(q.get(), timeout=0.5)

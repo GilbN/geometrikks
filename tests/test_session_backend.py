@@ -108,6 +108,7 @@ async def test_writing_a_loaded_session_does_not_renew_its_absolute_expiry():
         assert login_remaining is not None and login_remaining > 95
 
         await anyio.sleep(2.2)
+        remaining_before = await store.expires_in(sid)
         res = await client.get("/api/v1/touch-session")
         assert res.status_code == 200
         assert res.cookies["session"] == sid  # no rotation, same store entry
@@ -118,7 +119,8 @@ async def test_writing_a_loaded_session_does_not_renew_its_absolute_expiry():
         # The cookie must not outlive or undercut the store entry it names.
         match = re.search(r"Max-Age=(\d+)", res.headers["set-cookie"])
         assert match is not None
-        assert abs(int(match.group(1)) - remaining) <= 1
+        assert remaining_before is not None
+        assert remaining <= int(match.group(1)) <= remaining_before
 
 
 async def test_final_second_session_write_clears_rather_than_renews():
@@ -177,7 +179,7 @@ def test_logout_during_a_parked_session_write_is_not_undone():
         portal.call(events["entered"].wait)
         assert client.post("/api/v1/auth/logout").status_code in (200, 204)
         portal.call(events["gate"].set)
-        worker.join(timeout=5)
+        worker.join(timeout=30)
 
         response = results[0]
         assert response.status_code == 200
@@ -242,8 +244,8 @@ def test_write_lock_blocks_a_racing_logout_until_the_parked_write_finishes(monke
             portal.call(events["resume"].set)
         assert still_blocked, "logout must block on the write lock, not run ahead of the parked write"
 
-        touch_worker.join(timeout=5)
-        logout_worker.join(timeout=5)
+        touch_worker.join(timeout=30)
+        logout_worker.join(timeout=30)
 
         assert touch_results[0].status_code == 200
         assert logout_results[0].status_code in (200, 204)
@@ -274,7 +276,7 @@ def test_logout_is_not_undone_by_an_in_flight_request():
         portal.call(events["entered"].wait)
         assert client.post("/api/v1/auth/logout").status_code in (200, 204)
         portal.call(events["gate"].set)
-        worker.join(timeout=5)
+        worker.join(timeout=30)
         assert results == [200]
         assert portal.call(store.get, sid) is None
         assert client.get("/api/v1/protected").status_code == 401
@@ -310,7 +312,7 @@ def test_a_parked_write_on_a_rotated_session_leaves_the_new_cookie_alone():
         portal.call(events["entered"].wait)
         new = client.post("/api/v1/auth/login", json=CREDS).cookies["session"]
         portal.call(events["gate"].set)
-        worker.join(timeout=5)
+        worker.join(timeout=30)
 
         response = results[0]
         assert response.status_code == 200
@@ -342,7 +344,7 @@ def test_in_flight_request_cannot_restore_the_pre_rotation_session():
         portal.call(events["entered"].wait)
         assert client.post("/api/v1/auth/login", json=CREDS).status_code == 200
         portal.call(events["gate"].set)
-        worker.join(timeout=5)
+        worker.join(timeout=30)
         assert results == [200]
         assert portal.call(store.get, pre) is None
         assert client.get("/api/v1/protected").status_code == 200

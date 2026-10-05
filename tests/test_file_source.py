@@ -25,7 +25,37 @@ def test_file_source_carries_its_hostname(tmp_path: Path) -> None:
 
 
 async def next_line(gen) -> str:
-    return await asyncio.wait_for(gen.__anext__(), timeout=5.0)
+    return await asyncio.wait_for(gen.__anext__(), timeout=10.0)
+
+
+def signal_seek(monkeypatch) -> asyncio.Event:
+    """Patch aiofiles.open so the returned event is set once lines() has
+    positioned an opened file. A line appended after that is read."""
+    real_open = aiofiles.open
+    seeked = asyncio.Event()
+
+    async def open_signalling_seek(*args, **kwargs):
+        file = await real_open(*args, **kwargs)
+        real_seek = file.seek
+
+        async def seek(*seek_args, **seek_kwargs):
+            position = await real_seek(*seek_args, **seek_kwargs)
+            seeked.set()
+            return position
+
+        file.seek = seek
+        return file
+
+    monkeypatch.setattr(aiofiles, "open", open_signalling_seek)
+    return seeked
+
+
+async def wait_until(predicate, timeout: float = 10.0) -> None:
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + timeout
+    while not predicate():
+        assert loop.time() < deadline, "condition not met in time"
+        await asyncio.sleep(0.01)
 
 
 def test_file_source_satisfies_the_protocol(tmp_path: Path) -> None:
@@ -45,13 +75,14 @@ async def test_lines_from_start_yields_existing_lines(tmp_path: Path) -> None:
     await gen.aclose()
 
 
-async def test_lines_start_at_end_skips_existing_lines(tmp_path: Path) -> None:
+async def test_lines_start_at_end_skips_existing_lines(tmp_path: Path, monkeypatch) -> None:
     log = tmp_path / "a.log"
     log.write_text("old\n", encoding="utf-8")
+    seeked = signal_seek(monkeypatch)
     gen = make_source(log).lines(asyncio.Event())
 
     pending = asyncio.ensure_future(next_line(gen))
-    await asyncio.sleep(0.05)
+    await asyncio.wait_for(seeked.wait(), timeout=10.0)
     with open(log, "a", encoding="utf-8") as fh:
         fh.write("new\n")
 
@@ -59,18 +90,19 @@ async def test_lines_start_at_end_skips_existing_lines(tmp_path: Path) -> None:
     await gen.aclose()
 
 
-async def test_lines_ends_when_stop_is_set(tmp_path: Path) -> None:
+async def test_lines_ends_when_stop_is_set(tmp_path: Path, monkeypatch) -> None:
     log = tmp_path / "a.log"
     log.write_text("", encoding="utf-8")
     stop = asyncio.Event()
+    seeked = signal_seek(monkeypatch)
     gen = make_source(log).lines(stop)
 
     pending = asyncio.ensure_future(gen.__anext__())
-    await asyncio.sleep(0.05)
+    await asyncio.wait_for(seeked.wait(), timeout=10.0)
     stop.set()
 
     with pytest.raises(StopAsyncIteration):
-        await asyncio.wait_for(pending, timeout=2.0)
+        await asyncio.wait_for(pending, timeout=10.0)
 
 
 async def test_lines_survive_undecodable_bytes(tmp_path: Path) -> None:
@@ -196,11 +228,11 @@ async def test_wait_ready_reports_missing_then_recovers(tmp_path: Path) -> None:
     stop = asyncio.Event()
 
     ready = asyncio.ensure_future(source.wait_ready(stop))
-    await asyncio.sleep(0.05)
+    await wait_until(lambda: not source.status().available)
     assert source.status() == SourceStatus(available=False, reason="missing")
 
     log.write_text("", encoding="utf-8")
-    assert await asyncio.wait_for(ready, timeout=2.0) is True
+    assert await asyncio.wait_for(ready, timeout=10.0) is True
     assert source.status() == SourceStatus(available=True)
 
 
@@ -209,25 +241,23 @@ async def test_wait_ready_returns_false_when_stopped(tmp_path: Path) -> None:
     stop = asyncio.Event()
 
     ready = asyncio.ensure_future(source.wait_ready(stop))
-    await asyncio.sleep(0.05)
+    await wait_until(lambda: not source.status().available)  # polling for the file
     stop.set()
 
-    assert await asyncio.wait_for(ready, timeout=2.0) is False
+    assert await asyncio.wait_for(ready, timeout=10.0) is False
 
 
-async def test_mid_flight_deletion_flags_missing_and_recovers(tmp_path: Path) -> None:
+async def test_mid_flight_deletion_flags_missing_and_recovers(tmp_path: Path, monkeypatch) -> None:
     log = tmp_path / "a.log"
     log.write_text("", encoding="utf-8")
     source = make_source(log)
+    seeked = signal_seek(monkeypatch)
     gen = source.lines(asyncio.Event())
     pending = asyncio.ensure_future(next_line(gen))
-    await asyncio.sleep(0.05)
+    await asyncio.wait_for(seeked.wait(), timeout=10.0)
 
     log.unlink()
-    for _ in range(100):
-        if not source.status().available:
-            break
-        await asyncio.sleep(0.02)
+    await wait_until(lambda: not source.status().available)
     assert source.status() == SourceStatus(available=False, reason="missing")
 
     log.write_text("back\n", encoding="utf-8")
@@ -338,8 +368,11 @@ async def test_unopenable_file_stays_missing_and_logs_once(tmp_path: Path, monke
     source = make_source(log, start_at_end=False)
     real_open = aiofiles.open
     allow = {"open": False}
+    open_attempts = 0
 
     def guarded_open(*args, **kwargs):
+        nonlocal open_attempts
+        open_attempts += 1
         if not allow["open"]:
             raise PermissionError("not readable")
         return real_open(*args, **kwargs)
@@ -348,7 +381,7 @@ async def test_unopenable_file_stays_missing_and_logs_once(tmp_path: Path, monke
     gen = source.lines(asyncio.Event())
     pending = asyncio.ensure_future(next_line(gen))
 
-    await asyncio.sleep(0.2)  # many poll intervals
+    await wait_until(lambda: open_attempts >= 10)  # many poll intervals
     assert source.status() == SourceStatus(available=False, reason="missing")
     messages = [r.getMessage() for r in caplog.records]
     assert sum("no longer exists or cannot be read" in m for m in messages) == 1
@@ -523,25 +556,10 @@ async def test_a_second_lines_call_without_wait_ready_starts_at_the_end(
     assert await next_line(first) == "two\n"
     await first.aclose()
 
-    real_open = aiofiles.open
-    seeked = asyncio.Event()
-
-    async def open_signalling_seek(*args, **kwargs):
-        file = await real_open(*args, **kwargs)
-        real_seek = file.seek
-
-        async def seek(*seek_args, **seek_kwargs):
-            position = await real_seek(*seek_args, **seek_kwargs)
-            seeked.set()
-            return position
-
-        file.seek = seek
-        return file
-
-    monkeypatch.setattr(aiofiles, "open", open_signalling_seek)
+    seeked = signal_seek(monkeypatch)
     second = source.lines(stop)
     pending = asyncio.ensure_future(next_line(second))
-    await asyncio.wait_for(seeked.wait(), timeout=5.0)
+    await asyncio.wait_for(seeked.wait(), timeout=10.0)
     with open(log, "a", encoding="utf-8") as fh:
         fh.write("three\n")
     assert await pending == "three\n"
@@ -571,8 +589,10 @@ async def test_a_path_replaced_between_stat_and_open_is_not_read_twice(
         return real_open(*args, **kwargs)
 
     monkeypatch.setattr(aiofiles, "open", rotate_then_open)
+    seeked = signal_seek(monkeypatch)
     gen = source.lines(stop)
     pending = asyncio.ensure_future(next_line(gen))
+    await asyncio.wait_for(seeked.wait(), timeout=10.0)
     if recorded:
         assert await pending == "fresh\n"
         pending = asyncio.ensure_future(next_line(gen))

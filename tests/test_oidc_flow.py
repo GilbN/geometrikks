@@ -23,6 +23,7 @@ from geometrikks.services.oidc import OidcClient
 from geometrikks.services.oidc import client as client_module
 from tests.oidc_fake import CLIENT_ID, CLIENT_SECRET, ISSUER, REDIRECT_URI, FakeIdp, make_fake_idp
 from tests.test_auth_endpoints import _ws_event, make_app, make_disabled_app, protected
+from tests.test_live_ws import publish_once_subscribed
 
 PASSWORD = "bestpasswordintheworldnojoke"
 CREDS = {"username": "admin", "password": PASSWORD}
@@ -210,7 +211,7 @@ def test_callback_happy_path(fake):
             assert client.get("/api/v1/protected").status_code == 200
             channels = client.app.plugins.get(ChannelsPlugin)
             with client.websocket_connect("/ws/live") as ws:
-                channels.publish(_ws_event(), LIVE_EVENTS_CHANNEL)
+                publish_once_subscribed(client, channels, _ws_event())
                 assert ws.receive_json(timeout=5)["type"] == "batch"
     success = [e for e in captured if e["event"] == "login_success"]
     assert len(success) == 1

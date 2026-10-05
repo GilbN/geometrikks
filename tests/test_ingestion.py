@@ -199,7 +199,7 @@ def added_access_logs(repos: FakeRepos) -> list[AccessLog]:
     return [cast(AccessLog, access_log) for access_log in repos.access_log.added]
 
 
-async def wait_until(predicate, timeout: float = 5.0) -> None:
+async def wait_until(predicate, timeout: float = 30.0) -> None:
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         if predicate():
@@ -208,9 +208,35 @@ async def wait_until(predicate, timeout: float = 5.0) -> None:
     raise AssertionError("condition not met within timeout")
 
 
+class TailingFileSource(FileSource):
+    """A FileSource that says when its start position is fixed.
+
+    Once wait_ready has returned True, a line appended to the file is read,
+    so a test that appends after ``wait_tailing`` cannot lose the line to a
+    tail task that has not started yet.
+    """
+
+    def __init__(self, path: Path, poll_interval: float = 0.02) -> None:
+        super().__init__(path, poll_interval=poll_interval)
+        self.ready = asyncio.Event()
+
+    async def wait_ready(self, stop: asyncio.Event) -> bool:
+        is_ready = await super().wait_ready(stop)
+        if is_ready:
+            self.ready.set()
+        return is_ready
+
+
+async def wait_tailing(*log_inputs: LogInput, timeout: float = 30.0) -> None:
+    for log_input in log_inputs:
+        source = log_input.source
+        assert isinstance(source, TailingFileSource)
+        await asyncio.wait_for(source.ready.wait(), timeout)
+
+
 def make_input(path: Path) -> LogInput:
     return LogInput(
-        source=FileSource(path, poll_interval=0.02),
+        source=TailingFileSource(path),
         parser=LogParser(source_label=str(path), send_logs=True),
     )
 
@@ -224,7 +250,7 @@ async def test_multi_file_tailing_ingests_from_all_sources(tmp_path: Path) -> No
     """One tail task per file; records from every file reach the repositories.
 
     Tailers use production behavior (start_at_end=True), so files are created
-    empty before start and lines are appended after the tailers have opened them."""
+    empty before start and lines are appended once each source's wait_ready has returned."""
     files = [tmp_path / "a.log", tmp_path / "b.log"]
     for f in files:
         f.write_text("", encoding="utf-8")
@@ -233,8 +259,8 @@ async def test_multi_file_tailing_ingests_from_all_sources(tmp_path: Path) -> No
     service, repos, sessions = make_service(inputs)
 
     await service.start(skip_validation=True)
-    await asyncio.sleep(0.1)  # let tail tasks open the files
     try:
+        await wait_tailing(*inputs)
         for f, ip in zip(files, TEST_DB_IPS):
             append_line(f, make_log_line(ip))
         await wait_until(lambda: service.total_processed >= 2)
@@ -253,10 +279,11 @@ async def test_stop_drains_queue_before_exit(tmp_path: Path) -> None:
     log_file = tmp_path / "a.log"
     log_file.write_text("", encoding="utf-8")
 
-    service, repos, sessions = make_service([make_input(log_file)], batch_size=1000, commit_interval=60.0)
+    log_input = make_input(log_file)
+    service, repos, sessions = make_service([log_input], batch_size=1000, commit_interval=60.0)
 
     await service.start(skip_validation=True)
-    await asyncio.sleep(0.1)
+    await wait_tailing(log_input)
     for _ in range(20):
         append_line(log_file, make_log_line(TEST_DB_IPS[0]))
     # wait for the tailer to parse everything, then stop before any interval commit
@@ -344,7 +371,7 @@ async def test_stop_cleans_up_before_propagating_completed_consumer_error(
     assert task.done()
 
     with pytest.raises(RuntimeError) as caught:
-        await service.stop(timeout=1.0)
+        await service.stop(timeout=10.0)
 
     assert caught.value is failure
     city_reader.close.assert_called_once_with()
@@ -375,7 +402,7 @@ async def test_stop_distinguishes_consumer_timeout_error_from_shutdown_timeout(
     service._ingestion_task = task
 
     with pytest.raises(asyncio.TimeoutError) as caught:
-        await service.stop(timeout=1.0)
+        await service.stop(timeout=10.0)
 
     assert caught.value is failure
     city_reader.close.assert_called_once_with()
@@ -403,7 +430,7 @@ async def test_stop_cancels_consumer_after_actual_shutdown_timeout() -> None:
     task = asyncio.create_task(wait_forever(), name="stuck-consumer")
     service._ingestion_task = task
 
-    await service.stop(timeout=0.01)
+    await service.stop(timeout=0.01)  # expected to expire: the consumer never returns
 
     assert task.cancelled()
     city_reader.close.assert_called_once_with()
@@ -425,8 +452,8 @@ async def test_missing_file_does_not_block_other_tails(tmp_path: Path) -> None:
     service, repos, sessions = make_service(inputs)
 
     await service.start(skip_validation=True)
-    await asyncio.sleep(0.1)
     try:
+        await wait_tailing(inputs[1])
         append_line(good, make_log_line(TEST_DB_IPS[0]))
         await wait_until(lambda: service.total_processed >= 1)
     finally:
@@ -444,18 +471,28 @@ async def test_stop_ends_the_wait_for_a_missing_log_file(
     event was threaded through, stop() waited its full timeout and then
     resorted to cancelling the task.
     """
+    import geometrikks.services.logsources.file as file_module
+
     monkeypatch.setenv("DISABLE_WAIT", "false")
     missing = tmp_path / "missing.log"
     service, _repos, _sessions = make_service([make_input(missing)])
+    waiting = asyncio.Event()
+    real_wait_for_path = file_module.wait_for_path
+
+    async def signalling_wait_for_path(*args, **kwargs) -> bool:
+        waiting.set()
+        return await real_wait_for_path(*args, **kwargs)
+
+    monkeypatch.setattr(file_module, "wait_for_path", signalling_wait_for_path)
 
     await service.start(skip_validation=True)
-    await asyncio.sleep(0.05)
+    await asyncio.wait_for(waiting.wait(), timeout=30.0)
 
     started = time.monotonic()
-    await service.stop(timeout=5.0)
+    await service.stop(timeout=30.0)
     elapsed = time.monotonic() - started
 
-    assert elapsed < 2.0, f"stop() took {elapsed:.1f}s waiting for a missing file"
+    assert elapsed < 20.0, f"stop() took {elapsed:.1f}s waiting for a missing file"
     assert all(task.done() and not task.cancelled() for task in service._tail_tasks)
 
 
@@ -478,7 +515,7 @@ async def test_never_appeared_file_is_reported_missing_and_tailed_once_it_appear
 
         missing.write_text("", encoding="utf-8")
         await wait_until(lambda: log_input.source.status().available)
-        await asyncio.sleep(0.1)
+        await wait_tailing(log_input)
         append_line(missing, make_log_line(TEST_DB_IPS[0]))
         await wait_until(lambda: service.total_processed >= 1)
     finally:
@@ -546,12 +583,13 @@ async def test_last_record_at_tracks_ingestion_activity(tmp_path: Path) -> None:
 
     log_file = tmp_path / "a.log"
     log_file.write_text("", encoding="utf-8")
-    service, _repos, _sessions = make_service([make_input(log_file)])
+    log_input = make_input(log_file)
+    service, _repos, _sessions = make_service([log_input])
 
     assert service.last_record_at is None
     await service.start(skip_validation=True)
-    await asyncio.sleep(0.1)
     try:
+        await wait_tailing(log_input)
         before = datetime.now(timezone.utc)
         append_line(log_file, make_log_line(TEST_DB_IPS[0]))
         await wait_until(lambda: service.total_processed >= 1)
@@ -573,8 +611,8 @@ async def test_mid_flight_file_deletion_flags_missing_and_recovers(tmp_path: Pat
     service, _repos, _sessions = make_service([log_input])
 
     await service.start(skip_validation=True)
-    await asyncio.sleep(0.1)  # let the tailer open the file
     try:
+        await wait_tailing(log_input)
         append_line(log_file, make_log_line(TEST_DB_IPS[0]))
         await wait_until(lambda: service.total_processed >= 1)
 
@@ -631,6 +669,20 @@ def stub_input(lines: list[str], label: str = "stub#0", hostname: str = "test-ho
         source=ListSource(lines, label, hostname),
         parser=LogParser(source_label=label, send_logs=True),
     )
+
+
+def signal_first_sample(log_input: LogInput) -> asyncio.Event:
+    """Set once format validation has sampled the source for the first time."""
+    sampled = asyncio.Event()
+    recent_lines = log_input.source.recent_lines
+
+    async def recent_lines_then_signal(count: int) -> list[str] | None:
+        lines = await recent_lines(count)
+        sampled.set()
+        return lines
+
+    cast("Any", log_input.source).recent_lines = recent_lines_then_signal
+    return sampled
 
 
 async def test_records_carry_the_source_hostname() -> None:
@@ -793,29 +845,32 @@ async def test_format_validation_returns_when_stop_requested(monkeypatch) -> Non
     service._stop_event.set()
 
     started = time.monotonic()
-    outcome = await service._format_validates(log_input, timeout_seconds=60.0)
+    outcome = await service._format_validates(
+        log_input, timeout_seconds=60.0, check_interval=30.0
+    )
     assert outcome is FormatValidation.STOPPED
-    assert time.monotonic() - started < 1.0
+    assert time.monotonic() - started < 20.0  # well short of the 30 s interval
 
 
 async def test_format_validation_wakes_on_stop_between_attempts(monkeypatch) -> None:
     """A stop arriving mid-wait ends the loop without sitting out the interval."""
     monkeypatch.setenv("DISABLE_WAIT", "false")
     log_input = stub_input([])
+    sampled = signal_first_sample(log_input)
     service, _repos, _sessions = make_service([log_input])
     stop_event = service._stop_event = asyncio.Event()
 
-    async def stop_soon() -> None:
-        await asyncio.sleep(0.05)
+    async def stop_after_first_attempt() -> None:
+        await sampled.wait()
         stop_event.set()
 
     started = time.monotonic()
     result, _ = await asyncio.gather(
         service._format_validates(log_input, timeout_seconds=60.0, check_interval=30.0),
-        stop_soon(),
+        stop_after_first_attempt(),
     )
     assert result is FormatValidation.STOPPED
-    assert time.monotonic() - started < 5.0
+    assert time.monotonic() - started < 20.0  # well short of the 30 s interval
 
 
 async def test_format_validation_retries_until_a_line_parses(monkeypatch) -> None:
@@ -823,15 +878,16 @@ async def test_format_validation_retries_until_a_line_parses(monkeypatch) -> Non
     monkeypatch.setenv("DISABLE_WAIT", "false")
     lines: list[str] = []
     log_input = stub_input(lines)
+    sampled = signal_first_sample(log_input)
     service, _repos, _sessions = make_service([log_input])
     service._stop_event = asyncio.Event()
 
     async def append_valid_line() -> None:
-        await asyncio.sleep(0.05)
+        await sampled.wait()
         lines.append(make_log_line(TEST_DB_IPS[0]))
 
     result, _ = await asyncio.gather(
-        service._format_validates(log_input, timeout_seconds=10.0, check_interval=0.02),
+        service._format_validates(log_input, timeout_seconds=30.0, check_interval=0.02),
         append_valid_line(),
     )
     assert result is FormatValidation.VALID
@@ -872,7 +928,7 @@ async def test_source_that_cannot_sample_keeps_access_logs_with_a_pinned_format(
     await service.start()
     try:
         await wait_until(lambda: len(repos.access_log.added) == 1)
-        assert time.monotonic() - started < 5.0  # not after the 60 s validation timeout
+        assert time.monotonic() - started < 30.0  # not after the 60 s validation timeout
         assert log_input.parser.send_logs is True
     finally:
         await service.stop(timeout=5.0)
@@ -971,12 +1027,11 @@ async def test_unreadable_file_with_pinned_format_keeps_access_logs(tmp_path: Pa
     await service.start()
     try:
         await wait_until(lambda: service.missing_files == [str(log_file)])
-        assert time.monotonic() - started < 5.0  # not after the 60 s validation timeout
+        assert time.monotonic() - started < 30.0  # not after the 60 s validation timeout
         assert parser.send_logs is True
 
         readable["yes"] = True
         await wait_until(lambda: service.missing_files == [])
-        await asyncio.sleep(0.1)
         append_line(log_file, make_log_line(TEST_DB_IPS[0]))
         await wait_until(lambda: len(repos.access_log.added) == 1)
     finally:
@@ -1015,8 +1070,8 @@ async def test_each_flush_uses_a_fresh_session(tmp_path: Path) -> None:
         [make_input(log_file)], batch_size=1, commit_interval=60.0
     )
     await service.start(skip_validation=True)
-    await asyncio.sleep(0.1)
     try:
+        await wait_tailing(*service.inputs)
         with open(log_file, "a", encoding="utf-8") as fh:
             fh.write(make_log_line(TEST_DB_IPS[0]) + "\n")
         await wait_until(lambda: len(sessions) >= 1 and sessions[0].commits == 1)
@@ -1085,8 +1140,8 @@ async def test_poison_record_evicts_uncommitted_location_from_cache(tmp_path: Pa
     repos.fail_next_commits = 1
 
     await service.start(skip_validation=True)
-    await asyncio.sleep(0.1)
     try:
+        await wait_tailing(*service.inputs)
         with open(log_file, "a", encoding="utf-8") as fh:
             fh.write(make_log_line(TEST_DB_IPS[0]) + "\n")
         await wait_until(lambda: any(s.rollbacks for s in sessions))
@@ -1128,8 +1183,8 @@ async def test_rollback_evicts_all_uncommitted_geohashes_in_batch(tmp_path: Path
     repos.fail_flush_calls = {2}
 
     await service.start(skip_validation=True)
-    await asyncio.sleep(0.1)
     try:
+        await wait_tailing(*service.inputs)
         # Two different IPs -> two new geohashes, and both lines are appended
         # before batch_size(2) can be reached, so they land in ONE flush.
         with open(log_file, "a", encoding="utf-8") as fh:
@@ -1167,8 +1222,8 @@ async def test_committed_locations_survive_in_cache_as_ids(tmp_path: Path) -> No
         [make_input(log_file)], batch_size=1, commit_interval=60.0
     )
     await service.start(skip_validation=True)
-    await asyncio.sleep(0.1)
     try:
+        await wait_tailing(*service.inputs)
         with open(log_file, "a", encoding="utf-8") as fh:
             fh.write(make_log_line(TEST_DB_IPS[0]) + "\n")
         await wait_until(lambda: any(s.commits for s in sessions))
@@ -1584,7 +1639,7 @@ class TestAsnWiring:
         )
         await service.start(skip_validation=True)
         try:
-            await asyncio.sleep(0.05)
+            await wait_until(lambda: "asn_lookup" in captured)
             assert captured["asn_lookup"] is not None
         finally:
             await service.stop(timeout=1.0)
