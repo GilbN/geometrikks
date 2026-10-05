@@ -21,8 +21,15 @@ from geometrikks.services.ingestion import LogInput
 from geometrikks.services.ingestion import service as service_module
 from geometrikks.services.ingestion.service import LogIngestionService
 from geometrikks.services.logparser.logparser import LogParser
-from geometrikks.services.logsources import FileSource
-from tests.test_ingestion import TEST_DB_IPS, FakeRepos, FakeSession, make_log_line, wait_until
+from tests.test_ingestion import (
+    TEST_DB_IPS,
+    FakeRepos,
+    FakeSession,
+    TailingFileSource,
+    make_log_line,
+    wait_tailing,
+    wait_until,
+)
 
 pytestmark = pytest.mark.anyio
 
@@ -69,7 +76,7 @@ def urls(repos: FakeRepos) -> list[str]:
 
 def file_input(path: Path) -> LogInput:
     return LogInput(
-        source=FileSource(path, poll_interval=0.02),
+        source=TailingFileSource(path),
         parser=LogParser(source_label=str(path), send_logs=True),
     )
 
@@ -172,7 +179,7 @@ async def test_lines_written_during_a_reload_are_ingested_once(
     service = make_service(city, inputs=[file_input(log)], repos=repos)
     await service.start(skip_validation=True)
     try:
-        await asyncio.sleep(0.1)  # let the tailer open the file
+        await wait_tailing(*service.inputs)
         append_line(log, numbered_line(1))
         await wait_until(lambda: urls(repos) == ["/line-1"])
 
@@ -218,7 +225,7 @@ async def test_running_input_is_enriched_by_the_new_readers(tmp_path: Path) -> N
 
     await service.start(skip_validation=True)
     try:
-        await asyncio.sleep(0.1)
+        await wait_tailing(*service.inputs)
         append_line(log, numbered_line(1, ASN_TEST_IP))
         await wait_until(lambda: "/line-1" in urls(repos))
         assert row(1).country_code is not None

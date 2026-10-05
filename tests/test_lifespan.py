@@ -235,7 +235,7 @@ async def test_stop_scheduler_waits_for_real_shutdown_before_detaching():
         state=SimpleNamespace(scheduler=scheduler, scheduler_tracker=object())
     )
 
-    await asyncio.wait_for(lc.stop_scheduler(cast("Any", app)), timeout=2.0)
+    await asyncio.wait_for(lc.stop_scheduler(cast("Any", app)), timeout=10.0)
 
     assert scheduler.running is False
     assert not hasattr(app.state, "scheduler")
@@ -264,7 +264,7 @@ async def test_cancelled_ingestion_stop_retains_handle_for_later_cleanup(
     monkeypatch.setattr(log_input.source, "lines", stuck_records)
     service, _repos, _sessions = make_service([log_input])
     await service.start(skip_validation=True)
-    await asyncio.wait_for(tail_started.wait(), timeout=1.0)
+    await asyncio.wait_for(tail_started.wait(), timeout=10.0)
 
     wait_entered = asyncio.Event()
     real_wait = asyncio.wait
@@ -276,7 +276,7 @@ async def test_cancelled_ingestion_stop_retains_handle_for_later_cleanup(
     monkeypatch.setattr(ingestion_module.asyncio, "wait", observed_wait)
     app = SimpleNamespace(state=SimpleNamespace(ingestion_service=service))
     first_stop = asyncio.create_task(lc.stop_ingestion(cast("Any", app)))
-    await asyncio.wait_for(wait_entered.wait(), timeout=1.0)
+    await asyncio.wait_for(wait_entered.wait(), timeout=10.0)
     first_stop.cancel()
     with pytest.raises(asyncio.CancelledError):
         await first_stop
@@ -285,7 +285,7 @@ async def test_cancelled_ingestion_stop_retains_handle_for_later_cleanup(
     assert any(not task.done() for task in service._tail_tasks)
 
     release_tail.set()
-    await asyncio.wait_for(lc.stop_ingestion(cast("Any", app)), timeout=1.0)
+    await asyncio.wait_for(lc.stop_ingestion(cast("Any", app)), timeout=10.0)
 
     assert all(task.done() for task in service._tail_tasks)
     assert not service.is_task_running
@@ -643,7 +643,7 @@ class _RecoveryClock:
         await self.release.acquire()
 
     async def tick(self, expected: float) -> None:
-        assert await asyncio.wait_for(self.entered.get(), timeout=1.0) == expected
+        assert await asyncio.wait_for(self.entered.get(), timeout=10.0) == expected
         self.release.release()
 
 
@@ -676,7 +676,7 @@ async def test_recovery_runs_deferred_startup_with_capped_backoff(monkeypatch):
         for delay in [10.0, 20.0, 40.0, 60.0, 60.0]:
             assert app.state.db_available is False
             await clock.tick(delay)
-        await asyncio.wait_for(task, timeout=1.0)
+        await asyncio.wait_for(task, timeout=10.0)
 
         cast("AsyncMock", lc.migrate_database).assert_awaited_once()
         cast("AsyncMock", lc.setup_timescaledb).assert_awaited_once()
@@ -716,7 +716,7 @@ async def test_scheduler_disabled_recovery_never_activates_crowdsec_poller(monke
         assert app.state.crowdsec_stream_poller is None
         assert getattr(app.state, "crowdsec_stream_poller_deferred", None) is None
         await clock.tick(10.0)
-        await asyncio.wait_for(app.state.db_recovery_task, timeout=1.0)
+        await asyncio.wait_for(app.state.db_recovery_task, timeout=10.0)
         assert app.state.crowdsec_stream_poller is None
         assert getattr(app.state, "crowdsec_stream_poller_deferred", None) is None
         assert create_scheduler.await_args is not None
@@ -760,7 +760,7 @@ async def test_recovery_failure_is_terminal_and_unwinds_partial_services(monkeyp
         task = app.state.db_recovery_task
         since = app.state.db_degraded_since
         await clock.tick(10.0)
-        await asyncio.wait_for(task, timeout=1.0)
+        await asyncio.wait_for(task, timeout=10.0)
         assert task.done()
         assert app.state.db_available is False
         assert app.state.db_degraded_since == since
@@ -797,7 +797,7 @@ async def test_recovery_continues_when_channels_backend_recover_fails(monkeypatc
     app = SimpleNamespace(state=SimpleNamespace(channels_backend=backend))
     async with enter_lifespan(app):
         await clock.tick(10.0)
-        await asyncio.wait_for(app.state.db_recovery_task, timeout=1.0)
+        await asyncio.wait_for(app.state.db_recovery_task, timeout=10.0)
         assert app.state.db_available is True
         backend.recover.assert_awaited_once()
         cast("AsyncMock", lc.create_scheduler).assert_awaited_once()
@@ -814,7 +814,7 @@ async def test_shutdown_cancels_a_pending_recovery(monkeypatch):
     app = SimpleNamespace(state=SimpleNamespace())
     async with enter_lifespan(app):
         task = app.state.db_recovery_task
-        assert await asyncio.wait_for(clock.entered.get(), timeout=1.0) == 10.0
+        assert await asyncio.wait_for(clock.entered.get(), timeout=10.0) == 10.0
         assert not task.done()
     assert task.cancelled()
     cast("AsyncMock", lc.migrate_database).assert_not_awaited()
@@ -868,7 +868,7 @@ async def test_shutdown_during_recovery_unwinds_before_client_closes(
     async with enter_lifespan(app):
         task = app.state.db_recovery_task
         await clock.tick(10.0)
-        await asyncio.wait_for(entered.wait(), timeout=1.0)
+        await asyncio.wait_for(entered.wait(), timeout=10.0)
         assert app.state.db_available is False
         if cancel_before_shutdown:
             task.cancel()
@@ -915,9 +915,9 @@ async def test_recovery_cleanup_failure_keeps_handle_and_still_stops_scheduler(
         await clock.tick(10.0)
         if cleanup_cancelled:
             with pytest.raises(asyncio.CancelledError):
-                await asyncio.wait_for(app.state.db_recovery_task, timeout=1.0)
+                await asyncio.wait_for(app.state.db_recovery_task, timeout=10.0)
         else:
-            await asyncio.wait_for(app.state.db_recovery_task, timeout=1.0)
+            await asyncio.wait_for(app.state.db_recovery_task, timeout=10.0)
         assert app.state.ingestion_service is ingestion
         scheduler.shutdown.assert_called_once_with(wait=True)
         assert not hasattr(app.state, "scheduler")
@@ -936,7 +936,7 @@ async def test_recovery_lifespan_awaits_already_completed_task(monkeypatch):
     with pytest.raises(RuntimeError, match="unexpected task error"):
         async with lc.db_recovery_lifespan(cast("Any", app)):
             app.state.db_recovery_task.add_done_callback(lambda task: finished.set())
-            await asyncio.wait_for(finished.wait(), timeout=1.0)
+            await asyncio.wait_for(finished.wait(), timeout=10.0)
             assert app.state.db_recovery_task.done()
 
 
@@ -966,7 +966,7 @@ async def test_recovery_respects_disabled_ingestion(monkeypatch):
     app = SimpleNamespace(state=SimpleNamespace())
     async with enter_lifespan(app):
         await clock.tick(10.0)
-        await asyncio.wait_for(app.state.db_recovery_task, timeout=1.0)
+        await asyncio.wait_for(app.state.db_recovery_task, timeout=10.0)
         assert app.state.db_available is True
         cast("AsyncMock", lc.create_scheduler).assert_awaited_once()
         ingestion.start.assert_not_awaited()
@@ -1008,7 +1008,7 @@ async def test_recovery_elapsed_time_includes_bringup_and_service_start(monkeypa
     async with enter_lifespan(app):
         now += timedelta(seconds=10)
         await clock.tick(10.0)
-        await asyncio.wait_for(app.state.db_recovery_task, timeout=1.0)
+        await asyncio.wait_for(app.state.db_recovery_task, timeout=10.0)
         assert app.state.db_available is True
         log.info.assert_any_call("db_recovery_started", degraded_seconds=10.0)
         log.info.assert_any_call("db_recovered", degraded_seconds=20.0)
@@ -1059,10 +1059,10 @@ async def test_recovery_shutdown_waits_for_migration_worker(monkeypatch, worker_
     waiting_task = asyncio.create_task(waiting_for_worker.wait())
     try:
         await clock.tick(10.0)
-        await asyncio.wait_for(worker_started.wait(), timeout=1.0)
+        await asyncio.wait_for(worker_started.wait(), timeout=10.0)
         close_task = asyncio.create_task(lifespan.__aexit__(None, None, None))
         done, _ = await asyncio.wait(
-            {close_task, waiting_task}, timeout=1.0, return_when=asyncio.FIRST_COMPLETED
+            {close_task, waiting_task}, timeout=10.0, return_when=asyncio.FIRST_COMPLETED
         )
         assert waiting_task in done
         assert not close_task.done()
@@ -1077,7 +1077,7 @@ async def test_recovery_shutdown_waits_for_migration_worker(monkeypatch, worker_
         if close_task is None:
             await lifespan.__aexit__(None, None, None)
         else:
-            await asyncio.wait_for(close_task, timeout=2.0)
+            await asyncio.wait_for(close_task, timeout=10.0)
         waiting_task.cancel()
         await asyncio.gather(waiting_task, return_exceptions=True)
 

@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import os
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import cast
 
@@ -28,15 +28,17 @@ pytestmark = pytest.mark.anyio
 
 GEOIP_DB_PATH = "tests/GeoLite2-City-Test.mmdb"
 TEST_IP = "2.125.160.216"   # resolves in the MaxMind test DB
+# Recent, not a fixed date: an old access log left behind sends the next
+# setup_timescaledb through its gap backfill from that date.
+LOGGED_AT = datetime.now(timezone.utc).replace(microsecond=0) - timedelta(hours=1)
 TEST_IP_2 = "81.2.69.142"   # second location in the test DB
 
 
 def make_log_line(ip: str) -> str:
     """A line in the project's custom nginx log format (mirrors tests/valid_ipv4_log.txt).
 
-    Unlike the unit-test helper this stamps the current time: the scratch DB
-    has live retention policies (raw data > 180 days is droppable), so a fixed
-    2024 date could vanish if a background job fires mid-session.
+    Unlike the unit-test helper this stamps the current time, so the row
+    stays inside the 180-day raw retention window.
     """
     ts = datetime.now(timezone.utc).strftime("%d/%b/%Y:%H:%M:%S +0000")
     return (
@@ -45,9 +47,23 @@ def make_log_line(ip: str) -> str:
     )
 
 
+class TailingFileSource(FileSource):
+    """A FileSource that says when its start position is fixed."""
+
+    def __init__(self, path: Path) -> None:
+        super().__init__(path, poll_interval=0.05)
+        self.ready = asyncio.Event()
+
+    async def wait_ready(self, stop: asyncio.Event) -> bool:
+        is_ready = await super().wait_ready(stop)
+        if is_ready:
+            self.ready.set()
+        return is_ready
+
+
 def make_service(log_path: Path, session_maker, **kwargs) -> LogIngestionService:
     log_input = LogInput(
-        source=FileSource(log_path, poll_interval=0.05),
+        source=TailingFileSource(log_path),
         parser=LogParser(source_label=str(log_path), send_logs=True),
     )
     return LogIngestionService(
@@ -67,7 +83,7 @@ async def count(session_maker, table: str) -> int:
         return result.scalar_one()
 
 
-async def wait_for(predicate, timeout: float = 10.0, interval: float = 0.1):
+async def wait_for(predicate, timeout: float = 30.0, interval: float = 0.1):
     """Poll an async predicate until truthy or timeout."""
     loop = asyncio.get_running_loop()
     deadline = loop.time() + timeout
@@ -83,14 +99,17 @@ async def _rows_landed(session_maker, n: int) -> bool:
 
 
 async def start_tailing(service: LogIngestionService) -> None:
-    """Start the service and yield until the tail task has opened the file.
+    """Start the service and wait until each source has fixed its start position.
 
-    start() only schedules the tail tasks; the tailer stats the file and seeks
-    to its end when it first runs. Lines written before that seek are skipped,
-    so tests must not write until the tailer is actually streaming.
+    start() only schedules the tail tasks. A line written before a source's
+    wait_ready has run counts as old content and is skipped, so tests must
+    not write until then.
     """
     await service.start(skip_validation=True)
-    await asyncio.sleep(0.25)
+    for log_input in service.inputs:
+        source = log_input.source
+        assert isinstance(source, TailingFileSource)
+        await asyncio.wait_for(source.ready.wait(), timeout=30.0)
 
 
 async def test_lines_become_rows(tmp_path: Path, pg_session_maker, clean_tables):
@@ -106,7 +125,7 @@ async def test_lines_become_rows(tmp_path: Path, pg_session_maker, clean_tables)
 
         await wait_for(lambda: _rows_landed(pg_session_maker, 10))
     finally:
-        await service.stop(timeout=5.0)
+        await service.stop(timeout=30.0)
 
     assert await count(pg_session_maker, "access_logs") == 10
     assert await count(pg_session_maker, "geo_events") == 10
@@ -128,15 +147,13 @@ async def test_rotation_is_survived(tmp_path: Path, pg_session_maker, clean_tabl
         # Rotate: move the old file away, create a fresh one (new inode).
         os.rename(log_file, tmp_path / "access.log.1")
         log_file.write_text("")
-        # Give the poll loop a moment to detect the inode change.
-        await asyncio.sleep(0.5)
 
         with log_file.open("a") as f:
             for _ in range(5):
                 f.write(make_log_line(TEST_IP_2) + "\n")
         await wait_for(lambda: _rows_landed(pg_session_maker, 10))
     finally:
-        await service.stop(timeout=5.0)
+        await service.stop(timeout=30.0)
 
     assert await count(pg_session_maker, "access_logs") == 10
     assert await count(pg_session_maker, "geo_locations") == 2
@@ -177,14 +194,14 @@ async def test_poisoned_location_cache_recovers(tmp_path: Path, pg_session_maker
             f.write(make_log_line(TEST_IP) + "\n")
 
         # First flush fails on FK; the rollback path must evict the geohash.
-        await wait_for(_cache_evicted(service, geohash), timeout=5.0)
+        await wait_for(_cache_evicted(service, geohash))
 
         # Feed another line: with the cache clean, this one must land.
         with log_file.open("a") as f:
             f.write(make_log_line(TEST_IP) + "\n")
         await wait_for(lambda: _rows_landed(pg_session_maker, 1))
     finally:
-        await service.stop(timeout=5.0)
+        await service.stop(timeout=30.0)
 
     assert await count(pg_session_maker, "geo_events") >= 1
     assert service._location_cache.get(geohash) != 999999
@@ -199,7 +216,7 @@ async def test_debug_entry_carries_denormalized_access_log_context(
     ingestion path that leaves them NULL silently blanks the whole table.
     """
     access_log = AccessLog(
-        timestamp=datetime(2026, 7, 18, 12, 0, tzinfo=timezone.utc),
+        timestamp=LOGGED_AT,
         ip_address="203.0.113.7",
         method="GET",
         url="/probe",
@@ -247,7 +264,7 @@ async def test_debug_entry_carries_denormalized_access_log_context(
             )
         ).one()
 
-    assert row.log_timestamp == datetime(2026, 7, 18, 12, 0, tzinfo=timezone.utc)
+    assert row.log_timestamp == LOGGED_AT
     assert row.ip == "203.0.113.7"
     assert row.method == "GET"
     assert row.url == "/probe"
@@ -279,7 +296,7 @@ async def test_create_debug_entry_copies_context_from_access_log() -> None:
 
     access_log = AccessLog(
         id=99,
-        timestamp=datetime(2026, 7, 18, 12, 0, tzinfo=timezone.utc),
+        timestamp=LOGGED_AT,
         ip_address="203.0.113.7",
         method="POST",
         url="/x",

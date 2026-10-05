@@ -18,11 +18,9 @@ import pytest
 
 pytestmark = pytest.mark.anyio
 
-# Derived from the wall clock, not hard-coded: the scratch DB has live
-# retention policies (raw data > 180 days is droppable), so a fixed date
-# would eventually age out of the window and let a policy job drop seeded
-# rows mid-session. Hour-aligned so seeds land deterministically in hourly
-# CAGG buckets.
+# Derived from the wall clock, not hard-coded, so a fixed date would not
+# eventually age out of the 180-day raw retention window. Hour-aligned so
+# seeds land deterministically in hourly CAGG buckets.
 NOW = datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0)
 
 LOCATION_COLUMNS = (

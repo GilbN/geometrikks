@@ -24,6 +24,15 @@ if TYPE_CHECKING:
 TS = datetime(2026, 7, 1, 12, 0, tzinfo=timezone.utc)
 
 
+async def _until(predicate, timeout: float = 10.0) -> None:
+    """Let the event loop run until predicate() holds."""
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + timeout
+    while not predicate():
+        assert loop.time() < deadline, "condition not met in time"
+        await asyncio.sleep(0.01)
+
+
 def make_record(with_geo: bool = True, with_log: bool = True, hostname: str = "") -> ParsedLogRecord:
     geo = ParsedGeoData(
         latitude=51.5, longitude=-0.09, geohash="gcpvj", country_code="GB",
@@ -51,10 +60,26 @@ def _live_app(db_available: bool = True) -> tuple[Litestar, ChannelsPlugin]:
     return app, channels
 
 
+def publish_once_subscribed(client: TestClient, channels: ChannelsPlugin, *events: Any) -> None:
+    """Publish on the app's event loop once a /ws/live handler has subscribed.
+
+    The handler subscribes after it accepts the socket, and the channel drops
+    an event that arrives before any subscriber, so publishing as soon as
+    websocket_connect() returns can lose it.
+    """
+
+    async def publish() -> None:
+        await _until(lambda: channels._channels.get(LIVE_EVENTS_CHANNEL))
+        for event in events:
+            channels.publish(event, LIVE_EVENTS_CHANNEL)
+
+    client.blocking_portal.call(publish)
+
+
 def test_ws_streams_batch_frames_from_channel():
     app, channels = _live_app()
     with TestClient(app) as client, client.websocket_connect("/ws/live") as ws:
-        channels.publish(record_to_event(make_record()), LIVE_EVENTS_CHANNEL)
+        publish_once_subscribed(client, channels, record_to_event(make_record()))
         frame = ws.receive_json(timeout=5)
     assert frame["type"] == "batch"
     assert frame["dropped"] == 0
@@ -68,9 +93,8 @@ def test_ws_hostname_arrives_in_frames():
     the round trip through the channel unchanged."""
     app, channels = _live_app()
     with TestClient(app) as client, client.websocket_connect("/ws/live") as ws:
-        channels.publish(
-            record_to_event(make_record(with_log=False, hostname="vps-1")),
-            LIVE_EVENTS_CHANNEL,
+        publish_once_subscribed(
+            client, channels, record_to_event(make_record(with_log=False, hostname="vps-1"))
         )
         frame = ws.receive_json(timeout=5)
     assert frame["events"][0]["geo"]["hostname"] == "vps-1"
@@ -95,7 +119,7 @@ def test_ws_closes_1013_when_db_unavailable():
     with TestClient(app) as client:
         with pytest.raises(WebSocketDisconnect) as exc_info:
             with client.websocket_connect("/ws/live") as ws:
-                ws.receive_json(timeout=2)
+                ws.receive_json(timeout=10)
     assert exc_info.value.code == 1013
     assert exc_info.value.detail == "live feed unavailable (database down)"
 
@@ -109,7 +133,7 @@ def test_crowdsec_ws_closes_1013_when_poller_is_deferred():
     with TestClient(app) as client:
         with pytest.raises(WebSocketDisconnect) as exc_info:
             with client.websocket_connect("/ws/crowdsec") as ws:
-                ws.receive_json(timeout=2)
+                ws.receive_json(timeout=10)
     assert exc_info.value.code == 1013
     assert exc_info.value.detail == "crowdsec stream not running"
 
@@ -127,20 +151,33 @@ def test_crowdsec_ws_closes_1013_when_scheduler_disabled(monkeypatch, tmp_path):
         assert app.state.crowdsec_service is not None
         with pytest.raises(WebSocketDisconnect) as exc_info:
             with client.websocket_connect("/ws/crowdsec") as ws:
-                ws.receive_json(timeout=2)
+                ws.receive_json(timeout=10)
     assert exc_info.value.code == 1013
     assert exc_info.value.detail == "crowdsec stream not running"
 
 
-def test_ws_counts_dropped_events_beyond_frame_cap():
+def test_ws_counts_dropped_events_beyond_frame_cap(monkeypatch):
     """Overflow beyond MAX_EVENTS_PER_FRAME is counted, not silently lost."""
+    from geometrikks.domain.realtime import controllers as live_controller
+
+    real_batched_frames = live_controller.batched_frames
+
+    async def batched_frames_after_burst(queue: asyncio.Queue, **kwargs: Any):
+        # The first flush window opens only once the whole burst is queued;
+        # on a slow runner the burst can otherwise straddle two windows.
+        await _until(lambda: queue.qsize() >= 120)
+        async for frame in real_batched_frames(queue, **kwargs):
+            yield frame
+
+    monkeypatch.setattr(live_controller, "batched_frames", batched_frames_after_burst)
     app, channels = _live_app()
     with TestClient(app) as client, client.websocket_connect("/ws/live") as ws:
         # 120 records -> 120 envelopes; the first flush window drains them
         # all, keeps 100 and counts 20 dropped.
-        for _ in range(120):
-            channels.publish(record_to_event(make_record()), LIVE_EVENTS_CHANNEL)
-        frame = ws.receive_json(timeout=5)
+        publish_once_subscribed(
+            client, channels, *(record_to_event(make_record()) for _ in range(120))
+        )
+        frame = ws.receive_json(timeout=10)
     assert frame["type"] == "batch"
     assert len(frame["events"]) == 100
     assert frame["dropped"] == 20
@@ -153,7 +190,7 @@ def test_ws_ignores_unexpected_inbound_frames():
     with TestClient(app) as client, client.websocket_connect("/ws/live") as ws:
         ws.send_text("unexpected")
         ws.send_json({"also": "unexpected"})
-        channels.publish(record_to_event(make_record()), LIVE_EVENTS_CHANNEL)
+        publish_once_subscribed(client, channels, record_to_event(make_record()))
         frame = ws.receive_json(timeout=5)
     assert frame["type"] == "batch"
     assert len(frame["events"]) == 1
@@ -207,7 +244,7 @@ async def test_ws_disconnect_during_send_is_suppressed_and_cleans_up_subscriptio
     async with channels:
         socket = DisconnectingSendSocket(channels)
         task = asyncio.create_task(cast("Coroutine[Any, Any, None]", live_feed.fn(socket)))
-        await asyncio.sleep(0.05)  # let the handler subscribe and enter its loop
+        await _until(lambda: channels._channels.get(LIVE_EVENTS_CHANNEL))  # handler subscribed
         channels.publish(record_to_event(make_record()), LIVE_EVENTS_CHANNEL)
         await asyncio.wait_for(task, timeout=5)  # must not raise
         # litestar 2.24 has no public API for subscriber introspection; this
@@ -226,7 +263,7 @@ async def test_ws_cancellation_still_cleans_up_subscription():
     async with channels:
         socket = FakeSocket(channels)
         task = asyncio.create_task(cast("Coroutine[Any, Any, None]", live_feed.fn(socket)))
-        await asyncio.sleep(0.05)  # let the handler subscribe and enter its loop
+        await _until(lambda: channels._channels.get(LIVE_EVENTS_CHANNEL))  # handler subscribed
         task.cancel()
         with pytest.raises(asyncio.CancelledError):
             await task
@@ -247,7 +284,7 @@ async def test_pump_drops_oldest_when_local_queue_is_full(monkeypatch):
 
     `LIVE_QUEUE_MAXSIZE` is monkeypatched down to 3 so a small burst can fill
     it; the burst is published only after the handler has had a chance to
-    subscribe and start pumping (`asyncio.sleep(0.05)`, the same pattern the
+    subscribe (`_until(...)`, the same pattern the
     disconnect/cancellation tests above use), so publishing 10 events lands
     in the pump loop's `except QueueFull` path deterministically instead of
     racing a real consumer.
@@ -260,10 +297,10 @@ async def test_pump_drops_oldest_when_local_queue_is_full(monkeypatch):
     async with channels:
         socket = FakeSocket(channels)
         task = asyncio.create_task(cast("Coroutine[Any, Any, None]", live_feed.fn(socket)))
-        await asyncio.sleep(0.05)  # let the handler subscribe and start pumping
+        await _until(lambda: channels._channels.get(LIVE_EVENTS_CHANNEL))  # handler subscribed
         for i in range(10):
             channels.publish({"type": "request", "geo": {"n": i}, "log": None}, LIVE_EVENTS_CHANNEL)
-        await asyncio.sleep(0.3)  # let the pump drain the burst and batched_frames flush
+        await _until(lambda: socket.sent)  # the pump drained the burst and a frame was flushed
         task.cancel()
         with pytest.raises(asyncio.CancelledError):
             await task
@@ -299,11 +336,11 @@ class TestLogsFeed:
         broadcaster, subscribed = self._isolated_broadcaster(monkeypatch)
         with TestClient(app=self._make_app()) as client:
             with client.websocket_connect("/ws/logs") as ws:
-                assert subscribed.wait(timeout=2)
+                assert subscribed.wait(timeout=10)
                 broadcaster.publish_threadsafe(
                     {"timestamp": "t", "level": "info", "event": "hello_ws"}
                 )
-                frame = ws.receive_json(timeout=2)
+                frame = ws.receive_json(timeout=10)
                 assert frame["type"] == "log_batch"
                 assert any(r.get("event") == "hello_ws" for r in frame["records"])
 
@@ -311,10 +348,10 @@ class TestLogsFeed:
         broadcaster, subscribed = self._isolated_broadcaster(monkeypatch)
         with TestClient(app=self._make_app()) as client:
             with client.websocket_connect("/ws/logs?level=warning") as ws:
-                assert subscribed.wait(timeout=2)
+                assert subscribed.wait(timeout=10)
                 broadcaster.publish_threadsafe({"level": "debug", "event": "noise"})
                 broadcaster.publish_threadsafe({"level": "error", "event": "boom"})
-                frame = ws.receive_json(timeout=2)
+                frame = ws.receive_json(timeout=10)
                 events = {record.get("event") for record in frame["records"]}
                 assert "boom" in events
                 assert "noise" not in events
@@ -326,7 +363,7 @@ class TestLogsFeed:
         _broadcaster, subscribed = self._isolated_broadcaster(monkeypatch)
         with TestClient(app=self._make_app()) as client:
             with client.websocket_connect("/ws/logs") as ws:
-                assert subscribed.wait(timeout=2)
+                assert subscribed.wait(timeout=10)
                 frame = ws.receive_json(timeout=5)
         assert frame == {"type": "log_batch", "records": [], "dropped": 0}
 
@@ -334,11 +371,21 @@ class TestLogsFeed:
         from geometrikks.domain.realtime import controllers as live_controller
 
         monkeypatch.setattr(live_controller, "MAX_RECORDS_PER_FRAME", 3, raising=False)
+        real_batched_frames = live_controller.batched_frames
+
+        async def batched_frames_after_burst(queue: asyncio.Queue, **kwargs: Any):
+            # The first flush window opens only once the whole burst is queued,
+            # so the first frame is always cut from all 10 records.
+            await _until(lambda: queue.qsize() >= 10)
+            async for frame in real_batched_frames(queue, **kwargs):
+                yield frame
+
+        monkeypatch.setattr(live_controller, "batched_frames", batched_frames_after_burst)
         broadcaster, subscribed = self._isolated_broadcaster(monkeypatch)
 
         with TestClient(app=self._make_app()) as client:
             with client.websocket_connect("/ws/logs") as ws:
-                assert subscribed.wait(timeout=2)
+                assert subscribed.wait(timeout=10)
 
                 def publish_burst() -> None:
                     for i in range(10):
@@ -347,7 +394,7 @@ class TestLogsFeed:
                         )
 
                 client.blocking_portal.call(publish_burst)
-                frame = ws.receive_json(timeout=2)
+                frame = ws.receive_json(timeout=10)
         assert len(frame["records"]) == 3
         assert frame["dropped"] > 0
 
@@ -355,5 +402,5 @@ class TestLogsFeed:
         broadcaster, subscribed = self._isolated_broadcaster(monkeypatch)
         with TestClient(app=self._make_app()) as client:
             with client.websocket_connect("/ws/logs"):
-                assert subscribed.wait(timeout=2)
+                assert subscribed.wait(timeout=10)
         assert broadcaster._subscribers == set()

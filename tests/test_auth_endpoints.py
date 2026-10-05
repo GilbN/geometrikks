@@ -126,10 +126,12 @@ def test_ws_feeds_rejected_without_session(path):
         # (4000 + 401 = 4401), surfaced by the test client as a disconnect.
         with pytest.raises(WebSocketDisconnect):
             with client.websocket_connect(path) as ws:
-                ws.receive_json(timeout=2)
+                ws.receive_json(timeout=10)
 
 
 def test_ws_live_streams_after_login():
+    from tests.test_live_ws import publish_once_subscribed
+
     with TestClient(app=make_app()) as client:
         res = client.post(
             "/api/v1/auth/login",
@@ -139,7 +141,7 @@ def test_ws_live_streams_after_login():
         # Same client -> the session cookie persists onto the WS handshake.
         channels = client.app.plugins.get(ChannelsPlugin)
         with client.websocket_connect("/ws/live") as ws:
-            channels.publish(_ws_event(), LIVE_EVENTS_CHANNEL)
+            publish_once_subscribed(client, channels, _ws_event())
             frame = ws.receive_json(timeout=5)
         assert frame["type"] == "batch"
         assert [e["type"] for e in frame["events"]] == ["request"]

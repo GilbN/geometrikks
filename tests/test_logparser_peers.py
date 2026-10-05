@@ -150,7 +150,7 @@ def test_detected_and_cleared_logged_once() -> None:
 def test_per_line_budget(caplog: pytest.LogCaptureFixture) -> None:
     """Classification must not measurably slow the parser. Generous bound:
     the same 10k lines with the window on may take at most 1.25x the
-    no-window time (best of 3 runs each, same parser construction)."""
+    no-window time (best of 5 runs each, same parser construction)."""
     caplog.set_level(
         logging.WARNING,
         logger="geometrikks.services.logparser.logparser",
@@ -159,17 +159,23 @@ def test_per_line_budget(caplog: pytest.LogCaptureFixture) -> None:
     city = FakeCity()
 
     def run(window: PeerWindow | None) -> float:
-        best = float("inf")
-        for _ in range(3):
-            parser = make_parser(window=window)
-            start = time.perf_counter()
-            for line in lines:
-                parser.parse_line(
-                    line,
-                    lambda _ip: city,  # ty: ignore[invalid-argument-type]
-                    asn_lookup=lambda _ip: None,
-                )
-            best = min(best, time.perf_counter() - start)
-        return best
+        parser = make_parser(window=window)
+        # Thread CPU time, not wall time: other threads in the test process and
+        # a runner that deschedules it must not count against the parser.
+        start = time.thread_time()
+        for line in lines:
+            parser.parse_line(
+                line,
+                lambda _ip: city,  # ty: ignore[invalid-argument-type]
+                asn_lookup=lambda _ip: None,
+            )
+        return time.thread_time() - start
 
-    assert run(PeerWindow()) <= run(None) * 1.25
+    # Alternate the two variants so a slow stretch on the machine lands on both.
+    with_window: list[float] = []
+    without_window: list[float] = []
+    for _ in range(5):
+        without_window.append(run(None))
+        with_window.append(run(PeerWindow()))
+
+    assert min(with_window) <= min(without_window) * 1.25

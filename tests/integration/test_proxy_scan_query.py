@@ -8,8 +8,6 @@ import pytest
 from geometrikks.domain.logs.models import AccessLog
 from geometrikks.domain.system.proxy_scan import _query_scan_rows
 
-NOW = datetime.now(timezone.utc)
-
 
 async def _insert(session_maker, ts, ip, *, hostname, log_format="traefik-json", asn=None):
     async with session_maker() as session:
@@ -23,14 +21,16 @@ async def _insert(session_maker, ts, ip, *, hostname, log_format="traefik-json",
 
 @pytest.mark.anyio
 async def test_scan_queries_count_and_group(pg_session_maker, clean_tables) -> None:
-    recent = NOW - timedelta(minutes=5)
+    # Read the clock here: the query compares against the database's now().
+    now = datetime.now(timezone.utc)
+    recent = now - timedelta(minutes=5)
     for _ in range(3):
         await _insert(pg_session_maker, recent, "104.16.1.1", hostname="traefik-01", asn=13335)
     await _insert(pg_session_maker, recent, "151.101.1.1", hostname="traefik-01", asn=54113)
     await _insert(pg_session_maker, recent, "8.8.8.8", hostname="traefik-01", asn=15169)
     await _insert(pg_session_maker, recent, "9.9.9.9", hostname="traefik-01", asn=None)
     # Outside the hour window: never counted.
-    await _insert(pg_session_maker, NOW - timedelta(hours=2), "104.16.1.2",
+    await _insert(pg_session_maker, now - timedelta(hours=2), "104.16.1.2",
                   hostname="traefik-01", asn=13335)
     # Excluded hostname: never returned.
     await _insert(pg_session_maker, recent, "104.16.1.3", hostname="web-01", asn=13335)
@@ -49,7 +49,7 @@ async def test_scan_queries_count_and_group(pg_session_maker, clean_tables) -> N
 
 @pytest.mark.anyio
 async def test_scan_queries_empty_exclusion_set(pg_session_maker, clean_tables) -> None:
-    await _insert(pg_session_maker, NOW - timedelta(minutes=5), "104.16.1.1",
+    await _insert(pg_session_maker, datetime.now(timezone.utc) - timedelta(minutes=5), "104.16.1.1",
                   hostname="traefik-01", asn=13335)
     async with pg_session_maker() as session:
         groups, providers = await _query_scan_rows(session, set())
