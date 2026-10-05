@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.20.0] - 2026-10-05
+
 ### Added
 
 - The Banned IPs map popup can open a decision's alert. Click the scenario name to see the same alert details as on the Security page.
@@ -1101,7 +1103,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Settings endpoint no longer exposes the full settings tree (database credentials leaked via `model_dump()`); response is now an explicit whitelist.
 - Timestamps in `CALL refresh_continuous_aggregate` are bound as asyncpg parameters instead of interpolated into SQL.
 
-[Unreleased]: https://github.com/GilbN/geometrikks/compare/v0.19.0...develop
+[Unreleased]: https://github.com/GilbN/geometrikks/compare/v0.20.0...develop
+[0.20.0]: https://github.com/GilbN/geometrikks/compare/v0.19.0...v0.20.0
 [0.19.0]: https://github.com/GilbN/geometrikks/compare/v0.18.0...v0.19.0
 [0.18.0]: https://github.com/GilbN/geometrikks/compare/v0.17.0...v0.18.0
 [0.17.0]: https://github.com/GilbN/geometrikks/compare/v0.16.0...v0.17.0

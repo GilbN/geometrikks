@@ -120,13 +120,13 @@ Images are published as `ghcr.io/gilbn/geometrikks`.
 | `latest` | `latest` | The newest stable release. |
 | Exact stable version | `X.Y.Z` | A specific stable release; use this for reproducible deployments. |
 | Major/minor stable version | `X.Y` | The newest stable patch release in a major/minor series. |
-| Exact development version | `0.19.0-dev.1` | A specific prerelease build for testing upcoming changes. |
+| Exact development version | `0.20.0-dev.1` | A specific prerelease build for testing upcoming changes. |
 | `develop` | `develop` | The newest development release; a moving tag. |
 
 Use `latest` to follow stable releases, or pin an exact version:
 
 ```yaml
-image: ghcr.io/gilbn/geometrikks:0.19.0
+image: ghcr.io/gilbn/geometrikks:0.20.0
 ```
 
 `docker-compose.yml` mounts `ACCESS_LOG_DIR` (default `/var/log/nginx`)
@@ -449,7 +449,7 @@ behind each request. Set `GEOIP_ASN_ENABLED=false` to skip the ASN database.
 Using the database means accepting the
 [MaxMind GeoLite2 EULA](https://www.maxmind.com/en/geolite2/eula).
 
-## Map tiles
+## Map
 
 The map draws its basemap from [CARTO](https://carto.com/basemaps), using
 OpenStreetMap data. CARTO's terms require every deployment to send its own
@@ -467,6 +467,20 @@ watermark or refuse keyless tiles at any time.
 
 The map shows the CARTO and OpenStreetMap attribution in its corner. Keep
 it visible; both licenses require it.
+
+Live routes fly to the home of the source that recorded them (see
+[Multi-source setup](#multi-source-setup)); with a single source that is
+the app server's own location, discovered at startup through ipify and
+looked up in the local GeoLite2 database. `MAP_HOME_LATITUDE` and
+`MAP_HOME_LONGITUDE` override that default home, `MAP_HOME_LOCATIONS`
+overrides per source, and `MAP_AUTO_DETECT_HOME=false` disables the
+outbound lookup. The map's **Route effects** control can also hide the
+animation; that preference is kept in browser storage.
+
+The map opens on the site homes, or on the whole world when there are
+none. Set `MAP_DEFAULT_VIEW=latitude,longitude[,zoom]` to open it
+somewhere else, for example `MAP_DEFAULT_VIEW=71.129982,27.653369,15` for
+northern Norway at zoom 15.
 
 ## Authentication
 
@@ -810,7 +824,9 @@ dialog for that IP. The same dialog is the Security page's "Ban IP"
 button. It takes an IP or a CIDR range, a ban or a captcha, a preset or
 custom duration such as `90m` or `3d`, and an optional reason. Unbanning
 an IP leaves any range decision that covers it in place. The Security page
-also gains alert history. Manual decisions carry origin `geometrikks`, and
+also gains alert history, and in the Banned IPs map popup a decision's
+scenario name opens its alert. Blocklist decisions have no alert of their
+own to open. Manual decisions carry origin `geometrikks`, and
 every ban and unban is audit-logged with the acting user.
 
 CrowdSec 1.8 adds bot detection to its WAF. A browser challenge rejects
@@ -872,7 +888,7 @@ instance, GeoIP credentials, and its own log mount:
 ```yaml
 services:
   agent:
-    image: ghcr.io/gilbn/geometrikks:0.19.0   # same tag as the full instance
+    image: ghcr.io/gilbn/geometrikks:0.20.0   # same tag as the full instance
     restart: unless-stopped
     stop_grace_period: 20s
     environment:
@@ -1272,6 +1288,12 @@ have run a batch import. (4) that your proxy logs the visitor's address,
 not an upstream proxy or tunnel; Settings > Status shows an advisory when
 it does not. See docs/proxy-setup.md.
 
+**The map says my browser could not start WebGL2.**
+The map draws with WebGL2. The message adds the browser's own reason when
+it gives one. The usual cause is graphics acceleration being off or
+blocked: turn hardware acceleration back on in the browser settings, or
+try another browser or device. The rest of the app works without it.
+
 **What does the "geo-degraded" banner mean?**
 The app started without a usable GeoLite2 database: either
 `MAXMINDDB_USER_ID`/`MAXMINDDB_LICENSE_KEY` are not set, or the download
@@ -1313,20 +1335,6 @@ WebSocket:
 http://localhost:8000/map?demoTraffic=1       # steady traffic
 http://localhost:8000/map?demoTraffic=burst   # overlapping bursts
 ```
-
-Live routes fly to the home of the source that recorded them (see
-[Multi-source setup](#multi-source-setup)); with a single source that is
-the app server's own location, discovered at startup through ipify and
-looked up in the local GeoLite2 database. `MAP_HOME_LATITUDE` and
-`MAP_HOME_LONGITUDE` override that default home, `MAP_HOME_LOCATIONS`
-overrides per source, and `MAP_AUTO_DETECT_HOME=false` disables the
-outbound lookup. The map's **Route effects** control can also hide the
-animation; that preference is kept in browser storage.
-
-The map opens on the site homes, or on the whole world when there are
-none. Set `MAP_DEFAULT_VIEW=latitude,longitude[,zoom]` to open it
-somewhere else, for example `MAP_DEFAULT_VIEW=71.129982,27.653369,15` for
-northern Norway at zoom 15.
 
 ### Testing
 
