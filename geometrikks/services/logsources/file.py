@@ -226,7 +226,7 @@ class FileSource:
                 await aiofiles.os.stat(self.path)
             except OSError as e:
                 self._mark_missing(e)
-                await asyncio.sleep(self.poll_interval)
+                await sleep_unless_stopped(self.poll_interval, stop)
                 continue
 
             # The file can vanish between the stat above and this open.
@@ -236,7 +236,7 @@ class FileSource:
                 )
             except OSError as e:
                 self._mark_missing(e)
-                await asyncio.sleep(self.poll_interval)
+                await sleep_unless_stopped(self.poll_interval, stop)
                 continue
             self._mark_present()
 
@@ -258,7 +258,8 @@ class FileSource:
 
                     if not line:
                         # No new data
-                        await asyncio.sleep(self.poll_interval)
+                        if await sleep_unless_stopped(self.poll_interval, stop):
+                            break
 
                         if await self._is_rotated(stat_result):
                             logger.info(

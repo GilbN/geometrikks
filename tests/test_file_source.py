@@ -105,6 +105,45 @@ async def test_lines_ends_when_stop_is_set(tmp_path: Path, monkeypatch) -> None:
         await asyncio.wait_for(pending, timeout=10.0)
 
 
+async def assert_stops_mid_poll(source: FileSource, ready) -> None:
+    """lines() is waiting out a poll once ``ready()`` holds; setting stop must
+    end it long before the source's 60 s poll interval."""
+    stop = asyncio.Event()
+    pending = asyncio.ensure_future(source.lines(stop).__anext__())
+    await ready()
+    stop.set()
+
+    with pytest.raises(StopAsyncIteration):
+        await asyncio.wait_for(pending, timeout=5.0)
+
+
+async def test_lines_stop_mid_poll_on_an_idle_file(tmp_path: Path, monkeypatch) -> None:
+    log = tmp_path / "a.log"
+    log.write_text("", encoding="utf-8")
+    seeked = signal_seek(monkeypatch)
+
+    await assert_stops_mid_poll(make_source(log, poll_interval=60), seeked.wait)
+
+
+async def test_lines_stop_mid_poll_on_a_missing_file(tmp_path: Path) -> None:
+    source = make_source(tmp_path / "a.log", poll_interval=60)
+
+    await assert_stops_mid_poll(source, lambda: wait_until(lambda: not source.status().available))
+
+
+async def test_lines_stop_mid_poll_on_an_unopenable_file(tmp_path: Path, monkeypatch) -> None:
+    log = tmp_path / "a.log"
+    log.write_text("", encoding="utf-8")
+    source = make_source(log, poll_interval=60)
+
+    def failing_open(*args, **kwargs):
+        raise PermissionError("denied")
+
+    monkeypatch.setattr(aiofiles, "open", failing_open)
+
+    await assert_stops_mid_poll(source, lambda: wait_until(lambda: not source.status().available))
+
+
 async def test_lines_survive_undecodable_bytes(tmp_path: Path) -> None:
     log = tmp_path / "a.log"
     log.write_bytes(b"ok \xff\xfe line\n")
