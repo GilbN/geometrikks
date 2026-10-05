@@ -47,7 +47,10 @@ OLD_SHAPE = {
 
 
 async def _drop_view(conn, view: str, *, attempts: int = 3) -> None:
-    """Retry "tuple concurrently deleted": a policy job may still hold the view."""
+    """Retry "tuple concurrently deleted", for a database where background workers are active.
+
+    The integration fixtures stop them.
+    """
     for attempt in range(attempts):
         try:
             async with conn.begin_nested():
@@ -109,8 +112,10 @@ async def test_old_shape_view_upgrades_in_place(pg_engine, pg_session_maker, cle
     async with pg_engine.begin() as conn:
         await _drop_view(conn, view)
         await conn.execute(text(OLD_SHAPE[view]))
+    # From midnight three days back: before 03:00 UTC the seed sits on the
+    # day before yesterday, and a refresh only materializes whole buckets.
     await refresh_caggs_range(
-        pg_engine, start=NOW - timedelta(days=2), end=NOW, caggs=[view],
+        pg_engine, start=(NOW - timedelta(days=3)).replace(hour=0), end=NOW, caggs=[view],
     )
     async with pg_engine.begin() as conn:
         needs = await timescale._cagg_columns_need_upgrade(conn, raw_retention_days=RETENTION_DAYS)

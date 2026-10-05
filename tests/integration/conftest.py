@@ -63,8 +63,31 @@ def it_database_url() -> Iterator[str]:
         finally:
             await engine.dispose()
 
+    async def _stop_background_workers() -> None:
+        """Keep TimescaleDB's policy jobs from running in the scratch DB.
+
+        A refresh policy runs the moment it is created, and setup_timescaledb
+        creates one per continuous aggregate, in the session fixture and again
+        in every test that rebuilds a view. Left running, those jobs
+        materialize whatever rows the current test has seeded, and they race
+        the next DROP MATERIALIZED VIEW ("tuple concurrently deleted"). The
+        CREATE EXTENSION covers a server whose template database does
+        not already carry the extension.
+        """
+        engine = create_async_engine(IT_URL, isolation_level="AUTOCOMMIT")
+        try:
+            async with engine.connect() as conn:
+                await conn.execute(text("CREATE EXTENSION IF NOT EXISTS timescaledb CASCADE"))
+                stopped = (
+                    await conn.execute(text("SELECT _timescaledb_functions.stop_background_workers()"))
+                ).scalar()
+                assert stopped, f"could not stop the TimescaleDB background workers in {IT_DBNAME}"
+        finally:
+            await engine.dispose()
+
     asyncio.run(_admin_exec(f"DROP DATABASE IF EXISTS {IT_DBNAME} WITH (FORCE)"))
     asyncio.run(_admin_exec(f"CREATE DATABASE {IT_DBNAME}"))
+    asyncio.run(_stop_background_workers())
     yield IT_URL
     asyncio.run(_admin_exec(f"DROP DATABASE IF EXISTS {IT_DBNAME} WITH (FORCE)"))
 
@@ -138,17 +161,22 @@ def pg_session_maker(pg_engine: AsyncEngine):
 async def clean_tables(pg_engine: AsyncEngine):
     """Clear data tables before each test that requests this fixture.
 
-    The CAGG-source hypertables (access_logs, geo_events) must be cleared with
-    DELETE, not TRUNCATE: TRUNCATE writes no CAGG invalidation entries, so a
-    later refresh_continuous_aggregate skips the untouched region and stale
-    materialized buckets older than the next test's earliest seeded row would
-    leak into its counts. DELETE invalidates the deleted range, so tests that
-    assert on CAGG contents wipe the stale buckets when they refresh their
-    seed window explicitly.
+    The raw hypertables (access_logs, geo_events) are cleared with DELETE and
+    the continuous aggregates with TRUNCATE. A materialized bucket outlives
+    the raw rows it came from and leaves the aggregate's watermark past it.
+    Real-time aggregation only reads raw rows above the watermark, so without
+    the TRUNCATE the next test's older rows would be invisible. TRUNCATE on a
+    continuous aggregate resets the watermark.
     """
     async with pg_engine.begin() as conn:
         await conn.execute(text("DELETE FROM geo_events"))
         await conn.execute(text("DELETE FROM access_logs"))
+        caggs = (await conn.execute(text(
+            "SELECT format('%I.%I', view_schema, view_name) "
+            "FROM timescaledb_information.continuous_aggregates"
+        ))).scalars().all()
+        if caggs:
+            await conn.execute(text("TRUNCATE " + ", ".join(caggs)))
         await conn.execute(
             text(
                 "TRUNCATE access_log_debug, geo_locations, import_jobs "

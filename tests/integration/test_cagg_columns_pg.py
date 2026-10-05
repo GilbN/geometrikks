@@ -40,9 +40,9 @@ OLD_SUMMARY_HOURLY = """
 async def _drop_view(conn, view: str, *, attempts: int = 3) -> None:
     """Drop a CAGG the way setup does: retry "tuple concurrently deleted".
 
-    The previous test's setup_timescaledb schedules refresh policies, and a
-    policy job still running on the view makes the DROP fail. Each attempt
-    runs in a savepoint so a failed DDL does not poison the transaction.
+    The retry covers running against a database where background workers are
+    active (the integration fixtures stop them). Each attempt runs in a
+    savepoint so a failed DDL does not poison the transaction.
     """
     for attempt in range(attempts):
         try:
