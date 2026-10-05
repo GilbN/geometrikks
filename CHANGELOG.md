@@ -27,6 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A pinned log format (`LOGPARSER_LOG_FORMATS`) no longer turns off access-log storage when the log file is still empty 60 seconds after startup. This hit fresh installs before the proxy wrote its first line, and lasted until a restart.
 - Log lines written while a GeoLite2 database refresh is applied are no longer lost.
 - A log rotation that happened while unread lines were still waiting in the old file is now detected. Before, GeoMetrikks could keep watching the renamed file and ingest nothing from that log until the next rotation.
+- Stopping GeoMetrikks no longer waits out `LOGPARSER_POLL_INTERVAL` while a log file is idle or missing. With an interval of 10 seconds or more, shutdown stalled for 10 seconds and logged that a tail task did not stop gracefully.
 
 ## [0.19.0] - 2026-09-27
 
