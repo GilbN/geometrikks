@@ -58,9 +58,10 @@ from geometrikks.services.crowdsec.stream import CrowdSecStreamPoller
 from geometrikks.services.geoip.downloader import ensure_asn_database, ensure_geoip_database
 from geometrikks.services.geoip.home import resolve_home_location
 from geometrikks.services.geoip.site_homes import reconcile_override_homes, upsert_auto_homes
-from geometrikks.services.ingestion import LogIngestionService
+from geometrikks.services.ingestion import LogInput, LogIngestionService
 from geometrikks.services.logparser.logparser import LogParser
 from geometrikks.services.logparser.peer_window import PeerWindow
+from geometrikks.services.logsources import FileSource
 from geometrikks.server.scheduler import create_scheduler
 from geometrikks.server.scheduler_tracking import JobRunTracker
 
@@ -487,15 +488,20 @@ async def start_ingestion(app: "Litestar") -> None:
             logger.warning("live_events_channel_unavailable")
 
     hostnames = settings.logparser.resolved_hostnames()
-    parsers = [
-        LogParser(
-            log_path=path,
-            send_logs=settings.logparser.send_logs,
-            poll_interval=settings.logparser.poll_interval,
-            hostname=host,
-            ignore_ips=settings.logparser.ignore_ips,
-            log_format=fmt,
-            peer_window=PeerWindow() if settings.app.proxy_advisory else None,
+    inputs = [
+        LogInput(
+            source=FileSource(
+                path,
+                poll_interval=settings.logparser.poll_interval,
+                hostname=host,
+            ),
+            parser=LogParser(
+                source_label=str(path),
+                send_logs=settings.logparser.send_logs,
+                ignore_ips=settings.logparser.ignore_ips,
+                log_format=fmt,
+                peer_window=PeerWindow() if settings.app.proxy_advisory else None,
+            ),
         )
         for path, fmt, host in zip(
             settings.logparser.log_paths,
@@ -505,7 +511,7 @@ async def start_ingestion(app: "Litestar") -> None:
     ]
 
     ingestion_service = LogIngestionService(
-        parsers=parsers,
+        inputs=inputs,
         session_maker=session_maker,
         geoip_path=settings.geoip.db_path,
         locales=settings.geoip.locales,

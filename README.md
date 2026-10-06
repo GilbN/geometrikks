@@ -120,13 +120,13 @@ Images are published as `ghcr.io/gilbn/geometrikks`.
 | `latest` | `latest` | The newest stable release. |
 | Exact stable version | `X.Y.Z` | A specific stable release; use this for reproducible deployments. |
 | Major/minor stable version | `X.Y` | The newest stable patch release in a major/minor series. |
-| Exact development version | `0.19.0-dev.1` | A specific prerelease build for testing upcoming changes. |
+| Exact development version | `0.20.0-dev.1` | A specific prerelease build for testing upcoming changes. |
 | `develop` | `develop` | The newest development release; a moving tag. |
 
 Use `latest` to follow stable releases, or pin an exact version:
 
 ```yaml
-image: ghcr.io/gilbn/geometrikks:0.19.0
+image: ghcr.io/gilbn/geometrikks:0.20.0
 ```
 
 `docker-compose.yml` mounts `ACCESS_LOG_DIR` (default `/var/log/nginx`)
@@ -248,6 +248,90 @@ access_log /config/log/nginx/access.log geometrikks_json;
 LOGPARSER_LOG_PATHS=["/var/log/access/access.log", "/var/log/access/somepage/access.log"]
 ```
 
+### Nginx Proxy Manager
+
+Nginx Proxy Manager writes each proxy host's log in its own `proxy`
+format. That format has no request time, upstream time, protocol, remote
+user or raw request line, and GeoMetrikks does not parse it. NPM can write
+a second log next to its own, though, through its
+[custom nginx configuration](https://nginxproxymanager.com/advanced-config/#custom-nginx-configurations)
+files. Point that second log at the JSON format above. NPM's own logs stay
+as they are.
+
+The `/data/...` paths below are inside the NPM container. With the usual
+`./data:/data` mount, `/data/nginx/custom/http_top.conf` is
+`./data/nginx/custom/http_top.conf` on the host.
+
+1. Copy the `log_format geometrikks_json` block from
+   [Nginx setup](#nginx-setup) into `/data/nginx/custom/http_top.conf`.
+   NPM includes this file at the top of the `http` block, before it loads
+   the proxy hosts. If the file already exists, for example with the
+   realip lines from [docs/proxy-setup.md](docs/proxy-setup.md#nginx-proxy-manager),
+   append the block. Define it once.
+
+2. Turn the log on. For every proxy host, put this line in
+   `/data/nginx/custom/server_proxy.conf`:
+
+   ```nginx
+   access_log /data/logs/geometrikks_access.log geometrikks_json;
+   ```
+
+   NPM includes that file in every proxy host's `server` block, so hosts
+   you add later log there too. To log only some hosts, leave
+   `server_proxy.conf` alone and paste the same line into each host's
+   Advanced tab, under Custom Nginx Configuration. Pick one of the two for
+   a given host. With both, nginx writes every request twice.
+
+   Keep the JSON in its own file. Pointing it at NPM's
+   `proxy-host-*_access.log` puts two formats in one file. Don't put
+   `access_log off;` in front of the line either: `off` cancels every
+   `access_log` at that level, this one included.
+
+3. Check the config and reload nginx inside the NPM container:
+
+   ```bash
+   docker exec <npm-container> sh -c 'nginx -t && nginx -s reload'
+   ```
+
+   Open one of your sites, and its requests show up in
+   `data/logs/geometrikks_access.log`.
+
+4. Point GeoMetrikks at the file in `.env`:
+
+   ```env
+   ACCESS_LOG_DIR=/path/to/npm/data/logs
+   LOGPARSER_LOG_PATHS=/var/log/access/geometrikks_access.log
+   LOGPARSER_LOG_FORMATS=geometrikks-json
+   ```
+
+   Run `docker compose up -d` to recreate the container with the new mount.
+   `docker compose restart` keeps the old one.
+
+Every proxy host shares the one file. Each line carries `host`, so the host
+filter still tells them apart. NPM's logrotate rule matches
+`/data/logs/*_access.log`, so this file rotates weekly along with NPM's
+own logs.
+
+What the log leaves out:
+
+- **Cache Assets.** On a host with Cache Assets on, NPM serves CSS, JS,
+  images and fonts from a location that sets
+  [`access_log off`](https://github.com/NginxProxyManager/nginx-proxy-manager/blob/develop/docker/rootfs/etc/nginx/conf.d/include/assets.conf#L28).
+  Those requests never reach any log, so GeoMetrikks never sees them. NPM
+  adds the same location inside each custom location on that host. Turn
+  Cache Assets off on the hosts where you want that traffic counted.
+- **Other host types.** `server_proxy.conf` covers proxy hosts only.
+  Redirection hosts, 404 hosts and the default site don't write to this
+  log. NPM has separate snippet files for redirection and 404 hosts
+  (`server_redirect.conf`, `server_dead.conf`), but this setup has only
+  been tested on proxy hosts. TCP and UDP streams are not HTTP and this
+  format doesn't apply to them.
+- **Visitor address.** Behind Cloudflare or another proxy, `$remote_addr`
+  is that proxy's address, and the map shows its datacenter. Add the
+  realip lines from
+  [docs/proxy-setup.md](docs/proxy-setup.md#nginx-proxy-manager) to the
+  same `http_top.conf`.
+
 ## Traefik setup
 
 GeoMetrikks parses Traefik JSON access logs. Traefik logs to stdout by
@@ -365,7 +449,7 @@ behind each request. Set `GEOIP_ASN_ENABLED=false` to skip the ASN database.
 Using the database means accepting the
 [MaxMind GeoLite2 EULA](https://www.maxmind.com/en/geolite2/eula).
 
-## Map tiles
+## Map
 
 The map draws its basemap from [CARTO](https://carto.com/basemaps), using
 OpenStreetMap data. CARTO's terms require every deployment to send its own
@@ -383,6 +467,20 @@ watermark or refuse keyless tiles at any time.
 
 The map shows the CARTO and OpenStreetMap attribution in its corner. Keep
 it visible; both licenses require it.
+
+Live routes fly to the home of the source that recorded them (see
+[Multi-source setup](#multi-source-setup)); with a single source that is
+the app server's own location, discovered at startup through ipify and
+looked up in the local GeoLite2 database. `MAP_HOME_LATITUDE` and
+`MAP_HOME_LONGITUDE` override that default home, `MAP_HOME_LOCATIONS`
+overrides per source, and `MAP_AUTO_DETECT_HOME=false` disables the
+outbound lookup. The map's **Route effects** control can also hide the
+animation; that preference is kept in browser storage.
+
+The map opens on the site homes, or on the whole world when there are
+none. Set `MAP_DEFAULT_VIEW=latitude,longitude[,zoom]` to open it
+somewhere else, for example `MAP_DEFAULT_VIEW=71.129982,27.653369,15` for
+northern Norway at zoom 15.
 
 ## Authentication
 
@@ -726,7 +824,9 @@ dialog for that IP. The same dialog is the Security page's "Ban IP"
 button. It takes an IP or a CIDR range, a ban or a captcha, a preset or
 custom duration such as `90m` or `3d`, and an optional reason. Unbanning
 an IP leaves any range decision that covers it in place. The Security page
-also gains alert history. Manual decisions carry origin `geometrikks`, and
+also gains alert history, and in the Banned IPs map popup a decision's
+scenario name opens its alert. Blocklist decisions have no alert of their
+own to open. Manual decisions carry origin `geometrikks`, and
 every ban and unban is audit-logged with the acting user.
 
 CrowdSec 1.8 adds bot detection to its WAF. A browser challenge rejects
@@ -788,7 +888,7 @@ instance, GeoIP credentials, and its own log mount:
 ```yaml
 services:
   agent:
-    image: ghcr.io/gilbn/geometrikks:0.19.0   # same tag as the full instance
+    image: ghcr.io/gilbn/geometrikks:0.20.0   # same tag as the full instance
     restart: unless-stopped
     stop_grace_period: 20s
     environment:
@@ -1163,7 +1263,9 @@ Point `ACCESS_LOG_DIR` at the host directory where the proxy container
 writes its access logs (for Nginx Proxy Manager this is usually its
 `data/logs` volume), and set `LOGPARSER_LOG_PATHS` to the specific
 access-log file(s) inside it, using the *container* path
-(`/var/log/access/...`), not the host path.
+(`/var/log/access/...`), not the host path. NPM's own per-host logs don't
+parse; set up the extra JSON log described under
+[Nginx Proxy Manager](#nginx-proxy-manager) and point at that.
 
 **Permission denied reading my log files?**
 The app container runs as `PUID`:`PGID` (default 1000:1000), and log mounts
@@ -1185,6 +1287,12 @@ restarted. The map only shows events ingested after startup unless you
 have run a batch import. (4) that your proxy logs the visitor's address,
 not an upstream proxy or tunnel; Settings > Status shows an advisory when
 it does not. See docs/proxy-setup.md.
+
+**The map says my browser could not start WebGL2.**
+The map draws with WebGL2. The message adds the browser's own reason when
+it gives one. The usual cause is graphics acceleration being off or
+blocked: turn hardware acceleration back on in the browser settings, or
+try another browser or device. The rest of the app works without it.
 
 **What does the "geo-degraded" banner mean?**
 The app started without a usable GeoLite2 database: either
@@ -1227,15 +1335,6 @@ WebSocket:
 http://localhost:8000/map?demoTraffic=1       # steady traffic
 http://localhost:8000/map?demoTraffic=burst   # overlapping bursts
 ```
-
-Live routes fly to the home of the source that recorded them (see
-[Multi-source setup](#multi-source-setup)); with a single source that is
-the app server's own location, discovered at startup through ipify and
-looked up in the local GeoLite2 database. `MAP_HOME_LATITUDE` and
-`MAP_HOME_LONGITUDE` override that default home, `MAP_HOME_LOCATIONS`
-overrides per source, and `MAP_AUTO_DETECT_HOME=false` disables the
-outbound lookup. The map's **Route effects** control can also hide the
-animation; that preference is kept in browser storage.
 
 ### Testing
 

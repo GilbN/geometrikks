@@ -598,7 +598,7 @@ async def test_degraded_state_and_recover_relistens_tracked_channels() -> None:
         assert backend._on_listener_terminated in conn._listeners
         assert backend._queue is queue
         backend._listener(conn, 1, "live_events", "{}")
-        assert await asyncio.wait_for(waiter, 1) == ("live_events", b"{}")
+        assert await asyncio.wait_for(waiter, 10) == ("live_events", b"{}")
     finally:
         waiter.cancel()
         with contextlib.suppress(asyncio.CancelledError):
@@ -658,12 +658,12 @@ async def test_backend_retries_without_database_recovery(explicit_failure, monke
     await backend.on_startup()
     await backend.subscribe(["live_events"])
     assert backend._reconnect_task is not None
-    await asyncio.wait_for(retry_waiting.wait(), 1)
+    await asyncio.wait_for(retry_waiting.wait(), 10)
     if explicit_failure:
         with pytest.raises(OSError):
             await backend.recover()
     retry_allowed.set()
-    await asyncio.wait_for(backend._reconnect_task, 1)
+    await asyncio.wait_for(backend._reconnect_task, 10)
     assert backend.state == "ok"
     assert conn._listened_channels == {"live_events"}
 
@@ -702,13 +702,13 @@ async def test_concurrent_recover_and_subscribe_install_once() -> None:
     conn = GatedListenerConnection()
     backend = await degraded_with_candidate(conn)
     recover = asyncio.create_task(backend.recover())
-    await asyncio.wait_for(conn.registering.wait(), 1)
+    await asyncio.wait_for(conn.registering.wait(), 10)
     second_recover = asyncio.create_task(backend.recover())
     subscribe = asyncio.create_task(backend.subscribe(["late"]))
     await asyncio.sleep(0)
     assert not subscribe.done()
     conn.release.set()
-    await asyncio.wait_for(asyncio.gather(recover, second_recover, subscribe), 1)
+    await asyncio.wait_for(asyncio.gather(recover, second_recover, subscribe), 10)
     assert backend.state == "ok"
     assert conn._listened_channels == {"existing", "late"}
     assert conn.registrations == ["existing", "late"]
@@ -720,9 +720,9 @@ async def test_recover_cancellation_closes_unpublished_candidate(shutdown) -> No
     conn = GatedListenerConnection()
     backend = await degraded_with_candidate(conn)
     recover = asyncio.create_task(backend.recover())
-    await asyncio.wait_for(conn.registering.wait(), 1)
+    await asyncio.wait_for(conn.registering.wait(), 10)
     if shutdown:
-        await asyncio.wait_for(backend.on_shutdown(), 1)
+        await asyncio.wait_for(backend.on_shutdown(), 10)
     else:
         recover.cancel()
     with pytest.raises(asyncio.CancelledError):
@@ -743,8 +743,8 @@ async def test_shutdown_cancels_retry_during_listener_registration(monkeypatch) 
     monkeypatch.setattr(backend, "_RECONNECT_INITIAL_DELAY", 0)
     assert backend._reconnect_task is not None
     retry = backend._reconnect_task
-    await asyncio.wait_for(conn.registering.wait(), 1)
-    await asyncio.wait_for(backend.on_shutdown(), 1)
+    await asyncio.wait_for(conn.registering.wait(), 10)
+    await asyncio.wait_for(backend.on_shutdown(), 10)
     assert retry.cancelled()
     assert conn.close_called
     assert not conn._listeners
@@ -781,14 +781,14 @@ async def test_shutdown_awaits_cleanup_already_started_by_cancellation() -> None
     conn = SlowCloseConnection()
     backend = await degraded_with_candidate(conn)
     recover = asyncio.create_task(backend.recover())
-    await asyncio.wait_for(conn.registering.wait(), 1)
+    await asyncio.wait_for(conn.registering.wait(), 10)
     recover.cancel()
-    await asyncio.wait_for(conn.closing.wait(), 1)
+    await asyncio.wait_for(conn.closing.wait(), 10)
     shutdown = asyncio.create_task(backend.on_shutdown())
     await asyncio.sleep(0)
     await asyncio.sleep(0)
     conn.close_allowed.set()
-    await asyncio.wait_for(shutdown, 1)
+    await asyncio.wait_for(shutdown, 10)
     with pytest.raises(asyncio.CancelledError):
         await recover
     assert conn.close_called

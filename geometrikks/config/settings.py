@@ -505,6 +505,10 @@ class SchedulerSettings(BaseSettings):
     )
 
 
+# Zoom for MAP_DEFAULT_VIEW when only latitude,longitude is given.
+DEFAULT_VIEW_ZOOM = 3.0
+
+
 class MapSettings(BaseSettings):
     """Map presentation settings shared with the web client."""
 
@@ -569,6 +573,16 @@ class MapSettings(BaseSettings):
             "location and refreshes its site_homes rows (hours)."
         ),
     )
+    default_view: Annotated[tuple[float, float, float] | None, NoDecode] = Field(
+        default=None,
+        description=(
+            "Where the map opens, as latitude,longitude or "
+            "latitude,longitude,zoom (zoom 0-22, default 3). Example: "
+            "71.129982,27.653369,15 opens on northern Norway at zoom 15. When "
+            "unset, the map opens on the site homes, or on the whole world if "
+            "there are none."
+        ),
+    )
     carto_api_key: str = Field(
         default="",
         description=(
@@ -589,6 +603,41 @@ class MapSettings(BaseSettings):
                     f"MAP_HOME_LOCATIONS[{hostname!r}]: latitude must be in "
                     "[-90, 90] and longitude in [-180, 180]"
                 )
+        return value
+
+    @field_validator("default_view", mode="before")
+    @classmethod
+    def parse_default_view(cls, value: object) -> object:
+        """Split the lat,lng[,zoom] env string. Tuples pass through unchanged."""
+        if not isinstance(value, str):
+            return value
+        if not value.strip():
+            return None
+        parts = [part.strip() for part in value.split(",")]
+        if len(parts) not in (2, 3):
+            raise ValueError("MAP_DEFAULT_VIEW must be latitude,longitude or latitude,longitude,zoom")
+        try:
+            numbers = [float(part) for part in parts]
+        except ValueError:
+            raise ValueError("MAP_DEFAULT_VIEW values must be numbers") from None
+        if len(numbers) == 2:
+            numbers.append(DEFAULT_VIEW_ZOOM)
+        return tuple(numbers)
+
+    @field_validator("default_view")
+    @classmethod
+    def validate_default_view(
+        cls, value: tuple[float, float, float] | None
+    ) -> tuple[float, float, float] | None:
+        """Coordinate and zoom ranges MapLibre accepts."""
+        if value is None:
+            return None
+        lat, lng, zoom = value
+        if not (-90 <= lat <= 90) or not (-180 <= lng <= 180) or not (0 <= zoom <= 22):
+            raise ValueError(
+                "MAP_DEFAULT_VIEW: latitude must be in [-90, 90], longitude in "
+                "[-180, 180] and zoom in [0, 22]"
+            )
         return value
 
     @model_validator(mode="after")

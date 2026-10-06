@@ -116,9 +116,8 @@ async def test_hourly_probe_clamped_to_hourly_retention(pg_engine, pg_session_ma
     the same buckets on every startup."""
     import geometrikks.server.timescale as ts
 
-    # Wipe stale materialized OLD-day buckets left by earlier tests in this
-    # file (clean_tables deletes raw rows, which only invalidates; a refresh
-    # over the empty range is what actually drops the stale buckets).
+    # clean_tables truncates the aggregates but its DELETE of raw rows leaves
+    # invalidation entries behind; a refresh over the empty range consumes them.
     await _refresh(pg_engine, "summary_hourly_stats",
                    OLD - timedelta(days=1), OLD + timedelta(days=1))
 
@@ -143,7 +142,7 @@ async def test_hourly_probe_clamped_to_hourly_retention(pg_engine, pg_session_ma
                 "WHERE view_name = 'summary_hourly_stats'"
             ))).scalar()
             rows = (await conn.execute(
-                text(f"SELECT DISTINCT bucket::date FROM {mat}")  # noqa: S608
+                text(f"SELECT DISTINCT (bucket AT TIME ZONE 'UTC')::date FROM {mat}")  # noqa: S608
             )).scalars().all()
         return set(rows)
 

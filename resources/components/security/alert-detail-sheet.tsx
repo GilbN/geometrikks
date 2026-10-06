@@ -208,7 +208,15 @@ function ScenarioTitle({ scenario }: { scenario: string }) {
   )
 }
 
-function AlertBody({ alert, onNavigate }: { alert: AlertDetailView; onNavigate: () => void }) {
+function AlertBody({
+  alert,
+  onNavigate,
+  showFlyTo,
+}: {
+  alert: AlertDetailView
+  onNavigate: () => void
+  showFlyTo: boolean
+}) {
   const isIp = alert.scope === "Ip"
   const http = hasHttpEvents(alert.events)
   const { challenge, rest: context } = challengeContext(alert.context)
@@ -234,7 +242,7 @@ function AlertBody({ alert, onNavigate }: { alert: AlertDetailView; onNavigate: 
               {isIp && (
                 <IpBanControls ip={alert.value}>
                   <InspectIpButton ip={alert.value} onOpen={onNavigate} />
-                  <FlyToIpButton ip={alert.value} onOpen={onNavigate} />
+                  {showFlyTo && <FlyToIpButton ip={alert.value} onOpen={onNavigate} />}
                   <ExternalLinkButton href={crowdsecCtiUrl(alert.value)} label="Look up in CrowdSec CTI" />
                 </IpBanControls>
               )}
@@ -341,6 +349,7 @@ function AlertSheet({
   description,
   detail,
   errorFallback,
+  showFlyTo = true,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -348,6 +357,7 @@ function AlertSheet({
   description: string | undefined
   detail: UseQueryResult<AlertDetailView>
   errorFallback: string
+  showFlyTo?: boolean
 }) {
   return (
     <DetailSheet
@@ -368,7 +378,7 @@ function AlertSheet({
           {crowdsecErrorMessage(detail.error, errorFallback)}
         </p>
       )}
-      {detail.data && <AlertBody alert={detail.data} onNavigate={() => onOpenChange(false)} />}
+      {detail.data && <AlertBody alert={detail.data} onNavigate={() => onOpenChange(false)} showFlyTo={showFlyTo} />}
     </DetailSheet>
   )
 }
@@ -396,13 +406,16 @@ export function AlertDetailSheet({
 
 export type DecisionRef = { id: number; ip: string; scenario: string }
 
-/** Opened from an Active decisions row. Shows the alert that produced the decision. */
+/** Opened from an Active decisions row or the Banned IPs map popup. Shows
+ *  the alert that produced the decision. */
 export function DecisionAlertSheet({
   decision,
   onOpenChange,
+  showFlyTo,
 }: {
   decision: DecisionRef | null
   onOpenChange: (open: boolean) => void
+  showFlyTo?: boolean
 }) {
   const detail = useCrowdsecDecisionAlert(decision)
   return (
@@ -413,6 +426,7 @@ export function DecisionAlertSheet({
       description={detail.data ? alertDescription(detail.data) : undefined}
       detail={detail}
       errorFallback="Could not load the alert behind this decision."
+      showFlyTo={showFlyTo}
     />
   )
 }

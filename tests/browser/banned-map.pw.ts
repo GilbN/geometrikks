@@ -36,6 +36,13 @@ async function setup(page: Page, data = collection([group("2", 25)])) {
   await page.route("**/api/v1/crowdsec/decisions/lookup?*", (route) => route.fulfill({ json: Array.from({ length: state.decisions }, (_, i) => ({
     id: i + 1, ip: new URL(route.request().url()).searchParams.get("ip"), type: i ? "captcha" : "ban", scope: "Ip", origin: i ? "CAPI" : "crowdsec", scenario: i ? "community-list" : "http-probing", duration: "2h", countryCode: null, countryName: null, city: null, requestCount24h: null,
   })) }))
+  // clickCenter expects the fixtures (10E 50N) in the middle of the map, so
+  // pin the first view there instead of letting the server's homes pick it.
+  await page.route("**/api/v1/settings", async (route) => {
+    const settings = await (await route.fetch()).json()
+    settings.map.defaultView = { latitude: 50, longitude: 10, zoom: 3 }
+    return route.fulfill({ json: settings })
+  })
   await page.route("**/api/v1/geo-events/facets**", (route) => route.fulfill({ json: {
     hostnames: ["a.test", "b.test"], countries: [{ code: "NO", name: "Norway" }], cities: ["Oslo"],
   } }))
@@ -63,12 +70,27 @@ async function openCenterPopup(page: Page) {
   }).toPass({ timeout: 10_000 })
 }
 
+// A full 20-row page makes a tall card. Opened from the map's centre, it fits
+// whole on the map only in a viewport about this tall.
+const CROWDED_POPUP_HEIGHT = 1000
+
+// Never click a control that hangs below the map's edge. Playwright scrolls
+// the map's overflow-hidden container to reach it and MapLibre resets that
+// scroll on its next frame. A reset between mousedown and mouseup moves the
+// button out from under the pointer, so the click lands on its parent and
+// nothing happens.
+async function openCrowdedPopup(page: Page) {
+  await openCenterPopup(page)
+  const popup = page.getByRole("dialog", { name: "Banned IPs", exact: true })
+  await expect(popup).toBeInViewport({ ratio: 1 })
+  return popup
+}
+
 for (const width of [1280, 390]) {
   test(`all coincident banned IPs are inspectable at ${width}px`, async ({ page }) => {
-    await page.setViewportSize({ width, height: 844 })
+    await page.setViewportSize({ width, height: CROWDED_POPUP_HEIGHT })
     await setup(page)
-    await openCenterPopup(page)
-    const popup = page.getByRole("dialog", { name: "Banned IPs", exact: true })
+    const popup = await openCrowdedPopup(page)
     await expect(popup.getByRole("button", { name: /^192\./ })).toHaveCount(20)
     const row = popup.getByRole("button", { name: /^192\./ }).first()
     const background = () => row.evaluate((el) => getComputedStyle(el).backgroundColor)
@@ -78,6 +100,7 @@ for (const width of [1280, 390]) {
     await page.screenshot({ path: `smoke-artifacts/banned-map-list-${width}.png` })
     await popup.getByRole("button", { name: "Next", exact: true }).click()
     await expect(popup.getByRole("button", { name: /^192\./ })).toHaveCount(5)
+    await expect(popup).toBeInViewport({ ratio: 1 })
     await popup.getByRole("button", { name: /^192\./ }).last().click()
     await expect(popup.getByText("http-probing", { exact: true })).toBeVisible()
     await expect(popup.getByText("community-list", { exact: true })).toBeVisible()
@@ -90,6 +113,7 @@ for (const width of [1280, 390]) {
     const bounds = await popup.boundingBox()
     expect(bounds!.x).toBeGreaterThanOrEqual(0)
     expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(width)
+    await expect(popup).toBeInViewport({ ratio: 1 })
     await popup.getByRole("button", { name: /^Inspect / }).click()
     await expect(page).toHaveURL(/inspect=192/)
   })
@@ -117,9 +141,9 @@ test("decision changes refresh counts and dismiss removed IPs", async ({ page })
 })
 
 test("a shrinking location keeps the pager and the selection on the map", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: CROWDED_POPUP_HEIGHT })
   const { state, delta } = await setup(page, collection([group("2", 21)]))
-  await openCenterPopup(page)
-  const popup = page.getByRole("dialog", { name: "Banned IPs", exact: true })
+  const popup = await openCrowdedPopup(page)
   await popup.getByRole("button", { name: "Next", exact: true }).click()
   await expect(popup.getByRole("button", { name: /^192\./ })).toHaveCount(1)
   // Page 2 no longer exists once the busiest IP is unbanned; the pager clamps.
@@ -127,6 +151,7 @@ test("a shrinking location keeps the pager and the selection on the map", async 
   delta()
   await expect(popup.getByRole("button", { name: /^192\./ })).toHaveCount(20)
   await expect(popup.getByRole("button", { name: "Next", exact: true })).toHaveCount(0)
+  await expect(popup).toBeInViewport({ ratio: 1 })
   await popup.getByRole("button", { name: /^192\.0\.2\.20 / }).click()
   await expect(popup.getByRole("button", { name: /^Inspect 192\.0\.2\.20$/ })).toBeVisible()
   // The selected IP drops out of the data; the popup returns to the list.

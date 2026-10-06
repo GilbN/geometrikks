@@ -20,7 +20,8 @@ COPY resources/ ./resources/
 COPY vite.config.ts tsconfig.json components.json ./
 COPY index.html ./
 
-RUN bun run build
+# vite only: CI typechecks separately.
+RUN bunx vite build
 
 # ------------------------------------------------------------------------------
 # Stage 2: Python dependencies with uv
@@ -75,10 +76,10 @@ COPY --chown=geometrikks:geometrikks --from=frontend-builder /app/public /app/pu
 COPY --chown=geometrikks:geometrikks --from=frontend-builder /app/index.html /app/public/index.html
 COPY --chown=geometrikks:geometrikks alembic.ini CHANGELOG.md ./
 COPY --chown=geometrikks:geometrikks migrations/ ./migrations/
-RUN printf '%s' "${GIT_SHA}" > COMMIT
-
-RUN mkdir -p /app/logs /app/data/geoip \
-    && chown -R geometrikks:geometrikks /app
+# Not recursive: everything copied above already has --chown.
+RUN printf '%s' "${GIT_SHA}" > COMMIT \
+    && mkdir -p /app/logs /app/data/geoip \
+    && chown geometrikks:geometrikks /app /app/COMMIT /app/logs /app/data /app/data/geoip
 
 # Set environment
 # GEOIP_VALIDATE_DB_PATH=false: settings construction must not fail while the

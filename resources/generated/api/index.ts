@@ -388,6 +388,7 @@ export type {
   DecisionGroupView,
   DecisionView,
   DefaultHomeView,
+  DefaultMapView,
   EmbeddedLocationDto,
   ErrorEnvelope,
   GeoAsnFacet,
@@ -497,6 +498,7 @@ export type {
   TopUrlsResponse,
   TopUserAgentDto,
   TopUserAgentsResponse,
+  UnavailableSourceHealth,
   UnbanRequest,
   UnbanResponse,
 } from "./types.gen";

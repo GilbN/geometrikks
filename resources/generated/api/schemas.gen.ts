@@ -1755,6 +1755,23 @@ export const DefaultHomeViewSchema = {
   type: "object",
 } as const;
 
+export const DefaultMapViewSchema = {
+  properties: {
+    latitude: {
+      type: "number",
+    },
+    longitude: {
+      type: "number",
+    },
+    zoom: {
+      type: "number",
+    },
+  },
+  required: ["latitude", "longitude", "zoom"],
+  title: "DefaultMapView",
+  type: "object",
+} as const;
+
 export const EmbeddedLocationDTOSchema = {
   properties: {
     city: {
@@ -2694,6 +2711,12 @@ export const IngestionHealthSchema = {
       enum: ["running", "degraded", "disabled"],
       type: "string",
     },
+    unavailableSources: {
+      items: {
+        $ref: "#/components/schemas/UnavailableSourceHealth",
+      },
+      type: "array",
+    },
   },
   required: [
     "lastRecordAt",
@@ -3618,6 +3641,16 @@ export const MapSettingsViewSchema = {
         },
       ],
     },
+    defaultView: {
+      oneOf: [
+        {
+          $ref: "#/components/schemas/DefaultMapView",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
     homeLatitude: {
       oneOf: [
         {
@@ -3643,7 +3676,13 @@ export const MapSettingsViewSchema = {
       type: ["null", "string"],
     },
   },
-  required: ["cartoApiKey", "homeLatitude", "homeLongitude", "homeSource"],
+  required: [
+    "cartoApiKey",
+    "defaultView",
+    "homeLatitude",
+    "homeLongitude",
+    "homeSource",
+  ],
   title: "MapSettingsView",
   type: "object",
 } as const;
@@ -5507,6 +5546,30 @@ export const TopUserAgentsResponseSchema = {
   },
   required: ["endDate", "items", "startDate"],
   title: "TopUserAgentsResponse",
+  type: "object",
+} as const;
+
+export const UnavailableSourceHealthSchema = {
+  properties: {
+    kind: {
+      type: "string",
+    },
+    label: {
+      type: "string",
+    },
+    reason: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+  },
+  required: ["kind", "label", "reason"],
+  title: "UnavailableSourceHealth",
   type: "object",
 } as const;
 

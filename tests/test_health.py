@@ -11,8 +11,9 @@ from litestar.testing import TestClient
 
 from geometrikks.domain.system.controllers import health as health_module
 from geometrikks.domain.system.controllers.health import health, health_ready
-from geometrikks.services.ingestion import LogIngestionService
+from geometrikks.services.ingestion import LogInput, LogIngestionService
 from geometrikks.services.logparser.logparser import LogParser
+from geometrikks.services.logsources import FileSource
 from tests.support import ambient_settings_dependency
 
 
@@ -108,10 +109,12 @@ def test_ready_200_for_agent_past_schema_gate(monkeypatch):
 
 def _running_service(file_missing: bool) -> "LogIngestionService":
     """A real (never-started) service so Litestar DI type validation passes."""
-    parser = LogParser(log_path=Path("nginx_logs/access.log"))
-    parser.file_missing = file_missing
+    source = FileSource(Path("nginx_logs/access.log"))
+    source._missing = file_missing
     service = LogIngestionService(
-        parsers=[parser], session_maker=cast("Any", None), geoip_path="unused"
+        inputs=[LogInput(source=source, parser=LogParser(source_label=str(source.path)))],
+        session_maker=cast("Any", None),
+        geoip_path="unused",
     )
     service.is_running = True
     return service
@@ -131,6 +134,9 @@ def test_health_degraded_when_tailed_file_missing(monkeypatch):
     assert body["status"] == "degraded"
     assert body["ingestion"]["running"] is True
     assert body["ingestion"]["missingFiles"] == ["nginx_logs/access.log"]
+    assert body["ingestion"]["unavailableSources"] == [
+        {"kind": "file", "label": "nginx_logs/access.log", "reason": "missing"}
+    ]
 
 
 def test_health_exposes_uptime_and_activity_fields(monkeypatch):
@@ -174,6 +180,30 @@ def test_health_no_missing_files_stays_healthy(monkeypatch):
         body = client.get("/health").json()
     assert body["status"] == "healthy"
     assert body["ingestion"]["missingFiles"] == []
+    assert body["ingestion"]["unavailableSources"] == []
+
+
+def test_health_reads_each_source_status_once(monkeypatch):
+    async def db_up(app, timeout: float = 2.0) -> bool:
+        return True
+    monkeypatch.setattr(health_module, "_database_reachable", db_up)
+
+    service = _running_service(file_missing=True)
+    source = service.inputs[0].source
+    calls = 0
+    real_status = source.status
+
+    def counting_status():
+        nonlocal calls
+        calls += 1
+        return real_status()
+
+    monkeypatch.setattr(source, "status", counting_status)
+    app = make_app()
+    app.state.ingestion_service = service
+    with TestClient(app=app) as client:
+        client.get("/health")
+    assert calls == 1
 
 
 def test_health_crowdsec_disabled_by_default(monkeypatch):

@@ -497,6 +497,15 @@ export type DefaultHomeView = {
 };
 
 /**
+ * DefaultMapView
+ */
+export type DefaultMapView = {
+  latitude: number;
+  longitude: number;
+  zoom: number;
+};
+
+/**
  * EmbeddedLocationDTO
  */
 export type EmbeddedLocationDto = {
@@ -774,6 +783,7 @@ export type IngestionHealth = {
   publishDropped?: number;
   running: boolean;
   status?: "running" | "degraded" | "disabled";
+  unavailableSources?: Array<UnavailableSourceHealth>;
 };
 
 /**
@@ -1021,6 +1031,7 @@ export type LogparserSettingsView = {
  */
 export type MapSettingsView = {
   cartoApiKey: string | null;
+  defaultView: DefaultMapView | null;
   homeLatitude: number | null;
   homeLongitude: number | null;
   homeSource: "configured" | "external_ip" | null;
@@ -1600,6 +1611,15 @@ export type TopUserAgentsResponse = {
   endDate: string;
   items: Array<TopUserAgentDto>;
   startDate: string;
+};
+
+/**
+ * UnavailableSourceHealth
+ */
+export type UnavailableSourceHealth = {
+  kind: string;
+  label: string;
+  reason: string | null;
 };
 
 /**

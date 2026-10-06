@@ -41,6 +41,7 @@ def test_settings_response_is_whitelisted():
         "homeLongitude": -74.006,
         "homeSource": "external_ip",
         "cartoApiKey": None,
+        "defaultView": None,
     }
 
     # Credential material absent anywhere in the payload
@@ -70,3 +71,12 @@ def test_settings_exposes_carto_api_key(monkeypatch):
         body = client.get("/api/v1/settings").json()
 
     assert body["map"]["cartoApiKey"] == "carto-public-key"
+
+
+def test_settings_exposes_default_view(monkeypatch):
+    monkeypatch.setenv("MAP_DEFAULT_VIEW", "71.129982,27.653369,15")
+
+    with TestClient(app=make_app()) as client:
+        body = client.get("/api/v1/settings").json()
+
+    assert body["map"]["defaultView"] == {"latitude": 71.129982, "longitude": 27.653369, "zoom": 15.0}

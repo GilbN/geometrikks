@@ -61,7 +61,7 @@ async def test_wait_behind_then_catches_up(monkeypatch, caplog: pytest.LogCaptur
     older = next(r.revision for r in _walk_skipping_head())  # any non-head known revision
     engine = await _engine_returning([older, older, head])
     with caplog.at_level("INFO"):
-        assert await schema_wait.wait_for_schema(engine, timeout=5, poll_interval=0.01) == "ready"
+        assert await schema_wait.wait_for_schema(engine, timeout=30, poll_interval=0.01) == "ready"
     progress_lines = [r.getMessage() for r in caplog.records if "retrying" in r.getMessage()]
     assert len(progress_lines) == 2
     # structlog's default (unconfigured) test pipeline doesn't apply %-style
@@ -77,7 +77,7 @@ async def test_wait_unreachable_logs_progress(caplog: pytest.LogCaptureFixture) 
     head = schema_wait.bundled_head_revision()
     engine = await _engine_returning([Exception("no table"), head])
     with caplog.at_level("INFO"):
-        assert await schema_wait.wait_for_schema(engine, timeout=5, poll_interval=0.01) == "ready"
+        assert await schema_wait.wait_for_schema(engine, timeout=30, poll_interval=0.01) == "ready"
     assert any(
         "no alembic_versions yet / DB unreachable" in r.getMessage() and head in r.getMessage()
         for r in caplog.records

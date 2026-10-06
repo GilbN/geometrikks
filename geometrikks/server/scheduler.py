@@ -182,14 +182,18 @@ async def proxy_scan_job(
 ) -> None:
     """Scan access_logs for CDN peer sources the head does not tail.
 
-    The exclusion set is resolved at run time: parsers can appear after
+    The exclusion set is resolved at run time: inputs can appear after
     registration, and a LOGPARSER_ENABLED=false head has none at all.
     """
     from geometrikks.domain.system.proxy_scan import run_proxy_scan
     from geometrikks.server import runtime
 
     service = runtime.get_ingestion_service(app) if app is not None else None
-    exclude = {p.hostname for p in service.parsers} if service is not None else set()
+    exclude = (
+        {service.hostname_for(log_input) for log_input in service.inputs}
+        if service is not None
+        else set()
+    )
     await run_proxy_scan(session_factory, exclude)
 
 

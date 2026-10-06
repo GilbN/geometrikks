@@ -1,7 +1,7 @@
 """System API: scheduler job listing, manual runs, redacted settings overview."""
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 
 import pytest
@@ -22,7 +22,7 @@ from tests.support import ambient_settings_dependency
 
 pytestmark = pytest.mark.anyio
 
-FUTURE = datetime(2030, 1, 1, tzinfo=timezone.utc)
+FUTURE = datetime.now(timezone.utc) + timedelta(days=365)
 
 
 class UnreachableEngine:

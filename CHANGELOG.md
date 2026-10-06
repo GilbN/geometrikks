@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.20.0] - 2026-10-05
+
+### Added
+
+- The Banned IPs map popup can open a decision's alert. Click the scenario name to see the same alert details as on the Security page.
+- `MAP_DEFAULT_VIEW` sets where the map opens, as `latitude,longitude` or `latitude,longitude,zoom`. The zoom defaults to 3. For example, `MAP_DEFAULT_VIEW=71.129982,27.653369,15` opens on northern Norway at zoom 15. `GET /api/v1/settings` returns it as `map.defaultView`.
+- Setup guide for Nginx Proxy Manager in the README.
+- `/health` lists each log source ingestion is waiting for under `ingestion.unavailableSources`, with its kind and the reason. `missingFiles` is unchanged.
+
+### Changed
+
+- The map opens on the site homes instead of on Europe. It centers on a single home at zoom 3, and fits several homes into view, clear of the map controls. When the URL filters to one source, the map opens on that source's home. With no homes, it opens on the whole world. `MAP_DEFAULT_VIEW` overrides all of these.
+- Removed the recursive `chown` over `/app` in the Dockerfile. Freed up around 280 MB from the image and builds faster.
+- The image build runs `vite build` without the TypeScript typecheck that `bun run build` adds. CI still typechecks the frontend.
+
+### Fixed
+
+- Requests logged while GeoMetrikks was still checking the log format at startup are no longer skipped. On a fresh install this was the first request written to an empty log file.
+- The map and the Geo Logs spatial preview say so when the browser cannot start WebGL2, which the map needs. They used to stay blank and log the error only to the browser console. The message includes the browser's own reason when it gives one. The rest of the page keeps working.
+- A pinned log format (`LOGPARSER_LOG_FORMATS`) no longer turns off access-log storage when the log file is still empty 60 seconds after startup. This hit fresh installs before the proxy wrote its first line, and lasted until a restart.
+- Log lines written while a GeoLite2 database refresh is applied are no longer lost.
+- A log rotation that happened while unread lines were still waiting in the old file is now detected. Before, GeoMetrikks could keep watching the renamed file and ingest nothing from that log until the next rotation.
+- Stopping GeoMetrikks no longer waits out `LOGPARSER_POLL_INTERVAL` while a log file is idle or missing. With an interval of 10 seconds or more, shutdown stalled for 10 seconds and logged that a tail task did not stop gracefully.
+
 ## [0.19.0] - 2026-09-27
 
 ### Added
@@ -1079,7 +1103,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Settings endpoint no longer exposes the full settings tree (database credentials leaked via `model_dump()`); response is now an explicit whitelist.
 - Timestamps in `CALL refresh_continuous_aggregate` are bound as asyncpg parameters instead of interpolated into SQL.
 
-[Unreleased]: https://github.com/GilbN/geometrikks/compare/v0.19.0...develop
+[Unreleased]: https://github.com/GilbN/geometrikks/compare/v0.20.0...develop
+[0.20.0]: https://github.com/GilbN/geometrikks/compare/v0.19.0...v0.20.0
 [0.19.0]: https://github.com/GilbN/geometrikks/compare/v0.18.0...v0.19.0
 [0.18.0]: https://github.com/GilbN/geometrikks/compare/v0.17.0...v0.18.0
 [0.17.0]: https://github.com/GilbN/geometrikks/compare/v0.16.0...v0.17.0

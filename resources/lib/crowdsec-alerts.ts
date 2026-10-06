@@ -242,10 +242,15 @@ export function alertSummary(message: string): string {
 
 const BLOCKLIST_ORIGINS = new Set(["CAPI", "lists"])
 
+/** Community blocklist or a subscribed list, pulled in bulk rather than raised by an alert. */
+export function isBlocklistOrigin(origin: string): boolean {
+  return BLOCKLIST_ORIGINS.has(origin)
+}
+
 /** Whether the decision has an alert of its own to open. Blocklist
  *  decisions share one alert per pull, and the lookup goes by IP. */
 export function decisionHasAlert(scope: string, decision: { id: number | null; origin: string }): boolean {
-  return scope === "Ip" && decision.id !== null && !BLOCKLIST_ORIGINS.has(decision.origin)
+  return scope === "Ip" && decision.id !== null && !isBlocklistOrigin(decision.origin)
 }
 
 /** "Telenor (AS2119)", or whichever half the LAPI has. */

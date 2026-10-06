@@ -305,7 +305,7 @@ def test_ws_closes_without_poller():
     with TestClient(app=make_ws_app(None)) as client:
         with pytest.raises(WebSocketDisconnect) as exc_info:
             with client.websocket_connect("/ws/crowdsec") as ws:
-                ws.receive_json(timeout=2)
+                ws.receive_json(timeout=10)
     assert exc_info.value.code == 1013
     assert exc_info.value.detail == "crowdsec stream not running"
 

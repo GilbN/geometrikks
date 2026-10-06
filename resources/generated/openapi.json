@@ -1847,6 +1847,26 @@
         "title": "DefaultHomeView",
         "type": "object"
       },
+      "DefaultMapView": {
+        "properties": {
+          "latitude": {
+            "type": "number"
+          },
+          "longitude": {
+            "type": "number"
+          },
+          "zoom": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "latitude",
+          "longitude",
+          "zoom"
+        ],
+        "title": "DefaultMapView",
+        "type": "object"
+      },
       "EmbeddedLocationDTO": {
         "properties": {
           "city": {
@@ -2849,6 +2869,12 @@
               "disabled"
             ],
             "type": "string"
+          },
+          "unavailableSources": {
+            "items": {
+              "$ref": "#/components/schemas/UnavailableSourceHealth"
+            },
+            "type": "array"
           }
         },
         "required": [
@@ -3818,6 +3844,16 @@
               }
             ]
           },
+          "defaultView": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/DefaultMapView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "homeLatitude": {
             "oneOf": [
               {
@@ -3852,6 +3888,7 @@
         },
         "required": [
           "cartoApiKey",
+          "defaultView",
           "homeLatitude",
           "homeLongitude",
           "homeSource"
@@ -5855,6 +5892,33 @@
         "title": "TopUserAgentsResponse",
         "type": "object"
       },
+      "UnavailableSourceHealth": {
+        "properties": {
+          "kind": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "reason": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "kind",
+          "label",
+          "reason"
+        ],
+        "title": "UnavailableSourceHealth",
+        "type": "object"
+      },
       "UnbanRequest": {
         "properties": {
           "ip": {
@@ -5892,7 +5956,7 @@
   "info": {
     "description": "Real-time GeoIP lookups and traffic analytics API",
     "title": "GeoMetrikks API",
-    "version": "0.19.0"
+    "version": "0.20.0"
   },
   "openapi": "3.1.0",
   "paths": {

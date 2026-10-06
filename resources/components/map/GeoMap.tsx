@@ -28,8 +28,11 @@ import {
   useIpLocations,
 } from "@/lib/queries"
 import { beaconLabel, buildHomeResolver, homeBeacons, type Coordinate, type SiteHomesData } from "@/lib/site-homes"
+import { FIT_PADDING, initialMapView, WORLD_VIEW } from "@/lib/map-initial-view"
 import { useMapStyle } from "./hooks/useMapStyle"
+import { useMapStartFailure } from "./hooks/useMapStartFailure"
 import { MapAttribution } from "./MapAttribution"
+import { MapStartFailureNotice } from "./MapStartFailureNotice"
 import {
   bannedPointLayer,
   bannedClusterLayer,
@@ -45,6 +48,7 @@ import { MapFrameRate } from "./MapFrameRate"
 import { LivePulses } from "./LivePulses"
 import { HomeMarker } from "./HomeMarker"
 import { BannedMapPopup } from "./BannedMapPopup"
+import { DecisionAlertSheet, type DecisionRef } from "@/components/security/alert-detail-sheet"
 import { bannedClusterGroupIds, bannedGroupMembers, bannedGroupOf, indexBannedFeatures, topBannedIps, type BannedPopupInfo } from "@/lib/banned-map"
 import { clusterIndex, nearestFirst, predictUnclusteredZoom, unclusteredZoom } from "@/lib/map-clusters"
 import type { TopIPDTO } from "@/lib/api"
@@ -70,17 +74,20 @@ import {
 } from "@/lib/map-preferences"
 import { LiveTrafficProvider, useLiveTrafficStore } from "@/lib/live-traffic/context"
 import type { LiveRequest } from "@/lib/live-traffic/types"
-import { useIsMobile } from "@/hooks/use-mobile"
+import { isMobileViewport, useIsMobile } from "@/hooks/use-mobile"
 import { MAPLIBRE_WORKER_URL } from "@/lib/maplibre-worker"
 
 export type LayerType = "heatmap" | "markers" | "banned"
 export type MapProjection = "mercator" | "globe"
 
-// Initial viewport centered on Europe
+// The desktop map controls open expanded over the map's right edge. The
+// panel is 240px wide and sits 16px in, and the first view keeps homes out
+// from under it.
+const DESKTOP_CONTROLS_INSET = 240 + 16
+
+// Placeholder until initialMapView resolves. The map mounts only after that.
 const INITIAL_VIEW_STATE = {
-  longitude: 10,
-  latitude: 50,
-  zoom: 3,
+  ...WORLD_VIEW,
   pitch: 0,
   bearing: 0,
 }
@@ -157,6 +164,7 @@ function GeoMapInner({
   const demoTrafficMode = getDemoTrafficMode()
   const mapRef = useRef<MapRef>(null)
   const { mapStyle, transformRequest, ready: mapReady } = useMapStyle()
+  const { failure: mapFailure, onError: onMapError } = useMapStartFailure()
   const isMobile = useIsMobile()
   const search = useSearch({ from: "/map" })
   const navigate = useNavigate({ from: "/map" })
@@ -203,7 +211,7 @@ function GeoMapInner({
   const { data: facets, isLoading: facetsLoading } = useGeoEventFacets()
   const sourceOptions = facets?.hostnames ?? []
   const { data: globalTopIPs, isLoading: isLoadingTopIPs } = useGlobalTopIPs({ enabled: activeLayer !== "banned" })
-  const { data: runtimeSettings } = useRuntimeSettings()
+  const { data: runtimeSettings, isPending: runtimeSettingsPending } = useRuntimeSettings()
   const homeDestination = useMemo<Coordinate | null>(() => {
     const latitude = runtimeSettings?.map.homeLatitude
     const longitude = runtimeSettings?.map.homeLongitude
@@ -211,7 +219,7 @@ function GeoMapInner({
       ? [longitude, latitude]
       : null
   }, [runtimeSettings])
-  const { data: siteHomes } = useSiteHomes()
+  const { data: siteHomes, isPending: siteHomesPending } = useSiteHomes()
   // Falls back to the single-home runtime setting while site-homes is
   // unavailable (DB-degraded 500, or just the first fetch in flight) so
   // beacons don't go empty and flash in once the query resolves.
@@ -229,6 +237,10 @@ function GeoMapInner({
   const isLoading = isLoadingGeoJSON || isLoadingTopIPs
 
   const [viewState, setViewState] = useState(INITIAL_VIEW_STATE)
+  // The map mounts once the first view is known, so it doesn't open on a
+  // placeholder and jump. On failure, both queries settle after one retry.
+  const [initialViewResolved, setInitialViewResolved] = useState(false)
+  const mapContainerRef = useRef<HTMLDivElement>(null)
   const [projection, setProjection] = useState<MapProjection>(loadMapProjectionPreference)
   const [routeEffectsEnabled, setRouteEffectsEnabled] = useState(loadRouteEffectsPreference)
   const [frameRateEnabled, setFrameRateEnabled] = useState(loadFrameRatePreference)
@@ -365,6 +377,8 @@ function GeoMapInner({
   // data. A refetch that unbans one IP drops it from the list, and a group
   // that disappears closes the popup, with no effect per data change.
   const [bannedPopup, setBannedPopup] = useState<BannedPopupInfo | null>(null)
+  // Outside the popup, which unmounts once an unban or expiry empties its location.
+  const [bannedAlert, setBannedAlert] = useState<DecisionRef | null>(null)
   const bannedPopupIps = useMemo(
     () => (bannedPopup ? bannedGroupMembers(bannedPopup.groupIds, bannedIndex) : []),
     [bannedPopup, bannedIndex],
@@ -416,6 +430,35 @@ function GeoMapInner({
   }, [focusId, activeLayer, geojson, isLoadingGeoJSON, mapLoaded, navigate, focusOn])
   const fitData = activeLayer === "banned" ? bannedLocations : geojson
   const mercatorZoomRef = useRef(INITIAL_VIEW_STATE.zoom)
+
+  useEffect(() => {
+    if (initialViewResolved || runtimeSettingsPending || siteHomesPending) return
+    const rect = mapContainerRef.current?.getBoundingClientRect()
+    const view = initialMapView({
+      defaultView: runtimeSettings?.map.defaultView,
+      siteHomes: siteHomesData,
+      selectedSources,
+      size: { width: rect?.width ?? 0, height: rect?.height ?? 0 },
+      padding: {
+        top: FIT_PADDING,
+        // Not useIsMobile, which reads false on the first render. With both
+        // queries cached, this effect resolves the view in that same render.
+        right: FIT_PADDING + (isMobileViewport() ? 0 : DESKTOP_CONTROLS_INSET),
+        bottom: FIT_PADDING,
+        left: FIT_PADDING,
+      },
+    })
+    setViewState((previous) => ({ ...previous, ...view }))
+    mercatorZoomRef.current = view.zoom
+    setInitialViewResolved(true)
+  }, [
+    initialViewResolved,
+    runtimeSettingsPending,
+    siteHomesPending,
+    runtimeSettings,
+    siteHomesData,
+    selectedSources,
+  ])
 
   useEffect(() => {
     try {
@@ -737,9 +780,9 @@ function GeoMapInner({
     }
   }, [closeBannedPopup])
 
-  if (!mapReady) {
+  if (!mapReady || !initialViewResolved) {
     return (
-      <div className="relative h-full w-full overflow-hidden bg-background">
+      <div ref={mapContainerRef} className="relative h-full w-full overflow-hidden bg-background">
         <MapBackdrop tone="quiet" />
       </div>
     )
@@ -752,6 +795,7 @@ function GeoMapInner({
         workerUrl={MAPLIBRE_WORKER_URL}
         {...viewState}
         onLoad={() => setMapLoaded(true)}
+        onError={onMapError}
         onMoveStart={onMoveStart}
         onMove={onMove}
         onClick={onClick}
@@ -848,6 +892,7 @@ function GeoMapInner({
             latitude={bannedPopup.latitude}
             ips={bannedPopupIps}
             onClose={closeBannedPopup}
+            onOpenAlert={setBannedAlert}
           />
         )}
 
@@ -876,6 +921,14 @@ function GeoMapInner({
         <LiveRequestCard request={livePopup} onClose={() => setLivePopup(null)} />
       )}
 
+      {/* Fly to would clear the map filters and switch off the Banned IPs
+          layer, only to land on the IP already in view. */}
+      <DecisionAlertSheet
+        decision={bannedAlert}
+        onOpenChange={(open) => !open && setBannedAlert(null)}
+        showFlyTo={false}
+      />
+
       {liveMode && !isMobile && liveOverlays.rail && (
         <LiveRail onSelect={handleLiveSelect} />
       )}
@@ -895,7 +948,9 @@ function GeoMapInner({
       {/* Centered like LiveRequestCard so it never collides with the rail,
           the controls panel or the zoom buttons, and the controls stay
           reachable for switching to a layer that still has data. */}
-      {isError && activeLayer !== "banned" && (
+      {mapFailure ? (
+        <MapStartFailureNotice failure={mapFailure} />
+      ) : isError && activeLayer !== "banned" && (
         <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center p-4">
           <ErrorBanner
             className="pointer-events-auto w-full max-w-md backdrop-blur-[2px]"

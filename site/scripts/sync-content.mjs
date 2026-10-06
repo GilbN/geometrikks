@@ -30,7 +30,7 @@ export const pageMap = {
   "Traefik setup": { path: "sources/traefik", order: 2, title: "Traefik" },
   "Caddy setup": { path: "sources/caddy", order: 3, title: "Caddy" },
   "MaxMind GeoLite2": { path: "operate/geolite2", order: 1 },
-  "Map tiles": { merge: "operate/geolite2" },
+  Map: { merge: "operate/geolite2" },
   Authentication: { path: "operate/authentication", order: 2 },
   "Running behind a reverse proxy": { path: "operate/reverse-proxy", order: 3, title: "Reverse proxy" },
   "CrowdSec integration (optional)": { path: "features/crowdsec", order: 1, title: "CrowdSec integration" },

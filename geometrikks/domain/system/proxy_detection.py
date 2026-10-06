@@ -28,15 +28,18 @@ class ProxyFinding:
     provider: str | None
 
 
-def proxy_findings(parsers: Iterable[Any]) -> list[ProxyFinding]:
+def proxy_findings(
+    log_inputs: Iterable[Any], default_hostname: str = ""
+) -> list[ProxyFinding]:
     findings: list[ProxyFinding] = []
-    for parser in parsers:
+    for log_input in log_inputs:
+        parser = log_input.parser
         summary = parser.peer_summary()
         if summary is None:
             continue
         fmt = parser.format.name if parser.format else None
-        hostname = parser.hostname
-        path = str(parser.log_path)
+        hostname = log_input.source.hostname or default_hostname
+        path = parser.source_label
         lines = summary.lines
 
         if summary.cdn_active:

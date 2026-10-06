@@ -68,12 +68,29 @@ export function ingestionState(health: HealthResponse | undefined, isError: bool
       detail: "No log files are being tailed. Check the Logs tab for ingestion errors.",
     }
   }
-  if ((health.ingestion.missingFiles ?? []).length > 0) {
-    return {
-      tone: "amber",
-      label: "Running, log file missing",
-      detail: "A configured log file is missing. Ingestion is waiting for it to appear.",
-    }
+  const unavailable =
+    health.ingestion.unavailableSources ??
+    (health.ingestion.missingFiles ?? []).map((label) => ({
+      kind: "file",
+      label,
+      reason: "missing",
+    }))
+  if (unavailable.length > 0) {
+    const onlyMissingFiles = unavailable.every(
+      (source) => source.kind === "file" && source.reason === "missing",
+    )
+    return onlyMissingFiles
+      ? {
+          tone: "amber",
+          label: "Running, log file missing",
+          detail: "A configured log file is missing. Ingestion is waiting for it to appear.",
+        }
+      : {
+          tone: "amber",
+          label: "Running, log source unavailable",
+          detail:
+            "A configured log source is unavailable. Ingestion is waiting for it to come back.",
+        }
   }
   return { tone: "emerald", label: "Running" }
 }
