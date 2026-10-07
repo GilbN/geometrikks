@@ -110,7 +110,7 @@ def test_ready_200_for_agent_past_schema_gate(monkeypatch):
 def _running_service(file_missing: bool) -> "LogIngestionService":
     """A real (never-started) service so Litestar DI type validation passes."""
     source = FileSource(Path("nginx_logs/access.log"))
-    source._missing = file_missing
+    source._unavailable_reason = "missing" if file_missing else None
     service = LogIngestionService(
         inputs=[LogInput(source=source, parser=LogParser(source_label=str(source.path)))],
         session_maker=cast("Any", None),

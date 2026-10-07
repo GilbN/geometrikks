@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- The log file list in Settings no longer fails with a server error when GeoMetrikks lacks permission to a configured access log's directory. The file shows as not readable.
+- An access log that exists but sits in a directory GeoMetrikks cannot open is no longer reported as "does not exist" at startup. The log names the permission error, and `/health` gives the reason as `unreadable` instead of `missing`. The same applies when the file itself cannot be read. The Ingestion card on the Status page says "not readable" for such a file instead of "missing".
+
 ## [0.20.0] - 2026-10-05
 
 ### Added

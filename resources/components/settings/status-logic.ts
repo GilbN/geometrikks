@@ -1,6 +1,6 @@
 /** Pure presentation logic for the Settings > Status page. Kept free of React
  *  so state derivation is unit-testable without rendering. */
-import type { HealthResponse, MeResponse, OidcStatus } from "@/lib/api"
+import type { HealthIngestionStatus, HealthResponse, MeResponse, OidcStatus } from "@/lib/api"
 import type {
   CrowdSecStatusResponse,
   HypertableStatsView,
@@ -68,31 +68,46 @@ export function ingestionState(health: HealthResponse | undefined, isError: bool
       detail: "No log files are being tailed. Check the Logs tab for ingestion errors.",
     }
   }
-  const unavailable =
+  const unavailable = unavailableSources(health)
+  if (unavailable.length > 0) {
+    const onlyFilesWithReason = (reason: string) =>
+      unavailable.every((source) => source.kind === "file" && source.reason === reason)
+    if (onlyFilesWithReason("missing")) {
+      return {
+        tone: "amber",
+        label: "Running, log file missing",
+        detail: "A configured log file is missing. Ingestion is waiting for it to appear.",
+      }
+    }
+    if (onlyFilesWithReason("unreadable")) {
+      return {
+        tone: "amber",
+        label: "Running, log file not readable",
+        detail:
+          "GeoMetrikks cannot read a configured log file. Check its permissions and those of its directory. Ingestion resumes once it can.",
+      }
+    }
+    return {
+      tone: "amber",
+      label: "Running, log source unavailable",
+      detail: "A configured log source is unavailable. Ingestion is waiting for it to come back.",
+    }
+  }
+  return { tone: "emerald", label: "Running" }
+}
+
+type UnavailableSource = NonNullable<HealthIngestionStatus["unavailableSources"]>[number]
+
+function unavailableSources(health: HealthResponse | undefined): UnavailableSource[] {
+  if (!health) return []
+  return (
     health.ingestion.unavailableSources ??
     (health.ingestion.missingFiles ?? []).map((label) => ({
       kind: "file",
       label,
       reason: "missing",
     }))
-  if (unavailable.length > 0) {
-    const onlyMissingFiles = unavailable.every(
-      (source) => source.kind === "file" && source.reason === "missing",
-    )
-    return onlyMissingFiles
-      ? {
-          tone: "amber",
-          label: "Running, log file missing",
-          detail: "A configured log file is missing. Ingestion is waiting for it to appear.",
-        }
-      : {
-          tone: "amber",
-          label: "Running, log source unavailable",
-          detail:
-            "A configured log source is unavailable. Ingestion is waiting for it to come back.",
-        }
-  }
-  return { tone: "emerald", label: "Running" }
+  )
 }
 
 export type SidebarIngestionVariant =
@@ -179,6 +194,22 @@ export function crowdsecState(
 
 export function accessLogFiles(files: LogFileView[] | undefined): LogFileView[] {
   return (files ?? []).filter((f) => f.kind === "access")
+}
+
+/** Why an unavailable access log cannot be tailed, from the health entry of
+ *  the file source with the same file name. The file list carries only the
+ *  name; when two configured paths share one, it calls the second
+ *  "access.log.2", which matches nothing and reads "unavailable". */
+export function accessLogUnavailableLabel(
+  file: LogFileView,
+  health: HealthResponse | undefined,
+): string {
+  const source = unavailableSources(health).find(
+    (candidate) => candidate.kind === "file" && candidate.label.split(/[\\/]/).pop() === file.name,
+  )
+  if (source?.reason === "missing") return "missing"
+  if (source?.reason === "unreadable") return "not readable"
+  return "unavailable"
 }
 
 export interface SiteHomeRow {
