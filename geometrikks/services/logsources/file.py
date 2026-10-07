@@ -21,6 +21,15 @@ MISSING_FILE_GRACE_SECONDS = 60.0
 _TAIL_BLOCK_BYTES = 4096
 
 
+def _unavailable_reason(err: OSError | None) -> str | None:
+    """The SourceStatus reason for a failed stat or open of the file."""
+    if err is None:
+        return None
+    if isinstance(err, (FileNotFoundError, NotADirectoryError)):
+        return "missing"
+    return "unreadable"
+
+
 class FileSource:
     """A log file on disk, followed like ``tail -F``."""
 
@@ -49,43 +58,60 @@ class FileSource:
         self.hostname: str = hostname
         self.poll_interval: int | float = poll_interval
         self.start_at_end: bool = start_at_end
-        # True while the configured file is absent. This is surfaced through
+        # "missing" or "unreadable" while the configured file cannot be
+        # tailed, None while it can. This is surfaced through
         # LogIngestionService.unavailable_sources into /health.
-        self._missing: bool = False
+        self._unavailable_reason: str | None = None
         # (inode, size) of the file when wait_ready returned. The first open
         # in lines() starts there, so lines written while the service was
         # checking the format are not skipped. None means "start at the end".
         self._ready_position: tuple[int, int] | None = None
 
     def status(self) -> SourceStatus:
-        if self._missing:
-            return SourceStatus(available=False, reason="missing")
+        if self._unavailable_reason is not None:
+            return SourceStatus(available=False, reason=self._unavailable_reason)
         return SourceStatus(available=True)
 
-    def _mark_missing_at_start(self) -> None:
-        """Flag the file as absent and expose it through health status."""
-        if not self._missing:
+    def _mark_unavailable(self, err: OSError, *, at_start: bool = False) -> None:
+        """Flag the file as unavailable, logging the cause once per change of reason.
+
+        Args:
+            err: The error from the failed stat, open or read.
+            at_start: The file has not been tailed yet, so a missing file
+                "does not exist" rather than "no longer exists".
+        """
+        reason = _unavailable_reason(err)
+        if self._unavailable_reason == reason:
+            return
+        if reason == "unreadable":
+            logger.error(
+                "Log file cannot be read: %s - waiting for access (%s)", self.path, err
+            )
+        elif at_start:
             logger.error(
                 "Log file does not exist: %s - waiting for it to appear", self.path
             )
-            self._missing = True
-
-    def _mark_missing(self, err: OSError) -> None:
-        """Record a mid-flight absence with the operating system error."""
-        if not self._missing:
+        else:
             logger.error(
-                "Log file no longer exists or cannot be read: %s - "
-                "waiting for it to reappear (%s)",
+                "Log file no longer exists: %s - waiting for it to reappear (%s)",
                 self.path,
                 err,
             )
-            self._missing = True
+        self._unavailable_reason = reason
 
     def _mark_present(self) -> None:
-        """Clear the missing flag, logging the recovery once."""
-        if self._missing:
-            logger.info("Log file reappeared, resuming tail: %s", self.path)
-            self._missing = False
+        """Clear the unavailable flag, logging the recovery once."""
+        if self._unavailable_reason is not None:
+            logger.info("Log file available again, resuming tail: %s", self.path)
+            self._unavailable_reason = None
+
+    async def _stat_error(self) -> OSError | None:
+        """The error from stat()ing the file, or None if it succeeded."""
+        try:
+            await aiofiles.os.stat(self.path)
+        except OSError as err:
+            return err
+        return None
 
     async def _record_ready_position(self) -> None:
         """Remember the file's identity and size for the first open in lines()."""
@@ -101,18 +127,26 @@ class FileSource:
     async def wait_ready(self, stop: asyncio.Event) -> bool:
         logger.debug("Waiting for log file: %s", self.path)
         self._ready_position = None
-        if not await wait_for_path(
-            self.path,
-            timeout_seconds=MISSING_FILE_GRACE_SECONDS,
-            stop_event=stop,
-        ):
-            if stop.is_set():
+        # Not os.path.exists(): it is False for any OSError, so a file in a
+        # directory the service cannot search would be reported as absent.
+        err = await self._stat_error()
+        if _unavailable_reason(err) == "missing":
+            if await wait_for_path(
+                self.path,
+                timeout_seconds=MISSING_FILE_GRACE_SECONDS,
+                stop_event=stop,
+            ):
+                err = None
+            elif stop.is_set():
                 return False  # shutting down, not a missing-file problem
-            self._mark_missing_at_start()
-            while not await aiofiles.os.path.exists(self.path):
-                if await sleep_unless_stopped(self.poll_interval, stop):
-                    return False
-            self._mark_present()
+            else:
+                err = await self._stat_error()
+        while err is not None:
+            self._mark_unavailable(err, at_start=True)
+            if await sleep_unless_stopped(self.poll_interval, stop):
+                return False
+            err = await self._stat_error()
+        self._mark_present()
         await self._record_ready_position()
         return True
 
@@ -146,7 +180,7 @@ class FileSource:
         try:
             lines = await asyncio.to_thread(self._read_recent, count)
         except OSError as e:
-            self._mark_missing(e)
+            self._mark_unavailable(e)
             return []
         # A source restarted in-process can still carry the flag from before
         # it stopped, and format validation trusts it.
@@ -167,7 +201,7 @@ class FileSource:
         except OSError as e:
             # Deleted/moved mid-tail: log once, keep polling. When the file
             # reappears the inode-change branch below reopens it.
-            self._mark_missing(e)
+            self._mark_unavailable(e)
             return False
         self._mark_present()
 
@@ -225,7 +259,7 @@ class FileSource:
             try:
                 await aiofiles.os.stat(self.path)
             except OSError as e:
-                self._mark_missing(e)
+                self._mark_unavailable(e)
                 await sleep_unless_stopped(self.poll_interval, stop)
                 continue
 
@@ -235,7 +269,7 @@ class FileSource:
                     self.path, "r", encoding="utf-8", errors="replace"
                 )
             except OSError as e:
-                self._mark_missing(e)
+                self._mark_unavailable(e)
                 await sleep_unless_stopped(self.poll_interval, stop)
                 continue
             self._mark_present()

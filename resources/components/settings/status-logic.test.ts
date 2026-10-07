@@ -10,6 +10,7 @@ import type {
 import type { LogRecord } from "@/lib/logstream"
 import {
   accessLogFiles,
+  accessLogUnavailableLabel,
   advisoryCards,
   authState,
   compressionSummary,
@@ -132,6 +133,28 @@ describe("ingestionState", () => {
       false,
     )
     expect(state.label).toBe("Running, log file missing")
+  })
+  it("says the log file cannot be read when every unavailable source is an unreadable file", () => {
+    const state = ingestionState(
+      makeHealth({
+        ingestion: {
+          running: true,
+          parsedLines: 10,
+          pendingRecords: 0,
+          missingFiles: ["/var/log/caddy/access.log"],
+          unavailableSources: [
+            { kind: "file", label: "/var/log/caddy/access.log", reason: "unreadable" },
+          ],
+          lastRecordAt: null,
+        },
+      }),
+      false,
+    )
+    expect(state.tone).toBe("amber")
+    expect(state.label).toBe("Running, log file not readable")
+    expect(state.detail).toBe(
+      "GeoMetrikks cannot read a configured log file. Check its permissions and those of its directory. Ingestion resumes once it can.",
+    )
   })
   it("names a log source when an unavailable source is not a missing file", () => {
     const state = ingestionState(
@@ -312,6 +335,54 @@ describe("accessLogFiles", () => {
   it("keeps only access entries and tolerates undefined", () => {
     expect(accessLogFiles(files).map((f) => f.name)).toEqual(["access.log"])
     expect(accessLogFiles(undefined)).toEqual([])
+  })
+})
+
+describe("accessLogUnavailableLabel", () => {
+  const file = (name: string): LogFileView => ({
+    name,
+    kind: "access",
+    sizeBytes: 0,
+    modifiedAt: null,
+    available: false,
+  })
+  const healthWith = (
+    unavailableSources: { kind: string; label: string; reason: string | null }[] | undefined,
+    missingFiles: string[] = [],
+  ) =>
+    makeHealth({
+      ingestion: {
+        running: true,
+        parsedLines: 0,
+        pendingRecords: 0,
+        missingFiles,
+        unavailableSources,
+        lastRecordAt: null,
+      },
+    })
+
+  it("takes the reason of the file source with the same file name", () => {
+    const health = healthWith([
+      { kind: "file", label: "/var/log/nginx/access.log", reason: "missing" },
+      { kind: "file", label: "/var/log/caddy/caddy.log", reason: "unreadable" },
+    ])
+    expect(accessLogUnavailableLabel(file("access.log"), health)).toBe("missing")
+    expect(accessLogUnavailableLabel(file("caddy.log"), health)).toBe("not readable")
+  })
+  it("treats a bare missingFiles entry as missing", () => {
+    expect(
+      accessLogUnavailableLabel(file("access.log"), healthWith(undefined, ["nginx_logs/access.log"])),
+    ).toBe("missing")
+  })
+  it("says unavailable when health has no matching source", () => {
+    expect(accessLogUnavailableLabel(file("access.log"), healthWith([]))).toBe("unavailable")
+    expect(accessLogUnavailableLabel(file("access.log"), undefined)).toBe("unavailable")
+    expect(
+      accessLogUnavailableLabel(
+        file("access.log"),
+        healthWith([{ kind: "loki", label: "access.log", reason: "unreachable" }]),
+      ),
+    ).toBe("unavailable")
   })
 })
 

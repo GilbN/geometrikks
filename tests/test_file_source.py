@@ -8,6 +8,7 @@ from pathlib import Path
 import aiofiles
 import aiofiles.os
 import pytest
+from structlog.testing import capture_logs
 
 from geometrikks.services.logsources import FileSource, LogSource, SourceStatus
 
@@ -275,6 +276,34 @@ async def test_wait_ready_reports_missing_then_recovers(tmp_path: Path) -> None:
     assert source.status() == SourceStatus(available=True)
 
 
+@pytest.mark.skipif(os.geteuid() == 0, reason="root ignores directory permissions")
+async def test_wait_ready_reports_an_unsearchable_directory_as_unreadable(tmp_path: Path) -> None:
+    """os.path.exists() is False for EACCES too; the file is there, so the
+    log must carry the error instead of claiming it does not exist."""
+    locked = tmp_path / "caddy"
+    locked.mkdir()
+    log = locked / "access.log"
+    log.write_text("", encoding="utf-8")
+    source = make_source(log)
+    stop = asyncio.Event()
+
+    locked.chmod(0)
+    try:
+        with capture_logs() as logs:
+            ready = asyncio.ensure_future(source.wait_ready(stop))
+            await wait_until(lambda: not source.status().available)
+        assert source.status() == SourceStatus(available=False, reason="unreadable")
+        errors = [entry for entry in logs if entry["log_level"] == "error"]
+        assert len(errors) == 1
+        assert "does not exist" not in errors[0]["event"]
+        assert isinstance(errors[0]["positional_args"][-1], PermissionError)
+    finally:
+        locked.chmod(0o755)
+
+    assert await asyncio.wait_for(ready, timeout=10.0) is True
+    assert source.status() == SourceStatus(available=True)
+
+
 async def test_wait_ready_returns_false_when_stopped(tmp_path: Path) -> None:
     source = make_source(tmp_path / "missing.log")
     stop = asyncio.Event()
@@ -295,9 +324,13 @@ async def test_mid_flight_deletion_flags_missing_and_recovers(tmp_path: Path, mo
     pending = asyncio.ensure_future(next_line(gen))
     await asyncio.wait_for(seeked.wait(), timeout=10.0)
 
-    log.unlink()
-    await wait_until(lambda: not source.status().available)
+    with capture_logs() as logs:
+        log.unlink()
+        await wait_until(lambda: not source.status().available)
     assert source.status() == SourceStatus(available=False, reason="missing")
+    errors = [entry["event"] for entry in logs if entry["log_level"] == "error"]
+    assert len(errors) == 1
+    assert errors[0].startswith("Log file no longer exists:")
 
     log.write_text("back\n", encoding="utf-8")
     assert await pending == "back\n"
@@ -376,14 +409,14 @@ async def test_recent_lines_clears_a_stale_missing_flag(tmp_path: Path, caplog) 
     log = tmp_path / "a.log"
     log.write_text("one\n", encoding="utf-8")
     source = make_source(log)
-    source._missing = True
+    source._unavailable_reason = "missing"
 
     assert await source.recent_lines(3) == ["one\n"]
     assert source.status() == SourceStatus(available=True)
-    assert sum("reappeared" in r.getMessage() for r in caplog.records) == 1
+    assert sum("available again" in r.getMessage() for r in caplog.records) == 1
 
 
-async def test_recent_lines_marks_the_source_missing_when_the_read_fails(tmp_path: Path, monkeypatch, caplog) -> None:
+async def test_recent_lines_marks_the_source_unreadable_when_the_read_is_denied(tmp_path: Path, monkeypatch, caplog) -> None:
     log = tmp_path / "a.log"
     log.write_text("one\n", encoding="utf-8")
     source = make_source(log)
@@ -394,11 +427,13 @@ async def test_recent_lines_marks_the_source_missing_when_the_read_fails(tmp_pat
     monkeypatch.setattr(source, "_read_recent", unreadable)
 
     assert await source.recent_lines(3) == []
-    assert source.status() == SourceStatus(available=False, reason="missing")
-    assert sum("no longer exists or cannot be read" in r.getMessage() for r in caplog.records) == 1
+    assert source.status() == SourceStatus(available=False, reason="unreadable")
+    messages = [r.getMessage() for r in caplog.records]
+    assert sum("Log file cannot be read" in m for m in messages) == 1
+    assert not any("no longer exists" in m for m in messages)
 
 
-async def test_unopenable_file_stays_missing_and_logs_once(tmp_path: Path, monkeypatch, caplog) -> None:
+async def test_unopenable_file_stays_unreadable_and_logs_once(tmp_path: Path, monkeypatch, caplog) -> None:
     """A file that stats but cannot be opened must not flap between
     missing and present on every poll."""
     caplog.set_level("INFO")
@@ -421,15 +456,16 @@ async def test_unopenable_file_stays_missing_and_logs_once(tmp_path: Path, monke
     pending = asyncio.ensure_future(next_line(gen))
 
     await wait_until(lambda: open_attempts >= 10)  # many poll intervals
-    assert source.status() == SourceStatus(available=False, reason="missing")
+    assert source.status() == SourceStatus(available=False, reason="unreadable")
     messages = [r.getMessage() for r in caplog.records]
-    assert sum("no longer exists or cannot be read" in m for m in messages) == 1
-    assert not any("reappeared" in m for m in messages)
+    assert sum("Log file cannot be read" in m for m in messages) == 1
+    assert not any("no longer exists" in m for m in messages)
+    assert not any("available again" in m for m in messages)
 
     allow["open"] = True
     assert await pending == "one\n"
     assert source.status() == SourceStatus(available=True)
-    assert sum("reappeared" in r.getMessage() for r in caplog.records) == 1
+    assert sum("available again" in r.getMessage() for r in caplog.records) == 1
     await gen.aclose()
 
 

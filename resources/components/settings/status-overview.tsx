@@ -46,6 +46,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { MonoChip, StatusLed } from "@/components/settings/status-led"
 import {
   accessLogFiles,
+  accessLogUnavailableLabel,
   advisoryCards,
   authState,
   type CardState,
@@ -356,7 +357,7 @@ export function StatusOverview() {
                       {f.modifiedAt && ` · ${new Date(f.modifiedAt).toLocaleString()}`}
                     </span>
                   ) : (
-                    <span className="ml-auto text-red-500">missing</span>
+                    <span className="ml-auto text-red-500">{accessLogUnavailableLabel(f, health)}</span>
                   )}
                 </div>
               ))}
