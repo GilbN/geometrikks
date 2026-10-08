@@ -109,6 +109,50 @@ def test_import_logs_accepts_import_only_format(tmp_path, monkeypatch) -> None:
     assert run_import.await_args.kwargs["log_format"] == "npm"
 
 
+def test_import_logs_before_is_utc_when_no_offset(tmp_path, monkeypatch) -> None:
+    from datetime import datetime, timezone
+
+    import click
+
+    import geometrikks.cli as cli_module
+    from geometrikks.cli import ImportLogsCLIPlugin
+
+    run_import = AsyncMock()
+    monkeypatch.setattr(cli_module, "_run_import", run_import)
+
+    @click.group()
+    def cli() -> None: ...
+
+    ImportLogsCLIPlugin().on_cli_init(cli)
+    log = tmp_path / "a.log"
+    log.write_text("", encoding="utf-8")
+
+    result = CliRunner().invoke(cli, ["import-logs", "--before", "2026-10-01T12:00:00", str(log)])
+    assert result.exit_code == 0, result.output
+    assert run_import.await_args is not None
+    assert run_import.await_args.kwargs["before"] == datetime(2026, 10, 1, 12, tzinfo=timezone.utc)
+
+    result = CliRunner().invoke(cli, ["import-logs", str(log)])
+    assert result.exit_code == 0, result.output
+    assert run_import.await_args.kwargs["before"] is None
+
+
+def test_import_logs_rejects_bad_before(tmp_path) -> None:
+    import click
+
+    from geometrikks.cli import ImportLogsCLIPlugin
+
+    @click.group()
+    def cli() -> None: ...
+
+    ImportLogsCLIPlugin().on_cli_init(cli)
+    log = tmp_path / "a.log"
+    log.write_text("", encoding="utf-8")
+    result = CliRunner().invoke(cli, ["import-logs", "--before", "yesterday", str(log)])
+    assert result.exit_code != 0
+    assert "--before" in result.output
+
+
 def test_cli_plugin_registers_backfill_hostname() -> None:
     import click
     from geometrikks.cli import ImportLogsCLIPlugin

@@ -58,6 +58,7 @@ class ImportResult:
     lines_total: int
     lines_skipped: int
     records_written: int
+    lines_after_cutoff: int
     time_start: datetime | None
     time_end: datetime | None
     duration_seconds: float
@@ -116,9 +117,15 @@ async def import_file(
     session_maker: "Callable[[], AsyncSession]",
     batch_size: int = 500,
     force: bool = False,
+    before: datetime | None = None,
     progress: Callable[[int, float], None] | None = None,
 ) -> ImportResult:
-    """Import one whole file through the live pipeline. See module docstring."""
+    """Import one whole file through the live pipeline. See module docstring.
+
+    ``before`` drops parsed lines stamped at or after it, so an archive can
+    stop where an already ingested log begins. Lines that don't parse carry
+    no timestamp and are always kept.
+    """
     started = time.monotonic()
     checksum = sha256_file(path)
 
@@ -129,7 +136,7 @@ async def import_file(
         logger.info("Skipping %s: checksum already imported", path)
         return ImportResult(
             file_path=path, skipped=True, lines_total=0, lines_skipped=0,
-            records_written=0, time_start=None, time_end=None,
+            records_written=0, lines_after_cutoff=0, time_start=None, time_end=None,
             duration_seconds=time.monotonic() - started,
         )
 
@@ -141,14 +148,21 @@ async def import_file(
     lines_total = 0
     lines_skipped = 0
     records_written = 0
+    lines_after_cutoff = 0
     time_start: datetime | None = None
     time_end: datetime | None = None
 
     for line in iter_lines(path):
         lines_total += 1
+        if progress and lines_total % PROGRESS_EVERY_LINES == 0:
+            elapsed = time.monotonic() - started
+            progress(lines_total, lines_total / elapsed if elapsed else 0.0)
         record = parser.parse_line(line, lookup, asn_lookup)
         if record is None:  # IP on the ignore list; drop the line entirely
             lines_skipped += 1
+            continue
+        if before is not None and record.timestamp is not None and record.timestamp >= before:
+            lines_after_cutoff += 1
             continue
         batch.append(record)
 
@@ -163,10 +177,6 @@ async def import_file(
             await service.flush_records(batch)
             records_written += sum(1 for r in batch if r.ip_address is not None)
             batch = []
-
-        if progress and lines_total % PROGRESS_EVERY_LINES == 0:
-            elapsed = time.monotonic() - started
-            progress(lines_total, lines_total / elapsed if elapsed else 0.0)
 
     if batch:
         await service.flush_records(batch)
@@ -204,10 +214,13 @@ async def import_file(
         file=str(path),
         lines=lines_total,
         records=records_written,
+        lines_after_cutoff=lines_after_cutoff,
+        before=before.isoformat() if before else None,
     )
     return ImportResult(
         file_path=path, skipped=False, lines_total=lines_total,
         lines_skipped=lines_skipped, records_written=records_written,
+        lines_after_cutoff=lines_after_cutoff,
         time_start=time_start, time_end=time_end,
         duration_seconds=time.monotonic() - started,
     )

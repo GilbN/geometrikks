@@ -337,6 +337,7 @@ class LogParser:
             parse_error=parse_error,
             source=self.source_label,
             log_format=self.format.name if self.format else None,
+            timestamp=norm.timestamp,
         )
 
     def _parse_geo_data(

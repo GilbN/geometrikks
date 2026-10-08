@@ -42,8 +42,23 @@ from geometrikks.services.logparser.formats import IMPORT_FORMATS
         "LOGPARSER_HOST_NAME value."
     ),
 )
+@click.option(
+    "--before",
+    default=None,
+    type=click.DateTime(formats=["%Y-%m-%d", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%dT%H:%M:%S%z"]),
+    help=(
+        "Only import lines older than this date or datetime. Without an "
+        "offset it is UTC. Use the first timestamp of a log that is already "
+        "being ingested, so the import doesn't overlap it."
+    ),
+)
 def import_logs_command(
-    paths: tuple[Path, ...], force: bool, batch_size: int, log_format: str, hostname: str | None
+    paths: tuple[Path, ...],
+    force: bool,
+    batch_size: int,
+    log_format: str,
+    hostname: str | None,
+    before: datetime | None,
 ) -> None:
     """Import historical access-log files (plain or .gz) into the database.
 
@@ -56,15 +71,28 @@ def import_logs_command(
         hostname = hostname.strip()
         if not hostname:
             raise click.BadParameter("must not be blank", param_hint="'--hostname'")
+    if before is not None and before.tzinfo is None:
+        before = before.replace(tzinfo=timezone.utc)
     asyncio.run(
         _run_import(
-            list(paths), force=force, batch_size=batch_size, log_format=log_format, hostname=hostname
+            list(paths),
+            force=force,
+            batch_size=batch_size,
+            log_format=log_format,
+            hostname=hostname,
+            before=before,
         )
     )
 
 
 async def _run_import(
-    paths: list[Path], *, force: bool, batch_size: int, log_format: str, hostname: str | None
+    paths: list[Path],
+    *,
+    force: bool,
+    batch_size: int,
+    log_format: str,
+    hostname: str | None,
+    before: datetime | None,
 ) -> None:
     from geoip2.database import Reader
 
@@ -133,6 +161,7 @@ async def _run_import(
                     session_maker=session_maker,
                     batch_size=batch_size,
                     force=force,
+                    before=before,
                     progress=show_progress,
                 )
             except UnrecognizedLogFormatError as exc:
@@ -151,6 +180,8 @@ async def _run_import(
                 f"in {result.duration_seconds:,.1f}s "
                 f"({result.lines_total / result.duration_seconds:,.0f} lines/s)"
             )
+            if result.lines_after_cutoff:
+                click.echo(f"  {result.lines_after_cutoff:,} lines at or after --before left out")
             if result.time_start and result.time_end:
                 overall_start = (
                     result.time_start
