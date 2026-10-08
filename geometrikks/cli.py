@@ -49,7 +49,8 @@ from geometrikks.services.logparser.formats import IMPORT_FORMATS
     help=(
         "Only import lines older than this date or datetime. Without an "
         "offset it is UTC. Use the first timestamp of a log that is already "
-        "being ingested, so the import doesn't overlap it."
+        "being ingested, so the import doesn't overlap it. A file imported "
+        "earlier with an earlier --before gets only the lines in between."
     ),
 )
 def import_logs_command(
@@ -99,7 +100,11 @@ async def _run_import(
     from geometrikks.config.settings import get_settings
     from geometrikks.server.plugins import get_sqlalchemy_config
     from geometrikks.server.timescale import refresh_caggs_range
-    from geometrikks.services.importer import UnrecognizedLogFormatError, import_file
+    from geometrikks.services.importer import (
+        ImportCutoffConflictError,
+        UnrecognizedLogFormatError,
+        import_file,
+    )
     from geometrikks.services.ingestion.service import LogIngestionService, create_reader
     from geometrikks.services.logparser.logparser import LogParser
 
@@ -164,7 +169,7 @@ async def _run_import(
                     before=before,
                     progress=show_progress,
                 )
-            except UnrecognizedLogFormatError as exc:
+            except (UnrecognizedLogFormatError, ImportCutoffConflictError) as exc:
                 click.echo(f"  error: {exc}", err=True)
                 failed.append(path)
                 continue
@@ -182,6 +187,11 @@ async def _run_import(
             )
             if result.lines_after_cutoff:
                 click.echo(f"  {result.lines_after_cutoff:,} lines at or after --before left out")
+            if result.lines_already_imported:
+                click.echo(
+                    f"  {result.lines_already_imported:,} lines left out that an earlier "
+                    "run with an earlier --before already imported"
+                )
             if result.time_start and result.time_end:
                 overall_start = (
                     result.time_start

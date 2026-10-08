@@ -11,7 +11,9 @@ sha256_file and iter_lines are synchronous file IO (fine in a dedicated CLI
 process, event-loop-blocking in a server) and must be wrapped in
 asyncio.to_thread there; batches commit incrementally, so a crashed import
 leaves committed rows with no import_jobs row (a re-run then double-counts) —
-an endpoint wants a status column and/or cleanup story for that.
+an endpoint wants a status column and/or cleanup story for that. A crashed
+resumed run has the same problem in another shape: the row keeps its old
+cutoff, so the next run writes the crashed run's rows again.
 """
 
 from __future__ import annotations
@@ -51,6 +53,10 @@ class UnrecognizedLogFormatError(ValueError):
     """No line in the sampled prefix matched the expected log format."""
 
 
+class ImportCutoffConflictError(ValueError):
+    """--before is earlier than the cutoff the file was already imported with."""
+
+
 @dataclass
 class ImportResult:
     file_path: Path
@@ -59,6 +65,7 @@ class ImportResult:
     lines_skipped: int
     records_written: int
     lines_after_cutoff: int
+    lines_already_imported: int
     time_start: datetime | None
     time_end: datetime | None
     duration_seconds: float
@@ -99,6 +106,14 @@ def _format_sanity_check(path: Path, parser: LogParser, sample: int = FORMAT_CHE
         )
 
 
+def _earliest(first: datetime | None, second: datetime | None) -> datetime | None:
+    return min(first, second) if first and second else first or second
+
+
+def _latest(first: datetime | None, second: datetime | None) -> datetime | None:
+    return max(first, second) if first and second else first or second
+
+
 def _record_timestamp(record: ParsedLogRecord) -> datetime | None:
     if record.access_log:
         return record.access_log.timestamp
@@ -125,6 +140,15 @@ async def import_file(
     ``before`` drops parsed lines stamped at or after it, so an archive can
     stop where an already ingested log begins. Lines that don't parse carry
     no timestamp and are always kept.
+
+    A file already imported with a cutoff can be imported again with a later
+    one, or none: only the lines from the stored cutoff on are written, since
+    the first run wrote the rest, unparseable lines included.
+
+    Raises:
+        UnrecognizedLogFormatError: No sampled line matches the log format.
+        ImportCutoffConflictError: ``before`` is earlier than the stored
+            cutoff; the rows past it are already written.
     """
     started = time.monotonic()
     checksum = sha256_file(path)
@@ -132,13 +156,24 @@ async def import_file(
     async with session_maker() as session:
         repo = ImportJobRepository(session=session)
         existing = await repo.get_by_checksum(checksum)
+
+    since: datetime | None = None
     if existing is not None and not force:
-        logger.info("Skipping %s: checksum already imported", path)
-        return ImportResult(
-            file_path=path, skipped=True, lines_total=0, lines_skipped=0,
-            records_written=0, lines_after_cutoff=0, time_start=None, time_end=None,
-            duration_seconds=time.monotonic() - started,
-        )
+        if existing.cutoff is not None and before is not None and before < existing.cutoff:
+            raise ImportCutoffConflictError(
+                f"{path}: already imported up to {existing.cutoff.isoformat()}, so an "
+                "earlier --before can't take those rows back. --force imports the file "
+                "again from scratch, duplicating the rows already written."
+            )
+        if existing.cutoff is None or before == existing.cutoff:
+            logger.info("Skipping %s: checksum already imported", path)
+            return ImportResult(
+                file_path=path, skipped=True, lines_total=0, lines_skipped=0,
+                records_written=0, lines_after_cutoff=0, lines_already_imported=0,
+                time_start=None, time_end=None,
+                duration_seconds=time.monotonic() - started,
+            )
+        since = existing.cutoff
 
     _format_sanity_check(path, parser)
 
@@ -149,6 +184,7 @@ async def import_file(
     lines_skipped = 0
     records_written = 0
     lines_after_cutoff = 0
+    lines_already_imported = 0
     time_start: datetime | None = None
     time_end: datetime | None = None
 
@@ -163,6 +199,9 @@ async def import_file(
             continue
         if before is not None and record.timestamp is not None and record.timestamp >= before:
             lines_after_cutoff += 1
+            continue
+        if since is not None and (record.timestamp is None or record.timestamp < since):
+            lines_already_imported += 1
             continue
         batch.append(record)
 
@@ -187,13 +226,23 @@ async def import_file(
         # --force re-import: checksum is unique, so update the prior row —
         # re-fetched in this session rather than reusing the detached instance.
         job = await repo.get_by_checksum(checksum) if existing is not None else None
-        if job is not None:
+        if job is not None and since is not None:
+            # Resumed past the stored cutoff: the first run's ignored and
+            # unparseable lines were already counted in lines_skipped.
+            job.file_path = str(path)
+            job.records_written += records_written
+            job.time_start = _earliest(job.time_start, time_start)
+            job.time_end = _latest(job.time_end, time_end)
+            job.cutoff = before
+            await repo.update(job, auto_commit=True)
+        elif job is not None:
             job.file_path = str(path)
             job.lines_total = lines_total
             job.lines_skipped = lines_skipped
             job.records_written = records_written
             job.time_start = time_start
             job.time_end = time_end
+            job.cutoff = before
             await repo.update(job, auto_commit=True)
         else:
             await repo.add(
@@ -205,6 +254,7 @@ async def import_file(
                     records_written=records_written,
                     time_start=time_start,
                     time_end=time_end,
+                    cutoff=before,
                 ),
                 auto_commit=True,
             )
@@ -215,12 +265,15 @@ async def import_file(
         lines=lines_total,
         records=records_written,
         lines_after_cutoff=lines_after_cutoff,
+        lines_already_imported=lines_already_imported,
         before=before.isoformat() if before else None,
+        resumed_from=since.isoformat() if since else None,
     )
     return ImportResult(
         file_path=path, skipped=False, lines_total=lines_total,
         lines_skipped=lines_skipped, records_written=records_written,
         lines_after_cutoff=lines_after_cutoff,
+        lines_already_imported=lines_already_imported,
         time_start=time_start, time_end=time_end,
         duration_seconds=time.monotonic() - started,
     )

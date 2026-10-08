@@ -13,6 +13,10 @@ class ImportJob(base.BigIntAuditBase):
     checksum is the sha256 of the file content; re-importing a file with a
     known checksum is refused (unless --force). Note: a file that was also
     live-tailed will still double-count — documented limitation.
+
+    cutoff is the --before the file was imported with: lines stamped at or
+    after it were left out. NULL means the whole file was imported. A later
+    run with a later cutoff imports only the lines in between.
     """
 
     __tablename__ = "import_jobs"
@@ -25,3 +29,4 @@ class ImportJob(base.BigIntAuditBase):
     records_written: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
     time_start: Mapped[datetime | None] = mapped_column(DateTimeUTC(timezone=True), nullable=True)
     time_end: Mapped[datetime | None] = mapped_column(DateTimeUTC(timezone=True), nullable=True)
+    cutoff: Mapped[datetime | None] = mapped_column(DateTimeUTC(timezone=True), nullable=True)
