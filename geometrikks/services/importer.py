@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import gzip
 import hashlib
+import itertools
 import time
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass
@@ -92,17 +93,14 @@ def _format_sanity_check(path: Path, parser: LogParser, sample: int = FORMAT_CHE
     Every unmatched line becomes a malformed record, and _flush_batch writes a
     debug row per malformed record regardless of store_debug_lines — a
     wrong-format file would flood access_log_debug otherwise. Empty files pass.
+
+    The format is detected from the whole sample, so one near-miss first line
+    can't lock the file into geo-only parsing.
     """
-    checked = 0
-    for line in iter_lines(path):
-        if parser.validate_log_line(line):
-            return
-        checked += 1
-        if checked >= sample:
-            break
-    if checked:
+    sample_lines = list(itertools.islice(iter_lines(path), sample))
+    if sample_lines and not parser.lock_format_from(sample_lines):
         raise UnrecognizedLogFormatError(
-            f"{path}: none of the first {checked} lines match the expected log format"
+            f"{path}: none of the first {len(sample_lines)} lines match the expected log format"
         )
 
 

@@ -347,6 +347,29 @@ async def test_import_file_traefik_pinned_to_geometrikks_json_is_rejected(tmp_pa
     assert service.flush_records.await_count == 0
 
 
+async def test_import_file_detects_the_format_from_a_sample_not_the_first_line(tmp_path, geoip_reader, monkeypatch):
+    """A first line that only matches geo-only must not strip access logs from the rest."""
+    from geometrikks.services import importer
+
+    clf = '2.125.160.216 - frank [03/Aug/2024:13:14:17 +0200] "GET /a.gif HTTP/1.0" 200 2326'
+    log = tmp_path / "old.log"
+    log.write_text(clf + "\n" + make_log_line(TEST_IP) + "\n" + make_log_line(TEST_IP) + "\n")
+
+    service, FakeRepo, session_maker = _import_deps(tmp_path)
+    monkeypatch.setattr(importer, "ImportJobRepository", FakeRepo)
+
+    parser = LogParser(source_label=str(log), send_logs=True)
+    result = await importer.import_file(
+        log, service=service, parser=parser, reader=geoip_reader,
+        session_maker=session_maker,
+    )
+
+    assert parser.send_logs is True
+    assert result.records_written == 2
+    flushed = [r for call in service.flush_records.await_args_list for r in call.args[0]]
+    assert sum(1 for r in flushed if r.access_log is not None) == 2
+
+
 async def test_import_file_before_drops_lines_at_or_after_the_cutoff(tmp_path, geoip_reader, monkeypatch):
     """--before keeps an import from overlapping rows a newer log already wrote."""
     from datetime import datetime, timezone
