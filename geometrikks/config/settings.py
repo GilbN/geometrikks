@@ -356,8 +356,11 @@ class LogParserSettings(BaseSettings):
     @model_validator(mode="after")
     def validate_log_formats(self) -> "LogParserSettings":
         """Reject unknown format names and lengths that cannot map to log_paths."""
-        from geometrikks.services.logparser.formats import FORMATS
+        from geometrikks.services.logparser.formats import FORMATS, IMPORT_ONLY_FORMATS
 
+        for log_format in self.log_formats:
+            if log_format in IMPORT_ONLY_FORMATS:
+                raise ValueError(IMPORT_ONLY_FORMATS[log_format].live_tailing_message)
         allowed = {"auto", *FORMATS}
         unknown = [f for f in self.log_formats if f not in allowed]
         if unknown:

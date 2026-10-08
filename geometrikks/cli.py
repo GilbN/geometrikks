@@ -14,7 +14,7 @@ from pathlib import Path
 import click
 from litestar.plugins import CLIPlugin
 
-from geometrikks.services.logparser.formats import FORMATS
+from geometrikks.services.logparser.formats import IMPORT_FORMATS
 
 
 @click.command(name="import-logs")
@@ -31,7 +31,7 @@ from geometrikks.services.logparser.formats import FORMATS
     "log_format",
     default="auto",
     show_default=True,
-    type=click.Choice(["auto", *FORMATS]),
+    type=click.Choice(["auto", *IMPORT_FORMATS]),
     help="Log format of the given files (auto = detect per file).",
 )
 @click.option(
@@ -117,6 +117,7 @@ async def _run_import(
                 send_logs=settings.logparser.send_logs,
                 ignore_ips=settings.logparser.ignore_ips,
                 log_format=log_format,
+                formats=IMPORT_FORMATS,
             )
 
             def show_progress(lines: int, lps: float) -> None:

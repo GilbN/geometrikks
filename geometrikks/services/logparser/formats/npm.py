@@ -1,7 +1,7 @@
 """Adapter for Nginx Proxy Manager's built-in access log formats.
 
-NPM writes its own log formats and gives no per-host way to change them, so
-this adapter reads them as they are. Both are defined in NPM's
+Only import-logs uses it (``IMPORT_ONLY_FORMATS``), to backfill logs NPM
+wrote before a geometrikks-json log was set up. NPM defines both formats in
 ``docker/rootfs/etc/nginx/conf.d/include/log-proxy.conf``:
 
 - ``proxy``, which proxy hosts write to ``proxy-host-<id>_access.log``::

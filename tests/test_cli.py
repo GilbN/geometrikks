@@ -87,6 +87,28 @@ def test_import_logs_help_lists_hostname_option() -> None:
     assert "--hostname" in result.output
 
 
+def test_import_logs_accepts_import_only_format(tmp_path, monkeypatch) -> None:
+    import click
+
+    import geometrikks.cli as cli_module
+    from geometrikks.cli import ImportLogsCLIPlugin
+
+    run_import = AsyncMock()
+    monkeypatch.setattr(cli_module, "_run_import", run_import)
+
+    @click.group()
+    def cli() -> None: ...
+
+    ImportLogsCLIPlugin().on_cli_init(cli)
+    log = tmp_path / "proxy-host-1_access.log"
+    log.write_text("", encoding="utf-8")
+    result = CliRunner().invoke(cli, ["import-logs", "--format", "npm", str(log)])
+
+    assert result.exit_code == 0, result.output
+    assert run_import.await_args is not None
+    assert run_import.await_args.kwargs["log_format"] == "npm"
+
+
 def test_cli_plugin_registers_backfill_hostname() -> None:
     import click
     from geometrikks.cli import ImportLogsCLIPlugin

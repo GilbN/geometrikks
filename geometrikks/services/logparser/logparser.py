@@ -1,4 +1,4 @@
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from functools import lru_cache
 from ipaddress import ip_address as parse_ip_address, ip_network
 
@@ -8,7 +8,7 @@ from geohash2 import encode
 from IPy import IP
 
 from .constants import MONITORED_IP_TYPES
-from .formats import FORMATS, sniff_format
+from .formats import FORMATS, IMPORT_ONLY_FORMATS, sniff_format
 from .formats.base import LogLineFormat, NormalizedLine
 from .peer_window import PeerSummary, PeerWindow
 from .schemas import ParsedLogRecord, ParsedGeoData, ParsedAccessLog
@@ -127,6 +127,7 @@ class LogParser:
         ignore_ips: list[str] | None = None,
         log_format: str = "auto",
         peer_window: PeerWindow | None = None,
+        formats: Mapping[str, LogLineFormat] = FORMATS,
     ) -> None:
         """I'm here to parse ass and kick logs, and I'm all out of logs...
 
@@ -135,11 +136,14 @@ class LogParser:
                 path for a tailed file). Stamped onto records and log events.
             send_logs (bool, optional): If True, parse full access log data. Defaults to False.
             ignore_ips (list[str] | None, optional): IPs/CIDRs whose lines are dropped entirely. Defaults to None.
-            log_format (str, optional): A registry name from ``formats.FORMATS`` (e.g. "nginx"),
+            log_format (str, optional): A name from ``formats`` (e.g. "nginx"),
                 or "auto" to sniff the format from the first parseable line. Defaults to "auto".
             peer_window (PeerWindow | None, optional): Rolling classifier for
                 the logged peer address (client vs. proxy upstream vs. CDN
                 edge). None: peer classification off (APP_PROXY_ADVISORY=false).
+            formats (Mapping[str, LogLineFormat], optional): The registry
+                ``log_format`` and sniffing draw from. Defaults to the live
+                ``formats.FORMATS``; import-logs passes ``IMPORT_FORMATS``.
         """
         self.source_label: str = source_label
         self.send_logs: bool = send_logs
@@ -147,12 +151,14 @@ class LogParser:
         self._is_ignored: Callable[[str], bool] = make_cached_ignore_check(self.ignore_ips)
         self.peer_window: PeerWindow | None = peer_window
 
-        if log_format != "auto" and log_format not in FORMATS:
+        if log_format != "auto" and log_format not in formats:
             raise ValueError(f"Unknown log format: {log_format!r}")
+        self.formats: Mapping[str, LogLineFormat] = formats
         self.log_format_setting: str = log_format
         self.format: LogLineFormat | None = (
-            FORMATS[log_format] if log_format != "auto" else None
+            formats[log_format] if log_format != "auto" else None
         )
+        self._import_only_hint_logged: bool = False
 
         # Statistics
         self.parsed_lines: int = 0
@@ -191,7 +197,7 @@ class LogParser:
         """
         if self.format is not None:
             return
-        sniffed = sniff_format(lines)
+        sniffed = sniff_format(lines, self.formats)
         if sniffed is None:
             return
         self.format = sniffed.format
@@ -226,7 +232,28 @@ class LogParser:
                 logger.info("Log file format is valid!")
                 return True
         logger.debug("Testing log format")
+        self._hint_import_only(lines)
         return False
+
+    def _hint_import_only(self, lines: list[str]) -> None:
+        """Warn once when unparsed lines are in a format only import-logs reads."""
+        if self._import_only_hint_logged:
+            return
+        unavailable = {
+            name: import_only.adapter
+            for name, import_only in IMPORT_ONLY_FORMATS.items()
+            if name not in self.formats
+        }
+        sniffed = sniff_format(lines, unavailable)
+        if sniffed is None:
+            return
+        self._import_only_hint_logged = True
+        logger.warning(
+            "log_format_import_only",
+            path=self.source_label,
+            format=sniffed.format.name,
+            hint=IMPORT_ONLY_FORMATS[sniffed.format.name].live_tailing_message,
+        )
 
     def parse_line(
         self,
@@ -256,6 +283,7 @@ class LogParser:
         if norm is None:
             logger.debug("Skipping unmatched line: '%s'", raw_line)
             self.skipped_lines += 1
+            self._hint_import_only([line])
             return ParsedLogRecord(
                 ip_address=None,
                 geo_data=None,

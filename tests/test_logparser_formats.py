@@ -6,7 +6,7 @@ from datetime import datetime, timedelta, timezone
 import pytest
 
 from geometrikks.services.logparser.constants import ipv4_pattern, ipv6_pattern
-from geometrikks.services.logparser.formats import FORMATS, sniff_format
+from geometrikks.services.logparser.formats import FORMATS, IMPORT_FORMATS, sniff_format
 from geometrikks.services.logparser.formats.base import (
     VALID_HTTP_METHODS,
     detect_probe,
@@ -416,6 +416,10 @@ def test_npm_parse_bracketed_ipv6_forward_host() -> None:
     norm = NpmFormat().parse(line)
     assert norm is not None
     assert norm.user_agent == "Mozilla/5.0"
+    sniffed = sniff_format([line], IMPORT_FORMATS)
+    assert sniffed is not None
+    assert sniffed.format.name == "npm"
+    assert sniffed.geo_only is False
 
 
 @pytest.mark.parametrize(
@@ -504,6 +508,23 @@ def test_npm_unknown_token_method_is_identified() -> None:
 
     assert norm is not None
     assert fmt.detect_malformed(norm) == (True, "Invalid HTTP method: BOGUS-METHOD")
+
+
+def test_npm_is_import_only() -> None:
+    assert "npm" not in FORMATS
+    assert list(IMPORT_FORMATS) == [*FORMATS, "npm"]
+
+
+def test_sniff_format_ignores_npm_in_the_live_registry() -> None:
+    assert sniff_format([NPM_PROXY_LINE, NPM_STANDARD_LINE]) is None
+
+
+def test_sniff_format_npm_from_the_import_registry() -> None:
+    for line in (NPM_PROXY_LINE, NPM_STANDARD_LINE):
+        sniffed = sniff_format([NGINX_GARBAGE, line], IMPORT_FORMATS)
+        assert sniffed is not None
+        assert sniffed.format.name == "npm"
+        assert sniffed.geo_only is False
 
 
 def test_npm_lines_do_not_parse_as_nginx() -> None:
