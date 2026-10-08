@@ -10,6 +10,7 @@ from sqlalchemy import text
 
 from geometrikks.services.importer import import_file
 from geometrikks.services.ingestion.service import LogIngestionService
+from geometrikks.services.logparser.formats import IMPORT_FORMATS
 from geometrikks.services.logparser.logparser import LogParser
 
 import pytest
@@ -70,3 +71,42 @@ async def test_gz_import_lands_rows_and_records_job(tmp_path: Path, pg_session_m
     # Log-line timestamps, not wall clock (second-precision: %S drops microseconds)
     assert ts_bounds[0] == DAYS[0].replace(microsecond=0)
     assert ts_bounds[1] == DAYS[-1].replace(microsecond=0)
+
+
+def make_npm_line(ip: str, ts: datetime) -> str:
+    stamp = ts.strftime("%d/%b/%Y:%H:%M:%S %z")
+    return (
+        f'[{stamp}] - 200 200 - GET https npm.example.com "/index.php" '
+        f'[Client {ip}] [Length 1024] [Gzip -] [Sent-to app] "Mozilla/5.0" "-"'
+    )
+
+
+async def test_npm_import_stops_at_before(tmp_path: Path, pg_session_maker, clean_tables):
+    log = tmp_path / "proxy-host-1_access.log"
+    log.write_text("".join(make_npm_line(TEST_IP, ts) + "\n" for ts in DAYS))
+
+    service = LogIngestionService(
+        inputs=[], session_maker=pg_session_maker,
+        geoip_path=GEOIP_DB_PATH, locales=["en"],
+    )
+    parser = LogParser(source_label=str(log), send_logs=True, formats=IMPORT_FORMATS)
+
+    with Reader(GEOIP_DB_PATH) as reader:
+        result = await import_file(
+            log, service=service, parser=parser, reader=reader,
+            session_maker=pg_session_maker, before=DAYS[3].replace(microsecond=0),
+        )
+    assert result.records_written == 3
+    assert result.lines_after_cutoff == 2
+
+    async with pg_session_maker() as session:
+        rows = (await session.execute(text(
+            "SELECT log_format, host, request_time, COUNT(*), MAX(timestamp) "
+            "FROM access_logs GROUP BY log_format, host, request_time"
+        ))).all()
+        geo_events = (await session.execute(text("SELECT COUNT(*) FROM geo_events"))).scalar_one()
+    assert len(rows) == 1
+    log_format, host, request_time, count, newest = rows[0]
+    assert (log_format, host, request_time, count) == ("npm", "npm.example.com", None, 3)
+    assert newest == DAYS[2].replace(microsecond=0)
+    assert geo_events == 3
