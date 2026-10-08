@@ -4,16 +4,19 @@ NPM writes its own log formats and gives no per-host way to change them, so
 this adapter reads them as they are. Both are defined in NPM's
 ``docker/rootfs/etc/nginx/conf.d/include/log-proxy.conf``:
 
-- ``proxy`` (proxy hosts, ``proxy-host-<id>_access.log``, and the default
-  server's ``fallback_http_access.log``)::
+- ``proxy``, which proxy hosts write to ``proxy-host-<id>_access.log``::
 
     [$time_local] $upstream_cache_status $upstream_status $status -
     $request_method $scheme $host "$request_uri" [Client $remote_addr]
     [Length $body_bytes_sent] [Gzip $gzip_ratio] [Sent-to $server]
     "$http_user_agent" "$http_referer"
 
-- ``standard`` (redirection and 404 hosts): the same line without the two
-  upstream fields and ``[Sent-to ...]``.
+- ``standard``, for redirection and 404 hosts. It is the same line without
+  the two upstream fields and ``[Sent-to ...]``.
+
+``fallback_http_access.log`` holds both: NPM's default servers write
+``standard`` to it, and server blocks without their own ``access_log``
+inherit an http-level ``proxy`` log to the same file.
 
 ``$upstream_status`` is a list when nginx tried several upstreams
 (``502, 200`` or ``502 : 200``), so it may contain spaces. The format has no
@@ -27,24 +30,26 @@ import re
 from datetime import datetime
 from ipaddress import ip_address
 
-from .base import NormalizedLine, convert_dash_to_none, detect_probe
+from .base import VALID_HTTP_METHODS, NormalizedLine, convert_dash_to_none
 
 _TAIL = (
-    r'(?P<method>\S*) (?P<scheme>\S*) (?P<host>\S*) "(?P<uri>[^"]*)" '
+    r'(?P<method>\S*) \S+ (?P<host>\S*) "(?P<uri>[^"]*)" '
     r"\[Client (?P<ip>[^\]]+)\] \[Length (?P<length>[^\]]*)\] \[Gzip [^\]]*\]"
 )
 _PROXY = re.compile(
-    r"^\[(?P<time>[^\]]+)\] \S+ .+? (?P<status>\d{3}) - "
+    r"^\[(?P<time>[^\]]+)\] \S+ [-\d ,:]+? (?P<status>\d{3}) - "
     + _TAIL
-    + r' \[Sent-to [^\]]*\] "(?P<ua>[^"]*)" "(?P<referrer>[^"]*)"\s*$'
+    + r' \[Sent-to \S*\] "(?P<ua>[^"]*)" "(?P<referrer>[^"]*)"\s*$'
 )
 _STANDARD = re.compile(
     r"^\[(?P<time>[^\]]+)\] (?P<status>\d{3}) - "
     + _TAIL
     + r' "(?P<ua>[^"]*)" "(?P<referrer>[^"]*)"\s*$'
 )
-# ip + timestamp only (send_logs=False mode), shared by both formats.
-_GEO = re.compile(r"^\[(?P<time>[^\]]+)\] [^\[]*\[Client (?P<ip>[^\]]+)\]")
+# ip + timestamp only (send_logs=False mode), shared by both formats. Skips
+# to the quoted URI rather than to the next '[': the URI and an IPv6-literal
+# host can both contain brackets.
+_GEO = re.compile(r'^\[(?P<time>[^\]]+)\] [^"]*"[^"]*" \[Client (?P<ip>[^\]]+)\]')
 
 
 def _parse_timestamp(raw: str) -> datetime | None:
@@ -113,5 +118,9 @@ class NpmFormat:
         )
 
     def detect_malformed(self, norm: NormalizedLine) -> tuple[bool, str | None]:
-        """Probe classification from method and status; NPM logs no raw request line."""
-        return detect_probe(None, norm.method, norm.status_code)
+        """NPM logs no raw request line; only method validity applies."""
+        if norm.method is None:
+            return True, "No HTTP method in request"
+        if norm.method.upper() not in VALID_HTTP_METHODS:
+            return True, f"Invalid HTTP method: {norm.method}"
+        return False, None

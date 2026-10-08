@@ -317,7 +317,8 @@ def test_sniff_format_full_match_wins_over_earlier_geo_only_line() -> None:
 
 
 # Nginx Proxy Manager's 'proxy' format (proxy hosts) and 'standard' format
-# (redirection and 404 hosts), as defined in NPM's log-proxy.conf.
+# (redirection hosts, 404 hosts and the fallback log), as defined in NPM's
+# log-proxy.conf.
 NPM_PROXY_LINE = (
     '[07/Aug/2026:12:34:56 +0200] - 200 200 - GET https app.example.com '
     '"/api/items?page=2" [Client 203.0.113.7] [Length 1234] [Gzip 3.21] '
@@ -401,11 +402,39 @@ def test_npm_dash_fields_become_none() -> None:
 
 
 def test_npm_parse_geo_only() -> None:
-    for line in (NPM_PROXY_LINE, NPM_STANDARD_LINE):
+    for line, client_ip in ((NPM_PROXY_LINE, "203.0.113.7"), (NPM_STANDARD_LINE, "2001:db8::7")):
         norm = NpmFormat().parse(line, geo_only=True)
         assert norm is not None
+        assert norm.ip_address == client_ip
         assert norm.timestamp.tzinfo is not None
         assert norm.method is None
+
+
+def test_npm_parse_bracketed_ipv6_forward_host() -> None:
+    """NPM writes the forward host verbatim, and an IPv6 one needs brackets."""
+    line = NPM_PROXY_LINE.replace("[Sent-to app]", "[Sent-to [2001:db8::1]]")
+    norm = NpmFormat().parse(line)
+    assert norm is not None
+    assert norm.user_agent == "Mozilla/5.0"
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        pytest.param(
+            NPM_PROXY_LINE.replace("/api/items?page=2", "/api/items?filter[name]=x"),
+            id="brackets-in-uri",
+        ),
+        pytest.param(
+            NPM_PROXY_LINE.replace("app.example.com", "[2001:db8::1]"),
+            id="ipv6-literal-host",
+        ),
+    ],
+)
+def test_npm_geo_only_tolerates_brackets_before_client(line: str) -> None:
+    norm = NpmFormat().parse(line, geo_only=True)
+    assert norm is not None
+    assert norm.ip_address == "203.0.113.7"
 
 
 @pytest.mark.parametrize(
@@ -424,6 +453,10 @@ def test_npm_parse_geo_only() -> None:
         pytest.param(
             NPM_PROXY_LINE.replace(" [Sent-to app]", ""), id="proxy-without-sent-to"
         ),
+        pytest.param(
+            NPM_PROXY_LINE.replace("- 200 200 -", "cache garbage 999 200 -"),
+            id="text-in-upstream-status",
+        ),
     ],
 )
 def test_npm_parse_rejections(line: str) -> None:
@@ -437,10 +470,14 @@ def test_npm_detect_malformed_ok_line() -> None:
     assert fmt.detect_malformed(norm) == (False, None)
 
 
-def test_npm_detect_malformed_tls_probe() -> None:
-    """A TLS handshake on the HTTP port leaves no method; nginx answers 400."""
+def test_npm_detect_malformed_no_method() -> None:
+    """A line with no method can't be classified further without the request line.
+
+    A TLS handshake on the HTTP port is the usual cause, but NPM logs nothing
+    that tells it apart from other garbage, so no probe kind is claimed.
+    """
     line = (
-        '[07/Aug/2026:12:34:56 +0200] - - 400 - - http localhost "" '
+        '[07/Aug/2026:12:34:56 +0200] - - 400 - - http localhost "-" '
         '[Client 203.0.113.7] [Length 150] [Gzip -] [Sent-to -] "-" "-"'
     )
     fmt = NpmFormat()
@@ -448,7 +485,7 @@ def test_npm_detect_malformed_tls_probe() -> None:
     assert norm is not None
     assert norm.method is None
     assert norm.path is None
-    assert fmt.detect_malformed(norm) == (True, "TLS probe: HTTP request sent to HTTPS port")
+    assert fmt.detect_malformed(norm) == (True, "No HTTP method in request")
 
 
 @pytest.mark.parametrize("method", IANA_HTTP_METHODS)
