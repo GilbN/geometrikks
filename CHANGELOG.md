@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `import-logs` reads Nginx Proxy Manager's own per-host access logs with `--format npm`, and `--format auto` detects them. You can backfill the history from before you set up the JSON log. Imported NPM rows have no response times, protocol or remote user. Live tailing doesn't accept the format. `LOGPARSER_LOG_FORMATS=npm` fails at startup, and a tailed file in that format logs a warning that points to the JSON setup.
+- `import-logs --before` leaves out lines stamped at or after a given date or time, so an import can stop where an already ingested log begins.
+
 ### Fixed
 
 - The log file list in Settings no longer fails with a server error when GeoMetrikks lacks permission to a configured access log's directory. The file shows as not readable.
