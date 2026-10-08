@@ -30,7 +30,7 @@ import re
 from datetime import datetime
 from ipaddress import ip_address
 
-from .base import VALID_HTTP_METHODS, NormalizedLine, convert_dash_to_none
+from .base import NormalizedLine, classify_method, convert_dash_to_none
 
 _TAIL = (
     r'(?P<method>\S*) \S+ (?P<host>\S*) "(?P<uri>[^"]*)" '
@@ -119,8 +119,4 @@ class NpmFormat:
 
     def detect_malformed(self, norm: NormalizedLine) -> tuple[bool, str | None]:
         """NPM logs no raw request line; only method validity applies."""
-        if norm.method is None:
-            return True, "No HTTP method in request"
-        if norm.method.upper() not in VALID_HTTP_METHODS:
-            return True, f"Invalid HTTP method: {norm.method}"
-        return False, None
+        return classify_method(norm.method)
