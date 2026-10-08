@@ -142,6 +142,7 @@ async def _run_import(
     overall_start: datetime | None = None
     overall_end: datetime | None = None
     failed: list[Path] = []
+    refresh_failed: list[str] = []
     try:
         for path in paths:
             click.echo(f"Importing {path} ...")
@@ -204,20 +205,30 @@ async def _run_import(
 
         if overall_start and overall_end:
             click.echo(f"Refreshing continuous aggregates {overall_start} → {overall_end} ...")
-            await refresh_caggs_range(
+            refresh_failed = await refresh_caggs_range(
                 engine, start=overall_start, end=overall_end + timedelta(microseconds=1)
             )
-            click.echo("CAGGs refreshed.")
+            if not refresh_failed:
+                click.echo("CAGGs refreshed.")
     finally:
         await engine.dispose()
         reader.close()
         if asn_reader is not None:
             asn_reader.close()
 
+    problems: list[str] = []
     if failed:
-        raise click.ClickException(
+        problems.append(
             f"{len(failed)} file(s) not imported: " + ", ".join(str(p) for p in failed)
         )
+    if refresh_failed:
+        problems.append(
+            f"Rows were imported, but refreshing {', '.join(refresh_failed)} failed, so "
+            "analytics won't show the imported range in those views yet. The warnings "
+            "above give the reason."
+        )
+    if problems:
+        raise click.ClickException("\n".join(problems))
 
 
 @click.command(name="backfill-hostname")

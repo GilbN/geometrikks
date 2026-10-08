@@ -788,3 +788,52 @@ def test_import_logs_reports_an_earlier_cutoff_as_a_failed_file(tmp_path, monkey
     assert result.exit_code != 0
     assert "already imported up to X" in result.output
     assert "1 file(s) not imported" in result.output
+
+
+def test_import_logs_exits_nonzero_when_cagg_refresh_fails(tmp_path, monkeypatch) -> None:
+    from datetime import datetime, timezone
+    from pathlib import Path
+
+    import click
+
+    import geometrikks.config.settings as settings_module
+    import geometrikks.server.plugins as plugins_module
+    import geometrikks.server.timescale as timescale_module
+    import geometrikks.services.importer as importer_module
+    import geometrikks.services.ingestion.service as ingestion_module
+    from geometrikks.cli import ImportLogsCLIPlugin
+
+    log = tmp_path / "a.log"
+    log.write_text("", encoding="utf-8")
+
+    settings = MagicMock()
+    settings.geoip.asn_enabled = False
+    settings.logparser.resolved_hostnames.return_value = ["vps-1"]
+    monkeypatch.setattr(settings_module, "get_settings", lambda: settings)
+    engine = MagicMock()
+    engine.dispose = AsyncMock()
+    config = MagicMock()
+    config.get_engine.return_value = engine
+    monkeypatch.setattr(plugins_module, "get_sqlalchemy_config", lambda: config)
+    monkeypatch.setattr(ingestion_module, "create_reader", lambda *args, **kwargs: MagicMock())
+    monkeypatch.setattr(ingestion_module, "LogIngestionService", MagicMock())
+    monkeypatch.setattr(importer_module, "import_file", AsyncMock(return_value=SimpleNamespace(
+        file_path=Path(log), skipped=False, lines_total=1, lines_skipped=0,
+        records_written=1, lines_after_cutoff=0, lines_already_imported=0,
+        time_start=datetime(2026, 1, 5, 12, tzinfo=timezone.utc),
+        time_end=datetime(2026, 1, 5, 12, tzinfo=timezone.utc),
+        duration_seconds=1.0,
+    )))
+    monkeypatch.setattr(
+        timescale_module, "refresh_caggs_range", AsyncMock(return_value=["summary_daily_stats"])
+    )
+
+    @click.group()
+    def cli() -> None: ...
+
+    ImportLogsCLIPlugin().on_cli_init(cli)
+    result = CliRunner().invoke(cli, ["import-logs", str(log)])
+
+    assert result.exit_code != 0
+    assert "summary_daily_stats" in result.output
+    assert "CAGGs refreshed." not in result.output

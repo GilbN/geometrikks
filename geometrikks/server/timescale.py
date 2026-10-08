@@ -1506,6 +1506,34 @@ async def setup_timescaledb(
     logger.info("TimescaleDB setup complete")
 
 
+def whole_day_window(start: datetime, end: datetime) -> tuple[datetime, datetime]:
+    """Widen [start, end) to whole UTC days, the widest CAGG bucket.
+
+    refresh_continuous_aggregate only materializes buckets that lie wholly
+    inside the window, and raises "refresh window too small" when none does.
+    A backfill's first-to-last range rarely starts or ends on midnight.
+
+    Args:
+        start: Range start (inclusive), timezone-aware.
+        end: Range end (exclusive), timezone-aware.
+
+    Returns:
+        (start floored to UTC midnight, end raised to the next UTC midnight).
+    """
+    day_start = start.astimezone(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+    end_utc = end.astimezone(timezone.utc)
+    day_end = end_utc.replace(hour=0, minute=0, second=0, microsecond=0)
+    if day_end < end_utc:
+        day_end += timedelta(days=1)
+    return day_start, day_end
+
+
+def _open_bucket_start(cagg: str, now: datetime) -> datetime:
+    """Start of the cagg's bucket that contains now and is still filling."""
+    hour = now.astimezone(timezone.utc).replace(minute=0, second=0, microsecond=0)
+    return hour if cagg in HOURLY_CAGGS else hour.replace(hour=0)
+
+
 async def refresh_caggs_range(
     engine: AsyncEngine,
     *,
@@ -1513,6 +1541,7 @@ async def refresh_caggs_range(
     end: datetime,
     caggs: list[str] | None = None,
     force: bool = False,
+    now: datetime | None = None,
 ) -> list[str]:
     """Refresh CAGGs for a specific time range (used after historical imports).
 
@@ -1528,12 +1557,16 @@ async def refresh_caggs_range(
     Args:
         engine: Async engine (raw asyncpg connection is used: CALL cannot
             run inside a transaction block).
-        start: Range start (inclusive), timezone-aware.
-        end: Range end (exclusive), timezone-aware.
+        start: Range start (inclusive), timezone-aware. Widened to whole
+            UTC days, see ``whole_day_window``.
+        end: Range end (exclusive), timezone-aware. Widened likewise, then
+            capped per CAGG at its bucket that is still filling. A CAGG with
+            no complete bucket left in the window is skipped.
         caggs: Optional subset of CAGGs (defaults to all).
         force: Re-materialize buckets that are already up to date. Needed
             once after a column is added to an existing view, since a normal
             refresh skips buckets it considers current.
+        now: The current time; defaults to the clock.
 
     Returns:
         Names of CAGGs whose refresh failed; empty when all succeeded.
@@ -1545,9 +1578,17 @@ async def refresh_caggs_range(
     unknown = set(target_caggs) - set(ALL_CAGGS)
     if unknown:
         raise ValueError(f"Unknown CAGG name(s): {sorted(unknown)}")
+    start, end = whole_day_window(start, end)
+    now = now or datetime.now(timezone.utc)
 
     failed: list[str] = []
     for cagg in target_caggs:
+        # Materializing the open bucket moves the watermark past it, and
+        # real-time queries then miss its later rows until the policy
+        # refreshes it. Rows in it are already served in real time.
+        cagg_end = min(end, _open_bucket_start(cagg, now))
+        if cagg_end <= start:
+            continue
         # A background refresh-policy job on an overlapping window makes
         # refresh_continuous_aggregate raise "concurrent refresh"; without a
         # retry the range would silently stay stale until the next policy run
@@ -1563,15 +1604,15 @@ async def refresh_caggs_range(
                     await driver_conn.execute(
                         f"CALL refresh_continuous_aggregate('{cagg}', $1::timestamptz, $2::timestamptz{force_arg})",
                         start,
-                        end,
+                        cagg_end,
                     )
-                logger.info("CAGG refreshed: %s (%s → %s)", cagg, start, end)
+                logger.info("CAGG refreshed: %s (%s → %s)", cagg, start, cagg_end)
                 break
             except Exception as e:
                 if "concurrent refresh" in str(e) and attempt < 4:
                     await asyncio.sleep(0.5 * (attempt + 1))
                     continue
-                logger.warning("CAGG refresh failed: %s (%s → %s): %s", cagg, start, end, e)
+                logger.warning("CAGG refresh failed: %s (%s → %s): %s", cagg, start, cagg_end, e)
                 failed.append(cagg)
                 break
     return failed
