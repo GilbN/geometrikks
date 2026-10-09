@@ -354,6 +354,16 @@ def test_log_formats_unknown_value_rejected(monkeypatch) -> None:
         LogParserSettings()
 
 
+def test_log_formats_import_only_value_points_at_import_logs(monkeypatch) -> None:
+    """'npm' exists for import-logs only; the error says so instead of 'unknown'."""
+    monkeypatch.setenv("LOGPARSER_LOG_FORMATS", "npm")
+    with pytest.raises(ValidationError) as excinfo:
+        LogParserSettings()
+    message = str(excinfo.value)
+    assert "import-logs" in message
+    assert "geometrikks-json" in message
+
+
 def test_host_name_default_is_machine_hostname(monkeypatch) -> None:
     """No LOGPARSER_HOST_NAME set: the machine hostname applies to every path."""
     monkeypatch.delenv("LOGPARSER_HOST_NAME", raising=False)

@@ -3,9 +3,11 @@ from pathlib import Path
 from typing import Any, cast
 
 import pytest
+import structlog
 from geoip2.database import Reader
 
 from geometrikks.services.logparser.constants import ipv4_pattern, ipv6_pattern
+from geometrikks.services.logparser.formats import IMPORT_FORMATS
 from geometrikks.services.logparser.logparser import (
     LogParser,
     check_ip_type,
@@ -725,3 +727,86 @@ def test_parse_line_caddy_json_auto_detects(tmp_path: Path, geoip_reader: Reader
     assert record is not None and record.ip_address == "2.125.160.216"
     assert parser.format is not None and parser.format.name == "caddy-json"
     assert parser.send_logs is True
+
+
+def make_npm_line(ip: str) -> str:
+    """One line in Nginx Proxy Manager's 'proxy' log format."""
+    return (
+        f'[03/Aug/2024:13:14:17 +0200] - 200 200 - GET https npm.example.com '
+        f'"/index.php" [Client {ip}] [Length 1024] [Gzip -] [Sent-to app] '
+        f'"Mozilla/5.0" "-"\n'
+    )
+
+
+class TestImportOnlyFormats:
+    """Formats only import-logs may use, such as Nginx Proxy Manager's own."""
+
+    def test_live_parser_rejects_pinned_npm(self) -> None:
+        with pytest.raises(ValueError, match="npm"):
+            LogParser(source_label="proxy-host-1_access.log", log_format="npm")
+
+    def test_import_parser_parses_pinned_npm(self, geoip_reader: Reader) -> None:
+        ip = "2.125.160.216"  # present in the GeoLite2 test database
+        parser = LogParser(
+            source_label="proxy-host-1_access.log",
+            send_logs=True,
+            log_format="npm",
+            formats=IMPORT_FORMATS,
+        )
+        record = parser.parse_line(make_npm_line(ip), make_cached_city_lookup(geoip_reader))
+
+        assert record is not None
+        assert record.ip_address == ip
+        assert record.log_format == "npm"
+        assert record.geo_data is not None and record.geo_data.country_code == "GB"
+        assert record.access_log is not None
+        assert record.access_log.host == "npm.example.com"
+        assert record.access_log.request_time is None
+
+    def test_import_parser_auto_detects_npm(self, geoip_reader: Reader) -> None:
+        parser = LogParser(
+            source_label="proxy-host-1_access.log", send_logs=True, formats=IMPORT_FORMATS
+        )
+        record = parser.parse_line(
+            make_npm_line("2.125.160.216"), make_cached_city_lookup(geoip_reader)
+        )
+
+        assert record is not None and record.access_log is not None
+        assert parser.format is not None and parser.format.name == "npm"
+
+    def test_live_validation_names_the_import_only_format_once(self) -> None:
+        parser = LogParser(source_label="proxy-host-1_access.log", send_logs=True)
+        lines = [make_npm_line("2.125.160.216")] * 3
+
+        with structlog.testing.capture_logs() as logs:
+            assert parser.lock_format_from(lines) is False
+            assert parser.lock_format_from(lines) is False
+
+        hints = [log for log in logs if log["event"] == "log_format_import_only"]
+        assert len(hints) == 1
+        assert hints[0]["log_level"] == "warning"
+        assert hints[0]["path"] == "proxy-host-1_access.log"
+        assert hints[0]["format"] == "npm"
+        assert parser.format is None
+
+    def test_lines_arriving_after_startup_get_the_hint_once(self, geoip_reader: Reader) -> None:
+        """A file empty at startup never reaches lock_format_from with NPM lines."""
+        parser = LogParser(source_label="proxy-host-1_access.log", send_logs=True)
+        lookup = make_cached_city_lookup(geoip_reader)
+
+        with structlog.testing.capture_logs() as logs:
+            for _ in range(3):
+                record = parser.parse_line(make_npm_line("2.125.160.216"), lookup)
+                assert record is not None and record.ip_address is None
+
+        assert [log["format"] for log in logs if log["event"] == "log_format_import_only"] == ["npm"]
+
+    def test_live_validation_hint_also_fires_for_a_pinned_format(self) -> None:
+        parser = LogParser(
+            source_label="proxy-host-1_access.log", send_logs=True, log_format="nginx"
+        )
+
+        with structlog.testing.capture_logs() as logs:
+            assert parser.lock_format_from([make_npm_line("2.125.160.216")]) is False
+
+        assert [log["format"] for log in logs if log["event"] == "log_format_import_only"] == ["npm"]

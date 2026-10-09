@@ -345,3 +345,57 @@ async def test_import_file_traefik_pinned_to_geometrikks_json_is_rejected(tmp_pa
             session_maker=session_maker,
         )
     assert service.flush_records.await_count == 0
+
+
+async def test_import_file_before_drops_lines_at_or_after_the_cutoff(tmp_path, geoip_reader, monkeypatch):
+    """--before keeps an import from overlapping rows a newer log already wrote."""
+    from datetime import datetime, timezone
+
+    from geometrikks.services import importer
+
+    log = tmp_path / "old.log"
+    log.write_text("".join(make_log_line(TEST_IP, day=d) + "\n" for d in (1, 2, 3, 4)))
+
+    service, FakeRepo, session_maker = _import_deps(tmp_path)
+    monkeypatch.setattr(importer, "ImportJobRepository", FakeRepo)
+
+    parser = LogParser(source_label=str(log), send_logs=True)
+    # make_log_line stamps 13:14:17 +0200, so day 3's line is exactly the cutoff.
+    result = await importer.import_file(
+        log, service=service, parser=parser, reader=geoip_reader,
+        session_maker=session_maker,
+        before=datetime(2024, 8, 3, 11, 14, 17, tzinfo=timezone.utc),
+    )
+
+    assert result.lines_total == 4
+    assert result.lines_after_cutoff == 2
+    assert result.lines_skipped == 0
+    assert result.records_written == 2
+    flushed = [r for call in service.flush_records.await_args_list for r in call.args[0]]
+    assert len(flushed) == 2
+    assert result.time_start is not None and result.time_start.day == 1
+    assert result.time_end is not None and result.time_end.day == 2
+
+
+async def test_import_file_before_applies_to_lines_without_geo_data(tmp_path, geoip_reader, monkeypatch):
+    """A private client IP gets no geo data or access log, but its line is still dated."""
+    from datetime import datetime, timezone
+
+    from geometrikks.services import importer
+
+    log = tmp_path / "old.log"
+    log.write_text(make_log_line("10.0.0.1", day=1) + "\n" + make_log_line("10.0.0.1", day=5) + "\n")
+
+    service, FakeRepo, session_maker = _import_deps(tmp_path)
+    monkeypatch.setattr(importer, "ImportJobRepository", FakeRepo)
+
+    parser = LogParser(source_label=str(log), send_logs=True)
+    result = await importer.import_file(
+        log, service=service, parser=parser, reader=geoip_reader,
+        session_maker=session_maker,
+        before=datetime(2024, 8, 3, tzinfo=timezone.utc),
+    )
+
+    assert result.lines_after_cutoff == 1
+    flushed = [r for call in service.flush_records.await_args_list for r in call.args[0]]
+    assert [r.raw_line.split("[", 1)[1][:2] for r in flushed] == ["01"]

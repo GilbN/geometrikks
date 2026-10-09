@@ -138,6 +138,25 @@ def host_from_addr(addr: str) -> str:
     return addr
 
 
+def classify_method(method: str | None) -> tuple[bool, str | None]:
+    """(is_malformed, reason) from the HTTP method alone.
+
+    Formats that log no raw request line use this as their whole probe
+    check, and ``detect_probe`` ends with it.
+
+    Args:
+        method: Normalized HTTP method, None when absent.
+
+    Returns:
+        (is_malformed, reason) with reason None when the method is valid.
+    """
+    if method is None:
+        return True, "No HTTP method in request"
+    if method.upper() not in VALID_HTTP_METHODS:
+        return True, f"Invalid HTTP method: {method}"
+    return False, None
+
+
 def detect_probe(
     request_raw: str | None, method: str | None, status_code: int
 ) -> tuple[bool, str | None]:
@@ -188,11 +207,4 @@ def detect_probe(
     # TLS probe: No HTTP method and 400 status (client sent HTTP to HTTPS port)
     if method is None and status_code == 400:
         return True, "TLS probe: HTTP request sent to HTTPS port"
-    # Invalid HTTP method (connection closed before sending valid request)
-    if method is None:
-        return True, "No HTTP method in request"
-    # Check for non-standard/invalid HTTP methods
-    if method.upper() not in VALID_HTTP_METHODS:
-        return True, f"Invalid HTTP method: {method}"
-
-    return False, None
+    return classify_method(method)

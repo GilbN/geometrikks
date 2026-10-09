@@ -252,8 +252,9 @@ LOGPARSER_LOG_PATHS=["/var/log/access/access.log", "/var/log/access/somepage/acc
 
 Nginx Proxy Manager writes each proxy host's log in its own `proxy`
 format. That format has no request time, upstream time, protocol, remote
-user or raw request line, and GeoMetrikks does not parse it. NPM can write
-a second log next to its own, though, through its
+user or raw request line, so GeoMetrikks doesn't tail it live. Only
+`import-logs` reads it, and the end of this section covers that backfill.
+NPM can write a second log next to its own, though, through its
 [custom nginx configuration](https://nginxproxymanager.com/advanced-config/#custom-nginx-configurations)
 files. Point that second log at the JSON format above. NPM's own logs stay
 as they are.
@@ -331,6 +332,71 @@ What the log leaves out:
   realip lines from
   [docs/proxy-setup.md](docs/proxy-setup.md#nginx-proxy-manager) to the
   same `http_top.conf`.
+
+#### Importing NPM's existing logs
+
+[`import-logs`](#import-logs-backfill-history) reads NPM's own
+`proxy-host-<id>_access.log` files and their rotated copies.
+`LOGPARSER_LOG_FORMATS=npm` fails at startup, so these logs are for
+backfill only.
+
+NPM keeps writing its own logs after the JSON log is on, so every request
+since then is in both. Pass `--before` with the time GeoMetrikks started
+reading the JSON log, and the import stops there. If you started
+GeoMetrikks right after the reload in step 3, that is the first line of
+the oldest `geometrikks_access.log` file on disk:
+
+```bash
+ls data/logs/geometrikks_access.log*
+# open the highest-numbered one; zcat -f reads plain and .gz files
+zcat -f data/logs/geometrikks_access.log.2.gz | head -n 1
+# {"client_ip":"...","timestamp":"2026-10-01T14:03:12+02:00",...}
+```
+
+GeoMetrikks starts reading a log at its end, so it never ingested what
+the JSON log wrote before GeoMetrikks started. If GeoMetrikks started
+later, use the time of the oldest request on the Access Logs page instead,
+or those requests stay missing.
+
+Import the rotated `.gz` copies only:
+
+```bash
+docker compose exec -u geometrikks app sh -c \
+  'litestar import-logs --before 2026-10-01T14:03:12+02:00 /var/log/access/proxy-host-*_access.log.*.gz'
+```
+
+The `sh -c` makes the container expand the glob against its own paths.
+The current `proxy-host-<id>_access.log` is left out because it is still
+growing: after NPM rotates it, it comes back as `.1.gz` with a new
+checksum, and importing that would add its lines a second time. If the
+JSON log is less than a week old, the current files still hold requests
+from before the cutoff. Wait for NPM's next weekly rotation, then import.
+
+NPM's other access logs import the same way:
+
+- `redirection-host-<id>_access.log` for redirection hosts
+- `dead-host-<id>_access.log` for 404 hosts
+- `fallback_http_access.log` for requests that matched no host
+
+`default-host_access.log` is in nginx's `combined` format and imports as
+`nginx`, without host or timings.
+[Legacy nginx format](#legacy-nginx-format) lists what that format lacks.
+
+NPM rotates these logs weekly and keeps four compressed copies,
+`proxy-host-<id>_access.log.1.gz` to `.4.gz`. That puts about five weeks of
+history on disk, and each rotation deletes the oldest week. Import soon
+after turning on the JSON log.
+
+A later run skips the archives it already imported. NPM renumbers them but
+doesn't change their content, so their checksums stay the same. The
+checksum check ignores `--before`, though. A run with a different cutoff
+skips those files too, and `--force` imports all their lines again,
+duplicating the rows the first run wrote. Settle the cutoff before the
+first run.
+
+Imported NPM rows have no response time, upstream time, protocol or remote
+user. The map, host filter, status codes, URLs, referrers, user agents and
+bytes are unaffected.
 
 ## Traefik setup
 
@@ -1008,8 +1074,9 @@ Every command supports `--help`.
 ### import-logs: backfill history
 
 Live tailing only picks up lines written after the app starts. To backfill
-rotated or archived access logs (nginx, Traefik JSON or Caddy JSON, plain
-or gzip), use `import-logs`:
+rotated or archived access logs (nginx, Traefik JSON, Caddy JSON or
+[Nginx Proxy Manager](#nginx-proxy-manager)'s own format, plain or gzip),
+use `import-logs`:
 
 ```bash
 docker compose exec -u geometrikks app litestar import-logs /var/log/access/access.log.1.gz
@@ -1019,8 +1086,8 @@ It reuses the live ingestion pipeline (same parsing, GeoIP lookup and DB
 writes), uses the timestamps in each log line rather than wall-clock time,
 and refreshes the continuous aggregates for the imported range when done.
 The log format is auto-detected per file, as with live tailing; pass
-`--format geometrikks-json`, `--format nginx`, `--format traefik-json` or
-`--format caddy-json` to pin it. You can pass several
+`--format geometrikks-json`, `--format nginx`, `--format traefik-json`,
+`--format caddy-json` or `--format npm` to pin it. You can pass several
 files in one invocation. Paths are **container** paths, and the import runs
 as the non-root `geometrikks` user (`PUID`:`PGID`, default 1000:1000), so
 host files must be readable by it (`-u geometrikks` keeps `exec` from
@@ -1043,6 +1110,14 @@ docker compose run --rm app litestar import-logs /var/log/access/access.log.1.gz
   delete rows written by the earlier import.
 - A file that matches no supported log format is rejected up front, before
   anything is written.
+- `--before` takes a date or a datetime such as
+  `2026-10-01T14:03:12+02:00` and leaves out lines stamped at or after it.
+  The summary counts them. Use it when an archive overlaps a log
+  GeoMetrikks already ingested, for example when a proxy keeps writing its
+  own log next to the one GeoMetrikks tails. Without an offset the value is
+  UTC. The checksum check ignores the cutoff: a file imported once is
+  skipped on later runs whatever `--before` says, and `--force` imports all
+  of it again.
 - Without `--format`, the format is detected per file. If detection can only
   match the relaxed IP-and-timestamp pattern, the file imports as map events
   with no access-log rows. Pin the format (`--format geometrikks-json` or
@@ -1263,9 +1338,10 @@ Point `ACCESS_LOG_DIR` at the host directory where the proxy container
 writes its access logs (for Nginx Proxy Manager this is usually its
 `data/logs` volume), and set `LOGPARSER_LOG_PATHS` to the specific
 access-log file(s) inside it, using the *container* path
-(`/var/log/access/...`), not the host path. NPM's own per-host logs don't
-parse; set up the extra JSON log described under
-[Nginx Proxy Manager](#nginx-proxy-manager) and point at that.
+(`/var/log/access/...`), not the host path. GeoMetrikks doesn't tail NPM's
+own per-host logs; set up the extra JSON log described under
+[Nginx Proxy Manager](#nginx-proxy-manager) and point at that. `import-logs`
+can backfill the old per-host logs.
 
 **Permission denied reading my log files?**
 The app container runs as `PUID`:`PGID` (default 1000:1000), and log mounts

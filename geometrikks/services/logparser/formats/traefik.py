@@ -17,7 +17,7 @@ import json
 from datetime import datetime
 from typing import Any
 
-from .base import NormalizedLine, VALID_HTTP_METHODS, convert_dash_to_none, host_from_addr
+from .base import NormalizedLine, classify_method, convert_dash_to_none, host_from_addr
 
 
 def _parse_timestamp(data: dict[str, Any]) -> datetime | None:
@@ -109,8 +109,4 @@ class TraefikJsonFormat:
 
     def detect_malformed(self, norm: NormalizedLine) -> tuple[bool, str | None]:
         """Traefik never logs raw probe garbage; only method validity applies."""
-        if norm.method is None:
-            return True, "No HTTP method in request"
-        if norm.method.upper() not in VALID_HTTP_METHODS:
-            return True, f"Invalid HTTP method: {norm.method}"
-        return False, None
+        return classify_method(norm.method)
