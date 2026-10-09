@@ -36,6 +36,7 @@ SWAP_REVISION = "59dc39684c1f"
 CAGG_REFRESH_REVISION = "5f1c8a7d24b3"
 METHOD_WIDTH_REVISION = "8b7884d1daaf"
 GEO_ASN_REVISION = "e7a1c3b5d904"
+IMPORT_CUTOFF_REVISION = "5c2e9a71d3f4"
 VERSIONS_DIR = REPO_ROOT / "migrations" / "versions"
 
 
@@ -93,6 +94,17 @@ def test_geo_event_asn_revision_is_rerun_safe() -> None:
     assert "CREATE INDEX IF NOT EXISTS ix_geo_events_asn" in source
     assert "timescaledb.transaction_per_chunk" in source
     assert "DROP MATERIALIZED VIEW IF EXISTS ip_location_hourly_stats CASCADE" in source
+
+
+def test_import_cutoff_revision_follows_previous_head() -> None:
+    revision = _script_directory().get_revision(IMPORT_CUTOFF_REVISION)
+    assert revision.down_revision == GEO_ASN_REVISION
+
+
+def test_import_cutoff_revision_is_rerun_safe() -> None:
+    source = _revision_source(IMPORT_CUTOFF_REVISION)
+    assert "ADD COLUMN IF NOT EXISTS cutoff TIMESTAMPTZ" in source
+    assert "DROP COLUMN IF EXISTS cutoff" in source
 
 
 def test_revisions_parse_and_chain() -> None:

@@ -388,11 +388,11 @@ history on disk, and each rotation deletes the oldest week. Import soon
 after turning on the JSON log.
 
 A later run skips the archives it already imported. NPM renumbers them but
-doesn't change their content, so their checksums stay the same. The
-checksum check ignores `--before`, though. A run with a different cutoff
-skips those files too, and `--force` imports all their lines again,
-duplicating the rows the first run wrote. Settle the cutoff before the
-first run.
+doesn't change their content, so their checksums stay the same. If the
+cutoff turns out to be too early, run the same command with the later one.
+GeoMetrikks stores each file's cutoff and imports only the lines in
+between. An earlier cutoff is refused, because the rows past it are already
+written.
 
 Imported NPM rows have no response time, upstream time, protocol or remote
 user. The map, host filter, status codes, URLs, referrers, user agents and
@@ -1115,9 +1115,11 @@ docker compose run --rm app litestar import-logs /var/log/access/access.log.1.gz
   The summary counts them. Use it when an archive overlaps a log
   GeoMetrikks already ingested, for example when a proxy keeps writing its
   own log next to the one GeoMetrikks tails. Without an offset the value is
-  UTC. The checksum check ignores the cutoff: a file imported once is
-  skipped on later runs whatever `--before` says, and `--force` imports all
-  of it again.
+  UTC. The cutoff is stored with the file's checksum. Running the same file
+  again with a later `--before` imports only the lines between the two
+  cutoffs, and without `--before` the lines from the old cutoff on. An
+  earlier `--before` is refused. `--force` ignores the stored cutoff and
+  imports the whole file again.
 - Without `--format`, the format is detected per file. If detection can only
   match the relaxed IP-and-timestamp pattern, the file imports as map events
   with no access-log rows. Pin the format (`--format geometrikks-json` or

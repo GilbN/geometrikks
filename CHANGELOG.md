@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - `import-logs` reads Nginx Proxy Manager's own per-host access logs with `--format npm`, and `--format auto` detects them. You can backfill the history from before you set up the JSON log. Imported NPM rows have no response times, protocol or remote user. Live tailing doesn't accept the format. `LOGPARSER_LOG_FORMATS=npm` fails at startup, and a tailed file in that format logs a warning that points to the JSON setup.
-- `import-logs --before` leaves out lines stamped at or after a given date or time, so an import can stop where an already ingested log begins.
+- `import-logs --before` leaves out lines stamped at or after a given date or time, so an import can stop where an already ingested log begins. Running a file again with a later `--before`, or none, imports only the lines in between.
 
 ### Fixed
 
