@@ -111,7 +111,7 @@ async def test_import_file_skips_known_checksum(tmp_path, geoip_reader, monkeypa
 
     class SeenRepo(FakeRepo):
         async def get_by_checksum(self, checksum):
-            return MagicMock()  # a prior ImportJob exists
+            return MagicMock(cutoff=None)  # a prior ImportJob exists
 
     monkeypatch.setattr(importer, "ImportJobRepository", SeenRepo)
     parser = LogParser(source_label=str(log), send_logs=True)
@@ -399,3 +399,179 @@ async def test_import_file_before_applies_to_lines_without_geo_data(tmp_path, ge
     assert result.lines_after_cutoff == 1
     flushed = [r for call in service.flush_records.await_args_list for r in call.args[0]]
     assert [r.raw_line.split("[", 1)[1][:2] for r in flushed] == ["01"]
+
+
+# make_log_line stamps 13:14:17 +0200, which is 11:14:17 UTC on that day.
+def _utc_day(day: int):
+    from datetime import datetime, timezone
+
+    return datetime(2024, 8, day, 11, 14, 17, tzinfo=timezone.utc)
+
+
+def _deps_with_prior_job(tmp_path, prior_job):
+    """Fake wiring whose repo returns prior_job and records what gets written."""
+    service, FakeRepo, session_maker = _import_deps(tmp_path)
+    written: dict = {}
+
+    class PriorRepo(FakeRepo):
+        async def get_by_checksum(self, checksum):
+            return prior_job
+
+        async def add(self, job, auto_commit=True):
+            written["added"] = job
+            return job
+
+        async def update(self, job, auto_commit=True):
+            written["updated"] = job
+            return job
+
+    return service, PriorRepo, session_maker, written
+
+
+def _cutoff_log(tmp_path):
+    """Days 1-4 plus one unparseable line, which carries no timestamp."""
+    log = tmp_path / "old.log"
+    log.write_text(
+        "".join(make_log_line(TEST_IP, day=d) + "\n" for d in (1, 2, 3, 4)) + "not a log line\n"
+    )
+    return log
+
+
+def _flushed_days(service) -> list[int]:
+    return sorted(
+        r.timestamp.day
+        for call in service.flush_records.await_args_list
+        for r in call.args[0]
+        if r.timestamp is not None
+    )
+
+
+async def test_import_file_records_the_cutoff_on_a_new_job(tmp_path, geoip_reader, monkeypatch):
+    from geometrikks.services import importer
+
+    log = _cutoff_log(tmp_path)
+    service, Repo, session_maker, written = _deps_with_prior_job(tmp_path, None)
+    monkeypatch.setattr(importer, "ImportJobRepository", Repo)
+
+    await importer.import_file(
+        log, service=service, parser=LogParser(source_label=str(log), send_logs=True),
+        reader=geoip_reader, session_maker=session_maker, before=_utc_day(3),
+    )
+
+    assert written["added"].cutoff == _utc_day(3)
+
+
+@pytest.mark.parametrize(
+    ("prior_cutoff_day", "before_day"),
+    [
+        pytest.param(3, 3, id="same-cutoff"),
+        pytest.param(None, 3, id="whole-file-already-imported"),
+        pytest.param(None, None, id="whole-file-imported-twice"),
+    ],
+)
+async def test_import_file_skips_when_nothing_new_is_in_range(
+    tmp_path, geoip_reader, monkeypatch, prior_cutoff_day, before_day
+):
+    from geometrikks.services import importer
+
+    log = _cutoff_log(tmp_path)
+    prior_job = MagicMock(cutoff=_utc_day(prior_cutoff_day) if prior_cutoff_day else None)
+    service, Repo, session_maker, written = _deps_with_prior_job(tmp_path, prior_job)
+    monkeypatch.setattr(importer, "ImportJobRepository", Repo)
+
+    result = await importer.import_file(
+        log, service=service, parser=LogParser(source_label=str(log), send_logs=True),
+        reader=geoip_reader, session_maker=session_maker,
+        before=_utc_day(before_day) if before_day else None,
+    )
+
+    assert result.skipped is True
+    assert service.flush_records.await_count == 0
+    assert written == {}
+
+
+async def test_import_file_later_cutoff_imports_only_the_gap(tmp_path, geoip_reader, monkeypatch):
+    """Lines before the stored cutoff, and lines with no timestamp, were written last time."""
+    from geometrikks.services import importer
+
+    log = _cutoff_log(tmp_path)
+    prior_job = MagicMock(
+        cutoff=_utc_day(2), records_written=1, lines_skipped=1,
+        time_start=_utc_day(1), time_end=_utc_day(1),
+    )
+    service, Repo, session_maker, written = _deps_with_prior_job(tmp_path, prior_job)
+    monkeypatch.setattr(importer, "ImportJobRepository", Repo)
+
+    result = await importer.import_file(
+        log, service=service, parser=LogParser(source_label=str(log), send_logs=True),
+        reader=geoip_reader, session_maker=session_maker, before=_utc_day(4),
+    )
+
+    assert result.skipped is False
+    assert _flushed_days(service) == [2, 3]
+    assert sum(len(call.args[0]) for call in service.flush_records.await_args_list) == 2
+    assert result.records_written == 2
+    assert result.lines_already_imported == 2
+    assert result.lines_after_cutoff == 1
+    job = written["updated"]
+    assert job.cutoff == _utc_day(4)
+    assert job.records_written == 3
+    assert job.lines_skipped == 1
+    assert job.time_start == _utc_day(1)
+    assert job.time_end == _utc_day(3)
+
+
+async def test_import_file_dropping_the_cutoff_imports_the_rest(tmp_path, geoip_reader, monkeypatch):
+    from geometrikks.services import importer
+
+    log = _cutoff_log(tmp_path)
+    prior_job = MagicMock(
+        cutoff=_utc_day(3), records_written=2, lines_skipped=1,
+        time_start=_utc_day(1), time_end=_utc_day(2),
+    )
+    service, Repo, session_maker, written = _deps_with_prior_job(tmp_path, prior_job)
+    monkeypatch.setattr(importer, "ImportJobRepository", Repo)
+
+    await importer.import_file(
+        log, service=service, parser=LogParser(source_label=str(log), send_logs=True),
+        reader=geoip_reader, session_maker=session_maker,
+    )
+
+    assert _flushed_days(service) == [3, 4]
+    assert written["updated"].cutoff is None
+    assert written["updated"].records_written == 4
+
+
+async def test_import_file_refuses_an_earlier_cutoff(tmp_path, geoip_reader, monkeypatch):
+    from geometrikks.services import importer
+
+    log = _cutoff_log(tmp_path)
+    prior_job = MagicMock(cutoff=_utc_day(3))
+    service, Repo, session_maker, written = _deps_with_prior_job(tmp_path, prior_job)
+    monkeypatch.setattr(importer, "ImportJobRepository", Repo)
+
+    with pytest.raises(importer.ImportCutoffConflictError, match="--force"):
+        await importer.import_file(
+            log, service=service, parser=LogParser(source_label=str(log), send_logs=True),
+            reader=geoip_reader, session_maker=session_maker, before=_utc_day(2),
+        )
+    assert service.flush_records.await_count == 0
+    assert written == {}
+
+
+async def test_import_file_force_ignores_the_stored_cutoff(tmp_path, geoip_reader, monkeypatch):
+    from geometrikks.services import importer
+
+    log = _cutoff_log(tmp_path)
+    prior_job = MagicMock(cutoff=_utc_day(3))
+    service, Repo, session_maker, written = _deps_with_prior_job(tmp_path, prior_job)
+    monkeypatch.setattr(importer, "ImportJobRepository", Repo)
+
+    result = await importer.import_file(
+        log, service=service, parser=LogParser(source_label=str(log), send_logs=True),
+        reader=geoip_reader, session_maker=session_maker, before=_utc_day(2), force=True,
+    )
+
+    assert _flushed_days(service) == [1]
+    assert result.lines_already_imported == 0
+    assert written["updated"].cutoff == _utc_day(2)

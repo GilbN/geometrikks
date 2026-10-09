@@ -750,3 +750,41 @@ def test_geo_hostname_backfill_options(monkeypatch) -> None:
     result = CliRunner().invoke(module.backfill_geo_hostnames_command, ["--yes"])
     assert result.exit_code == 0, result.output
     run.assert_awaited_once_with(yes=True)
+
+
+def test_import_logs_reports_an_earlier_cutoff_as_a_failed_file(tmp_path, monkeypatch) -> None:
+    import click
+
+    import geometrikks.config.settings as settings_module
+    import geometrikks.server.plugins as plugins_module
+    import geometrikks.services.importer as importer_module
+    import geometrikks.services.ingestion.service as ingestion_module
+    from geometrikks.cli import ImportLogsCLIPlugin
+
+    log = tmp_path / "proxy-host-1_access.log.2.gz"
+    log.write_text("", encoding="utf-8")
+
+    settings = MagicMock()
+    settings.geoip.asn_enabled = False
+    settings.logparser.resolved_hostnames.return_value = ["vps-1"]
+    monkeypatch.setattr(settings_module, "get_settings", lambda: settings)
+    engine = MagicMock()
+    engine.dispose = AsyncMock()
+    config = MagicMock()
+    config.get_engine.return_value = engine
+    monkeypatch.setattr(plugins_module, "get_sqlalchemy_config", lambda: config)
+    monkeypatch.setattr(ingestion_module, "create_reader", lambda *args, **kwargs: MagicMock())
+    monkeypatch.setattr(ingestion_module, "LogIngestionService", MagicMock())
+    monkeypatch.setattr(importer_module, "import_file", AsyncMock(
+        side_effect=importer_module.ImportCutoffConflictError(f"{log}: already imported up to X")
+    ))
+
+    @click.group()
+    def cli() -> None: ...
+
+    ImportLogsCLIPlugin().on_cli_init(cli)
+    result = CliRunner().invoke(cli, ["import-logs", "--before", "2026-10-01", str(log)])
+
+    assert result.exit_code != 0
+    assert "already imported up to X" in result.output
+    assert "1 file(s) not imported" in result.output

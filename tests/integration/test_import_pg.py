@@ -110,3 +110,33 @@ async def test_npm_import_stops_at_before(tmp_path: Path, pg_session_maker, clea
     assert (log_format, host, request_time, count) == ("npm", "npm.example.com", None, 3)
     assert newest == DAYS[2].replace(microsecond=0)
     assert geo_events == 3
+
+
+async def test_later_cutoffs_import_each_line_once(tmp_path: Path, pg_session_maker, clean_tables):
+    gz_file = tmp_path / "access.log.2.gz"
+    with gzip.open(gz_file, "wt") as f:
+        for ts in DAYS:
+            f.write(make_log_line(TEST_IP, ts) + "\n")
+
+    service = LogIngestionService(
+        inputs=[], session_maker=pg_session_maker,
+        geoip_path=GEOIP_DB_PATH, locales=["en"],
+    )
+    written = []
+    with Reader(GEOIP_DB_PATH) as reader:
+        for before in (DAYS[2].replace(microsecond=0), DAYS[4].replace(microsecond=0), None):
+            result = await import_file(
+                gz_file, service=service,
+                parser=LogParser(source_label=str(gz_file), send_logs=True),
+                reader=reader, session_maker=pg_session_maker, before=before,
+            )
+            written.append(result.records_written)
+
+    assert written == [2, 2, 1]
+    async with pg_session_maker() as session:
+        logs = (await session.execute(text("SELECT COUNT(*) FROM access_logs"))).scalar_one()
+        job = (await session.execute(text(
+            "SELECT records_written, cutoff FROM import_jobs"
+        ))).one()
+    assert logs == 5
+    assert tuple(job) == (5, None)
