@@ -140,3 +140,52 @@ async def test_later_cutoffs_import_each_line_once(tmp_path: Path, pg_session_ma
         ))).one()
     assert logs == 5
     assert tuple(job) == (5, None)
+
+
+async def test_refresh_after_import_materializes_partial_days(
+    tmp_path: Path, pg_engine, pg_session_maker, clean_tables
+):
+    """An import inside one day still lands in that day's bucket.
+
+    refresh_continuous_aggregate only materializes buckets that lie wholly
+    inside its window, and an import's first-to-last range rarely spans a
+    whole day.
+    """
+    from geometrikks.server.timescale import refresh_caggs_range
+
+    midday = (datetime.now(timezone.utc) - timedelta(days=3)).replace(
+        hour=12, minute=34, second=0, microsecond=0
+    )
+    log = tmp_path / "access.log.1"
+    log.write_text(
+        make_log_line(TEST_IP, midday) + "\n"
+        + make_log_line(TEST_IP, midday + timedelta(minutes=6)) + "\n"
+    )
+    service = LogIngestionService(
+        inputs=[], session_maker=pg_session_maker,
+        geoip_path=GEOIP_DB_PATH, locales=["en"],
+    )
+    parser = LogParser(source_label=str(log), send_logs=True)
+    with Reader(GEOIP_DB_PATH) as reader:
+        result = await import_file(
+            log, service=service, parser=parser, reader=reader,
+            session_maker=pg_session_maker,
+        )
+    assert result.time_start is not None and result.time_end is not None
+
+    failed = await refresh_caggs_range(
+        pg_engine, start=result.time_start, end=result.time_end + timedelta(microseconds=1),
+        caggs=["summary_daily_stats", "summary_hourly_stats"],
+    )
+    assert failed == []
+
+    async with pg_engine.connect() as conn:
+        for view in ("summary_daily_stats", "summary_hourly_stats"):
+            schema, table = (await conn.execute(text(
+                "SELECT materialization_hypertable_schema, materialization_hypertable_name "
+                "FROM timescaledb_information.continuous_aggregates WHERE view_name = :view"
+            ), {"view": view})).one()
+            materialized = (await conn.execute(
+                text(f'SELECT COUNT(*) FROM "{schema}"."{table}"')
+            )).scalar_one()
+            assert materialized == 1, view
