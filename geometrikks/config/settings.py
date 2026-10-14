@@ -545,7 +545,21 @@ class LokiSettings(BaseSettings):
             raise ValueError(f"LOKI_URL is not a valid URL: {value!r}") from exc
         if parts.scheme not in ("http", "https") or not parts.hostname:
             raise ValueError(f"LOKI_URL must be an absolute http(s) URL, got {value!r}")
+        # urlsplit checks the port only when it is read, and httpx2 would then
+        # raise InvalidURL at the first request.
+        try:
+            parts.port
+        except ValueError as exc:
+            raise ValueError("LOKI_URL has an invalid port") from exc
         return value.rstrip("/")
+
+    @field_validator("tenant_id")
+    @classmethod
+    def validate_tenant_id(cls, value: str | None) -> str | None:
+        """Reject what cannot be sent as an HTTP header value."""
+        if value is not None and not value.isascii():
+            raise ValueError("LOKI_TENANT_ID must be ASCII")
+        return value
 
     @field_validator("queries")
     @classmethod

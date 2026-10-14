@@ -90,8 +90,10 @@ def _parse_entries(payload: object) -> list[Entry]:
             ):
                 raise LokiRejected("entry is not a [timestamp, line] pair")
             timestamp = value[0]
-            if not (timestamp.isascii() and timestamp.isdigit()):
-                raise LokiRejected(f"timestamp {timestamp!r} is not a non-negative integer")
+            # At most 19 digits: an int64 of nanoseconds. A longer run would
+            # also trip CPython's int-conversion length limit with a ValueError.
+            if not (timestamp.isascii() and timestamp.isdigit() and len(timestamp) <= 19):
+                raise LokiRejected(f"timestamp {timestamp[:40]!r} is not a non-negative int64")
             entries.append((int(timestamp), key, value[1]))
     entries.sort()
     return entries

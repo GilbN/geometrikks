@@ -231,6 +231,15 @@ async def test_url_path_prefix_is_kept(fake: FakeLoki, clock: list[int]) -> None
             id="negative-timestamp",
         ),
         pytest.param(
+            lambda fake: setattr(
+                fake,
+                "payload",
+                streams_payload([{"stream": {"job": "nginx"}, "values": [["1" * 20, "line"]]}]),
+            ),
+            "rejected",
+            id="oversized-timestamp",
+        ),
+        pytest.param(
             lambda fake: setattr(fake, "payload", {"status": "error", "data": {}}),
             "rejected",
             id="status-error",
@@ -252,9 +261,30 @@ async def test_failures_are_recorded_in_status(
 
 async def test_a_redirect_is_rejected_and_never_followed(fake: FakeLoki, clock: list[int]) -> None:
     """With follow_redirects on, the fake would see a second request for
-    elsewhere.example carrying the Authorization header."""
+    elsewhere.example. With it off the fake sees exactly one request and the
+    source is rejected."""
     fake.fail_next.append(302)
     source = make_source(fake, username="reader", password="s3cret")
     assert await source.recent_lines(3) == []
     assert source.status() == SourceStatus(available=False, reason="rejected")
     assert [request.url.host for request in fake.requests] == ["loki"]
+
+
+async def test_status_changes_are_logged_once(fake: FakeLoki, clock: list[int]) -> None:
+    fake.fail_next.extend([500, 500])
+    source = make_source(fake)
+    with capture_logs() as logs:
+        await source.recent_lines(3)
+        await source.recent_lines(3)
+        assert [log["event"] for log in logs] == ["loki_source_unreachable"]
+        await source.recent_lines(3)
+    assert [log["event"] for log in logs] == ["loki_source_unreachable", "loki_source_available"]
+    assert source.status() == SourceStatus(available=True)
+
+
+async def test_recent_lines_orders_entries_across_streams(fake: FakeLoki, clock: list[int]) -> None:
+    fake.add(1001, "a-early", {"job": "nginx", "host": "a"})
+    fake.add(1002, "b-middle", {"job": "nginx", "host": "b"})
+    fake.add(1003, "a-late", {"job": "nginx", "host": "a"})
+    source = make_source(fake)
+    assert await source.recent_lines(3) == ["a-early", "b-middle", "a-late"]

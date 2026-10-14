@@ -105,6 +105,16 @@ def test_trailing_slash_is_stripped_from_the_url() -> None:
             id="url-without-scheme",
         ),
         pytest.param(
+            {"url": "http://loki:bad", "queries": [QUERY_A]},
+            "LOKI_URL has an invalid port",
+            id="url-invalid-port",
+        ),
+        pytest.param(
+            {"url": URL, "queries": [QUERY_A], "tenant_id": "café"},
+            "LOKI_TENANT_ID must be ASCII",
+            id="non-ascii-tenant-id",
+        ),
+        pytest.param(
             {"url": URL, "queries": [QUERY_A], "poll_interval": 0},
             "greater than 0",
             id="zero-poll-interval",
