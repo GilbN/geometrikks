@@ -238,3 +238,100 @@ class LokiSource:
         # it stopped, and format validation trusts it.
         self._mark(None)
         return [line for _, _, line in entries]
+
+    async def _pages(
+        self,
+        client: httpx2.AsyncClient,
+        start_ns: int,
+        end_ns: int,
+        stop: asyncio.Event,
+    ) -> AsyncGenerator[list[Entry], None]:
+        """Pages of entries stamped in [start_ns, end_ns), oldest first.
+
+        Loki's ``start`` is inclusive, so each page after the first is asked
+        from the previous page's last timestamp and the caller's dedup drops
+        the overlap. A short page, a cursor at or past ``end_ns`` or a stop
+        request ends the poll. The first request always goes out, even when
+        the window is empty, so an idle source still proves Loki answers.
+
+        Raises:
+            httpx2.HTTPError, LokiRejected: as ``_request``.
+        """
+        cursor = start_ns
+        warned = False
+        while True:
+            page = await self._request(
+                client,
+                {
+                    "query": self.query,
+                    "start": str(cursor),
+                    "end": str(end_ns),
+                    "limit": str(PAGE_LIMIT),
+                    "direction": "forward",
+                },
+            )
+            yield page
+            if len(page) < PAGE_LIMIT or stop.is_set():
+                return
+            last = page[-1][0]
+            if page[0][0] != last:
+                cursor = last
+            else:
+                # A whole page at one nanosecond cannot be paged: query_range
+                # has no cursor inside a timestamp. Step past it; the rest of
+                # that nanosecond is lost.
+                if not warned:
+                    logger.warning(
+                        "More than %d lines in %s share the timestamp %s; those past the "
+                        "first %d were skipped. This happens when the log pipeline sets "
+                        "the entry timestamp from a line with second precision. Remove "
+                        "that stage so Loki stamps lines when they are received (see "
+                        "README, Reading from Loki).",
+                        PAGE_LIMIT,
+                        self.query,
+                        datetime.fromtimestamp(last / NS, tz=timezone.utc).isoformat(),
+                        PAGE_LIMIT,
+                    )
+                    warned = True
+                cursor = last + 1
+            if cursor >= end_ns:
+                return
+
+    async def lines(self, stop: asyncio.Event) -> AsyncGenerator[str, None]:
+        """Poll Loki until stop is set, yielding each new line once.
+
+        ``floor`` is the clock wait_ready recorded (or the clock now): entries
+        stamped before it are never yielded, like lines before the end of a
+        tailed file. ``newest`` is the largest timestamp seen so far and
+        bounds the start of the next window; the end is the clock at each
+        poll, so one poll covers a fixed window and always finishes.
+        """
+        lookback_ns = int(self.lookback * NS)
+        floor = newest = self._ready_at if self._ready_at is not None else _now_ns()
+        self._ready_at = None
+        seen: set[Entry] = set()
+        logger.info("loki_source_streaming", label=self.label, query=self.query)
+        async with self._client() as client:
+            while not stop.is_set():
+                start = max(floor, newest - lookback_ns)
+                try:
+                    async for page in self._pages(client, start, _now_ns(), stop):
+                        for entry in page:
+                            if entry in seen:
+                                continue
+                            seen.add(entry)
+                            yield entry[2]
+                        if page:
+                            newest = max(newest, page[-1][0])
+                except httpx2.HTTPError as exc:
+                    self._mark("unreachable", repr(exc))
+                except LokiRejected as exc:
+                    self._mark("rejected", str(exc))
+                else:
+                    self._mark(None)
+                # Nothing older than the next window's start can come back,
+                # so its keys are not worth keeping.
+                cutoff = max(floor, newest - lookback_ns)
+                seen = {entry for entry in seen if entry[0] >= cutoff}
+                if await sleep_unless_stopped(self.poll_interval, stop):
+                    return
