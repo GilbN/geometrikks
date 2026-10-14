@@ -11,9 +11,12 @@ import httpx2
 import pytest
 from structlog.testing import capture_logs
 
+from geometrikks.services.ingestion import LogInput
+from geometrikks.services.logparser.logparser import LogParser
 from geometrikks.services.logsources import LogSource, LokiSource, SourceStatus
 from geometrikks.services.logsources import loki as loki_module
 from geometrikks.services.logsources.loki import NS, QUERY_RANGE_PATH
+from tests.test_ingestion import TEST_DB_IPS, added_geo_events, make_log_line, make_service
 
 pytestmark = pytest.mark.anyio
 
@@ -672,3 +675,91 @@ async def test_window_starts_never_move_back_with_the_clock(
     starts = [int(request.url.params["start"]) for request in fake.requests]
     assert starts == sorted(starts)
     assert tail.lines == ["once"]
+
+
+def loki_input(fake: FakeLoki, **kwargs) -> LogInput:
+    return LogInput(
+        source=make_source(fake, hostname="edge-01", **kwargs),
+        parser=LogParser(source_label=f"loki:{QUERY}", send_logs=True),
+    )
+
+
+async def test_service_ingests_from_loki_with_no_file_on_disk(fake: FakeLoki, clock: list[int]) -> None:
+    # Already in Loki at startup: sampled for format detection, never ingested.
+    fake.add(999, make_log_line(TEST_DB_IPS[0]))
+    log_input = loki_input(fake)
+    service, repos, _sessions = make_service([log_input])
+
+    await service.start()
+    try:
+        # wait_ready has recorded the clock once the format is locked; moving
+        # the clock before that would put the new line below the floor.
+        await wait_until(lambda: log_input.parser.format is not None)
+        fake.add(1001, make_log_line(TEST_DB_IPS[1]))
+        clock[0] = 1002 * NS
+        await wait_until(lambda: service.total_processed >= 1)
+    finally:
+        await service.stop(timeout=5.0)
+
+    # The format check sampled the 999 line; only the 1001 line was ingested.
+    [geo_event] = added_geo_events(repos)
+    assert geo_event.hostname == "edge-01"
+    assert service.total_processed == 1
+
+
+class AddsALineDuringTheFormatCheck(LokiSource):
+    """Loki counterpart of tests.test_ingestion.WritesDuringFormatCheck."""
+
+    def __init__(self, fake: FakeLoki, clock: list[int], line: str, **kwargs) -> None:
+        super().__init__(**kwargs)
+        self._fake, self._clock, self._line = fake, clock, line
+
+    async def recent_lines(self, count: int) -> list[str]:
+        self._fake.add(1001, self._line)
+        self._clock[0] = 1002 * NS
+        return await super().recent_lines(count)
+
+
+async def test_the_line_stamped_during_the_format_check_is_ingested(
+    fake: FakeLoki, clock: list[int]
+) -> None:
+    source = AddsALineDuringTheFormatCheck(
+        fake,
+        clock,
+        make_log_line(TEST_DB_IPS[0]),
+        url="http://loki:3100",
+        query=QUERY,
+        label="loki:1",
+        hostname="edge-01",
+        poll_interval=0.01,
+        transport=httpx2.MockTransport(fake.respond),
+    )
+    log_input = LogInput(source=source, parser=LogParser(source_label=f"loki:{QUERY}", send_logs=True))
+    service, _repos, _sessions = make_service([log_input])
+
+    await service.start()
+    try:
+        await wait_until(lambda: service.total_processed >= 1)
+    finally:
+        await service.stop(timeout=5.0)
+
+
+async def test_validation_is_skipped_when_loki_is_down_during_the_check(
+    fake: FakeLoki, clock: list[int]
+) -> None:
+    fake.fail_next.append(500)
+    log_input = loki_input(fake)
+    service, _repos, _sessions = make_service([log_input])
+
+    with capture_logs() as logs:
+        await service.start()
+        try:
+            await wait_until(
+                lambda: any(log["event"] == "log_format_validation_skipped" for log in logs)
+            )
+        finally:
+            await service.stop(timeout=5.0)
+
+    skipped = next(log for log in logs if log["event"] == "log_format_validation_skipped")
+    assert skipped["reason"] == "source_unavailable"
+    assert log_input.parser.send_logs is True

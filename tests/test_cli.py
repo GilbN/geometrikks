@@ -766,7 +766,7 @@ def test_import_logs_reports_an_earlier_cutoff_as_a_failed_file(tmp_path, monkey
 
     settings = MagicMock()
     settings.geoip.asn_enabled = False
-    settings.logparser.resolved_hostnames.return_value = ["vps-1"]
+    settings.logparser.host_name = ["vps-1"]
     monkeypatch.setattr(settings_module, "get_settings", lambda: settings)
     engine = MagicMock()
     engine.dispose = AsyncMock()
@@ -808,7 +808,7 @@ def test_import_logs_exits_nonzero_when_cagg_refresh_fails(tmp_path, monkeypatch
 
     settings = MagicMock()
     settings.geoip.asn_enabled = False
-    settings.logparser.resolved_hostnames.return_value = ["vps-1"]
+    settings.logparser.host_name = ["vps-1"]
     monkeypatch.setattr(settings_module, "get_settings", lambda: settings)
     engine = MagicMock()
     engine.dispose = AsyncMock()

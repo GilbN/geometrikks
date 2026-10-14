@@ -385,7 +385,7 @@ async def test_agent_schema_ready_triggers_home_upsert(monkeypatch):
     upsert.assert_awaited_once()
     assert upsert.await_args is not None
     hostnames = upsert.await_args.args[1]
-    assert hostnames == Settings().logparser.resolved_hostnames()
+    assert hostnames == Settings().ingest_hostnames()
 
 
 async def test_agent_schema_timeout_skips_home_upsert(monkeypatch):

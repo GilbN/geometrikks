@@ -172,9 +172,7 @@ async def refresh_site_home_job(
         app.state.map_home_location = home
         runtime.get_advisories(app).clear(MAP_HOME_UNDETECTED.id)
     if settings.logparser.enabled:
-        await upsert_auto_homes(
-            session_factory, settings.logparser.resolved_hostnames(), home
-        )
+        await upsert_auto_homes(session_factory, settings.ingest_hostnames(), home)
 
 
 async def proxy_scan_job(
