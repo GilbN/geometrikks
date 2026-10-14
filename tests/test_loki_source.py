@@ -633,3 +633,42 @@ async def test_closing_lines_closes_the_page_generator(fake: FakeLoki, clock: li
     gen = source.lines(asyncio.Event())
     assert await gen.__anext__() == "a line"
     await gen.aclose()
+
+
+async def test_each_crowded_timestamp_warns_once_across_polls(
+    fake: FakeLoki, clock: list[int], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(loki_module, "PAGE_LIMIT", 2)
+    with capture_logs() as logs:
+        async with Tail(make_source(fake, lookback=60)) as tail:
+            await tail.polled(fake, 1)  # floor read at T0
+            for second in (1001, 1002):
+                for name in "abc":
+                    fake.add(second, f"{second} {name}")
+            fake.add(1003, "last")
+            clock[0] = 1004 * NS
+            await wait_until(lambda: "last" in tail.lines)
+            await tail.polled(fake, len(fake.requests) + 3)
+    warnings = [log for log in logs if log["log_level"] == "warning"]
+    assert len(warnings) == 2
+
+
+async def test_window_starts_never_move_back_with_the_clock(
+    fake: FakeLoki, clock: list[int]
+) -> None:
+    async with Tail(make_source(fake, lookback=60, poll_interval=0.01)) as tail:
+        await tail.polled(fake, 1)  # floor read at T0
+        fake.add(1001, "once")
+        clock[0] = 1002 * NS
+        await wait_until(lambda: tail.lines == ["once"])
+        quiet_until = (1001 + 7200) * NS
+        clock[0] = quiet_until
+        await wait_until(lambda: int(fake.requests[-1].url.params["end"]) == quiet_until)
+        assert int(fake.requests[-1].url.params["start"]) == quiet_until - 3600 * NS
+        stepped_back = quiet_until - 1800 * NS
+        clock[0] = stepped_back
+        await wait_until(lambda: int(fake.requests[-1].url.params["end"]) == stepped_back)
+        await tail.polled(fake, len(fake.requests) + 3)
+    starts = [int(request.url.params["start"]) for request in fake.requests]
+    assert starts == sorted(starts)
+    assert tail.lines == ["once"]

@@ -157,8 +157,9 @@ class LokiSource:
         # stamped while the service was checking the format are not skipped.
         # None means "start at the clock now".
         self._ready_at: int | None = None
-        # The crowded timestamp already warned about; the lookback re-reads it
-        # on every poll until it leaves the window.
+        # The newest crowded timestamp already warned about. Pages run forward
+        # and the lookback re-reads older ones on every poll, so only a larger
+        # timestamp is news.
         self._warned_timestamp: int | None = None
 
     def status(self) -> SourceStatus:
@@ -286,7 +287,7 @@ class LokiSource:
                 # A whole page at one nanosecond cannot be paged: query_range
                 # has no cursor inside a timestamp. Step past it; the rest of
                 # that nanosecond is lost.
-                if last != self._warned_timestamp:
+                if self._warned_timestamp is None or last > self._warned_timestamp:
                     logger.warning(
                         "More than %d lines in %s share the timestamp %s; those past the "
                         "first %d were skipped. This happens when the log pipeline sets "
@@ -317,14 +318,18 @@ class LokiSource:
         max_window_ns = MAX_WINDOW_SECONDS * NS
         floor = newest = self._ready_at if self._ready_at is not None else _now_ns()
         self._ready_at = None
+        # Window starts only move forward, so a clock step back cannot reach
+        # below what was pruned from seen.
+        last_start = floor
         seen: set[Entry] = set()
         logger.info("loki_source_streaming", label=self.label, query=self.query)
         async with self._client() as client:
             while not stop.is_set():
                 end = _now_ns()
-                start = max(floor, newest - lookback_ns, end - max_window_ns)
+                start = max(last_start, newest - lookback_ns, end - max_window_ns)
                 # The clock stepped back past the window: Loki would answer 400.
                 if end >= start:
+                    last_start = start
                     try:
                         async with contextlib.aclosing(
                             self._pages(client, start, end, stop)
@@ -339,8 +344,8 @@ class LokiSource:
                                     newest = max(newest, page[-1][0])
                                 # Later pages start at this page's last timestamp,
                                 # so nothing older than the cutoff can come back.
-                                cutoff = max(floor, newest - lookback_ns, end - max_window_ns)
-                                seen = {entry for entry in seen if entry[0] >= cutoff}
+                                last_start = max(last_start, newest - lookback_ns)
+                                seen = {entry for entry in seen if entry[0] >= last_start}
                     except httpx2.HTTPError as exc:
                         self._mark("unreachable", repr(exc))
                     except LokiRejected as exc:
