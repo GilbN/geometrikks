@@ -571,3 +571,65 @@ async def test_stop_ends_a_long_sleep_within_a_tick(fake: FakeLoki, clock: list[
         assert tail.task is not None
         await asyncio.wait_for(tail.task, timeout=1.0)
         assert loop.time() - started < 1.0
+
+
+async def test_the_window_never_reaches_back_further_than_the_cap(
+    fake: FakeLoki, clock: list[int]
+) -> None:
+    async with Tail(make_source(fake, lookback=60)) as tail:
+        await tail.polled(fake, 1)  # floor read at T0
+        fake.add(1001, "last before the quiet")
+        clock[0] = 1002 * NS
+        await wait_until(lambda: tail.lines == ["last before the quiet"])
+        quiet_until = (1001 + 2 * 3600) * NS
+        clock[0] = quiet_until
+        await wait_until(lambda: int(fake.requests[-1].url.params["end"]) == quiet_until)
+    params = fake.requests[-1].url.params
+    assert int(params["start"]) == quiet_until - 3600 * NS
+
+
+async def test_a_clock_stepping_back_sends_no_inverted_window(
+    fake: FakeLoki, clock: list[int]
+) -> None:
+    async with Tail(make_source(fake, lookback=0, poll_interval=0.01)) as tail:
+        await tail.polled(fake, 1)  # floor read at T0
+        fake.add(1100, "newest")
+        clock[0] = 1101 * NS
+        await wait_until(lambda: tail.lines == ["newest"])
+        clock[0] = 1000 * NS
+        sent = len(fake.requests)
+        await asyncio.sleep(0.2)  # many polls at the 0.01s interval
+    assert len(fake.requests) == sent
+    assert all(
+        int(request.url.params["start"]) <= int(request.url.params["end"])
+        for request in fake.requests
+    )
+    assert tail.source.status().available is True
+
+
+async def test_a_crowded_timestamp_warns_once_across_the_lookback(
+    fake: FakeLoki, clock: list[int], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(loki_module, "PAGE_LIMIT", 2)
+    with capture_logs() as logs:
+        async with Tail(make_source(fake, lookback=60)) as tail:
+            await tail.polled(fake, 1)  # floor read at T0
+            fake.add(1001, "a")
+            fake.add(1001, "b")
+            fake.add(1001, "c")
+            fake.add(1002, "d")
+            clock[0] = 1003 * NS
+            await wait_until(lambda: "d" in tail.lines)
+            await tail.polled(fake, len(fake.requests) + 3)
+    warnings = [log for log in logs if log["log_level"] == "warning"]
+    assert len(warnings) == 1
+
+
+async def test_closing_lines_closes_the_page_generator(fake: FakeLoki, clock: list[int]) -> None:
+    source = make_source(fake)
+    await source.wait_ready(asyncio.Event())
+    fake.add(1001, "a line")
+    clock[0] = 1002 * NS
+    gen = source.lines(asyncio.Event())
+    assert await gen.__anext__() == "a line"
+    await gen.aclose()
