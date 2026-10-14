@@ -104,6 +104,20 @@ from real environment variables. It is read once at import time.
 | `LOGPARSER_STORE_DEBUG_LINES` | `false` | Store all raw log lines in AccessLogDebug table. When False, only malformed requests are stored. |
 | `LOGPARSER_IGNORE_IPS` | *(computed)* | IPs/CIDRs the parser drops entirely (no geo event, access log, or debug row). Use for your own traffic hitting the reverse proxy. Env accepts one value, comma-separated values, or a JSON list. Empty (default): nothing is ignored. |
 
+## Loki
+
+| Variable | Default | Description |
+|---|---|---|
+| `LOKI_URL` | - | Base URL of the Loki server, e.g. http://loki:3100. http or https. Unset (default): no Loki source. |
+| `LOKI_QUERIES` | *(computed)* | LogQL stream selectors, one source each, e.g. {job="traefik"}. Env accepts a single selector or a JSON list. Empty (default): no Loki source. |
+| `LOKI_FORMATS` | *(computed)* | Log format per query, same values as LOGPARSER_LOG_FORMATS. Env accepts one value for every query, or a JSON list matching LOKI_QUERIES by position. |
+| `LOKI_HOST_NAMES` | *(computed)* | Source hostname per query. Env accepts one value or a JSON list matching LOKI_QUERIES by position. Empty (default): the first LOGPARSER_HOST_NAME. |
+| `LOKI_TENANT_ID` | - | Sent as X-Scope-OrgID, for a multi-tenant Loki. Unset (default): no header. |
+| `LOKI_USERNAME` | - | Basic auth username, with LOKI_PASSWORD. |
+| `LOKI_PASSWORD` | - | Basic auth password, with LOKI_USERNAME. |
+| `LOKI_POLL_INTERVAL` | `5.0` | Seconds between reads of each query. Separate from the 1 s file cadence. |
+| `LOKI_LOOKBACK` | `60.0` | Seconds each read looks back for lines that reached Loki late. Every poll re-reads this whole window. |
+
 ## Analytics & retention
 
 | Variable | Default | Description |
