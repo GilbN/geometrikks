@@ -547,6 +547,14 @@ class LokiSettings(BaseSettings):
             raise ValueError(f"LOKI_URL must be an absolute http(s) URL, got {value!r}")
         return value.rstrip("/")
 
+    @field_validator("queries")
+    @classmethod
+    def validate_query_entries(cls, value: list[str]) -> list[str]:
+        """Fail at startup on blank selectors; they would activate Loki with nothing to read."""
+        if any(not entry.strip() for entry in value):
+            raise ValueError("LOKI_QUERIES entries must be non-empty")
+        return [entry.strip() for entry in value]
+
     @field_validator("host_names")
     @classmethod
     def validate_host_name_entries(cls, value: list[str]) -> list[str]:
@@ -583,12 +591,16 @@ class LokiSettings(BaseSettings):
 
     def resolved_formats(self) -> list[str]:
         """One format per query, fanning a single value out."""
+        if not self.queries:
+            return []
         if len(self.formats) == 1:
             return self.formats * len(self.queries)
         return list(self.formats)
 
     def resolved_hostnames(self, default: str) -> list[str]:
         """One hostname per query; ``default`` when none are configured."""
+        if not self.queries:
+            return []
         if not self.host_names:
             return [default] * len(self.queries)
         if len(self.host_names) == 1:

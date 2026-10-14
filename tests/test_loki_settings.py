@@ -95,6 +95,11 @@ def test_trailing_slash_is_stripped_from_the_url() -> None:
             id="blank-hostname",
         ),
         pytest.param(
+            {"url": URL, "queries": [" "]},
+            "LOKI_QUERIES entries must be non-empty",
+            id="blank-query",
+        ),
+        pytest.param(
             {"url": "loki:3100", "queries": [QUERY_A]},
             "LOKI_URL must be an absolute http(s) URL",
             id="url-without-scheme",
@@ -159,11 +164,29 @@ def test_ingest_hostnames_is_files_then_loki_without_duplicates() -> None:
     assert settings.ingest_hostnames() == ["edge-01", "edge-02", "edge-03"]
 
 
-def test_loki_only_ingest_hostnames_fall_back_to_the_first_host_name() -> None:
+def test_loki_only_ingest_hostnames_fall_back_to_the_first_host_name(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("LOGPARSER_LOG_PATHS")
     settings = Settings(
         _env_file=None,
         logparser=LogParserSettings(_env_file=None, host_name=["head"]),
         loki=loki(url=URL, queries=[QUERY_A]),
+    )
+    assert settings.ingest_hostnames() == ["head"]
+
+
+def test_without_queries_no_hostnames_or_formats_resolve() -> None:
+    settings = loki(host_names=["unused"], formats=["nginx"])
+    assert settings.resolved_hostnames("head") == []
+    assert settings.resolved_formats() == []
+
+
+def test_unused_loki_host_names_do_not_reach_ingest_hostnames() -> None:
+    settings = Settings(
+        _env_file=None,
+        logparser=LogParserSettings(_env_file=None, host_name=["head"]),
+        loki=loki(host_names=["unused"]),
     )
     assert settings.ingest_hostnames() == ["head"]
 
