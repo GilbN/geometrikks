@@ -186,6 +186,7 @@ export function StatusOverview() {
   const now = Date.now()
   const overall = overallState(health, healthError)
   const access = accessLogFiles(files)
+  const lokiSources = stats?.lokiSources ?? []
   const uptime = formatUptime(health?.startedAt, now)
   const geoipRefreshJob = jobs?.find((j) => j.id === "geoip-refresh")
   const recentErrors = filterErrorRecords(logRecords, 5)
@@ -342,9 +343,9 @@ export function StatusOverview() {
                 (which would only say "No access logs configured.") is noise. */}
             {health?.ingestion.status !== "disabled" && (
             <div className="space-y-2 border-t pt-3">
-              <p className="text-xs font-medium text-muted-foreground">Tailed access logs</p>
+              <p className="text-xs font-medium text-muted-foreground">Access log sources</p>
               {filesError && <p className="text-xs text-muted-foreground">File list unavailable.</p>}
-              {!filesError && access.length === 0 && (
+              {!filesError && access.length === 0 && lokiSources.length === 0 && (
                 <p className="text-xs text-muted-foreground">No access logs configured.</p>
               )}
               {access.map((f) => (
@@ -359,6 +360,21 @@ export function StatusOverview() {
                   ) : (
                     <span className="ml-auto text-red-500">{accessLogUnavailableLabel(f, health)}</span>
                   )}
+                </div>
+              ))}
+              {lokiSources.map((source) => (
+                <div key={source.label} className="flex items-center gap-2 text-xs">
+                  <StatusLed tone={source.available ? "emerald" : "red"} />
+                  <MonoChip>{source.query}</MonoChip>
+                  <span className="text-muted-foreground">{source.hostname}</span>
+                  <span className="ml-auto text-muted-foreground tabular-nums">
+                    {source.logFormat ?? "format pending"} · {source.parsedLines.toLocaleString()} lines
+                    {!source.available && (
+                      <span className="ml-2 text-red-500">
+                        {source.reason === "rejected" ? "rejected" : "unreachable"}
+                      </span>
+                    )}
+                  </span>
                 </div>
               ))}
             </div>

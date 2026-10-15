@@ -51,6 +51,7 @@ import type {
   OidcStatus,
   LogoutResponse,
   SiteHomesResponse,
+  LokiSourceStats,
 } from "@/generated/api/types.gen"
 
 export type {
@@ -283,6 +284,7 @@ export interface StatsResponse {
   totalIgnoredLines: number
   totalProcessed: number
   isRunning: boolean
+  lokiSources?: LokiSourceStats[]
 }
 
 export async function fetchStats(): Promise<StatsResponse> {

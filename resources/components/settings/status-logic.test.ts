@@ -176,6 +176,40 @@ describe("ingestionState", () => {
       "A configured log source is unavailable. Ingestion is waiting for it to come back.",
     )
   })
+  it("says Loki rejected the query when a loki source reports rejected", () => {
+    const state = ingestionState(
+      makeHealth({
+        ingestion: {
+          running: true,
+          parsedLines: 10,
+          pendingRecords: 0,
+          missingFiles: ["loki:1"],
+          unavailableSources: [{ kind: "loki", label: "loki:1", reason: "rejected" }],
+          lastRecordAt: null,
+        },
+      }),
+      false,
+    )
+    expect(state.tone).toBe("amber")
+    expect(state.label).toBe("Running, Loki rejected the query")
+    expect(state.detail).toBe("Check LOKI_QUERIES and the credentials. Ingestion retries every poll.")
+  })
+  it("keeps the generic wording for an unreachable loki source", () => {
+    const state = ingestionState(
+      makeHealth({
+        ingestion: {
+          running: true,
+          parsedLines: 10,
+          pendingRecords: 0,
+          missingFiles: ["loki:1"],
+          unavailableSources: [{ kind: "loki", label: "loki:1", reason: "unreachable" }],
+          lastRecordAt: null,
+        },
+      }),
+      false,
+    )
+    expect(state.label).toBe("Running, log source unavailable")
+  })
   it("is running when no source is unavailable", () => {
     const state = ingestionState(
       makeHealth({
