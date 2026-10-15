@@ -7,8 +7,9 @@
 
 ![Map](/data/screenshots/live.png)
 
-GeoMetrikks tails your reverse-proxy access logs (nginx, Traefik and Caddy),
-geolocates every request with MaxMind GeoLite2, and shows the result on a
+GeoMetrikks tails your reverse-proxy access logs (nginx, Nginx Proxy
+Manager, Traefik and Caddy) or reads them from Grafana Loki, geolocates
+every request with MaxMind GeoLite2, and shows the result on a
 real-time map and a traffic analytics dashboard. It runs on your own
 hardware from one Docker image. Outbound traffic is the GeoLite2 download
 and, unless you disable it, a public-IP lookup for the map's home location.
@@ -69,13 +70,15 @@ a log file is not producing events.
 ![Debug Logs](/data/screenshots/debug-logs.png)
 
 **Multi-source.** Several proxies or hosts? Run one full instance plus
-lightweight agents next to each log file, or tail shipped files from one
-place. Every page can filter by the recording hostname, and the map gives
-each site its own home beacon. See [Multi-source setup](#multi-source-setup).
+lightweight agents next to each log file, tail shipped files from one
+place, or read every proxy's lines from Loki. Every page can filter by the
+recording hostname, and the map gives each site its own home beacon. See [Multi-source setup](#multi-source-setup).
 
 **Settings > Status.** Ingestion, storage, enrichment, integrations and
 live services on one page, with advisories when something needs attention
 (a missing ASN database, a source whose home could not be detected).
+
+![Settings > Status](/data/screenshots/status.png)
 
 **CrowdSec integration.** Point the app at your CrowdSec Local API for a
 Security page that cross-references active bans with your own traffic (who
@@ -90,7 +93,7 @@ See
 ![CrowdSec](/data/screenshots/crowdsec.png)
 
 **Batch import.** Backfill rotated or archived logs (plain or `.gz`) with
-`litestar import-logs`.
+`litestar import-logs`, including Nginx Proxy Manager's own per-host logs.
 
 ## Quickstart
 
@@ -111,6 +114,29 @@ it weekly (see [MaxMind GeoLite2](#maxmind-geolite2)). Without credentials
 it starts in geo-degraded mode and a banner in the UI explains what to do;
 after adding credentials, restart the app container.
 
+### Point it at your logs
+
+`docker-compose.yml` mounts `ACCESS_LOG_DIR` (default `/var/log/nginx`)
+read-only into the container at `/var/log/access` and reads
+`LOGPARSER_LOG_PATHS` from `.env`. Point `ACCESS_LOG_DIR` at wherever your
+reverse proxy writes its access logs. `LOGPARSER_LOG_PATHS` must name the
+file(s) as seen inside the container, under `/var/log/access/`.
+
+Your proxy has to write a log GeoMetrikks can parse. Set that up first:
+
+- [Nginx setup](#nginx-setup) adds a JSON `log_format` to `nginx.conf`.
+- [Nginx Proxy Manager setup](#nginx-proxy-manager-setup) adds a second
+  log next to NPM's own and imports the logs NPM already wrote.
+- [Traefik setup](#traefik-setup) and [Caddy setup](#caddy-setup) write
+  the JSON access log to a file instead of stdout.
+- [Loki setup](#loki-setup) reads the lines from Grafana Loki instead of
+  a mounted file.
+
+Traffic from more than one proxy or host goes through
+[Multi-source setup](#multi-source-setup). Once requests arrive,
+Settings > Status lists each log file and Loki selector, and Debug logs
+shows the raw lines with any parse failures.
+
 ## Docker image tags
 
 Images are published as `ghcr.io/gilbn/geometrikks`.
@@ -128,12 +154,6 @@ Use `latest` to follow stable releases, or pin an exact version:
 ```yaml
 image: ghcr.io/gilbn/geometrikks:0.20.0
 ```
-
-`docker-compose.yml` mounts `ACCESS_LOG_DIR` (default `/var/log/nginx`)
-read-only into the container at `/var/log/access` and reads
-`LOGPARSER_LOG_PATHS` from `.env`. Point `ACCESS_LOG_DIR` at wherever your
-reverse proxy writes its access logs. `LOGPARSER_LOG_PATHS` must name the
-file(s) as seen inside the container, under `/var/log/access/`.
 
 ## Nginx setup
 
@@ -248,16 +268,17 @@ access_log /config/log/nginx/access.log geometrikks_json;
 LOGPARSER_LOG_PATHS=["/var/log/access/access.log", "/var/log/access/somepage/access.log"]
 ```
 
-### Nginx Proxy Manager
+## Nginx Proxy Manager setup
 
 Nginx Proxy Manager writes each proxy host's log in its own `proxy`
 format. That format has no request time, upstream time, protocol, remote
 user or raw request line, so GeoMetrikks doesn't tail it live. Only
-`import-logs` reads it, and the end of this section covers that backfill.
+`import-logs` reads it, as
+[Importing NPM's existing logs](#importing-npms-existing-logs) describes.
 NPM can write a second log next to its own, though, through its
 [custom nginx configuration](https://nginxproxymanager.com/advanced-config/#custom-nginx-configurations)
-files. Point that second log at the JSON format above. NPM's own logs stay
-as they are.
+files. Point that second log at the JSON format from
+[Nginx setup](#nginx-setup). NPM's own logs stay as they are.
 
 The `/data/...` paths below are inside the NPM container. With the usual
 `./data:/data` mount, `/data/nginx/custom/http_top.conf` is
@@ -333,7 +354,7 @@ What the log leaves out:
   [docs/proxy-setup.md](docs/proxy-setup.md#nginx-proxy-manager) to the
   same `http_top.conf`.
 
-#### Importing NPM's existing logs
+### Importing NPM's existing logs
 
 [`import-logs`](#import-logs-backfill-history) reads NPM's own
 `proxy-host-<id>_access.log` files and their rotated copies.
@@ -438,7 +459,9 @@ to pin it. Notes:
   it trusts the header from anyone, and a client can then place any address
   on the map. See `docs/proxy-setup.md` for the full real-IP setup,
   including tunnels.
-- A file path is required; GeoMetrikks cannot read Traefik's stdout.
+- GeoMetrikks cannot read Traefik's stdout. Write the log to a file, and
+  either tail it or ship it to Loki and read it from there
+  ([Loki setup](#loki-setup)).
 
 ## Caddy setup
 
@@ -493,6 +516,88 @@ to pin it. Notes:
   custom time layouts are skipped, and a non-default `duration_format`
   loses request times. The appended `upstream_duration_ms` field always uses
   milliseconds.
+
+## Loki setup
+
+If Alloy, Promtail or another shipper already sends your access logs to
+[Grafana Loki](https://grafana.com/oss/loki/), GeoMetrikks can read them
+from Loki instead of a file. Each LogQL stream selector is one source, and
+GeoMetrikks parses and geolocates its lines the same way it handles a
+tailed file.
+
+```bash
+LOKI_URL=http://loki:3100
+LOKI_QUERIES=["{job=\"nginx\"}", "{job=\"traefik\"}"]
+LOKI_HOST_NAMES=["edge-01", "edge-02"]
+```
+
+The app container has to reach `LOKI_URL`. `http://loki:3100` works when
+Loki runs on the same Docker network.
+
+Without `LOKI_HOST_NAMES`, GeoMetrikks stamps every selector with the first
+`LOGPARSER_HOST_NAME`. If the selectors are different proxies, give each one
+its own hostname.
+
+- Loki must hold the raw access-log line. If a pipeline stage rewrites the
+  line, for example into logfmt, GeoMetrikks has nothing it can parse.
+  GeoMetrikks ignores labels and structured metadata.
+- Don't set the entry timestamp from the line when the line carries the
+  request's start time, as Traefik's `StartUTC` does. In Alloy that is
+  `stage.timestamp`, in Promtail the `timestamp` stage. The proxy writes the
+  line when the request ends, so a websocket or a long download ends up
+  with a timestamp minutes or hours older than the moment it reaches Loki.
+  GeoMetrikks reads back from the newest line it has seen minus
+  `LOKI_LOOKBACK` (60 seconds by default), and never more than an hour, so
+  it skips that line. Without the stage, the shipper stamps each line when
+  it reads it, and the lookback only has to cover shipping delay. nginx and
+  Caddy stamp lines when they write them, so this doesn't affect them. If
+  you keep the stage, set `LOKI_LOOKBACK` above your longest request, up to
+  3600. Every poll re-reads that whole window.
+- Loki can't page inside a single timestamp, and GeoMetrikks reads 1000
+  lines per request for the whole selector. With second-precision
+  timestamps, a selector that logs more than 1000 lines in one second loses
+  the rest of that second. GeoMetrikks logs a warning once per such
+  timestamp.
+- A selector can match several streams, one per label set. GeoMetrikks
+  merges their lines in timestamp order under the selector's hostname. Each
+  selector has one log format, detected from its first lines or pinned with
+  `LOKI_FORMATS`, and GeoMetrikks counts lines in any other format as
+  malformed. Use one selector per log format.
+- GeoMetrikks polls every `LOKI_POLL_INTERVAL` seconds, 5 by default.
+  Reading starts when the app starts, as with a tailed file, so lines from
+  while it was down are not read.
+- With `LOKI_QUERIES` set and `LOGPARSER_LOG_PATHS` unset, GeoMetrikks tails
+  no file. Set both to read files and Loki side by side. A
+  `LOGPARSER_LOG_PATHS` line in `.env` or in a compose `environment:` block
+  counts as set and keeps the file tail. The shipped `.env.example` has that
+  line, so for a Loki-only install, remove it or comment it out.
+- `LOKI_TENANT_ID` sends `X-Scope-OrgID` for a multi-tenant Loki.
+  `LOKI_USERNAME` and `LOKI_PASSWORD` together send basic auth.
+- If Loki can't be reached or refuses the query, `/health` lists the source
+  under `ingestion.unavailableSources` as `loki:1`, `loki:2` and so on, with
+  the reason `unreachable` or `rejected`. The Status page shows each
+  selector with its hostname, format and line count.
+
+An Alloy configuration that ships a Traefik access log the way GeoMetrikks
+expects:
+
+```alloy
+loki.source.file "traefik" {
+  targets = [{
+    __path__     = "/var/log/traefik/access.log",
+    job          = "traefik",
+    service_name = "traefik",
+  }]
+  tail_from_end = true
+  forward_to    = [loki.write.local.receiver]
+}
+
+loki.write "local" {
+  endpoint {
+    url = "http://loki:3100/loki/api/v1/push"
+  }
+}
+```
 
 ## MaxMind GeoLite2
 
@@ -948,6 +1053,10 @@ Everything downstream (the access-logs hostname filter, the map's Source
 filter, per-site homes) treats those files like traffic from separate
 agents.
 
+If the logs already go to Grafana Loki, one full instance can read every
+proxy's lines from there instead, with one LogQL selector and one hostname
+per proxy. See [Loki setup](#loki-setup).
+
 An agent needs only `APP_MODE=agent`, database credentials for the shared
 instance, GeoIP credentials, and its own log mount:
 
@@ -1060,85 +1169,6 @@ LAPI on the full instance only; per-machine CrowdSec agents keep reporting
 to that same LAPI as usual. GeoMetrikks agents ignore `CROWDSEC_*` settings;
 ban visibility and management stay with the full instance.
 
-### Reading from Loki
-
-If Alloy, Promtail or another shipper already sends your access logs to
-[Grafana Loki](https://grafana.com/oss/loki/), GeoMetrikks can read them
-from Loki instead of a file. Each LogQL stream selector is one source, and
-GeoMetrikks parses and geolocates its lines the same way it handles a
-tailed file.
-
-```bash
-LOKI_URL=http://loki:3100
-LOKI_QUERIES=["{job=\"nginx\"}", "{job=\"traefik\"}"]
-LOKI_HOST_NAMES=["edge-01", "edge-02"]
-```
-
-Without `LOKI_HOST_NAMES`, GeoMetrikks stamps every selector with the first
-`LOGPARSER_HOST_NAME`. If the selectors are different proxies, give each one
-its own hostname.
-
-- Loki must hold the raw access-log line. If a pipeline stage rewrites the
-  line, for example into logfmt, GeoMetrikks has nothing it can parse.
-  GeoMetrikks ignores labels and structured metadata.
-- Don't set the entry timestamp from the line when the line carries the
-  request's start time, as Traefik's `StartUTC` does. In Alloy that is
-  `stage.timestamp`, in Promtail the `timestamp` stage. The proxy writes the
-  line when the request ends, so a websocket or a long download ends up
-  with a timestamp minutes or hours older than the moment it reaches Loki.
-  GeoMetrikks reads back from the newest line it has seen minus
-  `LOKI_LOOKBACK` (60 seconds by default), and never more than an hour, so
-  it skips that line. Without the stage, the shipper stamps each line when
-  it reads it, and the lookback only has to cover shipping delay. nginx and
-  Caddy stamp lines when they write them, so this doesn't affect them. If
-  you keep the stage, set `LOKI_LOOKBACK` above your longest request, up to
-  3600. Every poll re-reads that whole window.
-- Loki can't page inside a single timestamp, and GeoMetrikks reads 1000
-  lines per request for the whole selector. With second-precision
-  timestamps, a selector that logs more than 1000 lines in one second loses
-  the rest of that second. GeoMetrikks logs a warning once per such
-  timestamp.
-- A selector can match several streams, one per label set. GeoMetrikks
-  merges their lines in timestamp order under the selector's hostname. Each
-  selector has one log format, detected from its first lines or pinned with
-  `LOKI_FORMATS`, and GeoMetrikks counts lines in any other format as
-  malformed. Use one selector per log format.
-- GeoMetrikks polls every `LOKI_POLL_INTERVAL` seconds, 5 by default.
-  Reading starts when the app starts, as with a tailed file, so lines from
-  while it was down are not read.
-- With `LOKI_QUERIES` set and `LOGPARSER_LOG_PATHS` unset, GeoMetrikks tails
-  no file. Set both to read files and Loki side by side. A
-  `LOGPARSER_LOG_PATHS` line in `.env` or in a compose `environment:` block
-  counts as set and keeps the file tail. The shipped `.env.example` has that
-  line, so for a Loki-only install, remove it or comment it out.
-- `LOKI_TENANT_ID` sends `X-Scope-OrgID` for a multi-tenant Loki.
-  `LOKI_USERNAME` and `LOKI_PASSWORD` together send basic auth.
-- If Loki can't be reached or refuses the query, `/health` lists the source
-  under `ingestion.unavailableSources` as `loki:1`, `loki:2` and so on, with
-  the reason `unreachable` or `rejected`. The Status page shows each
-  selector with its hostname, format and line count.
-
-An Alloy configuration that ships a Traefik access log the way GeoMetrikks
-expects:
-
-```alloy
-loki.source.file "traefik" {
-  targets = [{
-    __path__     = "/var/log/traefik/access.log",
-    job          = "traefik",
-    service_name = "traefik",
-  }]
-  tail_from_end = true
-  forward_to    = [loki.write.local.receiver]
-}
-
-loki.write "local" {
-  endpoint {
-    url = "http://loki:3100/loki/api/v1/push"
-  }
-}
-```
-
 ## CLI commands
 
 Besides the server, the image ships maintenance commands under the
@@ -1154,7 +1184,7 @@ Every command supports `--help`.
 
 Live tailing only picks up lines written after the app starts. To backfill
 rotated or archived access logs (nginx, Traefik JSON, Caddy JSON or
-[Nginx Proxy Manager](#nginx-proxy-manager)'s own format, plain or gzip),
+[Nginx Proxy Manager](#nginx-proxy-manager-setup)'s own format, plain or gzip),
 use `import-logs`:
 
 ```bash
@@ -1420,9 +1450,14 @@ writes its access logs (for Nginx Proxy Manager this is usually its
 `data/logs` volume), and set `LOGPARSER_LOG_PATHS` to the specific
 access-log file(s) inside it, using the *container* path
 (`/var/log/access/...`), not the host path. GeoMetrikks doesn't tail NPM's
-own per-host logs; set up the extra JSON log described under
-[Nginx Proxy Manager](#nginx-proxy-manager) and point at that. `import-logs`
+own per-host logs. Set up the extra JSON log described under
+[Nginx Proxy Manager](#nginx-proxy-manager-setup) and point at that. `import-logs`
 can backfill the old per-host logs.
+
+**Can I read logs from Loki instead of mounting files?**
+Yes, if Loki holds the raw access-log lines. Set `LOKI_URL` and
+`LOKI_QUERIES` and remove `LOGPARSER_LOG_PATHS` from `.env`. See
+[Loki setup](#loki-setup).
 
 **Permission denied reading my log files?**
 The app container runs as `PUID`:`PGID` (default 1000:1000), and log mounts
@@ -1437,9 +1472,11 @@ Yes. The GHCR image is a multi-arch manifest for `linux/amd64` and
 **The map is empty.**
 Check four things in order: (1) the geo-degraded banner; if it shows,
 MaxMind credentials or the GeoLite2 database are missing; (2) that
-`LOGPARSER_LOG_PATHS` points at a file receiving traffic in a supported
-format (the nginx JSON `log_format` above, the legacy nginx format,
-Traefik JSON, or Caddy JSON); (3) that some time has passed since you last
+a source is receiving traffic in a supported format (the nginx JSON
+`log_format` above, the legacy nginx format, Traefik JSON, or Caddy JSON),
+whether it is a file in `LOGPARSER_LOG_PATHS` or a selector in
+`LOKI_QUERIES` (Nginx Proxy Manager's own per-host logs are import-only
+and never tailed); (3) that some time has passed since you last
 restarted. The map only shows events ingested after startup unless you
 have run a batch import. (4) that your proxy logs the visitor's address,
 not an upstream proxy or tunnel; Settings > Status shows an advisory when
