@@ -13,6 +13,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `import-logs --before` leaves out lines stamped at or after a given date or time, so an import can stop where an already ingested log begins. Running a file again with a later `--before`, or none, imports only the lines in between.
 - GeoMetrikks can read access logs from Grafana Loki instead of a file. Set `LOKI_URL` and `LOKI_QUERIES`, with one LogQL stream selector per source. Loki lines get the same format detection, parsing and GeoIP lookup as a tailed file. The Status page lists each Loki source, and `/health` lists one that can't be reached or that refuses the query under `ingestion.unavailableSources`. See "Reading from Loki" in the README.
 
+### Changed
+
+- Tabs, switches, checkboxes, menu items and select options show the pointer cursor on hover, like buttons already did.
+- In dark mode, menu and list highlights are a faint tint of the accent color instead of the solid accent, and primary buttons use the same tint.
+- The Ban button in the Ban IP dialog and the Remove button in the site home confirmation are red. The dialog's Cancel button has a border like other secondary buttons.
+- Dialogs blur the page behind them, as confirmation prompts already did.
+
 ### Fixed
 
 - Tooltips are easier to read in light and dark mode. They use the same background as menus, so the grey descriptions and the changelog notice in the sidebar tooltips have enough contrast.
