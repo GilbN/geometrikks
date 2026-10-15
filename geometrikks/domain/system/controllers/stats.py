@@ -7,7 +7,25 @@ from litestar import get
 from litestar.di import NamedDependency, Provide
 
 from geometrikks.services.ingestion import LogIngestionService
+from geometrikks.services.logsources import LokiSource
 from geometrikks.domain.system.dependencies import provide_ingestion_service as pis
+
+
+class LokiSourceStats(msgspec.Struct, rename="camel"):
+    """One LOKI_QUERIES entry as the ingestion service sees it.
+
+    Served here, behind auth, rather than on /health: the selector and the
+    hostname describe the operator's log setup.
+    """
+
+    query: str
+    label: str
+    hostname: str
+    available: bool
+    reason: str | None
+    # Detected (auto) or pinned format; None until the first line is read.
+    log_format: str | None
+    parsed_lines: int
 
 
 class IngestionStatsResponse(msgspec.Struct, rename="camel"):
@@ -17,6 +35,29 @@ class IngestionStatsResponse(msgspec.Struct, rename="camel"):
     total_ignored_lines: int
     total_processed: int
     is_running: bool
+    loki_sources: list[LokiSourceStats] = msgspec.field(default_factory=list)
+
+
+def _loki_sources(service: LogIngestionService) -> list[LokiSourceStats]:
+    sources: list[LokiSourceStats] = []
+    for log_input in service.inputs:
+        source = log_input.source
+        if not isinstance(source, LokiSource):
+            continue
+        status = source.status()
+        parser = log_input.parser
+        sources.append(
+            LokiSourceStats(
+                query=source.query,
+                label=source.label,
+                hostname=service.hostname_for(log_input),
+                available=status.available,
+                reason=status.reason,
+                log_format=parser.format.name if parser.format else None,
+                parsed_lines=parser.parsed_lines,
+            )
+        )
+    return sources
 
 
 @get(
@@ -48,4 +89,5 @@ async def stats(
         total_ignored_lines=ingestion_service.ignored_lines,
         total_processed=ingestion_service.total_processed,
         is_running=ingestion_service.is_running,
+        loki_sources=_loki_sources(ingestion_service),
     )
