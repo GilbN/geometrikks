@@ -214,3 +214,16 @@ def test_password_is_a_secret_and_never_in_the_overview() -> None:
     assert isinstance(settings.loki.password, SecretStr)
     overview = build_settings_overview(settings)
     assert "hunter2" not in str(overview)
+
+
+def test_loki_only_first_ingest_hostname_is_the_first_loki_hostname(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """import-logs stamps ingest_hostnames()[0], so imports match live Loki rows."""
+    monkeypatch.delenv("LOGPARSER_LOG_PATHS")
+    settings = Settings(
+        _env_file=None,
+        logparser=LogParserSettings(_env_file=None, host_name=["head"]),
+        loki=loki(url=URL, queries=[QUERY_A], host_names=["edge-01"]),
+    )
+    assert settings.ingest_hostnames()[0] == "edge-01"

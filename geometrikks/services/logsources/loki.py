@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import heapq
 import json
 import time
 from collections.abc import AsyncGenerator
@@ -326,6 +327,8 @@ class LokiSource:
         # below what was pruned from seen.
         last_start = floor
         seen: set[Entry] = set()
+        # The same entries as seen, oldest first, so pruning pops only what expires.
+        seen_by_age: list[Entry] = []
         logger.info("loki_source_streaming", label=self.label, query=self.query)
         async with self._client() as client:
             while not stop.is_set():
@@ -343,13 +346,15 @@ class LokiSource:
                                     if entry in seen:
                                         continue
                                     seen.add(entry)
+                                    heapq.heappush(seen_by_age, entry)
                                     yield entry[2]
                                 if page:
                                     newest = max(newest, page[-1][0])
                                 # Later pages start at this page's last timestamp,
                                 # so nothing older than the cutoff can come back.
                                 last_start = max(last_start, newest - lookback_ns)
-                                seen = {entry for entry in seen if entry[0] >= last_start}
+                                while seen_by_age and seen_by_age[0][0] < last_start:
+                                    seen.discard(heapq.heappop(seen_by_age))
                                 self._warned_timestamps = {
                                     stamp for stamp in self._warned_timestamps if stamp >= last_start
                                 }
