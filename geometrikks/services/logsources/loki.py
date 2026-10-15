@@ -6,7 +6,10 @@ it asks Loki for the entries stamped from the newest line seen, minus
 it has not yielded before. Lines reach Loki after newer
 ones (shippers batch, streams flush independently), which is what the
 lookback is for. Reading starts at startup, like a tailed file started at
-its end.
+its end. The floor is GeoMetrikks's clock at ``wait_ready``, so a GeoMetrikks
+clock ahead of the shipper's skips lines the shipper stamps in the first
+seconds after startup; after the first poll the window follows the newest
+line seen.
 
 The shipper stamps each entry when it reads it, unless a pipeline stage
 sets the timestamp from the line. The README asks users not to do that:
@@ -157,10 +160,10 @@ class LokiSource:
         # stamped while the service was checking the format are not skipped.
         # None means "start at the clock now".
         self._ready_at: int | None = None
-        # The newest crowded timestamp already warned about. Pages run forward
-        # and the lookback re-reads older ones on every poll, so only a larger
-        # timestamp is news.
-        self._warned_timestamp: int | None = None
+        # Crowded timestamps already warned about. The lookback re-reads them on
+        # every poll, and a late batch can crowd a timestamp below one already
+        # warned. lines() prunes it with the dedup set.
+        self._warned_timestamps: set[int] = set()
 
     def status(self) -> SourceStatus:
         if self._unavailable_reason is not None:
@@ -287,19 +290,19 @@ class LokiSource:
                 # A whole page at one nanosecond cannot be paged: query_range
                 # has no cursor inside a timestamp. Step past it; the rest of
                 # that nanosecond is lost.
-                if self._warned_timestamp is None or last > self._warned_timestamp:
+                if last not in self._warned_timestamps:
                     logger.warning(
                         "More than %d lines in %s share the timestamp %s; those past the "
                         "first %d were skipped. This happens when the log pipeline sets "
                         "the entry timestamp from a line with second precision. Remove "
-                        "that stage so Loki stamps lines when they are received (see "
+                        "that stage so the shipper stamps lines when it reads them (see "
                         "README, Reading from Loki).",
                         PAGE_LIMIT,
                         self.query,
                         datetime.fromtimestamp(last / NS, tz=timezone.utc).isoformat(),
                         PAGE_LIMIT,
                     )
-                    self._warned_timestamp = last
+                    self._warned_timestamps.add(last)
                 cursor = last + 1
             if cursor >= end_ns:
                 return
@@ -346,6 +349,9 @@ class LokiSource:
                                 # so nothing older than the cutoff can come back.
                                 last_start = max(last_start, newest - lookback_ns)
                                 seen = {entry for entry in seen if entry[0] >= last_start}
+                                self._warned_timestamps = {
+                                    stamp for stamp in self._warned_timestamps if stamp >= last_start
+                                }
                     except httpx2.HTTPError as exc:
                         self._mark("unreachable", repr(exc))
                     except LokiRejected as exc:

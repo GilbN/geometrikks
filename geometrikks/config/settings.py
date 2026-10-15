@@ -513,7 +513,8 @@ class LokiSettings(BaseSettings):
         ge=0,
         description=(
             "Seconds each read looks back for lines that reached Loki late. "
-            "Every poll re-reads this whole window."
+            "Every poll re-reads this whole window. The window never reaches back "
+            "more than an hour, so values above 3600 behave as 3600."
         ),
     )
 
@@ -545,6 +546,8 @@ class LokiSettings(BaseSettings):
             raise ValueError(f"LOKI_URL is not a valid URL: {value!r}") from exc
         if parts.scheme not in ("http", "https") or not parts.hostname:
             raise ValueError(f"LOKI_URL must be an absolute http(s) URL, got {value!r}")
+        if parts.username is not None or parts.password is not None:
+            raise ValueError("LOKI_URL must not contain credentials; set LOKI_USERNAME and LOKI_PASSWORD")
         # urlsplit checks the port only when it is read, and httpx2 would then
         # raise InvalidURL at the first request.
         try:

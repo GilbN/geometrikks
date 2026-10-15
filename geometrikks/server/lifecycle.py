@@ -475,7 +475,7 @@ async def scheduler_lifespan(app: "Litestar") -> "AsyncGenerator[None]":
 
 def build_log_inputs(settings: "Settings") -> list[LogInput]:
     """One LogInput per configured source: tailed files first, then Loki queries."""
-    peer_window = settings.app.proxy_advisory
+    proxy_advisory = settings.app.proxy_advisory
     inputs = [
         LogInput(
             source=FileSource(
@@ -488,7 +488,7 @@ def build_log_inputs(settings: "Settings") -> list[LogInput]:
                 send_logs=settings.logparser.send_logs,
                 ignore_ips=settings.logparser.ignore_ips,
                 log_format=fmt,
-                peer_window=PeerWindow() if peer_window else None,
+                peer_window=PeerWindow() if proxy_advisory else None,
             ),
         )
         for path, fmt, host in zip(
@@ -524,7 +524,7 @@ def build_log_inputs(settings: "Settings") -> list[LogInput]:
                     send_logs=settings.logparser.send_logs,
                     ignore_ips=settings.logparser.ignore_ips,
                     log_format=fmt,
-                    peer_window=PeerWindow() if peer_window else None,
+                    peer_window=PeerWindow() if proxy_advisory else None,
                 ),
             )
         )

@@ -116,7 +116,7 @@ from real environment variables. It is read once at import time.
 | `LOKI_USERNAME` | - | Basic auth username, with LOKI_PASSWORD. |
 | `LOKI_PASSWORD` | - | Basic auth password, with LOKI_USERNAME. |
 | `LOKI_POLL_INTERVAL` | `5.0` | Seconds between reads of each query. Separate from the 1 s file cadence. |
-| `LOKI_LOOKBACK` | `60.0` | Seconds each read looks back for lines that reached Loki late. Every poll re-reads this whole window. |
+| `LOKI_LOOKBACK` | `60.0` | Seconds each read looks back for lines that reached Loki late. Every poll re-reads this whole window. The window never reaches back more than an hour, so values above 3600 behave as 3600. |
 
 ## Analytics & retention
 

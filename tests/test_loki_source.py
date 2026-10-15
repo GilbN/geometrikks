@@ -656,6 +656,27 @@ async def test_each_crowded_timestamp_warns_once_across_polls(
     assert len(warnings) == 2
 
 
+async def test_a_crowded_timestamp_below_a_warned_one_still_warns(
+    fake: FakeLoki, clock: list[int], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(loki_module, "PAGE_LIMIT", 2)
+    with capture_logs() as logs:
+        async with Tail(make_source(fake)) as tail:
+            await tail.polled(fake, 1)  # floor read at T0
+            for name in "abc":
+                fake.add(1002, f"1002 {name}")
+            clock[0] = 1003 * NS
+            await wait_until(lambda: "1002 b" in tail.lines)
+            await tail.polled(fake, len(fake.requests) + 3)
+            # A delayed batch, inside the lookback but below the warned timestamp.
+            for name in "abc":
+                fake.add(1001, f"1001 {name}")
+            await wait_until(lambda: "1001 b" in tail.lines)
+            await tail.polled(fake, len(fake.requests) + 3)
+    warnings = [log for log in logs if log["log_level"] == "warning"]
+    assert len(warnings) == 2
+
+
 async def test_window_starts_never_move_back_with_the_clock(
     fake: FakeLoki, clock: list[int]
 ) -> None:

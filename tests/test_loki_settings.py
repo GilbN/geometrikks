@@ -110,6 +110,11 @@ def test_trailing_slash_is_stripped_from_the_url() -> None:
             id="url-invalid-port",
         ),
         pytest.param(
+            {"url": "http://reader:s3cret@loki:3100", "queries": [QUERY_A]},
+            "LOKI_URL must not contain credentials",
+            id="url-with-credentials",
+        ),
+        pytest.param(
             {"url": URL, "queries": [QUERY_A], "tenant_id": "café"},
             "LOKI_TENANT_ID must be ASCII",
             id="non-ascii-tenant-id",
