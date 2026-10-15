@@ -21,6 +21,7 @@ const screens = [
   { id: "ip-inspector", label: "IP inspector", img: "ip-inspector.png", cap: "IP inspector. Select an address to see request counts, bandwidth, response codes over time, hosts, paths, user agents, recent requests and CrowdSec status. You can ban it here too.", alt: "IP inspector open over the map for a banned address, with request counts, targets, paths, user agents and recent requests" },
   { id: "security", label: "Security", img: "crowdsec.png", cap: "Security. CrowdSec bans shown with matching requests from your logs.", alt: "Security page listing active CrowdSec bans" },
   { id: "debug-logs", label: "Debug logs", img: "debug-logs.png", cap: "Debug logs. The raw source lines behind every request, with parse failures called out.", alt: "Debug logs page showing raw log lines and parse failures" },
+  { id: "status", label: "Status", path: "settings/status", img: "status.png", cap: "Status. Ingestion, database, GeoIP and CrowdSec health on one page, with every log file and Loki selector listed. Advisories flag what needs attention, such as a missing ASN database or a source whose home could not be detected.", alt: "Settings Status page with ingestion running from two log files and a Loki selector, the database, GeoIP and CrowdSec cards" },
 ];
 const full = Object.fromEntries(
   await Promise.all(
@@ -56,7 +57,7 @@ const full = Object.fromEntries(
               <i />
               <i />
               <i />
-              <span>geometrikks.home.lan/{s.id === "map" || s.id === "ip-inspector" ? "map" : s.id}</span>
+              <span>geometrikks.home.lan/{s.path ?? (s.id === "map" || s.id === "ip-inspector" ? "map" : s.id)}</span>
             </div>
             {s.video ? (
               <video

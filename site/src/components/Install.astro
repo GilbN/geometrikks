@@ -28,10 +28,11 @@ docker compose up -d
           <b>A free CARTO key.</b> The basemap comes from CARTO, and their terms want a key per deployment. Optional
           today; keyless tiles may stop working at any time.
         </li>
-        <li><b>A log file.</b> Not stdout. Traefik and Caddy need one directive to write one.</li>
+        <li><b>A log file, or Loki.</b> Not stdout. Traefik and Caddy need one directive to write a file.</li>
         <li>
-          <b>One admin password.</b> Single-user session login. An authenticating proxy or a tailnet can take over,
-          and the built-in login switches off.
+          <b>One admin password, or OpenID Connect.</b> Single-user login with a password, or through a provider such
+          as Authelia, Authentik or Keycloak. An authenticating proxy or a tailnet can take over instead, and the
+          built-in login switches off.
         </li>
         <li class="no"><b>No CrowdSec needed.</b> Optional. Add a LAPI key later and the Security page lights up.</li>
         <li class="no">
