@@ -150,6 +150,7 @@ function SiteHomeLine({ row }: { row: SiteHomeRow }) {
               <AlertDialogFooter>
                 <AlertDialogCancel>Keep</AlertDialogCancel>
                 <AlertDialogAction
+                  variant="destructive"
                   disabled={remove.isPending}
                   onClick={() => remove.mutate(row.hostname, { onSettled: () => setConfirming(false) })}
                 >

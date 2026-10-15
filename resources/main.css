@@ -146,8 +146,8 @@
   --secondary-foreground: oklch(0.95 0.01 220);
   --muted: oklch(0.22 0.03 245);
   --muted-foreground: oklch(0.66 0.02 240);
-  --accent: oklch(var(--brand-l) var(--brand-c) var(--brand-h));
-  --accent-foreground: oklch(0.13 0.025 245);
+  --accent: oklch(var(--brand-l) var(--brand-c) var(--brand-h) / 15%);
+  --accent-foreground: oklch(0.95 0.01 220);
   --destructive: oklch(0.65 0.22 25);
   --border: oklch(1 0 0 / 8%);
   --input: oklch(1 0 0 / 12%);
@@ -223,6 +223,24 @@
   }
   html {
     @apply font-sans;
+  }
+
+  /* Tailwind v4 dropped the pointer cursor on buttons, and Base UI renders
+     some controls as spans with a role, so both need covering here. */
+  :where(
+      button,
+      summary,
+      [role="button"],
+      [role="tab"],
+      [role="switch"],
+      [role="checkbox"],
+      [role="radio"],
+      [role="option"],
+      [role="menuitem"],
+      [role="menuitemcheckbox"],
+      [role="menuitemradio"]
+    ):not(:disabled, [aria-disabled="true"], [data-disabled]) {
+    cursor: pointer;
   }
 
   /*
