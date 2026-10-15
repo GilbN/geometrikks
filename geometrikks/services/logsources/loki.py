@@ -1,20 +1,21 @@
 """Read access-log lines from Grafana Loki by polling query_range.
 
 A LokiSource is one LogQL stream selector. Every ``poll_interval`` seconds
-it asks Loki for the entries stamped from the newest line seen, minus
-``lookback`` seconds, until now (at most an hour back) and yields the ones
-it has not yielded before. Lines reach Loki after newer
-ones (shippers batch, streams flush independently), which is what the
-lookback is for. Reading starts at startup, like a tailed file started at
-its end. The floor is GeoMetrikks's clock at ``wait_ready``, so a GeoMetrikks
-clock ahead of the shipper's skips lines the shipper stamps in the first
-seconds after startup; after the first poll the window follows the newest
-line seen.
+it asks Loki for entries stamped between ``lookback`` seconds before the
+newest line seen and now, never more than an hour back, and yields the ones
+it has not yielded yet. Shippers batch and streams flush independently, so
+a line can reach Loki after newer ones. The lookback is there to catch it.
+
+Reading starts at startup, like a tailed file opened at its end. The floor
+is GeoMetrikks's clock at ``wait_ready``. If that clock runs ahead of the
+shipper's, lines the shipper stamps in the first seconds after startup fall
+below it. After the first poll the window follows the newest line seen.
 
 The shipper stamps each entry when it reads it, unless a pipeline stage
-sets the timestamp from the line. The README asks users not to do that:
-a request logged when it ends but stamped when it began can land behind
-the window, and query_range has no way to ask for entries by arrival.
+takes the timestamp from the line. The README tells users to drop that
+stage when the line carries the request's start time. A request stamped
+when it began but logged when it ended can land behind the window, and
+query_range cannot ask for entries by arrival time.
 """
 from __future__ import annotations
 
@@ -40,8 +41,8 @@ PAGE_LIMIT = 1000
 # A quiet selector must not grow the window until Loki refuses the query length.
 MAX_WINDOW_SECONDS = 3600
 TIMEOUT_SECONDS = 10.0
-# How far back recent_lines samples: a proxy quiet for an hour still gives
-# the format check something to judge.
+# How far back recent_lines samples. A proxy that has been quiet for an hour
+# still gives the format check something to judge.
 SAMPLE_WINDOW_SECONDS = 24 * 3600
 QUERY_RANGE_PATH = "/loki/api/v1/query_range"
 
@@ -97,8 +98,8 @@ def _parse_entries(payload: object) -> list[Entry]:
             ):
                 raise LokiRejected("entry is not a [timestamp, line] pair")
             timestamp = value[0]
-            # At most 19 digits: an int64 of nanoseconds. A longer run would
-            # also trip CPython's int-conversion length limit with a ValueError.
+            # An int64 of nanoseconds has at most 19 digits. A longer string would
+            # also hit CPython's int-conversion length limit and raise ValueError.
             if not (timestamp.isascii() and timestamp.isdigit() and len(timestamp) <= 19):
                 raise LokiRejected(f"timestamp {timestamp[:40]!r} is not a non-negative int64")
             entries.append((int(timestamp), key, value[1]))
@@ -171,8 +172,8 @@ class LokiSource:
         return SourceStatus(available=True)
 
     async def wait_ready(self, stop: asyncio.Event) -> bool:
-        # Nothing to wait for: an unreachable Loki is reported by status()
-        # and retried from inside lines(), like a file that vanishes mid-tail.
+        # There is nothing to wait for. status() reports an unreachable Loki and
+        # lines() keeps retrying it, as FileSource does with a vanished file.
         self._ready_at = _now_ns()
         return True
 
@@ -204,7 +205,7 @@ class LokiSource:
                 label=self.label,
                 query=self.query,
                 detail=detail,
-                hint="Loki answered but refused the request: check LOKI_URL, LOKI_QUERIES and the credentials",
+                hint="Loki answered but refused the request. Check LOKI_URL, LOKI_QUERIES and the credentials.",
             )
         self._unavailable_reason = reason
 
@@ -287,16 +288,16 @@ class LokiSource:
             if page[0][0] != last:
                 cursor = last
             else:
-                # A whole page at one nanosecond cannot be paged: query_range
-                # has no cursor inside a timestamp. Step past it; the rest of
-                # that nanosecond is lost.
+                # query_range has no cursor inside a timestamp, so a full page
+                # at one nanosecond cannot be paged. Step past it and lose the
+                # rest of that nanosecond.
                 if last not in self._warned_timestamps:
                     logger.warning(
-                        "More than %d lines in %s share the timestamp %s; those past the "
-                        "first %d were skipped. This happens when the log pipeline sets "
-                        "the entry timestamp from a line with second precision. Remove "
-                        "that stage so the shipper stamps lines when it reads them (see "
-                        "README, Reading from Loki).",
+                        "More than %d lines in %s share the timestamp %s, and GeoMetrikks "
+                        "skipped all but the first %d. The log pipeline sets the entry "
+                        "timestamp from a line with second precision. Remove that stage so "
+                        "the shipper stamps each line when it reads it. See \"Reading from "
+                        "Loki\" in the README.",
                         PAGE_LIMIT,
                         self.query,
                         datetime.fromtimestamp(last / NS, tz=timezone.utc).isoformat(),
@@ -310,7 +311,7 @@ class LokiSource:
     async def lines(self, stop: asyncio.Event) -> AsyncGenerator[str, None]:
         """Poll Loki until stop is set, yielding each new line once.
 
-        ``floor`` is the clock wait_ready recorded (or the clock now): entries
+        ``floor`` is the clock wait_ready recorded, or the clock now. Entries
         stamped before it are never yielded, like lines before the end of a
         tailed file. ``newest`` is the largest timestamp seen so far and
         bounds the start of the next window, which reaches back at most
@@ -330,7 +331,7 @@ class LokiSource:
             while not stop.is_set():
                 end = _now_ns()
                 start = max(last_start, newest - lookback_ns, end - max_window_ns)
-                # The clock stepped back past the window: Loki would answer 400.
+                # A clock that stepped back past the window start would get a 400.
                 if end >= start:
                     last_start = start
                     try:

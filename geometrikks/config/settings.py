@@ -454,8 +454,7 @@ class LokiSettings(BaseSettings):
     """Reading access-log lines from Grafana Loki instead of a file.
 
     Active when ``url`` and at least one ``queries`` entry are set. Each
-    selector is one log source, read like a tailed file: same format
-    detection, parsing, GeoIP and hostname stamping.
+    selector is one log source, parsed and geolocated like a tailed file.
     """
 
     model_config = SettingsConfigDict(env_prefix="LOKI_", env_file=_env_file(), extra="ignore")
@@ -506,7 +505,7 @@ class LokiSettings(BaseSettings):
     poll_interval: float = Field(
         default=5.0,
         gt=0,
-        description="Seconds between reads of each query. Separate from the 1 s file cadence.",
+        description="Seconds between reads of each query. LOGPARSER_POLL_INTERVAL paces the file tail separately.",
     )
     lookback: float = Field(
         default=60.0,
@@ -567,7 +566,7 @@ class LokiSettings(BaseSettings):
     @field_validator("queries")
     @classmethod
     def validate_query_entries(cls, value: list[str]) -> list[str]:
-        """Fail at startup on blank selectors; they would activate Loki with nothing to read."""
+        """Fail at startup on blank selectors, which would turn Loki on with nothing to read."""
         if any(not entry.strip() for entry in value):
             raise ValueError("LOKI_QUERIES entries must be non-empty")
         return [entry.strip() for entry in value]
@@ -582,7 +581,7 @@ class LokiSettings(BaseSettings):
 
     @model_validator(mode="after")
     def validate_sources(self) -> "LokiSettings":
-        """URL and queries go together; the lists must map onto the queries."""
+        """URL and queries go together, and the per-query lists must match the queries."""
         from geometrikks.services.logparser.formats import FORMATS
 
         if self.queries and not self.url:
@@ -1250,7 +1249,7 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def validate_loki_replaces_the_default_file(self) -> "Settings":
-        """Loki configured and LOGPARSER_LOG_PATHS untouched: tail no file.
+        """With Loki configured and LOGPARSER_LOG_PATHS untouched, tail no file.
 
         Without this a Loki-only install waits on /var/log/access/access.log
         forever and reports "log file missing". Setting both reads files and
