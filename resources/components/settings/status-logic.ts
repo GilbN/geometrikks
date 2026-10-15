@@ -87,6 +87,13 @@ export function ingestionState(health: HealthResponse | undefined, isError: bool
           "GeoMetrikks cannot read a configured log file. Check its permissions and those of its directory. Ingestion resumes once it can.",
       }
     }
+    if (unavailable.some((source) => source.kind === "loki" && source.reason === "rejected")) {
+      return {
+        tone: "amber",
+        label: "Running, Loki rejected the query",
+        detail: "Check LOKI_QUERIES and the credentials. Ingestion retries every poll.",
+      }
+    }
     return {
       tone: "amber",
       label: "Running, log source unavailable",

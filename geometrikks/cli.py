@@ -38,8 +38,8 @@ from geometrikks.services.logparser.formats import IMPORT_FORMATS
     "--hostname",
     default=None,
     help=(
-        "Source hostname stamped on imported records. Default: the first "
-        "LOGPARSER_HOST_NAME value."
+        "Source hostname stamped on imported records. Default: the hostname of "
+        "the first tailed file, or of the first Loki query when no file is tailed."
     ),
 )
 @click.option(
@@ -128,7 +128,7 @@ async def _run_import(
     if settings.geoip.asn_enabled and asn_reader is None:
         click.echo("No GeoLite2 ASN database found; importing without ASN enrichment.")
 
-    effective_hostname = hostname or settings.logparser.resolved_hostnames()[0]
+    effective_hostname = hostname or settings.ingest_hostnames()[0]
     click.echo(f"Stamping hostname: {effective_hostname}")
     service = LogIngestionService(
         inputs=[],

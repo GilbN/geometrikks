@@ -13,7 +13,7 @@ os.environ["GEOMETRIKKS_ENV_FILE"] = ""
 # must not change test results. Values tests do rely on are re-set in
 # baseline_settings_env below; tests needing others use monkeypatch.setenv.
 _SETTINGS_ENV_PREFIXES = (
-    "APP_", "API_", "DB_", "GEOIP_", "LOG_", "LOGPARSER_", "ANALYTICS_",
+    "APP_", "API_", "DB_", "GEOIP_", "LOG_", "LOGPARSER_", "LOKI_", "ANALYTICS_",
     "SCHEDULER_", "MAP_", "CROWDSEC_", "OIDC_", "VITE_", "MAXMINDDB_",
 )
 for _key in [k for k in os.environ if k.startswith(_SETTINGS_ENV_PREFIXES)]:

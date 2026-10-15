@@ -450,6 +450,180 @@ class LogParserSettings(BaseSettings):
         return value
 
 
+class LokiSettings(BaseSettings):
+    """Reading access-log lines from Grafana Loki instead of a file.
+
+    Active when ``url`` and at least one ``queries`` entry are set. Each
+    selector is one log source, parsed and geolocated like a tailed file.
+    """
+
+    model_config = SettingsConfigDict(env_prefix="LOKI_", env_file=_env_file(), extra="ignore")
+
+    url: str | None = Field(
+        default=None,
+        description=(
+            "Base URL of the Loki server, e.g. http://loki:3100. http or "
+            "https. Unset (default): no Loki source."
+        ),
+    )
+    queries: Annotated[list[str], NoDecode] = Field(
+        default_factory=list,
+        description=(
+            'LogQL stream selectors, one source each, e.g. {job="traefik"}. '
+            "Env accepts a single selector or a JSON list. Empty (default): "
+            "no Loki source."
+        ),
+    )
+    formats: Annotated[list[str], NoDecode] = Field(
+        default_factory=lambda: ["auto"],
+        description=(
+            "Log format per query, same values as LOGPARSER_LOG_FORMATS. Env "
+            "accepts one value for every query, or a JSON list matching "
+            "LOKI_QUERIES by position."
+        ),
+    )
+    host_names: Annotated[list[str], NoDecode] = Field(
+        default_factory=list,
+        description=(
+            "Source hostname per query. Env accepts one value or a JSON list "
+            "matching LOKI_QUERIES by position. Empty (default): the first "
+            "LOGPARSER_HOST_NAME."
+        ),
+    )
+    tenant_id: str | None = Field(
+        default=None,
+        description="Sent as X-Scope-OrgID, for a multi-tenant Loki. Unset (default): no header.",
+    )
+    username: str | None = Field(
+        default=None,
+        description="Basic auth username, with LOKI_PASSWORD.",
+    )
+    password: SecretStr | None = Field(
+        default=None,
+        description="Basic auth password, with LOKI_USERNAME.",
+    )
+    poll_interval: float = Field(
+        default=5.0,
+        gt=0,
+        description="Seconds between reads of each query. LOGPARSER_POLL_INTERVAL paces the file tail separately.",
+    )
+    lookback: float = Field(
+        default=60.0,
+        ge=0,
+        description=(
+            "Seconds each read looks back for lines that reached Loki late. "
+            "Every poll re-reads this whole window. The window never reaches back "
+            "more than an hour, so values above 3600 behave as 3600."
+        ),
+    )
+
+    @field_validator("queries", "formats", "host_names", mode="before")
+    @classmethod
+    def parse_single_or_json_list(cls, value: object) -> object:
+        """Accept a single value or a JSON list.
+
+        Not comma-split: a selector such as {job="a", env="b"} contains commas.
+        """
+        if isinstance(value, str):
+            stripped = value.strip()
+            if not stripped:
+                return []
+            if stripped.startswith("["):
+                return json.loads(stripped)
+            return [stripped]
+        return value
+
+    @field_validator("url")
+    @classmethod
+    def validate_url(cls, value: str | None) -> str | None:
+        """Require an absolute http(s) URL; keep it without a trailing slash."""
+        if value is None:
+            return None
+        try:
+            parts = urlsplit(value)
+        except ValueError as exc:
+            raise ValueError(f"LOKI_URL is not a valid URL: {value!r}") from exc
+        if parts.scheme not in ("http", "https") or not parts.hostname:
+            raise ValueError(f"LOKI_URL must be an absolute http(s) URL, got {value!r}")
+        if parts.username is not None or parts.password is not None:
+            raise ValueError("LOKI_URL must not contain credentials; set LOKI_USERNAME and LOKI_PASSWORD")
+        # urlsplit checks the port only when it is read, and httpx2 would then
+        # raise InvalidURL at the first request.
+        try:
+            parts.port
+        except ValueError as exc:
+            raise ValueError("LOKI_URL has an invalid port") from exc
+        return value.rstrip("/")
+
+    @field_validator("tenant_id")
+    @classmethod
+    def validate_tenant_id(cls, value: str | None) -> str | None:
+        """Reject what cannot be sent as an HTTP header value."""
+        if value is not None and not value.isascii():
+            raise ValueError("LOKI_TENANT_ID must be ASCII")
+        return value
+
+    @field_validator("queries")
+    @classmethod
+    def validate_query_entries(cls, value: list[str]) -> list[str]:
+        """Fail at startup on blank selectors, which would turn Loki on with nothing to read."""
+        if any(not entry.strip() for entry in value):
+            raise ValueError("LOKI_QUERIES entries must be non-empty")
+        return [entry.strip() for entry in value]
+
+    @field_validator("host_names")
+    @classmethod
+    def validate_host_name_entries(cls, value: list[str]) -> list[str]:
+        """Fail at startup on blank entries; '' would silently un-stamp records."""
+        if any(not entry.strip() for entry in value):
+            raise ValueError("LOKI_HOST_NAMES entries must be non-empty")
+        return [entry.strip() for entry in value]
+
+    @model_validator(mode="after")
+    def validate_sources(self) -> "LokiSettings":
+        """URL and queries go together, and the per-query lists must match the queries."""
+        from geometrikks.services.logparser.formats import FORMATS
+
+        if self.queries and not self.url:
+            raise ValueError("LOKI_QUERIES needs LOKI_URL")
+        if self.url and not self.queries:
+            raise ValueError("LOKI_URL needs at least one LOKI_QUERIES entry")
+        if (self.username is None) != (self.password is None):
+            raise ValueError("LOKI_USERNAME and LOKI_PASSWORD must be set together")
+        allowed = {"auto", *FORMATS}
+        unknown = [f for f in self.formats if f not in allowed]
+        if unknown:
+            raise ValueError(f"Unknown Loki log format(s) {unknown}; allowed: {sorted(allowed)}")
+        count = len(self.queries)
+        if self.queries and len(self.formats) not in (1, count):
+            raise ValueError(
+                f"LOKI_FORMATS must be one value or match LOKI_QUERIES in length ({count})"
+            )
+        if self.queries and self.host_names and len(self.host_names) not in (1, count):
+            raise ValueError(
+                f"LOKI_HOST_NAMES must be one value or match LOKI_QUERIES in length ({count})"
+            )
+        return self
+
+    def resolved_formats(self) -> list[str]:
+        """One format per query, fanning a single value out."""
+        if not self.queries:
+            return []
+        if len(self.formats) == 1:
+            return self.formats * len(self.queries)
+        return list(self.formats)
+
+    def resolved_hostnames(self, default: str) -> list[str]:
+        """One hostname per query; ``default`` when none are configured."""
+        if not self.queries:
+            return []
+        if not self.host_names:
+            return [default] * len(self.queries)
+        if len(self.host_names) == 1:
+            return self.host_names * len(self.queries)
+        return list(self.host_names)
+
+
 class AnalyticsSettings(BaseSettings):
     """Analytics and aggregation configuration settings.
 
@@ -1055,6 +1229,7 @@ class Settings(BaseSettings):
     geoip: GeoIPSettings = Field(default_factory=GeoIPSettings)
     log: LogSettings = Field(default_factory=LogSettings)
     logparser: LogParserSettings = Field(default_factory=LogParserSettings)
+    loki: LokiSettings = Field(default_factory=LokiSettings)
     analytics: AnalyticsSettings = Field(default_factory=AnalyticsSettings)
     scheduler: SchedulerSettings = Field(default_factory=SchedulerSettings)
     map: MapSettings = Field(default_factory=MapSettings)
@@ -1071,6 +1246,24 @@ class Settings(BaseSettings):
                 "that tails nothing does nothing"
             )
         return self
+
+    @model_validator(mode="after")
+    def validate_loki_replaces_the_default_file(self) -> "Settings":
+        """With Loki configured and LOGPARSER_LOG_PATHS untouched, tail no file.
+
+        Without this a Loki-only install waits on /var/log/access/access.log
+        forever and reports "log file missing". Setting both reads files and
+        Loki side by side.
+        """
+        if self.loki.queries and "log_paths" not in self.logparser.model_fields_set:
+            self.logparser.log_paths = []
+        return self
+
+    def ingest_hostnames(self) -> list[str]:
+        """Every hostname a source stamps: files first, then Loki, no duplicates."""
+        default = self.logparser.host_name[0]
+        hostnames = self.logparser.resolved_hostnames() + self.loki.resolved_hostnames(default)
+        return list(dict.fromkeys(hostnames))
 
     @property
     def password_login_enabled(self) -> bool:
