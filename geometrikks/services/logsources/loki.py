@@ -8,7 +8,7 @@ ones (shippers batch, streams flush independently), which is what the
 lookback is for. Reading starts at startup, like a tailed file started at
 its end.
 
-Loki stamps an entry when it receives it, unless the shipping pipeline
+The shipper stamps each entry when it reads it, unless a pipeline stage
 sets the timestamp from the line. The README asks users not to do that:
 a request logged when it ends but stamped when it began can land behind
 the window, and query_range has no way to ask for entries by arrival.

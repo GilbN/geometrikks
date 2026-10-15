@@ -948,74 +948,6 @@ Everything downstream (the access-logs hostname filter, the map's Source
 filter, per-site homes) treats those files like traffic from separate
 agents.
 
-### Reading from Loki
-
-If the access logs already go to [Grafana Loki](https://grafana.com/oss/loki/)
-through Alloy, Promtail or another shipper, GeoMetrikks can read them from
-Loki instead of a file. Each LogQL stream selector is one source, read like
-a tailed file: same format detection, parsing, GeoIP lookup and hostname
-stamping.
-
-```bash
-LOKI_URL=http://loki:3100
-LOKI_QUERIES=["{job=\"nginx\"}", "{job=\"traefik\"}"]
-LOKI_HOST_NAMES=["edge-01", "edge-02"]
-```
-
-- Loki must hold the raw access-log line. A pipeline stage that rewrites
-  the line (for example into logfmt) leaves nothing a format adapter
-  recognizes. Labels and structured metadata are ignored.
-- Do not set the entry timestamp from the line (`stage.timestamp` in Alloy,
-  the `timestamp` stage in Promtail). Loki then stamps each line when it
-  arrives, and `LOKI_LOOKBACK` (default 60 seconds) only has to cover the
-  shipping delay. A proxy logs a request when it ends, so with the
-  timestamp taken from the line a websocket or a long download is stamped
-  minutes before it reaches Loki. GeoMetrikks only looks `LOKI_LOOKBACK`
-  seconds back, and a line stamped earlier than that is never read. If you
-  keep the stage, set `LOKI_LOOKBACK` above the longest request the proxy
-  serves; every poll re-reads that whole window. A second-precision
-  timestamp also caps a busy proxy at 1000 lines per second, because Loki
-  cannot page inside one timestamp.
-- One selector can match several streams (one per label set). Their lines
-  are merged in timestamp order under the one hostname configured for the
-  selector. Keep one log format per selector, or pin it with
-  `LOKI_FORMATS`.
-- GeoMetrikks polls every `LOKI_POLL_INTERVAL` seconds (default 5). Reading
-  starts when the app starts, as with a tailed file: lines from while it
-  was down are not replayed.
-- With `LOKI_QUERIES` set and `LOGPARSER_LOG_PATHS` left unset, no file is
-  tailed. Set both to read files and Loki side by side. An explicit
-  `LOGPARSER_LOG_PATHS` anywhere counts as set, in `.env` or in a compose
-  `environment:` block, and keeps the file tail. The shipped `.env.example`
-  sets it, so a Loki-only install removes or comments out that line.
-- `LOKI_TENANT_ID` sets `X-Scope-OrgID` for a multi-tenant Loki;
-  `LOKI_USERNAME` with `LOKI_PASSWORD` sends basic auth.
-- A Loki that cannot be reached, or that refuses the query, is listed under
-  `ingestion.unavailableSources` in `/health` as `loki:1`, `loki:2` and so
-  on, with the reason `unreachable` or `rejected`. The Status page shows
-  each selector with its hostname, format and line count.
-
-An Alloy configuration that ships a Traefik access log the way GeoMetrikks
-expects:
-
-```alloy
-loki.source.file "traefik" {
-  targets = [{
-    __path__     = "/var/log/traefik/access.log",
-    job          = "traefik",
-    service_name = "traefik",
-  }]
-  tail_from_end = true
-  forward_to    = [loki.write.local.receiver]
-}
-
-loki.write "local" {
-  endpoint {
-    url = "http://loki:3100/loki/api/v1/push"
-  }
-}
-```
-
 An agent needs only `APP_MODE=agent`, database credentials for the shared
 instance, GeoIP credentials, and its own log mount:
 
@@ -1127,6 +1059,84 @@ instance on different versions.
 LAPI on the full instance only; per-machine CrowdSec agents keep reporting
 to that same LAPI as usual. GeoMetrikks agents ignore `CROWDSEC_*` settings;
 ban visibility and management stay with the full instance.
+
+### Reading from Loki
+
+If the access logs already go to [Grafana Loki](https://grafana.com/oss/loki/)
+through Alloy, Promtail or another shipper, GeoMetrikks can read them from
+Loki instead of a file. Each LogQL stream selector is one source, read like
+a tailed file: same format detection, parsing, GeoIP lookup and hostname
+stamping.
+
+```bash
+LOKI_URL=http://loki:3100
+LOKI_QUERIES=["{job=\"nginx\"}", "{job=\"traefik\"}"]
+LOKI_HOST_NAMES=["edge-01", "edge-02"]
+```
+
+With `LOKI_HOST_NAMES` unset, every selector is stamped with the first
+`LOGPARSER_HOST_NAME`. Give each selector its own hostname when they are
+different proxies.
+
+- Loki must hold the raw access-log line. A pipeline stage that rewrites
+  the line (for example into logfmt) leaves nothing GeoMetrikks can parse as
+  a log format. Labels and structured metadata are ignored.
+- Do not set the entry timestamp from the line (`stage.timestamp` in Alloy,
+  the `timestamp` stage in Promtail) when the line carries the request's
+  start time, as Traefik's `StartUTC` does. A proxy writes the line when the
+  request ends, so a websocket or a long download gets a timestamp minutes
+  or hours before the line reaches Loki. GeoMetrikks reads from the newest
+  line it has seen minus `LOKI_LOOKBACK` (default 60 seconds), and never
+  more than an hour back, so such a line is skipped. Without the stage the
+  shipper stamps the line when it reads it, and the lookback only has to
+  cover shipping delay. nginx and Caddy stamp lines when they write them,
+  so this does not apply to them. If you keep the stage, set
+  `LOKI_LOOKBACK` above the longest request the proxy serves, up to 3600;
+  every poll re-reads that whole window.
+- Loki cannot page inside one timestamp, and GeoMetrikks reads 1000 lines
+  per request for the whole selector. With second-precision timestamps, a
+  selector that logs more than 1000 lines in one second loses the rest of
+  that second. GeoMetrikks logs a warning once per such timestamp.
+- One selector can match several streams (one per label set). Their lines
+  are merged in timestamp order under the one hostname configured for the
+  selector. Each selector has one parser with one log format, detected from
+  its first lines or pinned with `LOKI_FORMATS`. Lines in another format
+  are counted as malformed, so use one selector per log format.
+- GeoMetrikks polls every `LOKI_POLL_INTERVAL` seconds (default 5). Reading
+  starts when the app starts, as with a tailed file: lines from while it
+  was down are not replayed.
+- With `LOKI_QUERIES` set and `LOGPARSER_LOG_PATHS` left unset, no file is
+  tailed. Set both to read files and Loki side by side. An explicit
+  `LOGPARSER_LOG_PATHS` anywhere counts as set, in `.env` or in a compose
+  `environment:` block, and keeps the file tail. The shipped `.env.example`
+  sets it, so a Loki-only install removes or comments out that line.
+- `LOKI_TENANT_ID` sets `X-Scope-OrgID` for a multi-tenant Loki;
+  `LOKI_USERNAME` with `LOKI_PASSWORD` sends basic auth.
+- A Loki that cannot be reached, or that refuses the query, is listed under
+  `ingestion.unavailableSources` in `/health` as `loki:1`, `loki:2` and so
+  on, with the reason `unreachable` or `rejected`. The Status page shows
+  each selector with its hostname, format and line count.
+
+An Alloy configuration that ships a Traefik access log the way GeoMetrikks
+expects:
+
+```alloy
+loki.source.file "traefik" {
+  targets = [{
+    __path__     = "/var/log/traefik/access.log",
+    job          = "traefik",
+    service_name = "traefik",
+  }]
+  tail_from_end = true
+  forward_to    = [loki.write.local.receiver]
+}
+
+loki.write "local" {
+  endpoint {
+    url = "http://loki:3100/loki/api/v1/push"
+  }
+}
+```
 
 ## CLI commands
 
