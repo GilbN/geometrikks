@@ -194,6 +194,25 @@ describe("ingestionState", () => {
     expect(state.label).toBe("Running, Loki rejected the query")
     expect(state.detail).toBe("Check LOKI_QUERIES and the credentials. Ingestion retries every poll.")
   })
+  it("lets a rejected loki source win over a missing file", () => {
+    const state = ingestionState(
+      makeHealth({
+        ingestion: {
+          running: true,
+          parsedLines: 10,
+          pendingRecords: 0,
+          missingFiles: ["/var/log/access/access.log", "loki:1"],
+          unavailableSources: [
+            { kind: "file", label: "/var/log/access/access.log", reason: "missing" },
+            { kind: "loki", label: "loki:1", reason: "rejected" },
+          ],
+          lastRecordAt: null,
+        },
+      }),
+      false,
+    )
+    expect(state.label).toBe("Running, Loki rejected the query")
+  })
   it("keeps the generic wording for an unreachable loki source", () => {
     const state = ingestionState(
       makeHealth({

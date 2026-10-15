@@ -345,7 +345,7 @@ export function StatusOverview() {
             <div className="space-y-2 border-t pt-3">
               <p className="text-xs font-medium text-muted-foreground">Access log sources</p>
               {filesError && <p className="text-xs text-muted-foreground">File list unavailable.</p>}
-              {!filesError && access.length === 0 && lokiSources.length === 0 && (
+              {!filesError && stats !== undefined && !statsError && access.length === 0 && lokiSources.length === 0 && (
                 <p className="text-xs text-muted-foreground">No access logs configured.</p>
               )}
               {access.map((f) => (
