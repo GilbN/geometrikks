@@ -154,10 +154,10 @@ function NavItem({
           children: (
             <span className="flex flex-col gap-0.5">
               <span className="flex items-center gap-2">
-                <span>{item.title}</span>
+                <span className="font-medium">{item.title}</span>
                 <span className="text-muted-foreground text-xs">{item.description}</span>
               </span>
-              {warning && <span className="text-amber-500 text-xs">{warning}</span>}
+              {warning && <span className="text-amber-700 dark:text-amber-400 text-xs">{warning}</span>}
               {notice && <span className="text-primary text-xs">{notice}</span>}
             </span>
           ),
