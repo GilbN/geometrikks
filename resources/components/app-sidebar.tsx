@@ -46,7 +46,6 @@ import {
   sidebarStatusTooltip,
   type SidebarIngestionVariant,
 } from "@/components/settings/status-logic"
-import { useLiveFeedStatus } from "@/lib/live-feed-context"
 import { useChangelogUnseen, useCrowdsecStatus, useMe, useRuntimeSettings } from "@/lib/queries"
 import { SiDocker } from "react-icons/si"
 
@@ -309,65 +308,6 @@ function LiveIndicator({ collapsed }: { collapsed: boolean }) {
   )
 }
 
-function LiveFeedIndicator({ collapsed }: { collapsed: boolean }) {
-  const { tooltipsSuppressed, resetTooltipSuppression } = useSidebar()
-  // WebSocket live-feed status, distinct from the ingestion-health dot above.
-  // Lazy-connect: reads "Live feed off" until a consumer (map pulses or the
-  // access-logs live tail) subscribes to the shared connection.
-  const status = useLiveFeedStatus()
-  const color =
-    status === "connected"
-      ? "bg-emerald-400"
-      : status === "connecting"
-        ? "bg-amber-400 animate-pulse"
-        : status === "unavailable"
-          ? "bg-amber-400"
-          : "bg-sidebar-foreground/30"
-  const label =
-    status === "connected"
-      ? "Live feed"
-      : status === "connecting"
-        ? "Connecting"
-        : status === "unavailable"
-          ? "Live feed paused"
-          : "Live feed off"
-  const tooltip =
-    status === "connected"
-      ? "Live event feed connected"
-      : status === "connecting"
-        ? "Connecting to live event feed"
-        : status === "unavailable"
-          ? "The server is not streaming events right now. See Settings > Status."
-          : "Live feed idle (no active subscribers)"
-
-  if (collapsed) {
-    return (
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <div
-            className="flex items-center justify-center py-1 mx-2"
-            onPointerLeave={resetTooltipSuppression}
-          >
-            <span className={cn("inline-flex w-2 h-2 rounded-full", color)} />
-          </div>
-        </TooltipTrigger>
-        {!tooltipsSuppressed && (
-          <TooltipContent side="right">
-            <span>{tooltip}</span>
-          </TooltipContent>
-        )}
-      </Tooltip>
-    )
-  }
-
-  return (
-    <div className="flex items-center gap-2 px-3 py-1 mx-2 text-xs text-sidebar-foreground/60">
-      <span className={cn("inline-flex w-2 h-2 rounded-full", color)} />
-      <span className="font-medium">{label}</span>
-    </div>
-  )
-}
-
 function LogoutButton() {
   const { state, isMobile, tooltipsSuppressed, resetTooltipSuppression } = useSidebar()
   const collapsed = isMobile ? false : state === "collapsed"
@@ -555,10 +495,8 @@ export function AppSidebar() {
       <SidebarSeparator className="opacity-50" />
 
       <SidebarContent>
-        {/* Live status indicators: ingestion health + websocket live feed */}
-        <div className="mt-2 flex flex-col gap-1">
+        <div className="mt-2">
           <LiveIndicator collapsed={collapsed} />
-          <LiveFeedIndicator collapsed={collapsed} />
         </div>
 
         <SidebarGroup className="mt-2">
