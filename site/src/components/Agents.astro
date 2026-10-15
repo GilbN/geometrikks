@@ -33,6 +33,10 @@ const sites = [
 DB_HOST=timescale.example.internal
 LOGPARSER_LOG_PATHS=/var/log/access/access.log
 LOGPARSER_HOST_NAME=edge-01</pre>
+      <p>
+        You don't need agents if the logs already reach one machine. A single instance tails every shipped file and
+        gives each one its own hostname, or reads each proxy from Loki with one LogQL selector per proxy.
+      </p>
       <a class="more" href="/docs/features/multi-source/">Multi-source setup in the docs</a>
     </div>
     <div class="diagram" role="img" aria-label="Three proxies, each with an agent, write to one TimescaleDB that one full GeoMetrikks instance serves the UI from">
