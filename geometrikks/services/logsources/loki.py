@@ -314,9 +314,9 @@ class LokiSource:
     ) -> AsyncGenerator[list[Entry], None]:
         """Pages of entries stamped in [start_ns, end_ns), oldest first.
 
-        For import-loki. Owns its client. Unlike lines(), nothing is
-        retried or recorded in status(): the importer stops at the window
-        it was reading and the next run resumes there.
+        For import-loki. Owns its client. Unlike lines(), it retries nothing
+        and records nothing in status(). The importer stops at the window it
+        was reading, and the next run resumes there.
 
         Raises:
             httpx2.HTTPError, LokiRejected: as ``_request``.

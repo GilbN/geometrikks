@@ -34,7 +34,7 @@ class LokiImportRepository(SQLAlchemyAsyncRepository[LokiImport]):
     async def find_resumable(
         self, *, url: str, tenant_id: str | None, query: str, since: datetime, before: datetime
     ) -> LokiImport | None:
-        """An unfinished run of exactly this range for this selector, newest first."""
+        """The newest unfinished run of exactly this range for this selector."""
         statement = (
             select(LokiImport)
             .where(
@@ -53,7 +53,7 @@ class LokiImportRepository(SQLAlchemyAsyncRepository[LokiImport]):
     async def earliest_range_start(
         self, *, url: str, tenant_id: str | None, query: str
     ) -> datetime | None:
-        """The earliest range any run of this selector wrote to, finished or not."""
+        """The earliest start among this selector's runs that finished at least one hour."""
         statement = select(func.min(LokiImport.range_start)).where(
             LokiImport.url == url,
             _same_tenant(tenant_id),

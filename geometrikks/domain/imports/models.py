@@ -35,12 +35,12 @@ class ImportJob(base.BigIntAuditBase):
 class LokiImport(base.BigIntAuditBase):
     """One import-loki run over a time range of one selector.
 
-    A selector is identified by (url, tenant_id, query); hostname is what
-    the rows were stamped with and is not part of the identity, so changing
+    (url, tenant_id, query) identifies a selector. hostname is what the
+    rows were stamped with and is not part of the identity, so changing
     LOKI_HOST_NAMES does not hide an earlier import of the same data.
 
     cursor is the start of the next window to read and equals range_end
-    once the run completed. A rerun with the same range resumes from it.
+    once the run completes. A rerun with the same range resumes from it.
     Each window's rows commit before the cursor moves, so a crash between
     the two re-imports that hour on resume.
     """

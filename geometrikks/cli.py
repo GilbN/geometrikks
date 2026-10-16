@@ -261,10 +261,10 @@ async def _run_import(
     type=click.DateTime(formats=_DATETIME_FORMATS),
     help=(
         "End of the range, exclusive. Without an offset it is UTC. Default: where "
-        "the selector's stored data begins. That is the oldest access-log row for "
-        "its hostname, or the start of an earlier import-loki range when that row "
-        "is a line the import wrote or when no access-log row is older; an "
-        "interrupted run with the same --since keeps its own end."
+        "the data already in the database begins. That is the oldest access-log "
+        "row for the selector's hostname, or, after an earlier import-loki run, "
+        "that run's start unless older access-log rows exist. An interrupted run "
+        "with the same --since keeps its own end."
     ),
 )
 @click.option(
@@ -272,9 +272,9 @@ async def _run_import(
     "query_index",
     default=None,
     type=click.IntRange(min=1),
-    help="Only the selector at this position in LOKI_QUERIES (1-based). Default: all.",
+    help="Only the Nth selector in LOKI_QUERIES, counting from 1. Default: all of them.",
 )
-@click.option("--force", is_flag=True, help="Skip the overlap check. An unfinished run of the same range still resumes; a finished one is imported again (does NOT remove rows written earlier).")
+@click.option("--force", is_flag=True, help="Skip the overlap check. An unfinished run of the same range still resumes. A finished range is imported again, and the rows from the first import stay.")
 @click.option("--batch-size", default=500, show_default=True, type=click.IntRange(min=1), help="Records per commit batch.")
 def import_loki_command(
     since: datetime,
@@ -285,11 +285,11 @@ def import_loki_command(
 ) -> None:
     """Import a time range of each LOKI_QUERIES selector into the database.
 
-    Reads Loki in one-hour windows through the live pipeline, using the
-    timestamps in each log line, and refreshes the continuous aggregates
-    for the imported range afterwards. Rerunning the same range resumes
-    where an interrupted run stopped; a range that overlaps an earlier
-    import is refused.
+    Reads Loki one hour at a time through the live pipeline, stamps rows
+    with the time in each log line, and refreshes the continuous aggregates
+    for the imported range at the end. Rerunning the same range resumes
+    where an interrupted run stopped. Refuses a range that overlaps an
+    earlier import.
     """
     if since.tzinfo is None:
         since = since.replace(tzinfo=timezone.utc)
@@ -315,7 +315,7 @@ def select_loki_queries(
     loki = settings.loki
     if loki.url is None or not loki.queries:
         raise click.ClickException(
-            "LOKI_URL and LOKI_QUERIES are not set, so there is no Loki source to import from."
+            "LOKI_URL or LOKI_QUERIES is not set, so there is no Loki source to import from."
         )
     if query_index is not None and not 1 <= query_index <= len(loki.queries):
         raise click.ClickException(
@@ -357,9 +357,9 @@ def resolve_loki_before(
             f"no access-log rows or earlier imports exist for hostname {hostname}, so there "
             "is no default end for the range. Pass --before."
         )
-    # The oldest row may be a line a backfill wrote, stamped by the proxy a shipper's
-    # delay before the Loki entry it came from; the import's own start is the exact
-    # boundary then.
+    # The oldest row may be a line an import wrote. The proxy stamped that line a
+    # shipper's delay before Loki stamped its entry, so the import's own start is
+    # the exact boundary.
     if (
         earliest_import is not None
         and oldest_row is not None
@@ -373,8 +373,8 @@ def resolve_loki_before(
         raise click.ClickException(
             f"--since {since.isoformat()} is not before {end.isoformat()}, where an "
             f"earlier import or the stored rows for {hostname} already begin. Pass an "
-            "earlier --since to go further back, or --before to repeat a range on purpose "
-            "(a finished range also needs --force)."
+            "earlier --since to go further back. To import a later range on purpose, "
+            "pass --before, plus --force if that range was imported already."
         )
     return end
 
@@ -572,9 +572,8 @@ async def _run_loki_import(
             click.echo(f"Importing {query} (hostname {host}) ...")
             if before is None:
                 click.echo(
-                    f"  --before not given; stopping at {end.isoformat()} "
-                    f"(rerun with --since {since.isoformat()} --before {end.isoformat()} "
-                    "for the same range)"
+                    f"  --before not given, stopping at {end.isoformat()}. To rerun this "
+                    f"range: --since {since.isoformat()} --before {end.isoformat()}"
                 )
             click.echo(f"  range {since.isoformat()} to {end.isoformat()}")
 
@@ -612,8 +611,8 @@ async def _run_loki_import(
                 continue
             except LokiImportWriteError as exc:
                 click.echo(
-                    f"  error: {exc}; the hour was not recorded as imported, so rerunning "
-                    "the same --since/--before resumes from it.",
+                    f"  error: {exc}. That hour is not marked as imported, so rerunning "
+                    "with the same --since and --before resumes from it.",
                     err=True,
                 )
                 failed.append(query)
@@ -629,7 +628,8 @@ async def _run_loki_import(
                 continue
             except (httpx2.HTTPError, LokiRejected) as exc:
                 click.echo(
-                    f"  error: Loki failed ({exc!r}); rerun the same --since/--before to resume.",
+                    f"  error: Loki failed with {exc!r}. Rerun with the same --since and "
+                    "--before to resume.",
                     err=True,
                 )
                 failed.append(query)
@@ -646,8 +646,8 @@ async def _run_loki_import(
             except Exception as exc:
                 logger.exception("loki_import_selector_failed", query=query)
                 click.echo(
-                    f"  error: {exc!r}; the selector's progress row, if any, keeps its last "
-                    "completed hour; rerun the same --since/--before to resume.",
+                    f"  error: {exc!r}. Progress up to the last completed hour is kept. "
+                    "Rerun with the same --since and --before to resume.",
                     err=True,
                 )
                 failed.append(query)

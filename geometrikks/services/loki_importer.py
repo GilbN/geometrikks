@@ -1,14 +1,13 @@
 """Backfill a time range of one Loki selector through the live pipeline.
 
 The Loki counterpart of importer.py. The unit of bookkeeping is a time
-range of one selector, not a file checksum. The range is walked in
-one-hour windows; after each window's rows commit, the loki_imports row's
-cursor moves to the window's end, so a rerun of the same range resumes
+range of one selector, not a file checksum. The walker reads the range in
+one-hour windows. After a window's rows commit, the loki_imports row's
+cursor moves to the window's end, so rerunning the same range resumes
 there. A crash between the commit and the cursor update re-imports that
-hour on resume. Batches already flushed from a window that then fails are
-written again.
+hour, and so does a window that fails after some of its batches flushed.
 
-CLI-only, like importer.py: free of click so an endpoint could reuse it.
+CLI-only like importer.py, and free of click so an endpoint could reuse it.
 """
 
 from __future__ import annotations
@@ -62,8 +61,8 @@ class LokiImportProgress:
 
 @dataclass
 class LokiImportResult:
-    """time_start/time_end span every row the range's runs wrote, so a refresh after a
-    resume covers the first run's rows.
+    """time_start and time_end cover every row the range's runs wrote, so the
+    refresh after a resume includes the first run's rows.
     """
 
     lines_total: int
@@ -105,9 +104,9 @@ class _Counters:
 def _overlap_error(source: LokiSource, overlap: LokiImport) -> LokiImportOverlapError:
     return LokiImportOverlapError(
         f"{source.query}: {overlap.range_start.isoformat()} to "
-        f"{overlap.cursor.isoformat()} is already imported for this selector "
-        f"(row {overlap.id}). --force skips this check and imports the range again, "
-        "duplicating the rows already written."
+        f"{overlap.cursor.isoformat()} is already imported for this selector, "
+        f"row {overlap.id} in loki_imports. --force skips this check and imports "
+        "the range again, so those rows end up twice."
     )
 
 
@@ -137,8 +136,8 @@ async def _claim_row(
 ) -> tuple[int, datetime, _Counters, datetime | None]:
     """The row this run writes to: resumed, refused, or new.
 
-    Returns the row id, the cursor to start from, the counts stored so far
-    (folded into the row as the run adds to them) and the resume point.
+    Returns the row id, the cursor to start from, the counts already stored,
+    which the run adds to, and the resume point.
     """
     identity = {"url": source.url, "tenant_id": source.tenant_id, "query": source.query}
     async with session_maker() as session:
@@ -179,8 +178,10 @@ async def claim_loki_range(
     before: datetime,
     force: bool = False,
 ) -> None:
-    """Record the range this selector will import, so an interrupted run leaves every
-    selector's bounds behind. import_loki_range finds the row and resumes it from ``since``.
+    """Record the range this selector will import before any selector starts.
+
+    An interrupted run then leaves every selector's bounds in the database.
+    import_loki_range finds the row and starts at its cursor.
     """
     await _claim_row(source, session_maker, since, before, force)
 
@@ -220,15 +221,15 @@ async def import_loki_range(
 ) -> LokiImportResult:
     """Import [since, before) of one selector. See module docstring.
 
-    Bounds are Loki entry timestamps. The format is locked from the first
+    Bounds are Loki entry timestamps. The format locks on the first
     non-empty page, so the check samples the data being imported. ``force``
-    skips the overlap checks; an unfinished run of exactly this range still
+    skips the overlap checks. An unfinished run of exactly this range still
     resumes.
 
     Raises:
         LokiImportOverlapError: part of the range is already imported.
         UnrecognizedLogFormatError: the first page matches no log format.
-        LokiImportWriteError: A batch failed to commit; the window is not
+        LokiImportWriteError: a batch failed to commit, and the window is not
             recorded as imported. Records the service committed from that
             batch before the failure are written again on resume.
         httpx2.HTTPError, LokiRejected: Loki failed mid-range; the row
