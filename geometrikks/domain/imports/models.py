@@ -1,7 +1,7 @@
-"""Import job bookkeeping for batch log imports (duplicate protection)."""
+"""Import job bookkeeping for batch log imports: files by checksum, Loki by time range."""
 from datetime import datetime
 
-from sqlalchemy import BigInteger, String, Text
+from sqlalchemy import BigInteger, Index, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 from advanced_alchemy.types import DateTimeUTC
 from advanced_alchemy import base
@@ -30,3 +30,33 @@ class ImportJob(base.BigIntAuditBase):
     time_start: Mapped[datetime | None] = mapped_column(DateTimeUTC(timezone=True), nullable=True)
     time_end: Mapped[datetime | None] = mapped_column(DateTimeUTC(timezone=True), nullable=True)
     cutoff: Mapped[datetime | None] = mapped_column(DateTimeUTC(timezone=True), nullable=True)
+
+
+class LokiImport(base.BigIntAuditBase):
+    """One import-loki run over a time range of one selector.
+
+    A selector is identified by (url, tenant_id, query); hostname is what
+    the rows were stamped with and is not part of the identity, so changing
+    LOKI_HOST_NAMES does not hide an earlier import of the same data.
+
+    cursor is the start of the next window to read and equals range_end
+    once the run completed. A rerun with the same range resumes from it.
+    Each window's rows commit before the cursor moves, so a crash between
+    the two re-imports that hour on resume.
+    """
+
+    __tablename__ = "loki_imports"
+    __table_args__ = (Index("ix_loki_imports_url_query", "url", "query"),)
+
+    url: Mapped[str] = mapped_column(Text, nullable=False)
+    tenant_id: Mapped[str | None] = mapped_column(Text, nullable=True)
+    query: Mapped[str] = mapped_column(Text, nullable=False)
+    hostname: Mapped[str] = mapped_column(String(255), nullable=False)
+    range_start: Mapped[datetime] = mapped_column(DateTimeUTC(timezone=True), nullable=False)
+    range_end: Mapped[datetime] = mapped_column(DateTimeUTC(timezone=True), nullable=False)
+    cursor: Mapped[datetime] = mapped_column(DateTimeUTC(timezone=True), nullable=False)
+    lines_total: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
+    lines_skipped: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
+    records_written: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
+    time_start: Mapped[datetime | None] = mapped_column(DateTimeUTC(timezone=True), nullable=True)
+    time_end: Mapped[datetime | None] = mapped_column(DateTimeUTC(timezone=True), nullable=True)

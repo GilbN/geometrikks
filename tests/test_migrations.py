@@ -37,6 +37,7 @@ CAGG_REFRESH_REVISION = "5f1c8a7d24b3"
 METHOD_WIDTH_REVISION = "8b7884d1daaf"
 GEO_ASN_REVISION = "e7a1c3b5d904"
 IMPORT_CUTOFF_REVISION = "5c2e9a71d3f4"
+LOKI_IMPORTS_REVISION = "a4d1f0c2b7e9"
 VERSIONS_DIR = REPO_ROOT / "migrations" / "versions"
 
 
@@ -105,6 +106,18 @@ def test_import_cutoff_revision_is_rerun_safe() -> None:
     source = _revision_source(IMPORT_CUTOFF_REVISION)
     assert "ADD COLUMN IF NOT EXISTS cutoff TIMESTAMPTZ" in source
     assert "DROP COLUMN IF EXISTS cutoff" in source
+
+
+def test_loki_imports_revision_follows_previous_head() -> None:
+    revision = _script_directory().get_revision(LOKI_IMPORTS_REVISION)
+    assert revision.down_revision == IMPORT_CUTOFF_REVISION
+
+
+def test_loki_imports_revision_is_rerun_safe() -> None:
+    source = _revision_source(LOKI_IMPORTS_REVISION)
+    assert "CREATE TABLE IF NOT EXISTS loki_imports" in source
+    assert "CREATE INDEX IF NOT EXISTS ix_loki_imports_url_query" in source
+    assert "DROP TABLE IF EXISTS loki_imports" in source
 
 
 def test_revisions_parse_and_chain() -> None:

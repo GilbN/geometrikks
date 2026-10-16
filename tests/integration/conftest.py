@@ -179,7 +179,7 @@ async def clean_tables(pg_engine: AsyncEngine):
             await conn.execute(text("TRUNCATE " + ", ".join(caggs)))
         await conn.execute(
             text(
-                "TRUNCATE access_log_debug, geo_locations, import_jobs "
+                "TRUNCATE access_log_debug, geo_locations, import_jobs, loki_imports "
                 "RESTART IDENTITY CASCADE"
             )
         )
