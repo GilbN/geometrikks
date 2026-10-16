@@ -1274,6 +1274,8 @@ docker compose exec -u geometrikks app litestar import-loki --since 2026-09-01
   pass `--before`, import them in one command. The command works out the
   end for every selector before any of them imports, so one selector's
   backfill can't become another's end.
+- `--batch-size` sets how many records each database write holds (500 by
+  default).
 - The command reads the range in one-hour windows. It moves a selector's
   progress forward only after a whole hour is written. If Loki or a
   database write fails, or you stop the command, rerun it with the same
@@ -1283,13 +1285,17 @@ docker compose exec -u geometrikks app litestar import-loki --since 2026-09-01
   others. The command lists the failed selectors at the end and exits with
   an error.
 - The command refuses a range that overlaps one already imported for the
-  same selector, and names the range it found. `--force` skips the overlap
-  check. An unfinished run with the same range still resumes; a finished
-  one is imported again, and the rows already written stay.
+  same selector, and names the range it found. The check knows only
+  `import-loki` ranges for the same selector. It does not see rows that
+  live reading, `import-logs` or another selector matching the same streams
+  wrote, so choose `--since` and `--before` with those in mind. `--force`
+  skips the overlap check. An unfinished run with the same range still
+  resumes; a finished one is imported again, and the rows already written
+  stay.
 - The format is detected from the first lines the command reads, or pinned
-  with `LOKI_FORMATS`. The command rejects a selector whose first lines
-  don't match its format, detected or pinned with `LOKI_FORMATS`, before it
-  writes anything.
+  with `LOKI_FORMATS`. The command rejects a selector before it writes
+  anything if its first lines match no format, or don't match the one
+  pinned with `LOKI_FORMATS`.
 - Loki can't page inside a single timestamp, so with second-precision
   entry timestamps the command reads only the first 1000 lines in one
   second and loses the rest, as live reading does.

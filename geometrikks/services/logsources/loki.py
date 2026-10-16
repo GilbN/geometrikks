@@ -297,8 +297,8 @@ class LokiSource:
                         "More than %d lines in %s share the timestamp %s, and GeoMetrikks "
                         "skipped all but the first %d. The log pipeline sets the entry "
                         "timestamp from a line with second precision. Remove that stage so "
-                        "the shipper stamps each line when it reads it. See \"Reading from "
-                        "Loki\" in the README.",
+                        "the shipper stamps each line when it reads it. See \"Loki setup\" in "
+                        "the README.",
                         PAGE_LIMIT,
                         self.query,
                         datetime.fromtimestamp(last / NS, tz=timezone.utc).isoformat(),

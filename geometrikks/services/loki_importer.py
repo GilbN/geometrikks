@@ -62,7 +62,9 @@ class LokiImportProgress:
 
 @dataclass
 class LokiImportResult:
-    """time_start/time_end span every row the range's runs wrote, so a refresh after a resume covers the first run's rows."""
+    """time_start/time_end span every row the range's runs wrote, so a refresh after a
+    resume covers the first run's rows.
+    """
 
     lines_total: int
     lines_skipped: int
@@ -226,7 +228,9 @@ async def import_loki_range(
     Raises:
         LokiImportOverlapError: part of the range is already imported.
         UnrecognizedLogFormatError: the first page matches no log format.
-        LokiImportWriteError: a batch failed to commit.
+        LokiImportWriteError: A batch failed to commit; the window is not
+            recorded as imported. Records the service committed from that
+            batch before the failure are written again on resume.
         httpx2.HTTPError, LokiRejected: Loki failed mid-range; the row
             stays at the last completed window and a rerun resumes there.
             Batches already flushed from the failed window are written again.
