@@ -1249,6 +1249,7 @@ def test_import_loki_refreshes_rows_a_failed_selector_wrote(monkeypatch) -> None
     assert result.exit_code != 0
     assert written_span.await_args is not None
     assert written_span.await_args.kwargs["query"] == '{job="nginx"}'
+    assert written_span.await_args.kwargs["before"] == datetime(2026, 10, 1, tzinfo=timezone.utc)
     refresh.assert_awaited_once()
     assert refresh.await_args is not None
     assert refresh.await_args.kwargs["start"] == first_written

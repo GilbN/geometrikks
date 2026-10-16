@@ -1256,12 +1256,14 @@ docker compose exec -u geometrikks app litestar import-loki --since 2026-09-01
 - Without `--before`, the import stops where the selector's stored data
   begins. That is the oldest access-log row stored for its hostname,
   unless that row is a line an earlier `import-loki` run wrote, in which
-  case the earlier run's start is the end. The command prints the time it
-  chose and the `--since` and `--before` pair to rerun with. An interrupted
-  run that started at the same `--since` keeps its own end, so rerunning
-  the same command resumes it. If `--since` is not earlier than the chosen end, the command skips
-  that selector, says so, and exits with an error at the end. It does the
-  same when nothing is stored yet, and the message asks for `--before`.
+  case the earlier run's start is the end, or when no access-log row is
+  older than that start. The command prints the time it chose and the
+  `--since` and `--before` pair to rerun with. An interrupted run that
+  started at the same `--since` keeps its own end, so rerunning the same
+  command resumes it. If `--since` is not earlier than the chosen end, the
+  command skips that selector, says so, and exits with an error at the
+  end. It does the same when nothing is stored yet, and the message asks
+  for `--before`.
 - When the end comes from the oldest access-log row, it is the log line's
   own time, while Loki filters by the time the shipper stamped the entry.
   The two can differ by the shipper's delay, so lines near that boundary

@@ -261,9 +261,10 @@ async def _run_import(
     type=click.DateTime(formats=_DATETIME_FORMATS),
     help=(
         "End of the range, exclusive. Without an offset it is UTC. Default: where "
-        "the selector's stored data begins, which is the oldest row for its "
-        "hostname or the start of an earlier import-loki range, whichever is "
-        "earlier; an interrupted run with the same --since keeps its own end."
+        "the selector's stored data begins. That is the oldest access-log row for "
+        "its hostname, or the start of an earlier import-loki range when that row "
+        "is a line the import wrote or when no access-log row is older; an "
+        "interrupted run with the same --since keeps its own end."
     ),
 )
 @click.option(
@@ -419,15 +420,16 @@ async def _written_span(
     tenant_id: str | None,
     query: str,
     since: datetime,
+    before: datetime,
 ) -> tuple[datetime | None, datetime | None]:
-    """(time_start, time_end) of what the selector's unfinished run starting at ``since`` wrote."""
+    """(time_start, time_end) of what the selector's unfinished run of [since, before) wrote."""
     from geometrikks.domain.imports.repositories import LokiImportRepository
     from geometrikks.server.logging import get_logger
 
     try:
         async with session_maker() as session:
-            unfinished = await LokiImportRepository(session=session).find_unfinished(
-                url=url, tenant_id=tenant_id, query=query, since=since
+            unfinished = await LokiImportRepository(session=session).find_resumable(
+                url=url, tenant_id=tenant_id, query=query, since=since, before=before
             )
     except Exception:
         get_logger(__name__).warning("loki_import_bounds_unavailable", query=query)
@@ -616,7 +618,12 @@ async def _run_loki_import(
                 )
                 failed.append(query)
                 written_from, written_to = await _written_span(
-                    session_maker, url=loki.url, tenant_id=loki.tenant_id, query=query, since=since
+                    session_maker,
+                    url=loki.url,
+                    tenant_id=loki.tenant_id,
+                    query=query,
+                    since=since,
+                    before=end,
                 )
                 fold_bounds(written_from, written_to)
                 continue
@@ -627,7 +634,12 @@ async def _run_loki_import(
                 )
                 failed.append(query)
                 written_from, written_to = await _written_span(
-                    session_maker, url=loki.url, tenant_id=loki.tenant_id, query=query, since=since
+                    session_maker,
+                    url=loki.url,
+                    tenant_id=loki.tenant_id,
+                    query=query,
+                    since=since,
+                    before=end,
                 )
                 fold_bounds(written_from, written_to)
                 continue
