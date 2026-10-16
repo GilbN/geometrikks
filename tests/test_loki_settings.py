@@ -131,6 +131,11 @@ def test_rejections(kwargs: dict, message: str) -> None:
         loki(**kwargs)
 
 
+def test_empty_tenant_id_means_no_tenant() -> None:
+    assert loki(url=URL, queries=[QUERY_A], tenant_id="").tenant_id is None
+    assert loki(url=URL, queries=[QUERY_A], tenant_id=" team-a ").tenant_id == "team-a"
+
+
 def test_loki_only_install_tails_no_file(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("LOGPARSER_LOG_PATHS")  # the suite's baseline pins it
     settings = Settings(
