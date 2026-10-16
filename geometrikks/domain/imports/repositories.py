@@ -4,7 +4,7 @@ from __future__ import annotations
 from datetime import datetime
 
 from advanced_alchemy.repository import SQLAlchemyAsyncRepository
-from sqlalchemy import ColumnElement, select
+from sqlalchemy import ColumnElement, func, select
 
 from geometrikks.domain.imports.models import ImportJob, LokiImport
 from geometrikks.server.logging import get_logger
@@ -43,6 +43,33 @@ class LokiImportRepository(SQLAlchemyAsyncRepository[LokiImport]):
                 LokiImport.query == query,
                 LokiImport.range_start == since,
                 LokiImport.range_end == before,
+                LokiImport.cursor < LokiImport.range_end,
+            )
+            .order_by(LokiImport.id.desc())
+            .limit(1)
+        )
+        return await self.get_one_or_none(statement=statement)
+
+    async def earliest_range_start(
+        self, *, url: str, tenant_id: str | None, query: str
+    ) -> datetime | None:
+        """The earliest range any run of this selector claimed, finished or not."""
+        statement = select(func.min(LokiImport.range_start)).where(
+            LokiImport.url == url, _same_tenant(tenant_id), LokiImport.query == query
+        )
+        return await self.session.scalar(statement)
+
+    async def find_unfinished(
+        self, *, url: str, tenant_id: str | None, query: str, since: datetime
+    ) -> LokiImport | None:
+        """The newest unfinished run of this selector that started at ``since``."""
+        statement = (
+            select(LokiImport)
+            .where(
+                LokiImport.url == url,
+                _same_tenant(tenant_id),
+                LokiImport.query == query,
+                LokiImport.range_start == since,
                 LokiImport.cursor < LokiImport.range_end,
             )
             .order_by(LokiImport.id.desc())

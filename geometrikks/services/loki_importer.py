@@ -62,6 +62,8 @@ class LokiImportProgress:
 
 @dataclass
 class LokiImportResult:
+    """time_start/time_end span every row the range's runs wrote, so a refresh after a resume covers the first run's rows."""
+
     lines_total: int
     lines_skipped: int
     records_written: int
@@ -298,8 +300,8 @@ async def import_loki_range(
         lines_total=run.lines_total,
         lines_skipped=run.lines_skipped,
         records_written=run.records_written,
-        time_start=run.time_start,
-        time_end=run.time_end,
+        time_start=_earliest(stored.time_start, run.time_start),
+        time_end=_latest(stored.time_end, run.time_end),
         duration_seconds=time.monotonic() - started,
         resumed_from=resumed_from,
     )

@@ -315,6 +315,8 @@ async def test_transport_error_leaves_cursor_at_last_window_and_resume_continues
 
     assert result.resumed_from == SINCE + timedelta(hours=1)
     assert result.records_written == 2
+    assert result.time_start == SINCE + timedelta(minutes=30)
+    assert result.time_end == SINCE + timedelta(hours=2, minutes=30)
     assert row.cursor == before
     assert row.records_written == 3
     assert len(FakeLokiImportRepo.rows) == 1

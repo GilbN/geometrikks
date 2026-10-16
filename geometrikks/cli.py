@@ -18,6 +18,10 @@ from litestar.plugins import CLIPlugin
 from geometrikks.services.logparser.formats import IMPORT_FORMATS
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
+    from sqlalchemy.ext.asyncio import AsyncSession
+
     from geometrikks.config.settings import Settings
 
 
@@ -305,7 +309,7 @@ def select_loki_queries(
         raise click.ClickException(
             "LOKI_URL and LOKI_QUERIES are not set, so there is no Loki source to import from."
         )
-    if query_index is not None and query_index > len(loki.queries):
+    if query_index is not None and not 1 <= query_index <= len(loki.queries):
         raise click.ClickException(
             f"--query {query_index}: LOKI_QUERIES has {len(loki.queries)} selector(s)."
         )
@@ -325,34 +329,59 @@ def select_loki_queries(
 
 
 def resolve_loki_before(
-    *, since: datetime, before: datetime | None, oldest_row: datetime | None, hostname: str
+    *,
+    since: datetime,
+    before: datetime | None,
+    oldest_row: datetime | None,
+    earliest_import: datetime | None,
+    unfinished_end: datetime | None,
+    hostname: str,
 ) -> datetime:
-    """The end of the range: as given, or the oldest stored row for the hostname."""
+    """The end of the range: as given, an unfinished run's end, or the start of what is covered."""
     if before is not None:
         return before
-    if oldest_row is None:
+    if unfinished_end is not None:
+        return unfinished_end
+    covered_from = [moment for moment in (oldest_row, earliest_import) if moment is not None]
+    if not covered_from:
         raise click.ClickException(
-            f"no rows are stored for hostname {hostname} yet, so there is no default "
-            "end for the range. Pass --before."
+            f"no rows are stored for hostname {hostname} yet, so there is no default end "
+            "for the range. Pass --before."
         )
-    if since >= oldest_row:
+    end = min(covered_from)
+    if since >= end:
         raise click.ClickException(
-            f"--since {since.isoformat()} is not before the oldest stored row for "
-            f"{hostname} ({oldest_row.isoformat()}); everything from there on was read "
-            "live. Pass --before to import a later range on purpose."
+            f"--since {since.isoformat()} is not before the start of what is already "
+            f"covered for {hostname} ({end.isoformat()}). Pass --before to import a later "
+            "range on purpose."
         )
-    return oldest_row
+    return end
 
 
-async def _oldest_stored_row(session_maker, hostname: str) -> datetime | None:
+async def _covered_from(
+    session_maker: Callable[[], AsyncSession],
+    *,
+    url: str,
+    tenant_id: str | None,
+    query: str,
+    since: datetime,
+    hostname: str,
+) -> tuple[datetime | None, datetime | None, datetime | None]:
+    """(oldest stored row, earliest claimed import start, unfinished run's end) for a selector."""
     from sqlalchemy import func, select
 
+    from geometrikks.domain.imports.repositories import LokiImportRepository
     from geometrikks.domain.logs.models import AccessLog
 
     async with session_maker() as session:
-        return await session.scalar(
+        oldest_row = await session.scalar(
             select(func.min(AccessLog.timestamp)).where(AccessLog.hostname == hostname)
         )
+        repo = LokiImportRepository(session=session)
+        identity = {"url": url, "tenant_id": tenant_id, "query": query}
+        earliest_import = await repo.earliest_range_start(**identity)
+        unfinished = await repo.find_unfinished(since=since, **identity)
+        return oldest_row, earliest_import, unfinished.range_end if unfinished else None
 
 
 async def _run_loki_import(
@@ -418,21 +447,44 @@ async def _run_loki_import(
     failed: list[str] = []
     refresh_failed: list[str] = []
     try:
-        for index, query, fmt, host in selected:
-            click.echo(f"Importing {query} (hostname {host}) ...")
+        ends: list[datetime | None] = []
+        for _, query, _, host in selected:
             try:
-                end = resolve_loki_before(
-                    since=since,
-                    before=before,
-                    oldest_row=None if before is not None else await _oldest_stored_row(session_maker, host),
-                    hostname=host,
+                covered = (None, None, None)
+                if before is None:
+                    covered = await _covered_from(
+                        session_maker,
+                        url=loki.url,
+                        tenant_id=loki.tenant_id,
+                        query=query,
+                        since=since,
+                        hostname=host,
+                    )
+                oldest_row, earliest_import, unfinished_end = covered
+                ends.append(
+                    resolve_loki_before(
+                        since=since,
+                        before=before,
+                        oldest_row=oldest_row,
+                        earliest_import=earliest_import,
+                        unfinished_end=unfinished_end,
+                        hostname=host,
+                    )
                 )
             except click.ClickException as exc:
-                click.echo(f"  error: {exc.message}", err=True)
+                click.echo(f"{query}: {exc.message}", err=True)
                 failed.append(query)
+                ends.append(None)
+
+        for (index, query, fmt, host), end in zip(selected, ends, strict=True):
+            if end is None:
                 continue
+            click.echo(f"Importing {query} (hostname {host}) ...")
             if before is None:
-                click.echo(f"  --before not given; stopping at the oldest stored row for {host}: {end.isoformat()}")
+                click.echo(
+                    f"  --before not given; stopping at {end.isoformat()} "
+                    f"(rerun with --since {since.isoformat()} --before {end.isoformat()} to resume)"
+                )
             click.echo(f"  range {since.isoformat()} to {end.isoformat()}")
 
             source = LokiSource(
