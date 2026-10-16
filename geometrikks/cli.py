@@ -273,7 +273,7 @@ async def _run_import(
     type=click.IntRange(min=1),
     help="Only the selector at this position in LOKI_QUERIES (1-based). Default: all.",
 )
-@click.option("--force", is_flag=True, help="Skip the overlap check and import the range again (does NOT remove rows written earlier).")
+@click.option("--force", is_flag=True, help="Skip the overlap check. An unfinished run of the same range still resumes; a finished one is imported again (does NOT remove rows written earlier).")
 @click.option("--batch-size", default=500, show_default=True, type=click.IntRange(min=1), help="Records per commit batch.")
 def import_loki_command(
     since: datetime,

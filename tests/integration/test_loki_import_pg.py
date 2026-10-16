@@ -230,9 +230,14 @@ async def test_covered_start_and_unfinished_run_lookups(pg_session_maker, clean_
     async with pg_session_maker() as session:
         await session.execute(text(
             "INSERT INTO loki_imports (url, tenant_id, query, hostname, range_start, range_end, "
-            "cursor, lines_total, lines_skipped, records_written, created_at, updated_at) VALUES "
-            "('http://loki:3100', NULL, :query, 'edge-01', :start, :end8, :start, 0, 0, 0, now(), now())"
-        ), {"query": QUERY, "start": SINCE, "end8": SINCE + timedelta(hours=8)})
+            "cursor, lines_total, lines_skipped, records_written, time_start, created_at, "
+            "updated_at) VALUES "
+            "('http://loki:3100', NULL, :query, 'edge-01', :start, :end8, :start, 0, 0, 0, "
+            ":written_from, now(), now())"
+        ), {
+            "query": QUERY, "start": SINCE, "end8": SINCE + timedelta(hours=8),
+            "written_from": SINCE - timedelta(seconds=2),
+        })
         await session.commit()
 
     async with pg_session_maker() as session:
@@ -242,3 +247,5 @@ async def test_covered_start_and_unfinished_run_lookups(pg_session_maker, clean_
         )
         assert newest is not None and newest.range_end == SINCE + timedelta(hours=8)
         assert await repo.earliest_range_start(url="http://loki:3100", tenant_id=None, query=QUERY) == SINCE
+        assert await repo.earliest_written_line(hostname="edge-01") == SINCE - timedelta(seconds=2)
+        assert await repo.earliest_written_line(hostname="other-host") is None
