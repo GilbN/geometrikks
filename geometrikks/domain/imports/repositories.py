@@ -62,6 +62,7 @@ class LokiImportRepository(SQLAlchemyAsyncRepository[LokiImport]):
                 LokiImport.query == query,
                 LokiImport.range_start < before,
                 LokiImport.cursor > since,
+                LokiImport.cursor > LokiImport.range_start,
             )
             .order_by(LokiImport.range_start)
             .limit(1)
