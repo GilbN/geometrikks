@@ -25,6 +25,15 @@ if TYPE_CHECKING:
     from geometrikks.config.settings import Settings
 
 
+_DATETIME_FORMATS = [
+    "%Y-%m-%d",
+    "%Y-%m-%dT%H:%M:%S",
+    "%Y-%m-%dT%H:%M:%S%z",
+    "%Y-%m-%dT%H:%M:%S.%f",
+    "%Y-%m-%dT%H:%M:%S.%f%z",
+]
+
+
 @click.command(name="import-logs")
 @click.argument(
     "paths",
@@ -53,7 +62,7 @@ if TYPE_CHECKING:
 @click.option(
     "--before",
     default=None,
-    type=click.DateTime(formats=["%Y-%m-%d", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%dT%H:%M:%S%z"]),
+    type=click.DateTime(formats=_DATETIME_FORMATS),
     help=(
         "Only import lines older than this date or datetime. Without an "
         "offset it is UTC. Use the first timestamp of a log that is already "
@@ -239,15 +248,6 @@ async def _run_import(
         raise click.ClickException("\n".join(problems))
 
 
-_DATETIME_FORMATS = [
-    "%Y-%m-%d",
-    "%Y-%m-%dT%H:%M:%S",
-    "%Y-%m-%dT%H:%M:%S%z",
-    "%Y-%m-%dT%H:%M:%S.%f",
-    "%Y-%m-%dT%H:%M:%S.%f%z",
-]
-
-
 @click.command(name="import-loki")
 @click.option(
     "--since",
@@ -412,6 +412,31 @@ async def _covered_from(
         )
 
 
+async def _written_span(
+    session_maker: Callable[[], AsyncSession],
+    *,
+    url: str,
+    tenant_id: str | None,
+    query: str,
+    since: datetime,
+) -> tuple[datetime | None, datetime | None]:
+    """(time_start, time_end) of what the selector's unfinished run starting at ``since`` wrote."""
+    from geometrikks.domain.imports.repositories import LokiImportRepository
+    from geometrikks.server.logging import get_logger
+
+    try:
+        async with session_maker() as session:
+            unfinished = await LokiImportRepository(session=session).find_unfinished(
+                url=url, tenant_id=tenant_id, query=query, since=since
+            )
+    except Exception:
+        get_logger(__name__).warning("loki_import_bounds_unavailable", query=query)
+        return None, None
+    if unfinished is None:
+        return None, None
+    return unfinished.time_start, unfinished.time_end
+
+
 async def _run_loki_import(
     *,
     since: datetime,
@@ -424,6 +449,7 @@ async def _run_loki_import(
     from geoip2.database import Reader
 
     from geometrikks.config.settings import get_settings
+    from geometrikks.server.logging import get_logger
     from geometrikks.server.plugins import get_sqlalchemy_config
     from geometrikks.server.timescale import refresh_caggs_range
     from geometrikks.services.importer import UnrecognizedLogFormatError
@@ -438,6 +464,7 @@ async def _run_loki_import(
     from geometrikks.services.logparser.logparser import LogParser
     from geometrikks.services.logsources.loki import LokiRejected, LokiSource
 
+    logger = get_logger(__name__)
     settings = get_settings()
     selected = select_loki_queries(settings, query_index)
     loki = settings.loki
@@ -475,6 +502,13 @@ async def _run_loki_import(
     overall_end: datetime | None = None
     failed: list[str] = []
     refresh_failed: list[str] = []
+
+    def fold_bounds(time_start: datetime | None, time_end: datetime | None) -> None:
+        nonlocal overall_start, overall_end
+        if time_start and time_end:
+            overall_start = time_start if overall_start is None else min(overall_start, time_start)
+            overall_end = time_end if overall_end is None else max(overall_end, time_end)
+
     try:
         ends: list[datetime | None] = []
         for _, query, _, host in selected:
@@ -581,10 +615,27 @@ async def _run_loki_import(
                     err=True,
                 )
                 failed.append(query)
+                written_from, written_to = await _written_span(
+                    session_maker, url=loki.url, tenant_id=loki.tenant_id, query=query, since=since
+                )
+                fold_bounds(written_from, written_to)
                 continue
             except (httpx2.HTTPError, LokiRejected) as exc:
                 click.echo(
                     f"  error: Loki failed ({exc!r}); rerun the same --since/--before to resume.",
+                    err=True,
+                )
+                failed.append(query)
+                written_from, written_to = await _written_span(
+                    session_maker, url=loki.url, tenant_id=loki.tenant_id, query=query, since=since
+                )
+                fold_bounds(written_from, written_to)
+                continue
+            except Exception as exc:
+                logger.exception("loki_import_selector_failed", query=query)
+                click.echo(
+                    f"  error: {exc!r}; the selector's progress row, if any, keeps its last "
+                    "completed hour; rerun the same --since/--before to resume.",
                     err=True,
                 )
                 failed.append(query)
@@ -598,13 +649,7 @@ async def _run_loki_import(
                 f"{result.records_written:,} records "
                 f"in {result.duration_seconds:,.1f}s"
             )
-            if result.time_start and result.time_end:
-                overall_start = (
-                    result.time_start if overall_start is None else min(overall_start, result.time_start)
-                )
-                overall_end = (
-                    result.time_end if overall_end is None else max(overall_end, result.time_end)
-                )
+            fold_bounds(result.time_start, result.time_end)
 
         if overall_start and overall_end:
             click.echo(f"Refreshing continuous aggregates {overall_start} to {overall_end} ...")
@@ -621,7 +666,7 @@ async def _run_loki_import(
 
     problems: list[str] = []
     if failed:
-        problems.append(f"{len(failed)} selector(s) not imported: " + ", ".join(failed))
+        problems.append(f"{len(failed)} selector(s) not imported: " + "; ".join(failed))
     if refresh_failed:
         problems.append(
             f"Rows were imported, but refreshing {', '.join(refresh_failed)} failed, so "
@@ -1056,7 +1101,7 @@ async def _run_backfill_asn(*, yes: bool, tables: tuple[str, ...]) -> None:
 @click.option(
     "--before",
     default=None,
-    type=click.DateTime(formats=["%Y-%m-%d", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%dT%H:%M:%S%z"]),
+    type=click.DateTime(formats=_DATETIME_FORMATS),
     help="Only rows older than this date or datetime (UTC when no offset is given).",
 )
 @click.option("--yes", is_flag=True, help="Skip the confirmation prompt.")

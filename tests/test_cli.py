@@ -139,6 +139,27 @@ def test_import_logs_before_is_utc_when_no_offset(tmp_path, monkeypatch) -> None
     assert run_import.await_args.kwargs["before"] is None
 
 
+def test_import_logs_before_accepts_fractional_seconds(tmp_path, monkeypatch) -> None:
+    from datetime import datetime, timezone
+
+    import geometrikks.cli as cli_module
+
+    run_import = AsyncMock()
+    monkeypatch.setattr(cli_module, "_run_import", run_import)
+    log = tmp_path / "a.log"
+    log.write_text("", encoding="utf-8")
+
+    result = CliRunner().invoke(
+        _loki_cli(), ["import-logs", "--before", "2026-10-01T12:00:00.5", str(log)]
+    )
+
+    assert result.exit_code == 0, result.output
+    assert run_import.await_args is not None
+    assert run_import.await_args.kwargs["before"] == datetime(
+        2026, 10, 1, 12, 0, 0, 500000, tzinfo=timezone.utc
+    )
+
+
 def test_import_logs_rejects_bad_before(tmp_path) -> None:
     import click
 
@@ -1095,7 +1116,9 @@ def test_resolve_loki_before_uses_older_live_rows_when_they_predate_every_import
     ) == import_start - timedelta(days=30)
 
 
-def _patch_loki_run(monkeypatch, *, import_loki_range, covered_from, claim_loki_range=None):
+def _patch_loki_run(
+    monkeypatch, *, import_loki_range, covered_from, claim_loki_range=None, written_span=None
+):
     import geometrikks.cli as cli_module
     import geometrikks.config.settings as settings_module
     import geometrikks.server.plugins as plugins_module
@@ -1112,6 +1135,9 @@ def _patch_loki_run(monkeypatch, *, import_loki_range, covered_from, claim_loki_
     monkeypatch.setattr(plugins_module, "get_sqlalchemy_config", lambda: config)
     monkeypatch.setattr(ingestion_module, "create_reader", lambda *args, **kwargs: MagicMock())
     monkeypatch.setattr(cli_module, "_covered_from", covered_from)
+    monkeypatch.setattr(
+        cli_module, "_written_span", written_span or AsyncMock(return_value=(None, None))
+    )
     monkeypatch.setattr(loki_importer_module, "import_loki_range", import_loki_range)
     monkeypatch.setattr(
         loki_importer_module, "claim_loki_range", claim_loki_range or AsyncMock()
@@ -1197,3 +1223,72 @@ def test_import_loki_resolves_every_default_before_importing(monkeypatch) -> Non
     assert result.exit_code == 0, result.output
     assert calls == ["covered", "covered", "claim", "claim", "import", "import"]
     assert [call.kwargs["before"] for call in range_mock.await_args_list] == [oldest, oldest]
+
+
+def test_import_loki_refreshes_rows_a_failed_selector_wrote(monkeypatch) -> None:
+    from datetime import datetime, timezone
+
+    from geometrikks.services.logsources.loki import LokiRejected
+
+    first_written = datetime(2026, 9, 1, 0, 30, tzinfo=timezone.utc)
+    last_written = datetime(2026, 9, 20, 23, 45, tzinfo=timezone.utc)
+    import_loki_range = AsyncMock(side_effect=LokiRejected("HTTP 400"))
+    written_span = AsyncMock(return_value=(first_written, last_written))
+    _, refresh = _patch_loki_run(
+        monkeypatch,
+        import_loki_range=import_loki_range,
+        covered_from=AsyncMock(),
+        written_span=written_span,
+    )
+
+    result = CliRunner().invoke(
+        _loki_cli(),
+        ["import-loki", "--since", "2026-09-01", "--before", "2026-10-01", "--query", "1"],
+    )
+
+    assert result.exit_code != 0
+    assert written_span.await_args is not None
+    assert written_span.await_args.kwargs["query"] == '{job="nginx"}'
+    refresh.assert_awaited_once()
+    assert refresh.await_args is not None
+    assert refresh.await_args.kwargs["start"] == first_written
+    assert refresh.await_args.kwargs["end"] == last_written + timedelta(microseconds=1)
+
+
+def test_import_loki_continues_after_an_unexpected_error(monkeypatch) -> None:
+    from datetime import datetime, timezone
+
+    from geometrikks.services.loki_importer import LokiImportResult
+
+    first_line = datetime(2026, 9, 2, 8, tzinfo=timezone.utc)
+    last_line = datetime(2026, 9, 3, 17, tzinfo=timezone.utc)
+    import_loki_range = AsyncMock(
+        side_effect=[
+            RuntimeError("db gone"),
+            LokiImportResult(
+                lines_total=2,
+                lines_skipped=0,
+                records_written=2,
+                time_start=first_line,
+                time_end=last_line,
+                duration_seconds=0.1,
+                resumed_from=None,
+            ),
+        ]
+    )
+    engine, refresh = _patch_loki_run(
+        monkeypatch, import_loki_range=import_loki_range, covered_from=AsyncMock()
+    )
+
+    result = CliRunner().invoke(
+        _loki_cli(), ["import-loki", "--since", "2026-09-01", "--before", "2026-10-01"]
+    )
+
+    assert result.exit_code != 0
+    assert "db gone" in result.output
+    assert "1 selector(s) not imported" in result.output
+    assert import_loki_range.await_count == 2
+    assert refresh.await_args is not None
+    assert refresh.await_args.kwargs["start"] == first_line
+    assert refresh.await_args.kwargs["end"] == last_line + timedelta(microseconds=1)
+    engine.dispose.assert_awaited()
