@@ -565,7 +565,8 @@ its own hostname.
   malformed. Use one selector per log format.
 - GeoMetrikks polls every `LOKI_POLL_INTERVAL` seconds, 5 by default.
   Reading starts when the app starts, as with a tailed file, so lines from
-  while it was down are not read.
+  while it was down are not read. To backfill a range from Loki's history,
+  use [import-loki](#import-loki-backfill-history-from-loki).
 - With `LOKI_QUERIES` set and `LOGPARSER_LOG_PATHS` unset, GeoMetrikks tails
   no file. Set both to read files and Loki side by side. A
   `LOGPARSER_LOG_PATHS` line in `.env` or in a compose `environment:` block
@@ -1238,6 +1239,67 @@ docker compose run --rm app litestar import-logs /var/log/access/access.log.1.gz
   window (`ANALYTICS_RAW_RETENTION_DAYS`, default 180 days), so history
   beyond that window will not persist. Raise the retention setting before
   importing older archives if you want to keep them.
+
+### import-loki: backfill history from Loki
+
+If GeoMetrikks reads from [Loki](#loki-setup), the history is in Loki, not
+in a file. `import-loki` reads a time range of every `LOKI_QUERIES`
+selector through the same pipeline as live reading:
+
+```bash
+docker compose exec -u geometrikks app litestar import-loki --since 2026-09-01
+```
+
+- `--since` is the start of the range, inclusive. `--before` is the end,
+  exclusive. Both take a date or a datetime such as
+  `2026-10-01T14:03:12+02:00`. Without an offset the value is UTC.
+- Without `--before`, the import stops where the data already in the
+  database begins. On the first run that is the oldest access-log row for
+  the selector's hostname, which is where live reading started. After an
+  earlier `import-loki` run, it is the start of that run, unless the
+  hostname has access-log rows older than the ones that run wrote. The
+  command prints the end it picked and the `--since` and `--before` pair
+  for the same range.
+- An interrupted run keeps its own end. Rerunning the same command with
+  the same `--since` resumes it, even without `--before`.
+- If `--since` is not earlier than the end, or nothing is stored yet to
+  take an end from, the command skips that selector and says why.
+- When the end is the oldest access-log row, it is the time written in the
+  log line. Loki filters by the time the shipper stamped the entry, and the
+  two differ by the shipper's delay, so lines near that boundary can be
+  read twice or missed. An earlier import's start and an explicit
+  `--before` are Loki times and exact. Pass `--before` when a tailed file
+  shares the hostname, because the oldest row may then come from the file.
+- `--query N` imports only the Nth selector in `LOKI_QUERIES`, counting
+  from 1. If several selectors share a hostname, import them in one command
+  without `--query`. The command picks every selector's end before any of
+  them imports, so one selector's backfill can't become another's end.
+- `--batch-size` sets how many records go into each database write. The
+  default is 500.
+- The command reads one hour at a time and records a selector's progress
+  after each complete hour. If Loki or a database write fails, or you stop
+  the command, rerun it with the same `--since` and `--before` and without
+  `--force`. It picks up at the start of the interrupted hour, so rows it
+  had already written from that hour end up twice.
+- A failure in one selector doesn't stop the others. At the end the command
+  lists the selectors that failed and exits with an error.
+- The command refuses a range that overlaps an earlier `import-loki` range
+  for the same selector, and names that range. It only knows about its own
+  imports. Rows from live reading, from `import-logs`, or from another
+  selector that matches the same streams don't count, so pick `--since` and
+  `--before` around them yourself.
+- `--force` skips the overlap check. An unfinished run of the same range
+  still resumes. A finished range is imported again, and the rows from the
+  first import stay, so they end up twice.
+- The command detects the format from the first lines it reads, or uses
+  the one pinned in `LOKI_FORMATS`. If those lines match no format, or not
+  the pinned one, it rejects the selector before writing anything.
+- Loki can't page within a single timestamp. With second-precision entry
+  timestamps, the command reads at most 1000 lines from any one second and
+  drops the rest, as live reading does.
+- The retention policy drops imported rows older than
+  `ANALYTICS_RAW_RETENTION_DAYS`, like any other rows. Loki's own retention
+  limits how far back there is anything to read.
 
 ### backfill-hostname: fix up historical hostnames
 

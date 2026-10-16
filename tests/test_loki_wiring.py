@@ -54,7 +54,7 @@ def test_loki_inputs_follow_the_file_inputs() -> None:
     assert (first.hostname, second.hostname) == ("edge-01", "edge-02")
     assert (first.poll_interval, first.lookback) == (2.5, 90)
     assert first._auth == ("reader", "s3cret")
-    assert first._tenant_id == "team-a"
+    assert first.tenant_id == "team-a"
     assert inputs[1].parser.source_label == 'loki:{job="nginx"}'
     assert inputs[1].parser.log_format_setting == "auto"
     assert inputs[2].parser.log_format_setting == "traefik-json"

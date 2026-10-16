@@ -558,10 +558,12 @@ class LokiSettings(BaseSettings):
     @field_validator("tenant_id")
     @classmethod
     def validate_tenant_id(cls, value: str | None) -> str | None:
-        """Reject what cannot be sent as an HTTP header value."""
-        if value is not None and not value.isascii():
+        """Treat a blank value as unset; reject what cannot be sent as an HTTP header value."""
+        if value is None or value.strip() == "":
+            return None
+        if not value.isascii():
             raise ValueError("LOKI_TENANT_ID must be ASCII")
-        return value
+        return value.strip()
 
     @field_validator("queries")
     @classmethod

@@ -10,11 +10,28 @@ from __future__ import annotations
 import asyncio
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import click
 from litestar.plugins import CLIPlugin
 
 from geometrikks.services.logparser.formats import IMPORT_FORMATS
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
+    from sqlalchemy.ext.asyncio import AsyncSession
+
+    from geometrikks.config.settings import Settings
+
+
+_DATETIME_FORMATS = [
+    "%Y-%m-%d",
+    "%Y-%m-%dT%H:%M:%S",
+    "%Y-%m-%dT%H:%M:%S%z",
+    "%Y-%m-%dT%H:%M:%S.%f",
+    "%Y-%m-%dT%H:%M:%S.%f%z",
+]
 
 
 @click.command(name="import-logs")
@@ -45,7 +62,7 @@ from geometrikks.services.logparser.formats import IMPORT_FORMATS
 @click.option(
     "--before",
     default=None,
-    type=click.DateTime(formats=["%Y-%m-%d", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%dT%H:%M:%S%z"]),
+    type=click.DateTime(formats=_DATETIME_FORMATS),
     help=(
         "Only import lines older than this date or datetime. Without an "
         "offset it is UTC. Use the first timestamp of a log that is already "
@@ -221,6 +238,447 @@ async def _run_import(
         problems.append(
             f"{len(failed)} file(s) not imported: " + ", ".join(str(p) for p in failed)
         )
+    if refresh_failed:
+        problems.append(
+            f"Rows were imported, but refreshing {', '.join(refresh_failed)} failed, so "
+            "analytics won't show the imported range in those views yet. The warnings "
+            "above give the reason."
+        )
+    if problems:
+        raise click.ClickException("\n".join(problems))
+
+
+@click.command(name="import-loki")
+@click.option(
+    "--since",
+    required=True,
+    type=click.DateTime(formats=_DATETIME_FORMATS),
+    help="Start of the range to import, inclusive. Without an offset it is UTC.",
+)
+@click.option(
+    "--before",
+    default=None,
+    type=click.DateTime(formats=_DATETIME_FORMATS),
+    help=(
+        "End of the range, exclusive. Without an offset it is UTC. Default: where "
+        "the data already in the database begins. That is the oldest access-log "
+        "row for the selector's hostname, or, after an earlier import-loki run, "
+        "that run's start unless older access-log rows exist. An interrupted run "
+        "with the same --since keeps its own end."
+    ),
+)
+@click.option(
+    "--query",
+    "query_index",
+    default=None,
+    type=click.IntRange(min=1),
+    help="Only the Nth selector in LOKI_QUERIES, counting from 1. Default: all of them.",
+)
+@click.option("--force", is_flag=True, help="Skip the overlap check. An unfinished run of the same range still resumes. A finished range is imported again, and the rows from the first import stay.")
+@click.option("--batch-size", default=500, show_default=True, type=click.IntRange(min=1), help="Records per commit batch.")
+def import_loki_command(
+    since: datetime,
+    before: datetime | None,
+    query_index: int | None,
+    force: bool,
+    batch_size: int,
+) -> None:
+    """Import a time range of each LOKI_QUERIES selector into the database.
+
+    Reads Loki one hour at a time through the live pipeline, stamps rows
+    with the time in each log line, and refreshes the continuous aggregates
+    for the imported range at the end. Rerunning the same range resumes
+    where an interrupted run stopped. Refuses a range that overlaps an
+    earlier import.
+    """
+    if since.tzinfo is None:
+        since = since.replace(tzinfo=timezone.utc)
+    if before is not None and before.tzinfo is None:
+        before = before.replace(tzinfo=timezone.utc)
+    if before is not None and since >= before:
+        raise click.BadParameter("must be earlier than --before", param_hint="'--since'")
+    asyncio.run(
+        _run_loki_import(
+            since=since,
+            before=before,
+            query_index=query_index,
+            force=force,
+            batch_size=batch_size,
+        )
+    )
+
+
+def select_loki_queries(
+    settings: "Settings", query_index: int | None
+) -> list[tuple[int, str, str, str]]:
+    """(position, selector, format, hostname) for every selector, or the one asked for."""
+    loki = settings.loki
+    if loki.url is None or not loki.queries:
+        raise click.ClickException(
+            "LOKI_URL or LOKI_QUERIES is not set, so there is no Loki source to import from."
+        )
+    if query_index is not None and not 1 <= query_index <= len(loki.queries):
+        raise click.ClickException(
+            f"--query {query_index}: LOKI_QUERIES has {len(loki.queries)} selector(s)."
+        )
+    selected = list(
+        enumerate(
+            zip(
+                loki.queries,
+                loki.resolved_formats(),
+                loki.resolved_hostnames(settings.logparser.host_name[0]),
+            ),
+            start=1,
+        )
+    )
+    if query_index is not None:
+        selected = [selected[query_index - 1]]
+    return [(index, query, fmt, host) for index, (query, fmt, host) in selected]
+
+
+def resolve_loki_before(
+    *,
+    since: datetime,
+    before: datetime | None,
+    oldest_row: datetime | None,
+    earliest_import: datetime | None,
+    unfinished_end: datetime | None,
+    imports_wrote_from: datetime | None,
+    hostname: str,
+) -> datetime:
+    """The end of the range: as given, an unfinished run's end, or the start of what is covered."""
+    if before is not None:
+        return before
+    if unfinished_end is not None:
+        return unfinished_end
+    covered_from = [moment for moment in (oldest_row, earliest_import) if moment is not None]
+    if not covered_from:
+        raise click.ClickException(
+            f"no access-log rows or earlier imports exist for hostname {hostname}, so there "
+            "is no default end for the range. Pass --before."
+        )
+    # The oldest row may be a line an import wrote. The proxy stamped that line a
+    # shipper's delay before Loki stamped its entry, so the import's own start is
+    # the exact boundary.
+    if (
+        earliest_import is not None
+        and oldest_row is not None
+        and imports_wrote_from is not None
+        and oldest_row >= imports_wrote_from
+    ):
+        end = earliest_import
+    else:
+        end = min(covered_from)
+    if since >= end:
+        raise click.ClickException(
+            f"--since {since.isoformat()} is not before {end.isoformat()}, where an "
+            f"earlier import or the stored rows for {hostname} already begin. Pass an "
+            "earlier --since to go further back. To import a later range on purpose, "
+            "pass --before, plus --force if that range was imported already."
+        )
+    return end
+
+
+async def _covered_from(
+    session_maker: Callable[[], AsyncSession],
+    *,
+    url: str,
+    tenant_id: str | None,
+    query: str,
+    since: datetime,
+    hostname: str,
+) -> tuple[datetime | None, datetime | None, datetime | None, datetime | None]:
+    """For a selector: (oldest stored row, earliest import start, unfinished run's end,
+    earliest log-line time any import wrote for the hostname).
+    """
+    from sqlalchemy import func, select
+
+    from geometrikks.domain.imports.repositories import LokiImportRepository
+    from geometrikks.domain.logs.models import AccessLog
+
+    async with session_maker() as session:
+        oldest_row = await session.scalar(
+            select(func.min(AccessLog.timestamp)).where(AccessLog.hostname == hostname)
+        )
+        repo = LokiImportRepository(session=session)
+        identity = {"url": url, "tenant_id": tenant_id, "query": query}
+        earliest_import = await repo.earliest_range_start(**identity)
+        unfinished = await repo.find_unfinished(since=since, **identity)
+        imports_wrote_from = await repo.earliest_written_line(hostname=hostname)
+        return (
+            oldest_row,
+            earliest_import,
+            unfinished.range_end if unfinished else None,
+            imports_wrote_from,
+        )
+
+
+async def _written_span(
+    session_maker: Callable[[], AsyncSession],
+    *,
+    url: str,
+    tenant_id: str | None,
+    query: str,
+    since: datetime,
+    before: datetime,
+) -> tuple[datetime | None, datetime | None]:
+    """(time_start, time_end) of what the selector's unfinished run of [since, before) wrote."""
+    from geometrikks.domain.imports.repositories import LokiImportRepository
+    from geometrikks.server.logging import get_logger
+
+    try:
+        async with session_maker() as session:
+            unfinished = await LokiImportRepository(session=session).find_resumable(
+                url=url, tenant_id=tenant_id, query=query, since=since, before=before
+            )
+    except Exception:
+        get_logger(__name__).warning("loki_import_bounds_unavailable", query=query)
+        return None, None
+    if unfinished is None:
+        return None, None
+    return unfinished.time_start, unfinished.time_end
+
+
+async def _run_loki_import(
+    *,
+    since: datetime,
+    before: datetime | None,
+    query_index: int | None,
+    force: bool,
+    batch_size: int,
+) -> None:
+    import httpx2
+    from geoip2.database import Reader
+
+    from geometrikks.config.settings import get_settings
+    from geometrikks.server.logging import get_logger
+    from geometrikks.server.plugins import get_sqlalchemy_config
+    from geometrikks.server.timescale import refresh_caggs_range
+    from geometrikks.services.importer import UnrecognizedLogFormatError
+    from geometrikks.services.ingestion.service import LogIngestionService, create_reader
+    from geometrikks.services.loki_importer import (
+        LokiImportOverlapError,
+        LokiImportProgress,
+        LokiImportWriteError,
+        claim_loki_range,
+        import_loki_range,
+    )
+    from geometrikks.services.logparser.logparser import LogParser
+    from geometrikks.services.logsources.loki import LokiRejected, LokiSource
+
+    logger = get_logger(__name__)
+    settings = get_settings()
+    selected = select_loki_queries(settings, query_index)
+    loki = settings.loki
+    assert loki.url is not None  # select_loki_queries refused the unset case
+    password = loki.password.get_secret_value() if loki.password is not None else None
+
+    config = get_sqlalchemy_config()
+    engine = config.get_engine()
+    session_maker = config.create_session_maker()
+
+    reader: Reader | None = create_reader(settings.geoip.db_path, settings.geoip.locales)
+    if reader is None:
+        await engine.dispose()
+        raise click.ClickException(
+            f"No GeoIP database at {settings.geoip.db_path}, cannot import. "
+            "Configure GEOIP_ACCOUNT_ID/GEOIP_LICENSE_KEY and start the app "
+            "once to auto-download, or provide the mmdb manually."
+        )
+    asn_reader: Reader | None = (
+        create_reader(settings.geoip.asn_db_path) if settings.geoip.asn_enabled else None
+    )
+    if settings.geoip.asn_enabled and asn_reader is None:
+        click.echo("No GeoLite2 ASN database found; importing without ASN enrichment.")
+
+    service = LogIngestionService(
+        inputs=[],
+        session_maker=session_maker,
+        geoip_path=settings.geoip.db_path,
+        locales=settings.geoip.locales,
+        hostname=settings.logparser.host_name[0],
+        store_debug_lines=settings.logparser.store_debug_lines,
+    )
+
+    overall_start: datetime | None = None
+    overall_end: datetime | None = None
+    failed: list[str] = []
+    refresh_failed: list[str] = []
+
+    def fold_bounds(time_start: datetime | None, time_end: datetime | None) -> None:
+        nonlocal overall_start, overall_end
+        if time_start and time_end:
+            overall_start = time_start if overall_start is None else min(overall_start, time_start)
+            overall_end = time_end if overall_end is None else max(overall_end, time_end)
+
+    try:
+        ends: list[datetime | None] = []
+        for _, query, _, host in selected:
+            try:
+                covered = (None, None, None, None)
+                if before is None:
+                    covered = await _covered_from(
+                        session_maker,
+                        url=loki.url,
+                        tenant_id=loki.tenant_id,
+                        query=query,
+                        since=since,
+                        hostname=host,
+                    )
+                oldest_row, earliest_import, unfinished_end, imports_wrote_from = covered
+                ends.append(
+                    resolve_loki_before(
+                        since=since,
+                        before=before,
+                        oldest_row=oldest_row,
+                        earliest_import=earliest_import,
+                        unfinished_end=unfinished_end,
+                        imports_wrote_from=imports_wrote_from,
+                        hostname=host,
+                    )
+                )
+            except click.ClickException as exc:
+                click.echo(f"{query}: {exc.message}", err=True)
+                failed.append(query)
+                ends.append(None)
+
+        sources = [
+            LokiSource(
+                url=loki.url,
+                query=query,
+                label=f"loki:{index}",
+                hostname=host,
+                tenant_id=loki.tenant_id,
+                username=loki.username,
+                password=password,
+            )
+            for index, query, _, host in selected
+        ]
+        for position, (source, end) in enumerate(zip(sources, ends, strict=True)):
+            if end is None:
+                continue
+            try:
+                await claim_loki_range(
+                    source, session_maker=session_maker, since=since, before=end, force=force
+                )
+            except LokiImportOverlapError as exc:
+                click.echo(f"  error: {exc}", err=True)
+                failed.append(source.query)
+                ends[position] = None
+
+        for (_, query, fmt, host), source, end in zip(selected, sources, ends, strict=True):
+            if end is None:
+                continue
+            click.echo(f"Importing {query} (hostname {host}) ...")
+            if before is None:
+                click.echo(
+                    f"  --before not given, stopping at {end.isoformat()}. To rerun this "
+                    f"range: --since {since.isoformat()} --before {end.isoformat()}"
+                )
+            click.echo(f"  range {since.isoformat()} to {end.isoformat()}")
+
+            parser = LogParser(
+                source_label=f"loki:{query}",
+                send_logs=settings.logparser.send_logs,
+                ignore_ips=settings.logparser.ignore_ips,
+                log_format=fmt,
+                formats=IMPORT_FORMATS,
+            )
+
+            def show_progress(report: LokiImportProgress) -> None:
+                click.echo(
+                    f"  {report.day.isoformat()}  {report.lines_total:>12,} lines  "
+                    f"{report.records_written:>12,} records  ({report.lines_per_second:,.0f} lines/s)"
+                )
+
+            try:
+                result = await import_loki_range(
+                    source,
+                    service=service,
+                    parser=parser,
+                    reader=reader,
+                    asn_reader=asn_reader,
+                    session_maker=session_maker,
+                    since=since,
+                    before=end,
+                    batch_size=batch_size,
+                    force=force,
+                    progress=show_progress,
+                )
+            except (UnrecognizedLogFormatError, LokiImportOverlapError) as exc:
+                click.echo(f"  error: {exc}", err=True)
+                failed.append(query)
+                continue
+            except LokiImportWriteError as exc:
+                click.echo(
+                    f"  error: {exc}. That hour is not marked as imported, so rerunning "
+                    "with the same --since and --before resumes from it.",
+                    err=True,
+                )
+                failed.append(query)
+                written_from, written_to = await _written_span(
+                    session_maker,
+                    url=loki.url,
+                    tenant_id=loki.tenant_id,
+                    query=query,
+                    since=since,
+                    before=end,
+                )
+                fold_bounds(written_from, written_to)
+                continue
+            except (httpx2.HTTPError, LokiRejected) as exc:
+                click.echo(
+                    f"  error: Loki failed with {exc!r}. Rerun with the same --since and "
+                    "--before to resume.",
+                    err=True,
+                )
+                failed.append(query)
+                written_from, written_to = await _written_span(
+                    session_maker,
+                    url=loki.url,
+                    tenant_id=loki.tenant_id,
+                    query=query,
+                    since=since,
+                    before=end,
+                )
+                fold_bounds(written_from, written_to)
+                continue
+            except Exception as exc:
+                logger.exception("loki_import_selector_failed", query=query)
+                click.echo(
+                    f"  error: {exc!r}. Progress up to the last completed hour is kept. "
+                    "Rerun with the same --since and --before to resume.",
+                    err=True,
+                )
+                failed.append(query)
+                continue
+
+            if result.resumed_from is not None:
+                click.echo(f"  resumed from {result.resumed_from.isoformat()}")
+            click.echo(
+                f"  done: {result.lines_total:,} lines "
+                f"({result.lines_skipped:,} skipped as ignored or unparseable), "
+                f"{result.records_written:,} records "
+                f"in {result.duration_seconds:,.1f}s"
+            )
+            fold_bounds(result.time_start, result.time_end)
+
+        if overall_start and overall_end:
+            click.echo(f"Refreshing continuous aggregates {overall_start} to {overall_end} ...")
+            refresh_failed = await refresh_caggs_range(
+                engine, start=overall_start, end=overall_end + timedelta(microseconds=1)
+            )
+            if not refresh_failed:
+                click.echo("CAGGs refreshed.")
+    finally:
+        await engine.dispose()
+        reader.close()
+        if asn_reader is not None:
+            asn_reader.close()
+
+    problems: list[str] = []
+    if failed:
+        problems.append(f"{len(failed)} selector(s) not imported: " + "; ".join(failed))
     if refresh_failed:
         problems.append(
             f"Rows were imported, but refreshing {', '.join(refresh_failed)} failed, so "
@@ -655,7 +1113,7 @@ async def _run_backfill_asn(*, yes: bool, tables: tuple[str, ...]) -> None:
 @click.option(
     "--before",
     default=None,
-    type=click.DateTime(formats=["%Y-%m-%d", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%dT%H:%M:%S%z"]),
+    type=click.DateTime(formats=_DATETIME_FORMATS),
     help="Only rows older than this date or datetime (UTC when no offset is given).",
 )
 @click.option("--yes", is_flag=True, help="Skip the confirmation prompt.")
@@ -860,6 +1318,7 @@ class ImportLogsCLIPlugin(CLIPlugin):
 
     def on_cli_init(self, cli: click.Group) -> None:
         cli.add_command(import_logs_command)
+        cli.add_command(import_loki_command)
         cli.add_command(backfill_hostname_command)
         cli.add_command(backfill_asn_command)
         cli.add_command(backfill_timings_command)

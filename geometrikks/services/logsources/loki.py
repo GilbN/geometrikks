@@ -149,7 +149,7 @@ class LokiSource:
         self.hostname: str = hostname
         self.poll_interval: float = poll_interval
         self.lookback: float = lookback
-        self._tenant_id = tenant_id
+        self.tenant_id: str | None = tenant_id
         self._auth = (
             (username, password) if username is not None and password is not None else None
         )
@@ -179,7 +179,7 @@ class LokiSource:
         return True
 
     def _client(self) -> httpx2.AsyncClient:
-        headers = {"X-Scope-OrgID": self._tenant_id} if self._tenant_id else {}
+        headers = {"X-Scope-OrgID": self.tenant_id} if self.tenant_id else {}
         return httpx2.AsyncClient(
             base_url=self.url,
             headers=headers,
@@ -297,8 +297,8 @@ class LokiSource:
                         "More than %d lines in %s share the timestamp %s, and GeoMetrikks "
                         "skipped all but the first %d. The log pipeline sets the entry "
                         "timestamp from a line with second precision. Remove that stage so "
-                        "the shipper stamps each line when it reads it. See \"Reading from "
-                        "Loki\" in the README.",
+                        "the shipper stamps each line when it reads it. See \"Loki setup\" in "
+                        "the README.",
                         PAGE_LIMIT,
                         self.query,
                         datetime.fromtimestamp(last / NS, tz=timezone.utc).isoformat(),
@@ -308,6 +308,25 @@ class LokiSource:
                 cursor = last + 1
             if cursor >= end_ns:
                 return
+
+    async def read_range(
+        self, start_ns: int, end_ns: int
+    ) -> AsyncGenerator[list[Entry], None]:
+        """Pages of entries stamped in [start_ns, end_ns), oldest first.
+
+        For import-loki. Owns its client. Unlike lines(), it retries nothing
+        and records nothing in status(). The importer stops at the window it
+        was reading, and the next run resumes there.
+
+        Raises:
+            httpx2.HTTPError, LokiRejected: as ``_request``.
+        """
+        async with self._client() as client:
+            async with contextlib.aclosing(
+                self._pages(client, start_ns, end_ns, asyncio.Event())
+            ) as pages:
+                async for page in pages:
+                    yield page
 
     async def lines(self, stop: asyncio.Event) -> AsyncGenerator[str, None]:
         """Poll Loki until stop is set, yielding each new line once.
