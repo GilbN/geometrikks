@@ -19,7 +19,7 @@ pytestmark = pytest.mark.anyio
 GEOIP_DB_PATH = "tests/GeoLite2-City-Test.mmdb"
 TEST_IP = "2.125.160.216"
 QUERY = '{job="nginx"}'
-# Inside the raw retention window; the scratch DB runs live retention policies.
+# Recent so the rows sit inside the raw retention window should the policy ever run.
 SINCE = (datetime.now(timezone.utc) - timedelta(days=3)).replace(minute=0, second=0, microsecond=0)
 
 
@@ -83,13 +83,15 @@ async def test_resume_and_overlap_with_null_tenant(pg_session_maker, clean_table
         rows = (await session.execute(text(
             "SELECT tenant_id, cursor, records_written, hostname FROM loki_imports"
         ))).all()
-        count = await session.scalar(text("SELECT count(*) FROM access_logs WHERE hostname = 'edge-01'"))
+        timestamps = (await session.execute(text(
+            "SELECT timestamp FROM access_logs WHERE hostname = 'edge-01' ORDER BY timestamp"
+        ))).scalars().all()
     assert len(rows) == 1
     assert rows[0].tenant_id is None
     assert rows[0].cursor == before
     assert rows[0].records_written == 3
     assert rows[0].hostname == "edge-01"
-    assert count == 3
+    assert timestamps == [SINCE + timedelta(hours=hour, minutes=30) for hour in range(3)]
 
 
 async def test_different_tenant_is_a_different_selector(pg_session_maker, clean_tables) -> None:
@@ -160,11 +162,16 @@ async def test_covered_start_and_unfinished_run_lookups(pg_session_maker, clean_
             "cursor, lines_total, lines_skipped, records_written, created_at, updated_at) VALUES "
             "('http://loki:3100', NULL, :query, 'edge-01', :later, :later_end, :later_end, 0, 0, 0, now(), now()), "
             "('http://loki:3100', NULL, :query, 'edge-01', :start, :end, :start, 0, 0, 0, now(), now()), "
-            "('http://loki:3100', 'team-a', :query, 'edge-01', :earliest, :end, :end, 0, 0, 0, now(), now())"
+            "('http://loki:3100', 'team-a', :query, 'edge-01', :earliest, :end, :end, 0, 0, 0, now(), now()), "
+            "('http://loki:3100', 'team-a', :query, 'edge-01', :start, :end5, :start, 0, 0, 0, now(), now()), "
+            "('http://other:3100', NULL, :query, 'edge-01', :start, :end6, :start, 0, 0, 0, now(), now()), "
+            "('http://loki:3100', NULL, :other_query, 'edge-01', :start, :end7, :start, 0, 0, 0, now(), now())"
         ), {
-            "query": QUERY,
+            "query": QUERY, "other_query": '{job="other"}',
             "later": SINCE + timedelta(hours=2), "later_end": SINCE + timedelta(hours=3),
             "start": SINCE, "end": SINCE + timedelta(hours=4),
+            "end5": SINCE + timedelta(hours=5), "end6": SINCE + timedelta(hours=6),
+            "end7": SINCE + timedelta(hours=7),
             "earliest": SINCE - timedelta(days=1),
         })
         await session.commit()
@@ -176,7 +183,27 @@ async def test_covered_start_and_unfinished_run_lookups(pg_session_maker, clean_
         unfinished = await repo.find_unfinished(
             url="http://loki:3100", tenant_id=None, query=QUERY, since=SINCE
         )
-        assert unfinished is not None and unfinished.range_end == SINCE + timedelta(hours=4)
+        assert unfinished is not None
+        assert unfinished.tenant_id is None
+        assert unfinished.url == "http://loki:3100"
+        assert unfinished.query == QUERY
+        assert unfinished.range_end == SINCE + timedelta(hours=4)
         assert await repo.find_unfinished(
             url="http://loki:3100", tenant_id=None, query=QUERY, since=SINCE + timedelta(hours=2)
         ) is None
+
+    async with pg_session_maker() as session:
+        await session.execute(text(
+            "INSERT INTO loki_imports (url, tenant_id, query, hostname, range_start, range_end, "
+            "cursor, lines_total, lines_skipped, records_written, created_at, updated_at) VALUES "
+            "('http://loki:3100', NULL, :query, 'edge-01', :start, :end8, :start, 0, 0, 0, now(), now())"
+        ), {"query": QUERY, "start": SINCE, "end8": SINCE + timedelta(hours=8)})
+        await session.commit()
+
+    async with pg_session_maker() as session:
+        repo = LokiImportRepository(session=session)
+        newest = await repo.find_unfinished(
+            url="http://loki:3100", tenant_id=None, query=QUERY, since=SINCE
+        )
+        assert newest is not None and newest.range_end == SINCE + timedelta(hours=8)
+        assert await repo.earliest_range_start(url="http://loki:3100", tenant_id=None, query=QUERY) == SINCE
