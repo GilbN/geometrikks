@@ -1001,26 +1001,26 @@ def test_resolve_loki_before_default_rejects_since_past_it() -> None:
     with pytest.raises(click.ClickException, match="already begin"):
         resolve_loki_before(
             since=oldest, before=None, oldest_row=oldest,
-            earliest_import=None, unfinished_end=None, hostname="edge-01",
+            earliest_import=None, unfinished_end=None, imports_wrote_from=None, hostname="edge-01",
         )
     with pytest.raises(click.ClickException, match="already begin"):
         resolve_loki_before(
             since=oldest, before=None, oldest_row=None,
-            earliest_import=oldest, unfinished_end=None, hostname="edge-01",
+            earliest_import=oldest, unfinished_end=None, imports_wrote_from=None, hostname="edge-01",
         )
-    with pytest.raises(click.ClickException, match="no rows"):
+    with pytest.raises(click.ClickException, match="no access-log rows or earlier imports"):
         resolve_loki_before(
             since=oldest, before=None, oldest_row=None,
-            earliest_import=None, unfinished_end=None, hostname="edge-01",
+            earliest_import=None, unfinished_end=None, imports_wrote_from=None, hostname="edge-01",
         )
     assert resolve_loki_before(
         since=oldest - timedelta(days=1), before=None, oldest_row=oldest,
-        earliest_import=None, unfinished_end=None, hostname="edge-01",
+        earliest_import=None, unfinished_end=None, imports_wrote_from=None, hostname="edge-01",
     ) == oldest
     explicit = oldest + timedelta(days=1)
     assert resolve_loki_before(
         since=oldest, before=explicit, oldest_row=None,
-        earliest_import=None, unfinished_end=None, hostname="edge-01",
+        earliest_import=None, unfinished_end=None, imports_wrote_from=None, hostname="edge-01",
     ) == explicit
 
 
@@ -1036,6 +1036,7 @@ def test_resolve_loki_before_prefers_an_unfinished_run() -> None:
         oldest_row=datetime(2026, 9, 15, tzinfo=timezone.utc),
         earliest_import=datetime(2026, 9, 1, tzinfo=timezone.utc),
         unfinished_end=unfinished_end,
+        imports_wrote_from=None,
         hostname="edge-01",
     ) == unfinished_end
 
@@ -1050,12 +1051,48 @@ def test_resolve_loki_before_uses_the_earliest_covered_start() -> None:
     since = datetime(2026, 9, 1, tzinfo=timezone.utc)
     assert resolve_loki_before(
         since=since, before=None, oldest_row=later, earliest_import=earlier,
-        unfinished_end=None, hostname="edge-01",
+        unfinished_end=None, imports_wrote_from=None, hostname="edge-01",
     ) == earlier
     assert resolve_loki_before(
         since=since, before=None, oldest_row=earlier, earliest_import=later,
-        unfinished_end=None, hostname="edge-01",
+        unfinished_end=None, imports_wrote_from=None, hostname="edge-01",
     ) == earlier
+
+
+def test_resolve_loki_before_uses_the_import_start_when_the_oldest_row_is_its_own_line() -> None:
+    from datetime import datetime, timezone
+
+    from geometrikks.cli import resolve_loki_before
+
+    import_start = datetime(2026, 9, 10, tzinfo=timezone.utc)
+    since = datetime(2026, 9, 1, tzinfo=timezone.utc)
+    assert resolve_loki_before(
+        since=since,
+        before=None,
+        oldest_row=import_start - timedelta(seconds=2),
+        earliest_import=import_start,
+        unfinished_end=None,
+        imports_wrote_from=import_start - timedelta(seconds=2),
+        hostname="edge-01",
+    ) == import_start
+
+
+def test_resolve_loki_before_uses_older_live_rows_when_they_predate_every_import() -> None:
+    from datetime import datetime, timezone
+
+    from geometrikks.cli import resolve_loki_before
+
+    import_start = datetime(2026, 9, 10, tzinfo=timezone.utc)
+    since = datetime(2026, 7, 1, tzinfo=timezone.utc)
+    assert resolve_loki_before(
+        since=since,
+        before=None,
+        oldest_row=import_start - timedelta(days=30),
+        earliest_import=import_start,
+        unfinished_end=None,
+        imports_wrote_from=import_start - timedelta(seconds=2),
+        hostname="edge-01",
+    ) == import_start - timedelta(days=30)
 
 
 def _patch_loki_run(monkeypatch, *, import_loki_range, covered_from, claim_loki_range=None):
@@ -1130,7 +1167,7 @@ def test_import_loki_resolves_every_default_before_importing(monkeypatch) -> Non
 
     async def covered_from(*args, **kwargs):
         calls.append("covered")
-        return oldest, None, None
+        return oldest, None, None, None
 
     async def import_loki_range(*args, **kwargs):
         calls.append("import")

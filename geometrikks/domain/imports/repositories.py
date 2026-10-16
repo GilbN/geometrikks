@@ -53,9 +53,19 @@ class LokiImportRepository(SQLAlchemyAsyncRepository[LokiImport]):
     async def earliest_range_start(
         self, *, url: str, tenant_id: str | None, query: str
     ) -> datetime | None:
-        """The earliest range any run of this selector claimed, finished or not."""
+        """The earliest range any run of this selector wrote to, finished or not."""
         statement = select(func.min(LokiImport.range_start)).where(
-            LokiImport.url == url, _same_tenant(tenant_id), LokiImport.query == query
+            LokiImport.url == url,
+            _same_tenant(tenant_id),
+            LokiImport.query == query,
+            LokiImport.cursor > LokiImport.range_start,
+        )
+        return await self.session.scalar(statement)
+
+    async def earliest_written_line(self, *, hostname: str) -> datetime | None:
+        """The earliest log-line time any import wrote for this hostname, across selectors."""
+        statement = select(func.min(LokiImport.time_start)).where(
+            LokiImport.hostname == hostname
         )
         return await self.session.scalar(statement)
 

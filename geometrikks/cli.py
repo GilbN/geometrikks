@@ -342,6 +342,7 @@ def resolve_loki_before(
     oldest_row: datetime | None,
     earliest_import: datetime | None,
     unfinished_end: datetime | None,
+    imports_wrote_from: datetime | None,
     hostname: str,
 ) -> datetime:
     """The end of the range: as given, an unfinished run's end, or the start of what is covered."""
@@ -352,10 +353,21 @@ def resolve_loki_before(
     covered_from = [moment for moment in (oldest_row, earliest_import) if moment is not None]
     if not covered_from:
         raise click.ClickException(
-            f"no rows are stored for hostname {hostname} yet, so there is no default end "
-            "for the range. Pass --before."
+            f"no access-log rows or earlier imports exist for hostname {hostname}, so there "
+            "is no default end for the range. Pass --before."
         )
-    end = min(covered_from)
+    # The oldest row may be a line a backfill wrote, stamped by the proxy a shipper's
+    # delay before the Loki entry it came from; the import's own start is the exact
+    # boundary then.
+    if (
+        earliest_import is not None
+        and oldest_row is not None
+        and imports_wrote_from is not None
+        and oldest_row >= imports_wrote_from
+    ):
+        end = earliest_import
+    else:
+        end = min(covered_from)
     if since >= end:
         raise click.ClickException(
             f"--since {since.isoformat()} is not before {end.isoformat()}, where an "
@@ -374,8 +386,10 @@ async def _covered_from(
     query: str,
     since: datetime,
     hostname: str,
-) -> tuple[datetime | None, datetime | None, datetime | None]:
-    """(oldest stored row, earliest claimed import start, unfinished run's end) for a selector."""
+) -> tuple[datetime | None, datetime | None, datetime | None, datetime | None]:
+    """For a selector: (oldest stored row, earliest import start, unfinished run's end,
+    earliest log-line time any import wrote for the hostname).
+    """
     from sqlalchemy import func, select
 
     from geometrikks.domain.imports.repositories import LokiImportRepository
@@ -389,7 +403,13 @@ async def _covered_from(
         identity = {"url": url, "tenant_id": tenant_id, "query": query}
         earliest_import = await repo.earliest_range_start(**identity)
         unfinished = await repo.find_unfinished(since=since, **identity)
-        return oldest_row, earliest_import, unfinished.range_end if unfinished else None
+        imports_wrote_from = await repo.earliest_written_line(hostname=hostname)
+        return (
+            oldest_row,
+            earliest_import,
+            unfinished.range_end if unfinished else None,
+            imports_wrote_from,
+        )
 
 
 async def _run_loki_import(
@@ -459,7 +479,7 @@ async def _run_loki_import(
         ends: list[datetime | None] = []
         for _, query, _, host in selected:
             try:
-                covered = (None, None, None)
+                covered = (None, None, None, None)
                 if before is None:
                     covered = await _covered_from(
                         session_maker,
@@ -469,7 +489,7 @@ async def _run_loki_import(
                         since=since,
                         hostname=host,
                     )
-                oldest_row, earliest_import, unfinished_end = covered
+                oldest_row, earliest_import, unfinished_end, imports_wrote_from = covered
                 ends.append(
                     resolve_loki_before(
                         since=since,
@@ -477,6 +497,7 @@ async def _run_loki_import(
                         oldest_row=oldest_row,
                         earliest_import=earliest_import,
                         unfinished_end=unfinished_end,
+                        imports_wrote_from=imports_wrote_from,
                         hostname=host,
                     )
                 )
@@ -516,7 +537,8 @@ async def _run_loki_import(
             if before is None:
                 click.echo(
                     f"  --before not given; stopping at {end.isoformat()} "
-                    f"(rerun with --since {since.isoformat()} --before {end.isoformat()} to resume)"
+                    f"(rerun with --since {since.isoformat()} --before {end.isoformat()} "
+                    "for the same range)"
                 )
             click.echo(f"  range {since.isoformat()} to {end.isoformat()}")
 

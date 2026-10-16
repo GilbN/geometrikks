@@ -194,7 +194,8 @@ async def test_covered_start_and_unfinished_run_lookups(pg_session_maker, clean_
             "INSERT INTO loki_imports (url, tenant_id, query, hostname, range_start, range_end, "
             "cursor, lines_total, lines_skipped, records_written, created_at, updated_at) VALUES "
             "('http://loki:3100', NULL, :query, 'edge-01', :later, :later_end, :later_end, 0, 0, 0, now(), now()), "
-            "('http://loki:3100', NULL, :query, 'edge-01', :start, :end, :start, 0, 0, 0, now(), now()), "
+            "('http://loki:3100', NULL, :query, 'edge-01', :start, :end, :first_hour, 0, 0, 0, now(), now()), "
+            "('http://loki:3100', NULL, :query, 'edge-01', :empty, :start, :empty, 0, 0, 0, now(), now()), "
             "('http://loki:3100', 'team-a', :query, 'edge-01', :earliest, :end, :end, 0, 0, 0, now(), now()), "
             "('http://loki:3100', 'team-a', :query, 'edge-01', :start, :end5, :start, 0, 0, 0, now(), now()), "
             "('http://other:3100', NULL, :query, 'edge-01', :start, :end6, :start, 0, 0, 0, now(), now()), "
@@ -203,6 +204,7 @@ async def test_covered_start_and_unfinished_run_lookups(pg_session_maker, clean_
             "query": QUERY, "other_query": '{job="other"}',
             "later": SINCE + timedelta(hours=2), "later_end": SINCE + timedelta(hours=3),
             "start": SINCE, "end": SINCE + timedelta(hours=4),
+            "first_hour": SINCE + timedelta(hours=1), "empty": SINCE - timedelta(hours=6),
             "end5": SINCE + timedelta(hours=5), "end6": SINCE + timedelta(hours=6),
             "end7": SINCE + timedelta(hours=7),
             "earliest": SINCE - timedelta(days=1),
