@@ -784,3 +784,49 @@ async def test_validation_is_skipped_when_loki_is_down_during_the_check(
     skipped = next(log for log in logs if log["event"] == "log_format_validation_skipped")
     assert skipped["reason"] == "source_unavailable"
     assert log_input.parser.send_logs is True
+
+
+async def test_read_range_pages_the_window_oldest_first(fake: FakeLoki) -> None:
+    for second in range(5):
+        fake.add(10 + second, f"{LINE} {second}")
+    source = make_source(fake)
+
+    pages = [page async for page in source.read_range(11 * NS, 14 * NS)]
+
+    lines = [line for page in pages for _, _, line in page]
+    assert lines == [f"{LINE} {second}" for second in (1, 2, 3)]
+    assert all(request.url.params["direction"] == "forward" for request in fake.requests)
+
+
+async def test_read_range_end_is_exclusive(fake: FakeLoki) -> None:
+    fake.add(10, "a")
+    fake.add(20, "b")
+    source = make_source(fake)
+
+    pages = [page async for page in source.read_range(10 * NS, 20 * NS)]
+
+    assert [line for page in pages for _, _, line in page] == ["a"]
+
+
+async def test_read_range_raises_on_transport_error(fake: FakeLoki) -> None:
+    fake.errors = ["connect"]
+    source = make_source(fake)
+
+    with pytest.raises(httpx2.HTTPError):
+        async for _ in source.read_range(0, NS):
+            pass
+    assert source.status().available
+
+
+async def test_read_range_raises_on_rejected_response(fake: FakeLoki) -> None:
+    fake.payload = {"status": "success", "data": {"resultType": "matrix", "result": []}}
+    source = make_source(fake)
+
+    with pytest.raises(loki_module.LokiRejected):
+        async for _ in source.read_range(0, NS):
+            pass
+
+
+def test_tenant_id_is_public(fake: FakeLoki) -> None:
+    assert make_source(fake, tenant_id="team-a").tenant_id == "team-a"
+    assert make_source(fake).tenant_id is None
