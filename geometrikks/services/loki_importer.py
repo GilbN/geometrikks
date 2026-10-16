@@ -104,8 +104,8 @@ def _overlap_error(source: LokiSource, overlap: LokiImport) -> LokiImportOverlap
     return LokiImportOverlapError(
         f"{source.query}: {overlap.range_start.isoformat()} to "
         f"{overlap.cursor.isoformat()} is already imported for this selector "
-        f"(row {overlap.id}). --force imports the range again, duplicating "
-        "the rows already written."
+        f"(row {overlap.id}). --force skips this check and imports the range again, "
+        "duplicating the rows already written."
     )
 
 
@@ -141,19 +141,12 @@ async def _claim_row(
     identity = {"url": source.url, "tenant_id": source.tenant_id, "query": source.query}
     async with session_maker() as session:
         repo = LokiImportRepository(session=session)
-        loki_import: LokiImport | None = None
+        loki_import = await repo.find_resumable(since=since, before=before, **identity)
         if not force:
-            loki_import = await repo.find_resumable(since=since, before=before, **identity)
-            if loki_import is None:
-                overlap = await repo.find_overlapping(since=since, before=before, **identity)
-                if overlap is not None:
-                    raise _overlap_error(source, overlap)
-            else:
-                overlap = await repo.find_overlapping(
-                    since=loki_import.cursor, before=before, **identity
-                )
-                if overlap is not None:
-                    raise _overlap_error(source, overlap)
+            check_from = since if loki_import is None else loki_import.cursor
+            overlap = await repo.find_overlapping(since=check_from, before=before, **identity)
+            if overlap is not None:
+                raise _overlap_error(source, overlap)
         if loki_import is not None:
             stored = _Counters(
                 lines_total=loki_import.lines_total,
@@ -174,6 +167,20 @@ async def _claim_row(
             auto_commit=True,
         )
         return loki_import.id, since, _Counters(), None
+
+
+async def claim_loki_range(
+    source: LokiSource,
+    *,
+    session_maker: Callable[[], AsyncSession],
+    since: datetime,
+    before: datetime,
+    force: bool = False,
+) -> None:
+    """Record the range this selector will import, so an interrupted run leaves every
+    selector's bounds behind. import_loki_range finds the row and resumes it from ``since``.
+    """
+    await _claim_row(source, session_maker, since, before, force)
 
 
 async def _advance_row(
@@ -212,7 +219,9 @@ async def import_loki_range(
     """Import [since, before) of one selector. See module docstring.
 
     Bounds are Loki entry timestamps. The format is locked from the first
-    non-empty page, so the check samples the data being imported.
+    non-empty page, so the check samples the data being imported. ``force``
+    skips the overlap checks; an unfinished run of exactly this range still
+    resumes.
 
     Raises:
         LokiImportOverlapError: part of the range is already imported.
@@ -223,9 +232,10 @@ async def import_loki_range(
             Batches already flushed from the failed window are written again.
     """
     started = time.monotonic()
-    row_id, cursor, stored, resumed_from = await _claim_row(
+    row_id, cursor, stored, _ = await _claim_row(
         source, session_maker, since, before, force
     )
+    resumed_from = cursor if cursor > since else None
 
     lookup = make_cached_city_lookup(reader)
     asn_lookup = make_cached_asn_lookup(asn_reader) if asn_reader is not None else None

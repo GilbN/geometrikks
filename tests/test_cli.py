@@ -1058,7 +1058,7 @@ def test_resolve_loki_before_uses_the_earliest_covered_start() -> None:
     ) == earlier
 
 
-def _patch_loki_run(monkeypatch, *, import_loki_range, covered_from):
+def _patch_loki_run(monkeypatch, *, import_loki_range, covered_from, claim_loki_range=None):
     import geometrikks.cli as cli_module
     import geometrikks.config.settings as settings_module
     import geometrikks.server.plugins as plugins_module
@@ -1076,6 +1076,9 @@ def _patch_loki_run(monkeypatch, *, import_loki_range, covered_from):
     monkeypatch.setattr(ingestion_module, "create_reader", lambda *args, **kwargs: MagicMock())
     monkeypatch.setattr(cli_module, "_covered_from", covered_from)
     monkeypatch.setattr(loki_importer_module, "import_loki_range", import_loki_range)
+    monkeypatch.setattr(
+        loki_importer_module, "claim_loki_range", claim_loki_range or AsyncMock()
+    )
     refresh = AsyncMock(return_value=[])
     monkeypatch.setattr(timescale_module, "refresh_caggs_range", refresh)
     return engine, refresh
@@ -1141,11 +1144,19 @@ def test_import_loki_resolves_every_default_before_importing(monkeypatch) -> Non
             resumed_from=None,
         )
 
+    async def claim_loki_range(*args, **kwargs):
+        calls.append("claim")
+
     range_mock = AsyncMock(side_effect=import_loki_range)
-    _patch_loki_run(monkeypatch, import_loki_range=range_mock, covered_from=covered_from)
+    _patch_loki_run(
+        monkeypatch,
+        import_loki_range=range_mock,
+        covered_from=covered_from,
+        claim_loki_range=AsyncMock(side_effect=claim_loki_range),
+    )
 
     result = CliRunner().invoke(_loki_cli(), ["import-loki", "--since", "2026-09-01"])
 
     assert result.exit_code == 0, result.output
-    assert calls == ["covered", "covered", "import", "import"]
+    assert calls == ["covered", "covered", "claim", "claim", "import", "import"]
     assert [call.kwargs["before"] for call in range_mock.await_args_list] == [oldest, oldest]

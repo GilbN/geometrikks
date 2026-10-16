@@ -1283,10 +1283,9 @@ docker compose exec -u geometrikks app litestar import-loki --since 2026-09-01
   others. The command lists the failed selectors at the end and exits with
   an error.
 - The command refuses a range that overlaps one already imported for the
-  same selector, and names the range it found. `--force` imports it anyway
-  and does **not** delete the rows written earlier. A rerun with `--force`
-  starts a new import instead of resuming, so it duplicates what the
-  interrupted run wrote.
+  same selector, and names the range it found. `--force` skips the overlap
+  check. An unfinished run with the same range still resumes; a finished
+  one is imported again, and the rows already written stay.
 - The format is detected from the first lines the command reads, or pinned
   with `LOKI_FORMATS`. The command rejects a selector whose first lines
   don't match its format, detected or pinned with `LOKI_FORMATS`, before it

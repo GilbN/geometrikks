@@ -95,6 +95,9 @@ class FakeLokiImportRepo:
 
     async def add(self, loki_import, auto_commit=True):
         loki_import.id = len(self.rows) + 1
+        for counter in ("lines_total", "lines_skipped", "records_written"):
+            if getattr(loki_import, counter) is None:
+                setattr(loki_import, counter, 0)
         self.rows.append(loki_import)
         return loki_import
 
@@ -365,6 +368,58 @@ async def test_partial_overlap_is_refused_and_force_writes_a_new_row(fake, geoip
         since=SINCE + timedelta(hours=1), before=SINCE + timedelta(hours=3), force=True,
     )
     assert len(FakeLokiImportRepo.rows) == 2
+
+
+async def test_force_resumes_an_unfinished_run_of_the_same_range(fake, geoip_reader, deps) -> None:
+    from geometrikks.services.loki_importer import import_loki_range
+
+    service, session_maker = deps
+    source = make_source(fake)
+
+    def stored_row(row_id: int, range_start: datetime, range_end: datetime, cursor: datetime):
+        return MagicMock(
+            id=row_id, url=source.url, tenant_id=None, query=QUERY, hostname="edge-01",
+            range_start=range_start, range_end=range_end, cursor=cursor,
+            lines_total=0, lines_skipped=0, records_written=0, time_start=None, time_end=None,
+        )
+
+    unfinished = stored_row(1, SINCE, SINCE + timedelta(hours=4), SINCE + timedelta(hours=1))
+    completed = stored_row(
+        2, SINCE + timedelta(hours=2), SINCE + timedelta(hours=3), SINCE + timedelta(hours=3)
+    )
+    FakeLokiImportRepo.rows.extend([unfinished, completed])
+
+    result = await import_loki_range(
+        source, service=service, parser=LogParser(source_label="loki", send_logs=True),
+        reader=geoip_reader, session_maker=session_maker,
+        since=SINCE, before=SINCE + timedelta(hours=4), force=True,
+    )
+
+    assert result.resumed_from == SINCE + timedelta(hours=1)
+    assert len(FakeLokiImportRepo.rows) == 2
+    assert unfinished.cursor == SINCE + timedelta(hours=4)
+
+
+async def test_claim_then_import_is_not_reported_as_resume(fake, geoip_reader, deps) -> None:
+    from geometrikks.services.loki_importer import claim_loki_range, import_loki_range
+
+    service, session_maker = deps
+    for hour in range(2):
+        add_line(fake, SINCE + timedelta(hours=hour, minutes=30))
+    source = make_source(fake)
+    before = SINCE + timedelta(hours=2)
+
+    await claim_loki_range(source, session_maker=session_maker, since=SINCE, before=before)
+    result = await import_loki_range(
+        source, service=service, parser=LogParser(source_label="loki", send_logs=True),
+        reader=geoip_reader, session_maker=session_maker, since=SINCE, before=before,
+    )
+
+    assert result.resumed_from is None
+    assert result.records_written == 2
+    [row] = FakeLokiImportRepo.rows
+    assert row.cursor == before
+    assert row.records_written == 2
 
 
 async def test_abandoned_tail_does_not_count_as_imported(fake, geoip_reader, deps) -> None:

@@ -10,7 +10,11 @@ from sqlalchemy import text
 
 from geometrikks.services.ingestion.service import LogIngestionService
 from geometrikks.services.logparser.logparser import LogParser
-from geometrikks.services.loki_importer import LokiImportOverlapError, import_loki_range
+from geometrikks.services.loki_importer import (
+    LokiImportOverlapError,
+    claim_loki_range,
+    import_loki_range,
+)
 from geometrikks.services.logsources.loki import NS, LokiSource
 from tests.test_loki_source import FakeLoki
 
@@ -145,6 +149,35 @@ async def test_row_that_never_imported_anything_does_not_block_an_overlapping_ra
     async with pg_session_maker() as session:
         count = await session.scalar(text("SELECT count(*) FROM loki_imports"))
     assert count == 2
+
+
+async def test_claimed_range_survives_until_imported(pg_session_maker, clean_tables) -> None:
+    fake = FakeLoki()
+    moment = SINCE + timedelta(minutes=30)
+    fake.add_ns(int(moment.timestamp()) * NS, make_log_line(TEST_IP, moment))
+    before = SINCE + timedelta(hours=2)
+    service = LogIngestionService(
+        inputs=[], session_maker=pg_session_maker, geoip_path=GEOIP_DB_PATH, locales=["en"],
+    )
+
+    await claim_loki_range(
+        make_source(fake), session_maker=pg_session_maker, since=SINCE, before=before
+    )
+    with Reader(GEOIP_DB_PATH) as reader:
+        result = await import_loki_range(
+            make_source(fake), service=service, parser=LogParser(source_label="loki", send_logs=True),
+            reader=reader, session_maker=pg_session_maker, since=SINCE, before=before,
+        )
+
+    assert result.resumed_from is None
+    async with pg_session_maker() as session:
+        rows = (await session.execute(text(
+            "SELECT tenant_id, cursor, records_written FROM loki_imports"
+        ))).all()
+    assert len(rows) == 1
+    assert rows[0].tenant_id is None
+    assert rows[0].cursor == before
+    assert rows[0].records_written == 1
 
 
 async def test_covered_start_and_unfinished_run_lookups(pg_session_maker, clean_tables) -> None:

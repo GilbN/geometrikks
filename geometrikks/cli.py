@@ -412,6 +412,7 @@ async def _run_loki_import(
         LokiImportOverlapError,
         LokiImportProgress,
         LokiImportWriteError,
+        claim_loki_range,
         import_loki_range,
     )
     from geometrikks.services.logparser.logparser import LogParser
@@ -484,7 +485,31 @@ async def _run_loki_import(
                 failed.append(query)
                 ends.append(None)
 
-        for (index, query, fmt, host), end in zip(selected, ends, strict=True):
+        sources = [
+            LokiSource(
+                url=loki.url,
+                query=query,
+                label=f"loki:{index}",
+                hostname=host,
+                tenant_id=loki.tenant_id,
+                username=loki.username,
+                password=password,
+            )
+            for index, query, _, host in selected
+        ]
+        for position, (source, end) in enumerate(zip(sources, ends, strict=True)):
+            if end is None:
+                continue
+            try:
+                await claim_loki_range(
+                    source, session_maker=session_maker, since=since, before=end, force=force
+                )
+            except LokiImportOverlapError as exc:
+                click.echo(f"  error: {exc}", err=True)
+                failed.append(source.query)
+                ends[position] = None
+
+        for (_, query, fmt, host), source, end in zip(selected, sources, ends, strict=True):
             if end is None:
                 continue
             click.echo(f"Importing {query} (hostname {host}) ...")
@@ -495,15 +520,6 @@ async def _run_loki_import(
                 )
             click.echo(f"  range {since.isoformat()} to {end.isoformat()}")
 
-            source = LokiSource(
-                url=loki.url,
-                query=query,
-                label=f"loki:{index}",
-                hostname=host,
-                tenant_id=loki.tenant_id,
-                username=loki.username,
-                password=password,
-            )
             parser = LogParser(
                 source_label=f"loki:{query}",
                 send_logs=settings.logparser.send_logs,
