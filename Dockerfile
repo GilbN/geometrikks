@@ -107,7 +107,7 @@ COPY --chmod=755 docker/entrypoint.sh /usr/local/bin/entrypoint.sh
 STOPSIGNAL SIGTERM
 EXPOSE 8000
 
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --start-interval=2s --retries=3 \
     CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=5).read()" || exit 1
 
 # tini is PID 1; the entrypoint remaps the geometrikks user to PUID/PGID
