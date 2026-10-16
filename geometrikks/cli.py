@@ -239,7 +239,13 @@ async def _run_import(
         raise click.ClickException("\n".join(problems))
 
 
-_DATETIME_FORMATS = ["%Y-%m-%d", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%dT%H:%M:%S%z"]
+_DATETIME_FORMATS = [
+    "%Y-%m-%d",
+    "%Y-%m-%dT%H:%M:%S",
+    "%Y-%m-%dT%H:%M:%S%z",
+    "%Y-%m-%dT%H:%M:%S.%f",
+    "%Y-%m-%dT%H:%M:%S.%f%z",
+]
 
 
 @click.command(name="import-loki")
@@ -254,9 +260,10 @@ _DATETIME_FORMATS = ["%Y-%m-%d", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%dT%H:%M:%S%z"]
     default=None,
     type=click.DateTime(formats=_DATETIME_FORMATS),
     help=(
-        "End of the range, exclusive. Without an offset it is UTC. Default: the "
-        "oldest row already stored for the selector's hostname, so the import "
-        "stops where live reading began."
+        "End of the range, exclusive. Without an offset it is UTC. Default: where "
+        "the selector's stored data begins, which is the oldest row for its "
+        "hostname or the start of an earlier import-loki range, whichever is "
+        "earlier; an interrupted run with the same --since keeps its own end."
     ),
 )
 @click.option(
@@ -351,9 +358,10 @@ def resolve_loki_before(
     end = min(covered_from)
     if since >= end:
         raise click.ClickException(
-            f"--since {since.isoformat()} is not before the start of what is already "
-            f"covered for {hostname} ({end.isoformat()}). Pass --before to import a later "
-            "range on purpose."
+            f"--since {since.isoformat()} is not before {end.isoformat()}, where an "
+            f"earlier import or the stored rows for {hostname} already begin. Pass an "
+            "earlier --since to go further back, or --before to repeat a range on purpose "
+            "(a finished range also needs --force)."
         )
     return end
 

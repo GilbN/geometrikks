@@ -888,6 +888,24 @@ def test_import_loki_naive_datetimes_are_utc(monkeypatch) -> None:
     assert run_import.await_args.kwargs["force"] is False
 
 
+def test_import_loki_accepts_fractional_seconds(monkeypatch) -> None:
+    from datetime import datetime, timezone
+
+    import geometrikks.cli as cli_module
+
+    run_import = AsyncMock()
+    monkeypatch.setattr(cli_module, "_run_loki_import", run_import)
+    expected = datetime(2026, 9, 20, 12, 34, 56, 123456, tzinfo=timezone.utc)
+
+    for before in ("2026-09-20T12:34:56.123456+00:00", "2026-09-20T12:34:56.123456"):
+        result = CliRunner().invoke(
+            _loki_cli(), ["import-loki", "--since", "2026-09-01", "--before", before]
+        )
+        assert result.exit_code == 0, result.output
+        assert run_import.await_args is not None
+        assert run_import.await_args.kwargs["before"] == expected
+
+
 def test_import_loki_rejects_since_at_or_after_before(monkeypatch) -> None:
     import geometrikks.cli as cli_module
 
@@ -980,12 +998,12 @@ def test_resolve_loki_before_default_rejects_since_past_it() -> None:
     from geometrikks.cli import resolve_loki_before
 
     oldest = datetime(2026, 9, 1, tzinfo=timezone.utc)
-    with pytest.raises(click.ClickException, match="already covered"):
+    with pytest.raises(click.ClickException, match="already begin"):
         resolve_loki_before(
             since=oldest, before=None, oldest_row=oldest,
             earliest_import=None, unfinished_end=None, hostname="edge-01",
         )
-    with pytest.raises(click.ClickException, match="already covered"):
+    with pytest.raises(click.ClickException, match="already begin"):
         resolve_loki_before(
             since=oldest, before=None, oldest_row=None,
             earliest_import=oldest, unfinished_end=None, hostname="edge-01",
