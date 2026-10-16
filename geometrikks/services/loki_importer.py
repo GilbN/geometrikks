@@ -5,7 +5,8 @@ range of one selector, not a file checksum. The range is walked in
 one-hour windows; after each window's rows commit, the loki_imports row's
 cursor moves to the window's end, so a rerun of the same range resumes
 there. A crash between the commit and the cursor update re-imports that
-hour on resume.
+hour on resume. Batches already flushed from a window that then fails are
+written again.
 
 CLI-only, like importer.py: free of click so an endpoint could reuse it.
 """
@@ -45,6 +46,10 @@ WINDOW_SECONDS = 3600
 
 class LokiImportOverlapError(ValueError):
     """The range overlaps one already imported for this selector."""
+
+
+class LokiImportWriteError(RuntimeError):
+    """A batch failed to commit; the window is not recorded as imported."""
 
 
 @dataclass
@@ -93,6 +98,32 @@ class _Counters:
             self.time_end = _latest(self.time_end, record.timestamp)
 
 
+def _overlap_error(source: LokiSource, overlap: LokiImport) -> LokiImportOverlapError:
+    return LokiImportOverlapError(
+        f"{source.query}: {overlap.range_start.isoformat()} to "
+        f"{overlap.cursor.isoformat()} is already imported for this selector "
+        f"(row {overlap.id}). --force imports the range again, duplicating "
+        "the rows already written."
+    )
+
+
+async def _flush(service: LogIngestionService, batch: list[ParsedLogRecord]) -> int:
+    """Flush one batch and return the records written.
+
+    Raises:
+        LokiImportWriteError: the service logged a failed batch. flush_records
+            swallows commit failures, and a lost batch must not advance the cursor.
+    """
+    failed_before = service.failed_records
+    await service.flush_records(batch)
+    lost = service.failed_records - failed_before
+    if lost:
+        raise LokiImportWriteError(
+            f"{lost} record(s) failed to commit; see ingestion_batch_failed in the log"
+        )
+    return sum(1 for record in batch if record.ip_address is not None)
+
+
 async def _claim_row(
     source: LokiSource,
     session_maker: Callable[[], AsyncSession],
@@ -114,12 +145,13 @@ async def _claim_row(
             if loki_import is None:
                 overlap = await repo.find_overlapping(since=since, before=before, **identity)
                 if overlap is not None:
-                    raise LokiImportOverlapError(
-                        f"{source.query}: {overlap.range_start.isoformat()} to "
-                        f"{overlap.cursor.isoformat()} is already imported for this selector "
-                        f"(row {overlap.id}). --force imports the range again, duplicating "
-                        "the rows already written."
-                    )
+                    raise _overlap_error(source, overlap)
+            else:
+                overlap = await repo.find_overlapping(
+                    since=loki_import.cursor, before=before, **identity
+                )
+                if overlap is not None:
+                    raise _overlap_error(source, overlap)
         if loki_import is not None:
             stored = _Counters(
                 lines_total=loki_import.lines_total,
@@ -183,8 +215,10 @@ async def import_loki_range(
     Raises:
         LokiImportOverlapError: part of the range is already imported.
         UnrecognizedLogFormatError: the first page matches no log format.
+        LokiImportWriteError: a batch failed to commit.
         httpx2.HTTPError, LokiRejected: Loki failed mid-range; the row
             stays at the last completed window and a rerun resumes there.
+            Batches already flushed from the failed window are written again.
     """
     started = time.monotonic()
     row_id, cursor, stored, resumed_from = await _claim_row(
@@ -231,14 +265,12 @@ async def import_loki_range(
                     run.note(record)
                     batch.append(record)
                     if len(batch) >= batch_size:
-                        await service.flush_records(batch)
-                        run.records_written += sum(1 for r in batch if r.ip_address is not None)
+                        run.records_written += await _flush(service, batch)
                         batch = []
                 last_timestamp = page[-1][0]
                 carried = {loki_entry for loki_entry in page if loki_entry[0] == last_timestamp}
         if batch:
-            await service.flush_records(batch)
-            run.records_written += sum(1 for r in batch if r.ip_address is not None)
+            run.records_written += await _flush(service, batch)
         cursor = window_end
         await _advance_row(session_maker, row_id, cursor, stored, run)
         if progress and (window_end.date() != window_start.date() or cursor >= before):

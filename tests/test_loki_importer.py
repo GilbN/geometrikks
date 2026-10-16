@@ -113,6 +113,7 @@ def deps(monkeypatch):
     monkeypatch.setattr(loki_importer, "LokiImportRepository", FakeLokiImportRepo)
     service = MagicMock()
     service.flush_records = AsyncMock()
+    service.failed_records = 0
     session = MagicMock()
     session.__aenter__ = AsyncMock(return_value=session)
     session.__aexit__ = AsyncMock(return_value=False)
@@ -148,8 +149,8 @@ async def test_walks_the_range_in_hour_windows(fake, geoip_reader, deps) -> None
     assert result.lines_total == 3
     starts = [int(request.url.params["start"]) for request in fake.requests]
     ends = [int(request.url.params["end"]) for request in fake.requests]
-    assert starts == [int((SINCE + timedelta(hours=h)).timestamp()) * NS for h in range(3)]
-    assert ends == [int((SINCE + timedelta(hours=h + 1)).timestamp()) * NS for h in range(3)]
+    assert starts == [int((SINCE + timedelta(hours=hour)).timestamp()) * NS for hour in range(3)]
+    assert ends == [int((SINCE + timedelta(hours=hour + 1)).timestamp()) * NS for hour in range(3)]
     [row] = FakeLokiImportRepo.rows
     assert row.cursor == SINCE + timedelta(hours=3)
     assert row.records_written == 3
@@ -402,3 +403,73 @@ async def test_progress_reports_once_per_day(fake, geoip_reader, deps) -> None:
     assert [report.day for report in reports] == [
         SINCE.date(), (SINCE + timedelta(days=1)).date(), (SINCE + timedelta(days=2)).date()
     ]
+
+
+async def test_failed_batch_raises_and_leaves_cursor(fake, geoip_reader, deps) -> None:
+    from geometrikks.services.loki_importer import LokiImportWriteError, import_loki_range
+
+    service, session_maker = deps
+
+    async def swallow_commit_failure(batch) -> None:
+        service.failed_records += len(batch)
+
+    service.flush_records = AsyncMock(side_effect=swallow_commit_failure)
+    add_line(fake, SINCE + timedelta(minutes=30))
+    source = make_source(fake)
+
+    with pytest.raises(LokiImportWriteError):
+        await import_loki_range(
+            source, service=service, parser=LogParser(source_label="loki", send_logs=True),
+            reader=geoip_reader, session_maker=session_maker,
+            since=SINCE, before=SINCE + timedelta(hours=2),
+        )
+
+    [row] = FakeLokiImportRepo.rows
+    assert row.cursor == SINCE
+    assert (row.records_written or 0) == 0  # a never-advanced row has no Python-side default yet
+
+
+async def test_resume_refuses_a_range_another_run_filled_in(fake, geoip_reader, deps) -> None:
+    from geometrikks.services.loki_importer import LokiImportOverlapError, import_loki_range
+
+    service, session_maker = deps
+    source = make_source(fake)
+    def stored_row(row_id: int, range_start: datetime, range_end: datetime, cursor: datetime):
+        return MagicMock(
+            id=row_id, url=source.url, tenant_id=None, query=QUERY, hostname="edge-01",
+            range_start=range_start, range_end=range_end, cursor=cursor,
+            lines_total=0, lines_skipped=0, records_written=0, time_start=None, time_end=None,
+        )
+
+    FakeLokiImportRepo.rows.append(
+        stored_row(1, SINCE, SINCE + timedelta(hours=4), SINCE + timedelta(hours=1))
+    )
+    FakeLokiImportRepo.rows.append(
+        stored_row(2, SINCE + timedelta(hours=2), SINCE + timedelta(hours=3), SINCE + timedelta(hours=3))
+    )
+
+    with pytest.raises(LokiImportOverlapError):
+        await import_loki_range(
+            source, service=service, parser=LogParser(source_label="loki", send_logs=True),
+            reader=geoip_reader, session_maker=session_maker,
+            since=SINCE, before=SINCE + timedelta(hours=4),
+        )
+    assert service.flush_records.await_count == 0
+
+
+async def test_last_window_is_shorter_than_an_hour(fake, geoip_reader, deps) -> None:
+    from geometrikks.services.loki_importer import import_loki_range
+
+    service, session_maker = deps
+    before = SINCE + timedelta(hours=1, minutes=20)
+    add_line(fake, SINCE + timedelta(hours=1, minutes=10))
+    source = make_source(fake)
+
+    result = await import_loki_range(
+        source, service=service, parser=LogParser(source_label="loki", send_logs=True),
+        reader=geoip_reader, session_maker=session_maker,
+        since=SINCE, before=before,
+    )
+
+    assert result.records_written == 1
+    assert int(fake.requests[-1].url.params["end"]) == to_ns_of(before)
