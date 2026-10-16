@@ -1,9 +1,11 @@
 """CLI plugin registration and command surface."""
 from __future__ import annotations
 
+from datetime import timedelta
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
+import pytest
 from click.testing import CliRunner
 
 
@@ -837,3 +839,145 @@ def test_import_logs_exits_nonzero_when_cagg_refresh_fails(tmp_path, monkeypatch
     assert result.exit_code != 0
     assert "summary_daily_stats" in result.output
     assert "CAGGs refreshed." not in result.output
+
+
+def _loki_cli():
+    import click
+    from geometrikks.cli import ImportLogsCLIPlugin
+
+    @click.group()
+    def cli() -> None: ...
+
+    ImportLogsCLIPlugin().on_cli_init(cli)
+    return cli
+
+
+def test_cli_plugin_registers_import_loki() -> None:
+    assert "import-loki" in _loki_cli().commands
+
+
+def test_import_loki_help_runs_without_app() -> None:
+    result = CliRunner().invoke(_loki_cli(), ["import-loki", "--help"])
+    assert result.exit_code == 0, result.output
+    for option in ("--since", "--before", "--query", "--force", "--batch-size"):
+        assert option in result.output
+
+
+def test_import_loki_since_is_required() -> None:
+    result = CliRunner().invoke(_loki_cli(), ["import-loki"])
+    assert result.exit_code != 0
+    assert "--since" in result.output
+
+
+def test_import_loki_naive_datetimes_are_utc(monkeypatch) -> None:
+    from datetime import datetime, timezone
+
+    import geometrikks.cli as cli_module
+
+    run_import = AsyncMock()
+    monkeypatch.setattr(cli_module, "_run_loki_import", run_import)
+
+    result = CliRunner().invoke(
+        _loki_cli(), ["import-loki", "--since", "2026-09-01", "--before", "2026-10-01T12:00:00"]
+    )
+    assert result.exit_code == 0, result.output
+    assert run_import.await_args is not None
+    assert run_import.await_args.kwargs["since"] == datetime(2026, 9, 1, tzinfo=timezone.utc)
+    assert run_import.await_args.kwargs["before"] == datetime(2026, 10, 1, 12, tzinfo=timezone.utc)
+    assert run_import.await_args.kwargs["query_index"] is None
+    assert run_import.await_args.kwargs["force"] is False
+
+
+def test_import_loki_rejects_since_at_or_after_before(monkeypatch) -> None:
+    import geometrikks.cli as cli_module
+
+    run_import = AsyncMock()
+    monkeypatch.setattr(cli_module, "_run_loki_import", run_import)
+
+    result = CliRunner().invoke(
+        _loki_cli(), ["import-loki", "--since", "2026-10-01", "--before", "2026-10-01"]
+    )
+    assert result.exit_code != 0
+    assert "earlier than --before" in result.output
+    run_import.assert_not_awaited()
+
+
+def test_import_loki_rejects_query_zero() -> None:
+    result = CliRunner().invoke(_loki_cli(), ["import-loki", "--since", "2026-09-01", "--query", "0"])
+    assert result.exit_code != 0
+    assert "--query" in result.output
+
+
+def _loki_settings(**loki_fields):
+    from geometrikks.config.settings import LogParserSettings, LokiSettings, Settings
+
+    return Settings(
+        _env_file=None,
+        logparser=LogParserSettings(_env_file=None, host_name=["head"]),
+        loki=LokiSettings(_env_file=None, **loki_fields),
+    )
+
+
+def test_select_loki_queries_resolves_format_and_hostname_per_query() -> None:
+    from geometrikks.cli import select_loki_queries
+
+    settings = _loki_settings(
+        url="http://loki:3100",
+        queries=['{job="nginx"}', '{job="traefik"}'],
+        formats=["auto", "traefik-json"],
+        host_names=["edge-01", "edge-02"],
+    )
+    assert select_loki_queries(settings, None) == [
+        (1, '{job="nginx"}', "auto", "edge-01"),
+        (2, '{job="traefik"}', "traefik-json", "edge-02"),
+    ]
+    assert select_loki_queries(settings, 2) == [(2, '{job="traefik"}', "traefik-json", "edge-02")]
+
+
+def test_select_loki_queries_defaults_hostname_to_the_first_logparser_one() -> None:
+    from geometrikks.cli import select_loki_queries
+
+    settings = _loki_settings(url="http://loki:3100", queries=['{job="nginx"}'])
+    assert select_loki_queries(settings, None) == [(1, '{job="nginx"}', "auto", "head")]
+
+
+def test_select_loki_queries_requires_a_loki_source() -> None:
+    import click
+
+    from geometrikks.cli import select_loki_queries
+
+    with pytest.raises(click.ClickException, match="LOKI_URL"):
+        select_loki_queries(_loki_settings(), None)
+
+
+def test_select_loki_queries_rejects_an_index_past_the_end() -> None:
+    import click
+
+    from geometrikks.cli import select_loki_queries
+
+    settings = _loki_settings(url="http://loki:3100", queries=['{job="nginx"}'])
+    with pytest.raises(click.ClickException, match="1 selector"):
+        select_loki_queries(settings, 2)
+
+
+def test_select_loki_queries_before_default_rejects_since_past_it() -> None:
+    """The default --before comes from the oldest stored row; a --since at or
+    after it is refused per selector by resolve_loki_before, not sent to Loki."""
+    from datetime import datetime, timezone
+
+    import click
+
+    from geometrikks.cli import resolve_loki_before
+
+    oldest = datetime(2026, 9, 1, tzinfo=timezone.utc)
+    with pytest.raises(click.ClickException, match="oldest stored row"):
+        resolve_loki_before(since=oldest, before=None, oldest_row=oldest, hostname="edge-01")
+    with pytest.raises(click.ClickException, match="no rows"):
+        resolve_loki_before(since=oldest, before=None, oldest_row=None, hostname="edge-01")
+    assert resolve_loki_before(
+        since=oldest - timedelta(days=1), before=None, oldest_row=oldest, hostname="edge-01"
+    ) == oldest
+    explicit = oldest + timedelta(days=1)
+    assert resolve_loki_before(
+        since=oldest, before=explicit, oldest_row=None, hostname="edge-01"
+    ) == explicit
