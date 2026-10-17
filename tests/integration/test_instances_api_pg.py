@@ -81,11 +81,14 @@ async def _seed_agent(
         await upsert_heartbeat(connection, heartbeat_write)
 
 
-async def _set_age(pg_engine: AsyncEngine, instance_name: str, interval: str) -> None:
+async def _set_age(pg_engine: AsyncEngine, instance_name: str, minutes: int) -> None:
     async with pg_engine.begin() as connection:
         await connection.execute(
-            text(f"UPDATE instance_heartbeats SET last_seen = now() - interval '{interval}' WHERE instance_name = :name"),
-            {"name": instance_name},
+            text(
+                "UPDATE instance_heartbeats SET last_seen = now() - make_interval(mins => :minutes) "
+                "WHERE instance_name = :name"
+            ),
+            {"minutes": minutes, "name": instance_name},
         )
 
 
@@ -136,13 +139,13 @@ async def test_staleness_uses_database_clock(migrated_database_url, pg_engine, c
     await _seed_agent(pg_engine, "slow-agent")
     app = create_app(settings=_make_settings(migrated_database_url))
     async with AsyncTestClient(app=app) as client:
-        await _set_age(pg_engine, "slow-agent", "4 minutes")
+        await _set_age(pg_engine, "slow-agent", 4)
         stale = await _get_instances(client)
-        await _set_age(pg_engine, "slow-agent", "1 minute")
+        await _set_age(pg_engine, "slow-agent", 1)
         fresh = await _get_instances(client)
 
     def checking_in(body: dict) -> bool:
-        return next(i for i in body["instances"] if i["instanceName"] == "slow-agent")["checkingIn"]
+        return next(instance for instance in body["instances"] if instance["instanceName"] == "slow-agent")["checkingIn"]
 
     assert checking_in(stale) is False
     assert checking_in(fresh) is True
@@ -222,6 +225,7 @@ async def test_delete_unknown_is_404(migrated_database_url, clean_instance_heart
         response = await client.delete("/api/v1/instances/never-seen")
 
     assert response.status_code == 404
+    assert response.json()["detail"] == "No instance named 'never-seen'"
 
 
 async def test_delete_self_is_409(migrated_database_url, pg_engine, clean_instance_heartbeats):

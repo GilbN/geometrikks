@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from geometrikks.config.settings import Settings
 from geometrikks.domain.instances.views import InstancesResponse
-from geometrikks.domain.instances.services import head_identity, list_instances, remove_instance
+from geometrikks.domain.instances import services
 from geometrikks.server.exceptions import ErrorEnvelope
 
 
@@ -34,7 +34,7 @@ class InstanceController(Controller):
         db_session: NamedDependency[AsyncSession],
         settings: NamedDependency[SkipValidation[Settings]],
     ) -> InstancesResponse:
-        return await list_instances(db_session, head_identity(request.app, settings))
+        return await services.list_instances(db_session, services.head_identity(request.app, settings))
 
     @delete(
         "/{instance_name:str}",
@@ -60,9 +60,9 @@ class InstanceController(Controller):
         instance_name: Annotated[str, PathParameter(description="Name of the instance to remove")],
     ) -> None:
         user = request.scope.get("user")
-        await remove_instance(
+        await services.remove_instance(
             db_session,
             instance_name,
-            head_identity(request.app, settings),
+            services.head_identity(request.app, settings),
             actor=str(user) if user else "unknown",
         )

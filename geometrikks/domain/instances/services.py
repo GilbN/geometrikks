@@ -1,4 +1,5 @@
 """Read and remove instances for the Agents page."""
+from functools import cache
 from uuid import uuid4
 
 import msgspec
@@ -34,6 +35,12 @@ from geometrikks.services.geoip.server_locations import fetch_server_locations
 logger = get_logger(__name__)
 
 
+@cache
+def _bundled_schema() -> tuple[str, frozenset[str]]:
+    """Head revision and known revisions; fixed per build, and reading them parses every migration."""
+    return bundled_head_revision(), frozenset(known_revisions())
+
+
 def head_identity(app: Litestar, settings: Settings) -> HeadIdentity:
     """This process as the evaluator sees it.
 
@@ -41,12 +48,13 @@ def head_identity(app: Litestar, settings: Settings) -> HeadIdentity:
     one stands in and no row counts as self.
     """
     writer = runtime.get_heartbeat_writer(app)
+    head_revision, known_revision_ids = _bundled_schema()
     return HeadIdentity(
         boot_id=writer.boot_id if writer is not None else uuid4(),
         instance_name=settings.resolved_instance_name,
         app_version=get_installed_version(),
-        schema_revision=bundled_head_revision(),
-        known_revisions=frozenset(known_revisions()),
+        schema_revision=head_revision,
+        known_revisions=known_revision_ids,
     )
 
 
