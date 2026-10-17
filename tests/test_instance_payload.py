@@ -108,6 +108,94 @@ def test_rolling_counter_slides_and_stays_bounded() -> None:
     assert len(counter._samples) <= 12
 
 
+def test_rolling_counter_restarts_after_a_total_reset() -> None:
+    counter = RollingCounter()
+    counter.sample(0, 1000)
+    assert counter.sample(300, 1400) == 400
+    assert counter.sample(330, 5) is None
+    assert counter.sample(630, 305) == 300
+
+
+def _decoded_with_health(extra: dict[str, Any]) -> Any:
+    raw = {"health": {"status": "healthy"}, **extra}
+    payload = decode_payload(raw)
+    assert payload is not None
+    assert payload.health == {"status": "healthy"}
+    return payload
+
+
+def test_source_without_server_name_still_decodes() -> None:
+    payload = _decoded_with_health({"sources": [{"kind": "file"}]})
+    assert payload.sources[0].server_name == ""
+
+
+def test_job_with_only_an_id_still_decodes() -> None:
+    payload = _decoded_with_health({"jobs": [{"id": "geoip-refresh"}]})
+    assert (payload.jobs[0].id, payload.jobs[0].name) == ("geoip-refresh", "")
+
+
+def test_last_error_without_a_time_still_decodes() -> None:
+    payload = _decoded_with_health({"lastError": {"message": "boom"}})
+    assert payload.last_error is not None
+    assert payload.last_error.at is None
+
+
+def _build(app: Litestar) -> Any:
+    return build_payload(
+        app,
+        _settings(),
+        lines_5m=None,
+        failed_5m=None,
+        recent_starts=[],
+        name_conflict_at=None,
+    )
+
+
+def test_build_payload_survives_a_scheduler_that_has_not_started() -> None:
+    from apscheduler.schedulers.asyncio import AsyncIOScheduler
+
+    scheduler = AsyncIOScheduler()
+    scheduler.add_job(lambda: None, "interval", minutes=1, id="pending-job", name="Pending")
+    app = Litestar(route_handlers=[])
+    app.state.scheduler = scheduler
+
+    payload = _build(app)
+
+    assert [(job_report.id, job_report.next_run_time) for job_report in payload.jobs] == [
+        ("pending-job", None)
+    ]
+
+
+@pytest.mark.anyio
+async def test_build_payload_reports_each_job_of_a_running_scheduler() -> None:
+    from apscheduler.schedulers.asyncio import AsyncIOScheduler
+
+    from geometrikks.server.scheduler_tracking import JobRunTracker
+
+    scheduler = AsyncIOScheduler()
+    scheduler.start()
+    try:
+        scheduler.add_job(lambda: None, "interval", minutes=1, id="geoip-refresh", name="GeoIP refresh")
+        tracker = JobRunTracker()
+        run_info = tracker.get("geoip-refresh")
+        run_info.last_status = "error"
+        run_info.last_error = "e" * 900
+        tracker._runs["geoip-refresh"] = run_info
+        app = Litestar(route_handlers=[])
+        app.state.scheduler = scheduler
+        app.state.scheduler_tracker = tracker
+
+        payload = _build(app)
+    finally:
+        scheduler.shutdown(wait=False)
+
+    (job_report,) = payload.jobs
+    assert (job_report.id, job_report.name) == ("geoip-refresh", "GeoIP refresh")
+    assert job_report.next_run_time is not None
+    assert job_report.last_status == "error"
+    assert job_report.last_error == "e" * 500
+
+
 def test_build_payload_without_ingestion_or_scheduler() -> None:
     payload = build_payload(
         Litestar(route_handlers=[]),

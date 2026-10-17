@@ -7,6 +7,7 @@ from litestar import Litestar
 
 from geometrikks.config.settings import Settings
 from geometrikks.domain.instances.schemas import (
+    ERROR_MESSAGE_MAX_CHARS,
     HeartbeatPayload,
     JobReport,
     LastErrorReport,
@@ -14,8 +15,6 @@ from geometrikks.domain.instances.schemas import (
 )
 from geometrikks.domain.system.controllers.health import build_health_response
 from geometrikks.server import runtime
-
-JOB_ERROR_MAX_CHARS = 500
 
 
 class RollingCounter:
@@ -31,6 +30,10 @@ class RollingCounter:
 
     def sample(self, at_monotonic: float, total: int) -> int | None:
         """Record a reading; None until a sample a full window old exists."""
+        if self._samples and total < self._samples[-1][1]:
+            # The total restarted (the ingestion service was rebuilt), so the
+            # old samples no longer describe this counter.
+            self._samples.clear()
         self._samples.append((at_monotonic, total))
         while (
             len(self._samples) >= 2
@@ -67,11 +70,12 @@ def build_payload(
                 JobReport(
                     id=job.id,
                     name=job.name,
-                    next_run_time=job.next_run_time,
+                    # A job added to a scheduler that has not started has no next_run_time yet.
+                    next_run_time=getattr(job, "next_run_time", None),
                     last_start=run_info.last_start,
                     last_status=run_info.last_status,
                     last_error=(
-                        run_info.last_error[:JOB_ERROR_MAX_CHARS]
+                        run_info.last_error[:ERROR_MESSAGE_MAX_CHARS]
                         if run_info.last_error
                         else None
                     ),

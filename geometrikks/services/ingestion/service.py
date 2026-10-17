@@ -30,6 +30,7 @@ from geometrikks.domain.geo.repositories import GeoLocationRepository, GeoEventR
 from geometrikks.domain.logs.models import AccessLog, AccessLogDebug
 from geometrikks.domain.logs.repositories import AccessLogRepository, AccessLogDebugRepository
 from geometrikks.domain.geo.utils import make_point
+from geometrikks.domain.instances.schemas import ERROR_MESSAGE_MAX_CHARS
 from geometrikks.domain.realtime.events import LIVE_EVENTS_CHANNEL, encode_guard, record_to_event
 from geometrikks.services.logparser.schemas import ParsedLogRecord, ParsedGeoData, ParsedAccessLog
 from geometrikks.services.logparser.constants import ALLOWED_GEOIP_LOCALES, GEOIP_LOCALES_DEFAULT
@@ -80,9 +81,6 @@ class BatchError:
 
     message: str
     at: datetime
-
-
-BATCH_ERROR_MAX_CHARS = 500
 
 
 @dataclass
@@ -910,7 +908,8 @@ class LogIngestionService:
 
     def _record_batch_error(self, error: Exception) -> None:
         self.last_batch_error = BatchError(
-            message=str(error)[:BATCH_ERROR_MAX_CHARS], at=datetime.now(timezone.utc)
+            message=(str(error) or type(error).__name__)[:ERROR_MESSAGE_MAX_CHARS],
+            at=datetime.now(timezone.utc),
         )
 
     async def flush_records(self, records: list[ParsedLogRecord]) -> None:

@@ -1410,6 +1410,27 @@ async def test_failed_batch_records_last_error() -> None:
     assert before <= service.last_batch_error.at <= datetime.now(timezone.utc)
 
 
+async def test_record_failure_records_last_error() -> None:
+    service, repos, _sessions = make_service([])
+    repos.fail_flush_calls = {1}
+
+    await service.flush_records([_geo_record(TEST_DB_IPS[0], -0.09)])
+
+    assert service.last_batch_error is not None
+    assert "simulated integrity error" in service.last_batch_error.message
+
+
+async def test_last_batch_error_names_the_type_when_the_message_is_empty() -> None:
+    service, repos, _sessions = make_service([])
+    repos.fail_next_commits = 1
+    repos.commit_error_text = ""
+
+    await service.flush_records([_geo_record(TEST_DB_IPS[0], -0.09)])
+
+    assert service.last_batch_error is not None
+    assert service.last_batch_error.message == "RuntimeError"
+
+
 async def test_last_batch_error_is_truncated() -> None:
     service, repos, _sessions = make_service([])
     repos.fail_next_commits = 1

@@ -1,12 +1,15 @@
 """Wire shape of the heartbeat payload stored in instance_heartbeats.payload.
 
-Every field has a default so a row written by an older or newer release still
-decodes. Keys are only ever added, never renamed or repurposed.
+Every field, nested ones included, has a default so a row written by an older
+or newer release still decodes. Keys are only ever added, never renamed or
+repurposed.
 """
 from datetime import datetime
 from typing import Any
 
 import msgspec
+
+ERROR_MESSAGE_MAX_CHARS = 500
 
 
 class ForwardedAdvisory(msgspec.Struct, rename="camel", kw_only=True):
@@ -25,9 +28,9 @@ class ForwardedAdvisory(msgspec.Struct, rename="camel", kw_only=True):
 
 
 class SourceReport(msgspec.Struct, rename="camel", kw_only=True):
-    kind: str
-    label: str
-    server_name: str
+    kind: str = ""
+    label: str = ""
+    server_name: str = ""
     log_format: str | None = None
     available: bool = True
     reason: str | None = None
@@ -35,8 +38,8 @@ class SourceReport(msgspec.Struct, rename="camel", kw_only=True):
 
 
 class JobReport(msgspec.Struct, rename="camel", kw_only=True):
-    id: str
-    name: str
+    id: str = ""
+    name: str = ""
     next_run_time: datetime | None = None
     last_start: datetime | None = None
     last_status: str | None = None
@@ -44,8 +47,8 @@ class JobReport(msgspec.Struct, rename="camel", kw_only=True):
 
 
 class LastErrorReport(msgspec.Struct, rename="camel", kw_only=True):
-    message: str
-    at: datetime
+    message: str = ""
+    at: datetime | None = None
 
 
 class HeartbeatPayload(msgspec.Struct, rename="camel", kw_only=True):
