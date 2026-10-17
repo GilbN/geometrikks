@@ -503,7 +503,7 @@ async def test_location_caggs_without_server_dimension(
 async def test_downgrade_restores_legacy_table_names(legacy_database, rename_engine):
     await _start_up(rename_engine)
 
-    await asyncio.to_thread(_alembic_commands().downgrade, "-1")
+    await asyncio.to_thread(_alembic_commands().downgrade, "18be2778bd7c-1")
 
     columns = await _public_columns(rename_engine)
     assert LEGACY_COLUMNS <= columns, LEGACY_COLUMNS - columns
