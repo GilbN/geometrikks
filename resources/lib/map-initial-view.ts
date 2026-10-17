@@ -13,9 +13,11 @@ export interface MapView {
 }
 
 export const WORLD_VIEW: MapView = { longitude: 0, latitude: 20, zoom: 1.5 }
-/** Zoom for a single server location. It shows the region around it, not the street. */
+/** Zoom for a single server location. It shows the region around it, not
+ *  the street. */
 export const SERVER_LOCATION_ZOOM = 3
-/** Cap for fitting several server locations, so two servers in one city don't open at street level. */
+/** Cap for fitting several server locations, so two servers in one city
+ *  don't open at street level. */
 export const FIT_MAX_ZOOM = 4
 export const FIT_PADDING = 60
 
@@ -49,8 +51,8 @@ export function initialMapView({
 }: InitialMapViewInput): MapView {
   if (defaultView) return defaultView
 
-  // Like the "Go to server location" control, one selected server opens on its own
-  // location, or on the default location when it has none.
+  // Like the "Go to server location" control, one selected server opens on
+  // its own location, or on the default location when it has none.
   if (selectedServers.length === 1) {
     const serverCoordinate = buildServerLocationResolver(serverLocations)(selectedServers[0])
     if (serverCoordinate) return centerOn(serverCoordinate)

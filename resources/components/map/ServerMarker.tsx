@@ -6,9 +6,9 @@
  * on the exact coordinate. Because the body floats above the point, data
  * markers at (or near) the server location stay visible. A DOM marker
  * rather than a map layer so it stays crisp at every zoom level. The ground
- * ripple pauses when the user prefers reduced motion. Clicking the pin head flies the map to
- * the beacon's coordinate; only the head is interactive so data markers
- * under the tip stay clickable.
+ * ripple pauses when the user prefers reduced motion. Clicking the pin head
+ * flies the map to the beacon's coordinate; only the head is interactive so
+ * data markers under the tip stay clickable.
  */
 import { Marker } from "react-map-gl/maplibre"
 import { Home } from "lucide-react"
@@ -66,7 +66,7 @@ export function ServerMarker({
             onClick?.()
           }}
           title={label}
-          aria-label={`Zoom to ${label}`}
+          aria-label={`Zoom to ${label.charAt(0).toLowerCase()}${label.slice(1)}`}
           className="pointer-events-auto absolute top-px left-1/2 h-6 w-6 -translate-x-1/2 cursor-pointer rounded-full"
         />
       </div>
