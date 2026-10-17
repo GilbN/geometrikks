@@ -103,26 +103,26 @@ def test_api_settings():
 
 def test_map_home_settings(monkeypatch):
     """Map destination defaults to auto-detection and supports a manual pair."""
-    monkeypatch.delenv("MAP_AUTO_DETECT_HOME", raising=False)
+    monkeypatch.delenv("MAP_AUTO_DETECT_SERVER_LOCATION", raising=False)
     defaults = MapSettings(_env_file=None)
-    assert defaults.home_latitude is None
-    assert defaults.home_longitude is None
-    assert defaults.auto_detect_home is True
+    assert defaults.server_latitude is None
+    assert defaults.server_longitude is None
+    assert defaults.auto_detect_server_location is True
 
-    monkeypatch.setenv("MAP_HOME_LATITUDE", "40.7128")
-    monkeypatch.setenv("MAP_HOME_LONGITUDE", "-74.0060")
+    monkeypatch.setenv("MAP_SERVER_LATITUDE", "40.7128")
+    monkeypatch.setenv("MAP_SERVER_LONGITUDE", "-74.0060")
     overridden = MapSettings(_env_file=None)
-    assert overridden.home_latitude == 40.7128
-    assert overridden.home_longitude == -74.006
+    assert overridden.server_latitude == 40.7128
+    assert overridden.server_longitude == -74.006
 
 
 @pytest.mark.parametrize(
     ("name", "value"),
-    [("MAP_HOME_LATITUDE", "91"), ("MAP_HOME_LONGITUDE", "181")],
+    [("MAP_SERVER_LATITUDE", "91"), ("MAP_SERVER_LONGITUDE", "181")],
 )
 def test_map_home_settings_validate_coordinate_ranges(monkeypatch, name, value):
     monkeypatch.setenv(name, value)
-    counterpart = "MAP_HOME_LONGITUDE" if name == "MAP_HOME_LATITUDE" else "MAP_HOME_LATITUDE"
+    counterpart = "MAP_SERVER_LONGITUDE" if name == "MAP_SERVER_LATITUDE" else "MAP_SERVER_LATITUDE"
     monkeypatch.setenv(counterpart, "0")
     with pytest.raises(ValueError):
         MapSettings(_env_file=None)
@@ -130,7 +130,7 @@ def test_map_home_settings_validate_coordinate_ranges(monkeypatch, name, value):
 
 def test_map_home_settings_require_coordinate_pair():
     with pytest.raises(ValueError, match="must be set together"):
-        MapSettings(home_latitude=40.7, _env_file=None)
+        MapSettings(server_latitude=40.7, _env_file=None)
 
 
 def test_map_default_view_unset_by_default(monkeypatch):
@@ -365,40 +365,40 @@ def test_log_formats_import_only_value_points_at_import_logs(monkeypatch) -> Non
 
 
 def test_host_name_default_is_machine_hostname(monkeypatch) -> None:
-    """No LOGPARSER_HOST_NAME set: the machine hostname applies to every path."""
-    monkeypatch.delenv("LOGPARSER_HOST_NAME", raising=False)
+    """No LOGPARSER_SERVER_NAME set: the machine hostname applies to every path."""
+    monkeypatch.delenv("LOGPARSER_SERVER_NAME", raising=False)
     settings = LogParserSettings()
-    assert settings.host_name == [socket.gethostname()]
-    assert settings.resolved_hostnames() == [socket.gethostname()] * len(settings.log_paths)
+    assert settings.server_name == [socket.gethostname()]
+    assert settings.resolved_server_names() == [socket.gethostname()] * len(settings.log_paths)
 
 
 def test_host_name_single_value_fans_out(monkeypatch) -> None:
     """A single hostname value applies to every configured log path."""
     monkeypatch.setenv("LOGPARSER_LOG_PATHS", '["/a.log", "/b.log"]')
-    monkeypatch.setenv("LOGPARSER_HOST_NAME", "edge-1")
+    monkeypatch.setenv("LOGPARSER_SERVER_NAME", "edge-1")
     settings = LogParserSettings()
-    assert settings.resolved_hostnames() == ["edge-1", "edge-1"]
+    assert settings.resolved_server_names() == ["edge-1", "edge-1"]
 
 
 def test_host_name_json_list_positional(monkeypatch) -> None:
     """A JSON list of hostnames maps positionally onto log_paths."""
     monkeypatch.setenv("LOGPARSER_LOG_PATHS", '["/a.log", "/b.log"]')
-    monkeypatch.setenv("LOGPARSER_HOST_NAME", '["vps-1", "vps-2"]')
+    monkeypatch.setenv("LOGPARSER_SERVER_NAME", '["vps-1", "vps-2"]')
     settings = LogParserSettings()
-    assert settings.resolved_hostnames() == ["vps-1", "vps-2"]
+    assert settings.resolved_server_names() == ["vps-1", "vps-2"]
 
 
 def test_host_name_length_mismatch_rejected(monkeypatch) -> None:
     """A hostname list whose length matches neither 1 nor len(log_paths) fails."""
     monkeypatch.setenv("LOGPARSER_LOG_PATHS", '["/a.log", "/b.log", "/c.log"]')
-    monkeypatch.setenv("LOGPARSER_HOST_NAME", '["vps-1", "vps-2"]')
+    monkeypatch.setenv("LOGPARSER_SERVER_NAME", '["vps-1", "vps-2"]')
     with pytest.raises(ValidationError):
         LogParserSettings()
 
 
 def test_host_name_empty_entry_rejected(monkeypatch) -> None:
     """An empty hostname would silently un-stamp records; fail at startup."""
-    monkeypatch.setenv("LOGPARSER_HOST_NAME", '["vps-1", ""]')
+    monkeypatch.setenv("LOGPARSER_SERVER_NAME", '["vps-1", ""]')
     monkeypatch.setenv("LOGPARSER_LOG_PATHS", '["/a.log", "/b.log"]')
     with pytest.raises(ValidationError):
         LogParserSettings()
@@ -407,9 +407,9 @@ def test_host_name_empty_entry_rejected(monkeypatch) -> None:
 def test_host_name_entries_are_stripped(monkeypatch) -> None:
     """Whitespace around JSON-list entries must not leak into stamped hostnames."""
     monkeypatch.setenv("LOGPARSER_LOG_PATHS", '["/a.log", "/b.log"]')
-    monkeypatch.setenv("LOGPARSER_HOST_NAME", '["vps-1 ", " vps-2"]')
+    monkeypatch.setenv("LOGPARSER_SERVER_NAME", '["vps-1 ", " vps-2"]')
     settings = LogParserSettings()
-    assert settings.resolved_hostnames() == ["vps-1", "vps-2"]
+    assert settings.resolved_server_names() == ["vps-1", "vps-2"]
 
 
 class TestAuthSettings:
@@ -667,21 +667,21 @@ def test_agent_with_tailing_disabled_rejected(monkeypatch) -> None:
 
 def test_map_home_locations_default_empty():
     from geometrikks.config.settings import MapSettings
-    assert MapSettings(_env_file=None).home_locations == {}
+    assert MapSettings(_env_file=None).server_locations == {}
 
 
 def test_map_home_locations_parses_json(monkeypatch):
     from geometrikks.config.settings import MapSettings
-    monkeypatch.setenv("MAP_HOME_LOCATIONS", '{"nginx-01": [59.91, 10.75]}')
+    monkeypatch.setenv("MAP_SERVER_LOCATIONS", '{"nginx-01": [59.91, 10.75]}')
     settings = MapSettings(_env_file=None)
-    assert settings.home_locations == {"nginx-01": (59.91, 10.75)}
+    assert settings.server_locations == {"nginx-01": (59.91, 10.75)}
 
 
 def test_map_home_locations_rejects_bad_ranges(monkeypatch):
     import pydantic
     import pytest as _pytest
     from geometrikks.config.settings import MapSettings
-    monkeypatch.setenv("MAP_HOME_LOCATIONS", '{"x": [95.0, 10.0]}')
+    monkeypatch.setenv("MAP_SERVER_LOCATIONS", '{"x": [95.0, 10.0]}')
     with _pytest.raises(pydantic.ValidationError):
         MapSettings(_env_file=None)
 
@@ -690,21 +690,21 @@ def test_map_home_locations_rejects_wrong_arity(monkeypatch):
     import pydantic
     import pytest as _pytest
     from geometrikks.config.settings import MapSettings
-    monkeypatch.setenv("MAP_HOME_LOCATIONS", '{"x": [59.91]}')
+    monkeypatch.setenv("MAP_SERVER_LOCATIONS", '{"x": [59.91]}')
     with _pytest.raises(pydantic.ValidationError):
         MapSettings(_env_file=None)
 
 
 def test_map_home_refresh_hours_default():
     from geometrikks.config.settings import MapSettings
-    assert MapSettings(_env_file=None).home_refresh_hours == 24
+    assert MapSettings(_env_file=None).server_location_refresh_hours == 24
 
 
 def test_map_home_refresh_hours_parses_env(monkeypatch):
     from geometrikks.config.settings import MapSettings
-    monkeypatch.setenv("MAP_HOME_REFRESH_HOURS", "6")
+    monkeypatch.setenv("MAP_SERVER_LOCATION_REFRESH_HOURS", "6")
     settings = MapSettings(_env_file=None)
-    assert settings.home_refresh_hours == 6
+    assert settings.server_location_refresh_hours == 6
 
 
 OIDC_VALID = dict(

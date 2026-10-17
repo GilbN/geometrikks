@@ -101,7 +101,7 @@ async def test_site_home_job_updates_app_state_and_clears_the_advisory(
     upsert = AsyncMock()
     monkeypatch.setattr(site_homes, "upsert_auto_homes", upsert)
 
-    settings = Settings(map=MapSettings(auto_detect_home=True, _env_file=None))
+    settings = Settings(map=MapSettings(auto_detect_server_location=True, _env_file=None))
     app = SimpleNamespace(state=SimpleNamespace(map_home_location=None))
     runtime.get_advisories(cast("Any", app)).set(MAP_HOME_UNDETECTED)
 
@@ -136,7 +136,7 @@ async def test_site_home_job_updates_a_ui_head_without_writing_the_database(
 
     settings = Settings(
         logparser=LogParserSettings(enabled=False, _env_file=None),
-        map=MapSettings(auto_detect_home=True, _env_file=None),
+        map=MapSettings(auto_detect_server_location=True, _env_file=None),
     )
     app = SimpleNamespace(state=SimpleNamespace(map_home_location=None))
     runtime.get_advisories(cast("Any", app)).set(MAP_HOME_UNDETECTED)
@@ -166,7 +166,7 @@ async def test_site_home_job_keeps_state_when_detection_fails(monkeypatch):
     upsert = AsyncMock()
     monkeypatch.setattr(site_homes, "upsert_auto_homes", upsert)
 
-    settings = Settings(map=MapSettings(auto_detect_home=True, _env_file=None))
+    settings = Settings(map=MapSettings(auto_detect_server_location=True, _env_file=None))
     app = SimpleNamespace(state=SimpleNamespace(map_home_location=previous))
 
     await sched.refresh_site_home_job(

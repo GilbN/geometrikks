@@ -172,7 +172,7 @@ async def refresh_site_home_job(
         app.state.map_home_location = home
         runtime.get_advisories(app).clear(MAP_HOME_UNDETECTED.id)
     if settings.logparser.enabled:
-        await upsert_auto_homes(session_factory, settings.ingest_hostnames(), home)
+        await upsert_auto_homes(session_factory, settings.ingest_server_names(), home)
 
 
 async def proxy_scan_job(
@@ -325,18 +325,18 @@ async def create_scheduler(
     # refresh its process-local map home. Ingesting instances also persist the
     # result to site_homes.
     if settings.logparser.enabled or (
-        app is not None and settings.map.auto_detect_home
+        app is not None and settings.map.auto_detect_server_location
     ):
         scheduler.add_job(
             refresh_site_home_job,
-            IntervalTrigger(hours=settings.map.home_refresh_hours),
+            IntervalTrigger(hours=settings.map.server_location_refresh_hours),
             id="site-home-refresh",
             name="Re-detect this instance's site home location",
             args=[session_factory, settings, app],
             replace_existing=True,
         )
         logger.info(
-            "Scheduled site home refresh every %d hour(s)", settings.map.home_refresh_hours
+            "Scheduled site home refresh every %d hour(s)", settings.map.server_location_refresh_hours
         )
 
     # Head-only: agents report their own parser findings on their own

@@ -14,7 +14,7 @@ pytestmark = pytest.mark.anyio
 
 async def test_configured_home_skips_public_ip_lookup():
     home = await resolve_home_location(
-        MapSettings(home_latitude=40.7128, home_longitude=-74.006, _env_file=None),
+        MapSettings(server_latitude=40.7128, server_longitude=-74.006, _env_file=None),
         GeoIPSettings(validate_db_path=False, _env_file=None),
         geoip_available=False,
     )
@@ -29,7 +29,7 @@ async def test_external_ip_is_geolocated_with_local_database():
 
     async with httpx2.AsyncClient(transport=httpx2.MockTransport(respond)) as client:
         home = await resolve_home_location(
-            MapSettings(auto_detect_home=True, _env_file=None),
+            MapSettings(auto_detect_server_location=True, _env_file=None),
             GeoIPSettings(
                 db_path="tests/GeoLite2-City-Test.mmdb",
                 validate_db_path=True,
@@ -51,7 +51,7 @@ async def test_discovery_failure_degrades_without_raising():
 
     async with httpx2.AsyncClient(transport=httpx2.MockTransport(respond)) as client:
         home = await resolve_home_location(
-            MapSettings(auto_detect_home=True, _env_file=None),
+            MapSettings(auto_detect_server_location=True, _env_file=None),
             GeoIPSettings(validate_db_path=False, _env_file=None),
             geoip_available=True,
             client=client,

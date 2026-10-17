@@ -53,7 +53,7 @@ def _make_settings(migrated_database_url: str, **map_kwargs) -> Settings:
         # this machine's hostname to site_homes and pollute the assertions.
         logparser=LogParserSettings(enabled=False),
         # Static home location so startup never geolocates over the network.
-        map=MapSettings(home_latitude=59.91, home_longitude=10.75, **map_kwargs),
+        map=MapSettings(server_latitude=59.91, server_longitude=10.75, **map_kwargs),
     )
 
 
@@ -63,11 +63,11 @@ async def test_site_homes_endpoint_returns_merged_rows_and_default(
     await upsert_auto_homes(
         pg_session_maker, ["nginx-01"], HomeLocation(latitude=60.39, longitude=5.32, source="external_ip")
     )
-    # The override row comes from MAP_HOME_LOCATIONS, reconciled into
+    # The override row comes from MAP_SERVER_LOCATIONS, reconciled into
     # site_homes by the app's own startup lifecycle (not seeded directly):
     # that reconcile always runs and would otherwise delete an override row
     # not present in this settings object.
-    settings = _make_settings(migrated_database_url, home_locations={"nginx-02": (51.5, -0.12)})
+    settings = _make_settings(migrated_database_url, server_locations={"nginx-02": (51.5, -0.12)})
 
     app = create_app(settings=settings)
     async with AsyncTestClient(app=app) as client:
@@ -102,7 +102,7 @@ async def test_delete_site_home_api_outcomes(migrated_database_url, pg_session_m
     await upsert_auto_homes(
         pg_session_maker, ["retired-01"], HomeLocation(latitude=60.39, longitude=5.32, source="external_ip")
     )
-    settings = _make_settings(migrated_database_url, home_locations={"pinned-01": (51.5, -0.12)})
+    settings = _make_settings(migrated_database_url, server_locations={"pinned-01": (51.5, -0.12)})
 
     app = create_app(settings=settings)
     async with AsyncTestClient(app=app) as client:
@@ -113,7 +113,7 @@ async def test_delete_site_home_api_outcomes(migrated_database_url, pg_session_m
 
     assert gone.status_code == 204
     assert pinned.status_code == 409
-    assert "MAP_HOME_LOCATIONS" in pinned.json()["detail"]
+    assert "MAP_SERVER_LOCATIONS" in pinned.json()["detail"]
     assert missing.status_code == 404
     homes = {h["hostname"]: h for h in after.json()["homes"]}
     assert set(homes) == {"pinned-01"}

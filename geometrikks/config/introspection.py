@@ -18,7 +18,7 @@ from pydantic.fields import FieldInfo
 from pydantic_core import PydanticUndefined, to_jsonable_python
 from pydantic_settings import BaseSettings
 
-from geometrikks.config.settings import Settings
+from geometrikks.config.settings import Settings, is_legacy_field
 
 SECRET_PLACEHOLDER = "******"
 
@@ -99,6 +99,8 @@ def _section(
     for field_name, info in type(model).model_fields.items():
         if isinstance(getattr(model, field_name), BaseSettings):
             continue  # sub-configurations become their own sections
+        if is_legacy_field(info.json_schema_extra):
+            continue
         real_keys.add(field_name)
         secret = _is_secret(info.annotation)
         value = dumped.get(field_name)

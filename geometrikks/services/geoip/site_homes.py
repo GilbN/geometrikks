@@ -81,7 +81,7 @@ async def reconcile_override_homes(
     session_maker: "Callable[[], AsyncSession]",
     overrides: dict[str, tuple[float, float]],
 ) -> None:
-    """Make override rows exactly match MAP_HOME_LOCATIONS.
+    """Make override rows exactly match MAP_SERVER_LOCATIONS.
 
     Removed overrides are deleted (not demoted): the owning agent's next
     auto upsert recreates the row, so there is no stale-override limbo.
@@ -147,7 +147,7 @@ async def fetch_last_event_days(session: "AsyncSession") -> dict[str, datetime]:
 async def remove_site_home(session: "AsyncSession", hostname: str, *, actor: str) -> None:
     """Remove one hostname's home row.
 
-    Only auto rows can go: override rows mirror MAP_HOME_LOCATIONS and would
+    Only auto rows can go: override rows mirror MAP_SERVER_LOCATIONS and would
     be recreated at the next startup, so deleting one here would only
     mislead. A deleted auto row comes back at the owning agent's next home
     refresh if that agent still runs; the delete is for retired sources.
@@ -156,7 +156,7 @@ async def remove_site_home(session: "AsyncSession", hostname: str, *, actor: str
     if row is None:
         raise DomainNotFoundError(f"No home recorded for hostname {hostname!r}")
     if row.source == "override":
-        raise DomainConflictError(f"Hostname {hostname!r} is pinned by MAP_HOME_LOCATIONS; remove it there instead")
+        raise DomainConflictError(f"Hostname {hostname!r} is pinned by MAP_SERVER_LOCATIONS; remove it there instead")
     await session.delete(row)
     await session.commit()
     logger.info("site_home_deleted", hostname=hostname, source="auto", actor=actor)

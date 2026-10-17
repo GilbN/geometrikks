@@ -789,7 +789,7 @@ def test_import_logs_reports_an_earlier_cutoff_as_a_failed_file(tmp_path, monkey
 
     settings = MagicMock()
     settings.geoip.asn_enabled = False
-    settings.ingest_hostnames.return_value = ["vps-1"]
+    settings.ingest_server_names.return_value = ["vps-1"]
     monkeypatch.setattr(settings_module, "get_settings", lambda: settings)
     engine = MagicMock()
     engine.dispose = AsyncMock()
@@ -831,7 +831,7 @@ def test_import_logs_exits_nonzero_when_cagg_refresh_fails(tmp_path, monkeypatch
 
     settings = MagicMock()
     settings.geoip.asn_enabled = False
-    settings.ingest_hostnames.return_value = ["vps-1"]
+    settings.ingest_server_names.return_value = ["vps-1"]
     monkeypatch.setattr(settings_module, "get_settings", lambda: settings)
     engine = MagicMock()
     engine.dispose = AsyncMock()
@@ -952,7 +952,7 @@ def _loki_settings(**loki_fields):
 
     return Settings(
         _env_file=None,
-        logparser=LogParserSettings(_env_file=None, host_name=["head"]),
+        logparser=LogParserSettings(_env_file=None, server_name=["head"]),
         loki=LokiSettings(_env_file=None, **loki_fields),
     )
 
@@ -964,7 +964,7 @@ def test_select_loki_queries_resolves_format_and_hostname_per_query() -> None:
         url="http://loki:3100",
         queries=['{job="nginx"}', '{job="traefik"}'],
         formats=["auto", "traefik-json"],
-        host_names=["edge-01", "edge-02"],
+        server_names=["edge-01", "edge-02"],
     )
     assert select_loki_queries(settings, None) == [
         (1, '{job="nginx"}', "auto", "edge-01"),

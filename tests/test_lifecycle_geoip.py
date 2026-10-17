@@ -120,7 +120,7 @@ async def test_undetected_home_registers_advisory_when_detection_was_possible(
     from geometrikks.server import lifecycle as lc
     from geometrikks.server import runtime
 
-    monkeypatch.setenv("MAP_AUTO_DETECT_HOME", "true")
+    monkeypatch.setenv("MAP_AUTO_DETECT_SERVER_LOCATION", "true")
     _patch_startup_collaborators(
         monkeypatch, lc, db_available=True, ensure=AsyncMock(return_value=True)
     )
@@ -139,7 +139,7 @@ async def test_no_home_advisory_when_geoip_is_missing(monkeypatch):
     from geometrikks.server import lifecycle as lc
     from geometrikks.server import runtime
 
-    monkeypatch.setenv("MAP_AUTO_DETECT_HOME", "true")
+    monkeypatch.setenv("MAP_AUTO_DETECT_SERVER_LOCATION", "true")
     _patch_startup_collaborators(
         monkeypatch, lc, db_available=True, ensure=AsyncMock(return_value=False)
     )
@@ -157,7 +157,7 @@ async def test_home_advisory_qualifies_the_scheduler_retry(monkeypatch):
     from geometrikks.server import lifecycle as lc
     from geometrikks.server import runtime
 
-    monkeypatch.setenv("MAP_AUTO_DETECT_HOME", "true")
+    monkeypatch.setenv("MAP_AUTO_DETECT_SERVER_LOCATION", "true")
     monkeypatch.setenv("SCHEDULER_ENABLED", "false")
     _patch_startup_collaborators(
         monkeypatch, lc, db_available=True, ensure=AsyncMock(return_value=True)
@@ -236,7 +236,7 @@ async def test_scheduler_has_geoip_refresh_job(monkeypatch):
 async def test_scheduler_agent_mode_registers_only_geoip_refresh(monkeypatch):
     """Agent instances tail logs into a schema the primary owns: no CAGG or
     location-refresh maintenance jobs, no CrowdSec poll -- just GeoLite2 and
-    the site-home refresh (on its own MAP_HOME_REFRESH_HOURS cadence)."""
+    the site-home refresh (on its own MAP_SERVER_LOCATION_REFRESH_HOURS cadence)."""
     from geometrikks.config.settings import Settings
     from geometrikks.server.scheduler import create_scheduler
 
@@ -270,7 +270,7 @@ async def test_scheduler_registers_site_home_refresh_for_a_ui_head(monkeypatch):
     from geometrikks.server.scheduler import create_scheduler, refresh_site_home_job
 
     monkeypatch.setenv("LOGPARSER_ENABLED", "false")
-    settings = Settings(map=MapSettings(auto_detect_home=True, _env_file=None))
+    settings = Settings(map=MapSettings(auto_detect_server_location=True, _env_file=None))
     app = SimpleNamespace(state=SimpleNamespace())
     session_factory = MagicMock()
 
@@ -291,7 +291,7 @@ async def test_scheduler_skips_site_home_refresh_for_a_ui_head_without_detection
     from geometrikks.server.scheduler import create_scheduler
 
     monkeypatch.setenv("LOGPARSER_ENABLED", "false")
-    settings = Settings(map=MapSettings(auto_detect_home=False, _env_file=None))
+    settings = Settings(map=MapSettings(auto_detect_server_location=False, _env_file=None))
     app = SimpleNamespace(state=SimpleNamespace())
 
     scheduler = await create_scheduler(MagicMock(), settings, app=cast("Any", app))
@@ -300,14 +300,14 @@ async def test_scheduler_skips_site_home_refresh_for_a_ui_head_without_detection
 
 
 async def test_site_home_refresh_uses_its_own_cadence(monkeypatch):
-    """The site-home refresh trigger comes from MAP_HOME_REFRESH_HOURS;
+    """The site-home refresh trigger comes from MAP_SERVER_LOCATION_REFRESH_HOURS;
     both env vars are set to prove GEOIP_REFRESH_DAYS cannot leak in."""
     from datetime import timedelta
 
     from geometrikks.config.settings import Settings
     from geometrikks.server.scheduler import create_scheduler
 
-    monkeypatch.setenv("MAP_HOME_REFRESH_HOURS", "6")
+    monkeypatch.setenv("MAP_SERVER_LOCATION_REFRESH_HOURS", "6")
     monkeypatch.setenv("GEOIP_REFRESH_DAYS", "3")
     scheduler = await create_scheduler(MagicMock(), Settings())
     job = scheduler.get_job("site-home-refresh")

@@ -27,14 +27,14 @@ def test_loki_inputs_follow_the_file_inputs() -> None:
     settings = Settings(
         _env_file=None,
         logparser=LogParserSettings(
-            _env_file=None, log_paths=[Path("/var/log/access/a.log")], host_name=["head"]
+            _env_file=None, log_paths=[Path("/var/log/access/a.log")], server_name=["head"]
         ),
         loki=LokiSettings(
             _env_file=None,
             url=URL,
             queries=['{job="nginx"}', '{job="traefik"}'],
             formats=["auto", "traefik-json"],
-            host_names=["edge-01", "edge-02"],
+            server_names=["edge-01", "edge-02"],
             tenant_id="team-a",
             username="reader",
             password="s3cret",
@@ -64,7 +64,7 @@ def test_loki_only_builds_no_file_input(monkeypatch: pytest.MonkeyPatch) -> None
     monkeypatch.delenv("LOGPARSER_LOG_PATHS")  # the suite's baseline pins it
     settings = Settings(
         _env_file=None,
-        logparser=LogParserSettings(_env_file=None, host_name=["head"]),
+        logparser=LogParserSettings(_env_file=None, server_name=["head"]),
         loki=LokiSettings(_env_file=None, url=URL, queries=['{job="nginx"}']),
     )
     inputs = build_log_inputs(settings)

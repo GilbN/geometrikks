@@ -51,14 +51,14 @@ async def resolve_home_location(
     Discovery is best-effort. Network, response, database, and missing-coordinate
     failures leave the animation without a destination instead of failing startup.
     """
-    if map_settings.home_latitude is not None and map_settings.home_longitude is not None:
+    if map_settings.server_latitude is not None and map_settings.server_longitude is not None:
         logger.info("home_location_resolved", source="configured")
         return HomeLocation(
-            latitude=map_settings.home_latitude,
-            longitude=map_settings.home_longitude,
+            latitude=map_settings.server_latitude,
+            longitude=map_settings.server_longitude,
             source="configured",
         )
-    if not map_settings.auto_detect_home or not geoip_available:
+    if not map_settings.auto_detect_server_location or not geoip_available:
         return None
 
     try:
@@ -79,8 +79,8 @@ async def resolve_home_location(
         return HomeLocation(latitude=latitude, longitude=longitude, source="external_ip")
     except (GeoIP2Error, httpx2.HTTPError, OSError, ValueError) as exc:
         logger.warning(
-            "Could not auto-detect map home location: %s. Set MAP_HOME_LATITUDE "
-            "and MAP_HOME_LONGITUDE to override it.",
+            "Could not auto-detect map home location: %s. Set MAP_SERVER_LATITUDE "
+            "and MAP_SERVER_LONGITUDE to override it.",
             exc,
         )
         return None

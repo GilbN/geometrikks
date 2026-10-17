@@ -25,7 +25,12 @@ from sqlalchemy import text
 from geometrikks.config.settings import Settings
 from geometrikks.domain.system.proxy_detection import proxy_advisories, proxy_findings
 from geometrikks.lib.utils import geoip_info
-from geometrikks.lib.advisories import Advisory, CITY_DATABASE_MISSING, INGESTION_STOPPED
+from geometrikks.lib.advisories import (
+    Advisory,
+    CITY_DATABASE_MISSING,
+    INGESTION_STOPPED,
+    legacy_env_advisory,
+)
 from geometrikks.server import runtime
 from geometrikks.services.geoip.downloader import has_credentials
 from geometrikks.services.ingestion import LogIngestionService
@@ -392,6 +397,9 @@ def _collect_advisories(app: Litestar, settings: Settings) -> list[Advisory]:
                 ),
             ))
     advisories.extend(_stale_geoip_advisories(settings))
+    legacy_env_names = settings.legacy_env_names_in_use()
+    if legacy_env_names:
+        advisories.append(legacy_env_advisory(legacy_env_names))
     backend = runtime.get_channels_backend(app)
     if (
         backend is not None

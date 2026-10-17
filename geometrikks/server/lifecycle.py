@@ -175,6 +175,15 @@ async def core_state_lifespan(app: "Litestar") -> "AsyncGenerator[None]":
             "API_LOG_LEVEL is deprecated and will be removed in a future "
             "release; set LOG_LEVEL instead."
         )
+    legacy_env_names = settings.legacy_env_names_in_use()
+    if legacy_env_names:
+        logger.warning(
+            "legacy_env_names_in_use",
+            names=[
+                {"old": legacy_env_name.old, "new": legacy_env_name.new}
+                for legacy_env_name in legacy_env_names
+            ],
+        )
     yield
 
 
@@ -198,13 +207,13 @@ async def geoip_lifespan(app: "Litestar") -> "AsyncGenerator[None]":
         geoip_available=geoip_available,
     )
     home_configured = (
-        settings.map.home_latitude is not None
-        and settings.map.home_longitude is not None
+        settings.map.server_latitude is not None
+        and settings.map.server_longitude is not None
     )
     if (
         app.state.map_home_location is None
         and geoip_available
-        and settings.map.auto_detect_home
+        and settings.map.auto_detect_server_location
         and not home_configured
     ):
         runtime.get_advisories(app).set(MAP_HOME_UNDETECTED)
@@ -357,11 +366,11 @@ async def bring_up_database(
 
     session_maker = get_app_db_config(app).create_session_maker()
     try:
-        await reconcile_override_homes(session_maker, settings.map.home_locations)
+        await reconcile_override_homes(session_maker, settings.map.server_locations)
         if settings.logparser.enabled:
             await upsert_auto_homes(
                 session_maker,
-                settings.ingest_hostnames(),
+                settings.ingest_server_names(),
                 runtime.get_map_home_location(app),
             )
     except Exception:
@@ -393,7 +402,7 @@ async def database_lifespan(app: "Litestar") -> "AsyncGenerator[None]":
             try:
                 await upsert_auto_homes(
                     session_maker,
-                    settings.ingest_hostnames(),
+                    settings.ingest_server_names(),
                     runtime.get_map_home_location(app),
                 )
             except Exception:
@@ -494,16 +503,16 @@ def build_log_inputs(settings: "Settings") -> list[LogInput]:
         for path, fmt, host in zip(
             settings.logparser.log_paths,
             settings.logparser.resolved_formats(),
-            settings.logparser.resolved_hostnames(),
+            settings.logparser.resolved_server_names(),
         )
     ]
     loki = settings.loki
     if loki.url is None or not loki.queries:
         return inputs
-    default_hostname = settings.logparser.host_name[0]
+    default_hostname = settings.logparser.server_name[0]
     password = loki.password.get_secret_value() if loki.password is not None else None
     for index, (query, fmt, host) in enumerate(
-        zip(loki.queries, loki.resolved_formats(), loki.resolved_hostnames(default_hostname)),
+        zip(loki.queries, loki.resolved_formats(), loki.resolved_server_names(default_hostname)),
         start=1,
     ):
         inputs.append(
@@ -553,7 +562,7 @@ async def start_ingestion(app: "Litestar") -> None:
         geoip_path=settings.geoip.db_path,
         locales=settings.geoip.locales,
         asn_db_path=settings.geoip.asn_db_path if settings.geoip.asn_enabled else None,
-        hostname=settings.logparser.host_name[0],
+        hostname=settings.logparser.server_name[0],
         batch_size=settings.logparser.batch_size,
         commit_interval=settings.logparser.commit_interval,
         store_debug_lines=settings.logparser.store_debug_lines,

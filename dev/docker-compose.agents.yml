@@ -104,12 +104,12 @@ services:
       APP_ADMIN_PASSWORD: ${APP_ADMIN_PASSWORD:-}
       # This instance's own home, which the map renders as the default
       # beacon. Setting both coordinates skips public-IP auto-detection.
-      MAP_HOME_LATITUDE: 41.8781
-      MAP_HOME_LONGITUDE: -87.6298
+      MAP_SERVER_LATITUDE: 41.8781
+      MAP_SERVER_LONGITUDE: -87.6298
       # Demo overrides for the three pinned sites (see header notes).
       # Hardcoded rather than ${...}-interpolated: compose interpolation
       # defaults cannot carry JSON braces.
-      MAP_HOME_LOCATIONS: '{"nginx-01": [40.7128, -74.0060], "traefik-01": [34.0522, -118.2437], "caddy-01": [25.7617, -80.1918]}'
+      MAP_SERVER_LOCATIONS: '{"nginx-01": [40.7128, -74.0060], "traefik-01": [34.0522, -118.2437], "caddy-01": [25.7617, -80.1918]}'
       DB_HOST: timescale_agent_db
       DB_PORT: 5432
       DB_USER: geouser
@@ -149,8 +149,8 @@ services:
       APP_MODE: agent
       # Hourly re-detection instead of the 24h default, so cadence-driven
       # site-home refreshes are observable within a test session.
-      MAP_HOME_REFRESH_HOURS: 1
-      LOGPARSER_HOST_NAME: nginx-01
+      MAP_SERVER_LOCATION_REFRESH_HOURS: 1
+      LOGPARSER_SERVER_NAME: nginx-01
       LOGPARSER_LOG_PATHS: /var/log/access/nginx.log
       LOGPARSER_LOG_FORMATS: nginx
       MAXMINDDB_USER_ID: ${MAXMINDDB_USER_ID:-}
@@ -184,8 +184,8 @@ services:
     stop_grace_period: 20s
     environment:
       APP_MODE: agent
-      MAP_HOME_REFRESH_HOURS: 1
-      LOGPARSER_HOST_NAME: traefik-01
+      MAP_SERVER_LOCATION_REFRESH_HOURS: 1
+      LOGPARSER_SERVER_NAME: traefik-01
       LOGPARSER_LOG_PATHS: /var/log/access/traefik.log
       LOGPARSER_LOG_FORMATS: traefik-json
       MAXMINDDB_USER_ID: ${MAXMINDDB_USER_ID:-}
@@ -219,8 +219,8 @@ services:
     stop_grace_period: 20s
     environment:
       APP_MODE: agent
-      MAP_HOME_REFRESH_HOURS: 1
-      LOGPARSER_HOST_NAME: json-01
+      MAP_SERVER_LOCATION_REFRESH_HOURS: 1
+      LOGPARSER_SERVER_NAME: json-01
       LOGPARSER_LOG_PATHS: /var/log/access/nginx-json.log
       LOGPARSER_LOG_FORMATS: geometrikks-json
       MAXMINDDB_USER_ID: ${MAXMINDDB_USER_ID:-}
@@ -254,8 +254,8 @@ services:
     stop_grace_period: 20s
     environment:
       APP_MODE: agent
-      MAP_HOME_REFRESH_HOURS: 1
-      LOGPARSER_HOST_NAME: caddy-01
+      MAP_SERVER_LOCATION_REFRESH_HOURS: 1
+      LOGPARSER_SERVER_NAME: caddy-01
       LOGPARSER_LOG_PATHS: /var/log/access/caddy.log
       LOGPARSER_LOG_FORMATS: caddy-json
       MAXMINDDB_USER_ID: ${MAXMINDDB_USER_ID:-}

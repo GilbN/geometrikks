@@ -69,10 +69,10 @@ async def read_settings(
     """Whitelisted runtime settings (no credentials, ever)."""
     s = settings
     home: HomeLocation | None = runtime.get_map_home_location(request.app)
-    if home is None and s.map.home_latitude is not None and s.map.home_longitude is not None:
+    if home is None and s.map.server_latitude is not None and s.map.server_longitude is not None:
         home = HomeLocation(
-            latitude=s.map.home_latitude,
-            longitude=s.map.home_longitude,
+            latitude=s.map.server_latitude,
+            longitude=s.map.server_longitude,
             source="configured",
         )
     return SafeSettingsResponse(

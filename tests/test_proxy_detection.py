@@ -139,6 +139,7 @@ def test_collect_advisories_includes_proxy_cards(monkeypatch) -> None:
     settings = SimpleNamespace(
         app=SimpleNamespace(proxy_advisory=True),
         geoip=SimpleNamespace(asn_enabled=False),
+        legacy_env_names_in_use=lambda: [],
     )
     app = SimpleNamespace(state=SimpleNamespace())
     cards = health._collect_advisories(app=cast(Any, app), settings=cast(Any, settings))
@@ -156,6 +157,7 @@ def test_collect_advisories_respects_off_switch(monkeypatch) -> None:
     settings = SimpleNamespace(
         app=SimpleNamespace(proxy_advisory=False),
         geoip=SimpleNamespace(asn_enabled=False),
+        legacy_env_names_in_use=lambda: [],
     )
     app = SimpleNamespace(state=SimpleNamespace())
     assert health._collect_advisories(app=cast(Any, app), settings=cast(Any, settings)) == []
@@ -172,6 +174,7 @@ def test_collect_advisories_survives_no_ingestion_service(monkeypatch) -> None:
     settings = SimpleNamespace(
         app=SimpleNamespace(proxy_advisory=True),
         geoip=SimpleNamespace(asn_enabled=False),
+        legacy_env_names_in_use=lambda: [],
     )
     app = SimpleNamespace(state=SimpleNamespace())
     assert health._collect_advisories(app=cast(Any, app), settings=cast(Any, settings)) == []
@@ -200,6 +203,7 @@ def test_collect_advisories_merges_scan_findings(monkeypatch) -> None:
     settings = SimpleNamespace(
         app=SimpleNamespace(proxy_advisory=True),
         geoip=SimpleNamespace(asn_enabled=False),
+        legacy_env_names_in_use=lambda: [],
     )
     app = SimpleNamespace(state=SimpleNamespace())
     [card] = health._collect_advisories(app=cast(Any, app), settings=cast(Any, settings))
@@ -224,6 +228,7 @@ def test_collect_advisories_dedupes_scan_findings_by_the_service_hostname(monkey
     settings = SimpleNamespace(
         app=SimpleNamespace(proxy_advisory=True),
         geoip=SimpleNamespace(asn_enabled=False),
+        legacy_env_names_in_use=lambda: [],
     )
     app = SimpleNamespace(state=SimpleNamespace())
     [card] = health._collect_advisories(app=cast(Any, app), settings=cast(Any, settings))
@@ -248,6 +253,7 @@ def test_collect_advisories_scan_only_when_no_ingestion_service(monkeypatch) -> 
     settings = SimpleNamespace(
         app=SimpleNamespace(proxy_advisory=True),
         geoip=SimpleNamespace(asn_enabled=False),
+        legacy_env_names_in_use=lambda: [],
     )
     app = SimpleNamespace(state=SimpleNamespace())
     cards = health._collect_advisories(app=cast(Any, app), settings=cast(Any, settings))

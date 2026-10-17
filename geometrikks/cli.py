@@ -145,7 +145,7 @@ async def _run_import(
     if settings.geoip.asn_enabled and asn_reader is None:
         click.echo("No GeoLite2 ASN database found; importing without ASN enrichment.")
 
-    effective_hostname = hostname or settings.ingest_hostnames()[0]
+    effective_hostname = hostname or settings.ingest_server_names()[0]
     click.echo(f"Stamping hostname: {effective_hostname}")
     service = LogIngestionService(
         inputs=[],
@@ -326,7 +326,7 @@ def select_loki_queries(
             zip(
                 loki.queries,
                 loki.resolved_formats(),
-                loki.resolved_hostnames(settings.logparser.host_name[0]),
+                loki.resolved_server_names(settings.logparser.server_name[0]),
             ),
             start=1,
         )
@@ -496,7 +496,7 @@ async def _run_loki_import(
         session_maker=session_maker,
         geoip_path=settings.geoip.db_path,
         locales=settings.geoip.locales,
-        hostname=settings.logparser.host_name[0],
+        hostname=settings.logparser.server_name[0],
         store_debug_lines=settings.logparser.store_debug_lines,
     )
 

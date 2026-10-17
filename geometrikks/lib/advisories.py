@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
 import msgspec
 
 from geometrikks.server.logging import get_logger
+
+if TYPE_CHECKING:
+    from geometrikks.config.settings import LegacyEnvName
 
 logger = get_logger(__name__)
 
@@ -114,3 +117,20 @@ INGESTION_STOPPED = Advisory(
         "restart the app after fixing the cause."
     ),
 )
+
+
+def legacy_env_advisory(names: list["LegacyEnvName"]) -> Advisory:
+    """Warn that this process reads env vars under names that were renamed."""
+    renames = "\n".join(f"{legacy_env_name.old} -> {legacy_env_name.new}" for legacy_env_name in names)
+    noun = "variable uses its old name" if len(names) == 1 else "variables use their old names"
+    return Advisory(
+        id="legacy-env-names",
+        severity="warning",
+        summary=f"{len(names)} environment {noun}.",
+        detail=(
+            "The old names keep working until 1.0. Rename them in your compose "
+            "file or .env and restart. Setting both names to different values "
+            "stops startup."
+        ),
+        remedy=renames,
+    )

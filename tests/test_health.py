@@ -351,6 +351,29 @@ def test_health_has_no_advisories_when_clean(monkeypatch):
     assert body["advisories"] == []
 
 
+@pytest.mark.parametrize("mode", ["full", "agent"])
+def test_health_lists_old_env_names_in_use(monkeypatch, mode):
+    async def db_up(app, timeout: float = 2.0) -> bool:
+        return True
+    monkeypatch.setattr(health_module, "_database_reachable", db_up)
+    monkeypatch.setenv("APP_MODE", mode)
+    monkeypatch.setenv("LOGPARSER_HOST_NAME", "edge-01")
+
+    with TestClient(app=make_app()) as client:
+        body = client.get("/health").json()
+
+    legacy_advisory = next(
+        advisory for advisory in body["advisories"] if advisory["id"] == "legacy-env-names"
+    )
+    assert legacy_advisory["severity"] == "warning"
+    advisory_text = " ".join(
+        part for part in (legacy_advisory["summary"], legacy_advisory["detail"], legacy_advisory["remedy"])
+        if part
+    )
+    assert "LOGPARSER_HOST_NAME" in advisory_text
+    assert "LOGPARSER_SERVER_NAME" in advisory_text
+
+
 def test_health_reports_policy_update_failures(monkeypatch):
     async def db_up(app, timeout: float = 2.0) -> bool:
         return True

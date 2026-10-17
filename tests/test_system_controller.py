@@ -310,7 +310,7 @@ async def test_system_settings_surface_computed_values(monkeypatch):
     def field(section: str, key: str) -> dict:
         return next(f for f in sections[section]["fields"] if f["key"] == key)
 
-    lat = field("map", "home_latitude")
+    lat = field("map", "server_latitude")
     assert lat["value"] is None
     assert lat["computedValue"] == 59.91
     assert lat["computedSource"] == "external_ip"
@@ -330,7 +330,7 @@ async def test_system_settings_no_computed_home_when_absent():
     async with AsyncTestClient(app=make_app()) as client:
         resp = await client.get("/api/v1/system/settings")
     sections = {s["name"]: s for s in resp.json()["sections"]}
-    lat = next(f for f in sections["map"]["fields"] if f["key"] == "home_latitude")
+    lat = next(f for f in sections["map"]["fields"] if f["key"] == "server_latitude")
     assert lat["computedValue"] is None
 
     avail = next(f for f in sections["geoip"]["fields"] if f["key"] == "available")

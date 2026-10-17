@@ -298,8 +298,8 @@ def _computed_settings_overlay(
 
     home = runtime.get_map_home_location(app)
     if home is not None and home.source == "external_ip":
-        overlay[("map", "home_latitude")] = ComputedField(home.latitude, "external_ip")
-        overlay[("map", "home_longitude")] = ComputedField(home.longitude, "external_ip")
+        overlay[("map", "server_latitude")] = ComputedField(home.latitude, "external_ip")
+        overlay[("map", "server_longitude")] = ComputedField(home.longitude, "external_ip")
 
     overlay[("geoip", "available")] = ComputedField(
         runtime.is_geoip_available(app),

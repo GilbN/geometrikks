@@ -66,7 +66,7 @@ def baseline_settings_env():
         # GeoIP
         "GEOIP_DB_PATH": "tests/GeoLite2-City-Test.mmdb",
         # Map (tests must never depend on an external public-IP service)
-        "MAP_AUTO_DETECT_HOME": "false",
+        "MAP_AUTO_DETECT_SERVER_LOCATION": "false",
         # Log parser
         "LOGPARSER_LOG_PATHS": "/var/log/access/access.log",
     })

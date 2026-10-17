@@ -176,10 +176,10 @@ class GeoLocationController(Controller):
         rows = await fetch_site_homes(db_session)
         last_days = await fetch_last_event_days(db_session) if rows else {}
         home: HomeLocation | None = runtime.get_map_home_location(request.app)
-        if home is None and settings.map.home_latitude is not None and settings.map.home_longitude is not None:
+        if home is None and settings.map.server_latitude is not None and settings.map.server_longitude is not None:
             home = HomeLocation(
-                latitude=settings.map.home_latitude,
-                longitude=settings.map.home_longitude,
+                latitude=settings.map.server_latitude,
+                longitude=settings.map.server_longitude,
                 source="configured",
             )
         return SiteHomesResponse(

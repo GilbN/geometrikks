@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import MutableMapping
 from types import SimpleNamespace
 from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock
@@ -60,6 +61,53 @@ async def test_core_state_lifespan_initializes_advisory_registry():
     app = SimpleNamespace(state=SimpleNamespace())
     async with lc.core_state_lifespan(cast("Any", app)):
         assert isinstance(app.state.advisories, AdvisoryRegistry)
+
+
+def _legacy_env_events(
+    captured: list[MutableMapping[str, Any]],
+) -> list[MutableMapping[str, Any]]:
+    return [log_entry for log_entry in captured if log_entry["event"] == "legacy_env_names_in_use"]
+
+
+@pytest.mark.parametrize("mode", ["full", "agent"])
+async def test_startup_logs_old_env_names_once(monkeypatch, mode):
+    from geometrikks.server import lifecycle as lc
+
+    monkeypatch.setenv("APP_MODE", mode)
+    monkeypatch.setenv("LOGPARSER_HOST_NAME", "edge-01")
+    _patch_startup_collaborators(
+        monkeypatch, lc, db_available=True, ensure=AsyncMock(return_value=True)
+    )
+    monkeypatch.setattr(lc, "wait_for_schema", AsyncMock(return_value="ready"))
+
+    app = SimpleNamespace(state=SimpleNamespace())
+    with structlog.testing.capture_logs() as captured:
+        async with enter_lifespan(app):
+            pass
+
+    ingestion_service_kwargs = cast("MagicMock", lc.LogIngestionService).call_args.kwargs
+    assert ingestion_service_kwargs["hostname"] == "edge-01"
+    legacy_env_events = _legacy_env_events(captured)
+    assert len(legacy_env_events) == 1
+    assert legacy_env_events[0]["names"] == [
+        {"old": "LOGPARSER_HOST_NAME", "new": "LOGPARSER_SERVER_NAME"}
+    ]
+
+
+async def test_startup_without_old_env_names_logs_nothing(monkeypatch):
+    from geometrikks.server import lifecycle as lc
+
+    monkeypatch.setenv("LOGPARSER_SERVER_NAME", "edge-01")
+    _patch_startup_collaborators(
+        monkeypatch, lc, db_available=True, ensure=AsyncMock(return_value=True)
+    )
+
+    app = SimpleNamespace(state=SimpleNamespace())
+    with structlog.testing.capture_logs() as captured:
+        async with enter_lifespan(app):
+            pass
+
+    assert _legacy_env_events(captured) == []
 
 
 async def test_startup_failure_unwinds_started_managers(monkeypatch):
@@ -385,7 +433,7 @@ async def test_agent_schema_ready_triggers_home_upsert(monkeypatch):
     upsert.assert_awaited_once()
     assert upsert.await_args is not None
     hostnames = upsert.await_args.args[1]
-    assert hostnames == Settings().ingest_hostnames()
+    assert hostnames == Settings().ingest_server_names()
 
 
 async def test_agent_schema_timeout_skips_home_upsert(monkeypatch):
@@ -411,7 +459,7 @@ async def test_agent_schema_timeout_skips_home_upsert(monkeypatch):
 
 
 async def test_full_startup_reconciles_overrides_and_upserts(monkeypatch):
-    """A primary instance always reconciles MAP_HOME_LOCATIONS overrides and,
+    """A primary instance always reconciles MAP_SERVER_LOCATIONS overrides and,
     when it also tails logs, records its own auto-detected home."""
     from geometrikks.server import lifecycle as lc
     from geometrikks.config.settings import Settings
@@ -483,7 +531,7 @@ async def test_ingestion_wires_per_file_hostnames(monkeypatch):
     from geometrikks.config.settings import Settings
 
     monkeypatch.setenv("LOGPARSER_LOG_PATHS", '["/a.log", "/b.log"]')
-    monkeypatch.setenv("LOGPARSER_HOST_NAME", '["vps-1", "vps-2"]')
+    monkeypatch.setenv("LOGPARSER_SERVER_NAME", '["vps-1", "vps-2"]')
     _patch_startup_collaborators(
         monkeypatch, lc, db_available=True, ensure=AsyncMock(return_value=True)
     )
