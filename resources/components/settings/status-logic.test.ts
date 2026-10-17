@@ -768,4 +768,15 @@ describe("advisoryCards", () => {
     const [card] = advisoryCards(health)
     expect(card.docsUrl).toBe("https://example.test/proxy-setup")
   })
+  it("keeps one rename per line in the legacy env names remedy", () => {
+    const remedy = "LOGPARSER_HOST_NAME → LOGPARSER_SERVER_NAME\nMAP_HOME_LATITUDE → MAP_SERVER_LATITUDE"
+    const health = makeHealth({
+      advisories: [{ id: "legacy-env-names", severity: "warning", summary: "s", remedy }],
+    })
+    const [card] = advisoryCards(health)
+    expect(card.remedy?.split("\n")).toEqual([
+      "LOGPARSER_HOST_NAME → LOGPARSER_SERVER_NAME",
+      "MAP_HOME_LATITUDE → MAP_SERVER_LATITUDE",
+    ])
+  })
 })

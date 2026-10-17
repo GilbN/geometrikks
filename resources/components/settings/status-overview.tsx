@@ -218,7 +218,7 @@ export function StatusOverview() {
             </div>
             {card.detail && <p className="text-xs text-muted-foreground">{card.detail}</p>}
             {card.remedy && (
-              <code className="block w-fit rounded bg-muted px-2 py-1 text-xs">{card.remedy}</code>
+              <code className="block w-fit whitespace-pre-line rounded bg-muted px-2 py-1 text-xs">{card.remedy}</code>
             )}
             {card.docsUrl && (
               <a

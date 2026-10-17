@@ -85,8 +85,8 @@ SERVER_LOCATION_UNDETECTED = Advisory(
         "Map traffic stays visible, just without route origins or a server "
         "marker. Check outbound access to the public-IP service and that the "
         "City database can locate its result, or set the coordinates yourself. "
-        "When scheduling and background jobs are active, the server-location "
-        "refresh job retries detection."
+        "When scheduling and background jobs are active, the "
+        "server-location-refresh job retries detection."
     ),
     remedy="MAP_SERVER_LATITUDE and MAP_SERVER_LONGITUDE",
 )
@@ -121,7 +121,7 @@ INGESTION_STOPPED = Advisory(
 
 def legacy_env_advisory(names: list["LegacyEnvName"]) -> Advisory:
     """Warn that this process reads env vars under names that were renamed."""
-    renames = "\n".join(f"{legacy_env_name.old} -> {legacy_env_name.new}" for legacy_env_name in names)
+    renames = "\n".join(f"{legacy_env_name.old} → {legacy_env_name.new}" for legacy_env_name in names)
     noun = "variable uses its old name" if len(names) == 1 else "variables use their old names"
     return Advisory(
         id="legacy-env-names",

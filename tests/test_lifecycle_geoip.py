@@ -169,8 +169,8 @@ async def test_server_location_advisory_qualifies_the_scheduler_retry(monkeypatc
         advisory = next(a for a in advisories if a.id == "server-location-undetected")
         assert advisory.detail is not None
         assert (
-            "When scheduling and background jobs are active, the server-location "
-            "refresh job retries detection."
+            "When scheduling and background jobs are active, the "
+            "server-location-refresh job retries detection."
             in advisory.detail
         )
 
