@@ -20,17 +20,27 @@ export interface VisibilityColumn {
 /** Column key to visible; present only for columns the user toggled. */
 export type ColumnOverrides = Record<string, boolean>
 
-export function loadColumnOverrides(storageKey: string): ColumnOverrides {
+/** Old column key to its current key, so a saved layout survives a rename. */
+export type RenamedColumnKeys = Readonly<Record<string, string>>
+
+export function loadColumnOverrides(
+  storageKey: string,
+  renamedKeys: RenamedColumnKeys = {},
+): ColumnOverrides {
   try {
     const raw = localStorage.getItem(storageKey)
     if (!raw) return {}
     const parsed: unknown = JSON.parse(raw)
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {}
     const overrides: ColumnOverrides = {}
+    const renamed: ColumnOverrides = {}
     for (const [key, value] of Object.entries(parsed)) {
-      if (typeof value === "boolean") overrides[key] = value
+      if (typeof value !== "boolean") continue
+      if (key in renamedKeys) renamed[renamedKeys[key]] = value
+      else overrides[key] = value
     }
-    return overrides
+    // An override already saved under the current key is newer, so it wins.
+    return { ...renamed, ...overrides }
   } catch {
     // Storage may be blocked or hold junk; the defaults are always safe.
     return {}
@@ -63,9 +73,11 @@ export function resolveVisibleColumns(
 export function useColumnVisibility<C extends VisibilityColumn>(
   storageKey: string,
   columns: readonly C[],
+  renamedKeys?: RenamedColumnKeys,
 ) {
+  // The save effect below writes the migrated keys back on mount.
   const [overrides, setOverrides] = useState<ColumnOverrides>(() =>
-    loadColumnOverrides(storageKey),
+    loadColumnOverrides(storageKey, renamedKeys),
   )
   // Sampled once per mount, like the mobile defaults always were.
   const [mobile] = useState(isMobileViewport)

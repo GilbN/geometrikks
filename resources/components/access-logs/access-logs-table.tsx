@@ -23,7 +23,11 @@ import { DataTableFrame } from "@/components/data/data-table-frame"
 import { rowActivation, stopRowActivation } from "@/components/data/row-activation"
 import { dataState } from "@/components/data/types"
 import { AccessLogDetailSheet } from "@/components/access-logs/access-log-detail-sheet"
-import { ACCESS_LOG_COLUMNS, type AccessLogColumn } from "@/components/access-logs/columns"
+import {
+  ACCESS_LOG_COLUMNS,
+  ACCESS_LOG_RENAMED_COLUMN_KEYS,
+  type AccessLogColumn,
+} from "@/components/access-logs/columns"
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -199,7 +203,7 @@ export function AccessLogsTable({
   const [selected, setSelected] = useState<AccessLog | null>(null)
 
   const { visible, shownColumns, toggleColumn, resetColumns, hasOverrides } =
-    useColumnVisibility("geometrikks-columns-access-logs", ACCESS_LOG_COLUMNS)
+    useColumnVisibility("geometrikks-columns-access-logs", ACCESS_LOG_COLUMNS, ACCESS_LOG_RENAMED_COLUMN_KEYS)
 
   const { data, isLoading, isError, isPlaceholderData } = useAccessLogs({
     currentPage: page,

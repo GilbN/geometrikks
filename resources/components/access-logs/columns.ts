@@ -5,7 +5,7 @@
  * rendering is an exhaustive switch in access-logs-table.tsx.
  */
 import type { AccessLogSortField } from "@/lib/api"
-import type { VisibilityColumn } from "@/lib/column-visibility"
+import type { RenamedColumnKeys, VisibilityColumn } from "@/lib/column-visibility"
 
 export type AccessLogColumnKey =
   | "timestamp"
@@ -57,3 +57,6 @@ export const ACCESS_LOG_COLUMNS = [
   { key: "asn", label: "ASN", defaultVisible: false, mobileHidden: true },
   { key: "asnOrganization", grow: true, label: "AS organization", defaultVisible: false, mobileHidden: true },
 ] satisfies readonly AccessLogColumn[] as readonly AccessLogColumn[]
+
+/** Saved layouts from before the server rename. */
+export const ACCESS_LOG_RENAMED_COLUMN_KEYS: RenamedColumnKeys = { hostname: "server" }

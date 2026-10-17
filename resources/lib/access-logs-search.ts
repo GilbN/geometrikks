@@ -40,6 +40,8 @@ export const accessLogsSearchSchema = z.object({
 
 export type AccessLogsSearch = z.infer<typeof accessLogsSearchSchema>
 
+// Module-level so their identity is stable across renders (useUrlFilters
+// memoizes on them).
 export function decodeAccessLogsSearch(search: AccessLogsSearch): AccessLogFilterState {
   return {
     search: search.q ?? "",

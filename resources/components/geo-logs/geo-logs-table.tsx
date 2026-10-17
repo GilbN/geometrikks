@@ -32,7 +32,11 @@ import { PaginationFooter } from "@/components/ui/pagination-footer"
 import { DataTableFrame } from "@/components/data/data-table-frame"
 import { rowActivation, stopRowActivation } from "@/components/data/row-activation"
 import { dataState } from "@/components/data/types"
-import { GEO_LOG_COLUMNS, type GeoLogColumn } from "@/components/geo-logs/columns"
+import {
+  GEO_LOG_COLUMNS,
+  GEO_LOG_RENAMED_COLUMN_KEYS,
+  type GeoLogColumn,
+} from "@/components/geo-logs/columns"
 import { GeoLogDetailSheet } from "@/components/geo-logs/geo-log-detail-sheet"
 import type { GeoLogEntry } from "@/generated/api/types.gen"
 import { formatNumber, type GeoLogSortField, type GeoLogSortOrder } from "@/lib/api"
@@ -148,7 +152,7 @@ export function GeoLogsTable({
   const { range, customRange } = useTimeRange()
   const { filters } = useGeoLogFilters()
   const { visible, shownColumns, toggleColumn, resetColumns, hasOverrides } =
-    useColumnVisibility("geometrikks-columns-geo-logs", GEO_LOG_COLUMNS)
+    useColumnVisibility("geometrikks-columns-geo-logs", GEO_LOG_COLUMNS, GEO_LOG_RENAMED_COLUMN_KEYS)
 
   const { data, isLoading, isError, isPlaceholderData } = useGeoLogs({
     currentPage: page,

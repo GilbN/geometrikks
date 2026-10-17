@@ -52,8 +52,8 @@ export function initialMapView({
   // Like the "go home" control, one selected server opens on its own
   // location, or on the default location when it has none.
   if (selectedServers.length === 1) {
-    const serverLocation = buildHomeResolver(serverLocations)(selectedServers[0])
-    if (serverLocation) return centerOn(serverLocation)
+    const serverCoordinate = buildHomeResolver(serverLocations)(selectedServers[0])
+    if (serverCoordinate) return centerOn(serverCoordinate)
   }
 
   const coordinates = homeBeacons(serverLocations).map((beacon) => beacon.coordinate)

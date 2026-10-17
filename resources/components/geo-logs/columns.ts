@@ -5,7 +5,7 @@
  * rendering is an exhaustive switch in geo-logs-table.tsx.
  */
 import type { GeoLogSortField } from "@/lib/api"
-import type { VisibilityColumn } from "@/lib/column-visibility"
+import type { RenamedColumnKeys, VisibilityColumn } from "@/lib/column-visibility"
 
 export type GeoLogColumnKey =
   | "city"
@@ -46,3 +46,6 @@ export const GEO_LOG_COLUMNS = [
   { key: "asn", label: "ASN", sortField: "asn", defaultVisible: false, mobileHidden: true },
   { key: "asOrganization", label: "Organization", defaultVisible: false, mobileHidden: true },
 ] satisfies readonly GeoLogColumn[] as readonly GeoLogColumn[]
+
+/** Saved layouts from before the server rename. */
+export const GEO_LOG_RENAMED_COLUMN_KEYS: RenamedColumnKeys = { hostnames: "servers" }
