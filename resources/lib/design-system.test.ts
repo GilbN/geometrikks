@@ -11,9 +11,8 @@ import { renderToStaticMarkup } from "react-dom/server"
 import { describe, expect, it } from "vitest"
 
 import { BrandMark } from "../components/brand/brand-mark"
-import { ACCENTS, DEFAULT_ACCENT } from "./accent"
 import { themeHead } from "./theme-bootstrap"
-import { THEME_STORAGE_KEYS } from "./theme"
+import { COLOR_THEMES, THEME_STORAGE_KEYS } from "./theme"
 
 const resources = new URL("../", import.meta.url)
 const repo = new URL("../../", import.meta.url)
@@ -48,24 +47,17 @@ describe("tokens", () => {
     expect(linesMatching(/geo-cyan|geo-glow/)).toEqual([])
   })
 
-  it("declares a light and a dark block for every accent, the default included", () => {
-    // The default has no attribute on <html>, but scoped previews need its rule.
-    const css = read("main.css")
-    for (const accent of ACCENTS) {
-      expect(css).toMatch(new RegExp(`^\\[data-accent="${accent}"\\] \\{`, "m"))
-      expect(css).toMatch(new RegExp(`^\\.dark\\[data-accent="${accent}"\\]`, "m"))
-    }
-  })
-
-  it("boots the stored appearance before first paint with the keys the provider uses", () => {
+  it("boots the stored theme before first paint with the keys the provider uses", () => {
     const html = themeHead()
     const provider = read("components/theme-provider.tsx")
     expect(read("index.html", repo)).toContain("<!-- theme-head -->")
     for (const key of Object.values(THEME_STORAGE_KEYS)) expect(html).toContain(JSON.stringify(key))
-    for (const key of ["mode", "accent", "appearance"]) expect(provider).toContain(`THEME_STORAGE_KEYS.${key}`)
-    for (const accent of ACCENTS.filter((a) => a !== DEFAULT_ACCENT)) {
-      expect(html).toContain(JSON.stringify(accent))
-    }
+    for (const id of COLOR_THEMES) expect(html).toContain(JSON.stringify(id))
+    for (const key of ["mode", "theme"]) expect(provider).toContain(`THEME_STORAGE_KEYS.${key}`)
+  })
+
+  it("has no retired accent or dark appearance attributes", () => {
+    expect(linesMatching(/data-accent|data-dark-appearance/)).toEqual([])
   })
 })
 

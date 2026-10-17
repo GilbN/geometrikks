@@ -1,10 +1,9 @@
 import { createContext, useContext, useEffect, useMemo, useState } from "react"
-import { type Accent, accentAttribute, parseAccent } from "@/lib/accent"
 import {
-  type DarkAppearance,
+  type ColorTheme,
   type ResolvedTheme,
   type Theme,
-  parseDarkAppearance,
+  parseColorTheme,
   parseTheme,
   resolveTheme,
   themeColor,
@@ -15,8 +14,7 @@ type ThemeProviderProps = {
   children: React.ReactNode
   defaultTheme?: Theme
   storageKey?: string
-  accentStorageKey?: string
-  darkAppearanceStorageKey?: string
+  colorThemeStorageKey?: string
 }
 
 type ThemeProviderState = {
@@ -25,10 +23,8 @@ type ThemeProviderState = {
   /** What the page is showing right now; "system" resolved against the OS. */
   resolvedTheme: ResolvedTheme
   setTheme: (theme: Theme) => void
-  accent: Accent
-  setAccent: (accent: Accent) => void
-  darkAppearance: DarkAppearance
-  setDarkAppearance: (appearance: DarkAppearance) => void
+  colorTheme: ColorTheme
+  setColorTheme: (next: ColorTheme) => void
 }
 
 const ThemeProviderContext = createContext<ThemeProviderState | undefined>(undefined)
@@ -57,15 +53,13 @@ export function ThemeProvider({
   children,
   defaultTheme = "system",
   storageKey = THEME_STORAGE_KEYS.mode,
-  accentStorageKey = THEME_STORAGE_KEYS.accent,
-  darkAppearanceStorageKey = THEME_STORAGE_KEYS.appearance,
+  colorThemeStorageKey = THEME_STORAGE_KEYS.theme,
 }: ThemeProviderProps) {
   const [theme, setThemeState] = useState<Theme>(() =>
     parseTheme(readStorage(storageKey), defaultTheme),
   )
-  const [accent, setAccentState] = useState<Accent>(() => parseAccent(readStorage(accentStorageKey)))
-  const [darkAppearance, setDarkAppearanceState] = useState<DarkAppearance>(() =>
-    parseDarkAppearance(readStorage(darkAppearanceStorageKey)),
+  const [colorTheme, setColorThemeState] = useState<ColorTheme>(() =>
+    parseColorTheme(readStorage(colorThemeStorageKey), readStorage(THEME_STORAGE_KEYS.legacyAccent)),
   )
   const [resolvedTheme, setResolvedTheme] = useState<ResolvedTheme>(() =>
     resolveTheme(theme, prefersDark()),
@@ -85,20 +79,13 @@ export function ThemeProvider({
     const root = window.document.documentElement
     root.classList.remove("light", "dark")
     root.classList.add(resolvedTheme)
-    root.setAttribute("data-dark-appearance", darkAppearance)
+    root.setAttribute("data-theme", colorTheme)
     root.style.colorScheme = resolvedTheme
     document.querySelector('meta[name="theme-color"]')?.setAttribute(
       "content",
-      themeColor(resolvedTheme, darkAppearance),
+      themeColor(resolvedTheme, colorTheme),
     )
-  }, [resolvedTheme, darkAppearance])
-
-  useEffect(() => {
-    const root = window.document.documentElement
-    const attr = accentAttribute(accent)
-    if (attr === null) root.removeAttribute("data-accent")
-    else root.setAttribute("data-accent", attr)
-  }, [accent])
+  }, [resolvedTheme, colorTheme])
 
   const value = useMemo<ThemeProviderState>(
     () => ({
@@ -108,18 +95,13 @@ export function ThemeProvider({
         writeStorage(storageKey, next)
         setThemeState(next)
       },
-      accent,
-      setAccent: (next) => {
-        writeStorage(accentStorageKey, next)
-        setAccentState(next)
-      },
-      darkAppearance,
-      setDarkAppearance: (next) => {
-        writeStorage(darkAppearanceStorageKey, next)
-        setDarkAppearanceState(next)
+      colorTheme,
+      setColorTheme: (next) => {
+        writeStorage(colorThemeStorageKey, next)
+        setColorThemeState(next)
       },
     }),
-    [theme, resolvedTheme, accent, darkAppearance, storageKey, accentStorageKey, darkAppearanceStorageKey],
+    [theme, resolvedTheme, colorTheme, storageKey, colorThemeStorageKey],
   )
 
   return <ThemeProviderContext.Provider value={value}>{children}</ThemeProviderContext.Provider>

@@ -7,14 +7,13 @@ import {
   DropdownMenuLabel,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { useTheme } from "@/components/theme-provider"
-import { DARK_APPEARANCES, DARK_APPEARANCE_CATALOG, parseDarkAppearance, parseTheme } from "@/lib/theme"
+import { parseTheme } from "@/lib/theme"
 
 export function ModeToggle() {
-  const { theme, setTheme, darkAppearance, setDarkAppearance } = useTheme()
+  const { theme, setTheme } = useTheme()
 
   return (
     <DropdownMenu>
@@ -31,19 +30,6 @@ export function ModeToggle() {
           <DropdownMenuRadioItem value="light">Light</DropdownMenuRadioItem>
           <DropdownMenuRadioItem value="dark">Dark</DropdownMenuRadioItem>
           <DropdownMenuRadioItem value="system">System</DropdownMenuRadioItem>
-        </DropdownMenuRadioGroup>
-        <DropdownMenuSeparator />
-        <DropdownMenuLabel>Dark appearance</DropdownMenuLabel>
-        <DropdownMenuRadioGroup
-          aria-label="Dark appearance"
-          value={darkAppearance}
-          onValueChange={(value) => setDarkAppearance(parseDarkAppearance(value))}
-        >
-          {DARK_APPEARANCES.map((value) => (
-            <DropdownMenuRadioItem key={value} value={value}>
-              {DARK_APPEARANCE_CATALOG[value].label}
-            </DropdownMenuRadioItem>
-          ))}
         </DropdownMenuRadioGroup>
       </DropdownMenuContent>
     </DropdownMenu>

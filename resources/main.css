@@ -4,6 +4,8 @@
 @import "@fontsource-variable/inter";
 @import "./themes/light.css";
 @import "./themes/aurora.css";
+@import "./themes/moss.css";
+@import "./themes/forge.css";
 @import "./themes/black.css";
 
 @font-face {
@@ -105,44 +107,6 @@
 
 [data-slot="map-overlay"] {
   --border: var(--map-panel-border);
-}
-
-/* Accent variants, chosen from the header's accent picker and applied as
-   data-accent on <html>.
-   Teal is the default and needs no attribute. Light values target ~4.5:1 on
-   white cards; dark values sit in the same glow band as teal. */
-/* Teal is the default and <html> carries no attribute for it, but a scoped
-   preview (the accent picker's swatches) needs the rule to exist or it
-   inherits whatever accent is active. */
-[data-accent="teal"] {
-  --brand-l: 0.52;
-  --brand-c: 0.115;
-  --brand-h: 178;
-}
-.dark[data-accent="teal"],
-.dark [data-accent="teal"] {
-  --brand-l: 0.78;
-  --brand-c: 0.15;
-}
-[data-accent="green"] {
-  --brand-h: 155;
-  --brand-c: 0.13;
-  --brand-l: 0.5;
-}
-.dark[data-accent="green"],
-.dark [data-accent="green"] {
-  --brand-l: 0.76;
-  --brand-c: 0.17;
-}
-[data-accent="copper"] {
-  --brand-h: 60;
-  --brand-c: 0.1;
-  --brand-l: 0.52;
-}
-.dark[data-accent="copper"],
-.dark [data-accent="copper"] {
-  --brand-l: 0.72;
-  --brand-c: 0.11;
 }
 
 @layer base {

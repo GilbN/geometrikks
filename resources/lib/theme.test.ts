@@ -2,9 +2,9 @@ import { describe, expect, it } from "vitest"
 import { runInNewContext } from "node:vm"
 import { themeHead } from "./theme-bootstrap"
 import {
-  DARK_APPEARANCES,
+  COLOR_THEMES,
   THEMES,
-  parseDarkAppearance,
+  parseColorTheme,
   parseTheme,
   resolveTheme,
   themeColor,
@@ -35,13 +35,18 @@ describe("resolveTheme", () => {
   })
 })
 
-describe("dark appearance", () => {
-  it("accepts saved appearances and defaults existing browsers to Aurora", () => {
-    for (const appearance of DARK_APPEARANCES) {
-      expect(parseDarkAppearance(appearance)).toBe(appearance)
-    }
-    for (const value of [null, "", "unknown"]) {
-      expect(parseDarkAppearance(value)).toBe("aurora")
+describe("parseColorTheme", () => {
+  it("accepts every saved theme", () => {
+    for (const id of COLOR_THEMES) expect(parseColorTheme(id, "copper")).toBe(id)
+  })
+  it("maps a legacy accent when no valid theme is saved", () => {
+    expect(parseColorTheme(null, "teal")).toBe("aurora")
+    expect(parseColorTheme(null, "green")).toBe("moss")
+    expect(parseColorTheme("junk", "copper")).toBe("forge")
+  })
+  it("defaults to Aurora with nothing usable saved", () => {
+    for (const [saved, accent] of [[null, null], ["", ""], ["junk", "mauve"]] as const) {
+      expect(parseColorTheme(saved, accent)).toBe("aurora")
     }
   })
 })
@@ -78,22 +83,26 @@ describe("first-paint preferences", () => {
   }
 
   for (const theme of [null, "invalid", ...THEMES]) {
-    for (const appearance of [null, "invalid", ...DARK_APPEARANCES]) {
-      for (const prefersDark of [false, true]) {
-        it(`matches the provider for ${theme}/${appearance} with OS dark=${prefersDark}`, () => {
-          const saved: Record<string, string> = { "geometrikks-accent": "copper" }
-          if (theme !== null) saved["geometrikks-theme"] = theme
-          if (appearance !== null) saved["geometrikks-dark-appearance"] = appearance
-          const result = boot(saved, prefersDark)
-          const mode = resolveTheme(parseTheme(theme, "dark"), prefersDark)
-          const darkAppearance = parseDarkAppearance(appearance)
-          expect([...result.classes]).toEqual([mode])
-          expect(result.style.colorScheme).toBe(mode)
-          expect(result.attributes["data-dark-appearance"]).toBe(darkAppearance)
-          expect(result.attributes["data-accent"]).toBe("copper")
-          expect(result.meta.content).toBe(themeColor(mode, darkAppearance))
-          expect(result.style["--startup-background"]).toBe(themeColor(mode, darkAppearance))
-        })
+    for (const colorTheme of [null, "invalid", ...COLOR_THEMES]) {
+      for (const accent of [null, "green"]) {
+        for (const prefersDark of [false, true]) {
+          it(`matches the provider for ${theme}/${colorTheme}/accent ${accent} with OS dark=${prefersDark}`, () => {
+            const saved: Record<string, string> = {}
+            if (theme !== null) saved["geometrikks-theme"] = theme
+            if (colorTheme !== null) saved["geometrikks-color-theme"] = colorTheme
+            if (accent !== null) saved["geometrikks-accent"] = accent
+            const result = boot(saved, prefersDark)
+            const mode = resolveTheme(parseTheme(theme, "dark"), prefersDark)
+            const expectedTheme = parseColorTheme(colorTheme, accent)
+            expect([...result.classes]).toEqual([mode])
+            expect(result.style.colorScheme).toBe(mode)
+            expect(result.attributes["data-theme"]).toBe(expectedTheme)
+            expect(result.attributes).not.toHaveProperty("data-accent")
+            expect(result.attributes).not.toHaveProperty("data-dark-appearance")
+            expect(result.meta.content).toBe(themeColor(mode, expectedTheme))
+            expect(result.style["--startup-background"]).toBe(themeColor(mode, expectedTheme))
+          })
+        }
       }
     }
   }
@@ -102,5 +111,6 @@ describe("first-paint preferences", () => {
     const result = boot({}, false, true)
     expect([...result.classes]).toEqual(["dark"])
     expect(result.meta.content).toBe("#010810")
+    expect(result.attributes["data-theme"]).toBe("aurora")
   })
 })

@@ -12,8 +12,7 @@ import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerDescription, Dr
 import { Dialog, DialogContent, DialogTitle, DialogDescription, DialogTrigger } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { MapOverlay } from "@/components/map/MapOverlay"
-import { ACCENTS } from "@/lib/accent"
-import { DARK_APPEARANCES, DARK_APPEARANCE_CATALOG } from "@/lib/theme"
+import { COLOR_THEMES, THEME_CATALOG } from "@/lib/theme"
 
 function Controls() {
   const id = useId()
@@ -50,29 +49,39 @@ function Controls() {
 }
 
 function Gallery() {
-  const { theme, setTheme, darkAppearance, setDarkAppearance, accent, setAccent } = useTheme()
+  const { theme, setTheme, colorTheme, setColorTheme } = useTheme()
   return (
     <main className="mx-auto max-w-4xl space-y-6 p-4 md:p-8">
       <h1 className="text-xl font-semibold">Theme component preview</h1>
       <ModeToggle />
       <div className="flex flex-wrap gap-2" aria-label="Preview palette">
         <Button variant="outline" aria-pressed={theme === "light"} onClick={() => setTheme("light")}>Light</Button>
-        {DARK_APPEARANCES.map((id) => (
-          <Button key={id} variant="outline" aria-pressed={theme === "dark" && darkAppearance === id}
-            onClick={() => { setDarkAppearance(id); setTheme("dark") }}>
-            {DARK_APPEARANCE_CATALOG[id].label}
+        <Button variant="outline" aria-pressed={theme === "dark"} onClick={() => setTheme("dark")}>Dark</Button>
+        <Button variant="outline" aria-pressed={theme === "system"} onClick={() => setTheme("system")}>System</Button>
+        {COLOR_THEMES.map((id) => (
+          <Button key={id} variant="outline" aria-pressed={colorTheme === id} onClick={() => setColorTheme(id)}>
+            {THEME_CATALOG[id].label}
           </Button>
         ))}
-        <Button variant="outline" onClick={() => setTheme("system")}>System</Button>
-      </div>
-      <div className="flex flex-wrap gap-2" aria-label="Preview accent">
-        {ACCENTS.map((id) => <Button key={id} variant="outline" aria-pressed={accent === id} onClick={() => setAccent(id)}>{id}</Button>)}
       </div>
       <div data-testid="card" className="space-y-4 rounded-xl bg-card p-4 ring-1 ring-border">
         <h2 className="font-medium">Card controls</h2>
         <p className="text-muted-foreground">Muted text, grouped controls, and secondary fills.</p>
         <Controls />
       </div>
+      <section className="space-y-2">
+        <h2 className="font-medium">Scoped previews</h2>
+        <div className="flex gap-3">
+          <div data-testid="preview-light" data-theme="moss" className="light space-y-2 rounded-xl bg-glass-card p-3 text-foreground ring-1 ring-border">
+            <p className="text-sm">Light Moss</p>
+            <div className="h-6 rounded-md bg-card ring-1 ring-border" />
+          </div>
+          <div data-testid="preview-dark" data-theme="forge" className="dark space-y-2 rounded-xl bg-background p-3 text-foreground ring-1 ring-border">
+            <p className="text-sm">Dark Forge</p>
+            <div className="h-6 rounded-md bg-card ring-1 ring-border" />
+          </div>
+        </div>
+      </section>
       <div className="flex gap-3">
         <Drawer>
           <DrawerTrigger asChild><Button variant="outline">Open drawer</Button></DrawerTrigger>

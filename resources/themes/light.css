@@ -1,6 +1,9 @@
-:root {
-  /* Brand accent, decomposed so [data-accent] variants override only these
-     three numbers. Default: aurora teal. */
+:root, .light, .dark {
+  /* Declared on .dark too: derived tokens such as --glass-card must recompute
+     on a scoped preview element, not inherit <html>'s computed value. */
+
+  /* Brand accent as lightness, chroma and hue; --primary and its derivatives
+     compose from these. Default: aurora teal. */
   --brand-l: 0.52;
   --brand-c: 0.115;
   --brand-h: 178;

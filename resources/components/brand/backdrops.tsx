@@ -271,7 +271,7 @@ function CanvasBackdrop({
     }
     draw()
     const mo = new MutationObserver(draw)
-    mo.observe(document.documentElement, { attributes: true, attributeFilter: ["class", "data-accent", "data-dark-appearance"] })
+    mo.observe(document.documentElement, { attributes: true, attributeFilter: ["class", "data-theme"] })
     return () => {
       cancelAnimationFrame(frame)
       mo.disconnect()

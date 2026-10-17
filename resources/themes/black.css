@@ -1,4 +1,33 @@
-.dark[data-dark-appearance="black"] {
+[data-theme="black"]:not(.dark) {
+  --brand-l: 0.2;
+  --brand-c: 0;
+  --brand-h: 0;
+
+  --background: #f5f5f5;
+  --foreground: #171717;
+  --card: #ffffff;
+  --card-foreground: #171717;
+  --popover: #ffffff;
+  --popover-foreground: #171717;
+  --primary-foreground: #ffffff;
+  --secondary: #ebebeb;
+  --secondary-foreground: #262626;
+  --muted: #ebebeb;
+  --muted-foreground: #666666;
+  --border: #e3e3e3;
+  --input: #e3e3e3;
+  --sidebar: #fafafa;
+  --sidebar-foreground: #171717;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-border: #e3e3e3;
+  --shadow-card: 0 1px 2px rgb(0 0 0 / 6%);
+}
+
+.dark[data-theme="black"] {
+  --brand-l: 0.93;
+  --brand-c: 0;
+  --brand-h: 0;
+
   --background: #0a0a0a;
   --foreground: #e8e8e8;
   --card: #0d0d0d;

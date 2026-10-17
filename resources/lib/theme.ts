@@ -16,47 +16,72 @@ export function resolveTheme(theme: Theme, prefersDark: boolean): ResolvedTheme 
   return theme
 }
 
-/** The dark palette is independent of the light/dark/system preference. */
-type AppearanceDefinition = {
+type SchemeColors = { themeColor: string; foreground: string }
+
+type ThemeDefinition = {
   label: string
   description: string
-  themeColor: string
-  foreground: string
+  light: SchemeColors
+  dark: SchemeColors
 }
 
-export const DARK_APPEARANCE_CATALOG = {
+/** `themeColor` must be the hex of that scheme's computed --background: it
+ * paints before the stylesheet loads and the first-paint test compares them. */
+export const THEME_CATALOG = {
   aurora: {
     label: "Aurora",
-    description: "Blue-tinted surfaces and map contours.",
-    themeColor: "#010810",
-    foreground: "oklch(0.95 0.01 220)",
+    description: "Fjord mist and Aurora night, teal. The default.",
+    light: { themeColor: "#f0f6f9", foreground: "oklch(0.22 0.03 250)" },
+    dark: { themeColor: "#010810", foreground: "oklch(0.95 0.01 220)" },
+  },
+  moss: {
+    label: "Moss",
+    description: "Green, with surfaces tinted to match.",
+    light: { themeColor: "#f1f7f3", foreground: "oklch(0.22 0.025 165)" },
+    dark: { themeColor: "#010a06", foreground: "oklch(0.95 0.01 160)" },
+  },
+  forge: {
+    label: "Forge",
+    description: "Copper, with warm neutral surfaces.",
+    light: { themeColor: "#f8f4f1", foreground: "oklch(0.22 0.015 55)" },
+    dark: { themeColor: "#0c0806", foreground: "oklch(0.95 0.008 70)" },
   },
   black: {
     label: "Black",
-    description: "Near-black with subtly lighter panels.",
-    themeColor: "#0a0a0a",
-    foreground: "#e8e8e8",
+    description: "Plain white or near-black, no tint, monochrome buttons.",
+    light: { themeColor: "#f5f5f5", foreground: "#171717" },
+    dark: { themeColor: "#0a0a0a", foreground: "#e8e8e8" },
   },
-} as const satisfies Record<string, AppearanceDefinition>
+} as const satisfies Record<string, ThemeDefinition>
 
-export type DarkAppearance = keyof typeof DARK_APPEARANCE_CATALOG
-export const DARK_APPEARANCES = Object.keys(DARK_APPEARANCE_CATALOG) as DarkAppearance[]
-export const DEFAULT_DARK_APPEARANCE: DarkAppearance = "aurora"
-export const LIGHT_PALETTE = { themeColor: "#f0f6f9", foreground: "oklch(0.22 0.03 250)" } as const
+export type ColorTheme = keyof typeof THEME_CATALOG
+export const COLOR_THEMES = Object.keys(THEME_CATALOG) as ColorTheme[]
+export const DEFAULT_COLOR_THEME: ColorTheme = "aurora"
+
+/** Accents saved before themes existed, mapped to the theme that replaced them. */
+export const LEGACY_ACCENT_THEMES: Record<string, ColorTheme> = {
+  teal: "aurora",
+  green: "moss",
+  copper: "forge",
+}
 
 export const THEME_STORAGE_KEYS = {
   mode: "geometrikks-theme",
-  appearance: "geometrikks-dark-appearance",
-  accent: "geometrikks-accent",
+  theme: "geometrikks-color-theme",
+  legacyAccent: "geometrikks-accent",
 } as const
 
-export function parseDarkAppearance(value: string | null): DarkAppearance {
-  return (DARK_APPEARANCES as readonly string[]).includes(value ?? "")
-    ? (value as DarkAppearance)
-    : DEFAULT_DARK_APPEARANCE
+function isColorTheme(value: string | null | undefined): value is ColorTheme {
+  return (COLOR_THEMES as readonly string[]).includes(value ?? "")
 }
 
-/** Browser chrome follows the selected appearance, including in System mode. */
-export function themeColor(theme: ResolvedTheme, appearance: DarkAppearance): string {
-  return theme === "light" ? LIGHT_PALETTE.themeColor : DARK_APPEARANCE_CATALOG[appearance].themeColor
+/** The startup script in theme-bootstrap.ts repeats this rule. */
+export function parseColorTheme(saved: string | null, legacyAccent: string | null): ColorTheme {
+  if (isColorTheme(saved)) return saved
+  const legacy: string | undefined = LEGACY_ACCENT_THEMES[legacyAccent ?? ""]
+  return isColorTheme(legacy) ? legacy : DEFAULT_COLOR_THEME
+}
+
+export function themeColor(scheme: ResolvedTheme, theme: ColorTheme): string {
+  return THEME_CATALOG[theme][scheme].themeColor
 }

@@ -22,7 +22,6 @@ import {
 import { Separator } from "@/components/ui/separator"
 import { AppSidebar } from "@/components/app-sidebar"
 import { ModeToggle } from "@/components/mode-toggle"
-import { AccentToggle } from "@/components/accent-toggle"
 import { TimeRangeProvider } from "@/lib/time-range-context"
 import { LiveFeedProvider } from "@/lib/live-feed-context"
 import { TimeRangeToolbar } from "@/components/time-range-toolbar"
@@ -158,7 +157,6 @@ function RootLayout() {
                       mobile map-controls drawer trigger in MapControls). */}
                   <span id="header-actions-slot" className="contents" />
                   <Separator orientation="vertical" className="hidden h-6 sm:block" />
-                  <AccentToggle />
                   <ModeToggle />
                 </div>
               </header>

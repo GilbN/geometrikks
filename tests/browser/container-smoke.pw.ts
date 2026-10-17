@@ -2,15 +2,19 @@ import { mkdir } from "node:fs/promises"
 import path from "node:path"
 
 import { expect, test } from "@playwright/test"
-import { DARK_APPEARANCES, DARK_APPEARANCE_CATALOG, THEME_STORAGE_KEYS, themeColor } from "../../resources/lib/theme"
+import { COLOR_THEMES, THEME_CATALOG, THEME_STORAGE_KEYS, themeColor, type ColorTheme } from "../../resources/lib/theme"
 
-for (const appearance of DARK_APPEARANCES) {
-  test(`production starts ${appearance} before the application JavaScript loads`, async ({ page }) => {
-    await page.addInitScript(({ keys, appearance }) => {
-      localStorage.setItem(keys.mode, "dark")
-      localStorage.setItem(keys.appearance, appearance)
-      localStorage.setItem(keys.accent, "copper")
-    }, { keys: THEME_STORAGE_KEYS, appearance })
+const startupCases: Array<{ name: string; saved: Record<string, string>; theme: ColorTheme }> = [
+  ...COLOR_THEMES.map((theme) => ({ name: theme, saved: { [THEME_STORAGE_KEYS.theme]: theme }, theme })),
+  { name: "a legacy copper accent", saved: { [THEME_STORAGE_KEYS.legacyAccent]: "copper" }, theme: "forge" },
+]
+
+for (const { name, saved, theme } of startupCases) {
+  test(`production starts ${name} before the application JavaScript loads`, async ({ page }) => {
+    await page.addInitScript(({ modeKey, saved }) => {
+      localStorage.setItem(modeKey, "dark")
+      for (const [key, value] of Object.entries(saved)) localStorage.setItem(key, value)
+    }, { modeKey: THEME_STORAGE_KEYS.mode, saved })
     // Leave the inline bootstrap and stylesheet intact while blocking the app.
     await page.route("**/static/assets/*.js", (route) => route.abort())
     const response = await page.goto("/")
@@ -19,9 +23,8 @@ for (const appearance of DARK_APPEARANCES) {
     expect(html).not.toContain("<!-- theme-head -->")
     expect(html).toMatch(/<script[^>]+src="\/static\/assets\//)
     await expect(page.locator("html")).toHaveClass("dark")
-    await expect(page.locator("html")).toHaveAttribute("data-dark-appearance", appearance)
-    await expect(page.locator("html")).toHaveAttribute("data-accent", "copper")
-    await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute("content", themeColor("dark", appearance))
+    await expect(page.locator("html")).toHaveAttribute("data-theme", theme)
+    await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute("content", themeColor("dark", theme))
     await expect(page.locator("#app")).toBeEmpty()
   })
 }
@@ -56,9 +59,8 @@ test("production theme menu marks the saved mode and keeps Settings selection co
     await page.keyboard.press("Escape")
   }
   const layouts: Array<{ padding: string; height: string; radius: string; background: string }> = []
-  for (const appearance of DARK_APPEARANCES) {
-    await page.getByRole("button", { name: "Toggle theme", exact: true }).click()
-    await page.getByRole("menuitemradio", { name: DARK_APPEARANCE_CATALOG[appearance].label, exact: true }).click()
+  for (const id of COLOR_THEMES) {
+    await page.getByRole("radio", { name: THEME_CATALOG[id].label }).click()
     const navigation = page.getByRole("navigation", { name: "Settings", exact: true })
     await navigation.getByRole("link", { name: "Status", exact: true }).click()
     await navigation.getByRole("link", { name: "Appearance", exact: true }).click()
