@@ -59,7 +59,7 @@ def make_service(
         repos_factory=cast("Any", repos.factory),
         geoip_path=city,
         asn_db_path=asn,
-        hostname="test-host",
+        server="test-host",
         commit_interval=0.1,
     )
 

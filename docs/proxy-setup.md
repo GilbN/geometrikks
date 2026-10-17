@@ -13,11 +13,11 @@ guide covers the common setups.
 Settings > Status raises one of two advisories when a tailed log's most
 recent traffic looks wrong:
 
-- **CDN peer.** Most requests for a host come from a known CDN's ASN. The
-  summary names the provider and the share, for example "94% of the last
-  2,000 requests for example.com came from Cloudflare addresses." The map
-  still fills in, just with the CDN's edge locations instead of your
-  visitors'.
+- **CDN peer.** Most requests on a server come from a known CDN's ASN. The
+  summary names the server, the provider and the share, for example "94% of
+  the last 2,000 requests on server edge-01 came from Cloudflare addresses."
+  The map still fills in, just with the CDN's edge locations instead of
+  your visitors'.
 - **Private peer.** Most requests come from a private address. The summary
   names the share; the effect is not a wrong location but no location: rows
   with a private peer are dropped before geolocation, so they never reach

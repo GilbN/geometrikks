@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
 import msgspec
 
 from geometrikks.server.logging import get_logger
+
+if TYPE_CHECKING:
+    from geometrikks.config.settings import LegacyEnvName
 
 logger = get_logger(__name__)
 
@@ -71,21 +74,21 @@ DATABASE_RECOVERY_FAILED = Advisory(
     ),
 )
 
-MAP_HOME_UNDETECTED = Advisory(
-    id="map-home-undetected",
+SERVER_LOCATION_UNDETECTED = Advisory(
+    id="server-location-undetected",
     severity="warning",
     summary=(
-        "The map's home location could not be detected, so routes have no "
-        "origin and the home marker is hidden."
+        "This server's location could not be detected, so routes have no "
+        "origin and its map marker is hidden."
     ),
     detail=(
-        "The app keeps map traffic visible without route origins or a home "
+        "Map traffic stays visible, just without route origins or a server "
         "marker. Check outbound access to the public-IP service and that the "
-        "City database can locate its result, or configure the home coordinates. "
-        "When scheduling and background jobs are active, the site-home refresh "
-        "job retries detection."
+        "City database can locate its result, or set the coordinates yourself. "
+        "When scheduling and background jobs are active, the "
+        "server-location-refresh job retries detection."
     ),
-    remedy="MAP_HOME_LATITUDE and MAP_HOME_LONGITUDE",
+    remedy="MAP_SERVER_LATITUDE and MAP_SERVER_LONGITUDE",
 )
 
 CITY_DATABASE_MISSING = Advisory(
@@ -114,3 +117,20 @@ INGESTION_STOPPED = Advisory(
         "restart the app after fixing the cause."
     ),
 )
+
+
+def legacy_env_advisory(names: list["LegacyEnvName"]) -> Advisory:
+    """Warn that this process reads env vars under names that were renamed."""
+    renames = "\n".join(f"{legacy_env_name.old} → {legacy_env_name.new}" for legacy_env_name in names)
+    noun = "variable uses its old name" if len(names) == 1 else "variables use their old names"
+    return Advisory(
+        id="legacy-env-names",
+        severity="warning",
+        summary=f"{len(names)} environment {noun}.",
+        detail=(
+            "The old names keep working until 1.0. Rename them in your compose "
+            "file or .env and restart. Setting both names to different values "
+            "stops startup."
+        ),
+        remedy=renames,
+    )

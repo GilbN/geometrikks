@@ -125,7 +125,7 @@ export function LiveFeedList({
                 >
                   <CountryFlag code={request.countryCode} className="mr-1 inline-block h-[9px] w-3 align-[-1px]" />
                   {[request.city, request.countryCode].filter(Boolean).join(", ") || request.ip}
-                  {request.hostname ? ` · ${request.hostname}` : ""}
+                  {request.server ? ` · ${request.server}` : ""}
                 </span>
               </button>
             )

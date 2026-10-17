@@ -10,11 +10,11 @@ from geometrikks.domain.system.proxy_detection import (
 from geometrikks.services.logparser.peer_window import PeerSummary
 
 
-def fake_input(*, hostname="web-01", fmt="nginx", summary=None):
+def fake_input(*, server="web-01", fmt="nginx", summary=None):
     return SimpleNamespace(
-        source=SimpleNamespace(hostname=hostname),
+        source=SimpleNamespace(server=server),
         parser=SimpleNamespace(
-            source_label=f"/logs/{hostname}.log",
+            source_label=f"/logs/{server}.log",
             format=SimpleNamespace(name=fmt) if fmt else None,
             peer_summary=lambda: summary,
         ),
@@ -54,20 +54,20 @@ def test_findings_one_per_active_kind() -> None:
     [cdn, private] = proxy_findings([fake_input(summary=s)])
     assert cdn.kind == "cdn" and cdn.provider == "Cloudflare" and cdn.share == 0.94
     assert private.kind == "private" and private.provider is None
-    assert cdn.hostname == "web-01" and cdn.log_format == "nginx"
+    assert cdn.server == "web-01" and cdn.log_format == "nginx"
 
 
-def test_findings_use_the_default_hostname_for_a_source_without_one() -> None:
+def test_findings_use_the_default_server_for_a_source_without_one() -> None:
     s = summary(cdn_share=0.94, cdn_active=True, top_provider="Cloudflare")
-    [finding] = proxy_findings([fake_input(hostname="", summary=s)], default_hostname="edge")
-    assert finding.hostname == "edge"
+    [finding] = proxy_findings([fake_input(server="", summary=s)], default_server="edge")
+    assert finding.server == "edge"
 
 
-def fake_service(*inputs, hostname="localhost"):
+def fake_service(*inputs, server="localhost"):
     return SimpleNamespace(
         inputs=list(inputs),
-        hostname=hostname,
-        hostname_for=lambda log_input: log_input.source.hostname or hostname,
+        server=server,
+        server_for=lambda log_input: log_input.source.server or server,
         failed_batches=0,
         failed_records=0,
     )
@@ -133,12 +133,13 @@ def test_collect_advisories_includes_proxy_cards(monkeypatch) -> None:
     s = summary(private_share=0.9, private_active=True)
     service = fake_service(fake_input(summary=s))
     monkeypatch.setattr(runtime, "get_ingestion_service", lambda app: service)
-    monkeypatch.setattr(timescale, "get_hostname_pollution", lambda: None)
+    monkeypatch.setattr(timescale, "get_server_name_pollution", lambda: None)
     monkeypatch.setattr(health, "_stale_geoip_advisories", lambda settings: [])
 
     settings = SimpleNamespace(
         app=SimpleNamespace(proxy_advisory=True),
         geoip=SimpleNamespace(asn_enabled=False),
+        legacy_env_names_in_use=lambda: [],
     )
     app = SimpleNamespace(state=SimpleNamespace())
     cards = health._collect_advisories(app=cast(Any, app), settings=cast(Any, settings))
@@ -151,11 +152,12 @@ def test_collect_advisories_respects_off_switch(monkeypatch) -> None:
     from geometrikks.server import runtime, timescale
 
     monkeypatch.setattr(runtime, "get_ingestion_service", lambda app: None)
-    monkeypatch.setattr(timescale, "get_hostname_pollution", lambda: None)
+    monkeypatch.setattr(timescale, "get_server_name_pollution", lambda: None)
     monkeypatch.setattr(health, "_stale_geoip_advisories", lambda settings: [])
     settings = SimpleNamespace(
         app=SimpleNamespace(proxy_advisory=False),
         geoip=SimpleNamespace(asn_enabled=False),
+        legacy_env_names_in_use=lambda: [],
     )
     app = SimpleNamespace(state=SimpleNamespace())
     assert health._collect_advisories(app=cast(Any, app), settings=cast(Any, settings)) == []
@@ -167,11 +169,12 @@ def test_collect_advisories_survives_no_ingestion_service(monkeypatch) -> None:
     from geometrikks.server import runtime, timescale
 
     monkeypatch.setattr(runtime, "get_ingestion_service", lambda app: None)
-    monkeypatch.setattr(timescale, "get_hostname_pollution", lambda: None)
+    monkeypatch.setattr(timescale, "get_server_name_pollution", lambda: None)
     monkeypatch.setattr(health, "_stale_geoip_advisories", lambda settings: [])
     settings = SimpleNamespace(
         app=SimpleNamespace(proxy_advisory=True),
         geoip=SimpleNamespace(asn_enabled=False),
+        legacy_env_names_in_use=lambda: [],
     )
     app = SimpleNamespace(state=SimpleNamespace())
     assert health._collect_advisories(app=cast(Any, app), settings=cast(Any, settings)) == []
@@ -186,10 +189,10 @@ def test_collect_advisories_merges_scan_findings(monkeypatch) -> None:
     from geometrikks.server import runtime, timescale
 
     s = summary(cdn_share=0.9, cdn_active=True, top_provider="Fastly")
-    local = fake_input(hostname="web-01", summary=s)
+    local = fake_input(server="web-01", summary=s)
     service = fake_service(local)
     monkeypatch.setattr(runtime, "get_ingestion_service", lambda app: service)
-    monkeypatch.setattr(timescale, "get_hostname_pollution", lambda: None)
+    monkeypatch.setattr(timescale, "get_server_name_pollution", lambda: None)
     monkeypatch.setattr(health, "_stale_geoip_advisories", lambda settings: [])
     scan = [
         ProxyFinding("traefik-01", "", "traefik-json", "cdn", 0.94, 1200, "Cloudflare"),
@@ -200,6 +203,7 @@ def test_collect_advisories_merges_scan_findings(monkeypatch) -> None:
     settings = SimpleNamespace(
         app=SimpleNamespace(proxy_advisory=True),
         geoip=SimpleNamespace(asn_enabled=False),
+        legacy_env_names_in_use=lambda: [],
     )
     app = SimpleNamespace(state=SimpleNamespace())
     [card] = health._collect_advisories(app=cast(Any, app), settings=cast(Any, settings))
@@ -208,15 +212,15 @@ def test_collect_advisories_merges_scan_findings(monkeypatch) -> None:
     assert card.summary.count("web-01") == 1
 
 
-def test_collect_advisories_dedupes_scan_findings_by_the_service_hostname(monkeypatch) -> None:
+def test_collect_advisories_dedupes_scan_findings_by_the_service_server(monkeypatch) -> None:
     from geometrikks.domain.system import proxy_scan
     from geometrikks.domain.system.controllers import health
     from geometrikks.server import runtime, timescale
 
     s = summary(cdn_share=0.9, cdn_active=True, top_provider="Fastly")
-    service = fake_service(fake_input(hostname="", summary=s), hostname="edge")
+    service = fake_service(fake_input(server="", summary=s), server="edge")
     monkeypatch.setattr(runtime, "get_ingestion_service", lambda app: service)
-    monkeypatch.setattr(timescale, "get_hostname_pollution", lambda: None)
+    monkeypatch.setattr(timescale, "get_server_name_pollution", lambda: None)
     monkeypatch.setattr(health, "_stale_geoip_advisories", lambda settings: [])
     scan = [ProxyFinding("edge", "", "nginx", "cdn", 0.8, 999, "Fastly")]
     monkeypatch.setattr(proxy_scan, "get_scan_findings", lambda: scan)
@@ -224,6 +228,7 @@ def test_collect_advisories_dedupes_scan_findings_by_the_service_hostname(monkey
     settings = SimpleNamespace(
         app=SimpleNamespace(proxy_advisory=True),
         geoip=SimpleNamespace(asn_enabled=False),
+        legacy_env_names_in_use=lambda: [],
     )
     app = SimpleNamespace(state=SimpleNamespace())
     [card] = health._collect_advisories(app=cast(Any, app), settings=cast(Any, settings))
@@ -240,7 +245,7 @@ def test_collect_advisories_scan_only_when_no_ingestion_service(monkeypatch) -> 
     from geometrikks.server import runtime, timescale
 
     monkeypatch.setattr(runtime, "get_ingestion_service", lambda app: None)
-    monkeypatch.setattr(timescale, "get_hostname_pollution", lambda: None)
+    monkeypatch.setattr(timescale, "get_server_name_pollution", lambda: None)
     monkeypatch.setattr(health, "_stale_geoip_advisories", lambda settings: [])
     scan = [ProxyFinding("traefik-01", "", "traefik-json", "cdn", 0.94, 1200, "Cloudflare")]
     monkeypatch.setattr(proxy_scan, "get_scan_findings", lambda: scan)
@@ -248,6 +253,7 @@ def test_collect_advisories_scan_only_when_no_ingestion_service(monkeypatch) -> 
     settings = SimpleNamespace(
         app=SimpleNamespace(proxy_advisory=True),
         geoip=SimpleNamespace(asn_enabled=False),
+        legacy_env_names_in_use=lambda: [],
     )
     app = SimpleNamespace(state=SimpleNamespace())
     cards = health._collect_advisories(app=cast(Any, app), settings=cast(Any, settings))

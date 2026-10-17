@@ -20,17 +20,17 @@ ASN = 64500
 
 async def _insert_log(
     session, *, ts, ip=SCANNER, url="/", host="blog.example.com", status=404,
-    ua="Go-http-client/1.1", asn=ASN, org="Example Hosting", hostname="nostromo",
+    ua="Go-http-client/1.1", asn=ASN, org="Example Hosting", server="nostromo",
 ):
     await session.execute(text(
         "INSERT INTO access_logs (timestamp, ip_address, method, url, http_version, host, "
-        "status_code, bytes_sent, user_agent, referrer, hostname, country_code, "
+        "status_code, bytes_sent, user_agent, referrer, server, country_code, "
         "autonomous_system_number, autonomous_system_organization) "
         "VALUES (:ts, CAST(:ip AS inet), 'GET', :url, 'HTTP/1.1', :host, :status, 10, :ua, "
-        "'https://blog.example.com/', :hostname, 'US', :asn, :org)"
+        "'https://blog.example.com/', :server, 'US', :asn, :org)"
     ), {
         "ts": ts, "ip": ip, "url": url, "host": host, "status": status, "ua": ua,
-        "asn": asn, "org": org, "hostname": hostname,
+        "asn": asn, "org": org, "server": server,
     })
 
 

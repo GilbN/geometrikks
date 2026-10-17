@@ -491,12 +491,6 @@
             },
             "type": "array"
           },
-          "hostnames": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          },
           "hosts": {
             "items": {
               "type": "string"
@@ -508,14 +502,20 @@
               "type": "string"
             },
             "type": "array"
+          },
+          "servers": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
           }
         },
         "required": [
           "cities",
           "countries",
-          "hostnames",
           "hosts",
-          "logFormats"
+          "logFormats",
+          "servers"
         ],
         "title": "AccessLogFacets",
         "type": "object"
@@ -1831,22 +1831,6 @@
         "title": "DecisionView",
         "type": "object"
       },
-      "DefaultHomeView": {
-        "properties": {
-          "latitude": {
-            "type": "number"
-          },
-          "longitude": {
-            "type": "number"
-          }
-        },
-        "required": [
-          "latitude",
-          "longitude"
-        ],
-        "title": "DefaultHomeView",
-        "type": "object"
-      },
       "DefaultMapView": {
         "properties": {
           "latitude": {
@@ -1865,6 +1849,22 @@
           "zoom"
         ],
         "title": "DefaultMapView",
+        "type": "object"
+      },
+      "DefaultServerLocationView": {
+        "properties": {
+          "latitude": {
+            "type": "number"
+          },
+          "longitude": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "latitude",
+          "longitude"
+        ],
+        "title": "DefaultServerLocationView",
         "type": "object"
       },
       "EmbeddedLocationDTO": {
@@ -2004,7 +2004,7 @@
             },
             "type": "array"
           },
-          "hostnames": {
+          "servers": {
             "items": {
               "type": "string"
             },
@@ -2015,7 +2015,7 @@
           "asns",
           "cities",
           "countries",
-          "hostnames"
+          "servers"
         ],
         "title": "GeoEventFacets",
         "type": "object"
@@ -2385,12 +2385,6 @@
           "eventCount": {
             "type": "integer"
           },
-          "hostnames": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          },
           "ipAddress": {
             "type": "string"
           },
@@ -2424,6 +2418,12 @@
               }
             ]
           },
+          "servers": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
           "state": {
             "oneOf": [
               {
@@ -2452,13 +2452,13 @@
           "countryCode",
           "countryName",
           "eventCount",
-          "hostnames",
           "ipAddress",
           "lastSeen",
           "latitude",
           "locationId",
           "longitude",
           "postalCode",
+          "servers",
           "state",
           "stateCode"
         ],
@@ -3270,16 +3270,6 @@
               }
             ]
           },
-          "hostname": {
-            "oneOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
           "httpVersion": {
             "oneOf": [
               {
@@ -3333,6 +3323,16 @@
             "oneOf": [
               {
                 "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "server": {
+            "oneOf": [
+              {
+                "type": "string"
               },
               {
                 "type": "null"
@@ -3513,9 +3513,6 @@
               }
             ]
           },
-          "hostname": {
-            "type": "string"
-          },
           "id": {
             "type": "integer"
           },
@@ -3528,17 +3525,20 @@
           "locationId": {
             "type": "integer"
           },
+          "server": {
+            "type": "string"
+          },
           "timestamp": {
             "format": "date-time",
             "type": "string"
           }
         },
         "required": [
-          "hostname",
           "id",
           "ipAddress",
           "location",
-          "locationId"
+          "locationId",
+          "server"
         ],
         "title": "ListGeoEventsGeoEventResponseBody",
         "type": "object"
@@ -3843,9 +3843,6 @@
           "available": {
             "type": "boolean"
           },
-          "hostname": {
-            "type": "string"
-          },
           "label": {
             "type": "string"
           },
@@ -3874,16 +3871,19 @@
                 "type": "null"
               }
             ]
+          },
+          "server": {
+            "type": "string"
           }
         },
         "required": [
           "available",
-          "hostname",
           "label",
           "logFormat",
           "parsedLines",
           "query",
-          "reason"
+          "reason",
+          "server"
         ],
         "title": "LokiSourceStats",
         "type": "object"
@@ -3910,7 +3910,7 @@
               }
             ]
           },
-          "homeLatitude": {
+          "serverLatitude": {
             "oneOf": [
               {
                 "type": "number"
@@ -3920,17 +3920,7 @@
               }
             ]
           },
-          "homeLongitude": {
-            "oneOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "homeSource": {
+          "serverLocationSource": {
             "enum": [
               "configured",
               "external_ip",
@@ -3940,14 +3930,24 @@
               "null",
               "string"
             ]
+          },
+          "serverLongitude": {
+            "oneOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
           "cartoApiKey",
           "defaultView",
-          "homeLatitude",
-          "homeLongitude",
-          "homeSource"
+          "serverLatitude",
+          "serverLocationSource",
+          "serverLongitude"
         ],
         "title": "MapSettingsView",
         "type": "object"
@@ -4933,6 +4933,82 @@
         "title": "SchedulerJobsResponse",
         "type": "object"
       },
+      "ServerLocationView": {
+        "properties": {
+          "detectedAt": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "lastEventDay": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "latitude": {
+            "type": "number"
+          },
+          "longitude": {
+            "type": "number"
+          },
+          "server": {
+            "type": "string"
+          },
+          "source": {
+            "enum": [
+              "auto",
+              "override"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "detectedAt",
+          "lastEventDay",
+          "latitude",
+          "longitude",
+          "server",
+          "source"
+        ],
+        "title": "ServerLocationView",
+        "type": "object"
+      },
+      "ServerLocationsResponse": {
+        "properties": {
+          "default": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/DefaultServerLocationView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "locations": {
+            "items": {
+              "$ref": "#/components/schemas/ServerLocationView"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "default",
+          "locations"
+        ],
+        "title": "ServerLocationsResponse",
+        "type": "object"
+      },
       "SessionUser": {
         "properties": {
           "mode": {
@@ -5043,82 +5119,6 @@
           "title"
         ],
         "title": "SettingsSectionView",
-        "type": "object"
-      },
-      "SiteHomeView": {
-        "properties": {
-          "detectedAt": {
-            "oneOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "hostname": {
-            "type": "string"
-          },
-          "lastEventDay": {
-            "oneOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "latitude": {
-            "type": "number"
-          },
-          "longitude": {
-            "type": "number"
-          },
-          "source": {
-            "enum": [
-              "auto",
-              "override"
-            ],
-            "type": "string"
-          }
-        },
-        "required": [
-          "detectedAt",
-          "hostname",
-          "lastEventDay",
-          "latitude",
-          "longitude",
-          "source"
-        ],
-        "title": "SiteHomeView",
-        "type": "object"
-      },
-      "SiteHomesResponse": {
-        "properties": {
-          "default": {
-            "oneOf": [
-              {
-                "$ref": "#/components/schemas/DefaultHomeView"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "homes": {
-            "items": {
-              "$ref": "#/components/schemas/SiteHomeView"
-            },
-            "type": "array"
-          }
-        },
-        "required": [
-          "default",
-          "homes"
-        ],
-        "title": "SiteHomesResponse",
         "type": "object"
       },
       "SummaryResponse": {
@@ -6737,10 +6737,12 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
+            "description": "Filter to these servers (repeatable)",
             "in": "query",
-            "name": "hostnameIn",
+            "name": "serverIn",
             "required": false,
             "schema": {
+              "description": "Filter to these servers (repeatable)",
               "oneOf": [
                 {
                   "items": {
@@ -6758,10 +6760,12 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
+            "description": "Exclude these servers (repeatable)",
             "in": "query",
-            "name": "hostnameNotIn",
+            "name": "serverNotIn",
             "required": false,
             "schema": {
+              "description": "Exclude these servers (repeatable)",
               "oneOf": [
                 {
                   "items": {
@@ -9718,12 +9722,12 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "Filter to these recording hostnames (repeatable)",
+            "description": "Filter to these servers (repeatable)",
             "in": "query",
-            "name": "hostnameIn",
+            "name": "serverIn",
             "required": false,
             "schema": {
-              "description": "Filter to these recording hostnames (repeatable)",
+              "description": "Filter to these servers (repeatable)",
               "oneOf": [
                 {
                   "items": {
@@ -10374,12 +10378,12 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "Filter to these recording hostnames (repeatable)",
+            "description": "Filter to these servers (repeatable)",
             "in": "query",
-            "name": "hostnameIn",
+            "name": "serverIn",
             "required": false,
             "schema": {
-              "description": "Filter to these recording hostnames (repeatable)",
+              "description": "Filter to these servers (repeatable)",
               "oneOf": [
                 {
                   "items": {
@@ -10593,12 +10597,12 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "Filter to these recording hostnames (repeatable)",
+            "description": "Filter to these servers (repeatable)",
             "in": "query",
-            "name": "hostnameIn",
+            "name": "serverIn",
             "required": false,
             "schema": {
-              "description": "Filter to these recording hostnames (repeatable)",
+              "description": "Filter to these servers (repeatable)",
               "oneOf": [
                 {
                   "items": {
@@ -10937,12 +10941,12 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "Filter to these recording hostnames (repeatable)",
+            "description": "Filter to these servers (repeatable)",
             "in": "query",
-            "name": "hostnameIn",
+            "name": "serverIn",
             "required": false,
             "schema": {
-              "description": "Filter to these recording hostnames (repeatable)",
+              "description": "Filter to these servers (repeatable)",
               "oneOf": [
                 {
                   "items": {
@@ -11216,12 +11220,12 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "Filter to these recording hostnames (repeatable)",
+            "description": "Filter to these servers (repeatable)",
             "in": "query",
-            "name": "hostnameIn",
+            "name": "serverIn",
             "required": false,
             "schema": {
-              "description": "Filter to these recording hostnames (repeatable)",
+              "description": "Filter to these servers (repeatable)",
               "oneOf": [
                 {
                   "items": {
@@ -11530,12 +11534,12 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "Filter to these recording hostnames (repeatable)",
+            "description": "Filter to these servers (repeatable)",
             "in": "query",
-            "name": "hostnameIn",
+            "name": "serverIn",
             "required": false,
             "schema": {
-              "description": "Filter to these recording hostnames (repeatable)",
+              "description": "Filter to these servers (repeatable)",
               "oneOf": [
                 {
                   "items": {
@@ -11811,12 +11815,12 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "Filter to these recording hostnames (repeatable)",
+            "description": "Filter to these servers (repeatable)",
             "in": "query",
-            "name": "hostnameIn",
+            "name": "serverIn",
             "required": false,
             "schema": {
-              "description": "Filter to these recording hostnames (repeatable)",
+              "description": "Filter to these servers (repeatable)",
               "oneOf": [
                 {
                   "items": {
@@ -12092,12 +12096,12 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "Filter to these recording hostnames (repeatable)",
+            "description": "Filter to these servers (repeatable)",
             "in": "query",
-            "name": "hostnameIn",
+            "name": "serverIn",
             "required": false,
             "schema": {
-              "description": "Filter to these recording hostnames (repeatable)",
+              "description": "Filter to these servers (repeatable)",
               "oneOf": [
                 {
                   "items": {
@@ -12373,12 +12377,12 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "Filter to these recording hostnames (repeatable)",
+            "description": "Filter to these servers (repeatable)",
             "in": "query",
-            "name": "hostnameIn",
+            "name": "serverIn",
             "required": false,
             "schema": {
-              "description": "Filter to these recording hostnames (repeatable)",
+              "description": "Filter to these servers (repeatable)",
               "oneOf": [
                 {
                   "items": {
@@ -12811,12 +12815,12 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "Filter to these recording hostnames (repeatable)",
+            "description": "Filter to these servers (repeatable)",
             "in": "query",
-            "name": "hostnameIn",
+            "name": "serverIn",
             "required": false,
             "schema": {
-              "description": "Filter to these recording hostnames (repeatable)",
+              "description": "Filter to these servers (repeatable)",
               "oneOf": [
                 {
                   "items": {
@@ -12934,17 +12938,17 @@
         ]
       }
     },
-    "/api/v1/geo-locations/site-homes": {
+    "/api/v1/geo-locations/server-locations": {
       "get": {
         "deprecated": false,
-        "description": "Per-source home locations for the map.",
-        "operationId": "ApiV1GeoLocationsSiteHomesSiteHomes",
+        "description": "Where each server sits on the map.",
+        "operationId": "ApiV1GeoLocationsServerLocationsServerLocations",
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/SiteHomesResponse"
+                  "$ref": "#/components/schemas/ServerLocationsResponse"
                 }
               }
             },
@@ -12952,26 +12956,26 @@
             "headers": {}
           }
         },
-        "summary": "SiteHomes",
+        "summary": "ServerLocations",
         "tags": [
           "Geo Locations"
         ]
       }
     },
-    "/api/v1/geo-locations/site-homes/{hostname}": {
+    "/api/v1/geo-locations/server-locations/{server}": {
       "delete": {
         "deprecated": false,
-        "description": "Remove a retired source's auto-detected home. Override rows (MAP_HOME_LOCATIONS) cannot be removed here.",
-        "operationId": "ApiV1GeoLocationsSiteHomesHostnameDeleteSiteHome",
+        "description": "Remove a retired server's auto-detected location. Locations pinned by MAP_SERVER_LOCATIONS cannot be removed here.",
+        "operationId": "ApiV1GeoLocationsServerLocationsDeleteServerLocation",
         "parameters": [
           {
             "deprecated": false,
-            "description": "Recording hostname whose home row to remove",
+            "description": "Server whose location to remove",
             "in": "path",
-            "name": "hostname",
+            "name": "server",
             "required": true,
             "schema": {
-              "description": "Recording hostname whose home row to remove",
+              "description": "Server whose location to remove",
               "type": "string"
             }
           }
@@ -13027,7 +13031,7 @@
                 }
               }
             },
-            "description": "No home is recorded for this hostname."
+            "description": "No location is recorded for this server."
           },
           "409": {
             "content": {
@@ -13037,10 +13041,10 @@
                 }
               }
             },
-            "description": "The home is pinned by MAP_HOME_LOCATIONS; edit the setting instead."
+            "description": "MAP_SERVER_LOCATIONS pins this location. Edit the setting instead."
           }
         },
-        "summary": "DeleteSiteHome",
+        "summary": "DeleteServerLocation",
         "tags": [
           "Geo Locations"
         ]

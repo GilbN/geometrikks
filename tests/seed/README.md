@@ -133,7 +133,7 @@ def test_geo_event_links_to_location():
 
     assert event["location_id"] == 42
     assert event["ip_address"] is not None
-    assert event["hostname"] == "geometrikks.local"
+    assert event["server"] == "geometrikks.local"
 
 
 def test_malformed_debug_log():

@@ -72,7 +72,9 @@ def test_column_table_covers_every_upgraded_view() -> None:
 
 def test_ip_location_generation_rolls_the_asn_up_per_ip() -> None:
     names = [c.name for c in timescale.CAGG_COLUMNS["ip_location_hourly_stats"]]
-    assert names == ["asn", "as_org", "asn_hits", "hostnames", "hostname_hits"]
+    assert names == ["asn", "as_org", "asn_hits", "servers", "server_hits"]
+    generation_counts = [generation.count for generation in timescale.CAGG_GENERATIONS["ip_location_hourly_stats"]]
+    assert generation_counts == ["asn_hits", "server_hits"]
     by_name = {c.name: c for c in timescale.CAGG_COLUMNS["ip_location_hourly_stats"]}
     assert by_name["asn"].expression == "MAX(autonomous_system_number)"
     assert by_name["as_org"].expression == "MAX(autonomous_system_organization)"
@@ -362,13 +364,13 @@ async def _run_setup(
 
     for name in dir(timescale):
         attr = getattr(timescale, name)
-        if name.startswith(("_create_", "_enable_", "_add_", "_upgrade_")) and inspect.iscoroutinefunction(attr):
+        if name.startswith(("_create_", "_enable_", "_add_", "_upgrade_", "_rename_")) and inspect.iscoroutinefunction(attr):
             monkeypatch.setattr(timescale, name, AsyncMock(return_value=None))
     monkeypatch.setattr(timescale, "_summary_caggs_need_upgrade", AsyncMock(return_value=False))
     monkeypatch.setattr(timescale, "_location_caggs_need_upgrade", AsyncMock(return_value=False))
     monkeypatch.setattr(
-        timescale, "detect_hostname_pollution",
-        AsyncMock(return_value=timescale.classify_hostnames(["nginx-01"])),
+        timescale, "detect_server_name_pollution",
+        AsyncMock(return_value=timescale.classify_server_names(["nginx-01"])),
     )
 
     async def url_probe(_conn: Any) -> bool:
@@ -502,7 +504,7 @@ async def test_setup_leaves_the_url_views_alone_when_they_carry_host(
     assert all(c.kwargs.get("caggs") != timescale.URL_CAGGS for c in refresh.await_args_list)
 
 
-async def test_hostname_only_upgrade_does_not_refresh_on_startup(monkeypatch):
+async def test_server_column_only_upgrade_does_not_refresh_on_startup(monkeypatch):
     await _run_setup(
         monkeypatch, pending_views=[], manual_views=timescale.IP_LOCATION_CAGGS_NAMES,
         refresh_failed=[],
@@ -512,13 +514,13 @@ async def test_hostname_only_upgrade_does_not_refresh_on_startup(monkeypatch):
     cast("Any", timescale.refresh_caggs_range).assert_not_awaited()
 
 
-async def test_automatic_probe_ignores_unfilled_hostname_generation():
+async def test_automatic_probe_ignores_unfilled_server_generation():
     class ProbeConn:
         async def execute(self, statement, params=None):
             sql = str(statement)
             if "information_schema.columns" in sql:
                 return _all_columns()
-            return _Scalar(1 if "hostname_hits IS NULL" in sql else None)
+            return _Scalar(1 if "server_hits IS NULL" in sql else None)
 
     assert await timescale._cagg_columns_need_upgrade(
         cast("Any", ProbeConn()), raw_retention_days=180,
@@ -528,15 +530,15 @@ async def test_automatic_probe_ignores_unfilled_hostname_generation():
     ) == []
 
 
-async def test_unsupported_hostname_column_preserves_existing_aggregate(monkeypatch):
+async def test_unsupported_server_column_preserves_existing_aggregate(monkeypatch):
     view = "ip_location_daily_stats"
-    monkeypatch.setattr(timescale, "_hostname_columns_unavailable", set())
+    monkeypatch.setattr(timescale, "_server_columns_unavailable", set())
     conn = FakeConn(
         fail_alter_on={view}, existing={view: {"asn", "as_org", "asn_hits"}},
     )
     assert await timescale._add_cagg_columns(cast("Any", conn), [view]) == []
     assert not any("DROP MATERIALIZED VIEW" in sql for sql in conn.statements)
-    assert not timescale.hostname_cagg_available(view)
+    assert not timescale.server_cagg_available(view)
     assert not conn.aborted
 
 

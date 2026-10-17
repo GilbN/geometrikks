@@ -37,7 +37,7 @@ from geometrikks.domain.security.grouping import DecisionGroup, group_decisions
 from geometrikks.domain.security.repositories import SecurityEnrichmentRepository
 from geometrikks.domain.security.schemas import IpEnrichment, BannedMapCollection, BannedIp
 from geometrikks.domain.security.map_data import active_decision_ips, banned_map_collection, canonical_ip, decision_winner
-from geometrikks.lib.parameters import CountryCodeFilter, CityFilter, HostnameIn
+from geometrikks.lib.parameters import CountryCodeFilter, CityFilter, ServerIn
 from geometrikks.server.exceptions import ErrorEnvelope
 from geometrikks.server.logging import get_logger
 from geometrikks.services.crowdsec import (
@@ -495,7 +495,7 @@ class CrowdSecController(Controller):
         to_timestamp: Annotated[datetime | None, QueryParameter(name="toTimestamp", required=False)] = None,
         country_code: CountryCodeFilter = None,
         city: CityFilter = None,
-        hostname_in: HostnameIn = None,
+        server_in: ServerIn = None,
     ) -> BannedMapCollection:
         """GeoJSON of IPs under a current decision, seen in the traffic window.
 
@@ -507,7 +507,7 @@ class CrowdSecController(Controller):
         decisions = await service.get_decisions()
         locations = await enrichment_repo.locations(
             active_decision_ips(decisions), start=from_timestamp, end=to_timestamp,
-            country_codes=country_code, cities=city, hostnames=hostname_in,
+            country_codes=country_code, cities=city, servers=server_in,
         )
         return banned_map_collection(locations)
 

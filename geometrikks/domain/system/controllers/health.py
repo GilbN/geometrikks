@@ -25,7 +25,12 @@ from sqlalchemy import text
 from geometrikks.config.settings import Settings
 from geometrikks.domain.system.proxy_detection import proxy_advisories, proxy_findings
 from geometrikks.lib.utils import geoip_info
-from geometrikks.lib.advisories import Advisory, CITY_DATABASE_MISSING, INGESTION_STOPPED
+from geometrikks.lib.advisories import (
+    Advisory,
+    CITY_DATABASE_MISSING,
+    INGESTION_STOPPED,
+    legacy_env_advisory,
+)
 from geometrikks.server import runtime
 from geometrikks.services.geoip.downloader import has_credentials
 from geometrikks.services.ingestion import LogIngestionService
@@ -297,45 +302,45 @@ def _collect_advisories(app: Litestar, settings: Settings) -> list[Advisory]:
                 "Persistent failures usually mean a schema mismatch or a full disk."
             ),
         ))
-    pollution = timescale.get_hostname_pollution()
+    pollution = timescale.get_server_name_pollution()
     # No early return: the pollution gate must not swallow the ASN advisory.
-    hostname_pollution_active = bool(
-        pollution and pollution.polluted and not timescale.location_caggs_have_hostname()
+    server_name_pollution_active = bool(
+        pollution and pollution.polluted and not timescale.location_caggs_have_server()
     )
-    if hostname_pollution_active and pollution and pollution.reason == "container-ids":
+    if server_name_pollution_active and pollution and pollution.reason == "container-ids":
         advisories.append(Advisory(
-            id="hostname-pollution",
+            id="server-name-pollution",
             severity="warning",
             summary=(
                 f"{pollution.container_id_count} of {pollution.distinct_label} "
-                "recording hostnames look like Docker container IDs; the map "
-                "source filter runs unaggregated until you consolidate."
+                "server names look like Docker container IDs. The map's Server "
+                "filter reads raw events until you consolidate them."
             ),
             detail=(
-                "LOGPARSER_HOST_NAME was unset while running in Docker, so "
-                "rotating container IDs were recorded as hostnames. The "
-                "location-CAGG upgrade is skipped until the history is "
-                "consolidated; restart afterwards to migrate."
+                "LOGPARSER_SERVER_NAME was unset in Docker, so every new "
+                "container recorded its container ID as the server name. The "
+                "location aggregates get their server column only after you "
+                "consolidate that history and restart."
             ),
-            remedy="litestar backfill-hostname <hostname> --consolidate",
+            remedy="litestar backfill-server NAME --consolidate",
         ))
-    elif hostname_pollution_active and pollution:
+    elif server_name_pollution_active and pollution:
         advisories.append(Advisory(
-            id="hostname-count",
+            id="server-count",
             severity="warning",
             summary=(
-                f"{pollution.distinct_label} distinct recording hostnames is "
-                f"above the {timescale.DISTINCT_HOSTNAME_CEILING} ceiling; the "
-                "map source filter runs unaggregated."
+                f"There are {pollution.distinct_label} distinct server names, "
+                f"above the {timescale.DISTINCT_SERVER_CEILING} ceiling. The "
+                "map's Server filter reads raw events."
             ),
             detail=(
-                "The per-hostname location aggregates are only built below "
-                "that ceiling, so source-filtered map queries fall back to raw "
-                "scans. If every hostname is a real source, only query speed "
-                "suffers. If they are churn from an unset LOGPARSER_HOST_NAME, "
+                "The location aggregates only carry servers below that "
+                "ceiling, so map queries filtered by server fall back to raw "
+                "scans. If every name is a real server, only query speed "
+                "suffers. If they come from an unset LOGPARSER_SERVER_NAME, "
                 "consolidate the history and restart to migrate."
             ),
-            remedy="litestar backfill-hostname <hostname> --consolidate",
+            remedy="litestar backfill-server NAME --consolidate",
         ))
     if (
         settings.geoip.asn_enabled
@@ -366,13 +371,13 @@ def _collect_advisories(app: Litestar, settings: Settings) -> list[Advisory]:
         log_inputs = service.inputs if service is not None else []
         local = proxy_findings(
             log_inputs,
-            default_hostname=service.hostname if service is not None else "",
+            default_server=service.server if service is not None else "",
         )
-        covered = {f.hostname for f in local}
+        covered = {finding.server for finding in local}
         if service is not None:
-            covered |= {service.hostname_for(log_input) for log_input in log_inputs}
+            covered |= {service.server_for(log_input) for log_input in log_inputs}
         findings = local + [
-            f for f in proxy_scan.get_scan_findings() if f.hostname not in covered
+            finding for finding in proxy_scan.get_scan_findings() if finding.server not in covered
         ]
         advisories.extend(proxy_advisories(findings))
         scan_error = proxy_scan.get_scan_error()
@@ -392,6 +397,9 @@ def _collect_advisories(app: Litestar, settings: Settings) -> list[Advisory]:
                 ),
             ))
     advisories.extend(_stale_geoip_advisories(settings))
+    legacy_env_names = settings.legacy_env_names_in_use()
+    if legacy_env_names:
+        advisories.append(legacy_env_advisory(legacy_env_names))
     backend = runtime.get_channels_backend(app)
     if (
         backend is not None

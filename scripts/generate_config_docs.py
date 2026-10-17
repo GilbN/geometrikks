@@ -88,6 +88,8 @@ def render_section(title: str, cls: type[BaseSettings], prefix: str) -> str:
     for name, field in cls.model_fields.items():
         if cls is settings_module.Settings and name in SKIP_FIELDS:
             continue
+        if settings_module.is_legacy_field(field.json_schema_extra):
+            continue
         env = env_name(name, field, prefix)
         desc = (field.description or "").replace("|", "\\|")
         lines.append(f"| `{env}` | {default_repr(name, field)} | {desc} |")

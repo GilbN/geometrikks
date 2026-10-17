@@ -84,9 +84,9 @@ def test_app_section_excludes_sub_models():
 def test_computed_overlay_attaches_to_existing_field():
     overview = build_settings_overview(
         Settings(),
-        computed={("map", "home_latitude"): ComputedField(59.9, "external_ip")},
+        computed={("map", "server_latitude"): ComputedField(59.9, "external_ip")},
     )
-    lat = _field(_section(overview, "map"), "home_latitude")
+    lat = _field(_section(overview, "map"), "server_latitude")
     assert lat.value is None  # literal config value is left untouched
     assert lat.computed_value == 59.9
     assert lat.computed_source == "external_ip"
@@ -111,7 +111,7 @@ def test_computed_overlay_synthesizes_derived_row():
 
 def test_no_overlay_leaves_fields_uncomputed():
     overview = build_settings_overview(Settings())
-    lat = _field(_section(overview, "map"), "home_latitude")
+    lat = _field(_section(overview, "map"), "server_latitude")
     assert lat.computed_value is None
     assert lat.computed_source is None
 
@@ -128,3 +128,27 @@ def test_oidc_client_secret_is_redacted(monkeypatch):
     secret = _field(_section(overview, "oidc"), "client_secret")
     assert secret.is_secret is True
     assert secret.value == SECRET_PLACEHOLDER
+
+
+LEGACY_ENV_NAMES = {
+    "LOGPARSER_HOST_NAME",
+    "MAP_HOME_LOCATIONS",
+    "MAP_HOME_LATITUDE",
+    "MAP_HOME_LONGITUDE",
+    "MAP_AUTO_DETECT_HOME",
+    "MAP_HOME_REFRESH_HOURS",
+}
+
+
+def test_legacy_env_names_are_hidden_and_new_names_shown(monkeypatch):
+    monkeypatch.setenv("LOGPARSER_HOST_NAME", "edge-01")
+    overview = build_settings_overview(Settings())
+    env_vars = {
+        setting_field.env_var
+        for section in overview.sections
+        for setting_field in section.fields
+    }
+    assert env_vars.isdisjoint(LEGACY_ENV_NAMES)
+    server_name = _field(_section(overview, "logparser"), "server_name")
+    assert server_name.env_var == "LOGPARSER_SERVER_NAME"
+    assert server_name.value == ["edge-01"]

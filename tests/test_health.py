@@ -5,6 +5,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, cast
 
+import msgspec
 import pytest
 from litestar import Litestar
 from litestar.testing import TestClient
@@ -313,7 +314,7 @@ def test_health_includes_registry_advisories_critical_first(monkeypatch):
     monkeypatch.setattr(health_module, "_database_reachable", db_up)
     from geometrikks.lib.advisories import Advisory
     from geometrikks.server import runtime, timescale
-    monkeypatch.setattr(timescale, "_hostname_pollution", None)
+    monkeypatch.setattr(timescale, "_server_name_pollution", None)
 
     app = make_app()
     runtime.get_advisories(app).set(Advisory(id="w", severity="warning", summary="w"))
@@ -344,11 +345,34 @@ def test_health_has_no_advisories_when_clean(monkeypatch):
     monkeypatch.setattr(health_module, "_database_reachable", db_up)
 
     from geometrikks.server import timescale
-    monkeypatch.setattr(timescale, "_hostname_pollution", None)
+    monkeypatch.setattr(timescale, "_server_name_pollution", None)
 
     with TestClient(app=make_app()) as client:
         body = client.get("/health").json()
     assert body["advisories"] == []
+
+
+@pytest.mark.parametrize("mode", ["full", "agent"])
+def test_health_lists_old_env_names_in_use(monkeypatch, mode):
+    async def db_up(app, timeout: float = 2.0) -> bool:
+        return True
+    monkeypatch.setattr(health_module, "_database_reachable", db_up)
+    monkeypatch.setenv("APP_MODE", mode)
+    monkeypatch.setenv("LOGPARSER_HOST_NAME", "edge-01")
+
+    with TestClient(app=make_app()) as client:
+        body = client.get("/health").json()
+
+    legacy_advisory = next(
+        advisory for advisory in body["advisories"] if advisory["id"] == "legacy-env-names"
+    )
+    assert legacy_advisory["severity"] == "warning"
+    advisory_text = " ".join(
+        part for part in (legacy_advisory["summary"], legacy_advisory["detail"], legacy_advisory["remedy"])
+        if part
+    )
+    assert "LOGPARSER_HOST_NAME" in advisory_text
+    assert "LOGPARSER_SERVER_NAME" in advisory_text
 
 
 def test_health_reports_policy_update_failures(monkeypatch):
@@ -357,7 +381,7 @@ def test_health_reports_policy_update_failures(monkeypatch):
     monkeypatch.setattr(health_module, "_database_reachable", db_up)
 
     from geometrikks.server import timescale
-    monkeypatch.setattr(timescale, "_hostname_pollution", None)
+    monkeypatch.setattr(timescale, "_server_name_pollution", None)
     monkeypatch.setattr(
         timescale,
         "_policy_failures",
@@ -390,60 +414,77 @@ def test_health_reports_policy_update_failures(monkeypatch):
     }
 
 
-def test_health_reports_hostname_pollution_advisory(monkeypatch):
+def _assert_server_vocabulary(advisory: dict) -> None:
+    text = " ".join(advisory[field] or "" for field in ("summary", "detail", "remedy")).lower()
+    for retired_word in ("hostname", "home", "source filter"):
+        assert retired_word not in text
+
+
+def test_health_reports_server_name_pollution_advisory(monkeypatch):
     async def db_up(app, timeout: float = 2.0) -> bool:
         return True
     monkeypatch.setattr(health_module, "_database_reachable", db_up)
 
     from geometrikks.server import timescale
-    from geometrikks.server.timescale import HostnamePollution
+    from geometrikks.server.timescale import ServerNamePollution
     monkeypatch.setattr(
-        timescale, "_hostname_pollution",
-        HostnamePollution(distinct_count=40, container_id_count=38),
+        timescale, "_server_name_pollution",
+        ServerNamePollution(distinct_count=40, container_id_count=38),
     )
-    monkeypatch.setattr(timescale, "_location_caggs_have_hostname", False)
+    monkeypatch.setattr(timescale, "_location_caggs_have_server", False)
 
     with TestClient(app=make_app()) as client:
         body = client.get("/health").json()
     data = body["advisories"]
     assert len(data) == 1
     a = data[0]
-    assert a["id"] == "hostname-pollution"
+    assert a["id"] == "server-name-pollution"
     assert a["severity"] == "warning"
     assert "38" in a["summary"] and "40" in a["summary"]
-    assert "backfill-hostname" in a["remedy"]
+    assert a["remedy"] == "litestar backfill-server NAME --consolidate"
+    _assert_server_vocabulary(a)
 
 
-def test_health_reports_hostname_count_advisory_without_container_ids(monkeypatch):
+def test_health_reports_server_count_advisory_without_container_ids(monkeypatch):
     """Above the ceiling with no container IDs, the advisory must not claim
-    the hostnames look like container IDs, and the count must read as the
+    the server names look like container IDs, and the count must read as the
     floor the capped probe actually proved."""
     async def db_up(app, timeout: float = 2.0) -> bool:
         return True
     monkeypatch.setattr(health_module, "_database_reachable", db_up)
 
     from geometrikks.server import timescale
-    from geometrikks.server.timescale import DISTINCT_HOSTNAME_CEILING, HostnamePollution
+    from geometrikks.server.timescale import DISTINCT_SERVER_CEILING, ServerNamePollution
     monkeypatch.setattr(
-        timescale, "_hostname_pollution",
-        HostnamePollution(distinct_count=DISTINCT_HOSTNAME_CEILING + 1, container_id_count=0),
+        timescale, "_server_name_pollution",
+        ServerNamePollution(distinct_count=DISTINCT_SERVER_CEILING + 1, container_id_count=0),
     )
-    monkeypatch.setattr(timescale, "_location_caggs_have_hostname", False)
+    monkeypatch.setattr(timescale, "_location_caggs_have_server", False)
 
     with TestClient(app=make_app()) as client:
         body = client.get("/health").json()
     data = body["advisories"]
     assert len(data) == 1
     a = data[0]
-    assert a["id"] == "hostname-count"
+    assert a["id"] == "server-count"
     assert "container ID" not in a["summary"]
-    assert f"{DISTINCT_HOSTNAME_CEILING}+" in a["summary"]
-    assert "real source" in a["detail"]
+    assert f"{DISTINCT_SERVER_CEILING}+" in a["summary"]
+    assert "real server" in a["detail"]
+    assert a["remedy"] == "litestar backfill-server NAME --consolidate"
+    _assert_server_vocabulary(a)
 
 
-def test_health_no_pollution_advisory_when_caggs_already_have_hostname(monkeypatch):
+def test_server_location_undetected_advisory_names_the_server_settings():
+    from geometrikks.lib.advisories import SERVER_LOCATION_UNDETECTED
+
+    assert SERVER_LOCATION_UNDETECTED.id == "server-location-undetected"
+    assert SERVER_LOCATION_UNDETECTED.remedy == "MAP_SERVER_LATITUDE and MAP_SERVER_LONGITUDE"
+    _assert_server_vocabulary(msgspec.structs.asdict(SERVER_LOCATION_UNDETECTED))
+
+
+def test_health_no_pollution_advisory_when_caggs_already_have_server(monkeypatch):
     """Polluted history is moot once the location CAGGs already carry the
-    hostname dimension (fresh install / post-consolidation migration): the
+    server dimension (fresh install / post-consolidation migration): the
     filter is not unaggregated and no migration is pending, so the advisory
     must not fire."""
     async def db_up(app, timeout: float = 2.0) -> bool:
@@ -451,12 +492,12 @@ def test_health_no_pollution_advisory_when_caggs_already_have_hostname(monkeypat
     monkeypatch.setattr(health_module, "_database_reachable", db_up)
 
     from geometrikks.server import timescale
-    from geometrikks.server.timescale import HostnamePollution
+    from geometrikks.server.timescale import ServerNamePollution
     monkeypatch.setattr(
-        timescale, "_hostname_pollution",
-        HostnamePollution(distinct_count=40, container_id_count=38),
+        timescale, "_server_name_pollution",
+        ServerNamePollution(distinct_count=40, container_id_count=38),
     )
-    monkeypatch.setattr(timescale, "_location_caggs_have_hostname", True)
+    monkeypatch.setattr(timescale, "_location_caggs_have_server", True)
 
     with TestClient(app=make_app()) as client:
         body = client.get("/health").json()
@@ -464,20 +505,20 @@ def test_health_no_pollution_advisory_when_caggs_already_have_hostname(monkeypat
 
 
 def test_health_no_pollution_advisory_when_not_polluted(monkeypatch):
-    """A cached, non-None HostnamePollution that is not actually `polluted`
-    (few container-ID-looking hostnames) must not raise the advisory,
+    """A cached, non-None ServerNamePollution that is not actually `polluted`
+    (few container-ID-looking server names) must not raise the advisory,
     regardless of the CAGG capability flag."""
     async def db_up(app, timeout: float = 2.0) -> bool:
         return True
     monkeypatch.setattr(health_module, "_database_reachable", db_up)
 
     from geometrikks.server import timescale
-    from geometrikks.server.timescale import HostnamePollution
+    from geometrikks.server.timescale import ServerNamePollution
     monkeypatch.setattr(
-        timescale, "_hostname_pollution",
-        HostnamePollution(distinct_count=3, container_id_count=0),
+        timescale, "_server_name_pollution",
+        ServerNamePollution(distinct_count=3, container_id_count=0),
     )
-    monkeypatch.setattr(timescale, "_location_caggs_have_hostname", False)
+    monkeypatch.setattr(timescale, "_location_caggs_have_server", False)
 
     with TestClient(app=make_app()) as client:
         body = client.get("/health").json()
@@ -511,7 +552,7 @@ def test_health_exposes_write_failures_and_advises(monkeypatch):
     monkeypatch.setattr(health_module, "_database_reachable", db_up)
     from geometrikks.server import timescale
 
-    monkeypatch.setattr(timescale, "_hostname_pollution", None)
+    monkeypatch.setattr(timescale, "_server_name_pollution", None)
 
     app = make_app()
     service = _running_service(file_missing=False)
@@ -540,7 +581,7 @@ def test_health_write_failure_advisory_reports_stopped_ingestion(monkeypatch):
     monkeypatch.setattr(health_module, "_database_reachable", db_up)
     from geometrikks.server import timescale
 
-    monkeypatch.setattr(timescale, "_hostname_pollution", None)
+    monkeypatch.setattr(timescale, "_server_name_pollution", None)
 
     app = make_app()
     service = _running_service(file_missing=False)
@@ -611,7 +652,7 @@ def test_health_reports_a_failing_proxy_scan(monkeypatch):
     monkeypatch.setenv("APP_PROXY_ADVISORY", "true")
     from geometrikks.domain.system import proxy_scan
     from geometrikks.server import timescale
-    monkeypatch.setattr(timescale, "_hostname_pollution", None)
+    monkeypatch.setattr(timescale, "_server_name_pollution", None)
     monkeypatch.setattr(proxy_scan, "_last_error", "db down")
 
     with TestClient(app=make_app()) as client:
@@ -634,7 +675,7 @@ def test_proxy_advisory_setting_suppresses_scan_failure(monkeypatch):
     from geometrikks.domain.system import proxy_scan
     from geometrikks.server import timescale
 
-    monkeypatch.setattr(timescale, "_hostname_pollution", None)
+    monkeypatch.setattr(timescale, "_server_name_pollution", None)
     monkeypatch.setattr(proxy_scan, "get_scan_error", lambda: "db down")
     monkeypatch.setattr(proxy_scan, "get_scan_findings", lambda: [])
 
@@ -672,7 +713,7 @@ def _geoip_advisories(
     from geometrikks.domain.system.controllers.health import _collect_advisories
     from geometrikks.server import timescale
 
-    monkeypatch.setattr(timescale, "_hostname_pollution", None)
+    monkeypatch.setattr(timescale, "_server_name_pollution", None)
     monkeypatch.setattr(
         health_module,
         "geoip_info",
@@ -891,7 +932,7 @@ def _listener_advisories(
     from geometrikks.domain.system.controllers.health import _collect_advisories
     from geometrikks.server import timescale
 
-    monkeypatch.setattr(timescale, "_hostname_pollution", None)
+    monkeypatch.setattr(timescale, "_server_name_pollution", None)
     settings = Settings()
     settings.app.proxy_advisory = False
     app_state = SimpleNamespace(

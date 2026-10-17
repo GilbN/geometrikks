@@ -247,9 +247,10 @@ function AbuseReportBody({
       <p className="flex gap-2 rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-muted-foreground">
         <ShieldAlert className="mt-px size-3.5 shrink-0 text-amber-600 dark:text-amber-400" />
         <span>
-          The report leaves out your hostnames, instance names, referrers and manual ban reasons, and tries to strip
-          your server address and credentials such as API keys from the paths. It can miss some, so read it before
-          you send it.
+          The report leaves out your server names, Host headers, referrers and manual ban reasons. In paths and user
+          agents it tries to strip the hostnames you serve, your public address and any server name with a dot. It
+          also tries to strip credentials such as API keys from paths. It can miss some, so read it before you send
+          it.
         </span>
       </p>
 
@@ -391,7 +392,7 @@ function ReportNotes({ report }: { report: AbuseReportResponse }) {
   if (report.totalRequests === 0) notes.push("The access logs hold no requests for this range.")
   if (report.redactions > 0) {
     notes.push(
-      `The report scrubs your hostnames or server address in ${report.redactions.toLocaleString()} ${report.redactions === 1 ? "place" : "places"}.`,
+      `The report redacts hostnames, addresses or credentials in ${report.redactions.toLocaleString()} ${report.redactions === 1 ? "place" : "places"}.`,
     )
   }
   const warning = report.crowdsec.status !== "ok" && report.crowdsec.status !== "disabled" ? report.crowdsec.message : null

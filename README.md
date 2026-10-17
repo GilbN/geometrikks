@@ -12,7 +12,7 @@ Manager, Traefik and Caddy) or reads them from Grafana Loki, geolocates
 every request with MaxMind GeoLite2, and shows the result on a
 real-time map and a traffic analytics dashboard. It runs on your own
 hardware from one Docker image. Outbound traffic is the GeoLite2 download
-and, unless you disable it, a public-IP lookup for the map's home location.
+and, unless you disable it, a public-IP lookup for the map's server location.
 If you run CrowdSec, connect its Local API and manage bans next to the
 traffic that caused them.
 
@@ -21,9 +21,9 @@ traffic that caused them.
 **Live map.** Every ingested request lands on a MapLibre world map within
 seconds. Click a marker for the request, city, and ASN behind it. Switch
 between Heatmap, Markers and, with CrowdSec connected, a Banned IPs view
-that counts banned addresses per location. With several sources, filter
-the map by source hostname and watch live routes fly to each site's own
-home beacon (see [Multi-source setup](#multi-source-setup)).
+that counts banned addresses per location. With several servers, filter
+the map by server and watch live routes fly to each server's own
+beacon (see [Multi-source setup](#multi-source-setup)).
 
 ![Map](/data/screenshots/map.png)
 
@@ -50,7 +50,7 @@ overlay on the map.
 
 **Access logs.** A searchable, server-paginated history of every request:
 free-text search across URL, referrer and user agent; filters for status,
-method, IP, host, country, city, recording hostname and source format;
+method, IP, host, country, city, server and source format;
 sortable columns; and a column picker for the full log line (bytes,
 request time, upstream time, HTTP version and more). Select a row for the
 complete record.
@@ -71,12 +71,12 @@ a log file is not producing events.
 
 **Multi-source.** Several proxies or hosts? Run one full instance plus
 lightweight agents next to each log file, tail shipped files from one
-place, or read every proxy's lines from Loki. Every page can filter by the
-recording hostname, and the map gives each site its own home beacon. See [Multi-source setup](#multi-source-setup).
+place, or read every proxy's lines from Loki. Access Logs, Geo Logs and the
+map filter by server, and the map gives each server its own beacon. See [Multi-source setup](#multi-source-setup).
 
 **Settings > Status.** Ingestion, storage, enrichment, integrations and
 live services on one page, with advisories when something needs attention
-(a missing ASN database, a source whose home could not be detected).
+(a missing ASN database, a server whose location could not be detected).
 
 ![Settings > Status](/data/screenshots/status.png)
 
@@ -528,15 +528,16 @@ tailed file.
 ```bash
 LOKI_URL=http://loki:3100
 LOKI_QUERIES=["{job=\"nginx\"}", "{job=\"traefik\"}"]
-LOKI_HOST_NAMES=["edge-01", "edge-02"]
+LOKI_SERVER_NAMES=["edge-01", "edge-02"]
 ```
 
 The app container has to reach `LOKI_URL`. `http://loki:3100` works when
 Loki runs on the same Docker network.
 
-Without `LOKI_HOST_NAMES`, GeoMetrikks stamps every selector with the first
-`LOGPARSER_HOST_NAME`. If the selectors are different proxies, give each one
-its own hostname.
+Without `LOKI_SERVER_NAMES`, GeoMetrikks stamps every selector with the
+first `LOGPARSER_SERVER_NAME`. That is a name you choose for this server, not
+your nginx `server_name`, and it defaults to the machine's hostname. If the
+selectors are different proxies, give each one its own server name.
 
 - Loki must hold the raw access-log line. If a pipeline stage rewrites the
   line, for example into logfmt, GeoMetrikks has nothing it can parse.
@@ -559,7 +560,7 @@ its own hostname.
   the rest of that second. GeoMetrikks logs a warning once per such
   timestamp.
 - A selector can match several streams, one per label set. GeoMetrikks
-  merges their lines in timestamp order under the selector's hostname. Each
+  merges their lines in timestamp order under the selector's server name. Each
   selector has one log format, detected from its first lines or pinned with
   `LOKI_FORMATS`, and GeoMetrikks counts lines in any other format as
   malformed. Use one selector per log format.
@@ -577,7 +578,7 @@ its own hostname.
 - If Loki can't be reached or refuses the query, `/health` lists the source
   under `ingestion.unavailableSources` as `loki:1`, `loki:2` and so on, with
   the reason `unreachable` or `rejected`. The Status page shows each
-  selector with its hostname, format and line count.
+  selector with its server name, format and line count.
 
 An Alloy configuration that ships a Traefik access log the way GeoMetrikks
 expects:
@@ -640,17 +641,19 @@ watermark or refuse keyless tiles at any time.
 The map shows the CARTO and OpenStreetMap attribution in its corner. Keep
 it visible; both licenses require it.
 
-Live routes fly to the home of the source that recorded them (see
-[Multi-source setup](#multi-source-setup)); with a single source that is
+Live routes fly to the location of the server that recorded them (see
+[Multi-source setup](#multi-source-setup)); with a single server that is
 the app server's own location, discovered at startup through ipify and
-looked up in the local GeoLite2 database. `MAP_HOME_LATITUDE` and
-`MAP_HOME_LONGITUDE` override that default home, `MAP_HOME_LOCATIONS`
-overrides per source, and `MAP_AUTO_DETECT_HOME=false` disables the
-outbound lookup. The map's **Route effects** control can also hide the
-animation; that preference is kept in browser storage.
+looked up in the local GeoLite2 database. `MAP_SERVER_LATITUDE` and
+`MAP_SERVER_LONGITUDE` override that default location,
+`MAP_SERVER_LOCATIONS` overrides per server, and
+`MAP_AUTO_DETECT_SERVER_LOCATION=false` disables the outbound lookup. The
+old `MAP_HOME_*` and `MAP_AUTO_DETECT_HOME` names still work until 1.0.
+The map's **Route effects** control can also hide the animation; that
+preference is kept in browser storage.
 
-The map opens on the site homes, or on the whole world when there are
-none. Set `MAP_DEFAULT_VIEW=latitude,longitude[,zoom]` to open it
+The map opens on the server locations, or on the whole world when there
+are none. Set `MAP_DEFAULT_VIEW=latitude,longitude[,zoom]` to open it
 somewhere else, for example `MAP_DEFAULT_VIEW=71.129982,27.653369,15` for
 northern Norway at zoom 15.
 
@@ -1040,23 +1043,49 @@ map stays in sync whichever process ingested a request, because every
 writer publishes committed events over PostgreSQL LISTEN/NOTIFY and the
 full instance's `/ws/live` feed relays all of them.
 
+Every request records the server that ingested it. `LOGPARSER_SERVER_NAME`
+sets that name. It is a name you choose for this server, not your nginx
+`server_name`, and it defaults to the machine's hostname. In Docker that is
+the container's hostname, which the compose `hostname:` key sets. Access
+Logs, Geo Logs and the map filter by server.
+
+Older releases called the server a hostname. The old variable names still
+work until 1.0:
+
+| Variable | Old name |
+|---|---|
+| `LOGPARSER_SERVER_NAME` | `LOGPARSER_HOST_NAME` |
+| `MAP_SERVER_LOCATIONS` | `MAP_HOME_LOCATIONS` |
+| `MAP_SERVER_LATITUDE` | `MAP_HOME_LATITUDE` |
+| `MAP_SERVER_LONGITUDE` | `MAP_HOME_LONGITUDE` |
+| `MAP_AUTO_DETECT_SERVER_LOCATION` | `MAP_AUTO_DETECT_HOME` |
+| `MAP_SERVER_LOCATION_REFRESH_HOURS` | `MAP_HOME_REFRESH_HOURS` |
+
+At startup, a process that reads any old name logs one
+`legacy_env_names_in_use` event listing them, and its `/health` carries a
+`legacy-env-names` advisory naming each replacement. Each process reports
+only its own settings. The full instance's Settings > Status shows the old
+names the full instance reads, and an agent's old names appear only in that
+agent's own `/health` and log. If an old and a new name are set to
+different values, startup fails.
+
 Agents are not the only shape. If the log files already reach one machine
 (a shared mount, rsyslog, log shipping), a single full instance can tail
-them all and keep the sources apart by giving `LOGPARSER_HOST_NAME` a JSON
+them all and keep them apart by giving `LOGPARSER_SERVER_NAME` a JSON
 list matched positionally to `LOGPARSER_LOG_PATHS`:
 
 ```bash
 LOGPARSER_LOG_PATHS=["/var/log/access/edge-01.log", "/var/log/access/edge-02.log"]
-LOGPARSER_HOST_NAME=["edge-01", "edge-02"]
+LOGPARSER_SERVER_NAME=["edge-01", "edge-02"]
 ```
 
-Everything downstream (the access-logs hostname filter, the map's Source
-filter, per-site homes) treats those files like traffic from separate
-agents.
+Everything downstream treats those files like traffic from separate
+agents. Each one is its own server in the Server filters and gets its own
+server location on the map.
 
 If the logs already go to Grafana Loki, one full instance can read every
-proxy's lines from there instead, with one LogQL selector and one hostname
-per proxy. See [Loki setup](#loki-setup).
+proxy's lines from there instead, with one LogQL selector and one server
+name per proxy. See [Loki setup](#loki-setup).
 
 An agent needs only `APP_MODE=agent`, database credentials for the shared
 instance, GeoIP credentials, and its own log mount:
@@ -1077,7 +1106,7 @@ services:
       MAXMINDDB_USER_ID: ${MAXMINDDB_USER_ID}
       MAXMINDDB_LICENSE_KEY: ${MAXMINDDB_LICENSE_KEY}
       LOGPARSER_LOG_PATHS: '["/var/log/access/access.log"]'
-      LOGPARSER_HOST_NAME: edge-01
+      LOGPARSER_SERVER_NAME: edge-01
     volumes:
       - geoip_data:/app/data/geoip
       - /var/log/nginx:/var/log/access:ro
@@ -1104,7 +1133,7 @@ publishes like a full instance, but serves only `/health` and
 needs no `APP_ADMIN_PASSWORD`. It downloads and refreshes its own GeoLite2
 database, so it needs MaxMind credentials and a geoip volume. It never runs
 migrations or creates TimescaleDB objects; its writes are events and its
-own site-homes row. At startup it waits for the
+own `server_locations` row. At startup it waits for the
 shared database's schema to reach the revision it was built against. If
 that wait times out, the agent stays up in degraded mode rather than
 exiting, with `/health` answering 200 and `/health/ready` answering 503. An
@@ -1137,21 +1166,23 @@ LOGPARSER_ENABLED=false
 It still serves the UI, API, migrations, scheduler and CrowdSec; it never
 tails a log file itself.
 
-**Site homes.** Live map routes fly to the home location of the source that
-recorded them, one beacon per site. Each ingesting instance detects its own
-public-IP location and re-checks it every `MAP_HOME_REFRESH_HOURS` (default
-24h). When detection is wrong for a source (CGNAT, a VPN egress, or logs
-shipped from another machine), pin that hostname on the full instance with
-`MAP_HOME_LOCATIONS`, for example
-`MAP_HOME_LOCATIONS={"edge-01": [60.39, 5.32]}`. Overrides win over
-detection, and removing one restores it. Settings > Status lists each
-source's home and whether it came from detection or an override.
+**Server locations.** Live map routes fly to the location of the server
+that recorded them, one beacon per server. Each ingesting instance detects
+its own public-IP location and re-checks it every
+`MAP_SERVER_LOCATION_REFRESH_HOURS` (default 24h). When detection is wrong
+for a server (CGNAT, a VPN egress, or logs shipped from another machine),
+pin that server's location on the full instance with
+`MAP_SERVER_LOCATIONS`, for example
+`MAP_SERVER_LOCATIONS={"edge-01": [60.39, 5.32]}`. Overrides win over
+detection, and removing one restores it. The Server locations card on
+Settings > Status lists each server's location and whether it came from
+detection or an override.
 
 > [!WARNING]
 > **Trust model.** Agents authenticate with the database using ordinary
 > database credentials, and the app does not care where data comes from.
 > Anyone who can run an agent has full read/write access to the entire
-> database: all traffic history from every source, any hostname, no tenant
+> database: all traffic history from every source, any server, no tenant
 > isolation, no per-agent identity, and no revocation short of rotating the
 > shared password. Sharing one instance across parties works as long as
 > everyone understands they share everything. Run agent connections over a
@@ -1163,6 +1194,11 @@ ahead of its own bundled schema (a full instance mid rolling-restart) by
 logging a warning and proceeding rather than refusing to start. That is an
 allowance for a brief mismatch, not a reason to run agents and the full
 instance on different versions.
+
+Upgrade every instance together to the release that renames hostnames to
+servers. The full instance renames the database columns and tables on its
+first start, without rewriting any data. An agent from an older release
+still starts against the renamed database, then fails every insert.
 
 **CrowdSec.** Point `CROWDSEC_LAPI_URL` and the bouncer/machine credentials
 (see [CrowdSec integration](#crowdsec-integration-optional)) at the central
@@ -1255,9 +1291,9 @@ docker compose exec -u geometrikks app litestar import-loki --since 2026-09-01
   `2026-10-01T14:03:12+02:00`. Without an offset the value is UTC.
 - Without `--before`, the import stops where the data already in the
   database begins. On the first run that is the oldest access-log row for
-  the selector's hostname, which is where live reading started. After an
+  the selector's server, which is where live reading started. After an
   earlier `import-loki` run, it is the start of that run, unless the
-  hostname has access-log rows older than the ones that run wrote. The
+  server has access-log rows older than the ones that run wrote. The
   command prints the end it picked and the `--since` and `--before` pair
   for the same range.
 - An interrupted run keeps its own end. Rerunning the same command with
@@ -1269,9 +1305,10 @@ docker compose exec -u geometrikks app litestar import-loki --since 2026-09-01
   two differ by the shipper's delay, so lines near that boundary can be
   read twice or missed. An earlier import's start and an explicit
   `--before` are Loki times and exact. Pass `--before` when a tailed file
-  shares the hostname, because the oldest row may then come from the file.
+  shares the server name, because the oldest row may then come from the
+  file.
 - `--query N` imports only the Nth selector in `LOKI_QUERIES`, counting
-  from 1. If several selectors share a hostname, import them in one command
+  from 1. If several selectors share a server name, import them in one command
   without `--query`. The command picks every selector's end before any of
   them imports, so one selector's backfill can't become another's end.
 - `--batch-size` sets how many records go into each database write. The
@@ -1301,32 +1338,32 @@ docker compose exec -u geometrikks app litestar import-loki --since 2026-09-01
   `ANALYTICS_RAW_RETENTION_DAYS`, like any other rows. Loki's own retention
   limits how far back there is anything to read.
 
-### backfill-hostname: fix up historical hostnames
+### backfill-server: fix up historical server names
 
-Every ingested row records which GeoMetrikks instance wrote it
-(`LOGPARSER_HOST_NAME`; defaults to the machine hostname, which the compose
-file pins to `geometrikks`). Rows ingested by older versions have no
-hostname, so the access-logs hostname filter cannot see them.
-`backfill-hostname` stamps them retroactively:
+Every ingested row records which server wrote it (`LOGPARSER_SERVER_NAME`;
+defaults to the machine hostname, which the compose file pins to
+`geometrikks`). Rows ingested by older versions have no server name, so the
+Server filter on Access Logs cannot see them. `backfill-server` stamps them
+retroactively:
 
 ```bash
-docker compose exec -u geometrikks app litestar backfill-hostname myhost
+docker compose exec -u geometrikks app litestar backfill-server myhost
 ```
 
-The plain form fills **only** rows with no hostname. It is idempotent,
+The plain form fills **only** rows with no server name. It is idempotent,
 cannot overwrite stamped values, and runs immediately without a
 confirmation prompt.
 
-If your database has accumulated many bogus hostnames, add
-`--consolidate` to rewrite **all** existing hostnames to the given name as
-well. The classic cause is running in Docker with `LOGPARSER_HOST_NAME`
+If your database has accumulated many bogus server names, add
+`--consolidate` to rewrite **all** existing server names to the given name
+as well. The classic cause is running in Docker with `LOGPARSER_SERVER_NAME`
 unset before the compose file pinned a hostname: every container
-recreation minted a new 12-hex container-ID "hostname". Consolidate lists
-every hostname it will rewrite, with row counts, and asks for confirmation
-first (`--yes` skips the prompt):
+recreation got a new 12-hex container ID as its hostname, and so a new
+server name. Consolidate lists every server name it will rewrite, with row
+counts, and asks for confirmation first (`--yes` skips the prompt):
 
 ```bash
-docker compose exec -u geometrikks app litestar backfill-hostname myhost --consolidate
+docker compose exec -u geometrikks app litestar backfill-server myhost --consolidate
 ```
 
 Either form decompresses compressed history chunks first (a full-table
@@ -1335,13 +1372,13 @@ grows until the compression policy recompresses them. It then refreshes the
 affected continuous aggregates so the filter dropdowns update. It may run
 for minutes on a large database.
 
-### backfill-geo-hostnames: fill historical Geo Logs hostnames
+### backfill-geo-servers: fill historical Geo Logs servers
 
-Existing installations may show an empty Hostnames column for Geo Logs ranges
-over 24 hours. To fill in the missing hostnames from retained events, run:
+Existing installations may show an empty Servers column for Geo Logs ranges
+over 24 hours. To fill in the missing server names from retained events, run:
 
 ```bash
-docker compose exec -u geometrikks app litestar backfill-geo-hostnames
+docker compose exec -u geometrikks app litestar backfill-geo-servers
 ```
 
 The command prints the pending ranges and asks for confirmation. It refreshes
@@ -1353,13 +1390,13 @@ The aggregate rows record which buckets are complete. If the command stops or
 a batch fails, rerun it to process the remaining buckets. A second simultaneous
 run is rejected. Hourly backfills respect hourly retention, and both views only
 refresh complete buckets within raw retention. Counts remain available while
-hostname history is incomplete. This command cannot recover hostnames after
-their raw events have expired.
+server history is incomplete. This command cannot recover server names
+after their raw events have expired.
 
 The command reads `geo_events` and refreshes the aggregates. It does not rewrite
-source hostnames or explicitly decompress every raw chunk. In-place column
+server names or explicitly decompress every raw chunk. In-place column
 upgrades require TimescaleDB 2.28 or later. If adding the columns fails, the app
-keeps the existing aggregate and logs `hostname_cagg_columns_unavailable`.
+keeps the existing aggregate and logs `server_cagg_columns_unavailable`.
 Fix the database error and restart before running the command.
 
 ### backfill-asn: fill in ASN data for historical rows
@@ -1384,7 +1421,7 @@ Use `--table all` when both tables need a backfill.
 It fills **only** rows with no ASN data (idempotent, never overwrites
 stamped values) and asks for confirmation after reporting how many rows and
 distinct IPs are affected (`--yes` skips the prompt). IPs the database
-cannot resolve stay empty. Like `backfill-hostname`, it decompresses the
+cannot resolve stay empty. Like `backfill-server`, it decompresses the
 selected table's compressed history first (disk usage grows until the
 compression policy recompresses it) and refreshes the corresponding
 continuous aggregates afterwards. It may run for minutes on a large
@@ -1412,7 +1449,7 @@ docker compose exec -u geometrikks app litestar backfill-timings
 It only touches rows the legacy nginx format wrote without a host, which is
 how a `combined` line looks after import (the custom format always logs
 `$host`), and whose response time is exactly 0. A genuine sub-millisecond
-timing on a row with a host is left alone. `--hostname NAME` and
+timing on a row with a host is left alone. `--server NAME` and
 `--before 2026-08-20` narrow the set; the command prints the row count and
 time span and asks for confirmation (`--yes` skips it). Like the other
 backfills it decompresses history chunks first and refreshes the affected

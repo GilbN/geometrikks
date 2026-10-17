@@ -20,8 +20,8 @@ def test_cli_plugin_registers_command() -> None:
     assert "import-logs" in cli.commands
 
 
-def test_import_logs_rejects_blank_hostname(tmp_path) -> None:
-    """Whitespace-only --hostname must fail fast, matching the settings-side
+def test_import_logs_rejects_blank_server(tmp_path) -> None:
+    """Whitespace-only --server must fail fast, matching the settings-side
     rejection of blank entries, instead of stamping whitespace into rows."""
     import click
     from geometrikks.cli import ImportLogsCLIPlugin
@@ -32,13 +32,14 @@ def test_import_logs_rejects_blank_hostname(tmp_path) -> None:
     ImportLogsCLIPlugin().on_cli_init(cli)
     log = tmp_path / "a.log"
     log.write_text("", encoding="utf-8")
-    result = CliRunner().invoke(cli, ["import-logs", "--hostname", "  ", str(log)])
+    result = CliRunner().invoke(cli, ["import-logs", "--server", "  ", str(log)])
     assert result.exit_code != 0
-    assert "hostname" in result.output.lower()
+    assert "--server" in result.output
+    assert "must not be blank" in result.output
 
 
-def test_import_logs_threads_stripped_hostname_to_run_import(tmp_path, monkeypatch) -> None:
-    """--hostname reaches _run_import stripped of incidental surrounding
+def test_import_logs_threads_stripped_server_to_run_import(tmp_path, monkeypatch) -> None:
+    """--server reaches _run_import stripped of incidental surrounding
     whitespace, not the raw entry -- this is what actually gets stamped on
     imported records."""
     import click
@@ -55,11 +56,11 @@ def test_import_logs_threads_stripped_hostname_to_run_import(tmp_path, monkeypat
     ImportLogsCLIPlugin().on_cli_init(cli)
     log = tmp_path / "a.log"
     log.write_text("", encoding="utf-8")
-    result = CliRunner().invoke(cli, ["import-logs", "--hostname", " vps-9 ", str(log)])
+    result = CliRunner().invoke(cli, ["import-logs", "--server", " vps-9 ", str(log)])
 
     assert result.exit_code == 0, result.output
     assert run_import.await_args is not None
-    assert run_import.await_args.kwargs["hostname"] == "vps-9"
+    assert run_import.await_args.kwargs["server"] == "vps-9"
 
 
 def test_import_logs_help_runs_without_app() -> None:
@@ -76,7 +77,7 @@ def test_import_logs_help_runs_without_app() -> None:
     assert "--force" in result.output
 
 
-def test_import_logs_help_lists_hostname_option() -> None:
+def test_import_logs_help_lists_server_option() -> None:
     import click
     from geometrikks.cli import ImportLogsCLIPlugin
 
@@ -86,7 +87,8 @@ def test_import_logs_help_lists_hostname_option() -> None:
     ImportLogsCLIPlugin().on_cli_init(cli)
     result = CliRunner().invoke(cli, ["import-logs", "--help"])
     assert result.exit_code == 0
-    assert "--hostname" in result.output
+    assert "--server" in result.output
+    assert "--hostname" not in result.output
 
 
 def test_import_logs_accepts_import_only_format(tmp_path, monkeypatch) -> None:
@@ -176,7 +178,7 @@ def test_import_logs_rejects_bad_before(tmp_path) -> None:
     assert "--before" in result.output
 
 
-def test_cli_plugin_registers_backfill_hostname() -> None:
+def test_cli_plugin_registers_backfill_server() -> None:
     import click
     from geometrikks.cli import ImportLogsCLIPlugin
 
@@ -184,10 +186,13 @@ def test_cli_plugin_registers_backfill_hostname() -> None:
     def cli() -> None: ...
 
     ImportLogsCLIPlugin().on_cli_init(cli)
-    assert "backfill-hostname" in cli.commands
+    assert "backfill-server" in cli.commands
+    assert "backfill-geo-servers" in cli.commands
+    assert "backfill-hostname" not in cli.commands
+    assert "backfill-geo-hostnames" not in cli.commands
 
 
-def test_backfill_hostname_requires_name() -> None:
+def test_backfill_server_requires_name() -> None:
     """Invoking without NAME must fail click parsing, not construct an engine."""
     import click
     from geometrikks.cli import ImportLogsCLIPlugin
@@ -196,7 +201,7 @@ def test_backfill_hostname_requires_name() -> None:
     def cli() -> None: ...
 
     ImportLogsCLIPlugin().on_cli_init(cli)
-    result = CliRunner().invoke(cli, ["backfill-hostname"])
+    result = CliRunner().invoke(cli, ["backfill-server"])
     assert result.exit_code != 0
     assert "Missing argument" in result.output
 
@@ -206,7 +211,7 @@ def _make_engine(distinct_rows: list[tuple[str, int]]) -> MagicMock:
 
     connect() yields a conn whose execute() resolves to a result with
     .all() and .one(); begin() is left for the caller to assert on, since
-    the abort path in _run_backfill_hostname must never reach it.
+    the abort path in _run_backfill_server must never reach it.
     """
     result = MagicMock()
     result.all.return_value = distinct_rows
@@ -261,7 +266,7 @@ def _make_updating_engine(
 
 
 def _invoke_backfill(monkeypatch, engine: MagicMock, args: list[str], refresh: AsyncMock):
-    """Run backfill-hostname against a mocked engine and CAGG refresher."""
+    """Run backfill-server against a mocked engine and CAGG refresher."""
     import click
 
     import geometrikks.server.plugins as plugins_module
@@ -277,13 +282,13 @@ def _invoke_backfill(monkeypatch, engine: MagicMock, args: list[str], refresh: A
     def cli() -> None: ...
 
     ImportLogsCLIPlugin().on_cli_init(cli)
-    return CliRunner().invoke(cli, ["backfill-hostname", *args])
+    return CliRunner().invoke(cli, ["backfill-server", *args])
 
 
-def test_backfill_hostname_plain_refreshes_caggs(monkeypatch) -> None:
+def test_backfill_server_plain_refreshes_caggs(monkeypatch) -> None:
     """Without --consolidate the CAGGs must still be refreshed when rows changed.
 
-    Otherwise log_source_daily_stats keeps hostname NULL for history, and
+    Otherwise log_source_daily_stats keeps server NULL for history, and
     raw retention eventually makes that uncorrectable.
     """
     engine = _make_updating_engine([("abc123def456", 5)], rowcount=7)
@@ -292,26 +297,26 @@ def test_backfill_hostname_plain_refreshes_caggs(monkeypatch) -> None:
     result = _invoke_backfill(monkeypatch, engine, ["geometrikks"], refresh)
 
     assert result.exit_code == 0, result.output
-    assert "access_logs NULL hostnames filled: 7" in result.output
-    assert "Refreshing hostname CAGGs ..." in result.output
+    assert "access_logs servers filled: 7" in result.output
+    assert "Refreshing server CAGGs ..." in result.output
     refreshed = [call.kwargs["caggs"] for call in refresh.await_args_list]
-    assert refreshed == [["hostname_daily_stats"], ["log_source_daily_stats"]]
+    assert refreshed == [["server_daily_stats"], ["log_source_daily_stats"]]
 
 
-def test_backfill_hostname_no_changes_skips_refresh(monkeypatch) -> None:
+def test_backfill_server_no_changes_skips_refresh(monkeypatch) -> None:
     engine = _make_updating_engine([("geometrikks", 5)], rowcount=0)
     refresh = AsyncMock()
 
     result = _invoke_backfill(monkeypatch, engine, ["geometrikks"], refresh)
 
     assert result.exit_code == 0, result.output
-    assert "access_logs NULL hostnames filled: 0" in result.output
-    assert "Refreshing hostname CAGGs" not in result.output
+    assert "access_logs servers filled: 0" in result.output
+    assert "Refreshing server CAGGs" not in result.output
     refresh.assert_not_awaited()
 
 
-def test_backfill_hostname_nothing_to_do_skips_everything(monkeypatch) -> None:
-    """No NULL hostnames (and nothing to consolidate): the command must exit
+def test_backfill_server_nothing_to_do_skips_everything(monkeypatch) -> None:
+    """No NULL servers (and nothing to consolidate): the command must exit
     before decompressing chunks or opening a write transaction."""
     engine = _make_updating_engine([("geometrikks", 5)], rowcount=0)
     engine.connect.return_value.execute.return_value.scalar.return_value = False
@@ -325,7 +330,7 @@ def test_backfill_hostname_nothing_to_do_skips_everything(monkeypatch) -> None:
     refresh.assert_not_awaited()
 
 
-def test_backfill_hostname_decompresses_before_updates(monkeypatch) -> None:
+def test_backfill_server_decompresses_before_updates(monkeypatch) -> None:
     """Full-table UPDATEs on compressed chunks trip the TimescaleDB tuple
     decompression limit (seen at 18M rows in prod); chunks must be
     decompressed first, like the url/referrer swap migration does."""
@@ -351,7 +356,7 @@ def test_backfill_hostname_decompresses_before_updates(monkeypatch) -> None:
     assert tables == {"access_logs", "geo_events"}
 
 
-def test_backfill_hostname_consolidate_yes_skips_prompt(monkeypatch) -> None:
+def test_backfill_server_consolidate_yes_skips_prompt(monkeypatch) -> None:
     """--yes runs the rewrite without a confirmation prompt."""
     engine = _make_updating_engine([("abc123def456", 5)], rowcount=3)
     refresh = AsyncMock()
@@ -362,12 +367,12 @@ def test_backfill_hostname_consolidate_yes_skips_prompt(monkeypatch) -> None:
 
     assert result.exit_code == 0, result.output
     assert "Rewrite ALL of these?" not in result.output
-    assert "geo_events hostnames rewritten: 3" in result.output
-    assert "access_logs hostnames rewritten: 3" in result.output
+    assert "geo_events servers rewritten: 3" in result.output
+    assert "access_logs servers rewritten: 3" in result.output
     assert refresh.await_count == 2
 
 
-def test_backfill_hostname_consolidate_prompts(monkeypatch) -> None:
+def test_backfill_server_consolidate_prompts(monkeypatch) -> None:
     """--consolidate without --yes must prompt; answering 'n' aborts with no updates."""
     import click
 
@@ -384,7 +389,7 @@ def test_backfill_hostname_consolidate_prompts(monkeypatch) -> None:
 
     ImportLogsCLIPlugin().on_cli_init(cli)
     result = CliRunner().invoke(
-        cli, ["backfill-hostname", "geometrikks", "--consolidate"], input="n\n"
+        cli, ["backfill-server", "geometrikks", "--consolidate"], input="n\n"
     )
 
     assert result.exit_code == 0, result.output
@@ -703,19 +708,19 @@ def test_backfill_timings_previews_then_updates_and_refreshes(monkeypatch) -> No
     }
 
 
-def test_backfill_timings_narrows_by_hostname_and_before(monkeypatch) -> None:
+def test_backfill_timings_narrows_by_server_and_before(monkeypatch) -> None:
     from datetime import datetime, timezone
 
     engine = _make_timings_engine(5, rowcount=5)
     refresh = AsyncMock(return_value=[])
     result = _invoke_backfill_timings(
-        monkeypatch, engine, ["--yes", "--hostname", "nginx-01", "--before", "2026-08-20"], refresh
+        monkeypatch, engine, ["--yes", "--server", "nginx-01", "--before", "2026-08-20"], refresh
     )
     assert result.exit_code == 0, result.output
     preview_call = engine.connect.return_value.execute.await_args_list[0]
-    assert "hostname = :hostname" in str(preview_call.args[0])
+    assert "server = :server" in str(preview_call.args[0])
     assert "timestamp < :before" in str(preview_call.args[0])
-    assert preview_call.args[1]["hostname"] == "nginx-01"
+    assert preview_call.args[1]["server"] == "nginx-01"
     assert preview_call.args[1]["before"] == datetime(2026, 8, 20, tzinfo=timezone.utc)
 
 
@@ -751,7 +756,7 @@ def test_backfill_timings_logs_audit_before_raising_on_refresh_failure(monkeypat
     assert logger.info.call_args.kwargs["cagg_refresh_failed"] == ["url_daily_stats"]
 
 
-def test_geo_hostname_backfill_cli_registration_and_help() -> None:
+def test_geo_server_backfill_cli_registration_and_help() -> None:
     import click
     from geometrikks.cli import ImportLogsCLIPlugin
 
@@ -759,18 +764,18 @@ def test_geo_hostname_backfill_cli_registration_and_help() -> None:
     def cli(): ...
 
     ImportLogsCLIPlugin().on_cli_init(cli)
-    result = CliRunner().invoke(cli, ["backfill-geo-hostnames", "--help"])
+    result = CliRunner().invoke(cli, ["backfill-geo-servers", "--help"])
     assert result.exit_code == 0
     assert "--yes" in result.output
     assert "--batch-days" not in result.output
 
 
-def test_geo_hostname_backfill_options(monkeypatch) -> None:
+def test_geo_server_backfill_options(monkeypatch) -> None:
     import geometrikks.cli as module
 
     run = AsyncMock()
-    monkeypatch.setattr(module, "_run_backfill_geo_hostnames", run)
-    result = CliRunner().invoke(module.backfill_geo_hostnames_command, ["--yes"])
+    monkeypatch.setattr(module, "_run_backfill_geo_servers", run)
+    result = CliRunner().invoke(module.backfill_geo_servers_command, ["--yes"])
     assert result.exit_code == 0, result.output
     run.assert_awaited_once_with(yes=True)
 
@@ -789,7 +794,7 @@ def test_import_logs_reports_an_earlier_cutoff_as_a_failed_file(tmp_path, monkey
 
     settings = MagicMock()
     settings.geoip.asn_enabled = False
-    settings.ingest_hostnames.return_value = ["vps-1"]
+    settings.ingest_server_names.return_value = ["vps-1"]
     monkeypatch.setattr(settings_module, "get_settings", lambda: settings)
     engine = MagicMock()
     engine.dispose = AsyncMock()
@@ -831,7 +836,7 @@ def test_import_logs_exits_nonzero_when_cagg_refresh_fails(tmp_path, monkeypatch
 
     settings = MagicMock()
     settings.geoip.asn_enabled = False
-    settings.ingest_hostnames.return_value = ["vps-1"]
+    settings.ingest_server_names.return_value = ["vps-1"]
     monkeypatch.setattr(settings_module, "get_settings", lambda: settings)
     engine = MagicMock()
     engine.dispose = AsyncMock()
@@ -952,19 +957,19 @@ def _loki_settings(**loki_fields):
 
     return Settings(
         _env_file=None,
-        logparser=LogParserSettings(_env_file=None, host_name=["head"]),
+        logparser=LogParserSettings(_env_file=None, server_name=["head"]),
         loki=LokiSettings(_env_file=None, **loki_fields),
     )
 
 
-def test_select_loki_queries_resolves_format_and_hostname_per_query() -> None:
+def test_select_loki_queries_resolves_format_and_server_per_query() -> None:
     from geometrikks.cli import select_loki_queries
 
     settings = _loki_settings(
         url="http://loki:3100",
         queries=['{job="nginx"}', '{job="traefik"}'],
         formats=["auto", "traefik-json"],
-        host_names=["edge-01", "edge-02"],
+        server_names=["edge-01", "edge-02"],
     )
     assert select_loki_queries(settings, None) == [
         (1, '{job="nginx"}', "auto", "edge-01"),
@@ -973,7 +978,7 @@ def test_select_loki_queries_resolves_format_and_hostname_per_query() -> None:
     assert select_loki_queries(settings, 2) == [(2, '{job="traefik"}', "traefik-json", "edge-02")]
 
 
-def test_select_loki_queries_defaults_hostname_to_the_first_logparser_one() -> None:
+def test_select_loki_queries_defaults_server_to_the_first_logparser_one() -> None:
     from geometrikks.cli import select_loki_queries
 
     settings = _loki_settings(url="http://loki:3100", queries=['{job="nginx"}'])
@@ -1022,26 +1027,26 @@ def test_resolve_loki_before_default_rejects_since_past_it() -> None:
     with pytest.raises(click.ClickException, match="already begin"):
         resolve_loki_before(
             since=oldest, before=None, oldest_row=oldest,
-            earliest_import=None, unfinished_end=None, imports_wrote_from=None, hostname="edge-01",
+            earliest_import=None, unfinished_end=None, imports_wrote_from=None, server="edge-01",
         )
     with pytest.raises(click.ClickException, match="already begin"):
         resolve_loki_before(
             since=oldest, before=None, oldest_row=None,
-            earliest_import=oldest, unfinished_end=None, imports_wrote_from=None, hostname="edge-01",
+            earliest_import=oldest, unfinished_end=None, imports_wrote_from=None, server="edge-01",
         )
     with pytest.raises(click.ClickException, match="no access-log rows or earlier imports"):
         resolve_loki_before(
             since=oldest, before=None, oldest_row=None,
-            earliest_import=None, unfinished_end=None, imports_wrote_from=None, hostname="edge-01",
+            earliest_import=None, unfinished_end=None, imports_wrote_from=None, server="edge-01",
         )
     assert resolve_loki_before(
         since=oldest - timedelta(days=1), before=None, oldest_row=oldest,
-        earliest_import=None, unfinished_end=None, imports_wrote_from=None, hostname="edge-01",
+        earliest_import=None, unfinished_end=None, imports_wrote_from=None, server="edge-01",
     ) == oldest
     explicit = oldest + timedelta(days=1)
     assert resolve_loki_before(
         since=oldest, before=explicit, oldest_row=None,
-        earliest_import=None, unfinished_end=None, imports_wrote_from=None, hostname="edge-01",
+        earliest_import=None, unfinished_end=None, imports_wrote_from=None, server="edge-01",
     ) == explicit
 
 
@@ -1058,7 +1063,7 @@ def test_resolve_loki_before_prefers_an_unfinished_run() -> None:
         earliest_import=datetime(2026, 9, 1, tzinfo=timezone.utc),
         unfinished_end=unfinished_end,
         imports_wrote_from=None,
-        hostname="edge-01",
+        server="edge-01",
     ) == unfinished_end
 
 
@@ -1072,11 +1077,11 @@ def test_resolve_loki_before_uses_the_earliest_covered_start() -> None:
     since = datetime(2026, 9, 1, tzinfo=timezone.utc)
     assert resolve_loki_before(
         since=since, before=None, oldest_row=later, earliest_import=earlier,
-        unfinished_end=None, imports_wrote_from=None, hostname="edge-01",
+        unfinished_end=None, imports_wrote_from=None, server="edge-01",
     ) == earlier
     assert resolve_loki_before(
         since=since, before=None, oldest_row=earlier, earliest_import=later,
-        unfinished_end=None, imports_wrote_from=None, hostname="edge-01",
+        unfinished_end=None, imports_wrote_from=None, server="edge-01",
     ) == earlier
 
 
@@ -1094,7 +1099,7 @@ def test_resolve_loki_before_uses_the_import_start_when_the_oldest_row_is_its_ow
         earliest_import=import_start,
         unfinished_end=None,
         imports_wrote_from=import_start - timedelta(seconds=2),
-        hostname="edge-01",
+        server="edge-01",
     ) == import_start
 
 
@@ -1112,7 +1117,7 @@ def test_resolve_loki_before_uses_older_live_rows_when_they_predate_every_import
         earliest_import=import_start,
         unfinished_end=None,
         imports_wrote_from=import_start - timedelta(seconds=2),
-        hostname="edge-01",
+        server="edge-01",
     ) == import_start - timedelta(days=30)
 
 

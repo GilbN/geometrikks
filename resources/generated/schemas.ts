@@ -129,11 +129,11 @@ import type {
   ApiV1GeoLocationsLocationIdTopIpsGetLocationTopIpsData,
   ApiV1GeoLocationsLocationIdTopIpsGetLocationTopIpsErrors,
   ApiV1GeoLocationsLocationIdTopIpsGetLocationTopIpsResponses,
-  ApiV1GeoLocationsSiteHomesHostnameDeleteSiteHomeData,
-  ApiV1GeoLocationsSiteHomesHostnameDeleteSiteHomeErrors,
-  ApiV1GeoLocationsSiteHomesHostnameDeleteSiteHomeResponses,
-  ApiV1GeoLocationsSiteHomesSiteHomesData,
-  ApiV1GeoLocationsSiteHomesSiteHomesResponses,
+  ApiV1GeoLocationsServerLocationsDeleteServerLocationData,
+  ApiV1GeoLocationsServerLocationsDeleteServerLocationErrors,
+  ApiV1GeoLocationsServerLocationsDeleteServerLocationResponses,
+  ApiV1GeoLocationsServerLocationsServerLocationsData,
+  ApiV1GeoLocationsServerLocationsServerLocationsResponses,
   ApiV1GeoLocationsTopCountriesGetTopCountriesData,
   ApiV1GeoLocationsTopCountriesGetTopCountriesErrors,
   ApiV1GeoLocationsTopCountriesGetTopCountriesResponses,
@@ -196,7 +196,7 @@ import type {
  */
 export type OperationName =
   | 'ban'
-  | 'delete_site_home'
+  | 'delete_server_location'
   | 'download'
   | 'get_about'
   | 'get_abuse_contact'
@@ -256,7 +256,7 @@ export type OperationName =
   | 'read_settings'
   | 'rotate'
   | 'run_scheduler_job'
-  | 'site_homes'
+  | 'server_locations'
   | 'stats'
   | 'tail'
   | 'unban'
@@ -267,7 +267,7 @@ export type OperationName =
  */
 export interface OperationDataTypes {
   'ban': ApiV1CrowdsecBanBanData
-  'delete_site_home': ApiV1GeoLocationsSiteHomesHostnameDeleteSiteHomeData
+  'delete_server_location': ApiV1GeoLocationsServerLocationsDeleteServerLocationData
   'download': ApiV1LogsFilesKindNameDownloadData
   'get_about': ApiV1SystemAboutGetAboutData
   'get_abuse_contact': ApiV1ReportsAbuseContactGetAbuseContactData
@@ -327,7 +327,7 @@ export interface OperationDataTypes {
   'read_settings': ApiV1SettingsReadSettingsData
   'rotate': ApiV1LogsRotateRotateData
   'run_scheduler_job': ApiV1SystemSchedulerJobsJobIdRunRunSchedulerJobData
-  'site_homes': ApiV1GeoLocationsSiteHomesSiteHomesData
+  'server_locations': ApiV1GeoLocationsServerLocationsServerLocationsData
   'stats': ApiV1StatsStatsData
   'tail': ApiV1LogsTailTailData
   'unban': ApiV1CrowdsecUnbanUnbanData
@@ -339,7 +339,7 @@ export interface OperationDataTypes {
  */
 export interface OperationResponseTypes {
   'ban': ApiV1CrowdsecBanBanResponses
-  'delete_site_home': ApiV1GeoLocationsSiteHomesHostnameDeleteSiteHomeResponses
+  'delete_server_location': ApiV1GeoLocationsServerLocationsDeleteServerLocationResponses
   'download': ApiV1LogsFilesKindNameDownloadResponses
   'get_about': ApiV1SystemAboutGetAboutResponses
   'get_abuse_contact': ApiV1ReportsAbuseContactGetAbuseContactResponses
@@ -399,7 +399,7 @@ export interface OperationResponseTypes {
   'read_settings': ApiV1SettingsReadSettingsResponses
   'rotate': ApiV1LogsRotateRotateResponses
   'run_scheduler_job': ApiV1SystemSchedulerJobsJobIdRunRunSchedulerJobResponses
-  'site_homes': ApiV1GeoLocationsSiteHomesSiteHomesResponses
+  'server_locations': ApiV1GeoLocationsServerLocationsServerLocationsResponses
   'stats': ApiV1StatsStatsResponses
   'tail': ApiV1LogsTailTailResponses
   'unban': ApiV1CrowdsecUnbanUnbanResponses
@@ -411,7 +411,7 @@ export interface OperationResponseTypes {
  */
 export interface OperationErrorTypes {
   'ban': ApiV1CrowdsecBanBanErrors
-  'delete_site_home': ApiV1GeoLocationsSiteHomesHostnameDeleteSiteHomeErrors
+  'delete_server_location': ApiV1GeoLocationsServerLocationsDeleteServerLocationErrors
   'download': ApiV1LogsFilesKindNameDownloadErrors
   'get_about': never
   'get_abuse_contact': ApiV1ReportsAbuseContactGetAbuseContactErrors
@@ -471,7 +471,7 @@ export interface OperationErrorTypes {
   'read_settings': never
   'rotate': never
   'run_scheduler_job': ApiV1SystemSchedulerJobsJobIdRunRunSchedulerJobErrors
-  'site_homes': never
+  'server_locations': never
   'stats': never
   'tail': ApiV1LogsTailTailErrors
   'unban': ApiV1CrowdsecUnbanUnbanErrors

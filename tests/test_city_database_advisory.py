@@ -11,7 +11,7 @@ from geometrikks.server import timescale
 
 
 def _city_advisories(monkeypatch, *, available: bool, ingestion_enabled: bool):
-    monkeypatch.setattr(timescale, "_hostname_pollution", None)
+    monkeypatch.setattr(timescale, "_server_name_pollution", None)
     monkeypatch.setattr(
         health,
         "geoip_info",
@@ -70,7 +70,7 @@ def test_city_database_advisory_is_absent_when_ingestion_is_disabled(monkeypatch
 
 def test_city_database_advisory_is_distinct_from_stale_database(monkeypatch):
     """A usable but old file keeps the stale advisory path instead."""
-    monkeypatch.setattr(timescale, "_hostname_pollution", None)
+    monkeypatch.setattr(timescale, "_server_name_pollution", None)
     monkeypatch.setattr(
         health,
         "geoip_info",

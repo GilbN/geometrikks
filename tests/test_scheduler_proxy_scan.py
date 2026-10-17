@@ -1,4 +1,4 @@
-"""proxy_scan_job excludes the hostnames this instance tails itself."""
+"""proxy_scan_job excludes the servers this instance tails itself."""
 from __future__ import annotations
 
 from types import SimpleNamespace
@@ -11,15 +11,15 @@ from geometrikks.server import runtime, scheduler
 pytestmark = pytest.mark.anyio
 
 
-async def test_proxy_scan_job_excludes_the_source_hostnames(monkeypatch) -> None:
+async def test_proxy_scan_job_excludes_the_source_servers(monkeypatch) -> None:
     from geometrikks.domain.system import proxy_scan
 
     service = SimpleNamespace(
-        hostname="localhost",
-        hostname_for=lambda log_input: log_input.source.hostname or "localhost",
+        server="localhost",
+        server_for=lambda log_input: log_input.source.server or "localhost",
         inputs=[
-            SimpleNamespace(source=SimpleNamespace(hostname="web-01")),
-            SimpleNamespace(source=SimpleNamespace(hostname="web-02")),
+            SimpleNamespace(source=SimpleNamespace(server="web-01")),
+            SimpleNamespace(source=SimpleNamespace(server="web-02")),
         ]
     )
     monkeypatch.setattr(runtime, "get_ingestion_service", lambda app: service)
@@ -35,17 +35,17 @@ async def test_proxy_scan_job_excludes_the_source_hostnames(monkeypatch) -> None
     assert seen["exclude"] == {"web-01", "web-02"}
 
 
-async def test_proxy_scan_job_excludes_the_service_hostname_for_a_source_without_one(
+async def test_proxy_scan_job_excludes_the_service_server_for_a_source_without_one(
     monkeypatch,
 ) -> None:
     from geometrikks.domain.system import proxy_scan
 
     service = SimpleNamespace(
-        hostname="edge",
-        hostname_for=lambda log_input: log_input.source.hostname or "edge",
+        server="edge",
+        server_for=lambda log_input: log_input.source.server or "edge",
         inputs=[
-            SimpleNamespace(source=SimpleNamespace(hostname="")),
-            SimpleNamespace(source=SimpleNamespace(hostname="web-02")),
+            SimpleNamespace(source=SimpleNamespace(server="")),
+            SimpleNamespace(source=SimpleNamespace(server="web-02")),
         ],
     )
     monkeypatch.setattr(runtime, "get_ingestion_service", lambda app: service)

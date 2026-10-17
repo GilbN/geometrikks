@@ -970,11 +970,11 @@ async def test_banned_map_keeps_every_ip_decision_normalizes_ips_and_forwards_fi
     ])
     async with AsyncTestClient(app=make_app(service, enrichment)) as client:
         response = await client.get("/api/v1/crowdsec/banned-locations", params={
-            "countryCode": ["NO", "SE"], "city": ["Oslo"], "hostnameIn": ["a.test", "b.test"],
+            "countryCode": ["NO", "SE"], "city": ["Oslo"], "serverIn": ["a.test", "b.test"],
         })
     assert response.status_code == 200
     assert enrichment.location_calls == [["2001:db8::1", "1.2.3.4"]]
     assert enrichment.location_filters == {
-        "country_codes": ["NO", "SE"], "cities": ["Oslo"], "hostnames": ["a.test", "b.test"],
+        "country_codes": ["NO", "SE"], "cities": ["Oslo"], "servers": ["a.test", "b.test"],
     }
     assert response.json()["stats"] == {"ips": 0, "locations": 0, "events": 0, "countries": 0, "cities": 0}

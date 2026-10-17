@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest"
 import type { AccessLogData, GeoEventData, LiveEvent } from "@/lib/websocket"
-import { matchesSources, toLiveRequests } from "./requests"
+import { matchesServers, toLiveRequests } from "./requests"
 import type { LiveRequest } from "./types"
 
 const TS = "2026-07-22T19:57:54+02:00"
 
-function geoData(ip: string, hostname = "vps-1"): GeoEventData {
+function geoData(ip: string, server = "vps-1"): GeoEventData {
   return {
     timestamp: TS,
     ip_address: ip,
@@ -13,11 +13,11 @@ function geoData(ip: string, hostname = "vps-1"): GeoEventData {
     longitude: 10.7389,
     city: "Oslo",
     country_code: "NO",
-    hostname,
+    server,
   }
 }
 
-function logData(ip: string, status: number, hostname = "vps-1"): AccessLogData {
+function logData(ip: string, status: number, server = "vps-1"): AccessLogData {
   return {
     timestamp: TS,
     ip_address: ip,
@@ -37,7 +37,7 @@ function logData(ip: string, status: number, hostname = "vps-1"): AccessLogData 
     city: "Oslo",
     autonomous_system_number: 2119,
     autonomous_system_organization: "Telenor Norge AS",
-    hostname,
+    server,
   }
 }
 
@@ -81,7 +81,7 @@ describe("toLiveRequests", () => {
     expect(toLiveRequests([envelope(null, null)], new Map(), 1000)).toEqual([])
   })
 
-  it("keeps records from different sites sharing an IP and second distinct", () => {
+  it("keeps records from different servers sharing an IP and second distinct", () => {
     // Two agents seeing the same client in the same second: each record is
     // whole on arrival, whatever the publish interleaving was.
     const requests = toLiveRequests(
@@ -94,9 +94,9 @@ describe("toLiveRequests", () => {
     )
 
     expect(requests).toHaveLength(2)
-    expect(requests[0].hostname).toBe("nginx-01")
+    expect(requests[0].server).toBe("nginx-01")
     expect(requests[0].log?.status_code).toBe(200)
-    expect(requests[1].hostname).toBe("traefik-01")
+    expect(requests[1].server).toBe("traefik-01")
     expect(requests[1].log?.status_code).toBe(404)
   })
 
@@ -156,16 +156,16 @@ describe("toLiveRequests", () => {
     expect(toLiveRequests([], new Map(), 1000)).toEqual([])
   })
 
-  it("carries the recording hostname from either side of the envelope", () => {
+  it("carries the server from either side of the envelope", () => {
     const geoOnly = toLiveRequests([envelope(geoData("1.1.1.1"), null)], new Map(), 1000)
     const logOnly = toLiveRequests([envelope(null, logData("2.2.2.2", 200))], new Map(), 1000)
 
-    expect(geoOnly[0].hostname).toBe("vps-1")
-    expect(logOnly[0].hostname).toBe("vps-1")
+    expect(geoOnly[0].server).toBe("vps-1")
+    expect(logOnly[0].server).toBe("vps-1")
   })
 })
 
-function requestWithHostname(hostname: string | null): LiveRequest {
+function requestWithServer(server: string | null): LiveRequest {
   return {
     id: "r",
     timestamp: TS,
@@ -179,22 +179,22 @@ function requestWithHostname(hostname: string | null): LiveRequest {
     banned: false,
     decisionType: null,
     threat: false,
-    hostname,
+    server,
   }
 }
 
-describe("matchesSources", () => {
-  it("passes everything when no sources are selected", () => {
-    expect(matchesSources(requestWithHostname("nginx-01"), [])).toBe(true)
-    expect(matchesSources(requestWithHostname(null), [])).toBe(true)
+describe("matchesServers", () => {
+  it("passes everything when no servers are selected", () => {
+    expect(matchesServers(requestWithServer("nginx-01"), [])).toBe(true)
+    expect(matchesServers(requestWithServer(null), [])).toBe(true)
   })
 
-  it("filters by exact hostname", () => {
-    expect(matchesSources(requestWithHostname("nginx-01"), ["nginx-01"])).toBe(true)
-    expect(matchesSources(requestWithHostname("nginx-01"), ["traefik-01"])).toBe(false)
+  it("filters by exact server", () => {
+    expect(matchesServers(requestWithServer("nginx-01"), ["nginx-01"])).toBe(true)
+    expect(matchesServers(requestWithServer("nginx-01"), ["traefik-01"])).toBe(false)
   })
 
-  it("drops hostname-less requests when a filter is active", () => {
-    expect(matchesSources(requestWithHostname(null), ["nginx-01"])).toBe(false)
+  it("drops requests without a server when a filter is active", () => {
+    expect(matchesServers(requestWithServer(null), ["nginx-01"])).toBe(false)
   })
 })

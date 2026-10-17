@@ -6,8 +6,8 @@ import axios from "axios"
 import {
   apiV1GeoEventsFacetsGetGeoLogFacets,
   apiV1GeoEventsLogsGetGeoLogs,
-  apiV1GeoLocationsSiteHomesHostnameDeleteSiteHome,
-  apiV1GeoLocationsSiteHomesSiteHomes,
+  apiV1GeoLocationsServerLocationsDeleteServerLocation,
+  apiV1GeoLocationsServerLocationsServerLocations,
   apiV1GeoEventsSummaryGetGeoLogSummary,
   apiV1GeoEventsTimeSeriesGetGeoLogTimeSeries,
   apiV1GeoEventsTopAsnsGetGeoLogTopAsns,
@@ -50,7 +50,7 @@ import type {
   AuthOptions,
   OidcStatus,
   LogoutResponse,
-  SiteHomesResponse,
+  ServerLocationsResponse,
   LokiSourceStats,
 } from "@/generated/api/types.gen"
 
@@ -152,7 +152,7 @@ export interface HealthIngestionStatus {
 }
 
 export interface Advisory {
-  /** Stable slug, e.g. "hostname-pollution". */
+  /** Stable slug, e.g. "server-name-pollution". */
   id: string
   severity: "warning" | "critical"
   summary: string
@@ -379,7 +379,7 @@ export async function fetchCrowdsecBannedLocations(params: {
   toTimestamp?: string
   countryCodes?: string[]
   cities?: string[]
-  hostnames?: string[]
+  servers?: string[]
 } = {}): Promise<BannedMapCollection> {
   const { data } = await api.get<BannedMapCollection>("/crowdsec/banned-locations", {
     params: {
@@ -387,7 +387,7 @@ export async function fetchCrowdsecBannedLocations(params: {
       toTimestamp: params.toTimestamp,
       countryCode: params.countryCodes?.length ? params.countryCodes : undefined,
       city: params.cities?.length ? params.cities : undefined,
-      hostnameIn: params.hostnames?.length ? params.hostnames : undefined,
+      serverIn: params.servers?.length ? params.servers : undefined,
     },
   })
   return data
@@ -508,10 +508,9 @@ export interface GeoJSONParams {
   ips?: string[]
   /** Exact IPs to exclude; forces a raw geo_events scan on the backend. */
   ipsExclude?: string[]
-  /** Recording hostnames; reads the hostname-dimensioned location CAGGs,
-   * falling back to a raw geo_events scan on installs that have not
-   * migrated. */
-  hostnames?: string[]
+  /** Servers; reads the server-dimensioned location CAGGs, falling back
+   * to a raw geo_events scan on installs that have not migrated. */
+  servers?: string[]
   /** ASNs to include; forces a raw geo_events scan on the backend. */
   asns?: number[]
   /** ASNs to exclude (rows without ASN data are kept); forces a raw scan. */
@@ -527,7 +526,7 @@ export async function fetchGeoJSON(params: GeoJSONParams): Promise<GeoJSONFeatur
       city: params.cities?.length ? params.cities : undefined,
       ipAddressIn: params.ips?.length ? params.ips : undefined,
       ipAddressNotIn: params.ipsExclude?.length ? params.ipsExclude : undefined,
-      hostnameIn: params.hostnames?.length ? params.hostnames : undefined,
+      serverIn: params.servers?.length ? params.servers : undefined,
       asnIn: params.asns?.length ? params.asns : undefined,
       asnNotIn: params.asnsExclude?.length ? params.asnsExclude : undefined,
     },
@@ -841,7 +840,7 @@ export interface GeoLogFilterParams {
   cities?: string[]
   ips?: string[]
   ipsExclude?: string[]
-  hostnames?: string[]
+  servers?: string[]
   asns?: number[]
   asnsExclude?: number[]
 }
@@ -853,7 +852,7 @@ function geoLogFilterQuery(params: GeoLogFilterParams) {
     cityIn: params.cities?.length ? params.cities : undefined,
     ipAddressIn: params.ips?.length ? params.ips : undefined,
     ipAddressNotIn: params.ipsExclude?.length ? params.ipsExclude : undefined,
-    hostnameIn: params.hostnames?.length ? params.hostnames : undefined,
+    serverIn: params.servers?.length ? params.servers : undefined,
     asnIn: params.asns?.length ? params.asns : undefined,
     asnNotIn: params.asnsExclude?.length ? params.asnsExclude : undefined,
   }
@@ -1008,20 +1007,20 @@ export async function fetchGeoLogTopAsns(
   return data
 }
 
-/** Distinct country/city/hostname/ASN values present in the data. */
+/** Distinct country/city/server/ASN values present in the data. */
 export async function fetchGeoEventFacets() {
   const { data } = await apiV1GeoEventsFacetsGetGeoLogFacets({ throwOnError: true })
   return data
 }
 
-/** Per-source home locations plus the instance-wide default, for the map. */
-export async function fetchSiteHomes(): Promise<SiteHomesResponse> {
-  const { data } = await apiV1GeoLocationsSiteHomesSiteHomes({ throwOnError: true })
+/** Every server's map location plus this instance's own location as the default. */
+export async function fetchServerLocations(): Promise<ServerLocationsResponse> {
+  const { data } = await apiV1GeoLocationsServerLocationsServerLocations({ throwOnError: true })
   return data
 }
 
-export async function deleteSiteHome(hostname: string): Promise<void> {
-  await apiV1GeoLocationsSiteHomesHostnameDeleteSiteHome({ path: { hostname }, throwOnError: true })
+export async function deleteServerLocation(server: string): Promise<void> {
+  await apiV1GeoLocationsServerLocationsDeleteServerLocation({ path: { server }, throwOnError: true })
 }
 
 // ============================================================================
@@ -1043,7 +1042,7 @@ export interface AccessLog {
   requestTime: number | null
   upstreamResponseTime: number | null
   host: string | null
-  hostname: string | null
+  server: string | null
   logFormat: string | null
   countryCode: string | null
   countryName: string | null
@@ -1094,10 +1093,10 @@ export interface AccessLogsParams {
   hostIn?: string[]
   /** Hosts to exclude. */
   hostNotIn?: string[]
-  /** Exact recording-hostname match(es), chosen from the facets list. */
-  hostnameIn?: string[]
-  /** Recording hostnames to exclude. */
-  hostnameNotIn?: string[]
+  /** Exact server match(es), chosen from the facets list. */
+  serverIn?: string[]
+  /** Servers to exclude. */
+  serverNotIn?: string[]
   /** Exact log-format match(es), chosen from the facets list. */
   logFormatIn?: string[]
   /** Exact city match(es). */
@@ -1122,8 +1121,8 @@ export async function fetchAccessLogs(params: AccessLogsParams): Promise<AccessL
       methodIn: params.methodIn?.length ? params.methodIn : undefined,
       hostIn: params.hostIn?.length ? params.hostIn : undefined,
       hostNotIn: params.hostNotIn?.length ? params.hostNotIn : undefined,
-      hostnameIn: params.hostnameIn?.length ? params.hostnameIn : undefined,
-      hostnameNotIn: params.hostnameNotIn?.length ? params.hostnameNotIn : undefined,
+      serverIn: params.serverIn?.length ? params.serverIn : undefined,
+      serverNotIn: params.serverNotIn?.length ? params.serverNotIn : undefined,
       logFormatIn: params.logFormatIn?.length ? params.logFormatIn : undefined,
       cityIn: params.cityIn?.length ? params.cityIn : undefined,
       countryCodeIn: params.countryCodeIn?.length ? params.countryCodeIn : undefined,
@@ -1150,12 +1149,12 @@ export interface AccessLogFacets {
   /** Sorted alphabetically. */
   hosts: string[]
   /** Sorted alphabetically. */
-  hostnames: string[]
+  servers: string[]
   /** Sorted alphabetically. */
   logFormats: string[]
 }
 
-/** Distinct country/city/host/hostname/log-format values present in the data, for the filter dropdowns. */
+/** Distinct country/city/host/server/log-format values present in the data, for the filter dropdowns. */
 export async function fetchAccessLogFacets(): Promise<AccessLogFacets> {
   const { data } = await api.get<AccessLogFacets>("/access-logs/facets")
   return data

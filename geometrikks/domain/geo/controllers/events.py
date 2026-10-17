@@ -36,7 +36,7 @@ from geometrikks.lib.parameters import (
     ToTimestamp,
     AsnIn,
     AsnNotIn,
-    HostnameIn,
+    ServerIn,
     IpAddressIn,
     IpAddressNotIn,
     FromTimestamp,
@@ -77,9 +77,9 @@ def provide_geo_event_time_window(
 def provide_geo_event_in_filters(
     ip_address_in: IpAddressIn = None,
     ip_address_not_in: IpAddressNotIn = None,
-    hostname_in: HostnameIn = None,
+    server_in: ServerIn = None,
 ) -> list[FilterTypes]:
-    """IP include/exclude and hostname ``IN`` filters for the raw event list.
+    """IP include/exclude and server ``IN`` filters for the raw event list.
 
     Provided here rather than via the built-in ``in_fields`` config, whose
     generated providers yield ``None`` when the param is absent and fail the
@@ -92,8 +92,8 @@ def provide_geo_event_in_filters(
     if ip_address_not_in:
         validate_ip_addresses(ip_address_not_in)
         result.append(NotInCollectionFilter(field_name="ip_address", values=ip_address_not_in))
-    if hostname_in:
-        result.append(CollectionFilter(field_name="hostname", values=hostname_in))
+    if server_in:
+        result.append(CollectionFilter(field_name="server", values=server_in))
     return result
 
 
@@ -102,7 +102,7 @@ def provide_geo_event_filters(
     city_in: Annotated[list[str] | None, QueryParameter(name="cityIn", required=False)] = None,
     ip_address_in: IpAddressIn = None,
     ip_address_not_in: IpAddressNotIn = None,
-    hostname_in: HostnameIn = None,
+    server_in: ServerIn = None,
     asn_in: AsnIn = None,
     asn_not_in: AsnNotIn = None,
 ) -> GeoEventFilters:
@@ -116,7 +116,7 @@ def provide_geo_event_filters(
         cities=city_in or None,
         ip_include=ip_address_in or None,
         ip_exclude=ip_address_not_in or None,
-        hostnames=hostname_in or None,
+        servers=server_in or None,
         asn_include=asn_in or None,
         asn_exclude=asn_not_in or None,
     )
@@ -142,8 +142,8 @@ def _resolve_chart_granularity(
 class GeoEventController(Controller):
     """Geo-event endpoints: raw event listing and geo-logs page aggregates.
 
-    Perf note: only hostname filters force raw geo_events scans for
-    summary/time-series (per-IP CAGGs have no per-hostname counts); those
+    Perf note: only server filters force raw geo_events scans for
+    summary/time-series (per-IP CAGGs have no per-server counts); those
     queries are bounded by raw_retention_days (default 180d). Country/city/IP
     filters ride the stitched per-IP CAGGs instead.
     """
@@ -209,7 +209,7 @@ class GeoEventController(Controller):
         """One row per (location, IP) pair, sorted by event count by default.
 
         Ranges > 24h are served from the daily per-IP CAGG (day-floored
-        buckets, distinct hostnames); a hostname filter forces the raw path.
+        buckets, distinct servers); a server filter forces the raw path.
         """
         from_timestamp = ensure_utc(from_timestamp)
         to_timestamp = ensure_utc(to_timestamp)
@@ -235,7 +235,7 @@ class GeoEventController(Controller):
     ) -> GeoLogSummaryResponse:
         """Totals and unique counts for the period, optionally vs the previous one.
 
-        Hostname-filtered ranges scan raw geo_events; country/city/IP filters
+        Server-filtered ranges scan raw geo_events; country/city/IP filters
         use per-IP CAGGs (exact uniques); unfiltered ranges > 24h use HLL
         CAGGs (approximate uniques).
         """
@@ -290,7 +290,7 @@ class GeoEventController(Controller):
     ) -> GeoLogTimeSeriesResponse:
         """Bucketed totals + unique IPs.
 
-        Hostname-filtered ranges scan raw geo_events; country/city/IP filters
+        Server-filtered ranges scan raw geo_events; country/city/IP filters
         use per-IP CAGGs (exact uniques); unfiltered ranges > 24h use HLL
         CAGGs (approximate uniques).
         """
@@ -374,5 +374,5 @@ class GeoEventController(Controller):
         self,
         geo_event_service: NamedDependency[GeoEventService],
     ) -> GeoEventFacets:
-        """Distinct country/city/hostname values present in the geo data."""
+        """Distinct country/city/server/ASN values present in the geo data."""
         return await geo_event_service.get_facets()

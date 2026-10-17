@@ -1,4 +1,4 @@
-"""Hostname sets survive CAGG rollups, exact boundaries and column upgrades."""
+"""Server sets survive CAGG rollups, exact boundaries and column upgrades."""
 from __future__ import annotations
 
 from datetime import timedelta
@@ -38,7 +38,7 @@ async def clear_backfill_history(pg_engine, clean_tables):
 
 
 @pytest.mark.parametrize("days", [3, 40])
-async def test_hostname_sets_match_raw_with_partial_buckets(
+async def test_server_sets_match_raw_with_partial_buckets(
     pg_engine, pg_session_maker, clean_tables, days,
 ):
     start = NOW - timedelta(days=days, minutes=25)
@@ -47,7 +47,7 @@ async def test_hostname_sets_match_raw_with_partial_buckets(
         locs = await _seed_locations(session)
         # Repeated names, unequal array lengths, raw-only edge names, and
         # excluded events in the same boundary buckets as included ones.
-        for ts, hostname, n in [
+        for ts, server, n in [
             (start - timedelta(seconds=1), "outside-start", 7),
             (start, "head", 2),
             (start + timedelta(days=1), "web1", 3),
@@ -56,14 +56,14 @@ async def test_hostname_sets_match_raw_with_partial_buckets(
             (end - timedelta(seconds=1), "tail", 1),
             (end, "outside-end", 8),
         ]:
-            await _insert_events(session, ts=ts, ip="2001:db8::1", hostname=hostname,
+            await _insert_events(session, ts=ts, ip="2001:db8::1", server=server,
                                  location_id=locs["no"], n=n)
         # The same IP in another location, and another IP in the same
         # location, must not leak names into the requested group.
         await _insert_events(session, ts=start + timedelta(days=1), ip="2001:db8::1",
-                             hostname="sweden", location_id=locs["se"])
+                             server="sweden", location_id=locs["se"])
         await _insert_events(session, ts=start + timedelta(days=1), ip="1.1.1.1",
-                             hostname="other-ip", location_id=locs["no"])
+                             server="other-ip", location_id=locs["no"])
         await session.commit()
 
     assert not await timescale.refresh_caggs_range(
@@ -74,24 +74,24 @@ async def test_hostname_sets_match_raw_with_partial_buckets(
         service = GeoEventService(session=session)
         rows, total = await service.get_grouped_logs(start, end, GeoEventFilters(), limit=1, offset=0)
         assert total == 3
-        assert [(r.location_id, r.ip_address, r.event_count, r.hostnames) for r in rows] == [
+        assert [(r.location_id, r.ip_address, r.event_count, r.servers) for r in rows] == [
             (locs["no"], "2001:db8::1", 9, ["head", "tail", "web1", "web2"]),
         ]
         following, following_total = await service.get_grouped_logs(
             start, end, GeoEventFilters(), limit=2, offset=1,
         )
         assert following_total == total
-        assert [r.hostnames for r in following] == [["other-ip"], ["sweden"]]
+        assert [r.servers for r in following] == [["other-ip"], ["sweden"]]
         empty, empty_total = await service.get_grouped_logs(
             start, end, GeoEventFilters(), limit=2, offset=3,
         )
         assert empty == []
         assert empty_total == total
         filtered, filtered_total = await service.get_grouped_logs(
-            start, end, GeoEventFilters(hostnames=["web1"]), limit=10, offset=0,
+            start, end, GeoEventFilters(servers=["web1"]), limit=10, offset=0,
         )
         assert filtered_total == 1
-        assert [(r.event_count, r.hostnames) for r in filtered] == [(4, ["web1"])]
+        assert [(r.event_count, r.servers) for r in filtered] == [(4, ["web1"])]
 
 
 async def _old_view(conn, view, interval):
@@ -107,7 +107,7 @@ async def _old_view(conn, view, interval):
 
 
 @pytest.mark.parametrize("suffix, interval", [("hourly", "1 hour"), ("daily", "1 day")])
-async def test_hostname_upgrade_resumes_after_interrupted_refresh(
+async def test_server_upgrade_resumes_after_interrupted_refresh(
     pg_engine, pg_session_maker, clean_tables, suffix, interval, monkeypatch,
 ):
     view = f"ip_location_{suffix}_stats"
@@ -116,7 +116,7 @@ async def test_hostname_upgrade_resumes_after_interrupted_refresh(
         locs = await _seed_locations(session)
         for name, n in [("web1", 3), ("web2", 2)]:
             await _insert_events(session, ts=NOW - timedelta(days=8), ip="1.1.1.1",
-                                 hostname=name, location_id=locs["no"], n=n)
+                                 server=name, location_id=locs["no"], n=n)
         await session.commit()
     async with pg_engine.begin() as conn:
         await _old_view(conn, view, interval)
@@ -151,9 +151,9 @@ async def test_hostname_upgrade_resumes_after_interrupted_refresh(
         after = (await conn.execute(text(f"SELECT '{view}'::regclass::oid"))).scalar_one()
         assert after == before, "the aggregate must not be dropped"
         rows = (await conn.execute(text(
-            f"SELECT event_count, hostnames, hostname_hits FROM {view} WHERE location_id = :loc"
+            f"SELECT event_count, servers, server_hits FROM {view} WHERE location_id = :loc"
         ), {"loc": locs["no"]})).all()
-        assert [(r.event_count, sorted(r.hostnames), r.hostname_hits) for r in rows] == [
+        assert [(r.event_count, sorted(r.servers), r.server_hits) for r in rows] == [
             (5, ["web1", "web2"], 5),
         ]
         assert view not in await timescale._cagg_columns_need_upgrade(conn, raw_retention_days=retention)
@@ -162,7 +162,7 @@ async def test_hostname_upgrade_resumes_after_interrupted_refresh(
     await timescale.setup_timescaledb(pg_engine, get_settings().analytics)
 
 
-async def test_hostname_upgrade_preserves_counts_beyond_raw_retention(
+async def test_server_upgrade_preserves_counts_beyond_raw_retention(
     pg_engine, pg_session_maker, clean_tables, monkeypatch,
 ):
     view = "ip_location_daily_stats"
@@ -171,7 +171,7 @@ async def test_hostname_upgrade_preserves_counts_beyond_raw_retention(
     async with pg_session_maker() as session:
         locs = await _seed_locations(session)
         for ts, name in [(old, "expired"), (NOW - timedelta(days=2), "recent")]:
-            await _insert_events(session, ts=ts, ip="1.1.1.1", hostname=name,
+            await _insert_events(session, ts=ts, ip="1.1.1.1", server=name,
                                  location_id=locs["no"], n=2)
         await session.commit()
     async with pg_engine.begin() as conn:
@@ -187,10 +187,10 @@ async def test_hostname_upgrade_preserves_counts_beyond_raw_retention(
     await _run_cli(pg_engine, monkeypatch)
     async with pg_engine.connect() as conn:
         rows = (await conn.execute(text(
-            f"SELECT event_count, hostnames, hostname_hits FROM {view} "
+            f"SELECT event_count, servers, server_hits FROM {view} "
             "WHERE location_id = :loc ORDER BY bucket"
         ), {"loc": locs["no"]})).all()
-        assert [(r.event_count, r.hostnames, r.hostname_hits) for r in rows] == [
+        assert [(r.event_count, r.servers, r.server_hits) for r in rows] == [
             (2, None, None), (2, ["recent"], 2),
         ]
         assert view not in await timescale._cagg_columns_need_upgrade(conn, raw_retention_days=retention)
@@ -199,22 +199,22 @@ async def test_hostname_upgrade_preserves_counts_beyond_raw_retention(
             old - timedelta(days=1), NOW, GeoEventFilters(), limit=10, offset=0,
         )
         assert total == 1
-        assert [(r.event_count, r.hostnames) for r in rows] == [(4, ["recent"])]
+        assert [(r.event_count, r.servers) for r in rows] == [(4, ["recent"])]
         old_rows, _ = await GeoEventService(session=session).get_grouped_logs(
             old - timedelta(days=40), old + timedelta(days=1), GeoEventFilters(), limit=10, offset=0,
         )
-        assert [(r.event_count, r.hostnames) for r in old_rows] == [(2, [])]
+        assert [(r.event_count, r.servers) for r in old_rows] == [(2, [])]
     async with pg_engine.begin() as conn:
         await _drop_view(conn, view)
     await timescale.setup_timescaledb(pg_engine, get_settings().analytics)
 
 
-async def test_hostname_lookup_keeps_asn_filters(pg_engine, pg_session_maker, clean_tables):
+async def test_server_lookup_keeps_asn_filters(pg_engine, pg_session_maker, clean_tables):
     async with pg_session_maker() as session:
         locs = await _seed_locations(session)
         for day, name, asn in [(3, "included", 1221), (2, "excluded", 13335)]:
             await session.execute(text("""
-                INSERT INTO geo_events (timestamp, ip_address, hostname, location_id,
+                INSERT INTO geo_events (timestamp, ip_address, server, location_id,
                                         autonomous_system_number)
                 VALUES (:ts, '1.1.1.1', :name, :loc, :asn)
             """), {"ts": NOW - timedelta(days=day), "name": name, "loc": locs["no"], "asn": asn})
@@ -228,29 +228,29 @@ async def test_hostname_lookup_keeps_asn_filters(pg_engine, pg_session_maker, cl
             NOW - timedelta(days=4), NOW, GeoEventFilters(asn_include=[1221]), limit=10, offset=0,
         )
         assert total == 1
-        assert [(r.event_count, r.hostnames) for r in rows] == [(1, ["included"])]
+        assert [(r.event_count, r.servers) for r in rows] == [(1, ["included"])]
 
 
 async def _run_cli(engine, monkeypatch):
-    from geometrikks.cli import _run_backfill_geo_hostnames
+    from geometrikks.cli import _run_backfill_geo_servers
     from geometrikks.server import plugins
 
     monkeypatch.setattr(plugins, "get_sqlalchemy_config", lambda: SimpleNamespace(get_engine=lambda: engine))
-    await _run_backfill_geo_hostnames(yes=True)
+    await _run_backfill_geo_servers(yes=True)
 
 
 async def test_cli_failure_resumes_and_completed_run_is_noop(
     pg_engine, pg_session_maker, clean_tables, monkeypatch,
 ):
     import click
-    from geometrikks.server.hostname_backfill import hostname_backfill_ranges
+    from geometrikks.server.server_backfill import server_backfill_ranges
 
     view = "ip_location_daily_stats"
     async with pg_session_maker() as session:
         locs = await _seed_locations(session)
         for day in (12, 10, 8):
             await _insert_events(session, ts=NOW - timedelta(days=day), ip="1.1.1.1",
-                                 hostname=f"web-{day}", location_id=locs["no"])
+                                 server=f"web-{day}", location_id=locs["no"])
         await session.commit()
     async with pg_engine.begin() as conn:
         await _old_view(conn, view, "1 day")
@@ -279,7 +279,7 @@ async def test_cli_failure_resumes_and_completed_run_is_noop(
     await _run_cli(pg_engine, monkeypatch)
     assert len(calls) == count
     async with pg_engine.connect() as conn:
-        assert await hostname_backfill_ranges(
+        assert await server_backfill_ranges(
             conn, now=NOW, raw_retention_days=180, hourly_retention_days=60,
         ) == []
     async with pg_engine.begin() as conn:
@@ -292,14 +292,14 @@ async def test_cli_decline_and_concurrent_run_do_not_refresh(
 ):
     import click
     from unittest.mock import AsyncMock
-    from geometrikks.cli import _run_backfill_geo_hostnames
+    from geometrikks.cli import _run_backfill_geo_servers
     from geometrikks.server import plugins
 
     view = "ip_location_daily_stats"
     async with pg_session_maker() as session:
         locs = await _seed_locations(session)
         await _insert_events(session, ts=NOW - timedelta(days=8), ip="1.1.1.1",
-                             hostname="web", location_id=locs["no"])
+                             server="web", location_id=locs["no"])
         await session.commit()
     async with pg_engine.begin() as conn:
         await _old_view(conn, view, "1 day")
@@ -312,12 +312,12 @@ async def test_cli_decline_and_concurrent_run_do_not_refresh(
     refresh = AsyncMock()
     with monkeypatch.context() as patch:
         patch.setattr(timescale, "refresh_caggs_range", refresh)
-        await _run_backfill_geo_hostnames(yes=False)
+        await _run_backfill_geo_servers(yes=False)
         async with pg_engine.connect() as conn:
             await conn.execute(text("SELECT pg_advisory_lock(714023, 1)"))
             try:
                 with pytest.raises(click.ClickException, match="already running"):
-                    await _run_backfill_geo_hostnames(yes=True)
+                    await _run_backfill_geo_servers(yes=True)
             finally:
                 await conn.execute(text("SELECT pg_advisory_unlock(714023, 1)"))
         refresh.assert_not_awaited()

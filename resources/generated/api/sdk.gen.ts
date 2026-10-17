@@ -132,11 +132,11 @@ import type {
   ApiV1GeoLocationsLocationIdTopIpsGetLocationTopIpsData,
   ApiV1GeoLocationsLocationIdTopIpsGetLocationTopIpsErrors,
   ApiV1GeoLocationsLocationIdTopIpsGetLocationTopIpsResponses,
-  ApiV1GeoLocationsSiteHomesHostnameDeleteSiteHomeData,
-  ApiV1GeoLocationsSiteHomesHostnameDeleteSiteHomeErrors,
-  ApiV1GeoLocationsSiteHomesHostnameDeleteSiteHomeResponses,
-  ApiV1GeoLocationsSiteHomesSiteHomesData,
-  ApiV1GeoLocationsSiteHomesSiteHomesResponses,
+  ApiV1GeoLocationsServerLocationsDeleteServerLocationData,
+  ApiV1GeoLocationsServerLocationsDeleteServerLocationErrors,
+  ApiV1GeoLocationsServerLocationsDeleteServerLocationResponses,
+  ApiV1GeoLocationsServerLocationsServerLocationsData,
+  ApiV1GeoLocationsServerLocationsServerLocationsResponses,
   ApiV1GeoLocationsTopCountriesGetTopCountriesData,
   ApiV1GeoLocationsTopCountriesGetTopCountriesErrors,
   ApiV1GeoLocationsTopCountriesGetTopCountriesResponses,
@@ -1463,21 +1463,24 @@ export const apiV1GeoLocationsGeojsonGetGeojson = <
   });
 
 /**
- * SiteHomes
+ * ServerLocations
  *
- * Per-source home locations for the map.
+ * Where each server sits on the map.
  */
-export const apiV1GeoLocationsSiteHomesSiteHomes = <
+export const apiV1GeoLocationsServerLocationsServerLocations = <
   ThrowOnError extends boolean = false,
 >(
-  options?: Options<ApiV1GeoLocationsSiteHomesSiteHomesData, ThrowOnError>,
+  options?: Options<
+    ApiV1GeoLocationsServerLocationsServerLocationsData,
+    ThrowOnError
+  >,
 ): RequestResult<
-  ApiV1GeoLocationsSiteHomesSiteHomesResponses,
+  ApiV1GeoLocationsServerLocationsServerLocationsResponses,
   unknown,
   ThrowOnError
 > =>
   (options?.client ?? client).get<
-    ApiV1GeoLocationsSiteHomesSiteHomesResponses,
+    ApiV1GeoLocationsServerLocationsServerLocationsResponses,
     unknown,
     ThrowOnError
   >({
@@ -1488,30 +1491,30 @@ export const apiV1GeoLocationsSiteHomesSiteHomes = <
         type: "apiKey",
       },
     ],
-    url: "/api/v1/geo-locations/site-homes",
+    url: "/api/v1/geo-locations/server-locations",
     ...options,
   });
 
 /**
- * DeleteSiteHome
+ * DeleteServerLocation
  *
- * Remove a retired source's auto-detected home. Override rows (MAP_HOME_LOCATIONS) cannot be removed here.
+ * Remove a retired server's auto-detected location. Locations pinned by MAP_SERVER_LOCATIONS cannot be removed here.
  */
-export const apiV1GeoLocationsSiteHomesHostnameDeleteSiteHome = <
+export const apiV1GeoLocationsServerLocationsDeleteServerLocation = <
   ThrowOnError extends boolean = false,
 >(
   options: Options<
-    ApiV1GeoLocationsSiteHomesHostnameDeleteSiteHomeData,
+    ApiV1GeoLocationsServerLocationsDeleteServerLocationData,
     ThrowOnError
   >,
 ): RequestResult<
-  ApiV1GeoLocationsSiteHomesHostnameDeleteSiteHomeResponses,
-  ApiV1GeoLocationsSiteHomesHostnameDeleteSiteHomeErrors,
+  ApiV1GeoLocationsServerLocationsDeleteServerLocationResponses,
+  ApiV1GeoLocationsServerLocationsDeleteServerLocationErrors,
   ThrowOnError
 > =>
   (options.client ?? client).delete<
-    ApiV1GeoLocationsSiteHomesHostnameDeleteSiteHomeResponses,
-    ApiV1GeoLocationsSiteHomesHostnameDeleteSiteHomeErrors,
+    ApiV1GeoLocationsServerLocationsDeleteServerLocationResponses,
+    ApiV1GeoLocationsServerLocationsDeleteServerLocationErrors,
     ThrowOnError
   >({
     security: [
@@ -1521,7 +1524,7 @@ export const apiV1GeoLocationsSiteHomesHostnameDeleteSiteHome = <
         type: "apiKey",
       },
     ],
-    url: "/api/v1/geo-locations/site-homes/{hostname}",
+    url: "/api/v1/geo-locations/server-locations/{server}",
     ...options,
   });
 

@@ -159,7 +159,7 @@ async def _claim_row(
             return loki_import.id, loki_import.cursor, stored, loki_import.cursor
         loki_import = await repo.add(
             LokiImport(
-                hostname=source.hostname,
+                server=source.server,
                 range_start=since,
                 range_end=before,
                 cursor=since,
@@ -278,7 +278,7 @@ async def import_loki_range(
                         continue
                     if record.ip_address is None:  # line didn't match the format
                         run.lines_skipped += 1
-                    record.hostname = source.hostname
+                    record.server = source.server
                     run.note(record)
                     batch.append(record)
                     if len(batch) >= batch_size:
@@ -304,7 +304,7 @@ async def import_loki_range(
     logger.success(  # ty: ignore[unresolved-attribute]
         "loki_import_completed",
         query=source.query,
-        hostname=source.hostname,
+        server=source.server,
         since=since.isoformat(),
         before=before.isoformat(),
         lines=run.lines_total,

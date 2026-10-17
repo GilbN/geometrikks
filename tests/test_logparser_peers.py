@@ -142,7 +142,7 @@ def test_detected_and_cleared_logged_once() -> None:
     detected = [e for e in logs if e["event"] == "proxy_peer_detected"]
     cleared = [e for e in logs if e["event"] == "proxy_peer_cleared"]
     assert len(detected) == 1 and detected[0]["kind"] == "private"
-    assert "hostname" not in detected[0]
+    assert "server" not in detected[0]
     assert detected[0]["path"] == parser.source_label
     assert len(cleared) == 1
 

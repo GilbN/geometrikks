@@ -41,10 +41,10 @@ class AccessLogService(SQLAlchemyAsyncRepositoryService[AccessLog]):
     count_with_window_function = False
 
     async def get_facets(self) -> AccessLogFacets:
-        """Distinct country/city/host/hostname/log-format values, for filter dropdowns.
+        """Distinct country/city/host/server/log-format values, for filter dropdowns.
 
         Countries and cities come from log_ip_daily_stats, hosts from
-        host_daily_stats, and hostnames and log formats from
+        host_daily_stats, and servers and log formats from
         log_source_daily_stats (all real-time aggregated), not the raw
         hypertable: the facet query cost then scales with distinct values per
         day instead of total log volume. Values persist beyond raw retention
@@ -76,10 +76,10 @@ class AccessLogService(SQLAlchemyAsyncRepositoryService[AccessLog]):
                 "SELECT DISTINCT host FROM host_daily_stats ORDER BY host"
             ))
         ).scalars().all()
-        hostnames = (
+        servers = (
             await session.execute(text(
-                "SELECT DISTINCT hostname FROM log_source_daily_stats "
-                "WHERE hostname IS NOT NULL ORDER BY hostname"
+                "SELECT DISTINCT server FROM log_source_daily_stats "
+                "WHERE server IS NOT NULL ORDER BY server"
             ))
         ).scalars().all()
         log_formats = (
@@ -92,7 +92,7 @@ class AccessLogService(SQLAlchemyAsyncRepositoryService[AccessLog]):
             countries=[CountryFacet(code=code, name=name or code) for code, name in country_rows],
             cities=list(cities),
             hosts=list(hosts),
-            hostnames=list(hostnames),
+            servers=list(servers),
             log_formats=list(log_formats),
         )
 

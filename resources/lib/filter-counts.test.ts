@@ -25,7 +25,7 @@ describe("active filter group counts", () => {
       countActiveGeoLogFilters({
         ...EMPTY_GEO_LOG_FILTERS,
         countryCodes: ["NO", "SE", "DK"],
-        hostnames: ["edge-01"],
+        servers: ["edge-01"],
         asns: [13335, 24940],
         asnsExclude: [16509],
       }),

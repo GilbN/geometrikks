@@ -30,7 +30,7 @@ NEW_CAGGS = (
     "asn_hourly_stats",
     "asn_daily_stats",
     "host_daily_stats",
-    "hostname_daily_stats",
+    "server_daily_stats",
 )
 
 

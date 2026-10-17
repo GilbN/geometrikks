@@ -40,7 +40,7 @@ class FileSource:
         path: Path,
         poll_interval: float = 1.0,
         *,
-        hostname: str = "",
+        server: str = "",
         start_at_end: bool = True,
     ) -> None:
         """Set up the source.
@@ -48,14 +48,14 @@ class FileSource:
         Args:
             path: The log file to tail.
             poll_interval: Seconds between checks for new lines.
-            hostname: Stamped on every record read from this file.
+            server: Server name stamped on every record read from this file.
             start_at_end: If True, reading starts at the position recorded by
                 wait_ready, or at the current end when lines() is called
                 without it. If False, read from the beginning.
         """
         self.path: Path = path
         self.label: str = str(path)
-        self.hostname: str = hostname
+        self.server: str = server
         self.poll_interval: int | float = poll_interval
         self.start_at_end: bool = start_at_end
         # "missing" or "unreadable" while the configured file cannot be

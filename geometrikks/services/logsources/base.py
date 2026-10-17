@@ -29,7 +29,7 @@ class LogSource(Protocol):
     label: str
     # Stamped on every record read from this source. Empty means the source
     # has none of its own and the ingestion service's default applies.
-    hostname: str
+    server: str
 
     def status(self) -> SourceStatus:
         """Current availability. Called on every /health request: no I/O."""
