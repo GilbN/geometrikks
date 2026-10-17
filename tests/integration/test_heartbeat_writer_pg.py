@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 from typing import Any
+from uuid import UUID
 
 import pytest
 import structlog
@@ -22,11 +23,13 @@ def _agent_settings() -> Settings:
     return Settings(_env_file=None, app=AppSettings(_env_file=None, mode="agent"))
 
 
-def _writer(pg_engine: Any, started_at: datetime | None = None) -> HeartbeatWriter:
+def _writer(
+    pg_engine: Any, started_at: datetime | None = None, boot_id: UUID | None = None
+) -> HeartbeatWriter:
     app = Litestar(route_handlers=[])
     if started_at is not None:
         app.state.started_at = started_at
-    return HeartbeatWriter(app, _agent_settings(), pg_engine)
+    return HeartbeatWriter(app, _agent_settings(), pg_engine, boot_id=boot_id)
 
 
 async def _stored_payload(pg_engine: Any) -> dict[str, Any]:
@@ -63,6 +66,40 @@ async def test_restart_carries_recent_starts_forward(pg_engine, clean_instance_h
     payload = decode_payload(await _stored_payload(pg_engine))
     assert payload is not None
     assert payload.recent_starts == [second_start, first_start]
+
+
+async def test_retry_after_an_unrecorded_commit_keeps_recent_starts(
+    pg_engine, clean_instance_heartbeats
+):
+    first_start = datetime(2026, 10, 17, 9, 0, tzinfo=timezone.utc)
+    second_start = first_start + timedelta(minutes=5)
+    assert await _writer(pg_engine, started_at=first_start).beat() is True
+    committed_writer = _writer(pg_engine, started_at=second_start)
+    assert await committed_writer.beat() is True
+
+    # Same boot ID, nothing recorded in memory: the state a write leaves when
+    # it commits and then times out before the writer notes it.
+    retrying_writer = _writer(pg_engine, started_at=second_start, boot_id=committed_writer.boot_id)
+    assert await retrying_writer.beat() is True
+
+    payload = decode_payload(await _stored_payload(pg_engine))
+    assert payload is not None
+    assert payload.recent_starts == [second_start, first_start]
+
+
+async def test_first_write_after_a_restart_is_not_a_sighting(pg_engine, clean_instance_heartbeats):
+    writer_a = _writer(pg_engine)
+    writer_b = _writer(pg_engine)
+
+    with structlog.testing.capture_logs() as captured:
+        for _ in range(3):
+            assert await writer_a.beat() is True
+            assert await writer_b.beat() is True
+
+    assert (await _stored_payload(pg_engine)).get("nameConflictAt") is None
+    assert [
+        log_entry for log_entry in captured if log_entry["event"] == "instance_name_conflict"
+    ] == []
 
 
 async def test_single_foreign_write_is_not_a_conflict(pg_engine, clean_instance_heartbeats):

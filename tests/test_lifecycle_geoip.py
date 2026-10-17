@@ -20,11 +20,7 @@ def _patch_startup_collaborators(
         return db_available
 
     sqlalchemy_config = MagicMock()
-    # The heartbeat writer runs inside every lifespan. Through a MagicMock
-    # connection it would create AsyncMock coroutines nobody awaits.
-    sqlalchemy_config.get_engine.return_value = MagicMock(
-        begin=MagicMock(side_effect=OSError("no database in unit tests"))
-    )
+    sqlalchemy_config.get_engine.return_value = MagicMock()
     sqlalchemy_config.create_session_maker.return_value = MagicMock()
 
     ingestion = MagicMock()

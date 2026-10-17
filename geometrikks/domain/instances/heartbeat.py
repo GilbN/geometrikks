@@ -2,6 +2,7 @@
 import asyncio
 import time
 from collections import deque
+from collections.abc import Callable
 from datetime import datetime, timezone
 from uuid import UUID, uuid4
 
@@ -28,6 +29,9 @@ HEARTBEAT_INTERVAL_SECONDS = 30.0
 NAME_CONFLICT_THRESHOLD = 3
 NAME_CONFLICT_WINDOW_SECONDS = 300.0
 RECENT_STARTS_KEPT = 10
+# The head's first beats race its own migration, and an agent's fail until the
+# head has migrated, so failures this soon after start() log at debug.
+STARTUP_GRACE_SECONDS = 120.0
 
 _WRITE_TIMEOUT_SECONDS = 10.0
 _COUNTER_WINDOW_SECONDS = 300.0
@@ -48,8 +52,11 @@ class HeartbeatWriter:
         *,
         boot_id: UUID | None = None,
         interval: float = HEARTBEAT_INTERVAL_SECONDS,
+        _clock: Callable[[], float] = time.monotonic,
     ) -> None:
         self.boot_id = boot_id or uuid4()
+        self._clock = _clock
+        self._started_monotonic: float | None = None
         self._app = app
         self._settings = settings
         self._engine = engine
@@ -71,6 +78,7 @@ class HeartbeatWriter:
     def start(self) -> None:
         if self._task is not None and not self._task.done():
             return
+        self._started_monotonic = self._clock()
         self._task = asyncio.create_task(self._run(), name="heartbeat-writer")
         logger.info(
             "heartbeat_writer_started",
@@ -109,8 +117,13 @@ class HeartbeatWriter:
         return True
 
     def _record_failure(self, error: Exception) -> None:
-        log = logger.debug if self._failing else logger.warning
-        self._failing = True
+        in_startup_grace = (
+            self._started_monotonic is not None
+            and self._clock() - self._started_monotonic < STARTUP_GRACE_SECONDS
+        )
+        log = logger.debug if self._failing or in_startup_grace else logger.warning
+        if not in_startup_grace:
+            self._failing = True
         log(
             "heartbeat_write_failed",
             instance_name=self._instance_name,
@@ -120,7 +133,8 @@ class HeartbeatWriter:
     async def _write(self) -> None:
         if self._schema_revision is None:
             self._schema_revision = bundled_head_revision()
-        at_monotonic = time.monotonic()
+        schema_revision = self._schema_revision
+        at_monotonic = self._clock()
         lines_5m, failed_5m = self._sample_counters(at_monotonic)
 
         async with self._engine.begin() as connection:
@@ -137,14 +151,16 @@ class HeartbeatWriter:
                 recent_starts=recent_starts,
                 name_conflict_at=self._name_conflict_at,
             )
-            previous_heartbeat = await upsert_heartbeat(connection, self._heartbeat_write(payload))
+            previous_heartbeat = await upsert_heartbeat(
+                connection, self._heartbeat_write(payload, schema_revision)
+            )
             if not first_write and self._track_conflict(at_monotonic, previous_heartbeat):
                 # The payload above was built before this write revealed the
                 # conflict. Rewriting it inside the same transaction means the
                 # row never lags a beat behind; the second upsert returns this
                 # process's own row, so it never counts as a sighting.
                 payload = msgspec.structs.replace(payload, name_conflict_at=self._name_conflict_at)
-                await upsert_heartbeat(connection, self._heartbeat_write(payload))
+                await upsert_heartbeat(connection, self._heartbeat_write(payload, schema_revision))
         self._recent_starts = recent_starts
 
     def _sample_counters(self, at_monotonic: float) -> tuple[int | None, int | None]:
@@ -158,11 +174,14 @@ class HeartbeatWriter:
 
     async def _merge_recent_starts(self, connection: AsyncConnection) -> list[datetime]:
         previous_heartbeat = await read_heartbeat(connection, self._instance_name)
-        previous_starts: list[datetime] = []
-        if previous_heartbeat is not None and previous_heartbeat.boot_id != self.boot_id:
-            previous_payload = decode_payload(previous_heartbeat.payload)
-            if previous_payload is not None:
-                previous_starts = previous_payload.recent_starts
+        if previous_heartbeat is None:
+            return [self._started_at]
+        previous_payload = decode_payload(previous_heartbeat.payload)
+        previous_starts = previous_payload.recent_starts if previous_payload is not None else []
+        if previous_heartbeat.boot_id == self.boot_id and previous_starts:
+            # An earlier write from this process committed but timed out
+            # before it was recorded; its list already starts with this boot.
+            return previous_starts[:RECENT_STARTS_KEPT]
         return [self._started_at, *previous_starts[: RECENT_STARTS_KEPT - 1]]
 
     def _track_conflict(
@@ -199,13 +218,13 @@ class HeartbeatWriter:
             )
         return True
 
-    def _heartbeat_write(self, payload: HeartbeatPayload) -> HeartbeatWrite:
+    def _heartbeat_write(self, payload: HeartbeatPayload, schema_revision: str) -> HeartbeatWrite:
         return HeartbeatWrite(
             instance_name=self._instance_name,
             boot_id=self.boot_id,
             mode=self._settings.app.mode,
             app_version=self._app_version,
-            schema_revision=self._schema_revision or "",
+            schema_revision=schema_revision,
             started_at=self._started_at,
             payload=msgspec.to_builtins(payload),
         )

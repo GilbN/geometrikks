@@ -308,11 +308,7 @@ async def test_lifespan_migrates_before_timescale(monkeypatch) -> None:
     ingestion.stop = AsyncMock()
 
     sqlalchemy_config = MagicMock()
-    # The heartbeat writer runs inside every lifespan. Through a MagicMock
-    # connection it would create AsyncMock coroutines nobody awaits.
-    sqlalchemy_config.get_engine.return_value = MagicMock(
-        begin=MagicMock(side_effect=OSError("no database in unit tests"))
-    )
+    sqlalchemy_config.get_engine.return_value = MagicMock()
     sqlalchemy_config.create_session_maker.return_value = MagicMock()
 
     monkeypatch.setattr(lc, "_db_available", fake_db_available)
