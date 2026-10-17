@@ -1,0 +1,335 @@
+"""Evaluation of heartbeat rows into per-instance status and problems."""
+from __future__ import annotations
+
+from datetime import datetime, timedelta, timezone
+from typing import Any
+from uuid import UUID, uuid4
+
+import pytest
+
+from geometrikks.domain.instances.evaluation import (
+    NOT_CHECKING_IN_AFTER,
+    HeadIdentity,
+    HeartbeatRow,
+    evaluate_instance,
+    evaluate_instances,
+)
+from geometrikks.domain.instances.models import InstanceHeartbeat
+
+NOW = datetime(2026, 10, 17, 12, 0, tzinfo=timezone.utc)
+HEAD_BOOT_ID = uuid4()
+HEAD = HeadIdentity(
+    boot_id=HEAD_BOOT_ID,
+    instance_name="head",
+    app_version="0.20.0",
+    schema_revision="7c1e9a",
+    known_revisions=frozenset({"4b02d1", "7c1e9a"}),
+)
+
+
+def make_row(
+    *,
+    name: str = "edge-traefik",
+    boot_id: UUID | None = None,
+    mode: str = "agent",
+    app_version: str = "0.20.0",
+    schema_revision: str = "7c1e9a",
+    last_seen: datetime = NOW - timedelta(seconds=10),
+    payload: dict[str, Any] | None = None,
+) -> HeartbeatRow:
+    return HeartbeatRow(
+        instance_name=name,
+        boot_id=boot_id or uuid4(),
+        mode=mode,
+        app_version=app_version,
+        schema_revision=schema_revision,
+        started_at=NOW - timedelta(hours=2),
+        last_seen=last_seen,
+        payload={"instanceNameSource": "env"} if payload is None else payload,
+    )
+
+
+def problem_ids(row: HeartbeatRow) -> list[str]:
+    return [problem.id for problem in evaluate_instance(row, HEAD, NOW).problems]
+
+
+def advisory_payload(*advisories: dict[str, Any]) -> dict[str, Any]:
+    return {"instanceNameSource": "env", "health": {"advisories": list(advisories)}}
+
+
+def test_clean_agent_is_ok() -> None:
+    evaluation = evaluate_instance(make_row(), HEAD, NOW)
+    assert evaluation.status == "ok"
+    assert evaluation.problems == []
+    assert evaluation.checking_in is True
+    assert evaluation.is_self is False
+
+
+def test_from_model_copies_the_columns() -> None:
+    model = InstanceHeartbeat(
+        instance_name="edge-traefik",
+        boot_id=uuid4(),
+        mode="agent",
+        app_version="0.20.0",
+        schema_revision="7c1e9a",
+        started_at=NOW,
+        last_seen=NOW,
+        payload={"a": 1},
+    )
+    row = HeartbeatRow.from_model(model)
+    assert (row.instance_name, row.boot_id, row.mode, row.payload) == (
+        "edge-traefik",
+        model.boot_id,
+        "agent",
+        {"a": 1},
+    )
+    assert (row.app_version, row.schema_revision, row.started_at, row.last_seen) == (
+        "0.20.0",
+        "7c1e9a",
+        NOW,
+        NOW,
+    )
+
+
+def test_stale_row_is_not_checking_in() -> None:
+    row = make_row(last_seen=NOW - NOT_CHECKING_IN_AFTER - timedelta(seconds=1))
+    evaluation = evaluate_instance(row, HEAD, NOW)
+    assert evaluation.checking_in is False
+    assert evaluation.status == "critical"
+    assert [problem.id for problem in evaluation.problems] == ["instance-not-checking-in"]
+    assert "edge-traefik" in evaluation.problems[0].summary
+
+
+def test_row_at_exactly_the_threshold_still_checks_in() -> None:
+    row = make_row(last_seen=NOW - NOT_CHECKING_IN_AFTER)
+    assert evaluate_instance(row, HEAD, NOW).checking_in is True
+
+
+def test_stale_row_reports_only_not_checking_in() -> None:
+    row = make_row(
+        last_seen=NOW - timedelta(minutes=10),
+        schema_revision="4b02d1",
+        app_version="0.19.2",
+        payload=advisory_payload({"id": "ingestion-stopped", "severity": "critical", "summary": "x"}),
+    )
+    assert problem_ids(row) == ["instance-not-checking-in"]
+
+
+def test_self_is_matched_by_boot_id_not_name() -> None:
+    impostor = make_row(name="head", mode="full", schema_revision="4b02d1")
+    evaluation = evaluate_instance(impostor, HEAD, NOW)
+    assert evaluation.is_self is False
+    assert [problem.id for problem in evaluation.problems] == ["instance-schema-behind"]
+
+
+def test_self_never_goes_stale() -> None:
+    row = make_row(
+        name="head",
+        boot_id=HEAD_BOOT_ID,
+        mode="full",
+        last_seen=NOW - timedelta(hours=1),
+        schema_revision="4b02d1",
+        app_version="0.19.0",
+    )
+    evaluation = evaluate_instance(row, HEAD, NOW)
+    assert evaluation.is_self is True
+    assert evaluation.checking_in is True
+    assert evaluation.problems == []
+    assert evaluation.status == "ok"
+
+
+def test_self_reports_only_forwarded_advisories() -> None:
+    row = make_row(
+        name="head",
+        boot_id=HEAD_BOOT_ID,
+        mode="full",
+        payload={
+            "instanceNameSource": "fallback",
+            "nameConflictAt": (NOW - timedelta(minutes=1)).isoformat(),
+            "recentStarts": [(NOW - timedelta(minutes=n)).isoformat() for n in (1, 2, 3)],
+            "health": {"advisories": [{"id": "ingestion-stopped", "severity": "critical", "summary": "x"}]},
+        },
+    )
+    assert problem_ids(row) == ["ingestion-stopped"]
+
+
+def test_schema_behind_when_revision_is_known() -> None:
+    row = make_row(schema_revision="4b02d1", app_version="0.19.2")
+    problem = evaluate_instance(row, HEAD, NOW).problems[0]
+    assert problem.id == "instance-schema-behind"
+    assert problem.severity == "critical"
+    assert problem.summary == (
+        "Agent edge-traefik runs v0.19.2 on migration 4b02d1; the head runs v0.20.0 on migration 7c1e9a."
+    )
+    assert problem.remedy == "Upgrade edge-traefik to v0.20.0."
+
+
+def test_schema_ahead_when_revision_is_unknown() -> None:
+    row = make_row(schema_revision="ffffff", app_version="0.21.0")
+    problem = evaluate_instance(row, HEAD, NOW).problems[0]
+    assert problem.id == "instance-schema-ahead"
+    assert problem.severity == "critical"
+    assert "migration ffffff" in problem.summary
+    assert problem.remedy == "Upgrade the head to v0.21.0 or later."
+
+
+def test_name_conflict_within_five_minutes() -> None:
+    row = make_row(payload={"instanceNameSource": "env", "nameConflictAt": (NOW - timedelta(minutes=2)).isoformat()})
+    problem = evaluate_instance(row, HEAD, NOW).problems[0]
+    assert problem.id == "instance-name-conflict"
+    assert problem.severity == "critical"
+    assert "APP_INSTANCE_NAME" in (problem.remedy or "")
+
+
+def test_name_conflict_older_than_five_minutes_is_ignored() -> None:
+    row = make_row(payload={"instanceNameSource": "env", "nameConflictAt": (NOW - timedelta(minutes=6)).isoformat()})
+    assert problem_ids(row) == []
+
+
+def test_forwarded_critical_advisory_keeps_its_text() -> None:
+    row = make_row(
+        payload=advisory_payload(
+            {
+                "id": "ingestion-stopped",
+                "severity": "critical",
+                "summary": "Log ingestion stopped.",
+                "detail": "Check the log.",
+                "remedy": "Restart.",
+                "docsUrl": "https://example.test/docs",
+            }
+        )
+    )
+    problem = evaluate_instance(row, HEAD, NOW).problems[0]
+    assert (problem.id, problem.severity, problem.summary) == ("ingestion-stopped", "critical", "Log ingestion stopped.")
+    assert (problem.detail, problem.remedy, problem.docs_url) == (
+        "Check the log.",
+        "Restart.",
+        "https://example.test/docs",
+    )
+
+
+def test_version_mismatch_on_same_revision() -> None:
+    row = make_row(app_version="0.19.9")
+    problem = evaluate_instance(row, HEAD, NOW).problems[0]
+    assert problem.id == "instance-version-mismatch"
+    assert problem.severity == "warning"
+    assert "v0.19.9" in problem.summary
+    assert "v0.20.0" in problem.summary
+    assert problem.remedy == "Upgrade edge-traefik to v0.20.0."
+
+
+def test_name_not_set_on_agent_with_fallback_name() -> None:
+    row = make_row(name="agent", payload={"instanceNameSource": "fallback"})
+    problem = evaluate_instance(row, HEAD, NOW).problems[0]
+    assert problem.id == "instance-name-not-set"
+    assert problem.severity == "warning"
+    assert "APP_INSTANCE_NAME" in (problem.remedy or "")
+
+
+def test_name_not_set_ignores_full_mode() -> None:
+    row = make_row(name="head", mode="full", payload={"instanceNameSource": "fallback"})
+    assert problem_ids(row) == []
+
+
+def test_restart_loop_at_three_starts_in_an_hour() -> None:
+    starts = [(NOW - timedelta(minutes=minutes)).isoformat() for minutes in (5, 20, 50)]
+    row = make_row(payload={"instanceNameSource": "env", "recentStarts": starts})
+    problem = evaluate_instance(row, HEAD, NOW).problems[0]
+    assert problem.id == "instance-restart-loop"
+    assert problem.severity == "warning"
+    assert "3 times" in problem.summary
+
+
+def test_two_restarts_in_an_hour_is_not_a_loop() -> None:
+    starts = [(NOW - timedelta(minutes=minutes)).isoformat() for minutes in (5, 20, 90)]
+    row = make_row(payload={"instanceNameSource": "env", "recentStarts": starts})
+    assert problem_ids(row) == []
+
+
+def test_forwarded_warning_advisory_stays_a_warning() -> None:
+    row = make_row(payload=advisory_payload({"id": "geoip-database-missing", "severity": "warning", "summary": "x"}))
+    problem = evaluate_instance(row, HEAD, NOW).problems[0]
+    assert (problem.id, problem.severity) == ("geoip-database-missing", "warning")
+
+
+def test_unknown_forwarded_severity_becomes_warning() -> None:
+    row = make_row(payload=advisory_payload({"id": "future-thing", "severity": "notice", "summary": "x"}))
+    evaluation = evaluate_instance(row, HEAD, NOW)
+    assert [(problem.id, problem.severity) for problem in evaluation.problems] == [("future-thing", "warning")]
+    assert evaluation.status == "warning"
+
+
+def test_forwarded_proxy_peer_cdn_is_dropped() -> None:
+    row = make_row(
+        payload=advisory_payload(
+            {"id": "proxy-peer-cdn", "severity": "warning", "summary": "x"},
+            {"id": "proxy-peer-private", "severity": "warning", "summary": "y"},
+        )
+    )
+    assert problem_ids(row) == ["proxy-peer-private"]
+
+
+def test_unreadable_payload_is_a_warning() -> None:
+    row = make_row(payload={"jobs": "not a list"})
+    evaluation = evaluate_instance(row, HEAD, NOW)
+    assert evaluation.payload is None
+    assert evaluation.status == "warning"
+    assert [problem.id for problem in evaluation.problems] == ["instance-payload-unreadable"]
+
+
+def test_unreadable_payload_still_gets_column_rules() -> None:
+    row = make_row(payload={"jobs": "not a list"}, schema_revision="4b02d1")
+    assert problem_ids(row) == ["instance-schema-behind", "instance-payload-unreadable"]
+
+
+def test_problems_list_critical_first_then_warning_in_table_order() -> None:
+    row = make_row(
+        name="agent",
+        schema_revision="4b02d1",
+        app_version="0.19.2",
+        payload={
+            "instanceNameSource": "fallback",
+            "nameConflictAt": (NOW - timedelta(minutes=1)).isoformat(),
+            "recentStarts": [(NOW - timedelta(minutes=n)).isoformat() for n in (1, 2, 3)],
+            "health": {
+                "advisories": [
+                    {"id": "geoip-database-missing", "severity": "warning", "summary": "w"},
+                    {"id": "ingestion-stopped", "severity": "critical", "summary": "c"},
+                ]
+            },
+        },
+    )
+    evaluation = evaluate_instance(row, HEAD, NOW)
+    assert [problem.id for problem in evaluation.problems] == [
+        "instance-schema-behind",
+        "instance-name-conflict",
+        "ingestion-stopped",
+        "instance-name-not-set",
+        "instance-restart-loop",
+        "geoip-database-missing",
+    ]
+    assert evaluation.status == "critical"
+
+
+def test_ordering_self_then_severity_then_name() -> None:
+    self_row = make_row(name="head", boot_id=HEAD_BOOT_ID, mode="full")
+    ok_row = make_row(name="alpha")
+    warning_row = make_row(name="beta", app_version="0.19.9")
+    other_warning_row = make_row(name="aaa-warn", app_version="0.19.9")
+    critical_row = make_row(name="zeta", last_seen=NOW - timedelta(hours=1))
+    evaluations = evaluate_instances(
+        [ok_row, warning_row, critical_row, other_warning_row, self_row], HEAD, NOW
+    )
+    assert [evaluation.row.instance_name for evaluation in evaluations] == [
+        "head",
+        "zeta",
+        "aaa-warn",
+        "beta",
+        "alpha",
+    ]
+
+
+@pytest.mark.parametrize("name", ["edge-traefik", "web 01"])
+def test_messages_name_the_instance(name: str) -> None:
+    row = make_row(name=name, schema_revision="4b02d1")
+    assert name in evaluate_instance(row, HEAD, NOW).problems[0].summary
