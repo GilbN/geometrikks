@@ -102,11 +102,11 @@ services:
       LOGPARSER_ENABLED: "false"
       APP_ADMIN_USER: ${APP_ADMIN_USER:-admin}
       APP_ADMIN_PASSWORD: ${APP_ADMIN_PASSWORD:-}
-      # This instance's own home, which the map renders as the default
-      # beacon. Setting both coordinates skips public-IP auto-detection.
+      # This instance's own server location, which the map renders as the
+      # default beacon. Setting both coordinates skips public-IP auto-detection.
       MAP_SERVER_LATITUDE: 41.8781
       MAP_SERVER_LONGITUDE: -87.6298
-      # Demo overrides for the three pinned sites (see header notes).
+      # Demo overrides for the three pinned servers (see header notes).
       # Hardcoded rather than ${...}-interpolated: compose interpolation
       # defaults cannot carry JSON braces.
       MAP_SERVER_LOCATIONS: '{"nginx-01": [40.7128, -74.0060], "traefik-01": [34.0522, -118.2437], "caddy-01": [25.7617, -80.1918]}'

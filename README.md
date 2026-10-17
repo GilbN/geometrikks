@@ -71,8 +71,8 @@ a log file is not producing events.
 
 **Multi-source.** Several proxies or hosts? Run one full instance plus
 lightweight agents next to each log file, tail shipped files from one
-place, or read every proxy's lines from Loki. Every page can filter by
-server, and the map gives each server its own beacon. See [Multi-source setup](#multi-source-setup).
+place, or read every proxy's lines from Loki. Access Logs, Geo Logs and the
+map filter by server, and the map gives each server its own beacon. See [Multi-source setup](#multi-source-setup).
 
 **Settings > Status.** Ingestion, storage, enrichment, integrations and
 live services on one page, with advisories when something needs attention
@@ -1063,10 +1063,13 @@ work until 1.0:
 | `MAP_AUTO_DETECT_SERVER_LOCATION` | `MAP_AUTO_DETECT_HOME` |
 | `MAP_SERVER_LOCATION_REFRESH_HOURS` | `MAP_HOME_REFRESH_HOURS` |
 
-Each old name in use logs `legacy_env_names_in_use` at startup, and the
-`legacy-env-names` advisory on Settings > Status lists it with its
-replacement. If an old and a new name are set to different values, startup
-fails.
+At startup, a process that reads any old name logs one
+`legacy_env_names_in_use` event listing them, and its `/health` carries a
+`legacy-env-names` advisory naming each replacement. Each process reports
+only its own settings. The full instance's Settings > Status shows the old
+names the full instance reads, and an agent's old names appear only in that
+agent's own `/health` and log. If an old and a new name are set to
+different values, startup fails.
 
 Agents are not the only shape. If the log files already reach one machine
 (a shared mount, rsyslog, log shipping), a single full instance can tail
@@ -1079,7 +1082,7 @@ LOGPARSER_SERVER_NAME=["edge-01", "edge-02"]
 ```
 
 Everything downstream treats those files like traffic from separate
-agents: each one is its own server in the Server filters and gets its own
+agents. Each one is its own server in the Server filters and gets its own
 server location on the map.
 
 If the logs already go to Grafana Loki, one full instance can read every
@@ -1173,9 +1176,9 @@ for a server (CGNAT, a VPN egress, or logs shipped from another machine),
 pin that server's location on the full instance with
 `MAP_SERVER_LOCATIONS`, for example
 `MAP_SERVER_LOCATIONS={"edge-01": [60.39, 5.32]}`. Overrides win over
-detection, and removing one restores it. Server locations on Settings >
-Status lists each server's location and whether it came from detection or
-an override.
+detection, and removing one restores it. The Server locations card on
+Settings > Status lists each server's location and whether it came from
+detection or an override.
 
 > [!WARNING]
 > **Trust model.** Agents authenticate with the database using ordinary

@@ -22,8 +22,8 @@ const sites = [
       </p>
       <p>
         Every writer publishes committed events over PostgreSQL LISTEN/NOTIFY, so the live map shows a request the
-        moment any agent stores it. Each server gets its own beacon on the map, and every page filters by
-        server.
+        moment any agent stores it. Each server gets its own beacon on the map, and Access Logs, Geo Logs and
+        the map filter by server.
       </p>
       <p>
         An agent needs four things: the mode, database credentials for the shared instance, MaxMind credentials, and
@@ -33,6 +33,9 @@ const sites = [
 DB_HOST=timescale.example.internal
 LOGPARSER_LOG_PATHS=/var/log/access/access.log
 LOGPARSER_SERVER_NAME=edge-01</pre>
+      <p>
+        LOGPARSER_SERVER_NAME is a name you choose for this server, not nginx's server_name.
+      </p>
       <p>
         You don't need agents if the logs already reach one machine. A single instance tails every shipped file and
         gives each one its own server name, or reads each proxy from Loki with one LogQL selector per proxy.
