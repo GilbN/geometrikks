@@ -582,10 +582,13 @@ async def test_teardown_drops_legacy_views_before_drop_all(legacy_database, rena
     import geometrikks.domain.imports.models  # noqa: F401
     import geometrikks.domain.logs.models  # noqa: F401
 
+    legacy_relations = {"hostname_daily_stats", "site_homes", "site_homes_id_seq"}
+    assert await _relation_names(rename_engine, legacy_relations) == legacy_relations
+
     async with rename_engine.begin() as conn:
         await timescale.teardown_timescaledb(conn)
         await conn.run_sync(base.DefaultBase.metadata.drop_all)
 
     assert await _relation_names(
-        rename_engine, {"hostname_daily_stats", "geo_events", "access_logs"}
+        rename_engine, {*legacy_relations, "geo_events", "access_logs"}
     ) == set()

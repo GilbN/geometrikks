@@ -1043,6 +1043,10 @@ async def teardown_timescaledb(conn: "AsyncConnection") -> None:
         except Exception as e:
             logger.warning("Failed to drop hypertable %s: %s", table, e)
 
+    # 3. drop_all does not know the legacy site_homes table. Left in place,
+    # the upgrade migration renames it to server_locations with its old rows.
+    await conn.execute(text("DROP TABLE IF EXISTS site_homes CASCADE"))
+
     logger.info("TimescaleDB teardown complete")
 
 
