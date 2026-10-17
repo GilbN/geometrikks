@@ -1,4 +1,4 @@
-"""Ingestion stamps writer hostname and source format onto AccessLog rows."""
+"""Ingestion stamps the server name and source format onto AccessLog rows."""
 from datetime import datetime, timezone
 from typing import Any, cast
 import pytest
@@ -18,9 +18,9 @@ def _parsed(ts: datetime) -> ParsedAccessLog:
     )
 
 
-def test_to_access_log_model_stamps_hostname_and_format() -> None:
+def test_to_access_log_model_stamps_server_and_format() -> None:
     service = LogIngestionService(
-        inputs=[], session_maker=cast("Any", None), geoip_path="unused", hostname="myserver",
+        inputs=[], session_maker=cast("Any", None), geoip_path="unused", server="myserver",
     )
     model = service._to_access_log_model(
         _parsed(datetime.now(timezone.utc)), log_format="traefik-json"
@@ -30,30 +30,30 @@ def test_to_access_log_model_stamps_hostname_and_format() -> None:
     assert model.url == "/admin"
 
 
-def test_to_access_log_model_record_hostname_wins() -> None:
+def test_to_access_log_model_record_server_wins() -> None:
     service = LogIngestionService(
-        inputs=[], session_maker=cast("Any", None), geoip_path="unused", hostname="myserver",
+        inputs=[], session_maker=cast("Any", None), geoip_path="unused", server="myserver",
     )
     model = service._to_access_log_model(
-        _parsed(datetime.now(timezone.utc)), log_format="nginx", hostname="vps-2"
+        _parsed(datetime.now(timezone.utc)), log_format="nginx", server="vps-2"
     )
     assert model.hostname == "vps-2"
 
 
-def test_to_access_log_model_empty_hostname_falls_back() -> None:
+def test_to_access_log_model_empty_server_falls_back() -> None:
     service = LogIngestionService(
-        inputs=[], session_maker=cast("Any", None), geoip_path="unused", hostname="myserver",
+        inputs=[], session_maker=cast("Any", None), geoip_path="unused", server="myserver",
     )
     model = service._to_access_log_model(
-        _parsed(datetime.now(timezone.utc)), log_format="nginx", hostname=None
+        _parsed(datetime.now(timezone.utc)), log_format="nginx", server=None
     )
     assert model.hostname == "myserver"
 
 
 @pytest.mark.anyio
-async def test_process_record_stamps_record_hostname_on_geo_event() -> None:
+async def test_process_record_stamps_record_server_on_geo_event() -> None:
     service = LogIngestionService(
-        inputs=[], session_maker=cast("Any", None), geoip_path="unused", hostname="myserver",
+        inputs=[], session_maker=cast("Any", None), geoip_path="unused", server="myserver",
     )
     geo = ParsedGeoData(
         latitude=51.5, longitude=-0.1, geohash="gcpvj0", country_code="GB",
@@ -61,7 +61,7 @@ async def test_process_record_stamps_record_hostname_on_geo_event() -> None:
     )
     record = ParsedLogRecord(
         ip_address="203.0.113.7", geo_data=geo, access_log=None,
-        raw_line="raw", hostname="vps-2",
+        raw_line="raw", server="vps-2",
     )
     service._location_cache[geo.geohash] = 42  # skip the DB get-or-create path
     repos = MagicMock()
@@ -76,7 +76,7 @@ async def test_process_record_stamps_record_hostname_on_geo_event() -> None:
 @pytest.mark.anyio
 async def test_process_record_stamps_asn_on_geo_event() -> None:
     service = LogIngestionService(
-        inputs=[], session_maker=cast("Any", None), geoip_path="unused", hostname="myserver",
+        inputs=[], session_maker=cast("Any", None), geoip_path="unused", server="myserver",
     )
     geo = ParsedGeoData(
         latitude=51.5, longitude=-0.1, geohash="gcpvj0", country_code="GB",
@@ -97,7 +97,7 @@ async def test_process_record_stamps_asn_on_geo_event() -> None:
 @pytest.mark.anyio
 async def test_process_record_leaves_asn_null_when_unresolved() -> None:
     service = LogIngestionService(
-        inputs=[], session_maker=cast("Any", None), geoip_path="unused", hostname="myserver",
+        inputs=[], session_maker=cast("Any", None), geoip_path="unused", server="myserver",
     )
     geo = ParsedGeoData(
         latitude=51.5, longitude=-0.1, geohash="gcpvj0", country_code="GB",

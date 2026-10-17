@@ -19,8 +19,8 @@ def _clean_state():
     reset_scan_state()
 
 
-def groups_for(hostname: str, rows: int, cdn_rows: int, fmt="traefik-json") -> ScanGroup:
-    return ScanGroup(hostname=hostname, log_format=fmt, rows=rows, cdn_rows=cdn_rows)
+def groups_for(server: str, rows: int, cdn_rows: int, fmt="traefik-json") -> ScanGroup:
+    return ScanGroup(server=server, log_format=fmt, rows=rows, cdn_rows=cdn_rows)
 
 
 def test_empty_before_first_run() -> None:
@@ -33,7 +33,7 @@ def test_source_over_threshold_produces_finding() -> None:
         [ScanProvider("traefik-01", 13335, 900), ScanProvider("traefik-01", 54113, 40)],
     )
     [f] = get_scan_findings()
-    assert f.hostname == "traefik-01" and f.kind == "cdn"
+    assert f.server == "traefik-01" and f.kind == "cdn"
     assert f.share == 0.94 and f.lines == 1000
     assert f.provider == "Cloudflare" and f.log_format == "traefik-json"
     assert f.path == ""
@@ -76,7 +76,7 @@ def test_hysteresis_across_runs_logged_once() -> None:
     detected = [e for e in logs if e["event"] == "proxy_peer_detected"]
     cleared = [e for e in logs if e["event"] == "proxy_peer_cleared"]
     assert len(detected) == 1 and detected[0]["origin"] == "db-scan"
-    assert detected[0]["hostname"] == "web" and detected[0]["kind"] == "cdn"
+    assert detected[0]["server"] == "web" and detected[0]["kind"] == "cdn"
     assert len(cleared) == 1
 
 
@@ -117,7 +117,7 @@ async def test_successful_run_clears_the_error(monkeypatch) -> None:
         [groups_for("old", 1000, 800)],
         [ScanProvider("old", 13335, 800)],
     )
-    assert [finding.hostname for finding in get_scan_findings()] == ["old"]
+    assert [finding.server for finding in get_scan_findings()] == ["old"]
 
     def broken_factory():
         raise RuntimeError("db down")
@@ -145,7 +145,7 @@ async def test_successful_run_clears_the_error(monkeypatch) -> None:
     with structlog.testing.capture_logs() as logs:
         await run_proxy_scan(cast(Any, lambda: _Session()), set())
     assert get_scan_error() is None
-    assert [finding.hostname for finding in get_scan_findings()] == ["new"]
+    assert [finding.server for finding in get_scan_findings()] == ["new"]
     assert any(e["event"] == "proxy_scan_recovered" for e in logs)
 
 

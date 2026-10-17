@@ -105,9 +105,9 @@ class SecurityEnrichmentRepository:
         ``geo_events``; longer ones read the per-IP CAGGs stitched with raw
         edge slices. On the CAGG path the newest bucket wins and ties inside
         it go to the busiest location, so the result is an observed location,
-        not an exact last hit. A hostname filter forces the raw path like
-        every other per-IP query, because the CAGGs carry hostname sets, not
-        counts, and buckets older than the hostname backfill carry none at all.
+        not an exact last hit. A server filter forces the raw path like
+        every other per-IP query, because the CAGGs carry server sets, not
+        counts, and buckets older than the server backfill carry none at all.
         """
         valid_ips = [ip for ip in ips if _is_ip(ip)]
         now = datetime.now(timezone.utc)

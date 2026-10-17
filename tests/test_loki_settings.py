@@ -35,7 +35,7 @@ def test_single_values_fan_out_over_queries() -> None:
     assert settings.resolved_server_names("fallback") == ["edge", "edge"]
 
 
-def test_lists_map_by_position_and_empty_hostnames_use_the_default() -> None:
+def test_lists_map_by_position_and_empty_server_names_use_the_default() -> None:
     settings = loki(
         url=URL, queries=[QUERY_A, QUERY_B], formats=["nginx", "traefik-json"]
     )
@@ -87,12 +87,12 @@ def test_trailing_slash_is_stripped_from_the_url() -> None:
         pytest.param(
             {"url": URL, "queries": [QUERY_A], "server_names": ["a", "b"]},
             "LOKI_SERVER_NAMES must be one value or match LOKI_QUERIES in length (1)",
-            id="hostnames-length",
+            id="server-names-length",
         ),
         pytest.param(
             {"url": URL, "queries": [QUERY_A], "server_names": [" "]},
             "LOKI_SERVER_NAMES entries must be non-empty",
-            id="blank-hostname",
+            id="blank-server-name",
         ),
         pytest.param(
             {"url": URL, "queries": [" "]},
@@ -171,7 +171,7 @@ def test_env_log_paths_count_as_explicit(monkeypatch: pytest.MonkeyPatch) -> Non
     assert settings.logparser.log_paths == [Path("/var/log/access/access.log")]
 
 
-def test_ingest_hostnames_is_files_then_loki_without_duplicates() -> None:
+def test_ingest_server_names_is_files_then_loki_without_duplicates() -> None:
     settings = Settings(
         _env_file=None,
         logparser=LogParserSettings(
@@ -184,7 +184,7 @@ def test_ingest_hostnames_is_files_then_loki_without_duplicates() -> None:
     assert settings.ingest_server_names() == ["edge-01", "edge-02", "edge-03"]
 
 
-def test_loki_only_ingest_hostnames_fall_back_to_the_first_host_name(
+def test_loki_only_ingest_server_names_fall_back_to_the_first_server_name(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.delenv("LOGPARSER_LOG_PATHS")
@@ -196,13 +196,13 @@ def test_loki_only_ingest_hostnames_fall_back_to_the_first_host_name(
     assert settings.ingest_server_names() == ["head"]
 
 
-def test_without_queries_no_hostnames_or_formats_resolve() -> None:
+def test_without_queries_no_server_names_or_formats_resolve() -> None:
     settings = loki(server_names=["unused"], formats=["nginx"])
     assert settings.resolved_server_names("head") == []
     assert settings.resolved_formats() == []
 
 
-def test_unused_loki_host_names_do_not_reach_ingest_hostnames() -> None:
+def test_unused_loki_server_names_do_not_reach_ingest_server_names() -> None:
     settings = Settings(
         _env_file=None,
         logparser=LogParserSettings(_env_file=None, server_name=["head"]),
@@ -221,7 +221,7 @@ def test_password_is_a_secret_and_never_in_the_overview() -> None:
     assert "hunter2" not in str(overview)
 
 
-def test_loki_only_first_ingest_hostname_is_the_first_loki_hostname(
+def test_loki_only_first_ingest_server_name_is_the_first_loki_server_name(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """import-logs stamps ingest_server_names()[0], so imports match live Loki rows."""

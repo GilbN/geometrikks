@@ -18,8 +18,8 @@ from geometrikks.config.settings import (
     Settings,
 )
 from geometrikks.server.core import create_app
-from geometrikks.services.geoip.home import HomeLocation
-from geometrikks.services.geoip.site_homes import upsert_auto_homes
+from geometrikks.services.geoip.self_location import SelfLocation
+from geometrikks.services.geoip.server_locations import upsert_auto_server_locations
 
 pytestmark = pytest.mark.anyio
 
@@ -52,16 +52,16 @@ def _make_settings(migrated_database_url: str, **map_kwargs) -> Settings:
         # Ingestion disabled: its own startup auto-upsert would otherwise add
         # this machine's hostname to server_locations and pollute the assertions.
         logparser=LogParserSettings(enabled=False),
-        # Static home location so startup never geolocates over the network.
+        # Static server location so startup never geolocates over the network.
         map=MapSettings(server_latitude=59.91, server_longitude=10.75, **map_kwargs),
     )
 
 
 async def test_site_homes_endpoint_returns_merged_rows_and_default(
-    migrated_database_url, pg_session_maker, clean_site_homes
+    migrated_database_url, pg_session_maker, clean_server_locations
 ):
-    await upsert_auto_homes(
-        pg_session_maker, ["nginx-01"], HomeLocation(latitude=60.39, longitude=5.32, source="external_ip")
+    await upsert_auto_server_locations(
+        pg_session_maker, ["nginx-01"], SelfLocation(latitude=60.39, longitude=5.32, source="external_ip")
     )
     # The override row comes from MAP_SERVER_LOCATIONS, reconciled into
     # server_locations by the app's own startup lifecycle (not seeded directly):
@@ -86,7 +86,7 @@ async def test_site_homes_endpoint_returns_merged_rows_and_default(
     assert body["default"] == {"latitude": 59.91, "longitude": 10.75}
 
 
-async def test_site_homes_endpoint_empty_with_no_rows(migrated_database_url, clean_site_homes):
+async def test_site_homes_endpoint_empty_with_no_rows(migrated_database_url, clean_server_locations):
     settings = _make_settings(migrated_database_url)
     app = create_app(settings=settings)
     async with AsyncTestClient(app=app) as client:
@@ -98,9 +98,9 @@ async def test_site_homes_endpoint_empty_with_no_rows(migrated_database_url, cle
     assert body["default"] == {"latitude": 59.91, "longitude": 10.75}
 
 
-async def test_delete_site_home_api_outcomes(migrated_database_url, pg_session_maker, clean_site_homes):
-    await upsert_auto_homes(
-        pg_session_maker, ["retired-01"], HomeLocation(latitude=60.39, longitude=5.32, source="external_ip")
+async def test_delete_site_home_api_outcomes(migrated_database_url, pg_session_maker, clean_server_locations):
+    await upsert_auto_server_locations(
+        pg_session_maker, ["retired-01"], SelfLocation(latitude=60.39, longitude=5.32, source="external_ip")
     )
     settings = _make_settings(migrated_database_url, server_locations={"pinned-01": (51.5, -0.12)})
 

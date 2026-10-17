@@ -37,7 +37,7 @@ def make_log_line(ip: str, moment: datetime) -> str:
 
 def make_source(fake: FakeLoki, tenant_id: str | None = None) -> LokiSource:
     return LokiSource(
-        url="http://loki:3100", query=QUERY, label="loki:1", hostname="edge-01",
+        url="http://loki:3100", query=QUERY, label="loki:1", server="edge-01",
         tenant_id=tenant_id, transport=httpx2.MockTransport(fake.respond),
     )
 
@@ -61,7 +61,7 @@ async def test_resume_and_overlap_with_null_tenant(pg_session_maker, clean_table
             return fake.respond(request)
 
         broken = LokiSource(
-            url="http://loki:3100", query=QUERY, label="loki:1", hostname="edge-01",
+            url="http://loki:3100", query=QUERY, label="loki:1", server="edge-01",
             transport=httpx2.MockTransport(fail_second_window),
         )
         with pytest.raises(httpx2.HTTPError):
@@ -247,5 +247,5 @@ async def test_covered_start_and_unfinished_run_lookups(pg_session_maker, clean_
         )
         assert newest is not None and newest.range_end == SINCE + timedelta(hours=8)
         assert await repo.earliest_range_start(url="http://loki:3100", tenant_id=None, query=QUERY) == SINCE
-        assert await repo.earliest_written_line(hostname="edge-01") == SINCE - timedelta(seconds=2)
-        assert await repo.earliest_written_line(hostname="other-host") is None
+        assert await repo.earliest_written_line(server="edge-01") == SINCE - timedelta(seconds=2)
+        assert await repo.earliest_written_line(server="other-host") is None

@@ -119,7 +119,7 @@ class LokiSource:
         url: str,
         query: str,
         label: str,
-        hostname: str = "",
+        server: str = "",
         tenant_id: str | None = None,
         username: str | None = None,
         password: str | None = None,
@@ -135,7 +135,7 @@ class LokiSource:
             label: Opaque name served on /health, e.g. loki:1. The selector
                 describes the operator's log setup and stays off the
                 unauthenticated endpoint.
-            hostname: Stamped on every record read from this source.
+            server: Server name stamped on every record read from this source.
             tenant_id: Sent as X-Scope-OrgID when set.
             username: Basic auth username, with password.
             password: Basic auth password, with username.
@@ -146,7 +146,7 @@ class LokiSource:
         self.url: str = url.rstrip("/")
         self.query: str = query
         self.label: str = label
-        self.hostname: str = hostname
+        self.server: str = server
         self.poll_interval: float = poll_interval
         self.lookback: float = lookback
         self.tenant_id: str | None = tenant_id

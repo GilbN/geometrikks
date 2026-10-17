@@ -8,7 +8,7 @@ from geometrikks.server.timescale import (
 )
 
 
-def test_clean_homelab_hostnames_are_not_polluted():
+def test_clean_homelab_server_names_are_not_polluted():
     result = classify_server_names(["nginx-01", "traefik-01", "vps-9"])
     assert result.distinct_count == 3
     assert result.container_id_count == 0
@@ -40,7 +40,7 @@ def test_container_ids_win_the_reason_when_both_thresholds_trip():
     assert classify_server_names(ids + many).reason == "container-ids"
 
 
-def test_clean_hostnames_have_no_reason():
+def test_clean_server_names_have_no_reason():
     assert classify_server_names(["nginx-01"]).reason is None
 
 

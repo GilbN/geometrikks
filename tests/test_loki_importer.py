@@ -44,7 +44,7 @@ def make_source(fake: FakeLoki, **kwargs) -> LokiSource:
     kwargs.setdefault("url", "http://loki:3100")
     kwargs.setdefault("query", QUERY)
     kwargs.setdefault("label", "loki:1")
-    kwargs.setdefault("hostname", "edge-01")
+    kwargs.setdefault("server", "edge-01")
     return LokiSource(transport=httpx2.MockTransport(fake.respond), **kwargs)
 
 
@@ -158,7 +158,7 @@ async def test_walks_the_range_in_hour_windows(fake, geoip_reader, deps) -> None
     assert row.cursor == SINCE + timedelta(hours=3)
     assert row.records_written == 3
     assert row.server == "edge-01"
-    assert all(record.hostname == "edge-01" for record in flushed_records(service))
+    assert all(record.server == "edge-01" for record in flushed_records(service))
 
 
 async def test_page_boundary_entries_are_written_once(fake, geoip_reader, deps, monkeypatch) -> None:
@@ -298,7 +298,7 @@ async def test_transport_error_leaves_cursor_at_last_window_and_resume_continues
         return fake.respond(request)
 
     source = LokiSource(
-        url="http://loki:3100", query=QUERY, label="loki:1", hostname="edge-01",
+        url="http://loki:3100", query=QUERY, label="loki:1", server="edge-01",
         transport=httpx2.MockTransport(fail_second_window),
     )
 

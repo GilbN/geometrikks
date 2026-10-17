@@ -19,7 +19,7 @@ _NGINX_PRIVATE_REMEDY = "set_real_ip_from <proxy address>; real_ip_header X-Forw
 
 @dataclass(frozen=True)
 class ProxyFinding:
-    hostname: str
+    server: str
     path: str
     log_format: str | None
     kind: Literal["cdn", "private"]
@@ -29,7 +29,7 @@ class ProxyFinding:
 
 
 def proxy_findings(
-    log_inputs: Iterable[Any], default_hostname: str = ""
+    log_inputs: Iterable[Any], default_server: str = ""
 ) -> list[ProxyFinding]:
     findings: list[ProxyFinding] = []
     for log_input in log_inputs:
@@ -38,13 +38,13 @@ def proxy_findings(
         if summary is None:
             continue
         fmt = parser.format.name if parser.format else None
-        hostname = log_input.source.hostname or default_hostname
+        server_name = log_input.source.server or default_server
         path = parser.source_label
         lines = summary.lines
 
         if summary.cdn_active:
             findings.append(ProxyFinding(
-                hostname=hostname,
+                server=server_name,
                 path=path,
                 log_format=fmt,
                 kind="cdn",
@@ -54,7 +54,7 @@ def proxy_findings(
             ))
         if summary.private_active:
             findings.append(ProxyFinding(
-                hostname=hostname,
+                server=server_name,
                 path=path,
                 log_format=fmt,
                 kind="private",
@@ -86,16 +86,16 @@ def _cdn_card(findings: list[ProxyFinding], docs_url: str) -> Advisory:
     if len(findings) == 1:
         f = findings[0]
         summary = (
-            f"{_pct(f.share)} of the last {f.lines:,} requests for {f.hostname} "
+            f"{_pct(f.share)} of the last {f.lines:,} requests on server {f.server} "
             f"came from {f.provider or 'CDN'} addresses. The map shows "
             f"{f.provider or 'the CDN'}'s datacenters, not your visitors."
         )
     else:
         listed = ", ".join(
-            f"{f.hostname} ({_pct(f.share)} {f.provider or 'CDN'})" for f in findings
+            f"{f.server} ({_pct(f.share)} {f.provider or 'CDN'})" for f in findings
         )
         summary = (
-            f"Most recent requests for {listed} came from CDN addresses. "
+            f"Most recent requests on servers {listed} came from CDN addresses. "
             "The map shows their datacenters, not your visitors."
         )
     return Advisory(
@@ -117,14 +117,14 @@ def _private_card(findings: list[ProxyFinding], docs_url: str) -> Advisory:
     if len(findings) == 1:
         f = findings[0]
         summary = (
-            f"{_pct(f.share)} of the last {f.lines:,} requests for {f.hostname} "
+            f"{_pct(f.share)} of the last {f.lines:,} requests on server {f.server} "
             "came from private addresses. They get no location, so they never "
             "reach the map or Access logs."
         )
     else:
-        listed = ", ".join(f"{f.hostname} ({_pct(f.share)})" for f in findings)
+        listed = ", ".join(f"{f.server} ({_pct(f.share)})" for f in findings)
         summary = (
-            f"Most recent requests for {listed} came from private addresses. "
+            f"Most recent requests on servers {listed} came from private addresses. "
             "They get no location, so they never reach the map or Access logs."
         )
     return Advisory(

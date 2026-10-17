@@ -5,6 +5,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, cast
 
+import msgspec
 import pytest
 from litestar import Litestar
 from litestar.testing import TestClient
@@ -413,7 +414,13 @@ def test_health_reports_policy_update_failures(monkeypatch):
     }
 
 
-def test_health_reports_hostname_pollution_advisory(monkeypatch):
+def _assert_server_vocabulary(advisory: dict) -> None:
+    text = " ".join(advisory[field] or "" for field in ("summary", "detail", "remedy")).lower()
+    for retired_word in ("hostname", "home", "source filter"):
+        assert retired_word not in text
+
+
+def test_health_reports_server_name_pollution_advisory(monkeypatch):
     async def db_up(app, timeout: float = 2.0) -> bool:
         return True
     monkeypatch.setattr(health_module, "_database_reachable", db_up)
@@ -431,15 +438,16 @@ def test_health_reports_hostname_pollution_advisory(monkeypatch):
     data = body["advisories"]
     assert len(data) == 1
     a = data[0]
-    assert a["id"] == "hostname-pollution"
+    assert a["id"] == "server-name-pollution"
     assert a["severity"] == "warning"
     assert "38" in a["summary"] and "40" in a["summary"]
-    assert "backfill-hostname" in a["remedy"]
+    assert a["remedy"] == "litestar backfill-server NAME --consolidate"
+    _assert_server_vocabulary(a)
 
 
-def test_health_reports_hostname_count_advisory_without_container_ids(monkeypatch):
+def test_health_reports_server_count_advisory_without_container_ids(monkeypatch):
     """Above the ceiling with no container IDs, the advisory must not claim
-    the hostnames look like container IDs, and the count must read as the
+    the server names look like container IDs, and the count must read as the
     floor the capped probe actually proved."""
     async def db_up(app, timeout: float = 2.0) -> bool:
         return True
@@ -458,15 +466,25 @@ def test_health_reports_hostname_count_advisory_without_container_ids(monkeypatc
     data = body["advisories"]
     assert len(data) == 1
     a = data[0]
-    assert a["id"] == "hostname-count"
+    assert a["id"] == "server-count"
     assert "container ID" not in a["summary"]
     assert f"{DISTINCT_SERVER_CEILING}+" in a["summary"]
-    assert "real source" in a["detail"]
+    assert "real server" in a["detail"]
+    assert a["remedy"] == "litestar backfill-server NAME --consolidate"
+    _assert_server_vocabulary(a)
 
 
-def test_health_no_pollution_advisory_when_caggs_already_have_hostname(monkeypatch):
+def test_server_location_undetected_advisory_names_the_server_settings():
+    from geometrikks.lib.advisories import SERVER_LOCATION_UNDETECTED
+
+    assert SERVER_LOCATION_UNDETECTED.id == "server-location-undetected"
+    assert SERVER_LOCATION_UNDETECTED.remedy == "MAP_SERVER_LATITUDE and MAP_SERVER_LONGITUDE"
+    _assert_server_vocabulary(msgspec.structs.asdict(SERVER_LOCATION_UNDETECTED))
+
+
+def test_health_no_pollution_advisory_when_caggs_already_have_server(monkeypatch):
     """Polluted history is moot once the location CAGGs already carry the
-    hostname dimension (fresh install / post-consolidation migration): the
+    server dimension (fresh install / post-consolidation migration): the
     filter is not unaggregated and no migration is pending, so the advisory
     must not fire."""
     async def db_up(app, timeout: float = 2.0) -> bool:
@@ -488,7 +506,7 @@ def test_health_no_pollution_advisory_when_caggs_already_have_hostname(monkeypat
 
 def test_health_no_pollution_advisory_when_not_polluted(monkeypatch):
     """A cached, non-None ServerNamePollution that is not actually `polluted`
-    (few container-ID-looking hostnames) must not raise the advisory,
+    (few container-ID-looking server names) must not raise the advisory,
     regardless of the CAGG capability flag."""
     async def db_up(app, timeout: float = 2.0) -> bool:
         return True

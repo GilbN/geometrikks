@@ -40,7 +40,7 @@ def _record(
     ) if with_log else None
     return ParsedLogRecord(
         ip_address="81.2.69.142", geo_data=geo, access_log=log, raw_line="x",
-        hostname="vps-1",
+        server="vps-1",
     )
 
 

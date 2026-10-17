@@ -64,7 +64,7 @@ class ParsedLogRecord:
     parse_error: str | None = field(default=None)
     source: str = field(default="")
     log_format: str | None = field(default=None)
-    hostname: str = field(default="")
+    server: str = field(default="")
     # The line's own timestamp, set whenever the line parsed, even when the
     # client IP gave no geo data or access log.
     timestamp: datetime | None = field(default=None)

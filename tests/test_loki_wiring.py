@@ -51,7 +51,7 @@ def test_loki_inputs_follow_the_file_inputs() -> None:
     assert isinstance(first, LokiSource) and isinstance(second, LokiSource)
     assert (first.label, second.label) == ("loki:1", "loki:2")
     assert (first.query, second.query) == ('{job="nginx"}', '{job="traefik"}')
-    assert (first.hostname, second.hostname) == ("edge-01", "edge-02")
+    assert (first.server, second.server) == ("edge-01", "edge-02")
     assert (first.poll_interval, first.lookback) == (2.5, 90)
     assert first._auth == ("reader", "s3cret")
     assert first.tenant_id == "team-a"
@@ -69,7 +69,7 @@ def test_loki_only_builds_no_file_input(monkeypatch: pytest.MonkeyPatch) -> None
     )
     inputs = build_log_inputs(settings)
     assert [log_input.source.kind for log_input in inputs] == ["loki"]
-    assert inputs[0].source.hostname == "head"
+    assert inputs[0].source.server == "head"
 
 
 def test_without_loki_only_file_inputs_are_built() -> None:
@@ -87,7 +87,7 @@ def _service_with_loki(reason: str | None) -> LogIngestionService:
         url=URL,
         query=QUERY,
         label="loki:1",
-        hostname="edge-01",
+        server="edge-01",
         transport=httpx2.MockTransport(lambda request: httpx2.Response(500, request=request)),
     )
     source._unavailable_reason = reason

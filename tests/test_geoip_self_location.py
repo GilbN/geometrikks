@@ -1,26 +1,26 @@
-"""Map-home resolution from explicit coordinates or the server's public IP."""
+"""This server's location, from explicit coordinates or its public IP."""
 
 from __future__ import annotations
 
 import httpx2
 
 from geometrikks.config.settings import GeoIPSettings, MapSettings
-from geometrikks.services.geoip.home import resolve_home_location
+from geometrikks.services.geoip.self_location import resolve_self_location
 
 import pytest
 
 pytestmark = pytest.mark.anyio
 
 
-async def test_configured_home_skips_public_ip_lookup():
-    home = await resolve_home_location(
+async def test_configured_location_skips_public_ip_lookup():
+    self_location = await resolve_self_location(
         MapSettings(server_latitude=40.7128, server_longitude=-74.006, _env_file=None),
         GeoIPSettings(validate_db_path=False, _env_file=None),
         geoip_available=False,
     )
 
-    assert home is not None
-    assert (home.latitude, home.longitude, home.source) == (40.7128, -74.006, "configured")
+    assert self_location is not None
+    assert (self_location.latitude, self_location.longitude, self_location.source) == (40.7128, -74.006, "configured")
 
 
 async def test_external_ip_is_geolocated_with_local_database():
@@ -28,7 +28,7 @@ async def test_external_ip_is_geolocated_with_local_database():
         return httpx2.Response(200, json={"ip": "81.2.69.142"}, request=request)
 
     async with httpx2.AsyncClient(transport=httpx2.MockTransport(respond)) as client:
-        home = await resolve_home_location(
+        self_location = await resolve_self_location(
             MapSettings(auto_detect_server_location=True, _env_file=None),
             GeoIPSettings(
                 db_path="tests/GeoLite2-City-Test.mmdb",
@@ -39,10 +39,10 @@ async def test_external_ip_is_geolocated_with_local_database():
             client=client,
         )
 
-    assert home is not None
-    assert home.source == "external_ip"
-    assert home.latitude is not None
-    assert home.longitude is not None
+    assert self_location is not None
+    assert self_location.source == "external_ip"
+    assert self_location.latitude is not None
+    assert self_location.longitude is not None
 
 
 async def test_discovery_failure_degrades_without_raising():
@@ -50,11 +50,11 @@ async def test_discovery_failure_degrades_without_raising():
         return httpx2.Response(503, request=request)
 
     async with httpx2.AsyncClient(transport=httpx2.MockTransport(respond)) as client:
-        home = await resolve_home_location(
+        self_location = await resolve_self_location(
             MapSettings(auto_detect_server_location=True, _env_file=None),
             GeoIPSettings(validate_db_path=False, _env_file=None),
             geoip_available=True,
             client=client,
         )
 
-    assert home is None
+    assert self_location is None

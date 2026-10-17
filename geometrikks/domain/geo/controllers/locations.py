@@ -48,9 +48,13 @@ from geometrikks.lib.time import ensure_utc
 from geometrikks.lib.validation import validate_ip_addresses
 from geometrikks.server import runtime
 from geometrikks.server.logging import get_logger
-from geometrikks.services.geoip.home import HomeLocation
+from geometrikks.services.geoip.self_location import SelfLocation
 from geometrikks.server.exceptions import ErrorEnvelope
-from geometrikks.services.geoip.site_homes import fetch_last_event_days, fetch_site_homes, remove_site_home
+from geometrikks.services.geoip.server_locations import (
+    fetch_last_event_days,
+    fetch_server_locations,
+    remove_server_location,
+)
 
 logger = get_logger(__name__)
 
@@ -173,11 +177,11 @@ class GeoLocationController(Controller):
         resolved at startup, or the configured coordinates if resolution
         found nothing (geo-degraded or auto-detect disabled).
         """
-        rows = await fetch_site_homes(db_session)
+        rows = await fetch_server_locations(db_session)
         last_days = await fetch_last_event_days(db_session) if rows else {}
-        home: HomeLocation | None = runtime.get_map_home_location(request.app)
-        if home is None and settings.map.server_latitude is not None and settings.map.server_longitude is not None:
-            home = HomeLocation(
+        self_location: SelfLocation | None = runtime.get_self_location(request.app)
+        if self_location is None and settings.map.server_latitude is not None and settings.map.server_longitude is not None:
+            self_location = SelfLocation(
                 latitude=settings.map.server_latitude,
                 longitude=settings.map.server_longitude,
                 source="configured",
@@ -198,7 +202,11 @@ class GeoLocationController(Controller):
                 )
                 for server_location in rows
             ],
-            default=DefaultHomeView(latitude=home.latitude, longitude=home.longitude) if home else None,
+            default=(
+                DefaultHomeView(latitude=self_location.latitude, longitude=self_location.longitude)
+                if self_location
+                else None
+            ),
         )
 
     @delete(
@@ -222,7 +230,7 @@ class GeoLocationController(Controller):
         hostname: Annotated[str, PathParameter(description="Recording hostname whose home row to remove")],
     ) -> None:
         user = request.scope.get("user")
-        await remove_site_home(db_session, hostname, actor=str(user) if user else "unknown")
+        await remove_server_location(db_session, hostname, actor=str(user) if user else "unknown")
 
     @get("/top-ips", return_dto=None, description="Get global top IPs by event count with their primary locations.")
     async def get_global_top_ips(

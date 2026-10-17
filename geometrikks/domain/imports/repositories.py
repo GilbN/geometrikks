@@ -62,10 +62,10 @@ class LokiImportRepository(SQLAlchemyAsyncRepository[LokiImport]):
         )
         return await self.session.scalar(statement)
 
-    async def earliest_written_line(self, *, hostname: str) -> datetime | None:
+    async def earliest_written_line(self, *, server: str) -> datetime | None:
         """The earliest log-line time any import wrote for this server, across selectors."""
         statement = select(func.min(LokiImport.time_start)).where(
-            LokiImport.server == hostname
+            LokiImport.server == server
         )
         return await self.session.scalar(statement)
 

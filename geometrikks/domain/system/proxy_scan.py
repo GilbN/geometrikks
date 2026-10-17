@@ -37,7 +37,7 @@ SCAN_WINDOW_MINUTES = 60
 
 @dataclass(frozen=True)
 class ScanGroup:
-    hostname: str
+    server: str
     log_format: str | None
     rows: int
     cdn_rows: int
@@ -45,7 +45,7 @@ class ScanGroup:
 
 @dataclass(frozen=True)
 class ScanProvider:
-    hostname: str
+    server: str
     asn: int
     hits: int
 
@@ -77,73 +77,73 @@ def apply_scan_results(groups: list[ScanGroup], providers: list[ScanProvider]) -
     totals: dict[str, tuple[int, int]] = {}
     formats: dict[str, tuple[int, str | None]] = {}
     for g in groups:
-        rows, cdn = totals.get(g.hostname, (0, 0))
-        totals[g.hostname] = (rows + g.rows, cdn + g.cdn_rows)
-        if g.rows > formats.get(g.hostname, (0, None))[0]:
-            formats[g.hostname] = (g.rows, g.log_format)
+        rows, cdn = totals.get(g.server, (0, 0))
+        totals[g.server] = (rows + g.rows, cdn + g.cdn_rows)
+        if g.rows > formats.get(g.server, (0, None))[0]:
+            formats[g.server] = (g.rows, g.log_format)
 
     provider_hits: dict[str, dict[str, int]] = {}
     for p in providers:
         name = CDN_ASNS.get(p.asn)
         if name is None:
             continue
-        by_name = provider_hits.setdefault(p.hostname, {})
+        by_name = provider_hits.setdefault(p.server, {})
         by_name[name] = by_name.get(name, 0) + p.hits
 
     findings: list[ProxyFinding] = []
     seen = set(totals)
-    for hostname, (rows, cdn) in totals.items():
+    for server_name, (rows, cdn) in totals.items():
         share = cdn / rows if rows else 0.0
-        active = _active.get(hostname, False)
+        active = _active.get(server_name, False)
         if not active and rows >= PEER_MIN_LINES and share >= PEER_SHARE_ON:
-            _active[hostname] = active = True
-            _log_transition("proxy_peer_detected", hostname, share, rows,
+            _active[server_name] = active = True
+            _log_transition("proxy_peer_detected", server_name, share, rows,
                             provider_hits, formats)
         elif active and share < PEER_SHARE_OFF:
-            _active[hostname] = active = False
-            _log_transition("proxy_peer_cleared", hostname, share, rows,
+            _active[server_name] = active = False
+            _log_transition("proxy_peer_cleared", server_name, share, rows,
                             provider_hits, formats)
         if active:
-            by_name = provider_hits.get(hostname, {})
+            by_name = provider_hits.get(server_name, {})
             top = max(by_name, key=by_name.__getitem__) if by_name else None
             findings.append(ProxyFinding(
-                hostname=hostname, path="", log_format=formats[hostname][1],
+                server=server_name, path="", log_format=formats[server_name][1],
                 kind="cdn", share=share, lines=rows, provider=top,
             ))
 
-    for hostname in [h for h, on in _active.items() if on and h not in seen]:
-        _active[hostname] = False
-        _log_transition("proxy_peer_cleared", hostname, 0.0, 0, provider_hits, formats)
+    for server_name in [name for name, on in _active.items() if on and name not in seen]:
+        _active[server_name] = False
+        _log_transition("proxy_peer_cleared", server_name, 0.0, 0, provider_hits, formats)
 
     _findings[:] = findings
 
 
 def _log_transition(
     event: str,
-    hostname: str,
+    server_name: str,
     share: float,
     rows: int,
     provider_hits: dict[str, dict[str, int]],
     formats: dict[str, tuple[int, str | None]],
 ) -> None:
-    by_name = provider_hits.get(hostname, {})
+    by_name = provider_hits.get(server_name, {})
     logger.warning(
         event,
-        hostname=hostname,
+        server=server_name,
         kind="cdn",
         share=round(share, 3),
         lines=rows,
         provider=max(by_name, key=by_name.__getitem__) if by_name else None,
-        log_format=formats.get(hostname, (0, None))[1],
+        log_format=formats.get(server_name, (0, None))[1],
         origin="db-scan",
     )
 
 
 async def _query_scan_rows(
-    session: "AsyncSession", exclude_hostnames: set[str]
+    session: "AsyncSession", exclude_servers: set[str]
 ) -> tuple[list[ScanGroup], list[ScanProvider]]:
     asns = list(CDN_ASNS)
-    exclude = sorted(exclude_hostnames)
+    exclude = sorted(exclude_servers)
 
     groups_sql = (
         "SELECT server, log_format, COUNT(*) AS row_count, "
@@ -184,12 +184,12 @@ async def _query_scan_rows(
 
 
 async def run_proxy_scan(
-    session_factory: "Callable[[], AsyncSession]", exclude_hostnames: set[str]
+    session_factory: "Callable[[], AsyncSession]", exclude_servers: set[str]
 ) -> None:
     global _last_error
     try:
         async with session_factory() as session:
-            groups, providers = await _query_scan_rows(session, exclude_hostnames)
+            groups, providers = await _query_scan_rows(session, exclude_servers)
     except Exception as exc:
         logger.warning("proxy_scan_failed", error=str(exc))
         _last_error = str(exc)

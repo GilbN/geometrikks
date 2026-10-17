@@ -14,7 +14,7 @@ from geometrikks.domain.system.dependencies import provide_ingestion_service as 
 class LokiSourceStats(msgspec.Struct, rename="camel"):
     """One LOKI_QUERIES entry as the ingestion service sees it.
 
-    The selector and the hostname describe the operator's log setup, so they
+    The selector and the server name describe the operator's log setup, so they
     are served here, behind auth, and never on /health.
     """
 
@@ -50,7 +50,7 @@ def _loki_sources(service: LogIngestionService) -> list[LokiSourceStats]:
             LokiSourceStats(
                 query=source.query,
                 label=source.label,
-                hostname=service.hostname_for(log_input),
+                hostname=service.server_for(log_input),
                 available=status.available,
                 reason=status.reason,
                 log_format=parser.format.name if parser.format else None,

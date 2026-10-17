@@ -46,7 +46,7 @@ def record_to_event(record: "ParsedLogRecord") -> dict[str, Any] | None:
             "longitude": g.longitude,
             "city": g.city,
             "country_code": g.country_code,
-            "hostname": record.hostname,
+            "hostname": record.server,
         }
     if record.access_log:
         a = record.access_log
@@ -71,7 +71,7 @@ def record_to_event(record: "ParsedLogRecord") -> dict[str, Any] | None:
             "autonomous_system_organization": _clip(
                 a.autonomous_system_organization, ASN_ORG_MAX
             ),
-            "hostname": record.hostname,
+            "hostname": record.server,
         }
     if geo is None and log is None:
         return None

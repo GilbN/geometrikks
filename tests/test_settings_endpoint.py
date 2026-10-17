@@ -5,7 +5,7 @@ from litestar import Litestar
 from litestar.testing import TestClient
 
 from geometrikks.domain.system.controllers.settings import read_settings
-from geometrikks.services.geoip.home import HomeLocation
+from geometrikks.services.geoip.self_location import SelfLocation
 from geometrikks.server.routes import create_api_v1_router
 from tests.support import ambient_settings_dependency
 
@@ -15,7 +15,7 @@ def make_app() -> Litestar:
         route_handlers=[create_api_v1_router([read_settings])],
         dependencies=ambient_settings_dependency(),
     )
-    app.state.map_home_location = HomeLocation(40.7128, -74.006, "external_ip")
+    app.state.self_location = SelfLocation(40.7128, -74.006, "external_ip")
     return app
 
 

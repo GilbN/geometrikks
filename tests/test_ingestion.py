@@ -183,7 +183,7 @@ def make_service(inputs: list[LogInput], **overrides) -> tuple[LogIngestionServi
         session_maker=session_maker,
         geoip_path=GEOIP_DB_PATH,
         repos_factory=repos.factory,
-        hostname="test-host",
+        server="test-host",
         batch_size=100,
         commit_interval=0.2,
     )
@@ -643,9 +643,9 @@ class ListSource:
 
     kind = "stub"
 
-    def __init__(self, lines: list[str], label: str = "stub#0", hostname: str = "test-host") -> None:
+    def __init__(self, lines: list[str], label: str = "stub#0", server: str = "test-host") -> None:
         self.label = label
-        self.hostname = hostname
+        self.server = server
         self._lines = lines
         self.available = True
 
@@ -664,9 +664,9 @@ class ListSource:
         await stop.wait()
 
 
-def stub_input(lines: list[str], label: str = "stub#0", hostname: str = "test-host") -> LogInput:
+def stub_input(lines: list[str], label: str = "stub#0", server: str = "test-host") -> LogInput:
     return LogInput(
-        source=ListSource(lines, label, hostname),
+        source=ListSource(lines, label, server),
         parser=LogParser(source_label=label, send_logs=True),
     )
 
@@ -685,8 +685,8 @@ def signal_first_sample(log_input: LogInput) -> asyncio.Event:
     return sampled
 
 
-async def test_records_carry_the_source_hostname() -> None:
-    log_input = stub_input([make_log_line(TEST_DB_IPS[0])], hostname="vps-1")
+async def test_records_carry_the_source_server() -> None:
+    log_input = stub_input([make_log_line(TEST_DB_IPS[0])], server="vps-1")
     service, repos, _sessions = make_service([log_input])
 
     await service.start()
@@ -698,8 +698,8 @@ async def test_records_carry_the_source_hostname() -> None:
     assert {geo_event.hostname for geo_event in added_geo_events(repos)} == {"vps-1"}
 
 
-async def test_an_empty_source_hostname_falls_back_to_the_service_default() -> None:
-    log_input = stub_input([make_log_line(TEST_DB_IPS[0])], hostname="")
+async def test_an_empty_source_server_falls_back_to_the_service_default() -> None:
+    log_input = stub_input([make_log_line(TEST_DB_IPS[0])], server="")
     service, repos, _sessions = make_service([log_input])
 
     await service.start()
@@ -708,12 +708,12 @@ async def test_an_empty_source_hostname_falls_back_to_the_service_default() -> N
     finally:
         await service.stop(timeout=5.0)
 
-    assert {geo_event.hostname for geo_event in added_geo_events(repos)} == {service.hostname}
+    assert {geo_event.hostname for geo_event in added_geo_events(repos)} == {service.server}
 
 
-async def test_live_events_carry_the_service_hostname_when_the_source_has_none() -> None:
+async def test_live_events_carry_the_service_server_when_the_source_has_none() -> None:
     channels = _channels_stub()
-    log_input = stub_input([make_log_line(TEST_DB_IPS[0])], hostname="")
+    log_input = stub_input([make_log_line(TEST_DB_IPS[0])], server="")
     service, _repos, _sessions = make_service([log_input], channels=channels)
 
     await service.start()
@@ -723,12 +723,12 @@ async def test_live_events_carry_the_service_hostname_when_the_source_has_none()
         await service.stop(timeout=5.0)
 
     event, _channel = channels.publish.call_args.args
-    assert event["geo"]["hostname"] == service.hostname
-    assert event["log"]["hostname"] == service.hostname
+    assert event["geo"]["hostname"] == service.server
+    assert event["log"]["hostname"] == service.server
 
 
-async def test_a_malformed_line_carries_the_source_hostname() -> None:
-    log_input = stub_input(["total garbage\n"], hostname="vps-1")
+async def test_a_malformed_line_carries_the_source_server() -> None:
+    log_input = stub_input(["total garbage\n"], server="vps-1")
     records: list[ParsedLogRecord] = []
     parse_line = log_input.parser.parse_line
 
@@ -747,7 +747,7 @@ async def test_a_malformed_line_carries_the_source_hostname() -> None:
     finally:
         await service.stop(timeout=5.0)
 
-    assert {record.hostname for record in records} == {"vps-1"}
+    assert {record.server for record in records} == {"vps-1"}
 
 
 async def test_an_unknown_source_type_is_ingested() -> None:
@@ -1486,15 +1486,15 @@ def test_service_has_no_inprocess_subscriber_api() -> None:
     /ws/live now subscribes to the live_events channel instead. Post-commit
     delivery is covered by the channel-publish tests below."""
     service = LogIngestionService(
-        inputs=[], session_maker=cast("Any", None), geoip_path="unused", hostname="myserver",
+        inputs=[], session_maker=cast("Any", None), geoip_path="unused", server="myserver",
     )
     assert not hasattr(service, "subscribe")
     assert not hasattr(service, "unsubscribe")
 
 
-def make_full_record(hostname: str) -> ParsedLogRecord:
+def make_full_record(server: str) -> ParsedLogRecord:
     """A record with both geo_data and access_log (field values mirror
-    tests/test_realtime_events.py's `_record`), stamped with `hostname`."""
+    tests/test_realtime_events.py's `_record`), stamped with `server`."""
     ts = datetime.now(timezone.utc)
     return ParsedLogRecord(
         ip_address="203.0.113.7",
@@ -1510,20 +1510,20 @@ def make_full_record(hostname: str) -> ParsedLogRecord:
             country_code="GB", country_name="United Kingdom", city="London",
         ),
         raw_line="raw",
-        hostname=hostname,
+        server=server,
     )
 
-async def test_flush_records_stamps_the_service_hostname_on_a_bare_parser_record() -> None:
+async def test_flush_records_stamps_the_service_server_on_a_bare_parser_record() -> None:
     """The import path: a LogParser with no source, flushed straight into the service."""
     parser = LogParser(source_label="import.log", send_logs=True)
-    service, repos, _sessions = make_service([], hostname="import-host")
+    service, repos, _sessions = make_service([], server="import-host")
     reader = Reader(GEOIP_DB_PATH)
     try:
         lookups = GeoLookups.build(reader, None)
         record = parser.parse_line(make_log_line(TEST_DB_IPS[0]), lookups.city, lookups.asn)
     finally:
         reader.close()
-    assert record is not None and record.hostname == ""
+    assert record is not None and record.server == ""
 
     await service.flush_records([record])
 
@@ -1542,9 +1542,9 @@ def test_publish_sends_events_to_channel() -> None:
     channels = _channels_stub()
     service = LogIngestionService(
         inputs=[], session_maker=cast("Any", None), geoip_path="unused",
-        hostname="myserver", channels=channels,
+        server="myserver", channels=channels,
     )
-    record = make_full_record(hostname="vps-1")
+    record = make_full_record(server="vps-1")
     service._publish([record])
     assert channels.publish.call_count == 1  # one envelope per record
     event, channel = channels.publish.call_args.args
@@ -1556,9 +1556,9 @@ def test_publish_sends_events_to_channel() -> None:
 
 def test_publish_without_channels_is_silent_and_safe() -> None:
     service = LogIngestionService(
-        inputs=[], session_maker=cast("Any", None), geoip_path="unused", hostname="myserver",
+        inputs=[], session_maker=cast("Any", None), geoip_path="unused", server="myserver",
     )
-    service._publish([make_full_record(hostname="vps-1")])  # must not raise
+    service._publish([make_full_record(server="vps-1")])  # must not raise
 
 
 def test_publish_never_raises_into_ingestion() -> None:
@@ -1566,9 +1566,9 @@ def test_publish_never_raises_into_ingestion() -> None:
     channels.publish.side_effect = RuntimeError("backend down")
     service = LogIngestionService(
         inputs=[], session_maker=cast("Any", None), geoip_path="unused",
-        hostname="myserver", channels=channels,
+        server="myserver", channels=channels,
     )
-    service._publish([make_full_record(hostname="vps-1")])  # must not raise
+    service._publish([make_full_record(server="vps-1")])  # must not raise
 
 
 async def test_channel_publish_only_after_successful_commit() -> None:

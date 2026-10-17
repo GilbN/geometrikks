@@ -6,22 +6,22 @@ from datetime import datetime, timedelta, timezone
 import pytest
 from sqlalchemy import text
 
-from geometrikks.services.geoip.home import HomeLocation
+from geometrikks.services.geoip.self_location import SelfLocation
 from geometrikks.domain.exceptions import DomainConflictError, DomainNotFoundError
-from geometrikks.services.geoip.site_homes import (
+from geometrikks.services.geoip.server_locations import (
     fetch_last_event_days,
-    fetch_site_homes,
-    reconcile_override_homes,
-    remove_site_home,
-    upsert_auto_homes,
+    fetch_server_locations,
+    reconcile_override_server_locations,
+    remove_server_location,
+    upsert_auto_server_locations,
 )
 
 pytestmark = pytest.mark.anyio
 
-HOME = HomeLocation(latitude=59.91, longitude=10.75, source="external_ip")
+SELF_LOCATION = SelfLocation(latitude=59.91, longitude=10.75, source="external_ip")
 
 
-async def test_site_homes_table_exists_with_expected_columns(pg_engine):
+async def test_server_locations_table_exists_with_expected_columns(pg_engine):
     async with pg_engine.connect() as conn:
         cols = {r.column_name for r in await conn.execute(text(
             "SELECT column_name FROM information_schema.columns "
@@ -34,52 +34,52 @@ async def _rows(pg_session_maker) -> dict[str, tuple[float, float, str]]:
     async with pg_session_maker() as session:
         return {
             server_location.server: (server_location.latitude, server_location.longitude, server_location.source)
-            for server_location in await fetch_site_homes(session)
+            for server_location in await fetch_server_locations(session)
         }
 
 
-async def test_auto_upsert_inserts_and_updates(pg_session_maker, clean_site_homes):
-    await upsert_auto_homes(pg_session_maker, ["nginx-01"], HOME)
+async def test_auto_upsert_inserts_and_updates(pg_session_maker, clean_server_locations):
+    await upsert_auto_server_locations(pg_session_maker, ["nginx-01"], SELF_LOCATION)
     assert (await _rows(pg_session_maker))["nginx-01"] == (59.91, 10.75, "auto")
-    moved = HomeLocation(latitude=60.39, longitude=5.32, source="external_ip")
-    await upsert_auto_homes(pg_session_maker, ["nginx-01"], moved)
+    moved = SelfLocation(latitude=60.39, longitude=5.32, source="external_ip")
+    await upsert_auto_server_locations(pg_session_maker, ["nginx-01"], moved)
     assert (await _rows(pg_session_maker))["nginx-01"] == (60.39, 5.32, "auto")
 
 
-async def test_auto_upsert_skips_none_home(pg_session_maker, clean_site_homes):
-    await upsert_auto_homes(pg_session_maker, ["nginx-01"], None)
+async def test_auto_upsert_skips_none_location(pg_session_maker, clean_server_locations):
+    await upsert_auto_server_locations(pg_session_maker, ["nginx-01"], None)
     assert await _rows(pg_session_maker) == {}
 
 
-async def test_auto_upsert_never_clobbers_override(pg_session_maker, clean_site_homes):
-    await reconcile_override_homes(pg_session_maker, {"nginx-01": (1.0, 2.0)})
-    await upsert_auto_homes(pg_session_maker, ["nginx-01"], HOME)
+async def test_auto_upsert_never_clobbers_override(pg_session_maker, clean_server_locations):
+    await reconcile_override_server_locations(pg_session_maker, {"nginx-01": (1.0, 2.0)})
+    await upsert_auto_server_locations(pg_session_maker, ["nginx-01"], SELF_LOCATION)
     assert (await _rows(pg_session_maker))["nginx-01"] == (1.0, 2.0, "override")
 
 
-async def test_reconcile_adds_updates_and_deletes(pg_session_maker, clean_site_homes):
-    await reconcile_override_homes(pg_session_maker, {"a": (1.0, 2.0), "b": (3.0, 4.0)})
-    await reconcile_override_homes(pg_session_maker, {"a": (5.0, 6.0)})
+async def test_reconcile_adds_updates_and_deletes(pg_session_maker, clean_server_locations):
+    await reconcile_override_server_locations(pg_session_maker, {"a": (1.0, 2.0), "b": (3.0, 4.0)})
+    await reconcile_override_server_locations(pg_session_maker, {"a": (5.0, 6.0)})
     rows = await _rows(pg_session_maker)
     assert rows == {"a": (5.0, 6.0, "override")}
 
 
-async def test_reconcile_leaves_auto_rows_alone(pg_session_maker, clean_site_homes):
-    await upsert_auto_homes(pg_session_maker, ["nginx-01"], HOME)
-    await reconcile_override_homes(pg_session_maker, {})
+async def test_reconcile_leaves_auto_rows_alone(pg_session_maker, clean_server_locations):
+    await upsert_auto_server_locations(pg_session_maker, ["nginx-01"], SELF_LOCATION)
+    await reconcile_override_server_locations(pg_session_maker, {})
     assert "nginx-01" in await _rows(pg_session_maker)
 
 
-async def test_reconcile_empty_deletes_preexisting_override(pg_session_maker, clean_site_homes):
-    await reconcile_override_homes(pg_session_maker, {"a": (1.0, 2.0)})
-    await upsert_auto_homes(pg_session_maker, ["nginx-01"], HOME)
-    await reconcile_override_homes(pg_session_maker, {})
+async def test_reconcile_empty_deletes_preexisting_override(pg_session_maker, clean_server_locations):
+    await reconcile_override_server_locations(pg_session_maker, {"a": (1.0, 2.0)})
+    await upsert_auto_server_locations(pg_session_maker, ["nginx-01"], SELF_LOCATION)
+    await reconcile_override_server_locations(pg_session_maker, {})
     rows = await _rows(pg_session_maker)
     assert "a" not in rows
     assert rows["nginx-01"] == (59.91, 10.75, "auto")
 
 
-async def test_site_homes_source_is_db_constrained(pg_session_maker, clean_site_homes):
+async def test_server_locations_source_is_db_constrained(pg_session_maker, clean_server_locations):
     """The auto/override Literal on the wire is backed by a CHECK constraint,
     not just writer convention."""
     from sqlalchemy.exc import IntegrityError
@@ -93,28 +93,28 @@ async def test_site_homes_source_is_db_constrained(pg_session_maker, clean_site_
             ))
 
 
-async def test_delete_removes_auto_row_and_next_upsert_recreates_it(pg_session_maker, clean_site_homes):
-    await upsert_auto_homes(pg_session_maker, ["retired-01"], HOME)
+async def test_delete_removes_auto_row_and_next_upsert_recreates_it(pg_session_maker, clean_server_locations):
+    await upsert_auto_server_locations(pg_session_maker, ["retired-01"], SELF_LOCATION)
     async with pg_session_maker() as session:
-        await remove_site_home(session, "retired-01", actor="test")
+        await remove_server_location(session, "retired-01", actor="test")
     assert "retired-01" not in await _rows(pg_session_maker)
-    # A source that still ingests gets its row back on its next refresh.
-    await upsert_auto_homes(pg_session_maker, ["retired-01"], HOME)
+    # A server that still ingests gets its row back on its next refresh.
+    await upsert_auto_server_locations(pg_session_maker, ["retired-01"], SELF_LOCATION)
     assert (await _rows(pg_session_maker))["retired-01"][2] == "auto"
 
 
-async def test_delete_refuses_override_and_missing_rows(pg_session_maker, clean_site_homes):
-    await reconcile_override_homes(pg_session_maker, {"pinned-01": (51.5, -0.12)})
+async def test_delete_refuses_override_and_missing_rows(pg_session_maker, clean_server_locations):
+    await reconcile_override_server_locations(pg_session_maker, {"pinned-01": (51.5, -0.12)})
     async with pg_session_maker() as session:
         with pytest.raises(DomainConflictError):
-            await remove_site_home(session, "pinned-01", actor="test")
+            await remove_server_location(session, "pinned-01", actor="test")
         with pytest.raises(DomainNotFoundError):
-            await remove_site_home(session, "never-seen", actor="test")
+            await remove_server_location(session, "never-seen", actor="test")
     assert (await _rows(pg_session_maker))["pinned-01"][2] == "override"
 
 
-async def test_last_event_days_reports_the_latest_day_per_hostname(
-    pg_engine, pg_session_maker, clean_tables, clean_site_homes
+async def test_last_event_days_reports_the_latest_day_per_server(
+    pg_engine, pg_session_maker, clean_tables, clean_server_locations
 ):
     """Reads the daily server aggregate. Real-time aggregation only covers
     buckets past the materialization watermark, and earlier tests may have

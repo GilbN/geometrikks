@@ -1474,18 +1474,18 @@ async def setup_timescaledb(
         if location_upgrade and pollution.polluted:
             if pollution.reason == "container-ids":
                 logger.warning(
-                    "Skipping the location-CAGG hostname upgrade: %d of %s distinct "
-                    "hostnames look like Docker container IDs. Map source filtering "
-                    "stays on raw scans. Run `litestar backfill-hostname NAME "
+                    "Skipping the location-CAGG server upgrade: %d of %s distinct "
+                    "server names look like Docker container IDs. The map's Server "
+                    "filter stays on raw scans. Run `litestar backfill-server NAME "
                     "--consolidate`, then restart to migrate.",
                     pollution.container_id_count,
                     pollution.distinct_label,
                 )
             else:
                 logger.warning(
-                    "Skipping the location-CAGG hostname upgrade: %s distinct "
-                    "recording hostnames is above the %d ceiling. Map source "
-                    "filtering stays on raw scans.",
+                    "Skipping the location-CAGG server upgrade: %s distinct "
+                    "server names is above the %d ceiling. The map's Server "
+                    "filter stays on raw scans.",
                     pollution.distinct_label,
                     DISTINCT_SERVER_CEILING,
                 )

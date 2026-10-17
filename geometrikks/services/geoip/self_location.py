@@ -1,4 +1,4 @@
-"""Resolve the effective home coordinate used by live map routes."""
+"""Resolve this server's own location, used by live map routes."""
 
 from __future__ import annotations
 
@@ -15,16 +15,16 @@ from geometrikks.server.logging import get_logger
 
 logger = get_logger(__name__)
 
-HomeLocationSource = Literal["configured", "external_ip"]
+SelfLocationSource = Literal["configured", "external_ip"]
 
 
 @dataclass(frozen=True)
-class HomeLocation:
+class SelfLocation:
     """Effective map destination without exposing the discovered public IP."""
 
     latitude: float
     longitude: float
-    source: HomeLocationSource
+    source: SelfLocationSource
 
 
 async def _fetch_public_ip(settings: MapSettings, client: httpx2.AsyncClient) -> str:
@@ -39,21 +39,21 @@ async def _fetch_public_ip(settings: MapSettings, client: httpx2.AsyncClient) ->
     return str(address)
 
 
-async def resolve_home_location(
+async def resolve_self_location(
     map_settings: MapSettings,
     geoip_settings: GeoIPSettings,
     *,
     geoip_available: bool,
     client: httpx2.AsyncClient | None = None,
-) -> HomeLocation | None:
+) -> SelfLocation | None:
     """Resolve configured coordinates or geolocate the server's public IP.
 
     Discovery is best-effort. Network, response, database, and missing-coordinate
     failures leave the animation without a destination instead of failing startup.
     """
     if map_settings.server_latitude is not None and map_settings.server_longitude is not None:
-        logger.info("home_location_resolved", source="configured")
-        return HomeLocation(
+        logger.info("self_location_resolved", source="configured")
+        return SelfLocation(
             latitude=map_settings.server_latitude,
             longitude=map_settings.server_longitude,
             source="configured",
@@ -75,11 +75,11 @@ async def resolve_home_location(
         longitude = city.location.longitude
         if latitude is None or longitude is None:
             raise ValueError("GeoIP lookup returned no coordinates")
-        logger.info("home_location_resolved", source="external_ip")
-        return HomeLocation(latitude=latitude, longitude=longitude, source="external_ip")
+        logger.info("self_location_resolved", source="external_ip")
+        return SelfLocation(latitude=latitude, longitude=longitude, source="external_ip")
     except (GeoIP2Error, httpx2.HTTPError, OSError, ValueError) as exc:
         logger.warning(
-            "Could not auto-detect map home location: %s. Set MAP_SERVER_LATITUDE "
+            "Could not auto-detect this server's location: %s. Set MAP_SERVER_LATITUDE "
             "and MAP_SERVER_LONGITUDE to override it.",
             exc,
         )

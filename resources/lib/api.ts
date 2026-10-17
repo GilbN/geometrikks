@@ -152,7 +152,7 @@ export interface HealthIngestionStatus {
 }
 
 export interface Advisory {
-  /** Stable slug, e.g. "hostname-pollution". */
+  /** Stable slug, e.g. "server-name-pollution". */
   id: string
   severity: "warning" | "critical"
   summary: string

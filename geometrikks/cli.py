@@ -52,10 +52,10 @@ _DATETIME_FORMATS = [
     help="Log format of the given files (auto = detect per file).",
 )
 @click.option(
-    "--hostname",
+    "--server",
     default=None,
     help=(
-        "Source hostname stamped on imported records. Default: the hostname of "
+        "Server name stamped on imported records. Default: the server name of "
         "the first tailed file, or of the first Loki query when no file is tailed."
     ),
 )
@@ -75,7 +75,7 @@ def import_logs_command(
     force: bool,
     batch_size: int,
     log_format: str,
-    hostname: str | None,
+    server: str | None,
     before: datetime | None,
 ) -> None:
     """Import historical access-log files (plain or .gz) into the database.
@@ -85,10 +85,10 @@ def import_logs_command(
     that is also being live-tailed will double-count — import archived
     (rotated) files only.
     """
-    if hostname is not None:
-        hostname = hostname.strip()
-        if not hostname:
-            raise click.BadParameter("must not be blank", param_hint="'--hostname'")
+    if server is not None:
+        server = server.strip()
+        if not server:
+            raise click.BadParameter("must not be blank", param_hint="'--server'")
     if before is not None and before.tzinfo is None:
         before = before.replace(tzinfo=timezone.utc)
     asyncio.run(
@@ -97,7 +97,7 @@ def import_logs_command(
             force=force,
             batch_size=batch_size,
             log_format=log_format,
-            hostname=hostname,
+            server=server,
             before=before,
         )
     )
@@ -109,7 +109,7 @@ async def _run_import(
     force: bool,
     batch_size: int,
     log_format: str,
-    hostname: str | None,
+    server: str | None,
     before: datetime | None,
 ) -> None:
     from geoip2.database import Reader
@@ -145,14 +145,14 @@ async def _run_import(
     if settings.geoip.asn_enabled and asn_reader is None:
         click.echo("No GeoLite2 ASN database found; importing without ASN enrichment.")
 
-    effective_hostname = hostname or settings.ingest_server_names()[0]
-    click.echo(f"Stamping hostname: {effective_hostname}")
+    server_name = server or settings.ingest_server_names()[0]
+    click.echo(f"Stamping server: {server_name}")
     service = LogIngestionService(
         inputs=[],
         session_maker=session_maker,
         geoip_path=settings.geoip.db_path,
         locales=settings.geoip.locales,
-        hostname=effective_hostname,
+        server=server_name,
         store_debug_lines=settings.logparser.store_debug_lines,
     )
 
@@ -262,7 +262,7 @@ async def _run_import(
     help=(
         "End of the range, exclusive. Without an offset it is UTC. Default: where "
         "the data already in the database begins. That is the oldest access-log "
-        "row for the selector's hostname, or, after an earlier import-loki run, "
+        "row for the selector's server, or, after an earlier import-loki run, "
         "that run's start unless older access-log rows exist. An interrupted run "
         "with the same --since keeps its own end."
     ),
@@ -311,7 +311,7 @@ def import_loki_command(
 def select_loki_queries(
     settings: "Settings", query_index: int | None
 ) -> list[tuple[int, str, str, str]]:
-    """(position, selector, format, hostname) for every selector, or the one asked for."""
+    """(position, selector, format, server) for every selector, or the one asked for."""
     loki = settings.loki
     if loki.url is None or not loki.queries:
         raise click.ClickException(
@@ -333,7 +333,7 @@ def select_loki_queries(
     )
     if query_index is not None:
         selected = [selected[query_index - 1]]
-    return [(index, query, fmt, host) for index, (query, fmt, host) in selected]
+    return [(index, query, fmt, server_name) for index, (query, fmt, server_name) in selected]
 
 
 def resolve_loki_before(
@@ -344,7 +344,7 @@ def resolve_loki_before(
     earliest_import: datetime | None,
     unfinished_end: datetime | None,
     imports_wrote_from: datetime | None,
-    hostname: str,
+    server: str,
 ) -> datetime:
     """The end of the range: as given, an unfinished run's end, or the start of what is covered."""
     if before is not None:
@@ -354,7 +354,7 @@ def resolve_loki_before(
     covered_from = [moment for moment in (oldest_row, earliest_import) if moment is not None]
     if not covered_from:
         raise click.ClickException(
-            f"no access-log rows or earlier imports exist for hostname {hostname}, so there "
+            f"no access-log rows or earlier imports exist for server {server}, so there "
             "is no default end for the range. Pass --before."
         )
     # The oldest row may be a line an import wrote. The proxy stamped that line a
@@ -372,7 +372,7 @@ def resolve_loki_before(
     if since >= end:
         raise click.ClickException(
             f"--since {since.isoformat()} is not before {end.isoformat()}, where an "
-            f"earlier import or the stored rows for {hostname} already begin. Pass an "
+            f"earlier import or the stored rows for server {server} already begin. Pass an "
             "earlier --since to go further back. To import a later range on purpose, "
             "pass --before, plus --force if that range was imported already."
         )
@@ -386,10 +386,10 @@ async def _covered_from(
     tenant_id: str | None,
     query: str,
     since: datetime,
-    hostname: str,
+    server: str,
 ) -> tuple[datetime | None, datetime | None, datetime | None, datetime | None]:
     """For a selector: (oldest stored row, earliest import start, unfinished run's end,
-    earliest log-line time any import wrote for the hostname).
+    earliest log-line time any import wrote for the server).
     """
     from sqlalchemy import func, select
 
@@ -398,13 +398,13 @@ async def _covered_from(
 
     async with session_maker() as session:
         oldest_row = await session.scalar(
-            select(func.min(AccessLog.timestamp)).where(AccessLog.hostname == hostname)
+            select(func.min(AccessLog.timestamp)).where(AccessLog.hostname == server)
         )
         repo = LokiImportRepository(session=session)
         identity = {"url": url, "tenant_id": tenant_id, "query": query}
         earliest_import = await repo.earliest_range_start(**identity)
         unfinished = await repo.find_unfinished(since=since, **identity)
-        imports_wrote_from = await repo.earliest_written_line(hostname=hostname)
+        imports_wrote_from = await repo.earliest_written_line(server=server)
         return (
             oldest_row,
             earliest_import,
@@ -496,7 +496,7 @@ async def _run_loki_import(
         session_maker=session_maker,
         geoip_path=settings.geoip.db_path,
         locales=settings.geoip.locales,
-        hostname=settings.logparser.server_name[0],
+        server=settings.logparser.server_name[0],
         store_debug_lines=settings.logparser.store_debug_lines,
     )
 
@@ -513,7 +513,7 @@ async def _run_loki_import(
 
     try:
         ends: list[datetime | None] = []
-        for _, query, _, host in selected:
+        for _, query, _, server_name in selected:
             try:
                 covered = (None, None, None, None)
                 if before is None:
@@ -523,7 +523,7 @@ async def _run_loki_import(
                         tenant_id=loki.tenant_id,
                         query=query,
                         since=since,
-                        hostname=host,
+                        server=server_name,
                     )
                 oldest_row, earliest_import, unfinished_end, imports_wrote_from = covered
                 ends.append(
@@ -534,7 +534,7 @@ async def _run_loki_import(
                         earliest_import=earliest_import,
                         unfinished_end=unfinished_end,
                         imports_wrote_from=imports_wrote_from,
-                        hostname=host,
+                        server=server_name,
                     )
                 )
             except click.ClickException as exc:
@@ -547,12 +547,12 @@ async def _run_loki_import(
                 url=loki.url,
                 query=query,
                 label=f"loki:{index}",
-                hostname=host,
+                server=server_name,
                 tenant_id=loki.tenant_id,
                 username=loki.username,
                 password=password,
             )
-            for index, query, _, host in selected
+            for index, query, _, server_name in selected
         ]
         for position, (source, end) in enumerate(zip(sources, ends, strict=True)):
             if end is None:
@@ -566,10 +566,10 @@ async def _run_loki_import(
                 failed.append(source.query)
                 ends[position] = None
 
-        for (_, query, fmt, host), source, end in zip(selected, sources, ends, strict=True):
+        for (_, query, fmt, server_name), source, end in zip(selected, sources, ends, strict=True):
             if end is None:
                 continue
-            click.echo(f"Importing {query} (hostname {host}) ...")
+            click.echo(f"Importing {query} (server {server_name}) ...")
             if before is None:
                 click.echo(
                     f"  --before not given, stopping at {end.isoformat()}. To rerun this "
@@ -689,33 +689,33 @@ async def _run_loki_import(
         raise click.ClickException("\n".join(problems))
 
 
-@click.command(name="backfill-hostname")
+@click.command(name="backfill-server")
 @click.argument("name")
 @click.option(
     "--consolidate", is_flag=True,
     help=(
-        "Also rewrite ALL existing hostnames (geo_events and stamped "
-        "access_logs rows) to NAME. For DBs polluted by Docker container-ID "
-        "hostnames from unset LOGPARSER_HOST_NAME."
+        "Also rewrite ALL existing server names (geo_events and stamped "
+        "access_logs rows) to NAME. For databases full of Docker container "
+        "IDs recorded while LOGPARSER_SERVER_NAME was unset."
     ),
 )
 @click.option("--yes", is_flag=True, help="Skip the confirmation prompt.")
-def backfill_hostname_command(name: str, consolidate: bool, yes: bool) -> None:
-    """Set the recording hostname on historical rows.
+def backfill_server_command(name: str, consolidate: bool, yes: bool) -> None:
+    """Set the server name on historical rows.
 
-    Default: fills only access_logs rows with NULL hostname (idempotent,
+    Default: fills only access_logs rows with no server (idempotent,
     cannot clobber stamped data). With --consolidate it collapses every
-    existing hostname in geo_events and access_logs to NAME as well.
-    Refreshes the hostname continuous aggregates whenever rows changed.
+    existing server name in geo_events and access_logs to NAME as well.
+    Refreshes the server continuous aggregates whenever rows changed.
     Compressed hypertable chunks are decompressed first (a full-table
     UPDATE would trip the TimescaleDB tuple decompression limit); the
     compression policy recompresses them later. May run for minutes on
     large databases.
     """
-    asyncio.run(_run_backfill_hostname(name, consolidate=consolidate, yes=yes))
+    asyncio.run(_run_backfill_server(name, consolidate=consolidate, yes=yes))
 
 
-async def _run_backfill_hostname(name: str, *, consolidate: bool, yes: bool) -> None:
+async def _run_backfill_server(name: str, *, consolidate: bool, yes: bool) -> None:
     from sqlalchemy import text
 
     from geometrikks.server.logging import get_logger
@@ -732,10 +732,10 @@ async def _run_backfill_hostname(name: str, *, consolidate: bool, yes: bool) -> 
             ))).all()
 
         if consolidate:
-            click.echo("Hostnames that will be consolidated into "
+            click.echo("Servers that will be consolidated into "
                        f"{name!r} (geo_events counts):")
-            for host, count in distinct:
-                click.echo(f"  {host}: {count:,}")
+            for server_name, count in distinct:
+                click.echo(f"  {server_name}: {count:,}")
             if not yes and not click.confirm("Rewrite ALL of these?"):
                 click.echo("Aborted.")
                 return
@@ -757,7 +757,7 @@ async def _run_backfill_hostname(name: str, *, consolidate: bool, yes: bool) -> 
                 "SELECT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'timescaledb')")
 
         if not (needs_fill or needs_logs_rewrite or needs_geo_rewrite):
-            click.echo("Nothing to do: no NULL hostnames"
+            click.echo("Nothing to do: no NULL servers"
                        + (" and nothing to consolidate" if consolidate else "") + ".")
             return
 
@@ -798,10 +798,10 @@ async def _run_backfill_hostname(name: str, *, consolidate: bool, yes: bool) -> 
                     {"n": name},
                 )).rowcount
 
-        click.echo(f"access_logs NULL hostnames filled: {filled:,}")
+        click.echo(f"access_logs rows without a server filled: {filled:,}")
         if consolidate:
-            click.echo(f"geo_events hostnames rewritten: {rewritten_geo:,}")
-            click.echo(f"access_logs hostnames rewritten: {rewritten_logs:,}")
+            click.echo(f"geo_events servers rewritten: {rewritten_geo:,}")
+            click.echo(f"access_logs servers rewritten: {rewritten_logs:,}")
 
         # The server CAGGs still show the old values until refreshed. The
         # plain fill path needs this too: without it log_source_daily_stats
@@ -812,7 +812,7 @@ async def _run_backfill_hostname(name: str, *, consolidate: bool, yes: bool) -> 
         # the two tables' time bounds differ (access logs exist for rows
         # that never produced a geo event).
         if filled or rewritten_geo or rewritten_logs:
-            click.echo("Refreshing hostname CAGGs ...")
+            click.echo("Refreshing server CAGGs ...")
             async with engine.connect() as conn:
                 for table, cagg in (
                     ("geo_events", "server_daily_stats"),
@@ -829,7 +829,7 @@ async def _run_backfill_hostname(name: str, *, consolidate: bool, yes: bool) -> 
                         )
 
         logger.info(
-            "hostname_backfill_completed",
+            "server_backfill_completed",
             name=name,
             consolidate=consolidate,
             filled=filled,
@@ -1109,7 +1109,7 @@ async def _run_backfill_asn(*, yes: bool, tables: tuple[str, ...]) -> None:
 
 
 @click.command(name="backfill-timings")
-@click.option("--hostname", default=None, help="Only rows recorded by this LOGPARSER_HOST_NAME.")
+@click.option("--server", default=None, help="Only rows recorded under this server name.")
 @click.option(
     "--before",
     default=None,
@@ -1117,7 +1117,7 @@ async def _run_backfill_asn(*, yes: bool, tables: tuple[str, ...]) -> None:
     help="Only rows older than this date or datetime (UTC when no offset is given).",
 )
 @click.option("--yes", is_flag=True, help="Skip the confirmation prompt.")
-def backfill_timings_command(hostname: str | None, before: datetime | None, yes: bool) -> None:
+def backfill_timings_command(server: str | None, before: datetime | None, yes: bool) -> None:
     """Clear placeholder response times on rows that never carried one.
 
     Targets only rows the legacy nginx format wrote from a combined-style
@@ -1136,7 +1136,7 @@ def backfill_timings_command(hostname: str | None, before: datetime | None, yes:
     """
     if before is not None and before.tzinfo is None:
         before = before.replace(tzinfo=timezone.utc)
-    asyncio.run(_run_backfill_timings(hostname=hostname, before=before, yes=yes))
+    asyncio.run(_run_backfill_timings(server=server, before=before, yes=yes))
 
 
 BACKFILL_TIMINGS_CAGGS = [
@@ -1147,7 +1147,7 @@ BACKFILL_TIMINGS_CAGGS = [
 ]
 
 
-async def _run_backfill_timings(*, hostname: str | None, before: datetime | None, yes: bool) -> None:
+async def _run_backfill_timings(*, server: str | None, before: datetime | None, yes: bool) -> None:
     from sqlalchemy import text
 
     from geometrikks.server.logging import get_logger
@@ -1160,9 +1160,9 @@ async def _run_backfill_timings(*, hostname: str | None, before: datetime | None
 
     where = "log_format = 'nginx' AND host IS NULL AND request_time = 0"
     params: dict[str, object] = {}
-    if hostname is not None:
-        where += " AND server = :hostname"
-        params["hostname"] = hostname
+    if server is not None:
+        where += " AND server = :server"
+        params["server"] = server
     if before is not None:
         where += " AND timestamp < :before"
         params["before"] = before
@@ -1186,7 +1186,7 @@ async def _run_backfill_timings(*, hostname: str | None, before: datetime | None
             click.echo("Aborted.")
             return
 
-        # Same reasoning as backfill-hostname: a full-table UPDATE on compressed
+        # Same reasoning as backfill-server: a full-table UPDATE on compressed
         # chunks trips timescaledb.max_tuples_decompressed_per_dml_transaction.
         if timescale:
             click.echo("Decompressing compressed access_logs chunks ...")
@@ -1217,7 +1217,7 @@ async def _run_backfill_timings(*, hostname: str | None, before: datetime | None
         logger.info(
             "backfill_timings_completed",
             cleared=cleared,
-            hostname=hostname,
+            server=server,
             before=before.isoformat() if before else None,
             cagg_refresh_failed=failed,
         )
@@ -1230,28 +1230,28 @@ async def _run_backfill_timings(*, hostname: str | None, before: datetime | None
         await engine.dispose()
 
 
-GEO_HOSTNAME_BACKFILL_BATCH_DAYS = 1
+GEO_SERVER_BACKFILL_BATCH_DAYS = 1
 
 
-@click.command(name="backfill-geo-hostnames")
+@click.command(name="backfill-geo-servers")
 @click.option("--yes", is_flag=True, help="Skip the confirmation prompt.")
-def backfill_geo_hostnames_command(yes: bool) -> None:
-    """Fill historical hostname sets in the Geo Logs aggregates.
+def backfill_geo_servers_command(yes: bool) -> None:
+    """Fill historical server sets in the Geo Logs aggregates.
 
     Run after starting the updated app. Refreshes hourly and daily aggregates
-    from retained geo_events, without rewriting source hostnames. Prints the
+    from retained geo_events, without rewriting server names. Prints the
     pending ranges and asks for confirmation. May run for minutes on large
     databases; the app can stay running. Rerun after interruption to resume
     unfinished batches. History whose raw events expired cannot be recovered.
     """
-    asyncio.run(_run_backfill_geo_hostnames(yes=yes))
+    asyncio.run(_run_backfill_geo_servers(yes=yes))
 
 
-async def _run_backfill_geo_hostnames(*, yes: bool) -> None:
+async def _run_backfill_geo_servers(*, yes: bool) -> None:
     from sqlalchemy import text
 
     from geometrikks.config.settings import get_settings
-    from geometrikks.server.hostname_backfill import hostname_backfill_ranges, pending_hostname_range
+    from geometrikks.server.server_backfill import pending_server_range, server_backfill_ranges
     from geometrikks.server.plugins import get_sqlalchemy_config
     from geometrikks.server.timescale import refresh_caggs_range
 
@@ -1265,44 +1265,50 @@ async def _run_backfill_geo_hostnames(*, yes: bool) -> None:
                 "SELECT pg_try_advisory_lock(714023, 1)"
             ))).scalar_one()
             if not locked:
-                raise click.ClickException("Another Geo Logs hostname backfill is already running.")
+                raise click.ClickException("Another Geo Logs server backfill is already running.")
             try:
                 await lock_conn.commit()
-                ranges = await hostname_backfill_ranges(
+                ranges = await server_backfill_ranges(
                     lock_conn, now=datetime.now(timezone.utc),
                     raw_retention_days=analytics.raw_retention_days,
                     hourly_retention_days=analytics.hourly_retention_days,
                 )
                 await lock_conn.commit()
                 if not ranges:
-                    click.echo("Nothing to do: no complete retained hostname buckets need backfilling.")
+                    click.echo("Nothing to do: no complete retained server buckets need backfilling.")
                     return
-                for item in ranges:
-                    click.echo(f"{item.view}: {item.start.isoformat()} to {item.end.isoformat()}")
+                for backfill_range in ranges:
+                    click.echo(
+                        f"{backfill_range.view}: {backfill_range.start.isoformat()} "
+                        f"to {backfill_range.end.isoformat()}"
+                    )
                 click.echo("Only complete retained buckets are refreshed. Expired raw history cannot be recovered.")
-                if not yes and not click.confirm("Backfill these hostname aggregates?"):
+                if not yes and not click.confirm("Backfill these server aggregates?"):
                     click.echo("Aborted.")
                     return
-                for item in ranges:
-                    start = item.start
-                    while start < item.end:
+                for backfill_range in ranges:
+                    start = backfill_range.start
+                    while start < backfill_range.end:
                         end = min(
-                            start + timedelta(days=GEO_HOSTNAME_BACKFILL_BATCH_DAYS),
-                            item.end,
+                            start + timedelta(days=GEO_SERVER_BACKFILL_BATCH_DAYS),
+                            backfill_range.end,
                         )
                         async with engine.connect() as conn:
-                            pending = await pending_hostname_range(conn, item.view, start, end)
+                            pending = await pending_server_range(conn, backfill_range.view, start, end)
                         if pending is not None:
-                            click.echo(f"Refreshing {item.view}: {pending.start.isoformat()} to {pending.end.isoformat()} ...")
+                            click.echo(
+                                f"Refreshing {backfill_range.view}: {pending.start.isoformat()} "
+                                f"to {pending.end.isoformat()} ..."
+                            )
                             failed = await refresh_caggs_range(
-                                engine, start=pending.start, end=pending.end, caggs=[item.view], force=True,
+                                engine, start=pending.start, end=pending.end, caggs=[backfill_range.view], force=True,
                             )
                             if failed:
                                 raise click.ClickException(
-                                    f"Refresh failed for {item.view}. Rerun this command to resume."
+                                    f"Refresh failed for {backfill_range.view}. Rerun this command to resume."
                                 )
                         start = end
-                click.echo("Geo Logs hostname backfill complete.")
+                click.echo("Geo Logs server backfill complete.")
             finally:
                 await lock_conn.rollback()
                 await lock_conn.execute(text("SELECT pg_advisory_unlock(714023, 1)"))
@@ -1319,7 +1325,7 @@ class ImportLogsCLIPlugin(CLIPlugin):
     def on_cli_init(self, cli: click.Group) -> None:
         cli.add_command(import_logs_command)
         cli.add_command(import_loki_command)
-        cli.add_command(backfill_hostname_command)
+        cli.add_command(backfill_server_command)
         cli.add_command(backfill_asn_command)
         cli.add_command(backfill_timings_command)
-        cli.add_command(backfill_geo_hostnames_command)
+        cli.add_command(backfill_geo_servers_command)

@@ -74,21 +74,21 @@ DATABASE_RECOVERY_FAILED = Advisory(
     ),
 )
 
-MAP_HOME_UNDETECTED = Advisory(
-    id="map-home-undetected",
+SERVER_LOCATION_UNDETECTED = Advisory(
+    id="server-location-undetected",
     severity="warning",
     summary=(
-        "The map's home location could not be detected, so routes have no "
-        "origin and the home marker is hidden."
+        "This server's location could not be detected, so routes have no "
+        "origin and its map marker is hidden."
     ),
     detail=(
-        "The app keeps map traffic visible without route origins or a home "
+        "Map traffic stays visible, just without route origins or a server "
         "marker. Check outbound access to the public-IP service and that the "
-        "City database can locate its result, or configure the home coordinates. "
-        "When scheduling and background jobs are active, the site-home refresh "
-        "job retries detection."
+        "City database can locate its result, or set the coordinates yourself. "
+        "When scheduling and background jobs are active, the server-location "
+        "refresh job retries detection."
     ),
-    remedy="MAP_HOME_LATITUDE and MAP_HOME_LONGITUDE",
+    remedy="MAP_SERVER_LATITUDE and MAP_SERVER_LONGITUDE",
 )
 
 CITY_DATABASE_MISSING = Advisory(

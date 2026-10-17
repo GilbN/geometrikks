@@ -33,7 +33,7 @@ async def _until(predicate, timeout: float = 10.0) -> None:
         await asyncio.sleep(0.01)
 
 
-def make_record(with_geo: bool = True, with_log: bool = True, hostname: str = "") -> ParsedLogRecord:
+def make_record(with_geo: bool = True, with_log: bool = True, server: str = "") -> ParsedLogRecord:
     geo = ParsedGeoData(
         latitude=51.5, longitude=-0.09, geohash="gcpvj", country_code="GB",
         country_name="UK", timestamp=TS, city="London",
@@ -47,7 +47,7 @@ def make_record(with_geo: bool = True, with_log: bool = True, hostname: str = ""
     ) if with_log else None
     return ParsedLogRecord(
         ip_address="81.2.69.142", geo_data=geo, access_log=log, raw_line="x",
-        hostname=hostname,
+        server=server,
     )
 
 
@@ -94,7 +94,7 @@ def test_ws_hostname_arrives_in_frames():
     app, channels = _live_app()
     with TestClient(app) as client, client.websocket_connect("/ws/live") as ws:
         publish_once_subscribed(
-            client, channels, record_to_event(make_record(with_log=False, hostname="vps-1"))
+            client, channels, record_to_event(make_record(with_log=False, server="vps-1"))
         )
         frame = ws.receive_json(timeout=5)
     assert frame["events"][0]["geo"]["hostname"] == "vps-1"

@@ -1,4 +1,4 @@
-"""Hostname sets survive CAGG rollups, exact boundaries and column upgrades."""
+"""Server sets survive CAGG rollups, exact boundaries and column upgrades."""
 from __future__ import annotations
 
 from datetime import timedelta
@@ -38,7 +38,7 @@ async def clear_backfill_history(pg_engine, clean_tables):
 
 
 @pytest.mark.parametrize("days", [3, 40])
-async def test_hostname_sets_match_raw_with_partial_buckets(
+async def test_server_sets_match_raw_with_partial_buckets(
     pg_engine, pg_session_maker, clean_tables, days,
 ):
     start = NOW - timedelta(days=days, minutes=25)
@@ -107,7 +107,7 @@ async def _old_view(conn, view, interval):
 
 
 @pytest.mark.parametrize("suffix, interval", [("hourly", "1 hour"), ("daily", "1 day")])
-async def test_hostname_upgrade_resumes_after_interrupted_refresh(
+async def test_server_upgrade_resumes_after_interrupted_refresh(
     pg_engine, pg_session_maker, clean_tables, suffix, interval, monkeypatch,
 ):
     view = f"ip_location_{suffix}_stats"
@@ -162,7 +162,7 @@ async def test_hostname_upgrade_resumes_after_interrupted_refresh(
     await timescale.setup_timescaledb(pg_engine, get_settings().analytics)
 
 
-async def test_hostname_upgrade_preserves_counts_beyond_raw_retention(
+async def test_server_upgrade_preserves_counts_beyond_raw_retention(
     pg_engine, pg_session_maker, clean_tables, monkeypatch,
 ):
     view = "ip_location_daily_stats"
@@ -209,7 +209,7 @@ async def test_hostname_upgrade_preserves_counts_beyond_raw_retention(
     await timescale.setup_timescaledb(pg_engine, get_settings().analytics)
 
 
-async def test_hostname_lookup_keeps_asn_filters(pg_engine, pg_session_maker, clean_tables):
+async def test_server_lookup_keeps_asn_filters(pg_engine, pg_session_maker, clean_tables):
     async with pg_session_maker() as session:
         locs = await _seed_locations(session)
         for day, name, asn in [(3, "included", 1221), (2, "excluded", 13335)]:
@@ -232,18 +232,18 @@ async def test_hostname_lookup_keeps_asn_filters(pg_engine, pg_session_maker, cl
 
 
 async def _run_cli(engine, monkeypatch):
-    from geometrikks.cli import _run_backfill_geo_hostnames
+    from geometrikks.cli import _run_backfill_geo_servers
     from geometrikks.server import plugins
 
     monkeypatch.setattr(plugins, "get_sqlalchemy_config", lambda: SimpleNamespace(get_engine=lambda: engine))
-    await _run_backfill_geo_hostnames(yes=True)
+    await _run_backfill_geo_servers(yes=True)
 
 
 async def test_cli_failure_resumes_and_completed_run_is_noop(
     pg_engine, pg_session_maker, clean_tables, monkeypatch,
 ):
     import click
-    from geometrikks.server.hostname_backfill import hostname_backfill_ranges
+    from geometrikks.server.server_backfill import server_backfill_ranges
 
     view = "ip_location_daily_stats"
     async with pg_session_maker() as session:
@@ -279,7 +279,7 @@ async def test_cli_failure_resumes_and_completed_run_is_noop(
     await _run_cli(pg_engine, monkeypatch)
     assert len(calls) == count
     async with pg_engine.connect() as conn:
-        assert await hostname_backfill_ranges(
+        assert await server_backfill_ranges(
             conn, now=NOW, raw_retention_days=180, hourly_retention_days=60,
         ) == []
     async with pg_engine.begin() as conn:
@@ -292,7 +292,7 @@ async def test_cli_decline_and_concurrent_run_do_not_refresh(
 ):
     import click
     from unittest.mock import AsyncMock
-    from geometrikks.cli import _run_backfill_geo_hostnames
+    from geometrikks.cli import _run_backfill_geo_servers
     from geometrikks.server import plugins
 
     view = "ip_location_daily_stats"
@@ -312,12 +312,12 @@ async def test_cli_decline_and_concurrent_run_do_not_refresh(
     refresh = AsyncMock()
     with monkeypatch.context() as patch:
         patch.setattr(timescale, "refresh_caggs_range", refresh)
-        await _run_backfill_geo_hostnames(yes=False)
+        await _run_backfill_geo_servers(yes=False)
         async with pg_engine.connect() as conn:
             await conn.execute(text("SELECT pg_advisory_lock(714023, 1)"))
             try:
                 with pytest.raises(click.ClickException, match="already running"):
-                    await _run_backfill_geo_hostnames(yes=True)
+                    await _run_backfill_geo_servers(yes=True)
             finally:
                 await conn.execute(text("SELECT pg_advisory_unlock(714023, 1)"))
         refresh.assert_not_awaited()

@@ -735,7 +735,7 @@ describe("advisoryCards", () => {
   it("maps severities to tones", () => {
     const health = makeHealth({
       advisories: [
-        { id: "hostname-pollution", severity: "warning", summary: "s", remedy: "cmd" },
+        { id: "server-name-pollution", severity: "warning", summary: "s", remedy: "cmd" },
         { id: "other", severity: "critical", summary: "c" },
       ],
     })
