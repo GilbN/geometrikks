@@ -37,9 +37,9 @@ def test_settings_response_is_whitelisted():
     assert "logPaths" in body["logparser"]
     assert "rawRetentionDays" in body["analytics"]
     assert body["map"] == {
-        "homeLatitude": 40.7128,
-        "homeLongitude": -74.006,
-        "homeSource": "external_ip",
+        "serverLatitude": 40.7128,
+        "serverLongitude": -74.006,
+        "serverLocationSource": "external_ip",
         "cartoApiKey": None,
         "defaultView": None,
     }

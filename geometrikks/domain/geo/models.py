@@ -92,10 +92,8 @@ class GeoEvent(base.BigIntBase):
     # IP address that triggered the event
     ip_address: Mapped[str] = mapped_column(postgresql.INET, nullable=False, index=True, info=dto_field("read-only"))
 
-    # Server that recorded the event, not the client hostname
-    hostname: Mapped[str] = mapped_column(
-        "server", String(255), nullable=False, index=True, info=dto_field("read-only")
-    )
+    # The GeoMetrikks server that recorded the event, never the request's Host header
+    server: Mapped[str] = mapped_column(String(255), nullable=False, index=True, info=dto_field("read-only"))
 
     # Foreign key to normalized geo location
     location_id: Mapped[int] = mapped_column(

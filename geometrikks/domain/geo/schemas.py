@@ -33,10 +33,10 @@ class GeoLogEntry(msgspec.Struct, rename="camel"):
     last_seen: datetime | None
     asn: int | None
     as_organization: str | None
-    hostnames: list[str]
-    """Distinct recording hostnames seen for this group in the selected range.
+    servers: list[str]
+    """Distinct servers that recorded this group in the selected range.
     Pre-upgrade aggregate history is incomplete until the CLI backfill;
-    history beyond raw retention cannot recover its hostname data.
+    history beyond raw retention cannot recover its server data.
     """
 
 
@@ -159,7 +159,7 @@ class GeoEventFacets(msgspec.Struct, rename="camel"):
 
     countries: list[GeoCountryFacet]
     cities: list[str]
-    hostnames: list[str]
+    servers: list[str]
     asns: list[GeoAsnFacet]
 
 
@@ -167,8 +167,8 @@ class GeoEventFacets(msgspec.Struct, rename="camel"):
 class GeoEventFilters:
     """Optional dimension filters for geo-event aggregate queries.
 
-    Hostname filtering forces the raw geo_events path: per-IP CAGGs store
-    hostname sets, not per-hostname counts. Every other filter, ASN included, works on the CAGG
+    Server filtering forces the raw geo_events path: per-IP CAGGs store
+    server sets, not per-server counts. Every other filter, ASN included, works on the CAGG
     paths too (the per-IP CAGGs are keyed by location + IP and carry the
     IP's ASN).
     """
@@ -177,7 +177,7 @@ class GeoEventFilters:
     cities: Sequence[str] | None = None
     ip_include: Sequence[str] | None = None
     ip_exclude: Sequence[str] | None = None
-    hostnames: Sequence[str] | None = None
+    servers: Sequence[str] | None = None
     asn_include: Sequence[int] | None = None
     asn_exclude: Sequence[int] | None = None
 
@@ -187,7 +187,7 @@ class GeoEventFilters:
             or self.cities
             or self.ip_include
             or self.ip_exclude
-            or self.hostnames
+            or self.servers
             or self.asn_include
             or self.asn_exclude
         )
@@ -195,7 +195,7 @@ class GeoEventFilters:
     @property
     def forces_raw(self) -> bool:
         """True when the query cannot be served from any CAGG."""
-        return bool(self.hostnames)
+        return bool(self.servers)
 
     def sql_conditions(
         self,
@@ -229,9 +229,9 @@ class GeoEventFilters:
                 f"AND NOT ({events_alias}.ip_address = ANY(CAST(:filter_ips_excl AS inet[])))"
             )
             params["filter_ips_excl"] = list(self.ip_exclude)
-        if self.hostnames:
-            clauses.append(f"AND {events_alias}.server = ANY(:filter_hostnames)")
-            params["filter_hostnames"] = list(self.hostnames)
+        if self.servers:
+            clauses.append(f"AND {events_alias}.server = ANY(:filter_servers)")
+            params["filter_servers"] = list(self.servers)
         asn = f"{events_alias}.{asn_column}"
         if self.asn_include:
             clauses.append(f"AND {asn} = ANY(CAST(:filter_asns AS bigint[]))")

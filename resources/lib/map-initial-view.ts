@@ -1,6 +1,6 @@
 /**
  * Where the map opens: the configured MAP_DEFAULT_VIEW, else the selected
- * source's home, else every home in view, else the whole world. Pure; no
+ * server's location, else every server location in view, else the whole world. Pure; no
  * React or map imports so it stays unit-testable without a DOM.
  */
 
@@ -32,8 +32,8 @@ export interface Padding {
 
 export interface InitialMapViewInput {
   defaultView: MapView | null | undefined
-  siteHomes: SiteHomesData | undefined
-  selectedSources: string[]
+  serverLocations: SiteHomesData | undefined
+  selectedServers: string[]
   /** Map container size in pixels, for fitting several homes. */
   size: { width: number; height: number }
   /** Pixels to keep homes away from each edge. Defaults to FIT_PADDING on every side. */
@@ -42,21 +42,21 @@ export interface InitialMapViewInput {
 
 export function initialMapView({
   defaultView,
-  siteHomes,
-  selectedSources,
+  serverLocations,
+  selectedServers,
   size,
   padding = { top: FIT_PADDING, right: FIT_PADDING, bottom: FIT_PADDING, left: FIT_PADDING },
 }: InitialMapViewInput): MapView {
   if (defaultView) return defaultView
 
-  // Like the "go home" control, one selected source opens on its own
-  // home, or on the default home when it has none.
-  if (selectedSources.length === 1) {
-    const home = buildHomeResolver(siteHomes)(selectedSources[0])
-    if (home) return centerOn(home)
+  // Like the "go home" control, one selected server opens on its own
+  // location, or on the default location when it has none.
+  if (selectedServers.length === 1) {
+    const serverLocation = buildHomeResolver(serverLocations)(selectedServers[0])
+    if (serverLocation) return centerOn(serverLocation)
   }
 
-  const coordinates = homeBeacons(siteHomes).map((beacon) => beacon.coordinate)
+  const coordinates = homeBeacons(serverLocations).map((beacon) => beacon.coordinate)
   if (coordinates.length === 0) return WORLD_VIEW
   if (coordinates.length === 1) return centerOn(coordinates[0])
   return fit(coordinates, size, padding)

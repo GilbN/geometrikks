@@ -3,7 +3,7 @@
  * global time range. Sorting and pagination state live on the parent route
  * (URL search params), driven here via props and callbacks; column visibility
  * persists per browser and the selected row is local state. Filter values come from AccessLogFiltersContext
- * (search, IP, host, hostname, source format, status, method, country and
+ * (search, IP, host, server, source format, status, method, country and
  * city live in access-logs-filter-bar.tsx). Pairs with GET /api/v1/access-logs/.
  */
 import { memo, useState } from "react"
@@ -97,8 +97,8 @@ function renderCell(column: AccessLogColumn, r: AccessLog): React.ReactNode {
           {r.referrer ?? "-"}
         </span>
       )
-    case "hostname":
-      return <span className="font-mono">{r.hostname ?? "-"}</span>
+    case "server":
+      return <span className="font-mono">{r.server ?? "-"}</span>
     case "logFormat":
       return <span className="font-mono">{r.logFormat ?? "-"}</span>
     case "userAgent":
@@ -210,8 +210,8 @@ export function AccessLogsTable({
     methodIn: filters.methods.length ? filters.methods : undefined,
     hostIn: filters.hosts.length ? filters.hosts : undefined,
     hostNotIn: filters.hostsExclude.length ? filters.hostsExclude : undefined,
-    hostnameIn: filters.hostnames.length ? filters.hostnames : undefined,
-    hostnameNotIn: filters.hostnamesExclude.length ? filters.hostnamesExclude : undefined,
+    serverIn: filters.servers.length ? filters.servers : undefined,
+    serverNotIn: filters.serversExclude.length ? filters.serversExclude : undefined,
     logFormatIn: filters.logFormats.length ? filters.logFormats : undefined,
     cityIn: filters.cities.length ? filters.cities : undefined,
     countryCodeIn: filters.countryCodes.length ? filters.countryCodes : undefined,

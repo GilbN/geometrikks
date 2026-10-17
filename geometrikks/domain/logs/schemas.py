@@ -24,8 +24,8 @@ class AccessLogFacets(msgspec.Struct, rename="camel"):
     """Sorted alphabetically."""
     hosts: list[str]
     """Distinct HTTP Host values, sorted alphabetically. NULLs excluded."""
-    hostnames: list[str]
-    """Distinct recording hostnames (writer instances). NULLs excluded."""
+    servers: list[str]
+    """Distinct servers that recorded access logs, sorted alphabetically. NULLs excluded."""
     log_formats: list[str]
     """Distinct source log formats ('nginx', 'traefik-json'). NULLs excluded."""
 

@@ -1,8 +1,8 @@
 """Services for geo-event data (geo-logs page aggregates).
 
 Query routing follows the repository convention:
-- RAW geo_events for ranges ≤ 24h, and whenever a hostname filter is set
-  (per-IP CAGGs store hostname sets, not per-hostname counts).
+- RAW geo_events for ranges ≤ 24h, and whenever a server filter is set
+  (per-IP CAGGs store server sets, not per-server counts).
 - ip_location_{hourly,daily}_stats for grouped/top-IP queries and for
   country/city/IP-filtered summary/time-series queries on longer ranges
   (keyed by location + IP, so those filters still apply there).
@@ -54,7 +54,7 @@ logger = get_logger(__name__)
 # value. Every value is a column of the grouped subquery, so one outer ORDER BY
 # serves both the raw and the stitched-CAGG paths. ``ip_address`` maps to
 # ``ip_sort``, the INET grouping key, because the displayed ``ip_address`` is
-# host() text and would sort lexicographically ("9." after "100."). ``hostnames``
+# host() text and would sort lexicographically ("9." after "100."). ``servers``
 # is deliberately absent: it is an aggregated array on the raw path and NULL on
 # the CAGG path. ``last_seen`` is bucket-granular on the CAGG path, so on
 # ranges > 24h it only orders to day precision (raw edge rows stay exact).
@@ -100,10 +100,10 @@ class GeoEventService(SQLAlchemyAsyncRepositoryService[GeoEvent]):
     ) -> tuple[list[GeoLogEntry], int]:
         """Rows grouped by (location, IP) with counts, plus the total group count.
 
-        Raw path (≤ 24h or hostname filter): exact counts, last event time and
-        distinct hostnames. CAGG path: per-IP CAGG sums stitched with the raw
-        edge buckets: exact counts and hostnames, bucket-granular last_seen.
-        Pre-upgrade buckets have no hostname history until the CLI backfill;
+        Raw path (≤ 24h or server filter): exact counts, last event time and
+        distinct servers. CAGG path: per-IP CAGG sums stitched with the raw
+        edge buckets: exact counts and servers, bucket-granular last_seen.
+        Pre-upgrade buckets have no server history until the CLI backfill;
         buckets outside raw retention cannot recover it.
 
         NULLs sink on both sort directions, and (location_id, ip_sort) always
@@ -226,7 +226,7 @@ class GeoEventService(SQLAlchemyAsyncRepositoryService[GeoEvent]):
                 last_seen=row.last_seen,
                 asn=row.asn,
                 as_organization=row.as_organization,
-                hostnames=servers_by_group.get((row.location_id, row.ip_address), []),
+                servers=servers_by_group.get((row.location_id, row.ip_address), []),
             )
             for row in rows
         ], total
@@ -236,7 +236,7 @@ class GeoEventService(SQLAlchemyAsyncRepositoryService[GeoEvent]):
     ) -> GeoLogPeriod:
         """Aggregate totals/uniques for the period.
 
-        Hostname filters (or <= 24h ranges) scan raw geo_events; country/city/IP
+        Server filters (or <= 24h ranges) scan raw geo_events; country/city/IP
         filters use the stitched per-IP CAGGs with exact uniques; unfiltered
         longer ranges use the HLL geo_summary CAGGs.
         """
@@ -308,7 +308,7 @@ class GeoEventService(SQLAlchemyAsyncRepositoryService[GeoEvent]):
         ``granularity`` must be HOURLY or DAILY (the controller clamps RAW to
         HOURLY, matching the analytics charts) and only picks the bucket size;
         routing is decided separately from the actual ``start``/``end`` span.
-        Hostname filters and <= 24h windows scan raw geo_events. An hourly-
+        Server filters and <= 24h windows scan raw geo_events. An hourly-
         bucket override on a > 30d window (``granularity`` HOURLY while the
         window itself is DAILY-routed) also scans raw when any filter is
         active, since hourly CAGG retention doesn't cover ranges that long
@@ -664,10 +664,10 @@ class GeoEventService(SQLAlchemyAsyncRepositoryService[GeoEvent]):
         ]
 
     async def get_facets(self) -> GeoEventFacets:
-        """Distinct country/city/hostname/ASN values, for filter dropdowns.
+        """Distinct country/city/server/ASN values, for filter dropdowns.
 
         Countries are deduped by code (a non-null name wins) and sorted by
-        the displayed name, mirroring AccessLogService.get_facets. Hostnames
+        the displayed name, mirroring AccessLogService.get_facets. Servers
         come from server_daily_stats (real-time aggregated) rather than a
         DISTINCT over raw geo_events, whose cost scales with total volume;
         values persist beyond raw retention like the access-log facets. The
@@ -692,7 +692,7 @@ class GeoEventService(SQLAlchemyAsyncRepositoryService[GeoEvent]):
                 .order_by(GeoLocation.city)
             )
         ).scalars().all()
-        hostnames = (
+        servers = (
             await session.execute(text(
                 "SELECT DISTINCT server FROM server_daily_stats ORDER BY server"
             ))
@@ -719,7 +719,7 @@ class GeoEventService(SQLAlchemyAsyncRepositoryService[GeoEvent]):
         return GeoEventFacets(
             countries=[GeoCountryFacet(code=code, name=name or code) for code, name in country_rows],
             cities=list(cities),
-            hostnames=list(hostnames),
+            servers=list(servers),
             asns=[GeoAsnFacet(asn=int(row.asn), organization=row.organization) for row in asn_rows],
         )
 
@@ -744,7 +744,7 @@ class GeoLocationService(SQLAlchemyAsyncRepositoryService[GeoLocation]):
         cities: list[str] | None = None,
         ip_addresses: list[str] | None = None,
         ip_addresses_exclude: list[str] | None = None,
-        hostnames: list[str] | None = None,
+        servers: list[str] | None = None,
         asns: list[int] | None = None,
         asns_exclude: list[int] | None = None,
     ) -> list[LocationWithEventCount]:
@@ -756,7 +756,7 @@ class GeoLocationService(SQLAlchemyAsyncRepositoryService[GeoLocation]):
             cities=cities,
             ip_addresses=ip_addresses,
             ip_addresses_exclude=ip_addresses_exclude,
-            hostnames=hostnames,
+            servers=servers,
             asns=asns,
             asns_exclude=asns_exclude,
         )

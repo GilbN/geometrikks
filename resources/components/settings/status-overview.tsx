@@ -19,11 +19,11 @@ import {
   useHealth,
   useLogFiles,
   useMe,
-  useDeleteSiteHome,
+  useDeleteServerLocation,
   useOidcStatus,
   useRecentErrors,
   useSchedulerJobs,
-  useSiteHomes,
+  useServerLocations,
   useStats,
 } from "@/lib/queries"
 import { useLiveEvents, useLiveFeedStatus } from "@/lib/live-feed-context"
@@ -66,8 +66,8 @@ import {
   overallState,
   relativeTime,
   schedulerJobState,
-  type SiteHomeRow,
-  siteHomeRows,
+  type ServerLocationRow,
+  serverLocationRows,
 } from "@/components/settings/status-logic"
 
 function SectionIcon({ icon: Icon }: { icon: React.ComponentType<{ className?: string }> }) {
@@ -106,12 +106,12 @@ function Counter({ label, value }: { label: string; value: number | undefined })
 /** One site-home line. Auto rows can be removed (a retired source's beacon
  *  otherwise stays on the map forever); override rows point at the env var
  *  that owns them. */
-function SiteHomeLine({ row }: { row: SiteHomeRow }) {
+function SiteHomeLine({ row }: { row: ServerLocationRow }) {
   const [confirming, setConfirming] = useState(false)
-  const remove = useDeleteSiteHome()
+  const remove = useDeleteServerLocation()
   return (
     <div className="flex items-center gap-2 text-xs">
-      <MonoChip>{row.hostname}</MonoChip>
+      <MonoChip>{row.server}</MonoChip>
       <span className="text-muted-foreground tabular-nums">{row.coords}</span>
       <span className={cn("tabular-nums", row.stale ? "text-amber-500" : "text-muted-foreground")}>
         {row.lastSeen}
@@ -132,7 +132,7 @@ function SiteHomeLine({ row }: { row: SiteHomeRow }) {
             type="button"
             variant="ghost"
             size="icon-xs"
-            aria-label={`Remove home for ${row.hostname}`}
+            aria-label={`Remove home for ${row.server}`}
             className="text-muted-foreground hover:text-destructive"
             onClick={() => setConfirming(true)}
           >
@@ -141,10 +141,10 @@ function SiteHomeLine({ row }: { row: SiteHomeRow }) {
           <AlertDialog open={confirming} onOpenChange={setConfirming}>
             <AlertDialogContent>
               <AlertDialogHeader>
-                <AlertDialogTitle>Remove the home for {row.hostname}?</AlertDialogTitle>
+                <AlertDialogTitle>Remove the home for {row.server}?</AlertDialogTitle>
                 <AlertDialogDescription>
                   Its beacon leaves the map and live routes stop flying to it. If an agent still
-                  ingests as {row.hostname}, the home comes back at that agent's next refresh.
+                  ingests as {row.server}, the home comes back at that agent's next refresh.
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
@@ -152,7 +152,7 @@ function SiteHomeLine({ row }: { row: SiteHomeRow }) {
                 <AlertDialogAction
                   variant="destructive"
                   disabled={remove.isPending}
-                  onClick={() => remove.mutate(row.hostname, { onSettled: () => setConfirming(false) })}
+                  onClick={() => remove.mutate(row.server, { onSettled: () => setConfirming(false) })}
                 >
                   Remove
                 </AlertDialogAction>
@@ -177,7 +177,7 @@ export function StatusOverview() {
   const jobs = schedulerData?.jobs
   const { data: dbInfo } = useDatabaseInfo()
   const { data: logRecords, isError: logsError } = useRecentErrors()
-  const { data: siteHomes } = useSiteHomes()
+  const { data: serverLocations } = useServerLocations()
   const feedStatus = useLiveFeedStatus()
   // Probe the live WebSocket while this page is open: the client is
   // per-tab and lazy, so without our own subscription the card could
@@ -191,7 +191,7 @@ export function StatusOverview() {
   const uptime = formatUptime(health?.startedAt, now)
   const geoipRefreshJob = jobs?.find((j) => j.id === "geoip-refresh")
   const recentErrors = filterErrorRecords(logRecords, 5)
-  const homeRows = siteHomeRows(siteHomes, now)
+  const locationRows = serverLocationRows(serverLocations, now)
   const oidcLine = oidcState(oidc, oidcError)
 
   if (healthLoading) {
@@ -367,7 +367,7 @@ export function StatusOverview() {
                 <div key={source.label} className="flex items-center gap-2 text-xs">
                   <StatusLed tone={source.available ? "emerald" : "red"} />
                   <MonoChip>{source.query}</MonoChip>
-                  <span className="text-muted-foreground">{source.hostname}</span>
+                  <span className="text-muted-foreground">{source.server}</span>
                   <span className="ml-auto text-muted-foreground tabular-nums">
                     {source.logFormat ?? "format pending"} · {source.parsedLines.toLocaleString()} lines
                     {!source.available && (
@@ -549,7 +549,7 @@ export function StatusOverview() {
         {/* Only shown when at least one source has a resolved home: makes the
             auto/override split visible in-app for CGNAT diagnosis, matching
             the failure-mode table's promise that source is inspectable. */}
-        {homeRows.length > 0 && (
+        {locationRows.length > 0 && (
           <Card>
             <CardHeader className="pb-3">
               <div className="flex items-center gap-3">
@@ -561,14 +561,14 @@ export function StatusOverview() {
               </div>
             </CardHeader>
             <CardContent className="space-y-2">
-              {homeRows.map((row) => (
-                <SiteHomeLine key={row.hostname} row={row} />
+              {locationRows.map((row) => (
+                <SiteHomeLine key={row.server} row={row} />
               ))}
             </CardContent>
           </Card>
         )}
 
-        <Card className={homeRows.length > 0 ? undefined : "md:col-span-2"}>
+        <Card className={locationRows.length > 0 ? undefined : "md:col-span-2"}>
           <CardHeader className="pb-3">
             <div className="flex items-center gap-3">
               <SectionIcon icon={TriangleAlert} />

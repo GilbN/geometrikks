@@ -13,7 +13,7 @@ async def _insert(session_maker, ts, ip, *, server, log_format="traefik-json", a
     async with session_maker() as session:
         session.add(AccessLog(
             timestamp=ts, ip_address=ip, method="GET", url="/", status_code=200,
-            bytes_sent=0, hostname=server, log_format=log_format,
+            bytes_sent=0, server=server, log_format=log_format,
             autonomous_system_number=asn,
         ))
         await session.commit()

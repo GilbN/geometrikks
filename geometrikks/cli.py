@@ -398,7 +398,7 @@ async def _covered_from(
 
     async with session_maker() as session:
         oldest_row = await session.scalar(
-            select(func.min(AccessLog.timestamp)).where(AccessLog.hostname == server)
+            select(func.min(AccessLog.timestamp)).where(AccessLog.server == server)
         )
         repo = LokiImportRepository(session=session)
         identity = {"url": url, "tenant_id": tenant_id, "query": query}

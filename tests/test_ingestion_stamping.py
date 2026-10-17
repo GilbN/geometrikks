@@ -25,7 +25,7 @@ def test_to_access_log_model_stamps_server_and_format() -> None:
     model = service._to_access_log_model(
         _parsed(datetime.now(timezone.utc)), log_format="traefik-json"
     )
-    assert model.hostname == "myserver"
+    assert model.server == "myserver"
     assert model.log_format == "traefik-json"
     assert model.url == "/admin"
 
@@ -37,7 +37,7 @@ def test_to_access_log_model_record_server_wins() -> None:
     model = service._to_access_log_model(
         _parsed(datetime.now(timezone.utc)), log_format="nginx", server="vps-2"
     )
-    assert model.hostname == "vps-2"
+    assert model.server == "vps-2"
 
 
 def test_to_access_log_model_empty_server_falls_back() -> None:
@@ -47,7 +47,7 @@ def test_to_access_log_model_empty_server_falls_back() -> None:
     model = service._to_access_log_model(
         _parsed(datetime.now(timezone.utc)), log_format="nginx", server=None
     )
-    assert model.hostname == "myserver"
+    assert model.server == "myserver"
 
 
 @pytest.mark.anyio
@@ -69,7 +69,7 @@ async def test_process_record_stamps_record_server_on_geo_event() -> None:
     await service._process_record(record, repos, {"geo": 0, "log": 0, "debug": 0})
 
     added = repos.geo_event.session.add.call_args[0][0]
-    assert added.hostname == "vps-2"
+    assert added.server == "vps-2"
     assert added.location_id == 42
 
 

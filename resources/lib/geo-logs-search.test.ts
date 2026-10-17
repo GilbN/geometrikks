@@ -1,3 +1,4 @@
+import { defaultParseSearch, defaultStringifySearch } from "@tanstack/react-router"
 import { describe, expect, it } from "vitest"
 
 import { EMPTY_GEO_LOG_FILTERS } from "./geo-log-filters-context"
@@ -24,12 +25,30 @@ describe("geo-logs search codec", () => {
   it("encodes empty lists as absent keys", () => {
     expect(encodeGeoLogFilters(EMPTY_GEO_LOG_FILTERS)).toEqual({
       country: undefined, city: undefined, ip: undefined, ipx: undefined,
-      host: undefined, asn: undefined, asnx: undefined,
+      server: undefined, asn: undefined, asnx: undefined,
     })
   })
 
   it("accepts asn as a sort field", () => {
     expect(geoLogsSearchSchema.parse({ sortBy: "asn" }).sortBy).toBe("asn")
     expect(geoLogsSearchSchema.parse({ sortBy: "asOrganization" }).sortBy).toBeUndefined()
+  })
+
+  it("decodes repeated server params into the server filter", () => {
+    const search = geoLogsSearchSchema.parse(defaultParseSearch("?server=a&server=b"))
+    expect(decodeGeoLogsSearch(search).servers).toEqual(["a", "b"])
+  })
+
+  it("ignores the retired host param", () => {
+    for (const query of [defaultStringifySearch({ host: ["a"] }), "?host=a&host=b"]) {
+      const search = geoLogsSearchSchema.parse(defaultParseSearch(query))
+      expect(decodeGeoLogsSearch(search)).toEqual(EMPTY_GEO_LOG_FILTERS)
+    }
+  })
+
+  it("round-trips server filters through the URL shape", () => {
+    const filters = { ...EMPTY_GEO_LOG_FILTERS, servers: ["edge 01", "nas.lan"] }
+    expect(encodeGeoLogFilters(filters).server).toEqual(["edge 01", "nas.lan"])
+    expect(decodeGeoLogsSearch(encodeGeoLogFilters(filters))).toEqual(filters)
   })
 })

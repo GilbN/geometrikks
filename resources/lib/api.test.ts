@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { api, fetchCrowdsecAlerts } from "./api"
+import { api, deleteServerLocation, fetchCrowdsecAlerts } from "./api"
 
 afterEach(() => vi.restoreAllMocks())
 
@@ -25,5 +25,17 @@ describe("fetchCrowdsecAlerts", () => {
     await fetchCrowdsecAlerts({})
     expect(sentParams(get, 0).kind).toBe("bot-detection")
     expect(sentParams(get, 1).kind).toBeUndefined()
+  })
+})
+
+describe("deleteServerLocation", () => {
+  it("encodes the server name as one path segment", async () => {
+    const remove = vi.spyOn(api, "delete").mockResolvedValue({ data: null })
+    await deleteServerLocation("edge 01")
+    await deleteServerLocation("nas.lan")
+    expect(remove.mock.calls.map((call) => call[0])).toEqual([
+      "/geo-locations/server-locations/edge%2001",
+      "/geo-locations/server-locations/nas.lan",
+    ])
   })
 })

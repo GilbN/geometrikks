@@ -19,7 +19,7 @@ export type AccessLogColumnKey =
   | "remoteUser"
   | "httpVersion"
   | "referrer"
-  | "hostname"
+  | "server"
   | "logFormat"
   | "userAgent"
   | "upstreamResponseTime"
@@ -48,7 +48,7 @@ export const ACCESS_LOG_COLUMNS = [
   { key: "remoteUser", grow: true, label: "Remote user", defaultVisible: false },
   { key: "httpVersion", label: "HTTP ver", defaultVisible: false },
   { key: "referrer", grow: true, label: "Referrer", defaultVisible: true, mobileHidden: true },
-  { key: "hostname", grow: true, label: "Recorded by", defaultVisible: false, mobileHidden: true },
+  { key: "server", grow: true, label: "Recorded by", defaultVisible: false, mobileHidden: true },
   { key: "logFormat", grow: true, label: "Source format", defaultVisible: false, mobileHidden: true },
   { key: "userAgent", grow: true, label: "User agent", defaultVisible: false },
   { key: "upstreamResponseTime", label: "Upstream res time", defaultVisible: false, align: "right" },

@@ -663,7 +663,7 @@ class LogIngestionService:
                 geo_event = GeoEvent(
                     timestamp=record.geo_data.timestamp,
                     ip_address=record.ip_address,
-                    hostname=record.server or self.server,
+                    server=record.server or self.server,
                     location_id=location_id,
                     autonomous_system_number=record.geo_data.autonomous_system_number,
                     autonomous_system_organization=record.geo_data.autonomous_system_organization,
@@ -968,7 +968,7 @@ class LogIngestionService:
             city=parsed.city,
             autonomous_system_number=parsed.autonomous_system_number,
             autonomous_system_organization=parsed.autonomous_system_organization,
-            hostname=server or self.server,
+            server=server or self.server,
             log_format=log_format,
         )
 

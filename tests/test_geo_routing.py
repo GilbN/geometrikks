@@ -1,4 +1,4 @@
-"""GeoEventService summary/time-series routing: hostname forces raw,
+"""GeoEventService summary/time-series routing: a server filter forces raw,
 country/city/IP filters ride the stitched ip_location CAGGs."""
 from __future__ import annotations
 
@@ -59,10 +59,10 @@ async def test_country_filtered_summary_uses_ip_location_cagg():
     assert "ip_location_hourly_stats" in session.statements[0]
 
 
-async def test_hostname_filtered_summary_stays_raw():
+async def test_server_filtered_summary_stays_raw():
     session = _RecordingSession()
     await _service(session).get_summary(
-        WEEK_START, NOW, GeoEventFilters(hostnames=["web1"])
+        WEEK_START, NOW, GeoEventFilters(servers=["web1"])
     )
     assert "ip_location_hourly_stats" not in session.statements[0]
     assert "FROM geo_events" in session.statements[0]
@@ -117,34 +117,34 @@ def _location_repo(session: _RecordingSession) -> GeoLocationRepository:
     return GeoLocationRepository(session=cast("AsyncSession", session))
 
 
-async def test_hostname_filter_uses_cagg_when_capable(monkeypatch):
+async def test_server_filter_uses_cagg_when_capable(monkeypatch):
     monkeypatch.setattr(timescale, "_location_caggs_have_server", True)
     session = _RecordingSession()
     await _location_repo(session).get_all_with_event_counts(
-        WEEK_START, NOW, hostnames=["nginx-01"]
+        WEEK_START, NOW, servers=["nginx-01"]
     )
     sql = session.statements[0]
     assert "location_hourly_stats" in sql
-    assert "ls.server = ANY(:filter_hostnames)" in sql
+    assert "ls.server = ANY(:filter_servers)" in sql
 
 
-async def test_hostname_filter_forces_raw_without_capability(monkeypatch):
+async def test_server_filter_forces_raw_without_capability(monkeypatch):
     monkeypatch.setattr(timescale, "_location_caggs_have_server", False)
     session = _RecordingSession()
     await _location_repo(session).get_all_with_event_counts(
-        WEEK_START, NOW, hostnames=["nginx-01"]
+        WEEK_START, NOW, servers=["nginx-01"]
     )
     sql = session.statements[0]
     assert "location_hourly_stats" not in sql
     assert "JOIN geo_events" in sql
-    assert "ge.server = ANY(:filter_hostnames)" in sql
+    assert "ge.server = ANY(:filter_servers)" in sql
 
 
 async def test_ip_filter_always_forces_raw(monkeypatch):
     monkeypatch.setattr(timescale, "_location_caggs_have_server", True)
     session = _RecordingSession()
     await _location_repo(session).get_all_with_event_counts(
-        WEEK_START, NOW, ip_addresses=["1.1.1.1"], hostnames=["nginx-01"]
+        WEEK_START, NOW, ip_addresses=["1.1.1.1"], servers=["nginx-01"]
     )
     sql = session.statements[0]
     assert "location_hourly_stats" not in sql

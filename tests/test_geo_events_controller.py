@@ -6,6 +6,7 @@ GeoEventFilters SQL fragments consumed by the aggregate endpoints.
 """
 from __future__ import annotations
 
+import inspect
 from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, MagicMock
 
@@ -55,19 +56,28 @@ class TestInFilters:
         assert provide_geo_event_in_filters(None, None, None) == []
         assert provide_geo_event_in_filters([], [], []) == []
 
-    def test_builds_include_exclude_and_hostname_filters(self) -> None:
-        result = provide_geo_event_in_filters(["10.0.0.1"], ["10.0.0.2"], ["web1"])
+    def test_builds_include_exclude_and_server_filters(self) -> None:
+        result = provide_geo_event_in_filters(["10.0.0.1"], ["10.0.0.2"], server_in=["web1"])
         assert len(result) == 3
-        include, exclude, host = result
+        include, exclude, server = result
         assert isinstance(include, CollectionFilter)
         assert include.field_name == "ip_address"
         assert include.values == ["10.0.0.1"]
         assert isinstance(exclude, NotInCollectionFilter)
         assert exclude.field_name == "ip_address"
         assert exclude.values == ["10.0.0.2"]
-        assert isinstance(host, CollectionFilter)
-        assert host.field_name == "hostname"
-        assert host.values == ["web1"]
+        assert isinstance(server, CollectionFilter)
+        assert server.field_name == "server"
+        assert server.values == ["web1"]
+
+    def test_server_in_is_the_declared_query_name(self) -> None:
+        for provider in (provide_geo_event_in_filters, provide_geo_event_filters):
+            query_names = {
+                parameter.annotation.__metadata__[0].name
+                for parameter in inspect.signature(provider, eval_str=True).parameters.values()
+            }
+            assert "serverIn" in query_names
+            assert "hostnameIn" not in query_names
 
     def test_accepts_ipv6(self) -> None:
         assert len(provide_geo_event_in_filters(["2001:db8::1"], ["::1"], None)) == 2
@@ -91,13 +101,13 @@ class TestAggregateFilters:
 
     def test_all_params_carried_over(self) -> None:
         filters = provide_geo_event_filters(
-            ["NO"], ["Oslo"], ["10.0.0.1"], ["10.0.0.2"], ["web1"]
+            ["NO"], ["Oslo"], ["10.0.0.1"], ["10.0.0.2"], server_in=["web1"]
         )
         assert filters.country_codes == ["NO"]
         assert filters.cities == ["Oslo"]
         assert filters.ip_include == ["10.0.0.1"]
         assert filters.ip_exclude == ["10.0.0.2"]
-        assert filters.hostnames == ["web1"]
+        assert filters.servers == ["web1"]
         assert filters.is_active()
 
     def test_invalid_ips_raise_in_both_lists(self) -> None:
@@ -106,8 +116,8 @@ class TestAggregateFilters:
         with pytest.raises(DomainValidationError, match="Invalid IP address"):
             provide_geo_event_filters(None, None, None, ["bad"], None)
 
-    def test_only_hostnames_force_raw(self) -> None:
-        assert provide_geo_event_filters(None, None, None, None, ["web1"]).forces_raw
+    def test_only_servers_force_raw(self) -> None:
+        assert provide_geo_event_filters(server_in=["web1"]).forces_raw
         assert not provide_geo_event_filters(["NO"], None, ["10.0.0.1"], None, None).forces_raw
 
     def test_asn_lists_carried_over_and_never_force_raw(self) -> None:
@@ -153,14 +163,14 @@ class TestFiltersSqlConditions:
             cities=["Oslo"],
             ip_include=["10.0.0.1"],
             ip_exclude=["10.0.0.2"],
-            hostnames=["web1"],
+            servers=["web1"],
         )
         sql, params = filters.sql_conditions("ge", "gl")
         assert "AND gl.country_code = ANY(:filter_countries)" in sql
         assert "AND gl.city = ANY(:filter_cities)" in sql
         assert "AND ge.ip_address = ANY(CAST(:filter_ips AS inet[]))" in sql
         assert "AND NOT (ge.ip_address = ANY(CAST(:filter_ips_excl AS inet[])))" in sql
-        assert "AND ge.server = ANY(:filter_hostnames)" in sql
+        assert "AND ge.server = ANY(:filter_servers)" in sql
         assert params["filter_countries"] == ["NO"]  # normalized upper-case
         assert params["filter_ips"] == ["10.0.0.1"]
         assert params["filter_ips_excl"] == ["10.0.0.2"]

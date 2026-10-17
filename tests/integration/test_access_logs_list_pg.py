@@ -37,7 +37,7 @@ async def _insert(
     country_code: str | None = None,
     country_name: str | None = None,
     city: str | None = None,
-    hostname: str | None = None,
+    server: str | None = None,
     log_format: str | None = None,
 ) -> None:
     async with session_maker() as session:
@@ -47,13 +47,13 @@ async def _insert(
                 " status_code, bytes_sent, request_time, country_code, country_name, city, "
                 " server, log_format) "
                 "VALUES (:ts, :ip, :method, :url, :host, :status, 100, 0.01, "
-                " :country_code, :country_name, :city, :hostname, :log_format)"
+                " :country_code, :country_name, :city, :server, :log_format)"
             ),
             {
                 "ts": ts, "ip": ip, "method": method, "url": url, "host": host,
                 "status": status, "country_code": country_code,
                 "country_name": country_name, "city": city,
-                "hostname": hostname, "log_format": log_format,
+                "server": server, "log_format": log_format,
             },
         )
         await session.commit()
@@ -278,40 +278,40 @@ async def test_facets_lists_distinct_hosts(pg_engine, pg_session_maker, clean_ta
     assert facets.hosts == ["a.example.com", "b.example.com"]
 
 
-async def test_facets_lists_distinct_hostnames_and_log_formats(
+async def test_facets_lists_distinct_servers_and_log_formats(
     pg_engine, pg_session_maker, clean_tables
 ) -> None:
     await _insert(
         pg_session_maker, NOW - timedelta(hours=1), "10.0.0.1",
-        hostname="myserver", log_format="nginx",
+        server="myserver", log_format="nginx",
     )
     await _insert(
         pg_session_maker, NOW - timedelta(hours=1), "10.0.0.2",
-        hostname="otherserver", log_format="traefik-json",
+        server="otherserver", log_format="traefik-json",
     )
     await _insert(pg_session_maker, NOW - timedelta(hours=1), "10.0.0.3")
     await _refresh_facets_cagg(pg_engine, "log_source_daily_stats")
     async with pg_session_maker() as session:
         facets = await AccessLogService(session=session).get_facets()
     # Deduped, alphabetical, NULLs excluded.
-    assert facets.hostnames == ["myserver", "otherserver"]
+    assert facets.servers == ["myserver", "otherserver"]
     assert facets.log_formats == ["nginx", "traefik-json"]
 
 
-async def test_hostname_exact_include_and_exclude(pg_session_maker, clean_tables) -> None:
-    await _insert(pg_session_maker, NOW - timedelta(hours=1), "10.0.0.1", hostname="myserver")
-    await _insert(pg_session_maker, NOW - timedelta(hours=1), "10.0.0.2", hostname="otherhost")
-    await _insert(pg_session_maker, NOW - timedelta(hours=1), "10.0.0.3", hostname="myserver")
+async def test_server_exact_include_and_exclude(pg_session_maker, clean_tables) -> None:
+    await _insert(pg_session_maker, NOW - timedelta(hours=1), "10.0.0.1", server="myserver")
+    await _insert(pg_session_maker, NOW - timedelta(hours=1), "10.0.0.2", server="otherhost")
+    await _insert(pg_session_maker, NOW - timedelta(hours=1), "10.0.0.3", server="myserver")
     async with pg_session_maker() as session:
         service = AccessLogService(session=session)
         included, included_total = await service.get_many_and_count(
             _window(),
-            CollectionFilter("hostname", ["myserver"]),
+            CollectionFilter("server", ["myserver"]),
             LimitOffset(50, 0),
         )
         excluded, excluded_total = await service.get_many_and_count(
             _window(),
-            NotInCollectionFilter("hostname", ["myserver"]),
+            NotInCollectionFilter("server", ["myserver"]),
             LimitOffset(50, 0),
         )
     assert included_total == 2
@@ -320,12 +320,12 @@ async def test_hostname_exact_include_and_exclude(pg_session_maker, clean_tables
     assert str(excluded[0].ip_address) == "10.0.0.2"
 
 
-async def test_hostname_exclude_keeps_rows_with_no_hostname(pg_session_maker, clean_tables) -> None:
-    # hostname is nullable (older rows predate Task 6's ingestion stamping). A
+async def test_server_exclude_keeps_rows_with_no_server(pg_session_maker, clean_tables) -> None:
+    # server is nullable (older rows predate Task 6's ingestion stamping). A
     # bare NOT IN would evaluate NULL and drop these rows, hiding traffic the
     # user never asked to exclude.
-    await _insert(pg_session_maker, NOW - timedelta(hours=1), "10.0.0.1", hostname="myserver")
-    await _insert(pg_session_maker, NOW - timedelta(hours=1), "10.0.0.2", hostname=None)
+    await _insert(pg_session_maker, NOW - timedelta(hours=1), "10.0.0.1", server="myserver")
+    await _insert(pg_session_maker, NOW - timedelta(hours=1), "10.0.0.2", server=None)
     async with pg_session_maker() as session:
         service = AccessLogService(session=session)
         results, total = await service.get_many_and_count(
@@ -333,8 +333,8 @@ async def test_hostname_exclude_keeps_rows_with_no_hostname(pg_session_maker, cl
             FilterGroup(
                 logical_operator=or_,
                 filters=[
-                    NotInCollectionFilter("hostname", ["myserver"]),
-                    NullFilter("hostname"),
+                    NotInCollectionFilter("server", ["myserver"]),
+                    NullFilter("server"),
                 ],
             ),
             LimitOffset(50, 0),

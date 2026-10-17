@@ -28,9 +28,9 @@ from geometrikks.domain.geo.dtos import (
     GlobalTopIPsResponse,
     TopCountryDTO,
     TopCountriesResponse,
-    SiteHomeView,
-    DefaultHomeView,
-    SiteHomesResponse,
+    ServerLocationView,
+    DefaultServerLocationView,
+    ServerLocationsResponse,
 )
 
 from geometrikks.lib.parameters import (
@@ -39,7 +39,7 @@ from geometrikks.lib.parameters import (
     CityFilter,
     CountryCodeFilter,
     ToTimestamp,
-    HostnameIn,
+    ServerIn,
     IpAddressIn,
     IpAddressNotIn,
     FromTimestamp,
@@ -97,7 +97,7 @@ class GeoLocationController(Controller):
         city: CityFilter = None,
         ip_address_in: IpAddressIn = None,
         ip_address_not_in: IpAddressNotIn = None,
-        hostname_in: HostnameIn = None,
+        server_in: ServerIn = None,
         asn_in: AsnIn = None,
         asn_not_in: AsnNotIn = None,
     ) -> GeoJSONFeatureCollection:
@@ -106,7 +106,7 @@ class GeoLocationController(Controller):
         Returns a GeoJSON FeatureCollection where each feature represents a
         location with its coordinates and properties including the event count.
         An IP or ASN filter always forces a raw geo_events scan, bounded by
-        raw retention. A hostname filter forces the raw scan only until the
+        raw retention. A server filter forces the raw scan only until the
         location CAGGs carry the server dimension (pre-upgrade or
         pollution-skipped installs); once they do, it reads the CAGGs.
         Args:
@@ -125,7 +125,7 @@ class GeoLocationController(Controller):
         locations_with_counts = await geo_location_service.get_all_with_event_counts(
             from_timestamp, to_timestamp, country_codes=country_code, cities=city,
             ip_addresses=ip_address_in, ip_addresses_exclude=ip_address_not_in,
-            hostnames=hostname_in, asns=asn_in, asns_exclude=asn_not_in,
+            servers=server_in, asns=asn_in, asns_exclude=asn_not_in,
         )
         
         events: int = sum(loc.event_count for loc in locations_with_counts)
@@ -164,16 +164,16 @@ class GeoLocationController(Controller):
         ]
         return GeoJSONFeatureCollection(type="FeatureCollection", features=features, stats=stats)
 
-    @get("/site-homes", return_dto=None, description="Per-source home locations for the map.")
-    async def site_homes(
+    @get("/server-locations", return_dto=None, description="Where each server sits on the map.")
+    async def server_locations(
         self,
         request: Request,
         db_session: NamedDependency[AsyncSession],
         settings: NamedDependency[SkipValidation[Settings]],
-    ) -> SiteHomesResponse:
-        """Merged server_locations rows plus the instance default home.
+    ) -> ServerLocationsResponse:
+        """Merged server_locations rows plus this instance's own location as the default.
 
-        The default mirrors read_settings's fallback: the app-state home
+        The default mirrors read_settings's fallback: the self location
         resolved at startup, or the configured coordinates if resolution
         found nothing (geo-degraded or auto-detect disabled).
         """
@@ -186,10 +186,10 @@ class GeoLocationController(Controller):
                 longitude=settings.map.server_longitude,
                 source="configured",
             )
-        return SiteHomesResponse(
-            homes=[
-                SiteHomeView(
-                    hostname=server_location.server,
+        return ServerLocationsResponse(
+            locations=[
+                ServerLocationView(
+                    server=server_location.server,
                     latitude=server_location.latitude,
                     longitude=server_location.longitude,
                     source=cast(Literal["auto", "override"], server_location.source),
@@ -203,34 +203,37 @@ class GeoLocationController(Controller):
                 for server_location in rows
             ],
             default=(
-                DefaultHomeView(latitude=self_location.latitude, longitude=self_location.longitude)
+                DefaultServerLocationView(latitude=self_location.latitude, longitude=self_location.longitude)
                 if self_location
                 else None
             ),
         )
 
     @delete(
-        "/site-homes/{hostname:str}",
+        "/server-locations/{server:str}",
         return_dto=None,
-        description="Remove a retired source's auto-detected home. Override rows (MAP_HOME_LOCATIONS) cannot be removed here.",
+        description=(
+            "Remove a retired server's auto-detected location. "
+            "Locations pinned by MAP_SERVER_LOCATIONS cannot be removed here."
+        ),
         responses={
             HTTP_404_NOT_FOUND: ResponseSpec(
-                data_container=ErrorEnvelope, description="No home is recorded for this hostname."
+                data_container=ErrorEnvelope, description="No location is recorded for this server."
             ),
             HTTP_409_CONFLICT: ResponseSpec(
                 data_container=ErrorEnvelope,
-                description="The home is pinned by MAP_HOME_LOCATIONS; edit the setting instead.",
+                description="MAP_SERVER_LOCATIONS pins this location. Edit the setting instead.",
             ),
         },
     )
-    async def delete_site_home(
+    async def delete_server_location(
         self,
         request: Request,
         db_session: NamedDependency[AsyncSession],
-        hostname: Annotated[str, PathParameter(description="Recording hostname whose home row to remove")],
+        server: Annotated[str, PathParameter(description="Server whose location to remove")],
     ) -> None:
         user = request.scope.get("user")
-        await remove_server_location(db_session, hostname, actor=str(user) if user else "unknown")
+        await remove_server_location(db_session, server, actor=str(user) if user else "unknown")
 
     @get("/top-ips", return_dto=None, description="Get global top IPs by event count with their primary locations.")
     async def get_global_top_ips(

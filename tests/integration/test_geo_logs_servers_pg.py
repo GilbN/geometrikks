@@ -47,7 +47,7 @@ async def test_server_sets_match_raw_with_partial_buckets(
         locs = await _seed_locations(session)
         # Repeated names, unequal array lengths, raw-only edge names, and
         # excluded events in the same boundary buckets as included ones.
-        for ts, hostname, n in [
+        for ts, server, n in [
             (start - timedelta(seconds=1), "outside-start", 7),
             (start, "head", 2),
             (start + timedelta(days=1), "web1", 3),
@@ -56,14 +56,14 @@ async def test_server_sets_match_raw_with_partial_buckets(
             (end - timedelta(seconds=1), "tail", 1),
             (end, "outside-end", 8),
         ]:
-            await _insert_events(session, ts=ts, ip="2001:db8::1", hostname=hostname,
+            await _insert_events(session, ts=ts, ip="2001:db8::1", server=server,
                                  location_id=locs["no"], n=n)
         # The same IP in another location, and another IP in the same
         # location, must not leak names into the requested group.
         await _insert_events(session, ts=start + timedelta(days=1), ip="2001:db8::1",
-                             hostname="sweden", location_id=locs["se"])
+                             server="sweden", location_id=locs["se"])
         await _insert_events(session, ts=start + timedelta(days=1), ip="1.1.1.1",
-                             hostname="other-ip", location_id=locs["no"])
+                             server="other-ip", location_id=locs["no"])
         await session.commit()
 
     assert not await timescale.refresh_caggs_range(
@@ -74,24 +74,24 @@ async def test_server_sets_match_raw_with_partial_buckets(
         service = GeoEventService(session=session)
         rows, total = await service.get_grouped_logs(start, end, GeoEventFilters(), limit=1, offset=0)
         assert total == 3
-        assert [(r.location_id, r.ip_address, r.event_count, r.hostnames) for r in rows] == [
+        assert [(r.location_id, r.ip_address, r.event_count, r.servers) for r in rows] == [
             (locs["no"], "2001:db8::1", 9, ["head", "tail", "web1", "web2"]),
         ]
         following, following_total = await service.get_grouped_logs(
             start, end, GeoEventFilters(), limit=2, offset=1,
         )
         assert following_total == total
-        assert [r.hostnames for r in following] == [["other-ip"], ["sweden"]]
+        assert [r.servers for r in following] == [["other-ip"], ["sweden"]]
         empty, empty_total = await service.get_grouped_logs(
             start, end, GeoEventFilters(), limit=2, offset=3,
         )
         assert empty == []
         assert empty_total == total
         filtered, filtered_total = await service.get_grouped_logs(
-            start, end, GeoEventFilters(hostnames=["web1"]), limit=10, offset=0,
+            start, end, GeoEventFilters(servers=["web1"]), limit=10, offset=0,
         )
         assert filtered_total == 1
-        assert [(r.event_count, r.hostnames) for r in filtered] == [(4, ["web1"])]
+        assert [(r.event_count, r.servers) for r in filtered] == [(4, ["web1"])]
 
 
 async def _old_view(conn, view, interval):
@@ -116,7 +116,7 @@ async def test_server_upgrade_resumes_after_interrupted_refresh(
         locs = await _seed_locations(session)
         for name, n in [("web1", 3), ("web2", 2)]:
             await _insert_events(session, ts=NOW - timedelta(days=8), ip="1.1.1.1",
-                                 hostname=name, location_id=locs["no"], n=n)
+                                 server=name, location_id=locs["no"], n=n)
         await session.commit()
     async with pg_engine.begin() as conn:
         await _old_view(conn, view, interval)
@@ -171,7 +171,7 @@ async def test_server_upgrade_preserves_counts_beyond_raw_retention(
     async with pg_session_maker() as session:
         locs = await _seed_locations(session)
         for ts, name in [(old, "expired"), (NOW - timedelta(days=2), "recent")]:
-            await _insert_events(session, ts=ts, ip="1.1.1.1", hostname=name,
+            await _insert_events(session, ts=ts, ip="1.1.1.1", server=name,
                                  location_id=locs["no"], n=2)
         await session.commit()
     async with pg_engine.begin() as conn:
@@ -199,11 +199,11 @@ async def test_server_upgrade_preserves_counts_beyond_raw_retention(
             old - timedelta(days=1), NOW, GeoEventFilters(), limit=10, offset=0,
         )
         assert total == 1
-        assert [(r.event_count, r.hostnames) for r in rows] == [(4, ["recent"])]
+        assert [(r.event_count, r.servers) for r in rows] == [(4, ["recent"])]
         old_rows, _ = await GeoEventService(session=session).get_grouped_logs(
             old - timedelta(days=40), old + timedelta(days=1), GeoEventFilters(), limit=10, offset=0,
         )
-        assert [(r.event_count, r.hostnames) for r in old_rows] == [(2, [])]
+        assert [(r.event_count, r.servers) for r in old_rows] == [(2, [])]
     async with pg_engine.begin() as conn:
         await _drop_view(conn, view)
     await timescale.setup_timescaledb(pg_engine, get_settings().analytics)
@@ -228,7 +228,7 @@ async def test_server_lookup_keeps_asn_filters(pg_engine, pg_session_maker, clea
             NOW - timedelta(days=4), NOW, GeoEventFilters(asn_include=[1221]), limit=10, offset=0,
         )
         assert total == 1
-        assert [(r.event_count, r.hostnames) for r in rows] == [(1, ["included"])]
+        assert [(r.event_count, r.servers) for r in rows] == [(1, ["included"])]
 
 
 async def _run_cli(engine, monkeypatch):
@@ -250,7 +250,7 @@ async def test_cli_failure_resumes_and_completed_run_is_noop(
         locs = await _seed_locations(session)
         for day in (12, 10, 8):
             await _insert_events(session, ts=NOW - timedelta(days=day), ip="1.1.1.1",
-                                 hostname=f"web-{day}", location_id=locs["no"])
+                                 server=f"web-{day}", location_id=locs["no"])
         await session.commit()
     async with pg_engine.begin() as conn:
         await _old_view(conn, view, "1 day")
@@ -299,7 +299,7 @@ async def test_cli_decline_and_concurrent_run_do_not_refresh(
     async with pg_session_maker() as session:
         locs = await _seed_locations(session)
         await _insert_events(session, ts=NOW - timedelta(days=8), ip="1.1.1.1",
-                             hostname="web", location_id=locs["no"])
+                             server="web", location_id=locs["no"])
         await session.commit()
     async with pg_engine.begin() as conn:
         await _old_view(conn, view, "1 day")

@@ -109,7 +109,7 @@ async def test_stats_lists_loki_sources() -> None:
         LokiSourceStats(
             query=QUERY,
             label="loki:1",
-            hostname="edge-01",
+            server="edge-01",
             available=False,
             reason="rejected",
             log_format="nginx",

@@ -6,7 +6,7 @@ import type {
   HypertableStatsView,
   LogFileView,
   SchedulerJobView,
-  SiteHomesResponse,
+  ServerLocationsResponse,
 } from "@/generated/api/types.gen"
 import type { LogRecord } from "@/lib/logstream"
 import type { LiveFeedStatus } from "@/lib/websocket"
@@ -219,12 +219,12 @@ export function accessLogUnavailableLabel(
   return "unavailable"
 }
 
-export interface SiteHomeRow {
-  hostname: string
+export interface ServerLocationRow {
+  server: string
   coords: string
   source: "auto" | "override"
   /** "Traffic 23 Aug" / "Traffic 2 months ago" / "No traffic". Day precision
-   *  is all the backend has (it reads the daily hostname aggregate). */
+   *  is all the backend has (it reads the daily server aggregate). */
   lastSeen: string
   /** A stale auto row; "No traffic" or 14+ days since the last day with events. */
   stale: boolean
@@ -232,21 +232,24 @@ export interface SiteHomeRow {
 
 const STALE_AFTER_DAYS = 14
 
-/** Per-hostname rows for the Settings > Status "Site homes" block: hostname,
- *  lat/lon to 2 decimals, auto/override so an operator can tell a detected
- *  home from a configured one (e.g. diagnosing CGNAT drift), and when the
- *  source last recorded traffic so a retired one stands out. nowMs injected
- *  for testability. */
-export function siteHomeRows(data: SiteHomesResponse | undefined, nowMs: number = Date.now()): SiteHomeRow[] {
-  return (data?.homes ?? []).map((h) => {
-    const lastMs = h.lastEventDay ? Date.parse(`${h.lastEventDay}T00:00:00Z`) : null
+/** Per-server rows for the Settings > Status server locations block: the
+ *  server, lat/lon to 2 decimals, auto/override so an operator can tell a
+ *  detected location from a configured one (e.g. diagnosing CGNAT drift),
+ *  and when the server last recorded traffic so a retired one stands out.
+ *  nowMs injected for testability. */
+export function serverLocationRows(
+  data: ServerLocationsResponse | undefined,
+  nowMs: number = Date.now(),
+): ServerLocationRow[] {
+  return (data?.locations ?? []).map((serverLocation) => {
+    const lastMs = serverLocation.lastEventDay ? Date.parse(`${serverLocation.lastEventDay}T00:00:00Z`) : null
     const ageDays = lastMs === null ? Infinity : Math.floor((nowMs - lastMs) / 86_400_000)
     return {
-      hostname: h.hostname,
-      coords: `${h.latitude.toFixed(2)}, ${h.longitude.toFixed(2)}`,
-      source: h.source,
+      server: serverLocation.server,
+      coords: `${serverLocation.latitude.toFixed(2)}, ${serverLocation.longitude.toFixed(2)}`,
+      source: serverLocation.source,
       lastSeen: lastMs === null ? "No traffic" : `Traffic ${formatLastDay(lastMs, ageDays)}`,
-      stale: h.source === "auto" && ageDays >= STALE_AFTER_DAYS,
+      stale: serverLocation.source === "auto" && ageDays >= STALE_AFTER_DAYS,
     }
   })
 }

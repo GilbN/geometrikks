@@ -92,7 +92,7 @@ class SecurityEnrichmentRepository:
         end: datetime | None = None,
         country_codes: list[str] | None = None,
         cities: list[str] | None = None,
-        hostnames: list[str] | None = None,
+        servers: list[str] | None = None,
     ) -> list[IpLocation]:
         """One observed location per IP, with its event total, in the
         filtered ``[start, end)`` window.
@@ -116,7 +116,7 @@ class SecurityEnrichmentRepository:
         if not valid_ips or start_ts >= end_ts:
             return []
 
-        filters = GeoEventFilters(country_codes=country_codes, cities=cities, hostnames=hostnames)
+        filters = GeoEventFilters(country_codes=country_codes, cities=cities, servers=servers)
         granularity = get_stats_granularity(start_ts, end_ts)
         if granularity == StatsGranularity.RAW or filters.forces_raw:
             granularity = StatsGranularity.RAW

@@ -57,18 +57,18 @@ def test_full_record_yields_single_envelope() -> None:
         "timestamp", "ip_address", "remote_user", "method", "url",
         "http_version", "status_code", "bytes_sent", "referrer",
         "user_agent", "request_time", "upstream_response_time", "host",
-        "country_code", "country_name", "city", "hostname",
+        "country_code", "country_name", "city", "server",
         "autonomous_system_number", "autonomous_system_organization",
     }
     assert log["http_version"] == "1.1" and log["user_agent"] == "curl"
     assert log["host"] == "example.com" and log["country_code"] == "GB"
 
 
-def test_both_sides_carry_hostname() -> None:
+def test_both_sides_carry_server() -> None:
     event = record_to_event(_record())
     assert event is not None
-    assert event["geo"]["hostname"] == "vps-1"
-    assert event["log"]["hostname"] == "vps-1"
+    assert event["geo"]["server"] == "vps-1"
+    assert event["log"]["server"] == "vps-1"
 
 
 def test_geo_only_record() -> None:

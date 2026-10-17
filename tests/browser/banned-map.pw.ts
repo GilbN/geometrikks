@@ -44,7 +44,7 @@ async function setup(page: Page, data = collection([group("2", 25)])) {
     return route.fulfill({ json: settings })
   })
   await page.route("**/api/v1/geo-events/facets**", (route) => route.fulfill({ json: {
-    hostnames: ["a.test", "b.test"], countries: [{ code: "NO", name: "Norway" }], cities: ["Oslo"],
+    servers: ["a.test", "b.test"], countries: [{ code: "NO", name: "Norway" }], cities: ["Oslo"],
   } }))
   // The banned layers need real WebGL rendering but no basemap tiles.
   await page.route("**/gl/*/style.json*", (route) => route.fulfill({ json: {
@@ -209,7 +209,7 @@ test("filters, fit-to-data and style changes use the banned dataset", async ({ p
   for (const [label, option, parameter, value] of [
     ["Country", "Norway (NO)", "countryCode", "NO"],
     ["City", "Oslo", "city", "Oslo"],
-    ["Source", "a.test", "hostnameIn", "a.test"],
+    ["Source", "a.test", "serverIn", "a.test"],
   ]) {
     await page.getByRole("combobox").filter({ hasText: new RegExp(`^${label}$`) }).click()
     await page.getByRole("option", { name: option, exact: true }).click()
@@ -219,7 +219,7 @@ test("filters, fit-to-data and style changes use the banned dataset", async ({ p
   await openCenterPopup(page)
   // The popup follows the refetched data: its location is still mapped, so it stays open.
   await page.getByRole("button", { name: "Clear filters", exact: true }).click()
-  await expect.poll(() => state.requests.at(-1)?.searchParams.has("hostnameIn")).toBe(false)
+  await expect.poll(() => state.requests.at(-1)?.searchParams.has("serverIn")).toBe(false)
   await expect(page.getByRole("dialog", { name: "Banned IPs", exact: true })).toBeVisible()
   await page.getByRole("button", { name: "Close banned IP popup" }).click()
   await page.getByRole("button", { name: "Fit to data bounds", exact: true }).click()

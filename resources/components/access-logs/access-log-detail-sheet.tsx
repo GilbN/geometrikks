@@ -83,7 +83,7 @@ export function AccessLogDetailSheet({
             mono
           />
           <DetailField label="AS organization" value={entry.autonomousSystemOrganization} />
-          <DetailField label="Recorded by" value={entry.hostname} mono />
+          <DetailField label="Recorded by" value={entry.server} mono />
           <DetailField label="Source format" value={entry.logFormat} mono />
         </dl>
       )}

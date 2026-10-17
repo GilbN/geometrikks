@@ -21,8 +21,8 @@ describe("geo log columns", () => {
     expect(defaults(false)).toEqual(GEO_LOG_COLUMNS.filter((c) => c.defaultVisible).map((c) => c.key))
   })
 
-  it("leaves hostnames unsortable", () => {
-    expect(GEO_LOG_COLUMNS.find((c) => c.key === "hostnames")?.sortField).toBeUndefined()
+  it("leaves servers unsortable", () => {
+    expect(GEO_LOG_COLUMNS.find((c) => c.key === "servers")?.sortField).toBeUndefined()
   })
 
   it("hides the ASN columns by default on every viewport", () => {

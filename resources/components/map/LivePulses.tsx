@@ -315,8 +315,8 @@ export function LivePulses({
   resolveDestination,
 }: {
   enabled: boolean
-  /** Per-request home lookup; a request whose hostname resolves to null never flies. */
-  resolveDestination: (hostname: string | null) => Coordinate | null
+  /** Per-request server location lookup; a request whose server resolves to null never flies. */
+  resolveDestination: (server: string | null) => Coordinate | null
 }) {
   const { current: map } = useMap()
   const store = useLiveTrafficStore()
@@ -354,7 +354,7 @@ export function LivePulses({
   const enqueueRequests = useCallback((requests: readonly LiveRequest[]) => {
     const now = performance.now()
     for (const request of requests) {
-      const destination = resolveDestination(request.hostname)
+      const destination = resolveDestination(request.server)
       if (!destination || !request.coordinates) continue
       const lane = routeLane(request.coordinates)
 
@@ -378,8 +378,8 @@ export function LivePulses({
     return store.onRequests((requests) => enqueueRequests(requests))
   }, [enabled, enqueueRequests, store])
 
-  // The resolver changes when the site-homes data changes (rare); every
-  // in-flight route was built against the old homes, so start clean.
+  // The resolver changes when the server locations change (rare); every
+  // in-flight route was built against the old locations, so start clean.
   useEffect(() => {
     transmissions.current = []
     queuedRequests.current.clear()
@@ -413,7 +413,7 @@ export function LivePulses({
         if (transmissions.current.length >= MAX_ACTIVE_TRANSMISSIONS) break
         if (transmissions.current.some((transmission) => transmission.lane === lane)) continue
 
-        const destination = resolveDestination(request.hostname)
+        const destination = resolveDestination(request.server)
         if (!destination) {
           queuedRequests.current.delete(lane)
           continue

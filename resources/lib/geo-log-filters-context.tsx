@@ -1,6 +1,6 @@
 /**
  * Shared filters for the geo-logs page (country/city/IP include/IP exclude/
- * hostname/ASN include/ASN exclude). Unlike the analytics filters, the state
+ * server/ASN include/ASN exclude). Unlike the analytics filters, the state
  * itself lives in the URL search params (shareable filter links): the
  * /geo-logs route computes the filter state from its validated search and
  * implements setFilters via router.navigate, then mounts this provider as a
@@ -13,7 +13,7 @@ export interface GeoLogFilterState {
   cities: string[]
   ips: string[]
   ipsExclude: string[]
-  hostnames: string[]
+  servers: string[]
   asns: number[]
   asnsExclude: number[]
 }
@@ -23,7 +23,7 @@ export const EMPTY_GEO_LOG_FILTERS: GeoLogFilterState = {
   cities: [],
   ips: [],
   ipsExclude: [],
-  hostnames: [],
+  servers: [],
   asns: [],
   asnsExclude: [],
 }
@@ -36,7 +36,7 @@ export function countActiveGeoLogFilters(filters: GeoLogFilterState): number {
     (filters.cities.length ? 1 : 0) +
     (filters.ips.length ? 1 : 0) +
     (filters.ipsExclude.length ? 1 : 0) +
-    (filters.hostnames.length ? 1 : 0) +
+    (filters.servers.length ? 1 : 0) +
     (filters.asns.length ? 1 : 0) +
     (filters.asnsExclude.length ? 1 : 0)
   )

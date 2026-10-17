@@ -111,7 +111,7 @@ async def test_enrich_handles_ipv6(pg_session_maker, clean_tables):
 
 
 async def seed_geo_event(session, *, ip: str, age: timedelta, lat: float, lon: float,
-                         city: str, country_code: str, hostname: str = "it-test") -> None:
+                         city: str, country_code: str, server: str = "it-test") -> None:
     result = await session.execute(
         text(
             "INSERT INTO geo_locations (geohash, latitude, longitude, geographic_point, "
@@ -127,9 +127,9 @@ async def seed_geo_event(session, *, ip: str, age: timedelta, lat: float, lon: f
     await session.execute(
         text(
             "INSERT INTO geo_events (timestamp, ip_address, server, location_id) "
-            "VALUES (:timestamp, :ip, :hostname, :location_id)"
+            "VALUES (:timestamp, :ip, :server, :location_id)"
         ),
-        {"timestamp": NOW - age, "ip": ip, "hostname": hostname, "location_id": result.scalar_one()},
+        {"timestamp": NOW - age, "ip": ip, "server": server, "location_id": result.scalar_one()},
     )
 
 
@@ -244,7 +244,7 @@ async def test_banned_map_filters_before_location_choice_and_excludes_end(
     pg_session_maker, clean_tables, days,
 ):
     async with pg_session_maker() as session:
-        for ip, age, city, country, host in [
+        for ip, age, city, country, server in [
             ("192.0.2.1", timedelta(hours=2), "Oslo", "NO", "a.test"),
             ("192.0.2.1", timedelta(hours=1), "Paris", "FR", "b.test"),
             ("192.0.2.2", timedelta(0), "Oslo", "NO", "a.test"),
@@ -252,12 +252,12 @@ async def test_banned_map_filters_before_location_choice_and_excludes_end(
             ("192.0.2.4", timedelta(days=days, minutes=40), "Trondheim", "NO", "a.test"),
         ]:
             await seed_geo_event(session, ip=ip, age=age, lat=59, lon=10,
-                                 city=city, country_code=country, hostname=host)
+                                 city=city, country_code=country, server=server)
         await session.commit()
         repo = SecurityEnrichmentRepository(session)
         result = await repo.locations([f"192.0.2.{i}" for i in range(1, 5)],
             start=NOW - timedelta(days=days, minutes=30), end=NOW,
-            hostnames=["a.test"], country_codes=["NO"], cities=["Oslo", "Trondheim"])
+            servers=["a.test"], country_codes=["NO"], cities=["Oslo", "Trondheim"])
     assert [(row.ip, row.city, row.event_count) for row in result] == [("192.0.2.1", "Oslo", 1)]
 
 
@@ -275,22 +275,22 @@ async def test_banned_map_materialized_buckets_match_raw_presence(
             timedelta(days=2), timedelta(minutes=11), timedelta(minutes=10),
         ], start=1):
             await seed_geo_event(session, ip=f"192.0.2.{i}", age=age, lat=59, lon=10,
-                                 city=f"City{i}", country_code="NO", hostname="a.test")
+                                 city=f"City{i}", country_code="NO", server="a.test")
         await session.commit()
     assert not await refresh_caggs_range(pg_engine, start=start-timedelta(days=1),
         end=NOW+timedelta(days=1), caggs=IP_LOCATION_CAGGS_NAMES, force=True)
     async with pg_session_maker() as session:
         ips = [f"192.0.2.{i}" for i in range(1, 6)]
-        result = await SecurityEnrichmentRepository(session).locations(ips, start=start, end=end, hostnames=["a.test"])
+        result = await SecurityEnrichmentRepository(session).locations(ips, start=start, end=end, servers=["a.test"])
         assert [(row.ip, row.event_count) for row in result] == [("192.0.2.2", 1), ("192.0.2.3", 1), ("192.0.2.4", 1)]
         raw = await session.execute(text("SELECT DISTINCT host(ip_address) FROM geo_events WHERE timestamp >= :start AND timestamp < :end AND server = 'a.test'"), {"start": start, "end": end})
         assert {row.ip for row in result} == set(raw.scalars())
 
 
-async def test_banned_map_hostname_filter_ignores_unfilled_aggregate_history(
+async def test_banned_map_server_filter_ignores_unfilled_aggregate_history(
     pg_engine, pg_session_maker, clean_tables,
 ):
-    """Buckets older than the hostname backfill carry NULL hostname arrays;
+    """Buckets older than the server backfill carry NULL server arrays;
     a source filter must still find the IP by reading raw events."""
     from geometrikks.server.timescale import refresh_caggs_range
 
@@ -310,7 +310,7 @@ async def test_banned_map_hostname_filter_ignores_unfilled_aggregate_history(
     async with pg_session_maker() as session:
         repo = SecurityEnrichmentRepository(session)
         start = NOW - timedelta(days=5)
-        found = await repo.locations(["192.0.2.1"], start=start, end=NOW, hostnames=["it-test"])
+        found = await repo.locations(["192.0.2.1"], start=start, end=NOW, servers=["it-test"])
         assert [r.ip for r in found] == ["192.0.2.1"]
-        assert await repo.locations(["192.0.2.1"], start=start, end=NOW, hostnames=["other"]) == []
+        assert await repo.locations(["192.0.2.1"], start=start, end=NOW, servers=["other"]) == []
         assert len(await repo.locations(["192.0.2.1"], start=start, end=NOW)) == 1

@@ -38,9 +38,9 @@ class DefaultMapView(msgspec.Struct, rename="camel"):
 
 
 class MapSettingsView(msgspec.Struct, rename="camel"):
-    home_latitude: float | None
-    home_longitude: float | None
-    home_source: SelfLocationSource | None
+    server_latitude: float | None
+    server_longitude: float | None
+    server_location_source: SelfLocationSource | None
     carto_api_key: str | None
     default_view: DefaultMapView | None
 
@@ -95,9 +95,9 @@ async def read_settings(
             compression_after_days=s.analytics.compression_after_days,
         ),
         map=MapSettingsView(
-            home_latitude=self_location.latitude if self_location else None,
-            home_longitude=self_location.longitude if self_location else None,
-            home_source=self_location.source if self_location else None,
+            server_latitude=self_location.latitude if self_location else None,
+            server_longitude=self_location.longitude if self_location else None,
+            server_location_source=self_location.source if self_location else None,
             carto_api_key=s.map.carto_api_key or None,
             default_view=(
                 DefaultMapView(

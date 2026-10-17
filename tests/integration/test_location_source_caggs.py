@@ -35,8 +35,8 @@ async def _drop_caggs_with_retry(engine, *caggs: str, attempts: int = 4) -> None
                 await asyncio.sleep(0.5)
 
 
-async def _seed_geo_events(session_maker, hostnames: list[str], per_host: int = 5) -> None:
-    """per_host events for each hostname, 2 days back (CAGG range, not raw-only)."""
+async def _seed_geo_events(session_maker, servers: list[str], per_server: int = 5) -> None:
+    """per_server events for each server, 2 days back (CAGG range, not raw-only)."""
     async with session_maker() as session:
         loc = (await session.execute(text(
             "INSERT INTO geo_locations (latitude, longitude, geohash, geographic_point, "
@@ -44,16 +44,16 @@ async def _seed_geo_events(session_maker, hostnames: list[str], per_host: int = 
             "VALUES (59.9, 10.7, 'u4xsx', ST_SetSRID(ST_MakePoint(10.7, 59.9), 4326), "
             "'NO', 'Norway', 'Oslo', now(), now()) RETURNING id"
         ))).scalar_one()
-        for host in hostnames:
-            for i in range(per_host):
+        for server in servers:
+            for i in range(per_server):
                 await session.execute(text(
                     "INSERT INTO geo_events (timestamp, ip_address, server, location_id) "
-                    "VALUES (:ts, '203.0.113.7', :host, :loc)"
-                ), {"ts": NOW - timedelta(days=2, minutes=i), "host": host, "loc": loc})
+                    "VALUES (:ts, '203.0.113.7', :server, :loc)"
+                ), {"ts": NOW - timedelta(days=2, minutes=i), "server": server, "loc": loc})
         await session.commit()
 
 
-async def test_location_caggs_carry_hostname_column(pg_engine):
+async def test_location_caggs_carry_server_column(pg_engine):
     async with pg_engine.connect() as conn:
         rows = await conn.execute(text(
             "SELECT table_name, column_name FROM information_schema.columns "
@@ -65,7 +65,7 @@ async def test_location_caggs_carry_hostname_column(pg_engine):
 
 
 async def test_filtered_cagg_counts_match_raw(pg_engine, pg_session_maker, clean_tables):
-    await _seed_geo_events(pg_session_maker, ["nginx-01", "traefik-01"], per_host=5)
+    await _seed_geo_events(pg_session_maker, ["nginx-01", "traefik-01"], per_server=5)
     await refresh_caggs_range(
         pg_engine, start=NOW - timedelta(days=3), end=NOW,
         caggs=["location_hourly_stats"],
@@ -136,12 +136,12 @@ async def test_mixed_shape_upgrade_covers_both_caggs(pg_engine, clean_tables):
 
 
 async def test_pollution_gate_keeps_old_shape(pg_engine, pg_session_maker, clean_tables):
-    """Container-ID hostnames present: setup must NOT migrate, and the flag
+    """Container-ID server names present: setup must NOT migrate, and the flag
     plus cached pollution report must say so; consolidating then heals."""
     from geometrikks.server.timescale import CONTAINER_ID_THRESHOLD
 
     ids = [f"{i:012x}" for i in range(CONTAINER_ID_THRESHOLD)]
-    await _seed_geo_events(pg_session_maker, ids, per_host=1)
+    await _seed_geo_events(pg_session_maker, ids, per_server=1)
     await _drop_caggs_with_retry(
         pg_engine, "location_hourly_stats", "location_daily_stats"
     )
@@ -186,11 +186,11 @@ async def test_pollution_gate_keeps_old_shape(pg_engine, pg_session_maker, clean
     assert timescale.location_caggs_have_server() is True
 
 
-async def test_repository_hostname_filter_reads_cagg(pg_engine, pg_session_maker, clean_tables):
-    """7-day range + hostname filter goes through the CAGG and matches raw."""
+async def test_repository_server_filter_reads_cagg(pg_engine, pg_session_maker, clean_tables):
+    """7-day range + server filter goes through the CAGG and matches raw."""
     from geometrikks.domain.geo.repositories import GeoLocationRepository
 
-    await _seed_geo_events(pg_session_maker, ["nginx-01", "traefik-01"], per_host=5)
+    await _seed_geo_events(pg_session_maker, ["nginx-01", "traefik-01"], per_server=5)
     await refresh_caggs_range(
         pg_engine, start=NOW - timedelta(days=3), end=NOW,
         caggs=["location_hourly_stats"],
@@ -200,6 +200,6 @@ async def test_repository_hostname_filter_reads_cagg(pg_engine, pg_session_maker
         rows = await repo.get_all_with_event_counts(
             from_timestamp=NOW - timedelta(days=7),
             to_timestamp=NOW + timedelta(hours=1),
-            hostnames=["nginx-01"],
+            servers=["nginx-01"],
         )
     assert sum(r.event_count for r in rows) == 5

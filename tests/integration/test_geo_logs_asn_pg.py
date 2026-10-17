@@ -18,15 +18,15 @@ RAW_START = NOW - timedelta(hours=23)
 
 
 async def _insert_event(
-    session, *, ts, ip: str, location_id: int, hostname: str = "web1",
+    session, *, ts, ip: str, location_id: int, server: str = "web1",
     asn: int | None = None, org: str | None = None, n: int = 1,
 ) -> None:
     for _ in range(n):
         await session.execute(text(
             "INSERT INTO geo_events (timestamp, ip_address, server, location_id, "
             " autonomous_system_number, autonomous_system_organization) "
-            "VALUES (:ts, :ip, :hostname, :loc, :asn, :org)"
-        ), {"ts": ts, "ip": ip, "hostname": hostname, "loc": location_id, "asn": asn, "org": org})
+            "VALUES (:ts, :ip, :server, :loc, :asn, :org)"
+        ), {"ts": ts, "ip": ip, "server": server, "loc": location_id, "asn": asn, "org": org})
 
 
 async def _one_location(session) -> int:

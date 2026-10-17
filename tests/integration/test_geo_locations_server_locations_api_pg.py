@@ -1,9 +1,11 @@
-"""GET /api/v1/geo-locations/site-homes through the full app composition.
+"""The /api/v1/geo-locations/server-locations routes through the full app composition.
 
 Same pattern as test_geo_locations_api_pg.py: create_app(settings=...) against
 the scratch integration database, exercised through AsyncTestClient.
 """
 from __future__ import annotations
+
+from urllib.parse import quote
 
 import pytest
 import structlog
@@ -50,14 +52,14 @@ def _make_settings(migrated_database_url: str, **map_kwargs) -> Settings:
         ),
         scheduler=SchedulerSettings(enabled=False),
         # Ingestion disabled: its own startup auto-upsert would otherwise add
-        # this machine's hostname to server_locations and pollute the assertions.
+        # this machine's server name to server_locations and pollute the assertions.
         logparser=LogParserSettings(enabled=False),
         # Static server location so startup never geolocates over the network.
         map=MapSettings(server_latitude=59.91, server_longitude=10.75, **map_kwargs),
     )
 
 
-async def test_site_homes_endpoint_returns_merged_rows_and_default(
+async def test_server_locations_endpoint_returns_merged_rows_and_default(
     migrated_database_url, pg_session_maker, clean_server_locations
 ):
     await upsert_auto_server_locations(
@@ -71,34 +73,37 @@ async def test_site_homes_endpoint_returns_merged_rows_and_default(
 
     app = create_app(settings=settings)
     async with AsyncTestClient(app=app) as client:
-        resp = await client.get("/api/v1/geo-locations/site-homes")
+        resp = await client.get("/api/v1/geo-locations/server-locations")
 
     assert resp.status_code == 200
     body = resp.json()
-    homes = {h["hostname"]: h for h in body["homes"]}
-    assert homes["nginx-01"]["source"] == "auto"
-    assert homes["nginx-01"]["latitude"] == pytest.approx(60.39)
-    assert homes["nginx-01"]["longitude"] == pytest.approx(5.32)
-    assert homes["nginx-01"]["detectedAt"] is not None
-    assert homes["nginx-02"]["source"] == "override"
-    assert homes["nginx-02"]["latitude"] == pytest.approx(51.5)
-    assert homes["nginx-02"]["detectedAt"] is None
+    assert "homes" not in body
+    server_locations = {location["server"]: location for location in body["locations"]}
+    assert server_locations["nginx-01"]["source"] == "auto"
+    assert server_locations["nginx-01"]["latitude"] == pytest.approx(60.39)
+    assert server_locations["nginx-01"]["longitude"] == pytest.approx(5.32)
+    assert server_locations["nginx-01"]["detectedAt"] is not None
+    assert server_locations["nginx-02"]["source"] == "override"
+    assert server_locations["nginx-02"]["latitude"] == pytest.approx(51.5)
+    assert server_locations["nginx-02"]["detectedAt"] is None
     assert body["default"] == {"latitude": 59.91, "longitude": 10.75}
 
 
-async def test_site_homes_endpoint_empty_with_no_rows(migrated_database_url, clean_server_locations):
+async def test_server_locations_endpoint_empty_with_no_rows(migrated_database_url, clean_server_locations):
     settings = _make_settings(migrated_database_url)
     app = create_app(settings=settings)
     async with AsyncTestClient(app=app) as client:
-        resp = await client.get("/api/v1/geo-locations/site-homes")
+        resp = await client.get("/api/v1/geo-locations/server-locations")
 
     assert resp.status_code == 200
     body = resp.json()
-    assert body["homes"] == []
+    assert body["locations"] == []
     assert body["default"] == {"latitude": 59.91, "longitude": 10.75}
 
 
-async def test_delete_site_home_api_outcomes(migrated_database_url, pg_session_maker, clean_server_locations):
+async def test_delete_server_location_api_outcomes(
+    migrated_database_url, pg_session_maker, clean_server_locations
+):
     await upsert_auto_server_locations(
         pg_session_maker, ["retired-01"], SelfLocation(latitude=60.39, longitude=5.32, source="external_ip")
     )
@@ -106,16 +111,37 @@ async def test_delete_site_home_api_outcomes(migrated_database_url, pg_session_m
 
     app = create_app(settings=settings)
     async with AsyncTestClient(app=app) as client:
-        gone = await client.delete("/api/v1/geo-locations/site-homes/retired-01")
-        pinned = await client.delete("/api/v1/geo-locations/site-homes/pinned-01")
-        missing = await client.delete("/api/v1/geo-locations/site-homes/never-seen")
-        after = await client.get("/api/v1/geo-locations/site-homes")
+        gone = await client.delete("/api/v1/geo-locations/server-locations/retired-01")
+        pinned = await client.delete("/api/v1/geo-locations/server-locations/pinned-01")
+        missing = await client.delete("/api/v1/geo-locations/server-locations/never-seen")
+        after = await client.get("/api/v1/geo-locations/server-locations")
 
     assert gone.status_code == 204
     assert pinned.status_code == 409
     assert "MAP_SERVER_LOCATIONS" in pinned.json()["detail"]
     assert missing.status_code == 404
-    homes = {h["hostname"]: h for h in after.json()["homes"]}
-    assert set(homes) == {"pinned-01"}
-    # No geo events in the scratch database, so no source has a last day.
-    assert homes["pinned-01"]["lastEventDay"] is None
+    server_locations = {location["server"]: location for location in after.json()["locations"]}
+    assert set(server_locations) == {"pinned-01"}
+    # No geo events in the scratch database, so no server has a last day.
+    assert server_locations["pinned-01"]["lastEventDay"] is None
+
+
+@pytest.mark.parametrize("server", ["edge 01", "nas.lan"])
+async def test_delete_server_location_round_trips_the_encoded_name(
+    server, migrated_database_url, pg_session_maker, clean_server_locations
+):
+    await upsert_auto_server_locations(
+        pg_session_maker,
+        [server, "edge", "nas"],
+        SelfLocation(latitude=60.39, longitude=5.32, source="external_ip"),
+    )
+    settings = _make_settings(migrated_database_url)
+
+    app = create_app(settings=settings)
+    async with AsyncTestClient(app=app) as client:
+        deleted = await client.delete(f"/api/v1/geo-locations/server-locations/{quote(server, safe='')}")
+        after = await client.get("/api/v1/geo-locations/server-locations")
+
+    assert deleted.status_code == 204
+    remaining = {location["server"] for location in after.json()["locations"]}
+    assert remaining == {"edge", "nas"}

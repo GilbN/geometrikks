@@ -20,7 +20,7 @@ class LokiSourceStats(msgspec.Struct, rename="camel"):
 
     query: str
     label: str
-    hostname: str
+    server: str
     available: bool
     reason: str | None
     # Detected (auto) or pinned format; None until the first line is read.
@@ -50,7 +50,7 @@ def _loki_sources(service: LogIngestionService) -> list[LokiSourceStats]:
             LokiSourceStats(
                 query=source.query,
                 label=source.label,
-                hostname=service.server_for(log_input),
+                server=service.server_for(log_input),
                 available=status.available,
                 reason=status.reason,
                 log_format=parser.format.name if parser.format else None,

@@ -77,7 +77,7 @@ class AccessLog(base.BigIntBase):
     # (LOGPARSER_SERVER_NAME, mirrors geo_events.server) and which format
     # adapter parsed it ('nginx', 'traefik-json'). NULL on pre-feature rows
     # the backfill could not attribute.
-    hostname: Mapped[str | None] = mapped_column("server", String(255), nullable=True)
+    server: Mapped[str | None] = mapped_column(String(255), nullable=True)
     log_format: Mapped[str | None] = mapped_column(String(32), nullable=True)
 
     # Indexes for common queries

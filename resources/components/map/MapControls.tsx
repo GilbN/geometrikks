@@ -104,10 +104,10 @@ interface MapControlsProps {
   selectedCities: string[]
   onCountriesChange: (values: string[]) => void
   onCitiesChange: (values: string[]) => void
-  sourceOptions: string[]
-  selectedSources: string[]
-  onSourcesChange: (values: string[]) => void
-  sourcesLoading?: boolean
+  serverOptions: string[]
+  selectedServers: string[]
+  onServersChange: (values: string[]) => void
+  serversLoading?: boolean
 }
 
 /**
@@ -243,16 +243,16 @@ export function MapControls({
   selectedCities,
   onCountriesChange,
   onCitiesChange,
-  sourceOptions,
-  selectedSources,
-  onSourcesChange,
-  sourcesLoading = false,
+  serverOptions,
+  selectedServers,
+  onServersChange,
+  serversLoading = false,
 }: MapControlsProps) {
   const { events, countries, cities, locations } = featureStats
   const hasMapData = activeLayer === "banned" ? (banned.stats?.ips ?? 0) > 0 : events > 0
   const [isExpanded, setIsExpanded] = useState(true)
   const activeFilterCount =
-    (selectedCountries.length ? 1 : 0) + (selectedCities.length ? 1 : 0) + (selectedSources.length ? 1 : 0)
+    (selectedCountries.length ? 1 : 0) + (selectedCities.length ? 1 : 0) + (selectedServers.length ? 1 : 0)
   const [drawerOpen, setDrawerOpen] = useState(false)
   const isMobile = useIsMobile()
 
@@ -330,13 +330,13 @@ export function MapControls({
         forceInline={isMobile}
         className="w-full justify-between"
       />
-      {(sourceOptions.length >= 2 || selectedSources.length > 0) && (
+      {(serverOptions.length >= 2 || selectedServers.length > 0) && (
         <FilterCombobox
           label="Source"
-          options={sourceOptions}
-          selected={selectedSources}
-          onChange={onSourcesChange}
-          loading={sourcesLoading}
+          options={serverOptions}
+          selected={selectedServers}
+          onChange={onServersChange}
+          loading={serversLoading}
           emptyText="No sources recorded"
           forceInline={isMobile}
           className="w-full justify-between"
@@ -350,7 +350,7 @@ export function MapControls({
           onClick={() => {
             onCountriesChange([])
             onCitiesChange([])
-            onSourcesChange([])
+            onServersChange([])
           }}
         >
           Clear filters

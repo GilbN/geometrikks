@@ -88,8 +88,8 @@ def test_ws_streams_batch_frames_from_channel():
     assert frame["events"][0]["log"] is not None
 
 
-def test_ws_hostname_arrives_in_frames():
-    """The wire event's hostname (needed for multi-instance ingestion) survives
+def test_ws_server_arrives_in_frames():
+    """The wire event's server (needed for multi-instance ingestion) survives
     the round trip through the channel unchanged."""
     app, channels = _live_app()
     with TestClient(app) as client, client.websocket_connect("/ws/live") as ws:
@@ -97,7 +97,8 @@ def test_ws_hostname_arrives_in_frames():
             client, channels, record_to_event(make_record(with_log=False, server="vps-1"))
         )
         frame = ws.receive_json(timeout=5)
-    assert frame["events"][0]["geo"]["hostname"] == "vps-1"
+    assert frame["events"][0]["geo"]["server"] == "vps-1"
+    assert "hostname" not in frame["events"][0]["geo"]
     assert frame["events"][0]["log"] is None
 
 

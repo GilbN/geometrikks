@@ -724,7 +724,7 @@ async def test_service_ingests_from_loki_with_no_file_on_disk(fake: FakeLoki, cl
 
     # The format check sampled the 999 line; only the 1001 line was ingested.
     [geo_event] = added_geo_events(repos)
-    assert geo_event.hostname == "edge-01"
+    assert geo_event.server == "edge-01"
     assert service.total_processed == 1
 
 

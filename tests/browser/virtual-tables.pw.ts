@@ -8,14 +8,14 @@ const accessRows: AccessLog[] = Array.from({ length: 1_000 }, (_, index) => ({
   method: "GET", url: `/request/${index}/${"long-path/".repeat(index % 20)}`,
   httpVersion: "HTTP/2", statusCode: 200, bytesSent: 100, referrer: null,
   userAgent: null, requestTime: 10, upstreamResponseTime: null,
-  host: "example.test", hostname: null, logFormat: null, countryCode: "NO",
+  host: "example.test", server: null, logFormat: null, countryCode: "NO",
   countryName: "Norway", city: "Oslo", autonomousSystemNumber: null,
   autonomousSystemOrganization: null,
 }))
 const geoRows: GeoLogEntry[] = accessRows.slice(0, 500).map((row) => ({
   locationId: row.id, ipAddress: row.ipAddress, city: row.city,
   countryCode: "NO", countryName: "Norway", eventCount: row.id,
-  hostnames: ["example.test"], lastSeen: timestamp, latitude: 59.9,
+  servers: ["example.test"], lastSeen: timestamp, latitude: 59.9,
   longitude: 10.7, postalCode: null, state: null, stateCode: null,
   asn: null, asOrganization: null,
 }))
@@ -48,8 +48,8 @@ const truncationCases = [
   },
   {
     path: "geo-logs", endpoint: "/api/v1/geo-events/logs",
-    row: { ...geoRows[0], hostnames: [longText] },
-    fields: [{ key: "hostnames", label: "Hostnames", value: longText }],
+    row: { ...geoRows[0], servers: [longText] },
+    fields: [{ key: "servers", label: "Hostnames", value: longText }],
   },
 ]
 
@@ -58,7 +58,7 @@ for (const fixture of truncationCases) {
     const item = {
       ...fixture.row,
       ...Object.fromEntries(fixture.fields
-        .filter((field) => field.key !== "hostnames")
+        .filter((field) => field.key !== "servers")
         .map((field) => [field.key, field.value])),
     }
     await page.route((url) => url.pathname.replace(/\/$/, "") === fixture.endpoint,

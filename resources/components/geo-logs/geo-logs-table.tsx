@@ -1,7 +1,7 @@
 /**
  * Grouped geo-events table: one row per (location, IP) pair with an event
  * count, server-paginated and server-sorted by any visible column except
- * hostnames and organization. Page/size/sort state lives in the route's URL
+ * servers and organization. Page/size/sort state lives in the route's URL
  * search params and arrives here as props; the filter set comes from
  * GeoLogFiltersContext like everything else on the page. Selecting a row
  * opens GeoLogDetailSheet.
@@ -72,10 +72,10 @@ function renderCell(column: GeoLogColumn, r: GeoLogEntry): React.ReactNode {
           {r.lastSeen ? new Date(r.lastSeen).toLocaleString() : "-"}
         </span>
       )
-    case "hostnames":
+    case "servers":
       return (
-        <span className="block truncate font-mono" title={r.hostnames.join(", ") || undefined}>
-          {r.hostnames.length ? r.hostnames.join(", ") : "-"}
+        <span className="block truncate font-mono" title={r.servers.join(", ") || undefined}>
+          {r.servers.length ? r.servers.join(", ") : "-"}
         </span>
       )
     case "asn":

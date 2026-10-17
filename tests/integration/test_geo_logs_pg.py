@@ -1,7 +1,7 @@
 """GeoEventService aggregate queries on real TimescaleDB (geo-logs page, issue #18).
 
 Covers grouped (location, IP) rows, summary, time-series, top-N lists and
-facets, on both the raw path (≤ 24h or filtered-by-hostname) and the
+facets, on both the raw path (≤ 24h or filtered-by-server) and the
 ip_location_daily_stats / geo_summary CAGG paths.
 """
 from __future__ import annotations
@@ -54,14 +54,14 @@ async def _insert_location(
     return result.scalar_one()
 
 
-async def _insert_events(session, *, ts, ip: str, hostname: str, location_id: int, n: int = 1) -> None:
+async def _insert_events(session, *, ts, ip: str, server: str, location_id: int, n: int = 1) -> None:
     for _ in range(n):
         await session.execute(
             text(
                 "INSERT INTO geo_events (timestamp, ip_address, server, location_id) "
-                "VALUES (:ts, :ip, :hostname, :location_id)"
+                "VALUES (:ts, :ip, :server, :location_id)"
             ),
-            {"ts": ts, "ip": ip, "hostname": hostname, "location_id": location_id},
+            {"ts": ts, "ip": ip, "server": server, "location_id": location_id},
         )
 
 
@@ -93,10 +93,10 @@ async def seed_raw(session_maker) -> dict[str, int]:
     t2 = NOW - timedelta(hours=2)
     async with session_maker() as session:
         locs = await _seed_locations(session)
-        await _insert_events(session, ts=t1, ip="1.1.1.1", hostname="web1", location_id=locs["no"], n=3)
-        await _insert_events(session, ts=t2, ip="1.1.1.1", hostname="web1", location_id=locs["se"], n=2)
-        await _insert_events(session, ts=t2, ip="2.2.2.2", hostname="web2", location_id=locs["no"], n=1)
-        await _insert_events(session, ts=t1, ip="3.3.3.3", hostname="web2", location_id=locs["us"], n=1)
+        await _insert_events(session, ts=t1, ip="1.1.1.1", server="web1", location_id=locs["no"], n=3)
+        await _insert_events(session, ts=t2, ip="1.1.1.1", server="web1", location_id=locs["se"], n=2)
+        await _insert_events(session, ts=t2, ip="2.2.2.2", server="web2", location_id=locs["no"], n=1)
+        await _insert_events(session, ts=t1, ip="3.3.3.3", server="web2", location_id=locs["us"], n=1)
         await session.commit()
     return locs
 
@@ -107,8 +107,8 @@ async def seed_multiday(session_maker) -> dict[str, int]:
         locs = await _seed_locations(session)
         for day in range(3):
             ts = NOW - timedelta(days=day, hours=1)
-            await _insert_events(session, ts=ts, ip="1.1.1.1", hostname="web1", location_id=locs["no"], n=2)
-            await _insert_events(session, ts=ts, ip="2.2.2.2", hostname="web2", location_id=locs["se"], n=1)
+            await _insert_events(session, ts=ts, ip="1.1.1.1", server="web1", location_id=locs["no"], n=2)
+            await _insert_events(session, ts=ts, ip="2.2.2.2", server="web2", location_id=locs["se"], n=1)
         await session.commit()
     return locs
 
@@ -131,7 +131,7 @@ class TestGroupedLogs:
         assert (top.city, top.country_code, top.country_name) == ("Oslo", "NO", "Norway")
         assert (top.state, top.state_code, top.postal_code) == ("Oslo", "03", "0150")
         assert top.latitude == 59.91 and top.longitude == 10.75
-        assert top.hostnames == ["web1"]
+        assert top.servers == ["web1"]
         assert top.last_seen is not None and top.last_seen.tzinfo is not None
 
     async def test_pagination_is_stable(self, pg_session_maker, clean_tables):
@@ -170,8 +170,8 @@ class TestGroupedLogs:
             by_ip_excl, _ = await svc.get_grouped_logs(
                 RAW_START, NOW, GeoEventFilters(ip_exclude=["1.1.1.1"]), limit=50, offset=0
             )
-            by_host, _ = await svc.get_grouped_logs(
-                RAW_START, NOW, GeoEventFilters(hostnames=["web2"]), limit=50, offset=0
+            by_server, _ = await svc.get_grouped_logs(
+                RAW_START, NOW, GeoEventFilters(servers=["web2"]), limit=50, offset=0
             )
 
         # lower-cased country input still matches (codes are stored upper-case)
@@ -184,10 +184,10 @@ class TestGroupedLogs:
             (locs["no"], "1.1.1.1"), (locs["se"], "1.1.1.1")
         ]
         assert {r.ip_address for r in by_ip_excl} == {"2.2.2.2", "3.3.3.3"}
-        assert {r.ip_address for r in by_host} == {"2.2.2.2", "3.3.3.3"}
+        assert {r.ip_address for r in by_server} == {"2.2.2.2", "3.3.3.3"}
 
     async def test_cagg_path_parity(self, pg_engine, pg_session_maker, clean_tables):
-        """>24h unfiltered range keeps groups, counts and recording hostnames."""
+        """>24h unfiltered range keeps groups, counts and recording servers."""
         locs = await seed_multiday(pg_session_maker)
         await refresh_caggs_range(
             pg_engine, start=NOW - timedelta(days=4), end=NOW + timedelta(hours=1)
@@ -202,7 +202,7 @@ class TestGroupedLogs:
             (locs["no"], "1.1.1.1", 6),
             (locs["se"], "2.2.2.2", 3),
         ]
-        assert [r.hostnames for r in rows] == [["web1"], ["web2"]]
+        assert [r.servers for r in rows] == [["web1"], ["web2"]]
 
     async def test_order_by_city_sinks_nulls_both_directions(self, pg_session_maker, clean_tables):
         locs = await seed_raw(pg_session_maker)
@@ -229,9 +229,9 @@ class TestGroupedLogs:
         t = NOW - timedelta(hours=1)
         async with pg_session_maker() as session:
             locs = await _seed_locations(session)
-            await _insert_events(session, ts=t, ip="9.9.9.9", hostname="web1", location_id=locs["no"])
-            await _insert_events(session, ts=t, ip="100.1.1.1", hostname="web1", location_id=locs["no"])
-            await _insert_events(session, ts=t, ip="20.1.1.1", hostname="web1", location_id=locs["no"])
+            await _insert_events(session, ts=t, ip="9.9.9.9", server="web1", location_id=locs["no"])
+            await _insert_events(session, ts=t, ip="100.1.1.1", server="web1", location_id=locs["no"])
+            await _insert_events(session, ts=t, ip="20.1.1.1", server="web1", location_id=locs["no"])
             await session.commit()
         async with pg_session_maker() as session:
             rows, _ = await GeoEventService(session=session).get_grouped_logs(
@@ -258,7 +258,7 @@ class TestGroupedLogs:
     async def test_order_by_outside_allowlist_rejected(self, pg_session_maker, clean_tables):
         async with pg_session_maker() as session:
             svc = GeoEventService(session=session)
-            for bad in ("hostnames", "event_count; DROP TABLE geo_events"):
+            for bad in ("servers", "event_count; DROP TABLE geo_events"):
                 with pytest.raises(DomainValidationError):
                     await svc.get_grouped_logs(
                         RAW_START, NOW, GeoEventFilters(),
@@ -288,7 +288,7 @@ class TestGroupedLogs:
         ]
         assert [r.ip_address for r in by_ip] == ["2.2.2.2", "1.1.1.1"]
 
-    async def test_hostname_filter_forces_raw_on_long_range(self, pg_engine, pg_session_maker, clean_tables):
+    async def test_server_filter_forces_raw_on_long_range(self, pg_engine, pg_session_maker, clean_tables):
         locs = await seed_multiday(pg_session_maker)
         await refresh_caggs_range(
             pg_engine, start=NOW - timedelta(days=4), end=NOW + timedelta(hours=1)
@@ -296,13 +296,13 @@ class TestGroupedLogs:
         start = NOW - timedelta(days=3, hours=2)
         async with pg_session_maker() as session:
             rows, total = await GeoEventService(session=session).get_grouped_logs(
-                start, NOW, GeoEventFilters(hostnames=["web1"]), limit=50, offset=0
+                start, NOW, GeoEventFilters(servers=["web1"]), limit=50, offset=0
             )
         assert total == 1
         assert (rows[0].location_id, rows[0].ip_address, rows[0].event_count) == (
             locs["no"], "1.1.1.1", 6
         )
-        assert rows[0].hostnames == ["web1"]  # raw path keeps hostnames
+        assert rows[0].servers == ["web1"]  # raw path keeps servers
 
 
 class TestSummary:
@@ -449,7 +449,7 @@ class TestTopN:
 
 
 class TestGeojsonEventCountFilters:
-    """New optional IP/hostname filters on GeoLocationRepository
+    """New optional IP/server filters on GeoLocationRepository
     .get_all_with_event_counts (embedded geo-logs map)."""
 
     async def test_unchanged_without_new_params(self, pg_session_maker, clean_tables):
@@ -464,7 +464,7 @@ class TestGeojsonEventCountFilters:
         assert len(rows) == 3
         assert sum(r.event_count for r in rows) == 7
 
-    async def test_ip_and_hostname_filters_shrink_results(self, pg_session_maker, clean_tables):
+    async def test_ip_and_server_filters_shrink_results(self, pg_session_maker, clean_tables):
         from geometrikks.domain.geo.repositories import GeoLocationRepository
 
         locs = await seed_raw(pg_session_maker)
@@ -476,18 +476,18 @@ class TestGeojsonEventCountFilters:
             by_ip_excl = await repo.get_all_with_event_counts(
                 RAW_START, NOW, ip_addresses_exclude=["1.1.1.1"]
             )
-            by_host = await repo.get_all_with_event_counts(
-                RAW_START, NOW, hostnames=["web1"]
+            by_server = await repo.get_all_with_event_counts(
+                RAW_START, NOW, servers=["web1"]
             )
         assert {r.location.id for r in by_ip} == {locs["no"], locs["se"]}
         assert sum(r.event_count for r in by_ip) == 5
         assert {r.location.id for r in by_ip_excl} == {locs["no"], locs["us"]}
         assert sum(r.event_count for r in by_ip_excl) == 2
-        assert {r.location.id for r in by_host} == {locs["no"], locs["se"]}
-        assert sum(r.event_count for r in by_host) == 5
+        assert {r.location.id for r in by_server} == {locs["no"], locs["se"]}
+        assert sum(r.event_count for r in by_server) == 5
 
     async def test_new_filters_force_raw_on_long_range(self, pg_engine, pg_session_maker, clean_tables):
-        """The location CAGGs carry no IP/hostname dims: filtered long ranges
+        """The location CAGGs carry no IP/server dims: filtered long ranges
         must fall back to raw geo_events and still return correct counts."""
         from geometrikks.domain.geo.repositories import GeoLocationRepository
 
@@ -495,10 +495,10 @@ class TestGeojsonEventCountFilters:
         start = NOW - timedelta(days=3, hours=2)
         async with pg_session_maker() as session:
             repo = GeoLocationRepository(session=session)
-            by_host = await repo.get_all_with_event_counts(start, NOW, hostnames=["web2"])
+            by_server = await repo.get_all_with_event_counts(start, NOW, servers=["web2"])
             by_ip = await repo.get_all_with_event_counts(start, NOW, ip_addresses=["1.1.1.1"])
-        assert {r.location.id for r in by_host} == {locs["se"]}
-        assert sum(r.event_count for r in by_host) == 3
+        assert {r.location.id for r in by_server} == {locs["se"]}
+        assert sum(r.event_count for r in by_server) == 3
         assert {r.location.id for r in by_ip} == {locs["no"]}
         assert sum(r.event_count for r in by_ip) == 6
 
@@ -522,29 +522,29 @@ async def seed_boundary(session_maker) -> dict[str, int]:
         # Head: before the window, same hour bucket as B_START.
         await _insert_events(
             session, ts=B_START - timedelta(minutes=20), ip="9.9.9.9",
-            hostname="web1", location_id=locs["no"], n=1,
+            server="web1", location_id=locs["no"], n=1,
         )
         # Inside the window.
         await _insert_events(
             session, ts=B_START + timedelta(minutes=10), ip="1.1.1.1",
-            hostname="web1", location_id=locs["no"], n=1,
+            server="web1", location_id=locs["no"], n=1,
         )
         await _insert_events(
             session, ts=NOW - timedelta(days=2), ip="1.1.1.1",
-            hostname="web1", location_id=locs["no"], n=3,
+            server="web1", location_id=locs["no"], n=3,
         )
         await _insert_events(
             session, ts=NOW - timedelta(days=1), ip="2.2.2.2",
-            hostname="web2", location_id=locs["se"], n=2,
+            server="web2", location_id=locs["se"], n=2,
         )
         await _insert_events(
             session, ts=B_END - timedelta(minutes=10), ip="2.2.2.2",
-            hostname="web2", location_id=locs["se"], n=1,
+            server="web2", location_id=locs["se"], n=1,
         )
         # Tail: after the window, same hour bucket as B_END.
         await _insert_events(
             session, ts=B_END + timedelta(minutes=10), ip="8.8.8.8",
-            hostname="web2", location_id=locs["us"], n=1,
+            server="web2", location_id=locs["us"], n=1,
         )
         await session.commit()
     return locs
@@ -680,7 +680,7 @@ class TestLocationTopIpsMisaligned:
 class TestFacets:
     async def test_distinct_sorted_values(self, pg_engine, pg_session_maker, clean_tables):
         await seed_raw(pg_session_maker)
-        # Hostnames now read server_daily_stats: refresh the window so stale
+        # Servers now read server_daily_stats: refresh the window so stale
         # materialized buckets from earlier tests are wiped.
         await refresh_caggs_range(
             pg_engine,
@@ -694,12 +694,12 @@ class TestFacets:
             ("NO", "Norway"), ("SE", "Sweden"), ("US", "United States")
         ]
         assert facets.cities == ["Oslo", "Umea"]
-        assert facets.hostnames == ["web1", "web2"]
+        assert facets.servers == ["web1", "web2"]
 
 
 class TestFilteredSummaryAndSeriesCaggPath:
     """Country/city/IP filters on >24h ranges must use the stitched
-    ip_location CAGG path and match the raw scan exactly; hostname still raw."""
+    ip_location CAGG path and match the raw scan exactly; server still raw."""
 
     async def _refresh(self, pg_engine):
         await refresh_caggs_range(
@@ -729,11 +729,11 @@ class TestFilteredSummaryAndSeriesCaggPath:
         assert [(p.total_events, p.unique_ips) for p in points] == [(1, 1), (3, 1)]
         assert points[0].timestamp < points[1].timestamp
 
-    async def test_hostname_filter_still_raw_and_exact(self, pg_engine, pg_session_maker, clean_tables):
+    async def test_server_filter_still_raw_and_exact(self, pg_engine, pg_session_maker, clean_tables):
         await seed_boundary(pg_session_maker)
         async with pg_session_maker() as session:
             period = await GeoEventService(session=session).get_summary(
-                B_START, B_END, GeoEventFilters(hostnames=["web1"])
+                B_START, B_END, GeoEventFilters(servers=["web1"])
             )
         assert period.total_events == 4  # raw path needs no CAGG refresh
 
@@ -746,8 +746,8 @@ class TestTieOrdering:
         async with pg_session_maker() as session:
             locs = await _seed_locations(session)
             ts = NOW - timedelta(days=2)
-            await _insert_events(session, ts=ts, ip="6.6.6.6", hostname="web1", location_id=locs["no"], n=2)
-            await _insert_events(session, ts=ts, ip="5.5.5.5", hostname="web1", location_id=locs["no"], n=2)
+            await _insert_events(session, ts=ts, ip="6.6.6.6", server="web1", location_id=locs["no"], n=2)
+            await _insert_events(session, ts=ts, ip="5.5.5.5", server="web1", location_id=locs["no"], n=2)
             await session.commit()
         await refresh_caggs_range(
             pg_engine, start=NOW - timedelta(days=4), end=NOW + timedelta(hours=1)

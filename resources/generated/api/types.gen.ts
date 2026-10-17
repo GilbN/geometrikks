@@ -112,9 +112,9 @@ export type AccessLogDebugStats = {
 export type AccessLogFacets = {
   cities: Array<string>;
   countries: Array<CountryFacet>;
-  hostnames: Array<string>;
   hosts: Array<string>;
   logFormats: Array<string>;
+  servers: Array<string>;
 };
 
 /**
@@ -489,20 +489,20 @@ export type DecisionView = {
 };
 
 /**
- * DefaultHomeView
- */
-export type DefaultHomeView = {
-  latitude: number;
-  longitude: number;
-};
-
-/**
  * DefaultMapView
  */
 export type DefaultMapView = {
   latitude: number;
   longitude: number;
   zoom: number;
+};
+
+/**
+ * DefaultServerLocationView
+ */
+export type DefaultServerLocationView = {
+  latitude: number;
+  longitude: number;
 };
 
 /**
@@ -548,7 +548,7 @@ export type GeoEventFacets = {
   asns: Array<GeoAsnFacet>;
   cities: Array<string>;
   countries: Array<GeoCountryFacet>;
-  hostnames: Array<string>;
+  servers: Array<string>;
 };
 
 /**
@@ -656,13 +656,13 @@ export type GeoLogEntry = {
   countryCode: string;
   countryName: string;
   eventCount: number;
-  hostnames: Array<string>;
   ipAddress: string;
   lastSeen: string | null;
   latitude: number;
   locationId: number;
   longitude: number;
   postalCode: string | null;
+  servers: Array<string>;
   state: string | null;
   stateCode: string | null;
 };
@@ -878,7 +878,6 @@ export type ListAccessLogsAccessLogResponseBody = {
   countryCode?: string | null;
   countryName?: string | null;
   host?: string | null;
-  hostname?: string | null;
   httpVersion?: string | null;
   id: number;
   ipAddress: string;
@@ -887,6 +886,7 @@ export type ListAccessLogsAccessLogResponseBody = {
   referrer?: string | null;
   remoteUser?: string;
   requestTime?: number | null;
+  server?: string | null;
   statusCode: number;
   timestamp: string;
   upstreamResponseTime?: number | null;
@@ -921,11 +921,11 @@ export type ListGeoEventsGeoEventGeoLocationResponseBody = {
 export type ListGeoEventsGeoEventResponseBody = {
   autonomousSystemNumber?: number | null;
   autonomousSystemOrganization?: string | null;
-  hostname: string;
   id: number;
   ipAddress: string;
   location: ListGeoEventsGeoEventGeoLocationResponseBody;
   locationId: number;
+  server: string;
   timestamp?: string;
 };
 
@@ -1032,12 +1032,12 @@ export type LogparserSettingsView = {
  */
 export type LokiSourceStats = {
   available: boolean;
-  hostname: string;
   label: string;
   logFormat: string | null;
   parsedLines: number;
   query: string;
   reason: string | null;
+  server: string;
 };
 
 /**
@@ -1046,9 +1046,9 @@ export type LokiSourceStats = {
 export type MapSettingsView = {
   cartoApiKey: string | null;
   defaultView: DefaultMapView | null;
-  homeLatitude: number | null;
-  homeLongitude: number | null;
-  homeSource: "configured" | "external_ip" | null;
+  serverLatitude: number | null;
+  serverLocationSource: "configured" | "external_ip" | null;
+  serverLongitude: number | null;
 };
 
 /**
@@ -1310,6 +1310,26 @@ export type SchedulerJobsResponse = {
 };
 
 /**
+ * ServerLocationView
+ */
+export type ServerLocationView = {
+  detectedAt: string | null;
+  lastEventDay: string | null;
+  latitude: number;
+  longitude: number;
+  server: string;
+  source: "auto" | "override";
+};
+
+/**
+ * ServerLocationsResponse
+ */
+export type ServerLocationsResponse = {
+  default: DefaultServerLocationView | null;
+  locations: Array<ServerLocationView>;
+};
+
+/**
  * SessionUser
  */
 export type SessionUser = {
@@ -1340,26 +1360,6 @@ export type SettingsSectionView = {
   fields: Array<SettingFieldView>;
   name: string;
   title: string;
-};
-
-/**
- * SiteHomeView
- */
-export type SiteHomeView = {
-  detectedAt: string | null;
-  hostname: string;
-  lastEventDay: string | null;
-  latitude: number;
-  longitude: number;
-  source: "auto" | "override";
-};
-
-/**
- * SiteHomesResponse
- */
-export type SiteHomesResponse = {
-  default: DefaultHomeView | null;
-  homes: Array<SiteHomeView>;
 };
 
 /**
@@ -1790,8 +1790,14 @@ export type ApiV1AccessLogsListAccessLogsData = {
     ipAddressNotIn?: Array<string> | null;
     hostIn?: Array<string> | null;
     hostNotIn?: Array<string> | null;
-    hostnameIn?: Array<string> | null;
-    hostnameNotIn?: Array<string> | null;
+    /**
+     * Filter to these servers (repeatable)
+     */
+    serverIn?: Array<string> | null;
+    /**
+     * Exclude these servers (repeatable)
+     */
+    serverNotIn?: Array<string> | null;
     logFormatIn?: Array<string> | null;
   };
   url: "/api/v1/access-logs";
@@ -2832,9 +2838,9 @@ export type ApiV1CrowdsecBannedLocationsListBannedLocationsData = {
      */
     city?: Array<string> | null;
     /**
-     * Filter to these recording hostnames (repeatable)
+     * Filter to these servers (repeatable)
      */
-    hostnameIn?: Array<string> | null;
+    serverIn?: Array<string> | null;
   };
   url: "/api/v1/crowdsec/banned-locations";
 };
@@ -3105,9 +3111,9 @@ export type ApiV1GeoEventsListGeoEventsData = {
      */
     ipAddressNotIn?: Array<string> | null;
     /**
-     * Filter to these recording hostnames (repeatable)
+     * Filter to these servers (repeatable)
      */
-    hostnameIn?: Array<string> | null;
+    serverIn?: Array<string> | null;
   };
   url: "/api/v1/geo-events";
 };
@@ -3187,9 +3193,9 @@ export type ApiV1GeoEventsLogsGetGeoLogsData = {
      */
     ipAddressNotIn?: Array<string> | null;
     /**
-     * Filter to these recording hostnames (repeatable)
+     * Filter to these servers (repeatable)
      */
-    hostnameIn?: Array<string> | null;
+    serverIn?: Array<string> | null;
     /**
      * Filter to these autonomous system numbers (repeatable)
      */
@@ -3278,9 +3284,9 @@ export type ApiV1GeoEventsSummaryGetGeoLogSummaryData = {
      */
     ipAddressNotIn?: Array<string> | null;
     /**
-     * Filter to these recording hostnames (repeatable)
+     * Filter to these servers (repeatable)
      */
-    hostnameIn?: Array<string> | null;
+    serverIn?: Array<string> | null;
     /**
      * Filter to these autonomous system numbers (repeatable)
      */
@@ -3349,9 +3355,9 @@ export type ApiV1GeoEventsTimeSeriesGetGeoLogTimeSeriesData = {
      */
     ipAddressNotIn?: Array<string> | null;
     /**
-     * Filter to these recording hostnames (repeatable)
+     * Filter to these servers (repeatable)
      */
-    hostnameIn?: Array<string> | null;
+    serverIn?: Array<string> | null;
     /**
      * Filter to these autonomous system numbers (repeatable)
      */
@@ -3424,9 +3430,9 @@ export type ApiV1GeoEventsTopAsnsGetGeoLogTopAsnsData = {
      */
     ipAddressNotIn?: Array<string> | null;
     /**
-     * Filter to these recording hostnames (repeatable)
+     * Filter to these servers (repeatable)
      */
-    hostnameIn?: Array<string> | null;
+    serverIn?: Array<string> | null;
     /**
      * Filter to these autonomous system numbers (repeatable)
      */
@@ -3495,9 +3501,9 @@ export type ApiV1GeoEventsTopCitiesGetGeoLogTopCitiesData = {
      */
     ipAddressNotIn?: Array<string> | null;
     /**
-     * Filter to these recording hostnames (repeatable)
+     * Filter to these servers (repeatable)
      */
-    hostnameIn?: Array<string> | null;
+    serverIn?: Array<string> | null;
     /**
      * Filter to these autonomous system numbers (repeatable)
      */
@@ -3566,9 +3572,9 @@ export type ApiV1GeoEventsTopCountriesGetGeoLogTopCountriesData = {
      */
     ipAddressNotIn?: Array<string> | null;
     /**
-     * Filter to these recording hostnames (repeatable)
+     * Filter to these servers (repeatable)
      */
-    hostnameIn?: Array<string> | null;
+    serverIn?: Array<string> | null;
     /**
      * Filter to these autonomous system numbers (repeatable)
      */
@@ -3637,9 +3643,9 @@ export type ApiV1GeoEventsTopIpsGetGeoLogTopIpsData = {
      */
     ipAddressNotIn?: Array<string> | null;
     /**
-     * Filter to these recording hostnames (repeatable)
+     * Filter to these servers (repeatable)
      */
-    hostnameIn?: Array<string> | null;
+    serverIn?: Array<string> | null;
     /**
      * Filter to these autonomous system numbers (repeatable)
      */
@@ -3775,9 +3781,9 @@ export type ApiV1GeoLocationsGeojsonGetGeojsonData = {
      */
     ipAddressNotIn?: Array<string> | null;
     /**
-     * Filter to these recording hostnames (repeatable)
+     * Filter to these servers (repeatable)
      */
-    hostnameIn?: Array<string> | null;
+    serverIn?: Array<string> | null;
     /**
      * Filter to these autonomous system numbers (repeatable)
      */
@@ -3819,36 +3825,36 @@ export type ApiV1GeoLocationsGeojsonGetGeojsonResponses = {
 export type ApiV1GeoLocationsGeojsonGetGeojsonResponse =
   ApiV1GeoLocationsGeojsonGetGeojsonResponses[keyof ApiV1GeoLocationsGeojsonGetGeojsonResponses];
 
-export type ApiV1GeoLocationsSiteHomesSiteHomesData = {
+export type ApiV1GeoLocationsServerLocationsServerLocationsData = {
   body?: never;
   path?: never;
   query?: never;
-  url: "/api/v1/geo-locations/site-homes";
+  url: "/api/v1/geo-locations/server-locations";
 };
 
-export type ApiV1GeoLocationsSiteHomesSiteHomesResponses = {
+export type ApiV1GeoLocationsServerLocationsServerLocationsResponses = {
   /**
    * Request fulfilled, document follows
    */
-  200: SiteHomesResponse;
+  200: ServerLocationsResponse;
 };
 
-export type ApiV1GeoLocationsSiteHomesSiteHomesResponse =
-  ApiV1GeoLocationsSiteHomesSiteHomesResponses[keyof ApiV1GeoLocationsSiteHomesSiteHomesResponses];
+export type ApiV1GeoLocationsServerLocationsServerLocationsResponse =
+  ApiV1GeoLocationsServerLocationsServerLocationsResponses[keyof ApiV1GeoLocationsServerLocationsServerLocationsResponses];
 
-export type ApiV1GeoLocationsSiteHomesHostnameDeleteSiteHomeData = {
+export type ApiV1GeoLocationsServerLocationsDeleteServerLocationData = {
   body?: never;
   path: {
     /**
-     * Recording hostname whose home row to remove
+     * Server whose location to remove
      */
-    hostname: string;
+    server: string;
   };
   query?: never;
-  url: "/api/v1/geo-locations/site-homes/{hostname}";
+  url: "/api/v1/geo-locations/server-locations/{server}";
 };
 
-export type ApiV1GeoLocationsSiteHomesHostnameDeleteSiteHomeErrors = {
+export type ApiV1GeoLocationsServerLocationsDeleteServerLocationErrors = {
   /**
    * Validation Exception
    */
@@ -3863,27 +3869,27 @@ export type ApiV1GeoLocationsSiteHomesHostnameDeleteSiteHomeErrors = {
     status_code: number;
   };
   /**
-   * No home is recorded for this hostname.
+   * No location is recorded for this server.
    */
   404: ErrorEnvelope;
   /**
-   * The home is pinned by MAP_HOME_LOCATIONS; edit the setting instead.
+   * MAP_SERVER_LOCATIONS pins this location. Edit the setting instead.
    */
   409: ErrorEnvelope;
 };
 
-export type ApiV1GeoLocationsSiteHomesHostnameDeleteSiteHomeError =
-  ApiV1GeoLocationsSiteHomesHostnameDeleteSiteHomeErrors[keyof ApiV1GeoLocationsSiteHomesHostnameDeleteSiteHomeErrors];
+export type ApiV1GeoLocationsServerLocationsDeleteServerLocationError =
+  ApiV1GeoLocationsServerLocationsDeleteServerLocationErrors[keyof ApiV1GeoLocationsServerLocationsDeleteServerLocationErrors];
 
-export type ApiV1GeoLocationsSiteHomesHostnameDeleteSiteHomeResponses = {
+export type ApiV1GeoLocationsServerLocationsDeleteServerLocationResponses = {
   /**
    * Request fulfilled, nothing follows
    */
   204: void;
 };
 
-export type ApiV1GeoLocationsSiteHomesHostnameDeleteSiteHomeResponse =
-  ApiV1GeoLocationsSiteHomesHostnameDeleteSiteHomeResponses[keyof ApiV1GeoLocationsSiteHomesHostnameDeleteSiteHomeResponses];
+export type ApiV1GeoLocationsServerLocationsDeleteServerLocationResponse =
+  ApiV1GeoLocationsServerLocationsDeleteServerLocationResponses[keyof ApiV1GeoLocationsServerLocationsDeleteServerLocationResponses];
 
 export type ApiV1GeoLocationsTopCountriesGetTopCountriesData = {
   body?: never;

@@ -695,7 +695,7 @@ async def test_records_carry_the_source_server() -> None:
     finally:
         await service.stop(timeout=5.0)
 
-    assert {geo_event.hostname for geo_event in added_geo_events(repos)} == {"vps-1"}
+    assert {geo_event.server for geo_event in added_geo_events(repos)} == {"vps-1"}
 
 
 async def test_an_empty_source_server_falls_back_to_the_service_default() -> None:
@@ -708,7 +708,7 @@ async def test_an_empty_source_server_falls_back_to_the_service_default() -> Non
     finally:
         await service.stop(timeout=5.0)
 
-    assert {geo_event.hostname for geo_event in added_geo_events(repos)} == {service.server}
+    assert {geo_event.server for geo_event in added_geo_events(repos)} == {service.server}
 
 
 async def test_live_events_carry_the_service_server_when_the_source_has_none() -> None:
@@ -723,8 +723,8 @@ async def test_live_events_carry_the_service_server_when_the_source_has_none() -
         await service.stop(timeout=5.0)
 
     event, _channel = channels.publish.call_args.args
-    assert event["geo"]["hostname"] == service.server
-    assert event["log"]["hostname"] == service.server
+    assert event["geo"]["server"] == service.server
+    assert event["log"]["server"] == service.server
 
 
 async def test_a_malformed_line_carries_the_source_server() -> None:
@@ -1527,8 +1527,8 @@ async def test_flush_records_stamps_the_service_server_on_a_bare_parser_record()
 
     await service.flush_records([record])
 
-    assert {geo_event.hostname for geo_event in added_geo_events(repos)} == {"import-host"}
-    assert {access_log.hostname for access_log in added_access_logs(repos)} == {"import-host"}
+    assert {geo_event.server for geo_event in added_geo_events(repos)} == {"import-host"}
+    assert {access_log.server for access_log in added_access_logs(repos)} == {"import-host"}
 
 
 def _channels_stub():
@@ -1550,8 +1550,8 @@ def test_publish_sends_events_to_channel() -> None:
     event, channel = channels.publish.call_args.args
     assert channel == LIVE_EVENTS_CHANNEL
     assert event["type"] == "request"
-    assert event["geo"]["hostname"] == "vps-1"
-    assert event["log"]["hostname"] == "vps-1"
+    assert event["geo"]["server"] == "vps-1"
+    assert event["log"]["server"] == "vps-1"
 
 
 def test_publish_without_channels_is_silent_and_safe() -> None:

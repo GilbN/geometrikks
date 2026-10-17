@@ -123,28 +123,28 @@ class TopCountriesResponse(msgspec.Struct, rename="camel"):
     top_countries: list[TopCountryDTO] = msgspec.field(default_factory=list)
 
 
-class SiteHomeView(msgspec.Struct, rename="camel"):
-    """One hostname's current home location, auto-detected or overridden."""
+class ServerLocationView(msgspec.Struct, rename="camel"):
+    """Where one server sits on the map, auto-detected or overridden."""
 
-    hostname: str
+    server: str
     latitude: float
     longitude: float
     source: Literal["auto", "override"]
     detected_at: str | None
-    # Day precision (from the daily hostname aggregate); None when the
-    # hostname has never recorded a geo event.
+    # Day precision (from the daily server aggregate); None when the
+    # server has never recorded a geo event.
     last_event_day: str | None
 
 
-class DefaultHomeView(msgspec.Struct, rename="camel"):
-    """Instance-wide fallback home used when a hostname has no server_locations row."""
+class DefaultServerLocationView(msgspec.Struct, rename="camel"):
+    """This instance's own location, used for any server without a server_locations row."""
 
     latitude: float
     longitude: float
 
 
-class SiteHomesResponse(msgspec.Struct, rename="camel"):
-    """Per-source home locations for the map, plus the instance default."""
+class ServerLocationsResponse(msgspec.Struct, rename="camel"):
+    """Every server's map location, plus this instance's own location as the default."""
 
-    homes: list[SiteHomeView]
-    default: DefaultHomeView | None
+    locations: list[ServerLocationView]
+    default: DefaultServerLocationView | None

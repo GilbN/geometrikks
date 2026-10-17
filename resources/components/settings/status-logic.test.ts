@@ -5,7 +5,7 @@ import type {
   HypertableStatsView,
   LogFileView,
   SchedulerJobView,
-  SiteHomesResponse,
+  ServerLocationsResponse,
 } from "@/generated/api/types.gen"
 import type { LogRecord } from "@/lib/logstream"
 import {
@@ -31,7 +31,7 @@ import {
   schedulerJobState,
   sidebarIngestionVariant,
   sidebarStatusTooltip,
-  siteHomeRows,
+  serverLocationRows,
 } from "./status-logic"
 
 function makeHealth(overrides: Partial<HealthResponse> = {}): HealthResponse {
@@ -676,17 +676,17 @@ describe("loginMethodBadges", () => {
   })
 })
 
-describe("siteHomeRows", () => {
-  it("is empty for undefined or no homes", () => {
-    expect(siteHomeRows(undefined)).toEqual([])
-    expect(siteHomeRows({ default: null, homes: [] })).toEqual([])
+describe("serverLocationRows", () => {
+  it("is empty for undefined or no server locations", () => {
+    expect(serverLocationRows(undefined)).toEqual([])
+    expect(serverLocationRows({ default: null, locations: [] })).toEqual([])
   })
   it("formats coords to 2 decimals and passes through source", () => {
-    const data: SiteHomesResponse = {
+    const data: ServerLocationsResponse = {
       default: { latitude: 59.91, longitude: 10.75 },
-      homes: [
+      locations: [
         {
-          hostname: "nginx-01",
+          server: "nginx-01",
           latitude: 59.913,
           longitude: 10.752,
           source: "auto",
@@ -694,7 +694,7 @@ describe("siteHomeRows", () => {
           lastEventDay: "2026-08-23",
         },
         {
-          hostname: "nginx-02",
+          server: "nginx-02",
           latitude: -33.868,
           longitude: 151.207,
           source: "override",
@@ -704,18 +704,26 @@ describe("siteHomeRows", () => {
       ],
     }
     const now = Date.parse("2026-08-23T15:00:00Z")
-    expect(siteHomeRows(data, now)).toEqual([
-      { hostname: "nginx-01", coords: "59.91, 10.75", source: "auto", lastSeen: "Traffic today", stale: false },
-      { hostname: "nginx-02", coords: "-33.87, 151.21", source: "override", lastSeen: "No traffic", stale: false },
+    expect(serverLocationRows(data, now)).toEqual([
+      { server: "nginx-01", coords: "59.91, 10.75", source: "auto", lastSeen: "Traffic today", stale: false },
+      { server: "nginx-02", coords: "-33.87, 151.21", source: "override", lastSeen: "No traffic", stale: false },
     ])
   })
   it("flags auto rows with no traffic for two weeks as stale, never overrides", () => {
-    const home = (hostname: string, source: "auto" | "override", lastEventDay: string | null) => ({
-      hostname, latitude: 0, longitude: 0, source, detectedAt: null, lastEventDay,
+    const serverLocation = (server: string, source: "auto" | "override", lastEventDay: string | null) => ({
+      server, latitude: 0, longitude: 0, source, detectedAt: null, lastEventDay,
     })
     const now = Date.parse("2026-08-23T15:00:00Z")
-    const rows = siteHomeRows(
-      { default: null, homes: [home("a", "auto", "2026-08-22"), home("b", "auto", "2026-08-01"), home("c", "auto", null), home("d", "override", null)] },
+    const rows = serverLocationRows(
+      {
+        default: null,
+        locations: [
+          serverLocation("a", "auto", "2026-08-22"),
+          serverLocation("b", "auto", "2026-08-01"),
+          serverLocation("c", "auto", null),
+          serverLocation("d", "override", null),
+        ],
+      },
       now,
     )
     expect(rows.map((r) => [r.lastSeen, r.stale])).toEqual([
