@@ -22,6 +22,7 @@ if TYPE_CHECKING:
     from litestar import Litestar
 
     from geometrikks.domain.instances.heartbeat import HeartbeatWriter
+    from geometrikks.domain.instances.monitor import InstanceMonitor
     from geometrikks.server.plugins import DegradedTolerantAsyncPgBackend
     from geometrikks.services.crowdsec import CrowdSecService
     from geometrikks.services.crowdsec.stream import CrowdSecStreamPoller
@@ -42,6 +43,17 @@ def get_advisories(app: Litestar) -> AdvisoryRegistry:
         registry = AdvisoryRegistry()
         app.state.advisories = registry
     return registry
+
+
+def get_instance_monitor(app: Litestar) -> InstanceMonitor:
+    """The head's agent-state monitor, created on first access."""
+    monitor: InstanceMonitor | None = getattr(app.state, "instance_monitor", None)
+    if monitor is None:
+        from geometrikks.domain.instances.monitor import InstanceMonitor
+
+        monitor = InstanceMonitor()
+        app.state.instance_monitor = monitor
+    return monitor
 
 
 def get_crowdsec_service(app: Litestar) -> CrowdSecService | None:
