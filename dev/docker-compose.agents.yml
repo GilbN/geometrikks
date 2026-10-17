@@ -35,19 +35,19 @@
 #     services; the entrypoint chowns it, and rw lets the agents' weekly
 #     geoip-refresh job work. Fine for a test stack, one-volume-per-agent
 #     in real deployments.
-#   - Site homes (Phase 5): all four agents share this machine's public IP,
-#     so their auto-detected homes coincide. The head below pins three of them
-#     so routes and beacons visibly split: nginx-01 in New York, traefik-01
-#     in Los Angeles, and caddy-01 in Miami (MAP_HOME_LOCATIONS), plus its own
-#     home in Chicago
-#     (MAP_HOME_LATITUDE/LONGITUDE, the default beacon). json-01 is left
-#     unpinned, so its beacon is the auto-detected home instead. Only the
+#   - Server locations: all four agents share this machine's public IP,
+#     so their auto-detected locations coincide. The head below pins three of
+#     them so routes and beacons visibly split: nginx-01 in New York,
+#     traefik-01 in Los Angeles, and caddy-01 in Miami (MAP_SERVER_LOCATIONS),
+#     plus its own location in Chicago
+#     (MAP_SERVER_LATITUDE/LONGITUDE, the default beacon). json-01 is left
+#     unpinned, so its beacon is the auto-detected location instead. Only the
 #     agents ingest, so only their four beacons draw routes; Chicago is the
 #     head. Edit or remove the overrides to test the pure-auto path (the
 #     override rows are deleted at the next head restart, and each pinned
 #     agent's next write restores it as auto). Inspect the table:
 #       docker exec timescale_agent_db psql -U geouser -d geometrikks \
-#         -c "SELECT hostname, latitude, longitude, source FROM site_homes;"
+#         -c "SELECT server, latitude, longitude, source FROM server_locations;"
 
 name: geometrikks-agents
 
@@ -131,7 +131,7 @@ services:
         condition: service_healthy
 
   # ===========================================================================
-  # Agents: logparser-only processes stamping their own hostname. Health
+  # Agents: logparser-only processes stamping their own server name. Health
   # endpoints published for watching schema_wait / ingestion status.
   # ===========================================================================
   agent-nginx:
@@ -148,7 +148,7 @@ services:
     environment:
       APP_MODE: agent
       # Hourly re-detection instead of the 24h default, so cadence-driven
-      # site-home refreshes are observable within a test session.
+      # server-location refreshes are observable within a test session.
       MAP_SERVER_LOCATION_REFRESH_HOURS: 1
       LOGPARSER_SERVER_NAME: nginx-01
       LOGPARSER_LOG_PATHS: /var/log/access/nginx.log
