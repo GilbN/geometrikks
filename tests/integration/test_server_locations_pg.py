@@ -4,6 +4,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 
 import pytest
+import structlog
 from sqlalchemy import text
 
 from geometrikks.services.geoip.self_location import SelfLocation
@@ -62,6 +63,13 @@ async def test_reconcile_adds_updates_and_deletes(pg_session_maker, clean_server
     await reconcile_override_server_locations(pg_session_maker, {"a": (5.0, 6.0)})
     rows = await _rows(pg_session_maker)
     assert rows == {"a": (5.0, 6.0, "override")}
+
+
+async def test_reconcile_logs_the_override_server_names(pg_session_maker, clean_server_locations):
+    with structlog.testing.capture_logs() as logs:
+        await reconcile_override_server_locations(pg_session_maker, {"b": (3.0, 4.0), "a": (1.0, 2.0)})
+    reconciled = [log for log in logs if log["event"] == "server_locations_overrides_reconciled"]
+    assert [log["server_names"] for log in reconciled] == [["a", "b"]]
 
 
 async def test_reconcile_leaves_auto_rows_alone(pg_session_maker, clean_server_locations):

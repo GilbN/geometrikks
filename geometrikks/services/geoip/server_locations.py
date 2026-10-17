@@ -122,7 +122,7 @@ async def reconcile_override_server_locations(
             await session.execute(delete(ServerLocation).where(ServerLocation.source == "override"))
         await session.commit()
     if overrides:
-        logger.info("server_locations_overrides_reconciled", server=sorted(overrides))
+        logger.info("server_locations_overrides_reconciled", server_names=sorted(overrides))
 
 
 async def fetch_server_locations(session: "AsyncSession") -> list[ServerLocation]:

@@ -76,19 +76,19 @@ def apply_scan_results(groups: list[ScanGroup], providers: list[ScanProvider]) -
     """Fold one scan's rows into hysteresis state and rebuild the cache."""
     totals: dict[str, tuple[int, int]] = {}
     formats: dict[str, tuple[int, str | None]] = {}
-    for g in groups:
-        rows, cdn = totals.get(g.server, (0, 0))
-        totals[g.server] = (rows + g.rows, cdn + g.cdn_rows)
-        if g.rows > formats.get(g.server, (0, None))[0]:
-            formats[g.server] = (g.rows, g.log_format)
+    for group in groups:
+        rows, cdn = totals.get(group.server, (0, 0))
+        totals[group.server] = (rows + group.rows, cdn + group.cdn_rows)
+        if group.rows > formats.get(group.server, (0, None))[0]:
+            formats[group.server] = (group.rows, group.log_format)
 
     provider_hits: dict[str, dict[str, int]] = {}
-    for p in providers:
-        name = CDN_ASNS.get(p.asn)
-        if name is None:
+    for provider in providers:
+        provider_name = CDN_ASNS.get(provider.asn)
+        if provider_name is None:
             continue
-        by_name = provider_hits.setdefault(p.server, {})
-        by_name[name] = by_name.get(name, 0) + p.hits
+        hits_by_provider = provider_hits.setdefault(provider.server, {})
+        hits_by_provider[provider_name] = hits_by_provider.get(provider_name, 0) + provider.hits
 
     findings: list[ProxyFinding] = []
     seen = set(totals)
@@ -104,14 +104,18 @@ def apply_scan_results(groups: list[ScanGroup], providers: list[ScanProvider]) -
             _log_transition("proxy_peer_cleared", server_name, share, rows,
                             provider_hits, formats)
         if active:
-            by_name = provider_hits.get(server_name, {})
-            top = max(by_name, key=by_name.__getitem__) if by_name else None
+            hits_by_provider = provider_hits.get(server_name, {})
+            top = max(hits_by_provider, key=hits_by_provider.__getitem__) if hits_by_provider else None
             findings.append(ProxyFinding(
                 server=server_name, path="", log_format=formats[server_name][1],
                 kind="cdn", share=share, lines=rows, provider=top,
             ))
 
-    for server_name in [name for name, on in _active.items() if on and name not in seen]:
+    vanished_servers = [
+        server_name for server_name, is_active in _active.items()
+        if is_active and server_name not in seen
+    ]
+    for server_name in vanished_servers:
         _active[server_name] = False
         _log_transition("proxy_peer_cleared", server_name, 0.0, 0, provider_hits, formats)
 
@@ -126,14 +130,14 @@ def _log_transition(
     provider_hits: dict[str, dict[str, int]],
     formats: dict[str, tuple[int, str | None]],
 ) -> None:
-    by_name = provider_hits.get(server_name, {})
+    hits_by_provider = provider_hits.get(server_name, {})
     logger.warning(
         event,
         server=server_name,
         kind="cdn",
         share=round(share, 3),
         lines=rows,
-        provider=max(by_name, key=by_name.__getitem__) if by_name else None,
+        provider=max(hits_by_provider, key=hits_by_provider.__getitem__) if hits_by_provider else None,
         log_format=formats.get(server_name, (0, None))[1],
         origin="db-scan",
     )

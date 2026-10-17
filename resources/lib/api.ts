@@ -1019,6 +1019,8 @@ export async function fetchServerLocations(): Promise<ServerLocationsResponse> {
 }
 
 export async function deleteServerLocation(server: string): Promise<void> {
+  // The generated SDK encodes path params itself. Passing this encoded
+  // segment through it double-encodes "edge 01" and the delete 404s.
   await api.delete(`/geo-locations/server-locations/${encodeURIComponent(server)}`)
 }
 

@@ -101,7 +101,7 @@ def test_api_settings():
     assert settings.api.log_level is None
 
 
-def test_map_home_settings(monkeypatch):
+def test_map_server_location_settings(monkeypatch):
     """Map destination defaults to auto-detection and supports a manual pair."""
     monkeypatch.delenv("MAP_AUTO_DETECT_SERVER_LOCATION", raising=False)
     defaults = MapSettings(_env_file=None)
@@ -120,7 +120,7 @@ def test_map_home_settings(monkeypatch):
     ("name", "value"),
     [("MAP_SERVER_LATITUDE", "91"), ("MAP_SERVER_LONGITUDE", "181")],
 )
-def test_map_home_settings_validate_coordinate_ranges(monkeypatch, name, value):
+def test_map_server_coordinates_validate_ranges(monkeypatch, name, value):
     monkeypatch.setenv(name, value)
     counterpart = "MAP_SERVER_LONGITUDE" if name == "MAP_SERVER_LATITUDE" else "MAP_SERVER_LATITUDE"
     monkeypatch.setenv(counterpart, "0")
@@ -128,7 +128,7 @@ def test_map_home_settings_validate_coordinate_ranges(monkeypatch, name, value):
         MapSettings(_env_file=None)
 
 
-def test_map_home_settings_require_coordinate_pair():
+def test_map_server_coordinates_require_pair():
     with pytest.raises(ValueError, match="must be set together"):
         MapSettings(server_latitude=40.7, _env_file=None)
 
@@ -364,7 +364,7 @@ def test_log_formats_import_only_value_points_at_import_logs(monkeypatch) -> Non
     assert "geometrikks-json" in message
 
 
-def test_host_name_default_is_machine_hostname(monkeypatch) -> None:
+def test_server_name_default_is_machine_hostname(monkeypatch) -> None:
     """No LOGPARSER_SERVER_NAME set: the machine hostname applies to every path."""
     monkeypatch.delenv("LOGPARSER_SERVER_NAME", raising=False)
     settings = LogParserSettings()
@@ -372,40 +372,40 @@ def test_host_name_default_is_machine_hostname(monkeypatch) -> None:
     assert settings.resolved_server_names() == [socket.gethostname()] * len(settings.log_paths)
 
 
-def test_host_name_single_value_fans_out(monkeypatch) -> None:
-    """A single hostname value applies to every configured log path."""
+def test_server_name_single_value_fans_out(monkeypatch) -> None:
+    """A single server name applies to every configured log path."""
     monkeypatch.setenv("LOGPARSER_LOG_PATHS", '["/a.log", "/b.log"]')
     monkeypatch.setenv("LOGPARSER_SERVER_NAME", "edge-1")
     settings = LogParserSettings()
     assert settings.resolved_server_names() == ["edge-1", "edge-1"]
 
 
-def test_host_name_json_list_positional(monkeypatch) -> None:
-    """A JSON list of hostnames maps positionally onto log_paths."""
+def test_server_name_json_list_positional(monkeypatch) -> None:
+    """A JSON list of server names maps positionally onto log_paths."""
     monkeypatch.setenv("LOGPARSER_LOG_PATHS", '["/a.log", "/b.log"]')
     monkeypatch.setenv("LOGPARSER_SERVER_NAME", '["vps-1", "vps-2"]')
     settings = LogParserSettings()
     assert settings.resolved_server_names() == ["vps-1", "vps-2"]
 
 
-def test_host_name_length_mismatch_rejected(monkeypatch) -> None:
-    """A hostname list whose length matches neither 1 nor len(log_paths) fails."""
+def test_server_name_length_mismatch_rejected(monkeypatch) -> None:
+    """A server name list whose length matches neither 1 nor len(log_paths) fails."""
     monkeypatch.setenv("LOGPARSER_LOG_PATHS", '["/a.log", "/b.log", "/c.log"]')
     monkeypatch.setenv("LOGPARSER_SERVER_NAME", '["vps-1", "vps-2"]')
     with pytest.raises(ValidationError):
         LogParserSettings()
 
 
-def test_host_name_empty_entry_rejected(monkeypatch) -> None:
-    """An empty hostname would silently un-stamp records; fail at startup."""
+def test_server_name_empty_entry_rejected(monkeypatch) -> None:
+    """An empty server name would silently un-stamp records; fail at startup."""
     monkeypatch.setenv("LOGPARSER_SERVER_NAME", '["vps-1", ""]')
     monkeypatch.setenv("LOGPARSER_LOG_PATHS", '["/a.log", "/b.log"]')
     with pytest.raises(ValidationError):
         LogParserSettings()
 
 
-def test_host_name_entries_are_stripped(monkeypatch) -> None:
-    """Whitespace around JSON-list entries must not leak into stamped hostnames."""
+def test_server_name_entries_are_stripped(monkeypatch) -> None:
+    """Whitespace around JSON-list entries must not leak into stamped server names."""
     monkeypatch.setenv("LOGPARSER_LOG_PATHS", '["/a.log", "/b.log"]')
     monkeypatch.setenv("LOGPARSER_SERVER_NAME", '["vps-1 ", " vps-2"]')
     settings = LogParserSettings()
@@ -700,7 +700,7 @@ def test_map_server_location_refresh_hours_default():
     assert MapSettings(_env_file=None).server_location_refresh_hours == 24
 
 
-def test_map_home_refresh_hours_parses_env(monkeypatch):
+def test_map_server_location_refresh_hours_parses_env(monkeypatch):
     from geometrikks.config.settings import MapSettings
     monkeypatch.setenv("MAP_SERVER_LOCATION_REFRESH_HOURS", "6")
     settings = MapSettings(_env_file=None)

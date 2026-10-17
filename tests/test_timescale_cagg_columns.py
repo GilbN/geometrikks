@@ -504,7 +504,7 @@ async def test_setup_leaves_the_url_views_alone_when_they_carry_host(
     assert all(c.kwargs.get("caggs") != timescale.URL_CAGGS for c in refresh.await_args_list)
 
 
-async def test_hostname_only_upgrade_does_not_refresh_on_startup(monkeypatch):
+async def test_server_column_only_upgrade_does_not_refresh_on_startup(monkeypatch):
     await _run_setup(
         monkeypatch, pending_views=[], manual_views=timescale.IP_LOCATION_CAGGS_NAMES,
         refresh_failed=[],
@@ -514,7 +514,7 @@ async def test_hostname_only_upgrade_does_not_refresh_on_startup(monkeypatch):
     cast("Any", timescale.refresh_caggs_range).assert_not_awaited()
 
 
-async def test_automatic_probe_ignores_unfilled_hostname_generation():
+async def test_automatic_probe_ignores_unfilled_server_generation():
     class ProbeConn:
         async def execute(self, statement, params=None):
             sql = str(statement)
@@ -530,7 +530,7 @@ async def test_automatic_probe_ignores_unfilled_hostname_generation():
     ) == []
 
 
-async def test_unsupported_hostname_column_preserves_existing_aggregate(monkeypatch):
+async def test_unsupported_server_column_preserves_existing_aggregate(monkeypatch):
     view = "ip_location_daily_stats"
     monkeypatch.setattr(timescale, "_server_columns_unavailable", set())
     conn = FakeConn(

@@ -139,7 +139,7 @@ export class LiveTrafficStore {
     this.lastDropAt = null
   }
 
-  /** Drop the whole window (used when the source filter changes so stale
+  /** Drop the whole window (used when the server filter changes so stale
    *  unfiltered requests cannot linger on screen). Buckets and vitals are
    *  derived from `requests` on read, so clearing it is enough. */
   reset(): void {

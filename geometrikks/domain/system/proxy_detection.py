@@ -70,7 +70,7 @@ def _pct(share: float) -> str:
 
 
 def _remedy(findings: list[ProxyFinding], nginx_remedy: str) -> str:
-    formats = {f.log_format for f in findings}
+    formats = {finding.log_format for finding in findings}
     parts: list[str] = []
     # Formats without their own arm, including None, take the nginx remedy.
     if formats - {"traefik-json", "caddy-json"}:
@@ -84,15 +84,16 @@ def _remedy(findings: list[ProxyFinding], nginx_remedy: str) -> str:
 
 def _cdn_card(findings: list[ProxyFinding], docs_url: str) -> Advisory:
     if len(findings) == 1:
-        f = findings[0]
+        finding = findings[0]
         summary = (
-            f"{_pct(f.share)} of the last {f.lines:,} requests on server {f.server} "
-            f"came from {f.provider or 'CDN'} addresses. The map shows "
-            f"{f.provider or 'the CDN'}'s datacenters, not your visitors."
+            f"{_pct(finding.share)} of the last {finding.lines:,} requests on server "
+            f"{finding.server} came from {finding.provider or 'CDN'} addresses. The map "
+            f"shows {finding.provider or 'the CDN'}'s datacenters, not your visitors."
         )
     else:
         listed = ", ".join(
-            f"{f.server} ({_pct(f.share)} {f.provider or 'CDN'})" for f in findings
+            f"{finding.server} ({_pct(finding.share)} {finding.provider or 'CDN'})"
+            for finding in findings
         )
         summary = (
             f"Most recent requests on servers {listed} came from CDN addresses. "
@@ -115,14 +116,14 @@ def _cdn_card(findings: list[ProxyFinding], docs_url: str) -> Advisory:
 
 def _private_card(findings: list[ProxyFinding], docs_url: str) -> Advisory:
     if len(findings) == 1:
-        f = findings[0]
+        finding = findings[0]
         summary = (
-            f"{_pct(f.share)} of the last {f.lines:,} requests on server {f.server} "
-            "came from private addresses. They get no location, so they never "
-            "reach the map or Access logs."
+            f"{_pct(finding.share)} of the last {finding.lines:,} requests on server "
+            f"{finding.server} came from private addresses. They get no location, so "
+            "they never reach the map or Access logs."
         )
     else:
-        listed = ", ".join(f"{f.server} ({_pct(f.share)})" for f in findings)
+        listed = ", ".join(f"{finding.server} ({_pct(finding.share)})" for finding in findings)
         summary = (
             f"Most recent requests on servers {listed} came from private addresses. "
             "They get no location, so they never reach the map or Access logs."
@@ -148,8 +149,8 @@ def proxy_advisories(
     findings: list[ProxyFinding], *, docs_url: str = PROXY_SETUP_DOCS_URL
 ) -> list[Advisory]:
     cards: list[Advisory] = []
-    cdn = [f for f in findings if f.kind == "cdn"]
-    private = [f for f in findings if f.kind == "private"]
+    cdn = [finding for finding in findings if finding.kind == "cdn"]
+    private = [finding for finding in findings if finding.kind == "private"]
     if cdn:
         cards.append(_cdn_card(cdn, docs_url))
     if private:

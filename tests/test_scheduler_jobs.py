@@ -178,9 +178,13 @@ async def test_server_location_job_keeps_state_when_detection_fails(monkeypatch)
 
 
 async def test_server_location_job_is_registered_under_its_id_and_name():
-    from geometrikks.config.settings import Settings
+    from geometrikks.config.settings import LogParserSettings, SchedulerSettings, Settings
 
-    scheduler = await sched.create_scheduler(MagicMock(), Settings())
+    settings = Settings(
+        scheduler=SchedulerSettings(enabled=True, _env_file=None),
+        logparser=LogParserSettings(enabled=True, _env_file=None),
+    )
+    scheduler = await sched.create_scheduler(MagicMock(), settings)
     job = scheduler.get_job("server-location-refresh")
 
     assert job is not None

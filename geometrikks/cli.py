@@ -757,7 +757,7 @@ async def _run_backfill_server(name: str, *, consolidate: bool, yes: bool) -> No
                 "SELECT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'timescaledb')")
 
         if not (needs_fill or needs_logs_rewrite or needs_geo_rewrite):
-            click.echo("Nothing to do: no NULL servers"
+            click.echo("Nothing to do: no access_logs rows without a server"
                        + (" and nothing to consolidate" if consolidate else "") + ".")
             return
 

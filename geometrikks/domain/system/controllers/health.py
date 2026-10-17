@@ -330,9 +330,9 @@ def _collect_advisories(app: Litestar, settings: Settings) -> list[Advisory]:
             id="server-count",
             severity="warning",
             summary=(
-                f"{pollution.distinct_label} distinct server names is above "
-                f"the {timescale.DISTINCT_SERVER_CEILING} ceiling. The map's "
-                "Server filter reads raw events."
+                f"There are {pollution.distinct_label} distinct server names, "
+                f"above the {timescale.DISTINCT_SERVER_CEILING} ceiling. The "
+                "map's Server filter reads raw events."
             ),
             detail=(
                 "The location aggregates only carry servers below that "

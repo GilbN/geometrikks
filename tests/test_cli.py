@@ -35,6 +35,7 @@ def test_import_logs_rejects_blank_server(tmp_path) -> None:
     result = CliRunner().invoke(cli, ["import-logs", "--server", "  ", str(log)])
     assert result.exit_code != 0
     assert "--server" in result.output
+    assert "must not be blank" in result.output
 
 
 def test_import_logs_threads_stripped_server_to_run_import(tmp_path, monkeypatch) -> None:
