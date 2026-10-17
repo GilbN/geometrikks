@@ -1,6 +1,7 @@
 """instance_heartbeats: upsert returns the pre-write row, last_seen is the database clock."""
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime, timedelta, timezone
 from typing import Any
 from uuid import UUID, uuid4
@@ -122,3 +123,38 @@ async def test_delete_heartbeat_returns_row_then_none(
     async with pg_engine.connect() as connection:
         remaining = (await connection.execute(text("SELECT count(*) FROM instance_heartbeats"))).scalar_one()
     assert remaining == 0
+
+
+async def test_writer_blocks_until_the_other_commits_then_sees_its_boot_id(
+    pg_engine, clean_instance_heartbeats
+):
+    boot_a, boot_b = uuid4(), uuid4()
+    async with pg_engine.connect() as connection_a:
+        async with connection_a.begin():
+            assert await upsert_heartbeat(connection_a, _heartbeat_write(boot_id=boot_a)) is None
+
+            async def write_b() -> PreviousHeartbeat | None:
+                async with pg_engine.begin() as connection_b:
+                    return await upsert_heartbeat(connection_b, _heartbeat_write(boot_id=boot_b))
+
+            writer_b = asyncio.create_task(write_b())
+            await asyncio.sleep(0.5)
+            assert not writer_b.done()
+        previous_heartbeat = await asyncio.wait_for(writer_b, timeout=10)
+    assert previous_heartbeat is not None
+    assert previous_heartbeat.boot_id == boot_a
+
+
+async def test_racing_first_writes_return_none_exactly_once(pg_engine, clean_instance_heartbeats):
+    boot_ids = [uuid4(), uuid4()]
+
+    async def write(boot_id: UUID) -> PreviousHeartbeat | None:
+        async with pg_engine.begin() as connection:
+            return await upsert_heartbeat(connection, _heartbeat_write(boot_id=boot_id))
+
+    previous_heartbeats = await asyncio.gather(*(write(boot_id) for boot_id in boot_ids))
+    first_writes = [previous_heartbeat for previous_heartbeat in previous_heartbeats if previous_heartbeat is None]
+    replaced_writes = [previous_heartbeat for previous_heartbeat in previous_heartbeats if previous_heartbeat is not None]
+    assert len(first_writes) == 1
+    assert len(replaced_writes) == 1
+    assert replaced_writes[0].boot_id in boot_ids

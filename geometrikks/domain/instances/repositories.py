@@ -1,7 +1,8 @@
 """Persistence for the instance_heartbeats table.
 
-Raw statements instead of the service layer: the upsert has to return the
-row as it was before the write, which the repository API cannot express.
+Raw statements instead of the service layer: the upsert has to lock on the
+instance name and return the row as it was before the write, which the
+repository API cannot express.
 """
 from dataclasses import dataclass
 from datetime import datetime
@@ -32,38 +33,33 @@ class PreviousHeartbeat:
     payload: dict[str, Any]
 
 
-_UPSERT_HEARTBEAT = (
-    text(
-        """
-        WITH previous AS (
-            SELECT boot_id, payload FROM instance_heartbeats WHERE instance_name = :instance_name
-        )
-        INSERT INTO instance_heartbeats
-            (instance_name, boot_id, mode, app_version, schema_revision, started_at, last_seen, payload)
-        VALUES
-            (:instance_name, :boot_id, :mode, :app_version, :schema_revision, :started_at, now(), :payload)
-        ON CONFLICT (instance_name) DO UPDATE SET
-            boot_id = EXCLUDED.boot_id,
-            mode = EXCLUDED.mode,
-            app_version = EXCLUDED.app_version,
-            schema_revision = EXCLUDED.schema_revision,
-            started_at = EXCLUDED.started_at,
-            last_seen = now(),
-            payload = EXCLUDED.payload
-        RETURNING (SELECT boot_id FROM previous) AS previous_boot_id,
-                  (SELECT payload FROM previous) AS previous_payload
-        """
-    )
-    .bindparams(
-        bindparam("instance_name", type_=String),
-        bindparam("boot_id", type_=Uuid(as_uuid=True)),
-        bindparam("mode", type_=String),
-        bindparam("app_version", type_=String),
-        bindparam("schema_revision", type_=String),
-        bindparam("started_at", type_=DateTime(timezone=True)),
-        bindparam("payload", type_=JSONB),
-    )
-    .columns(previous_boot_id=Uuid(as_uuid=True), previous_payload=JSONB)
+_LOCK_INSTANCE_NAME = text(
+    "SELECT pg_advisory_xact_lock(hashtextextended('instance_heartbeats:' || CAST(:instance_name AS text), 0))"
+)
+
+_UPSERT_HEARTBEAT = text(
+    """
+    INSERT INTO instance_heartbeats
+        (instance_name, boot_id, mode, app_version, schema_revision, started_at, last_seen, payload)
+    VALUES
+        (:instance_name, :boot_id, :mode, :app_version, :schema_revision, :started_at, now(), :payload)
+    ON CONFLICT (instance_name) DO UPDATE SET
+        boot_id = EXCLUDED.boot_id,
+        mode = EXCLUDED.mode,
+        app_version = EXCLUDED.app_version,
+        schema_revision = EXCLUDED.schema_revision,
+        started_at = EXCLUDED.started_at,
+        last_seen = now(),
+        payload = EXCLUDED.payload
+    """
+).bindparams(
+    bindparam("instance_name", type_=String),
+    bindparam("boot_id", type_=Uuid(as_uuid=True)),
+    bindparam("mode", type_=String),
+    bindparam("app_version", type_=String),
+    bindparam("schema_revision", type_=String),
+    bindparam("started_at", type_=DateTime(timezone=True)),
+    bindparam("payload", type_=JSONB),
 )
 
 
@@ -72,10 +68,15 @@ async def upsert_heartbeat(
 ) -> PreviousHeartbeat | None:
     """Write this instance's heartbeat and return the boot ID and payload it replaced.
 
-    One statement, so the CTE reads the snapshot from before the write. None
-    means the row is new. last_seen is set by the database, never by the caller.
+    None means the row is new. last_seen is set by the database, never by the
+    caller. The connection must be inside a transaction (engine.begin()): a
+    transaction-scoped advisory lock on the instance name serializes writers
+    that share a name, so the row read here is the row this write replaces.
+    ON CONFLICT alone cannot promise that under Read Committed.
     """
-    result = await connection.execute(
+    await connection.execute(_LOCK_INSTANCE_NAME, {"instance_name": heartbeat_write.instance_name})
+    previous_heartbeat = await read_heartbeat(connection, heartbeat_write.instance_name)
+    await connection.execute(
         _UPSERT_HEARTBEAT,
         {
             "instance_name": heartbeat_write.instance_name,
@@ -87,10 +88,7 @@ async def upsert_heartbeat(
             "payload": heartbeat_write.payload,
         },
     )
-    returned_row = result.one()
-    if returned_row.previous_boot_id is None:
-        return None
-    return PreviousHeartbeat(boot_id=returned_row.previous_boot_id, payload=returned_row.previous_payload)
+    return previous_heartbeat
 
 
 async def read_heartbeat(connection: AsyncConnection, instance_name: str) -> PreviousHeartbeat | None:

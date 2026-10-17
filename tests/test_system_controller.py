@@ -374,6 +374,8 @@ async def test_about_carries_the_build_commit(monkeypatch):
 
 
 def test_bundled_revision_doc_is_the_migration_message():
-    head = bundled_head_revision()
-    assert bundled_revision_doc(head) == "add instance_heartbeats"
+    assert bundled_revision_doc("18be2778bd7c") == "rename hostname columns and site_homes to server"
+    head_doc = bundled_revision_doc(bundled_head_revision())
+    assert head_doc is not None
+    assert head_doc.strip()
     assert bundled_revision_doc("ffffffffffff") is None
