@@ -545,7 +545,7 @@ export function MapControls({
         <Button
           size="icon"
           variant="outline"
-          className="relative bg-background/85 backdrop-blur cursor-pointer"
+          className="relative bg-floating backdrop-blur cursor-pointer"
           onClick={() => setIsExpanded(true)}
           title="Show map controls"
           aria-label={

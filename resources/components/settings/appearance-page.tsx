@@ -3,13 +3,19 @@ import { Monitor, Moon, Sun } from "lucide-react"
 import { AccentSwatch } from "@/components/accent-toggle"
 import { useTheme } from "@/components/theme-provider"
 import { ACCENTS, ACCENT_LABELS, type Accent } from "@/lib/accent"
-import { THEMES, type Theme } from "@/lib/theme"
+import {
+  DARK_APPEARANCES,
+  DARK_APPEARANCE_CATALOG,
+  THEMES,
+  type DarkAppearance,
+  type Theme,
+} from "@/lib/theme"
 import { cn } from "@/lib/utils"
 
 const THEME_OPTIONS: Record<Theme, { label: string; description: string; icon: typeof Sun }> = {
   system: { label: "System", description: "Follow this device", icon: Monitor },
   light: { label: "Light", description: "Fjord mist", icon: Sun },
-  dark: { label: "Dark", description: "Aurora night", icon: Moon },
+  dark: { label: "Dark", description: "Your dark appearance", icon: Moon },
 }
 
 const ACCENT_DESCRIPTIONS: Record<Accent, string> = {
@@ -21,7 +27,7 @@ const ACCENT_DESCRIPTIONS: Record<Accent, string> = {
 // Glass like the settings cards; selection adds the ring and a primary tint
 // layered over the glass, never replacing it.
 const OPTION =
-  "flex min-h-16 items-center gap-3 rounded-xl bg-card/55 px-4 py-3 text-left ring-1 backdrop-blur-[2px] transition-colors pointer-coarse:min-h-11 " +
+  "flex min-h-16 items-center gap-3 rounded-xl bg-glass-card px-4 py-3 text-left ring-1 backdrop-blur-[2px] transition-colors pointer-coarse:min-h-11 " +
   "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
 
 function optionRing(selected: boolean) {
@@ -52,15 +58,32 @@ function AccentPreview({ accent }: { accent: Accent }) {
   )
 }
 
+function DarkAppearancePreview({ appearance, accent }: { appearance: DarkAppearance; accent: Accent }) {
+  return (
+    <span
+      aria-hidden
+      data-dark-appearance={appearance}
+      data-accent={accent}
+      className="dark grid h-12 w-20 shrink-0 grid-cols-[0.75rem_1fr] overflow-hidden rounded-md bg-background ring-1 ring-border"
+    >
+      <span className="border-r border-sidebar-border bg-sidebar" />
+      <span className="flex flex-col gap-1 p-1.5">
+        <span className="h-1 w-6 rounded-full bg-primary" />
+        <span className="h-5 rounded-sm bg-card ring-1 ring-border" />
+      </span>
+    </span>
+  )
+}
+
 export function AppearancePage() {
-  const { theme, setTheme, accent, setAccent } = useTheme()
+  const { theme, setTheme, accent, setAccent, darkAppearance, setDarkAppearance } = useTheme()
 
   return (
     <div className="space-y-8">
       <section aria-labelledby="theme-heading" className="space-y-3">
         <div className="space-y-1">
           <h2 id="theme-heading" className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-            Theme
+            Color mode
           </h2>
           <p className="text-[13px] text-muted-foreground">
             System follows the device and switches live when it does.
@@ -89,13 +112,44 @@ export function AppearancePage() {
         </div>
       </section>
 
+      <section aria-labelledby="dark-appearance-heading" className="space-y-3">
+        <div className="space-y-1">
+          <h2 id="dark-appearance-heading" className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+            Dark appearance
+          </h2>
+          <p className="text-[13px] text-muted-foreground">
+            Used in Dark mode and when System switches to dark. Light mode keeps its own palette.
+          </p>
+        </div>
+        <div role="group" aria-label="Dark appearance" className="grid gap-2 sm:grid-cols-2">
+          {DARK_APPEARANCES.map((value) => {
+            const selected = darkAppearance === value
+            return (
+              <button
+                key={value}
+                type="button"
+                aria-pressed={selected}
+                onClick={() => setDarkAppearance(value)}
+                className={cn(OPTION, optionRing(selected))}
+              >
+                <DarkAppearancePreview appearance={value} accent={accent} />
+                <span>
+                  <span className="block text-sm font-medium">{DARK_APPEARANCE_CATALOG[value].label}</span>
+                  <span className="block text-xs text-muted-foreground">{DARK_APPEARANCE_CATALOG[value].description}</span>
+                </span>
+              </button>
+            )
+          })}
+        </div>
+      </section>
+
       <section aria-labelledby="accent-heading" className="space-y-3">
         <div className="space-y-1">
           <h2 id="accent-heading" className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
             Accent
           </h2>
           <p className="text-[13px] text-muted-foreground">
-            Colors the brand mark, active navigation, links and the map's live routes. Charts keep their own palette.
+            Colors the brand mark, buttons, links and the map's live routes. Charts keep their own palette.
           </p>
         </div>
         <div role="group" aria-label="Accent" className="grid gap-2 sm:grid-cols-3">

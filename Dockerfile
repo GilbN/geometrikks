@@ -73,7 +73,6 @@ WORKDIR /app
 # changelog stay outside the package and resolve relative to /app at runtime.
 COPY --chown=geometrikks:geometrikks --from=python-builder /app/.venv /app/.venv
 COPY --chown=geometrikks:geometrikks --from=frontend-builder /app/public /app/public
-COPY --chown=geometrikks:geometrikks --from=frontend-builder /app/index.html /app/public/index.html
 COPY --chown=geometrikks:geometrikks alembic.ini CHANGELOG.md ./
 COPY --chown=geometrikks:geometrikks migrations/ ./migrations/
 # Not recursive: everything copied above already has --chown.

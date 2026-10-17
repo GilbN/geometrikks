@@ -164,7 +164,8 @@ function NavItem({
         className={cn(
           "relative group/nav-item transition-all duration-200",
           isActive && [
-            "bg-sidebar-accent/80",
+            "data-active:bg-[var(--nav-active-bg)]",
+            "before:opacity-[var(--nav-indicator-opacity)]",
             "before:absolute before:left-0 before:top-1/2 before:-translate-y-1/2",
             "before:w-[3px] before:h-5 before:rounded-r-full",
             "before:bg-primary before:shadow-[0_0_8px_var(--primary)]",
@@ -178,7 +179,7 @@ function NavItem({
                 "w-4 h-4 transition-colors duration-200",
                 isActive
                   ? "text-primary"
-                  : "text-sidebar-foreground/60 group-hover/nav-item:text-sidebar-foreground"
+                  : "text-[color:var(--nav-inactive-icon)] group-hover/nav-item:text-sidebar-foreground"
               )}
             />
             {isActive && (
@@ -202,7 +203,7 @@ function NavItem({
               "transition-colors duration-200",
               isActive
                 ? "text-sidebar-foreground font-medium"
-                : "text-sidebar-foreground/70 group-hover/nav-item:text-sidebar-foreground"
+                : "text-[color:var(--nav-inactive-text)] group-hover/nav-item:text-sidebar-foreground"
             )}
           >
             {item.title}

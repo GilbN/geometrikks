@@ -128,14 +128,14 @@ function RootLayout() {
   // No sidebar or data providers on these routes; see isChromelessRoute.
   if (isChromeless) {
     return (
-      <ThemeProvider defaultTheme="dark" storageKey="geometrikks-theme">
+      <ThemeProvider defaultTheme="dark">
         <Outlet />
       </ThemeProvider>
     )
   }
 
   return (
-    <ThemeProvider defaultTheme="dark" storageKey="geometrikks-theme">
+    <ThemeProvider defaultTheme="dark">
       <TooltipProvider delayDuration={0}>
         <TimeRangeProvider>
           <LiveFeedProvider>
@@ -186,7 +186,7 @@ function RootErrorComponent({ error, reset }: ErrorComponentProps) {
       : "An unexpected error occurred."
 
   return (
-    <ThemeProvider defaultTheme="dark" storageKey="geometrikks-theme">
+    <ThemeProvider defaultTheme="dark">
       <BrandScreen
         title="Something went wrong"
         description="Try again, or go back to the overview."
@@ -213,7 +213,7 @@ function RootErrorComponent({ error, reset }: ErrorComponentProps) {
 
 function NotFoundComponent() {
   return (
-    <ThemeProvider defaultTheme="dark" storageKey="geometrikks-theme">
+    <ThemeProvider defaultTheme="dark">
       <BrandScreen
         title="Page not found"
         description="Nothing lives at this address, or it has moved."

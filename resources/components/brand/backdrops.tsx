@@ -25,7 +25,7 @@ export function RoutesBackdrop() {
       aria-hidden
       viewBox={`0 0 ${W} ${H}`}
       preserveAspectRatio="xMidYMid slice"
-      className="pointer-events-none absolute inset-0 h-full w-full text-primary"
+      className="theme-decoration pointer-events-none absolute inset-0 h-full w-full text-primary"
     >
       <circle cx={HOME[0]} cy={HOME[1]} r={220} fill="currentColor" opacity={0.1} style={{ filter: "blur(60px)" }} />
       {ORIGINS.map(([x, y], i) => {
@@ -265,12 +265,13 @@ function CanvasBackdrop({
       cancelAnimationFrame(frame)
       frame = requestAnimationFrame(() => {
         const style = getComputedStyle(canvas)
+        if (style.display === "none") return
         drawScene(canvas, style.color, style.borderColor, tone === "quiet" ? 0.5 : 1)
       })
     }
     draw()
     const mo = new MutationObserver(draw)
-    mo.observe(document.documentElement, { attributes: true, attributeFilter: ["class", "data-accent"] })
+    mo.observe(document.documentElement, { attributes: true, attributeFilter: ["class", "data-accent", "data-dark-appearance"] })
     return () => {
       cancelAnimationFrame(frame)
       mo.disconnect()
@@ -281,7 +282,7 @@ function CanvasBackdrop({
     <canvas
       ref={ref}
       aria-hidden
-      className="pointer-events-none absolute inset-x-0 top-0 h-full w-full border-0 border-muted-foreground object-cover text-primary"
+      className="theme-decoration pointer-events-none absolute inset-x-0 top-0 h-full w-full border-0 border-muted-foreground object-cover text-primary"
     />
   )
   if (mode === "fill") return canvas

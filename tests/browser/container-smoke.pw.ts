@@ -2,6 +2,29 @@ import { mkdir } from "node:fs/promises"
 import path from "node:path"
 
 import { expect, test } from "@playwright/test"
+import { DARK_APPEARANCES, DARK_APPEARANCE_CATALOG, THEME_STORAGE_KEYS, themeColor } from "../../resources/lib/theme"
+
+for (const appearance of DARK_APPEARANCES) {
+  test(`production starts ${appearance} before the application JavaScript loads`, async ({ page }) => {
+    await page.addInitScript(({ keys, appearance }) => {
+      localStorage.setItem(keys.mode, "dark")
+      localStorage.setItem(keys.appearance, appearance)
+      localStorage.setItem(keys.accent, "copper")
+    }, { keys: THEME_STORAGE_KEYS, appearance })
+    // Leave the inline bootstrap and stylesheet intact while blocking the app.
+    await page.route("**/static/assets/*.js", (route) => route.abort())
+    const response = await page.goto("/")
+    const html = await response!.text()
+    expect(html).toContain("--startup-background")
+    expect(html).not.toContain("<!-- theme-head -->")
+    expect(html).toMatch(/<script[^>]+src="\/static\/assets\//)
+    await expect(page.locator("html")).toHaveClass("dark")
+    await expect(page.locator("html")).toHaveAttribute("data-dark-appearance", appearance)
+    await expect(page.locator("html")).toHaveAttribute("data-accent", "copper")
+    await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute("content", themeColor("dark", appearance))
+    await expect(page.locator("#app")).toBeEmpty()
+  })
+}
 
 // A cold unauthenticated load fires several API calls (auth/me, settings,
 // crowdsec/status, analytics/summary) that all 401 before the router
@@ -15,6 +38,41 @@ function isApiCall(url: string): boolean {
     return false
   }
 }
+
+test("production theme menu marks the saved mode and keeps Settings selection consistent", async ({ page }) => {
+  const password = process.env.SMOKE_ADMIN_PASSWORD
+  if (!password) throw new Error("SMOKE_ADMIN_PASSWORD is required")
+  const login = await page.request.post("/api/v1/auth/login", {
+    data: { username: process.env.SMOKE_ADMIN_USER ?? "admin", password },
+  })
+  expect(login.ok()).toBe(true)
+  await page.setViewportSize({ width: 1280, height: 900 })
+  await page.goto("/settings/appearance")
+  for (const mode of ["Light", "System", "Dark"]) {
+    await page.getByRole("button", { name: "Toggle theme", exact: true }).click()
+    await page.getByRole("menuitemradio", { name: mode, exact: true }).click()
+    await page.getByRole("button", { name: "Toggle theme", exact: true }).click()
+    await expect(page.getByRole("menuitemradio", { name: mode, exact: true })).toHaveAttribute("aria-checked", "true")
+    await page.keyboard.press("Escape")
+  }
+  const layouts: Array<{ padding: string; height: string; radius: string; background: string }> = []
+  for (const appearance of DARK_APPEARANCES) {
+    await page.getByRole("button", { name: "Toggle theme", exact: true }).click()
+    await page.getByRole("menuitemradio", { name: DARK_APPEARANCE_CATALOG[appearance].label, exact: true }).click()
+    const navigation = page.getByRole("navigation", { name: "Settings", exact: true })
+    await navigation.getByRole("link", { name: "Status", exact: true }).click()
+    await navigation.getByRole("link", { name: "Appearance", exact: true }).click()
+    const selected = navigation.getByRole("link", { name: "Appearance", exact: true })
+    await expect(selected).toHaveAttribute("aria-current", "page")
+    await expect(selected).toHaveCSS("border-left-width", "2px")
+    await expect(selected).toHaveCSS("font-weight", "500")
+    layouts.push(await selected.evaluate((el) => {
+      const style = getComputedStyle(el)
+      return { padding: style.paddingLeft, height: style.height, radius: style.borderRadius, background: style.backgroundColor }
+    }))
+  }
+  expect(layouts.every((layout) => JSON.stringify(layout) === JSON.stringify(layouts[0]))).toBe(true)
+})
 
 test("production image serves the authenticated dashboard without browser errors", async ({
   page,

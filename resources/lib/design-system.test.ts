@@ -12,6 +12,8 @@ import { describe, expect, it } from "vitest"
 
 import { BrandMark } from "../components/brand/brand-mark"
 import { ACCENTS, DEFAULT_ACCENT } from "./accent"
+import { themeHead } from "./theme-bootstrap"
+import { THEME_STORAGE_KEYS } from "./theme"
 
 const resources = new URL("../", import.meta.url)
 const repo = new URL("../../", import.meta.url)
@@ -55,18 +57,14 @@ describe("tokens", () => {
     }
   })
 
-  it("boots the stored theme and accent before first paint with the keys the provider uses", () => {
-    const html = read("index.html", repo)
+  it("boots the stored appearance before first paint with the keys the provider uses", () => {
+    const html = themeHead()
     const provider = read("components/theme-provider.tsx")
-    const root = read("routes/__root.tsx")
-    const themeKey = root.match(/storageKey="([^"]+)"/)?.[1]
-    const accentKey = provider.match(/accentStorageKey = "([^"]+)"/)?.[1]
-    expect(themeKey).toBeTruthy()
-    expect(accentKey).toBeTruthy()
-    expect(html).toContain(`'${themeKey}'`)
-    expect(html).toContain(`'${accentKey}'`)
+    expect(read("index.html", repo)).toContain("<!-- theme-head -->")
+    for (const key of Object.values(THEME_STORAGE_KEYS)) expect(html).toContain(JSON.stringify(key))
+    for (const key of ["mode", "accent", "appearance"]) expect(provider).toContain(`THEME_STORAGE_KEYS.${key}`)
     for (const accent of ACCENTS.filter((a) => a !== DEFAULT_ACCENT)) {
-      expect(html).toContain(`'${accent}'`)
+      expect(html).toContain(JSON.stringify(accent))
     }
   })
 })

@@ -4,13 +4,17 @@ import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { useTheme } from "@/components/theme-provider"
+import { DARK_APPEARANCES, DARK_APPEARANCE_CATALOG, parseDarkAppearance, parseTheme } from "@/lib/theme"
 
 export function ModeToggle() {
-  const { setTheme } = useTheme()
+  const { theme, setTheme, darkAppearance, setDarkAppearance } = useTheme()
 
   return (
     <DropdownMenu>
@@ -22,15 +26,25 @@ export function ModeToggle() {
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
-        <DropdownMenuItem onClick={() => setTheme("light")}>
-          Light
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => setTheme("dark")}>
-          Dark
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => setTheme("system")}>
-          System
-        </DropdownMenuItem>
+        <DropdownMenuLabel>Color mode</DropdownMenuLabel>
+        <DropdownMenuRadioGroup value={theme} onValueChange={(value) => setTheme(parseTheme(value))} aria-label="Color mode">
+          <DropdownMenuRadioItem value="light">Light</DropdownMenuRadioItem>
+          <DropdownMenuRadioItem value="dark">Dark</DropdownMenuRadioItem>
+          <DropdownMenuRadioItem value="system">System</DropdownMenuRadioItem>
+        </DropdownMenuRadioGroup>
+        <DropdownMenuSeparator />
+        <DropdownMenuLabel>Dark appearance</DropdownMenuLabel>
+        <DropdownMenuRadioGroup
+          aria-label="Dark appearance"
+          value={darkAppearance}
+          onValueChange={(value) => setDarkAppearance(parseDarkAppearance(value))}
+        >
+          {DARK_APPEARANCES.map((value) => (
+            <DropdownMenuRadioItem key={value} value={value}>
+              {DARK_APPEARANCE_CATALOG[value].label}
+            </DropdownMenuRadioItem>
+          ))}
+        </DropdownMenuRadioGroup>
       </DropdownMenuContent>
     </DropdownMenu>
   )
