@@ -5,7 +5,7 @@ here reads a clock or touches the database. The API and the scheduled check
 both call it so the rules live in one place.
 """
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from typing import Any, Literal, Self
 from uuid import UUID
 
@@ -72,14 +72,31 @@ class InstanceEvaluation:
     problems: list[Advisory]
 
 
+def _ago(count: int, unit: str) -> str:
+    return f"{count} {unit} ago" if count == 1 else f"{count} {unit}s ago"
+
+
 def _age_text(age: timedelta) -> str:
     minutes = int(age.total_seconds() // 60)
     if minutes < 60:
-        return f"{minutes} minutes ago"
+        return _ago(minutes, "minute")
     hours = minutes // 60
     if hours < 48:
-        return "1 hour ago" if hours == 1 else f"{hours} hours ago"
-    return f"{hours // 24} days ago"
+        return _ago(hours, "hour")
+    return _ago(hours // 24, "day")
+
+
+def _version_text(version: str) -> str:
+    """Prefix a "v" to real versions; get_installed_version() can return "unknown"."""
+    return f"v{version}" if version[:1].isdigit() else version
+
+
+def _within(now: datetime, timestamp: datetime, window: timedelta) -> bool:
+    """True when timestamp is at most window old. Future timestamps, which a skewed
+    clock produces, never count. A naive timestamp is read as UTC."""
+    if timestamp.tzinfo is None:
+        timestamp = timestamp.replace(tzinfo=UTC)
+    return timedelta(0) <= now - timestamp <= window
 
 
 def _forwarded(advisory: ForwardedAdvisory, severity: Literal["warning", "critical"]) -> Advisory:
@@ -112,29 +129,23 @@ def _not_checking_in(row: HeartbeatRow, now: datetime) -> Advisory:
 
 def _schema_mismatch(row: HeartbeatRow, head: HeadIdentity) -> Advisory:
     versions = (
-        f"Agent {row.instance_name} runs v{row.app_version} on migration {row.schema_revision}; "
-        f"the head runs v{head.app_version} on migration {head.schema_revision}."
+        f"Agent {row.instance_name} runs {_version_text(row.app_version)} on migration {row.schema_revision}; "
+        f"the head runs {_version_text(head.app_version)} on migration {head.schema_revision}."
     )
     if row.schema_revision in head.known_revisions:
         return Advisory(
             id="instance-schema-behind",
             severity="critical",
-            summary=versions,
-            detail=(
-                f"{row.instance_name} expects an older database schema than the "
-                "one the head applied, so its writes can fail."
-            ),
-            remedy=f"Upgrade {row.instance_name} to v{head.app_version}.",
+            summary=f"{row.instance_name} runs an older database migration than the head.",
+            detail=f"{versions} Its writes may fail until it catches up.",
+            remedy=f"Upgrade {row.instance_name} to {_version_text(head.app_version)}.",
         )
     return Advisory(
         id="instance-schema-ahead",
         severity="critical",
-        summary=versions,
-        detail=(
-            f"{row.instance_name} runs a newer schema than the head knows. The "
-            "head cannot read everything it writes."
-        ),
-        remedy=f"Upgrade the head to v{row.app_version} or later.",
+        summary=f"The head does not recognise the migration {row.schema_revision} of {row.instance_name}.",
+        detail=f"{versions} That usually means {row.instance_name} runs a newer release than the head.",
+        remedy=f"Upgrade the head, or check which version {row.instance_name} runs.",
     )
 
 
@@ -143,10 +154,7 @@ def _name_conflict(row: HeartbeatRow) -> Advisory:
         id="instance-name-conflict",
         severity="critical",
         summary=f"More than one process is using the name {row.instance_name}.",
-        detail=(
-            "Two processes keep overwriting each other's heartbeat, so this "
-            "row shows only one of them and the other is invisible."
-        ),
+        detail="Their heartbeats overwrite each other, so this row can show only one of them.",
         remedy="Give each agent its own APP_INSTANCE_NAME.",
     )
 
@@ -156,11 +164,11 @@ def _version_mismatch(row: HeartbeatRow, head: HeadIdentity) -> Advisory:
         id="instance-version-mismatch",
         severity="warning",
         summary=(
-            f"Agent {row.instance_name} runs v{row.app_version}; the head runs "
-            f"v{head.app_version}. Both are on migration {head.schema_revision}."
+            f"Agent {row.instance_name} runs {_version_text(row.app_version)}; the head runs "
+            f"{_version_text(head.app_version)}. Both are on migration {head.schema_revision}."
         ),
         detail="The database schema matches, but the code differs, so behavior can drift.",
-        remedy=f"Upgrade {row.instance_name} to v{head.app_version}.",
+        remedy=f"Run the same GeoMetrikks version on the head and {row.instance_name}.",
     )
 
 
@@ -194,9 +202,10 @@ def _payload_unreadable(row: HeartbeatRow, head: HeadIdentity) -> Advisory:
         summary=f"The health report from {row.instance_name} could not be read.",
         detail=(
             "The version, migration and last seen time are still shown. "
-            f"{row.instance_name} runs v{row.app_version}; the head runs v{head.app_version}."
+            f"{row.instance_name} runs {_version_text(row.app_version)}; "
+            f"the head runs {_version_text(head.app_version)}."
         ),
-        remedy="Check that both run compatible versions.",
+        remedy=f"Check that {row.instance_name} runs the same GeoMetrikks version as the head.",
     )
 
 
@@ -206,10 +215,12 @@ def evaluate_instance(row: HeartbeatRow, head: HeadIdentity, now: datetime) -> I
 
     if is_self:
         forwarded_problems = _forwarded_problems(payload)
-        return _evaluation(row, payload, True, True, forwarded_problems)
+        return _evaluation(row, payload, is_self=True, checking_in=True, problems=forwarded_problems)
 
     if now - row.last_seen > NOT_CHECKING_IN_AFTER:
-        return _evaluation(row, payload, False, False, [_not_checking_in(row, now)])
+        return _evaluation(
+            row, payload, is_self=False, checking_in=False, problems=[_not_checking_in(row, now)]
+        )
 
     critical: list[Advisory] = []
     warning: list[Advisory] = []
@@ -217,10 +228,8 @@ def evaluate_instance(row: HeartbeatRow, head: HeadIdentity, now: datetime) -> I
     if row.schema_revision != head.schema_revision:
         critical.append(_schema_mismatch(row, head))
     if payload is not None and payload.name_conflict_at is not None:
-        if now - payload.name_conflict_at <= NAME_CONFLICT_SHOWN_FOR:
+        if _within(now, payload.name_conflict_at, NAME_CONFLICT_SHOWN_FOR):
             critical.append(_name_conflict(row))
-    forwarded_critical, forwarded_warning = _split_forwarded(payload)
-    critical.extend(forwarded_critical)
 
     if row.schema_revision == head.schema_revision and row.app_version != head.app_version:
         warning.append(_version_mismatch(row, head))
@@ -228,15 +237,24 @@ def evaluate_instance(row: HeartbeatRow, head: HeadIdentity, now: datetime) -> I
         if row.mode == "agent" and payload.instance_name_source == "fallback":
             warning.append(_name_not_set(row))
         recent_start_count = sum(
-            1 for started in payload.recent_starts if now - started <= RESTART_LOOP_WINDOW
+            1 for started in payload.recent_starts if _within(now, started, RESTART_LOOP_WINDOW)
         )
         if recent_start_count >= RESTART_LOOP_STARTS:
             warning.append(_restart_loop(row, recent_start_count))
-    warning.extend(forwarded_warning)
     if payload is None:
         warning.append(_payload_unreadable(row, head))
 
-    return _evaluation(row, payload, False, True, critical + warning)
+    computed_ids = {problem.id for problem in critical + warning}
+    forwarded_critical, forwarded_warning = _split_forwarded(payload)
+    forwarded_critical = [advisory for advisory in forwarded_critical if advisory.id not in computed_ids]
+    forwarded_warning = [advisory for advisory in forwarded_warning if advisory.id not in computed_ids]
+    return _evaluation(
+        row,
+        payload,
+        is_self=False,
+        checking_in=True,
+        problems=critical + forwarded_critical + warning + forwarded_warning,
+    )
 
 
 def _split_forwarded(payload: HeartbeatPayload | None) -> tuple[list[Advisory], list[Advisory]]:
@@ -262,10 +280,12 @@ def _forwarded_problems(payload: HeartbeatPayload | None) -> list[Advisory]:
 def _evaluation(
     row: HeartbeatRow,
     payload: HeartbeatPayload | None,
+    *,
     is_self: bool,
     checking_in: bool,
     problems: list[Advisory],
 ) -> InstanceEvaluation:
+    problems = _dedupe_by_id(problems)
     status: InstanceStatus = "ok"
     if any(problem.severity == "critical" for problem in problems):
         status = "critical"
@@ -279,6 +299,17 @@ def _evaluation(
         status=status,
         problems=problems,
     )
+
+
+def _dedupe_by_id(problems: list[Advisory]) -> list[Advisory]:
+    """Keep the first problem per id, so computed problems win over forwarded ones."""
+    seen_ids: set[str] = set()
+    unique: list[Advisory] = []
+    for problem in problems:
+        if problem.id not in seen_ids:
+            seen_ids.add(problem.id)
+            unique.append(problem)
+    return unique
 
 
 _STATUS_RANK: dict[InstanceStatus, int] = {"critical": 0, "warning": 1, "ok": 2}

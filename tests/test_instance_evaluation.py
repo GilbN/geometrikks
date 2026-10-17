@@ -158,7 +158,8 @@ def test_schema_behind_when_revision_is_known() -> None:
     problem = evaluate_instance(row, HEAD, NOW).problems[0]
     assert problem.id == "instance-schema-behind"
     assert problem.severity == "critical"
-    assert problem.summary == (
+    assert problem.summary == "edge-traefik runs an older database migration than the head."
+    assert (problem.detail or "").startswith(
         "Agent edge-traefik runs v0.19.2 on migration 4b02d1; the head runs v0.20.0 on migration 7c1e9a."
     )
     assert problem.remedy == "Upgrade edge-traefik to v0.20.0."
@@ -169,8 +170,9 @@ def test_schema_ahead_when_revision_is_unknown() -> None:
     problem = evaluate_instance(row, HEAD, NOW).problems[0]
     assert problem.id == "instance-schema-ahead"
     assert problem.severity == "critical"
-    assert "migration ffffff" in problem.summary
-    assert problem.remedy == "Upgrade the head to v0.21.0 or later."
+    assert problem.summary == "The head does not recognise the migration ffffff of edge-traefik."
+    assert "v0.21.0 on migration ffffff" in (problem.detail or "")
+    assert problem.remedy == "Upgrade the head, or check which version edge-traefik runs."
 
 
 def test_name_conflict_within_five_minutes() -> None:
@@ -215,7 +217,7 @@ def test_version_mismatch_on_same_revision() -> None:
     assert problem.severity == "warning"
     assert "v0.19.9" in problem.summary
     assert "v0.20.0" in problem.summary
-    assert problem.remedy == "Upgrade edge-traefik to v0.20.0."
+    assert problem.remedy == "Run the same GeoMetrikks version on the head and edge-traefik."
 
 
 def test_name_not_set_on_agent_with_fallback_name() -> None:
@@ -333,3 +335,101 @@ def test_ordering_self_then_severity_then_name() -> None:
 def test_messages_name_the_instance(name: str) -> None:
     row = make_row(name=name, schema_revision="4b02d1")
     assert name in evaluate_instance(row, HEAD, NOW).problems[0].summary
+
+
+def test_naive_payload_timestamps_are_read_as_utc() -> None:
+    naive_conflict = (NOW - timedelta(minutes=1)).replace(tzinfo=None).isoformat()
+    naive_starts = [(NOW - timedelta(minutes=n)).replace(tzinfo=None).isoformat() for n in (1, 2, 3)]
+    naive_row = make_row(
+        name="naive",
+        payload={"instanceNameSource": "env", "nameConflictAt": naive_conflict, "recentStarts": naive_starts},
+    )
+    clean_row = make_row(name="clean")
+    evaluations = evaluate_instances([naive_row, clean_row], HEAD, NOW)
+    by_name = {evaluation.row.instance_name: evaluation for evaluation in evaluations}
+    assert [problem.id for problem in by_name["naive"].problems] == [
+        "instance-name-conflict",
+        "instance-restart-loop",
+    ]
+    assert by_name["clean"].status == "ok"
+
+
+def test_unknown_version_is_not_prefixed_with_v() -> None:
+    unknown_head = HeadIdentity(
+        boot_id=HEAD_BOOT_ID,
+        instance_name="head",
+        app_version="unknown",
+        schema_revision="7c1e9a",
+        known_revisions=frozenset({"4b02d1", "7c1e9a"}),
+    )
+    row = make_row(app_version="0.19.9")
+    problem = evaluate_instance(row, unknown_head, NOW).problems[0]
+    assert problem.id == "instance-version-mismatch"
+    assert "the head runs unknown. Both" in problem.summary
+    assert "vunknown" not in problem.summary
+
+
+def test_unknown_agent_version_is_not_prefixed_with_v() -> None:
+    row = make_row(app_version="unknown", schema_revision="4b02d1")
+    problem = evaluate_instance(row, HEAD, NOW).problems[0]
+    assert "runs unknown on migration 4b02d1" in (problem.detail or "")
+    assert "vunknown" not in (problem.detail or "")
+
+
+def test_future_name_conflict_is_ignored() -> None:
+    row = make_row(payload={"instanceNameSource": "env", "nameConflictAt": (NOW + timedelta(days=1)).isoformat()})
+    assert problem_ids(row) == []
+
+
+def test_future_starts_do_not_count_toward_a_restart_loop() -> None:
+    starts = [(NOW - timedelta(minutes=5)).isoformat()] + [(NOW + timedelta(hours=n)).isoformat() for n in (1, 2)]
+    row = make_row(payload={"instanceNameSource": "env", "recentStarts": starts})
+    assert problem_ids(row) == []
+
+
+def test_name_conflict_exactly_five_minutes_old_still_shows() -> None:
+    row = make_row(payload={"instanceNameSource": "env", "nameConflictAt": (NOW - timedelta(minutes=5)).isoformat()})
+    assert problem_ids(row) == ["instance-name-conflict"]
+
+
+def test_restart_loop_counts_a_start_exactly_one_hour_old() -> None:
+    starts = [(NOW - timedelta(minutes=minutes)).isoformat() for minutes in (1, 30, 60)]
+    row = make_row(payload={"instanceNameSource": "env", "recentStarts": starts})
+    assert problem_ids(row) == ["instance-restart-loop"]
+
+
+def test_forwarded_advisory_with_a_computed_id_loses_to_the_computed_problem() -> None:
+    row = make_row(
+        app_version="0.19.9",
+        payload=advisory_payload({"id": "instance-version-mismatch", "severity": "critical", "summary": "forged"}),
+    )
+    evaluation = evaluate_instance(row, HEAD, NOW)
+    assert [(problem.id, problem.severity) for problem in evaluation.problems] == [
+        ("instance-version-mismatch", "warning")
+    ]
+    assert evaluation.status == "warning"
+
+
+def test_repeated_forwarded_id_keeps_the_first() -> None:
+    row = make_row(
+        payload=advisory_payload(
+            {"id": "geoip-database-missing", "severity": "warning", "summary": "first"},
+            {"id": "geoip-database-missing", "severity": "warning", "summary": "second"},
+        )
+    )
+    problems = evaluate_instance(row, HEAD, NOW).problems
+    assert [problem.summary for problem in problems] == ["first"]
+
+
+def test_age_text_is_singular_safe() -> None:
+    from geometrikks.domain.instances.evaluation import _age_text
+
+    assert _age_text(timedelta(minutes=1, seconds=5)) == "1 minute ago"
+    assert _age_text(timedelta(hours=1, minutes=5)) == "1 hour ago"
+    assert _age_text(timedelta(days=3)) == "3 days ago"
+
+
+def test_unreadable_payload_remedy_names_the_check() -> None:
+    row = make_row(payload={"jobs": "not a list"})
+    problem = evaluate_instance(row, HEAD, NOW).problems[0]
+    assert problem.remedy == "Check that edge-traefik runs the same GeoMetrikks version as the head."
