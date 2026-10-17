@@ -296,7 +296,7 @@ class LogIngestionService:
         )
 
     def server_for(self, log_input: LogInput) -> str:
-        """The server name stamped on records from this input: the source's own, or the service default."""
+        """The source's own server name for records from this input, or the service default."""
         return log_input.source.server or self.server
 
     async def _run_input(self, log_input: LogInput, skip_validation: bool) -> None:

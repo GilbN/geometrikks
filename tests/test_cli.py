@@ -297,7 +297,7 @@ def test_backfill_server_plain_refreshes_caggs(monkeypatch) -> None:
     result = _invoke_backfill(monkeypatch, engine, ["geometrikks"], refresh)
 
     assert result.exit_code == 0, result.output
-    assert "access_logs rows without a server filled: 7" in result.output
+    assert "access_logs servers filled: 7" in result.output
     assert "Refreshing server CAGGs ..." in result.output
     refreshed = [call.kwargs["caggs"] for call in refresh.await_args_list]
     assert refreshed == [["server_daily_stats"], ["log_source_daily_stats"]]
@@ -310,7 +310,7 @@ def test_backfill_server_no_changes_skips_refresh(monkeypatch) -> None:
     result = _invoke_backfill(monkeypatch, engine, ["geometrikks"], refresh)
 
     assert result.exit_code == 0, result.output
-    assert "access_logs rows without a server filled: 0" in result.output
+    assert "access_logs servers filled: 0" in result.output
     assert "Refreshing server CAGGs" not in result.output
     refresh.assert_not_awaited()
 

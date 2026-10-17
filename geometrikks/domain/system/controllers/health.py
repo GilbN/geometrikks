@@ -317,11 +317,10 @@ def _collect_advisories(app: Litestar, settings: Settings) -> list[Advisory]:
                 "filter reads raw events until you consolidate them."
             ),
             detail=(
-                "LOGPARSER_SERVER_NAME was unset while running in Docker, so "
-                "each new container ID was recorded as a server name. The "
-                "location aggregates skip their server upgrade until that "
-                "history is consolidated. Restart after consolidating to "
-                "migrate them."
+                "LOGPARSER_SERVER_NAME was unset in Docker, so every new "
+                "container recorded its container ID as the server name. The "
+                "location aggregates get their server column only after you "
+                "consolidate that history and restart."
             ),
             remedy="litestar backfill-server NAME --consolidate",
         ))

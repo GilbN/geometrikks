@@ -546,9 +546,6 @@ export function StatusOverview() {
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">
-        {/* Only shown when at least one server has a resolved location: makes the
-            auto/override split visible in-app for CGNAT diagnosis, matching
-            the failure-mode table's promise that source is inspectable. */}
         {locationRows.length > 0 && (
           <Card>
             <CardHeader className="pb-3">

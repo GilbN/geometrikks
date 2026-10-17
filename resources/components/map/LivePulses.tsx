@@ -209,8 +209,8 @@ function buildFrame(transmissions: Transmission[], now: number): FeatureCollecti
   const visibleTransmissions = new Set<Transmission>()
   const visibleLanes = new Set<string>()
   const visiblePacketCells = new Set<string>()
-  // Keyed by destination coordinate: each distinct server location gets its
-  // own arrival ripple, aggregated across every transmission currently
+  // Keyed by destination coordinate, so each distinct server location gets
+  // its own arrival ripple, aggregated across every transmission currently
   // landing there.
   const arrivals = new Map<string, DestinationArrival>()
 

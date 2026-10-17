@@ -79,8 +79,8 @@ class LegacyEnvNamesSettings(BaseSettings):
     Each old name is a field of its own with ``default=None``, so the env
     prefix maps it with no alias, and its ``json_schema_extra`` names the
     replacement under ``LEGACY_FIELD_MARKER``. Pydantic's ``AliasChoices``
-    can't do this: it reports which value won, not which name supplied it,
-    and it drops a conflicting second name without an error.
+    can't replace this. It reports which value won, not which name supplied
+    it, and it drops a conflicting second name without an error.
     """
 
     _legacy_env_names: list[LegacyEnvName] = PrivateAttr(default_factory=list)
@@ -91,8 +91,8 @@ class LegacyEnvNamesSettings(BaseSettings):
         An empty ``MAP_HOME_LOCATIONS={}`` counts as unset, but ``false`` and
         ``0`` are set. Call this first in the section's after-validator, so
         checks that read the new fields see the merged values. Both names set
-        to different parsed values is an error: silently preferring one would
-        leave an edit to the other doing nothing.
+        to different parsed values raise, because preferring one would make
+        an edit to the other do nothing.
         """
         model = type(self)
         legacy_env_names: list[LegacyEnvName] = []

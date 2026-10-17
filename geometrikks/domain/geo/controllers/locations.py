@@ -173,7 +173,7 @@ class GeoLocationController(Controller):
     ) -> ServerLocationsResponse:
         """Merged server_locations rows plus this instance's own location as the default.
 
-        The default mirrors read_settings's fallback: the self location
+        The default mirrors read_settings's fallback. It is the self location
         resolved at startup, or the configured coordinates if resolution
         found nothing (geo-degraded or auto-detect disabled).
         """

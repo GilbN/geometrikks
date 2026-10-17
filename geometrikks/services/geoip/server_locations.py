@@ -36,7 +36,7 @@ async def upsert_auto_server_locations(
     """Record this process's detected location for each server name it ingests.
 
     A None location (detection failed / geo-degraded) writes nothing and keeps
-    any existing rows: a flaky IP check must not erase a server's beacon.
+    any existing rows, so a flaky IP check can't erase a server's beacon.
     """
     if self_location is None or not server_names:
         return
@@ -133,7 +133,7 @@ async def fetch_server_locations(session: "AsyncSession") -> list[ServerLocation
 async def fetch_last_event_days(session: "AsyncSession") -> dict[str, datetime]:
     """Most recent day with traffic per server.
 
-    Reads the server_daily_stats aggregate, not geo_events: the raw table
+    Reads the server_daily_stats aggregate, not geo_events. The raw table
     only has a single-column server index, so a per-server max(timestamp)
     would walk every row of a busy server. Day precision is enough to tell a
     retired server from a live one.
@@ -147,7 +147,7 @@ async def fetch_last_event_days(session: "AsyncSession") -> dict[str, datetime]:
 async def remove_server_location(session: "AsyncSession", server: str, *, actor: str) -> None:
     """Remove one server's location row.
 
-    Only auto rows can go: override rows mirror MAP_SERVER_LOCATIONS and would
+    Only auto rows can go. Override rows mirror MAP_SERVER_LOCATIONS and would
     be recreated at the next startup, so deleting one here would only
     mislead. A deleted auto row comes back at the owning agent's next location
     refresh if that agent still runs; the delete is for retired servers.
@@ -156,7 +156,7 @@ async def remove_server_location(session: "AsyncSession", server: str, *, actor:
     if row is None:
         raise DomainNotFoundError(f"No location recorded for server {server!r}")
     if row.source == "override":
-        raise DomainConflictError(f"Server {server!r} is pinned by MAP_SERVER_LOCATIONS; remove it there instead")
+        raise DomainConflictError(f"MAP_SERVER_LOCATIONS pins server {server!r}; remove its entry there instead")
     await session.delete(row)
     await session.commit()
     logger.info("server_location_deleted", server=server, source="auto", actor=actor)

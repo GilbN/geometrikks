@@ -513,7 +513,7 @@ async def seed_boundary(session_maker) -> dict[str, int]:
     """Events straddling both edges of a mid-bucket window.
 
     ``9.9.9.9`` and ``8.8.8.8`` sit outside [B_START, B_END) but inside the same
-    hour buckets as the edges — they are exactly what bucket-flooring used to
+    hour buckets as the edges. They are exactly what bucket-flooring used to
     pull in. Each uses a unique IP and (for the tail) a unique country so a
     regression shows up in event counts, unique-IP counts and group lists alike.
     """
@@ -680,7 +680,7 @@ class TestLocationTopIpsMisaligned:
 class TestFacets:
     async def test_distinct_sorted_values(self, pg_engine, pg_session_maker, clean_tables):
         await seed_raw(pg_session_maker)
-        # Servers now read server_daily_stats: refresh the window so stale
+        # Servers come from server_daily_stats. Refresh the window so stale
         # materialized buckets from earlier tests are wiped.
         await refresh_caggs_range(
             pg_engine,

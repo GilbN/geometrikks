@@ -167,8 +167,8 @@ class GeoEventFacets(msgspec.Struct, rename="camel"):
 class GeoEventFilters:
     """Optional dimension filters for geo-event aggregate queries.
 
-    Server filtering forces the raw geo_events path: per-IP CAGGs store
-    server sets, not per-server counts. Every other filter, ASN included, works on the CAGG
+    Server filtering forces the raw geo_events path, because per-IP CAGGs
+    store server sets, not per-server counts. Every other filter, ASN included, works on the CAGG
     paths too (the per-IP CAGGs are keyed by location + IP and carry the
     IP's ASN).
     """

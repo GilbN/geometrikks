@@ -82,7 +82,7 @@ def import_logs_command(
 
     Reads whole files, uses log-line timestamps, refreshes the continuous
     aggregates for the imported time range afterwards. Re-importing a file
-    that is also being live-tailed will double-count — import archived
+    that is also being live-tailed will double-count, so import archived
     (rotated) files only.
     """
     if server is not None:
@@ -134,7 +134,7 @@ async def _run_import(
     if reader is None:
         await engine.dispose()
         raise click.ClickException(
-            f"No GeoIP database at {settings.geoip.db_path} — cannot import. "
+            f"No GeoIP database at {settings.geoip.db_path}, cannot import. "
             "Configure GEOIP_ACCOUNT_ID/GEOIP_LICENSE_KEY and start the app "
             "once to auto-download, or provide the mmdb manually."
         )
@@ -798,17 +798,17 @@ async def _run_backfill_server(name: str, *, consolidate: bool, yes: bool) -> No
                     {"n": name},
                 )).rowcount
 
-        click.echo(f"access_logs rows without a server filled: {filled:,}")
+        click.echo(f"access_logs servers filled: {filled:,}")
         if consolidate:
             click.echo(f"geo_events servers rewritten: {rewritten_geo:,}")
             click.echo(f"access_logs servers rewritten: {rewritten_logs:,}")
 
         # The server CAGGs still show the old values until refreshed. The
-        # plain fill path needs this too: without it log_source_daily_stats
+        # plain fill path needs this too. Without it, log_source_daily_stats
         # keeps server NULL for history, and once raw retention drops the
         # access_logs rows the facet can never be corrected.
-        # Ranges are computed per source table: server_daily_stats reads
-        # geo_events while log_source_daily_stats reads access_logs, and
+        # Each CAGG's range comes from its own source table. server_daily_stats
+        # reads geo_events while log_source_daily_stats reads access_logs, and
         # the two tables' time bounds differ (access logs exist for rows
         # that never produced a geo event).
         if filled or rewritten_geo or rewritten_logs:
@@ -1186,7 +1186,7 @@ async def _run_backfill_timings(*, server: str | None, before: datetime | None, 
             click.echo("Aborted.")
             return
 
-        # Same reasoning as backfill-server: a full-table UPDATE on compressed
+        # Same reasoning as backfill-server. A full-table UPDATE on compressed
         # chunks trips timescaledb.max_tuples_decompressed_per_dml_transaction.
         if timescale:
             click.echo("Decompressing compressed access_logs chunks ...")
@@ -1236,7 +1236,7 @@ GEO_SERVER_BACKFILL_BATCH_DAYS = 1
 @click.command(name="backfill-geo-servers")
 @click.option("--yes", is_flag=True, help="Skip the confirmation prompt.")
 def backfill_geo_servers_command(yes: bool) -> None:
-    """Fill historical server sets in the Geo Logs aggregates.
+    """Fill the Servers column of historical Geo Logs aggregates.
 
     Run after starting the updated app. Refreshes hourly and daily aggregates
     from retained geo_events, without rewriting server names. Prints the

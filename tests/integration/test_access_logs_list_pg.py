@@ -321,7 +321,7 @@ async def test_server_exact_include_and_exclude(pg_session_maker, clean_tables) 
 
 
 async def test_server_exclude_keeps_rows_with_no_server(pg_session_maker, clean_tables) -> None:
-    # server is nullable (older rows predate Task 6's ingestion stamping). A
+    # server is nullable (older rows predate ingestion stamping). A
     # bare NOT IN would evaluate NULL and drop these rows, hiding traffic the
     # user never asked to exclude.
     await _insert(pg_session_maker, NOW - timedelta(hours=1), "10.0.0.1", server="myserver")

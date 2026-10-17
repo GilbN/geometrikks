@@ -234,7 +234,7 @@ async def test_degraded_start_registers_advisory_and_defers_the_poller(monkeypat
         assert app.state.crowdsec_stream_poller_deferred is poller
         ids = [a.id for a in runtime.get_advisories(cast("Any", app)).snapshot()]
         # Membership, not equality: geoip_lifespan may register the
-        # server-location advisory too (Task 16).
+        # server-location advisory too.
         assert "database-unavailable" in ids
 
 

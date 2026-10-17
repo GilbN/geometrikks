@@ -253,7 +253,7 @@ async def create_scheduler(
 
     An agent instance (mode="agent") only tails logs into a schema the
     primary instance owns, so it registers just the GeoLite2 refresh and the
-    server-location refresh: the other jobs are either primary-only maintenance
+    server-location refresh. The other jobs are either primary-only maintenance
     (CAGGs, location last_hit, proxy peer scan) or CrowdSec, which agents
     never wire up.
 

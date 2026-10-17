@@ -66,9 +66,9 @@ async def test_server_locations_endpoint_returns_merged_rows_and_default(
         pg_session_maker, ["nginx-01"], SelfLocation(latitude=60.39, longitude=5.32, source="external_ip")
     )
     # The override row comes from MAP_SERVER_LOCATIONS, reconciled into
-    # server_locations by the app's own startup lifecycle (not seeded directly):
-    # that reconcile always runs and would otherwise delete an override row
-    # not present in this settings object.
+    # server_locations by the app's own startup lifecycle, not seeded directly.
+    # That reconcile always runs and would delete an override row missing from
+    # this settings object.
     settings = _make_settings(migrated_database_url, server_locations={"nginx-02": (51.5, -0.12)})
 
     app = create_app(settings=settings)

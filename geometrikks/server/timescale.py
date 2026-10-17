@@ -429,8 +429,8 @@ async def _create_location_caggs(conn: "AsyncConnection") -> None:
             CREATE INDEX IF NOT EXISTS ix_location_{suffix}_location
             ON location_{suffix}_stats (location_id)
         """))
-        # Pollution-gated skip leaves the pre-server view in place: probe
-        # before creating, since a CREATE INDEX on a missing column would
+        # Pollution-gated skip leaves the pre-server view in place, so probe
+        # before creating. A CREATE INDEX on a missing column would
         # abort the whole setup transaction (not just this statement).
         has_server = (await conn.execute(text(
             "SELECT 1 FROM information_schema.columns "
@@ -1019,7 +1019,7 @@ async def teardown_timescaledb(conn: "AsyncConnection") -> None:
         return
 
     # 1. Drop CAGGs, including legacy names a not-yet-upgraded database
-    # still carries: drop_all cannot drop a table a view depends on.
+    # still carries, because drop_all cannot drop a table a view depends on.
     legacy_views = [legacy_view for legacy_view, _ in _LEGACY_SERVER_VIEW_RENAMES]
     for cagg in [*ALL_CAGGS, *legacy_views]:
         try:
@@ -1033,8 +1033,8 @@ async def teardown_timescaledb(conn: "AsyncConnection") -> None:
     # 2. Drop hypertables
     for table, _, _, _ in HYPERTABLES:
         try:
-            # Savepoint: TimescaleDB 2.x has no drop_hypertable(), and the
-            # failed call would abort the caller's transaction before drop_all.
+            # A savepoint, because TimescaleDB 2.x has no drop_hypertable() and
+            # the failed call would abort the caller's transaction before drop_all.
             async with conn.begin_nested():
                 await conn.execute(text("""
                     SELECT drop_hypertable(:table, if_exists => TRUE)
@@ -1218,7 +1218,7 @@ async def _cagg_columns_need_upgrade(
     return pending
 
 
-# A server without in-place ADD COLUMN keeps its old per-IP aggregates.
+# A database without in-place ADD COLUMN keeps its old per-IP aggregates.
 # Readers omit servers instead of referencing a column that could not be added.
 _server_columns_unavailable: set[str] = set()
 
@@ -1295,7 +1295,7 @@ async def _summary_caggs_need_upgrade(conn: "AsyncConnection") -> bool:
     """True when a summary CAGG exists in the pre-percentile_agg shape.
 
     CAGGs are plain views over the internal materialized hypertable, so
-    information_schema.columns lists their columns directly — one probe is
+    information_schema.columns lists their columns directly, so one probe is
     enough.
     """
     result = await conn.execute(text("""
@@ -1468,17 +1468,17 @@ async def setup_timescaledb(
             if recreated:
                 logger.info("cagg_views_recreated", views=recreated)
 
-        # Upgrade pre-server location CAGGs, gated on server name pollution:
-        # migrating polluted (container-ID) server names would make the map's
-        # per-server filter useless, so the old shape is kept until the
-        # deployment consolidates server names and restarts.
+        # Upgrade pre-server location CAGGs only when server names aren't
+        # polluted. Migrating container-ID server names would make the map's
+        # Server filter useless, so the old shape stays until the deployment
+        # consolidates server names and restarts.
         location_upgrade = await _location_caggs_need_upgrade(conn)
         pollution = await detect_server_name_pollution(conn)
         _set_server_name_pollution(pollution)
         if location_upgrade and pollution.polluted:
             if pollution.reason == "container-ids":
                 logger.warning(
-                    "Skipping the location-CAGG server upgrade: %d of %s distinct "
+                    "Skipping the location-CAGG server upgrade because %d of %s distinct "
                     "server names look like Docker container IDs. The map's Server "
                     "filter stays on raw scans. Run `litestar backfill-server NAME "
                     "--consolidate`, then restart to migrate.",
@@ -1487,8 +1487,8 @@ async def setup_timescaledb(
                 )
             else:
                 logger.warning(
-                    "Skipping the location-CAGG server upgrade: %s distinct "
-                    "server names is above the %d ceiling. The map's Server "
+                    "Skipping the location-CAGG server upgrade because the %s distinct "
+                    "server names exceed the %d ceiling. The map's Server "
                     "filter stays on raw scans.",
                     pollution.distinct_label,
                     DISTINCT_SERVER_CEILING,
