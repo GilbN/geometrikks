@@ -39,6 +39,7 @@ from apscheduler.events import EVENT_SCHEDULER_SHUTDOWN
 from litestar.plugins import InitPlugin
 
 from geometrikks.config.settings import get_settings
+from geometrikks.domain.instances.heartbeat import HeartbeatWriter
 from geometrikks.lib.advisories import (
     DATABASE_RECOVERY_FAILED,
     DATABASE_UNAVAILABLE,
@@ -304,6 +305,31 @@ async def oidc_lifespan(app: "Litestar") -> "AsyncGenerator[None]":
             if error is not None:
                 logger.warning("oidc_warm_up_failed", error=str(error))
         await client.aclose()
+
+
+@asynccontextmanager
+async def heartbeat_lifespan(app: "Litestar") -> "AsyncGenerator[None]":
+    """Start the heartbeat writer; it writes its first row from its own task."""
+    writer = HeartbeatWriter(app, _resolve_settings(app), get_app_db_config(app).get_engine())
+    app.state.heartbeat_writer = writer
+    writer.start()
+    try:
+        yield
+    finally:
+        # Normally already stopped by heartbeat_shutdown_lifespan; this covers
+        # a startup failure that unwinds before that manager was entered.
+        await writer.stop()
+
+
+@asynccontextmanager
+async def heartbeat_shutdown_lifespan(app: "Litestar") -> "AsyncGenerator[None]":
+    """Stop the heartbeat writer before any other manager tears down."""
+    try:
+        yield
+    finally:
+        writer = runtime.get_heartbeat_writer(app)
+        if writer is not None:
+            await writer.stop()
 
 
 def _enter_db_degraded(app: "Litestar", *, detail: str | None = None) -> None:
@@ -732,15 +758,22 @@ async def db_recovery_lifespan(app: "Litestar") -> "AsyncGenerator[None]":
 
 
 # Entered in order by Litestar's lifespan AsyncExitStack; exited in reverse.
+# heartbeat_lifespan must come before database_lifespan: an agent blocks in
+# wait_for_schema there, and it has to keep writing heartbeats meanwhile or
+# the head shows it as missing instead of waiting. heartbeat_shutdown_lifespan
+# must stay last so it exits first: the writer stops before ingestion and the
+# scheduler, which keeps the overlap with a replacement process short.
 LIFESPAN = [
     core_state_lifespan,
     geoip_lifespan,
     crowdsec_lifespan,
     oidc_lifespan,
+    heartbeat_lifespan,
     database_lifespan,
     scheduler_lifespan,
     ingestion_lifespan,
     db_recovery_lifespan,
+    heartbeat_shutdown_lifespan,
 ]
 
 

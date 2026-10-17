@@ -21,6 +21,7 @@ if TYPE_CHECKING:
     from apscheduler.schedulers.asyncio import AsyncIOScheduler
     from litestar import Litestar
 
+    from geometrikks.domain.instances.heartbeat import HeartbeatWriter
     from geometrikks.server.plugins import DegradedTolerantAsyncPgBackend
     from geometrikks.services.crowdsec import CrowdSecService
     from geometrikks.services.crowdsec.stream import CrowdSecStreamPoller
@@ -72,6 +73,11 @@ def get_scheduler_tracker(app: Litestar) -> JobRunTracker:
 def get_started_at(app: Litestar) -> datetime | None:
     """Process start time; None before lifespan startup has run."""
     return getattr(app.state, "started_at", None)
+
+
+def get_heartbeat_writer(app: Litestar) -> HeartbeatWriter | None:
+    """None before the heartbeat lifespan has started the writer."""
+    return getattr(app.state, "heartbeat_writer", None)
 
 
 def get_self_location(app: Litestar) -> SelfLocation | None:
