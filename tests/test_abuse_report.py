@@ -294,7 +294,7 @@ class FakeRepo(AbuseReportRepository):
 def make_app(repo: FakeRepo, crowdsec: FakeCrowdSec | None = None) -> Litestar:
     class _TestController(ReportsController):
         dependencies = {
-            **ReportsController.dependencies,
+            **(ReportsController.dependencies or {}),
             "abuse_report_repo": Provide(lambda: repo, sync_to_thread=False),
         }
 

@@ -69,7 +69,7 @@ def make_app(
 
     class _TestController(CrowdSecController):
         dependencies = {
-            **CrowdSecController.dependencies,
+            **(CrowdSecController.dependencies or {}),
             "enrichment_repo": Provide(lambda: enrichment, sync_to_thread=False),
         }
 

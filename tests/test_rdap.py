@@ -194,7 +194,7 @@ async def test_registry_error_is_unavailable():
 def make_app(client: RdapClient) -> Litestar:
     class _TestController(ReportsController):
         dependencies = {
-            **ReportsController.dependencies,
+            **(ReportsController.dependencies or {}),
             "rdap": Provide(lambda: client, sync_to_thread=False),
             # The report route shares the controller; nothing here touches the database.
             "abuse_report_repo": Provide(lambda: None, sync_to_thread=False),
