@@ -8,6 +8,19 @@
       ],
       "uri": "/api/v1/crowdsec/ban"
     },
+    "delete_instance": {
+      "method": "delete",
+      "methods": [
+        "DELETE"
+      ],
+      "parameterTypes": {
+        "instance_name": "string"
+      },
+      "parameters": [
+        "instance_name"
+      ],
+      "uri": "/api/v1/instances/{instance_name}"
+    },
     "delete_server_location": {
       "method": "delete",
       "methods": [
@@ -689,6 +702,13 @@
         "pageSize": "number | undefined"
       },
       "uri": "/api/v1/geo-locations"
+    },
+    "list_instances": {
+      "method": "get",
+      "methods": [
+        "GET"
+      ],
+      "uri": "/api/v1/instances"
     },
     "login": {
       "method": "post",

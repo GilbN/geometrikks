@@ -736,6 +736,15 @@ export type GroupedDecisionView = {
 };
 
 /**
+ * HeadIdentityView
+ */
+export type HeadIdentityView = {
+  appVersion: string;
+  instanceName: string;
+  schemaRevision: string;
+};
+
+/**
  * HealthResponse
  */
 export type HealthResponse = {
@@ -749,6 +758,24 @@ export type HealthResponse = {
   startedAt: string | null;
   status: "healthy" | "degraded";
   timestamp: string;
+};
+
+/**
+ * HeartbeatPayload
+ */
+export type HeartbeatPayload = {
+  failed5M?: number | null;
+  health?: {
+    [key: string]: unknown;
+  };
+  instanceNameSource?: string;
+  jobs?: Array<JobReport>;
+  lastError?: LastErrorReport | null;
+  lines5M?: number | null;
+  nameConflictAt?: string | null;
+  recentStarts?: Array<string>;
+  serverNames?: Array<string>;
+  sources?: Array<SourceReport>;
 };
 
 /**
@@ -797,6 +824,46 @@ export type IngestionStatsResponse = {
   totalPendingRecords: number;
   totalProcessed: number;
   totalSkippedLines: number;
+};
+
+/**
+ * InstanceServerLocationView
+ */
+export type InstanceServerLocationView = {
+  detectedAt: string | null;
+  latitude: number;
+  longitude: number;
+  server: string;
+  source: string;
+};
+
+/**
+ * InstanceView
+ */
+export type InstanceView = {
+  appVersion: string;
+  bootId: string;
+  checkingIn: boolean;
+  health: HealthResponse | null;
+  instanceName: string;
+  isSelf: boolean;
+  lastSeen: string;
+  mode: string;
+  payload: HeartbeatPayload | null;
+  problems: Array<Advisory>;
+  schemaRevision: string;
+  serverLocations: Array<InstanceServerLocationView>;
+  startedAt: string;
+  status: "ok" | "warning" | "critical";
+};
+
+/**
+ * InstancesResponse
+ */
+export type InstancesResponse = {
+  checkedAt: string;
+  head: HeadIdentityView;
+  instances: Array<InstanceView>;
 };
 
 /**
@@ -865,6 +932,26 @@ export type IpProfileResponse = {
 export type IpProfileUserAgentDto = {
   hits: number;
   userAgent: string;
+};
+
+/**
+ * JobReport
+ */
+export type JobReport = {
+  id?: string;
+  lastError?: string | null;
+  lastStart?: string | null;
+  lastStatus?: string | null;
+  name?: string;
+  nextRunTime?: string | null;
+};
+
+/**
+ * LastErrorReport
+ */
+export type LastErrorReport = {
+  at?: string | null;
+  message?: string;
 };
 
 /**
@@ -1360,6 +1447,19 @@ export type SettingsSectionView = {
   fields: Array<SettingFieldView>;
   name: string;
   title: string;
+};
+
+/**
+ * SourceReport
+ */
+export type SourceReport = {
+  available?: boolean;
+  kind?: string;
+  label?: string;
+  logFormat?: string | null;
+  parsedLines?: number;
+  reason?: string | null;
+  serverName?: string;
 };
 
 /**
@@ -4039,6 +4139,72 @@ export type ApiV1GeoLocationsLocationIdTopIpsGetLocationTopIpsResponses = {
 
 export type ApiV1GeoLocationsLocationIdTopIpsGetLocationTopIpsResponse =
   ApiV1GeoLocationsLocationIdTopIpsGetLocationTopIpsResponses[keyof ApiV1GeoLocationsLocationIdTopIpsGetLocationTopIpsResponses];
+
+export type ApiV1InstancesListInstancesData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: "/api/v1/instances";
+};
+
+export type ApiV1InstancesListInstancesResponses = {
+  /**
+   * Request fulfilled, document follows
+   */
+  200: InstancesResponse;
+};
+
+export type ApiV1InstancesListInstancesResponse =
+  ApiV1InstancesListInstancesResponses[keyof ApiV1InstancesListInstancesResponses];
+
+export type ApiV1InstancesInstanceNameDeleteInstanceData = {
+  body?: never;
+  path: {
+    /**
+     * Name of the instance to remove
+     */
+    instance_name: string;
+  };
+  query?: never;
+  url: "/api/v1/instances/{instance_name}";
+};
+
+export type ApiV1InstancesInstanceNameDeleteInstanceErrors = {
+  /**
+   * Validation Exception
+   */
+  400: {
+    detail: string;
+    extra?:
+      | null
+      | {
+          [key: string]: unknown;
+        }
+      | Array<unknown>;
+    status_code: number;
+  };
+  /**
+   * No instance has this name.
+   */
+  404: ErrorEnvelope;
+  /**
+   * This is the head you are talking to.
+   */
+  409: ErrorEnvelope;
+};
+
+export type ApiV1InstancesInstanceNameDeleteInstanceError =
+  ApiV1InstancesInstanceNameDeleteInstanceErrors[keyof ApiV1InstancesInstanceNameDeleteInstanceErrors];
+
+export type ApiV1InstancesInstanceNameDeleteInstanceResponses = {
+  /**
+   * Request fulfilled, nothing follows
+   */
+  204: void;
+};
+
+export type ApiV1InstancesInstanceNameDeleteInstanceResponse =
+  ApiV1InstancesInstanceNameDeleteInstanceResponses[keyof ApiV1InstancesInstanceNameDeleteInstanceResponses];
 
 export type ApiV1LogsFilesListFilesData = {
   body?: never;

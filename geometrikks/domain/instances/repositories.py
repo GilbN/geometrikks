@@ -9,8 +9,8 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
+import msgspec
 from sqlalchemy import DateTime, String, Uuid, bindparam, delete, select, text
-from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.asyncio import AsyncConnection, AsyncSession
 
 from geometrikks.domain.instances.models import InstanceHeartbeat
@@ -42,7 +42,7 @@ _UPSERT_HEARTBEAT = text(
     INSERT INTO instance_heartbeats
         (instance_name, boot_id, mode, app_version, schema_revision, started_at, last_seen, payload)
     VALUES
-        (:instance_name, :boot_id, :mode, :app_version, :schema_revision, :started_at, now(), :payload)
+        (:instance_name, :boot_id, :mode, :app_version, :schema_revision, :started_at, now(), CAST(:payload AS jsonb))
     ON CONFLICT (instance_name) DO UPDATE SET
         boot_id = EXCLUDED.boot_id,
         mode = EXCLUDED.mode,
@@ -59,7 +59,7 @@ _UPSERT_HEARTBEAT = text(
     bindparam("app_version", type_=String),
     bindparam("schema_revision", type_=String),
     bindparam("started_at", type_=DateTime(timezone=True)),
-    bindparam("payload", type_=JSONB),
+    bindparam("payload", type_=String),
 )
 
 
@@ -73,6 +73,9 @@ async def upsert_heartbeat(
     transaction-scoped advisory lock on the instance name serializes writers
     that share a name, so the row read here is the row this write replaces.
     ON CONFLICT alone cannot promise that under Read Committed.
+
+    The payload goes in as a JSON string cast to jsonb. The app engine's
+    json_serializer returns bytes, which asyncpg rejects for a JSONB bind.
     """
     await connection.execute(_LOCK_INSTANCE_NAME, {"instance_name": heartbeat_write.instance_name})
     previous_heartbeat = await read_heartbeat(connection, heartbeat_write.instance_name)
@@ -85,7 +88,7 @@ async def upsert_heartbeat(
             "app_version": heartbeat_write.app_version,
             "schema_revision": heartbeat_write.schema_revision,
             "started_at": heartbeat_write.started_at,
-            "payload": heartbeat_write.payload,
+            "payload": msgspec.json.encode(heartbeat_write.payload).decode(),
         },
     )
     return previous_heartbeat

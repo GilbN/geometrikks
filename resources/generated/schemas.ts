@@ -140,6 +140,11 @@ import type {
   ApiV1GeoLocationsTopIpsGetGlobalTopIpsData,
   ApiV1GeoLocationsTopIpsGetGlobalTopIpsErrors,
   ApiV1GeoLocationsTopIpsGetGlobalTopIpsResponses,
+  ApiV1InstancesInstanceNameDeleteInstanceData,
+  ApiV1InstancesInstanceNameDeleteInstanceErrors,
+  ApiV1InstancesInstanceNameDeleteInstanceResponses,
+  ApiV1InstancesListInstancesData,
+  ApiV1InstancesListInstancesResponses,
   ApiV1LogsFilesKindNameDownloadData,
   ApiV1LogsFilesKindNameDownloadErrors,
   ApiV1LogsFilesKindNameDownloadResponses,
@@ -196,6 +201,7 @@ import type {
  */
 export type OperationName =
   | 'ban'
+  | 'delete_instance'
   | 'delete_server_location'
   | 'download'
   | 'get_about'
@@ -247,6 +253,7 @@ export type OperationName =
   | 'list_files'
   | 'list_geo_events'
   | 'list_geo_locations'
+  | 'list_instances'
   | 'login'
   | 'logout'
   | 'lookup_decisions'
@@ -267,6 +274,7 @@ export type OperationName =
  */
 export interface OperationDataTypes {
   'ban': ApiV1CrowdsecBanBanData
+  'delete_instance': ApiV1InstancesInstanceNameDeleteInstanceData
   'delete_server_location': ApiV1GeoLocationsServerLocationsDeleteServerLocationData
   'download': ApiV1LogsFilesKindNameDownloadData
   'get_about': ApiV1SystemAboutGetAboutData
@@ -318,6 +326,7 @@ export interface OperationDataTypes {
   'list_files': ApiV1LogsFilesListFilesData
   'list_geo_events': ApiV1GeoEventsListGeoEventsData
   'list_geo_locations': ApiV1GeoLocationsListGeoLocationsData
+  'list_instances': ApiV1InstancesListInstancesData
   'login': ApiV1AuthLoginLoginData
   'logout': ApiV1AuthLogoutLogoutData
   'lookup_decisions': ApiV1CrowdsecDecisionsLookupLookupDecisionsData
@@ -339,6 +348,7 @@ export interface OperationDataTypes {
  */
 export interface OperationResponseTypes {
   'ban': ApiV1CrowdsecBanBanResponses
+  'delete_instance': ApiV1InstancesInstanceNameDeleteInstanceResponses
   'delete_server_location': ApiV1GeoLocationsServerLocationsDeleteServerLocationResponses
   'download': ApiV1LogsFilesKindNameDownloadResponses
   'get_about': ApiV1SystemAboutGetAboutResponses
@@ -390,6 +400,7 @@ export interface OperationResponseTypes {
   'list_files': ApiV1LogsFilesListFilesResponses
   'list_geo_events': ApiV1GeoEventsListGeoEventsResponses
   'list_geo_locations': ApiV1GeoLocationsListGeoLocationsResponses
+  'list_instances': ApiV1InstancesListInstancesResponses
   'login': ApiV1AuthLoginLoginResponses
   'logout': ApiV1AuthLogoutLogoutResponses
   'lookup_decisions': ApiV1CrowdsecDecisionsLookupLookupDecisionsResponses
@@ -411,6 +422,7 @@ export interface OperationResponseTypes {
  */
 export interface OperationErrorTypes {
   'ban': ApiV1CrowdsecBanBanErrors
+  'delete_instance': ApiV1InstancesInstanceNameDeleteInstanceErrors
   'delete_server_location': ApiV1GeoLocationsServerLocationsDeleteServerLocationErrors
   'download': ApiV1LogsFilesKindNameDownloadErrors
   'get_about': never
@@ -462,6 +474,7 @@ export interface OperationErrorTypes {
   'list_files': never
   'list_geo_events': ApiV1GeoEventsListGeoEventsErrors
   'list_geo_locations': ApiV1GeoLocationsListGeoLocationsErrors
+  'list_instances': never
   'login': ApiV1AuthLoginLoginErrors
   'logout': never
   'lookup_decisions': ApiV1CrowdsecDecisionsLookupLookupDecisionsErrors

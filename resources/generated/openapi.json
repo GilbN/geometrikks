@@ -2679,6 +2679,26 @@
         "title": "GroupedDecisionView",
         "type": "object"
       },
+      "HeadIdentityView": {
+        "properties": {
+          "appVersion": {
+            "type": "string"
+          },
+          "instanceName": {
+            "type": "string"
+          },
+          "schemaRevision": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "appVersion",
+          "instanceName",
+          "schemaRevision"
+        ],
+        "title": "HeadIdentityView",
+        "type": "object"
+      },
       "HealthResponse": {
         "properties": {
           "advisories": {
@@ -2748,6 +2768,87 @@
           "timestamp"
         ],
         "title": "HealthResponse",
+        "type": "object"
+      },
+      "HeartbeatPayload": {
+        "properties": {
+          "failed5M": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "health": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "instanceNameSource": {
+            "default": "fallback",
+            "type": "string"
+          },
+          "jobs": {
+            "items": {
+              "$ref": "#/components/schemas/JobReport"
+            },
+            "type": "array"
+          },
+          "lastError": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/LastErrorReport"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "lines5M": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "nameConflictAt": {
+            "oneOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "recentStarts": {
+            "items": {
+              "format": "date-time",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "serverNames": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "sources": {
+            "items": {
+              "$ref": "#/components/schemas/SourceReport"
+            },
+            "type": "array"
+          }
+        },
+        "required": [],
+        "title": "HeartbeatPayload",
         "type": "object"
       },
       "HostingAsnEntryView": {
@@ -2923,6 +3024,157 @@
           "totalSkippedLines"
         ],
         "title": "IngestionStatsResponse",
+        "type": "object"
+      },
+      "InstanceServerLocationView": {
+        "properties": {
+          "detectedAt": {
+            "oneOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "latitude": {
+            "type": "number"
+          },
+          "longitude": {
+            "type": "number"
+          },
+          "server": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "detectedAt",
+          "latitude",
+          "longitude",
+          "server",
+          "source"
+        ],
+        "title": "InstanceServerLocationView",
+        "type": "object"
+      },
+      "InstanceView": {
+        "properties": {
+          "appVersion": {
+            "type": "string"
+          },
+          "bootId": {
+            "type": "string"
+          },
+          "checkingIn": {
+            "type": "boolean"
+          },
+          "health": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/HealthResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "instanceName": {
+            "type": "string"
+          },
+          "isSelf": {
+            "type": "boolean"
+          },
+          "lastSeen": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "mode": {
+            "type": "string"
+          },
+          "payload": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/HeartbeatPayload"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "problems": {
+            "items": {
+              "$ref": "#/components/schemas/Advisory"
+            },
+            "type": "array"
+          },
+          "schemaRevision": {
+            "type": "string"
+          },
+          "serverLocations": {
+            "items": {
+              "$ref": "#/components/schemas/InstanceServerLocationView"
+            },
+            "type": "array"
+          },
+          "startedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "ok",
+              "warning",
+              "critical"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "appVersion",
+          "bootId",
+          "checkingIn",
+          "health",
+          "instanceName",
+          "isSelf",
+          "lastSeen",
+          "mode",
+          "payload",
+          "problems",
+          "schemaRevision",
+          "serverLocations",
+          "startedAt",
+          "status"
+        ],
+        "title": "InstanceView",
+        "type": "object"
+      },
+      "InstancesResponse": {
+        "properties": {
+          "checkedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "head": {
+            "$ref": "#/components/schemas/HeadIdentityView"
+          },
+          "instances": {
+            "items": {
+              "$ref": "#/components/schemas/InstanceView"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "checkedAt",
+          "head",
+          "instances"
+        ],
+        "title": "InstancesResponse",
         "type": "object"
       },
       "IpProfileBucketDTO": {
@@ -3202,6 +3454,85 @@
           "userAgent"
         ],
         "title": "IpProfileUserAgentDTO",
+        "type": "object"
+      },
+      "JobReport": {
+        "properties": {
+          "id": {
+            "default": "",
+            "type": "string"
+          },
+          "lastError": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "lastStart": {
+            "oneOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "lastStatus": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "name": {
+            "default": "",
+            "type": "string"
+          },
+          "nextRunTime": {
+            "oneOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [],
+        "title": "JobReport",
+        "type": "object"
+      },
+      "LastErrorReport": {
+        "properties": {
+          "at": {
+            "oneOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "message": {
+            "default": "",
+            "type": "string"
+          }
+        },
+        "required": [],
+        "title": "LastErrorReport",
         "type": "object"
       },
       "ListAccessLogsAccessLogResponseBody": {
@@ -5119,6 +5450,53 @@
           "title"
         ],
         "title": "SettingsSectionView",
+        "type": "object"
+      },
+      "SourceReport": {
+        "properties": {
+          "available": {
+            "default": true,
+            "type": "boolean"
+          },
+          "kind": {
+            "default": "",
+            "type": "string"
+          },
+          "label": {
+            "default": "",
+            "type": "string"
+          },
+          "logFormat": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "parsedLines": {
+            "default": 0,
+            "type": "integer"
+          },
+          "reason": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "serverName": {
+            "default": "",
+            "type": "string"
+          }
+        },
+        "required": [],
+        "title": "SourceReport",
         "type": "object"
       },
       "SummaryResponse": {
@@ -13428,6 +13806,118 @@
         "summary": "GetLocationTopIps",
         "tags": [
           "Geo Locations"
+        ]
+      }
+    },
+    "/api/v1/instances": {
+      "get": {
+        "deprecated": false,
+        "description": "List the head and every agent that reports a heartbeat, the head first, with a status and a list of problems for each.",
+        "operationId": "ApiV1InstancesListInstances",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InstancesResponse"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          }
+        },
+        "summary": "ListInstances",
+        "tags": [
+          "Instances"
+        ]
+      }
+    },
+    "/api/v1/instances/{instance_name}": {
+      "delete": {
+        "deprecated": false,
+        "description": "Remove a retired instance from the list. An instance that is still running reappears at its next heartbeat. The head cannot remove itself.",
+        "operationId": "ApiV1InstancesInstanceNameDeleteInstance",
+        "parameters": [
+          {
+            "deprecated": false,
+            "description": "Name of the instance to remove",
+            "in": "path",
+            "name": "instance_name",
+            "required": true,
+            "schema": {
+              "description": "Name of the instance to remove",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Request fulfilled, nothing follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "No instance has this name."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "This is the head you are talking to."
+          }
+        },
+        "summary": "DeleteInstance",
+        "tags": [
+          "Instances"
         ]
       }
     },
