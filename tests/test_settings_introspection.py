@@ -132,7 +132,6 @@ def test_oidc_client_secret_is_redacted(monkeypatch):
 
 LEGACY_ENV_NAMES = {
     "LOGPARSER_HOST_NAME",
-    "LOKI_HOST_NAMES",
     "MAP_HOME_LOCATIONS",
     "MAP_HOME_LATITUDE",
     "MAP_HOME_LONGITUDE",

@@ -25,10 +25,6 @@ RENAMED_ENV_VARS = [
         "logparser", "server_name", ["edge-01"],
     ),
     RenamedEnvVar(
-        "LOKI_HOST_NAMES", "LOKI_SERVER_NAMES", "edge-01", "edge-02",
-        "loki", "server_names", ["edge-01"],
-    ),
-    RenamedEnvVar(
         "MAP_HOME_LOCATIONS", "MAP_SERVER_LOCATIONS",
         '{"edge-01": [59.9, 10.7]}', '{"edge-02": [60.1, 11.2]}',
         "map", "server_locations", {"edge-01": (59.9, 10.7)},
@@ -67,9 +63,6 @@ def clear_renamed_env_vars(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def _prepare(monkeypatch: pytest.MonkeyPatch, renamed_env_var: RenamedEnvVar) -> None:
-    if renamed_env_var.section == "loki":
-        monkeypatch.setenv("LOKI_URL", "http://loki:3100")
-        monkeypatch.setenv("LOKI_QUERIES", '{job="traefik"}')
     counterpart = COORDINATE_COUNTERPARTS.get(renamed_env_var.new)
     if counterpart is not None:
         monkeypatch.setenv(*counterpart)
@@ -153,8 +146,6 @@ def test_neither_set_uses_default() -> None:
 
 
 def test_every_old_name_in_use_is_listed_in_table_order(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("LOKI_URL", "http://loki:3100")
-    monkeypatch.setenv("LOKI_QUERIES", '{job="traefik"}')
     for renamed_env_var in reversed(RENAMED_ENV_VARS):
         monkeypatch.setenv(renamed_env_var.old, renamed_env_var.sample)
 
@@ -188,32 +179,6 @@ def test_old_coordinate_alone_fails_the_pair_check(monkeypatch: pytest.MonkeyPat
         Settings(_env_file=None)
 
 
-@pytest.mark.parametrize("blank_value", ["", "  ", "[]"])
-def test_blank_old_name_counts_as_unset(
-    monkeypatch: pytest.MonkeyPatch, blank_value: str
-) -> None:
-    monkeypatch.setenv("LOKI_URL", "http://loki:3100")
-    monkeypatch.setenv("LOKI_QUERIES", '{job="traefik"}')
-    monkeypatch.setenv("LOKI_HOST_NAMES", blank_value)
-
-    settings = Settings(_env_file=None)
-
-    assert settings.loki.server_names == []
-    assert settings.legacy_env_names_in_use() == []
-
-
-def test_blank_old_name_does_not_conflict_with_new_name(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("LOKI_URL", "http://loki:3100")
-    monkeypatch.setenv("LOKI_QUERIES", '{job="traefik"}')
-    monkeypatch.setenv("LOKI_HOST_NAMES", "")
-    monkeypatch.setenv("LOKI_SERVER_NAMES", "edge-01")
-
-    settings = Settings(_env_file=None)
-
-    assert settings.loki.server_names == ["edge-01"]
-    assert settings.legacy_env_names_in_use() == []
-
-
 def test_empty_old_server_locations_counts_as_unset(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("MAP_HOME_LOCATIONS", "{}")
 
@@ -244,3 +209,14 @@ def test_old_name_set_to_false_still_counts_as_set(monkeypatch: pytest.MonkeyPat
     assert settings.legacy_env_names_in_use() == [
         LegacyEnvName(old="MAP_AUTO_DETECT_HOME", new="MAP_AUTO_DETECT_SERVER_LOCATION")
     ]
+
+
+def test_loki_host_names_is_ignored(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("LOKI_URL", "http://loki:3100")
+    monkeypatch.setenv("LOKI_QUERIES", '{job="traefik"}')
+    monkeypatch.setenv("LOKI_HOST_NAMES", "edge-01")
+
+    settings = Settings(_env_file=None)
+
+    assert settings.loki.server_names == []
+    assert settings.legacy_env_names_in_use() == []

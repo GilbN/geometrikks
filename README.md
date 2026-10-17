@@ -537,8 +537,7 @@ Loki runs on the same Docker network.
 Without `LOKI_SERVER_NAMES`, GeoMetrikks stamps every selector with the
 first `LOGPARSER_SERVER_NAME`. That is a name you choose for this server, not
 your nginx `server_name`, and it defaults to the machine's hostname. If the
-selectors are different proxies, give each one its own server name. The old
-names, `LOKI_HOST_NAMES` and `LOGPARSER_HOST_NAME`, still work until 1.0.
+selectors are different proxies, give each one its own server name.
 
 - Loki must hold the raw access-log line. If a pipeline stage rewrites the
   line, for example into logfmt, GeoMetrikks has nothing it can parse.
@@ -1056,7 +1055,6 @@ work until 1.0:
 | Variable | Old name |
 |---|---|
 | `LOGPARSER_SERVER_NAME` | `LOGPARSER_HOST_NAME` |
-| `LOKI_SERVER_NAMES` | `LOKI_HOST_NAMES` |
 | `MAP_SERVER_LOCATIONS` | `MAP_HOME_LOCATIONS` |
 | `MAP_SERVER_LATITUDE` | `MAP_HOME_LATITUDE` |
 | `MAP_SERVER_LONGITUDE` | `MAP_HOME_LONGITUDE` |

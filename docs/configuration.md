@@ -111,7 +111,7 @@ from real environment variables. It is read once at import time.
 | `LOKI_URL` | - | Base URL of the Loki server, e.g. http://loki:3100. http or https. Unset (default): no Loki source. |
 | `LOKI_QUERIES` | *(computed)* | LogQL stream selectors, one source each, e.g. {job="traefik"}. Env accepts a single selector or a JSON list. Empty (default): no Loki source. |
 | `LOKI_FORMATS` | *(computed)* | Log format per query, same values as LOGPARSER_LOG_FORMATS. Env accepts one value for every query, or a JSON list matching LOKI_QUERIES by position. |
-| `LOKI_SERVER_NAMES` | *(computed)* | Server name per query. Env accepts one value or a JSON list matching LOKI_QUERIES by position. Empty (default): the first LOGPARSER_SERVER_NAME. Formerly `LOKI_HOST_NAMES`, which still works until 1.0. |
+| `LOKI_SERVER_NAMES` | *(computed)* | Server name per query. Env accepts one value or a JSON list matching LOKI_QUERIES by position. Empty (default): the first LOGPARSER_SERVER_NAME. |
 | `LOKI_TENANT_ID` | - | Sent as X-Scope-OrgID, for a multi-tenant Loki. Unset (default): no header. |
 | `LOKI_USERNAME` | - | Basic auth username, with LOKI_PASSWORD. |
 | `LOKI_PASSWORD` | - | Basic auth password, with LOKI_USERNAME. |

@@ -88,12 +88,11 @@ class LegacyEnvNamesSettings(BaseSettings):
     def _merge_legacy_fields(self) -> None:
         """Copy each set legacy value onto its replacement field.
 
-        A blank or empty value such as ``LOKI_HOST_NAMES=`` or
-        ``MAP_HOME_LOCATIONS={}`` counts as unset, but ``false`` and ``0`` are
-        set. Call this first in the section's after-validator, so checks that
-        read the new fields see the merged values. Both names set to different
-        parsed values is an error: silently preferring one would leave an edit
-        to the other doing nothing.
+        An empty ``MAP_HOME_LOCATIONS={}`` counts as unset, but ``false`` and
+        ``0`` are set. Call this first in the section's after-validator, so
+        checks that read the new fields see the merged values. Both names set
+        to different parsed values is an error: silently preferring one would
+        leave an edit to the other doing nothing.
         """
         model = type(self)
         legacy_env_names: list[LegacyEnvName] = []
@@ -102,7 +101,7 @@ class LegacyEnvNamesSettings(BaseSettings):
             if new_field_name is None:
                 continue
             legacy_value = getattr(self, legacy_field_name)
-            if legacy_value is None or legacy_value in ("", [], {}):
+            if legacy_value is None or legacy_value == {}:
                 continue
             legacy_env_name = LegacyEnvName(
                 old=_env_var_name(model, legacy_field_name),
@@ -545,7 +544,7 @@ class LogParserSettings(LegacyEnvNamesSettings):
         return value
 
 
-class LokiSettings(LegacyEnvNamesSettings):
+class LokiSettings(BaseSettings):
     """Reading access-log lines from Grafana Loki instead of a file.
 
     Active when ``url`` and at least one ``queries`` entry are set. Each
@@ -582,8 +581,7 @@ class LokiSettings(LegacyEnvNamesSettings):
         description=(
             "Server name per query. Env accepts one value or a JSON list "
             "matching LOKI_QUERIES by position. Empty (default): the first "
-            "LOGPARSER_SERVER_NAME. Formerly `LOKI_HOST_NAMES`, which still "
-            "works until 1.0."
+            "LOGPARSER_SERVER_NAME."
         ),
     )
     tenant_id: str | None = Field(
@@ -612,13 +610,7 @@ class LokiSettings(LegacyEnvNamesSettings):
             "more than an hour, so values above 3600 behave as 3600."
         ),
     )
-    host_names: Annotated[list[str] | None, NoDecode] = Field(
-        default=None,
-        description="Replaced by `LOKI_SERVER_NAMES`.",
-        json_schema_extra={LEGACY_FIELD_MARKER: "server_names"},
-    )
-
-    @field_validator("queries", "formats", "server_names", "host_names", mode="before")
+    @field_validator("queries", "formats", "server_names", mode="before")
     @classmethod
     def parse_single_or_json_list(cls, value: object) -> object:
         """Accept a single value or a JSON list.
@@ -674,25 +666,19 @@ class LokiSettings(LegacyEnvNamesSettings):
             raise ValueError("LOKI_QUERIES entries must be non-empty")
         return [entry.strip() for entry in value]
 
-    @field_validator("server_names", "host_names")
+    @field_validator("server_names")
     @classmethod
-    def validate_server_name_entries(
-        cls, value: list[str] | None, info: ValidationInfo
-    ) -> list[str] | None:
+    def validate_server_name_entries(cls, value: list[str]) -> list[str]:
         """Fail at startup on blank entries; '' would silently un-stamp records."""
-        if value is None:
-            return None
         if any(not server_name.strip() for server_name in value):
-            env_var = _env_var_name(cls, info.field_name or "server_names")
-            raise ValueError(f"{env_var} entries must be non-empty")
+            raise ValueError("LOKI_SERVER_NAMES entries must be non-empty")
         return [server_name.strip() for server_name in value]
 
     @model_validator(mode="after")
     def validate_sources(self) -> "LokiSettings":
-        """Take LOKI_HOST_NAMES, then check the URL, queries and per-query lists agree."""
+        """Check the URL, queries and per-query lists agree."""
         from geometrikks.services.logparser.formats import FORMATS
 
-        self._merge_legacy_fields()
         if self.queries and not self.url:
             raise ValueError("LOKI_QUERIES needs LOKI_URL")
         if self.url and not self.queries:
@@ -1423,7 +1409,6 @@ class Settings(BaseSettings):
         """Old env var names this process read, each with its replacement."""
         return (
             self.logparser.legacy_env_names_in_use()
-            + self.loki.legacy_env_names_in_use()
             + self.map.legacy_env_names_in_use()
         )
 
