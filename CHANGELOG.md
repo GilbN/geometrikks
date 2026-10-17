@@ -23,6 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- The container no longer reports unhealthy while it is still starting. Docker ignores failed health checks for the first 60 seconds and checks every 2 seconds in that window, so the container turns healthy as soon as it answers. Before, a start that took more than about 10 seconds marked it unhealthy.
 - Tooltips are easier to read in light and dark mode. They use the same background as menus, so the grey descriptions and the changelog notice in the sidebar tooltips have enough contrast.
 - `import-logs` no longer drops the access-log rows of a whole file when only its first line is in a looser format, such as nginx's `common` ahead of the full format. It now detects the format from the first 1,000 lines.
 - After `import-logs` and the backfill commands, analytics include the first and last day of the range they wrote. Before, those partial days stayed missing from the daily views. An import that didn't cover a whole UTC day failed the daily refresh outright, and `import-logs` still printed "CAGGs refreshed." It now exits with an error when a refresh fails.
